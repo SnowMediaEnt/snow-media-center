@@ -374,6 +374,27 @@ export interface PlexItem {
   grandparentTitle?: string;
   parentIndex?: number;
   index?: number;
+  /** 0..10, audience rating when Plex has one, else the critic rating. */
+  rating?: number;
+  /** "PG-13", "TV-MA" … */
+  contentRating?: string;
+  genres?: string[];
+}
+
+/** Rating, certificate and genres as Plex sends them on LIST payloads, so
+ *  the browse screen can describe the highlighted title without a metadata
+ *  round-trip. Any of them may be missing; the strip hides what is absent. */
+function itemExtras(m: Record<string, unknown>): Pick<PlexItem, 'rating' | 'contentRating' | 'genres'> {
+  const ar = typeof m.audienceRating === 'number' ? m.audienceRating : undefined;
+  const cr = typeof m.rating === 'number' ? m.rating : undefined;
+  const g = Array.isArray(m.Genre)
+    ? (m.Genre as Array<Record<string, unknown>>).map((x) => String(x.tag || '')).filter(Boolean)
+    : [];
+  return {
+    rating: ar ?? cr,
+    contentRating: typeof m.contentRating === 'string' && m.contentRating ? m.contentRating : undefined,
+    genres: g.length ? g.slice(0, 3) : undefined,
+  };
 }
 
 /** Extract videoResolution from Media[0] if present. */
@@ -421,6 +442,7 @@ export async function getPlexLibraryItems(
       summary: m.summary as string | undefined,
       duration: m.duration as number | undefined,
       videoResolution: mediaRes(m),
+      ...itemExtras(m),
     })),
     totalSize,
   };
@@ -724,6 +746,7 @@ function mapMetadata(items: Array<Record<string, unknown>>): PlexItem[] {
     summary: m.summary as string | undefined,
     duration: m.duration as number | undefined,
     videoResolution: mediaRes(m),
+    ...itemExtras(m),
     librarySectionID: m.librarySectionID != null ? String(m.librarySectionID) : undefined,
     viewOffset: typeof m.viewOffset === 'number' ? m.viewOffset : undefined,
     grandparentTitle: m.grandparentTitle as string | undefined,
@@ -1105,6 +1128,7 @@ export async function getPlexActorItems(
     summary: m.summary as string | undefined,
     duration: m.duration as number | undefined,
     videoResolution: mediaRes(m),
+    ...itemExtras(m),
   }));
 }
 

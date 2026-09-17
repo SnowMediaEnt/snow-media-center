@@ -12,7 +12,7 @@
 //     rings can't be occluded by an under-estimated row.
 //   • Poster images are loaded off the JS heap by PlexImage (see that file).
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Settings as SettingsIcon, Eye, EyeOff, LogOut } from 'lucide-react';
+import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Settings as SettingsIcon, Eye, EyeOff, LogOut, MessageSquare, Tv, Film } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useToast } from '@/hooks/use-toast';
 import { isFireTV } from '@/utils/platform';
@@ -41,7 +41,9 @@ import {
 import PlexAuthScreen from './PlexAuthScreen';
 import OverseerrRequestPanel from './OverseerrRequestPanel';
 import PlexImage from './PlexImage';
-import PlexLibraryRows from './PlexLibraryRows';
+import PlexLibraryRows, { type PlexMenuRow } from './PlexLibraryRows';
+import PlexPosterTile from './PlexPosterTile';
+import PlexHighlightStrip, { type PlexHighlight } from './PlexHighlightStrip';
 import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type SubtitleSearchContext } from './PlexPlayerOverlay';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
@@ -76,6 +78,8 @@ const PAGE_MORE = 200;
 
 type TabType = 'home' | 'search' | 'movie' | 'show' | 'request' | 'manage';
 interface Tab { key: string; title: string; type: TabType; libKey?: string; }
+type MenuGroup = 'home' | 'libraries' | 'more';
+interface MenuEntry { kind: 'tab' | 'row'; tabIdx: number; rowId?: string; title: string; group: MenuGroup; key: string; }
 
 interface Props {
   isActive: boolean;
@@ -108,8 +112,14 @@ interface HomePanelProps {
   token: string;
   onPlay: (it: PlexItem) => void;
   onExitToTabs: () => void;
+  /** The highlighted poster, for the strip above the rails. */
+  onHighlight?: (h: PlexHighlight | null) => void;
+  /** The rails this panel is showing, for the side menu's jump list. */
+  onRowsChange?: (rows: PlexMenuRow[]) => void;
+  /** Focus a rail by id (from the side menu). `n` makes repeats distinct. */
+  jumpTo?: { id: string; n: number } | null;
 }
-const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePanelProps) => {
+const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs, onHighlight, onRowsChange, jumpTo }: HomePanelProps) => {
   const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const [onDeck, setOnDeck] = useState<PlexItem[]>(() => getCachedHub(base, onDeckPath) ?? []);
@@ -151,13 +161,30 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
   }, [base, token, hubRetry]);
 
   const rows = useMemo(() => {
-    const r: Array<{ title: string; items: PlexItem[] }> = [];
-    if (onDeck.length > 0) r.push({ title: 'Continue Watching', items: onDeck.slice(0, 40) });
-    r.push({ title: 'Recently Added', items: recent.slice(0, 40) });
+    const r: Array<{ id: string; title: string; items: PlexItem[] }> = [];
+    if (onDeck.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: onDeck.slice(0, 40) });
+    r.push({ id: 'added', title: 'Recently Added', items: recent.slice(0, 40) });
     return r;
   }, [onDeck, recent]);
 
   useEffect(() => { if (row >= rows.length) setRow(Math.max(0, rows.length - 1)); }, [rows.length, row]);
+
+  // Tell the side menu which rails exist, and the strip what is highlighted.
+  const onRowsChangeRef = useRef(onRowsChange); useEffect(() => { onRowsChangeRef.current = onRowsChange; }, [onRowsChange]);
+  useEffect(() => { onRowsChangeRef.current?.(rows.map((r) => ({ id: r.id, title: r.title }))); }, [rows]);
+  const onHighlightRef = useRef(onHighlight); useEffect(() => { onHighlightRef.current = onHighlight; }, [onHighlight]);
+  useEffect(() => {
+    const r = rows[row];
+    const it = r?.items[col];
+    onHighlightRef.current?.(it ? { item: it, from: r.title } : null);
+  }, [rows, row, col]);
+
+  // A jump from the side menu lands on the first tile of that rail.
+  useEffect(() => {
+    if (!jumpTo) return;
+    const i = rows.findIndex((r) => r.id === jumpTo.id);
+    if (i >= 0) { setRow(i); setCol(0); }
+  }, [jumpTo, rows]);
 
   const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
   const colRef = useRef(col); useEffect(() => { colRef.current = col; }, [col]);
@@ -176,10 +203,11 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       const r = rowRef.current, c = colRef.current;
       const currentRow = rowsRef.current[r];
-      if (!currentRow) return;
+      if (!currentRow) { if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') onExitRef.current(); return; }
       if (e.key === 'ArrowUp') { if (r === 0) onExitRef.current(); else { setRow(r - 1); setCol(0); } }
       else if (e.key === 'ArrowDown') { if (r < rowsRef.current.length - 1) { setRow(r + 1); setCol(0); } }
-      else if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); }
+      // Left off the first tile is the way into the side menu.
+      else if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); else onExitRef.current(); }
       else if (e.key === 'ArrowRight') { if (c < currentRow.items.length - 1) setCol(c + 1); }
       else if (e.key === 'Enter' || e.key === ' ') { const it = currentRow.items[c]; if (it) onPlayRef.current(it); }
     };
@@ -191,28 +219,21 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       {rows.map((r, ri) => (
-        <div key={r.title}>
-          <div className="text-xl font-quicksand font-semibold text-white/90 mb-3">{r.title}</div>
-          <div className="flex gap-4 overflow-x-auto py-3 px-2 -mx-2">
-            {r.items.map((it, ci) => {
-              const focused = isActive && ri === row && ci === col;
-              const label = resolutionLabel(it.videoResolution);
-              return (
-                <div key={it.ratingKey}
-                  ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
-                  onClick={() => { setRow(ri); setCol(ci); onPlay(it); }}
-                  className={`tv-ring relative flex-shrink-0 w-[150px] cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${focused ? 'scale-[1.08] z-10' : ''}`}
-                  data-focused={focused ? 'true' : 'false'}>
-                  <div className="relative aspect-[2/3]">
-                    <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
-                    <ResChip label={label} />
-                  </div>
-                  <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
-                </div>
-              );
-            })}
+        <div key={r.id} data-plex-row={r.id}>
+          <div className="text-base font-quicksand font-semibold text-white/90 mb-2">{r.title}</div>
+          <div className="flex gap-3 overflow-x-auto py-2 px-2 -mx-2">
+            {r.items.map((it, ci) => (
+              <PlexPosterTile
+                key={it.ratingKey}
+                item={it}
+                base={base}
+                token={token}
+                focused={isActive && ri === row && ci === col}
+                onClick={() => { setRow(ri); setCol(ci); onPlay(it); }}
+              />
+            ))}
           </div>
         </div>
       ))}
@@ -657,6 +678,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [items, setItems] = useState<PlexItem[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [zone, setZone] = useState<'tabs' | 'grid'>('tabs');
+  // The side menu. `menuIdx` is the focused ENTRY (a tab, or one of the
+  // current tab's rails listed under it); `libIdx` stays the selected tab.
+  // Tracked by entry KEY, not index: selecting a library collapses Home's
+  // rail entries above it, and an index would land on whatever slid into
+  // that slot.
+  const [menuKey, setMenuKey] = useState<string | null>(null);
+  // Rails each panel reports, keyed by tab so switching back is instant.
+  const [menuRowsByTab, setMenuRowsByTab] = useState<Record<string, PlexMenuRow[]>>({});
+  const [highlight, setHighlight] = useState<PlexHighlight | null>(null);
+  const [jumpTo, setJumpTo] = useState<{ id: string; n: number } | null>(null);
   // What a library tab shows: the new row view, or the old A-Z grid reached
   // through "Browse all". Keyed by libKey so switching libraries cannot carry
   // one library's mode into another — the panels all render in the SAME slot
@@ -861,6 +892,52 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   const currentTab = tabs[libIdx];
   const homeIdx = 0;
+
+  // The side menu, top to bottom: Home and its rails, each library and (when
+  // selected) its rails, then Search, Request and Settings.
+  const menuEntries = useMemo<MenuEntry[]>(() => {
+    const out: MenuEntry[] = [];
+    // Grouped, not in tab order: Search sits with Request and Settings at the
+    // bottom rather than between Home and the libraries.
+    const order: MenuGroup[] = ['home', 'libraries', 'more'];
+    for (const g of order) {
+      tabs.forEach((t, i) => {
+        const group: MenuGroup = t.type === 'home' ? 'home' : (t.type === 'movie' || t.type === 'show') ? 'libraries' : 'more';
+        if (group !== g) return;
+        out.push({ kind: 'tab', tabIdx: i, title: t.title, group, key: t.key });
+        if (i === libIdx && group !== 'more') {
+          for (const r of menuRowsByTab[t.key] ?? []) out.push({ kind: 'row', tabIdx: i, rowId: r.id, title: r.title, group, key: `${t.key}:${r.id}` });
+        }
+      });
+    }
+    return out;
+  }, [tabs, libIdx, menuRowsByTab]);
+  const menuEntriesRef = useRef(menuEntries); useEffect(() => { menuEntriesRef.current = menuEntries; }, [menuEntries]);
+  // A vanished entry (a rail that emptied) falls back to the selected tab.
+  const menuIdx = useMemo(() => {
+    const i = menuEntries.findIndex((m) => m.key === menuKey);
+    if (i >= 0) return i;
+    const t = menuEntries.findIndex((m) => m.kind === 'tab' && m.tabIdx === libIdx);
+    return Math.max(0, t);
+  }, [menuEntries, menuKey, libIdx]);
+
+  // Leaving the content puts the menu's focus on the selected tab's entry.
+  const exitToMenu = useCallback(() => {
+    const t = menuEntriesRef.current.find((m) => m.kind === 'tab' && m.tabIdx === libIdxRef.current);
+    if (t) setMenuKey(t.key);
+    setZone('tabs');
+  }, []);
+  const reportRows = useCallback((tabKey: string, rows: PlexMenuRow[]) => {
+    setMenuRowsByTab((m) => {
+      const prev = m[tabKey];
+      if (prev && prev.length === rows.length && prev.every((r, i) => r.id === rows[i].id && r.title === rows[i].title)) return m;
+      return { ...m, [tabKey]: rows };
+    });
+  }, []);
+  // Selecting a tab from the menu also blanks the strip, in the same batch:
+  // an effect on libIdx would run AFTER the new panel's own mount effect and
+  // wipe the highlight it had just reported.
+  const selectTab = useCallback((i: number) => { setLibIdx(i); setHighlight(null); }, []);
   // Tab to stay on across a tabs-list change (see the pin effect below).
   const wantTabKeyRef = useRef<string | null>(null);
 
@@ -1555,6 +1632,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   // ── refs for keyboard ───────────────────────────────────────────────
   const cursorRef = useRef(cursor);
+  const menuIdxRef = useRef(menuIdx); useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
   const libIdxRef = useRef(libIdx); const itemsRef = useRef(items);
   const tabsRef = useRef(tabs); const fullscreenRef = useRef(fullscreen);
   // detailRef declared earlier (near openDetail); ref-sync effect below.
@@ -1613,6 +1691,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       }
 
       if (isBack) {
+        // A library in rows mode owns its own Back: it clears a filter, leaves
+        // the chip bar, or calls exitToMenu itself. This listener runs FIRST
+        // (it registered before the panel's), so it must step aside here or
+        // the panel never sees the key and a set filter can't be undone.
+        const rt = tabsRef.current[libIdxRef.current];
+        if (
+          zoneRef.current === 'grid' && rt && rt.libKey
+          && (rt.type === 'movie' || rt.type === 'show')
+          && (libraryModeRef.current[rt.libKey] ?? 'rows') === 'rows'
+        ) return;
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         // Inside a library's A-Z grid, Back returns to that library's rows
         // rather than jumping to the Home tab. Gated on zone === 'grid' so it
@@ -1628,8 +1716,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           setLibraryMode((m) => ({ ...m, [bt.libKey!]: 'rows' }));
           return;
         }
-        if (libIdxRef.current !== homeIdx) goHome();
-        else onExitLeft?.();
+        // Content → the side menu; the menu → out of Plex.
+        if (zoneRef.current === 'grid') { exitToMenu(); return; }
+        onExitLeft?.();
         return;
       }
 
@@ -1659,11 +1748,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
 
       if (zoneRef.current === 'tabs') {
-        const n = tabsRef.current.length;
-        if (e.key === 'ArrowLeft') { if (libIdxRef.current > 0) setLibIdx((i) => Math.max(0, i - 1)); }
-        else if (e.key === 'ArrowRight') setLibIdx((i) => Math.min(n - 1, i + 1));
-        else if (e.key === 'ArrowUp') { /* never leave Plex via arrows */ }
-        else if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') setZone('grid');
+        const entries = menuEntriesRef.current;
+        const mi = Math.min(menuIdxRef.current, entries.length - 1);
+        const moveTo = (i: number) => {
+          const next = entries[i];
+          if (!next) return;
+          setMenuKey(next.key);
+          // Landing on a tab selects it right away, exactly as the old strip
+          // did, so its panel is already loading by the time the user enters.
+          if (next.kind === 'tab' && next.tabIdx !== libIdxRef.current) selectTab(next.tabIdx);
+        };
+        if (e.key === 'ArrowUp') { if (mi > 0) moveTo(mi - 1); }
+        else if (e.key === 'ArrowDown') { if (mi < entries.length - 1) moveTo(mi + 1); }
+        else if (e.key === 'ArrowLeft') { /* never leave Plex via arrows */ }
+        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
+          const cur = entries[mi];
+          if (cur?.kind === 'row' && cur.rowId) setJumpTo({ id: cur.rowId, n: Date.now() });
+          setZone('grid');
+        }
         return;
       }
 
@@ -1683,7 +1785,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // hardware Back into a synthetic Escape KeyboardEvent, which flows through
     // this exact capture chain. Registering our own listener caused double-
     // fires (each listener popped one level, exiting Plex on the first press).
-  }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, cancelLink, detailItem, fullscreen, streamUrl, slowLoad, native.error]);
+  }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, exitToMenu, selectTab, cancelLink, detailItem, fullscreen, streamUrl, slowLoad, native.error]);
 
   // Demo notice owns the D-pad while open: swallow every key so focus can't
   // leak into the grid behind it. OK / Back / Escape dismiss.
@@ -1874,37 +1976,75 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   // ── render: browse ─────────────────────────────────────────────────
   const totalH = rowVirtualizer.getTotalSize();
+  const groupLabel: Record<MenuGroup, string> = { home: 'Home', libraries: 'Libraries', more: 'More' };
+  const menuIcon = (t: Tab) =>
+    t.type === 'home' ? HomeIcon : t.type === 'search' ? SearchIcon : t.type === 'manage' ? SettingsIcon
+    : t.type === 'request' ? MessageSquare : t.type === 'show' ? Tv : Film;
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-black/30 text-white">
-      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-black/40 overflow-x-auto whitespace-nowrap">
-        <span className="text-xs uppercase tracking-wide text-brand-ice/70 mr-2">Plex · {conn?.name}</span>
-        {tabs.map((tab, i) => {
-          const focused = isActive && zone === 'tabs' && libIdx === i;
-          const selected = libIdx === i;
-          const Icon = tab.type === 'home' ? HomeIcon : tab.type === 'search' ? SearchIcon : tab.type === 'manage' ? SettingsIcon : null;
+    <div className="flex-1 min-h-0 flex overflow-hidden bg-black/30 text-white">
+      {/* SIDE MENU: Home and its rails, the libraries, then Search / Request /
+          Settings. Entries under the selected tab are its rails — OK jumps
+          straight to that rail instead of scrolling past the others. */}
+      <div className="w-56 flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col py-2 overflow-y-auto overflow-x-hidden">
+        <div className="px-5 pt-2 pb-1 text-xs font-nunito text-brand-ice/60 truncate">Plex · {conn?.name}</div>
+        {menuEntries.map((m, i) => {
+          const focused = isActive && zone === 'tabs' && menuIdx === i;
+          const tab = tabs[m.tabIdx];
+          const selected = m.kind === 'tab' && libIdx === m.tabIdx;
+          const first = i === 0 || menuEntries[i - 1].group !== m.group;
+          const Icon = m.kind === 'tab' ? menuIcon(tab) : null;
           return (
-            <button key={tab.key}
-              ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
-              data-focused={focused ? 'true' : 'false'}
-              onClick={() => { setLibIdx(i); setZone('grid'); }}
-              className={`tv-ring tv-ring-contrast flex-shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl text-base font-nunito ${focused ? 'bg-brand-gold text-black font-bold scale-105 z-10' : selected ? 'bg-white/90 text-black font-semibold' : 'bg-white/10 text-white'}`}>
-              {Icon && <Icon className="w-3.5 h-3.5" />}
-              {tab.title}
-            </button>
+            <div key={m.key}>
+              {first && (
+                <div className="px-5 pt-3 pb-1 text-xs font-quicksand font-semibold tracking-[0.14em] uppercase text-brand-gold">{groupLabel[m.group]}</div>
+              )}
+              <button
+                ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
+                data-focused={focused ? 'true' : 'false'}
+                onClick={() => {
+                  setMenuKey(m.key); if (m.tabIdx !== libIdx) selectTab(m.tabIdx);
+                  if (m.kind === 'row' && m.rowId) setJumpTo({ id: m.rowId, n: Date.now() });
+                  setZone('grid');
+                }}
+                className={`tv-ring relative w-full flex items-center gap-2.5 text-left h-9 rounded-lg mx-2 font-nunito text-sm ${
+                  m.kind === 'row' ? 'pl-9 pr-3' : 'pl-3 pr-3'
+                } ${focused ? 'bg-white/10 text-white font-semibold' : selected ? 'text-white font-semibold' : m.kind === 'row' ? 'text-brand-ice/70' : 'text-brand-ice/85'}`}
+                style={{ width: 'calc(100% - 1rem)' }}
+              >
+                {selected && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-brand-gold" aria-hidden="true" />}
+                {Icon ? <Icon className="w-4 h-4 flex-shrink-0 opacity-80" /> : null}
+                <span className="truncate">{m.title}</span>
+              </button>
+            </div>
           );
         })}
+        <div className="mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">▶ into rows · OK jump · Back exit</div>
       </div>
 
-      <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        {conn && (currentTab?.type === 'home' || currentTab?.type === 'movie' || currentTab?.type === 'show') && (
+          <PlexHighlightStrip highlight={highlight} base={conn.base} token={conn.token} />
+        )}
+
+        <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4 pt-2">
         {currentTab?.type === 'home' && conn ? (
-          <HomePanel isActive={isActive && zone === 'grid' && !detailItem} base={conn.base} token={conn.token} onPlay={openDetail} onExitToTabs={() => setZone('tabs')} />
+          <HomePanel
+            isActive={isActive && zone === 'grid' && !detailItem}
+            base={conn.base}
+            token={conn.token}
+            onPlay={openDetail}
+            onExitToTabs={exitToMenu}
+            onHighlight={setHighlight}
+            onRowsChange={(rows) => reportRows('__home', rows)}
+            jumpTo={jumpTo}
+          />
         ) : currentTab?.type === 'search' && conn ? (
-          <SearchPanel isActive={isActive && zone === 'grid' && !detailItem} base={conn.base} token={conn.token} onPlay={openDetail} onExitToTabs={() => setZone('tabs')} />
+          <SearchPanel isActive={isActive && zone === 'grid' && !detailItem} base={conn.base} token={conn.token} onPlay={openDetail} onExitToTabs={exitToMenu} />
 
         ) : currentTab?.type === 'request' ? (
-          <OverseerrRequestPanel isActive={isActive && zone === 'grid' && !detailItem} onExitToTabs={() => setZone('tabs')} />
+          <OverseerrRequestPanel isActive={isActive && zone === 'grid' && !detailItem} onExitToTabs={exitToMenu} />
         ) : currentTab?.type === 'manage' ? (
-          <ManagePanel isActive={isActive && zone === 'grid' && !detailItem} libraries={libraries} hidden={hidden} librariesError={librariesError} onToggle={toggleHidden} onExitToTabs={() => setZone('tabs')} serverName={conn?.name} owned={conn?.owned} accountToken={accountToken ?? conn?.token} onSignOut={() => { void signOut(); }} />
+          <ManagePanel isActive={isActive && zone === 'grid' && !detailItem} libraries={libraries} hidden={hidden} librariesError={librariesError} onToggle={toggleHidden} onExitToTabs={exitToMenu} serverName={conn?.name} owned={conn?.owned} accountToken={accountToken ?? conn?.token} onSignOut={() => { void signOut(); }} />
         ) : (currentTab?.type === 'movie' || currentTab?.type === 'show')
              && currentTab.libKey && conn && currentMode(currentTab.libKey) === 'rows' ? (
           // key: the panels share one slot in this ternary, so without an
@@ -1926,7 +2066,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             libTitle={currentTab.title}
             sectionType={currentTab.type === 'show' ? 'show' : 'movie'}
             onOpen={openDetail}
-            onExitToTabs={() => setZone('tabs')}
+            onExitToTabs={exitToMenu}
+            onHighlight={setHighlight}
+            onRowsChange={(rows) => reportRows(currentTab.key, rows)}
+            jumpTo={jumpTo}
           />
         ) : itemsLoading && items.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/70 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading…</div>
@@ -1942,19 +2085,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                   <div className="grid grid-cols-6 gap-3">
                     {rowItems.map((it, ci) => {
                       const idx = start + ci;
-                      const focused = isActive && zone === 'grid' && cursor === idx;
-                      const label = resolutionLabel(it.videoResolution);
-                      return (
-                        <div key={it.ratingKey} data-focused={focused ? 'true' : 'false'}
+                      return conn ? (
+                        <PlexPosterTile
+                          key={it.ratingKey}
+                          item={it}
+                          base={conn.base}
+                          token={conn.token}
+                          width="fill"
+                          scrollIntoView={false}
+                          focused={isActive && zone === 'grid' && cursor === idx}
                           onClick={() => { setCursor(idx); openDetail(it); }}
-                          className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${focused ? 'scale-105 z-10' : ''}`}>
-                          <div className="relative aspect-[2/3]">
-                            {conn && <PlexImage base={conn.base} path={it.thumb} token={conn.token} w={180} h={270} className="w-full h-full object-cover" />}
-                            <ResChip label={label} />
-                          </div>
-                          <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
-                        </div>
-                      );
+                        />
+                      ) : null;
                     })}
                   </div>
                 </div>
@@ -1963,10 +2105,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           </div>
         )}
       </div>
-
-      <div className="flex-shrink-0 border-t border-white/10 bg-black/40 px-4 py-2 text-xs font-nunito text-brand-ice/60">
-        ◀ ▶ ▲ ▼ browse · OK for details · Back for Home / exit
       </div>
+
 
       {detailItem && conn && (
         <PlexDetail

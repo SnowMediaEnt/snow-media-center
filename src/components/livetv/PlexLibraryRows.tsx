@@ -26,7 +26,8 @@
 //     scroll layers on a 1GB stick.
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import PlexImage from './PlexImage';
+import PlexPosterTile from './PlexPosterTile';
+import type { PlexHighlight } from './PlexHighlightStrip';
 import {
   getPlexSectionOnDeck, getPlexSectionRow, getCachedHub, setCachedHub,
   getPlexSectionMeta, getPlexFilterValues, getPlexLibraryQuery,
@@ -46,6 +47,9 @@ interface LoadedRow {
   items: PlexItem[];
 }
 
+/** A rail as the side menu lists it. */
+export interface PlexMenuRow { id: string; title: string }
+
 export interface PlexLibraryRowsProps {
   /** The remote is ours: the section is active, the user is in the content
    *  zone, no detail page is open. Drives the keyboard and the focus ring. */
@@ -60,6 +64,12 @@ export interface PlexLibraryRowsProps {
   sectionType: PlexSectionType;
   onOpen: (it: PlexItem) => void;
   onExitToTabs: () => void;
+  /** The highlighted poster, for the strip above the rails. */
+  onHighlight?: (h: PlexHighlight | null) => void;
+  /** The rails currently showing, for the side menu's jump list. */
+  onRowsChange?: (rows: PlexMenuRow[]) => void;
+  /** Focus a rail by id (from the side menu). `n` makes repeats distinct. */
+  jumpTo?: { id: string; n: number } | null;
 }
 
 /** Cache key for a row, so a revisit paints instantly from the hub cache. */
@@ -70,7 +80,7 @@ const rowCachePath = (libKey: string, spec: LibraryRowSpec) =>
 
 const PlexLibraryRows = memo(({
   isActive, isCurrent, base, token, libKey, libTitle, sectionType,
-  onOpen, onExitToTabs,
+  onOpen, onExitToTabs, onHighlight, onRowsChange, jumpTo,
 }: PlexLibraryRowsProps) => {
   const specs = useMemo(() => libraryRowSpecs(sectionType), [sectionType]);
 
@@ -129,6 +139,24 @@ const PlexLibraryRows = memo(({
     }
   }, [rows, row, col]);
 
+  // Tell the side menu which rails exist. Every spec is listed, not only the
+  // loaded ones, so the menu does not reshuffle as wave-2 rows land; a jump to
+  // a rail that turned out empty simply stays where it is.
+  const onRowsChangeRef = useRef(onRowsChange); useEffect(() => { onRowsChangeRef.current = onRowsChange; }, [onRowsChange]);
+  useEffect(() => {
+    onRowsChangeRef.current?.(rows.map((r) => ({ id: r.spec.id, title: r.spec.title })));
+  }, [rows]);
+
+  // A jump from the side menu lands on the first tile of that rail.
+  useEffect(() => {
+    if (!jumpTo) return;
+    if (rows.some((r) => r.spec.id === jumpTo.id)) {
+      setZone('content');
+      setFocusedRowId(jumpTo.id);
+      setCol(0);
+    }
+  }, [jumpTo, rows]);
+
   // ── filter bar ───────────────────────────────────────────────────────────
   // 'bar' is a zone above the content, not a row in the rows array. Keeping it
   // out of that array is deliberate: the rows array mutates as wave-2 rows
@@ -149,7 +177,7 @@ const PlexLibraryRows = memo(({
   const [gridCursor, setGridCursor] = useState(0);
 
   const filtering = hasAnyFilter(filters);
-  const GRID_COLS = 6;
+  const GRID_COLS = 7;
   const PAGE = 120;
 
   // The section's own sort/filter vocabulary, fetched LAZILY the first time the
@@ -367,6 +395,24 @@ const PlexLibraryRows = memo(({
     void openMenu(id);
   }, [openMenu]);
 
+  // The strip above the rails follows whatever tile is highlighted: a rail
+  // tile, or a grid tile while filtering. Nothing while the chip bar has it.
+  const onHighlightRef = useRef(onHighlight); useEffect(() => { onHighlightRef.current = onHighlight; }, [onHighlight]);
+  useEffect(() => {
+    if (!onHighlightRef.current) return;
+    // The chip bar keeps whatever was last described rather than blanking
+    // the strip: the user is one press from the same tile.
+    if (zone === 'bar') return;
+    if (filtering) {
+      const it = results?.items[gridCursor];
+      onHighlightRef.current(it ? { item: it, from: describeFilters(filters, sortOptions.find((o) => o.key === filters.sort)?.title) || 'Filtered' } : null);
+      return;
+    }
+    const r = rows[row];
+    const it = r?.items[col];
+    onHighlightRef.current(it ? { item: it, from: r.spec.title } : null);
+  }, [zone, filtering, results, gridCursor, rows, row, col, filters, sortOptions]);
+
   // ── D-pad ────────────────────────────────────────────────────────────────
   const rowsRef = useRef(rows); useEffect(() => { rowsRef.current = rows; }, [rows]);
   const rowIdxRef = useRef(row); useEffect(() => { rowIdxRef.current = row; }, [row]);
@@ -429,7 +475,12 @@ const PlexLibraryRows = memo(({
           setZone('content');
           return;
         }
-        return; // nothing filtered, on the rows — let the section handle it
+        // Nothing filtered, on the rows: back to the side menu. The section
+        // steps aside on Back while this panel owns the content, so this is
+        // the only listener that will act on it.
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        onExitRef.current();
+        return;
       }
 
       if (!keys.includes(e.key)) return;
@@ -445,7 +496,7 @@ const PlexLibraryRows = memo(({
         const ci = chipIdxRef.current;
         if (e.key === 'ArrowUp') { onExitRef.current(); return; }
         if (e.key === 'ArrowDown') { setZone('content'); return; }
-        if (e.key === 'ArrowLeft') { if (ci > 0) setChipId(cs[ci - 1].id); return; }
+        if (e.key === 'ArrowLeft') { if (ci > 0) setChipId(cs[ci - 1].id); else onExitRef.current(); return; }
         if (e.key === 'ArrowRight') { if (ci < cs.length - 1) setChipId(cs[ci + 1].id); return; }
         if (e.key === 'Enter' || e.key === ' ') { const chip = cs[ci]; if (chip) activateChipRef.current(chip.id); }
         return;
@@ -462,7 +513,7 @@ const PlexLibraryRows = memo(({
           return;
         }
         if (e.key === 'ArrowDown') { if (cur + GRID_COLS < items.length) setGridCursor(cur + GRID_COLS); return; }
-        if (e.key === 'ArrowLeft') { if (cur % GRID_COLS !== 0) setGridCursor(cur - 1); return; }
+        if (e.key === 'ArrowLeft') { if (cur % GRID_COLS !== 0) setGridCursor(cur - 1); else onExitRef.current(); return; }
         if (e.key === 'ArrowRight') { if ((cur % GRID_COLS) < GRID_COLS - 1 && cur + 1 < items.length) setGridCursor(cur + 1); return; }
         if (e.key === 'Enter' || e.key === ' ') { const it = items[cur]; if (it) onOpenRef.current(it); }
         return;
@@ -497,7 +548,8 @@ const PlexLibraryRows = memo(({
 
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
 
-      if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); return; }
+      // Left off the first tile is the way into the side menu.
+      if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); else onExitRef.current(); return; }
       if (e.key === 'ArrowRight') { if (c < current.items.length - 1) setCol(c + 1); return; }
       if (e.key === 'Enter' || e.key === ' ') {
         const it = current.items[c];
@@ -606,7 +658,7 @@ const PlexLibraryRows = memo(({
       {filtering ? (
         <div>
           <div className="flex items-baseline justify-between mb-3">
-            <div className="text-xl font-quicksand font-semibold text-white/90">
+            <div className="text-base font-quicksand font-semibold text-white/90">
               {describeFilters(filters, sortTitle) || 'Filtered'}
             </div>
             {results ? (
@@ -624,35 +676,20 @@ const PlexLibraryRows = memo(({
               Nothing matches that. Press Up and change a filter, or pick Clear.
             </div>
           ) : (
-            <div className="grid grid-cols-6 gap-3">
-              {(results?.items ?? []).map((it, i) => {
-                const f = isActive && zone === 'content' && i === gridCursor;
-                const label = resolutionLabel(it.videoResolution);
-                const cap = tileCaption(it);
-                return (
-                  <div
-                    // Index-suffixed: a server sort with ties is not stable
-                    // across pages, so the same title can appear twice.
-                    key={`${it.ratingKey}-${i}`}
-                    ref={(el) => { if (f && el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }}
-                    onClick={() => { setZone('content'); setGridCursor(i); onOpen(it); }}
-                    data-focused={f ? 'true' : 'false'}
-                    className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${f ? 'scale-[1.06] z-10' : ''}`}
-                  >
-                    <div className="relative aspect-[2/3]">
-                      <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
-                      {label ? (
-                        <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md bg-black/70 text-[10px] font-bold text-brand-gold">
-                          {label}
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${f ? 'text-brand-gold' : 'text-white/90'}`}>
-                      {cap.line1}
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="grid grid-cols-7 gap-3">
+              {(results?.items ?? []).map((it, i) => (
+                <PlexPosterTile
+                  // Index-suffixed: a server sort with ties is not stable
+                  // across pages, so the same title can appear twice.
+                  key={`${it.ratingKey}-${i}`}
+                  item={it}
+                  base={base}
+                  token={token}
+                  width="fill"
+                  focused={isActive && zone === 'content' && i === gridCursor}
+                  onClick={() => { setZone('content'); setGridCursor(i); onOpen(it); }}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -673,54 +710,27 @@ const PlexLibraryRows = memo(({
         // scroll position stay stable, but drop the posters.
         if (ri < mountFrom || ri > mountTo) {
           return (
-            <div key={r.spec.id}>
-              <div className="text-xl font-quicksand font-semibold text-white/90 mb-3">{r.spec.title}</div>
-              <div className="h-[240px]" aria-hidden="true" />
+            <div key={r.spec.id} data-plex-row={r.spec.id}>
+              <div className="text-base font-quicksand font-semibold text-white/90 mb-2">{r.spec.title}</div>
+              <div className="h-[204px]" aria-hidden="true" />
             </div>
           );
         }
 
         return (
-          <div key={r.spec.id}>
-            <div className="text-xl font-quicksand font-semibold text-white/90 mb-3">{r.spec.title}</div>
-            <div className="flex gap-4 overflow-x-auto py-3 px-2 -mx-2">
-              {r.items.slice(0, railCount(ri)).map((it, ci) => {
-                const tileFocused = focused && ci === col;
-                const label = resolutionLabel(it.videoResolution);
-                const cap = tileCaption(it);
-                const progress = resumeFraction(it);
-                return (
-                  <div
-                    key={it.ratingKey}
-                    ref={(el) => { if (tileFocused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
-                    onClick={() => { setFocusedRowId(r.spec.id); setCol(ci); onOpen(it); }}
-                    data-focused={tileFocused ? 'true' : 'false'}
-                    className={`tv-ring relative flex-shrink-0 w-[150px] cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${tileFocused ? 'scale-[1.08] z-10' : ''}`}
-                  >
-                    <div className="relative aspect-[2/3]">
-                      <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
-                      {label ? (
-                        <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md bg-black/70 text-[10px] font-bold text-brand-gold">
-                          {label}
-                        </div>
-                      ) : null}
-                      {progress != null && (
-                        // Inline width, no CSS features — this has to paint on
-                        // a Chromium 66 WebView.
-                        <div className="absolute left-0 right-0 bottom-0 h-[3px] bg-black/60">
-                          <div className="h-full bg-brand-gold" style={{ width: `${Math.round(progress * 100)}%` }} />
-                        </div>
-                      )}
-                    </div>
-                    <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${tileFocused ? 'text-brand-gold' : 'text-white/90'}`}>
-                      {cap.line1}
-                    </div>
-                    {cap.line2 ? (
-                      <div className="px-2 pb-1 text-xs font-nunito text-brand-ice/60 truncate">{cap.line2}</div>
-                    ) : null}
-                  </div>
-                );
-              })}
+          <div key={r.spec.id} data-plex-row={r.spec.id}>
+            <div className="text-base font-quicksand font-semibold text-white/90 mb-2">{r.spec.title}</div>
+            <div className="flex gap-3 overflow-x-auto py-2 px-2 -mx-2">
+              {r.items.slice(0, railCount(ri)).map((it, ci) => (
+                <PlexPosterTile
+                  key={it.ratingKey}
+                  item={it}
+                  base={base}
+                  token={token}
+                  focused={focused && ci === col}
+                  onClick={() => { setFocusedRowId(r.spec.id); setCol(ci); onOpen(it); }}
+                />
+              ))}
             </div>
           </div>
         );
