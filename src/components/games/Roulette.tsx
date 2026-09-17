@@ -178,8 +178,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
   useEffect(() => {
     const el = focusItems.current.get(focusId);
     if (el && document.activeElement !== el) {
-      el.focus();
-      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      el.focus({ preventScroll: true });
     }
   }, [focusId, placements, spinning, wheel, result]);
 
