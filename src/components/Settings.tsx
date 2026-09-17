@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { useDashboardSize, saveDashboardSize } from '@/lib/dashboardSize';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo } from '@/lib/demoMode';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
@@ -35,6 +36,7 @@ type SettingsFocus =
   | 'tab-ai'
   | 'media-content'
   | 'ui-content-bar-toggle'
+  | 'ui-dashboard-size-toggle'
   | 'ui-player-toggle'
   | 'ui-device-alerts-toggle'
   | 'updates-content'
@@ -51,6 +53,7 @@ const Settings = ({ onBack }: SettingsProps) => {
   const isAdmin = hasAdminRole && !demo;
   const showUpdates = !demo;
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
+  const dashboardSize = useDashboardSize();
   const deviceAlerts = useDeviceAlerts();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
   const { toast } = useToast();
@@ -123,7 +126,7 @@ const Settings = ({ onBack }: SettingsProps) => {
       }
 
       const getUiFocusOrder = (): SettingsFocus[] => {
-        const order: SettingsFocus[] = ['ui-content-bar-toggle'];
+        const order: SettingsFocus[] = ['ui-content-bar-toggle', 'ui-dashboard-size-toggle'];
         if (deviceAlerts.supported) order.push('ui-device-alerts-toggle');
         if (isAdmin) {
           order.push('ui-player-toggle');
@@ -167,6 +170,7 @@ const Settings = ({ onBack }: SettingsProps) => {
         }
         if (event.key === 'Enter' || event.key === ' ') {
           if (focusedElement === 'ui-content-bar-toggle') setMediaBarEnabledState(!mediaBarEnabled);
+          else if (focusedElement === 'ui-dashboard-size-toggle') saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large');
           else if (focusedElement === 'ui-device-alerts-toggle') void toggleDeviceAlerts(!deviceAlerts.status.enabled);
           else if (focusedElement === 'ui-player-toggle') void togglePlayer(!playerEnabled);
           else if (focusedElement.startsWith('ui-language-')) {
@@ -522,6 +526,35 @@ const Settings = ({ onBack }: SettingsProps) => {
                   checked={mediaBarEnabled}
                   onCheckedChange={setMediaBarEnabledState}
                   aria-label={t('settings.contentBar.aria')}
+                  className="mt-1"
+                />
+              </div>
+            </Card>
+
+            <Card
+              {...settingsFocusAttrs('ui-dashboard-size-toggle')}
+              tabIndex={0}
+              role="button"
+              aria-pressed={dashboardSize === 'large'}
+              onFocus={() => setFocusedElement('ui-dashboard-size-toggle')}
+              onClick={() => saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large')}
+              className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-dashboard-size-toggle')}`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <LayoutDashboard className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Large dashboard</h3>
+                    <p className="text-sm text-white/70 mt-1">
+                      Off, the Dashboard fits on one screen. On, everything is bigger and easier
+                      to read from the couch, and the page scrolls.
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={dashboardSize === 'large'}
+                  onCheckedChange={(v) => saveDashboardSize(v ? 'large' : 'compact')}
+                  aria-label="Large dashboard"
                   className="mt-1"
                 />
               </div>

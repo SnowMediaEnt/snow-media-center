@@ -32,6 +32,7 @@ const CHANGELOG: Record<string, string[]> = {
     '🎞️ Plex (Movies & Series), redone: a menu down the left for Home, your libraries, Search, Request and Settings, slimmer rails with more on screen, a lighter title page — and hold OK on a library to hide it',
     '📺 Live TV, three ways: pick Classic, Compact or Grid under Player Settings → Appearance. Compact is a slim list with a big preview; Grid is a wall of channel logos',
     '▶️ Live TV preview: OK on a channel plays it in the preview box with sound, OK again goes full screen — on every box, Fire TV included',
+    '🖥️ Dashboard fits on one screen — no more scrolling to reach your account. Prefer it bigger? Settings → UI → Large dashboard',
   ],
   '1.7.1': [
     '🚀 No streaming account yet? Create one right on the TV from the sign-in screen',

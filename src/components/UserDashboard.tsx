@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
+import { useDashboardSize } from '@/lib/dashboardSize';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -56,6 +57,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const [showPurchase, setShowPurchase] = useState(false);
   const [focusedElement, setFocusedElement] = useState(0);
   const [activeTab, setActiveTab] = useState('overview');
+  const large = useDashboardSize() === 'large';
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showServicesEditor, setShowServicesEditor] = useState(false);
@@ -488,11 +490,28 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     );
   }
 
+  // Compact fits one 1080p screen; Large is the roomier original (Settings → UI).
+  const sz = large ? {
+    stat: 'rounded-3xl p-6', statVal: 'text-3xl', statIcon: 'w-12 h-12',
+    btn: 'min-h-12', tab: 'min-h-12',
+    card: 'rounded-3xl p-6', h2: 'text-2xl mb-4',
+    sec: 'mt-8 pt-6 border-t border-brand-ice/15',
+    stack: 'space-y-4', lines: 'space-y-2',
+    h3: 'text-xl font-quicksand font-semibold text-brand-gold',
+  } : {
+    stat: 'rounded-2xl px-4 py-3', statVal: 'text-2xl', statIcon: 'w-8 h-8',
+    btn: 'h-10 px-4 text-sm', tab: 'min-h-10 text-sm',
+    card: 'rounded-2xl p-4', h2: 'text-lg mb-3',
+    sec: 'rounded-xl bg-black/20 border border-white/10 p-3',
+    stack: 'space-y-2', lines: 'space-y-1 text-sm',
+    h3: 'text-xs uppercase tracking-[0.12em] font-quicksand font-semibold text-brand-gold',
+  };
+
   return (
     <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe text-white h-dvh overflow-y-auto overscroll-contain">
 
       {/* Header — pinned to the tv-safe corner, content stays centered below */}
-      <div className="flex items-center w-full justify-between mb-6">
+      <div className={`flex items-center w-full justify-between ${large ? 'mb-6' : 'mb-2'}`}>
         <BackButton
           onClick={() => onViewChange('home')}
           label="Back to Home"
@@ -510,57 +529,66 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           Sign Out
         </Button>
       </div>
-      <div className="max-w-6xl mx-auto pb-24">
-        <div className="flex flex-col items-center mb-8">
-          <div className="text-center mt-4">
-            <h1 className="text-3xl font-quicksand font-bold text-white mb-2 text-shadow-strong">Your Dashboard</h1>
-            <p className="text-xl text-brand-ice font-nunito">Welcome back, <span className="text-brand-gold font-semibold">{profile?.full_name || user?.email}</span></p>
+      <div className={`max-w-6xl mx-auto ${large ? 'pb-24' : 'pb-4'}`}>
+        {/* Compact puts the title on the header row (the block above is
+            absolute within the safe area, so this sits between its buttons). */}
+        {large ? (
+          <div className="flex flex-col items-center mb-8">
+            <div className="text-center mt-4">
+              <h1 className="text-3xl mb-2 font-quicksand font-bold text-white text-shadow-strong">Your Dashboard</h1>
+              <p className="text-xl text-brand-ice font-nunito">Welcome back, <span className="text-brand-gold font-semibold">{profile?.full_name || user?.email}</span></p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-baseline justify-center gap-3 -mt-12 mb-4 h-10 pointer-events-none">
+            <h1 className="text-2xl font-quicksand font-bold text-white text-shadow-strong">Your Dashboard</h1>
+            <p className="text-sm text-brand-ice font-nunito truncate max-w-md">Welcome back, <span className="text-brand-gold font-semibold">{profile?.full_name || user?.email}</span></p>
+          </div>
+        )}
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="relative overflow-hidden border-0 rounded-3xl p-6 shadow-xl [background:var(--gradient-gold)]">
+        <div className={`grid grid-cols-1 md:grid-cols-3 ${large ? 'gap-6 mb-8' : 'gap-3 mb-3'}`}>
+          <Card className={`relative overflow-hidden border-0 shadow-xl [background:var(--gradient-gold)] ${sz.stat}`}>
             <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
             <div className="relative z-10 flex items-center justify-between">
               <div>
                 <p className="text-black/70 text-sm font-semibold font-nunito">Available Snow Gems</p>
-                <p className="text-3xl font-quicksand font-bold text-black/90">{profile?.credits?.toFixed(2) || '0.00'}</p>
+                <p className={`${sz.statVal} font-quicksand font-bold text-black/90`}>{profile?.credits?.toFixed(2) || '0.00'}</p>
               </div>
-              <Wallet className="w-12 h-12 text-black/60 drop-shadow" />
+              <Wallet className={`${sz.statIcon} text-black/60 drop-shadow`} />
             </div>
           </Card>
 
-          <Card className="relative overflow-hidden border-0 rounded-3xl p-6 shadow-xl [background:var(--gradient-blue)]">
+          <Card className={`relative overflow-hidden border-0 shadow-xl [background:var(--gradient-blue)] ${sz.stat}`}>
             <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
             <div className="relative z-10 flex items-center justify-between">
               <div>
                 <p className="text-white/85 text-sm font-semibold font-nunito text-shadow-soft">Total Spent</p>
-                <p className="text-3xl font-quicksand font-bold text-white text-shadow-strong">${profile?.total_spent?.toFixed(2) || '0.00'}</p>
+                <p className={`${sz.statVal} font-quicksand font-bold text-white text-shadow-strong`}>${profile?.total_spent?.toFixed(2) || '0.00'}</p>
               </div>
-              <CreditCard className="w-12 h-12 text-white/85 drop-shadow-xl" />
+              <CreditCard className={`${sz.statIcon} text-white/85 drop-shadow-xl`} />
             </div>
           </Card>
 
-          <Card className="relative overflow-hidden border-0 rounded-3xl p-6 shadow-xl [background:var(--gradient-purple)]">
+          <Card className={`relative overflow-hidden border-0 shadow-xl [background:var(--gradient-purple)] ${sz.stat}`}>
             <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
             <div className="relative z-10 flex items-center justify-between">
               <div>
                 <p className="text-white/85 text-sm font-semibold font-nunito text-shadow-soft">Transactions</p>
-                <p className="text-3xl font-quicksand font-bold text-white text-shadow-strong">{transactions.length}</p>
+                <p className={`${sz.statVal} font-quicksand font-bold text-white text-shadow-strong`}>{transactions.length}</p>
               </div>
-              <History className="w-12 h-12 text-white/85 drop-shadow-xl" />
+              <History className={`${sz.statIcon} text-white/85 drop-shadow-xl`} />
             </div>
           </Card>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap gap-4 mb-8">
+        <div className={`flex flex-wrap ${large ? 'gap-4 mb-8' : 'gap-2 mb-3'}`}>
           <Button 
             onClick={onCreditStore}
             size="lg"
             data-focused={focusedElement === 2 ? 'true' : 'false'}
-            className={`tv-ring tv-ring-contrast min-h-12 rounded-xl border-0 text-black font-semibold shadow-lg [background:var(--gradient-gold)] hover:brightness-110 transition-transform duration-150 ease-out ${
+            className={`tv-ring tv-ring-contrast ${sz.btn} rounded-xl border-0 text-black font-semibold shadow-lg [background:var(--gradient-gold)] hover:brightness-110 transition-transform duration-150 ease-out ${
               focusedElement === 2 ? 'scale-105 z-10' : ''
             }`}
           >
@@ -572,7 +600,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             size="lg"
             variant="outline"
             data-focused={focusedElement === 3 ? 'true' : 'false'}
-            className={`tv-ring min-h-12 rounded-xl border-0 text-white font-semibold shadow-lg [background:var(--gradient-blue)] hover:brightness-110 transition-transform duration-150 ease-out ${
+            className={`tv-ring ${sz.btn} rounded-xl border-0 text-white font-semibold shadow-lg [background:var(--gradient-blue)] hover:brightness-110 transition-transform duration-150 ease-out ${
               focusedElement === 3 ? 'scale-105 z-10' : ''
             }`}
           >
@@ -583,7 +611,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             onClick={onGames}
             size="lg"
             data-focused={focusedElement === 4 ? 'true' : 'false'}
-            className={`tv-ring min-h-12 rounded-xl border-0 text-white font-semibold shadow-lg [background:var(--gradient-purple)] hover:brightness-110 transition-transform duration-150 ease-out ${
+            className={`tv-ring ${sz.btn} rounded-xl border-0 text-white font-semibold shadow-lg [background:var(--gradient-purple)] hover:brightness-110 transition-transform duration-150 ease-out ${
               focusedElement === 4 ? 'scale-105 z-10' : ''
             }`}
           >
@@ -595,7 +623,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               onClick={onGiveaway}
               size="lg"
               data-focused={focusedElement === 5 ? 'true' : 'false'}
-              className={`tv-ring min-h-12 rounded-xl border border-brand-gold/60 bg-brand-gold/20 text-brand-gold font-semibold hover:bg-brand-gold/30 transition-transform duration-150 ease-out ${
+              className={`tv-ring ${sz.btn} rounded-xl border border-brand-gold/60 bg-brand-gold/20 text-brand-gold font-semibold hover:bg-brand-gold/30 transition-transform duration-150 ease-out ${
                 focusedElement === 5 ? 'scale-105 z-10' : ''
               }`}
             >
@@ -607,11 +635,11 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
         {/* Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-auto gap-2 mb-8 rounded-2xl bg-brand-navy/70 border border-brand-ice/20 p-2">
+          <TabsList className={`grid w-full grid-cols-2 h-auto gap-2 rounded-2xl bg-brand-navy/70 border border-brand-ice/20 ${large ? 'mb-8 p-2' : 'mb-3 p-1'}`}>
             <TabsTrigger 
               value="overview" 
               data-focused={focusedElement === TAB_BASE ? 'true' : 'false'}
-              className={`tv-ring tv-ring-contrast min-h-12 text-white data-[state=active]:bg-brand-gold data-[state=active]:text-black text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
+              className={`tv-ring tv-ring-contrast ${sz.tab} text-white data-[state=active]:bg-brand-gold data-[state=active]:text-black text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
                 focusedElement === TAB_BASE ? 'scale-[1.02] z-10' : ''
               }`}
             >
@@ -620,7 +648,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <TabsTrigger 
               value="credits" 
               data-focused={focusedElement === TAB_BASE + 1 ? 'true' : 'false'}
-              className={`tv-ring tv-ring-contrast min-h-12 text-white data-[state=active]:bg-brand-gold data-[state=active]:text-black text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
+              className={`tv-ring tv-ring-contrast ${sz.tab} text-white data-[state=active]:bg-brand-gold data-[state=active]:text-black text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
                 focusedElement === TAB_BASE + 1 ? 'scale-[1.02] z-10' : ''
               }`}
             >
@@ -629,29 +657,34 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           </TabsList>
 
           <TabsContent value="overview" className="mt-0">
-            <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6">
-              <h2 className="text-2xl font-quicksand font-bold text-white mb-4">Account Overview</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <h3 className="text-xl font-quicksand font-semibold text-brand-gold">Profile Information</h3>
-                  <div className="space-y-2">
+            <Card className={`bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl ${sz.card}`}>
+              <h2 className={`${sz.h2} font-quicksand font-bold text-white`}>Account Overview</h2>
+              {/* Compact: the sections sit in a three-column grid of small
+                  panels so the whole overview fits one screen. Large: they
+                  stack with rules between them, as before. */}
+              <div className={large ? '' : 'grid grid-cols-12 gap-3 items-start'}>
+              <div className={large ? 'grid grid-cols-1 md:grid-cols-2 gap-6' : `${sz.sec} col-span-3`}>
+                <div className={sz.stack}>
+                  <h3 className={sz.h3}>Profile Information</h3>
+                  <div className={sz.lines}>
                     <p className="text-white/85"><span className="font-medium text-brand-ice">Name:</span> {profile?.full_name || 'Not set'}</p>
                     <p className="text-white/85"><span className="font-medium text-brand-ice">Email:</span> {profile?.email || user?.email}</p>
                     <p className="text-white/85"><span className="font-medium text-brand-ice">Username:</span> {profile?.username || 'Not set'}</p>
                   </div>
                 </div>
-                <div className="space-y-4">
-                  <h3 className="text-xl font-quicksand font-semibold text-brand-gold">Account Stats</h3>
-                  <div className="space-y-2">
+                <div className={sz.stack}>
+                  <h3 className={sz.h3}>Account Stats</h3>
+                  <div className={sz.lines}>
                     <p className="text-white/85"><span className="font-medium text-brand-ice">Member Since:</span> {new Date(profile?.created_at || '').toLocaleDateString()}</p>
                     <p className="text-white/85"><span className="font-medium text-brand-ice">Total Snow Gems Used:</span> {profile?.total_spent?.toFixed(2) || '0.00'}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Player Account */}
-              <div className="mt-8 pt-6 border-t border-brand-ice/15" data-dash-focus={focusedElement === CLAIM_IDX ? 'true' : 'false'}>
-                <h3 className="text-xl font-quicksand font-semibold text-brand-gold mb-5">Player Account</h3>
+              {/* Player Account, with Billing under it in the compact grid */}
+              <div className={large ? 'contents' : 'col-span-4 space-y-3'}>
+              <div className={sz.sec} data-dash-focus={focusedElement === CLAIM_IDX ? 'true' : 'false'}>
+                <h3 className={`${sz.h3} ${large ? 'mb-5' : 'mb-2'}`}>Player Account</h3>
                 {!playerAccount ? (
                   <div className="space-y-3">
                     <p className="text-brand-ice/75 text-sm">
@@ -663,7 +696,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                         size="lg"
                         onClick={() => onViewChange('account-signin')}
                         data-focused={focusedElement === CLAIM_IDX ? 'true' : 'false'}
-                        className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${
+                        className={`tv-ring tv-ring-contrast ${sz.btn} rounded-xl transition-transform duration-150 ease-out ${
                           focusedElement === CLAIM_IDX ? 'scale-105 z-10' : ''
                         }`}
                       >
@@ -687,7 +720,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                         size="lg"
                         onClick={() => setClaimOpen(true)}
                         data-focused={focusedElement === CLAIM_IDX ? 'true' : 'false'}
-                        className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${
+                        className={`tv-ring tv-ring-contrast ${sz.btn} rounded-xl transition-transform duration-150 ease-out ${
                           focusedElement === CLAIM_IDX ? 'scale-105 z-10' : ''
                         }`}
                       >
@@ -701,9 +734,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
               {/* Billing account — Dreamstreams plans, renewals, trial */}
               {billingOn && (
-                <div className="mt-8 pt-6 border-t border-brand-ice/15" data-dash-focus={focusedElement === BILLING_IDX ? 'true' : 'false'}>
-                  <h3 className="text-xl font-quicksand font-semibold text-brand-gold mb-2">Billing &amp; subscription</h3>
-                  <p className="text-brand-ice/75 text-sm mb-4">
+                <div className={sz.sec} data-dash-focus={focusedElement === BILLING_IDX ? 'true' : 'false'}>
+                  <h3 className={`${sz.h3} mb-2`}>Billing &amp; subscription</h3>
+                  <p className={`text-brand-ice/75 text-sm ${large ? 'mb-4' : 'mb-2'}`}>
                     Your Dreamstreams plan: renew, buy a plan, redeem a gift code, or link a billing account to this device.
                   </p>
                   <Button
@@ -711,7 +744,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                     size="lg"
                     onClick={() => setBillingOpen(true)}
                     data-focused={focusedElement === BILLING_IDX ? 'true' : 'false'}
-                    className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${
+                    className={`tv-ring tv-ring-contrast ${sz.btn} rounded-xl transition-transform duration-150 ease-out ${
                       focusedElement === BILLING_IDX ? 'scale-105 z-10' : ''
                     }`}
                   >
@@ -720,15 +753,16 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   </Button>
                 </div>
               )}
+              </div>
 
               {/* My Devices & Services */}
-              <div className="mt-8 pt-6 border-t border-brand-ice/15" data-dash-focus={focusedElement === EDIT_IDX ? 'true' : 'false'}>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-quicksand font-semibold text-brand-gold">My Devices & Services</h3>
+              <div className={`${sz.sec} ${large ? '' : 'col-span-3'}`} data-dash-focus={focusedElement === EDIT_IDX ? 'true' : 'false'}>
+                <div className={`flex items-center justify-between ${large ? 'mb-6' : 'mb-2'}`}>
+                  <h3 className={sz.h3}>My Devices & Services</h3>
                   <Button
                     onClick={() => setShowServicesEditor(true)}
                     data-focused={focusedElement === EDIT_IDX ? 'true' : 'false'}
-                    className={`tv-ring min-h-12 px-5 rounded-xl border-0 text-white [background:var(--gradient-blue)] hover:brightness-110 transition-transform duration-150 ease-out ${
+                    className={`tv-ring ${large ? 'min-h-12 px-5' : 'h-9 px-3 text-sm'} rounded-xl border-0 text-white [background:var(--gradient-blue)] hover:brightness-110 transition-transform duration-150 ease-out ${
                       focusedElement === EDIT_IDX ? 'scale-105 z-10' : ''
                     }`}
                     size="sm"
@@ -736,7 +770,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                     <Pencil className="w-4 h-4 mr-1" /> Edit
                   </Button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={large ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-2'}>
                   <div>
                     <p className="text-xs uppercase tracking-wide text-brand-gold/90 mb-1">Devices</p>
                     {myDevices.length === 0 ? (
@@ -779,9 +813,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               </div>
 
 
-              <div className="mt-8 pt-6 border-t border-brand-ice/15" data-dash-focus={focusedElement === DELETE_IDX ? 'true' : 'false'}>
-                <h3 className="text-xl font-quicksand font-semibold text-red-300 mb-2">Danger Zone</h3>
-                <p className="text-brand-ice/75 text-sm mb-4">
+              <div className={`${sz.sec} ${large ? '' : 'col-span-2'}`} data-dash-focus={focusedElement === DELETE_IDX ? 'true' : 'false'}>
+                <h3 className={`${sz.h3} !text-red-300 mb-2`}>Danger Zone</h3>
+                <p className={`text-brand-ice/75 text-sm ${large ? 'mb-4' : 'mb-2'}`}>
                   Permanently delete your Snow Media app account and all associated data.
                   
                 </p>
@@ -789,13 +823,14 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   variant="outline"
                   onClick={() => setShowDeleteConfirm(true)}
                   data-focused={focusedElement === DELETE_IDX ? 'true' : 'false'}
-                  className={`tv-ring min-h-12 px-5 rounded-xl bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white transition-transform duration-150 ease-out ${
+                  className={`tv-ring ${large ? 'min-h-12 px-5' : 'h-9 px-3 text-sm w-full justify-center'} rounded-xl bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white transition-transform duration-150 ease-out ${
                     focusedElement === DELETE_IDX ? 'scale-105 z-10' : ''
                   }`}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Delete My Account
+                  {large ? 'Delete My Account' : 'Delete account'}
                 </Button>
+              </div>
               </div>
             </Card>
           </TabsContent>
