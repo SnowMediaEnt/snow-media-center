@@ -12,6 +12,7 @@ import { useVersion } from '@/hooks/useVersion';
  */
 const CHANGELOG: Record<string, string[]> = {
   '1.7.3': [
+    '🎮 Game Lounge, all new: Blackjack with split hands and side bets, Casino Hold\'em, Roulette, Slots with Snowfall bonuses, Plinko, Dice Lounge, Video Poker, TV Trivia and the Daily Spin — play for Snow Coins and climb the leaderboard',
     '📰 Posts from Snow Media, in Support: every email we send out lands under the Posts tab too — dated, marked New until you open it, readable full screen. Turn the heads-up off under Settings → UI',
     '🎬 Plex (Movies & Series): the Player\'s card says Plex, with Movies & Series underneath',
     '🧹 Device Cleaner in Support: frees space and memory, and finds apps nobody opens',
@@ -304,15 +305,19 @@ const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
         dismiss();
         return;
       }
-      if (
-        key === 'ArrowUp' || key === 'ArrowDown' ||
-        key === 'ArrowLeft' || key === 'ArrowRight' ||
-        key === 'Tab'
-      ) {
+      if (key === 'ArrowUp' || key === 'ArrowDown') {
+        // The notes can run longer than the screen: Up/Down read through them.
         e.preventDefault();
         e.stopPropagation();
-        const btn = document.querySelector<HTMLButtonElement>('[data-welcome-primary="true"]');
-        btn?.focus();
+        const box = document.querySelector<HTMLElement>('[data-welcome-scroll="true"]');
+        if (box) box.scrollBy({ top: (key === 'ArrowDown' ? 1 : -1) * Math.round(box.clientHeight * 0.6), behavior: 'smooth' });
+        document.querySelector<HTMLButtonElement>('[data-welcome-primary="true"]')?.focus({ preventScroll: true });
+        return;
+      }
+      if (key === 'ArrowLeft' || key === 'ArrowRight' || key === 'Tab') {
+        e.preventDefault();
+        e.stopPropagation();
+        document.querySelector<HTMLButtonElement>('[data-welcome-primary="true"]')?.focus({ preventScroll: true });
       }
     };
     window.addEventListener('keydown', handler, true);
@@ -329,7 +334,7 @@ const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
       role="dialog"
       aria-modal="true"
     >
-      <Card className="w-full max-w-lg bg-gradient-to-br from-blue-900 to-slate-900 border-blue-500/40 p-6 relative shadow-2xl">
+      <Card className={`w-full ${mode === 'first' ? 'max-w-lg' : 'max-w-5xl'} bg-gradient-to-br from-blue-900 to-slate-900 border-blue-500/40 p-6 relative shadow-2xl`}>
 
         {mode === 'first' ? (
           <>
@@ -376,11 +381,14 @@ const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
               <Sparkles className="w-6 h-6 text-yellow-300" />
               <h2 className="text-2xl font-bold text-white">What's New in v{version}</h2>
             </div>
-            <ul className="space-y-2 text-sm text-white/95 list-disc list-inside">
-              {changelog.map((line, i) => (
-                <li key={i}>{line}</li>
-              ))}
-            </ul>
+            <div data-welcome-scroll="true" className="max-h-[58vh] overflow-y-auto overscroll-contain pr-2">
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2.5 text-base leading-snug text-white/95 list-disc list-outside pl-5">
+                {changelog.map((line, i) => (
+                  <li key={i} className="break-words">{line}</li>
+                ))}
+              </ul>
+            </div>
+            <p className="mt-3 text-xs text-white/50">▲ ▼ scroll · OK close</p>
           </>
         )}
 
