@@ -1084,3 +1084,8 @@ html[data-game-fx="reduced"] .snow-die.is-rolling {
     animation-delay: 0ms;
   }
 }
+.snow-dice-game button[data-tv-focused="true"] {
+  outline: 4px solid #f4ffff !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 8px #00bde8, 0 0 24px 10px rgba(0, 221, 255, .65) !important;
+}

@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const auth = vi.hoisted(() => ({ user: null as { id: string } | null }));
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => auth }));
+
 vi.mock('@/hooks/useGameSocket', () => ({
   useGameSocket: () => ({ balance: 12345, status: 'connected' }),
 }));
@@ -47,7 +50,19 @@ describe('Dice Lounge scoring', () => {
 });
 
 describe('Dice Lounge TV round', () => {
+  it('moves Right from 100 to Roll and Left back to 100', () => {
+    auth.user = { id: 'dice-test' };
+    render(<DiceLounge onBack={() => {}} />);
+    const wager = screen.getByRole('button', { name: '100' });
+    fireEvent.focus(wager);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(document.activeElement?.classList.contains('snow-dice-action--roll')).toBe(true);
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(wager);
+  });
+
   beforeEach(() => {
+    auth.user = null;
     vi.useFakeTimers();
     localStorage.clear();
   });

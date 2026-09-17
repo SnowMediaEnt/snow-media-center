@@ -494,7 +494,18 @@
 }
 .snow-slot-layout .snow-slot-bet > * + * { margin-left: 6px; }
 .snow-slot-layout .snow-slot-bet button { width: 43px; height: 43px; border: 2px solid hsl(199 72% 62% / .44); border-radius: 50%; }
-.snow-slot-layout .snow-slot-bet__value { display: none; }
+.snow-slot-layout .snow-slot-bet__value {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  min-width: 4ch;
+  padding: 0 6px;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.snow-slot-bet__value small { font-size: clamp(10px, .8vw, 22px); line-height: 1.2; text-transform: uppercase; }
+.snow-slot-bet__value strong { font-size: clamp(22px, 1.6vw, 48px); line-height: 1.15; }
 
 .snow-slot-layout .snow-slot-spin {
   position: relative;
