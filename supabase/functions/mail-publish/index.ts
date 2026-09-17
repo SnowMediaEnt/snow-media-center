@@ -80,9 +80,19 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json(405, { error: 'method_not_allowed' });
 
-  const guard = Deno.env.get('INTERNAL_FN_SECRET');
-  const provided = req.headers.get('x-internal-secret') || '';
-  if (!guard || provided !== guard) return json(401, { error: 'unauthorized' });
+  // Trimmed on both sides: a value pasted into a dashboard with a trailing
+  // newline must not break the link. On a mismatch the log says only how long
+  // each side is, never what it is.
+  const guard = (Deno.env.get('INTERNAL_FN_SECRET') ?? '').trim();
+  const provided = (req.headers.get('x-internal-secret') ?? '').trim();
+  if (!guard) {
+    console.error('[mail-publish] 401: INTERNAL_FN_SECRET is not set on this project');
+    return json(401, { error: 'unauthorized', reason: 'secret_not_set' });
+  }
+  if (provided !== guard) {
+    console.warn(`[mail-publish] 401: secret mismatch (project value ${guard.length} chars, caller sent ${provided.length} chars)`);
+    return json(401, { error: 'unauthorized', reason: 'secret_mismatch' });
+  }
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return json(400, { error: 'bad_json' }); }
