@@ -492,15 +492,19 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
   // Compact fits one 1080p screen; Large is the roomier original (Settings → UI).
   const sz = large ? {
-    stat: 'rounded-3xl p-6', statVal: 'text-3xl', statIcon: 'w-12 h-12',
-    btn: 'min-h-12', tab: 'min-h-12',
+    gap: 'gap-4', rowGap: 'mb-6',
+    h1: 'text-3xl', sub: 'text-lg', hdrBtn: 'min-h-12 px-5',
+    stat: 'rounded-2xl px-5 py-4', statVal: 'text-3xl', statIcon: 'w-7 h-7', statIconBox: 'w-14 h-14', statLabel: 'text-sm',
+    btn: 'min-h-12 text-base', tab: 'min-h-12',
     card: 'rounded-3xl p-6', h2: 'text-2xl mb-4',
     sec: 'mt-8 pt-6 border-t border-brand-ice/15',
     stack: 'space-y-4', lines: 'space-y-2',
     h3: 'text-xl font-quicksand font-semibold text-brand-gold',
   } : {
-    stat: 'rounded-2xl px-4 py-3', statVal: 'text-2xl', statIcon: 'w-8 h-8',
-    btn: 'h-10 px-4 text-sm', tab: 'min-h-10 text-sm',
+    gap: 'gap-3', rowGap: 'mb-3',
+    h1: 'text-xl', sub: 'text-xs', hdrBtn: 'min-h-11 px-4',
+    stat: 'rounded-xl px-4 py-2.5', statVal: 'text-2xl', statIcon: 'w-5 h-5', statIconBox: 'w-10 h-10', statLabel: 'text-[11px]',
+    btn: 'h-10 px-4 text-sm', tab: 'min-h-9 text-sm',
     card: 'rounded-2xl p-3 pb-2', h2: 'text-lg mb-2',
     sec: 'rounded-xl bg-black/20 border border-white/10 p-3',
     stack: 'space-y-2', lines: 'space-y-1 text-sm',
@@ -510,18 +514,28 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   return (
     <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe text-white h-dvh overflow-y-auto overscroll-contain">
 
-      {/* Header — pinned to the tv-safe corner, content stays centered below */}
-      <div className={`flex items-center w-full justify-between ${large ? 'mb-6' : 'mb-2'}`}>
+      {/* Everything above the tabs sits on one 8px rhythm: a three-column
+          header (Back · title · Sign Out), three stat tiles, three actions
+          that share the tiles' columns, then the tab bar. Same gutter
+          between every row and column, same height for every control in a
+          row, icons always in the same place. */}
+      <div className={`grid grid-cols-[1fr_auto_1fr] items-center ${sz.gap} ${sz.rowGap}`}>
+        <div className="justify-self-start">
         <BackButton
           onClick={() => onViewChange('home')}
           label="Back to Home"
           focused={focusedElement === 0}
         />
+        </div>
+        <div className="min-w-0 text-center">
+          <h1 className={`${sz.h1} font-quicksand font-bold text-white text-shadow-strong leading-tight`}>Your Dashboard</h1>
+          <p className={`${sz.sub} text-brand-ice font-nunito truncate`}>Welcome back, <span className="text-brand-gold font-semibold">{profile?.full_name || user?.email}</span></p>
+        </div>
         <Button
           onClick={handleSignOut}
           variant="outline"
           data-focused={focusedElement === 1 ? 'true' : 'false'}
-          className={`tv-ring min-h-12 px-5 rounded-xl bg-red-600/30 border-red-400/60 text-white hover:bg-red-600/50 transition-transform duration-150 ease-out ${
+          className={`tv-ring justify-self-end ${sz.hdrBtn} rounded-xl bg-red-600/30 border-red-400/60 text-white hover:bg-red-600/50 transition-transform duration-150 ease-out ${
             focusedElement === 1 ? 'scale-105 z-10' : ''
           }`}
         >
@@ -529,117 +543,61 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           Sign Out
         </Button>
       </div>
+
       <div className={`max-w-6xl mx-auto ${large ? 'pb-24' : 'pb-4'}`}>
-        {/* Compact puts the title on the header row (the block above is
-            absolute within the safe area, so this sits between its buttons). */}
-        {large ? (
-          <div className="flex flex-col items-center mb-8">
-            <div className="text-center mt-4">
-              <h1 className="text-3xl mb-2 font-quicksand font-bold text-white text-shadow-strong">Your Dashboard</h1>
-              <p className="text-xl text-brand-ice font-nunito">Welcome back, <span className="text-brand-gold font-semibold">{profile?.full_name || user?.email}</span></p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-baseline justify-center gap-3 -mt-12 mb-4 h-10 pointer-events-none">
-            <h1 className="text-2xl font-quicksand font-bold text-white text-shadow-strong">Your Dashboard</h1>
-            <p className="text-sm text-brand-ice font-nunito truncate max-w-md">Welcome back, <span className="text-brand-gold font-semibold">{profile?.full_name || user?.email}</span></p>
-          </div>
-        )}
-
-        {/* Stats Cards */}
-        <div className={`grid grid-cols-1 md:grid-cols-3 ${large ? 'gap-6 mb-8' : 'gap-3 mb-3'}`}>
-          <Card className={`relative overflow-hidden border-0 shadow-xl [background:var(--gradient-gold)] ${sz.stat}`}>
-            <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
-            <div className="relative z-10 flex items-center justify-between">
-              <div>
-                <p className="text-black/70 text-sm font-semibold font-nunito">Available Snow Gems</p>
-                <p className={`${sz.statVal} font-quicksand font-bold text-black/90`}>{profile?.credits?.toFixed(2) || '0.00'}</p>
+        {/* Stat tiles: icon in a fixed box on the left, label over value. */}
+        <div className={`grid grid-cols-3 ${sz.gap} ${sz.rowGap}`}>
+          {([
+            { label: 'Available Snow Gems', value: profile?.credits?.toFixed(2) || '0.00', Icon: Wallet, bg: '[background:var(--gradient-gold)]', dark: true },
+            { label: 'Total Spent', value: `$${profile?.total_spent?.toFixed(2) || '0.00'}`, Icon: CreditCard, bg: '[background:var(--gradient-blue)]', dark: false },
+            { label: 'Transactions', value: String(transactions.length), Icon: History, bg: '[background:var(--gradient-purple)]', dark: false },
+          ] as const).map(({ label, value, Icon, bg, dark }) => (
+            <Card key={label} className={`relative overflow-hidden border-0 shadow-xl ${bg} ${sz.stat}`}>
+              <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
+              <div className="relative z-10 flex items-center gap-3 min-w-0">
+                <div className={`${sz.statIconBox} shrink-0 rounded-xl flex items-center justify-center ${dark ? 'bg-black/15' : 'bg-white/15'}`}>
+                  <Icon className={`${sz.statIcon} ${dark ? 'text-black/70' : 'text-white/90'}`} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`${sz.statLabel} font-nunito font-semibold uppercase tracking-wide truncate ${dark ? 'text-black/65' : 'text-white/80'}`}>{label}</p>
+                  <p className={`${sz.statVal} font-quicksand font-bold leading-none ${dark ? 'text-black/90' : 'text-white text-shadow-strong'}`}>{value}</p>
+                </div>
               </div>
-              <Wallet className={`${sz.statIcon} text-black/60 drop-shadow`} />
-            </div>
-          </Card>
-
-          <Card className={`relative overflow-hidden border-0 shadow-xl [background:var(--gradient-blue)] ${sz.stat}`}>
-            <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
-            <div className="relative z-10 flex items-center justify-between">
-              <div>
-                <p className="text-white/85 text-sm font-semibold font-nunito text-shadow-soft">Total Spent</p>
-                <p className={`${sz.statVal} font-quicksand font-bold text-white text-shadow-strong`}>${profile?.total_spent?.toFixed(2) || '0.00'}</p>
-              </div>
-              <CreditCard className={`${sz.statIcon} text-white/85 drop-shadow-xl`} />
-            </div>
-          </Card>
-
-          <Card className={`relative overflow-hidden border-0 shadow-xl [background:var(--gradient-purple)] ${sz.stat}`}>
-            <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
-            <div className="relative z-10 flex items-center justify-between">
-              <div>
-                <p className="text-white/85 text-sm font-semibold font-nunito text-shadow-soft">Transactions</p>
-                <p className={`${sz.statVal} font-quicksand font-bold text-white text-shadow-strong`}>{transactions.length}</p>
-              </div>
-              <History className={`${sz.statIcon} text-white/85 drop-shadow-xl`} />
-            </div>
-          </Card>
+            </Card>
+          ))}
         </div>
 
-        {/* Action Buttons */}
-        <div className={`flex flex-wrap ${large ? 'gap-4 mb-8' : 'gap-2 mb-3'}`}>
-          <Button 
-            onClick={onCreditStore}
-            size="lg"
-            data-focused={focusedElement === 2 ? 'true' : 'false'}
-            className={`tv-ring tv-ring-contrast ${sz.btn} rounded-xl border-0 text-black font-semibold shadow-lg [background:var(--gradient-gold)] hover:brightness-110 transition-transform duration-150 ease-out ${
-              focusedElement === 2 ? 'scale-105 z-10' : ''
-            }`}
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Purchase Snow Gems
-          </Button>
-          <Button 
-            onClick={onCommunityChat}
-            size="lg"
-            variant="outline"
-            data-focused={focusedElement === 3 ? 'true' : 'false'}
-            className={`tv-ring ${sz.btn} rounded-xl border-0 text-white font-semibold shadow-lg [background:var(--gradient-blue)] hover:brightness-110 transition-transform duration-150 ease-out ${
-              focusedElement === 3 ? 'scale-105 z-10' : ''
-            }`}
-          >
-            <MessageCircle className="w-5 h-5 mr-2" />
-            Community Chat
-          </Button>
-          <Button 
-            onClick={onGames}
-            size="lg"
-            data-focused={focusedElement === 4 ? 'true' : 'false'}
-            className={`tv-ring ${sz.btn} rounded-xl border-0 text-white font-semibold shadow-lg [background:var(--gradient-purple)] hover:brightness-110 transition-transform duration-150 ease-out ${
-              focusedElement === 4 ? 'scale-105 z-10' : ''
-            }`}
-          >
-            <Gamepad2 className="w-5 h-5 mr-2" />
-            Game Lounge
-          </Button>
-          {giveawayOn && (
-            <Button 
-              onClick={onGiveaway}
-              size="lg"
-              data-focused={focusedElement === 5 ? 'true' : 'false'}
-              className={`tv-ring ${sz.btn} rounded-xl border border-brand-gold/60 bg-brand-gold/20 text-brand-gold font-semibold hover:bg-brand-gold/30 transition-transform duration-150 ease-out ${
-                focusedElement === 5 ? 'scale-105 z-10' : ''
+        {/* Actions: one quiet style, equal widths, each under a tile; the
+            icon carries the tile's colour so the pairing still reads. */}
+        <div className={`grid ${giveawayOn ? 'grid-cols-4' : 'grid-cols-3'} ${sz.gap} ${sz.rowGap}`}>
+          {([
+            { idx: 2, label: 'Purchase Snow Gems', Icon: Plus, tint: 'text-brand-gold', onClick: onCreditStore, show: true },
+            { idx: 3, label: 'Community Chat', Icon: MessageCircle, tint: 'text-sky-300', onClick: onCommunityChat, show: true },
+            { idx: 4, label: 'Game Lounge', Icon: Gamepad2, tint: 'text-fuchsia-300', onClick: onGames, show: true },
+            { idx: 5, label: 'Giveaway', Icon: Gift, tint: 'text-brand-gold', onClick: onGiveaway, show: giveawayOn },
+          ] as const).filter((a) => a.show).map(({ idx, label, Icon, tint, onClick }) => (
+            <Button
+              key={label}
+              onClick={onClick}
+              variant="outline"
+              data-focused={focusedElement === idx ? 'true' : 'false'}
+              className={`tv-ring ${sz.btn} w-full rounded-xl bg-white/[0.07] border-white/15 text-white font-semibold hover:bg-white/[0.14] transition-transform duration-150 ease-out ${
+                focusedElement === idx ? 'scale-[1.03] z-10' : ''
               }`}
             >
-              <Gift className="w-5 h-5 mr-2" />
-              Giveaway
+              <Icon className={`w-5 h-5 mr-2 ${tint}`} />
+              {label}
             </Button>
-          )}
+          ))}
         </div>
 
         {/* Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full grid-cols-2 h-auto gap-2 rounded-2xl bg-brand-navy/70 border border-brand-ice/20 ${large ? 'mb-8 p-2' : 'mb-3 p-1'}`}>
+          <TabsList className={`grid w-full grid-cols-2 h-auto gap-1 rounded-xl bg-brand-navy/70 border border-brand-ice/20 p-1 ${sz.rowGap}`}>
             <TabsTrigger 
               value="overview" 
               data-focused={focusedElement === TAB_BASE ? 'true' : 'false'}
-              className={`tv-ring tv-ring-contrast ${sz.tab} text-white data-[state=active]:bg-brand-gold data-[state=active]:text-black text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
+              className={`tv-ring tv-ring-contrast ${sz.tab} rounded-lg text-white data-[state=active]:bg-brand-gold data-[state=active]:text-black text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
                 focusedElement === TAB_BASE ? 'scale-[1.02] z-10' : ''
               }`}
             >
@@ -648,7 +606,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <TabsTrigger 
               value="credits" 
               data-focused={focusedElement === TAB_BASE + 1 ? 'true' : 'false'}
-              className={`tv-ring tv-ring-contrast ${sz.tab} text-white data-[state=active]:bg-brand-gold data-[state=active]:text-black text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
+              className={`tv-ring tv-ring-contrast ${sz.tab} rounded-lg text-white data-[state=active]:bg-brand-gold data-[state=active]:text-black text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
                 focusedElement === TAB_BASE + 1 ? 'scale-[1.02] z-10' : ''
               }`}
             >
