@@ -222,6 +222,26 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   useTvActivate(activateFocused);
 
   const [phase, setPhase] = useState<Phase>('bet');
+  const fittedTableRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const table = fittedTableRef.current;
+    if (!table) return;
+    const fit = () => {
+      const seats = Array.from(table.querySelectorAll<HTMLElement>('.snow-bj-seat'));
+      const available = Math.min(...seats.map(seat => seat.clientHeight - (seat.querySelector<HTMLElement>('.snow-bj-seat__heading')?.offsetHeight ?? 28)));
+      if (!Number.isFinite(available) || available <= 0) return;
+      const height = Math.max(32, Math.floor(available - (table.querySelector('.snow-bj-split-hands') ? 65 : 16)));
+      table.style.setProperty('--fitted-card-height', `${height}px`);
+      table.style.setProperty('--fitted-card-width', `${Math.floor(height * 2 / 3)}px`);
+    };
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
+    observer?.observe(table);
+    const contentObserver = new MutationObserver(fit);
+    contentObserver.observe(table, { childList: true, subtree: true });
+    fit();
+    window.addEventListener('resize', fit);
+    return () => { observer?.disconnect(); contentObserver.disconnect(); window.removeEventListener('resize', fit); };
+  }, [phase]);
   const [bet, setBet] = useState<number>(() => readSavedBet(BET_STORAGE_KEY));
   const [variant, setVariant] = useState<BlackjackVariantId>(() => {
     if (typeof window === 'undefined') return 'classic';
@@ -662,7 +682,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
           <div className="snow-bj-table__rail" aria-hidden="true">
             <span /><span /><span /><span /><span />
           </div>
-          <div className="snow-bj-table__felt">
+          <div className="snow-bj-table__felt" ref={fittedTableRef}>
             <div className="snow-bj-zone snow-bj-zone--dealer">
               <div className="snow-bj-zone__equipment">
                 <DealerShoe />

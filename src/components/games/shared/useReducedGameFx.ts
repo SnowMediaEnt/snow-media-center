@@ -21,7 +21,10 @@ export const isReducedGameFx = (): boolean => {
  */
 export const useReducedGameFx = () => {
   const [manual, setManual] = useState(() => {
-    try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved === null ? null : saved === 'true';
+    } catch { return null; }
   });
   const [system, setSystem] = useState(systemPrefersReduced);
 
@@ -42,7 +45,9 @@ export const useReducedGameFx = () => {
     return () => legacy.removeListener?.(update);
   }, []);
 
-  const reducedFx = manual || system || lowMemoryMode();
+  // Device/accessibility settings choose the default, not an unchangeable
+  // override. An explicit player choice must work in either direction.
+  const reducedFx = manual ?? (system || lowMemoryMode());
 
   useEffect(() => {
     const root = document.documentElement;
@@ -52,11 +57,11 @@ export const useReducedGameFx = () => {
 
   const toggle = useCallback(() => {
     setManual((current) => {
-      const next = !current;
+      const next = !(current ?? (system || lowMemoryMode()));
       try { localStorage.setItem(STORAGE_KEY, String(next)); } catch { /* storage unavailable */ }
       return next;
     });
-  }, []);
+  }, [system]);
 
   return { reducedFx, manualReducedFx: manual, toggleReducedFx: toggle };
 };
