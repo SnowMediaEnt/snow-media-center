@@ -17,6 +17,12 @@ export const LIVE_LAYOUTS: Array<{ id: LiveLayout; label: string; desc: string }
 
 const isLayout = (v: unknown): v is LiveLayout => v === 'classic' || v === 'compact' || v === 'grid';
 
+/** True once a layout has been chosen on this box — the first-open chooser
+ *  shows until then. Any saved value counts, including the default. */
+export const hasLiveLayoutChoice = (): boolean => {
+  try { return isLayout(localStorage.getItem(KEY)); } catch { return true; }
+};
+
 export const loadLiveLayout = (): LiveLayout => {
   try {
     const v = localStorage.getItem(KEY);

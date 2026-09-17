@@ -463,6 +463,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
+      // The first-open Live TV layout chooser owns the remote while it is up.
+      if ((window as unknown as { __liveLayoutChooserOpen?: boolean }).__liveLayoutChooserOpen) return;
 
       // --- Header pane owns the keyboard ---
       if (paneRef.current === 'header') {

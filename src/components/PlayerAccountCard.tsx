@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { Fragment, memo, type ReactNode } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,16 @@ import { useToast } from '@/hooks/use-toast';
  * Lives alongside (but separate from) the existing manual
  * "My Devices & Services" editor.
  */
-const PlayerAccountCard = memo(() => {
+interface Props {
+  /** Narrow column on the one-screen Dashboard: no card chrome, no repeated
+   *  title, label/value rows that never wrap mid-word. */
+  compact?: boolean;
+  /** Compact only: something to sit beside the sign-out button (the
+   *  Dashboard's renewal-reminder link), so the column stays short. */
+  actions?: ReactNode;
+}
+
+const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
   const { account, state, days } = usePlayerAccount();
   const { toast } = useToast();
 
@@ -47,6 +56,42 @@ const PlayerAccountCard = memo(() => {
     toast({ title: 'Player signed out', description: 'You can sign back in from the Player.' });
   };
 
+  const rows: Array<[typeof KeyRound, string, ReactNode]> = [
+    [KeyRound, 'Username', <span className="font-medium truncate">{account.username}</span>],
+    [KeyRound, 'Password', <span className="font-mono tracking-widest">••••••••</span>],
+    [Calendar, 'Expires', <span className="font-medium">{expLabel}</span>],
+    [Calendar, 'Days left', <span className={`font-semibold ${daysColor}`}>{daysLabel}</span>],
+    [Tv, 'Status', <span className="font-medium capitalize">{account.status || 'Unknown'}</span>],
+    [Users, 'Connections', <span className="font-medium">{account.activeCons ?? 0}{account.maxConnections != null ? ` / ${account.maxConnections}` : ''}</span>],
+  ];
+
+  if (compact) {
+    return (
+      <div className="text-sm">
+        <div className="flex items-center gap-2 flex-wrap mb-2">
+          <Badge className={`border ${serverBadgeColor}`}>{account.serverLabel}</Badge>
+          {account.isTrial && (
+            <Badge className="bg-amber-500/30 text-amber-100 border border-amber-400/40">Trial</Badge>
+          )}
+        </div>
+        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 items-center">
+          {rows.map(([Icon, label, value]) => (
+            <Fragment key={label}>
+              <span className="flex items-center gap-1.5 text-white/60 whitespace-nowrap"><Icon className="w-3.5 h-3.5 text-brand-ice" />{label}</span>
+              <span className="text-white/90 min-w-0 truncate whitespace-nowrap">{value}</span>
+            </Fragment>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button variant="white" size="sm" onClick={handleSignOut} className="tv-focusable h-9">
+            <LogOut className="w-4 h-4 mr-2" /> Sign out of player
+          </Button>
+          {actions}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
       <div className="flex items-start gap-3 mb-4">
@@ -66,39 +111,13 @@ const PlayerAccountCard = memo(() => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-        <div className="flex items-center gap-2 text-white/90">
-          <KeyRound className="w-4 h-4 text-brand-ice" />
-          <span className="text-white/60">Username:</span>
-          <span className="font-medium break-all">{account.username}</span>
-        </div>
-        <div className="flex items-center gap-2 text-white/90">
-          <KeyRound className="w-4 h-4 text-brand-ice" />
-          <span className="text-white/60">Password:</span>
-          <span className="font-mono tracking-widest">••••••••</span>
-        </div>
-        <div className="flex items-center gap-2 text-white/90">
-          <Calendar className="w-4 h-4 text-brand-ice" />
-          <span className="text-white/60">Expires:</span>
-          <span className="font-medium">{expLabel}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-brand-ice" />
-          <span className="text-white/60">Days left:</span>
-          <span className={`font-semibold ${daysColor}`}>{daysLabel}</span>
-        </div>
-        <div className="flex items-center gap-2 text-white/90">
-          <Tv className="w-4 h-4 text-brand-ice" />
-          <span className="text-white/60">Status:</span>
-          <span className="font-medium capitalize">{account.status || 'Unknown'}</span>
-        </div>
-        <div className="flex items-center gap-2 text-white/90">
-          <Users className="w-4 h-4 text-brand-ice" />
-          <span className="text-white/60">Connections:</span>
-          <span className="font-medium">
-            {account.activeCons ?? 0}
-            {account.maxConnections != null ? ` / ${account.maxConnections}` : ''}
-          </span>
-        </div>
+        {rows.map(([Icon, label, value]) => (
+          <div key={label} className="flex items-center gap-2 text-white/90 min-w-0">
+            <Icon className="w-4 h-4 text-brand-ice shrink-0" />
+            <span className="text-white/60 whitespace-nowrap">{label}:</span>
+            {value}
+          </div>
+        ))}
       </div>
 
       <div className="mt-5 flex justify-end">

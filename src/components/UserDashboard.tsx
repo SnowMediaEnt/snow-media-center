@@ -501,7 +501,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   } : {
     stat: 'rounded-2xl px-4 py-3', statVal: 'text-2xl', statIcon: 'w-8 h-8',
     btn: 'h-10 px-4 text-sm', tab: 'min-h-10 text-sm',
-    card: 'rounded-2xl p-4', h2: 'text-lg mb-3',
+    card: 'rounded-2xl p-3 pb-2', h2: 'text-lg mb-2',
     sec: 'rounded-xl bg-black/20 border border-white/10 p-3',
     stack: 'space-y-2', lines: 'space-y-1 text-sm',
     h3: 'text-xs uppercase tracking-[0.12em] font-quicksand font-semibold text-brand-gold',
@@ -682,7 +682,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               </div>
 
               {/* Player Account, with Billing under it in the compact grid */}
-              <div className={large ? 'contents' : 'col-span-4 space-y-3'}>
+              <div className={large ? 'contents' : 'col-span-5 space-y-3'}>
               <div className={sz.sec} data-dash-focus={focusedElement === CLAIM_IDX ? 'true' : 'false'}>
                 <h3 className={`${sz.h3} ${large ? 'mb-5' : 'mb-2'}`}>Player Account</h3>
                 {!playerAccount ? (
@@ -707,9 +707,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   </div>
                 ) : (
 
-                  <div className="space-y-4">
-                    <PlayerAccountCard />
-                    {claimDone ? (
+                  large ? (
+                    <div className="space-y-4">
+                      <PlayerAccountCard />
+                      {(claimDone ? (
                       <p className="text-sm text-emerald-400 flex items-center gap-2">
                         <Check className="w-4 h-4" />
                         Reminders are linked to {claimedEmail || 'your email'}
@@ -717,18 +718,39 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                     ) : (
                       <Button
                         variant="gold"
-                        size="lg"
+                        size={large ? 'lg' : 'sm'}
                         onClick={() => setClaimOpen(true)}
                         data-focused={focusedElement === CLAIM_IDX ? 'true' : 'false'}
-                        className={`tv-ring tv-ring-contrast ${sz.btn} rounded-xl transition-transform duration-150 ease-out ${
+                        className={`tv-ring tv-ring-contrast ${large ? sz.btn : 'h-9'} rounded-xl transition-transform duration-150 ease-out ${
                           focusedElement === CLAIM_IDX ? 'scale-105 z-10' : ''
                         }`}
                       >
                         <BellRing className="w-5 h-5 mr-2" />
                         Link email for renewal reminders
                       </Button>
-                    )}
-                  </div>
+                    ))}
+                    </div>
+                  ) : (
+                    <PlayerAccountCard compact actions={(claimDone ? (
+                      <p className="text-sm text-emerald-400 flex items-center gap-2">
+                        <Check className="w-4 h-4" />
+                        Reminders are linked to {claimedEmail || 'your email'}
+                      </p>
+                    ) : (
+                      <Button
+                        variant="gold"
+                        size={large ? 'lg' : 'sm'}
+                        onClick={() => setClaimOpen(true)}
+                        data-focused={focusedElement === CLAIM_IDX ? 'true' : 'false'}
+                        className={`tv-ring tv-ring-contrast ${large ? sz.btn : 'h-9'} rounded-xl transition-transform duration-150 ease-out ${
+                          focusedElement === CLAIM_IDX ? 'scale-105 z-10' : ''
+                        }`}
+                      >
+                        <BellRing className="w-5 h-5 mr-2" />
+                        Link email for renewal reminders
+                      </Button>
+                    ))} />
+                  )
                 )}
               </div>
 
@@ -755,8 +777,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               )}
               </div>
 
-              {/* My Devices & Services */}
-              <div className={`${sz.sec} ${large ? '' : 'col-span-3'}`} data-dash-focus={focusedElement === EDIT_IDX ? 'true' : 'false'}>
+              {/* My Devices & Services, with the Danger Zone under it in the compact grid */}
+              <div className={large ? 'contents' : 'col-span-4 space-y-3'}>
+              <div className={sz.sec} data-dash-focus={focusedElement === EDIT_IDX ? 'true' : 'false'}>
                 <div className={`flex items-center justify-between ${large ? 'mb-6' : 'mb-2'}`}>
                   <h3 className={sz.h3}>My Devices & Services</h3>
                   <Button
@@ -813,23 +836,25 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               </div>
 
 
-              <div className={`${sz.sec} ${large ? '' : 'col-span-2'}`} data-dash-focus={focusedElement === DELETE_IDX ? 'true' : 'false'}>
-                <h3 className={`${sz.h3} !text-red-300 mb-2`}>Danger Zone</h3>
-                <p className={`text-brand-ice/75 text-sm ${large ? 'mb-4' : 'mb-2'}`}>
-                  Permanently delete your Snow Media app account and all associated data.
-                  
-                </p>
+              <div className={`${sz.sec} ${large ? '' : 'flex items-center justify-between gap-3'}`} data-dash-focus={focusedElement === DELETE_IDX ? 'true' : 'false'}>
+                <div className="min-w-0">
+                  <h3 className={`${sz.h3} !text-red-300 ${large ? 'mb-2' : 'mb-0.5'}`}>Danger Zone</h3>
+                  <p className={`text-brand-ice/75 ${large ? 'text-sm mb-4' : 'text-xs'}`}>
+                    {large ? 'Permanently delete your Snow Media app account and all associated data.' : 'Delete your app account and its data.'}
+                  </p>
+                </div>
                 <Button
                   variant="outline"
                   onClick={() => setShowDeleteConfirm(true)}
                   data-focused={focusedElement === DELETE_IDX ? 'true' : 'false'}
-                  className={`tv-ring ${large ? 'min-h-12 px-5' : 'h-9 px-3 text-sm w-full justify-center'} rounded-xl bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white transition-transform duration-150 ease-out ${
+                  className={`tv-ring ${large ? 'min-h-12 px-5' : 'h-9 px-3 text-sm'} rounded-xl bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white transition-transform duration-150 ease-out ${
                     focusedElement === DELETE_IDX ? 'scale-105 z-10' : ''
                   }`}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
-                  {large ? 'Delete My Account' : 'Delete account'}
+                  {large ? 'Delete My Account' : 'Delete'}
                 </Button>
+              </div>
               </div>
               </div>
             </Card>

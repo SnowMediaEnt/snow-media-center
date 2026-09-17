@@ -61,7 +61,8 @@ import { AlertTriangle, RotateCw } from 'lucide-react';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
-import { useLiveLayout, type LiveLayout } from '@/lib/liveLayout';
+import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
+import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
 import { recordChannelWatch } from '@/lib/watchHistory';
 import {
   demoGetLiveCategories,
@@ -691,6 +692,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // the same scroll container, so we must measure its offset to scroll correctly.
   const categoriesListRef = useRef<HTMLDivElement | null>(null);
   const layout = useLiveLayout();
+  // First time in Live TV on this box: pick a look before anything else.
+  const [choosingLayout, setChoosingLayout] = useState(() => !DEMO && !hasLiveLayoutChoice());
+  const choosingLayoutRef = useRef(choosingLayout);
+  choosingLayoutRef.current = choosingLayout;
   const cols = layout === 'grid' ? GRID_COLS : 1;
   const rowHeight = rowHeightFor(layout);
   const colsRef = useRef(cols); useEffect(() => { colsRef.current = cols; }, [cols]);
@@ -1404,11 +1409,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       // If long-press already fired, just consume the keyup.
       enterFiredRef.current = false;
     };
-    window.addEventListener('keydown', handler, true);
-    window.addEventListener('keyup', keyupHandler, true);
+    // While the first-open layout chooser is up it owns the remote.
+    const guardedDown = (e: KeyboardEvent) => { if (!choosingLayoutRef.current) handler(e); };
+    const guardedUp = (e: KeyboardEvent) => { if (!choosingLayoutRef.current) keyupHandler(e); };
+    window.addEventListener('keydown', guardedDown, true);
+    window.addEventListener('keyup', guardedUp, true);
     return () => {
-      window.removeEventListener('keydown', handler, true);
-      window.removeEventListener('keyup', keyupHandler, true);
+      window.removeEventListener('keydown', guardedDown, true);
+      window.removeEventListener('keyup', guardedUp, true);
       cancelEnterTimer();
     };
   }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, toggleCollapsed]);
@@ -1425,6 +1433,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           // well meant ONE press was handled twice — the Escape opened the
           // categories, then this listener saw them open and left the section.
           if ((window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack) return;
+          if (choosingLayoutRef.current) return; // the chooser answers Back itself
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
           if (reportForRef.current) return;
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
@@ -1802,9 +1811,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     </>
   );
 
+  // First time in Live TV on this box: the chooser sits over whichever
+  // layout is drawn underneath until a look is picked.
+  const layoutChooser = choosingLayout ? <LiveLayoutChooser onDone={() => setChoosingLayout(false)} /> : null;
+
   if (layout === 'compact') {
     return (
       <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden relative">
+        {layoutChooser}
         {categoriesPane}
 
         {/* Channel list: the current category as a switcher row, then slim rows */}
@@ -1918,6 +1932,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   if (layout === 'grid') {
     return (
       <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
+        {layoutChooser}
         {categoriesPane}
         <div className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
           <div className="flex-shrink-0 h-12 flex items-center gap-3 px-5 border-b border-white/10">
@@ -1959,6 +1974,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // classic
   return (
     <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
+      {layoutChooser}
       {categoriesPane}
       <div className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
         <div className="flex gap-4 p-4 border-b border-white/10 bg-black/40">

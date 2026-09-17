@@ -32,7 +32,7 @@ const CHANGELOG: Record<string, string[]> = {
     '🙈 Hide Categories: under Player Settings, switch off the categories you never open',
     '⭐ Favorites: a favorite whose link the service changed fixes itself when its category loads — or hold OK on it and pick Refresh channel link',
     '🎞️ Plex (Movies & Series), redone: a menu down the left for Home, your libraries, Search, Request and Settings, slimmer rails with more on screen, a lighter title page — and hold OK on a library to hide it',
-    '📺 Live TV, three ways: pick Classic, Compact or Grid under Player Settings → Appearance. Compact is a slim list with a big preview; Grid is a wall of channel logos',
+    '📺 Live TV, three ways: Classic, Compact or Grid — the first time you open Live TV it asks which one you want, and Player Settings → Appearance changes it any time. OK on a channel previews it, OK again goes full screen',
     '▶️ Live TV preview: OK on a channel plays it in the preview box with sound, OK again goes full screen — on every box, Fire TV included',
     '🖥️ Dashboard fits on one screen — no more scrolling to reach your account. Prefer it bigger? Settings → UI → Large dashboard',
     '🎯 The content bar is yours now: what you watched last in Live TV and Plex, your favorite channels and more from the categories you watch with what\'s on right now, and Plex titles like the ones you watched. OK on a channel plays it. The ESPN scores are gone',
