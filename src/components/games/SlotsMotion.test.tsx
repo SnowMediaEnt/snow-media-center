@@ -116,10 +116,23 @@ describe('Slots reel motion', () => {
     spinSlots.mockResolvedValue(ack());
     render(<Slots onBack={() => {}} />);
     fireEvent.click(spinButton());
+    expect(document.activeElement).toBe(spinButton());
     await waitForLanding();
+    await waitFor(() => expect(spinButton().getAttribute('aria-disabled')).not.toBe('true'));
+    expect(document.activeElement).toBe(spinButton());
+    expect(spinButton().dataset.tvFocused).toBe('true');
     expect(travel(0)).toBeGreaterThan(0);
     expectLanded();
   }, 15000);
+
+  it('sizes reels to the cabinet space instead of overflowing the controls', () => {
+    render(<Slots onBack={() => {}} />);
+    const cabinetScreen = document.querySelector('.snow-slot-screen') as HTMLElement;
+    Object.defineProperty(cabinetScreen, 'clientHeight', { configurable: true, value: 210 });
+    fireEvent(window, new Event('resize'));
+    const reel = document.querySelector('.snow-slot-reel') as HTMLElement;
+    expect(parseFloat(reel.style.height)).toBeLessThanOrEqual(210);
+  });
 
   it('preserves the settled reel position when the TV resolution changes', async () => {
     const originalHeight = window.innerHeight;

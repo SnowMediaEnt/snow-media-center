@@ -552,12 +552,17 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       const dir = visualArrowDir(e);
       if (!dir) return;
       e.preventDefault();
-      focusAgainAfterReveal.current = false;
-      setFocus((current) => (moveInRows(focusRows, current, dir) as FocusId) ?? current);
+      const next = moveInRows(focusRows, focus, dir) as FocusId | undefined;
+      // A boundary press during the reveal must not cancel the pending
+      // handoff to Play Again; only an actual navigation choice does.
+      if (next && next !== focus) {
+        focusAgainAfterReveal.current = false;
+        setFocus(next);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [focusRows]);
+  }, [focusRows, focus]);
 
   const shownDealerTotal = phase === 'settled'
     ? (dealerRevealComplete ? dealerTotal : computeBjTotal(dealerHand.slice(0, revealedDealer)))

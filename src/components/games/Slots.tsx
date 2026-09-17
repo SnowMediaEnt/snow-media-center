@@ -287,15 +287,15 @@ const Slots = ({ onBack }: SlotsProps) => {
   const spinUsable = !spinning && !!user && (inFreeSpins || canBet);
   const betStepUsable = !spinning && !inFreeSpins;
 
-  /** Rows contain ONLY targets that are usable right now. */
+  /** Keep the busy Spin target focused, but guard activation until settled. */
   const focusRows = useMemo<FocusRows>(() => [
     ['back', 'sound', 'fx'],
     [
       ...(betStepUsable && betIdx > 0 ? ['betMinus'] : []),
       ...(betStepUsable && betIdx < BETS.length - 1 ? ['betPlus'] : []),
-      ...(spinUsable ? ['spin'] : []),
+      ...(spinUsable || spinning ? ['spin'] : []),
     ],
-  ], [betStepUsable, betIdx, spinUsable]);
+  ], [betStepUsable, betIdx, spinUsable, spinning]);
 
   // Re-home whenever a phase or availability change makes the target unusable.
   useEffect(() => {
@@ -310,7 +310,7 @@ const Slots = ({ onBack }: SlotsProps) => {
    */
   const parkedOnBack = useRef(false);
   useEffect(() => {
-    if (!spinUsable) { parkedOnBack.current = focus === 'back'; return; }
+    if (!spinUsable) { parkedOnBack.current = focus === 'back' || focus === 'spin'; return; }
     if (parkedOnBack.current && focus === 'back') setFocus('spin');
     parkedOnBack.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -360,10 +360,23 @@ const Slots = ({ onBack }: SlotsProps) => {
   // TV changes output mode (or the Lovable preview changes height), preserve
   // the same cycle position instead of applying an old 720p offset to 1080p
   // cells and showing half-symbols until the next spin.
+  const screenRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let queued = 0;
     const onResize = () => {
-      const next = cellHeightFor(window.innerWidth, window.innerHeight);
+      const available = screenRef.current?.clientHeight ?? 0;
+      const preferred = cellHeightFor(window.innerWidth, window.innerHeight);
+      // Measure padding too: native 4K uses a larger frame than 1080p.
+      const frame = screenRef.current?.querySelector('.snow-slot-window');
+      const verticalInset = (el: Element | null | undefined, borders = false) => {
+        if (!el) return 0;
+        const css = window.getComputedStyle(el);
+        const number = (value: string) => parseFloat(value) || 0;
+        return number(css.paddingTop) + number(css.paddingBottom)
+          + (borders ? number(css.borderTopWidth) + number(css.borderBottomWidth) : 0);
+      };
+      const inset = verticalInset(screenRef.current) + verticalInset(frame, true);
+      const next = available > inset ? Math.max(1, Math.min(preferred, Math.floor((available - inset) / ROWS))) : preferred;
       const previous = cellHeightRef.current;
       if (next === previous) return;
       const ratio = next / previous;
@@ -381,7 +394,11 @@ const Slots = ({ onBack }: SlotsProps) => {
       });
     };
     window.addEventListener('resize', onResize);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(onResize);
+    if (screenRef.current) observer?.observe(screenRef.current);
+    onResize();
     return () => {
+      observer?.disconnect();
       window.removeEventListener('resize', onResize);
       window.cancelAnimationFrame(queued);
     };
@@ -715,10 +732,10 @@ const Slots = ({ onBack }: SlotsProps) => {
               ))}
             </div>
 
-            <div className="snow-slot-screen">
+            <div className="snow-slot-screen" ref={screenRef}>
               <span className="snow-slot-lamps snow-slot-lamps--left" aria-hidden="true" />
               <span className="snow-slot-lamps snow-slot-lamps--right" aria-hidden="true" />
-              <div className="snow-slot-window" style={{ height: reelHeight + 12 }}>
+              <div className="snow-slot-window">
                 <div className="snow-slot-reels" style={{ height: reelHeight }}>
                   {reels.map((reelIndex) => {
                     const cells = reelCells[reelIndex] ?? [];
