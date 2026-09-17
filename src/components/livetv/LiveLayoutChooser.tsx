@@ -6,6 +6,7 @@
 // keeps the pick, Back keeps the default. Either way the choice is saved so
 // this never shows again; Player Settings → Appearance changes it later.
 import { useCallback, useEffect, useState } from 'react';
+import { Check } from 'lucide-react';
 import { LIVE_LAYOUTS, DEFAULT_LIVE_LAYOUT, saveLiveLayout, type LiveLayout } from '@/lib/liveLayout';
 import { trackEvent } from '@/lib/analytics';
 
@@ -94,7 +95,10 @@ const LiveLayoutChooser = ({ onDone }: Props) => {
   }, [idx, finish]);
 
   return (
-    <div className="fixed inset-0 z-[70] bg-[#070b16]/95 text-white flex flex-col items-center justify-center px-12" data-live-layout-chooser>
+    // Fully opaque background, deliberately: at 95% the Player's own section
+    // rail and its gold "Live TV" highlight glowed faintly through behind
+    // this, which read as something moving behind the cards.
+    <div className="fixed inset-0 z-[70] bg-[#070b16] text-white flex flex-col items-center justify-center px-12" data-live-layout-chooser>
       <div className="text-xs uppercase tracking-[0.3em] text-brand-gold font-bold mb-2">Live TV</div>
       <h1 className="text-4xl font-black leading-tight mb-2">Pick the look you like</h1>
       <p className="text-lg text-white/65 mb-8">Three ways to browse channels. Same channels, same guide, your choice of screen.</p>
@@ -105,13 +109,26 @@ const LiveLayoutChooser = ({ onDone }: Props) => {
           return (
             <div
               key={l.id}
+              data-focused={picked ? 'true' : 'false'}
               onClick={() => finish(l.id, 'picked')}
               onMouseEnter={() => setIdx(i)}
-              className={`rounded-2xl p-4 cursor-pointer transition-all duration-150 ${picked ? 'bg-white/[0.08] ring-4 ring-brand-gold scale-[1.03] shadow-[0_0_0_8px_rgba(195,170,114,0.2)]' : 'bg-white/[0.04] ring-1 ring-white/15'}`}
+              // The one you are on has to be obvious from the couch: it keeps
+              // full brightness and carries the ring and the tick, while the
+              // other two are dimmed right back. Contrast between the cards
+              // does the work — a ring on its own was easy to miss.
+              className={`relative rounded-2xl p-4 cursor-pointer transition-all duration-150 ${picked
+                ? 'bg-white/[0.10] ring-4 ring-brand-gold scale-[1.04] shadow-[0_0_0_10px_rgba(195,170,114,0.22)]'
+                : 'bg-white/[0.03] ring-1 ring-white/10 opacity-50 scale-[0.97]'}`}
             >
+              {picked && (
+                <div className="absolute -top-3 -right-3 z-10 flex items-center gap-1 rounded-full bg-brand-gold px-3 py-1 text-slate-900 shadow-lg">
+                  <Check className="w-4 h-4" strokeWidth={3} />
+                  <span className="text-xs font-black uppercase tracking-wider">Selected</span>
+                </div>
+              )}
               <Wire id={l.id} />
-              <div className={`mt-4 text-2xl font-extrabold ${picked ? 'text-brand-gold' : 'text-white'}`}>{l.label}</div>
-              <div className="mt-1 text-base text-white/65 leading-snug">{l.desc}</div>
+              <div className={`mt-4 text-2xl font-extrabold ${picked ? 'text-brand-gold' : 'text-white/70'}`}>{l.label}</div>
+              <div className={`mt-1 text-base leading-snug ${picked ? 'text-white/80' : 'text-white/50'}`}>{l.desc}</div>
             </div>
           );
         })}

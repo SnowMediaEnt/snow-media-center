@@ -1358,7 +1358,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
       const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
       if (!arrows.includes(e.key)) return;
-      e.preventDefault();
+      // Same guard as the Escape/Backspace branch above and the header's own
+      // handler in LiveTV.tsx: without it, Fire TV's WebView still runs its
+      // own native spatial-navigation on this keydown after we've moved
+      // React's focus state (e.g. out to the header for Settings) — it can
+      // leave the real DOM focus, and whatever native ring it draws, sitting
+      // on the last category row while our own UI shows focus somewhere
+      // else entirely.
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
 
       const cats = visibleCategoriesRef.current;
       const chans = visibleChannelsRef.current;

@@ -23,6 +23,7 @@ import {
   getPlexLibraries as _getPlexLibraries,
   getPlexLibraryItems as _getPlexLibraryItems,
   getPlexHub as _getPlexHub,
+  getPlexSectionRow,
   searchPlex as _searchPlex,
   getPlexPart,
   plexDirectUrl, plexTranscodeUrl, loadHiddenPlexLibs, saveHiddenPlexLibs,
@@ -71,6 +72,39 @@ import { isProviderServer } from '@/lib/plexProvider';
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
 
+// Home's Released and Popular rails. These reuse the query syntax verified for
+// the library rows — see plexLibraryRows.ts for why every bound below is
+// load-bearing rather than decoration. `%3E%3E` is Plex's encoded "after"
+// operator; without the bound, undated or unrated titles lead under :desc.
+const PLEX_AFTER = '%3E%3E';
+const HOME_RELEASED_QUERY = `type=1&sort=originallyAvailableAt:desc&originallyAvailableAt${PLEX_AFTER}=-2y`;
+/** Most-played on THIS server. The viewCount bound is what makes the row
+ *  meaningful: it keeps out everything nobody has played. */
+const homeWatchedQuery = (t: number) => `type=${t}&sort=viewCount:desc&viewCount${PLEX_AFTER}=0`;
+/** Fallback for a server with no watch history yet, so Popular is never an
+ *  empty rail on a fresh install. */
+const homeRatedQuery = (t: number) => `type=${t}&sort=audienceRating:desc&audienceRating${PLEX_AFTER}=7`;
+// Synthetic cache keys: getCachedHub is keyed by path, and these rails are
+// stitched from several section queries rather than one hub path.
+const HOME_RELEASED_KEY = 'smc:home/released';
+const HOME_POPULAR_KEY = 'smc:home/popular';
+const HOME_RAIL_CAP = 40;
+
+/** Merge per-section results, drop duplicates, cap. */
+const mergeRail = (lists: Array<PlexItem[] | null>): PlexItem[] => {
+  const seen = new Set<string>();
+  const out: PlexItem[] = [];
+  for (const list of lists) {
+    for (const it of list ?? []) {
+      const id = String(it.ratingKey ?? `${it.title}:${it.year ?? ''}`);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push(it);
+    }
+  }
+  return out.slice(0, HOME_RAIL_CAP);
+};
+
 const COLS = 6;
 const ROW_H_ESTIMATE = 250;   // pre-measure fallback for the virtualizer
 const PAGE_FIRST = 60;
@@ -110,14 +144,19 @@ interface HomePanelProps {
   isActive: boolean;
   base: string;
   token: string;
+  /** The libraries the viewer can see — Home's Released and Popular rails are
+   *  built from them, so a hidden library never leaks back in here. */
+  libraries: PlexLibrary[];
   onPlay: (it: PlexItem) => void;
   onExitToTabs: () => void;
 }
-const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePanelProps) => {
+const HomePanel = memo(({ isActive, base, token, libraries, onPlay, onExitToTabs }: HomePanelProps) => {
   const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const [onDeck, setOnDeck] = useState<PlexItem[]>(() => getCachedHub(base, onDeckPath) ?? []);
   const [recent, setRecent] = useState<PlexItem[]>(() => getCachedHub(base, recentPath) ?? []);
+  const [released, setReleased] = useState<PlexItem[]>(() => getCachedHub(base, HOME_RELEASED_KEY) ?? []);
+  const [popular, setPopular] = useState<PlexItem[]>(() => getCachedHub(base, HOME_POPULAR_KEY) ?? []);
   const [loading, setLoading] = useState(!(getCachedHub(base, onDeckPath) || getCachedHub(base, recentPath)));
   const [row, setRow] = useState(0);
   const [col, setCol] = useState(0);
@@ -154,12 +193,62 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
     return () => { cancelled = true; if (retry) window.clearTimeout(retry); };
   }, [base, token, hubRetry]);
 
+  // Released and Popular. Neither exists as a server-wide hub, so each is
+  // stitched from the per-section query the library rows already use. Runs
+  // after the two hubs above — Home is usable without these, and on a stick
+  // the first screen should not fan out more requests than it has to.
+  const libKeysSig = libraries.map((l) => `${l.type}:${l.key}`).join(',');
+  useEffect(() => {
+    if (DEMO || !libraries.length) return;
+    let cancelled = false;
+    const movieKeys = libraries.filter((l) => l.type === 'movie').map((l) => l.key);
+    const allKeys = libraries
+      .filter((l) => l.type === 'movie' || l.type === 'show')
+      .map((l) => ({ key: l.key, t: l.type === 'movie' ? 1 : 2 }));
+
+    const cachedRel = getCachedHub(base, HOME_RELEASED_KEY);
+    const cachedPop = getCachedHub(base, HOME_POPULAR_KEY);
+
+    void (async () => {
+      if (!cachedRel && movieKeys.length) {
+        const lists = await Promise.all(movieKeys.map((k) =>
+          getPlexSectionRow(base, token, k, HOME_RELEASED_QUERY, 20).catch(() => null)));
+        if (cancelled) return;
+        // Each section came back server-sorted; merging needs one more pass so
+        // a two-library server does not show all of one then all of the other.
+        const merged = mergeRail(lists).sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+        if (merged.length) { setReleased(merged); setCachedHub(base, HOME_RELEASED_KEY, merged); }
+      }
+      if (!cachedPop && allKeys.length) {
+        const watched = await Promise.all(allKeys.map((s) =>
+          getPlexSectionRow(base, token, s.key, homeWatchedQuery(s.t), 20).catch(() => null)));
+        if (cancelled) return;
+        let merged = mergeRail(watched);
+        if (!merged.length) {
+          const rated = await Promise.all(allKeys.map((s) =>
+            getPlexSectionRow(base, token, s.key, homeRatedQuery(s.t), 20).catch(() => null)));
+          if (cancelled) return;
+          // No local re-sort: rating is not on PlexItem, and each section
+          // already came back rating-sorted from the server.
+          merged = mergeRail(rated);
+        }
+        if (merged.length) { setPopular(merged); setCachedHub(base, HOME_POPULAR_KEY, merged); }
+      }
+    })();
+    return () => { cancelled = true; };
+    // libKeysSig stands in for `libraries`: the array identity changes on every
+    // parent render, the section keys do not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base, token, libKeysSig]);
+
   const rows = useMemo(() => {
     const r: Array<{ id: string; title: string; items: PlexItem[] }> = [];
-    if (onDeck.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: onDeck.slice(0, 40) });
-    r.push({ id: 'added', title: 'Recently Added', items: recent.slice(0, 40) });
+    if (onDeck.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: onDeck.slice(0, HOME_RAIL_CAP) });
+    r.push({ id: 'added', title: 'Recently Added', items: recent.slice(0, HOME_RAIL_CAP) });
+    if (released.length > 0) r.push({ id: 'released', title: 'Recently Released', items: released });
+    if (popular.length > 0) r.push({ id: 'popular', title: 'Popular', items: popular });
     return r;
-  }, [onDeck, recent]);
+  }, [onDeck, recent, released, popular]);
 
   useEffect(() => { if (row >= rows.length) setRow(Math.max(0, rows.length - 1)); }, [rows.length, row]);
 
@@ -220,7 +309,7 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
 HomePanel.displayName = 'HomePanel';
 
 // ─── SEARCH PANEL ──────────────────────────────────────────────────────────
-type SearchPanelProps = HomePanelProps;
+type SearchPanelProps = Omit<HomePanelProps, 'libraries'>;
 const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: SearchPanelProps) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlexItem[]>([]);
@@ -1962,7 +2051,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   // ── render: browse ─────────────────────────────────────────────────
   const totalH = rowVirtualizer.getTotalSize();
-  const groupLabel: Record<MenuGroup, string> = { home: 'Home', libraries: 'Libraries', more: 'More' };
   const menuIcon = (t: Tab) =>
     t.type === 'home' ? HomeIcon : t.type === 'search' ? SearchIcon : t.type === 'manage' ? SettingsIcon
     : t.type === 'request' ? MessageSquare : t.type === 'show' ? Tv : Film;
@@ -1979,9 +2067,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           const Icon = menuIcon(tab);
           return (
             <div key={m.key}>
-              {first && (
-                <div className="px-5 pt-3 pb-1 text-xs font-quicksand font-semibold tracking-[0.14em] uppercase text-brand-gold">{groupLabel[m.group]}</div>
-              )}
+              {/* A hairline between groups instead of HOME / LIBRARIES / MORE
+                  headings — the icons already say what each row is, and the
+                  headings only pushed the libraries further down the rail. */}
+              {first && i > 0 && <div className="mx-4 my-2 border-t border-white/10" aria-hidden="true" />}
               <button
                 ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                 data-focused={focused ? 'true' : 'false'}
@@ -2007,6 +2096,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             isActive={isActive && zone === 'grid' && !detailItem}
             base={conn.base}
             token={conn.token}
+            libraries={visibleLibraries}
             onPlay={openDetail}
             onExitToTabs={exitToMenu}
           />
