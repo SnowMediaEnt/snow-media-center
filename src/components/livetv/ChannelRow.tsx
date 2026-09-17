@@ -14,13 +14,10 @@ interface Props {
   onLongPress?: (index: number) => void;
 }
 
-
-const formatTime = (ms?: number) => {
-  if (!ms) return '';
-  const d = new Date(ms);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-};
-
+// One slim row in the channel list: number, logo, name and what is on now,
+// with a short progress line at the right edge. The row is 56px tall inside a
+// 60px slot (see ROW_HEIGHT in LiveSection) — the two must stay in step, the
+// D-pad scroll math is written against that slot height.
 const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, nowNext, onSelect, onActivate, onLongPress }: Props) => {
   const [iconError, setIconError] = useState(false);
   const [iconLoaded, setIconLoaded] = useState(false);
@@ -58,21 +55,20 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
       onTouchCancel={cancelLongPress}
       onContextMenu={(e) => { e.preventDefault(); onLongPress?.(index); }}
       className={`
-        tv-ring flex items-center gap-4 px-4 py-2 rounded-xl cursor-pointer min-w-0 w-full overflow-hidden
+        tv-ring h-14 flex items-center gap-3 px-3 rounded-xl cursor-pointer min-w-0 w-full overflow-hidden
         ${isFocused
-          ? 'bg-brand-gold/25 border border-transparent scale-[1.02] z-10'
-          : isPlaying ? 'bg-brand-gold/10 border border-brand-gold/30' : 'bg-white/5 hover:bg-white/10 border border-transparent'}
+          ? 'bg-white/10'
+          : isPlaying ? 'bg-brand-gold/10' : 'hover:bg-white/5'}
       `}
     >
-      <span className={`w-8 text-right font-quicksand font-bold tabular-nums text-sm ${isFocused ? 'text-brand-gold' : 'text-brand-ice/70'}`}>
+      <span className={`w-6 text-right font-nunito tabular-nums text-xs flex-shrink-0 ${isFocused ? 'text-brand-gold' : 'text-white/45'}`}>
         {channel.num ?? ''}
       </span>
 
-
-      <div className="w-14 h-14 rounded-lg bg-black/40 flex items-center justify-center flex-shrink-0 overflow-hidden">
+      <div className="relative w-9 h-9 rounded-lg bg-black/40 flex items-center justify-center flex-shrink-0 overflow-hidden">
         {showIcon ? (
           <>
-            {!iconLoaded && <div className="absolute w-14 h-14 rounded-lg bg-white/5 animate-pulse" />}
+            {!iconLoaded && <div className="absolute inset-0 rounded-lg bg-white/5 animate-pulse" />}
             <img
               src={channel.stream_icon}
               alt=""
@@ -84,44 +80,32 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
             />
           </>
         ) : (
-          <Tv className="w-7 h-7 text-brand-ice/60" />
+          <Tv className="w-5 h-5 text-brand-ice/60" />
         )}
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={`font-quicksand font-semibold truncate ${isFocused ? 'text-white' : 'text-brand-ice'}`}>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`font-quicksand font-semibold text-base truncate ${isFocused ? 'text-white' : 'text-white/90'}`}>
             {channel.name}
           </span>
           {isPlaying && (
-            <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-brand-gold/30 text-brand-gold font-nunito font-semibold flex-shrink-0">
-              <Radio className="w-3 h-3 animate-pulse" /> ON AIR
+            <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-brand-gold text-black font-nunito font-bold flex-shrink-0 leading-4">
+              <Radio className="w-3 h-3" /> LIVE
             </span>
           )}
-          <Star
-            className={`w-4 h-4 ml-auto flex-shrink-0 transition-colors ${
-              isFavorite ? 'text-brand-gold fill-brand-gold' : isFocused ? 'text-brand-ice/40' : 'text-transparent'
-            }`}
-          />
+          {isFavorite && <Star className="w-3.5 h-3.5 text-brand-gold fill-brand-gold flex-shrink-0" />}
         </div>
-        {now ? (
-          <>
-            <p className="text-xs text-brand-ice/70 truncate font-nunito mt-1">
-              {now.title}
-            </p>
-            <div className="mt-1 flex items-center gap-2">
-              <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-brand-gold/80 rounded-full" style={{ width: `${progress}%` }} />
-              </div>
-              <span className="text-xs text-brand-ice/70 font-nunito tabular-nums flex-shrink-0">
-                {formatTime(now.start)}–{formatTime(now.end)}
-              </span>
-            </div>
-          </>
-        ) : (
-          <p className="text-xs text-brand-ice/60 truncate font-nunito mt-1 italic">No information</p>
-        )}
+        <p className={`text-xs font-nunito truncate ${now ? 'text-brand-ice/75' : 'text-brand-ice/50 italic'}`}>
+          {now ? now.title : 'No information'}
+        </p>
       </div>
+
+      {now ? (
+        <div className="w-14 h-[2px] rounded-full bg-white/15 overflow-hidden flex-shrink-0" aria-hidden="true">
+          <div className="h-full bg-brand-gold" style={{ width: `${progress}%` }} />
+        </div>
+      ) : null}
     </div>
   );
 });

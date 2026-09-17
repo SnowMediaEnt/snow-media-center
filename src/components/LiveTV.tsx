@@ -717,18 +717,18 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
 
       {/* Header */}
-      <div data-player-chrome="" className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30">
+      <div data-player-chrome="" className="flex items-center justify-between px-5 py-2 border-b border-white/10 bg-black/30">
         <div className="flex items-center gap-3">
           <BackButton
             onClick={leaveMode}
             label="Back"
-            className="h-12 rounded-xl"
+            className="h-10 rounded-lg"
             data-player-header-btn=""
             focused={pane === 'header' && headerIdx === 0}
           />
           <div className="flex items-center gap-2">
-            <Tv className="w-7 h-7 text-brand-gold" />
-            <h1 className="text-2xl font-quicksand font-bold text-white">Player</h1>
+            <Tv className="w-5 h-5 text-brand-gold" />
+            <h1 className="text-xl font-quicksand font-bold text-white">Player</h1>
             {creds?.serverLabel && (
               <span className="ml-2 text-xs px-2 py-1 rounded-full bg-white/10 text-brand-ice font-nunito">
                 {creds.serverLabel}
@@ -744,7 +744,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             disabled={isRefreshing}
             aria-label="Update Channels"
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
-            className={`tv-ring h-12 px-5 rounded-xl transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 1 ? 'scale-105 z-10' : ''}`}
+            className={`tv-ring h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 1 ? 'scale-105 z-10' : ''}`}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Updating…' : 'Update Channels'}
@@ -757,7 +757,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               size="sm"
               onClick={() => setSettingsOpen(true)}
               data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
-              className={`tv-ring tv-ring-contrast h-12 px-5 rounded-xl transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 2 ? 'scale-105 z-10' : ''}`}
+              className={`tv-ring tv-ring-contrast h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 2 ? 'scale-105 z-10' : ''}`}
             >
               <SettingsIcon className="w-4 h-4 mr-2" />
               Settings

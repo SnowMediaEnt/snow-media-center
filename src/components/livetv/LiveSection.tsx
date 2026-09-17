@@ -92,7 +92,7 @@ interface Props {
 type Pane = 'categories' | 'channels';
 const FAV_ID = '__favorites__';
 const ALL_ID = '__all__';
-const ROW_HEIGHT = 84;
+const ROW_HEIGHT = 60; // px — a 56px ChannelRow inside a 60px slot (2px padding top and bottom)
 const CAT_ROW_HEIGHT = 48; // px — matches py-2.5 + text-sm + 4px vertical gap (space-y-1)
 const CAT_FOCUS_PAD = 8;   // px — breathing room so the focus ring is never flush to the pane edge
 const EPG_MAX_CONCURRENT = 5;
@@ -1503,10 +1503,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const totalSize = rowVirtualizer.getTotalSize();
 
+  const catCount = currentCat?.count ?? (visibleChannels.length || undefined);
+  const nowLeftMins = focusedNowNext?.now ? Math.max(0, Math.round((focusedNowNext.now.end - Date.now()) / 60000)) : null;
   return (
-    <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
-      {/* Pane 2 — Categories */}
-      <div ref={categoriesScrollRef} className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
+    <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden relative">
+      {/* Categories — a drawer over the channel list. Left (or Back) from the
+          list opens it; picking a category closes it. It stays mounted and is
+          only moved off-screen, so its virtualizer keeps a measured scroll
+          parent and the manual scroll math (see the long comment above) still
+          holds when it slides back in. */}
+      <div
+        ref={categoriesScrollRef}
+        aria-hidden={pane !== 'categories'}
+        style={{ transform: pane === 'categories' ? 'translateX(0)' : 'translateX(-110%)' }}
+        className={`absolute left-0 top-0 bottom-0 z-20 w-[38%] min-w-[340px] max-w-[480px] border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-[#0b1220] ${pane === 'categories' ? '' : 'pointer-events-none'}`}
+      >
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
@@ -1607,58 +1618,23 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         )}
       </div>
 
-      {/* Pane 3 — Channels + preview */}
-      <div className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
-        <div className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
-          <div className="w-64 aspect-video rounded-xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
-            {previewDisabled ? (
-              // Preview <video> is disabled on Fire TV and low-memory / legacy
-              // WebView devices — each <video> spawns a WebMediaPlayer that
-              // saturates the compositor thread and freezes the UI.
-              <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
-                {focusedChannel ? 'Press OK to play' : 'No channel selected'}
-              </div>
-            ) : previewUrl ? (
-              <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div></div>}>
-                <VideoPlayer src={previewUrl} volume={0} muted={true} className="w-full h-full" chrome="minimal" />
-              </Suspense>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
-                {focusedChannel ? 'Preview loading…' : 'No channel selected'}
-              </div>
+      {/* Channel list: the current category as a switcher row, then slim rows */}
+      <div className="w-[38%] min-w-[340px] max-w-[480px] flex-shrink-0 flex flex-col border-r border-white/10 bg-black/30">
+        <div
+          onClick={() => setPane('categories')}
+          className="flex-shrink-0 h-12 flex items-center gap-3 px-4 border-b border-white/10 cursor-pointer"
+        >
+          <span className="text-brand-ice/50 text-sm" aria-hidden="true">◀</span>
+          <div className="flex-1 min-w-0 text-center">
+            {grouped && currentCat?.line && (
+              <div className="text-xs font-quicksand font-semibold tracking-[0.12em] uppercase text-brand-gold truncate">{lineLabel(currentCat.line)}</div>
             )}
+            <div className="text-sm font-quicksand font-semibold text-white truncate">
+              {searchOpen ? 'Search' : (currentCat?.name ?? 'Channels')}
+              {!searchOpen && catCount ? <span className="text-brand-ice/60 font-nunito font-normal"> · {formatCount(catCount)}</span> : null}
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            {focusedChannel ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-quicksand font-bold text-white truncate">{focusedChannel.name}</h3>
-                  {isFav(focusedChannel) && <Star className="w-5 h-5 text-brand-gold fill-brand-gold" />}
-                  {channelsLoading && <Loader2 className="w-4 h-4 animate-spin text-brand-gold ml-auto" />}
-                </div>
-                {focusedNowNext?.now ? (
-                  <>
-                    <p className="text-brand-ice/90 font-nunito truncate mt-1">Now: {focusedNowNext.now.title}</p>
-                    <p className="text-xs text-brand-ice/70 font-nunito mt-1">
-                      {formatTime(focusedNowNext.now.start)} – {formatTime(focusedNowNext.now.end)}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-brand-ice/70 font-nunito mt-1 text-sm">No program info available</p>
-                )}
-                {focusedNowNext?.next && (
-                  <p className="text-sm text-brand-ice/70 font-nunito mt-2 truncate">
-                    Next: {focusedNowNext.next.title} · {formatTime(focusedNowNext.next.start)}
-                  </p>
-                )}
-                <p className="text-xs text-brand-ice/60 font-nunito mt-4">Press Enter to play · F to favorite</p>
-              </>
-            ) : (
-              <p className="text-brand-ice/70 font-nunito">
-                {channelsLoading ? 'Loading channels…' : 'No channel focused'}
-              </p>
-            )}
-          </div>
+          <span className="text-xs font-nunito text-brand-ice/50 flex-shrink-0">categories</span>
         </div>
 
         {/* Virtualized channel list */}
@@ -1723,6 +1699,90 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             </div>
           )}
         </div>
+      </div>
+
+      {/* Stage: the preview, then what is on now and next */}
+      <div className="flex-1 min-w-0 flex flex-col p-5 gap-3 overflow-hidden">
+        <div className="relative w-full aspect-video max-h-[56%] rounded-2xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
+          {previewDisabled ? (
+            // Preview <video> is disabled on Fire TV and low-memory / legacy
+            // WebView devices — each <video> spawns a WebMediaPlayer that
+            // saturates the compositor thread and freezes the UI.
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-brand-ice/70 font-nunito text-sm text-center px-4">
+              {focusedChannel?.stream_icon ? (
+                <img src={focusedChannel.stream_icon} alt="" className="w-24 h-24 object-contain opacity-90" />
+              ) : (
+                <Tv className="w-12 h-12 text-brand-ice/40" />
+              )}
+              {focusedChannel ? 'Press OK to play' : 'No channel selected'}
+            </div>
+          ) : previewUrl ? (
+            <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div></div>}>
+              <VideoPlayer src={previewUrl} volume={0} muted={true} className="w-full h-full" chrome="minimal" />
+            </Suspense>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
+              {focusedChannel ? 'Preview loading…' : 'No channel selected'}
+            </div>
+          )}
+        </div>
+
+        {/* The highlighted channel, under the preview rather than over it so
+            it never fights the preview's own controls. */}
+        {focusedChannel && (
+          <div className="flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-xl font-quicksand font-bold text-white truncate">{focusedChannel.name}</h3>
+              {isFav(focusedChannel) && <Star className="w-4 h-4 text-brand-gold fill-brand-gold flex-shrink-0" />}
+              {channelsLoading && <Loader2 className="w-4 h-4 animate-spin text-brand-gold ml-auto" />}
+            </div>
+            {focusedNowNext?.now ? (
+              <>
+                <p className="text-sm text-brand-ice/85 font-nunito truncate mt-0.5">
+                  {focusedNowNext.now.title} · {formatTime(focusedNowNext.now.start)} – {formatTime(focusedNowNext.now.end)}
+                  {nowLeftMins != null ? ` · ${nowLeftMins} min left` : ''}
+                </p>
+                <div className="mt-2 h-[3px] rounded-full bg-white/15 overflow-hidden">
+                  <div className="h-full bg-brand-gold" style={{ width: `${Math.min(100, Math.max(0, ((Date.now() - focusedNowNext.now.start) / (focusedNowNext.now.end - focusedNowNext.now.start)) * 100))}%` }} />
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-brand-ice/70 font-nunito mt-0.5">No program info available</p>
+            )}
+          </div>
+        )}
+
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {focusedChannel ? (
+            <>
+              <div className="flex gap-6">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-quicksand font-semibold tracking-[0.14em] uppercase text-brand-gold">Now</p>
+                  <p className="text-sm font-nunito font-semibold text-white truncate mt-1">{focusedNowNext?.now?.title ?? '—'}</p>
+                  {focusedNowNext?.now && (
+                    <p className="text-xs font-nunito text-brand-ice/70 mt-0.5">{formatTime(focusedNowNext.now.start)} – {formatTime(focusedNowNext.now.end)}</p>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-quicksand font-semibold tracking-[0.14em] uppercase text-brand-ice/55">Next</p>
+                  <p className="text-sm font-nunito font-semibold text-white/85 truncate mt-1">{focusedNowNext?.next?.title ?? '—'}</p>
+                  {focusedNowNext?.next && (
+                    <p className="text-xs font-nunito text-brand-ice/70 mt-0.5">{formatTime(focusedNowNext.next.start)} – {formatTime(focusedNowNext.next.end)}</p>
+                  )}
+                </div>
+              </div>
+              {focusedNowNext?.now?.description ? (
+                <p className="mt-3 text-xs font-nunito text-white/70 leading-relaxed line-clamp-3">{focusedNowNext.now.description}</p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm text-brand-ice/70 font-nunito">
+              {channelsLoading ? 'Loading channels…' : 'No channel focused'}
+            </p>
+          )}
+        </div>
+
+        <p className="flex-shrink-0 text-xs font-nunito text-brand-ice/55">OK play · Hold OK options · ◀ categories · F favorite</p>
       </div>
       {reportFor && (
         <Suspense fallback={null}>
