@@ -724,6 +724,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // Wrapper around the virtualized rows — sits BELOW the Search button inside
   // the same scroll container, so we must measure its offset to scroll correctly.
   const categoriesListRef = useRef<HTMLDivElement | null>(null);
+  // Same reason: the channel scroll container has its own p-3 padding above
+  // the virtualized rows, so scrollTop math needs the wrapper's real offset.
+  const channelListRef = useRef<HTMLDivElement | null>(null);
   const layout = useLiveLayout();
   // First time in Live TV on this box: pick a look before anything else.
   const [choosingLayout, setChoosingLayout] = useState(() => !DEMO && !hasLiveLayoutChoice());
@@ -791,12 +794,22 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const node = scrollParentRef.current;
       if (!node) return;
       if (channelIdx === 0) { node.scrollTop = 0; return; }
-      const rowTop = Math.floor(channelIdx / cols) * rowHeight;
+      // The scroll container's own p-3 padding sits above the virtualized
+      // rows (same issue the categories pane had — see the comment on its
+      // scroll effect below). Raw `idx * rowHeight` ignores that padding, so
+      // scrollTop always lands short and the newly-focused row's bottom
+      // edge is left clipped below the visible pane instead of flush with
+      // it. Measure the list wrapper's real offset instead.
+      const listEl = channelListRef.current;
+      const listOffset = listEl
+        ? listEl.getBoundingClientRect().top - node.getBoundingClientRect().top + node.scrollTop
+        : 0;
+      const rowTop = listOffset + Math.floor(channelIdx / cols) * rowHeight;
       const rowBottom = rowTop + rowHeight;
       if (rowTop < node.scrollTop) node.scrollTop = rowTop;
       else if (rowBottom > node.scrollTop + node.clientHeight) node.scrollTop = rowBottom - node.clientHeight;
     };
-    
+
     apply();
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
@@ -1776,7 +1789,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   : 'No channels in this category.'}
             </div>
       ) : (
-        <div style={{ height: totalSize, position: 'relative', width: '100%' }}>
+        <div ref={channelListRef} style={{ height: totalSize, position: 'relative', width: '100%' }}>
           {virtualItems.map(v => {
             const first = v.index * cols;
             const slot = visibleChannels.slice(first, first + cols);
