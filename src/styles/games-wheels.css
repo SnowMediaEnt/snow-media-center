@@ -691,7 +691,7 @@
   content: 'SMC  •  ROULETTE';
   order: 2;
   flex: 1 1 auto;
-  min-height: 64px;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -713,7 +713,7 @@
   content: '✦';
   flex: 1 1 auto;
   width: 72%;
-  min-height: 42px;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -881,7 +881,9 @@
 }
 
 .snow-roulette-game .snow-rl-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 12px;
   align-items: center;
   min-height: 64px;
   margin-top: 0;
@@ -920,7 +922,7 @@
 .snow-roulette-game .snow-rl-total small { font-size: 9px; letter-spacing: .08em; }
 .snow-roulette-game .snow-rl-total strong { margin-top: 3px; color: #ffe28a; font-size: 23px; }
 
-.snow-roulette-game .snow-rl-actions { display: flex; align-items: center; margin-left: auto; }
+.snow-roulette-game .snow-rl-actions { display: flex; grid-column: 1 / -1; justify-content: flex-end; align-items: center; margin-left: 0; }
 .snow-roulette-game .snow-rl-actions .snow-game-action {
   min-height: 50px;
   padding-right: 15px;
