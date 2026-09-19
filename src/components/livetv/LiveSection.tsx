@@ -1750,7 +1750,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   const c = visibleCategories[i];
                   if (!c) return null;
                   const isFocused = isActive && pane === 'categories' && !searchFocused && categoryIdx === i;
-                  const isSelected = categoryIdx === i && !c.isHeader;
+                  // The category whose channels are listed. Marked only while
+                  // the viewer is over in that list — a thin gold bar, not a
+                  // filled box — so there is never a second highlight on
+                  // screen: with the highlight on the left rail or the header
+                  // nothing in this pane lights up at all.
+                  const isMarked = !isFocused && isActive && pane === 'channels' && categoryIdx === i && !c.isHeader;
                   const isLoadingThis = loadingCat === c.id;
                   return (
                     <div
@@ -1778,17 +1783,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                         ${c.isHeader ? 'px-3 mt-1' : grouped ? 'pl-6 pr-3' : 'px-3'}
                         ${isFocused ? 'bg-brand-gold/25 z-10' : ''}
                         ${!isFocused && c.isHeader ? 'bg-white/10 border border-white/15' : ''}
-                        ${!isFocused && isSelected ? 'bg-white/10 border border-brand-gold/30' : ''}
-                        ${!isFocused && !isSelected && !c.isHeader ? 'border border-transparent hover:bg-white/5' : ''}
+                        ${!isFocused && !c.isHeader ? 'border border-transparent hover:bg-white/5' : ''}
                       `}
                     >
+                      {isMarked && <span className="absolute left-1 top-2 bottom-2 w-[3px] rounded-full bg-brand-gold" aria-hidden="true" />}
                       {c.isHeader && (c.collapsedHeader
                         ? <ChevronRight className="w-4 h-4 text-brand-gold flex-shrink-0" />
                         : <ChevronDown className="w-4 h-4 text-brand-gold flex-shrink-0" />)}
                       {c.isFav && <Star className="w-4 h-4 text-brand-gold flex-shrink-0" />}
                       <span className={c.isHeader
                         ? `font-quicksand font-bold uppercase tracking-wide text-sm truncate flex-1 ${isFocused ? 'text-white' : 'text-brand-gold'}`
-                        : `font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : 'text-brand-ice'}`}>
+                        : `font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : isMarked ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
                         {c.name}
                       </span>
                       {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}

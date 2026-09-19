@@ -824,9 +824,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                 onClick={(e) => { if (collapsed) return; e.stopPropagation(); setSectionIdx(i); setSection(s.id); setPane('content'); }}
                 className={`
                   tv-ring relative flex items-center gap-3 ${collapsed ? 'px-1 py-3 justify-center' : 'px-3 py-3'} rounded-xl cursor-pointer
-                  ${isFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : ''}
-                  ${!isFocused && isActive ? 'bg-white/10' : ''}
-                  ${!isFocused && !isActive ? 'hover:bg-white/5' : ''}
+                  ${isFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'hover:bg-white/5'}
                 `}
                 title={collapsed ? s.label : undefined}
               >
