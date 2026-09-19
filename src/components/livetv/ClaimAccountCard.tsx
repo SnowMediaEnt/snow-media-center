@@ -6,7 +6,6 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { trackEvent } from '@/lib/analytics';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
-import { EDITOR_ACTION_EVENT } from '@/utils/keyboardVisibility';
 import { signInWithPlayerCredentials } from '@/lib/playerLogin';
 import {
   buildClaimUrl,
@@ -210,13 +209,26 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
       const isOk = e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23;
 
       // While a field owns DOM focus, text-editing keys pass through; only
-      // ArrowUp/Down leave the field (and hide the on-screen keyboard).
+      // ArrowUp/Down leave the field (and hide the on-screen keyboard), and
+      // the keyboard's Enter / Next walks name → email → phone, landing on
+      // Save after the last one with the keyboard away.
       if (v === 'manual' && typing) {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           e.stopPropagation();
           void hideKeyboardForDpad(fieldRefs[typingIdx].current);
           setFocusIdx(e.key === 'ArrowDown' ? Math.min(typingIdx + 1, SAVE_IDX) : Math.max(typingIdx - 1, 0));
+        } else if (isOk && !e.isComposing && e.keyCode !== 229) {
+          e.preventDefault();
+          e.stopPropagation();
+          const n = typingIdx + 1;
+          if (n < FIELD_COUNT) {
+            setFocusIdx(n);
+            void focusTextInputForDpad(fieldRefs[n].current);
+          } else {
+            void hideKeyboardForDpad(fieldRefs[typingIdx].current);
+            setFocusIdx(SAVE_IDX);
+          }
         } else if (isBack) {
           // Let the OSK consume Back natively — never close mid-typing.
           e.stopPropagation();
@@ -273,28 +285,6 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
     // fieldRefs is a fresh array each render but its refs are stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, openManual, backToPrompt, startQrSession, submitManual]);
-
-  // The keyboard's Next key (reported natively) walks name → email → phone
-  // and lands on Save after the last one, keyboard away.
-  useEffect(() => {
-    if (!open) return;
-    const onAction = (event: Event) => {
-      if ((event as CustomEvent<{ action?: string }>).detail?.action !== 'next') return;
-      if (viewRef.current !== 'manual') return;
-      const idx = fieldRefs.findIndex((r) => r.current && document.activeElement === r.current);
-      if (idx < 0) return;
-      if (idx + 1 < FIELD_COUNT) {
-        setFocusIdx(idx + 1);
-        void focusTextInputForDpad(fieldRefs[idx + 1].current);
-      } else {
-        void hideKeyboardForDpad(fieldRefs[idx].current);
-        setFocusIdx(SAVE_IDX);
-      }
-    };
-    window.addEventListener(EDITOR_ACTION_EVENT, onAction);
-    return () => window.removeEventListener(EDITOR_ACTION_EVENT, onAction);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   // Keep DOM focus in sync with the D-pad cursor.
   useEffect(() => {

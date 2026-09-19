@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
-import { EDITOR_ACTION_EVENT, isNativeKeyboardVisible, markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
-import { trackEvent } from '@/lib/analytics';
-import { traceKey } from '@/utils/keyTrace';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type NavTarget = string | null | undefined | (() => string | null | undefined);
@@ -82,7 +79,6 @@ interface UseTVFocusOptions {
 // stable name for the element for as long as it stays mounted.
 let autoIdCounter = 0;
 
-
 const isTextInput = (el: HTMLElement | null): el is HTMLInputElement | HTMLTextAreaElement =>
   !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
 
@@ -92,13 +88,7 @@ const isTextInput = (el: HTMLElement | null): el is HTMLInputElement | HTMLTextA
  * A Fire TV remote sends KEYCODE_DPAD_CENTER (23), and some remotes send
  * ENTER (66). Depending on the WebView build those reach JavaScript with
  * event.key of 'Enter', 'Unidentified' or '' — so testing event.key alone
- * misses the press entirely. PlexPlayerOverlay, BufferingGuide, StoreScreen,
- * HowToGuide, ClaimAccountCard and RenewQR all accept 23/66 for exactly this
- * reason; this hook was the one place that did not.
- *
- * That was survivable while focusing a field opened the keyboard by itself.
- * Once OK became the way to open it, an OK that never arrives means a field
- * that can never be typed in.
+ * misses the press entirely.
  */
 // NOT keyCode 66: in Android that is KEYCODE_ENTER, but in the DOM it is the
 // letter B — matching it would swallow every 'b' the viewer types. 23 is
@@ -108,45 +98,6 @@ const isEnterKey = (e: KeyboardEvent) =>
   || e.code === 'Enter' || e.code === 'NumpadEnter'
   || e.keyCode === 13 || e.keyCode === 23;
 
-/**
- * A breadcrumb for the one thing that cannot be watched from here: which
- * route the keyboard's Enter took on a real box, and what the page decided.
- * Goes out as an analytics event, so a TV that "does nothing" on Next can be
- * read back from the dashboard instead of guessed at. Only Enter on a text
- * field is noted, never a character.
- */
-const noteFieldEnter = (
-  path: 'keydown' | 'keyup' | 'keypress' | 'action',
-  event: KeyboardEvent | null,
-  field: HTMLInputElement | HTMLTextAreaElement,
-  editing: boolean,
-) => {
-  traceKey(`${path} ${event ? `${event.key}/${event.keyCode}${event.isComposing ? ' comp' : ''}` : 'native'} ${editing ? 'next' : 'open'}`);
-  try {
-    trackEvent('tv_field_enter', 'debug', {
-      path,
-      key: event?.key ?? null,
-      keyCode: event?.keyCode ?? null,
-      composing: event?.isComposing ?? null,
-      editing,
-      len: field.value.length,
-      field: field.getAttribute('data-tv-focus-id') || field.id || field.tagName,
-    });
-  } catch { /* analytics must never break a key press */ }
-};
-
-/**
- * The keys the Fire TV keyboard legend calls "Next" while typing: the
- * remote's Play/Pause (and the skip key on remotes that have one). A device
- * log showed Amazon's keyboard does nothing with Play over a web page — it
- * neither moves focus nor sends an Enter — so the page takes the key itself.
- * Tab is here for the WebViews that turn the keyboard's Next into a Tab.
- */
-const isNextKey = (e: KeyboardEvent) =>
-  e.key === 'MediaPlayPause' || e.key === 'MediaPlay' || e.key === 'MediaTrackNext'
-  || e.keyCode === 179 || e.keyCode === 176
-  || e.key === 'Tab';
-
 /** Enter, or Space — both activate a focused control when not typing. */
 const isOkKey = (e: KeyboardEvent) =>
   isEnterKey(e) || e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space' || e.keyCode === 32;
@@ -154,22 +105,31 @@ const isOkKey = (e: KeyboardEvent) =>
 const isArrowKey = (e: KeyboardEvent) =>
   e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight';
 
-/**
- * The on-screen keyboard is left entirely to the platform.
- *
- * There is no suppression here any more: no inputmode="none", no readonly
- * trap, no blur/refocus dance. Those all ended the same way — Android built
- * the input connection while the field was suppressed, and the later
- * Keyboard.show() was answered against that dead connection, so the keyboard
- * never appeared however many times OK was pressed. Explicit inputmode values
- * (email, numeric) set by the forms are left exactly as the forms wrote them.
- */
-
 const isVisible = (el: HTMLElement) =>
   !el.hasAttribute('disabled') &&
   el.getAttribute('aria-disabled') !== 'true' &&
   el.dataset.tvDisabled !== 'true' &&
   el.offsetParent !== null;
+
+// How long after a Back-dismiss an Enter / OK / Space is treated as the
+// keyboard's own after-effect rather than a press. Amazon's keyboard emits
+// its action as it goes, and that lands on the page as a plain Enter.
+const DISMISS_GRACE_MS = 700;
+// One keyboard Enter can reach the page more than once (keydown, then the
+// keyup fallback below). Within this window the second one is an echo.
+const ENTER_ECHO_MS = 800;
+
+/**
+ * Remote-control focus for a screen.
+ *
+ * Text fields work the way they did on 1.6.x: the highlight landing on a
+ * field focuses it, OK asks the platform for its keyboard, arrows and Back
+ * put the keyboard away. The one addition is the keyboard's own Enter / Next
+ * key: once a keyboard was asked for on a field and something was typed, the
+ * next Enter moves on to the next text field (keyboard along), or after the
+ * last one puts the keyboard away and lands on whatever follows — the form's
+ * button. Nothing is submitted; that is the button's job.
+ */
 export const useTVFocus = ({
   enabled = true,
   initialFocusId,
@@ -184,201 +144,11 @@ export const useTVFocus = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIdRef = useRef<string | null>(initialFocusId ?? null);
   const didAutoFocusRef = useRef(false);
-  // Whether the platform's on-screen keyboard is GENUINELY up, and for which
-  // field. Deliberately not "a field is focused" and not "we called
-  // Keyboard.show()": TV WebViews focus fields for D-pad navigation with no IME
-  // at all, and they accept show() requests they then ignore. Only a
-  // keyboardDidShow event for a field THIS hook owns, or real editing evidence
-  // inside its own container, sets this true.
-  const imeVisibleRef = useRef(false);
-  const imeElRef = useRef<HTMLElement | null>(null);
-  // True when the record above came from real editing (a character went into
-  // the field), not from a platform report. See the visibility listener.
-  const imeEvidenceRef = useRef(false);
-  const mountedRef = useRef(true);
-  // Every keyboard request carries a generation. Moving the highlight,
-  // disabling the hook or unmounting bumps it, so a native show that resolves
-  // late can never raise a keyboard for a field the viewer has already left.
-  const requestGenRef = useRef(0);
-  const pendingElRef = useRef<HTMLElement | null>(null);
-  const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
-  /** True only for an editable field inside THIS hook's container. */
-  const ownsElement = useCallback(
-    (el: HTMLElement | null): el is HTMLInputElement | HTMLTextAreaElement =>
-      isTextInput(el) && !!containerRef.current?.contains(el),
-    [],
-  );
-  const keyboardOpen = useCallback(() => {
-    const active = document.activeElement as HTMLElement | null;
-    const activeOwned = ownsElement(active);
-    if (imeVisibleRef.current && imeElRef.current) {
-      if (imeElRef.current === active) return true;
-      // The highlight has moved off the field we recorded. Trust the record only
-      // while focus is still somewhere on this hook's own screen — once
-      // activeElement has left the container (body after a blur, another view)
-      // an old field must never keep claiming the keyboard.
-      if (active && containerRef.current?.contains(active) && !activeOwned) return true;
-      if (!activeOwned) return false;
-    }
-    // Adoption. Tapping straight from one editable field to another does not
-    // hide the platform keyboard, and the platform coalesces true -> true, so no
-    // fresh keyboardDidShow arrives for the new field. If the platform still
-    // reports a keyboard up and the focused field is one we own, it is ours.
-    if (activeOwned && isNativeKeyboardVisible()) {
-      imeElRef.current = active;
-      imeVisibleRef.current = true;
-      return true;
-    }
-    return false;
-  }, [ownsElement]);
-  /**
-   * Is this field being typed in, so that an Enter means "done here"?
-   *
-   * Two kinds of proof are accepted. The first is what keyboardOpen() sees:
-   * a keyboard-shown report or a character going in. The second covers the
-   * boxes where neither ever reaches the page — the keyboard was asked for
-   * ON this field and it now holds text. Nobody asks for a keyboard on a
-   * field, types into it, then presses Enter meaning "open the keyboard";
-   * that Enter means "next". An EMPTY field with a keyboard asked for is
-   * still treated as "open it": a device that ignored the request must
-   * stay retryable, and skipping a blank field is the arrow keys' job.
-   */
-  const fieldIsBeingEdited = useCallback((el: HTMLInputElement | HTMLTextAreaElement) => {
-    if (keyboardOpen()) return true;
-    return imeElRef.current === el && el.value.length > 0;
-  }, [keyboardOpen]);
-  // When an Enter on a text field was last acted on, by any route. The
-  // keyup / keypress fallbacks below stand down within this window so one
-  // press can never walk two fields.
-  const lastEnterRef = useRef(0);
-  const ENTER_ECHO_MS = 800;
-  // A native show that never settles must not hold the field hostage: after
-  // this long the field becomes retryable again. A lapsed deadline is NOT
-  // evidence of visibility — it only permits another request.
-  const REQUEST_DEADLINE_MS = 3000;
-  // How long after a Back-dismiss an Enter / OK / Space is treated as the
-  // keyboard's own after-effect rather than a press. See the guard in the
-  // keydown handler.
-  const DISMISS_GRACE_MS = 700;
-  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clearPendingTimer = useCallback(() => {
-    if (pendingTimerRef.current) {
-      clearTimeout(pendingTimerRef.current);
-      pendingTimerRef.current = null;
-    }
-  }, []);
-  const clearIme = useCallback(() => {
-    imeVisibleRef.current = false;
-    imeElRef.current = null;
-    imeEvidenceRef.current = false;
-    requestGenRef.current += 1;
-    clearPendingTimer();
-    pendingElRef.current = null;
-  }, [clearPendingTimer]);
-
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; clearPendingTimer(); };
-  }, [clearPendingTimer]);
-
-
-  useEffect(() => {
-    if (!enabled) { clearIme(); return; }
-    const root = containerRef.current;
-    // keyboardDidShow says A keyboard is up — not which field it belongs to.
-    // Associate it with the editable field this hook owns and that is focused
-    // (or awaiting its own request). Without that, a field focused by tap never
-    // counted as open: Back left the screen and Next re-asked for a keyboard.
-    const stop = onKeyboardVisibilityChange((open) => {
-      if (!enabledRef.current || !mountedRef.current) return;
-      traceKey(open ? 'vis+' : 'vis-');
-      if (!open) {
-        // A "hidden" report is only as good as its source. On a Fire TV the
-        // plugin infers visibility from how much of the window is covered,
-        // and Amazon's full-screen keyboard covers nothing in that sense — it
-        // sits in its own window — so that report flaps to "hidden" while the
-        // viewer is still typing. Typing IS the keyboard: while the field
-        // that received characters still holds focus, keep the record. A
-        // dismissal the page performs itself goes through clearIme first, so
-        // this never keeps a keyboard the page closed.
-        if (imeEvidenceRef.current && imeElRef.current && document.activeElement === imeElRef.current) return;
-        imeVisibleRef.current = false;
-        imeElRef.current = null;
-        imeEvidenceRef.current = false;
-        return;
-      }
-      const active = document.activeElement as HTMLElement | null;
-      const el = ownsElement(active)
-        ? active
-        : (ownsElement(pendingElRef.current) ? pendingElRef.current : null);
-      // Someone else's field: not ours to claim.
-      if (!el) return;
-      imeElRef.current = el;
-      imeVisibleRef.current = true;
-    });
-    // Hard editing evidence, for devices that raise a keyboard without ever
-    // firing keyboardDidShow. Scoped to this hook's own container so sibling
-    // hooks cannot contaminate each other's state.
-    const evidence = (event: Event) => {
-      if (!enabledRef.current) return;
-      const el = event.target as HTMLElement | null;
-      if (!ownsElement(el)) return;
-      imeElRef.current = el;
-      imeVisibleRef.current = true;
-      imeEvidenceRef.current = true;
-      markKeyboardVisible();
-    };
-    root?.addEventListener('beforeinput', evidence, true);
-    root?.addEventListener('compositionstart', evidence, true);
-    root?.addEventListener('input', evidence, true);
-    return () => {
-      stop();
-      root?.removeEventListener('beforeinput', evidence, true);
-      root?.removeEventListener('compositionstart', evidence, true);
-      root?.removeEventListener('input', evidence, true);
-      clearIme();
-    };
-  }, [clearIme, enabled, ownsElement]);
-
-  /**
-   * Ask the platform for the keyboard on a field this hook owns.
-   *
-   * One pending request per field: two quick OK presses must not fire two
-   * native show calls. Once the request settles the field is retryable, so a
-   * device that ignored it can simply be asked again. An accepted request is
-   * never recorded as a visible keyboard.
-   */
-  const openKeyboardOn = useCallback(async (el: HTMLInputElement | HTMLTextAreaElement) => {
-    if (pendingElRef.current === el) return;
-    const gen = ++requestGenRef.current;
-    clearPendingTimer();
-    pendingElRef.current = el;
-    imeElRef.current = el;
-    // Bounded deadline: a native show that never settles used to hold this
-    // field's pending slot forever, so OK could never be retried.
-    pendingTimerRef.current = setTimeout(() => {
-      pendingTimerRef.current = null;
-      if (pendingElRef.current === el) pendingElRef.current = null;
-    }, REQUEST_DEADLINE_MS);
-    const isCancelled = () =>
-      !mountedRef.current || !enabledRef.current || gen !== requestGenRef.current
-      || !el.isConnected || el.disabled || !containerRef.current?.contains(el);
-    try {
-      await focusTextInputForDpad(el, { isCancelled });
-    } finally {
-      if (pendingElRef.current === el) {
-        clearPendingTimer();
-        pendingElRef.current = null;
-      }
-      if (gen === requestGenRef.current && imeElRef.current === el && !imeVisibleRef.current
-        && (!el.isConnected || !enabledRef.current)) {
-        imeElRef.current = null;
-      }
-    }
-  }, [clearPendingTimer]);
-
+  const [currentFocusId, setCurrentFocusId] = useState<string | null>(initialFocusId ?? null);
+  // The field the keyboard was last asked for, and is presumed up on. Cleared
+  // whenever the highlight moves, the keyboard is put away, or the platform
+  // reports it hidden. Only ever a field inside this hook's own container.
+  const openedRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   // Held in a ref, not read from the closure: callers pass an inline arrow, so
   // listing onBack in the listener's deps re-appended the window listener on
   // every render. That reshuffled it behind LiveTV's own capture handler, which
@@ -388,14 +158,16 @@ export const useTVFocus = ({
   // One press of the remote's Back can reach us twice: the WebView delivers the
   // real key (keyCode 4), and LiveTV's Capacitor backButton listener
   // synthesizes an Escape on top of it. Handled separately that is two Backs —
-  // the first closed the keyboard and the second left the screen, so there was
-  // never a moment to arrow down to Sign In.
+  // the first closed the keyboard and the second left the screen.
   const lastBackRef = useRef(0);
-  // When Back last dismissed a keyboard on a field. See DISMISS_GRACE_MS.
   const lastDismissRef = useRef(0);
-  const [currentFocusId, setCurrentFocusId] = useState<string | null>(initialFocusId ?? null);
+  const lastEnterRef = useRef(0);
 
-
+  const ownsField = useCallback(
+    (el: HTMLElement | null): el is HTMLInputElement | HTMLTextAreaElement =>
+      isTextInput(el) && !!containerRef.current?.contains(el),
+    [],
+  );
 
   const getElements = useCallback(() => {
     const root = containerRef.current;
@@ -431,22 +203,9 @@ export const useTVFocus = ({
     });
     target.dataset.tvFocused = 'true';
     target.tabIndex = target.tabIndex < 0 ? 0 : target.tabIndex;
-    // Highlighting a field is NOT the keyboard opening. Leave the IME record
-    // alone when this is the very field whose keyboard we asked for — the
-    // element's own onFocus calls straight back in here, which used to wipe the
-    // record the moment the keyboard appeared. Otherwise clear it: the highlight
-    // has moved, so nothing is being edited, and any request still in flight
-    // for the old field is invalidated so it cannot raise a keyboard now.
-    if (target !== imeElRef.current) {
-      imeVisibleRef.current = false;
-      imeElRef.current = null;
-      imeEvidenceRef.current = false;
-      if (pendingElRef.current && pendingElRef.current !== target) {
-        requestGenRef.current += 1;
-        pendingElRef.current = null;
-      }
-    }
-
+    // The highlight moved off the field the keyboard was on: forget it, so
+    // an Enter on the new field asks for the keyboard rather than skipping.
+    if (openedRef.current && openedRef.current !== target) openedRef.current = null;
     target.focus({ preventScroll: true });
     // When focusing a top-of-page "back" control, snap the nearest scroll
     // container to absolute top so the safe-area padding isn't clipped.
@@ -532,15 +291,24 @@ export const useTVFocus = ({
     return focusById(nextId ?? currentId);
   }, [findManagedElement, findSpatial, focusById, getId, navigation, scrollWhenStuck]);
 
+  /** Ask the platform for the keyboard on a field this hook owns. */
+  const openKeyboardOn = useCallback((field: HTMLInputElement | HTMLTextAreaElement) => {
+    openedRef.current = field;
+    void focusTextInputForDpad(field);
+  }, []);
+
+  /** Put the keyboard away and leave the field, highlight staying where it is. */
+  const closeKeyboard = useCallback((el: HTMLElement | null) => {
+    openedRef.current = null;
+    void hideKeyboardForDpad(el);
+  }, []);
+
   const activate = useCallback(() => {
     const currentEl = findManagedElement(document.activeElement as HTMLElement | null)
       ?? getElements().find((el) => getId(el) === currentIdRef.current);
     if (!currentEl) return;
     if (isTextInput(currentEl)) {
-      // Ask the platform for the keyboard on the field that is already focused.
-      // Nothing is blurred first: that destroyed the input connection Android
-      // had just built and was why the keyboard never appeared on TV.
-      void openKeyboardOn(currentEl);
+      openKeyboardOn(currentEl);
       return;
     }
     currentEl.click();
@@ -549,7 +317,7 @@ export const useTVFocus = ({
   // The keyboard's Next: leave `field` for the next text field on this screen,
   // in reading order, and ask for the keyboard there. After the last field
   // the keyboard is put away and the highlight lands on whatever comes next,
-  // which on every form in the app is its button. Nothing is submitted.
+  // which on every form in the app is its button.
   const advanceFrom = useCallback((field: HTMLInputElement | HTMLTextAreaElement) => {
     const elements = getElements();
     const here = findManagedElement(field) ?? field;
@@ -558,37 +326,27 @@ export const useTVFocus = ({
     const nextField = rest.find(
       (el): el is HTMLInputElement | HTMLTextAreaElement => isTextInput(el) && !el.disabled && !el.readOnly,
     );
-    clearIme();
     if (nextField) {
       focusById(getId(nextField));
-      void openKeyboardOn(nextField);
+      openKeyboardOn(nextField);
       return;
     }
-    void hideKeyboardForDpad(field);
+    closeKeyboard(field);
     const next = rest[0];
     if (next) focusById(getId(next));
-  }, [clearIme, findManagedElement, focusById, getElements, getId, openKeyboardOn]);
+  }, [closeKeyboard, findManagedElement, focusById, getElements, getId, openKeyboardOn]);
 
-  // The keyboard's own action key, reported by the native side (see
-  // SnowWebView). Unlike an Enter keydown this needs no evidence that typing
-  // is under way: it was pressed ON the keyboard, so the keyboard is up and
-  // the focused field is the one being edited.
-  useEffect(() => {
-    if (!enabled) return;
-    const onAction = (event: Event) => {
-      const action = (event as CustomEvent<{ action?: string }>).detail?.action;
-      if (action !== 'next') return;
-      const active = document.activeElement as HTMLElement | null;
-      if (!ownsElement(active)) return;
-      const now = Date.now();
-      if (now - lastEnterRef.current < ENTER_ECHO_MS) return;
-      lastEnterRef.current = now;
-      noteFieldEnter('action', null, active, true);
-      advanceFrom(active);
-    };
-    window.addEventListener(EDITOR_ACTION_EVENT, onAction);
-    return () => window.removeEventListener(EDITOR_ACTION_EVENT, onAction);
-  }, [advanceFrom, enabled, ownsElement]);
+  /**
+   * Is an Enter on this field the keyboard's "done here"? Only when the
+   * keyboard was asked for on this very field and something was typed. An
+   * empty field is still "open it": a box that ignored the request must stay
+   * retryable, and skipping a blank field is the arrow keys' job.
+   */
+  const enterMeansNext = useCallback(
+    (field: HTMLInputElement | HTMLTextAreaElement) =>
+      openedRef.current === field && field.value.length > 0,
+    [],
+  );
 
   useEffect(() => {
     if (!enabled || !autoFocusOnMount) return;
@@ -609,6 +367,44 @@ export const useTVFocus = ({
     return () => cancelAnimationFrame(rafId);
   }, [enabled, autoFocusOnMount, focusById, getElements, getId, initialFocusId]);
 
+  // The platform moving focus by itself. Chromium answers the keyboard's Next
+  // by focusing the next form control directly, with no key event at all; the
+  // highlight follows here, and the keyboard is taken to be on the new field.
+  // A keyboardDidHide report, where the platform sends one, forgets the field.
+  useEffect(() => {
+    if (!enabled) { openedRef.current = null; return; }
+    const root = containerRef.current;
+    const onFocusIn = (event: FocusEvent) => {
+      const el = event.target as HTMLElement | null;
+      if (!ownsField(el)) return;
+      if (openedRef.current && openedRef.current !== el) openedRef.current = el;
+      const managed = findManagedElement(el);
+      if (!managed) return;
+      const id = getId(managed);
+      if (id !== currentIdRef.current) focusById(id);
+    };
+    root?.addEventListener('focusin', onFocusIn);
+    let stopHide: (() => void) | null = null;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (!Capacitor.isNativePlatform()) return;
+        const { Keyboard } = await import('@capacitor/keyboard');
+        const handle = await Keyboard.addListener('keyboardDidHide', () => { openedRef.current = null; });
+        if (cancelled) { void handle.remove(); return; }
+        stopHide = () => { void handle.remove(); };
+      } catch {
+        // No keyboard plugin here (web, tests): Back and the arrows still clear it.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      root?.removeEventListener('focusin', onFocusIn);
+      stopHide?.();
+      openedRef.current = null;
+    };
+  }, [enabled, findManagedElement, focusById, getId, ownsField]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -616,15 +412,9 @@ export const useTVFocus = ({
       if (event.defaultPrevented) return;
       // Mid-composition keys (Android word suggestions, CJK IMEs) arrive as
       // Enter/keyCode 229 and must never submit a form or move the highlight.
-      if (event.isComposing || event.keyCode === 229) {
-        if (isTextInput(document.activeElement as HTMLElement | null) && (isEnterKey(event) || event.keyCode === 229)) {
-          traceKey(`kd ${event.key}/${event.keyCode} comp`);
-        }
-        return;
-      }
+      if (event.isComposing || event.keyCode === 229) return;
       const target = event.target as HTMLElement | null;
       const active = document.activeElement as HTMLElement | null;
-      if (isTextInput(active) || isTextInput(target)) traceKey(`kd ${event.key}/${event.keyCode}`);
       const isLooseTarget = (el: HTMLElement | null) =>
         !el || el === document.body || el === document.documentElement || el === containerRef.current;
       const managedTarget = findManagedElement(target)
@@ -637,18 +427,6 @@ export const useTVFocus = ({
 
       const typing = isTextInput(target) || isTextInput(active) || !!target?.isContentEditable;
       const now = Date.now();
-      // Close the keyboard but keep the field highlighted, so Back reads as
-      // "done typing" rather than "the screen reset itself".
-      const closeIme = (el: HTMLElement | null) => {
-        // clearIme also bumps the request generation, so any show still in
-        // flight is abandoned instead of re-opening what we just closed.
-        clearIme();
-        // Blur and leave focus off the field. The ring is drawn from
-        // data-tv-focused, which focusById already set, and the handler below
-        // falls back to currentIdRef when focus is loose — so remote navigation
-        // still works once the keyboard is gone.
-        void hideKeyboardForDpad(el);
-      };
       const isBack = event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.code === 'GoBack';
       if (isBack) {
         // Backspace deletes whenever a field is being edited — however the
@@ -661,121 +439,59 @@ export const useTVFocus = ({
         lastBackRef.current = now;
         // Tell the app's other Back listeners this press is spoken for.
         (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = now;
-        // Back on a field the viewer is typing in closes the keyboard and
-        // STAYS on that field. Deliberately keyed off `typing` — a text input
-        // is focused — and NOT off any belief about whether a keyboard is
-        // visible.
-        //
-        // This is how it worked from May until 2026-09-09, when the condition
-        // became `if (keyboardOpen())`. That gate can only be satisfied by a
-        // keyboardDidShow event, and @capacitor/keyboard raises those purely
-        // from Android 11 window-inset animations, so on a Fire OS 7 stick
-        // (Android 9) it is false forever. Back stopped dismissing and started
-        // navigating instead, leaving the keyboard stranded over the next
-        // screen — on every text field in the app at once, because this hook is
-        // shared. Nothing about the device changed; this line did.
+        // Back on a field closes the keyboard and STAYS on that field: the
+        // highlight is drawn from data-tv-focused, which focusById set, and
+        // the handler falls back to currentIdRef once focus is loose.
         if (typing) {
           lastDismissRef.current = now;
-          closeIme(active ?? target);
+          closeKeyboard(active ?? target);
           return;
         }
         onBackRef.current?.();
         return;
       }
 
-      // A keyboard dismissed by Back must STAY dismissed.
-      //
-      // Measured on a Fire TV: Back closes Amazon's keyboard for a split
-      // second and it comes straight back. The keyboard emits its editor
-      // action as it goes — Chromium delivers that to the page as a plain
-      // Enter keydown — and by then closeIme() has blurred the field, so the
-      // Enter lands on <body>. activate() then falls back to currentIdRef (the
-      // field we just left) and re-requests the keyboard on it.
-      //
-      // It only started doing this when the keyboard started working. Before
-      // 2026-09-08, activate() on a text field called Capacitor's polite
-      // Keyboard.show(), which a TV in non-touch mode ignores, so that stray
-      // Enter was a no-op. SnowKeyboard.show() actually works — which is the
-      // whole point of it — so the same Enter now re-raises the keyboard.
-      //
-      // So: for a short grace period after a Back-dismiss, Enter / OK / Space
-      // is swallowed outright. A person cannot mean "open it again" within
-      // 700 ms of closing it; the keyboard's own after-effects arrive well
-      // inside that. Arrow keys are untouched, so moving off the field still
-      // works instantly.
+      // A keyboard dismissed by Back must STAY dismissed: Amazon's keyboard
+      // emits its action as it closes, which lands here as an Enter on the
+      // field we just left. Nobody means "open it again" within 700 ms.
       if (isOkKey(event) && now - lastDismissRef.current < DISMISS_GRACE_MS) {
         event.preventDefault();
         event.stopPropagation();
         return;
       }
 
-      // Enter on a text field.
-      //
-      // Two different presses arrive here as the same key:
-      //   • OK on a highlighted field with no keyboard up: "let me type here".
-      //     Ask for the keyboard, and ask again on every press, so a device
-      //     that ignored the first request is simply asked again.
-      //   • The keyboard's own Enter / Next key while the viewer is typing:
-      //     "I'm done with this field". Move to the next text field and take
-      //     the keyboard along, or, after the last one, put the keyboard away
-      //     and land on whatever follows — usually the form's button. It never
-      //     submits: submission is that button's job, where the D-pad lands.
-      //
-      // "Typing" is decided by keyboardOpen(): hard evidence that this field
-      // is being edited (a character went in, a composition started, a
-      // keyboard-shown event landed while it was focused). Nothing else. The
-      // Sept-9 version of this walked fields on ANY Enter, which on a Fire TV
-      // meant Back walked from username to password, because Amazon's
-      // keyboard emitted its editor action as it dismissed. That action is now
-      // stopped at the input connection (SnowWebView: IME_ACTION_NONE, NEXT and
-      // PREVIOUS swallowed), so an Enter reaching this page is one the viewer
-      // pressed. Without this block the keyboard's Next key re-requested the
-      // keyboard on the same field — it blinked and stayed put.
-      const enterField = isTextInput(active) ? active : (isTextInput(target) ? target : null);
+      const enterField = ownsField(active) ? active : (ownsField(target) ? target : null);
       const allowEnter = managedTarget.dataset.tvAllowEnter === 'true';
-      if (isNextKey(event) && enterField) {
-        event.preventDefault();
-        event.stopPropagation();
-        // The native side reports the same press as an action; whichever
-        // lands first moves the field and the other is an echo.
-        if (now - lastEnterRef.current < ENTER_ECHO_MS) return;
-        lastEnterRef.current = now;
-        noteFieldEnter('keydown', event, enterField, true);
-        advanceFrom(enterField);
-        return;
-      }
+      // Enter on a text field is either OK ("let me type here") or the
+      // keyboard's own Enter / Next ("done with this field"). A multiline box
+      // keeps its newline, and a field marked allow-enter keeps its submit —
+      // but only once typed in: OK on it still opens the keyboard.
       if (isEnterKey(event) && enterField) {
-        const editing = fieldIsBeingEdited(enterField);
-        // A multiline box keeps ordinary editing: Enter inserts a newline.
-        if (enterField.tagName === 'TEXTAREA' && editing) return;
+        const next = enterMeansNext(enterField);
+        if (next && (enterField.tagName === 'TEXTAREA' || allowEnter)) return;
         event.preventDefault();
         event.stopPropagation();
-        noteFieldEnter('keydown', event, enterField, editing);
-        // The echo window only covers a press that MOVED the field. An OK
-        // that asked for the keyboard must not shadow a Next that follows it.
-        if (editing) { lastEnterRef.current = now; advanceFrom(enterField); }
-        else activate();
+        if (next && now - lastEnterRef.current < ENTER_ECHO_MS) return;
+        // Stamped for an open as well as a move: the keyup of this same
+        // press must not be read as a Next by the fallback below.
+        lastEnterRef.current = now;
+        if (next) advanceFrom(enterField);
+        else openKeyboardOn(enterField);
         return;
       }
 
-      // contentEditable carrying allow-enter: let Enter reach the form
-      // untouched. (An INPUT/TEXTAREA with allow-enter already returned above.)
       if (typing && isEnterKey(event) && allowEnter) return;
       // While typing in INPUT/TEXTAREA/contentEditable, never swallow Space — the user must be able
-      // to type spaces. Also let Enter pass through unless arrow navigation is needed.
+      // to type spaces.
       if (typing && (event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space' || event.keyCode === 32)) return;
       if (typing && !isArrowKey(event) && !isEnterKey(event)) return;
       if (!isArrowKey(event) && !isOkKey(event)) return;
-
 
       event.preventDefault();
       event.stopPropagation();
       // Moving off a field closes the keyboard; the field we land on is only
       // highlighted, not opened, so it cannot pop straight back up.
-      if (typing && isArrowKey(event)) {
-        clearIme();
-        void hideKeyboardForDpad(active ?? target);
-      }
+      if (typing && isArrowKey(event)) closeKeyboard(active ?? target);
 
       if (isOkKey(event)) activate();
       if (event.key === 'ArrowUp') move('up');
@@ -783,40 +499,31 @@ export const useTVFocus = ({
       if (event.key === 'ArrowLeft') move('left');
       if (event.key === 'ArrowRight') move('right');
     };
-    // The keyboard's Enter does not always arrive as a clean keydown. With
-    // word prediction on, Amazon's keyboard can deliver it mid-composition
-    // (isComposing / keyCode 229), which the handler above must ignore — a
-    // composition Enter must never submit a form. What survives is the
-    // keypress (charCode 13) and the keyup: if one of those reaches an owned
-    // field that is being edited, and no Enter was acted on just now, it is
-    // the viewer's Next and is handled the same way.
-    const late = (event: KeyboardEvent, path: 'keyup' | 'keypress') => {
-      if (event.defaultPrevented) return;
-      const isEnter = isEnterKey(event) || (path === 'keypress' && event.charCode === 13);
-      if (!isEnter) return;
+    // With word prediction on, Amazon's keyboard can deliver its Enter
+    // mid-composition (isComposing / keyCode 229), which the handler above
+    // must ignore. The keyup survives: if it reaches a field the keyboard is
+    // on, and no Enter was acted on just now, it is the viewer's Next.
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !isEnterKey(event)) return;
       const active = document.activeElement as HTMLElement | null;
-      if (!ownsElement(active) || active.tagName === 'TEXTAREA') return;
+      if (!ownsField(active) || active.tagName === 'TEXTAREA') return;
+      if (findManagedElement(active)?.dataset.tvAllowEnter === 'true') return;
       const now = Date.now();
       if (now - lastEnterRef.current < ENTER_ECHO_MS) return;
       if (now - lastDismissRef.current < DISMISS_GRACE_MS) return;
-      if (!fieldIsBeingEdited(active)) return;
+      if (!enterMeansNext(active)) return;
       event.preventDefault();
       event.stopPropagation();
       lastEnterRef.current = now;
-      noteFieldEnter(path, event, active, true);
       advanceFrom(active);
     };
-    const onKeyUp = (event: KeyboardEvent) => late(event, 'keyup');
-    const onKeyPress = (event: KeyboardEvent) => late(event, 'keypress');
     window.addEventListener('keydown', handler, { capture: true });
     window.addEventListener('keyup', onKeyUp, { capture: true });
-    window.addEventListener('keypress', onKeyPress, { capture: true });
     return () => {
       window.removeEventListener('keydown', handler, { capture: true });
       window.removeEventListener('keyup', onKeyUp, { capture: true });
-      window.removeEventListener('keypress', onKeyPress, { capture: true });
     };
-  }, [activate, advanceFrom, clearIme, enabled, fieldIsBeingEdited, findManagedElement, focusById, getAllElements, getElements, getId, keyboardOpen, move, openKeyboardOn, ownsElement]);
+  }, [activate, advanceFrom, closeKeyboard, enabled, enterMeansNext, findManagedElement, getAllElements, getId, move, openKeyboardOn, ownsField]);
 
   const focusProps = useCallback((id: string) => ({
     'data-tv-focus-id': id,

@@ -1,731 +1,226 @@
 /**
- * Regression tests for the on-screen-keyboard lifecycle in useTVFocus.
- *
- * These drive real DOM focus, real keydown events and a mocked native keyboard
- * whose show() can resolve, reject, be missing entirely, or hang — because that
- * is exactly the set of behaviours Fire TV / Android TV WebViews show, and each
- * one of them produced a field the viewer could not type in.
+ * The on-screen keyboard path in useTVFocus, as restored to its 1.6.x shape:
+ * OK on a field asks Capacitor's Keyboard.show(), arrows and Back put it
+ * away, and the one addition — the keyboard's Enter / Next moves to the
+ * next field once something was typed, and lands on the button after the
+ * last one.
  */
 import { render, act, fireEvent, cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   native: true,
-  /** How SnowKeyboard.show() behaves — resolving is not the same as a keyboard. */
-  showMode: 'resolve' as 'resolve' | 'reject',
-  deferShow: false,
-  /** SnowKeyboard.show(): the ONLY way the app asks for a keyboard. */
   showCalls: 0,
-  /** @capacitor/keyboard's Keyboard.hide(). */
   hideCalls: 0,
-  /** SnowKeyboard.hide() — straight to InputMethodManager. */
-  nativeHideCalls: 0,
-  /**
-   * Models a device where @capacitor/keyboard never registered. Not
-   * hypothetical: the generated capacitor.settings.gradle in this repo has
-   * shipped without :capacitor-keyboard, so the import resolves and there is
-   * no Keyboard behind it.
-   */
-  keyboardPluginMissing: false,
-  pending: [] as (() => void)[],
-  didShow: [] as (() => void)[],
   didHide: [] as (() => void)[],
-  /** SnowKeyboard's keyboardVisibility listeners. */
-  visibility: [] as ((s: { visible: boolean }) => void)[],
 }));
 
-// SnowKeyboard. Since the D-pad keyboard work this is the primary route, not a
-// fallback: the app asks it for every keyboard and it reports back what
-// InputMethodManager actually did.
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => state.native },
-  registerPlugin: () => ({
-    show: async () => {
-      state.showCalls += 1;
-      if (state.showMode === 'reject') throw new Error('show refused');
-      if (state.deferShow) await new Promise<void>((resolve) => state.pending.push(resolve));
-    },
-    hide: async () => { state.nativeHideCalls += 1; },
-    addListener: async (event: string, cb: (s: { visible: boolean }) => void) => {
-      if (event === 'keyboardVisibility') state.visibility.push(cb);
-      return { remove: () => {} };
-    },
-  }),
 }));
 
-// @capacitor/keyboard is used for the lifecycle events and for one of the two
-// hide routes. It is NEVER used to raise a keyboard — a TV in non-touch mode
-// ignores that request, which is the whole reason SnowKeyboard exists.
-vi.mock('@capacitor/keyboard', () => {
-  const Keyboard = {
-    hide: async () => {
-      state.hideCalls += 1;
-    },
+vi.mock('@capacitor/keyboard', () => ({
+  Keyboard: {
+    show: async () => { state.showCalls += 1; },
+    hide: async () => { state.hideCalls += 1; },
     addListener: async (event: string, cb: () => void) => {
-      (event === 'keyboardDidShow' ? state.didShow : state.didHide).push(cb);
-      return { remove: () => {} };
+      if (event === 'keyboardDidHide') state.didHide.push(cb);
+      return { remove: async () => {} };
     },
-  };
-  return { get Keyboard() { return state.keyboardPluginMissing ? undefined : Keyboard; } };
-});
+  },
+}));
 
-import { useTVFocus, type TVFocusNavigationMap } from '@/hooks/useTVFocus';
-import { markKeyboardHidden } from '@/utils/keyboardVisibility';
+import { useTVFocus } from './useTVFocus';
 
-/** Mirrors the billing register form: 'down' from First name skips Last name. */
-const navigation: TVFocusNavigationMap = {
-  'f-email': { down: 'f-pass' },
-  'f-pass': { up: 'f-email', down: 'f-first' },
-  'f-first': { up: 'f-pass', down: 'f-submit' },
-  'f-last': { up: 'f-first', down: 'f-submit' },
-  'f-submit': { up: 'f-last' },
-};
+const onBack = vi.fn();
 
-interface HarnessProps {
-  enabled?: boolean;
-  onBack?: () => void;
-  onSubmit?: () => void;
-  withTextarea?: boolean;
-}
-
-const Harness = ({ enabled = true, onBack, onSubmit, withTextarea }: HarnessProps) => {
+function Form({ allowEnterOnPassword = false }: { allowEnterOnPassword?: boolean }) {
+  // jsdom has no layout, so the spatial search finds nothing: lay the
+  // column out explicitly, as the sign-in form does.
   const { containerRef, focusProps } = useTVFocus({
-    enabled,
-    navigation,
-    initialFocusId: 'f-email',
-    autoFocusOnMount: false,
+    initialFocusId: 'user',
     onBack,
+    navigation: { user: { down: 'pass' }, pass: { up: 'user', down: 'signin' }, signin: { up: 'pass' } },
   });
   return (
-    <>
-      <div ref={containerRef}>
-        <form onSubmit={(e) => { e.preventDefault(); onSubmit?.(); }}>
-          <input aria-label="email" inputMode="email" enterKeyHint="next" {...focusProps('f-email')} />
-          <input aria-label="password" enterKeyHint="next" {...focusProps('f-pass')} />
-          <input aria-label="first" enterKeyHint="next" {...focusProps('f-first')} />
-          <input aria-label="last" enterKeyHint="done" data-tv-allow-enter="true" {...focusProps('f-last')} />
-          {withTextarea && <textarea aria-label="notes" {...focusProps('f-notes')} />}
-          <button type="submit" {...focusProps('f-submit')}>Go</button>
-        </form>
-      </div>
-      {/* Outside the hook's container: focus can land here without any hook
-          navigation, exactly as an unrelated widget would take it. */}
-      <button data-testid="outside">out</button>
-    </>
+    <div ref={containerRef}>
+      <input {...focusProps('user')} data-testid="user" />
+      <input {...focusProps('pass')} data-testid="pass" type="password" data-tv-allow-enter={allowEnterOnPassword ? 'true' : undefined} />
+      <button {...focusProps('signin')} data-testid="signin">Sign in</button>
+    </div>
   );
-};
-
+}
 
 const flush = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
+const raf = async () => { await act(async () => { await new Promise((r) => requestAnimationFrame(() => r(null))); }); };
 
-const fireDidShow = async () => { await act(async () => { state.didShow.forEach((cb) => cb()); }); };
-const fireDidHide = async () => { await act(async () => { state.didHide.forEach((cb) => cb()); }); };
-/**
- * Android reporting a change the page never asked for. Back closing a docked
- * IME is handled entirely inside Android, so this is the ONLY way the page can
- * learn the keyboard has gone.
- */
-const fireNativeVisibility = async (visible: boolean) => {
-  await act(async () => { state.visibility.forEach((cb) => cb({ visible })); });
+const okOn = (el: Element) => fireEvent.keyDown(el, { key: 'Enter', keyCode: 13 });
+/** Time passing while the viewer types: longer than the Enter echo window. */
+const later = async () => { await act(async () => { vi.advanceTimersByTime(1000); }); };
+const keyboardEnter = (el: Element) => {
+  // Amazon's keyboard delivers its Enter as a keydown then a keyup.
+  const kd = fireEvent.keyDown(el, { key: 'Enter', keyCode: 13 });
+  fireEvent.keyUp(el, { key: 'Enter', keyCode: 13 });
+  return kd;
 };
-
-const ok = async (el: HTMLElement, init: KeyboardEventInit = {}) => {
-  await act(async () => { fireEvent.keyDown(el, { key: 'Enter', keyCode: 13, ...init }); });
-  await flush();
-};
-const back = async (el: HTMLElement) => {
-  await act(async () => { fireEvent.keyDown(el, { key: 'Escape' }); });
-  await flush();
-};
-
-/** Real editing evidence: a beforeinput on the focused field. */
-const typeEvidence = (el: HTMLElement) =>
-  el.dispatchEvent(new (window as unknown as { InputEvent: typeof InputEvent }).InputEvent('beforeinput', { bubbles: true, cancelable: true }));
-
-const tap = async (el: HTMLElement) => { await act(async () => { el.focus(); }); await flush(); };
 
 beforeEach(() => {
   state.native = true;
-  state.showMode = 'resolve';
-  state.deferShow = false;
   state.showCalls = 0;
   state.hideCalls = 0;
-  state.nativeHideCalls = 0;
-  state.keyboardPluginMissing = false;
-  state.pending = [];
-  markKeyboardHidden();
+  state.didHide = [];
+  onBack.mockReset();
+  vi.useFakeTimers({ shouldAdvanceTime: true });
 });
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-afterEach(() => {
-  cleanup();
-  markKeyboardHidden();
-  vi.useRealTimers();
-});
-
-describe('highlighting versus a real keyboard', () => {
-  it('focusing a field (tap / onFocus reentry) never claims the keyboard is up, and OK asks for it without submitting', async () => {
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-
-    await tap(email);
-    // The element's own onFocus re-enters focusById; only one highlight survives.
-    expect(document.querySelectorAll('[data-tv-focused="true"]').length).toBe(1);
-    expect(email.dataset.tvFocused).toBe('true');
-    expect(state.showCalls).toBe(0);
-
-    await ok(email);
+describe('useTVFocus keyboard (1.6.x path + Enter moves down)', () => {
+  it('OK on a highlighted field asks the platform for the keyboard', async () => {
+    const { getByTestId } = render(<Form />);
+    await raf();
+    const user = getByTestId('user') as HTMLInputElement;
+    expect(document.activeElement).toBe(user);
+    okOn(user);
+    await flush();
     expect(state.showCalls).toBe(1);
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(user);
   });
 
-  it('a show that resolves without didShow stays retryable on the same field and never submits', async () => {
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
-    const last = getByLabelText('last') as HTMLInputElement; // done + allow-enter
-
-    await tap(last);
-    await ok(last);
-    await ok(last);
-    await ok(last);
-    expect(state.showCalls).toBe(3);
-    expect(document.activeElement).toBe(last);
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it('a refused native show leaves the field focused and immediately retryable', async () => {
-    state.showMode = 'reject';
-    const { getByLabelText } = render(<Harness />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    await tap(email);
-    await ok(email);
-    // The rejection is swallowed, not propagated: a device that refuses the
-    // request must not cost the viewer the field.
-    expect(state.showCalls).toBe(1);
-    expect(document.activeElement).toBe(email);
-    await ok(email);
+  it('OK again on an empty field asks again, never skips it', async () => {
+    const { getByTestId } = render(<Form />);
+    await raf();
+    const user = getByTestId('user') as HTMLInputElement;
+    okOn(user); await flush();
+    okOn(user); await flush();
     expect(state.showCalls).toBe(2);
+    expect(document.activeElement).toBe(user);
   });
 
-  it('on the web (no native platform) OK focuses the field and asks nothing of Android', async () => {
+  it('typing then Enter moves to the next field and takes the keyboard along', async () => {
+    const { getByTestId } = render(<Form />);
+    await raf();
+    const user = getByTestId('user') as HTMLInputElement;
+    const pass = getByTestId('pass') as HTMLInputElement;
+    okOn(user); await flush();
+    fireEvent.input(user, { target: { value: 'jane' } });
+    await later();
+    const kd = keyboardEnter(user);
+    await flush();
+    expect(kd).toBe(false); // prevented: nothing submits
+    expect(document.activeElement).toBe(pass);
+    expect(pass.dataset.tvFocused).toBe('true');
+    expect(state.showCalls).toBe(2);
+    expect(state.hideCalls).toBe(0);
+  });
+
+  it('Enter after the last field puts the keyboard away and lands on the button', async () => {
+    const { getByTestId } = render(<Form />);
+    await raf();
+    const user = getByTestId('user') as HTMLInputElement;
+    const pass = getByTestId('pass') as HTMLInputElement;
+    const signin = getByTestId('signin');
+    okOn(user); await flush();
+    fireEvent.input(user, { target: { value: 'jane' } });
+    await later();
+    keyboardEnter(user); await flush();
+    fireEvent.input(pass, { target: { value: 'secret' } });
+    await later();
+    keyboardEnter(pass); await flush();
+    expect(state.hideCalls).toBe(1);
+    expect(document.activeElement).toBe(signin);
+    expect(signin.dataset.tvFocused).toBe('true');
+  });
+
+  it('the platform advancing focus itself (native Next) is followed, and Enter then finishes', async () => {
+    const { getByTestId } = render(<Form />);
+    await raf();
+    const user = getByTestId('user') as HTMLInputElement;
+    const pass = getByTestId('pass') as HTMLInputElement;
+    okOn(user); await flush();
+    fireEvent.input(user, { target: { value: 'jane' } });
+    act(() => { pass.focus(); });
+    expect(pass.dataset.tvFocused).toBe('true');
+    fireEvent.input(pass, { target: { value: 'secret' } });
+    await later();
+    keyboardEnter(pass); await flush();
+    expect(state.hideCalls).toBe(1);
+    expect(document.activeElement).toBe(getByTestId('signin'));
+  });
+
+  it('an allow-enter field: OK opens the keyboard, Enter once typed is left to the form', async () => {
+    const { getByTestId } = render(<Form allowEnterOnPassword />);
+    await raf();
+    const pass = getByTestId('pass') as HTMLInputElement;
+    act(() => { pass.focus(); });
+    expect(okOn(pass)).toBe(false);
+    await flush();
+    expect(state.showCalls).toBe(1);
+    fireEvent.input(pass, { target: { value: 'secret' } });
+    await later();
+    const kd = keyboardEnter(pass);
+    expect(kd).toBe(true);
+    expect(document.activeElement).toBe(pass);
+    expect(state.hideCalls).toBe(0);
+  });
+
+  it('Back while typing closes the keyboard, stays on the field, and does not leave the screen', async () => {
+    const { getByTestId } = render(<Form />);
+    await raf();
+    const user = getByTestId('user') as HTMLInputElement;
+    okOn(user); await flush();
+    fireEvent.input(user, { target: { value: 'ja' } });
+    fireEvent.keyDown(user, { key: 'Escape', keyCode: 27 });
+    await flush();
+    expect(state.hideCalls).toBe(1);
+    expect(document.activeElement).not.toBe(user);
+    expect(user.dataset.tvFocused).toBe('true');
+    expect(onBack).not.toHaveBeenCalled();
+    // The keyboard's parting Enter must not raise it again.
+    fireEvent.keyDown(document.body, { key: 'Enter', keyCode: 13 });
+    await flush();
+    expect(state.showCalls).toBe(1);
+    // ...but a real press a moment later opens it once more, on the same field.
+    await act(async () => { vi.advanceTimersByTime(800); });
+    fireEvent.keyDown(document.body, { key: 'Enter', keyCode: 13 });
+    await flush();
+    expect(state.showCalls).toBe(2);
+    expect(document.activeElement).toBe(user);
+    // And after Back the field is "open it", not "next": Enter re-asked, did not skip.
+    expect(user.dataset.tvFocused).toBe('true');
+  });
+
+  it('a keyboardDidHide report makes the next Enter re-open rather than skip', async () => {
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    okOn(user); await flush();
+    fireEvent.input(user, { target: { value: 'jane' } });
+    act(() => { state.didHide.forEach((cb) => cb()); });
+    await later();
+    keyboardEnter(user); await flush();
+    expect(state.showCalls).toBe(2);
+    expect(document.activeElement).toBe(user);
+  });
+
+  it('arrows leave the field with the keyboard put away, and the new field is only highlighted', async () => {
+    const { getByTestId } = render(<Form />);
+    await raf();
+    const user = getByTestId('user') as HTMLInputElement;
+    const pass = getByTestId('pass') as HTMLInputElement;
+    okOn(user); await flush();
+    fireEvent.keyDown(user, { key: 'ArrowDown' });
+    await flush();
+    expect(state.hideCalls).toBe(1);
+    expect(state.showCalls).toBe(1);
+    expect(pass.dataset.tvFocused).toBe('true');
+  });
+
+  it('on the web nothing native is asked for', async () => {
     state.native = false;
-    const { getByLabelText } = render(<Harness />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    await tap(email);
-    await ok(email);
+    const { getByTestId } = render(<Form />);
+    await raf();
+    okOn(getByTestId('user')); await flush();
     expect(state.showCalls).toBe(0);
-    expect(document.activeElement).toBe(email);
-  });
-});
-
-describe('native visibility association', () => {
-  it('didShow after a tap on an empty field makes Back close the keyboard first, then leave on the next press', async () => {
-    const onBack = vi.fn();
-    const { getByLabelText } = render(<Harness onBack={onBack} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-
-    await tap(email);          // no activate(), no OK press
-    await fireDidShow();       // the platform raised a keyboard anyway
-
-    await back(email);
-    expect(state.hideCalls).toBe(1);
-    expect(onBack).not.toHaveBeenCalled();
-
-    await fireDidHide();
-    // Back de-bounces the WebView's duplicate press, so let the window pass.
-    await act(async () => { vi.setSystemTime(Date.now() + 600); });
-    await back(document.body);
-    expect(onBack).toHaveBeenCalledTimes(1);
-  });
-
-  it('tapping from one field to another while the keyboard stays up keeps Back on "close the keyboard"', async () => {
-    const onBack = vi.fn();
-    const { getByLabelText } = render(<Harness onBack={onBack} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    const password = getByLabelText('password') as HTMLInputElement;
-
-    await tap(email);
-    await fireDidShow();   // platform keyboard is up for Username
-    await tap(password);   // tap transfer: no typing, and no NEW didShow (true -> true)
-
-    await back(password);
-    expect(state.hideCalls).toBe(1);
-    expect(onBack).not.toHaveBeenCalled();
-  });
-
-  it('a keyboard Android closed by itself is reported, so the very next Back leaves the screen', async () => {
-    // The failure this pins down: with the IME docked, Back is handled inside
-    // Android — it hides the keyboard and swallows the key, and JavaScript sees
-    // nothing at all. Without SnowKeyboard's keyboardVisibility event the page
-    // went on believing a keyboard it could no longer see was up, so the next
-    // Back was spent "closing" it and the viewer had to press Back twice to
-    // leave the screen.
-    const onBack = vi.fn();
-    const { getByLabelText } = render(<Harness onBack={onBack} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-
-    await tap(email);
-    await fireDidShow();                 // a keyboard is genuinely up, and the page knows
-    await fireNativeVisibility(false);   // Android closed it: no didHide, no JS key
-
-    // The page has been told, so nothing here believes a keyboard is up any
-    // more. Back on the field still dismisses and STAYS — that is deliberately
-    // unconditional now — and the press after it, with focus off the field,
-    // leaves the screen.
-    await back(email);
-    expect(state.hideCalls).toBe(1);
-    expect(onBack).not.toHaveBeenCalled();
-    await act(async () => { vi.setSystemTime(Date.now() + 600); });
-    await back(document.body);
-    expect(onBack).toHaveBeenCalledTimes(1);
-  });
-
-  it('Back dismisses even when NOTHING ever reported the keyboard (the Fire OS 7 case)', async () => {
-    // THE bug. @capacitor/keyboard detects the keyboard only through Android 11
-    // window-inset animations, and most Fire TV sticks are Fire OS 7, which is
-    // Android 9. There, keyboardDidShow never fires, so the page's "is a
-    // keyboard up?" gate answered no while the viewer was looking at one — and
-    // Back navigated away and left the keyboard sitting over the next screen.
-    // On every text field in the app.
-    //
-    // No fireDidShow and no fireNativeVisibility here on purpose: this is a
-    // device that reports nothing at all. Leaving the field must still dismiss.
-    const onBack = vi.fn();
-    const { getByLabelText } = render(<Harness onBack={onBack} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-
-    await tap(email);
-    await ok(email);          // keyboard is up on the device; nothing says so
-    await back(email);
-
-    // Dismissed, and still on the field the viewer was typing in. Between
-    // 2026-09-09 and the revert this Back was gated behind a keyboardDidShow
-    // that Fire OS 7 never sends, so it skipped the dismiss and navigated
-    // instead — leaving the keyboard stranded over the next screen.
-    expect(state.hideCalls).toBe(1);
-    expect(state.nativeHideCalls).toBe(1);
-    expect(onBack).not.toHaveBeenCalled();
-  });
-
-  it('Back on a non-field does not ask the keyboard to hide', async () => {
-    // The fail-safe above must not turn every Back in the app into a native
-    // call. Only leaving an editable field is a reason to dismiss.
-    const onBack = vi.fn();
-    const { getByLabelText } = render(<Harness onBack={onBack} />);
-    const submit = getByLabelText('email').parentElement!.querySelector('button[type="submit"]') as HTMLButtonElement;
-
-    await tap(submit);
-    await back(submit);
-    expect(state.hideCalls).toBe(0);
-    expect(state.nativeHideCalls).toBe(0);
-    expect(onBack).toHaveBeenCalledTimes(1);
-  });
-
-  it('Back still dismisses when @capacitor/keyboard was never registered', async () => {
-    // capacitor.settings.gradle has shipped without :capacitor-keyboard, so
-    // Keyboard.hide() is not merely slow — it is not there. SnowKeyboard.hide()
-    // is the route that has to survive that.
-    state.keyboardPluginMissing = true;
-    const onBack = vi.fn();
-    const { getByLabelText } = render(<Harness onBack={onBack} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-
-    await tap(email);
-    await fireDidShow();
-    await back(email);
-    expect(state.hideCalls).toBe(0);        // the plugin genuinely is not there
-    expect(state.nativeHideCalls).toBe(1);  // SnowKeyboard covered it
-    expect(onBack).not.toHaveBeenCalled();
-  });
-
-  it('an OK sent as DPAD_CENTER (keyCode 23) opens the keyboard', async () => {
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
-    const last = getByLabelText('last') as HTMLInputElement; // allow-enter + done
-    await tap(last);
-    await ok(last, { key: 'Select', keyCode: 23 });
-    expect(state.showCalls).toBe(1);
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-
-
-  it('Backspace edits while a field is being typed in and never leaves the screen', async () => {
-    const onBack = vi.fn();
-    const { getByLabelText } = render(<Harness onBack={onBack} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    await tap(email);
-    await act(async () => { fireEvent.keyDown(email, { key: 'Backspace' }); });
-    expect(onBack).not.toHaveBeenCalled();
-  });
-
-  it('a keyboard raised for another hook\'s field is ignored until focus is on this hook\'s own field', async () => {
-    const onBackA = vi.fn();
-    const { getByTestId } = render(
-      <div>
-        <div data-testid="a"><Harness onBack={onBackA} /></div>
-        <div data-testid="b"><Harness enabled={false} /></div>
-      </div>,
-    );
-    const bField = getByTestId('b').querySelector('input[aria-label="email"]') as HTMLInputElement;
-    const aField = getByTestId('a').querySelector('input[aria-label="email"]') as HTMLInputElement;
-
-    await tap(bField);
-    await fireDidShow();                 // belongs to the disabled hook's field
-    await act(async () => { typeEvidence(bField); });
-
-    // While the other hook's field holds focus, hook A neither claims the
-    // keyboard nor acts on Back at all.
-    await back(bField);
-    expect(onBackA).not.toHaveBeenCalled();
-    expect(state.hideCalls).toBe(0);
-
-    // Focus moves onto hook A's own field with the keyboard still on screen, so
-    // it is now A's to close; only the press after that leaves the screen.
-    await tap(aField);
-    await back(aField);
-    expect(state.hideCalls).toBe(1);
-    expect(onBackA).not.toHaveBeenCalled();
-    await fireDidHide();
-    await act(async () => { vi.setSystemTime(Date.now() + 600); });
-    await back(document.body);
-    expect(onBackA).toHaveBeenCalledTimes(1);
-  });
-
-});
-
-describe('Enter and OK on a field', () => {
-  const walk = async (from: HTMLElement) => { await ok(from); };
-
-  it("the keyboard's Enter while typing moves to the next field and brings the keyboard along", async () => {
-    // Typing is proven by a character going in, not by the field being
-    // focused. The Amazon keyboard's own editor action is stopped at the input
-    // connection, so an Enter reaching the page while typing is the viewer's
-    // Next: the highlight moves and the keyboard is asked for on the new
-    // field, exactly what a phone does.
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    const password = getByLabelText('password') as HTMLInputElement;
-
-    await tap(email);
-    await ok(email);                                  // OK: ask for the keyboard
-    expect(state.showCalls).toBe(1);
-    await act(async () => { fireEvent.input(email, { target: { value: 'me@x.com' } }); });
-    await ok(email);                                  // keyboard's Enter / Next
-    expect(document.activeElement).toBe(password);
-    expect(password.dataset.tvFocused).toBe('true');
-    expect(state.showCalls).toBe(2);                  // keyboard asked for on password
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it('Enter on the last field puts the keyboard away and lands on the button without submitting', async () => {
-    // Submission stays with the form's own button: an Enter is never trusted
-    // to sign anyone in, even on the field marked allow-enter.
-    const onSubmit = vi.fn();
-    const { getByLabelText, getByText } = render(<Harness onSubmit={onSubmit} />);
-    const last = getByLabelText('last') as HTMLInputElement; // done + allow-enter
-    const go = getByText('Go');
-
-    await tap(last);
-    await fireDidShow();
-    await ok(last);
-    expect(document.activeElement).toBe(go);
-    expect(go.dataset.tvFocused).toBe('true');
-    expect(state.hideCalls + state.nativeHideCalls).toBeGreaterThan(0);
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it("the native keyboard's action key moves to the next field even with no typing evidence", async () => {
-    // Reported by SnowWebView's input connection: it was pressed ON the
-    // keyboard, so no page-side proof that typing is under way is needed.
-    // This is the path a Fire TV's Play / Next key takes.
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    const password = getByLabelText('password') as HTMLInputElement;
-    await tap(email);
-    await ok(email);
-    expect(state.showCalls).toBe(1);
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent('snowkeyboard:editoraction', { detail: { action: 'next' } }));
-    });
-    await flush();
-    expect(document.activeElement).toBe(password);
-    expect(state.showCalls).toBe(2);
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it("the native action key is ignored when the focused field is not this hook's", async () => {
-    const { getByTestId } = render(<Harness />);
-    const outside = getByTestId('outside');
-    await tap(outside);
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent('snowkeyboard:editoraction', { detail: { action: 'next' } }));
-    });
-    await flush();
-    expect(document.activeElement).toBe(outside);
-    expect(state.showCalls).toBe(0);
-  });
-
-  it('Enter on a field with no keyboard up never moves: it asks for the keyboard', async () => {
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    await tap(email);
-    await ok(email);
-    expect(document.activeElement).toBe(email);
-    expect(state.showCalls).toBe(1);
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it('Enter on a field asks for that field\'s keyboard every time', async () => {
-    // The corollary: since Enter no longer means Next or Done, it can safely
-    // mean "let me type here" on every press, so a device that ignored the
-    // first request can simply be asked again.
-    const { getByLabelText } = render(<Harness />);
-    const password = getByLabelText('password') as HTMLInputElement;
-    await tap(password);
-    await ok(password);
-    await ok(password);
-    expect(state.showCalls).toBe(2);
-    expect(document.activeElement).toBe(password);
-  });
-
-  it("Enter on a field the keyboard was asked for, once it holds text, moves on even with no keyboard report", async () => {
-    // The Fire TV case: the show request went out, the viewer typed, and the
-    // page never heard keyboardDidShow nor an input event it could own. The
-    // field has text and the keyboard was asked for on it — that Enter is Next.
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    const password = getByLabelText('password') as HTMLInputElement;
-    await tap(email);
-    await ok(email);                                  // keyboard asked for
-    expect(state.showCalls).toBe(1);
-    email.value = 'me@x.com';                         // typed, no input event seen
-    await ok(email);
-    expect(document.activeElement).toBe(password);
-    expect(state.showCalls).toBe(2);
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it('a keyup Enter on an edited field moves on when its keydown was lost to composition', async () => {
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    const password = getByLabelText('password') as HTMLInputElement;
-    await tap(email);
-    await fireDidShow();
-    await act(async () => { fireEvent.input(email, { target: { value: 'me@x.com' } }); });
-    await ok(email, { keyCode: 229 });                // the composition keydown: ignored
-    expect(document.activeElement).toBe(email);
-    await act(async () => {
-      email.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-    });
-    await flush();
-    expect(document.activeElement).toBe(password);
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it('a keyup Enter right after a handled keydown is an echo and does nothing', async () => {
-    const { getByLabelText } = render(<Harness />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    const password = getByLabelText('password') as HTMLInputElement;
-    await tap(email);
-    await fireDidShow();
-    await act(async () => { fireEvent.input(email, { target: { value: 'me@x.com' } }); });
-    await ok(email);                                  // moves to password
-    expect(document.activeElement).toBe(password);
-    await act(async () => {
-      password.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-    });
-    await flush();
-    expect(document.activeElement).toBe(password);    // not walked again
-  });
-
-  it("a platform 'hidden' report while the viewer is still typing does not turn Enter back into 'open the keyboard'", async () => {
-    // Fire TV: the visibility heuristic flaps to hidden under Amazon's
-    // full-screen keyboard. Characters went into this field and it still has
-    // focus, so the keyboard is up whatever the report says — Enter is Next.
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    const password = getByLabelText('password') as HTMLInputElement;
-    await tap(email);
-    await fireDidShow();
-    await act(async () => { fireEvent.input(email, { target: { value: 'me@x.com' } }); });
-    await act(async () => { state.didHide.forEach((cb) => cb()); });
-    await ok(email);
-    expect(document.activeElement).toBe(password);
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it("the remote's Play/Pause on a field being typed in is Next", async () => {
-    // The Fire TV keyboard legend calls Play "Next"; Amazon's keyboard does
-    // nothing with it over a web page, so the page moves the field itself.
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    const password = getByLabelText('password') as HTMLInputElement;
-    await tap(email);
-    await fireDidShow();
-    await act(async () => { fireEvent.input(email, { target: { value: 'me@x.com' } }); });
-    await act(async () => { fireEvent.keyDown(email, { key: 'MediaPlayPause', keyCode: 179 }); });
-    await flush();
-    expect(document.activeElement).toBe(password);
-    expect(onSubmit).not.toHaveBeenCalled();
-    // The native side reports the same press a moment later: an echo, not a second Next.
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent('snowkeyboard:editoraction', { detail: { action: 'next' } }));
-    });
-    await flush();
-    expect(document.activeElement).toBe(password);
-  });
-
-  it('composition keys never submit or move the highlight', async () => {
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
-    const last = getByLabelText('last') as HTMLInputElement;
-    await tap(last);
-    await fireDidShow();
-    await ok(last, { isComposing: true });
-    await ok(last, { keyCode: 229 });
-    expect(onSubmit).not.toHaveBeenCalled();
-    expect(document.activeElement).toBe(last);
-  });
-
-  it('a plain textarea keeps ordinary multiline editing', async () => {
-    const onSubmit = vi.fn();
-    const { getByLabelText } = render(<Harness withTextarea onSubmit={onSubmit} />);
-    const notes = getByLabelText('notes') as HTMLTextAreaElement;
-    await tap(notes);
-    await fireDidShow();
-    const event = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
-    await act(async () => { notes.dispatchEvent(event); });
-    expect(event.defaultPrevented).toBe(false);
-    expect(onSubmit).not.toHaveBeenCalled();
-    expect(document.activeElement).toBe(notes);
-  });
-});
-
-describe('cancellation of in-flight requests', () => {
-  it('unmounting during a delayed show never asks for a second keyboard', async () => {
-    state.deferShow = true;
-    const { getByLabelText, unmount } = render(<Harness />);
-    const email = getByLabelText('email');
-    await tap(email);
-    await ok(email);
-    expect(state.showCalls).toBe(1);
-    unmount();
-    await act(async () => { state.pending.forEach((r) => r()); });
-    await flush();
-    expect(state.showCalls).toBe(1);
-  });
-
-  it('moving the highlight during a delayed show abandons that request', async () => {
-    state.deferShow = true;
-    const { getByLabelText } = render(<Harness />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    await tap(email);
-    await ok(email);
-    await act(async () => { fireEvent.keyDown(email, { key: 'ArrowDown' }); });
-    await flush();
-    await act(async () => { state.pending.forEach((r) => r()); });
-    await flush();
-    expect(state.showCalls).toBe(1);
-    expect(document.activeElement).not.toBe(email);
-  });
-
-  it('focus lost to an unrelated element during a delayed show cancels the fallback and is not stolen back', async () => {
-    state.deferShow = true;
-    const { getByLabelText, getByTestId } = render(<Harness />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    const outside = getByTestId('outside') as HTMLButtonElement;
-    await tap(email);
-    await ok(email);
-    expect(state.showCalls).toBe(1);
-    // No hook navigation at all: something else simply took focus.
-    await act(async () => { outside.focus(); });
-    await act(async () => { state.pending.forEach((r) => r()); });
-    await flush();
-    expect(state.showCalls).toBe(1);
-    expect(document.activeElement).toBe(outside);
-  });
-
-  it('disabling the hook during a delayed show cancels the fallback', async () => {
-    state.deferShow = true;
-    const { getByLabelText, rerender } = render(<Harness />);
-    const email = getByLabelText('email');
-    await tap(email);
-    await ok(email);
-    expect(state.showCalls).toBe(1);
-    await act(async () => { rerender(<Harness enabled={false} />); });
-    await act(async () => { state.pending.forEach((r) => r()); });
-    await flush();
-    expect(state.showCalls).toBe(1);
-  });
-
-  it('a show that never settles stops blocking retries once the request deadline lapses', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    state.deferShow = true;
-    const { getByLabelText } = render(<Harness />);
-    const email = getByLabelText('email');
-    await tap(email);
-    await ok(email);
-    await ok(email);
-    expect(state.showCalls).toBe(1); // still pending: no duplicate request
-    await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
-    await ok(email);
-    expect(state.showCalls).toBe(2); // retryable again
-  });
-
-
-
-  it('OK pressed twice while a show is in flight makes only one native request', async () => {
-    state.deferShow = true;
-    const { getByLabelText } = render(<Harness />);
-    const email = getByLabelText('email');
-    await tap(email);
-    await ok(email);
-    await ok(email);
-    expect(state.showCalls).toBe(1);
-  });
-});
-
-describe('field state preservation', () => {
-  it('keeps the caller\'s inputMode and the viewer\'s caret when asking for the keyboard', async () => {
-    const { getByLabelText } = render(<Harness />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    await act(async () => {
-      email.value = 'hello';
-      email.focus();
-      email.setSelectionRange(2, 2);
-    });
-    await flush();
-    await ok(email);
-    expect(email.getAttribute('inputmode')).toBe('email');
-    expect(email.selectionStart).toBe(2);
-    expect(email.value).toBe('hello');
-  });
-
-  it('typed characters, spaces and Backspace survive ordinary editing', async () => {
-    const { getByLabelText } = render(<Harness />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    await tap(email);
-    for (const key of ['b', 'o', 'b', ' ', 'b']) {
-      await act(async () => {
-        fireEvent.keyDown(email, { key });
-        typeEvidence(email);
-        email.value += key;
-        fireEvent.input(email);
-      });
-    }
-    await act(async () => {
-      fireEvent.keyDown(email, { key: 'Backspace' });
-      email.value = email.value.slice(0, -1);
-      fireEvent.input(email);
-    });
-    expect(email.value).toBe('bob ');
   });
 });
