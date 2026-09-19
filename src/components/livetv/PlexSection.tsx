@@ -2154,14 +2154,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   // ── render: browse ─────────────────────────────────────────────────
   const totalH = rowVirtualizer.getTotalSize();
+  // Folded whenever the remote is over in the content. While the detail page
+  // or the player is up the menu is not on screen at all, so this is only
+  // about the browse view.
+  const menuCollapsed = zone !== 'tabs';
   const menuIcon = (t: Tab) =>
     t.type === 'home' ? HomeIcon : t.type === 'discover' ? Compass : t.type === 'search' ? SearchIcon : t.type === 'manage' ? SettingsIcon
     : t.type === 'request' ? MessageSquare : t.type === 'show' ? Tv : Film;
   return (
     <div className="flex-1 min-h-0 flex overflow-hidden bg-black/30 text-white">
       {/* SIDE MENU: Home / Discover / Search, the libraries, then Request / Settings. */}
-      <div className="w-56 flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col py-2 overflow-y-auto overflow-x-hidden">
-        <div className="px-5 pt-2 pb-1 text-xs font-nunito text-brand-ice/60 truncate">Plex · {conn?.name}</div>
+      {/* The menu folds to its icons while the viewer is over in the content,
+          so the rows get the room; Left off a first tile or Back opens it
+          again with the highlight on the open entry (exitToMenu). */}
+      <div
+        onClick={() => { if (menuCollapsed) exitToMenu(); }}
+        className={`flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col py-2 overflow-y-auto overflow-x-hidden transition-[width] duration-200 ${menuCollapsed ? 'w-14 cursor-pointer' : 'w-56'}`}
+      >
+        <div className={`pt-2 pb-1 text-xs font-nunito text-brand-ice/60 truncate ${menuCollapsed ? 'px-0 text-center' : 'px-5'}`}>{menuCollapsed ? 'Plex' : `Plex · ${conn?.name}`}</div>
         {menuEntries.map((m, i) => {
           const focused = isActive && zone === 'tabs' && menuIdx === i;
           const tab = tabs[m.tabIdx];
@@ -2177,19 +2187,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               <button
                 ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                 data-focused={focused ? 'true' : 'false'}
-                onClick={() => { setMenuKey(m.key); if (m.tabIdx !== libIdx) setLibIdx(m.tabIdx); setZone('grid'); }}
-                className={`tv-ring relative w-full flex items-center gap-2.5 text-left h-10 rounded-lg mx-2 px-3 font-nunito text-sm ${
+                title={menuCollapsed ? m.title : undefined}
+                onClick={(e) => { if (menuCollapsed) return; e.stopPropagation(); setMenuKey(m.key); if (m.tabIdx !== libIdx) setLibIdx(m.tabIdx); setZone('grid'); }}
+                className={`tv-ring relative w-full flex items-center gap-2.5 h-10 rounded-lg mx-2 font-nunito text-sm ${menuCollapsed ? 'justify-center px-0' : 'text-left px-3'} ${
                   focused ? 'bg-white/10 text-white font-semibold' : selected ? 'text-white font-semibold' : 'text-brand-ice/85'}`}
                 style={{ width: 'calc(100% - 1rem)' }}
               >
                 {selected && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-brand-gold" aria-hidden="true" />}
-                <Icon className="w-4 h-4 flex-shrink-0 opacity-80" />
-                <span className="truncate">{m.title}</span>
+                <Icon className={`w-4 h-4 flex-shrink-0 ${selected ? 'text-brand-gold opacity-100' : 'opacity-80'}`} />
+                {!menuCollapsed && <span className="truncate">{m.title}</span>}
               </button>
             </div>
           );
         })}
-        <div className="mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">▶ into rows · Hold OK hide a library · Back exit</div>
+        {!menuCollapsed && <div className="mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">▶ into rows · Hold OK hide a library · Back exit</div>}
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
