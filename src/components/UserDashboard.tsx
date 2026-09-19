@@ -272,15 +272,18 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     return () => clearTimeout(id);
   }, [activeTab]);
 
-  // Scroll focused Edit/Delete buttons into view
+  // Scroll the focused lower-page control into view. Billing sits under the
+  // player account at the very bottom, and was missing from this list — the
+  // highlight went there but the page never followed, so the card stayed
+  // cut off below the fold.
   useEffect(() => {
-    if (focusedElement !== CLAIM_IDX && focusedElement !== EDIT_IDX && focusedElement !== DELETE_IDX) return;
+    if (focusedElement !== CLAIM_IDX && focusedElement !== BILLING_IDX && focusedElement !== EDIT_IDX && focusedElement !== DELETE_IDX) return;
     const id = setTimeout(() => {
       const el = document.querySelector(`[data-dash-focus="true"]`) as HTMLElement | null;
       el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 50);
     return () => clearTimeout(id);
-  }, [focusedElement, CLAIM_IDX, EDIT_IDX, DELETE_IDX]);
+  }, [focusedElement, CLAIM_IDX, BILLING_IDX, EDIT_IDX, DELETE_IDX]);
 
   // Guest (player-only) layout: keep the focused control visible. The effect
   // above only handles CLAIM/EDIT/DELETE; guest slots are 0-3 inside the same

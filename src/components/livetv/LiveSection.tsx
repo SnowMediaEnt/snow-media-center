@@ -898,36 +898,63 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const focusedNowNext = epgFor(focusedChannel);
 
-  // Debounced preview
+  // The preview box: the highlighted channel plays there on its own after a
+  // short dwell, and OK on it goes full screen.
+  //
+  // On the APK the preview is the native ExoPlayer, drawn behind the WebView
+  // and sized to the box (the way Multi-Screen tiles work) — a <video> inside
+  // the WebView is black on Fire TV, which is exactly what the box showed.
+  // On the web it is a muted <video>, and on boxes where even that is too
+  // much for the WebView there is no preview at all.
   const [previewChannel, setPreviewChannel] = useState<XtreamLiveStream | null>(null);
   // Freeze fix: the muted always-on preview <video> saturates the WebView main
   // thread on non-Fire-TV low-RAM boxes (T95/X96/legacy WebView). Fire TV is
   // already excluded because it spawns a hardware decoder slot per <video>.
   const [previewDisabled] = useState(() =>
-    isFireTV()
-    || DEMO // demo: no <video> may ever mount — the stream URLs are fake
-    || document.documentElement.classList.contains('native-low-memory')
-    || document.documentElement.classList.contains('legacy-webview'),
+    NATIVE_PLAYBACK ? DEMO : (
+      isFireTV()
+      || DEMO // demo: no <video> may ever mount — the stream URLs are fake
+      || document.documentElement.classList.contains('native-low-memory')
+      || document.documentElement.classList.contains('legacy-webview')
+    ),
   );
-  // Two ways into the preview box. Where a <video> is cheap, the highlighted
-  // channel previews on its own after a short dwell, muted. Everywhere — and
-  // on Fire TV this is the only way — OK on a channel previews it, with
-  // sound, and OK on the channel already previewing goes fullscreen. An
-  // explicit preview stays up while the user keeps browsing.
-  const [armedPreviewId, setArmedPreviewId] = useState<number | null>(null);
   useEffect(() => {
-    if (previewDisabled) return; // only OK puts a <video> up on these boxes
-    if (armedPreviewId != null) return; // the explicit choice wins over dwell
+    if (previewDisabled) return;
     if (!focusedChannel) { setPreviewChannel(null); return; }
     const t = window.setTimeout(() => setPreviewChannel(focusedChannel), PREVIEW_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
-  }, [focusedChannel, previewDisabled, armedPreviewId]);
+  }, [focusedChannel, previewDisabled]);
 
   const previewUrl = useMemo(
     // Demo: no stream URL may ever be constructed — the host is a sentinel.
-    () => (!DEMO && previewChannel ? buildLiveStreamUrl(lineFor(previewChannel), previewChannel.stream_id) : null),
+    () => (!DEMO && !NATIVE_PLAYBACK && previewChannel ? buildLiveStreamUrl(lineFor(previewChannel), previewChannel.stream_id) : null),
     [previewChannel, lineFor],
   );
+
+  // Where the preview box is on screen, for the native player. Measured
+  // whenever the box mounts or moves; null while there is no box (Grid, or
+  // fullscreen, where the box is not rendered).
+  const [previewRect, setPreviewRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const previewBoxRef = useCallback((el: HTMLDivElement | null) => {
+    if (!NATIVE_PLAYBACK) return;
+    if (previewObserverRef.current) { previewObserverRef.current.disconnect(); previewObserverRef.current = null; }
+    if (!el) { setPreviewRect(null); return; }
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      const next = { x: r.left, y: r.top, width: r.width, height: r.height };
+      setPreviewRect((prev) =>
+        prev && Math.abs(prev.x - next.x) < 1 && Math.abs(prev.y - next.y) < 1
+          && Math.abs(prev.width - next.width) < 1 && Math.abs(prev.height - next.height) < 1
+          ? prev : next);
+    };
+    measure();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => measure());
+      ro.observe(el);
+      previewObserverRef.current = ro;
+    }
+  }, []);
+  const previewObserverRef = useRef<ResizeObserver | null>(null);
 
   // The line the playing channel belongs to. Set with the channel, never
   // derived later: the list it came from may have been dropped by then.
@@ -969,16 +996,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     } catch { /* ignore */ }
   }, [visibleCategories, currentCat, lineFor]);
 
-  // OK on a channel: preview it if it is not the one in the box, otherwise
-  // go fullscreen. Demo has no streams to preview, so it goes straight on.
+  // OK on a channel goes full screen; the preview box already shows it.
   const activateChannel = useCallback((stream: XtreamLiveStream) => {
-    const cur = previewChannelRef.current;
-    const same = !!cur && cur.stream_id === stream.stream_id && lineFor(cur) === lineFor(stream);
-    // The grid has no preview box, so OK plays straight away.
-    if (same || DEMO || colsRef.current > 1) { playChannel(stream); return; }
-    setArmedPreviewId(stream.stream_id);
-    setPreviewChannel(stream);
-  }, [playChannel, lineFor]);
+    playChannel(stream);
+  }, [playChannel]);
   const activateChannelRef = useRef(activateChannel);
   useEffect(() => { activateChannelRef.current = activateChannel; }, [activateChannel]);
 
@@ -1026,18 +1047,26 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [playingChannelId, playingLine.serverLabel]);
 
 
-  // Native ExoPlayer wiring — only active on native builds while fullscreen.
+  // Native ExoPlayer wiring — fullscreen, or the preview box while browsing.
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!playingChannelId;
+  // The preview: the dwelt-on channel, in the box, while this section has
+  // the remote and the box is on screen. Same player, same stream URL as
+  // fullscreen, so OK on the previewing channel only moves the picture.
+  const nativePreviewActive = NATIVE_PLAYBACK && !DEMO && isActive && !fullscreen && !!previewChannel;
   // Vibez (strmz.xyz) is only reliable via the raw .ts container on Fire TV —
   // the shared buildNativeLiveUrl helper always swaps .m3u8→.ts. Dreamstreams
   // works on both.
   const nativeUrl = !DEMO && nativeActive && playingChannelId
     ? buildNativeLiveUrl(playingLine, playingChannelId)
-    : null;
+    : nativePreviewActive && previewChannel
+      ? buildNativeLiveUrl(lineFor(previewChannel), previewChannel.stream_id)
+      : null;
   const native = useNativePlayer({
-    active: nativeActive,
+    active: nativeActive || nativePreviewActive,
     url: nativeUrl,
     volume,
+    rect: nativeActive ? undefined : previewRect,
+    background: nativeActive,
     onTracksChanged: () => setTracksTick((t) => t + 1),
     onPlayStateChange: (p) => setIsPaused(p),
   });
@@ -1068,6 +1097,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     document.documentElement.classList.add('snowplayer-fullscreen');
     return () => { document.documentElement.classList.remove('snowplayer-fullscreen'); };
   }, [nativeActive]);
+  // The preview needs the same thing for the box alone: every painted layer
+  // between the page background and the box goes transparent (see
+  // index.css, snowplayer-preview), and the box itself paints nothing.
+  useEffect(() => {
+    if (!nativePreviewActive) return;
+    document.documentElement.classList.add('snowplayer-preview');
+    return () => { document.documentElement.classList.remove('snowplayer-preview'); };
+  }, [nativePreviewActive]);
 
   const changeChannelInFullscreen = useCallback((delta: 1 | -1) => {
     if (!visibleChannels.length) return;
@@ -1841,13 +1878,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // ── the preview box, shared by the classic header and the compact stage ─
   const previewBox = (
     <>
-      {previewUrl ? (
-        // One <video> at most, and on Fire TV / low-memory boxes only after
-        // the user asked for it with OK — each <video> spawns a
-        // WebMediaPlayer that saturates the compositor thread. A dwell
-        // preview is muted; an OK preview plays with sound.
+      {nativePreviewActive ? (
+        // The native player draws through this box from behind the WebView:
+        // nothing may paint here. Only a loader while the stream primes.
+        (native.buffering || native.error) && (
+          <div className="w-full h-full flex items-center justify-center">
+            {native.error
+              ? <span className="text-brand-ice/70 font-nunito text-sm text-center px-4">Can't preview this channel</span>
+              : <div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div>}
+          </div>
+        )
+      ) : previewUrl ? (
+        // One muted <video> at most — each one spawns a WebMediaPlayer that
+        // saturates the compositor thread.
         <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div></div>}>
-          <VideoPlayer src={previewUrl} volume={armedPreviewId != null ? volume : 0} muted={armedPreviewId == null} className="w-full h-full" chrome="minimal" />
+          <VideoPlayer src={previewUrl} volume={0} muted className="w-full h-full" chrome="minimal" />
         </Suspense>
       ) : previewDisabled || !focusedChannel ? (
         <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-brand-ice/70 font-nunito text-sm text-center px-4">
@@ -1856,7 +1901,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           ) : (
             <Tv className="w-10 h-10 text-brand-ice/40" />
           )}
-          {focusedChannel ? 'Press OK to preview' : 'No channel selected'}
+          {focusedChannel ? 'Press OK to watch' : 'No channel selected'}
         </div>
       ) : (
         <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
@@ -1899,7 +1944,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
         {/* Stage: the preview, then what is on now and next */}
         <div className="flex-1 min-w-0 flex flex-col p-5 gap-3 overflow-hidden">
-          <div className="relative w-full aspect-video max-h-[56%] rounded-2xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
+          <div ref={previewBoxRef} className={`relative w-full aspect-video max-h-[56%] rounded-2xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
             {previewBox}
           </div>
 
@@ -1958,7 +2003,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           )}
         </div>
 
-          <p className="flex-shrink-0 text-xs font-nunito text-brand-ice/55">OK preview · OK again full screen · Hold OK options · ◀ categories</p>
+          <p className="flex-shrink-0 text-xs font-nunito text-brand-ice/55">OK full screen · Hold OK options · ◀ categories</p>
         </div>
       {reportFor && (
         <Suspense fallback={null}>
@@ -2035,9 +2080,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
       {layoutChooser}
       {categoriesPane}
-      <div className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
-        <div className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
-          <div className="w-64 aspect-video rounded-xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
+      <div data-native-clear className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
+        <div data-native-clear className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
+          <div ref={previewBoxRef} className={`w-64 aspect-video rounded-xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
             {previewBox}
           </div>
           <div className="flex-1 min-w-0">
@@ -2064,7 +2109,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                     Next: {focusedNowNext.next.title} · {formatTime(focusedNowNext.next.start)}
                   </p>
                 )}
-                <p className="text-xs text-brand-ice/60 font-nunito mt-4">OK preview · OK again full screen · Hold OK options · F favorite</p>
+                <p className="text-xs text-brand-ice/60 font-nunito mt-4">OK full screen · Hold OK options · F favorite</p>
               </>
             ) : (
               <p className="text-brand-ice/70 font-nunito">

@@ -873,20 +873,41 @@ html.snowplayer-fullscreen,
 html.snowplayer-fullscreen body,
 html.snowplayer-fullscreen #root,
 html.snowplayer-fullscreen [data-app-scroll-root],
-html[data-user-theme="1"][data-user-bg="1"].snowplayer-fullscreen [data-app-scroll-root] {
+html[data-user-theme="1"][data-user-bg="1"].snowplayer-fullscreen [data-app-scroll-root],
+html.snowplayer-preview,
+html.snowplayer-preview body,
+html.snowplayer-preview #root,
+html.snowplayer-preview [data-app-scroll-root],
+html[data-user-theme="1"][data-user-bg="1"].snowplayer-preview [data-app-scroll-root] {
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
 }
 html.snowplayer-fullscreen [data-app-scroll-root] > img[aria-hidden="true"],
-html[data-user-theme="1"][data-user-bg="1"].snowplayer-fullscreen [data-app-scroll-root] > img[aria-hidden="true"] {
+html[data-user-theme="1"][data-user-bg="1"].snowplayer-fullscreen [data-app-scroll-root] > img[aria-hidden="true"],
+html.snowplayer-preview [data-app-scroll-root] > img[aria-hidden="true"],
+html[data-user-theme="1"][data-user-bg="1"].snowplayer-preview [data-app-scroll-root] > img[aria-hidden="true"] {
   visibility: hidden !important;
 }
 html.snowplayer-fullscreen .min-h-dvh.bg-black\/30,
 html.snowplayer-fullscreen .h-screen.bg-black\/70,
 html.snowplayer-fullscreen .min-h-screen.bg-black\/70,
 html.snowplayer-fullscreen .bg-black\/30.backdrop-blur-sm,
-html.snowplayer-fullscreen .flex-shrink-0.bg-black\/50 {
+html.snowplayer-fullscreen .flex-shrink-0.bg-black\/50,
+html.snowplayer-preview .min-h-dvh.bg-black\/30,
+html.snowplayer-preview .h-screen.bg-black\/70,
+html.snowplayer-preview .min-h-screen.bg-black\/70,
+html.snowplayer-preview .bg-black\/30.backdrop-blur-sm,
+html.snowplayer-preview .flex-shrink-0.bg-black\/50 {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+}
+/* Live TV preview box (snowplayer-preview): the native player draws through
+   the box from behind the WebView, so the section's own painted layers
+   between the page and the box — marked data-native-clear — go transparent
+   too. The decor view behind everything is black, so the section reads as
+   it does at night: the same panels, on black instead of the gradient. */
+html.snowplayer-preview [data-native-clear] {
   background-color: transparent !important;
   backdrop-filter: none !important;
 }

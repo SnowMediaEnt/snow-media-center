@@ -253,7 +253,6 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
             <Input
               id="lt-pass"
               {...focusProps('cf-pass')}
-              data-tv-allow-enter="true"
               type="password"
               placeholder="Password"
               aria-label="Password"

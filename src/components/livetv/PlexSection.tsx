@@ -1054,14 +1054,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const currentTab = tabs[libIdx];
   const homeIdx = 0;
 
-  // The side menu, top to bottom: Home, the libraries, then Search, Request
-  // and Settings — grouped, not in tab order.
+  // The side menu, top to bottom: Home, Discover and Search, the libraries,
+  // then Request and Settings — grouped, not in tab order.
   const menuEntries = useMemo<MenuEntry[]>(() => {
     const out: MenuEntry[] = [];
     const order: MenuGroup[] = ['home', 'libraries', 'more'];
     for (const g of order) {
       tabs.forEach((t, i) => {
-        const group: MenuGroup = (t.type === 'home' || t.type === 'discover') ? 'home' : (t.type === 'movie' || t.type === 'show') ? 'libraries' : 'more';
+        const group: MenuGroup = (t.type === 'home' || t.type === 'discover' || t.type === 'search') ? 'home' : (t.type === 'movie' || t.type === 'show') ? 'libraries' : 'more';
         if (group === g) out.push({ tabIdx: i, title: t.title, group, key: t.key });
       });
     }
@@ -2159,7 +2159,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     : t.type === 'request' ? MessageSquare : t.type === 'show' ? Tv : Film;
   return (
     <div className="flex-1 min-h-0 flex overflow-hidden bg-black/30 text-white">
-      {/* SIDE MENU: Home, the libraries, then Search / Request / Settings. */}
+      {/* SIDE MENU: Home / Discover / Search, the libraries, then Request / Settings. */}
       <div className="w-56 flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col py-2 overflow-y-auto overflow-x-hidden">
         <div className="px-5 pt-2 pb-1 text-xs font-nunito text-brand-ice/60 truncate">Plex · {conn?.name}</div>
         {menuEntries.map((m, i) => {

@@ -131,6 +131,34 @@ describe('useTVFocus keyboard (1.6.x path + Enter moves down)', () => {
     expect(signin.dataset.tvFocused).toBe('true');
   });
 
+  it("the keyboard's parting Enter after the last field does not press the button or re-open", async () => {
+    const { getByTestId } = render(<Form />);
+    await raf();
+    const user = getByTestId('user') as HTMLInputElement;
+    const pass = getByTestId('pass') as HTMLInputElement;
+    const signin = getByTestId('signin');
+    const clicks = vi.fn();
+    signin.addEventListener('click', clicks);
+    okOn(user); await flush();
+    fireEvent.input(user, { target: { value: 'jane' } });
+    await later();
+    keyboardEnter(user); await flush();
+    fireEvent.input(pass, { target: { value: 'secret' } });
+    await later();
+    keyboardEnter(pass); await flush();
+    expect(document.activeElement).toBe(signin);
+    // The echo, a moment later, on the button.
+    await act(async () => { vi.advanceTimersByTime(150); });
+    fireEvent.keyDown(signin, { key: 'Enter', keyCode: 13 });
+    await flush();
+    expect(clicks).not.toHaveBeenCalled();
+    expect(state.showCalls).toBe(2);
+    // A real press after the grace period does press it.
+    await later();
+    fireEvent.keyDown(signin, { key: 'Enter', keyCode: 13 });
+    expect(clicks).toHaveBeenCalledTimes(1);
+  });
+
   it('the platform advancing focus itself (native Next) is followed, and Enter then finishes', async () => {
     const { getByTestId } = render(<Form />);
     await raf();

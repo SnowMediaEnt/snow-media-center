@@ -28,7 +28,24 @@ interface UseNativePlayerArgs {
   onEnded?: () => void;
   /** Fired when the hook triggers a reload (app resume / visibility return). */
   onReload?: () => void;
+  /**
+   * Where the picture goes, in CSS px of the viewport. `undefined` (the
+   * default) is fullscreen. `null` means "not measured yet": the stream
+   * loads but no rect is sent until one arrives. A change while active is
+   * applied in place — the same stream moves between a preview box and
+   * fullscreen without reloading.
+   */
+  rect?: NativeRect | null;
+  /**
+   * Whether this playback should quieten the rest of the app (quiet mode,
+   * the `streaming-active` flag that pauses updaters and the content bar).
+   * True for fullscreen viewing; false for a preview box the viewer is
+   * browsing beside, where the screen behind must keep working.
+   */
+  background?: boolean;
 }
+
+export interface NativeRect { x: number; y: number; width: number; height: number }
 
 export interface NativePlayerState {
   controller: VideoController | null;
@@ -44,7 +61,19 @@ export interface NativePlayerState {
 
 const MAX_RETRIES_DEFAULT = 5;
 
-export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload }: UseNativePlayerArgs): NativePlayerState {
+/** A CSS-px viewport rect for the plugin, which scales it to device px
+ *  against the WebView's own size. Degenerate rects are dropped. */
+async function applyRect(r: NativeRect): Promise<void> {
+  const l = Math.round(r.x), t = Math.round(r.y);
+  const w = Math.round(r.x + r.width) - l, h = Math.round(r.y + r.height) - t;
+  if (w <= 0 || h <= 0) return;
+  await SnowPlayer.setRect({
+    x: l, y: t, width: w, height: h,
+    cssW: Math.round(window.innerWidth), cssH: Math.round(window.innerHeight),
+  });
+}
+
+export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true }: UseNativePlayerArgs): NativePlayerState {
   const [buffering, setBuffering] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
   const [audioWarning, setAudioWarning] = useState<{ codecs: string; ffmpegAvailable: boolean } | null>(null);
@@ -64,8 +93,14 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   useEffect(() => { cbPlayStateRef.current = onPlayStateChange; }, [onPlayStateChange]);
   useEffect(() => { cbEndedRef.current = onEnded; }, [onEnded]);
   useEffect(() => { cbReloadRef.current = onReload; }, [onReload]);
+  const rectRef = useRef(rect);
+  const backgroundRef = useRef(background);
+  backgroundRef.current = background;
 
   const markStreaming = (on: boolean) => {
+    // A preview never claims the screen: the flag would stop the updater,
+    // alerts and the content bar while the viewer is only browsing.
+    if (on && !backgroundRef.current) return;
     try {
       if (on) document.documentElement.classList.add('streaming-active');
       else document.documentElement.classList.remove('streaming-active');
@@ -78,7 +113,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // mid-stall is exactly the churn a starved Fire TV can't afford. Quiet is
   // entered once the stream is primed / playing and released only on the
   // terminal paths (ended, fatal error, hidden, active=false, unmount).
-  const quietOn = () => { try { enterQuiet('native-player'); } catch { /* ignore */ } };
+  const quietOn = () => { if (!backgroundRef.current) return; try { enterQuiet('native-player'); } catch { /* ignore */ } };
   const quietOff = () => { try { exitQuiet('native-player'); } catch { /* ignore */ } };
 
   const clearRetryTimer = () => {
@@ -187,7 +222,9 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
 
     (async () => {
       try {
-        await SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0, fullscreen: true });
+        const r = rectRef.current;
+        if (r === undefined) await SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0, fullscreen: true });
+        else if (r) await applyRect(r);
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.load({ url, live, isLive: live, subtitles });
         if (cancelled || myNonce !== nonceRef.current) return;
@@ -218,6 +255,26 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     // volume intentionally omitted — separate effect handles live volume changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, url, retryNonce]);
+
+  // The picture's place on screen, applied in place while playing. Going
+  // from a preview box to fullscreen and back is this alone: same stream,
+  // no reload.
+  useEffect(() => {
+    rectRef.current = rect;
+    if (!active) return;
+    if (rect === undefined) void SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0, fullscreen: true }).catch(() => { /* ignore */ });
+    else if (rect) void applyRect(rect).catch(() => { /* ignore */ });
+  }, [active, rect]);
+
+  // Preview -> fullscreen with no reload skips the load pipeline, so the
+  // screen-owning flags are settled here when `background` flips.
+  useEffect(() => {
+    if (!active) return;
+    if (background) { markStreaming(true); quietOn(); }
+    else { markStreaming(false); quietOff(); }
+    // markStreaming/quietOn read backgroundRef, which is set above in render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, background]);
 
   // Live volume sync.
   useEffect(() => {

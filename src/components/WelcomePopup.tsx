@@ -13,7 +13,7 @@ import { useVersion } from '@/hooks/useVersion';
 const CHANGELOG: Record<string, string[]> = {
   '1.7.3': [
     '📰 Posts from Snow Media, in Support: every email we send lands under the Posts tab too — dated, marked New until you open it, readable full screen. Turn the heads-up off under Settings → UI',
-    '📺 Live TV, your way: Classic, Compact or Grid. The first time you open Live TV it asks which look you want; change it any time under Player Settings → Appearance. OK on a channel previews it, OK again goes full screen',
+    '📺 Live TV, your way: Classic, Compact or Grid. The first time you open Live TV it asks which look you want; change it any time under Player Settings → Appearance. rest on a channel to preview it, OK goes full screen',
     '🎬 Plex, redone: a menu down the left for Home and your libraries, slimmer rows, a lighter title page — and hold OK on a library to hide it',
     '🎮 Game Lounge, all new: Blackjack, Casino Hold\'em, Roulette, Slots, Plinko, Dice, Video Poker, TV Trivia and the Daily Spin — play for Snow Coins and climb the leaderboard',
     '🧹 Device Cleaner in Support: frees space and memory in one press, and finds apps nobody opens',

@@ -332,6 +332,11 @@ export const useTVFocus = ({
       return;
     }
     closeKeyboard(field);
+    // Putting the keyboard away here is a dismissal like Back's: Amazon's
+    // keyboard emits a parting Enter as it closes, which used to land on the
+    // button we just moved to (a sign-in nobody pressed) or, with the field
+    // still focused, re-open the keyboard on it.
+    lastDismissRef.current = Date.now();
     const next = rest[0];
     if (next) focusById(getId(next));
   }, [closeKeyboard, findManagedElement, focusById, getElements, getId, openKeyboardOn]);
@@ -376,7 +381,16 @@ export const useTVFocus = ({
     const root = containerRef.current;
     const onFocusIn = (event: FocusEvent) => {
       const el = event.target as HTMLElement | null;
-      if (!ownsField(el)) return;
+      if (!ownsField(el)) {
+        // The platform moved focus from the keyboard's field to something
+        // that is not one (Next on the last field lands on the button): the
+        // keyboard is going away, and its parting Enter must not press it.
+        if (openedRef.current && el && containerRef.current?.contains(el)) {
+          openedRef.current = null;
+          lastDismissRef.current = Date.now();
+        }
+        return;
+      }
       if (openedRef.current && openedRef.current !== el) openedRef.current = el;
       const managed = findManagedElement(el);
       if (!managed) return;
