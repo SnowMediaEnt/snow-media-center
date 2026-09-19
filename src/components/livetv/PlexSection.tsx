@@ -12,7 +12,7 @@
 //     rings can't be occluded by an under-estimated row.
 //   • Poster images are loaded off the JS heap by PlexImage (see that file).
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Settings as SettingsIcon, Eye, EyeOff, LogOut, MessageSquare, Tv, Film } from 'lucide-react';
+import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Compass, Settings as SettingsIcon, Eye, EyeOff, LogOut, MessageSquare, Tv, Film } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useToast } from '@/hooks/use-toast';
 import { isFireTV } from '@/utils/platform';
@@ -51,6 +51,10 @@ import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { setPlexKeyOwner, isPlexKeyOwner } from './plexKeyOwner';
 import { recordPlexWatch } from '@/lib/watchHistory';
+import {
+  becauseYouWatched, hiddenGems, surpriseMe, rediscover, pickGenres, genreRow,
+  DECADES, decadeTitle, decadeRow, type DiscoverRow,
+} from '@/lib/plexDiscover';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
@@ -110,7 +114,7 @@ const ROW_H_ESTIMATE = 250;   // pre-measure fallback for the virtualizer
 const PAGE_FIRST = 60;
 const PAGE_MORE = 200;
 
-type TabType = 'home' | 'search' | 'movie' | 'show' | 'request' | 'manage';
+type TabType = 'home' | 'discover' | 'search' | 'movie' | 'show' | 'request' | 'manage';
 interface Tab { key: string; title: string; type: TabType; libKey?: string; }
 type MenuGroup = 'home' | 'libraries' | 'more';
 interface MenuEntry { tabIdx: number; title: string; group: MenuGroup; key: string; }
@@ -139,6 +143,76 @@ const ResChip = memo(({ label }: { label: string }) => {
 });
 ResChip.displayName = 'ResChip';
 
+// ─── RAILS (Home and Discover share this) ─────────────────────────────────
+// A column of poster rails with one row/col cursor. Up off the first row and
+// Left off a first tile hand focus back to the side menu.
+interface RailBrowserProps {
+  isActive: boolean;
+  base: string;
+  token: string;
+  rows: DiscoverRow[];
+  onPlay: (it: PlexItem) => void;
+  onExitToTabs: () => void;
+}
+const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs }: RailBrowserProps) => {
+  const [row, setRow] = useState(0);
+  const [col, setCol] = useState(0);
+
+  useEffect(() => { if (row >= rows.length) setRow(Math.max(0, rows.length - 1)); }, [rows.length, row]);
+
+  const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
+  const colRef = useRef(col); useEffect(() => { colRef.current = col; }, [col]);
+  const rowsRef = useRef(rows); useEffect(() => { rowsRef.current = rows; }, [rows]);
+  const onPlayRef = useRef(onPlay); useEffect(() => { onPlayRef.current = onPlay; }, [onPlay]);
+  const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const handler = (e: KeyboardEvent) => {
+      if (!isPlexKeyOwner('browse')) return;
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const keys = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter',' '];
+      if (!keys.includes(e.key)) return;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      const r = rowRef.current, c = colRef.current;
+      const currentRow = rowsRef.current[r];
+      if (!currentRow) { if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') onExitRef.current(); return; }
+      if (e.key === 'ArrowUp') { if (r === 0) onExitRef.current(); else { setRow(r - 1); setCol(0); } }
+      else if (e.key === 'ArrowDown') { if (r < rowsRef.current.length - 1) { setRow(r + 1); setCol(0); } }
+      // Left off the first tile is the way into the side menu.
+      else if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); else onExitRef.current(); }
+      else if (e.key === 'ArrowRight') { if (c < currentRow.items.length - 1) setCol(c + 1); }
+      else if (e.key === 'Enter' || e.key === ' ') { const it = currentRow.items[c]; if (it) onPlayRef.current(it); }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [isActive]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {rows.map((r, ri) => (
+        <div key={r.id} data-plex-row={r.id}>
+          <div className="text-base font-quicksand font-semibold text-white/90 mb-2">{r.title}</div>
+          <div className="flex gap-3 overflow-x-auto py-2 px-2 -mx-2">
+            {r.items.map((it, ci) => (
+              <PlexPosterTile
+                key={it.ratingKey}
+                item={it}
+                base={base}
+                token={token}
+                focused={isActive && ri === row && ci === col}
+                onClick={() => { setRow(ri); setCol(ci); onPlay(it); }}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+});
+RailBrowser.displayName = 'RailBrowser';
+
 // ─── HOME PANEL ────────────────────────────────────────────────────────────
 interface HomePanelProps {
   isActive: boolean;
@@ -158,8 +232,6 @@ const HomePanel = memo(({ isActive, base, token, libraries, onPlay, onExitToTabs
   const [released, setReleased] = useState<PlexItem[]>(() => getCachedHub(base, HOME_RELEASED_KEY) ?? []);
   const [popular, setPopular] = useState<PlexItem[]>(() => getCachedHub(base, HOME_POPULAR_KEY) ?? []);
   const [loading, setLoading] = useState(!(getCachedHub(base, onDeckPath) || getCachedHub(base, recentPath)));
-  const [row, setRow] = useState(0);
-  const [col, setCol] = useState(0);
 
   const [hubRetry, setHubRetry] = useState(0);
   const hubRetryRef = useRef(0);
@@ -241,72 +313,102 @@ const HomePanel = memo(({ isActive, base, token, libraries, onPlay, onExitToTabs
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base, token, libKeysSig]);
 
-  const rows = useMemo(() => {
-    const r: Array<{ id: string; title: string; items: PlexItem[] }> = [];
+  const rows = useMemo<DiscoverRow[]>(() => {
+    const r: DiscoverRow[] = [];
     if (onDeck.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: onDeck.slice(0, HOME_RAIL_CAP) });
     r.push({ id: 'added', title: 'Recently Added', items: recent.slice(0, HOME_RAIL_CAP) });
     if (released.length > 0) r.push({ id: 'released', title: 'Recently Released', items: released });
-    if (popular.length > 0) r.push({ id: 'popular', title: 'Popular', items: popular });
+    // Most played on this server (see homeWatchedQuery); says so on the tin.
+    if (popular.length > 0) r.push({ id: 'popular', title: 'Most Watched', items: popular });
     return r;
   }, [onDeck, recent, released, popular]);
-
-  useEffect(() => { if (row >= rows.length) setRow(Math.max(0, rows.length - 1)); }, [rows.length, row]);
-
-  const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
-  const colRef = useRef(col); useEffect(() => { colRef.current = col; }, [col]);
-  const rowsRef = useRef(rows); useEffect(() => { rowsRef.current = rows; }, [rows]);
-  const onPlayRef = useRef(onPlay); useEffect(() => { onPlayRef.current = onPlay; }, [onPlay]);
-  const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
-
-  useEffect(() => {
-    if (!isActive) return;
-    const handler = (e: KeyboardEvent) => {
-      if (!isPlexKeyOwner('browse')) return;
-      const t = e.target as HTMLElement;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      const keys = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter',' '];
-      if (!keys.includes(e.key)) return;
-      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-      const r = rowRef.current, c = colRef.current;
-      const currentRow = rowsRef.current[r];
-      if (!currentRow) { if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') onExitRef.current(); return; }
-      if (e.key === 'ArrowUp') { if (r === 0) onExitRef.current(); else { setRow(r - 1); setCol(0); } }
-      else if (e.key === 'ArrowDown') { if (r < rowsRef.current.length - 1) { setRow(r + 1); setCol(0); } }
-      // Left off the first tile is the way into the side menu.
-      else if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); else onExitRef.current(); }
-      else if (e.key === 'ArrowRight') { if (c < currentRow.items.length - 1) setCol(c + 1); }
-      else if (e.key === 'Enter' || e.key === ' ') { const it = currentRow.items[c]; if (it) onPlayRef.current(it); }
-    };
-    window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;
 
-  return (
-    <div className="flex flex-col gap-4">
-      {rows.map((r, ri) => (
-        <div key={r.id} data-plex-row={r.id}>
-          <div className="text-base font-quicksand font-semibold text-white/90 mb-2">{r.title}</div>
-          <div className="flex gap-3 overflow-x-auto py-2 px-2 -mx-2">
-            {r.items.map((it, ci) => (
-              <PlexPosterTile
-                key={it.ratingKey}
-                item={it}
-                base={base}
-                token={token}
-                focused={isActive && ri === row && ci === col}
-                onClick={() => { setRow(ri); setCol(ci); onPlay(it); }}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  return <RailBrowser isActive={isActive} base={base} token={token} rows={rows} onPlay={onPlay} onExitToTabs={onExitToTabs} />;
 });
 HomePanel.displayName = 'HomePanel';
+
+// ─── DISCOVER PANEL ────────────────────────────────────────────────────────
+// The browsing screen: what the Plex app's own home shows that ours does not.
+// Loaded only when opened, in two waves — the three rows that need no lookup
+// first, then genres and decades once those have landed — so a stick is never
+// asked for a dozen requests at once. Every row is cached like Home's, so
+// coming back is instant for five minutes.
+const DISCOVER_KEY = 'smc:discover/';
+const DiscoverPanel = memo(({ isActive, base, token, libraries, onPlay, onExitToTabs }: HomePanelProps) => {
+  const [rows, setRows] = useState<DiscoverRow[]>(() => getCachedDiscover(base));
+  const [loading, setLoading] = useState(rows.length === 0);
+
+  const libKeysSig = libraries.map((l) => `${l.type}:${l.key}`).join(',');
+  useEffect(() => {
+    if (DEMO || !libraries.length) { setLoading(false); return; }
+    const cached = getCachedDiscover(base);
+    if (cached.length) { setRows(cached); setLoading(false); return; }
+    let cancelled = false;
+    const acc: DiscoverRow[] = [];
+    const land = (id: string, title: string, items: PlexItem[] | null) => {
+      if (cancelled || !items?.length) return;
+      acc.push({ id, title, items });
+      setCachedHub(base, `${DISCOVER_KEY}${id}`, items);
+      setRows(acc.slice());
+    };
+    void (async () => {
+      const [byw, gems, random, again] = await Promise.all([
+        becauseYouWatched(base, token).catch(() => null),
+        hiddenGems(base, token, libraries).catch(() => null),
+        surpriseMe(base, token, libraries).catch(() => null),
+        rediscover(base, token, libraries).catch(() => null),
+      ]);
+      if (cancelled) return;
+      if (byw) land('byw', byw.title, byw.items);
+      land('gems', 'Hidden Gems', gems);
+      land('random', 'Surprise Me', random);
+      land('again', 'Rediscover', again);
+      setLoading(false);
+      // Wave 2. Genre rows in the app's order, then the decades that have
+      // anything in them.
+      const genres = await pickGenres(base, token, libraries).catch(() => []);
+      if (cancelled) return;
+      for (const g of genres) {
+        const items = await genreRow(base, token, libraries, g.keys).catch(() => null);
+        if (cancelled) return;
+        land(`genre:${g.title.toLowerCase()}`, g.title, items);
+      }
+      for (const d of DECADES) {
+        const items = await decadeRow(base, token, libraries, d).catch(() => null);
+        if (cancelled) return;
+        land(`decade:${d}`, decadeTitle(d), items);
+      }
+      // Row order is what the cache replays, so remember it too.
+      setCachedHub(base, `${DISCOVER_KEY}order`, acc.map((r) => ({ ratingKey: r.id, title: r.title, type: 'row' })));
+    })();
+    return () => { cancelled = true; };
+    // libKeysSig stands in for `libraries`; see HomePanel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base, token, libKeysSig]);
+
+  if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Finding things to watch…</div>;
+  if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing to discover yet — this server has no libraries to browse.</div>;
+
+  return <RailBrowser isActive={isActive} base={base} token={token} rows={rows} onPlay={onPlay} onExitToTabs={onExitToTabs} />;
+});
+DiscoverPanel.displayName = 'DiscoverPanel';
+
+/** Replay a cached Discover: the order row lists the ids, each row is its
+ *  own cached hub. Anything missing (TTL lapsed) means a fresh load. */
+function getCachedDiscover(base: string): DiscoverRow[] {
+  const order = getCachedHub(base, `${DISCOVER_KEY}order`);
+  if (!order?.length) return [];
+  const out: DiscoverRow[] = [];
+  for (const o of order) {
+    const items = getCachedHub(base, `${DISCOVER_KEY}${o.ratingKey}`);
+    if (!items) return [];
+    out.push({ id: o.ratingKey, title: o.title, items });
+  }
+  return out;
+}
 
 // ─── SEARCH PANEL ──────────────────────────────────────────────────────────
 type SearchPanelProps = Omit<HomePanelProps, 'libraries'>;
@@ -938,6 +1040,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const tabs = useMemo<Tab[]>(() => {
     const t: Tab[] = [
       { key: '__home', title: 'Home', type: 'home' },
+      { key: '__discover', title: 'Discover', type: 'discover' },
       { key: '__search', title: 'Search', type: 'search' },
     ];
     for (const l of visibleLibraries) {
@@ -958,7 +1061,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const order: MenuGroup[] = ['home', 'libraries', 'more'];
     for (const g of order) {
       tabs.forEach((t, i) => {
-        const group: MenuGroup = t.type === 'home' ? 'home' : (t.type === 'movie' || t.type === 'show') ? 'libraries' : 'more';
+        const group: MenuGroup = (t.type === 'home' || t.type === 'discover') ? 'home' : (t.type === 'movie' || t.type === 'show') ? 'libraries' : 'more';
         if (group === g) out.push({ tabIdx: i, title: t.title, group, key: t.key });
       });
     }
@@ -1781,7 +1884,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       // winner depends on which effect re-registered last — so it looked
       // intermittent.
       if (zoneRef.current === 'grid' && t) {
-        if (t.type === 'home' || t.type === 'search' || t.type === 'request' || t.type === 'manage') return;
+        if (t.type === 'home' || t.type === 'discover' || t.type === 'search' || t.type === 'request' || t.type === 'manage') return;
         if (
           (t.type === 'movie' || t.type === 'show') && t.libKey
           && (libraryModeRef.current[t.libKey] ?? 'rows') === 'rows'
@@ -2052,7 +2155,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // ── render: browse ─────────────────────────────────────────────────
   const totalH = rowVirtualizer.getTotalSize();
   const menuIcon = (t: Tab) =>
-    t.type === 'home' ? HomeIcon : t.type === 'search' ? SearchIcon : t.type === 'manage' ? SettingsIcon
+    t.type === 'home' ? HomeIcon : t.type === 'discover' ? Compass : t.type === 'search' ? SearchIcon : t.type === 'manage' ? SettingsIcon
     : t.type === 'request' ? MessageSquare : t.type === 'show' ? Tv : Film;
   return (
     <div className="flex-1 min-h-0 flex overflow-hidden bg-black/30 text-white">
@@ -2093,6 +2196,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4 pt-5">
         {currentTab?.type === 'home' && conn ? (
           <HomePanel
+            isActive={isActive && zone === 'grid' && !detailItem}
+            base={conn.base}
+            token={conn.token}
+            libraries={visibleLibraries}
+            onPlay={openDetail}
+            onExitToTabs={exitToMenu}
+          />
+        ) : currentTab?.type === 'discover' && conn ? (
+          <DiscoverPanel
             isActive={isActive && zone === 'grid' && !detailItem}
             base={conn.base}
             token={conn.token}
