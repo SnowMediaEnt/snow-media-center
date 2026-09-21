@@ -74,6 +74,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // "Finish your Snow Media account": opened right after a Live TV sign-in
   // when Snow Media has no account for that line yet.
   const [claimOpen, setClaimOpen] = useState(false);
+  const claimOpenRef = useRef(claimOpen);
+  useEffect(() => { claimOpenRef.current = claimOpen; }, [claimOpen]);
 
   const [section, setSection] = useState<SectionId>('live');
   const [mode, setMode] = useState<'choose' | 'live' | 'movies'>('choose');
@@ -448,6 +450,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       // dialog AND was handled here, throwing the viewer out of Live TV
       // entirely — two actions from one press.
       if (expNoticeOpenRef.current) return;
+      // And the "finish your account" card after sign-in. Its own handler is
+      // registered later than this one, so a swallowed arrow here moved the
+      // highlight in the background while the card sat still on top.
+      if (claimOpenRef.current) return;
       if (showCredsFormRef.current) {
         // A full-screen sign-up child is mounted inside the form and owns its
         // own Back. Without this, one press both closed the child AND called
@@ -649,7 +655,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         ) : (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <PlexSection
-              isActive={true}
+              isActive={!claimOpen}
               onExitLeft={leaveMode}
               onExitUp={leaveMode}
               onNeedLiveTV={() => enterMode('live')}
@@ -839,7 +845,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         {section === 'live' && (
           <LiveSection
             creds={creds!}
-            isActive={pane === 'content'}
+            isActive={pane === 'content' && !claimOpen}
             onExitLeft={onExitLeft}
             onExitUp={onExitUp}
             onBack={onBack}
@@ -851,7 +857,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <GuideSection
               creds={creds!}
-              isActive={pane === 'content'}
+              isActive={pane === 'content' && !claimOpen}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
               onNavigate={onNavigate}
@@ -863,7 +869,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MultiScreenSection
               creds={creds}
-              isActive={pane === 'content'}
+              isActive={pane === 'content' && !claimOpen}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
             />
@@ -879,7 +885,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           ) : (
             <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
               <BackupsSection
-                isActive={pane === 'content'}
+                isActive={pane === 'content' && !claimOpen}
                 onExitLeft={onExitLeft}
                 onExitUp={onExitUp}
                 serverLabel={serverLabel}
@@ -893,7 +899,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MoviesSection
               creds={creds!}
-              isActive={pane === 'content'}
+              isActive={pane === 'content' && !claimOpen}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
             />
@@ -903,7 +909,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <SeriesSection
               creds={creds!}
-              isActive={pane === 'content'}
+              isActive={pane === 'content' && !claimOpen}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
             />
@@ -915,7 +921,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           ) : (
             <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
               <PlexSection
-                isActive={pane === 'content'}
+                isActive={pane === 'content' && !claimOpen}
                 onExitLeft={onExitLeft}
                 onExitUp={onExitUp}
                 onNeedLiveTV={() => enterMode('live')}
