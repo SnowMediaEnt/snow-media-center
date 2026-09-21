@@ -50,6 +50,39 @@
       }
     </script>
     <script>
+      // TOO-OLD WEBVIEW GUARD — plain ES5, runs before the app bundle.
+      // The bundle is built for Chrome 66+ (Android 9-era WebView). A box that
+      // never updated its Android System WebView cannot even parse it: the
+      // page stayed white and the renderer died, which the crash handler
+      // turned into "the app just closes". Say what is wrong instead, and
+      // what to do about it. The probe is optional-catch-binding, which is
+      // exactly the Chrome 66 line the build targets.
+      (function () {
+        var ok = true;
+        try { new Function('try {} catch {}'); } catch (e) { ok = false; }
+        if (ok && !(window.Promise && window.fetch)) ok = false;
+        if (ok) return;
+        window.__smcWebViewTooOld = true;
+        var m = /Chrome\/(\d+)/.exec(navigator.userAgent || '');
+        var ver = m ? 'version ' + m[1] : 'an old version';
+        var show = function () {
+          var root = document.getElementById('root') || document.body;
+          root.innerHTML =
+            '<div style="position:fixed;left:0;top:0;right:0;bottom:0;background:#0b1220;color:#e6f1f5;font-family:sans-serif;padding:8vh 10vw;box-sizing:border-box">' +
+            '<div style="font-size:30px;font-weight:700;margin-bottom:18px">This box needs a newer Android System WebView</div>' +
+            '<div style="font-size:20px;line-height:1.5;max-width:900px">' +
+            'This device is running ' + ver + ' of Android System WebView, and this app needs version 66 or newer to run.<br><br>' +
+            'On the box, open the <b>Play Store</b>, search for <b>Android System WebView</b> and update it, then open the app again. ' +
+            'If this box has no Play Store, the WebView cannot be updated and this app will not run on it.' +
+            '</div>' +
+            '<div style="margin-top:28px;font-size:13px;color:#8aa0a8;word-break:break-all">' + (navigator.userAgent || '') + '</div>' +
+            '</div>';
+        };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show);
+        else show();
+      })();
+    </script>
+    <script>
       // Legacy WebView detection — add `legacy-webview` only on Chrome <79-class
       // WebViews that lack CSS clamp() support. Modern devices never get this class.
       try {

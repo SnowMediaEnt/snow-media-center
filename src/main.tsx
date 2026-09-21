@@ -77,7 +77,11 @@ const logStartupDiagnostics = async () => {
 };
 
 // Render IMMEDIATELY — do not block first paint on storage probes.
+// The guard in index.html has already drawn its page on a WebView too old
+// to run this bundle; mounting the app over it would only white it out.
+if (!(window as unknown as { __smcWebViewTooOld?: boolean }).__smcWebViewTooOld) {
 createRoot(document.getElementById("root")!).render(<App />);
+}
 try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('render'); } catch(e){}
 
 // Fire-and-forget diagnostics
