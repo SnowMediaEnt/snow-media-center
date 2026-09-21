@@ -495,6 +495,24 @@ export type Database = {
           },
         ]
       }
+      ai_premium_trials: {
+        Row: {
+          feature: string
+          used_at: string
+          user_id: string
+        }
+        Insert: {
+          feature: string
+          used_at?: string
+          user_id: string
+        }
+        Update: {
+          feature?: string
+          used_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_safety_state: {
         Row: {
           id: number
@@ -525,24 +543,6 @@ export type Database = {
           paused_until?: string | null
           token_threshold_per_hour?: number
           updated_at?: string
-        }
-        Relationships: []
-      }
-      ai_premium_trials: {
-        Row: {
-          feature: string
-          used_at: string
-          user_id: string
-        }
-        Insert: {
-          feature: string
-          used_at?: string
-          user_id: string
-        }
-        Update: {
-          feature?: string
-          used_at?: string
-          user_id?: string
         }
         Relationships: []
       }
@@ -1336,28 +1336,34 @@ export type Database = {
       credit_transactions: {
         Row: {
           amount: number
+          balance_after: number | null
           created_at: string
           description: string
           id: string
           paypal_transaction_id: string | null
+          source: string | null
           transaction_type: string
           user_id: string
         }
         Insert: {
           amount: number
+          balance_after?: number | null
           created_at?: string
           description: string
           id?: string
           paypal_transaction_id?: string | null
+          source?: string | null
           transaction_type: string
           user_id: string
         }
         Update: {
           amount?: number
+          balance_after?: number | null
           created_at?: string
           description?: string
           id?: string
           paypal_transaction_id?: string | null
+          source?: string | null
           transaction_type?: string
           user_id?: string
         }
@@ -1391,6 +1397,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "customer_devices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_line_unlinks: {
+        Row: {
+          customer_id: string
+          note: string | null
+          panel_host: string | null
+          panel_username: string
+          unlinked_at: string
+          unlinked_by: string | null
+        }
+        Insert: {
+          customer_id: string
+          note?: string | null
+          panel_host?: string | null
+          panel_username: string
+          unlinked_at?: string
+          unlinked_by?: string | null
+        }
+        Update: {
+          customer_id?: string
+          note?: string | null
+          panel_host?: string | null
+          panel_username?: string
+          unlinked_at?: string
+          unlinked_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_line_unlinks_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
@@ -1778,6 +1819,95 @@ export type Database = {
         }
         Relationships: []
       }
+      gem_admin_actions: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          reason: string
+          request_id: string
+          transaction_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          reason: string
+          request_id: string
+          transaction_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          reason?: string
+          request_id?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gem_admin_actions_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "credit_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gem_alerts: {
+        Row: {
+          created_at: string
+          gems: number
+          hold_id: string | null
+          id: string
+          kind: string
+          message: string
+          source: string | null
+          title: string
+          transaction_id: string | null
+          usd: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          gems: number
+          hold_id?: string | null
+          id?: string
+          kind: string
+          message: string
+          source?: string | null
+          title: string
+          transaction_id?: string | null
+          usd?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          gems?: number
+          hold_id?: string | null
+          id?: string
+          kind?: string
+          message?: string
+          source?: string | null
+          title?: string
+          transaction_id?: string | null
+          usd?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gem_alerts_hold_id_fkey"
+            columns: ["hold_id"]
+            isOneToOne: false
+            referencedRelation: "gem_purchase_holds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gem_alerts_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "credit_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gem_orders: {
         Row: {
           created_at: string
@@ -1833,6 +1963,75 @@ export type Database = {
             columns: ["package_id"]
             isOneToOne: false
             referencedRelation: "credit_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gem_purchase_holds: {
+        Row: {
+          created_at: string
+          description: string
+          gems: number
+          id: string
+          order_id: string | null
+          paid_total: number | null
+          paypal_transaction_id: string
+          price: number | null
+          reason: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          transaction_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          gems: number
+          id?: string
+          order_id?: string | null
+          paid_total?: number | null
+          paypal_transaction_id: string
+          price?: number | null
+          reason: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          transaction_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          gems?: number
+          id?: string
+          order_id?: string | null
+          paid_total?: number | null
+          paypal_transaction_id?: string
+          price?: number | null
+          reason?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          transaction_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gem_purchase_holds_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "gem_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gem_purchase_holds_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "credit_transactions"
             referencedColumns: ["id"]
           },
         ]
@@ -2230,102 +2429,6 @@ export type Database = {
           balance?: number
           updated_at?: string
           user_id?: string
-        }
-        Relationships: []
-      }
-      snow_mail: {
-        Row: {
-          audience_mode: string
-          blocks: Json
-          campaign_id: string
-          created_at: string
-          hero_image: string | null
-          id: string
-          preheader: string | null
-          recipient_emails: string[]
-          sent_at: string
-          subject: string
-          updated_at: string
-        }
-        Insert: {
-          audience_mode?: string
-          blocks?: Json
-          campaign_id: string
-          created_at?: string
-          hero_image?: string | null
-          id?: string
-          preheader?: string | null
-          recipient_emails?: string[]
-          sent_at?: string
-          subject: string
-          updated_at?: string
-        }
-        Update: {
-          audience_mode?: string
-          blocks?: Json
-          campaign_id?: string
-          created_at?: string
-          hero_image?: string | null
-          id?: string
-          preheader?: string | null
-          recipient_emails?: string[]
-          sent_at?: string
-          subject?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      snow_mail_reads: {
-        Row: {
-          mail_id: string
-          read_at: string
-          user_id: string
-        }
-        Insert: {
-          mail_id: string
-          read_at?: string
-          user_id: string
-        }
-        Update: {
-          mail_id?: string
-          read_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      watch_history: {
-        Row: {
-          count: number
-          item_key: string
-          kind: string
-          payload: Json
-          poster: string | null
-          subtitle: string | null
-          title: string
-          user_id: string
-          watched_at: string
-        }
-        Insert: {
-          count?: number
-          item_key: string
-          kind: string
-          payload?: Json
-          poster?: string | null
-          subtitle?: string | null
-          title: string
-          user_id: string
-          watched_at?: string
-        }
-        Update: {
-          count?: number
-          item_key?: string
-          kind?: string
-          payload?: Json
-          poster?: string | null
-          subtitle?: string | null
-          title?: string
-          user_id?: string
-          watched_at?: string
         }
         Relationships: []
       }
@@ -3239,6 +3342,74 @@ export type Database = {
         }
         Relationships: []
       }
+      snow_mail: {
+        Row: {
+          audience_mode: string
+          blocks: Json
+          campaign_id: string
+          created_at: string
+          hero_image: string | null
+          id: string
+          preheader: string | null
+          recipient_emails: string[]
+          sent_at: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          audience_mode?: string
+          blocks?: Json
+          campaign_id: string
+          created_at?: string
+          hero_image?: string | null
+          id?: string
+          preheader?: string | null
+          recipient_emails?: string[]
+          sent_at?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          audience_mode?: string
+          blocks?: Json
+          campaign_id?: string
+          created_at?: string
+          hero_image?: string | null
+          id?: string
+          preheader?: string | null
+          recipient_emails?: string[]
+          sent_at?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      snow_mail_reads: {
+        Row: {
+          mail_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          mail_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          mail_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "snow_mail_reads_mail_id_fkey"
+            columns: ["mail_id"]
+            isOneToOne: false
+            referencedRelation: "snow_mail"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       store_display: {
         Row: {
           badge: string | null
@@ -4028,6 +4199,53 @@ export type Database = {
         }[]
       }
       admin_activity_summary: { Args: never; Returns: Json }
+      admin_adjust_gems: {
+        Args: {
+          p_delta: number
+          p_reason: string
+          p_request_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      admin_gem_activity: {
+        Args: {
+          p_before?: string
+          p_kind?: string
+          p_limit?: number
+          p_user_id?: string
+        }
+        Returns: {
+          actor_name: string
+          amount: number
+          balance_after: number
+          category: string
+          created_at: string
+          customer_id: string
+          customer_name: string
+          description: string
+          id: string
+          kind: string
+          reason: string
+          running_balance: number
+          signed_amount: number
+          user_id: string
+        }[]
+      }
+      admin_gem_holds_and_alerts: { Args: { p_limit?: number }; Returns: Json }
+      admin_gem_summary: { Args: { p_user_id?: string }; Returns: Json }
+      admin_line_unlinks: {
+        Args: { p_customer_id?: string }
+        Returns: {
+          customer_id: string
+          customer_name: string
+          note: string
+          panel_host: string
+          panel_username: string
+          unlinked_at: string
+          unlinked_by: string
+        }[]
+      }
       admin_list_action_tokens: {
         Args: never
         Returns: {
@@ -4043,6 +4261,22 @@ export type Database = {
           token_prefix: string
           use_count: number
         }[]
+      }
+      admin_relink_line: {
+        Args: { p_customer_id: string; p_panel_username: string }
+        Returns: Json
+      }
+      admin_resolve_gem_hold: {
+        Args: { p_approve: boolean; p_hold_id: string; p_note?: string }
+        Returns: Json
+      }
+      admin_unlink_line: {
+        Args: {
+          p_customer_id: string
+          p_note?: string
+          p_panel_username: string
+        }
+        Returns: Json
       }
       ai_tokens_last_hour: { Args: never; Returns: number }
       analytics_active_users: {
