@@ -15,6 +15,24 @@
   button {
     -webkit-appearance: none;
     appearance: none;
+    /* Tailwind's own reset for buttons is written as
+         button, input:where([type=button]), …
+       and :where() only exists from Chrome 88. An older WebView throws the
+       WHOLE rule away, so buttons keep the OS defaults — a light ButtonFace
+       fill, black text, the system font — which is the row of white pills
+       the Plex menu became on Android boxes. Restate the reset in plain
+       selectors so it survives everywhere. */
+    background-color: transparent;
+    background-image: none;
+    color: inherit;
+    font-family: inherit;
+    font-size: 100%;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+    text-transform: none;
+    margin: 0;
+    padding: 0;
   }
   :root {
     /* Snow Media Brand Colors */
