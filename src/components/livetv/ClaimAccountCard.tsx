@@ -218,7 +218,8 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
           e.stopPropagation();
           void hideKeyboardForDpad(fieldRefs[typingIdx].current);
           setFocusIdx(e.key === 'ArrowDown' ? Math.min(typingIdx + 1, SAVE_IDX) : Math.max(typingIdx - 1, 0));
-        } else if (isOk && !e.isComposing && e.keyCode !== 229) {
+        } else if ((e.key === 'Enter' || e.keyCode === 13) && !e.isComposing && e.keyCode !== 229) {
+          // Space must type a space inside a field — only Enter / Next advances.
           e.preventDefault();
           e.stopPropagation();
           const n = typingIdx + 1;
