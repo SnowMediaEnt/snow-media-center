@@ -32,7 +32,11 @@ export const isClaimDone = (
 };
 
 export const markClaimDone = (host: string, username: string, email: string): void => {
-  try { localStorage.setItem(claimDoneKey(host, username), email); } catch { /* ignore */ }
+  // The value is only a note of *how* it was claimed; a phone-only claim has no
+  // email, so store a truthy marker instead — an empty string would read back
+  // as "not claimed" and the card would come back on every sign-in.
+  const value = email.trim() || 'claimed';
+  try { localStorage.setItem(claimDoneKey(host, username), value); } catch { /* ignore */ }
 };
 
 /** True while the 7-day "Not now" suppression is active. */
