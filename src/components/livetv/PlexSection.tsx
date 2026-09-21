@@ -2189,7 +2189,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                 data-focused={focused ? 'true' : 'false'}
                 title={menuCollapsed ? m.title : undefined}
                 onClick={(e) => { if (menuCollapsed) return; e.stopPropagation(); setMenuKey(m.key); if (m.tabIdx !== libIdx) setLibIdx(m.tabIdx); setZone('grid'); }}
-                className={`tv-ring relative w-full flex items-center gap-2.5 h-10 rounded-lg mx-2 font-nunito text-sm ${menuCollapsed ? 'justify-center px-0' : 'text-left px-3'} ${
+                // appearance-none: an old WebView (X96 / T95 Android 9) paints the OS
+                // button face over a <button> whose only background is the reset's
+                // `transparent` — a row of light pills with invisible text. The
+                // focused row escaped because its ring is a box-shadow, which
+                // turns the native theme off. So does appearance: none.
+                className={`tv-ring appearance-none relative w-full flex items-center gap-2.5 h-10 rounded-lg mx-2 font-nunito text-sm ${menuCollapsed ? 'justify-center px-0' : 'text-left px-3'} ${
                   focused ? 'bg-white/10 text-white font-semibold' : selected ? 'text-white font-semibold' : 'text-brand-ice/85'}`}
                 style={{ width: 'calc(100% - 1rem)' }}
               >
