@@ -1,9 +1,9 @@
 {
-  "version": "1.7.4",
-  "versionCode": 34,
-  "releaseDate": "2026-09-19",
+  "version": "1.7.5",
+  "versionCode": 35,
+  "releaseDate": "2026-09-21",
   "size": "",
-  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.4.apk",
-  "changelog": "WHAT'S NEW\nLive TV previews on their own: rest on a channel and it plays in the preview box, with sound. OK goes full screen. The preview no longer shows black on Fire TV.\nPlex Discover: Because you watched, Hidden Gems, Surprise Me, Rediscover, and rows by genre and by decade. It sits under Home in the side menu, with Search right below it.\nPlex Home: Popular is now Most Watched.\n\nFIXES\nSign-in keyboard on Fire TV: OK opens it, Next moves from Username to Password, Next again puts it away and lands on Sign In. It stays closed.\nDashboard: Billing & subscription no longer sits cut off below the screen.\nLive TV Settings: the category list no longer stays highlighted while you are in Settings.\nLive TV: the channel list no longer clips the highlighted row at the bottom.",
-  "releaseNotes": "Version 1.7.4 makes Live TV preview the highlighted channel on its own with OK for full screen, adds Plex Discover for finding something to watch, and fixes the Fire TV sign-in keyboard, the Dashboard's Billing card and the Live TV Settings highlight."
+  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.5.apk",
+  "changelog": "WHAT'S NEW\nAlerts reach the Player: an alert placed on Vibez, Dreamstreams or Plex now pops up in the Player too, for anyone signed into that service.\nPlex: the side menu folds away while you browse and comes back with Left or Back, with the cursor on the section you were in.\n\nFIXES\nAndroid boxes: the Plex menu no longer shows as blank white bars.\nLive TV: only one thing is highlighted at a time — the category list no longer lights up while the remote is on the left menu.\nAfter sign-in, the finish-your-account card takes the remote instead of the screen behind it.\nA box whose Android System WebView is too old for the app now says so, with the version it found and how to update it, instead of a white screen.",
+  "releaseNotes": "Version 1.7.5 brings service alerts into the Player, folds the Plex menu away while you browse, and fixes the blank Plex menu on Android boxes, the double highlight in Live TV and the sign-in card that ignored the remote. Installs normally over 1.7.4."
 }

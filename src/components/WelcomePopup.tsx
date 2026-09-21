@@ -11,6 +11,14 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.7.5': [
+    '📢 Alerts you place on Vibez, Dreamstreams or Plex now pop up in the Player too, for anyone signed into that service',
+    '🎬 Plex: the side menu folds away while you browse and comes back with Left or Back',
+    '📺 Live TV: only one thing is highlighted at a time — the category list no longer lights up while you are on the left menu',
+    '🤖 Android boxes: the Plex menu no longer shows as blank white bars',
+    '🔑 After sign-in, the finish-your-account card takes the remote instead of the screen behind it',
+    '🧰 A box whose Android System WebView is too old now says so, and how to update it, instead of a white screen',
+  ],
   '1.7.4': [
     '📺 Live TV: rest on a channel and it plays in the preview box, with sound — OK goes full screen. The preview no longer shows black on Fire TV',
     '🧭 Plex Discover: Because you watched, Hidden Gems, Surprise Me, Rediscover, and rows by genre and decade — under Home in the side menu, with Search right below it',
