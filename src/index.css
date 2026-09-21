@@ -5,6 +5,17 @@
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. */
 
 @layer base {
+  /* Android WebViews paint the OS button face over any <button> whose only
+     background is the reset's `transparent` (they read it as "no
+     background"), so a text-only button became a light pill with its white
+     text lost on it — the whole Plex side menu, on every Android box. A
+     box-shadow or an author background switches the theme off, which is why
+     only the focused row, with its ring, drew correctly. Turn the theme off
+     for good: every button in the app is styled by its own classes. */
+  button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
   :root {
     /* Snow Media Brand Colors */
     --brand-ice: 189 37% 80%; /* #a1d5dc - Light blue/teal from logo */
@@ -710,17 +721,6 @@ html.legacy-webview [data-home-card] svg,
 html.legacy-webview [data-home-card] img {
   /* card icon area uses inline clamp() width */
   max-width: 64px !important;
-}
-
-/* Buttons: old Blink paints the OS button face over any <button> whose
-   only background is the reset's `transparent` (it reads that as "no
-   background"), so a text-only button became a light pill with its white
-   text lost on it — the whole Plex side menu, on an X96. A box-shadow or an
-   author background switches the theme off, which is why only the focused
-   row looked right. Turn the theme off outright on these devices. */
-html.legacy-webview button {
-  -webkit-appearance: none !important;
-  appearance: none !important;
 }
 
 /* Big watermark title "SNOW MEDIA CENTER" + tagline */
