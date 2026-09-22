@@ -32,7 +32,7 @@ import {
   resolutionLabel,
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
   getPlexAccount,
-  setPlexImageFocus, preloadImages,
+  setPlexImageFocus, preloadImages, plexPhotoTranscodeUrl, POSTER_TILE_W, POSTER_TILE_H,
   type PlexLibrary, type PlexItem, type PlexEpisode, plexRouteLabel,
   setPlexPlaybackActive } from '@/lib/plex';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
@@ -1216,14 +1216,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       if (cancelled) return;
       const pop = forHome.length ? await loadPopular(base, token, forHome, gone) : null;
       if (cancelled) return;
-      // 4. The posters on the first screen — https only; http URLs go through
-      //    the data-URI path and would only stall here.
+      // 4. The posters on the first screen: the opening tiles of each rail,
+      //    at the size the tiles draw them, so Home paints from the browser
+      //    cache. Small transcodes (~10 KB each), not the full posters the
+      //    old preload pulled. https only; http URLs go through the data-URI
+      //    path and would only stall here.
       const posters: string[] = [];
       if (/^https:\/\//i.test(base)) {
         for (const list of [od, ra, rel, pop]) {
-          for (const it of list || []) {
-            if (posters.length >= 18) break;
-            if (it.thumb) posters.push(`${base}${it.thumb}?X-Plex-Token=${encodeURIComponent(token)}`);
+          for (const it of (list || []).slice(0, 12)) {
+            if (it.thumb) posters.push(plexPhotoTranscodeUrl(base, it.thumb, token, POSTER_TILE_W, POSTER_TILE_H));
           }
         }
       }

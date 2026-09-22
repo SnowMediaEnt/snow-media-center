@@ -1,16 +1,27 @@
 // Plex poster loader — Fire-TV low-memory strategy:
 //   1. Absolute http(s) URL → render as-is (with token if it's a Plex URL).
-//   2. Server-relative path (native + web) → PRIMARY <img> src = the RAW
-//      tokenized thumb URL (`${base}${path}?X-Plex-Token=…`). Plex serves the
-//      already-sized cached thumbnail — no per-image /photo/:/transcode job
-//      spun up on the PMS, no heap pressure client-side.
-//   3. onError #1 → fall back to plexPhotoTranscodeUrl (small box, no upscale).
+//   2. Server-relative path (native + web) → PRIMARY <img> src = the server's
+//      photo transcode at the size the tile is drawn (`/photo/:/transcode?
+//      width=140&height=210&…`). The PMS scales it once and caches the result
+//      for every viewer after that, so a rail poster is ~10 KB.
+//
+//      It used to be the RAW thumb (`${base}${path}?X-Plex-Token=…`) on the
+//      theory that it was "the already-sized cached thumbnail". It is not:
+//      that path is the poster as the agent downloaded it, typically
+//      1000×1500 and 200–500 KB. Every tile on screen pulled a full poster
+//      over the customer's connection and the WebView decoded a 1.5-megapixel
+//      JPEG to paint a 104-pixel box. Fifty of those on the first screen is
+//      15–25 MB and a few seconds of decode on a stick, which was most of
+//      "Plex is laggy" — on every device, not only the weak ones.
+//   3. onError #1 → fall back to the raw thumb (a server with the photo
+//      transcoder disabled or failing still shows art).
 //   4. onError #2 (native only) → last-ditch CapacitorHttp → data-URI path
 //      (this is the 200MB-heap culprit on 1GB Fire TV Sticks; only reached
-//      when the raw + transcoded HTTP paths both failed).
+//      when both HTTP paths failed).
 //
-// A module-level Map caches the resolved src per `${base}|${path}` so
-// scroll-back / remounts never refetch.
+// A module-level Map caches the resolved src per `${base}|${path}|${w}x${h}`
+// so scroll-back / remounts never refetch. The size is part of the key: a
+// rail tile and the detail poster share a path and must not share a src.
 //
 // PRIORITY / FOCUS MODE: when a detail page is open, PlexSection flips the
 // module-level `imageFocusMode` in plex.ts. Non-priority images defer their
@@ -44,8 +55,8 @@ interface Props {
   focusExempt?: boolean;
 }
 
-// Cache the FINAL resolved src per (base|path). Keyed without token/size so
-// we still hit on remount even if the caller passes slightly different sizes.
+// Cache the FINAL resolved src per (base|path|size). Keyed without the token
+// so we still hit on remount after a token refresh.
 const _srcCache = new Map<string, string>();
 const SRC_CACHE_MAX = 200;
 const capSrcCache = () => {
@@ -68,7 +79,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
   const [err, setErr] = useState(false);
   // Bumped to re-run the load ladder after a failure (see the re-arm below).
   const [armNonce, setArmNonce] = useState(0);
-  // Fallback ladder: 0 = raw thumb, 1 = photo-transcode, 2 = data-URI (native).
+  // Fallback ladder: 0 = photo-transcode, 1 = raw thumb, 2 = data-URI (native).
   const stepRef = useRef(0);
   // Deferred src while imageFocusMode is on and this image is not priority.
   const pendingSrcRef = useRef<string | null>(null);
@@ -136,7 +147,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     setErr(false);
     pendingSrcRef.current = null;
     if (!path) { setSrc(null); setErr(true); return; }
-    const key = `${base}|${path}`;
+    const key = `${base}|${path}|${w}x${h}`;
     const cached = _srcCache.get(key);
     if (cached) { commitSrc(cached); return; }
     if (/^https?:\/\//i.test(path)) {
@@ -159,7 +170,8 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
         .catch(() => { if (!cancelled) setErr(true); });
       return () => { cancelled = true; };
     }
-    // Server-relative: raw tokenized thumb URL is the primary source.
+    // Server-relative: the small photo transcode is the primary source (see
+    // the header — the raw thumb is the full poster).
     //
     // VIEWPORT-GATED, exactly like the data-URI branch above. This branch used
     // to commit immediately, so every mounted tile fetched its poster whether
@@ -172,8 +184,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     // `loading="lazy"` on the <img> does NOT cover this: it landed in Chrome 76
     // and the oldest boxes here run Chromium 66, where the attribute is inert.
     if (!inView) return;
-    const raw = `${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`;
-    commitSrc(raw);
+    commitSrc(plexPhotoTranscodeUrl(base, path, token, w, h));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base, path, token, w, h, priority, focusExempt, inView, armNonce]);
 
@@ -194,9 +205,10 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     if (!path || /^https?:\/\//i.test(path)) { setErr(true); return; }
     const step = stepRef.current;
     if (step === 0) {
-      // Try the server photo transcode with a SMALL box + no upscale.
+      // The transcoder said no (disabled, or choking): the raw poster still
+      // shows the art, at the old cost, for this one image.
       stepRef.current = 1;
-      commitSrc(plexPhotoTranscodeUrl(base, path, token, w, h));
+      commitSrc(`${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`);
       return;
     }
     if (step === 1 && isNativePlatform()) {
@@ -204,10 +216,9 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
       stepRef.current = 2;
       if (!priority && !inView) { setErr(true); return; }
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
-      let cancelled = false;
       plexFetchImageDataUri(url, priority, focusExempt)
-        .then((data) => { if (cancelled) return; capSrcCache(); _srcCache.set(`${base}|${path}`, data); commitSrc(data); })
-        .catch(() => { if (!cancelled) setErr(true); });
+        .then((data) => { capSrcCache(); _srcCache.set(`${base}|${path}|${w}x${h}`, data); commitSrc(data); })
+        .catch(() => setErr(true));
       return;
     }
     setErr(true);

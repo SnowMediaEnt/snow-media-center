@@ -550,6 +550,11 @@ export async function savePlexQuality(key: string): Promise<void> {
 
 // ── image loading via CapacitorHttp (avoids mixed-content on http PMS) ─────
 
+/** The box a rail/grid poster is drawn in (see PlexPosterTile). The settle
+ *  screen preloads at exactly this size so the tiles hit the browser cache. */
+export const POSTER_TILE_W = 140;
+export const POSTER_TILE_H = 210;
+
 export function plexPhotoTranscodeUrl(base: string, path: string, token: string, w: number, h: number): string {
   // Already-absolute URL (demo catalog poster-proxy links) — nothing for the
   // Plex photo transcoder to do; hand it back unchanged.

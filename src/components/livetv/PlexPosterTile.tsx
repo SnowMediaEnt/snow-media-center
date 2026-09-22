@@ -4,7 +4,7 @@
 // three cannot drift apart again.
 import { memo } from 'react';
 import PlexImage from './PlexImage';
-import { resolutionLabel, type PlexItem } from '@/lib/plex';
+import { POSTER_TILE_H, POSTER_TILE_W, resolutionLabel, type PlexItem } from '@/lib/plex';
 import { tileCaption, resumeFraction } from '@/lib/plexLibraryRows';
 
 interface Props {
@@ -32,7 +32,7 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
       className={`plex-tile cursor-pointer ${width === 'rail' ? 'flex-shrink-0 w-[104px]' : 'w-full'}`}
     >
       <div className={`tv-ring relative aspect-[2/3] rounded-lg overflow-hidden bg-black/40 border border-white/10 ${focused ? 'scale-[1.05] z-10' : ''}`}>
-        <PlexImage base={base} path={item.thumb} token={token} w={140} h={210} className="w-full h-full object-cover" />
+        <PlexImage base={base} path={item.thumb} token={token} w={POSTER_TILE_W} h={POSTER_TILE_H} className="w-full h-full object-cover" />
         {label ? (
           <div className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/75 text-xs font-bold font-nunito ${label === '4K' ? 'text-brand-gold' : 'text-white/85'}`}>
             {label}
