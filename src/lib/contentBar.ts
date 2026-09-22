@@ -9,13 +9,18 @@
 //
 // Nothing about a line ever leaves the device: the shared edge function only
 // supplies Plex "recently added", which the bar appends after these rows.
+//
+// Adult material never reaches the bar, whatever was watched: a channel is
+// dropped when its category, its panel flag or its name says adult, a Plex
+// title when its library, certificate, genre or name does (adultContent.ts).
 import {
-  loadCreds, loadSavedAccounts, getLiveStreams, getShortEpg, pickNowNext,
+  loadCreds, loadSavedAccounts, getLiveCategories, getLiveStreams, getShortEpg, pickNowNext,
   type XtreamCreds, type XtreamLiveStream,
 } from '@/lib/xtream';
+import { isAdultChannel, isAdultLabel, isAdultPlexItem, isFlaggedAdult } from '@/lib/adultContent';
 import { buildLines } from '@/lib/liveLines';
 import { loadFavoritesForLine, lineKey } from '@/lib/favoritesSync';
-import { loadPlexServer, getPlexRelated, plexImageUrl } from '@/lib/plex';
+import { loadPlexServer, getPlexLibraries, getPlexRelated, plexImageUrl } from '@/lib/plex';
 import { currentViewer, loadWatchHistory, syncWatchHistoryFromCloud, channelKey, type WatchEntry } from '@/lib/watchHistory';
 
 export type BarSource = 'history' | 'live' | 'foryou' | 'plex';
@@ -55,6 +60,25 @@ const stripHost = (h: string) => h.replace(/^https?:\/\//, '');
 
 const lineFor = (lines: XtreamCreds[], host: string, username: string): XtreamCreds | undefined =>
   lines.find((l) => lineKey(l) === lineKey({ host, username }));
+
+/** The category names of a line, and which of those are adult buckets. */
+interface CategoryIndex { names: Map<string, string>; adult: Set<string> }
+async function categoryIndex(line: XtreamCreds): Promise<CategoryIndex> {
+  const names = new Map<string, string>();
+  const adult = new Set<string>();
+  try {
+    for (const c of await getLiveCategories(line)) {
+      const id = String(c.category_id);
+      names.set(id, c.category_name);
+      if (isFlaggedAdult(c) || isAdultLabel(c.category_name)) adult.add(id);
+    }
+  } catch { /* the list is unreachable: names stay unknown, the name test still applies */ }
+  return { names, adult };
+}
+
+const adultChannel = (idx: CategoryIndex | undefined, name: string, categoryId?: string, row?: unknown): boolean =>
+  (!!categoryId && !!idx?.adult.has(String(categoryId))) ||
+  isAdultChannel({ name, categoryName: categoryId ? idx?.names.get(String(categoryId)) : undefined, row });
 
 const channelItem = (source: BarSource, line: XtreamCreds, s: XtreamLiveStream, subtitle?: string): BarItem => ({
   id: `ch-${channelKey(line, s.stream_id)}`,
@@ -112,6 +136,23 @@ export async function buildViewerBar(): Promise<ViewerBar> {
   const plexServer = await loadPlexServer().catch(() => null);
   const plexPoster = (thumb?: string) => (plexServer?.base && plexServer.token ? plexImageUrl(plexServer.base, thumb, plexServer.token) : undefined);
 
+  // What counts as adult on this box: the adult categories of each line and
+  // the adult libraries of the Plex server. Both lists are memoised by their
+  // loaders, so this costs a round-trip only the first time.
+  const catIndex = new Map<string, CategoryIndex>();
+  await Promise.all(lines.map(async (l) => { catIndex.set(lineKey(l), await categoryIndex(l)); }));
+  const adultLibs = new Set<string>();
+  if (plexServer?.base && plexServer.token) {
+    try {
+      for (const lib of await getPlexLibraries(plexServer.base, plexServer.token)) {
+        if (isAdultLabel(lib.title)) adultLibs.add(String(lib.key));
+      }
+    } catch { /* libraries unreachable: the title, genre and certificate tests still apply */ }
+  }
+  const adultPlex = (title: string, librarySectionID?: string | number, extra?: { contentRating?: string; genres?: string[] }): boolean =>
+    (librarySectionID != null && adultLibs.has(String(librarySectionID))) ||
+    isAdultPlexItem({ title, contentRating: extra?.contentRating, genres: extra?.genres });
+
   const items: BarItem[] = [];
   const seenChannels = new Set<string>();
   const seenPlex = new Set<string>();
@@ -122,6 +163,7 @@ export async function buildViewerBar(): Promise<ViewerBar> {
     if (e.kind === 'channel' && e.channel) {
       const line = lineFor(lines, e.channel.host, e.channel.username);
       if (!line) continue;
+      if (adultChannel(catIndex.get(lineKey(line)), e.title, e.channel.categoryId)) continue;
       seenChannels.add(e.key);
       items.push({
         id: `ch-${e.key}`, source: 'history', kind: 'channel', title: e.title,
@@ -130,6 +172,7 @@ export async function buildViewerBar(): Promise<ViewerBar> {
       });
     } else if (e.kind === 'plex' && e.plex) {
       if (!plexServer) continue;
+      if (adultPlex(e.title, e.plex.librarySectionID)) continue;
       seenPlex.add(e.key);
       items.push({
         id: `plex-${e.key}`, source: 'history', kind: e.plex.kind ?? 'movie', title: e.title,
@@ -143,11 +186,13 @@ export async function buildViewerBar(): Promise<ViewerBar> {
   const live: BarItem[] = [];
   for (const line of lines) {
     if (live.length >= LIVE_MAX) break;
+    const idx = catIndex.get(lineKey(line));
     // Favourites first.
     for (const f of loadFavoritesForLine(line).values()) {
       if (live.length >= LIVE_MAX) break;
       const key = channelKey(line, f.stream_id);
       if (seenChannels.has(key)) continue;
+      if (adultChannel(idx, f.name, f.category_id, f)) continue;
       seenChannels.add(key);
       live.push(channelItem('live', line, { stream_id: f.stream_id, name: f.name, category_id: f.category_id, stream_icon: f.stream_icon }, line.serverLabel ? `Favorite · ${line.serverLabel}` : 'Favorite'));
     }
@@ -159,6 +204,7 @@ export async function buildViewerBar(): Promise<ViewerBar> {
     const line = lineFor(lines, e.channel.host, e.channel.username);
     if (!line) continue;
     if (watchedCats.some((c) => c.categoryId === e.channel!.categoryId && lineKey(c.line) === lineKey(line))) continue;
+    if (catIndex.get(lineKey(line))?.adult.has(String(e.channel.categoryId))) continue;
     watchedCats.push({ line, categoryId: e.channel.categoryId });
     if (watchedCats.length >= 2) break;
   }
@@ -171,6 +217,7 @@ export async function buildViewerBar(): Promise<ViewerBar> {
         if (took >= 4 || live.length >= LIVE_MAX) break;
         const key = channelKey(line, s.stream_id);
         if (seenChannels.has(key)) continue;
+        if (adultChannel(catIndex.get(lineKey(line)), s.name, s.category_id, s)) continue;
         seenChannels.add(key);
         live.push(channelItem('live', line, s, line.serverLabel));
         took += 1;
@@ -183,7 +230,9 @@ export async function buildViewerBar(): Promise<ViewerBar> {
 
   // ── for you: Plex titles like the last few they watched ──────────────────
   if (plexServer?.base && plexServer.token) {
-    const seeds = history.filter((e) => e.kind === 'plex' && e.plex).slice(0, 3);
+    // An adult title is never a seed either: "because you watched" must not
+    // name it, and what Plex relates to it is more of the same.
+    const seeds = history.filter((e) => e.kind === 'plex' && e.plex && !adultPlex(e.title, e.plex.librarySectionID)).slice(0, 3);
     const forYou: BarItem[] = [];
     for (const seed of seeds) {
       if (forYou.length >= FORYOU_MAX) break;
@@ -192,6 +241,7 @@ export async function buildViewerBar(): Promise<ViewerBar> {
         for (const it of related) {
           if (forYou.length >= FORYOU_MAX) break;
           if (seenPlex.has(it.ratingKey)) continue;
+          if (adultPlex(it.title, it.librarySectionID, { contentRating: it.contentRating, genres: it.genres })) continue;
           seenPlex.add(it.ratingKey);
           forYou.push({
             id: `plex-${it.ratingKey}`, source: 'foryou', kind: it.type, title: it.title,

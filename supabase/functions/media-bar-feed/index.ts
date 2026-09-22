@@ -3,6 +3,7 @@
 // now — is assembled on the device from their signed-in line; nothing about a
 // line ever reaches this function. The old ESPN "live now" feed is gone.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { isAdultLabel, isAdultPlexItem } from '../_shared/adultContent.ts';
 
 const PLEX_URL = (Deno.env.get('PLEX_SERVER_URL') ?? '').replace(/\/+$/, '');
 const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN') ?? '';
@@ -171,13 +172,35 @@ const fetchMachineId = async () => {
   }
 };
 
+// Adult material never leaves this function. A whole library is adult when
+// its name says so; a single title when its certificate, a genre or its name
+// does. The list payloads carry librarySectionTitle, so a title in an adult
+// library is caught even if the sections call fails.
+const adultSections = new Set<string>();
+const fetchAdultSections = async () => {
+  const data = await safe(plexFetch('/library/sections'), 'plex sections');
+  for (const d of data?.MediaContainer?.Directory ?? []) {
+    if (isAdultLabel(d?.title)) adultSections.add(String(d.key));
+  }
+};
+const isAdultMeta = (m: any): boolean =>
+  adultSections.has(String(m?.librarySectionID ?? '')) ||
+  isAdultPlexItem({
+    title: m?.title,
+    grandparentTitle: m?.grandparentTitle,
+    libraryTitle: m?.librarySectionTitle,
+    contentRating: m?.contentRating,
+    genres: Array.isArray(m?.Genre) ? m.Genre.map((g: any) => g?.tag) : [],
+  });
+const familySafe = (list: any[] | undefined): any[] => (list ?? []).filter((m) => !isAdultMeta(m));
+
 const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Item[] }> => {
   const movies: Item[] = [];
   const shows: Item[] = [];
   const onDeck: Item[] = [];
 
   // Need machineIdentifier so deep links route to THIS server inside the Plex app
-  await fetchMachineId();
+  await Promise.all([fetchMachineId(), fetchAdultSections()]);
 
   // Pull from MULTIPLE Plex endpoints so the bar always has fresh material
   const [recent, deck, popularMovies, popularShows] = await Promise.all([
@@ -187,20 +210,20 @@ const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Ite
     safe(plexFetch('/library/sections/all?type=2&sort=lastViewedAt:desc&X-Plex-Container-Size=40'), 'plex popular shows'),
   ]);
 
-  for (const m of recent?.MediaContainer?.Metadata ?? []) {
+  for (const m of familySafe(recent?.MediaContainer?.Metadata)) {
     const item = await mapPlexItem(m);
     if (item.kind === 'movie') movies.push(item);
     else shows.push(item);
   }
-  for (const m of deck?.MediaContainer?.Metadata ?? []) {
+  for (const m of familySafe(deck?.MediaContainer?.Metadata)) {
     const item = await mapPlexItem(m);
     item.subtitle = `Continue · ${item.subtitle ?? ''}`.replace(/ · $/, '');
     onDeck.push(item);
   }
-  for (const m of popularMovies?.MediaContainer?.Metadata ?? []) {
+  for (const m of familySafe(popularMovies?.MediaContainer?.Metadata)) {
     movies.push(await mapPlexItem(m));
   }
-  for (const m of popularShows?.MediaContainer?.Metadata ?? []) {
+  for (const m of familySafe(popularShows?.MediaContainer?.Metadata)) {
     shows.push(await mapPlexItem(m));
   }
 

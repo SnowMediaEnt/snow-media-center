@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { buildViewerBar, type BarChannel } from '@/lib/contentBar';
 import { WATCH_HISTORY_EVENT } from '@/lib/watchHistory';
+import { isAdultTitle } from '@/lib/adultContent';
 
 type MediaItem = {
   id: string;
@@ -69,13 +70,18 @@ const SOURCE_BADGE: Record<string, { label: string; color: string } | null> = {
 };
 
 const notSports = (i: MediaItem) => i?.title && i.source !== 'sports';
+// The builders already keep adult material out by category, library, genre
+// and certificate; this is the last line, on the name alone, so a stale cache
+// or a feed that has not been redeployed cannot put it on the home screen.
+const notAdult = (i: MediaItem) => !isAdultTitle(i.title) && !(i.channel && isAdultTitle(i.channel.name));
+const showable = (i: MediaItem) => notSports(i) && notAdult(i);
 
 const readCache = (): MediaItem[] | null => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed?.items) ? (parsed.items as MediaItem[]).filter(notSports) : null;
+    return Array.isArray(parsed?.items) ? (parsed.items as MediaItem[]).filter(showable) : null;
   } catch { return null; }
 };
 
@@ -210,6 +216,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
     for (const it of [...viewerItemsRef.current, ...feedItemsRef.current]) {
       const k = it.ratingKey ? `rk:${it.ratingKey}` : it.id;
       if (seen.has(k)) continue;
+      if (!notAdult(it)) continue;
       seen.add(k);
       out.push(it);
     }
@@ -289,7 +296,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
         if (error) throw error;
         // The function reports its own failures as HTTP 200 + `error`.
         if (data?.error) throw new Error(String(data.error));
-        const next: MediaItem[] = (data?.items ?? []).filter(notSports);
+        const next: MediaItem[] = (data?.items ?? []).filter(showable);
         if (next.length) { feedItemsRef.current = next; composeItems(); }
       } catch (e) {
         console.warn('[MediaBar] fetch failed:', (e as Error).message);
