@@ -2387,9 +2387,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           again with the highlight on the open entry (exitToMenu). */}
       <div
         onClick={() => { if (menuCollapsed) exitToMenu(); }}
-        className={`flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col py-2 overflow-y-auto overflow-x-hidden transition-[width] duration-200 ${menuCollapsed ? 'w-14 cursor-pointer' : 'w-56'}`}
+        className={`flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col pb-2 overflow-y-auto overflow-x-hidden transition-[width] duration-200 ${menuCollapsed ? 'w-14 cursor-pointer' : 'w-56'}`}
+        // Plex fills the screen with no header above it, so the top of this
+        // column is the top of the panel — and a TV's overscan takes the
+        // first 2–4% of that. The server line was the thing being cut off.
+        style={{ paddingTop: '3.5vh' }}
       >
-        <div className={`pt-2 pb-1 text-xs font-nunito text-brand-ice/60 truncate ${menuCollapsed ? 'px-0 text-center' : 'px-5'}`}>{menuCollapsed ? 'Plex' : `Plex · ${conn?.name}`}</div>
+        <div className={`pb-1 text-xs font-nunito text-brand-ice/60 truncate ${menuCollapsed ? 'px-0 text-center' : 'px-5'}`}>{menuCollapsed ? 'Plex' : `Plex · ${conn?.name}`}</div>
         {menuEntries.map((m, i) => {
           const focused = isActive && zone === 'tabs' && menuIdx === i;
           const tab = tabs[m.tabIdx];
@@ -2427,7 +2431,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4 pt-5">
+        <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4" style={{ paddingTop: '3.5vh' }}>
         {currentTab?.type === 'home' && conn ? (
           <HomePanel
             isActive={isActive && zone === 'grid' && !detailItem}

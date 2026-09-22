@@ -26,6 +26,6 @@ export const retiredAppFor = (name: string | null | undefined): RetiredApp | nul
 
 /** What the notice says. One sentence on the service, one on where to go. */
 export const retiredAppMessage = (appName: string, info: RetiredApp): string =>
-  `We no longer support the ${appName} app, so there is nothing to download here. ` +
+  `We no longer support the ${appName} app. ` +
   `Everything is in the Player on the main page: Dreamstreams and VibezTV are in Live TV, and Plex is in Plex. ` +
   `${appName} is under ${info.where}.`;
