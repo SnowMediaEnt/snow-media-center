@@ -299,6 +299,42 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     return () => { stopped = true; window.clearInterval(t); };
   }, [qrOpen, request?.id, checkPaid, advanceAfterPayment]);
 
+  // A free-session code from the Admin Hub. The backend decides whether it
+  // is good (redeem_remote_support_code): nothing about codes is in the app.
+  const [code, setCode] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+  const redeemCode = useCallback(async () => {
+    const current = requestRef.current;
+    const typed = code.trim();
+    if (!current?.id || !typed || redeeming) return;
+    setRedeeming(true);
+    try {
+      const { data, error } = await supabase.rpc('redeem_remote_support_code', { p_request_id: current.id, p_code: typed });
+      if (error) throw error;
+      const res = (data ?? {}) as { ok?: boolean; reason?: string };
+      if (res.ok) {
+        try { trackEvent('remote_support_code', 'support', { ok: true }); } catch { /* ignore */ }
+        setRequest({ ...current, status: 'comped', comped_at: new Date().toISOString() });
+        advanceAfterPayment('comped');
+        return;
+      }
+      try { trackEvent('remote_support_code', 'support', { ok: false, reason: res.reason ?? 'unknown' }); } catch { /* ignore */ }
+      const why: Record<string, string> = {
+        invalid: "That code isn't right. Check it and try again.",
+        expired: 'That code has expired.',
+        used_up: 'That code has already been used.',
+        too_many: 'Too many tries. Wait a few minutes, then try again.',
+        no_request: 'This request is not waiting for payment any more.',
+        signed_out: 'Sign in to use a code.',
+      };
+      toast({ title: 'Code not accepted', description: why[res.reason ?? ''] ?? 'Please try again.', variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Could not check the code', description: (err as Error).message || 'Please try again.', variant: 'destructive' });
+    } finally {
+      setRedeeming(false);
+    }
+  }, [code, redeeming, advanceAfterPayment, toast]);
+
   // Manual fallback — the dialog's "I've completed payment" button.
   const handleConfirmPaid = useCallback(async () => {
     if (checkingPayment) return;
@@ -494,7 +530,7 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
       'not-native': ['rs-back'],
       noauth: ['rs-back'],
       form: ['rs-back', 'rs-issue', 'rs-needs', 'rs-contact', 'rs-submit'],
-      pay: ['rs-back', 'rs-show-qr'],
+      pay: ['rs-back', 'rs-show-qr', 'rs-code', 'rs-use-code'],
       'setup-app': ['rs-back', 'rs-install', 'rs-recheck'],
       'setup-overlay': ['rs-back', 'rs-open-settings', 'rs-confirm'],
       'setup-accessibility': ['rs-back', 'rs-open-settings', 'rs-confirm'],
@@ -788,6 +824,31 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
             >
               Show Payment QR Code
             </Button>
+            <div className="border-t border-slate-600 pt-5">
+              <label className="text-xl font-semibold text-white block mb-2">
+                Have a code from Snow Media?
+              </label>
+              <p className="text-slate-300 mb-3">Type it here and the payment step is skipped.</p>
+              <Input
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="Enter code"
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+                data-tv-focus-id="rs-code"
+                className="bg-slate-700 border-slate-500 text-white text-xl h-14 tracking-widest placeholder:text-slate-400 placeholder:tracking-normal"
+              />
+              <Button
+                onClick={() => void redeemCode()}
+                disabled={!code.trim() || redeeming}
+                size="lg"
+                data-tv-focus-id="rs-use-code"
+                className={`${bigAction} mt-3 bg-emerald-600 hover:bg-emerald-700 text-white w-full justify-center`}
+              >
+                {redeeming ? (<><Loader2 className="w-6 h-6 mr-3 animate-spin" /> Checking…</>) : 'Use Code'}
+              </Button>
+            </div>
           </div>
         </div>
       </>

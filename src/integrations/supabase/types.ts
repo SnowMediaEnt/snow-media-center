@@ -3013,6 +3013,42 @@ export type Database = {
         }
         Relationships: []
       }
+      remote_support_codes: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          last_used_at: string | null
+          max_uses: number
+          note: string | null
+          uses: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          last_used_at?: string | null
+          max_uses?: number
+          note?: string | null
+          uses?: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          last_used_at?: string | null
+          max_uses?: number
+          note?: string | null
+          uses?: number
+        }
+        Relationships: []
+      }
       remote_support_requests: {
         Row: {
           admin_note: string | null
@@ -4684,6 +4720,7 @@ export type Database = {
         Returns: Json
       }
       start_remote_support_session: { Args: { p_id: string }; Returns: boolean }
+      redeem_remote_support_code: { Args: { p_request_id: string; p_code: string }; Returns: Json }
       tenant_analytics_daily: {
         Args: { p_code: string; p_days: number }
         Returns: {
