@@ -256,6 +256,15 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs }:
   const onPlayRef = useRef(onPlay); useEffect(() => { onPlayRef.current = onPlay; }, [onPlay]);
   const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
 
+  // One click handler per rail, stable across cursor moves: every tile is
+  // memoised, and a fresh closure per tile per render undid that on each
+  // keypress — a hundred tiles re-rendered so two could change highlight.
+  const rowSelect = useMemo(() => rows.map((_, ri) => (it: PlexItem) => {
+    const ci = rowsRef.current[ri]?.items.findIndex((x) => x.ratingKey === it.ratingKey) ?? -1;
+    if (ci >= 0) { setRow(ri); setCol(ci); }
+    onPlayRef.current(it);
+  }), [rows]);
+
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
@@ -308,7 +317,7 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs }:
                         base={base}
                         token={token}
                         focused={focusedRow && ci === col}
-                        onClick={() => { setRow(ri); setCol(ci); onPlay(it); }}
+                        onSelect={rowSelect[ri]}
                       />
                     );
                   })}

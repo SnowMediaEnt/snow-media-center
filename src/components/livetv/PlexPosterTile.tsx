@@ -15,19 +15,23 @@ interface Props {
   /** Rail tiles are fixed-width; grid tiles fill their column. */
   width?: 'rail' | 'fill';
   onClick?: () => void;
+  /** Like onClick, but handed the item: lets a rail pass ONE stable handler
+   *  to every tile instead of a fresh closure per tile per render, so a
+   *  cursor move does not re-render a hundred memoised tiles. */
+  onSelect?: (item: PlexItem) => void;
   /** The focused tile scrolls itself into view. Rails need it; the grid's
    *  own scroller handles the grid. */
   scrollIntoView?: boolean;
 }
 
-const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onClick, scrollIntoView = true }: Props) => {
+const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onClick, onSelect, scrollIntoView = true }: Props) => {
   const label = resolutionLabel(item.videoResolution);
   const cap = tileCaption(item);
   const progress = resumeFraction(item);
   return (
     <div
       ref={(el) => { if (scrollIntoView && focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
-      onClick={onClick}
+      onClick={onSelect ? () => onSelect(item) : onClick}
       data-focused={focused ? 'true' : 'false'}
       className={`plex-tile cursor-pointer ${width === 'rail' ? 'flex-shrink-0 w-[104px]' : 'w-full'}`}
     >
