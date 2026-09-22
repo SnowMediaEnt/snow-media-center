@@ -510,8 +510,12 @@ const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
     </div>
   );
 
-  const card = 'bg-white/5 border-white/15 p-5';
-  const action = 'h-16 justify-start text-left px-5 text-lg tv-ring';
+  // text-white on both: the Card primitive sets text-card-foreground, which
+  // is the light theme's charcoal, and the outline Button inherits it. Every
+  // title without its own colour class was charcoal on blue — unreadable on
+  // a TV across the room.
+  const card = 'bg-white/5 border-white/15 p-5 text-white';
+  const action = 'h-16 justify-start text-left px-5 text-lg tv-ring text-white';
 
   return (
     <div
