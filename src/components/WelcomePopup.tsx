@@ -11,6 +11,11 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.7.6': [
+    '🎬 Plex opens faster: Home shows as soon as the first rows land, and the rails ask the server for only what they show',
+    '📦 Plex on small boxes: fewer requests at once, shorter rails, and a stalled server shows an empty row instead of freezing the screen',
+    '🔞 Nothing adult on the home screen content bar or in Plex Home, Discover and Search, from Live TV or Plex — an adult library keeps its own tab',
+  ],
   '1.7.5': [
     '📢 Alerts you place on Vibez, Dreamstreams or Plex now pop up in the Player too, for anyone signed into that service',
     '🎬 Plex: the side menu folds away while you browse and comes back with Left or Back',

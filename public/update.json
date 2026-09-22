@@ -1,9 +1,9 @@
 {
-  "version": "1.7.5",
-  "versionCode": 35,
-  "releaseDate": "2026-09-21",
+  "version": "1.7.6",
+  "versionCode": 36,
+  "releaseDate": "2026-09-22",
   "size": "",
-  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.5.apk",
-  "changelog": "WHAT'S NEW\nAlerts reach the Player: an alert placed on Vibez, Dreamstreams or Plex now pops up in the Player too, for anyone signed into that service.\nPlex: the side menu folds away while you browse and comes back with Left or Back, with the cursor on the section you were in.\n\nFIXES\nAndroid boxes: the Plex menu no longer shows as blank white bars.\nLive TV: only one thing is highlighted at a time — the category list no longer lights up while the remote is on the left menu.\nAfter sign-in, the finish-your-account card takes the remote instead of the screen behind it.\nA box whose Android System WebView is too old for the app now says so, with the version it found and how to update it, instead of a white screen.",
-  "releaseNotes": "Version 1.7.5 brings service alerts into the Player, folds the Plex menu away while you browse, and fixes the blank Plex menu on Android boxes, the double highlight in Live TV and the sign-in card that ignored the remote. Installs normally over 1.7.4."
+  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.6.apk",
+  "changelog": "WHAT'S NEW\nPlex opens faster: Home shows the moment Continue Watching and Recently Added land, posters fill in behind, and every rail asks the server for only the fields it shows.\nPlex on small boxes: Home's per-library queries run two at a time instead of all at once, rails are shorter, and a server that does not answer in ten seconds shows an empty row instead of holding the screen.\nNothing adult on the home screen: the content bar and Plex Home, Discover and Search skip adult channels, categories, libraries and titles. An adult Plex library keeps its own tab.\n\nFIXES\nPlex: the library list is fetched once on connect, not twice.",
+  "releaseNotes": "Version 1.7.6 makes Plex open faster and lighter on small boxes, and keeps adult content off the content bar and the Plex Home, Discover and Search rails. Installs normally over 1.7.5."
 }

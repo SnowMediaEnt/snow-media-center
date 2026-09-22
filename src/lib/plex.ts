@@ -777,9 +777,21 @@ export async function getPlexRelated(base: string, token: string, ratingKey: str
   return out;
 }
 
+/** What a rail needs from a list payload, and nothing else. Cast, crew,
+ *  countries, collections and GUIDs are most of a movie's list entry and no
+ *  rail shows any of them; the server drops them when asked, which halves
+ *  the response on a big library and the JSON parse on a small box. Genre,
+ *  Media (the 4K badge) and summary (the detail page's first paint) stay. */
+export const RAIL_FIELDS = 'includeGuids=0&excludeElements=Director,Writer,Role,Producer,Country,Collection,Label,Guid,Chapter,Marker';
+/** A rail that has not answered in this long shows as empty rather than
+ *  holding the screen: on a relay hop the default 20 s is what "Plex is
+ *  frozen" looks like. */
+export const RAIL_TIMEOUT_MS = 10000;
+
 /** Fetch a hub (On Deck, Recently Added, etc.) by path. */
 export async function getPlexHub(base: string, token: string, path: string): Promise<PlexItem[]> {
-  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', `${base}${path}`, token);
+  const sep = path.includes('?') ? '&' : '?';
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', `${base}${path}${sep}${RAIL_FIELDS}`, token, RAIL_TIMEOUT_MS);
   const items = data?.MediaContainer?.Metadata || [];
   return mapMetadata(items).filter((it) => it.type === 'movie' || it.type === 'show' || it.type === 'episode');
 }
@@ -823,9 +835,9 @@ export async function getPlexSectionRow(
   limit = 15,
 ): Promise<PlexItem[]> {
   const sep = query ? '&' : '';
-  const url = `${base}/library/sections/${sectionKey}/all?${query}${sep}includeGuids=0`
+  const url = `${base}/library/sections/${sectionKey}/all?${query}${sep}${RAIL_FIELDS}`
     + `&X-Plex-Container-Start=0&X-Plex-Container-Size=${limit}`;
-  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', url, token);
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', url, token, RAIL_TIMEOUT_MS);
   const items = data?.MediaContainer?.Metadata || [];
   return mapMetadata(items).filter((it) => it.type === 'movie' || it.type === 'show' || it.type === 'episode');
 }

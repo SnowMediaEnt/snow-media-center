@@ -36,6 +36,7 @@ import {
   type PlexLibrary, type PlexItem, type PlexEpisode, plexRouteLabel,
   setPlexPlaybackActive } from '@/lib/plex';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import {
   demoGetLibraries, demoGetLibraryItems, demoGetHub, demoSearchPlex,
 } from '@/lib/plexDemo';
@@ -94,6 +95,39 @@ const HOME_RELEASED_KEY = 'smc:home/released';
 const HOME_POPULAR_KEY = 'smc:home/popular';
 const HOME_RAIL_CAP = 40;
 
+// A box the app already knows is short of memory (main.tsx: 1–2 GB, or a
+// Fire TV) gets half-length rails and no Most Watched: that rail asks the
+// server to sort every library by play count, the slowest of Home's queries,
+// and on such a box the Plex screen is where the renderer runs out of room.
+const LOW_MEMORY = typeof document !== 'undefined' && document.documentElement.classList.contains('native-low-memory');
+const RAIL_CAP = LOW_MEMORY ? 20 : HOME_RAIL_CAP;
+/** How many per-library queries Home has in flight at once. All at once was
+ *  a dozen requests on a six-library server, against a stick's socket pool. */
+const HOME_PARALLEL = 2;
+
+/** `fn` over `list`, at most `limit` at a time, results in list order. */
+async function mapLimit<T, R>(list: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(list.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < list.length) {
+      const i = next++;
+      out[i] = await fn(list[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, list.length) }, worker));
+  return out;
+}
+
+/** The mixed rails (Home, Discover, Search) never show an adult title: not
+ *  from an adult library, not with an adult certificate or genre, not by
+ *  name. A library that is itself adult keeps its own tab; that is a place
+ *  the viewer goes on purpose. */
+const familyOnly = (items: PlexItem[] | null | undefined, adultKeys: Set<string>): PlexItem[] =>
+  (items ?? []).filter((it) =>
+    !(it.librarySectionID && adultKeys.has(String(it.librarySectionID))) &&
+    !isAdultPlexItem({ title: it.title, grandparentTitle: it.grandparentTitle, contentRating: it.contentRating, genres: it.genres }));
+
 /** Merge per-section results, drop duplicates, cap. */
 const mergeRail = (lists: Array<PlexItem[] | null>): PlexItem[] => {
   const seen = new Set<string>();
@@ -106,7 +140,7 @@ const mergeRail = (lists: Array<PlexItem[] | null>): PlexItem[] => {
       out.push(it);
     }
   }
-  return out.slice(0, HOME_RAIL_CAP);
+  return out.slice(0, RAIL_CAP);
 };
 
 const COLS = 6;
@@ -221,10 +255,13 @@ interface HomePanelProps {
   /** The libraries the viewer can see — Home's Released and Popular rails are
    *  built from them, so a hidden library never leaks back in here. */
   libraries: PlexLibrary[];
+  /** Section keys of the adult libraries, for the server-wide hubs and
+   *  search, which are not built from `libraries`. */
+  adultKeys: Set<string>;
   onPlay: (it: PlexItem) => void;
   onExitToTabs: () => void;
 }
-const HomePanel = memo(({ isActive, base, token, libraries, onPlay, onExitToTabs }: HomePanelProps) => {
+const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs }: HomePanelProps) => {
   const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const [onDeck, setOnDeck] = useState<PlexItem[]>(() => getCachedHub(base, onDeckPath) ?? []);
@@ -283,22 +320,22 @@ const HomePanel = memo(({ isActive, base, token, libraries, onPlay, onExitToTabs
 
     void (async () => {
       if (!cachedRel && movieKeys.length) {
-        const lists = await Promise.all(movieKeys.map((k) =>
-          getPlexSectionRow(base, token, k, HOME_RELEASED_QUERY, 20).catch(() => null)));
+        const lists = await mapLimit(movieKeys, HOME_PARALLEL, (k) =>
+          getPlexSectionRow(base, token, k, HOME_RELEASED_QUERY, 20).catch(() => null));
         if (cancelled) return;
         // Each section came back server-sorted; merging needs one more pass so
         // a two-library server does not show all of one then all of the other.
         const merged = mergeRail(lists).sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
         if (merged.length) { setReleased(merged); setCachedHub(base, HOME_RELEASED_KEY, merged); }
       }
-      if (!cachedPop && allKeys.length) {
-        const watched = await Promise.all(allKeys.map((s) =>
-          getPlexSectionRow(base, token, s.key, homeWatchedQuery(s.t), 20).catch(() => null)));
+      if (!cachedPop && allKeys.length && !LOW_MEMORY) {
+        const watched = await mapLimit(allKeys, HOME_PARALLEL, (s) =>
+          getPlexSectionRow(base, token, s.key, homeWatchedQuery(s.t), 20).catch(() => null));
         if (cancelled) return;
         let merged = mergeRail(watched);
         if (!merged.length) {
-          const rated = await Promise.all(allKeys.map((s) =>
-            getPlexSectionRow(base, token, s.key, homeRatedQuery(s.t), 20).catch(() => null)));
+          const rated = await mapLimit(allKeys, HOME_PARALLEL, (s) =>
+            getPlexSectionRow(base, token, s.key, homeRatedQuery(s.t), 20).catch(() => null));
           if (cancelled) return;
           // No local re-sort: rating is not on PlexItem, and each section
           // already came back rating-sorted from the server.
@@ -314,14 +351,19 @@ const HomePanel = memo(({ isActive, base, token, libraries, onPlay, onExitToTabs
   }, [base, token, libKeysSig]);
 
   const rows = useMemo<DiscoverRow[]>(() => {
+    // Filtered here, after the cache, so a rail cached before a library was
+    // marked adult is caught on replay too.
     const r: DiscoverRow[] = [];
-    if (onDeck.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: onDeck.slice(0, HOME_RAIL_CAP) });
-    r.push({ id: 'added', title: 'Recently Added', items: recent.slice(0, HOME_RAIL_CAP) });
-    if (released.length > 0) r.push({ id: 'released', title: 'Recently Released', items: released });
+    const cont = familyOnly(onDeck, adultKeys);
+    if (cont.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: cont.slice(0, RAIL_CAP) });
+    r.push({ id: 'added', title: 'Recently Added', items: familyOnly(recent, adultKeys).slice(0, RAIL_CAP) });
+    const rel = familyOnly(released, adultKeys);
+    if (rel.length > 0) r.push({ id: 'released', title: 'Recently Released', items: rel });
     // Most played on this server (see homeWatchedQuery); says so on the tin.
-    if (popular.length > 0) r.push({ id: 'popular', title: 'Most Watched', items: popular });
+    const pop = familyOnly(popular, adultKeys);
+    if (pop.length > 0) r.push({ id: 'popular', title: 'Most Watched', items: pop });
     return r;
-  }, [onDeck, recent, released, popular]);
+  }, [onDeck, recent, released, popular, adultKeys]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;
@@ -337,8 +379,12 @@ HomePanel.displayName = 'HomePanel';
 // asked for a dozen requests at once. Every row is cached like Home's, so
 // coming back is instant for five minutes.
 const DISCOVER_KEY = 'smc:discover/';
-const DiscoverPanel = memo(({ isActive, base, token, libraries, onPlay, onExitToTabs }: HomePanelProps) => {
-  const [rows, setRows] = useState<DiscoverRow[]>(() => getCachedDiscover(base));
+const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs }: HomePanelProps) => {
+  const [rawRows, setRows] = useState<DiscoverRow[]>(() => getCachedDiscover(base));
+  // Cached or fresh, no adult title reaches a Discover row.
+  const rows = useMemo<DiscoverRow[]>(
+    () => rawRows.map((r) => ({ ...r, items: familyOnly(r.items, adultKeys) })).filter((r) => r.items.length > 0),
+    [rawRows, adultKeys]);
   const [loading, setLoading] = useState(rows.length === 0);
 
   const libKeysSig = libraries.map((l) => `${l.type}:${l.key}`).join(',');
@@ -412,7 +458,7 @@ function getCachedDiscover(base: string): DiscoverRow[] {
 
 // ─── SEARCH PANEL ──────────────────────────────────────────────────────────
 type SearchPanelProps = Omit<HomePanelProps, 'libraries'>;
-const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: SearchPanelProps) => {
+const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTabs }: SearchPanelProps) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlexItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -430,12 +476,12 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
     const t = window.setTimeout(() => {
       try { trackEvent('player_search', 'player', { scope: 'plex', query: q.slice(0, 64) }); } catch { /* ignore */ }
       searchPlex(base, token, q)
-        .then((r) => { if (mySeq === seqRef.current) { setResults(r); setCursor(0); } })
+        .then((r) => { if (mySeq === seqRef.current) { setResults(familyOnly(r, adultKeys)); setCursor(0); } })
         .catch(() => { if (mySeq === seqRef.current) setResults([]); })
         .finally(() => { if (mySeq === seqRef.current) setLoading(false); });
     }, 400);
     return () => { window.clearTimeout(t); };
-  }, [query, base, token]);
+  }, [query, base, token, adultKeys]);
 
 
   useEffect(() => { if (isActive && zone === 'input') inputRef.current?.focus(); }, [isActive, zone]);
@@ -931,22 +977,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         // answer ("this hub is empty") and gets cached for 5 minutes; caching a
         // Wi-Fi blip that way left Home showing a bare heading over an empty
         // rail, surviving even a full remount, until the TTL expired.
-        const [libs, od, ra] = await Promise.all([
-          getPlexLibraries(base, token).catch(() => [] as PlexLibrary[]),
+        // The library list is the library effect's job (it retries; this
+        // does not). Fetching it here as well doubled the request and, on a
+        // Fire TV, let a timed-out copy clobber a good one.
+        const [od, ra] = await Promise.all([
           (getCachedHub(base, onDeckPath) ? Promise.resolve(getCachedHub(base, onDeckPath) as PlexItem[]) : getPlexHub(base, token, onDeckPath).catch(() => null)),
           (getCachedHub(base, recentPath) ? Promise.resolve(getCachedHub(base, recentPath) as PlexItem[]) : getPlexHub(base, token, recentPath).catch(() => null)),
         ]);
         if (cancelled) return;
         if (od) setCachedHub(base, onDeckPath, od);
         if (ra) setCachedHub(base, recentPath, ra);
-        // ONLY overwrite with a non-empty result. This fetch duplicates the
-        // library effect below, runs in parallel against the same PMS, and
-        // swallows its own failure into []. It also resolves LAST (it awaits
-        // three calls in a Promise.all), so on a Fire TV — small socket pool,
-        // cold start — a timeout here clobbered a list the other effect had
-        // already loaded successfully. That is an empty tab strip on a
-        // perfectly healthy server, and nothing ever corrected it.
-        if (libs.length) setLibraries(libs);
         // First ~12 rail poster URLs — https only; http URLs go through the
         // data-URI path and shouldn't block warm-up.
         const posters: string[] = [];
@@ -960,7 +1000,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             if (it.thumb) posters.push(`${base}${it.thumb}?X-Plex-Token=${encodeURIComponent(token)}`);
           }
         }
-        await preloadImages(posters, 8000);
+        // Warm the poster cache, but do not hold the screen for it: Home is
+        // usable the moment the two hubs land, and the tiles fill in as the
+        // images arrive. Waiting here was up to eight seconds of "Loading…"
+        // on a relay hop.
+        void preloadImages(posters, 8000);
       } finally {
         if (!cancelled) setWarmedUp(true);
       }
@@ -1035,6 +1079,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const visibleLibraries = useMemo(
     () => libraries.filter((l) => hidden.indexOf(l.key) < 0),
     [libraries, hidden],
+  );
+  // An adult library keeps its tab; it never feeds the mixed rails. The keys
+  // also catch its titles when they arrive through a server-wide hub.
+  const adultKeys = useMemo(
+    () => new Set(libraries.filter((l) => isAdultLabel(l.title)).map((l) => String(l.key))),
+    [libraries],
+  );
+  const familyLibraries = useMemo(
+    () => visibleLibraries.filter((l) => !adultKeys.has(String(l.key))),
+    [visibleLibraries, adultKeys],
   );
 
   const tabs = useMemo<Tab[]>(() => {
@@ -2215,7 +2269,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             isActive={isActive && zone === 'grid' && !detailItem}
             base={conn.base}
             token={conn.token}
-            libraries={visibleLibraries}
+            libraries={familyLibraries}
+            adultKeys={adultKeys}
             onPlay={openDetail}
             onExitToTabs={exitToMenu}
           />
@@ -2224,12 +2279,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             isActive={isActive && zone === 'grid' && !detailItem}
             base={conn.base}
             token={conn.token}
-            libraries={visibleLibraries}
+            libraries={familyLibraries}
+            adultKeys={adultKeys}
             onPlay={openDetail}
             onExitToTabs={exitToMenu}
           />
         ) : currentTab?.type === 'search' && conn ? (
-          <SearchPanel isActive={isActive && zone === 'grid' && !detailItem} base={conn.base} token={conn.token} onPlay={openDetail} onExitToTabs={exitToMenu} />
+          <SearchPanel isActive={isActive && zone === 'grid' && !detailItem} base={conn.base} token={conn.token} adultKeys={adultKeys} onPlay={openDetail} onExitToTabs={exitToMenu} />
 
         ) : currentTab?.type === 'request' ? (
           <OverseerrRequestPanel isActive={isActive && zone === 'grid' && !detailItem} onExitToTabs={exitToMenu} />
