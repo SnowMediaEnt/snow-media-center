@@ -37,6 +37,7 @@ import {
   setPlexPlaybackActive } from '@/lib/plex';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
+import { commitSearch, fallbackSuggestions, fetchPopularSearches, loadRecentSearches } from '@/lib/plexSearches';
 import {
   demoGetLibraries, demoGetLibraryItems, demoGetHub, demoSearchPlex,
 } from '@/lib/plexDemo';
@@ -479,14 +480,52 @@ function getCachedDiscover(base: string): DiscoverRow[] {
 
 // ─── SEARCH PANEL ──────────────────────────────────────────────────────────
 type SearchPanelProps = Omit<HomePanelProps, 'libraries'>;
+interface SearchChip { label: string; group: 'popular' | 'recent' }
+
 const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTabs }: SearchPanelProps) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlexItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [zone, setZone] = useState<'input' | 'grid'>('input');
+  // 'chips' is the suggestion rows shown before anything is typed.
+  const [zone, setZone] = useState<'input' | 'chips' | 'grid'>('input');
   const [cursor, setCursor] = useState(0);
+  const [chipIdx, setChipIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const seqRef = useRef(0);
+
+  // Suggestions: the fleet's popular searches (or, until there are enough,
+  // the server's most-played titles), then this box's own recent ones.
+  const [popular, setPopular] = useState<string[]>([]);
+  const [recent, setRecent] = useState<string[]>(() => loadRecentSearches());
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPopularSearches().then((list) => {
+      if (cancelled) return;
+      if (list.length) { setPopular(list); return; }
+      const mostWatched = getCachedHub(base, HOME_POPULAR_KEY) ?? [];
+      setPopular(fallbackSuggestions(mostWatched.map((it) => it.title)));
+    });
+    return () => { cancelled = true; };
+  }, [base]);
+  const chips = useMemo<SearchChip[]>(() => {
+    const seen = new Set<string>();
+    const out: SearchChip[] = [];
+    for (const label of popular) { const k = label.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ label, group: 'popular' }); } }
+    for (const label of recent) { const k = label.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ label, group: 'recent' }); } }
+    return out;
+  }, [popular, recent]);
+  const showChips = !query.trim() && chips.length > 0;
+
+  // A search the viewer meant — they went down into the results or opened
+  // one — is what "Popular searches" counts and what this box remembers.
+  const committedRef = useRef('');
+  const commit = useCallback((q: string) => {
+    const t = q.trim();
+    if (!t || committedRef.current === t) return;
+    committedRef.current = t;
+    commitSearch(t);
+    setRecent(loadRecentSearches());
+  }, []);
 
   // Debounced search: 400ms + stale-seq guard so only the latest keystroke wins.
   useEffect(() => {
@@ -506,12 +545,25 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
 
 
   useEffect(() => { if (isActive && zone === 'input') inputRef.current?.focus(); }, [isActive, zone]);
+  // Typing again leaves the chips behind; clearing the box brings them back.
+  useEffect(() => { if (zone === 'chips' && !showChips) setZone('input'); }, [zone, showChips]);
+  useEffect(() => { setChipIdx((i) => Math.min(i, Math.max(0, chips.length - 1))); }, [chips.length]);
 
   const zoneRef = useRef(zone); useEffect(() => { zoneRef.current = zone; }, [zone]);
   const cursorRef = useRef(cursor); useEffect(() => { cursorRef.current = cursor; }, [cursor]);
+  const chipIdxRef = useRef(chipIdx); useEffect(() => { chipIdxRef.current = chipIdx; }, [chipIdx]);
+  const chipsRef = useRef(chips); useEffect(() => { chipsRef.current = chips; }, [chips]);
+  const showChipsRef = useRef(showChips); useEffect(() => { showChipsRef.current = showChips; }, [showChips]);
+  const queryRef = useRef(query); useEffect(() => { queryRef.current = query; }, [query]);
   const resultsRef = useRef(results); useEffect(() => { resultsRef.current = results; }, [results]);
   const onPlayRef = useRef(onPlay); useEffect(() => { onPlayRef.current = onPlay; }, [onPlay]);
   const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
+  const pickChip = useCallback((label: string) => {
+    setQuery(label);
+    commit(label);
+    setZone('input');
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [commit]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -521,7 +573,12 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       const inInput = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
       if (zoneRef.current === 'input') {
         if (inInput && e.key === 'ArrowDown') {
-          if (resultsRef.current.length > 0) { e.preventDefault(); e.stopPropagation(); inputRef.current?.blur(); setZone('grid'); setCursor(0); }
+          if (resultsRef.current.length > 0) {
+            e.preventDefault(); e.stopPropagation(); inputRef.current?.blur(); setZone('grid'); setCursor(0);
+            commit(queryRef.current);
+          } else if (showChipsRef.current) {
+            e.preventDefault(); e.stopPropagation(); inputRef.current?.blur(); setZone('chips'); setChipIdx(0);
+          }
         } else if (inInput && e.key === 'ArrowUp') {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); inputRef.current?.blur(); onExitRef.current();
         }
@@ -531,17 +588,34 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       const keys = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter',' '];
       if (!keys.includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      if (zoneRef.current === 'chips') {
+        // The chips wrap as one list across both groups; Left/Right walk it,
+        // Up returns to the box, Enter searches for the chip.
+        const list = chipsRef.current;
+        const i = chipIdxRef.current;
+        if (e.key === 'ArrowUp') { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); }
+        else if (e.key === 'ArrowLeft') { if (i > 0) setChipIdx(i - 1); }
+        else if (e.key === 'ArrowRight') { if (i + 1 < list.length) setChipIdx(i + 1); }
+        else if (e.key === 'ArrowDown') {
+          // Next group down, same column feel: first chip of the other group.
+          const g = list[i]?.group;
+          const j = list.findIndex((c, k) => k > i && c.group !== g);
+          if (j >= 0) setChipIdx(j);
+        }
+        else if (e.key === 'Enter' || e.key === ' ') { const c = list[i]; if (c) pickChip(c.label); }
+        return;
+      }
       const total = resultsRef.current.length;
       const cur = cursorRef.current;
       if (e.key === 'ArrowUp') { if (cur < COLS) { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); } else setCursor(cur - COLS); }
       else if (e.key === 'ArrowDown') { if (cur + COLS < total) setCursor(cur + COLS); }
       else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setCursor(cur - 1); }
       else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setCursor(cur + 1); }
-      else if (e.key === 'Enter' || e.key === ' ') { const it = resultsRef.current[cur]; if (it) onPlayRef.current(it); }
+      else if (e.key === 'Enter' || e.key === ' ') { const it = resultsRef.current[cur]; if (it) { commit(queryRef.current); onPlayRef.current(it); } }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive]);
+  }, [isActive, commit, pickChip]);
 
   const rows = Math.ceil(results.length / COLS);
   return (
@@ -558,7 +632,40 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         />
         {loading && <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />}
       </div>
-      {results.length === 0 ? (
+      {showChips ? (
+        <div className="flex flex-col gap-5 py-2">
+          {(['popular', 'recent'] as const).map((group) => {
+            const mine = chips.map((c, i) => ({ c, i })).filter(({ c }) => c.group === group);
+            if (!mine.length) return null;
+            return (
+              <div key={group}>
+                <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-2">
+                  {group === 'popular' ? 'Popular searches' : 'Recent on this box'}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {mine.map(({ c, i }) => {
+                    const focused = isActive && zone === 'chips' && chipIdx === i;
+                    return (
+                      <button
+                        key={`${group}:${c.label}`}
+                        type="button"
+                        tabIndex={-1}
+                        data-focused={focused ? 'true' : 'false'}
+                        onClick={() => { setChipIdx(i); pickChip(c.label); }}
+                        className={`tv-ring appearance-none px-4 py-2 rounded-full border text-sm font-nunito transition-transform duration-150 ${
+                          focused ? 'bg-brand-gold/25 border-brand-gold text-white scale-105 z-10' : 'bg-white/5 border-white/15 text-white/85'
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : results.length === 0 ? (
         <div className="text-brand-ice/70 font-nunito text-sm text-center py-6">{query.trim() ? (loading ? 'Searching…' : 'No results.') : 'Type to search Plex.'}</div>
       ) : (
         <div className="grid grid-cols-6 gap-3">
@@ -570,7 +677,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
             return (
               <div key={it.ratingKey}
                 ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
-                onClick={() => { setZone('grid'); setCursor(idx); onPlay(it); }}
+                onClick={() => { setZone('grid'); setCursor(idx); commit(query); onPlay(it); }}
                 className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${focused ? 'scale-105 z-10' : ''}`}
                 data-focused={focused ? 'true' : 'false'}>
                 <div className="relative aspect-[2/3]">

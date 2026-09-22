@@ -4182,6 +4182,10 @@ export type Database = {
       }
     }
     Functions: {
+      get_popular_plex_searches: {
+        Args: { p_limit?: number }
+        Returns: { query: string; searches: number }[]
+      }
       account_email_exists: { Args: { p_email: string }; Returns: boolean }
       adjust_customer_coins: {
         Args: { p_customer_id: string; p_delta: number; p_reason: string }
