@@ -757,6 +757,27 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
   height: 6rem !important;
 }
 
+/* The header row (Dashboard / Settings / Sign In), the clock and the
+   expiration banner are placed with `max(env(safe-area-inset-*), …)`.
+   `max()` is Chrome 79: on Chrome 66 the whole declaration is dropped, the
+   box gets `top:auto; right:auto`, and it lands wherever it would have
+   flowed — which on the X96 was the top-LEFT, over the logo. Plain offsets
+   here; the safe-area inset is 0 on every box that gets this class. */
+html.legacy-webview [data-home-header] {
+  top: 1rem !important;
+  right: 1rem !important;
+  max-width: 50vw !important;
+}
+html.legacy-webview [data-home-clock] {
+  top: 0.75rem !important;
+  max-width: 80vw !important;
+}
+html.legacy-webview [data-home-banner] {
+  top: 1rem !important;
+  left: 8rem !important;
+  max-width: 22rem !important;
+}
+
 /* D-pad focus highlight inside any modal dialog (AlertDialog / Dialog). */
 [role="alertdialog"] :focus:not(.tv-ring):not(.tv-ring-danger):not(.tv-ring-contrast),
 [role="alertdialog"] :focus-visible:not(.tv-ring):not(.tv-ring-danger):not(.tv-ring-contrast),

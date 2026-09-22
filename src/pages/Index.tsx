@@ -1112,6 +1112,7 @@ const Index = () => {
           {/* Expiration banner — top-left, absolute, never displaces the header row */}
           <div
             className="absolute z-20 pointer-events-none flex items-center"
+            data-home-banner
             style={{
               top: `max(env(safe-area-inset-top, 0px), ${screenTier === 'xl' ? '2rem' : screenTier === 'lg' ? '1.5rem' : '1rem'})`,
               left: `calc(max(env(safe-area-inset-left, 0px), ${screenTier === 'xl' ? '2rem' : screenTier === 'lg' ? '1.5rem' : '1rem'}) + clamp(72px, 11vh, 140px) + 0.75rem)`,
