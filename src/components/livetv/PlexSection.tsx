@@ -128,6 +128,49 @@ const familyOnly = (items: PlexItem[] | null | undefined, adultKeys: Set<string>
     !(it.librarySectionID && adultKeys.has(String(it.librarySectionID))) &&
     !isAdultPlexItem({ title: it.title, grandparentTitle: it.grandparentTitle, contentRating: it.contentRating, genres: it.genres }));
 
+/** Home's Recently Released rail: the cache, else the server, cached when it
+ *  lands. Null when nothing came back, so a Wi-Fi blip is not cached. */
+async function loadReleased(base: string, token: string, libraries: PlexLibrary[], gone: () => boolean): Promise<PlexItem[] | null> {
+  const cached = getCachedHub(base, HOME_RELEASED_KEY);
+  if (cached) return cached;
+  const movieKeys = libraries.filter((l) => l.type === 'movie').map((l) => l.key);
+  if (!movieKeys.length) return null;
+  const lists = await mapLimit(movieKeys, HOME_PARALLEL, (k) =>
+    getPlexSectionRow(base, token, k, HOME_RELEASED_QUERY, 20).catch(() => null));
+  if (gone()) return null;
+  // Each section came back server-sorted; merging needs one more pass so a
+  // two-library server does not show all of one then all of the other.
+  const merged = mergeRail(lists).sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+  if (merged.length) setCachedHub(base, HOME_RELEASED_KEY, merged);
+  return merged.length ? merged : null;
+}
+
+/** Home's Most Watched rail, with the rated fallback for a server nobody has
+ *  played anything on yet. Skipped on a low-memory box (see LOW_MEMORY). */
+async function loadPopular(base: string, token: string, libraries: PlexLibrary[], gone: () => boolean): Promise<PlexItem[] | null> {
+  const cached = getCachedHub(base, HOME_POPULAR_KEY);
+  if (cached) return cached;
+  if (LOW_MEMORY) return null;
+  const allKeys = libraries
+    .filter((l) => l.type === 'movie' || l.type === 'show')
+    .map((l) => ({ key: l.key, t: l.type === 'movie' ? 1 : 2 }));
+  if (!allKeys.length) return null;
+  const watched = await mapLimit(allKeys, HOME_PARALLEL, (s) =>
+    getPlexSectionRow(base, token, s.key, homeWatchedQuery(s.t), 20).catch(() => null));
+  if (gone()) return null;
+  let merged = mergeRail(watched);
+  if (!merged.length) {
+    const rated = await mapLimit(allKeys, HOME_PARALLEL, (s) =>
+      getPlexSectionRow(base, token, s.key, homeRatedQuery(s.t), 20).catch(() => null));
+    if (gone()) return null;
+    // No local re-sort: rating is not on PlexItem, and each section already
+    // came back rating-sorted from the server.
+    merged = mergeRail(rated);
+  }
+  if (merged.length) setCachedHub(base, HOME_POPULAR_KEY, merged);
+  return merged.length ? merged : null;
+}
+
 /** Merge per-section results, drop duplicates, cap. */
 const mergeRail = (lists: Array<PlexItem[] | null>): PlexItem[] => {
   const seen = new Set<string>();
@@ -310,39 +353,17 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
   useEffect(() => {
     if (DEMO || !libraries.length) return;
     let cancelled = false;
-    const movieKeys = libraries.filter((l) => l.type === 'movie').map((l) => l.key);
-    const allKeys = libraries
-      .filter((l) => l.type === 'movie' || l.type === 'show')
-      .map((l) => ({ key: l.key, t: l.type === 'movie' ? 1 : 2 }));
-
-    const cachedRel = getCachedHub(base, HOME_RELEASED_KEY);
-    const cachedPop = getCachedHub(base, HOME_POPULAR_KEY);
-
+    const gone = () => cancelled;
+    // Normally both are already in the cache: the settle screen on connect
+    // loads them before Home is revealed, so nothing lands mid-navigation.
+    // This is the path for a cache that lapsed while Plex stayed open.
     void (async () => {
-      if (!cachedRel && movieKeys.length) {
-        const lists = await mapLimit(movieKeys, HOME_PARALLEL, (k) =>
-          getPlexSectionRow(base, token, k, HOME_RELEASED_QUERY, 20).catch(() => null));
-        if (cancelled) return;
-        // Each section came back server-sorted; merging needs one more pass so
-        // a two-library server does not show all of one then all of the other.
-        const merged = mergeRail(lists).sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
-        if (merged.length) { setReleased(merged); setCachedHub(base, HOME_RELEASED_KEY, merged); }
-      }
-      if (!cachedPop && allKeys.length && !LOW_MEMORY) {
-        const watched = await mapLimit(allKeys, HOME_PARALLEL, (s) =>
-          getPlexSectionRow(base, token, s.key, homeWatchedQuery(s.t), 20).catch(() => null));
-        if (cancelled) return;
-        let merged = mergeRail(watched);
-        if (!merged.length) {
-          const rated = await mapLimit(allKeys, HOME_PARALLEL, (s) =>
-            getPlexSectionRow(base, token, s.key, homeRatedQuery(s.t), 20).catch(() => null));
-          if (cancelled) return;
-          // No local re-sort: rating is not on PlexItem, and each section
-          // already came back rating-sorted from the server.
-          merged = mergeRail(rated);
-        }
-        if (merged.length) { setPopular(merged); setCachedHub(base, HOME_POPULAR_KEY, merged); }
-      }
+      const rel = await loadReleased(base, token, libraries, gone);
+      if (cancelled) return;
+      if (rel) setReleased(rel);
+      const pop = await loadPopular(base, token, libraries, gone);
+      if (cancelled) return;
+      if (pop) setPopular(pop);
     })();
     return () => { cancelled = true; };
     // libKeysSig stands in for `libraries`: the array identity changes on every
@@ -954,6 +975,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // per connect. Deep-links skip warm-up (they route straight to detail).
   const [warmedUp, setWarmedUp] = useState(false);
   const warmedRef = useRef(false);
+  // The library effect below publishes its in-flight request here so the
+  // settle screen can wait on the same one instead of asking twice.
+  const libsPromiseRef = useRef<Promise<PlexLibrary[]> | null>(null);
   useEffect(() => {
     if (status !== 'ready' || !conn) return;
     // Fail-safe, NOT just an early return: if warm-up already ran we must still
@@ -967,48 +991,69 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     warmedRef.current = true;
     if (deeplinkRef.current) { setWarmedUp(true); return; }
     let cancelled = false;
+    const gone = () => cancelled;
     const base = conn.base;
     const token = conn.token;
     const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
     const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
-    (async () => {
-      try {
-        // A failure resolves to null, NOT []. An empty array is a legitimate
-        // answer ("this hub is empty") and gets cached for 5 minutes; caching a
-        // Wi-Fi blip that way left Home showing a bare heading over an empty
-        // rail, surviving even a full remount, until the TTL expired.
-        // The library list is the library effect's job (it retries; this
-        // does not). Fetching it here as well doubled the request and, on a
-        // Fire TV, let a timed-out copy clobber a good one.
-        const [od, ra] = await Promise.all([
-          (getCachedHub(base, onDeckPath) ? Promise.resolve(getCachedHub(base, onDeckPath) as PlexItem[]) : getPlexHub(base, token, onDeckPath).catch(() => null)),
-          (getCachedHub(base, recentPath) ? Promise.resolve(getCachedHub(base, recentPath) as PlexItem[]) : getPlexHub(base, token, recentPath).catch(() => null)),
-        ]);
-        if (cancelled) return;
-        if (od) setCachedHub(base, onDeckPath, od);
-        if (ra) setCachedHub(base, recentPath, ra);
-        // First ~12 rail poster URLs — https only; http URLs go through the
-        // data-URI path and shouldn't block warm-up.
-        const posters: string[] = [];
-        const httpsBase = /^https:\/\//i.test(base);
-        if (httpsBase) {
-          const feed: PlexItem[] = [];
-          for (const it of od || []) feed.push(it);
-          for (const it of ra || []) feed.push(it);
-          for (const it of feed) {
-            if (posters.length >= 12) break;
+    // The settle screen. Everything Home is about to show is loaded HERE,
+    // behind the loader, so that once Home appears nothing else lands: no
+    // rail arriving mid-scroll and re-laying the list, no dozen requests and
+    // poster decodes competing with the remote for the first ten seconds.
+    // A few seconds of "Getting Plex ready…" reads as loading; the same
+    // seconds spent stuttering under the thumb read as a broken app.
+    //
+    // Every step is capped, and the whole thing is capped (SETTLE_MAX_MS),
+    // so a slow relay hop shows Home with whatever has landed rather than a
+    // loader forever; the panels fetch what is still missing.
+    const SETTLE_MAX_MS = 9000;
+    const settle = (async () => {
+      // 1. The two server-wide hubs.
+      // A failure resolves to null, NOT []. An empty array is a legitimate
+      // answer ("this hub is empty") and gets cached for 5 minutes; caching a
+      // Wi-Fi blip that way left Home showing a bare heading over an empty
+      // rail, surviving even a full remount, until the TTL expired.
+      const [od, ra] = await Promise.all([
+        (getCachedHub(base, onDeckPath) ? Promise.resolve(getCachedHub(base, onDeckPath) as PlexItem[]) : getPlexHub(base, token, onDeckPath).catch(() => null)),
+        (getCachedHub(base, recentPath) ? Promise.resolve(getCachedHub(base, recentPath) as PlexItem[]) : getPlexHub(base, token, recentPath).catch(() => null)),
+      ]);
+      if (cancelled) return;
+      if (od) setCachedHub(base, onDeckPath, od);
+      if (ra) setCachedHub(base, recentPath, ra);
+      // 2. The libraries, from the library effect's own request (it ran in
+      //    this same commit, after this effect; the microtask lets it start).
+      await Promise.resolve();
+      let libs: PlexLibrary[] = [];
+      try { libs = (await libsPromiseRef.current) ?? []; } catch { /* the library effect retries; Home can do without the stitched rails */ }
+      if (cancelled) return;
+      // 3. The stitched rails, from the same libraries Home will use: not
+      //    hidden, not adult — so the cache Home reads matches what it shows.
+      let hiddenKeys: string[] = [];
+      try { hiddenKeys = await loadHiddenPlexLibs(); } catch { /* none */ }
+      const forHome = libs.filter((l) => hiddenKeys.indexOf(l.key) < 0 && !isAdultLabel(l.title));
+      const rel = forHome.length ? await loadReleased(base, token, forHome, gone) : null;
+      if (cancelled) return;
+      const pop = forHome.length ? await loadPopular(base, token, forHome, gone) : null;
+      if (cancelled) return;
+      // 4. The posters on the first screen — https only; http URLs go through
+      //    the data-URI path and would only stall here.
+      const posters: string[] = [];
+      if (/^https:\/\//i.test(base)) {
+        for (const list of [od, ra, rel, pop]) {
+          for (const it of list || []) {
+            if (posters.length >= 18) break;
             if (it.thumb) posters.push(`${base}${it.thumb}?X-Plex-Token=${encodeURIComponent(token)}`);
           }
         }
-        // Warm the poster cache, but do not hold the screen for it: Home is
-        // usable the moment the two hubs land, and the tiles fill in as the
-        // images arrive. Waiting here was up to eight seconds of "Loading…"
-        // on a relay hop.
-        void preloadImages(posters, 8000);
-      } finally {
-        if (!cancelled) setWarmedUp(true);
       }
+      await preloadImages(posters, 3000);
     })();
+    const settled = settle.catch(() => undefined);
+    const cap = new Promise<void>((resolve) => {
+      const t = window.setTimeout(resolve, SETTLE_MAX_MS);
+      void settled.then(() => window.clearTimeout(t));
+    });
+    void Promise.race([settled, cap]).then(() => { if (!cancelled) setWarmedUp(true); });
     return () => { cancelled = true; };
   }, [status, conn]);
 
@@ -1043,7 +1088,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (status !== 'ready' || !conn) return;
     let cancelled = false;
     let timer: number | null = null;
-    getPlexLibraries(conn.base, conn.token)
+    const inflight = getPlexLibraries(conn.base, conn.token);
+    libsPromiseRef.current = inflight;
+    inflight
       .then((libs) => {
         if (cancelled) return;
         setLibraries(libs); setLibrariesError(null); libRetryRef.current = 0;
@@ -2076,7 +2123,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return (
       <div className="min-h-screen flex-1 flex flex-col items-center justify-center gap-4 bg-black/40 text-white">
         <div className="w-full max-w-md">
-          <SnowLoader size="md" label="Loading your library…" />
+          <SnowLoader size="md" label="Getting Plex ready…" />
         </div>
         <p className="text-xs font-nunito text-brand-ice/70">Plex · {conn?.name}</p>
       </div>

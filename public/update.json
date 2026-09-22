@@ -1,9 +1,9 @@
 {
-  "version": "1.7.6",
-  "versionCode": 36,
+  "version": "1.7.7",
+  "versionCode": 37,
   "releaseDate": "2026-09-22",
   "size": "",
-  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.6.apk",
-  "changelog": "WHAT'S NEW\nPlex opens faster: Home shows the moment Continue Watching and Recently Added land, posters fill in behind, and every rail asks the server for only the fields it shows.\nPlex on small boxes: Home's per-library queries run two at a time instead of all at once, rails are shorter, and a server that does not answer in ten seconds shows an empty row instead of holding the screen.\nNothing adult on the home screen: the content bar and Plex Home, Discover and Search skip adult channels, categories, libraries and titles. An adult Plex library keeps its own tab.\n\nFIXES\nPlex: the library list is fetched once on connect, not twice.",
-  "releaseNotes": "Version 1.7.6 makes Plex open faster and lighter on small boxes, and keeps adult content off the content bar and the Plex Home, Discover and Search rails. Installs normally over 1.7.5."
+  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.7.apk",
+  "changelog": "WHAT'S NEW\nPlex: a short \"Getting Plex ready…\" while every Home rail and its posters load, so the screen is smooth the moment it appears instead of stuttering while rows arrive behind the remote. Capped at nine seconds; a slow server shows Home with what has landed.\n\nPlus everything in 1.7.6: Plex opens lighter and kinder to small boxes, and nothing adult on the content bar or the Plex Home, Discover and Search rails.",
+  "releaseNotes": "Version 1.7.7 settles Plex before it appears, so Home is smooth from the first press. Installs normally over 1.7.6."
 }

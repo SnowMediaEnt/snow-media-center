@@ -11,6 +11,9 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.7.7': [
+    '🎬 Plex: a short "Getting Plex ready…" while every Home rail and its posters load, so the screen is smooth the moment it appears instead of stuttering while rows arrive',
+  ],
   '1.7.6': [
     '🎬 Plex opens faster: Home shows as soon as the first rows land, and the rails ask the server for only what they show',
     '📦 Plex on small boxes: fewer requests at once, shorter rails, and a stalled server shows an empty row instead of freezing the screen',
