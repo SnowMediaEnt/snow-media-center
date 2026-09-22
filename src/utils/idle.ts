@@ -32,6 +32,11 @@ const firstInteractionListeners = new Set<() => void>();
 let firstInteractionFired = false;
 let firstInteractionFallback: number | undefined;
 
+const runFirstInteractionListeners = () => {
+  firstInteractionListeners.forEach((l) => { try { l(); } catch (e) { console.warn('[idle] first-interaction listener threw', e); } });
+  firstInteractionListeners.clear();
+};
+
 const fireFirstInteraction = () => {
   if (firstInteractionFired) return;
   firstInteractionFired = true;
@@ -39,8 +44,12 @@ const fireFirstInteraction = () => {
   document.removeEventListener('keydown', fireFirstInteraction, true);
   document.removeEventListener('pointerdown', fireFirstInteraction, true);
   document.removeEventListener('touchstart', fireFirstInteraction, true);
-  firstInteractionListeners.forEach((l) => { try { l(); } catch (e) { console.warn('[idle] first-interaction listener threw', e); } });
-  firstInteractionListeners.clear();
+  // Not in the same keypress. The Player card has focus at launch, so for
+  // most viewers the first key IS "open the Player", and running every
+  // deferred boot job (analytics session, apps sync, six realtime joins)
+  // synchronously inside that keydown put all of it in front of the
+  // Player's own chunk fetch. Let the screen change land first.
+  runWhenIdle(runFirstInteractionListeners, 2500);
 };
 
 if (typeof window !== 'undefined') {

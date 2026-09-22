@@ -51,7 +51,8 @@ export function useBackupStreams(serverLabel: string | null) {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'backup_streams' }, () => { void fetchRows(); })
         .subscribe();
     });
-    const cancelInterval = setPausableInterval(() => { void fetchRows(); }, 60_000);
+    // Essential: this list lives inside the Player, where quiet mode is on.
+    const cancelInterval = setPausableInterval(() => { void fetchRows(); }, 60_000, { essential: true });
     return () => { cancelIdle(); cancelFirst(); cancelInterval(); if (channel) supabase.removeChannel(channel); };
   }, [fetchRows]);
 

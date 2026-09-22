@@ -51,10 +51,16 @@ async function plexReq<T>(method: 'GET' | 'POST', url: string, token?: string, t
   } catch { /* no @capacitor/core on web */ }
   if (native && CapacitorHttpRef) {
     // Native path: any error propagates — do NOT fall through to WebView fetch.
+    //
+    // responseType 'text': left to itself CapacitorHttp parses the JSON on the
+    // Java side, serialises the result back across the bridge, and the WebView
+    // parses it again. A hundred-item rail is 200–600 KB, so that was two
+    // full parses of every rail on the box's slowest thread. One parse, here.
     const res = await CapacitorHttpRef.request({
       method, url, headers,
       connectTimeout: Math.min(timeoutMs, 15000),
       readTimeout: timeoutMs,
+      responseType: 'text',
     });
     if (res.status >= 200 && res.status < 300) {
       return (typeof res.data === 'string' ? JSON.parse(res.data || '{}') : res.data) as T;
@@ -1217,6 +1223,22 @@ export function getCachedHub(base: string, path: string): PlexItem[] | null {
 }
 export function setCachedHub(base: string, path: string, items: PlexItem[]): void {
   _hubCache.set(`${base}|${path}`, { items, ts: Date.now() });
+}
+
+/** The same server reached by a new address (the idle upgrade from http to
+ *  https, the relay escape): every rail and page cached under the old base is
+ *  still right, because ratingKeys belong to the server, not the address.
+ *  Copy the entries across so the swap does not refetch Home under the
+ *  viewer's cursor. */
+export function rekeyPlexCaches(oldBase: string, newBase: string): void {
+  if (!oldBase || !newBase || oldBase === newBase) return;
+  const prefix = `${oldBase}|`;
+  for (const [k, v] of Array.from(_hubCache.entries())) {
+    if (k.startsWith(prefix)) _hubCache.set(`${newBase}|${k.slice(prefix.length)}`, v);
+  }
+  for (const [k, v] of Array.from(_libraryCache.entries())) {
+    if (k.startsWith(prefix)) _libraryCache.set(`${newBase}|${k.slice(prefix.length)}`, v);
+  }
 }
 
 /** Wipe ALL in-memory catalog caches (hub rails + library pages). Called on

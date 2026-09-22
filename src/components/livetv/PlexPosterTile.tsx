@@ -35,8 +35,16 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
       data-focused={focused ? 'true' : 'false'}
       className={`plex-tile cursor-pointer ${width === 'rail' ? 'flex-shrink-0 w-[104px]' : 'w-full'}`}
     >
-      <div className={`tv-ring relative aspect-[2/3] rounded-lg overflow-hidden bg-black/40 border border-white/10 ${focused ? 'scale-[1.05] z-10' : ''}`}>
-        <PlexImage base={base} path={item.thumb} token={token} w={POSTER_TILE_W} h={POSTER_TILE_H} className="w-full h-full object-cover" />
+      {/* The 2:3 box is drawn with padding-bottom, not aspect-ratio: `aspect-ratio`
+          is Chrome 88, and on the Chromium 66 WebView of the older boxes a box
+          sized only by it is 0 px tall until its image lands — so every poster
+          arrival grew a tile and re-laid the whole rail column, forty times over
+          the first ten seconds. Padding sizes the box before any image exists. */}
+      <div
+        className={`tv-ring relative h-0 rounded-lg overflow-hidden bg-black/40 border border-white/10 ${focused ? 'scale-[1.05] z-10' : ''}`}
+        style={{ paddingBottom: '150%' }}
+      >
+        <PlexImage base={base} path={item.thumb} token={token} w={POSTER_TILE_W} h={POSTER_TILE_H} className="absolute inset-0 w-full h-full object-cover" />
         {label ? (
           <div className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/75 text-xs font-bold font-nunito ${label === '4K' ? 'text-brand-gold' : 'text-white/85'}`}>
             {label}

@@ -375,8 +375,8 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
         {step === 'detail' && (
           <div className="max-w-6xl mx-auto flex gap-6">
             <div className="w-44 flex-shrink-0">
-              <div className="relative aspect-[2/3] rounded-xl overflow-hidden border border-white/10 bg-black/40 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-                <PlexImage priority base={base} path={meta?.thumb || current.thumb} token={token} w={400} h={600} className="w-full h-full object-cover" />
+              <div className="relative h-0 rounded-xl overflow-hidden border border-white/10 bg-black/40 shadow-[0_8px_24px_rgba(0,0,0,0.5)]" style={{ paddingBottom: '150%' }}>
+                <PlexImage priority base={base} path={meta?.thumb || current.thumb} token={token} w={400} h={600} className="absolute inset-0 w-full h-full object-cover" />
                 {resLabel && (
                   <div className="absolute top-2 right-2"><ResBadge label={resLabel} /></div>
                 )}
@@ -504,7 +504,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                       data-focused={focused ? 'true' : 'false'}
                       className={`tv-ring flex-shrink-0 w-[112px] rounded-lg overflow-hidden border border-white/10 bg-black/40 transition-transform duration-150 ${focused ? 'scale-[1.05] z-10' : ''}`}>
-                      <div className="aspect-[2/3]"><PlexImage base={base} path={s.thumb} token={token} w={180} h={270} focusExempt className="w-full h-full object-cover" /></div>
+                      <div className="relative h-0" style={{ paddingBottom: '150%' }}><PlexImage base={base} path={s.thumb} token={token} w={180} h={270} focusExempt className="absolute inset-0 w-full h-full object-cover" /></div>
                       <div className={`px-2 py-1.5 text-xs font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{s.title}</div>
                     </div>
                   );
@@ -571,8 +571,8 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       onClick={() => { setActorCursor(idx); pushItem(it); }}
                       data-focused={focused ? 'true' : 'false'}
                       className={`tv-ring relative cursor-pointer rounded-lg overflow-hidden border border-white/10 bg-black/40 transition-transform duration-150 ${focused ? 'z-10 scale-[1.05]' : ''}`}>
-                      <div className="relative aspect-[2/3]">
-                        <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} focusExempt className="w-full h-full object-cover" />
+                      <div className="relative h-0" style={{ paddingBottom: '150%' }}>
+                        <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} focusExempt className="absolute inset-0 w-full h-full object-cover" />
                         {label && <div className="absolute top-2 right-2"><ResBadge label={label} /></div>}
                       </div>
                       <div className={`px-2 py-1.5 text-xs font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>

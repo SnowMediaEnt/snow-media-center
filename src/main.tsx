@@ -24,7 +24,14 @@ const ancientAndroid = /Android [4-7]\b/i.test(navigator.userAgent);  // very ol
 // WebMediaPlayer creation. Force low-memory mode regardless of native flag
 // (Fire TV WebView sometimes lies about deviceMemory).
 const fireTv = isFireTV();
-const nativeLowMemory = (isNativePlatform() && (lowRam || ancientAndroid)) || fireTv;
+// A WebView too old for CSS clamp() (Chrome < 79 — index.html adds
+// `legacy-webview` before this runs) is the 2019-era Amlogic box: X96 Max+,
+// T95, Android 9 with the factory WebView. Those report 4 GB and dodged the
+// RAM gate, then got the full-fat Plex: hundred-deep rails, the Most
+// Watched queries, glow transitions on every focus move. Treat them as the
+// weak boxes they are.
+const legacyWebView = document.documentElement.classList.contains('legacy-webview');
+const nativeLowMemory = (isNativePlatform() && (lowRam || ancientAndroid || legacyWebView)) || fireTv;
 if (nativeLowMemory) {
   document.documentElement.classList.add('native-low-memory');
 }

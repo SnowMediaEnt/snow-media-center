@@ -3,8 +3,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
-import { authenticateRouted, buildPlayerAccount, loadCreds } from '@/lib/xtream';
+import { authenticateRouted, buildPlayerAccount, loadCreds, savePlayerAccount } from '@/lib/xtream';
 import { runWhenIdle } from '@/utils/idle';
+import { markReconciled, reconciledRecently } from '@/lib/panelReconcile';
 
 /**
  * Mount once at the top of the signed-in app tree. When a Supabase user is
@@ -46,11 +47,22 @@ export const usePlayerAccountSync = (): void => {
       // values. 'reconcile' leaves the sign-in count and device untouched.
       void (async () => {
         try {
+          // LiveTV's reconcile does this same capture when it runs; one
+          // panel round-trip per session is enough.
+          if (reconciledRecently()) return;
+          markReconciled();
           const res = await authenticateRouted(account.username, account.password);
-          if (!res.ok || !res.server || !res.creds) return;
+          // Expired/disabled lines: the panel still authenticated the account,
+          // so record the TRUE state (fresh expiry) rather than bailing —
+          // this is what lets a renewal show the moment the panel flips.
+          if (!res.ok && !(res.authedButBlocked && res.server && res.creds)) return;
+          if (!res.server || !res.creds) return;
           const now = await loadCreds();
           if (!now || now.username !== account.username || now.host !== account.host) return;
           const fresh = buildPlayerAccount(res.server, res.creds, res.userInfo);
+          // Since this now stands in for LiveTV's reconcile, keep its other
+          // job too: the stored account carries the fresh expiry and status.
+          await savePlayerAccount(fresh);
           void capturePlayerSignin(fresh, res.server.label, 'reconcile');
         } catch { /* best effort */ }
       })();

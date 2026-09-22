@@ -46,7 +46,10 @@ const isVersionNewer = (a: string, b: string): boolean => {
  * Auto-update is ON by default. Users can disable it via Settings → Updates
  * (key: smc-auto-update-enabled = "false").
  */
-const AutoUpdatePrompt = () => {
+/** `paused`: true while the viewer is off the home screen. The check, and
+ *  the silent APK download it can start, wait for home — a 40 MB download
+ *  used to begin four seconds into a Plex session, under the rails. */
+const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
   const { version: currentVersion, versionCode: currentVersionCode, isLoading } = useVersion();
   const { toast } = useToast();
   const [info, setInfo] = useState<UpdateInfo | null>(null);
@@ -57,6 +60,17 @@ const AutoUpdatePrompt = () => {
   // hourly re-check doesn't restart the download or re-open the dialog.
   const handledRef = useRef<number | string | null>(null);
   const preparingRef = useRef(false);
+
+  const pausedRef = useRef(paused);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
+  const skippedRef = useRef(false);
+  const checkRef = useRef<(() => Promise<void>) | null>(null);
+  // Back on home after a check was skipped: run it once the screen settles.
+  useEffect(() => {
+    if (paused || !skippedRef.current) return;
+    skippedRef.current = false;
+    return runWhenIdle(() => { void checkRef.current?.(); }, 4000);
+  }, [paused]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -98,6 +112,8 @@ const AutoUpdatePrompt = () => {
       // Streaming priority: skip update checks while playback is active so the
       // fetch + JSON parse can't compete with the player on weak devices.
       if (document.documentElement.classList.contains('streaming-active')) return;
+      // Off the home screen (the Player, a game): come back to it later.
+      if (pausedRef.current) { skippedRef.current = true; return; }
       try {
         const url = `https://snowmediaapps.com/smc/update.json?ts=${Date.now()}`;
         const res = await robustFetch(url, {
@@ -146,6 +162,7 @@ const AutoUpdatePrompt = () => {
       }
     };
 
+    checkRef.current = check;
     // Run when the browser is idle, then hourly (paused while backgrounded).
     const cancelIdle = runWhenIdle(() => { void check(); }, 4000);
     // Also paused under quiet mode (stream playing on a low-memory box):

@@ -763,8 +763,9 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
                 onClick={() => { setZone('grid'); setCursor(idx); commit(query); onPlay(it); }}
                 className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${focused ? 'scale-105 z-10' : ''}`}
                 data-focused={focused ? 'true' : 'false'}>
-                <div className="relative aspect-[2/3]">
-                  <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
+                {/* padding-bottom, not aspect-ratio: see PlexPosterTile. */}
+                <div className="relative h-0" style={{ paddingBottom: '150%' }}>
+                  <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="absolute inset-0 w-full h-full object-cover" />
                   <ResChip label={label} />
                 </div>
                 <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
@@ -1581,7 +1582,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const rowHRef = useRef(rowH); useEffect(() => { rowHRef.current = rowH; }, [rowH]);
   const rowObserverRef = useRef<ResizeObserver | null>(null);
 
+  // Only the A-Z grid uses rowH. The observer below sits on the shared
+  // scroll container, so without this gate the menu's 200 ms width
+  // transition re-measured and re-rendered this whole component once per
+  // frame on every trip between the menu and Home, for a number Home never
+  // reads.
+  const isGridTab = currentTab?.type === 'movie' || currentTab?.type === 'show';
+  const isGridTabRef = useRef(isGridTab); isGridTabRef.current = isGridTab;
   const measureRowH = useCallback((el: HTMLElement) => {
+    if (!isGridTabRef.current) return;
     const cs = getComputedStyle(el);
     const padL = parseFloat(cs.paddingLeft) || 0;
     const padR = parseFloat(cs.paddingRight) || 0;
@@ -1608,6 +1617,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }, [measureRowH]);
 
   useEffect(() => () => { rowObserverRef.current?.disconnect(); }, []);
+  // Arriving on a library tab: measure once now, since nothing resized.
+  useEffect(() => { if (isGridTab && scrollRef.current) measureRowH(scrollRef.current); }, [isGridTab, measureRowH]);
 
   const rows = Math.ceil(items.length / COLS);
   const rowVirtualizer = useVirtualizer({

@@ -3,7 +3,7 @@ import {
   requestPlexPin, checkPlexPin,
   loadPlexToken, savePlexToken, clearPlexToken,
   getPlexServers, pickPlexConnectionDetailed, loadPlexServer, savePlexServer,
-  getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches, plexRouteOf,
+  getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches, rekeyPlexCaches, plexRouteOf,
   isPlexPlaybackActive, type PlexRoute,
 } from '@/lib/plex';
 import { runWhenIdle } from '@/utils/idle';
@@ -180,6 +180,9 @@ export function usePlexAuth() {
                   // Invalidate any queued image fetches BEFORE swapping the
                   // conn so rail <img> tags re-commit on the new base.
                   bumpPlexImageEpoch();
+                  // Same server, new address: carry the rails and pages over so
+                  // Home does not refetch itself under the viewer's cursor.
+                  rekeyPlexCaches(cached.base, upgraded.base);
                   connBaseRef.current = upgraded.base;
                   setConn(upgraded);
                 } catch { /* ignore — cached connection keeps working */ }
@@ -424,6 +427,7 @@ export function usePlexAuth() {
         await savePlexServer(upgraded);
         if (stopped || sessionRef.current !== session) return true;
         bumpPlexImageEpoch();
+        rekeyPlexCaches(conn.base, upgraded.base);
         connBaseRef.current = upgraded.base;
         setConn(upgraded);
       } catch { /* still on the relay — try again next tick */ }

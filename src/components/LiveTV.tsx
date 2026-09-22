@@ -20,6 +20,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { runWhenIdle } from '@/utils/idle';
+import { enterQuiet, exitQuiet, setQuietEverywhere } from '@/utils/quietMode';
+import { markReconciled, reconciledRecently } from '@/lib/panelReconcile';
 import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { useVersion } from '@/hooks/useVersion';
@@ -115,6 +117,17 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     document.documentElement.classList.remove('snowplayer-multiview');
   }, []);
 
+  // Quiet while the Player is open, on every box. Quiet mode pauses the
+  // home screen's background jobs (the two alert polls, the mail poll, the
+  // apps poll, the hourly update check) and used to apply only while a
+  // stream was playing on a low-memory box — so while someone browsed Plex
+  // on a 4 GB box, all of it kept running under the rails. None of it is
+  // for the Player; the Player's own server alerts ride a realtime channel.
+  useEffect(() => {
+    try { setQuietEverywhere(true); enterQuiet('player-open'); } catch { /* ignore */ }
+    return () => { try { exitQuiet('player-open'); setQuietEverywhere(false); } catch { /* ignore */ } };
+  }, []);
+
   // Expiration dialog — once per day per state (warn|expired).
   const [expNoticeKind, setExpNoticeKind] = useState<'warn' | 'expired' | null>(null);
   useEffect(() => { expNoticeOpenRef.current = !!expNoticeKind; }, [expNoticeKind]);
@@ -193,9 +206,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (DEMO) return;
     if (!creds || refreshedRef.current) return;
     refreshedRef.current = true;
+    // Twelve seconds, not two and a half: this is a panel round-trip with a
+    // twenty-second timeout, an edge function and a customer_services write,
+    // and at two and a half seconds it landed inside Plex's settle screen
+    // on every Player open. Nothing on screen waits for it.
     const cancel = runWhenIdle(() => {
       (async () => {
         try {
+          if (reconciledRecently()) return;
+          markReconciled();
           const res = await authenticateRouted(creds.username, creds.password);
           // Expired/disabled/banned lines: sign-in stays refused, but the
           // panel DID authenticate the account — so keep recording the TRUE
@@ -218,7 +237,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           }
         } catch { /* swallow — background refresh is best-effort */ }
       })();
-    }, 2500);
+    }, 12000);
     return cancel;
   }, [creds, user?.id, user?.email]);
 
@@ -381,8 +400,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => () => {
     if (refreshToastTimerRef.current) window.clearTimeout(refreshToastTimerRef.current);
   }, []);
+  // Read through a ref so the callback keeps its identity while the toast
+  // timer flips `isRefreshing` — every effect that lists it as a dep (the
+  // shell keydown listener among them) was torn down and re-registered twice
+  // per Player open.
+  const isRefreshingRef = useRef(isRefreshing);
+  useEffect(() => { isRefreshingRef.current = isRefreshing; }, [isRefreshing]);
   const refreshChannels = useCallback(() => {
-    if (isRefreshing) return;
+    if (isRefreshingRef.current) return;
     setIsRefreshing(true);
     if (!DEMO) { try { trackEvent('update_channels', 'player', { server: serverLabel }); } catch { /* ignore */ } }
     const updatingId = toast({
@@ -397,18 +422,22 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       toast({ title: 'Channels updated!', description: 'You now have the latest channels.' });
       setIsRefreshing(false);
     }, 1400) as unknown as number;
-  }, [isRefreshing, toast, serverLabel]);
+  }, [toast, serverLabel]);
 
 
-  // Auto-refresh once whenever the Player opens with valid creds.
+  // Auto-refresh once whenever the Player opens INTO LIVE TV with valid
+  // creds. It used to fire on every Player open, mode or not: for someone
+  // going to Plex that was two "channels" toasts (each re-rendering every
+  // toast subscriber, Plex included) and a channel-list cache wipe, all
+  // landing inside Plex's settle screen, for a list they were not looking at.
   const autoRefreshedRef = useRef(false);
   useEffect(() => {
-    if (!creds || autoRefreshedRef.current) return;
+    if (!creds || mode !== 'live' || autoRefreshedRef.current) return;
     autoRefreshedRef.current = true;
     // Defer a tick so the child sections have mounted their listeners.
     const t = window.setTimeout(() => { refreshChannels(); }, 250);
     return () => window.clearTimeout(t);
-  }, [creds, refreshChannels]);
+  }, [creds, mode, refreshChannels]);
 
   const showCredsForm = !DEMO && mode === 'live' && (!creds || accountFormOpen);
   // Demo: the settings hub exposes sign-out / change-credentials / switch-account,
@@ -577,7 +606,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useLayoutEffect(() => {
     (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack = true;
     return () => { (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack = false; };
-  });
+  }, []);
 
   useEffect(() => {
     type W = { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };

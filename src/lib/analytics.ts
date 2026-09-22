@@ -81,11 +81,22 @@ const loadQueue = () => {
   });
 };
 
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
 const persistQueue = () => {
+  if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
   safe(() => {
     if (queue.length === 0) localStorage.removeItem(QUEUE_KEY);
     else localStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(-MAX_QUEUE)));
   });
+};
+
+// Every tracked event used to serialise the whole queue (up to 200 events)
+// to localStorage on the main thread, and opening the Player fires about
+// ten of them in a row. Coalesce: one write two seconds after the last
+// event. Flush and hide still write at once, so nothing is lost on exit.
+const persistQueueSoon = () => {
+  if (persistTimer) return;
+  persistTimer = setTimeout(() => { persistTimer = null; persistQueue(); }, 2000);
 };
 
 const getOrCreateDeviceId = (): string => {
@@ -107,7 +118,10 @@ export const getDeviceId = (): string => {
 };
 
 const flush = async () => {
-  if (queue.length === 0) return;
+  if (queue.length === 0) {
+    if (flushTimer) { clearInterval(flushTimer); flushTimer = null; }
+    return;
+  }
   const batch = queue.splice(0, BATCH_SIZE);
   persistQueue();
   try {
@@ -123,6 +137,8 @@ const flush = async () => {
   }
 };
 
+// Armed when something is queued, dropped again once the queue drains (see
+// flush), so an idle app is not woken every five seconds for nothing.
 const scheduleFlush = () => {
   if (flushTimer) return;
   flushTimer = setInterval(() => {
@@ -152,10 +168,12 @@ export const trackEvent = (
       occurred_at: new Date().toISOString(),
     });
     if (queue.length > MAX_QUEUE) queue = queue.slice(-MAX_QUEUE);
-    persistQueue();
+    persistQueueSoon();
     if (queue.length >= BATCH_SIZE) {
       // fire async; do not await
       void flush();
+    } else {
+      scheduleFlush();
     }
   });
 };

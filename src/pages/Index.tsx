@@ -841,6 +841,10 @@ const Index = () => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // The Player owns every key while it is open (its own listeners walk
+      // fullscreen → rows → menu → exit); every path below returned for it
+      // anyway, but only after the modal query on each press.
+      if (currentViewRef.current === 'livetv') return;
       // If the auto-update modal (or any aria-modal dialog) is open, let it own the keyboard.
       if (document.querySelector('[data-autoupdate-dialog="true"], [aria-modal="true"]')) return;
       // Skip navigation handling when user is typing in an input or textarea
@@ -1270,7 +1274,7 @@ const Index = () => {
 
       {/* First-launch welcome + per-version "What's New" popup — mounted only
           after first-frame idle so its effect chain doesn't pile onto boot. */}
-      {deferredOverlaysReady && (
+      {deferredOverlaysReady && currentView === 'home' && (
         <Suspense fallback={null}>
           <WelcomePopup onOpenChange={setWelcomeOpen} />
         </Suspense>
@@ -1327,7 +1331,7 @@ const Index = () => {
           disable via localStorage key smc-auto-update-enabled = "false". */}
       {deferredOverlaysReady && (
         <Suspense fallback={null}>
-          <AutoUpdatePrompt />
+          <AutoUpdatePrompt paused={currentView !== 'home'} />
         </Suspense>
       )}
 
