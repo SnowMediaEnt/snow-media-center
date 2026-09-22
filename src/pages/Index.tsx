@@ -369,7 +369,7 @@ interface RouteSwitchProps {
 
 const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayoutChange }: RouteSwitchProps) => (
   <Suspense fallback={<RouteFallback />}>
-    {currentView === 'apps' && <InstallApps onBack={goBack} onNavigateToChat={() => navigateTo('support')} />}
+    {currentView === 'apps' && <InstallApps onBack={goBack} onNavigateToChat={() => navigateTo('support')} onNavigate={(view) => navigateTo(view)} />}
     {currentView === 'store' && <StoreScreen onBack={goBack} />}
     {currentView === 'support' && <Support onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
     {currentView === 'support-videos' && <SupportVideos onBack={goBack} />}

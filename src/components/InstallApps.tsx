@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { takeIntent, INTENT_KEYS } from '@/lib/appActions';
+import { takeIntent, INTENT_KEYS, openScreen } from '@/lib/appActions';
+import { retiredAppFor } from '@/lib/retiredApps';
+import RetiredAppDialog from '@/components/RetiredAppDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,9 +30,11 @@ import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 interface InstallAppsProps {
   onBack: () => void;
   onNavigateToChat?: () => void;
+  /** Home-screen navigation, for the "Open Player" button on a retired app. */
+  onNavigate?: (view: string) => void;
 }
 
-const InstallApps = ({ onBack, onNavigateToChat }: InstallAppsProps) => {
+const InstallApps = ({ onBack, onNavigateToChat, onNavigate }: InstallAppsProps) => {
   const { toast } = useToast();
   const { apps, loading, error } = useAppData();
 
@@ -57,7 +61,7 @@ const InstallApps = ({ onBack, onNavigateToChat }: InstallAppsProps) => {
     );
   }
 
-  return <InstallAppsContent onBack={onBack} apps={apps} onNavigateToChat={onNavigateToChat} />;
+  return <InstallAppsContent onBack={onBack} apps={apps} onNavigateToChat={onNavigateToChat} onNavigate={onNavigate} />;
 };
 
 // Focus types for navigation
@@ -79,7 +83,7 @@ interface ContextMenuState {
   position: { x: number; y: number };
 }
 
-const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => void; apps: AppData[]; onNavigateToChat?: () => void }) => {
+const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { onBack: () => void; apps: AppData[]; onNavigateToChat?: () => void; onNavigate?: (view: string) => void }) => {
   const [appStatuses, setAppStatuses] = useState<Map<string, { installed: boolean }>>(new Map());
   const [focusedElement, setFocusedElement] = useState<FocusType>('back');
   const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
@@ -104,6 +108,9 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: AppData } | null>(null);
   const [pendingDownloadApp, setPendingDownloadApp] = useState<AppData | null>(null);
+  // A Download press on Dreamstreams, VibezTV or Plex: those live in the
+  // Player now, so the press gets a notice first (src/lib/retiredApps.ts).
+  const [retiredApp, setRetiredApp] = useState<AppData | null>(null);
 
   // Helper function to get the apps for a tab.
   // 'featured' = curated featured list (sorted A→Z)
@@ -140,11 +147,12 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
       if (showSpeedTest || showGuide) return;
       // If a modal/dialog is open (alert popup, context menu, download progress),
       // let the dialog handle keys natively. Don't move background focus.
-      if (pendingAlert || contextMenu.app || downloadingApp) {
+      if (pendingAlert || retiredApp || contextMenu.app || downloadingApp) {
         if (event.key === 'Escape' || event.key === 'Backspace') {
           event.preventDefault();
           event.stopPropagation();
           if (pendingAlert) setPendingAlert(null);
+          else if (retiredApp) setRetiredApp(null);
           else if (contextMenu.app) setContextMenu({ app: null, position: { x: 0, y: 0 } });
         }
         return;
@@ -358,7 +366,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, contextMenu.app, downloadingApp, toast, expandedAppId]);
+  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, retiredApp, contextMenu.app, downloadingApp, toast, expandedAppId]);
 
   // Scroll focused element into view
   useEffect(() => {
@@ -438,7 +446,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     }
   }, [toast]);
 
-  const handleDownload = useCallback(async (app: AppData) => {
+  const handleDownload = useCallback(async (app: AppData, opts: { skipRetiredNotice?: boolean } = {}) => {
+    // Dreamstreams, VibezTV and Plex are inside the Player now. Say so, and
+    // offer to open it; the APK is still there for whoever insists.
+    if (!opts.skipRetiredNotice && retiredAppFor(app.name)) {
+      setRetiredApp(app);
+      return;
+    }
     if (!app.downloadUrl) {
       toast({
         title: "Download Error",
@@ -472,6 +486,15 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     // Warnings only fire on launch — go straight to download here.
     startDownload(app);
   }, [toast, checkInstallStatus, getAlertForApp, startDownload]);
+
+  const retiredInfo = retiredApp ? retiredAppFor(retiredApp.name) : null;
+  const openPlayerFor = useCallback(() => {
+    const info = retiredApp ? retiredAppFor(retiredApp.name) : null;
+    setRetiredApp(null);
+    if (!info) return;
+    if (onNavigate) openScreen(info.screen, onNavigate);
+    else toast({ title: 'Open the Player', description: `From the main page, open Player → ${info.where}.` });
+  }, [retiredApp, onNavigate, toast]);
 
   // The assistant's "install X": find it in the list and start the download.
   useEffect(() => {
@@ -1096,6 +1119,16 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           onClose={() => setContextMenu({ app: null, position: { x: 0, y: 0 } })}
         />
       )}
+
+      {/* Download pressed on an app that lives in the Player now */}
+      <RetiredAppDialog
+        appName={retiredApp?.name ?? null}
+        info={retiredInfo}
+        open={!!retiredApp}
+        onOpenPlayer={openPlayerFor}
+        onDownloadAnyway={() => { const app = retiredApp; setRetiredApp(null); if (app) void handleDownload(app, { skipRetiredNotice: true }); }}
+        onDismiss={() => setRetiredApp(null)}
+      />
 
       {/* App Alert Popup (e.g. "Dreamstreams EPG is down") */}
       <AppAlertDialog
