@@ -503,7 +503,8 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       if (cancelled) return;
       if (list.length) { setPopular(list); return; }
       const mostWatched = getCachedHub(base, HOME_POPULAR_KEY) ?? [];
-      setPopular(fallbackSuggestions(mostWatched.map((it) => it.title)));
+      const recentlyAdded = getCachedHub(base, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30') ?? [];
+      setPopular(fallbackSuggestions([...mostWatched, ...recentlyAdded].map((it) => it.title)));
     });
     return () => { cancelled = true; };
   }, [base]);
@@ -572,6 +573,15 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       const t = e.target as HTMLElement;
       const inInput = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
       if (zoneRef.current === 'input') {
+        // Left with the caret at the start (or nothing typed) is "back to the
+        // menu", the same as everywhere else in Plex. Without this the WebView's
+        // own spatial navigation took the key and lit up the whole panel.
+        if (inInput && e.key === 'ArrowLeft') {
+          const el = inputRef.current;
+          const atStart = !el || !el.value || (el.selectionStart ?? 0) === 0;
+          if (atStart) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); el?.blur(); onExitRef.current(); }
+          return;
+        }
         if (inInput && e.key === 'ArrowDown') {
           if (resultsRef.current.length > 0) {
             e.preventDefault(); e.stopPropagation(); inputRef.current?.blur(); setZone('grid'); setCursor(0);
@@ -594,7 +604,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         const list = chipsRef.current;
         const i = chipIdxRef.current;
         if (e.key === 'ArrowUp') { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); }
-        else if (e.key === 'ArrowLeft') { if (i > 0) setChipIdx(i - 1); }
+        else if (e.key === 'ArrowLeft') { if (i > 0) setChipIdx(i - 1); else onExitRef.current(); }
         else if (e.key === 'ArrowRight') { if (i + 1 < list.length) setChipIdx(i + 1); }
         else if (e.key === 'ArrowDown') {
           // Next group down, same column feel: first chip of the other group.
@@ -609,7 +619,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       const cur = cursorRef.current;
       if (e.key === 'ArrowUp') { if (cur < COLS) { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); } else setCursor(cur - COLS); }
       else if (e.key === 'ArrowDown') { if (cur + COLS < total) setCursor(cur + COLS); }
-      else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setCursor(cur - 1); }
+      else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setCursor(cur - 1); else onExitRef.current(); }
       else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setCursor(cur + 1); }
       else if (e.key === 'Enter' || e.key === ' ') { const it = resultsRef.current[cur]; if (it) { commit(queryRef.current); onPlayRef.current(it); } }
     };

@@ -1,11 +1,12 @@
 // What the Plex search screen offers before anything is typed.
 //
-// Two lists. "Popular searches" is what everyone has been looking for: the
-// searches viewers committed to (moved down into the results, or opened a
-// result) over the last sixty days, counted across the fleet by the
-// get_popular_plex_searches RPC. Typing is not counted: every keystroke runs
-// a search, and a list built from those would be "b", "ba", "bat", "batm"
-// all the way down. "Recent on this box" is this device's own last few.
+// Two lists. "Popular searches" is what everyone has been looking for, the
+// top twenty across the fleet over the last ninety days, from the
+// get_popular_plex_searches RPC. It counts the searches viewers committed
+// to (moved down into the results, or opened one) and, from the boxes that
+// predate that event, the last query of each typing burst — every keystroke
+// runs a search, so the RPC drops "b", "ba", "bat" when "batman" followed.
+// "Recent on this box" is this device's own last few.
 //
 // Both fail soft: no RPC yet, no network, no storage — the screen just shows
 // whichever list it has, or the plain "Type to search" line.
@@ -17,7 +18,7 @@ const RECENT_KEY = 'smc:plex-recent-searches';
 const RECENT_MAX = 8;
 const POPULAR_CACHE_KEY = 'smc:plex-popular-searches';
 const POPULAR_TTL_MS = 30 * 60 * 1000;
-export const POPULAR_MAX = 12;
+export const POPULAR_MAX = 20;
 
 const norm = (q: string) => q.trim().replace(/\s+/g, ' ');
 
@@ -82,7 +83,7 @@ export async function fetchPopularSearches(limit = POPULAR_MAX): Promise<string[
 
 /** Until the fleet has searched enough, the server's most-played titles
  *  stand in, so the row is never empty on a fresh install. */
-export const fallbackSuggestions = (titles: Array<string | undefined>, limit = 8): string[] => {
+export const fallbackSuggestions = (titles: Array<string | undefined>, limit = 12): string[] => {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const t of titles) {
