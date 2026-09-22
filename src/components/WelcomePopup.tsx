@@ -13,6 +13,9 @@ import { useVersion } from '@/hooks/useVersion';
 const CHANGELOG: Record<string, string[]> = {
   '1.7.7': [
     '🎬 Plex: a short "Getting Plex ready…" while every Home rail and its posters load, so the screen is smooth the moment it appears instead of stuttering while rows arrive',
+    '🔎 Plex search: Popular searches and your recent ones, right there before you type',
+    '📲 Main Apps: Dreamstreams, VibezTV and Plex now point you to the Player, where they live under Live TV and Plex',
+    '🤖 Older Android boxes: the Dashboard and Settings buttons are back at the top right',
   ],
   '1.7.6': [
     '🎬 Plex opens faster: Home shows as soon as the first rows land, and the rails ask the server for only what they show',
