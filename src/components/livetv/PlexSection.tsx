@@ -38,6 +38,7 @@ import {
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { commitSearch, fallbackSuggestions, fetchPopularSearches, loadRecentSearches } from '@/lib/plexSearches';
+import { rankSuggestions, searchLooksThin, searchVariants } from '@/lib/plexFuzzy';
 import {
   demoGetLibraries, demoGetLibraryItems, demoGetHub, demoSearchPlex,
 } from '@/lib/plexDemo';
@@ -94,14 +95,17 @@ const homeRatedQuery = (t: number) => `type=${t}&sort=audienceRating:desc&audien
 // stitched from several section queries rather than one hub path.
 const HOME_RELEASED_KEY = 'smc:home/released';
 const HOME_POPULAR_KEY = 'smc:home/popular';
-const HOME_RAIL_CAP = 40;
+// A hundred titles deep on Recently Added and Recently Released, so a busy
+// server's last few weeks are all there; the rails only render the tiles
+// near the highlight (RailBrowser), so the depth costs nothing on screen.
+const HOME_RAIL_CAP = 100;
 
 // A box the app already knows is short of memory (main.tsx: 1–2 GB, or a
 // Fire TV) gets half-length rails and no Most Watched: that rail asks the
 // server to sort every library by play count, the slowest of Home's queries,
 // and on such a box the Plex screen is where the renderer runs out of room.
 const LOW_MEMORY = typeof document !== 'undefined' && document.documentElement.classList.contains('native-low-memory');
-const RAIL_CAP = LOW_MEMORY ? 20 : HOME_RAIL_CAP;
+const RAIL_CAP = LOW_MEMORY ? 40 : HOME_RAIL_CAP;
 /** How many per-library queries Home has in flight at once. All at once was
  *  a dozen requests on a six-library server, against a stick's socket pool. */
 const HOME_PARALLEL = 2;
@@ -137,7 +141,7 @@ async function loadReleased(base: string, token: string, libraries: PlexLibrary[
   const movieKeys = libraries.filter((l) => l.type === 'movie').map((l) => l.key);
   if (!movieKeys.length) return null;
   const lists = await mapLimit(movieKeys, HOME_PARALLEL, (k) =>
-    getPlexSectionRow(base, token, k, HOME_RELEASED_QUERY, 20).catch(() => null));
+    getPlexSectionRow(base, token, k, HOME_RELEASED_QUERY, 50).catch(() => null));
   if (gone()) return null;
   // Each section came back server-sorted; merging needs one more pass so a
   // two-library server does not show all of one then all of the other.
@@ -157,7 +161,7 @@ async function loadPopular(base: string, token: string, libraries: PlexLibrary[]
     .map((l) => ({ key: l.key, t: l.type === 'movie' ? 1 : 2 }));
   if (!allKeys.length) return null;
   const watched = await mapLimit(allKeys, HOME_PARALLEL, (s) =>
-    getPlexSectionRow(base, token, s.key, homeWatchedQuery(s.t), 20).catch(() => null));
+    getPlexSectionRow(base, token, s.key, homeWatchedQuery(s.t), 30).catch(() => null));
   if (gone()) return null;
   let merged = mergeRail(watched);
   if (!merged.length) {
@@ -232,6 +236,14 @@ interface RailBrowserProps {
   onPlay: (it: PlexItem) => void;
   onExitToTabs: () => void;
 }
+// Tile geometry for the rail window: w-[104px] tiles, gap-3 (12px).
+const RAIL_TILE_PX = 116;
+const RAIL_GAP_PX = 12;
+/** Tiles kept in the DOM behind and ahead of the highlight. Sixteen ahead
+ *  is a full 1080p row and change; the rest of a 100-title rail is a spacer. */
+const RAIL_BEHIND = 8;
+const RAIL_AHEAD = 16;
+
 const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs }: RailBrowserProps) => {
   const [row, setRow] = useState(0);
   const [col, setCol] = useState(0);
@@ -273,16 +285,37 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs }:
         <div key={r.id} data-plex-row={r.id}>
           <div className="text-base font-quicksand font-semibold text-white/90 mb-2">{r.title}</div>
           <div className="flex gap-3 overflow-x-auto py-2 px-2 -mx-2">
-            {r.items.map((it, ci) => (
-              <PlexPosterTile
-                key={it.ratingKey}
-                item={it}
-                base={base}
-                token={token}
-                focused={isActive && ri === row && ci === col}
-                onClick={() => { setRow(ri); setCol(ci); onPlay(it); }}
-              />
-            ))}
+            {(() => {
+              // Only the tiles near the highlight are real; the rest of the
+              // rail is two spacers of the same width. A 100-title rail then
+              // costs the DOM and the image decoder the same as a dozen —
+              // and a cursor move re-renders a dozen tiles, not four hundred.
+              const focusedRow = isActive && ri === row;
+              const at = focusedRow ? col : 0;
+              const start = Math.max(0, at - RAIL_BEHIND);
+              const end = Math.min(r.items.length, at + RAIL_AHEAD);
+              const before = start > 0 ? start * RAIL_TILE_PX - RAIL_GAP_PX : 0;
+              const after = end < r.items.length ? (r.items.length - end) * RAIL_TILE_PX - RAIL_GAP_PX : 0;
+              return (
+                <>
+                  {before > 0 && <div className="flex-shrink-0" style={{ width: before }} aria-hidden="true" />}
+                  {r.items.slice(start, end).map((it, i) => {
+                    const ci = start + i;
+                    return (
+                      <PlexPosterTile
+                        key={it.ratingKey}
+                        item={it}
+                        base={base}
+                        token={token}
+                        focused={focusedRow && ci === col}
+                        onClick={() => { setRow(ri); setCol(ci); onPlay(it); }}
+                      />
+                    );
+                  })}
+                  {after > 0 && <div className="flex-shrink-0" style={{ width: after }} aria-hidden="true" />}
+                </>
+              );
+            })()}
           </div>
         </div>
       ))}
@@ -307,7 +340,7 @@ interface HomePanelProps {
 }
 const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs }: HomePanelProps) => {
   const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
-  const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
+  const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=100';
   const [onDeck, setOnDeck] = useState<PlexItem[]>(() => getCachedHub(base, onDeckPath) ?? []);
   const [recent, setRecent] = useState<PlexItem[]>(() => getCachedHub(base, recentPath) ?? []);
   const [released, setReleased] = useState<PlexItem[]>(() => getCachedHub(base, HOME_RELEASED_KEY) ?? []);
@@ -480,7 +513,7 @@ function getCachedDiscover(base: string): DiscoverRow[] {
 
 // ─── SEARCH PANEL ──────────────────────────────────────────────────────────
 type SearchPanelProps = Omit<HomePanelProps, 'libraries'>;
-interface SearchChip { label: string; group: 'popular' | 'recent' }
+interface SearchChip { label: string; group: 'didyoumean' | 'popular' | 'recent'; item?: PlexItem }
 
 const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTabs }: SearchPanelProps) => {
   const [query, setQuery] = useState('');
@@ -497,25 +530,33 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   // the server's most-played titles), then this box's own recent ones.
   const [popular, setPopular] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>(() => loadRecentSearches());
+  // "Did you mean": the closest titles when the search comes back thin
+  // (see plexFuzzy.ts) — a dropped apostrophe or colon, a letter off.
+  const [didYouMean, setDidYouMean] = useState<PlexItem[]>([]);
   useEffect(() => {
     let cancelled = false;
     void fetchPopularSearches().then((list) => {
       if (cancelled) return;
       if (list.length) { setPopular(list); return; }
       const mostWatched = getCachedHub(base, HOME_POPULAR_KEY) ?? [];
-      const recentlyAdded = getCachedHub(base, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30') ?? [];
+      const recentlyAdded = getCachedHub(base, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=100') ?? [];
       setPopular(fallbackSuggestions([...mostWatched, ...recentlyAdded].map((it) => it.title)));
     });
     return () => { cancelled = true; };
   }, [base]);
   const chips = useMemo<SearchChip[]>(() => {
+    // With something typed, the only chips are "Did you mean"; the popular
+    // and recent rows belong to the empty box.
+    if (query.trim()) {
+      return didYouMean.map((it) => ({ label: it.year ? `${it.title} (${it.year})` : it.title, group: 'didyoumean' as const, item: it }));
+    }
     const seen = new Set<string>();
     const out: SearchChip[] = [];
     for (const label of popular) { const k = label.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ label, group: 'popular' }); } }
     for (const label of recent) { const k = label.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ label, group: 'recent' }); } }
     return out;
-  }, [popular, recent]);
-  const showChips = !query.trim() && chips.length > 0;
+  }, [popular, recent, didYouMean, query]);
+  const showChips = chips.length > 0;
 
   // A search the viewer meant — they went down into the results or opened
   // one — is what "Popular searches" counts and what this box remembers.
@@ -531,15 +572,28 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   // Debounced search: 400ms + stale-seq guard so only the latest keystroke wins.
   useEffect(() => {
     const q = query.trim();
-    if (!q) { setResults([]); return; }
+    if (!q) { setResults([]); setDidYouMean([]); return; }
     const mySeq = ++seqRef.current;
     setLoading(true);
     const t = window.setTimeout(() => {
       try { trackEvent('player_search', 'player', { scope: 'plex', query: q.slice(0, 64) }); } catch { /* ignore */ }
-      searchPlex(base, token, q)
-        .then((r) => { if (mySeq === seqRef.current) { setResults(familyOnly(r, adultKeys)); setCursor(0); } })
-        .catch(() => { if (mySeq === seqRef.current) setResults([]); })
-        .finally(() => { if (mySeq === seqRef.current) setLoading(false); });
+      void (async () => {
+        let r: PlexItem[] = [];
+        try { r = familyOnly(await searchPlex(base, token, q), adultKeys); } catch { r = []; }
+        if (mySeq !== seqRef.current) return;
+        setResults(r); setCursor(0); setLoading(false);
+        if (!searchLooksThin(q, r)) { setDidYouMean([]); return; }
+        // Thin answer. Search for the pieces of what was typed and score
+        // everything that comes back against it.
+        const variants = searchVariants(q);
+        const lists = await Promise.all(variants.map((v) =>
+          searchPlex(base, token, v).then((x) => familyOnly(x, adultKeys)).catch(() => [] as PlexItem[])));
+        if (mySeq !== seqRef.current) return;
+        const shown = new Set(r.map((it) => String(it.ratingKey)));
+        const near = rankSuggestions(q, [...lists.flat(), ...r], shown);
+        setDidYouMean(near);
+        if (near.length) { try { trackEvent('plex_search_suggest', 'player', { query: q.slice(0, 64), hits: near.length }); } catch { /* ignore */ } }
+      })();
     }, 400);
     return () => { window.clearTimeout(t); };
   }, [query, base, token, adultKeys]);
@@ -559,9 +613,12 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   const resultsRef = useRef(results); useEffect(() => { resultsRef.current = results; }, [results]);
   const onPlayRef = useRef(onPlay); useEffect(() => { onPlayRef.current = onPlay; }, [onPlay]);
   const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
-  const pickChip = useCallback((label: string) => {
-    setQuery(label);
-    commit(label);
+  const pickChip = useCallback((chip: SearchChip) => {
+    // A "Did you mean" chip is a real title: open it. The others are
+    // searches: run them.
+    if (chip.item) { commit(queryRef.current); onPlayRef.current(chip.item); return; }
+    setQuery(chip.label);
+    commit(chip.label);
     setZone('input');
     setTimeout(() => inputRef.current?.focus(), 0);
   }, [commit]);
@@ -583,11 +640,12 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
           return;
         }
         if (inInput && e.key === 'ArrowDown') {
-          if (resultsRef.current.length > 0) {
+          // Chips sit above the results, so they come first when there are any.
+          if (showChipsRef.current) {
+            e.preventDefault(); e.stopPropagation(); inputRef.current?.blur(); setZone('chips'); setChipIdx(0);
+          } else if (resultsRef.current.length > 0) {
             e.preventDefault(); e.stopPropagation(); inputRef.current?.blur(); setZone('grid'); setCursor(0);
             commit(queryRef.current);
-          } else if (showChipsRef.current) {
-            e.preventDefault(); e.stopPropagation(); inputRef.current?.blur(); setZone('chips'); setChipIdx(0);
           }
         } else if (inInput && e.key === 'ArrowUp') {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); inputRef.current?.blur(); onExitRef.current();
@@ -607,17 +665,22 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         else if (e.key === 'ArrowLeft') { if (i > 0) setChipIdx(i - 1); else onExitRef.current(); }
         else if (e.key === 'ArrowRight') { if (i + 1 < list.length) setChipIdx(i + 1); }
         else if (e.key === 'ArrowDown') {
-          // Next group down, same column feel: first chip of the other group.
+          // Next group down, else the results under the chips.
           const g = list[i]?.group;
           const j = list.findIndex((c, k) => k > i && c.group !== g);
           if (j >= 0) setChipIdx(j);
+          else if (resultsRef.current.length > 0) { setZone('grid'); setCursor(0); commit(queryRef.current); }
         }
-        else if (e.key === 'Enter' || e.key === ' ') { const c = list[i]; if (c) pickChip(c.label); }
+        else if (e.key === 'Enter' || e.key === ' ') { const c = list[i]; if (c) pickChip(c); }
         return;
       }
       const total = resultsRef.current.length;
       const cur = cursorRef.current;
-      if (e.key === 'ArrowUp') { if (cur < COLS) { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); } else setCursor(cur - COLS); }
+      if (e.key === 'ArrowUp') {
+        if (cur >= COLS) setCursor(cur - COLS);
+        else if (showChipsRef.current) { setZone('chips'); setChipIdx(Math.max(0, chipsRef.current.length - 1)); }
+        else { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); }
+      }
       else if (e.key === 'ArrowDown') { if (cur + COLS < total) setCursor(cur + COLS); }
       else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setCursor(cur - 1); else onExitRef.current(); }
       else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setCursor(cur + 1); }
@@ -642,15 +705,15 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         />
         {loading && <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />}
       </div>
-      {showChips ? (
+      {showChips && (
         <div className="flex flex-col gap-5 py-2">
-          {(['popular', 'recent'] as const).map((group) => {
+          {(['didyoumean', 'popular', 'recent'] as const).map((group) => {
             const mine = chips.map((c, i) => ({ c, i })).filter(({ c }) => c.group === group);
             if (!mine.length) return null;
             return (
               <div key={group}>
                 <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-2">
-                  {group === 'popular' ? 'Popular searches' : 'Recent on this box'}
+                  {group === 'didyoumean' ? 'Did you mean' : group === 'popular' ? 'Popular searches' : 'Recent on this box'}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {mine.map(({ c, i }) => {
@@ -661,7 +724,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
                         type="button"
                         tabIndex={-1}
                         data-focused={focused ? 'true' : 'false'}
-                        onClick={() => { setChipIdx(i); pickChip(c.label); }}
+                        onClick={() => { setChipIdx(i); pickChip(c); }}
                         className={`tv-ring appearance-none px-4 py-2 rounded-full border text-sm font-nunito transition-transform duration-150 ${
                           focused ? 'bg-brand-gold/25 border-brand-gold text-white scale-105 z-10' : 'bg-white/5 border-white/15 text-white/85'
                         }`}
@@ -675,8 +738,9 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
             );
           })}
         </div>
-      ) : results.length === 0 ? (
-        <div className="text-brand-ice/70 font-nunito text-sm text-center py-6">{query.trim() ? (loading ? 'Searching…' : 'No results.') : 'Type to search Plex.'}</div>
+      )}
+      {results.length === 0 ? (
+        showChips ? null : <div className="text-brand-ice/70 font-nunito text-sm text-center py-6">{query.trim() ? (loading ? 'Searching…' : 'No results.') : 'Type to search Plex.'}</div>
       ) : (
         <div className="grid grid-cols-6 gap-3">
           {Array.from({ length: rows * COLS }).map((_, idx) => {
@@ -1112,7 +1176,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const base = conn.base;
     const token = conn.token;
     const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
-    const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
+    const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=100';
     // The settle screen. Everything Home is about to show is loaded HERE,
     // behind the loader, so that once Home appears nothing else lands: no
     // rail arriving mid-scroll and re-laying the list, no dozen requests and
