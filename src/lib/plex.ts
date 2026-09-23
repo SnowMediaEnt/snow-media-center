@@ -524,13 +524,15 @@ export function plexImageUrl(base: string, path: string | undefined, token: stri
 
 
 /** Resolve the direct-play part for a movie (its original file on the server). */
-export async function getPlexPart(base: string, token: string, ratingKey: string): Promise<{ partKey?: string; container?: string; audioCodec?: string }> {
-  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<{ Media?: Array<{ audioCodec?: string; Part?: Array<{ key?: string; container?: string }> }> }> } }>(
+export async function getPlexPart(base: string, token: string, ratingKey: string): Promise<{ partKey?: string; container?: string; audioCodec?: string; bitrateKbps?: number }> {
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<{ Media?: Array<{ audioCodec?: string; bitrate?: number; Part?: Array<{ key?: string; container?: string }> }> }> } }>(
     'GET', `${base}/library/metadata/${ratingKey}`, token,
   );
   const media0 = data?.MediaContainer?.Metadata?.[0]?.Media?.[0];
   const part = media0?.Part?.[0];
-  return { partKey: part?.key, container: part?.container, audioCodec: media0?.audioCodec };
+  // Media.bitrate is the whole file's average, in kbps.
+  const kbps = Number(media0?.bitrate);
+  return { partKey: part?.key, container: part?.container, audioCodec: media0?.audioCodec, bitrateKbps: kbps > 0 ? kbps : undefined };
 }
 
 export function plexDirectUrl(base: string, partKey: string, token: string): string {
@@ -559,12 +561,17 @@ export function plexTranscodeUrl(
 ): string {
   const path = encodeURIComponent(`/library/metadata/${ratingKey}`);
   const cid = encodeURIComponent(getPlexClientId());
+  // A new transcode session for every start. Without one the server keys the
+  // session on the client id alone, so a quality change could be handed the
+  // old session (the previous quality, or one it is still tearing down).
+  const session = `smc${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   // audioCodec=aac + maxAudioChannels=6 force Plex to re-encode audio to AAC
   // (up to 5.1) instead of direct-streaming the original — needed for Fire TV
   // devices that reject offloaded EAC3/AC3 / trigger DECODER_INIT_FAILED.
   let url = `${base}/video/:/transcode/universal/start.m3u8`
     + `?path=${path}&protocol=hls&fastSeek=1&directPlay=0&directStream=1`
     + `&audioCodec=aac&maxAudioChannels=6`
+    + `&session=${session}&X-Plex-Session-Identifier=${session}&videoQuality=100&autoAdjustQuality=0`
     + `&mediaIndex=0&partIndex=0&X-Plex-Client-Identifier=${cid}&X-Plex-Token=${encodeURIComponent(token)}`;
   if (opts?.maxVideoBitrateKbps) url += `&maxVideoBitrate=${opts.maxVideoBitrateKbps}`;
   if (opts?.videoResolution) url += `&videoResolution=${encodeURIComponent(opts.videoResolution)}`;
@@ -1375,4 +1382,11 @@ export function clearPlexCaches(): void {
   _serversMemo.clear();
   _libsMemo.clear();
   _facetMemo.clear();
+  // The seasonal rows kept across launches (plexSeasonal.ts).
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('smc-season-v1:')) localStorage.removeItem(k);
+    }
+  } catch { /* storage unavailable */ }
 }

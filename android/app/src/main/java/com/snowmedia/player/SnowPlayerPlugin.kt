@@ -26,8 +26,11 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.TransferListener
 // Direct reference so the build FAILS if the FFmpeg decoder dependency ever
 // drops out, instead of silently regressing to "video plays, no sound".
 import androidx.media3.decoder.ffmpeg.FfmpegLibrary
@@ -314,7 +317,15 @@ class SnowPlayerPlugin : Plugin() {
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(8000)
             .setReadTimeoutMs(8000)
-        val dataSourceFactory = DefaultDataSource.Factory(act, httpFactory)
+        // A Plex server converting a video answers its playlist and first
+        // segments only once the transcoder has something: on a 4K file or a
+        // remote server that is often past 8 s, and the 8 s timeout turned
+        // every quality change into a failure. Live TV keeps its quick 8 s.
+        val transcodeFactory = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(8000)
+            .setReadTimeoutMs(30000)
+        val dataSourceFactory = DefaultDataSource.Factory(act, TranscodeAwareFactory(httpFactory, transcodeFactory))
         // Closed captions on raw MPEG-TS live streams.
         //
         // By default Media3 only creates a caption track when the PMT carries an
@@ -913,5 +924,47 @@ class SnowPlayerPlugin : Plugin() {
             slots.clear()
         }
         super.handleOnDestroy()
+    }
+}
+
+/** Plex transcode requests (playlist and segments) get the patient source. */
+private class TranscodeAwareFactory(
+    private val normal: DataSource.Factory,
+    private val transcode: DataSource.Factory,
+) : DataSource.Factory {
+    override fun createDataSource(): DataSource =
+        TranscodeAwareDataSource(normal.createDataSource(), transcode.createDataSource())
+}
+
+private class TranscodeAwareDataSource(
+    private val normal: DataSource,
+    private val transcode: DataSource,
+) : DataSource {
+    private var current: DataSource? = null
+
+    override fun addTransferListener(transferListener: TransferListener) {
+        normal.addTransferListener(transferListener)
+        transcode.addTransferListener(transferListener)
+    }
+
+    override fun open(dataSpec: DataSpec): Long {
+        val path = dataSpec.uri.path ?: ""
+        val src = if (path.contains("/transcode/universal/")) transcode else normal
+        current = src
+        return src.open(dataSpec)
+    }
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+        current?.read(buffer, offset, length) ?: C.RESULT_END_OF_INPUT
+
+    override fun getUri(): Uri? = current?.uri
+
+    override fun getResponseHeaders(): Map<String, List<String>> =
+        current?.responseHeaders ?: emptyMap()
+
+    override fun close() {
+        val src = current
+        current = null
+        src?.close()
     }
 }

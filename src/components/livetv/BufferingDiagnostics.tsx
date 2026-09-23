@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { formatMbps, useBufferDiagnostics, type Verdict } from '@/lib/bufferDiagnostics';
+import { formatMbps, useBufferDiagnostics, type ClassifyResult, type DiagSnapshot, type Verdict } from '@/lib/bufferDiagnostics';
 
 /**
  * Small corner card shown during a playback stall. Tells the viewer whether
@@ -32,6 +32,11 @@ interface BufferingDiagnosticsProps {
   showHelpHint?: boolean;
   /** One extra muted line under the verdict, e.g. "Route: Plex Relay". */
   footnote?: string;
+  /** A player that knows more about what it plays (Plex: the file's bitrate,
+   *  the route) can replace the general verdict. null keeps it. */
+  explain?: (snap: DiagSnapshot) => ClassifyResult | null;
+  /** What the video needs, kbps, shown next to the measured speeds. */
+  needKbps?: number;
   className?: string;
 }
 
@@ -46,7 +51,7 @@ const VERDICT_COLOR: Record<Verdict, string> = {
   ok: 'text-emerald-300',
 };
 
-const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-right', showHelpHint = false, footnote, className }: BufferingDiagnosticsProps) => {
+const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-right', showHelpHint = false, footnote, explain, needKbps, className }: BufferingDiagnosticsProps) => {
   const snap = useBufferDiagnostics();
   const buffering = bufferingProp ?? snap.bufferingForMs > 0;
   // 'hidden' → (stall ≥ 2 s) → 'active' → (recovered) → 'recovered' (2.5 s) → 'hidden'
@@ -91,9 +96,10 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
   // The prop says we are stalled but the module says 'ok' (integrator passes
   // the prop without wiring setBuffering/beginStream): show a neutral verdict
   // rather than "Buffering · 7s" next to a green "Playing normally".
-  const shown = snap.verdict === 'ok'
-    ? { verdict: 'unknown' as const, headline: 'Buffering…', detail: 'Measuring your connection…' }
+  const general = snap.verdict === 'ok'
+    ? { ...snap, verdict: 'unknown' as const, headline: 'Buffering…', detail: 'Measuring your connection…' }
     : snap;
+  const shown = explain?.(general) ?? general;
 
   return (
     <div
@@ -118,6 +124,7 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
               )}
             </span>
             <span>Internet {formatMbps(snap.probeKbps)}</span>
+            {needKbps != null && <span>Needs {formatMbps(needKbps)}</span>}
           </div>
           <p aria-live="polite" className={`mt-2 text-sm font-semibold leading-snug ${VERDICT_COLOR[shown.verdict]}`}>{shown.headline}</p>
           {shown.detail && (

@@ -12,7 +12,8 @@
 //     rings can't be occluded by an under-estimated row.
 //   • Poster images are loaded off the JS heap by PlexImage (see that file).
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Compass, Settings as SettingsIcon, Eye, EyeOff, LogOut, MessageSquare, Tv, Film } from 'lucide-react';
+import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Compass, Settings as SettingsIcon, Eye, EyeOff, LogOut, MessageSquare, Tv, Film, Ghost } from 'lucide-react';
+import { activeSeason, loadSeasonRows, loadStoredSeason, storeSeasonRow, type Season } from '@/lib/plexSeasonal';
 import { useVirtualizer } from '@tanstack/react-virtual';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
@@ -64,6 +65,8 @@ import {
 } from '@/lib/plexDiscover';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
+import { explainPlexStall } from '@/lib/plexStallVerdict';
+import type { DiagSnapshot } from '@/lib/bufferDiagnostics';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { pauseLoading, resumeLoading, waitForResume } from '@/lib/loadGate';
 
@@ -73,6 +76,8 @@ import { pauseLoading, resumeLoading, waitForResume } from '@/lib/loadGate';
 // contacted. isDemo() is always false on native, so the shipped TV app keeps
 // using the real network functions verbatim.
 const DEMO = isDemo();
+/** How long a server-side convert may take to start before falling back. */
+const TRANSCODE_START_GRACE_MS = 30000;
 const getPlexLibraries = DEMO ? demoGetLibraries : _getPlexLibraries;
 const getPlexLibraryItems = DEMO ? demoGetLibraryItems : _getPlexLibraryItems;
 const getPlexHub = DEMO ? demoGetHub : _getPlexHub;
@@ -221,7 +226,7 @@ const ROW_H_ESTIMATE = 250;   // pre-measure fallback for the virtualizer
 const PAGE_FIRST = 60;
 const PAGE_MORE = 200;
 
-type TabType = 'home' | 'discover' | 'search' | 'movie' | 'show' | 'request' | 'manage';
+type TabType = 'home' | 'discover' | 'search' | 'seasonal' | 'movie' | 'show' | 'request' | 'manage';
 interface Tab { key: string; title: string; type: TabType; libKey?: string; }
 type MenuGroup = 'home' | 'libraries' | 'more';
 interface MenuEntry { tabIdx: number; title: string; group: MenuGroup; key: string; }
@@ -697,6 +702,62 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
   return <RailBrowser isActive={isActive} base={base} token={token} rows={rows} onPlay={onPlay} onExitToTabs={onExitToTabs} />;
 });
 DiscoverPanel.displayName = 'DiscoverPanel';
+
+// ─── SEASONAL PANEL (Halloween …) ─────────────────────────────────────────
+// A holiday collection: a hand-picked list looked up on this server (see
+// plexSeasonal.ts). Same loading manners as Discover: waits for the cursor to
+// rest on the menu entry and lands one row at a time. What it finds is kept
+// for half a day, across launches, so the lookups run about twice a day.
+const SeasonalPanel = memo(({ isActive, base, token, libraries, adultKeys, season, onPlay, onExitToTabs }: HomePanelProps & { season: Season }) => {
+  const libKeysSig = libraries.map((l) => `${l.type}:${l.key}`).join(',');
+  const order = useCallback((got: Record<string, PlexItem[]>): DiscoverRow[] =>
+    season.rows.filter((r) => got[r.id]?.length).map((r) => ({ id: r.id, title: r.title, items: got[r.id] })),
+  [season]);
+  const [rawRows, setRows] = useState<DiscoverRow[]>(() => order(loadStoredSeason(season.id, base, libKeysSig)));
+  const rows = useMemo<DiscoverRow[]>(
+    () => rawRows.map((r) => ({ ...r, items: familyOnly(r.items, adultKeys) })).filter((r) => r.items.length > 0),
+    [rawRows, adultKeys]);
+  const [loading, setLoading] = useState(rows.length === 0);
+  const [done, setDone] = useState(false);
+
+  const kickRef = useRef<(() => void) | null>(null);
+  const isActiveRef = useRef(isActive);
+  useEffect(() => { isActiveRef.current = isActive; if (isActive) kickRef.current?.(); }, [isActive]);
+
+  useEffect(() => {
+    if (DEMO || !libraries.length) { setLoading(false); setDone(true); return; }
+    let cancelled = false;
+    const epoch = getHubEpoch();
+    const got = loadStoredSeason(season.id, base, libKeysSig);
+    // Rows already stored (empty ones too) are not looked up again.
+    const have = new Set(Object.keys(got));
+    setRows(order(got));
+    if (season.rows.every((r) => have.has(r.id))) { setLoading(false); setDone(true); return; }
+    const run = async () => {
+      await loadSeasonRows(base, token, libraries, season, (def, items) => {
+        if (epoch !== getHubEpoch()) return; // signed out meanwhile
+        storeSeasonRow(season.id, base, libKeysSig, def.id, items);
+        if (cancelled) return;
+        got[def.id] = items;
+        setRows(order(got));
+        if (items.length) setLoading(false);
+      }, () => cancelled, (id) => have.has(id));
+      if (!cancelled) { setLoading(false); setDone(true); }
+    };
+    let started = false;
+    const start = () => { if (started || cancelled) return; started = true; window.clearTimeout(timer); void run(); };
+    const timer = window.setTimeout(start, isActiveRef.current ? 0 : 400);
+    kickRef.current = start;
+    return () => { cancelled = true; window.clearTimeout(timer); kickRef.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base, token, libKeysSig, season]);
+
+  if (loading && rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Gathering the {season.title} collection…</div>;
+  if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">{done ? `None of the ${season.title} collection is on this server yet.` : 'Loading…'}</div>;
+
+  return <RailBrowser isActive={isActive} base={base} token={token} rows={rows} onPlay={onPlay} onExitToTabs={onExitToTabs} />;
+});
+SeasonalPanel.displayName = 'SeasonalPanel';
 
 /** Replay a cached Discover: the order row lists the ids, each row is its
  *  own cached hub. Anything missing (TTL lapsed) means a fresh load. */
@@ -1625,6 +1686,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // request, on the path meant to be quickest. Home loads on Back instead.
   const [deepLinked, setDeepLinked] = useState(false);
   const [playing, setPlaying] = useState<PlexItem | null>(null);
+  const playingKeyRef = useRef<string | null>(null);
+  playingKeyRef.current = playing?.ratingKey ?? null;
   const [playingTitle, setPlayingTitle] = useState('');
   const [playingResLabel, setPlayingResLabel] = useState('');
 
@@ -1645,6 +1708,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }, [playing, playingTitle, fullscreen]);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [useTranscode, setUseTranscode] = useState(false);
+  // Read by the slow-load timer, which is armed outside React's render.
+  const useTranscodeRef = useRef(false);
+  useTranscodeRef.current = useTranscode;
+  // The playing file's average bitrate (kbps), for the buffering card.
+  const [fileKbps, setFileKbps] = useState<number | undefined>(undefined);
   const [startPos, setStartPos] = useState<number | undefined>(undefined);
   const [tracksTick, setTracksTick] = useState(0);
   const [subCtx, setSubCtx] = useState<SubtitleSearchContext | undefined>(undefined);
@@ -1836,19 +1904,23 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     [visibleLibraries, adultKeys],
   );
 
+  // Decided once per Plex visit: the menu does not reshuffle at midnight.
+  const [season] = useState<Season | null>(() => activeSeason());
   const tabs = useMemo<Tab[]>(() => {
     const t: Tab[] = [
       { key: '__home', title: 'Home', type: 'home' },
       { key: '__discover', title: 'Discover', type: 'discover' },
       { key: '__search', title: 'Search', type: 'search' },
     ];
+    // In season (e.g. Halloween): its own entry at the top of the libraries.
+    if (season) t.push({ key: `__season_${season.id}`, title: season.title, type: 'seasonal' });
     for (const l of visibleLibraries) {
       t.push({ key: l.key, title: l.title, type: (l.type === 'show' ? 'show' : 'movie'), libKey: l.key });
     }
     t.push({ key: '__request', title: 'Request', type: 'request' });
     t.push({ key: '__manage', title: 'Settings', type: 'manage' });
     return t;
-  }, [visibleLibraries]);
+  }, [visibleLibraries, season]);
 
   const currentTab = tabs[libIdx];
   const homeIdx = 0;
@@ -1860,7 +1932,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const order: MenuGroup[] = ['home', 'libraries', 'more'];
     for (const g of order) {
       tabs.forEach((t, i) => {
-        const group: MenuGroup = (t.type === 'home' || t.type === 'discover' || t.type === 'search') ? 'home' : (t.type === 'movie' || t.type === 'show') ? 'libraries' : 'more';
+        const group: MenuGroup = (t.type === 'home' || t.type === 'discover' || t.type === 'search') ? 'home' : (t.type === 'movie' || t.type === 'show' || t.type === 'seasonal') ? 'libraries' : 'more';
         if (group === g) out.push({ tabIdx: i, title: t.title, group, key: t.key });
       });
     }
@@ -2262,6 +2334,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // Reset quality state so the overlay's Quality menu reflects reality.
     setQualityKey('original');
     setUseTranscode(false);
+    setFileKbps(undefined);
+    // What the file needs, for the buffering card. Off the start path.
+    void getPlexPart(conn.base, conn.token, ratingKey)
+      .then((p) => setFileKbps((cur) => (playingKeyRef.current === ratingKey ? p.bitrateKbps : cur)))
+      .catch(() => { /* card just won't show it */ });
     // Flip fullscreen ON *before* any await so the loading UI paints
     // immediately — otherwise the user stares at the grid for the ~1-3s
     // getPlexPart round-trip and mashes OK, queueing up phantom presses.
@@ -2294,6 +2371,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Logged with every play so the Hub can tell a throttled-relay box from a
   // slow-server one, and shown in the player's Help menu + buffering card.
   const routeLabel = conn ? plexRouteLabel(conn.route, conn.base) : '';
+  // The buffering card's verdict, told what this video needs.
+  const qualityCapKbps = PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKey)?.maxVideoBitrateKbps;
+  const stallNeedKbps = useTranscode ? (qualityCapKbps ?? fileKbps) : fileKbps;
+  const explainStall = useCallback((snap: DiagSnapshot) => explainPlexStall(snap, {
+    fileKbps, targetKbps: qualityCapKbps, transcoding: useTranscode, route: conn?.route,
+  }), [fileKbps, qualityCapKbps, useTranscode, conn?.route]);
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext, partKey?: string) => {
     try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie', route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     if (!DEMO) recordPlexWatch(it);
@@ -2521,10 +2604,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     clearSlowLoadTimer();
     stillLoadingRef.current = true;
     setSlowLoad(false);
+    // Converting has to fill the server's first segments before anything
+    // plays: on a 4K or HEVC file, or a remote server, that routinely takes
+    // longer than 8 s. Giving up at 8 s is what made every "1080p · 8 Mbps"
+    // pick bounce straight back to Original.
     slowLoadTimerRef.current = window.setTimeout(() => {
       if (stillLoadingRef.current) setSlowLoad(true);
       slowLoadTimerRef.current = null;
-    }, 8000) as unknown as number;
+    }, useTranscodeRef.current ? TRANSCODE_START_GRACE_MS : 8000) as unknown as number;
   }, [clearSlowLoadTimer]);
   useEffect(() => { armSlowLoadTimerRef.current = armSlowLoadTimer; }, [armSlowLoadTimer]);
   useEffect(() => {
@@ -2595,7 +2682,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       setSlowLoad(false);
       stillLoadingRef.current = true;
       setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
-      try { toast({ title: 'Converting failed — playing original quality' }); } catch { /* ignore */ }
+      try { toast({ title: "The Plex server couldn't convert this in time", description: 'Playing original quality instead.' }); } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
   }, [slowLoad, useTranscode, playing, conn, native, startPos, toast]);
@@ -2801,7 +2888,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       // winner depends on which effect re-registered last — so it looked
       // intermittent.
       if (zoneRef.current === 'grid' && t) {
-        if (t.type === 'home' || t.type === 'discover' || t.type === 'search' || t.type === 'request' || t.type === 'manage') return;
+        if (t.type === 'home' || t.type === 'discover' || t.type === 'search' || t.type === 'seasonal' || t.type === 'request' || t.type === 'manage') return;
         if (
           (t.type === 'movie' || t.type === 'show') && t.libKey
           && (libraryModeRef.current[t.libKey] ?? 'rows') === 'rows'
@@ -3011,7 +3098,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           </div>
         )}
         {NATIVE_PLAYBACK && !native.error && (
-          <BufferingDiagnostics buffering={native.buffering} showHelpHint footnote={routeLabel ? `Route: ${routeLabel}` : undefined} />
+          <BufferingDiagnostics buffering={native.buffering} showHelpHint footnote={routeLabel ? `Route: ${routeLabel}` : undefined} explain={explainStall} needKbps={stallNeedKbps} />
         )}
         {NATIVE_PLAYBACK && !native.error && (
           <PlexPlayerOverlay
@@ -3047,7 +3134,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // about the browse view.
   const menuCollapsed = zone !== 'tabs';
   const menuIcon = (t: Tab) =>
-    t.type === 'home' ? HomeIcon : t.type === 'discover' ? Compass : t.type === 'search' ? SearchIcon : t.type === 'manage' ? SettingsIcon
+    t.type === 'home' ? HomeIcon : t.type === 'discover' ? Compass : t.type === 'search' ? SearchIcon : t.type === 'seasonal' ? Ghost : t.type === 'manage' ? SettingsIcon
     : t.type === 'request' ? MessageSquare : t.type === 'show' ? Tv : Film;
   return (
     <>
@@ -3128,6 +3215,17 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             token={conn.token}
             libraries={familyLibraries}
             adultKeys={adultKeys}
+            onPlay={openDetail}
+            onExitToTabs={exitToMenu}
+          />
+        ) : currentTab?.type === 'seasonal' && conn && season ? (
+          <SeasonalPanel
+            isActive={isActive && zone === 'grid' && !detailItem && !fullscreen}
+            base={conn.base}
+            token={conn.token}
+            libraries={familyLibraries}
+            adultKeys={adultKeys}
+            season={season}
             onPlay={openDetail}
             onExitToTabs={exitToMenu}
           />
