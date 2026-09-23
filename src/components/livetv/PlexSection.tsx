@@ -40,6 +40,7 @@ import {
   setPlexPlaybackActive } from '@/lib/plex';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
+import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
 import { commitSearch, fallbackSuggestions, fetchPopularSearches, loadRecentSearches } from '@/lib/plexSearches';
 import { rankSuggestions, searchLooksThin, searchVariants } from '@/lib/plexFuzzy';
 import {
@@ -141,10 +142,15 @@ async function mapLimit<T, R>(list: T[], limit: number, fn: (t: T) => Promise<R>
  *  from an adult library, not with an adult certificate or genre, not by
  *  name. A library that is itself adult keeps its own tab; that is a place
  *  the viewer goes on purpose. */
-const familyOnly = (items: PlexItem[] | null | undefined, adultKeys: Set<string>): PlexItem[] =>
+/** On a Kids profile they also keep only what its certificates allow — rails
+ *  kept from an earlier visit were fetched unfiltered. `own`: the profile's
+ *  own Continue Watching and My List, which it could only have reached
+ *  through the filter and which carry no certificate. */
+const familyOnly = (items: PlexItem[] | null | undefined, adultKeys: Set<string>, own = false): PlexItem[] =>
   (items ?? []).filter((it) =>
     !(it.librarySectionID && adultKeys.has(String(it.librarySectionID))) &&
-    !isAdultPlexItem({ title: it.title, grandparentTitle: it.grandparentTitle, contentRating: it.contentRating, genres: it.genres }));
+    !isAdultPlexItem({ title: it.title, grandparentTitle: it.grandparentTitle, contentRating: it.contentRating, genres: it.genres }) &&
+    (own || !kidsLevel() || kidsAllowsPlex(it)));
 
 /** Home's Recently Released rail: the cache, else the server, cached when it
  *  lands. Null when nothing came back, so a Wi-Fi blip is not cached. */
@@ -626,9 +632,9 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const r: DiscoverRow[] = [];
     // This viewer's own (plexProgress). The server's On Deck belongs to the
     // shared provider account, so it was everyone's viewing mixed together.
-    const cont = familyOnly(DEMO ? onDeck : serverResume ? mergeContinue(ownContinue, onDeck) : ownContinue, adultKeys);
+    const cont = familyOnly(DEMO ? onDeck : serverResume ? mergeContinue(ownContinue, onDeck) : ownContinue, adultKeys, !DEMO && !serverResume);
     if (cont.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: cont.slice(0, RAIL_CAP) });
-    const mine = familyOnly(listItems, adultKeys);
+    const mine = familyOnly(listItems, adultKeys, true);
     if (mine.length > 0) r.push({ id: 'mylist', title: 'My List', items: mine.slice(0, RAIL_CAP) });
     r.push({ id: 'added', title: 'Recently Added', items: familyOnly(recent, adultKeys).slice(0, RAIL_CAP) });
     const rel = familyOnly(released, adultKeys);
@@ -2008,8 +2014,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     for (const l of visibleLibraries) {
       t.push({ key: l.key, title: l.title, type: (l.type === 'show' ? 'show' : 'movie'), libKey: l.key });
     }
-    t.push({ key: '__request', title: 'Request', type: 'request' });
-    t.push({ key: '__manage', title: 'Settings', type: 'manage' });
+    // A Kids profile does not request titles or change Plex's settings.
+    if (!kidsLevel()) {
+      t.push({ key: '__request', title: 'Request', type: 'request' });
+      t.push({ key: '__manage', title: 'Settings', type: 'manage' });
+    }
     return t;
   }, [visibleLibraries, season]);
 

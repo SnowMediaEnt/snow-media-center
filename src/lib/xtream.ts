@@ -8,6 +8,7 @@
 // @/data/liveTvDemo and NO network request is ever made to a provider host.
 // isDemo() is always false on native, so these gates are dead code in the APK.
 import { isDemo } from '@/lib/demoMode';
+import { kidsAllowsCategory, kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import {
   demoGetLiveCategories,
   demoGetLiveStreams,
@@ -696,18 +697,35 @@ export function forgetLiveStreams(c: XtreamCreds, categoryId?: string): void {
   _liveCatalogue.delete(buildBase(c, params));
 }
 
-export async function getLiveCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
+// A Kids profile (kidsFilter) sees only the categories it may open and the
+// channels in them, whichever screen asks. The kept lists stay whole; the
+// filter is applied on the way out.
+const kidsCategories = (cats: XtreamCategory[]): XtreamCategory[] =>
+  kidsLevel() ? (cats ?? []).filter((cat) => kidsAllowsCategory(cat?.category_name, cat)) : cats;
+const kidsCategoryIds = async (load: () => Promise<XtreamCategory[]>): Promise<Set<string>> => {
+  try { return new Set(kidsCategories(await load()).map((cat) => String(cat.category_id))); } catch { return new Set(); }
+};
+async function kidsStreams<T extends { name?: unknown; category_id?: unknown }>(list: T[], load: () => Promise<XtreamCategory[]>): Promise<T[]> {
+  if (!kidsLevel()) return list;
+  const ids = await kidsCategoryIds(load);
+  return (list ?? []).filter((st) => kidsAllowsChannel(st, ids));
+}
+const rawLiveCategories = (c: XtreamCreds): Promise<XtreamCategory[]> => {
   if (isDemo()) return demoGetLiveCategories();
   const url = buildBase(c, { action: 'get_live_categories' });
   return memoLive(url, () => httpGetJson<XtreamCategory[]>(url));
+};
+
+export async function getLiveCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
+  return kidsCategories(await rawLiveCategories(c));
 }
 
 export async function getLiveStreams(c: XtreamCreds, categoryId?: string): Promise<XtreamLiveStream[]> {
-  if (isDemo()) return demoGetLiveStreams(categoryId);
+  if (isDemo()) return kidsStreams(await demoGetLiveStreams(categoryId), () => rawLiveCategories(c));
   const params: Record<string, string | number> = { action: 'get_live_streams' };
   if (categoryId) params.category_id = categoryId;
   const url = buildBase(c, params);
-  return memoLive(url, () => httpGetJson<XtreamLiveStream[]>(url));
+  return kidsStreams(await memoLive(url, () => httpGetJson<XtreamLiveStream[]>(url)), () => rawLiveCategories(c));
 }
 
 /**
@@ -718,9 +736,9 @@ export async function getLiveStreams(c: XtreamCreds, categoryId?: string): Promi
  * channels"; nothing depends on it, so a failure is theirs to swallow.
  */
 export async function countLiveStreams(c: XtreamCreds): Promise<{ total: number; byCat: Record<string, number> }> {
-  const list = isDemo()
+  const list = await kidsStreams(isDemo()
     ? await demoGetLiveStreams()
-    : await httpGetJson<XtreamLiveStream[]>(buildBase(c, { action: 'get_live_streams' }), 45000);
+    : await httpGetJson<XtreamLiveStream[]>(buildBase(c, { action: 'get_live_streams' }), 45000), () => rawLiveCategories(c));
   const byCat: Record<string, number> = {};
   for (const s of list) {
     const key = String(s?.category_id ?? '').trim();
@@ -754,16 +772,18 @@ export function buildNativeLiveUrl(c: XtreamCreds, streamId: number): string {
 
 // --- Movies (VOD) -----------------------------------------------------------
 
+const rawVodCategories = (c: XtreamCreds): Promise<XtreamCategory[]> =>
+  isDemo() ? demoGetVodCategories() : httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_vod_categories' }));
+
 export async function getVodCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
-  if (isDemo()) return demoGetVodCategories();
-  return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_vod_categories' }));
+  return kidsCategories(await rawVodCategories(c));
 }
 
 export async function getVodStreams(c: XtreamCreds, categoryId?: string): Promise<XtreamVodStream[]> {
-  if (isDemo()) return demoGetVodStreams(categoryId);
   const params: Record<string, string | number> = { action: 'get_vod_streams' };
   if (categoryId) params.category_id = categoryId;
-  return httpGetJson<XtreamVodStream[]>(buildBase(c, params));
+  const list = isDemo() ? await demoGetVodStreams(categoryId) : await httpGetJson<XtreamVodStream[]>(buildBase(c, params));
+  return kidsStreams(list, () => rawVodCategories(c));
 }
 
 export async function getVodInfo(c: XtreamCreds, vodId: number): Promise<XtreamVodInfo> {
@@ -778,16 +798,18 @@ export function buildMovieUrl(c: XtreamCreds, streamId: number, ext = 'mp4'): st
 
 // --- Series -----------------------------------------------------------------
 
+const rawSeriesCategories = (c: XtreamCreds): Promise<XtreamCategory[]> =>
+  isDemo() ? demoGetSeriesCategories() : httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_series_categories' }));
+
 export async function getSeriesCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
-  if (isDemo()) return demoGetSeriesCategories();
-  return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_series_categories' }));
+  return kidsCategories(await rawSeriesCategories(c));
 }
 
 export async function getSeries(c: XtreamCreds, categoryId?: string): Promise<XtreamSeries[]> {
-  if (isDemo()) return demoGetSeries(categoryId);
   const params: Record<string, string | number> = { action: 'get_series' };
   if (categoryId) params.category_id = categoryId;
-  return httpGetJson<XtreamSeries[]>(buildBase(c, params));
+  const list = isDemo() ? await demoGetSeries(categoryId) : await httpGetJson<XtreamSeries[]>(buildBase(c, params));
+  return kidsStreams(list, () => rawSeriesCategories(c));
 }
 
 export async function getSeriesInfo(c: XtreamCreds, seriesId: number): Promise<XtreamSeriesInfo> {

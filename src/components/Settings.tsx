@@ -8,7 +8,8 @@ import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
 import { peekIntent, clearIntent, INTENT_KEYS } from '@/lib/appActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo } from '@/lib/demoMode';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound } from 'lucide-react';
+import { openProfiles } from '@/lib/profilesUi';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
@@ -37,6 +38,7 @@ type SettingsFocus =
   | 'tab-alerts'
   | 'tab-ai'
   | 'media-content'
+  | 'ui-profiles'
   | 'ui-content-bar-toggle'
   | 'ui-dashboard-size-toggle'
   | 'ui-mail-notify-toggle'
@@ -134,7 +136,7 @@ const Settings = ({ onBack }: SettingsProps) => {
       }
 
       const getUiFocusOrder = (): SettingsFocus[] => {
-        const order: SettingsFocus[] = ['ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
+        const order: SettingsFocus[] = ['ui-profiles', 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
         if (deviceAlerts.supported) order.push('ui-device-alerts-toggle');
         if (isAdmin) {
           order.push('ui-player-toggle');
@@ -177,7 +179,8 @@ const Settings = ({ onBack }: SettingsProps) => {
           return;
         }
         if (event.key === 'Enter' || event.key === ' ') {
-          if (focusedElement === 'ui-content-bar-toggle') setMediaBarEnabledState(!mediaBarEnabled);
+          if (focusedElement === 'ui-profiles') openProfiles('pick');
+          else if (focusedElement === 'ui-content-bar-toggle') setMediaBarEnabledState(!mediaBarEnabled);
           else if (focusedElement === 'ui-dashboard-size-toggle') saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large');
           else if (focusedElement === 'ui-mail-notify-toggle') saveMailNotify(!mailNotify);
           else if (focusedElement === 'ui-device-alerts-toggle') void toggleDeviceAlerts(!deviceAlerts.status.enabled);
@@ -323,9 +326,9 @@ const Settings = ({ onBack }: SettingsProps) => {
           } else if (focusedElement === 'tab-media' && activeTab === 'media') {
             setMediaManagerActive(true);
           } else if (focusedElement === 'tab-ui' && activeTab === 'ui') {
-            setFocusedElement('ui-content-bar-toggle');
+            setFocusedElement('ui-profiles');
             setTimeout(() => {
-              const card = document.querySelector('[data-settings-focus="ui-content-bar-toggle"]') as HTMLElement | null;
+              const card = document.querySelector('[data-settings-focus="ui-profiles"]') as HTMLElement | null;
               card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }, 30);
           } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
@@ -512,6 +515,25 @@ const Settings = ({ onBack }: SettingsProps) => {
 
           <TabsContent value="ui" className="mt-6 space-y-4">
             <PlayerAccountCard />
+            <Card
+              {...settingsFocusAttrs('ui-profiles')}
+              tabIndex={0}
+              role="button"
+              onFocus={() => setFocusedElement('ui-profiles')}
+              onClick={() => openProfiles('pick')}
+              className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-profiles')}`}
+            >
+              <div className="flex items-start gap-3">
+                <UsersRound className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                <div>
+                  <h3 className="text-lg font-bold text-white">Profiles</h3>
+                  <p className="text-sm text-white/70 mt-1">
+                    Switch who's watching, or add profiles for everyone in the house — each with their own
+                    Continue Watching, My List, favourites and home screen. Kids profiles and PINs too.
+                  </p>
+                </div>
+              </div>
+            </Card>
             <Card
               {...settingsFocusAttrs('ui-content-bar-toggle')}
               tabIndex={0}

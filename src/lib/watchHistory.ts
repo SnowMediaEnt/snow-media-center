@@ -11,6 +11,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { XtreamCreds, XtreamLiveStream } from '@/lib/xtream';
 import type { PlexItem } from '@/lib/plex';
+import { cloudItemKey, fromCloudItemKey, resolveViewer, scopeToProfile, viewerAccountId, viewerKey } from '@/lib/viewer';
 
 export type WatchKind = 'channel' | 'plex';
 
@@ -33,14 +34,10 @@ const MAX = 60;
 
 const storageKey = (viewer: string) => `${PREFIX}${viewer}`;
 
-/** The viewer key: the Snow Media user id when signed in, else the box. */
+/** The viewer key (see viewer.ts): the Snow Media account when signed in,
+ *  else the box, plus the profile picked on it. */
 export async function currentViewer(): Promise<string> {
-  try {
-    const { data } = await supabase.auth.getSession();
-    const id = data.session?.user?.id;
-    if (id) return id;
-  } catch { /* offline or no session */ }
-  return 'device';
+  return resolveViewer();
 }
 
 export const loadWatchHistory = (viewer: string): WatchEntry[] => {
@@ -69,7 +66,7 @@ const cloudUpsert = async (userId: string, entry: WatchEntry): Promise<void> => 
     await supabase.from('watch_history').upsert({
       user_id: userId,
       kind: entry.kind,
-      item_key: entry.key,
+      item_key: cloudItemKey(entry.key),
       title: entry.title,
       subtitle: entry.subtitle ?? null,
       poster: entry.poster ?? null,
@@ -85,9 +82,10 @@ async function record(entry: Omit<WatchEntry, 'watchedAt' | 'count'>): Promise<v
   const full: WatchEntry = { ...entry, watchedAt: Date.now(), count: 1 };
   const merged = mergeEntry(loadWatchHistory(viewer), full);
   saveWatchHistory(viewer, merged);
-  if (viewer !== 'device') {
+  const account = viewerAccountId();
+  if (account && viewerKey() === viewer) {
     const stored = merged.find((e) => e.kind === full.kind && e.key === full.key) ?? full;
-    void cloudUpsert(viewer, stored);
+    void cloudUpsert(account, stored);
   }
 }
 
@@ -120,27 +118,32 @@ export function recordPlexWatch(item: Pick<PlexItem, 'ratingKey' | 'title' | 'ty
   });
 }
 
-/** Pull the account's rows and fold them into the local list (newest wins). */
-export async function syncWatchHistoryFromCloud(userId: string): Promise<WatchEntry[]> {
-  const local = loadWatchHistory(userId);
+/** Pull the account's rows for this viewer (the current profile's) and fold
+ *  them into the local list (newest wins). `viewer` is currentViewer(). */
+export async function syncWatchHistoryFromCloud(viewer: string): Promise<WatchEntry[]> {
+  const local = loadWatchHistory(viewer);
+  const userId = viewerAccountId();
+  if (!userId || viewerKey() !== viewer) return local;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await scopeToProfile(supabase
       .from('watch_history')
       .select('kind,item_key,title,subtitle,poster,payload,watched_at,count')
       .eq('user_id', userId)
       // The same table holds Plex resume points (kind 'plex_progress', see
       // plexProgress); only watched channels and titles belong here.
-      .in('kind', ['channel', 'plex'])
+      .in('kind', ['channel', 'plex']))
       .order('watched_at', { ascending: false })
       .limit(MAX);
-    if (error || !data) return local;
+    if (error || !data || viewerKey() !== viewer) return local;
     const byKey = new Map<string, WatchEntry>();
     for (const e of local) byKey.set(`${e.kind}:${e.key}`, e);
     for (const r of data) {
       const kind = r.kind as WatchKind;
+      const itemKey = fromCloudItemKey(String(r.item_key));
+      if (itemKey == null) continue;
       const entry: WatchEntry = {
         kind,
-        key: String(r.item_key),
+        key: itemKey,
         title: String(r.title),
         subtitle: r.subtitle ?? undefined,
         poster: r.poster ?? undefined,
@@ -153,7 +156,7 @@ export async function syncWatchHistoryFromCloud(userId: string): Promise<WatchEn
       if (!have || have.watchedAt < entry.watchedAt) byKey.set(k, entry);
     }
     const merged = Array.from(byKey.values()).sort((a, b) => b.watchedAt - a.watchedAt).slice(0, MAX);
-    try { localStorage.setItem(storageKey(userId), JSON.stringify(merged)); } catch { /* ignore */ }
+    try { localStorage.setItem(storageKey(viewer), JSON.stringify(merged)); } catch { /* ignore */ }
     return merged;
   } catch {
     return local;

@@ -14,7 +14,12 @@ import AdminKnowledge from "./pages/AdminKnowledge";
 import NotFound from "./pages/NotFound";
 import Welcome from "./pages/Welcome";
 import { initAnalytics } from "@/lib/analytics";
+import { bootProfilesSync } from "@/lib/profiles";
 import { onFirstInteraction, runWhenIdle } from "@/utils/idle";
+
+// Who is watching, before the first screen loads anything (a Kids profile's
+// filters must be on from the first request).
+bootProfilesSync();
 
 // Kick off silent background analytics AFTER first interaction (or 3.5s idle
 // fallback) so it never competes with the boot/render path on weak boxes.

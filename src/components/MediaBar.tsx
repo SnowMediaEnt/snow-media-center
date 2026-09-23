@@ -20,6 +20,7 @@ import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { buildViewerBar, type BarChannel } from '@/lib/contentBar';
 import { WATCH_HISTORY_EVENT } from '@/lib/watchHistory';
 import { isAdultTitle } from '@/lib/adultContent';
+import { kidsLevel } from '@/lib/kidsFilter';
 
 type MediaItem = {
   id: string;
@@ -326,7 +327,9 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
         if (error) throw error;
         // The function reports its own failures as HTTP 200 + `error`.
         if (data?.error) throw new Error(String(data.error));
-        const next: MediaItem[] = (data?.items ?? []).filter(showable);
+        // The shared feed carries no certificates, so a Kids profile's bar is
+        // built from its own history and channels alone.
+        const next: MediaItem[] = kidsLevel() ? [] : (data?.items ?? []).filter(showable);
         if (next.length) { feedItemsRef.current = next; composeItems(); }
       } catch (e) {
         console.warn('[MediaBar] fetch failed:', (e as Error).message);

@@ -105,3 +105,6 @@ verify_jwt = false
 # INTERNAL_FN_SECRET, nothing on a customer device calls it.
 [functions.mail-publish]
 verify_jwt = false
+
+[functions.profile-pin-reset]
+verify_jwt = false

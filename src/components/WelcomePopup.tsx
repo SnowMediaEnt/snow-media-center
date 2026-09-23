@@ -12,6 +12,7 @@ import { useVersion } from '@/hooks/useVersion';
  */
 const CHANGELOG: Record<string, string[]> = {
   '1.7.7': [
+    '👨‍👩‍👧 Profiles: "Who\'s watching?" when the app opens — everyone gets their own Continue Watching, My List, favourites and home screen. Kids profiles show only what suits their age, and any profile can have a PIN (Settings → UI → Profiles)',
     '⚡ Plex is faster on every box: tile-sized posters, no background library downloads, nothing reloading as you move',
     '📍 Plex keeps your place: closing a movie puts you back on the same rail or episode list',
     '🎬 Plex: a short "Getting Plex ready…" while every Home rail and its posters load, so the screen is smooth the moment it appears instead of stuttering while rows arrive',

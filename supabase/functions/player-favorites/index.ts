@@ -290,6 +290,13 @@ Deno.serve(async (req) => {
     }
     const op = body.op === 'set' ? 'set' : body.op === 'get' ? 'get' : null;
     if (!op) return jsonResponse({ ok: false, reason: 'bad_op' });
+    // A profile other than the main one keeps its own list on the same line
+    // (the app's "Who's watching?"). Stored under the line's username plus
+    // the profile id — a key no panel username can collide with, since '#'
+    // is not in one. The line is still proven by its password, below.
+    const profile = typeof body.profile === 'string' && /^[a-z0-9]{1,16}$/.test(body.profile) && body.profile !== 'main'
+      ? body.profile : null;
+    const listKey = profile ? `${username}#p:${profile}` : username;
 
     // Throttle BEFORE the panel is contacted.
     const ipHash = await hashClientIp(req).catch(() => null);
@@ -314,7 +321,7 @@ Deno.serve(async (req) => {
       // one comparison key is how compare-and-set quietly stops comparing.
       const { data, error } = await admin.rpc('player_favorites_read', {
         p_host: host,
-        p_username: username,
+        p_username: listKey,
       });
       if (error) {
         console.error('[player-favorites] get failed:', error.message);
@@ -340,7 +347,7 @@ Deno.serve(async (req) => {
 
     const { data, error } = await admin.rpc('player_favorites_upsert_cas', {
       p_host: host,
-      p_username: username,
+      p_username: listKey,
       p_favorites: favorites,
       p_base_version: baseVersion,
     });

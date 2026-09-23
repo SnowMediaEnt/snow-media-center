@@ -22,6 +22,8 @@ import { buildLines } from '@/lib/liveLines';
 import { loadFavoritesForLine, lineKey } from '@/lib/favoritesSync';
 import { loadPlexServer, getPlexLibraries, getPlexRelated, plexImageUrl } from '@/lib/plex';
 import { currentViewer, loadWatchHistory, syncWatchHistoryFromCloud, channelKey, type WatchEntry } from '@/lib/watchHistory';
+import { viewerIsAccount } from '@/lib/viewer';
+import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 
 export type BarSource = 'history' | 'live' | 'foryou' | 'plex';
 
@@ -76,9 +78,12 @@ async function categoryIndex(line: XtreamCreds): Promise<CategoryIndex> {
   return { names, adult };
 }
 
+/** Also true, on a Kids profile, for a channel outside the categories it may
+ *  open (the index then lists only those — see kidsFilter). */
 const adultChannel = (idx: CategoryIndex | undefined, name: string, categoryId?: string, row?: unknown): boolean =>
   (!!categoryId && !!idx?.adult.has(String(categoryId))) ||
-  isAdultChannel({ name, categoryName: categoryId ? idx?.names.get(String(categoryId)) : undefined, row });
+  isAdultChannel({ name, categoryName: categoryId ? idx?.names.get(String(categoryId)) : undefined, row }) ||
+  (!!kidsLevel() && (!categoryId || !idx?.names.has(String(categoryId)) || !kidsAllowsChannel({ name, category_id: categoryId, ...(row as object ?? {}) }, null)));
 
 const channelItem = (source: BarSource, line: XtreamCreds, s: XtreamLiveStream, subtitle?: string): BarItem => ({
   id: `ch-${channelKey(line, s.stream_id)}`,
@@ -118,7 +123,7 @@ export async function buildViewerBar(): Promise<ViewerBar> {
 
   // History: the account's rows folded in every so often, local otherwise.
   let history: WatchEntry[];
-  if (viewer !== 'device' && (viewer !== lastCloudViewer || Date.now() - lastCloudSync > CLOUD_SYNC_MS)) {
+  if (viewerIsAccount() && (viewer !== lastCloudViewer || Date.now() - lastCloudSync > CLOUD_SYNC_MS)) {
     history = await syncWatchHistoryFromCloud(viewer);
     lastCloudSync = Date.now(); lastCloudViewer = viewer;
   } else {
@@ -149,6 +154,8 @@ export async function buildViewerBar(): Promise<ViewerBar> {
       }
     } catch { /* libraries unreachable: the title, genre and certificate tests still apply */ }
   }
+  // (A Kids profile's Plex lists are filtered where they are fetched, and its
+  // history is its own.)
   const adultPlex = (title: string, librarySectionID?: string | number, extra?: { contentRating?: string; genres?: string[] }): boolean =>
     (librarySectionID != null && adultLibs.has(String(librarySectionID))) ||
     isAdultPlexItem({ title, contentRating: extra?.contentRating, genres: extra?.genres });

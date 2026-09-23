@@ -41,6 +41,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { isDemo } from '@/lib/demoMode';
+import { MAIN_PROFILE, viewerProfileId } from '@/lib/viewer';
 import { loadFavoritesData, saveFavoritesData, type FavChannel, type XtreamCreds } from '@/lib/xtream';
 
 const META_KEY = 'snow-livetv-favs-meta-v2';
@@ -81,6 +82,14 @@ export const normalizeHost = (host: string): string => {
 
 export const lineKey = (creds: Pick<XtreamCreds, 'host' | 'username'>): string =>
   `${normalizeHost(creds.host)}|${creds.username.trim().toLowerCase()}`;
+
+/** The list a favourite belongs to: the line, and on a profile other than the
+ *  main one (profiles.ts) that profile's own list on the line. Everything
+ *  below — meta, stash, the server copy — is keyed by this. */
+const favKey = (creds: Pick<XtreamCreds, 'host' | 'username'>): string => {
+  const p = viewerProfileId();
+  return p === MAIN_PROFILE ? lineKey(creds) : `${lineKey(creds)}#p:${p}`;
+};
 
 // ── local meta + per-line stash ────────────────────────────────────────────
 
@@ -168,7 +177,7 @@ export function prepareLocalForLine(
   current: Map<number, FavChannel>,
 ): Map<number, FavChannel> | null {
   if (isDemo()) return null;
-  const key = lineKey(creds);
+  const key = favKey(creds);
   const meta = loadMeta();
   if (!meta || meta.line === key) return null;
 
@@ -200,6 +209,7 @@ async function call(creds: XtreamCreds, body: Record<string, unknown>): Promise<
         host: normalizeHost(creds.host),
         username: creds.username.trim().toLowerCase(),
         password: creds.password,
+        ...(viewerProfileId() !== MAIN_PROFILE ? { profile: viewerProfileId() } : {}),
         ...body,
       },
     });
@@ -310,7 +320,7 @@ export async function reconcileFavoritesOnLoad(
   getLocal: () => Map<number, FavChannel>,
 ): Promise<Map<number, FavChannel> | null> {
   if (isDemo()) return null;
-  const key = lineKey(creds);
+  const key = favKey(creds);
   const startedAt = Date.now();
 
   const cloud = await pull(creds);
@@ -394,7 +404,7 @@ export function scheduleFavoritesPush(
   onAdopt: (m: Map<number, FavChannel>) => void,
 ): void {
   if (isDemo()) return;
-  const key = lineKey(creds);
+  const key = favKey(creds);
   const prev = loadMeta();
   // prepareLocalForLine runs before the screen accepts toggles, so a mismatch
   // here means the caller skipped it. Refuse rather than push one line's list
@@ -412,7 +422,7 @@ async function runPendingPush(): Promise<void> {
   const p = pending;
   pending = null;
   if (!p) return;
-  const key = lineKey(p.creds);
+  const key = favKey(p.creds);
   const meta = loadMeta();
   if (!meta || meta.line !== key) return;
   const adopt = await pushAndSettle(p.creds, p.favorites, meta.version, key);
@@ -436,19 +446,19 @@ export function flushFavoritesPush(): void {
 
 const isActiveLine = (creds: XtreamCreds): boolean => {
   const meta = loadMeta();
-  return !meta || meta.line === lineKey(creds);
+  return !meta || meta.line === favKey(creds);
 };
 
 /** The list for a line, wherever it lives. */
 export function loadFavoritesForLine(creds: XtreamCreds): Map<number, FavChannel> {
   if (isDemo() || isActiveLine(creds)) return loadFavoritesData();
-  return toMap(restoreFor(lineKey(creds))?.favorites ?? []);
+  return toMap(restoreFor(favKey(creds))?.favorites ?? []);
 }
 
 /** Save a line's list locally: the active line's to the local store, any other line's to its stash. */
 export function saveFavoritesForLine(creds: XtreamCreds, favorites: Map<number, FavChannel>): void {
   if (isDemo() || isActiveLine(creds)) { saveFavoritesData(favorites); return; }
-  const key = lineKey(creds);
+  const key = favKey(creds);
   const prev = restoreFor(key);
   stashFor(key, { favorites: [...favorites.values()], version: prev?.version ?? null, dirty: true });
 }
@@ -458,7 +468,7 @@ const stashPending = new Map<string, { creds: XtreamCreds; favorites: FavChannel
 
 /** Push a stashed line against the version its stash last saw; settle the stash from the answer. */
 async function pushStash(creds: XtreamCreds, list: FavChannel[]): Promise<Map<number, FavChannel> | null> {
-  const key = lineKey(creds);
+  const key = favKey(creds);
   const before = restoreFor(key);
   const res = await setRemote(creds, list, before?.version ?? null);
   if (!res) { stashFor(key, { favorites: list, version: before?.version ?? null, dirty: true }); return null; }
@@ -479,7 +489,7 @@ export function scheduleFavoritesPushForLine(
 ): void {
   if (isDemo()) return;
   if (isActiveLine(creds)) { scheduleFavoritesPush(creds, favorites, onAdopt); return; }
-  const key = lineKey(creds);
+  const key = favKey(creds);
   stashPending.set(key, { creds, favorites: [...favorites.values()], onAdopt });
   const t = stashPushTimers.get(key);
   if (t != null) window.clearTimeout(t);
@@ -504,7 +514,7 @@ export async function reconcileFavoritesForLine(
 ): Promise<Map<number, FavChannel> | null> {
   if (isDemo()) return null;
   if (isActiveLine(creds)) return reconcileFavoritesOnLoad(creds, getLocal);
-  const key = lineKey(creds);
+  const key = favKey(creds);
   const cloud = await pull(creds);
   if (!cloud) return null;
   const stash = restoreFor(key);

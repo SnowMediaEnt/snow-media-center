@@ -37,6 +37,10 @@ import { useSnowMail } from '@/hooks/useSnowMail';
 import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
+import { useActiveProfile } from '@/hooks/useActiveProfile';
+import { openProfiles } from '@/lib/profilesUi';
+import { avatarColors } from '@/lib/profiles';
+import ProfileGate from '@/components/profiles/ProfileGate';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
 import { toast } from '@/hooks/use-toast';
@@ -207,7 +211,20 @@ interface HomeHeaderProps {
   isGiveawayFocused?: boolean;
   giveawayLabel?: string;
   onOpenGiveaway?: () => void;
+  /** Who is watching, when there is more than one profile (or a Kids one). */
+  profileBadge?: { name: string; avatar: string; kids: boolean } | null;
 }
+
+/** The profile's colour square with its initial. */
+const ProfileDot = ({ name, avatar, size }: { name: string; avatar: string; size: number }) => (
+  <span
+    aria-hidden="true"
+    className="inline-flex items-center justify-center rounded-md font-bold text-white shrink-0"
+    style={{ width: size, height: size, fontSize: size * 0.55, backgroundColor: avatarColors(avatar).bg }}
+  >
+    {(name.trim()[0] || '?').toUpperCase()}
+  </span>
+);
 
 const HomeHeader = memo((props: HomeHeaderProps) => {
   const {
@@ -215,8 +232,9 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
     isAdminFocused, isAuthFocused, isSettingsFocused,
     adminLabel, dashboardLabel, signInLabel, settingsLabel,
     onOpenAdmin, onOpenUser, onOpenAuth, onOpenSettings,
-    showGiveawayBadge, isGiveawayFocused, giveawayLabel, onOpenGiveaway,
+    showGiveawayBadge, isGiveawayFocused, giveawayLabel, onOpenGiveaway, profileBadge,
   } = props;
+  const dotSize = tier === 'xl' ? 28 : tier === 'lg' ? 24 : 20;
 
   const btnClass = tier === 'xl' ? 'rounded-xl h-14 text-xl px-6' : tier === 'lg' ? 'rounded-xl h-12 text-xl px-4' : 'rounded-xl h-12';
   const iconClass = tier === 'xl' ? 'w-6 h-6' : tier === 'lg' ? 'w-5 h-5' : 'w-4 h-4';
@@ -262,7 +280,25 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
           {adminLabel}
         </Button>
       )}
-      {hasUser ? (
+      {profileBadge && !profileBadge.kids && (
+        <span className="inline-flex items-center rounded-xl bg-black/35 px-3 py-1.5 text-white/90" title="Switch profile in Settings">
+          <ProfileDot name={profileBadge.name} avatar={profileBadge.avatar} size={dotSize} />
+          <span className="ml-2 max-w-[9rem] truncate">{profileBadge.name}</span>
+        </span>
+      )}
+      {profileBadge?.kids ? (
+        <Button
+          onClick={onOpenUser}
+          variant="white"
+          size={btnSize}
+          tabIndex={0}
+          data-focused={isAuthFocused ? 'true' : 'false'}
+          className={`tv-focusable home-focus-surface ${btnClass}`}
+        >
+          <ProfileDot name={profileBadge.name} avatar={profileBadge.avatar} size={dotSize} />
+          <span className="ml-2 text-gray-800 max-w-[9rem] truncate">{profileBadge.name}</span>
+        </Button>
+      ) : hasUser ? (
         <Button
           onClick={onOpenUser}
           variant="white"
@@ -445,7 +481,16 @@ const Index = () => {
   const [screenHeight, setScreenHeight] = useState(window.innerHeight);
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { isAdmin } = useAdminRole();
+  const { isAdmin: isAdminRole } = useAdminRole();
+  // Who is watching. A Kids profile's home has no Store, Admin, giveaway or
+  // Dashboard, its account button switches profile, and Settings asks for a
+  // grown-up's PIN (see lib/profiles.ts).
+  const { profile, count: profileCount } = useActiveProfile();
+  const kids = !!profile.kidsLevel;
+  const isAdmin = isAdminRole && !kids;
+  const kidsRef = useRef(kids);
+  useEffect(() => { kidsRef.current = kids; }, [kids]);
+  const [profileGateOpen, setProfileGateOpen] = useState(true);
   const { unreadCount: unreadTicketCount } = useUnreadTickets();
   const { badgeCount: unreadMailCount } = useSnowMail({ announce: true });
   const { version } = useVersion();
@@ -512,7 +557,7 @@ const Index = () => {
   // Active-giveaway detection for the home gift badge + first-open popup.
   // Session-cached, idle-deferred, snapshot-backed — no polling.
   const activeGiveaway = useActiveGiveaway(giveawayOn);
-  const giveawayBadgeOn = giveawayOn && !!activeGiveaway;
+  const giveawayBadgeOn = giveawayOn && !!activeGiveaway && !kids;
   // If the badge disappears while focused (slot -4), drop back to Dashboard/Sign In.
   useEffect(() => {
     if (!giveawayBadgeOn) {
@@ -558,6 +603,8 @@ const Index = () => {
     const cancel = runWhenIdle(() => setDeferredOverlaysReady(true), 2000);
     return cancel;
   }, []);
+  // …and until "Who's watching?" has been answered.
+  const overlaysReady = deferredOverlaysReady && !profileGateOpen;
 
   // Handle pinning apps from popup
   const handlePinFromPopup = useCallback((app: InstalledApp) => {
@@ -769,17 +816,21 @@ const Index = () => {
   const stableGoBack = useCallback(() => goBackRef.current(), []);
   const stableNavigateTo = useCallback((view: string) => navigateToRef.current(view), []);
   const onOpenAdmin = useCallback(() => navigateToRef.current('admin-support'), []);
-  const onOpenUser = useCallback(() => navigateToRef.current('user'), []);
+  const onOpenUser = useCallback(() => { if (kidsRef.current) openProfiles('pick'); else navigateToRef.current('user'); }, []);
   // "My Account" with no website user: already signed in to the Player →
   // dashboard (player-only mode); otherwise → Account Chooser (Dreamstreams /
   // Vibez sign-in OR website account). Web demo (?demo=1) keeps going straight
   // to /auth exactly as before (the Player sign-in is disabled in the demo).
   const onOpenAuth = useCallback(() => {
+    if (kidsRef.current) { openProfiles('pick'); return; }
     if (isDemo()) { navigateRef.current('/auth'); return; }
     navigateToRef.current(playerAccountRef.current ? 'user' : 'account-signin');
   }, []);
 
-  const onOpenSettings = useCallback(() => navigateToRef.current('settings'), []);
+  const onOpenSettings = useCallback(() => {
+    if (kidsRef.current) openProfiles('grownup', () => navigateToRef.current('settings'));
+    else navigateToRef.current('settings');
+  }, []);
   const onOpenDashboardFromBanner = useCallback(() => navigateToRef.current('user'), []);
   const onLogoFocus = useCallback(() => setFocusedButton(-5), []);
   // Home gift badge → Giveaway section (tracked)
@@ -840,8 +891,9 @@ const Index = () => {
   // at the far left and is the card focused at launch (focusedButton 0 = first
   // card). Everything below looks cards up by id, never by fixed position.
   const cardIds = useMemo<HomeCardId[]>(
-    () => (playerEnabled ? ['player', 'apps', 'support', 'store'] : ['apps', 'support', 'store']),
-    [playerEnabled],
+    () => (playerEnabled ? ['player', 'apps', 'support', 'store'] : ['apps', 'support', 'store'])
+      .filter((id) => !(kids && id === 'store')) as HomeCardId[],
+    [playerEnabled, kids],
   );
   const appsCardIdx = cardIds.indexOf('apps');
   const appsCardIdxRef = useRef(appsCardIdx);
@@ -1037,8 +1089,11 @@ const Index = () => {
             if (isAdminRef.current) navigateToRef.current('admin-support');
           } else if (focusedButton === -2) {
             // Website user OR Player-signed-in → dashboard; web demo → /auth
-            // (unchanged); otherwise → Account Chooser.
-            if (user || playerAccountRef.current) {
+            // (unchanged); otherwise → Account Chooser. A Kids profile: the
+            // profile switcher.
+            if (kidsRef.current) {
+              openProfiles('pick');
+            } else if (user || playerAccountRef.current) {
               navigateToRef.current('user');
             } else if (isDemo()) {
               navigateRef.current('/auth');
@@ -1047,8 +1102,9 @@ const Index = () => {
             }
 
           } else if (focusedButton === -1) {
-            // Navigate to settings
-            navigateToRef.current('settings');
+            // Navigate to settings (a Kids profile: a grown-up's PIN first)
+            if (kidsRef.current) openProfiles('grownup', () => navigateToRef.current('settings'));
+            else navigateToRef.current('settings');
           } else if (focusedButton >= 0) {
             activateByIndexRef.current[focusedButton]?.();
           } else if (focusedButton === -4 && giveawayBadgeOnRef.current) {
@@ -1125,6 +1181,7 @@ const Index = () => {
             isGiveawayFocused={focusedButton === -4}
             giveawayLabel={t('home.giveaway.title')}
             onOpenGiveaway={onOpenGiveaway}
+            profileBadge={profileCount > 1 || kids ? { name: profile.name, avatar: profile.avatar, kids } : null}
           />
 
           {/* Expiration banner — top-left, absolute, never displaces the header row */}
@@ -1302,9 +1359,12 @@ const Index = () => {
         }}
       />
 
+      {/* "Who's watching?" at start, and the profile screens on demand. */}
+      <ProfileGate onOpenChange={setProfileGateOpen} />
+
       {/* First-launch welcome + per-version "What's New" popup — mounted only
           after first-frame idle so its effect chain doesn't pile onto boot. */}
-      {deferredOverlaysReady && currentView === 'home' && (
+      {overlaysReady && currentView === 'home' && (
         <Suspense fallback={null}>
           <WelcomePopup onOpenChange={setWelcomeOpen} />
         </Suspense>
@@ -1312,7 +1372,7 @@ const Index = () => {
 
       {/* Pre-Event Steps (PPV nights). Singleton row in app_alerts with
           source='pre_event'. Admin toggles via Settings → App Alerts. */}
-      {deferredOverlaysReady && currentView === 'home' && !welcomeOpen && preEventOpen && (
+      {overlaysReady && currentView === 'home' && !welcomeOpen && preEventOpen && (
         <Suspense fallback={null}>
           <PreEventStepsDialog
             open={preEventOpen}
@@ -1324,7 +1384,7 @@ const Index = () => {
 
       {/* Giveaway winners announced — queues behind other boot popups via its
           own modal-presence polling. */}
-      {deferredOverlaysReady && currentView === 'home' && !welcomeOpen && !preEventOpen && winnersGiveaway && (
+      {overlaysReady && currentView === 'home' && !welcomeOpen && !preEventOpen && winnersGiveaway && (
         <Suspense fallback={null}>
           <GiveawayWinnersPopup giveaway={winnersGiveaway} onDismiss={dismissWinners} />
         </Suspense>
@@ -1332,7 +1392,7 @@ const Index = () => {
 
       {/* Admin broadcast alert (app_match = 'all') — queues behind other boot
           popups via its own modal-presence polling. */}
-      {deferredOverlaysReady && currentView === 'home' && !welcomeOpen && !preEventOpen && broadcastAlert && (
+      {overlaysReady && currentView === 'home' && !welcomeOpen && !preEventOpen && broadcastAlert && (
         <Suspense fallback={null}>
           <BroadcastAlertPopup open alert={broadcastAlert} onDismiss={dismissBroadcast} />
         </Suspense>
@@ -1342,7 +1402,7 @@ const Index = () => {
 
       {/* First-run opt-in prompt for the home content bar. Only shows after
           the welcome popup is dismissed and only if the bar is currently OFF. */}
-      {deferredOverlaysReady && currentView === 'home' && (
+      {overlaysReady && currentView === 'home' && (
         <Suspense fallback={null}>
           <MediaBarPrompt />
         </Suspense>
@@ -1351,7 +1411,7 @@ const Index = () => {
       {/* First-open giveaway promo — once per device per giveaway. Sequenced
           behind WelcomePopup / MediaBarPrompt / app alerts via its own
           modal-presence polling; never in demo mode (giveawayOn gate). */}
-      {deferredOverlaysReady && currentView === 'home' && giveawayOn && (
+      {overlaysReady && currentView === 'home' && giveawayOn && (
         <Suspense fallback={null}>
           <GiveawayPromoPopup onViewGiveaway={onOpenGiveawayFromPopup} />
         </Suspense>
@@ -1359,7 +1419,7 @@ const Index = () => {
 
       {/* Background auto-update check (native only). On by default; users can
           disable via localStorage key smc-auto-update-enabled = "false". */}
-      {deferredOverlaysReady && (
+      {overlaysReady && (
         <Suspense fallback={null}>
           <AutoUpdatePrompt paused={currentView !== 'home'} />
         </Suspense>

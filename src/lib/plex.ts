@@ -3,6 +3,8 @@
 // on native we use CapacitorHttp; web falls back to fetch (will CORS-fail — the
 // installed Android app is the supported path, same as the Xtream client).
 
+import { kidsAllowsLibrary, kidsAllowsPlex, kidsLevel, kidsRatingQuery } from '@/lib/kidsFilter';
+
 const PLEX_TOKEN_KEY = 'snow-plex-token-v1';
 const PLEX_CLIENT_ID_KEY = 'snow-plex-client-id-v1';
 const PLEX_SERVER_KEY = 'snow-plex-server-v1';
@@ -401,11 +403,22 @@ export async function getPlexLibraries(base: string, token: string, opts?: { fre
   // `fresh`: Plex's own connect-time load. It is the request a dead token
   // first fails on (the /identity check needs no token), and that failure is
   // what triggers the token repair, so it must really go to the server.
-  if (!opts?.fresh && hit && Date.now() - hit.at < LIBS_TTL_MS) return hit.list;
+  if (!opts?.fresh && hit && Date.now() - hit.at < LIBS_TTL_MS) return kidsLibraries(hit.list);
   const list = await fetchPlexLibraries(base, token);
   _libsMemo.set(key, { at: Date.now(), list });
-  return list;
+  return kidsLibraries(list);
 }
+/** A Kids profile never sees an adult library (see kidsFilter). */
+const kidsLibraries = (list: PlexLibrary[]): PlexLibrary[] =>
+  kidsLevel() ? list.filter((l) => kidsAllowsLibrary(l.title)) : list;
+/** The certificate filter a Kids profile adds to a library listing, joined
+ *  onto a query string ('' for everyone else). */
+const withKids = (query: string): string => {
+  const k = kidsRatingQuery();
+  return !k ? query : query ? `${query}&${k}` : k;
+};
+/** Drops what a Kids profile may not see (a no-op for everyone else). */
+export const kidsOnly = (items: PlexItem[]): PlexItem[] => (kidsLevel() ? items.filter((it) => kidsAllowsPlex(it)) : items);
 async function fetchPlexLibraries(base: string, token: string): Promise<PlexLibrary[]> {
   const data = await plexReq<{ MediaContainer?: { Directory?: Array<Record<string, unknown>> } }>('GET', `${base}/library/sections`, token);
   const dirs = data?.MediaContainer?.Directory || [];
@@ -491,7 +504,8 @@ export async function getPlexLibraryItems(
   start = 0,
   size = 120,
 ): Promise<PlexLibraryPage> {
-  const url = `${base}/library/sections/${sectionKey}/all?X-Plex-Container-Start=${start}&X-Plex-Container-Size=${size}`;
+  const kids = withKids('');
+  const url = `${base}/library/sections/${sectionKey}/all?${kids ? `${kids}&` : ''}X-Plex-Container-Start=${start}&X-Plex-Container-Size=${size}`;
   const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>>; totalSize?: number; size?: number } }>('GET', url, token);
   const container = data?.MediaContainer;
   const items = container?.Metadata || [];
@@ -508,7 +522,7 @@ export async function getPlexLibraryItems(
       duration: m.duration as number | undefined,
       videoResolution: mediaRes(m),
       ...itemExtras(m),
-    })),
+    })).filter((it) => !kidsLevel() || kidsAllowsPlex(it)),
     totalSize,
   };
 }
@@ -815,7 +829,7 @@ export function preloadImages(urls: string[], timeoutMs: number): Promise<void> 
 // ── hubs + search ─────────────────────────────────────────────────────────
 
 function mapMetadata(items: Array<Record<string, unknown>>): PlexItem[] {
-  return items.map((m) => ({
+  return kidsOnly(items.map((m) => ({
     ratingKey: String(m.ratingKey ?? ''),
     title: String(m.title || m.grandparentTitle || ''),
     type: String(m.type || 'movie'),
@@ -837,7 +851,7 @@ function mapMetadata(items: Array<Record<string, unknown>>): PlexItem[] {
     grandparentTitle: m.grandparentTitle as string | undefined,
     parentIndex: typeof m.parentIndex === 'number' ? m.parentIndex : undefined,
     index: typeof m.index === 'number' ? m.index : undefined,
-  }));
+  })));
 }
 
 /** Titles Plex considers related to one item — the content bar's "for you"
@@ -919,6 +933,7 @@ export async function getPlexSectionRow(
   query: string,
   limit = 15,
 ): Promise<PlexItem[]> {
+  query = withKids(query);
   const sep = query ? '&' : '';
   const url = `${base}/library/sections/${sectionKey}/all?${query}${sep}${RAIL_FIELDS}`
     + `&X-Plex-Container-Start=0&X-Plex-Container-Size=${limit}`;
@@ -1055,6 +1070,7 @@ export async function getPlexByFirstCharacter(
   start = 0,
   size = 60,
 ): Promise<PlexLibraryPage> {
+  query = withKids(query);
   const sep = query ? '&' : '';
   const url = `${base}/library/sections/${sectionKey}/firstCharacter/${encodeURIComponent(letter)}`
     + `?${query}${sep}X-Plex-Container-Start=${start}&X-Plex-Container-Size=${size}`;
@@ -1074,6 +1090,7 @@ export async function getPlexLibraryQuery(
   start = 0,
   size = 60,
 ): Promise<PlexLibraryPage> {
+  query = withKids(query);
   const sep = query ? '&' : '';
   // The same trim as the rails: a 120-title page without the cast, crew and
   // collection lists is about half the size and half the parse.
@@ -1373,7 +1390,7 @@ export async function getPlexActorItems(
   sectionKey: string,
   actorId: string,
 ): Promise<PlexItem[]> {
-  const url = `${base}/library/sections/${sectionKey}/all?actor=${encodeURIComponent(actorId)}`
+  const url = `${base}/library/sections/${sectionKey}/all?${withKids(`actor=${encodeURIComponent(actorId)}`)}`
     + `&X-Plex-Container-Start=0&X-Plex-Container-Size=60`;
   const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', url, token);
   const items = data?.MediaContainer?.Metadata || [];
@@ -1388,7 +1405,7 @@ export async function getPlexActorItems(
     duration: m.duration as number | undefined,
     videoResolution: mediaRes(m),
     ...itemExtras(m),
-  }));
+  })).filter((it) => !kidsLevel() || kidsAllowsPlex(it));
 }
 
 // ── module-level caches ────────────────────────────────────────────────────

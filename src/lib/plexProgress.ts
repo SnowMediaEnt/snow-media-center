@@ -7,15 +7,16 @@
 // points and On Deck are everyone's viewing mixed together. (A box on the
 // customer's own Plex account also reports to Plex; see isOwnPlexAccount.)
 // These are kept per viewer — the signed-in
-// Snow Media account, else the box — on the device, and mirrored to the
-// account (watch_history rows of kind 'plex_progress') so they follow the
+// Snow Media account, else the box, and the profile picked on it — on the
+// device, and mirrored to the account (watch_history rows of kind
+// 'plex_progress', see viewer.ts for a profile's rows) so they follow the
 // viewer to another box.
 //
 // Nothing here is on the playback path: every write is fire and forget and
 // every storage or network failure is swallowed.
 import { supabase } from '@/integrations/supabase/client';
 import type { PlexItem } from '@/lib/plex';
-import { __setViewerForTests, onViewerChange, resolveViewer, viewerIsAccount, viewerKey } from '@/lib/viewer';
+import { __setViewerForTests, cloudItemKey, fromCloudItemKey, onViewerChange, resolveViewer, scopeToProfile, viewerAccountId, viewerKey } from '@/lib/viewer';
 
 export interface PlexProgress {
   ratingKey: string;
@@ -87,17 +88,18 @@ const emit = () => {
 
 const lastCloud = new Map<string, number>();
 const toCloud = (p: PlexProgress, force: boolean) => {
-  if (!viewerIsAccount()) return;
+  const userId = viewerAccountId();
+  if (!userId) return;
   const now = Date.now();
-  if (!force && now - (lastCloud.get(p.ratingKey) ?? 0) < CLOUD_EVERY_MS) return;
-  lastCloud.set(p.ratingKey, now);
-  const userId = viewerKey();
+  const itemKey = cloudItemKey(p.ratingKey);
+  if (!force && now - (lastCloud.get(itemKey) ?? 0) < CLOUD_EVERY_MS) return;
+  lastCloud.set(itemKey, now);
   void (async () => {
     try {
       await supabase.from('watch_history').upsert({
         user_id: userId,
         kind: PROGRESS_KIND,
-        item_key: p.ratingKey,
+        item_key: itemKey,
         title: p.title,
         subtitle: p.showTitle ?? null,
         poster: null,
@@ -180,22 +182,24 @@ export function continueWatching(limit = 30, sectionId?: string): PlexItem[] {
 /** Fold the account's copy into this box (newest wins). Call on Plex open. */
 export async function pullProgressFromCloud(): Promise<void> {
   await resolveViewer();
-  if (!viewerIsAccount()) return;
-  const userId = viewerKey();
+  const userId = viewerAccountId();
+  if (!userId) return;
+  const viewer = viewerKey();
   try {
-    const { data, error } = await supabase
+    const { data, error } = await scopeToProfile(supabase
       .from('watch_history')
       .select('item_key,payload,watched_at')
       .eq('user_id', userId)
-      .eq('kind', PROGRESS_KIND)
+      .eq('kind', PROGRESS_KIND))
       .order('watched_at', { ascending: false })
       .limit(MAX);
-    if (error || !data || viewerKey() !== userId) return;
+    if (error || !data || viewerKey() !== viewer) return;
     const map = { ...load() };
     let changed = false;
     for (const r of data) {
       const p = r.payload as unknown as PlexProgress | null;
       if (!p || !p.ratingKey || !(p.dur > 0)) continue;
+      if (fromCloudItemKey(String(r.item_key)) !== p.ratingKey) continue;
       const t = Date.parse(String(r.watched_at)) || p.t || 0;
       const have = map[p.ratingKey];
       if (!have || have.t < t) { map[p.ratingKey] = { ...p, t }; changed = true; }

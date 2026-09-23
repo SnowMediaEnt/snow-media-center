@@ -7,7 +7,7 @@
 // here since the last pull is kept even if the account has not got it yet.
 import { supabase } from '@/integrations/supabase/client';
 import type { PlexItem } from '@/lib/plex';
-import { onViewerChange, resolveViewer, viewerIsAccount, viewerKey, __setViewerForTests } from '@/lib/viewer';
+import { cloudItemKey, fromCloudItemKey, onViewerChange, resolveViewer, scopeToProfile, viewerAccountId, viewerKey, __setViewerForTests } from '@/lib/viewer';
 
 export interface PlexFavorite {
   ratingKey: string;
@@ -86,20 +86,21 @@ export function toggleFavorite(item: Pick<PlexItem, 'ratingKey' | 'title' | 'typ
     delete next[key];
   }
   save(next);
-  if (viewerIsAccount()) {
-    const userId = viewerKey();
+  const userId = viewerAccountId();
+  if (userId) {
     const fav = next[key];
+    const itemKey = cloudItemKey(key);
     void (async () => {
       try {
         if (fav) {
           await supabase.from('watch_history').upsert({
-            user_id: userId, kind: FAVORITE_KIND, item_key: key, title: fav.title,
+            user_id: userId, kind: FAVORITE_KIND, item_key: itemKey, title: fav.title,
             subtitle: fav.year ? String(fav.year) : null, poster: null,
             payload: JSON.parse(JSON.stringify(fav)), watched_at: new Date(fav.t).toISOString(), count: 1,
           }, { onConflict: 'user_id,kind,item_key' });
         } else {
           await supabase.from('watch_history').delete()
-            .eq('user_id', userId).eq('kind', FAVORITE_KIND).eq('item_key', key);
+            .eq('user_id', userId).eq('kind', FAVORITE_KIND).eq('item_key', itemKey);
         }
       } catch { /* offline: the box keeps it; the next toggle or pull settles it */ }
     })();
@@ -124,21 +125,22 @@ export function myList(): PlexItem[] {
 /** Bring the box up to date with the account. Call when Plex opens. */
 export async function pullFavoritesFromCloud(): Promise<void> {
   await resolveViewer();
-  if (!viewerIsAccount()) return;
-  const userId = viewerKey();
+  const userId = viewerAccountId();
+  if (!userId) return;
+  const viewer = viewerKey();
   try {
-    const { data, error } = await supabase
+    const { data, error } = await scopeToProfile(supabase
       .from('watch_history')
       .select('item_key,payload,watched_at')
       .eq('user_id', userId)
-      .eq('kind', FAVORITE_KIND)
+      .eq('kind', FAVORITE_KIND))
       .limit(MAX);
-    if (error || !data || viewerKey() !== userId) return;
+    if (error || !data || viewerKey() !== viewer) return;
     const cur = load();
     const map: Record<string, PlexFavorite> = {};
     for (const r of data) {
       const f = r.payload as unknown as PlexFavorite | null;
-      if (f?.ratingKey) map[f.ratingKey] = f;
+      if (f?.ratingKey && fromCloudItemKey(String(r.item_key)) === f.ratingKey) map[f.ratingKey] = f;
     }
     // Added here since the last pull and maybe not uploaded yet: keep.
     for (const f of Object.values(cur.map)) {

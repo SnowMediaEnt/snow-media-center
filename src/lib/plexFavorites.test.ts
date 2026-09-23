@@ -4,7 +4,7 @@ const ops: Array<{ op: string; row?: unknown }> = [];
 let cloudRows: Array<{ item_key: string; payload: unknown; watched_at: string }> = [];
 vi.mock('@/integrations/supabase/client', () => {
   const q = {
-    eq: () => q, limit: async () => ({ data: cloudRows, error: null }),
+    eq: () => q, like: () => q, not: () => q, limit: async () => ({ data: cloudRows, error: null }),
     then: undefined,
   };
   return {
@@ -64,5 +64,17 @@ describe('plexFavorites (My List)', () => {
     cloudRows = [];         // and the show was removed on another box
     await m.pullFavoritesFromCloud();
     expect(m.myList().map((i) => i.ratingKey)).toEqual(['5']);
+  });
+});
+
+describe('plexFavorites on a profile', () => {
+  it('saves under the account with the profile in the key, apart from the main list', async () => {
+    const m = await import('./plexFavorites');
+    m.__resetPlexFavoritesForTests('u1:p:ab');
+    m.toggleFavorite(film);
+    await tick();
+    expect(ops[0]).toEqual({ op: 'upsert', row: expect.objectContaining({ user_id: 'u1', item_key: 'p:ab:5' }) });
+    m.__resetPlexFavoritesForTests('u1');
+    expect(m.isFavorite('5')).toBe(false);
   });
 });
