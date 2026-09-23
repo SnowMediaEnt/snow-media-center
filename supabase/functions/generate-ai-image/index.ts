@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { kidsImagePrompt, kidsLevelOf, KIDS_IMAGE_REFUSAL } from '../_shared/kidsSafe.ts';
 import {
   checkPause,
   logUsage,
@@ -47,6 +48,21 @@ serve(async (req) => {
 
   try {
     const { caller, body } = await resolveCaller(req);
+
+    // A Kids profile (body.kids_level): refuse grown-up pictures before
+    // anything is reserved or charged, and keep the rest child-friendly.
+    const kids = kidsLevelOf(body);
+    if (kids) {
+      const raw = typeof (body as { prompt?: unknown }).prompt === 'string' ? (body as { prompt: string }).prompt : '';
+      const safe = kidsImagePrompt(raw, kids);
+      if (!safe.ok) {
+        return new Response(
+          JSON.stringify({ error: 'kids_blocked', details: KIDS_IMAGE_REFUSAL, success: false }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      (body as { prompt?: string }).prompt = safe.prompt;
+    }
 
     // Fail closed on auth.
     if (isAuthError(caller)) {

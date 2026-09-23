@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { openScreen, setPreference, reportChannel, installApp, generateWallpaper, playChannel, openPlexTitle, openInstalledApp, type Screen, type PreferenceKey } from '@/lib/appActions';
+import { openScreen, setPreference, reportChannel, installApp, generateWallpaper, playChannel, openPlexTitle, openInstalledApp, KIDS_BLOCKED_SCREENS, type Screen, type PreferenceKey } from '@/lib/appActions';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { Button } from '@/components/ui/button';
 import { isDemo } from '@/lib/demoMode';
@@ -696,6 +696,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       
       case 'open_screen': {
         if (!onNavigate) break;
+        if (kidsLevel() && KIDS_BLOCKED_SCREENS.has(String(args.screen) as Screen)) {
+          toast({ title: 'Ask a grown-up', description: 'That part of the app needs a grown-up profile.' });
+          break;
+        }
         stopVoicePlayback();
         const where = openScreen(String(args.screen) as Screen, onNavigate);
         toast({ title: 'On it', description: `Opening ${where}.` });
@@ -715,6 +719,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       }
       case 'install_app': {
         if (!onNavigate) break;
+        if (kidsLevel()) { toast({ title: 'Ask a grown-up', description: 'That needs a grown-up profile.' }); break; }
         stopVoicePlayback();
         installApp(String(args.app_name || ''), onNavigate);
         toast({ title: 'Main Apps', description: `Finding ${args.app_name} and starting the download.` });
@@ -722,6 +727,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       }
       case 'generate_wallpaper': {
         if (!onNavigate) break;
+        if (kidsLevel()) { toast({ title: 'Ask a grown-up', description: 'That needs a grown-up profile.' }); break; }
         stopVoicePlayback();
         generateWallpaper(String(args.prompt || ''), onNavigate);
         toast({ title: 'Wallpaper', description: 'Making it now — this takes a moment.' });
@@ -808,6 +814,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         saveConversation: !!user,
         currentVersion,
         device_id: getDeviceId(),
+        // A Kids profile: the server keeps every answer to its age.
+        ...(kidsLevel() ? { kids_level: kidsLevel() } : {}),
       };
       // The comparison asks the top model too, as the free sample, without
       // saving that half to the conversation.

@@ -217,6 +217,8 @@ interface HomeHeaderProps {
   profileBadge?: { name: string; avatar: string; kids: boolean } | null;
   isVoiceFocused?: boolean;
   onOpenVoice?: () => void;
+  isProfileFocused?: boolean;
+  onOpenProfiles?: () => void;
 }
 
 /** The profile's colour square with its initial. */
@@ -237,7 +239,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
     adminLabel, dashboardLabel, signInLabel, settingsLabel,
     onOpenAdmin, onOpenUser, onOpenAuth, onOpenSettings,
     showGiveawayBadge, isGiveawayFocused, giveawayLabel, onOpenGiveaway, profileBadge,
-    isVoiceFocused, onOpenVoice,
+    isVoiceFocused, onOpenVoice, isProfileFocused, onOpenProfiles,
   } = props;
   const dotSize = tier === 'xl' ? 28 : tier === 'lg' ? 24 : 20;
 
@@ -286,10 +288,19 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
         </Button>
       )}
       {profileBadge && !profileBadge.kids && (
-        <span className="inline-flex items-center rounded-xl bg-black/35 px-3 py-1.5 text-white/90" title="Switch profile in Settings">
+        <Button
+          onClick={onOpenProfiles}
+          variant="white"
+          size={btnSize}
+          tabIndex={0}
+          aria-label={`Profile: ${profileBadge.name}. Switch or add profiles`}
+          data-focused={isProfileFocused ? 'true' : 'false'}
+          className={`tv-focusable home-focus-surface ${btnClass}`}
+        >
           <ProfileDot name={profileBadge.name} avatar={profileBadge.avatar} size={dotSize} />
-          <span className="ml-2 max-w-[9rem] truncate">{profileBadge.name}</span>
-        </span>
+          {/* The header is full on small screens: just the colour square there. */}
+          {tier !== 'md' && <span className="ml-2 text-gray-800 max-w-[8rem] truncate">{profileBadge.name}</span>}
+        </Button>
       )}
       {profileBadge?.kids ? (
         <Button
@@ -502,7 +513,7 @@ const Index = () => {
   // Who is watching. A Kids profile's home has no Store, Main Apps, Admin,
   // giveaway or Dashboard, its account button switches profile, and Settings asks for a
   // grown-up's PIN (see lib/profiles.ts).
-  const { profile, count: profileCount } = useActiveProfile();
+  const { profile } = useActiveProfile();
   const kids = !!profile.kidsLevel;
   const isAdmin = isAdminRole && !kids;
   const kidsRef = useRef(kids);
@@ -844,6 +855,7 @@ const Index = () => {
     navigateToRef.current(playerAccountRef.current ? 'user' : 'account-signin');
   }, []);
 
+  const onOpenProfilesPick = useCallback(() => openProfiles('pick'), []);
   const onOpenSettings = useCallback(() => {
     if (kidsRef.current) openProfiles('grownup', () => navigateToRef.current('settings'));
     else navigateToRef.current('settings');
@@ -1024,8 +1036,11 @@ const Index = () => {
       }
 
       // Home screen navigation
-      // The last card's index (a Kids profile has no Store card).
+      // The last card's index (a Kids profile has no Store or Main Apps card).
       const maxButtons = cardCountRef.current - 1;
+      // The header slot left of Dashboard: the profile button (-7), which a
+      // Kids profile does not have (its Dashboard slot is the profile button).
+      const beforeDash = kidsRef.current ? -2 : -7;
 
       switch (event.key) {
         case 'ArrowLeft':
@@ -1037,7 +1052,9 @@ const Index = () => {
             setFocusedButton(-1); // settings
           } else if (focusedButton === -1) {
             setFocusedButton(-2); // user/auth
-          } else if (focusedButton === -2) {
+          } else if (focusedButton === -2 && !kidsRef.current) {
+            setFocusedButton(-7); // dashboard → profile
+          } else if (focusedButton === -2 || focusedButton === -7) {
             if (giveawayBadgeOnRef.current) setFocusedButton(-4);
             else if (isAdminRef.current) setFocusedButton(-3);
             else setFocusedButton(-5); // the logo
@@ -1056,18 +1073,20 @@ const Index = () => {
           } else if (focusedButton === maxButtons) {
             // Wrap to the first VISIBLE header slot, never onto the invisible
             // admin/logo slot.
-            setFocusedButton(isAdminRef.current ? -3 : (giveawayBadgeOnRef.current ? -4 : -2));
+            setFocusedButton(isAdminRef.current ? -3 : (giveawayBadgeOnRef.current ? -4 : beforeDash));
           } else if (focusedButton === -5) {
             // Out of the invisible logo slot, to whatever is actually to its
             // right. This is the ONLY way out sideways, which is why Down must
             // also work from here (it does — ArrowDown handles focusedButton < 0).
             setFocusedButton(
-              isAdminRef.current ? -3 : (giveawayBadgeOnRef.current ? -4 : -2),
+              isAdminRef.current ? -3 : (giveawayBadgeOnRef.current ? -4 : beforeDash),
             );
           } else if (focusedButton === -3) {
-            setFocusedButton(giveawayBadgeOnRef.current ? -4 : -2); // admin → giveaway badge, else dashboard
+            setFocusedButton(giveawayBadgeOnRef.current ? -4 : beforeDash); // admin → giveaway badge, else profile/dashboard
           } else if (focusedButton === -4) {
-            setFocusedButton(-2); // giveaway badge → dashboard/user
+            setFocusedButton(beforeDash); // giveaway badge → profile (or a Kids profile's button)
+          } else if (focusedButton === -7) {
+            setFocusedButton(-2); // profile → dashboard/user
           } else if (focusedButton === -2) {
             setFocusedButton(-1); // dashboard → settings
           } else if (focusedButton === -1) {
@@ -1129,6 +1148,8 @@ const Index = () => {
 
           } else if (focusedButton === -6) {
             openVoice();
+          } else if (focusedButton === -7) {
+            openProfiles('pick');
           } else if (focusedButton === -1) {
             // Navigate to settings (a Kids profile: a grown-up's PIN first)
             if (kidsRef.current) openProfiles('grownup', () => navigateToRef.current('settings'));
@@ -1209,7 +1230,9 @@ const Index = () => {
             isGiveawayFocused={focusedButton === -4}
             giveawayLabel={t('home.giveaway.title')}
             onOpenGiveaway={onOpenGiveaway}
-            profileBadge={profileCount > 1 || kids ? { name: profile.name, avatar: profile.avatar, kids } : null}
+            profileBadge={{ name: profile.name, avatar: profile.avatar, kids }}
+            isProfileFocused={focusedButton === -7}
+            onOpenProfiles={onOpenProfilesPick}
             isVoiceFocused={focusedButton === -6}
             onOpenVoice={openVoice}
           />

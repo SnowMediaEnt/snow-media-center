@@ -4,7 +4,7 @@
 import { OPEN_PROFILES_EVENT } from '@/lib/profiles';
 
 export interface OpenProfilesDetail {
-  mode: 'pick' | 'grownup';
+  mode: 'pick' | 'manage' | 'grownup';
   /** grownup: called once a grown-up's PIN was given. */
   onOk?: () => void;
 }

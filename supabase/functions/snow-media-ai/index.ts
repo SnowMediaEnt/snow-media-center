@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { kidsChatRules, kidsLevelOf } from '../_shared/kidsSafe.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import {
   checkPause,
@@ -478,6 +479,9 @@ Only call a function when the customer actually wants to go somewhere or do some
 All users reach you through the SMC Android app. Be friendly, knowledgeable, and concise; offer app actions when relevant; ground time-sensitive answers in LIVE WEB RESULTS; and use the knowledge base documents for accurate info. Sign off resolved chats with "Stay streaming, stay dreaming."`;
 
 
+    // A Kids profile: everything kept to its age (see _shared/kidsSafe.ts).
+    const kidsLevel = kidsLevelOf(body);
+
     // Spoken to the TV remote (the app's voice commands): act, don't chat.
     const voiceMode = (body as { mode?: unknown }).mode === 'voice_command';
     const VOICE_RULES = `VOICE COMMAND MODE (this turn): the customer spoke to their TV remote, and your reply is shown in one small box on the TV. If they want to go somewhere, watch something or open something, call exactly ONE function (play_channel, plex_title, open_app, open_screen, install_app, report_channel, set_preference) and write at most one short line. If it is a question, answer in at most two short sentences (under 35 words). No greeting, no sign-off, no lists.`;
@@ -490,7 +494,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
       },
       body: JSON.stringify({
         model: chatModel,
-        instructions: voiceMode ? `${systemPrompt}\n\n${VOICE_RULES}` : systemPrompt,
+        instructions: [systemPrompt, voiceMode ? VOICE_RULES : '', kidsLevel ? kidsChatRules(kidsLevel) : ''].filter(Boolean).join('\n\n'),
         input: message,
         tools: [
           {

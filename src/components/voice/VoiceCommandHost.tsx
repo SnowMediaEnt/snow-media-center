@@ -18,7 +18,7 @@ import VoiceInput, { type VoiceLifecycleControls } from '@/components/VoiceInput
 import { supabase } from '@/integrations/supabase/client';
 import {
   installApp, openInstalledApp, openPlexTitle, openScreen, playChannel, reportChannel, setPreference, generateWallpaper,
-  SCREEN_LABELS, type Navigate, type PreferenceKey, type Screen,
+  KIDS_BLOCKED_SCREENS, SCREEN_LABELS, type Navigate, type PreferenceKey, type Screen,
 } from '@/lib/appActions';
 import { getDeviceId, trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
@@ -28,11 +28,6 @@ import { parseVoiceCommand, type VoiceAction } from '@/lib/voiceCommands';
 import { OPEN_VOICE_EVENT } from '@/lib/voiceUi';
 import { MEDIA_KEY_EVENT } from '@/lib/mediaKeys';
 
-/** Screens a Kids profile does not open by voice either. */
-const GROWN_UP_SCREENS = new Set<Screen>([
-  'game_lounge', 'snow_gems', 'giveaway', 'dashboard', 'settings', 'settings_ui', 'wallpaper',
-  'player_settings', 'player_appearance', 'main_apps',
-]);
 
 const SEARCH_KEYS = new Set(['BrowserSearch', 'Search', 'LaunchAssistant']);
 const isSearchKey = (e: KeyboardEvent) => SEARCH_KEYS.has(e.key) || e.keyCode === 84 || e.keyCode === 170 || e.keyCode === 231;
@@ -109,7 +104,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
     const grownUp = (what: string) => say(heard, `${what} needs a grown-up — switch profile first.`, 2600);
     switch (a.kind) {
       case 'screen':
-        if (kids && GROWN_UP_SCREENS.has(a.screen)) { grownUp(SCREEN_LABELS[a.screen]); return; }
+        if (kids && KIDS_BLOCKED_SCREENS.has(a.screen)) { grownUp(SCREEN_LABELS[a.screen]); return; }
         say(heard, `Opening ${openScreen(a.screen, nav)}…`);
         return;
       case 'profiles':
@@ -191,6 +186,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
           currentVersion,
           device_id: getDeviceId(),
           ...(premium ? { tier: 'premium' } : {}),
+          ...(kidsLevel() ? { kids_level: kidsLevel() } : {}),
         },
       });
       if (!openRef.current) return;

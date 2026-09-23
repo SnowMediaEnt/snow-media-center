@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo } from '@/lib/demoMode';
 import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound } from 'lucide-react';
 import { openProfiles } from '@/lib/profilesUi';
+import { avatarColors, loadProfiles, PROFILES_EVENT } from '@/lib/profiles';
+import { useActiveProfile } from '@/hooks/useActiveProfile';
 import { getPreferredTier, loadAiTiers, setPreferredTier, type AiTier, type AiTierInfo } from '@/lib/aiTiers';
 import { useAuth } from '@/hooks/useAuth';
 import MediaManager from '@/components/MediaManager';
@@ -41,6 +43,9 @@ type SettingsFocus =
   | 'tab-ai'
   | 'media-content'
   | 'ui-profiles'
+  | 'tab-profiles'
+  | 'profiles-switch'
+  | 'profiles-manage'
   | 'ui-ai-tier'
   | 'ui-content-bar-toggle'
   | 'ui-dashboard-size-toggle'
@@ -66,6 +71,14 @@ const Settings = ({ onBack }: SettingsProps) => {
   const deviceAlerts = useDeviceAlerts();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
   const { toast } = useToast();
+  const { profile: currentProfile } = useActiveProfile();
+  const currentProfileId = currentProfile.id;
+  const [profilesList, setProfilesList] = useState(() => loadProfiles());
+  useEffect(() => {
+    const on = () => setProfilesList(loadProfiles());
+    window.addEventListener(PROFILES_EVENT, on);
+    return () => window.removeEventListener(PROFILES_EVENT, on);
+  }, []);
   // Snow AI level for AI Chat and voice commands: Free (included) or Premium
   // (the top model, Snow Gems a message). Premium needs a signed-in account.
   const { user } = useAuth();
@@ -128,7 +141,7 @@ const Settings = ({ onBack }: SettingsProps) => {
   };
   const [activeTab, setActiveTab] = useState(() => {
     const want = peekIntent(INTENT_KEYS.settings);
-    return want && ['media', 'ui', 'updates', 'alerts', 'ai'].includes(want) ? want : 'media';
+    return want && ['media', 'ui', 'profiles', 'updates', 'alerts', 'ai'].includes(want) ? want : 'media';
   });
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
@@ -165,6 +178,17 @@ const Settings = ({ onBack }: SettingsProps) => {
         }
         return order;
       };
+
+      if (focusedElement === 'profiles-switch' || focusedElement === 'profiles-manage') {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
+          event.preventDefault(); event.stopPropagation();
+        }
+        if (event.key === 'ArrowDown' && focusedElement === 'profiles-switch') setFocusedElement('profiles-manage');
+        else if (event.key === 'ArrowUp') setFocusedElement(focusedElement === 'profiles-manage' ? 'profiles-switch' : 'tab-profiles');
+        else if (event.key === 'Enter' || event.key === ' ') openProfiles(focusedElement === 'profiles-switch' ? 'pick' : 'manage');
+        else if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) setFocusedElement('tab-profiles');
+        return;
+      }
 
       if (focusedElement.startsWith('ui-')) {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) ||
@@ -308,14 +332,15 @@ const Settings = ({ onBack }: SettingsProps) => {
       }
 
       const tabs: SettingsFocus[] = (isAdmin
-        ? ['tab-media', 'tab-ui', 'tab-updates', 'tab-alerts', 'tab-ai']
-        : ['tab-media', 'tab-ui', 'tab-updates']
+        ? ['tab-media', 'tab-ui', 'tab-profiles', 'tab-updates', 'tab-alerts', 'tab-ai']
+        : ['tab-media', 'tab-ui', 'tab-profiles', 'tab-updates']
       ).filter((tab) => showUpdates || tab !== 'tab-updates') as SettingsFocus[];
       const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
 
       const tabValueFor = (f: SettingsFocus): string | null => {
         if (f === 'tab-media') return 'media';
         if (f === 'tab-ui') return 'ui';
+        if (f === 'tab-profiles') return 'profiles';
         if (f === 'tab-updates') return 'updates';
         if (f === 'tab-alerts') return 'alerts';
         if (f === 'tab-ai') return 'ai';
@@ -353,6 +378,8 @@ const Settings = ({ onBack }: SettingsProps) => {
               const card = document.querySelector('[data-settings-focus="ui-profiles"]') as HTMLElement | null;
               card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }, 30);
+          } else if (focusedElement === 'tab-profiles' && activeTab === 'profiles') {
+            setFocusedElement('profiles-switch');
           } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
             setFocusedElement('updates-content');
             setTimeout(() => {
@@ -377,6 +404,7 @@ const Settings = ({ onBack }: SettingsProps) => {
           if (focusedElement === 'back') onBack();
           else if (focusedElement === 'tab-media') setActiveTab('media');
           else if (focusedElement === 'tab-ui') setActiveTab('ui');
+          else if (focusedElement === 'tab-profiles') setActiveTab('profiles');
           else if (focusedElement === 'tab-updates') setActiveTab('updates');
           else if (focusedElement === 'tab-alerts') setActiveTab('alerts');
           else if (focusedElement === 'tab-ai') setActiveTab('ai');
@@ -448,8 +476,8 @@ const Settings = ({ onBack }: SettingsProps) => {
     setFocusedElement('tab-media');
   };
 
-  const tabCount = (isAdmin ? 5 : 3) - (showUpdates ? 0 : 1);
-  const tabColsClass = tabCount === 5 ? 'grid-cols-5' : tabCount === 4 ? 'grid-cols-4' : tabCount === 3 ? 'grid-cols-3' : 'grid-cols-2';
+  const tabCount = (isAdmin ? 6 : 4) - (showUpdates ? 0 : 1);
+  const tabColsClass = tabCount === 6 ? 'grid-cols-6' : tabCount === 5 ? 'grid-cols-5' : tabCount === 4 ? 'grid-cols-4' : tabCount === 3 ? 'grid-cols-3' : 'grid-cols-2';
 
   return (
     <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
@@ -490,6 +518,15 @@ const Settings = ({ onBack }: SettingsProps) => {
             >
               <Sliders className="w-4 h-4 mr-2" />
               {t('settings.tabs.ui')}
+            </TabsTrigger>
+            <TabsTrigger
+              {...settingsFocusAttrs('tab-profiles')}
+              onFocus={() => setFocusedElement('tab-profiles')}
+              value="profiles"
+              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-profiles')}`}
+            >
+              <UsersRound className="w-4 h-4 mr-2" />
+              Profiles
             </TabsTrigger>
             {showUpdates && (
               <TabsTrigger
@@ -792,6 +829,47 @@ const Settings = ({ onBack }: SettingsProps) => {
                 </div>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="profiles" className="mt-6 space-y-4">
+            <div className="flex flex-wrap items-center mb-2">
+              {profilesList.map((p) => (
+                <div key={p.id} className="flex items-center mr-5 mb-2">
+                  <span
+                    className="inline-flex items-center justify-center rounded-lg font-bold text-white mr-2"
+                    style={{ width: 36, height: 36, backgroundColor: avatarColors(p.avatar).bg }}
+                  >
+                    {(p.name.trim()[0] || '?').toUpperCase()}
+                  </span>
+                  <span className="text-white/90">
+                    {p.name}{p.kidsLevel ? ' · Kids' : ''}{p.pinHash ? ' · PIN' : ''}{p.id === currentProfileId ? ' (watching)' : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {(['profiles-switch', 'profiles-manage'] as const).map((id) => (
+              <Card
+                key={id}
+                {...settingsFocusAttrs(id)}
+                tabIndex={0}
+                role="button"
+                onFocus={() => setFocusedElement(id)}
+                onClick={() => openProfiles(id === 'profiles-switch' ? 'pick' : 'manage')}
+                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing(id)}`}
+              >
+                <div className="flex items-start gap-3">
+                  <UsersRound className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{id === 'profiles-switch' ? "Switch who's watching" : 'Add or edit profiles'}</h3>
+                    <p className="text-sm text-white/70 mt-1">
+                      {id === 'profiles-switch'
+                        ? 'Pick another profile. Each one has its own Continue Watching, My List, favourites and home screen.'
+                        : 'Add someone (up to 8 profiles), make a Kids profile, rename, change the colour, or add a PIN.'}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            ))}
           </TabsContent>
 
           {showUpdates && (

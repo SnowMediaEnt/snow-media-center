@@ -10,6 +10,7 @@
 // Modes
 //   gate     at start: pick someone to continue (Back does nothing)
 //   pick     switching from Settings or the Kids home button (Back closes)
+//   manage   Settings → Profiles: straight to adding and editing (Back to pick)
 //   grownup  a Kids profile opening Settings: any grown-up's PIN, when a
 //            grown-up profile has one (the caller only opens it then)
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -23,7 +24,7 @@ import {
 } from '@/lib/profiles';
 import { MAIN_PROFILE } from '@/lib/viewer';
 
-export type ProfileScreensMode = 'gate' | 'pick' | 'grownup';
+export type ProfileScreensMode = 'gate' | 'pick' | 'manage' | 'grownup';
 
 type After = 'pick' | 'edit' | 'manage' | 'grownup';
 type Screen =
@@ -226,6 +227,14 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
     if (p?.pinHash && !unlocked.current.has(p.id)) push({ kind: 'pin', purpose: 'unlock', profileId: p.id, then: 'edit' }, 'pad-1');
     else { loadDraft(p?.id ?? null); push({ kind: 'edit', id: p?.id ?? null }, 'name'); }
   }, [loadDraft, push]);
+
+  // Settings → Profiles opens straight onto Manage (the same way the button does).
+  const openedManage = useRef(false);
+  useEffect(() => {
+    if (mode !== 'manage' || openedManage.current) return;
+    openedManage.current = true;
+    openManage();
+  }, [mode, openManage]);
 
   // ── PIN entry ──
   const submitPin = useCallback((value: string) => {
@@ -463,7 +472,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
           {managing
             ? <Btn id="done" {...fp} onPress={() => pop(`p-${current.id}`)}>Done</Btn>
             : <Btn id="manage" {...fp} onPress={openManage}><span className="inline-flex items-center"><Pencil className="w-5 h-5 mr-2" />Manage profiles</span></Btn>}
-          {!managing && mode === 'pick' && <Btn id="cancel" {...fp} className="ml-4" onPress={onClose}>Cancel</Btn>}
+          {!managing && (mode === 'pick' || mode === 'manage') && <Btn id="cancel" {...fp} className="ml-4" onPress={onClose}>Cancel</Btn>}
         </div>
       </>
     );

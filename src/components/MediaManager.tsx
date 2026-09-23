@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { takeIntent, INTENT_KEYS } from '@/lib/appActions';
+import { kidsLevel } from '@/lib/kidsFilter';
+
+/** A Kids profile's backgrounds are kept child-friendly by the server. */
+const kidsBody = (): { kids_level?: string } => { const l = kidsLevel(); return l ? { kids_level: l } : {}; };
 import { Button } from '@/components/ui/button';
 import { isDemo } from '@/lib/demoMode';
 import { Card } from '@/components/ui/card';
@@ -772,8 +776,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         method: 'POST',
         headers,
         body: JSON.stringify(tier === 'premium'
-          ? { prompt: enhancedPrompt, size: imageConfig.size, tier: 'premium', device_id: getDeviceId() }
-          : { prompt: enhancedPrompt, width, height, device_id: getDeviceId() }),
+          ? { prompt: enhancedPrompt, size: imageConfig.size, tier: 'premium', device_id: getDeviceId(), ...kidsBody() }
+          : { prompt: enhancedPrompt, width, height, device_id: getDeviceId(), ...kidsBody() }),
       });
 
       const result = await response.json().catch(() => ({}));
@@ -794,7 +798,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       }
 
       if (!response.ok || !result?.image) {
-        throw new Error(result?.error || result?.details || 'Failed to generate image');
+        throw new Error((result?.error === 'kids_blocked' ? result.details : null) || result?.error || result?.details || 'Failed to generate image');
       }
 
       // Anonymous = ephemeral: can't write to media_assets (RLS), but DO NOT
@@ -920,10 +924,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     const width = Math.round(Math.min(screenInfo.width, maxDim) / 64) * 64;
     const height = Math.round(Math.min(screenInfo.height, maxDim) / 64) * 64;
     const freeRun = fetch(`https://falmwzhvxoefvkfsiylp.supabase.co/functions/v1/generate-hf-image`, {
-      method: 'POST', headers, body: JSON.stringify({ prompt, width, height, device_id: getDeviceId() }),
+      method: 'POST', headers, body: JSON.stringify({ prompt, width, height, device_id: getDeviceId(), ...kidsBody() }),
     }).then(async (r) => ({ ok: r.ok, body: await r.json().catch(() => ({})) }));
     const premiumRun = fetch(`https://falmwzhvxoefvkfsiylp.supabase.co/functions/v1/generate-ai-image`, {
-      method: 'POST', headers, body: JSON.stringify({ prompt, size: imageConfig.size, tier: 'premium', use_trial: true, device_id: getDeviceId() }),
+      method: 'POST', headers, body: JSON.stringify({ prompt, size: imageConfig.size, tier: 'premium', use_trial: true, device_id: getDeviceId(), ...kidsBody() }),
     }).then(async (r) => ({ ok: r.ok, status: r.status, body: await r.json().catch(() => ({})) }));
     const [free, premium] = await Promise.all([freeRun, premiumRun]);
     const freeImage = free.ok && free.body?.image ? String(free.body.image) : null;
@@ -939,7 +943,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       prompt,
       free: freeImage,
       premium: premiumImage,
-      freeError: freeImage ? null : String(free.body?.error || free.body?.details || 'Standard did not answer.'),
+      freeError: freeImage ? null : String((free.body?.error === 'kids_blocked' ? free.body.details : null) || free.body?.error || free.body?.details || 'Standard did not answer.'),
       premiumError: premiumImage ? null : String(premium.body?.details || premium.body?.error || 'Premium did not answer.'),
       note,
     });
