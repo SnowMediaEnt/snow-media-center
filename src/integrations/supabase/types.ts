@@ -3276,6 +3276,101 @@ export type Database = {
           },
         ]
       }
+      seasonal_cache: {
+        Row: {
+          building_at: string | null
+          built_at: string | null
+          dirty: boolean
+          found: Json
+          machine_id: string | null
+          rows: Json
+          season: string
+        }
+        Insert: {
+          building_at?: string | null
+          built_at?: string | null
+          dirty?: boolean
+          found?: Json
+          machine_id?: string | null
+          rows?: Json
+          season: string
+        }
+        Update: {
+          building_at?: string | null
+          built_at?: string | null
+          dirty?: boolean
+          found?: Json
+          machine_id?: string | null
+          rows?: Json
+          season?: string
+        }
+        Relationships: []
+      }
+      seasonal_rows: {
+        Row: {
+          kids: boolean
+          row_id: string
+          season: string
+          sort: number
+          title: string
+        }
+        Insert: {
+          kids?: boolean
+          row_id: string
+          season: string
+          sort?: number
+          title: string
+        }
+        Update: {
+          kids?: boolean
+          row_id?: string
+          season?: string
+          sort?: number
+          title?: string
+        }
+        Relationships: []
+      }
+      seasonal_titles: {
+        Row: {
+          created_at: string
+          id: string
+          is_show: boolean
+          row_id: string
+          season: string
+          sort: number
+          title: string
+          year: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_show?: boolean
+          row_id: string
+          season: string
+          sort?: number
+          title: string
+          year?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_show?: boolean
+          row_id?: string
+          season?: string
+          sort?: number
+          title?: string
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seasonal_titles_season_row_id_fkey"
+            columns: ["season", "row_id"]
+            isOneToOne: false
+            referencedRelation: "seasonal_rows"
+            referencedColumns: ["season", "row_id"]
+          },
+        ]
+      }
       service_screenshots: {
         Row: {
           created_at: string
