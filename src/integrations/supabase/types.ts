@@ -3390,6 +3390,77 @@ export type Database = {
           },
         ]
       }
+      remote_codes: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string
+          secret: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at: string
+          secret: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string
+          secret?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remote_codes_secret_fkey"
+            columns: ["secret"]
+            isOneToOne: false
+            referencedRelation: "remote_pairings"
+            referencedColumns: ["secret"]
+          },
+        ]
+      }
+      remote_join_attempts: {
+        Row: {
+          created_at: string
+          id: number
+          ip_hash: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          ip_hash: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          ip_hash?: string
+        }
+        Relationships: []
+      }
+      remote_pairings: {
+        Row: {
+          created_at: string
+          device_hash: string
+          label: string | null
+          last_seen: string
+          secret: string
+        }
+        Insert: {
+          created_at?: string
+          device_hash: string
+          label?: string | null
+          last_seen?: string
+          secret: string
+        }
+        Update: {
+          created_at?: string
+          device_hash?: string
+          label?: string | null
+          last_seen?: string
+          secret?: string
+        }
+        Relationships: []
+      }
       remote_support_requests: {
         Row: {
           admin_note: string | null
