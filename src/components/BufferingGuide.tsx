@@ -18,7 +18,10 @@ import {
   Settings as SettingsIcon,
   Download as DownloadIcon,
   Play,
-  ExternalLink,
+  Check,
+  Tv,
+  Film,
+  MonitorPlay,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useToast } from '@/hooks/use-toast';
@@ -68,12 +71,22 @@ const STEPS = ['intro', 'step1', 'step2', 'step3', 'step4', 'summary'] as const;
 type StepKey = typeof STEPS[number];
 
 const HINTS: Record<StepKey, string> = {
-  intro: 'Choose your app type to start.',
-  step1: 'If only one channel/title, report it so we can fix it fast.',
-  step2: 'Open the app settings, Force Stop + Clear Cache, then press Back.',
-  step3: 'Run a speed test on this device (15+ Mbps).',
-  step4: 'Pick a VPN, install/sign in, then re-run speed.',
-  summary: 'You\'re done — copy or email results if needed.',
+  intro: 'Pick the app that is buffering, then press Next.',
+  step1: 'Only one channel or title? Report it and we fix it at the source.',
+  step2: 'Force Stop, then Clear Cache, then press Back to come here.',
+  step3: 'Aim for 15 Mbps or more on this device.',
+  step4: 'Install, sign in, Quick Connect, then test again.',
+  summary: 'Send these results to support if it is still buffering.',
+};
+
+// Short names for the step tracker across the top.
+const STEP_LABELS: Record<StepKey, string> = {
+  intro: 'App',
+  step1: 'One or all',
+  step2: 'Refresh app',
+  step3: 'Speed',
+  step4: 'VPN',
+  summary: 'Results',
 };
 
 const APP_LABELS: Record<Exclude<AppType, null>, string> = {
@@ -836,15 +849,6 @@ const BufferingGuide = ({
   const diagnosis = useMemo(() => getDiagnosis(state), [state]);
   const supportScript = useMemo(() => buildSupportScript(state, diagnosis), [state, diagnosis]);
 
-  const copyScript = async () => {
-    try {
-      await navigator.clipboard.writeText(supportScript);
-      toast({ title: 'Copied!', description: 'Results copied to clipboard.' });
-    } catch {
-      toast({ title: 'Copy failed', description: 'Select the text manually.', variant: 'destructive' });
-    }
-  };
-
   const submitAsTicket = async (overrideSubject?: string, overrideBody?: string) => {
 
     console.log('[BufferingGuide] Submit ticket clicked', { hasUser: !!user });
@@ -921,7 +925,7 @@ const BufferingGuide = ({
       const ts = new Date().toLocaleString();
       await supabase.functions.invoke('send-custom-email', {
         body: {
-          to: 'support@snowmediaent.com',
+          to: SUPPORT_EMAIL,
           subject: `[Anonymous Report] ${report.subject}`,
           html: `
             <h3>Anonymous Channel/Title Report</h3>
@@ -955,59 +959,60 @@ const BufferingGuide = ({
   return (
     <div
       ref={rootRef}
-      className="fixed inset-0 z-[100] bg-black/95 flex flex-col [&_button:focus]:outline-none [&_button:focus-visible]:outline-none [&_button:focus]:ring-0 [&_button:focus]:scale-[1.04] [&_button:focus]:shadow-[0_0_28px_6px_hsl(45_93%_58%/0.55)] [&_button:focus]:border-yellow-300 [&_button:focus]:z-10 [&_button]:transition-all [&_button]:duration-150 [&_a:focus]:outline-none [&_a:focus]:ring-2 [&_a:focus]:ring-yellow-300 [&_a:focus]:rounded">
-      {/* Header */}
-      <div className="flex-shrink-0 px-[5vw] pt-[4vh] pb-2 border-b border-white/10 bg-gradient-to-b from-blue-950/60 to-transparent">
-        <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
+      className="fixed inset-0 z-[100] bg-[#060d18] flex flex-col [&_button:focus]:outline-none [&_button:focus-visible]:outline-none [&_button:focus]:ring-0 [&_button:focus]:scale-[1.03] [&_button:focus]:shadow-[0_0_26px_6px_hsl(45_93%_58%/0.55)] [&_button:focus]:!border-yellow-300 [&_button:focus]:z-10 [&_button]:transition-all [&_button]:duration-150 [&_a:focus]:outline-none [&_a:focus]:ring-2 [&_a:focus]:ring-yellow-300 [&_a:focus]:rounded">
+      {/* Header: close on the left, where you are in the middle, then the
+          step tracker. Nothing in the tracker is focusable. */}
+      <div className="flex-shrink-0 px-[5vw] pt-[2.5vh] pb-2.5 border-b border-white/10 bg-[#0a1628]">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Button
             onClick={onClose}
             variant="outline"
-            size="sm"
             data-guide-nav="close"
             data-summary-order="0"
-            className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+            className="h-10 px-5 text-base rounded-xl bg-white/5 border-white/20 text-white hover:bg-white/10"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" /> {origin === 'plex-movie' ? 'Back to Player' : 'Close'}
+            <ArrowLeft className="mr-2" /> {origin === 'plex-movie' ? 'Back to Player' : 'Close'}
           </Button>
-          <div className="text-center flex-1 min-w-0">
-            <h1 className="text-lg sm:text-xl font-semibold text-white truncate">Buffering Walkthrough</h1>
-            <p className="text-xs text-white/60">Step {Math.min(stepIndex + 1, STEPS.length)} of {STEPS.length}</p>
+          <div className="text-center flex-1 min-w-0 px-4">
+            <h1 className="text-xl font-bold text-white truncate leading-tight">Fix Buffering</h1>
+            <p className="text-sm text-white/60 leading-tight">Step {Math.min(stepIndex + 1, STEPS.length)} of {STEPS.length} · {STEP_LABELS[step]}</p>
           </div>
-          <Badge variant="outline" className="bg-cyan-600/20 border-cyan-500/40 text-cyan-100 hidden sm:inline-flex">
-            <HelpCircle className="w-3 h-3 mr-1" />
-            Snow Media
-          </Badge>
+          <span className="w-[120px] hidden sm:block" aria-hidden="true" />
         </div>
-        {/* Progress */}
-        <div className="max-w-3xl mx-auto mt-1.5 h-1 rounded-full bg-white/10 overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-300"
-            style={{ width: `${(stepIndex / (STEPS.length - 1)) * 100}%` }}
-          />
-        </div>
+        <ol className="max-w-5xl mx-auto mt-2 grid grid-cols-6 gap-2" aria-label="Progress">
+          {STEPS.map((k, i) => {
+            const done = i < stepIndex;
+            const current = i === stepIndex;
+            return (
+              <li key={k} className="min-w-0">
+                <div className={`h-1.5 rounded-full ${done ? 'bg-cyan-400' : current ? 'bg-yellow-300' : 'bg-white/15'}`} />
+                <div className={`mt-1 flex items-center justify-center text-xs sm:text-sm truncate ${current ? 'text-yellow-200 font-semibold' : done ? 'text-cyan-200' : 'text-white/45'}`}>
+                  {done && <Check className="w-3.5 h-3.5 mr-1 flex-shrink-0" />}
+                  <span className="truncate">{STEP_LABELS[k]}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       </div>
 
       {/* Content */}
-      <div ref={contentRef} className="flex-1 overflow-y-auto px-4 py-3">
-        <div className="max-w-3xl mx-auto space-y-2">
-          {HINTS[step] && step !== 'step4' && (
-            <p className="text-xs uppercase tracking-wider text-cyan-300/80">{HINTS[step]}</p>
-          )}
-
+      <div ref={contentRef} className="flex-1 overflow-y-auto px-[5vw] py-4">
+        <div className="max-w-5xl mx-auto">
           {step === 'intro' && (
             <>
               <IntroStep
                 value={state.appType}
                 onSelect={(t) => setState((s) => ({ ...s, appType: t }))}
               />
-              <div className="mt-4 flex justify-center">
+              <div className="mt-5 flex justify-center">
                 <Button
                   onClick={() => setStepIndex(STEPS.indexOf('step4'))}
                   variant="outline"
                   title="Already tried a VPN? Jump straight to the VPN step."
-                  className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/30"
+                  className="h-11 px-5 text-base rounded-xl bg-transparent border-white/20 text-white/85 hover:bg-white/10"
                 >
-                  Already did VPN → Skip to VPN step
+                  <ShieldCheck className="mr-2 text-cyan-300" /> Already tried the rest? Go to the VPN step
                 </Button>
               </div>
             </>
@@ -1172,12 +1177,12 @@ const BufferingGuide = ({
           {step === 'summary' && (
             <Summary
               diagnosis={diagnosis}
-              supportScript={supportScript}
+              recap={buildRecap(state)}
+              resolved={state.didRestartAndCache === true || state.vpnTest === 'fixed'}
               chosenApp={chosenApp}
               chosenAppLabel={state.appType ? APP_LABELS[state.appType] : null}
               chosenAppInstalled={chosenAppInstalled}
               onLaunchApp={() => chosenApp && onLaunch(chosenApp)}
-              onCopy={copyScript}
               // Not the function itself: the button would hand it the click
               // event as the subject, and a DOM event cannot be serialised
               // into a ticket ("Converting circular structure to JSON").
@@ -1189,40 +1194,40 @@ const BufferingGuide = ({
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="flex-shrink-0 px-[5vw] pt-2 pb-[4vh] border-t border-white/10 bg-black/60">
-        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            {stepIndex > 0 ? (
+      {/* Footer: Back on the left, Next on the right, the step's one-line
+          hint between them. */}
+      <div className="flex-shrink-0 px-[5vw] pt-2.5 pb-[2.5vh] border-t border-white/10 bg-[#0a1628]">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="w-[150px] flex-shrink-0">
+            {stepIndex > 0 && (
               <Button
                 onClick={goBack}
                 variant="outline"
                 data-guide-nav="back"
                 data-summary-order="4"
-                className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white focus-visible:bg-white/10 focus-visible:text-white active:bg-white/10 active:text-white"
+                className="h-12 px-6 text-base rounded-xl bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white focus-visible:bg-white/10 focus-visible:text-white active:bg-white/10 active:text-white"
               >
-                <ArrowLeft className="w-4 h-4 mr-2" /> Back
+                <ArrowLeft className="mr-2" /> Back
               </Button>
-            ) : (
-              <span className="w-[88px]" />
             )}
           </div>
 
-          <span className="text-xs text-white/70 truncate hidden sm:block select-none pointer-events-none">
-            Submit a Ticket in Chat &amp; Community
-          </span>
-          {step !== 'summary' ? (
-            <Button
-              onClick={goNext}
-              disabled={!canNext && step !== 'step4'}
-              data-guide-nav="next"
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white disabled:opacity-40"
-            >
-              Next <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          ) : (
-            <span className="w-[88px]" />
-          )}
+          <p className="flex-1 min-w-0 px-4 text-center text-sm sm:text-base text-cyan-100/80 select-none pointer-events-none">
+            {HINTS[step]}
+          </p>
+
+          <div className="w-[150px] flex-shrink-0 flex justify-end">
+            {step !== 'summary' && (
+              <Button
+                onClick={goNext}
+                disabled={!canNext && step !== 'step4'}
+                data-guide-nav="next"
+                className="h-12 px-8 text-base font-semibold rounded-xl bg-cyan-500 text-slate-950 hover:bg-cyan-400 disabled:opacity-35 border border-transparent"
+              >
+                Next <ArrowRight className="ml-2" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1240,27 +1245,27 @@ const BufferingGuide = ({
 
       {showAnonConfirm && (
         <div ref={anonConfirmRef} className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
-          <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl max-w-lg w-full p-6 shadow-[0_0_40px_8px_hsl(190_80%_50%/0.25)]">
-            <h3 className="text-xl font-semibold text-white mb-3">Send report without signing in?</h3>
-            <p className="text-sm text-white/80 leading-relaxed mb-4">
+          <div className="bg-[#0d1b2e] border border-white/15 rounded-3xl max-w-xl w-full p-8 shadow-2xl">
+            <h3 className="text-2xl font-bold text-white mb-4">Send report without signing in?</h3>
+            <p className="text-base text-white/85 leading-relaxed mb-4">
               Your report will be submitted to Snow Media support, but it will <strong>not</strong> be saved to your account.
             </p>
-            <p className="text-sm text-cyan-200 leading-relaxed mb-6">
+            <p className="text-base text-cyan-100/90 leading-relaxed mb-7">
               Tip: Go back to the Home Screen and tap <strong>Sign In</strong> first so your ticket is saved on your account and you can track replies.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-end">
+            <div className="flex justify-end gap-3">
               <Button
                 variant="outline"
                 onClick={() => setShowAnonConfirm(false)}
                 disabled={submittingTicket}
-                className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+                className="h-12 px-6 text-base rounded-xl bg-white/5 border-white/20 text-white hover:bg-white/10"
               >
                 Cancel
               </Button>
               <Button
                 onClick={submitAnonymousChannelReport}
                 disabled={submittingTicket}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white"
+                className="h-12 px-6 text-base font-semibold rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950"
               >
                 {submittingTicket ? 'Sending…' : 'Send anyway'}
               </Button>
@@ -1271,19 +1276,19 @@ const BufferingGuide = ({
 
       {showSignInPrompt && (
         <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
-          <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl max-w-lg w-full p-6 shadow-[0_0_40px_8px_hsl(190_80%_50%/0.25)]">
-            <h3 className="text-xl font-semibold text-white mb-3">Sign in to submit a ticket</h3>
-            <p className="text-sm text-white/85 leading-relaxed mb-3">
+          <div className="bg-[#0d1b2e] border border-white/15 rounded-3xl max-w-xl w-full p-8 shadow-2xl">
+            <h3 className="text-2xl font-bold text-white mb-4">Sign in to submit a ticket</h3>
+            <p className="text-base text-white/85 leading-relaxed mb-4">
               You need an account to submit a support ticket so our team can <strong>reply back to you</strong> and you can track the conversation.
             </p>
-            <p className="text-sm text-cyan-200 leading-relaxed mb-6">
+            <p className="text-base text-cyan-100/90 leading-relaxed mb-7">
               Sign in or create a free account to submit your ticket and get replies back.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-end">
+            <div className="flex justify-end gap-3">
               <Button
                 variant="outline"
                 onClick={() => setShowSignInPrompt(false)}
-                className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+                className="h-12 px-6 text-base rounded-xl bg-white/5 border-white/20 text-white hover:bg-white/10"
               >
                 Cancel
               </Button>
@@ -1293,7 +1298,7 @@ const BufferingGuide = ({
                   onClose();
                   navigate('/auth');
                 }}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white"
+                className="h-12 px-6 text-base font-semibold rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950"
                 autoFocus
               >
                 Sign In
@@ -1305,19 +1310,19 @@ const BufferingGuide = ({
 
       {showVpnSkipConfirm && (
         <div ref={vpnSkipConfirmRef} className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
-          <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl max-w-lg w-full p-6 shadow-[0_0_40px_8px_hsl(190_80%_50%/0.25)]">
-            <h3 className="text-xl font-semibold text-white mb-3">Skip the VPN step?</h3>
-            <p className="text-sm text-white/85 leading-relaxed mb-3">
+          <div className="bg-[#0d1b2e] border border-white/15 rounded-3xl max-w-xl w-full p-8 shadow-2xl">
+            <h3 className="text-2xl font-bold text-white mb-4">Skip the VPN step?</h3>
+            <p className="text-base text-white/85 leading-relaxed mb-4">
               Heads up: Your internet provider can slow you down during peak hours — or for no clear reason at all. In 2026, ISP throttling is the <strong>#1 cause of buffering</strong>.
             </p>
-            <p className="text-sm text-cyan-200 leading-relaxed mb-6">
+            <p className="text-base text-cyan-100/90 leading-relaxed mb-7">
               If nothing has worked up to this point, installing and turning on a VPN will more than likely fix it. You can still continue if you'd rather skip for now.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-end">
+            <div className="flex justify-end gap-3">
               <Button
                 variant="outline"
                 onClick={() => setShowVpnSkipConfirm(false)}
-                className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+                className="h-12 px-6 text-base rounded-xl bg-white/5 border-white/20 text-white hover:bg-white/10"
               >
                 Go back
               </Button>
@@ -1327,9 +1332,9 @@ const BufferingGuide = ({
                   setShowVpnSkipConfirm(false);
                   if (stepIndex < STEPS.length - 1) setStepIndex((i) => i + 1);
                 }}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white"
+                className="h-12 px-6 text-base font-semibold rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950"
               >
-                Next <ArrowRight className="w-4 h-4 ml-2" />
+                Skip VPN <ArrowRight className="ml-2" />
               </Button>
             </div>
           </div>
@@ -1341,16 +1346,102 @@ const BufferingGuide = ({
 
 /* ---------------- Sub-components ---------------- */
 
+// Shared pieces. Sized for a TV across the room: 18px+ body text, 56px+
+// targets, one accent colour (cyan) for primary actions, and the gold focus
+// glow from the root for "where am I". Flex gap is avoided inside buttons
+// (Chromium 66 has none); grids use gap, which it does support.
+
+const StepPanel = ({
+  icon,
+  title,
+  lead,
+  children,
+}: {
+  icon?: React.ReactNode;
+  title: string;
+  lead?: React.ReactNode;
+  children: React.ReactNode;
+}) => (
+  <section className="space-y-4">
+    <header className="flex items-start">
+      {icon && (
+        <span className="mr-4 mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-cyan-400/15 text-cyan-300">
+          {icon}
+        </span>
+      )}
+      <div className="min-w-0">
+        <h2 className="text-2xl font-bold text-white leading-tight">{title}</h2>
+        {lead && <p className="mt-1.5 text-base sm:text-lg text-white/70 leading-snug max-w-3xl">{lead}</p>}
+      </div>
+    </header>
+    {children}
+  </section>
+);
+
+const Question = ({ children }: { children: React.ReactNode }) => (
+  <p className="text-lg font-semibold text-white">{children}</p>
+);
+
+const Note = ({ tone = 'info', children }: { tone?: 'info' | 'warn' | 'good' | 'bad'; children: React.ReactNode }) => {
+  const cls = {
+    info: 'bg-cyan-400/10 border-cyan-300/30 text-cyan-50',
+    warn: 'bg-amber-400/10 border-amber-300/40 text-amber-50',
+    good: 'bg-emerald-400/10 border-emerald-300/40 text-emerald-50',
+    bad: 'bg-rose-400/10 border-rose-300/40 text-rose-50',
+  }[tone];
+  return <div className={`rounded-2xl border px-5 py-4 text-base leading-relaxed ${cls}`}>{children}</div>;
+};
+
+// Big action button. `tone` picks the one colour it may use.
+const ActionButton = ({
+  onClick,
+  icon,
+  children,
+  tone = 'primary',
+  disabled,
+  className = '',
+  ...rest
+}: {
+  onClick: () => void;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  tone?: 'primary' | 'go' | 'secondary' | 'report';
+  disabled?: boolean;
+  className?: string;
+} & Record<`data-${string}`, string | undefined>) => {
+  const cls = {
+    primary: 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 border-transparent',
+    go: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-transparent',
+    report: 'bg-orange-500 hover:bg-orange-400 text-slate-950 border-transparent',
+    secondary: 'bg-white/[0.07] hover:bg-white/15 text-white border-white/20',
+  }[tone];
+  return (
+    <Button
+      onClick={onClick}
+      disabled={disabled}
+      {...rest}
+      className={`h-14 px-6 text-lg font-semibold rounded-2xl border-2 whitespace-normal disabled:opacity-40 ${cls} ${className}`}
+    >
+      {icon && <span className="mr-3 flex items-center [&_svg]:!w-5 [&_svg]:!h-5">{icon}</span>}
+      {children}
+    </Button>
+  );
+};
+
 const ChoiceButton = ({
   active,
   onClick,
   children,
+  sub,
+  icon,
   className = '',
   dataVpnChoice,
 }: {
   active?: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  sub?: React.ReactNode;
+  icon?: React.ReactNode;
   className?: string;
   dataVpnChoice?: 'ipvanish' | 'surfshark';
 }) => (
@@ -1368,38 +1459,53 @@ const ChoiceButton = ({
     data-guide-choice-active={active ? 'true' : 'false'}
     data-vpn-choice={dataVpnChoice}
     variant="outline"
-    className={`w-full justify-start text-left h-auto py-3 px-4 font-semibold transition-all duration-200 !text-white whitespace-normal break-words ${
+    className={`w-full h-auto min-h-[64px] justify-start text-left py-3 px-4 rounded-2xl border-2 !text-white whitespace-normal ${
       active
-        ? '!bg-cyan-600/60 !border-cyan-300 shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
-        : '!bg-white/15 !border-white/40 hover:!bg-white/25'
+        ? '!bg-cyan-400/20 !border-cyan-300'
+        : '!bg-white/[0.06] !border-white/15 hover:!bg-white/10'
     } ${className}`}
   >
-    {children}
+    <span className="flex items-center w-full min-w-0">
+      {icon && (
+        <span className="mr-4 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 [&_svg]:!w-6 [&_svg]:!h-6">
+          {icon}
+        </span>
+      )}
+      <span className="flex-1 min-w-0">
+        <span className="block text-lg font-semibold leading-snug">{children}</span>
+        {sub && <span className="block mt-0.5 text-sm sm:text-base font-normal text-white/65 leading-snug">{sub}</span>}
+      </span>
+      <span
+        className={`ml-3 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 ${
+          active ? 'border-cyan-300 bg-cyan-300 text-slate-950' : 'border-white/30'
+        }`}
+        aria-hidden="true"
+      >
+        {active && <Check />}
+      </span>
+    </span>
   </Button>
 );
 
-
 const IntroStep = ({ value, onSelect }: { value: AppType; onSelect: (t: AppType) => void }) => (
-  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
-    <div>
-      <h2 className="text-xl font-semibold text-white">Which app is buffering?</h2>
-      <p className="text-sm text-white/70 mt-1">
-        This walkthrough is for alternative streaming apps. Mainstream apps (Netflix/Disney+/Hulu) buffering may be a different issue.
-      </p>
-    </div>
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+  <StepPanel
+    icon={<Wifi className="!w-7 !h-7" />}
+    title="Which app is buffering?"
+    lead="We'll go through the usual fixes one at a time. This is for Snow Media's streaming apps — Netflix, Disney+ or Hulu buffering is usually something else."
+  >
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {([
-        ['dreamstreams', 'Dreamstreams'],
-        ['vibeztv', 'VibezTV'],
-        ['plex', 'Plex'],
-        ['other', 'Other / Not sure'],
-      ] as [AppType, string][]).map(([k, label]) => (
-        <ChoiceButton key={k} active={value === k} onClick={() => onSelect(k)}>
+        ['dreamstreams', 'Dreamstreams', 'Live TV, movies and shows', <Tv key="i" />],
+        ['vibeztv', 'VibezTV', 'Live TV, movies and shows', <MonitorPlay key="i" />],
+        ['plex', 'Plex', 'Your Plex movies and TV', <Film key="i" />],
+        ['other', 'Other / not sure', 'Any other streaming app', <HelpCircle key="i" />],
+      ] as [AppType, string, string, React.ReactNode][]).map(([k, label, sub, icon]) => (
+        <ChoiceButton key={k} active={value === k} onClick={() => onSelect(k)} icon={icon} sub={sub}>
           {label}
         </ChoiceButton>
       ))}
     </div>
-  </Card>
+  </StepPanel>
 );
 
 const DEVICE_OPTIONS: string[] = [
@@ -1429,17 +1535,13 @@ const ReportChannelStep = ({
   onSubmit: () => void;
   onBack: () => void;
 }) => (
-  <Card className="bg-white/5 border-white/10 p-3 space-y-3">
-    <div>
-      <h2 className="text-xl font-semibold text-white">Report the broken channel/title</h2>
-      <p className="text-sm text-white/70 mt-1">
-        Tell us the exact channel or movie/show name in <strong>{appLabel}</strong> and which device you're using.
-        We'll open a Support Ticket for you.
-      </p>
-    </div>
-
+  <StepPanel
+    icon={<AlertTriangle className="!w-7 !h-7" />}
+    title="Report the channel or title"
+    lead={<>Tell us exactly what's buffering in <strong className="text-white">{appLabel}</strong> and what you watch on. We'll open a support ticket so it gets fixed at the source.</>}
+  >
     <div className="space-y-2">
-      <label className="text-sm text-white/80">Channel or movie/show name</label>
+      <label className="block text-lg font-semibold text-white">Channel or movie/show name</label>
       <input
         type="text"
         value={title}
@@ -1452,13 +1554,13 @@ const ReportChannelStep = ({
         }}
         placeholder="e.g. ESPN HD, The Bear S03E01"
         data-guide-entry="true"
-        className="w-full px-3 py-2 rounded-md bg-black/40 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-cyan-400"
+        className="w-full h-14 px-4 rounded-2xl bg-black/40 border-2 border-white/20 text-lg text-white placeholder:text-white/40 focus:outline-none focus:border-yellow-300"
       />
     </div>
 
     <div className="space-y-2">
-      <label className="text-sm text-white/80">Which device are you watching on?</label>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <Question>Which device are you watching on?</Question>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {DEVICE_OPTIONS.map((d) => (
           <ChoiceButton key={d} active={device === d} onClick={() => onDeviceChange(d)}>
             {d}
@@ -1467,47 +1569,60 @@ const ReportChannelStep = ({
       </div>
     </div>
 
-    <div className="flex flex-col sm:flex-row gap-2 pt-2">
-      <Button
-        onClick={onBack}
-        variant="outline"
-        className="bg-white/5 border-white/20 text-white hover:bg-white/10"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" /> Change answer
-      </Button>
-      <Button
+    <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-3 pt-1">
+      <ActionButton onClick={onBack} tone="secondary" icon={<ArrowLeft />}>
+        Change answer
+      </ActionButton>
+      <ActionButton
         onClick={onSubmit}
+        tone="report"
         disabled={submitting || !title.trim() || !device}
-        className="bg-gradient-to-r from-orange-500 to-red-600 text-white disabled:opacity-40 flex-1"
+        icon={<MessageSquare />}
       >
-        <MessageSquare className="w-4 h-4 mr-2" />
-        {submitting ? 'Submitting…' : 'Submit Ticket'}
-      </Button>
+        {submitting ? 'Sending…' : 'Send report'}
+      </ActionButton>
     </div>
-  </Card>
+  </StepPanel>
 );
 
-
-
 const Step1 = ({ value, onSelect }: { value: Step1Choice; onSelect: (c: Step1Choice) => void }) => (
-  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
-    <div>
-      <h2 className="text-xl font-semibold text-white">Is it only one channel/title, or everything?</h2>
-      <p className="text-sm text-white/70 mt-1">
-        If only one channel or title is failing, it's usually a source problem we can fix on our end.
-      </p>
-    </div>
-    <div className="space-y-2">
-      <ChoiceButton active={value === 'one_only'} onClick={() => onSelect('one_only')}>
-        <AlertTriangle className="w-4 h-4 mr-2 text-amber-300" />
-        Only one channel/title
+  <StepPanel
+    icon={<Tv className="!w-7 !h-7" />}
+    title="Is it one channel, or everything?"
+    lead="When only one channel or title fails, your internet is usually fine — it's the source, and we can fix that on our end."
+  >
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <ChoiceButton
+        active={value === 'one_only'}
+        onClick={() => onSelect('one_only')}
+        icon={<AlertTriangle className="text-amber-300" />}
+        sub="Report it and we'll fix it"
+      >
+        Just one channel or title
       </ChoiceButton>
-      <ChoiceButton active={value === 'all_buffer'} onClick={() => onSelect('all_buffer')}>
-        <Wifi className="w-4 h-4 mr-2 text-cyan-300" />
-        Everything is buffering
+      <ChoiceButton
+        active={value === 'all_buffer'}
+        onClick={() => onSelect('all_buffer')}
+        icon={<Wifi className="text-cyan-300" />}
+        sub="Let's find the cause together"
+      >
+        Everything buffers
       </ChoiceButton>
     </div>
-  </Card>
+  </StepPanel>
+);
+
+const NumberedSteps = ({ items }: { items: React.ReactNode[] }) => (
+  <ol className="space-y-2">
+    {items.map((it, i) => (
+      <li key={i} className="flex items-start text-base sm:text-lg text-white/85 leading-snug">
+        <span className="mr-3 mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white/10 text-sm font-bold text-cyan-200">
+          {i + 1}
+        </span>
+        <span className="min-w-0">{it}</span>
+      </li>
+    ))}
+  </ol>
 );
 
 const Step2 = ({
@@ -1525,43 +1640,48 @@ const Step2 = ({
   onOpenSettings: () => void;
   onSelect: (v: boolean) => void;
 }) => (
-  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
-    <div>
-      <h2 className="text-xl font-semibold text-white">Force Stop + Clear Cache for {appLabel}</h2>
-      <p className="text-sm text-white/70 mt-1">
-        We'll open Android's settings page for {appLabel}. Tap <strong>Force Stop</strong>,
-        then <strong>Storage → Clear Cache</strong> (don't tap Clear Data).
-        When you're done, press the <strong>Back</strong> button to return here.
-      </p>
-    </div>
+  <StepPanel
+    icon={<SettingsIcon className="!w-7 !h-7" />}
+    title={`Refresh ${appLabel}`}
+    lead="Clearing the app's cache fixes a lot of buffering. It doesn't sign you out or delete anything."
+  >
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 space-y-4">
+        <ActionButton onClick={onOpenSettings} icon={<SettingsIcon />} className="w-full">
+          Open {appLabel} settings
+        </ActionButton>
+        <NumberedSteps
+          items={[
+            <>Choose <strong className="text-white">Force Stop</strong></>,
+            <>Go to <strong className="text-white">Storage → Clear Cache</strong> (not Clear Data)</>,
+            <>Press <strong className="text-white">Back</strong> on your remote to come here</>,
+          ]}
+        />
+        {chosenApp && !chosenAppInstalled && (
+          <Note tone="warn">{appLabel} doesn't look installed on this device. Install it from Main Apps first.</Note>
+        )}
+      </div>
 
-    <Button
-      onClick={onOpenSettings}
-      className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white"
-    >
-      <SettingsIcon className="w-4 h-4 mr-2" />
-      Open {appLabel} Settings
-    </Button>
-
-    {chosenApp && !chosenAppInstalled && (
-      <p className="text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/30 rounded-md p-2">
-        {appLabel} doesn't appear to be installed on this device. Install it from Main Apps first.
-      </p>
-    )}
-
-    <div className="pt-2">
-      <p className="text-sm text-white mb-2">Did that fix the buffering?</p>
-      <div className="space-y-2">
-        <ChoiceButton active={value === true} onClick={() => onSelect(true)}>
-          <CheckCircle2 className="w-4 h-4 mr-2 text-green-400" />
-          Yes — that fixed it
+      <div className="space-y-3">
+        <Question>Did that fix the buffering?</Question>
+        <ChoiceButton
+          active={value === true}
+          onClick={() => onSelect(true)}
+          icon={<CheckCircle2 className="text-emerald-300" />}
+        >
+          Yes, it's fixed
         </ChoiceButton>
-        <ChoiceButton active={value === false} onClick={() => onSelect(false)}>
+        <ChoiceButton
+          active={value === false}
+          onClick={() => onSelect(false)}
+          icon={<RotateCw className="text-white/80" />}
+          sub="Next we'll test your internet speed"
+        >
           Still buffering
         </ChoiceButton>
       </div>
     </div>
-  </Card>
+  </StepPanel>
 );
 
 const Step3 = ({
@@ -1576,57 +1696,78 @@ const Step3 = ({
   setSpeedInput: (v: string) => void;
   onRunInApp: () => void;
   onSaveTyped: () => void;
-}) => (
-  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
-    <div>
-      <h2 className="text-xl font-semibold text-white">Test your internet speed</h2>
-      <p className="text-sm text-white/70 mt-1">
-        We need 15+ Mbps download on this device for smooth streaming. Run the in-app Speedtest, or enter a result from another tool.
-      </p>
-    </div>
-
-    <Button
-      onClick={onRunInApp}
-      className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+}) => {
+  const good = typeof speedMbps === 'number' && speedMbps >= 15;
+  return (
+    <StepPanel
+      icon={<Gauge className="!w-7 !h-7" />}
+      title="Test your internet speed"
+      lead="Streaming needs at least 15 Mbps download on this device. Run the test here, or type in a result from another speed test."
     >
-      <Gauge className="w-4 h-4 mr-2" /> Run In-App Speedtest
-    </Button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+        <div className="space-y-4">
+          <ActionButton onClick={onRunInApp} icon={<Gauge />} className="w-full">
+            Run speed test
+          </ActionButton>
+          <div className="space-y-2">
+            <label className="block text-base text-white/75">Or type your download speed</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                inputMode="decimal"
+                value={speedInput}
+                onChange={(e) => setSpeedInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    (e.currentTarget as HTMLInputElement).blur();
+                    onSaveTyped();
+                  }
+                }}
+                placeholder="Mbps"
+                className="flex-1 min-w-0 h-14 px-4 rounded-2xl bg-black/40 border-2 border-white/20 text-lg text-white placeholder:text-white/40 focus:outline-none focus:border-yellow-300"
+              />
+              <ActionButton onClick={onSaveTyped} tone="secondary">
+                Save
+              </ActionButton>
+            </div>
+          </div>
+        </div>
 
-    <div className="flex items-center gap-2">
-      <input
-        type="number"
-        inputMode="decimal"
-        value={speedInput}
-        onChange={(e) => setSpeedInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            (e.currentTarget as HTMLInputElement).blur();
-            onSaveTyped();
-          }
-        }}
-        placeholder="Download speed (Mbps)"
-        className="flex-1 px-3 py-2 rounded-md bg-black/40 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-cyan-400"
-      />
-      <Button onClick={onSaveTyped} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
-        Save
-      </Button>
-    </div>
-
-    {typeof speedMbps === 'number' && (
-      <div
-        className={`p-3 rounded-md border text-sm ${
-          speedMbps >= 15
-            ? 'bg-green-500/10 border-green-500/40 text-green-200'
-            : 'bg-red-500/10 border-red-500/40 text-red-200'
-        }`}
-      >
-        Recorded: <strong>{speedMbps} Mbps</strong>{' '}
-        {speedMbps >= 15 ? '— good for streaming. Tap Next.' : '— too low. Improve Wi-Fi/Ethernet and re-test.'}
+        <div
+          className={`rounded-2xl border-2 p-6 text-center ${
+            typeof speedMbps !== 'number'
+              ? 'border-dashed border-white/15 bg-white/[0.03]'
+              : good
+                ? 'border-emerald-300/50 bg-emerald-400/10'
+                : 'border-rose-300/50 bg-rose-400/10'
+          }`}
+        >
+          {typeof speedMbps === 'number' ? (
+            <>
+              <p className="text-sm uppercase tracking-wider text-white/60">Your speed</p>
+              <p className={`mt-1 text-5xl font-bold ${good ? 'text-emerald-200' : 'text-rose-200'}`}>
+                {speedMbps}
+                <span className="ml-2 text-2xl font-semibold">Mbps</span>
+              </p>
+              <p className="mt-3 text-base text-white/85 leading-relaxed">
+                {good
+                  ? 'Good for streaming. Press Next.'
+                  : 'Too slow for smooth streaming. Try 5 GHz Wi-Fi, move the box closer to the router, or use an Ethernet cable, then test again.'}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm uppercase tracking-wider text-white/50">Your speed</p>
+              <p className="mt-1 text-5xl font-bold text-white/25">—</p>
+              <p className="mt-3 text-base text-white/60">Run the test and your result shows here.</p>
+            </>
+          )}
+        </div>
       </div>
-    )}
-  </Card>
-);
+    </StepPanel>
+  );
+};
 
 const Step4 = ({
   vpnSpeedOk,
@@ -1668,33 +1809,31 @@ const Step4 = ({
   const activeInstalled = activeChoice === 'ipvanish' ? ipvanishInstalled : surfsharkInstalled;
   const anyInstalled = ipvanishInstalled || surfsharkInstalled;
   return (
-    <Card className="bg-white/5 border-white/10 p-3 space-y-3">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-white flex items-center justify-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-cyan-300" /> VPN test (ISP throttling check)
-        </h2>
-        <p className="text-sm text-white/70 mt-1 max-w-xl mx-auto">
-          A premium VPN bypasses ISP throttling — the #1 cause of buffering during peak hours.
-          Pick whichever you prefer below, install it, sign in, and re-test.
-        </p>
-        <div className="mt-3 bg-amber-500/10 border border-amber-500/40 rounded-md p-3 text-xs text-amber-100 leading-relaxed text-left">
-          <strong>Heads up — VPN is a paid service.</strong> Free VPNs don't deliver the speed or
-          protection we need. Check with <strong>your reseller</strong> for sign-in details, or sign
-          up yourself by scanning the QR code under either option below. Once installed, <strong>sign in</strong>,
-          tap <strong>Quick Connect</strong>, then try your channel or movie/show again.
-          <span className="block mt-1 text-amber-200/90">Note: VPN does <strong>not</strong> work with VibezTV.</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <ChoiceButton dataVpnChoice="ipvanish" active={activeChoice === 'ipvanish'} onClick={() => onChooseVpn('ipvanish')}>
-          <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> IPVanish
+    <StepPanel
+      icon={<ShieldCheck className="!w-7 !h-7" />}
+      title="Try a VPN"
+      lead="Internet providers often slow streaming down, especially in the evening. A VPN hides your streaming from them, and is the most common fix."
+    >
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <ChoiceButton
+          dataVpnChoice="ipvanish"
+          active={activeChoice === 'ipvanish'}
+          onClick={() => onChooseVpn('ipvanish')}
+          icon={<img src={VPN_INFO.ipvanish.icon} alt="" className="w-8 h-8 rounded-lg" />}
+          sub={ipvanishInstalled ? 'Installed' : 'Not installed'}
+        >
+          IPVanish
         </ChoiceButton>
-        <ChoiceButton dataVpnChoice="surfshark" active={activeChoice === 'surfshark'} onClick={() => onChooseVpn('surfshark')}>
-          <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> Surfshark
+        <ChoiceButton
+          dataVpnChoice="surfshark"
+          active={activeChoice === 'surfshark'}
+          onClick={() => onChooseVpn('surfshark')}
+          icon={<img src={VPN_INFO.surfshark.icon} alt="" className="w-8 h-8 rounded-lg" />}
+          sub={surfsharkInstalled ? 'Installed' : 'Not installed'}
+        >
+          Surfshark
         </ChoiceButton>
       </div>
-
 
       <VpnSection
         choice={activeChoice}
@@ -1704,56 +1843,49 @@ const Step4 = ({
         onLaunchVpn={() => onLaunchVpn(activeChoice)}
       />
 
-
       {anyInstalled && (
-        <>
-          <div className="border-t border-white/10 pt-4">
-            <p className="text-sm text-white mb-2">After connecting the VPN, re-test your speed:</p>
-            <Button
-              onClick={onRunSpeedTest}
-              className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-            >
-              <Gauge className="w-4 h-4 mr-2" /> Run Speedtest with VPN On
-            </Button>
-          </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 space-y-5">
+          <p className="text-sm uppercase tracking-wider text-cyan-200/80">With the VPN connected</p>
 
-          <div>
-            <p className="text-sm text-white mb-2">Is your speed still 15+ Mbps?</p>
-            <div className="space-y-2">
-              <ChoiceButton active={vpnSpeedOk === true} onClick={() => onVpnSpeedOk(true)}>
-                Yes — 15+ Mbps with VPN
+          <div className="space-y-3">
+            <Question>1. Test your speed again</Question>
+            <ActionButton onClick={onRunSpeedTest} icon={<Gauge />} className="w-full">
+              Run speed test with VPN on
+            </ActionButton>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <ChoiceButton active={vpnSpeedOk === true} onClick={() => onVpnSpeedOk(true)} icon={<CheckCircle2 className="text-emerald-300" />}>
+                15 Mbps or more
               </ChoiceButton>
-              <ChoiceButton active={vpnSpeedOk === false} onClick={() => onVpnSpeedOk(false)}>
-                No — speed dropped below 15 (switch to a closer VPN city/server)
+              <ChoiceButton
+                active={vpnSpeedOk === false}
+                onClick={() => onVpnSpeedOk(false)}
+                icon={<AlertTriangle className="text-amber-300" />}
+                sub="Pick a closer VPN city, then test again"
+              >
+                Under 15 Mbps
               </ChoiceButton>
             </div>
           </div>
 
-          <div>
-            <p className="text-sm text-white mb-2">
-              Now test your stream{chosenAppLabel ? ` in ${chosenAppLabel}` : ''}:
-            </p>
+          <div className="space-y-3">
+            <Question>2. Try your stream{chosenAppLabel ? ` in ${chosenAppLabel}` : ''}</Question>
             {chosenAppAvailable && (
-              <Button
-                onClick={onTestStreamingApp}
-                variant="outline"
-                className="w-full mb-2 bg-white/5 border-white/20 text-white hover:bg-white/10"
-              >
-                <Play className="w-4 h-4 mr-2" /> Launch {chosenAppLabel}
-              </Button>
+              <ActionButton onClick={onTestStreamingApp} tone="secondary" icon={<Play />} className="w-full">
+                Open {chosenAppLabel}
+              </ActionButton>
             )}
-            <div className="space-y-2">
-              <ChoiceButton active={vpnTest === 'fixed'} onClick={() => onVpnTest('fixed')}>
-                <CheckCircle2 className="w-4 h-4 mr-2 text-green-400" /> VPN fixed it
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <ChoiceButton active={vpnTest === 'fixed'} onClick={() => onVpnTest('fixed')} icon={<CheckCircle2 className="text-emerald-300" />}>
+                The VPN fixed it
               </ChoiceButton>
-              <ChoiceButton active={vpnTest === 'still_buffering'} onClick={() => onVpnTest('still_buffering')}>
+              <ChoiceButton active={vpnTest === 'still_buffering'} onClick={() => onVpnTest('still_buffering')} icon={<RotateCw className="text-white/80" />}>
                 Still buffering
               </ChoiceButton>
             </div>
           </div>
-        </>
+        </div>
       )}
-    </Card>
+    </StepPanel>
   );
 };
 
@@ -1772,60 +1904,33 @@ const VpnSection = ({
 }) => {
   const info = VPN_INFO[choice];
   return (
-    <div className="bg-black/30 border border-white/10 rounded-md p-4 space-y-4">
-      <div className="flex items-center gap-3">
-        <img src={info.icon} alt="" className="w-10 h-10 rounded-md flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-white">{info.label}</p>
-          <p className="text-xs text-white/60 mt-0.5">
-            {vpnInstalled ? 'Installed on this device' : 'Not installed yet — tap Install below'}
-          </p>
-        </div>
+    <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-5 items-start rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+      <div className="space-y-4 min-w-0">
+        {/* Primary action — full width so D-pad lands here first */}
+        {vpnInstalled ? (
+          <ActionButton onClick={onLaunchVpn} data-vpn-primary-action={choice} tone="go" icon={<Play />} className="w-full">
+            Open {info.label}
+          </ActionButton>
+        ) : (
+          <ActionButton onClick={onDownloadVpn} data-vpn-primary-action={choice} icon={<DownloadIcon />} className="w-full">
+            Install {info.label}
+          </ActionButton>
+        )}
+        <NumberedSteps
+          items={[
+            <><strong className="text-white">Sign in</strong> — your reseller has the details, or sign up with the QR code</>,
+            <>Choose <strong className="text-white">Quick Connect</strong>, then come back and try your stream</>,
+          ]}
+        />
+        <Note tone="warn">
+          A VPN is a paid service — free ones are too slow for streaming. It does <strong>not</strong> work with VibezTV.
+        </Note>
       </div>
-
-      {/* Primary action — full width so D-pad lands here first */}
-      {vpnInstalled ? (
-        <Button
-          onClick={onLaunchVpn}
-          data-vpn-primary-action={choice}
-          className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white"
-        >
-          <Play className="w-4 h-4 mr-2" /> Open {info.label}
-        </Button>
-      ) : (
-        <Button
-          onClick={onDownloadVpn}
-          data-vpn-primary-action={choice}
-          className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-        >
-          <DownloadIcon className="w-4 h-4 mr-2" /> Install {info.label}
-        </Button>
-      )}
-
-      {vpnInstalled && (
-        <div className="bg-green-500/10 border border-green-500/40 rounded-md p-2 text-xs text-green-100 leading-snug">
-          <strong>After tapping Open:</strong> sign in, tap <strong>Quick Connect</strong>, then retry your channel.
-        </div>
-      )}
-
-      <div className="border-t border-white/10 pt-3 space-y-2">
-        <p className="text-sm text-white">Need an account? Scan to sign up:</p>
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <QrBlock value={info.signupUrl} />
-          <div className="flex-1 min-w-0 text-center sm:text-left">
-            <a
-              href={info.signupUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-cyan-300 text-xs break-all hover:underline inline-flex items-center gap-1"
-            >
-              {info.signupUrl}
-              <ExternalLink className="w-3 h-3 flex-shrink-0" />
-            </a>
-          </div>
-        </div>
+      <div className="flex flex-col items-center text-center">
+        <p className="mb-2 text-base text-white/75">Need an account?</p>
+        <QrBlock value={info.signupUrl} />
+        <p className="mt-2 max-w-[180px] text-sm text-white/55 leading-snug">Scan with your phone to sign up</p>
       </div>
-
     </div>
   );
 };
@@ -1834,7 +1939,7 @@ const QrBlock = ({ value }: { value: string }) => {
   const [dataUrl, setDataUrl] = useState<string>('');
   useEffect(() => {
     let cancelled = false;
-    QRCode.toDataURL(value, { width: 180, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } })
+    QRCode.toDataURL(value, { width: 200, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } })
       .then((url) => {
         if (!cancelled) setDataUrl(url);
       })
@@ -1844,11 +1949,11 @@ const QrBlock = ({ value }: { value: string }) => {
     };
   }, [value]);
   return (
-    <div className="bg-white p-1.5 rounded-md flex-shrink-0">
+    <div className="bg-white p-2 rounded-xl flex-shrink-0">
       {dataUrl ? (
-        <img src={dataUrl} alt="QR code" className="w-[110px] h-[110px]" />
+        <img src={dataUrl} alt="QR code" className="w-[150px] h-[150px]" />
       ) : (
-        <div className="w-[110px] h-[110px] flex items-center justify-center text-slate-500 text-xs">Loading…</div>
+        <div className="w-[150px] h-[150px] flex items-center justify-center text-slate-500 text-sm">Loading…</div>
       )}
     </div>
   );
@@ -1856,74 +1961,80 @@ const QrBlock = ({ value }: { value: string }) => {
 
 const Summary = ({
   diagnosis,
-  supportScript,
+  recap,
+  resolved,
   chosenApp,
   chosenAppLabel,
   chosenAppInstalled,
   onLaunchApp,
-  onCopy,
   onSubmitTicket,
   submittingTicket,
   onRestart,
 }: {
   diagnosis: { title: string; bullets: string[] };
-  supportScript: string;
+  recap: { label: string; value: string }[];
+  resolved: boolean;
   chosenApp: AppData | undefined;
   chosenAppLabel: string | null;
   chosenAppInstalled: boolean;
   onLaunchApp: () => void;
-  onCopy: () => void;
   onSubmitTicket: () => void;
   submittingTicket: boolean;
   onRestart: () => void;
 }) => (
-  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
-    <div>
-      <h2 className="text-xl font-semibold text-white">Your results</h2>
-      <p className="text-sm text-white/70 mt-1">Most likely cause and what to do next.</p>
+  <section className="space-y-5">
+    <div className={`rounded-3xl border-2 p-5 ${resolved ? 'border-emerald-300/50 bg-emerald-400/10' : 'border-cyan-300/40 bg-cyan-400/10'}`}>
+      <div className="flex items-start">
+        <span className={`mr-4 flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl ${resolved ? 'bg-emerald-400/20 text-emerald-200' : 'bg-cyan-400/20 text-cyan-200'}`}>
+          {resolved ? <CheckCircle2 className="w-8 h-8" /> : <HelpCircle className="w-8 h-8" />}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm uppercase tracking-wider text-white/60">{resolved ? 'Sorted' : 'What we found'}</p>
+          <h2 className="text-2xl font-bold text-white leading-tight">{diagnosis.title}</h2>
+          <ul className="mt-3 space-y-1.5">
+            {diagnosis.bullets.map((b, i) => (
+              <li key={i} className="flex items-start text-base sm:text-lg text-white/85 leading-snug">
+                <span className="mr-3 mt-2.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-white/60" />
+                <span className="min-w-0">{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
 
-    <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-md p-4">
-      <p className="font-medium text-cyan-200">{diagnosis.title}</p>
-      <ul className="mt-2 space-y-1 text-sm text-white/90 list-disc list-inside">
-        {diagnosis.bullets.map((b, i) => <li key={i}>{b}</li>)}
-      </ul>
-    </div>
-
-    {/* Full step-by-step recap of what we just walked through */}
-    <div className="bg-black/30 border border-white/10 rounded-md p-4">
-      <p className="text-sm font-medium text-white mb-2">Steps you completed</p>
-      <pre className="text-xs text-white/80 whitespace-pre-wrap font-mono leading-relaxed">
-{supportScript}
-      </pre>
-    </div>
-
-    {chosenApp && chosenAppInstalled && chosenAppLabel && (
-      <Button
-        onClick={onLaunchApp}
-        data-summary-order="1"
-        className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white"
+    {/* Actions sit above the recap so they are on screen without scrolling. */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {chosenApp && chosenAppInstalled && chosenAppLabel && (
+        <ActionButton onClick={onLaunchApp} data-summary-order="1" tone="go" icon={<Play />}>
+          Open {chosenAppLabel}
+        </ActionButton>
+      )}
+      <ActionButton
+        onClick={onSubmitTicket}
+        disabled={submittingTicket}
+        data-summary-order="2"
+        icon={<MessageSquare />}
       >
-        <Play className="w-4 h-4 mr-2" /> Launch {chosenAppLabel} to Test
-      </Button>
-    )}
-
-    <Button
-      onClick={onSubmitTicket}
-      disabled={submittingTicket}
-      data-summary-order="2"
-      className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white"
-    >
-      <MessageSquare className="w-4 h-4 mr-2" />
-      {submittingTicket ? 'Submitting…' : 'Submit Ticket to Chat & Community'}
-    </Button>
-
-    <div className="flex flex-wrap gap-2">
-      <Button onClick={onRestart} data-summary-order="3" variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
-        <RotateCw className="w-4 h-4 mr-2" /> Start Over
-      </Button>
+        {submittingTicket ? 'Sending…' : 'Send to support'}
+      </ActionButton>
+      <ActionButton onClick={onRestart} data-summary-order="3" tone="secondary" icon={<RotateCw />}>
+        Start over
+      </ActionButton>
     </div>
-  </Card>
+
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+      <p className="mb-3 text-lg font-semibold text-white">What you tried</p>
+      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+        {recap.map((r) => (
+          <div key={r.label} className="flex items-baseline justify-between border-b border-white/5 pb-1.5">
+            <dt className="text-base text-white/60">{r.label}</dt>
+            <dd className="ml-4 text-base font-semibold text-white text-right">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  </section>
 );
 
 /* ---------------- Logic ---------------- */
@@ -1931,7 +2042,7 @@ const Summary = ({
 function getDiagnosis(state: State): { title: string; bullets: string[] } {
   if (state.step1Choice === 'one_only') {
     return {
-      title: 'Likely cause: single channel/title source issue',
+      title: "It's that one channel or title",
       bullets: [
         'If only one channel/title is failing, your internet is usually fine.',
         'Email the exact channel/title name to support so we can fix it fast.',
@@ -1940,7 +2051,7 @@ function getDiagnosis(state: State): { title: string; bullets: string[] } {
   }
   if (state.didRestartAndCache === true) {
     return {
-      title: 'Resolved: app/device glitch (cache) fixed it',
+      title: 'Fixed: clearing the cache did it',
       bullets: [
         'Clearing cache + restarting refreshes the app and connection.',
         'If it happens again, repeat the Force Stop + Clear Cache step first.',
@@ -1949,7 +2060,7 @@ function getDiagnosis(state: State): { title: string; bullets: string[] } {
   }
   if (typeof state.speedMbps === 'number' && state.speedMbps < 15) {
     return {
-      title: 'Most likely cause: internet speed/quality on this device',
+      title: 'Your internet is too slow on this device',
       bullets: [
         `Speed on the streaming device is under 15 Mbps (${state.speedMbps} Mbps).`,
         'Switch to 5GHz Wi-Fi, move closer, or try Ethernet.',
@@ -1959,7 +2070,7 @@ function getDiagnosis(state: State): { title: string; bullets: string[] } {
   }
   if (state.vpnTest === 'fixed') {
     return {
-      title: 'Most likely cause: ISP throttling (VPN confirmed it)',
+      title: 'Fixed: your provider was slowing you down',
       bullets: [
         'VPN working means your ISP likely slowed streaming traffic (especially during peak hours).',
         'Keep VPN on while streaming and use a nearby/fast server.',
@@ -1968,13 +2079,26 @@ function getDiagnosis(state: State): { title: string; bullets: string[] } {
     };
   }
   return {
-    title: 'Still buffering: likely source/app + network combination',
+    title: "Still buffering: let's get support on it",
     bullets: [
       'Re-check speed test closer to the router (15+ Mbps).',
       'Try VPN with a different nearby city/server and re-test speed (15+ Mbps).',
-      `Email ${SUPPORT_EMAIL} with the results below so we can help quickly.`,
+      'Press Send to support and we will pick it up from your results.',
     ],
   };
+}
+
+function buildRecap(state: State): { label: string; value: string }[] {
+  const yn = (v: boolean | null) => (v === null ? '—' : v ? 'Yes' : 'No');
+  return [
+    { label: 'App', value: state.appType ? APP_LABELS[state.appType].replace('your app', 'Other') : '—' },
+    { label: 'Buffering', value: state.step1Choice === 'one_only' ? 'One channel/title' : state.step1Choice === 'all_buffer' ? 'Everything' : '—' },
+    { label: 'Clearing the cache fixed it', value: yn(state.didRestartAndCache) },
+    { label: 'Speed', value: typeof state.speedMbps === 'number' ? `${state.speedMbps} Mbps` : '—' },
+    { label: 'VPN', value: state.vpnChoice ? VPN_INFO[state.vpnChoice].label : '—' },
+    { label: 'Speed with VPN 15+', value: yn(state.vpnSpeedOk) },
+    { label: 'VPN fixed it', value: state.vpnTest === 'fixed' ? 'Yes' : state.vpnTest === 'still_buffering' ? 'No' : '—' },
+  ];
 }
 
 function buildSupportScript(state: State, d: { title: string; bullets: string[] }): string {

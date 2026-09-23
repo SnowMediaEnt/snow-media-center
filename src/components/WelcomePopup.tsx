@@ -19,6 +19,7 @@ const CHANGELOG: Record<string, string[]> = {
     '🎞️ Plex Home: Recently Added and Recently Released go a hundred titles deep, and scroll smoothly',
     '🎥 Live TV: VOD is back in the menu with Plex pinned first, and Live TV opens with the highlight on the categories',
     '🪶 Live TV is lighter: programme info and channel lists load only for what is on screen, and radio channels no longer restart',
+    '🛠️ The buffering guide is redesigned: bigger, clearer, with a step tracker and big buttons made for the remote',
     '📲 Main Apps: Dreamstreams, VibezTV and Plex now point you to the Player, where they live under Live TV and Plex',
     '🤖 Older Android boxes: the Dashboard and Settings buttons are back at the top right',
   ],
