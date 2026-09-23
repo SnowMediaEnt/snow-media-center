@@ -6,6 +6,7 @@ import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from '
 import { RefreshCw, LifeBuoy, Radio, Film } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useBackupStreams, type BackupStream } from '@/hooks/useBackupStreams';
+import { tmdbSized } from '@/lib/tmdbImage';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { loadVolume, saveVolume } from '@/lib/xtream';
@@ -33,12 +34,6 @@ interface Props {
   onExitUp?: () => void;
   serverLabel?: string | null;
 }
-
-// Posters here are whatever URL an admin pasted. A TMDB "original" is about
-// 2000x3000 (≈24 MB decoded) for a 150 px card, and Chromium 66 ignores
-// loading="lazy", so every one decodes at once. Ask TMDB for a tile size.
-const tilePoster = (url: string) =>
-  url.replace(/(image\.tmdb\.org\/t\/p\/)(original|w\d{4,})\//, '$1w342/');
 
 const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Props) => {
   const [playing, setPlaying] = useState<BackupStream | null>(null);
@@ -349,7 +344,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
                 >
                   {s.poster_url ? (
                     <div className="w-full aspect-[2/3] bg-black/40">
-                      <img src={tilePoster(s.poster_url)} alt={s.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      <img src={tmdbSized(s.poster_url)} alt={s.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     </div>
                   ) : (
                     <div className="w-full aspect-[2/3] bg-black/40 flex items-center justify-center p-3 text-center">

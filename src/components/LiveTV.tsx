@@ -60,7 +60,7 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex' | 'multi' | 'backups';
+type SectionId = 'live' | 'guide' | 'vod' | 'movies' | 'series' | 'plex' | 'multi' | 'backups';
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
 
@@ -267,6 +267,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (mode === 'live') return [
       { id: 'live',  label: 'Live TV', icon: Tv },
       { id: 'guide', label: 'Guide',   icon: LayoutGrid },
+      // The line's movies, with Plex pinned first for everything else.
+      { id: 'vod',   label: 'VOD',     icon: Film },
       { id: 'multi', label: 'Multi-Screen', icon: Grid2X2 },
       { id: 'backups', label: 'Backups', icon: LifeBuoy },
     ];
@@ -307,7 +309,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // the full line-up was downloaded and counted on every open. Bumping here,
   // while nothing is listening yet, makes the first request the fresh one.
   const autoRefreshedRef = useRef(false);
+  // Plex opened from the VOD list: leaving Plex returns there, not to the
+  // mode chooser.
+  const plexFromVodRef = useRef(false);
   const enterMode = useCallback((m: 'live' | 'movies' | 'backups') => {
+    plexFromVodRef.current = false;
     if (m !== 'movies' && !autoRefreshedRef.current) {
       autoRefreshedRef.current = true;
       bumpXtreamRefresh();
@@ -324,14 +330,27 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setMode(m);
     setSection(m === 'live' ? 'live' : 'plex');
     setSectionIdx(0);
-    setPane('sections');
+    // Live TV opens with the highlight already on its categories, not on
+    // the far-left menu.
+    setPane(m === 'live' ? 'content' : 'sections');
     if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: m, service: serverLabelRef.current }); } catch { /* ignore */ } }
   }, []);
   const leaveMode = useCallback(() => {
+    if (modeRef.current === 'movies' && plexFromVodRef.current) {
+      plexFromVodRef.current = false;
+      setMode('live');
+      setSection('vod');
+      setPane('content');
+      return;
+    }
     setMode('choose');
     setSectionIdx(0);
     setPane('sections');
   }, []);
+  const openPlexFromVod = useCallback(() => {
+    enterMode('movies');
+    plexFromVodRef.current = true;
+  }, [enterMode]);
 
   // player_open — once per LiveTV mount.
   const playerOpenRef = useRef(false);
@@ -972,6 +991,18 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           )
         )}
 
+
+        {section === 'vod' && creds && (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+            <MoviesSection
+              creds={creds}
+              isActive={pane === 'content' && !claimOpen}
+              onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
+              onOpenPlex={openPlexFromVod}
+            />
+          </Suspense>
+        )}
 
         {section === 'movies' && creds && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>

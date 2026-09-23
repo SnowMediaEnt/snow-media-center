@@ -17,6 +17,8 @@ const CHANGELOG: Record<string, string[]> = {
     '🎬 Plex: a short "Getting Plex ready…" while every Home rail and its posters load, so the screen is smooth the moment it appears instead of stuttering while rows arrive',
     '🔎 Plex search: Popular searches and your recent ones before you type, and a "Did you mean" row when a title is typed a little wrong',
     '🎞️ Plex Home: Recently Added and Recently Released go a hundred titles deep, and scroll smoothly',
+    '🎥 Live TV: VOD is back in the menu with Plex pinned first, and Live TV opens with the highlight on the categories',
+    '🪶 Live TV is lighter: programme info and channel lists load only for what is on screen, and radio channels no longer restart',
     '📲 Main Apps: Dreamstreams, VibezTV and Plex now point you to the Player, where they live under Live TV and Plex',
     '🤖 Older Android boxes: the Dashboard and Settings buttons are back at the top right',
   ],

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { ArrowLeft, Loader2, Play, Search, Star } from 'lucide-react';
+import { ArrowLeft, Film, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,6 +23,7 @@ import {
   type CatalogCounts,
 } from '@/lib/catalogCounts';
 import PosterCard from './PosterCard';
+import { tmdbSized } from '@/lib/tmdbImage';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
@@ -37,19 +38,30 @@ interface Props {
   isActive: boolean;
   onExitLeft: () => void;
   onExitUp?: () => void;
+  /** Live TV's VOD section: a "Plex" entry sits first in the categories and
+   *  opens Plex for everything else. */
+  onOpenPlex?: () => void;
 }
 
 type Pane = 'categories' | 'grid' | 'detail';
 const ALL_ID = '__all__';
+const PLEX_ID = '__plex__';
+// Category lists kept while browsing; the oldest go first past this.
+const MAX_KEPT_CATEGORIES = 6;
 const GRID_COLS = 5;
 // Demo latch (?demo=1) — canned catalog; play shows the demo dialog instead.
 const DEMO = isDemo();
 
-const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
+const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex }: Props) => {
+  const hasPlex = !!onOpenPlex;
+  const onOpenPlexRef = useRef(onOpenPlex);
+  useEffect(() => { onOpenPlexRef.current = onOpenPlex; }, [onOpenPlex]);
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [moviesByCat, setMoviesByCat] = useState<Map<string, XtreamVodStream[]>>(new Map());
   const [loadingCat, setLoadingCat] = useState<string | null>(null);
+  const moviesByCatRef = useRef(moviesByCat);
+  useEffect(() => { moviesByCatRef.current = moviesByCat; }, [moviesByCat]);
 
   // How many movies this service carries, per category and in total. Filled
   // in by every list that arrives and remembered between launches, so a
@@ -82,6 +94,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const [searchQuery, setSearchQuery] = useState('');
   const [allMovies, setAllMovies] = useState<XtreamVodStream[] | null>(null);
   const [allMoviesLoading, setAllMoviesLoading] = useState(false);
+  const allMoviesRef = useRef(allMovies);
+  useEffect(() => { allMoviesRef.current = allMovies; }, [allMovies]);
 
   const [selectedMovie, setSelectedMovie] = useState<XtreamVodStream | null>(null);
   const [movieInfo, setMovieInfo] = useState<XtreamVodInfo | null>(null);
@@ -126,6 +140,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
 
   const visibleCategories = useMemo(() => {
     const base: { id: string; name: string; count?: number }[] = [
+      ...(hasPlex ? [{ id: PLEX_ID, name: 'Plex' }] : []),
       { id: ALL_ID, name: 'All Movies', count: moviesByCat.get(ALL_ID)?.length ?? counts.total ?? undefined },
     ];
     for (const c of categories) {
@@ -133,7 +148,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       base.push({ id: key, name: c.category_name, count: moviesByCat.get(key)?.length ?? counts.byCat[key] });
     }
     return base;
-  }, [categories, moviesByCat, counts]);
+  }, [categories, moviesByCat, counts, hasPlex]);
 
   // Clamp focus when category list shrinks; once real categories arrive, bump
   // focus to the first real category (index 1) iff the user hasn't moved yet.
@@ -143,7 +158,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       setCategoryIdx(visibleCategories.length - 1);
       return;
     }
+    // With Plex pinned first, focus stays on it: it is the way in.
     if (
+      !hasPlex &&
       categories.length > 0 &&
       !userMovedRef.current &&
       categoryIdx < 1 &&
@@ -151,7 +168,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     ) {
       setCategoryIdx(1);
     }
-  }, [visibleCategories.length, categoryIdx, categories.length]);
+  }, [visibleCategories.length, categoryIdx, categories.length, hasPlex]);
 
   const currentCat = visibleCategories[categoryIdx];
 
@@ -159,16 +176,28 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   // "All Movies" is STRICTLY opt-in: never auto-fetch on focus.
   useEffect(() => {
     if (pane !== 'grid') return;
-    if (!currentCat) return;
+    if (!currentCat || currentCat.id === PLEX_ID) return;
     if (currentCat.id === ALL_ID && !allOptedInRef.current) return;
     if (moviesByCat.has(currentCat.id)) return;
     let cancelled = false;
     const key = currentCat.id;
     setLoadingCat(key);
-    const p = key === ALL_ID ? getVodStreams(creds) : getVodStreams(creds, key);
+    // Search already holds the whole catalogue: never download it twice.
+    const p = key === ALL_ID
+      ? (allMoviesRef.current ? Promise.resolve(allMoviesRef.current) : getVodStreams(creds))
+      : getVodStreams(creds, key);
     p.then(list => {
       if (cancelled) return;
-      setMoviesByCat(prev => { const n = new Map(prev); n.set(key, list); return n; });
+      setMoviesByCat(prev => {
+        const n = new Map(prev);
+        n.set(key, list);
+        // Keep the last few categories, not every one opened this visit.
+        for (const k of n.keys()) {
+          if (n.size <= MAX_KEPT_CATEGORIES) break;
+          if (k !== key) n.delete(k);
+        }
+        return n;
+      });
       if (key === ALL_ID) noteCounts({ total: list.length, byCat: tallyByCategory(list) });
       else noteCounts({ byCat: { [key]: list.length } });
     }).catch(() => {
@@ -181,10 +210,13 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     return () => { cancelled = true; };
   }, [pane, currentCat, creds, moviesByCat, noteCounts]);
 
-  // Lazy-load the full movie catalog when the search panel opens.
+  // Lazy-load the full movie catalog when the search panel opens — or reuse
+  // the one "All Movies" already downloaded.
   useEffect(() => {
     if (!searchOpen) return;
     if (allMovies || allMoviesLoading) return;
+    const have = moviesByCatRef.current.get(ALL_ID);
+    if (have) { setAllMovies(have); return; }
     setAllMoviesLoading(true);
     let cancelled = false;
     getVodStreams(creds)
@@ -229,6 +261,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     ? allMoviesLoading
     : !!(
         currentCat
+        && currentCat.id !== PLEX_ID
         && (currentCat.id !== ALL_ID || allOptedInRef.current)
         && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id))
       );
@@ -239,18 +272,21 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => { if (gridIdx >= visibleMovies.length) setGridIdx(0); }, [visibleMovies.length, gridIdx]);
 
   // Load detail
+  // A slow answer for an earlier film must not fill in a newer one's page.
+  const openSeqRef = useRef(0);
   const openMovie = useCallback(async (m: XtreamVodStream) => {
+    const seq = ++openSeqRef.current;
     setSelectedMovie(m);
     setMovieInfo(null);
     setPane('detail');
     setInfoLoading(true);
     try {
       const info = await getVodInfo(creds, m.stream_id);
-      setMovieInfo(info);
+      if (seq === openSeqRef.current) setMovieInfo(info);
     } catch {
-      setMovieInfo(null);
+      if (seq === openSeqRef.current) setMovieInfo(null);
     } finally {
-      setInfoLoading(false);
+      if (seq === openSeqRef.current) setInfoLoading(false);
     }
   }, [creds]);
 
@@ -291,6 +327,15 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => { playingRef.current = playing; }, [playing]);
   const searchOpenRef = useRef(searchOpen);
   useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
+  // One handler for every tile, so PosterCard's memo holds as focus moves:
+  // inline arrows re-rendered every mounted tile on every key press.
+  const openMovieRef = useRef(openMovie);
+  useEffect(() => { openMovieRef.current = openMovie; }, [openMovie]);
+  const onTileFocus = useCallback((i: number) => { setGridIdx(i); setPane('grid'); }, []);
+  const onTileActivate = useCallback((i: number) => {
+    const m = visibleMoviesRef.current[i];
+    if (m) void openMovieRef.current(m);
+  }, []);
 
   useEffect(() => {
     if (!isActive) return;
@@ -350,7 +395,13 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
         else if (e.key === 'ArrowLeft') onExitLeft();
         else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
           userMovedRef.current = true;
-          if (cats[categoryIdxRef.current]?.id === ALL_ID) allOptedInRef.current = true;
+          const id = cats[categoryIdxRef.current]?.id;
+          if (id === PLEX_ID) {
+            // Right is just a move; only OK opens Plex.
+            if (e.key !== 'ArrowRight' && !e.repeat) onOpenPlexRef.current?.();
+            return;
+          }
+          if (id === ALL_ID) allOptedInRef.current = true;
           setPane('grid');
         }
         return;
@@ -394,6 +445,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const [rowH, setRowH] = useState(280);
   const rowHRef = useRef(280);
   useEffect(() => { rowHRef.current = rowH; }, [rowH]);
+  // Keyed on the grid being on screen: the detail page and the player
+  // replace it, and the observer was left watching the old, detached one.
+  const gridShown = !playing && !(pane === 'detail' && !!selectedMovie);
   useEffect(() => {
     const el = gridScrollRef.current;
     if (!el) return;
@@ -413,7 +467,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [gridShown]);
   const rowCount = Math.ceil(visibleMovies.length / GRID_COLS);
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
@@ -487,7 +541,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   // Detail view
   if (pane === 'detail' && selectedMovie) {
     const info = movieInfo?.info;
-    const cover = info?.movie_image || info?.cover_big || selectedMovie.stream_icon;
+    const cover = tmdbSized(info?.movie_image || info?.cover_big || selectedMovie.stream_icon, 'w500');
     return (
       <div className="flex-1 min-h-0 flex flex-col text-white bg-black/40">
         <div className={`${BACK_ROW} flex-shrink-0 px-8 pt-8 mb-4`}>
@@ -577,6 +631,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                   data-focused={isFocused ? 'true' : 'false'}
                   onClick={() => {
                     userMovedRef.current = true;
+                    if (c.id === PLEX_ID) { setCategoryIdx(i); onOpenPlexRef.current?.(); return; }
                     if (c.id === ALL_ID) allOptedInRef.current = true;
                     setCategoryIdx(i); setGridIdx(0); setPane('grid');
                   }}
@@ -587,6 +642,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                     ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
                   `}
                 >
+                  {c.id === PLEX_ID && <Film className="w-4 h-4 text-brand-gold flex-shrink-0" />}
                   <span className="flex-1 truncate">{c.name}</span>
                   {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                   {!isLoadingThis && c.count != null && c.count > 0 && (
@@ -603,10 +659,20 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
 
       {/* Pane 3 — Grid (virtualized by row) */}
       <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 bg-black/30">
-        {moviesLoading && visibleMovies.length === 0 ? (
+        {!searchOpen && currentCat?.id === PLEX_ID ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="max-w-md text-center rounded-3xl border border-brand-gold/30 bg-black/40 px-10 py-10">
+              <Film className="w-14 h-14 text-brand-gold mx-auto mb-4" />
+              <h3 className="text-2xl font-quicksand font-bold text-white mb-2">Plex</h3>
+              <p className="text-brand-ice/85 font-nunito leading-relaxed">
+                All your movies and TV shows. Press OK to open Plex.
+              </p>
+            </div>
+          </div>
+        ) : moviesLoading && visibleMovies.length === 0 ? (
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
             {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
-              <div key={i} className="rounded-xl bg-white/5 animate-pulse" style={{ aspectRatio: '2 / 3' }} />
+              <div key={i} className="rounded-xl bg-white/5 animate-pulse" style={{ height: 0, paddingBottom: '150%' }} />
             ))}
           </div>
         ) : visibleMovies.length === 0 ? (
@@ -615,7 +681,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
               ? (searchQuery
                   ? (allMoviesLoading ? 'Loading movie catalog…' : 'No movies match your search.')
                   : (allMoviesLoading ? 'Loading movie catalog…' : 'Type to search all movies.'))
-              : 'No movies in this category.'}
+              : currentCat?.id === ALL_ID && !allOptedInRef.current
+                ? 'Press OK to load every movie.'
+                : 'No movies in this category.'}
           </div>
 
         ) : (
@@ -645,13 +713,14 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                       <div key={m.stream_id}>
                         <PosterCard
                           title={m.name}
-                          image={m.stream_icon}
+                          image={tmdbSized(m.stream_icon)}
                           rating={m.rating_5based ? m.rating_5based * 2 : m.rating}
                           year={m.year}
                           isFocused={isFocused}
                           variant="movie"
-                          onFocus={() => { setGridIdx(i); setPane('grid'); }}
-                          onActivate={() => openMovie(m)}
+                          index={i}
+                          onFocus={onTileFocus}
+                          onActivate={onTileActivate}
                         />
                       </div>
                     );

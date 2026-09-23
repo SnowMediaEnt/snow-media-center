@@ -24,6 +24,7 @@ import {
   type CatalogCounts,
 } from '@/lib/catalogCounts';
 import PosterCard from './PosterCard';
+import { tmdbSized } from '@/lib/tmdbImage';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
@@ -327,6 +328,14 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => { gridIdxRef.current = gridIdx; }, [gridIdx]);
   useEffect(() => { visibleCategoriesRef.current = visibleCategories; }, [visibleCategories]);
   useEffect(() => { visibleSeriesRef.current = visibleSeries; }, [visibleSeries]);
+  // One handler for every tile, so PosterCard's memo holds as focus moves.
+  const openSeriesRef = useRef(openSeries);
+  useEffect(() => { openSeriesRef.current = openSeries; }, [openSeries]);
+  const onTileFocus = useCallback((i: number) => { setGridIdx(i); setPane('grid'); }, []);
+  const onTileActivate = useCallback((i: number) => {
+    const s = visibleSeriesRef.current[i];
+    if (s) void openSeriesRef.current(s);
+  }, []);
   useEffect(() => { playingRef.current = playing; }, [playing]);
   const searchOpenRef = useRef(searchOpen);
   useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
@@ -780,13 +789,14 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                       <div key={s.series_id}>
                         <PosterCard
                           title={s.name}
-                          image={s.cover}
+                          image={tmdbSized(s.cover)}
                           rating={s.rating}
                           year={s.releaseDate ? String(s.releaseDate).slice(0, 4) : undefined}
                           isFocused={isFocused}
                           variant="series"
-                          onFocus={() => { setGridIdx(i); setPane('grid'); }}
-                          onActivate={() => openSeries(s)}
+                          index={i}
+                          onFocus={onTileFocus}
+                          onActivate={onTileActivate}
                         />
                       </div>
                     );

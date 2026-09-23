@@ -8,11 +8,14 @@ interface Props {
   year?: string;
   isFocused: boolean;
   variant?: 'movie' | 'series';
-  onFocus?: () => void;
-  onActivate?: () => void;
+  /** Handed back to onFocus/onActivate, so callers can pass one stable
+   *  handler for every card and the memo holds as focus moves. */
+  index: number;
+  onFocus?: (index: number) => void;
+  onActivate?: (index: number) => void;
 }
 
-const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'movie', onFocus, onActivate }: Props) => {
+const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'movie', index, onFocus, onActivate }: Props) => {
   const [err, setErr] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const showImg = image && !err;
@@ -23,17 +26,20 @@ const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'mov
   return (
     <div
       data-focused={isFocused ? 'true' : 'false'}
-      onMouseEnter={onFocus}
-      onClick={onActivate}
+      onMouseEnter={onFocus ? () => onFocus(index) : undefined}
+      onClick={onActivate ? () => onActivate(index) : undefined}
+      // will-change only on the focused card: on every card it gave each its
+      // own compositor layer. The 2:3 box is padding-based — aspect-ratio
+      // does not exist on Chromium 66, where the card had no height.
       className={`
         tv-ring relative rounded-2xl overflow-hidden cursor-pointer
-        transition-transform duration-200 ease-out will-change-transform
+        transition-transform duration-200 ease-out
         bg-black/40 border border-white/10
         ${isFocused
-          ? 'scale-[1.08] z-10'
+          ? 'scale-[1.08] z-10 will-change-transform'
           : 'hover:scale-[1.02]'}
       `}
-      style={{ aspectRatio: '2 / 3' }}
+      style={{ height: 0, paddingBottom: '150%' }}
     >
       {showImg ? (
         <>
@@ -47,11 +53,11 @@ const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'mov
             decoding="async"
             onLoad={() => setLoaded(true)}
             onError={() => setErr(true)}
-            className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
           />
         </>
       ) : (
-        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-navy/60 to-black/80">
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-navy/60 to-black/80">
           <Fallback className="w-12 h-12 text-brand-ice/40" />
         </div>
       )}
