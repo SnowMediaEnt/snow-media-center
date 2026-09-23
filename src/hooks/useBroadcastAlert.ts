@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { keepIfSame } from '@/lib/keepIfSame';
 
 const DISMISS_KEY = 'snow-broadcast-alert-dismissed-v1';
 
@@ -46,7 +47,7 @@ export function useBroadcastAlert() {
         .select('id,app_match,title,message,severity,active,source,updated_at')
         .eq('active', true);
       if (error) { console.warn('[BroadcastAlert] fetch failed:', error.message); setRows([]); return; }
-      setRows(((data || []) as BroadcastAlert[]).filter(isBroadcastAlert));
+      setRows((prev) => keepIfSame(prev, ((data || []) as BroadcastAlert[]).filter(isBroadcastAlert)));
     } catch {
       setRows([]);
     }

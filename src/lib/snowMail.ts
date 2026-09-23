@@ -213,7 +213,10 @@ function start(): () => void {
   const cancelPoll = setPausableInterval(() => { void refreshMail(); }, POLL_MS);
   const onVisible = () => { if (document.visibilityState === 'visible') void refreshMail(); };
   document.addEventListener('visibilitychange', onVisible);
-  const { data: auth } = supabase.auth.onAuthStateChange((event) => {
+  const { data: auth } = supabase.auth.onAuthStateChange((event, session) => {
+    // auth-js sends SIGNED_IN on every app resume; only a different viewer
+    // needs the mail list and read state fetched again.
+    if (event === 'SIGNED_IN' && session?.user?.id && session.user.id === syncedViewer) return;
     if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') { syncedViewer = ''; store.loaded = false; void refreshMail(); }
   });
   return () => {

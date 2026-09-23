@@ -22,10 +22,15 @@ interface Props {
   base: string;
   token: string;
   item: PlexItem;
-  onPlay: (item: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => void;
+  /** partKey: the file this page already knows about, so Play need not ask
+   *  the server for the same metadata again. */
+  onPlay: (item: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext, partKey?: string) => void;
   /** Play a specific episode (shows). */
   onPlayEpisode: (ep: PlexEpisode, ctx?: SubtitleSearchContext) => void;
   onBack: () => void;
+  /** Bumped when the player closes. The page stays mounted under the player
+   *  now, so its Resume point is refreshed on this instead of on a remount. */
+  watchNonce?: number;
 }
 
 type Step = 'detail' | 'seasons' | 'episodes' | 'actorGrid';
@@ -70,7 +75,36 @@ const ResBadge = memo(({ label, className = '' }: { label: string; className?: s
 });
 ResBadge.displayName = 'ResBadge';
 
-const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, onBack }: Props) => {
+/** One episode in the list. Memoised, and it scrolls itself into view only
+ *  when it becomes the focused row: each Up/Down used to rebuild every row and
+ *  re-attach every row's scroll callback, which on a hundred-episode season
+ *  is a lot of work per press on an old box. */
+const EpisodeRow = memo(({ ep, base, token, focused }: { ep: PlexEpisode; base: string; token: string; focused: boolean }) => {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => { if (focused) ref.current?.scrollIntoView({ block: 'nearest' }); }, [focused]);
+  return (
+    <div ref={ref}
+      data-focused={focused ? 'true' : 'false'}
+      className={`tv-ring flex items-center gap-3 py-2 px-3 rounded-xl border border-white/10 transition-transform duration-150 ${focused ? 'bg-white/10 z-10' : 'bg-black/40'}`}>
+      {/* A fixed 72 px, not aspect-video: aspect-ratio is Chrome 88, and on
+          the older boxes each row grew when its thumbnail landed, shifting
+          the list under the highlight. */}
+      <div className="w-32 h-[72px] flex-shrink-0 rounded-lg overflow-hidden bg-black/60">
+        <PlexImage base={base} path={ep.thumb} token={token} w={320} h={180} focusExempt className="w-full h-full object-cover" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="font-quicksand font-semibold text-sm truncate">
+          {ep.index != null ? `${ep.index}. ` : ''}{ep.title}
+        </div>
+        <div className="text-xs text-brand-ice/70 font-nunito">{fmtRuntime(ep.duration)}</div>
+        {ep.summary && <div className="text-xs text-brand-ice/70 font-nunito line-clamp-2 mt-1">{ep.summary}</div>}
+      </div>
+    </div>
+  );
+});
+EpisodeRow.displayName = 'EpisodeRow';
+
+const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, onBack, watchNonce = 0 }: Props) => {
   // ── back-stack of items (top = current). Opening a title from actor
   //    filmography pushes; Back pops before we ever hit onBack().
   const [stack, setStack] = useState<PlexItem[]>([item]);
@@ -106,20 +140,42 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   // Reset all state when the top-of-stack item changes. getPlexMetadata is
   // deferred via runWhenIdle so its JSON parse can't block the first D-pad
   // press after openDetail (the page renders instantly from `current`).
+  //
+  // Keyed on the title, not on the connection: a connection upgrade (same
+  // server, new address) used to reset the page and throw a viewer who was
+  // browsing episodes back to the buttons. base and token are read through a
+  // ref. Metadata already loaded for a title on this page's stack (Back from
+  // an actor's title) is reused instead of fetched again; it is dropped the
+  // moment that title is played, so a Resume point is never served stale.
+  const connRef = useRef({ base, token }); connRef.current = { base, token };
+  const metaMemoRef = useRef(new Map<string, PlexMetadata>());
+  const seasonsForRef = useRef<string | null>(null);
+  const episodesForRef = useRef<string | null>(null);
+  const seasonsSeqRef = useRef(0);
+  const episodesSeqRef = useRef(0);
   useEffect(() => {
-    setMeta(null);
-    setMetaLoading(true);
     setStep('detail');
     setZone('buttons');
     setBtn(0);
     setCastIdx(0);
-    setCastReady(false);
     setSeasons([]); setEpisodes([]); setSeasonIdx(0); setEpIdx(0);
+    seasonsForRef.current = null; episodesForRef.current = null;
+    seasonsSeqRef.current += 1; episodesSeqRef.current += 1;
+    setSeasonsLoading(false); setEpisodesLoading(false);
+    const known = metaMemoRef.current.get(current.ratingKey);
+    if (known) {
+      setMeta(known); setMetaLoading(false); setCastReady(true);
+      return;
+    }
+    setMeta(null);
+    setMetaLoading(true);
+    setCastReady(false);
     let cancelled = false;
     const cancelIdle = runWhenIdle(() => {
       if (cancelled) return;
+      const { base, token } = connRef.current;
       getPlexMetadata(base, token, current.ratingKey)
-        .then((m) => { if (!cancelled) setMeta(m); })
+        .then((m) => { metaMemoRef.current.set(current.ratingKey, m); if (!cancelled) setMeta(m); })
         .catch(() => { /* keep meta null — instant render from `current` still works */ })
         .finally(() => {
           if (cancelled) return;
@@ -129,7 +185,29 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
         });
     }, 120);
     return () => { cancelled = true; cancelIdle(); };
-  }, [base, token, current]);
+  }, [current]);
+
+  // Back from the player: refresh the Resume point quietly, without resetting
+  // the page, the step the viewer was on, or the cast.
+  // Only a change after mount counts: the page may open long after some
+  // earlier playback, with a non-zero nonce, and must not refetch for that.
+  const seenNonceRef = useRef(watchNonce);
+  useEffect(() => {
+    if (watchNonce === seenNonceRef.current) return;
+    seenNonceRef.current = watchNonce;
+    let cancelled = false;
+    const rk = current.ratingKey;
+    const { base, token } = connRef.current;
+    getPlexMetadata(base, token, rk)
+      .then((m) => {
+        metaMemoRef.current.set(rk, m);
+        // Still the title on screen? Back may have popped to another one.
+        if (!cancelled && currentRef.current.ratingKey === rk) setMeta(m);
+      })
+      .catch(() => { /* keep what is shown */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchNonce]);
 
   // Backdrop art is expensive to decode (a 1280x720 JPEG easily pushes 4-6MB
   // into the WebView surface and, on the Fire TV Stick 4K Max we're targeting,
@@ -167,23 +245,41 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
   const cast: PlexPerson[] = meta?.cast ?? [];
 
+  // Seasons and episodes already loaded for this show / this season are kept:
+  // Back and in again used to refetch the list, show the spinner and put the
+  // highlight back on the first entry. A reply that arrives after the viewer
+  // moved on to another season is dropped (the sequence refs).
   const loadSeasons = useCallback(async () => {
+    const showKey = currentRef.current.ratingKey;
+    // Already loaded: invalidate anything still loading and show it.
+    if (seasonsForRef.current === showKey && seasonsRef.current.length) { seasonsSeqRef.current += 1; setSeasonsLoading(false); return; }
+    const seq = ++seasonsSeqRef.current;
     setSeasonsLoading(true);
     try {
-      const s = await getPlexSeasons(base, token, current.ratingKey);
+      const { base, token } = connRef.current;
+      const s = await getPlexSeasons(base, token, showKey);
+      if (seq !== seasonsSeqRef.current) return;
+      seasonsForRef.current = showKey;
       setSeasons(s);
       setSeasonIdx(0);
-    } finally { setSeasonsLoading(false); }
-  }, [base, token, current]);
+    } finally { if (seq === seasonsSeqRef.current) setSeasonsLoading(false); }
+  }, []);
 
   const loadEpisodes = useCallback(async (seasonKey: string) => {
+    // Already loaded: invalidate any other season still loading (its reply
+    // would otherwise land under this season) and show this one.
+    if (episodesForRef.current === seasonKey && episodesRef.current.length) { episodesSeqRef.current += 1; setEpisodesLoading(false); return; }
+    const seq = ++episodesSeqRef.current;
     setEpisodesLoading(true);
     try {
+      const { base, token } = connRef.current;
       const e = await getPlexEpisodes(base, token, seasonKey);
+      if (seq !== episodesSeqRef.current) return;
+      episodesForRef.current = seasonKey;
       setEpisodes(e);
       setEpIdx(0);
-    } finally { setEpisodesLoading(false); }
-  }, [base, token]);
+    } finally { if (seq === episodesSeqRef.current) setEpisodesLoading(false); }
+  }, []);
 
   const openActor = useCallback(async (person: PlexPerson) => {
     const sectionKey = meta?.librarySectionID;
@@ -203,7 +299,10 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
   const playCurrent = useCallback((resume?: number) => {
     const ctx: SubtitleSearchContext = { title: meta?.title || current.title, year: meta?.year };
-    onPlay(current, resume, ctx);
+    // Its Resume point is about to change: never reuse this metadata again.
+    metaMemoRef.current.delete(current.ratingKey);
+    const partKey = meta && meta.ratingKey === current.ratingKey ? meta.partKey : undefined;
+    onPlay(current, resume, ctx, partKey);
   }, [meta, current, onPlay]);
 
   const activateDetail = useCallback((id: string) => {
@@ -282,7 +381,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
           else if (e.key === 'ArrowDown') {
             if (castRef.current.length > 0) { setZone('cast'); setCastIdx(0); }
           }
-          else if (e.key === 'Enter' || e.key === ' ') { const def = bs[b]; if (def) activateRef.current(def.id); }
+          else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const def = bs[b]; if (def) activateRef.current(def.id); }
           return;
         }
         // cast zone
@@ -292,7 +391,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
         if (e.key === 'ArrowUp') { setZone('buttons'); }
         else if (e.key === 'ArrowLeft') { if (c > 0) setCastIdx(c - 1); }
         else if (e.key === 'ArrowRight') { if (c < list.length - 1) setCastIdx(c + 1); }
-        else if (e.key === 'Enter' || e.key === ' ') { const p = list[c]; if (p) void openActorRef.current(p); }
+        else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const p = list[c]; if (p) void openActorRef.current(p); }
         return;
       }
       if (s === 'seasons') {
@@ -302,6 +401,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
         if (e.key === 'ArrowLeft') { if (si > 0) setSeasonIdx(si - 1); }
         else if (e.key === 'ArrowRight') { if (si < ss.length - 1) setSeasonIdx(si + 1); }
         else if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+          if (e.repeat && e.key !== 'ArrowDown') return; // a held OK must not step twice
           const sea = ss[si]; if (sea) { setStep('episodes'); void loadEpisodesRef.current(sea.ratingKey); }
         }
         return;
@@ -313,6 +413,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
         if (e.key === 'ArrowUp') { if (ei === 0) setStep('seasons'); else setEpIdx(ei - 1); }
         else if (e.key === 'ArrowDown') { if (ei < eps.length - 1) setEpIdx(ei + 1); }
         else if (e.key === 'Enter' || e.key === ' ') {
+          if (e.repeat) return; // a held OK must not act twice
           const ep = eps[ei];
           if (ep) {
             const sea = seasonsRef.current[seasonIdxRef.current];
@@ -337,6 +438,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
       else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setActorCursor(cur - 1); }
       else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setActorCursor(cur + 1); }
       else if (e.key === 'Enter' || e.key === ' ') {
+        if (e.repeat) return; // a held OK must not act twice
         const it = grid[cur];
         if (it) { pushItemRef.current(it); /* setStep to detail happens via item-change effect */ }
       }
@@ -526,26 +628,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               <div className="text-brand-ice/70 font-nunito">No episodes.</div>
             ) : (
               <div className="flex flex-col gap-2 px-1 py-1">
-                {episodes.map((ep, i) => {
-                  const focused = isActive && epIdx === i;
-                  return (
-                    <div key={ep.ratingKey}
-                      ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
-                      data-focused={focused ? 'true' : 'false'}
-                      className={`tv-ring flex items-center gap-3 py-2 px-3 rounded-xl border border-white/10 transition-transform duration-150 ${focused ? 'bg-white/10 z-10' : 'bg-black/40'}`}>
-                      <div className="w-32 aspect-video flex-shrink-0 rounded-lg overflow-hidden bg-black/60">
-                        <PlexImage base={base} path={ep.thumb} token={token} w={320} h={180} focusExempt className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-quicksand font-semibold text-sm truncate">
-                          {ep.index != null ? `${ep.index}. ` : ''}{ep.title}
-                        </div>
-                        <div className="text-xs text-brand-ice/70 font-nunito">{fmtRuntime(ep.duration)}</div>
-                        {ep.summary && <div className="text-xs text-brand-ice/70 font-nunito line-clamp-2 mt-1">{ep.summary}</div>}
-                      </div>
-                    </div>
-                  );
-                })}
+                {episodes.map((ep, i) => (
+                  <EpisodeRow key={ep.ratingKey} ep={ep} base={base} token={token} focused={isActive && epIdx === i} />
+                ))}
               </div>
             )}
             <p className="text-xs text-brand-ice/70 mt-4">▲ ▼ pick · OK to play · Back to seasons</p>

@@ -28,7 +28,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PlexPosterTile from './PlexPosterTile';
 import {
-  getPlexSectionOnDeck, getPlexSectionRow, getCachedHub, setCachedHub,
+  getPlexSectionOnDeck, getPlexSectionRow, getCachedHub, getCachedHubStale, getHubEpoch, setCachedHub,
   getPlexSectionMeta, getPlexFilterValues, getPlexLibraryQuery,
   resolutionLabel, type PlexItem, type PlexSectionMeta, type PlexFilterValue,
 } from '@/lib/plex';
@@ -60,6 +60,10 @@ export interface PlexLibraryRowsProps {
   sectionType: PlexSectionType;
   onOpen: (it: PlexItem) => void;
   onExitToTabs: () => void;
+  /** Bumped when the player closes: Continue Watching is refetched, since
+   *  what was just played moved in it. The panel now stays mounted under the
+   *  player, so nothing else would refresh it. */
+  watchNonce?: number;
 }
 
 /** Cache key for a row, so a revisit paints instantly from the hub cache. */
@@ -70,7 +74,7 @@ const rowCachePath = (libKey: string, spec: LibraryRowSpec) =>
 
 const PlexLibraryRows = memo(({
   isActive, isCurrent, base, token, libKey, libTitle, sectionType,
-  onOpen, onExitToTabs,
+  onOpen, onExitToTabs, watchNonce = 0,
 }: PlexLibraryRowsProps) => {
   const specs = useMemo(() => libraryRowSpecs(sectionType), [sectionType]);
 
@@ -80,7 +84,8 @@ const PlexLibraryRows = memo(({
   const [loaded, setLoaded] = useState<Record<string, PlexItem[]>>(() => {
     const seed: Record<string, PlexItem[]> = {};
     for (const s of specs) {
-      const c = getCachedHub(base, rowCachePath(libKey, s));
+      // However old: shown at once, refreshed by fetchRow when past 5 min.
+      const c = getCachedHubStale(base, rowCachePath(libKey, s));
       if (c && c.length) seed[s.id] = c;
     }
     return seed;
@@ -213,6 +218,19 @@ const PlexLibraryRows = memo(({
     if (fetchedRef.current.has(spec.id)) return;
     fetchedRef.current.add(spec.id);
     const path = rowCachePath(libKey, spec);
+    // The panel remounts on every visit to the tab, and each visit asked the
+    // server for every row again even though `loaded` was already painted
+    // from this cache. A fresh cached row is the answer. Continue Watching is
+    // the exception: it changes the moment something is played.
+    const epoch = getHubEpoch();
+    const fresh = spec.kind !== 'onDeck' ? getCachedHub(base, path) : null;
+    if (fresh) {
+      // Put it on screen too: the entry may have been written after this
+      // panel mounted (by the previous visit's request, still in flight).
+      setLoaded((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: fresh }));
+      setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
+      return;
+    }
     try {
       const items = spec.kind === 'onDeck'
         ? await getPlexSectionOnDeck(base, token, libKey)
@@ -221,7 +239,9 @@ const PlexLibraryRows = memo(({
       // That is the documented behaviour for every guarded row (the date and
       // rating bounds can legitimately match nothing).
       setLoaded((prev) => ({ ...prev, [spec.id]: items }));
-      if (items.length) setCachedHub(base, path, items);
+      // An emptied Continue Watching is cached as empty, or the old list
+      // would be painted from the cache on every later visit.
+      if (items.length || spec.kind === 'onDeck') setCachedHub(base, path, items, epoch);
     } catch {
       // Leave it absent — the row simply does not appear. A failed row must
       // never block the others.
@@ -250,6 +270,17 @@ const PlexLibraryRows = memo(({
     return () => window.clearTimeout(t);
   }, [isCurrent, isActive, specs, fetchRow]);
 
+  const seenNonceRef = useRef(watchNonce);
+  useEffect(() => {
+    if (watchNonce === seenNonceRef.current) return;
+    seenNonceRef.current = watchNonce;
+    const spec = specs.find((x) => x.kind === 'onDeck');
+    if (!spec) return;
+    fetchedRef.current.delete(spec.id);
+    void fetchRow(spec);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchNonce]);
+
   // Wave 2 once the user reaches the last loaded row — never at tab-enter.
   useEffect(() => {
     if (wave2 || !isActive || rows.length === 0) return;
@@ -276,12 +307,18 @@ const PlexLibraryRows = memo(({
   // Filtered results, straight from the server. The whole point of doing this
   // server-side is that a 4000-title library costs the same as a 40-title one;
   // the old screen pulled the entire section into memory to sort it locally.
+  // Keyed on the query string, not the filters object or the connection: a
+  // connection upgrade (same server, new address) re-ran the same query and
+  // threw the highlight back to the first result.
+  const filterQuery = useMemo(() => (filtering ? buildLibraryQuery(sectionType, filters) : ''), [filtering, sectionType, filters]);
+  const connRef = useRef({ base, token }); connRef.current = { base, token };
   useEffect(() => {
     if (!filtering) { setResults(null); setGridCursor(0); return; }
     let cancelled = false;
     setResultsLoading(true);
     setGridCursor(0);
-    const q = buildLibraryQuery(sectionType, filters);
+    const q = filterQuery;
+    const { base, token } = connRef.current;
     void getPlexLibraryQuery(base, token, libKey, q, 0, PAGE)
       .then((page) => {
         if (cancelled) return;
@@ -290,7 +327,8 @@ const PlexLibraryRows = memo(({
       .catch(() => { if (!cancelled) setResults({ query: q, items: [], total: 0 }); })
       .finally(() => { if (!cancelled) setResultsLoading(false); });
     return () => { cancelled = true; };
-  }, [filtering, filters, sectionType, base, token, libKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtering, filterQuery, libKey]);
 
   // Load more as the cursor nears the end, so Sort: A-Z with no filter is a
   // real walk through the whole library and not the first 120 of it. The
@@ -305,16 +343,20 @@ const PlexLibraryRows = memo(({
     loadingMoreRef.current = true;
     const q = results.query;
     const start = results.items.length;
-    void getPlexLibraryQuery(base, token, libKey, q, start, PAGE)
+    void getPlexLibraryQuery(connRef.current.base, connRef.current.token, libKey, q, start, PAGE)
       .then((page) => {
         setResults((r) => {
           if (!r || r.query !== q || r.items.length !== start) return r; // stale
+          // An empty page means the list ends here, whatever the count said.
+          // Without this the effect re-ran on the new object and asked for the
+          // same empty page again, for as long as the cursor stayed near the end.
+          if (page.items.length === 0) return { ...r, total: r.items.length };
           return { query: q, items: r.items.concat(page.items), total: page.totalSize || r.total };
         });
       })
       .catch(() => { /* the count line still says how many are missing */ })
       .finally(() => { loadingMoreRef.current = false; });
-  }, [filtering, results, gridCursor, base, token, libKey]);
+  }, [filtering, results, gridCursor, libKey]);
 
   // Open a chip's menu, fetching its vocabulary once.
   const openMenu = useCallback(async (chip: string) => {
@@ -384,6 +426,31 @@ const PlexLibraryRows = memo(({
   const resultsRef = useRef(results); useEffect(() => { resultsRef.current = results; }, [results]);
   const gridCursorRef = useRef(gridCursor); useEffect(() => { gridCursorRef.current = gridCursor; }, [gridCursor]);
 
+  // One click handler for the filtered grid and one per rail, kept for the
+  // life of the panel. Every tile is memoised; a fresh closure per tile per
+  // render re-rendered every tile on every key — up to several hundred in a
+  // Sort: A-Z walk.
+  const gridSelect = useCallback((it: PlexItem) => {
+    const i = resultsRef.current?.items.indexOf(it) ?? -1;
+    setZone('content');
+    if (i >= 0) setGridCursor(i);
+    onOpenRef.current(it);
+  }, []);
+  const railSelectRef = useRef<Record<string, (it: PlexItem) => void>>({});
+  const railSelect = (specId: string) => {
+    let fn = railSelectRef.current[specId];
+    if (!fn) {
+      fn = (it: PlexItem) => {
+        const ci = rowsRef.current.find((r) => r.spec.id === specId)?.items.findIndex((x) => x.ratingKey === it.ratingKey) ?? -1;
+        setFocusedRowId(specId);
+        if (ci >= 0) setCol(ci);
+        onOpenRef.current(it);
+      };
+      railSelectRef.current[specId] = fn;
+    }
+    return fn;
+  };
+
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
@@ -406,6 +473,7 @@ const PlexLibraryRows = memo(({
         if (e.key === 'ArrowUp') setMenu({ ...m, idx: Math.max(0, m.idx - 1) });
         else if (e.key === 'ArrowDown') setMenu({ ...m, idx: Math.min(m.options.length - 1, m.idx + 1) });
         else if (e.key === 'Enter' || e.key === ' ') {
+          if (e.repeat) return; // a held OK must not act twice
           const opt = m.options[m.idx];
           if (opt) applyMenuChoiceRef.current(m.chip, opt);
           else setMenu(null);
@@ -452,7 +520,7 @@ const PlexLibraryRows = memo(({
         if (e.key === 'ArrowDown') { setZone('content'); return; }
         if (e.key === 'ArrowLeft') { if (ci > 0) setChipId(cs[ci - 1].id); else onExitRef.current(); return; }
         if (e.key === 'ArrowRight') { if (ci < cs.length - 1) setChipId(cs[ci + 1].id); return; }
-        if (e.key === 'Enter' || e.key === ' ') { const chip = cs[ci]; if (chip) activateChipRef.current(chip.id); }
+        if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const chip = cs[ci]; if (chip) activateChipRef.current(chip.id); }
         return;
       }
 
@@ -469,7 +537,7 @@ const PlexLibraryRows = memo(({
         if (e.key === 'ArrowDown') { if (cur + GRID_COLS < items.length) setGridCursor(cur + GRID_COLS); return; }
         if (e.key === 'ArrowLeft') { if (cur % GRID_COLS !== 0) setGridCursor(cur - 1); else onExitRef.current(); return; }
         if (e.key === 'ArrowRight') { if ((cur % GRID_COLS) < GRID_COLS - 1 && cur + 1 < items.length) setGridCursor(cur + 1); return; }
-        if (e.key === 'Enter' || e.key === ' ') { const it = items[cur]; if (it) onOpenRef.current(it); }
+        if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const it = items[cur]; if (it) onOpenRef.current(it); }
         return;
       }
 
@@ -506,6 +574,7 @@ const PlexLibraryRows = memo(({
       if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); else onExitRef.current(); return; }
       if (e.key === 'ArrowRight') { if (c < current.items.length - 1) setCol(c + 1); return; }
       if (e.key === 'Enter' || e.key === ' ') {
+        if (e.repeat) return; // a held OK must not act twice
         const it = current.items[c];
         if (it) onOpenRef.current(it);
       }
@@ -641,7 +710,7 @@ const PlexLibraryRows = memo(({
                   token={token}
                   width="fill"
                   focused={isActive && zone === 'content' && i === gridCursor}
-                  onClick={() => { setZone('content'); setGridCursor(i); onOpen(it); }}
+                  onSelect={gridSelect}
                 />
               ))}
             </div>
@@ -682,7 +751,8 @@ const PlexLibraryRows = memo(({
                   base={base}
                   token={token}
                   focused={focused && ci === col}
-                  onClick={() => { setFocusedRowId(r.spec.id); setCol(ci); onOpen(it); }}
+                  onSelect={railSelect(r.spec.id)}
+                  eager={focused && ci > col && ci <= col + 3}
                 />
               ))}
             </div>

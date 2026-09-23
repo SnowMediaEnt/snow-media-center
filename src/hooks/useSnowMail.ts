@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
+// The module-level toast, not the hook: the hook subscribes its caller to
+// every toast state change, which only <Toaster> needs.
+import { toast } from '@/hooks/use-toast';
 import {
   getMailState, markMailRead, subscribeMail, unreadMail, useMailNotify,
   type MailState, type SnowMail,
@@ -18,7 +20,6 @@ interface Options {
 export function useSnowMail(opts: Options = {}) {
   const [state, setState] = useState<MailState>(() => getMailState());
   const notify = useMailNotify();
-  const { toast } = useToast();
   const seenRef = useRef<Set<string> | null>(null);
 
   useEffect(() => subscribeMail(() => setState({ ...getMailState() })), []);

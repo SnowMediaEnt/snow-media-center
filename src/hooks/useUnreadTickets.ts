@@ -27,7 +27,8 @@ export const useUnreadTickets = () => {
     } catch (err) {
       console.warn('[useUnreadTickets] failed:', err);
     }
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -53,7 +54,9 @@ export const useUnreadTickets = () => {
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('support:tickets-read', onFocus);
     };
-  }, [authLoading, user, refresh]);
+    // Keyed on the id, so a token refresh does not leave and re-join the channel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id, refresh]);
 
   return { unreadCount, refresh };
 };

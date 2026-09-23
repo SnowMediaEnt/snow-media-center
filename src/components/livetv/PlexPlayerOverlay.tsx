@@ -10,7 +10,9 @@ import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@
 import { PLEX_QUALITY_PRESETS } from '@/lib/plex';
 import { SCREEN_FORMATS, type ScreenFormat } from '@/capacitor/SnowPlayer';
 import { useScreenFormat } from '@/hooks/useScreenFormat';
-import { useToast } from '@/hooks/use-toast';
+// The module-level toast, not the hook: the hook subscribes its caller to
+// every toast state change, which only <Toaster> needs.
+import { toast } from '@/hooks/use-toast';
 
 // 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
 // move a preview marker (accelerating on repeated presses), OK jumps there.
@@ -86,7 +88,6 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   // Preview position while on the scrub row (null = not scrubbing).
   const [scrubPos, setScrubPos] = useState<number | null>(null);
   const scrubRepeatRef = useRef<{ at: number; count: number }>({ at: 0, count: 0 });
-  const { toast } = useToast();
 
   // OpenSubtitles panel state
   const [osdlLoading, setOsdlLoading] = useState(false);

@@ -113,12 +113,14 @@ export const reducer = (state: State, action: Action): State => {
       }
     }
     case "REMOVE_TOAST":
+      // A removal of something already gone (TOAST_LIMIT evicts early, and
+      // the removal timer still fires ~17 minutes later) must not hand every
+      // subscriber a new state object: that re-rendered the whole Player,
+      // often mid-film.
       if (action.toastId === undefined) {
-        return {
-          ...state,
-          toasts: [],
-        }
+        return state.toasts.length ? { ...state, toasts: [] } : state
       }
+      if (!state.toasts.some((t) => t.id === action.toastId)) return state
       return {
         ...state,
         toasts: state.toasts.filter((t) => t.id !== action.toastId),
@@ -171,6 +173,8 @@ function toast({ ...props }: Toast) {
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
 
+  // Subscribe once. Re-subscribing on every state change (deps [state])
+  // reshuffled the listener list on each toast for no reason.
   React.useEffect(() => {
     listeners.push(setState)
     return () => {
@@ -179,7 +183,7 @@ function useToast() {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+  }, [])
 
   return {
     ...state,

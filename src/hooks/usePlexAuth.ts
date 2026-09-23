@@ -6,6 +6,7 @@ import {
   getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches, rekeyPlexCaches, plexRouteOf,
   isPlexPlaybackActive, type PlexRoute,
 } from '@/lib/plex';
+import { clearPlexImageCache, rekeyPlexImageCache } from '@/components/livetv/PlexImage';
 import { runWhenIdle } from '@/utils/idle';
 import { isDemo } from '@/lib/demoMode';
 import { demoConn } from '@/lib/plexDemo';
@@ -46,6 +47,16 @@ const DEMO_AUTH = {
 // plex.tv rejected the token itself, so no retry with the same token can help.
 type DiscoverOutcome = 'ok' | 'failed' | 'auth';
 
+// Background connection work, remembered across Plex opens. This hook lives
+// in PlexSection, which unmounts whenever the viewer leaves Movies & Series,
+// so per-mount state meant every open of Plex on an http or relay box asked
+// plex.tv for the server list and probed every connection again, and the
+// relay escape's backoff restarted at its first, shortest step.
+const UPGRADE_EVERY_MS = 30 * 60 * 1000;
+const _lastUpgradeAt = new Map<string, number>();
+const RELAY_FIRST_DELAY_MS = 45_000;
+const _relayDelay = new Map<string, number>();
+
 export function usePlexAuth() {
   const demo = isDemo();
 
@@ -80,7 +91,16 @@ export function usePlexAuth() {
   // the previous account's base and token.
   const sessionRef = useRef(0);
 
-  const clearPoll = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; } };
+  // Identifies the live PIN poll; a poll whose request comes back after it
+  // was cancelled or replaced sees a different token and stops.
+  const pollTokenRef = useRef<object | null>(null);
+  const clearPoll = () => {
+    pollTokenRef.current = null;
+    if (pollRef.current) { window.clearTimeout(pollRef.current); pollRef.current = null; }
+  };
+  // The token a repair through the provider was last attempted for (see
+  // reportAuthFailure).
+  const authRepairTokenRef = useRef<string | null>(null);
 
   useEffect(() => { statusRef.current = status; }, [status]);
 
@@ -127,7 +147,10 @@ export function usePlexAuth() {
           //  3. Run it at IDLE, not on the critical path. This probe fans out
           //     across every candidate connection in parallel; on a Fire TV the
           //     socket pool is small and the first-screen fetches lose.
-          if (cached.base.startsWith('http://') || !cached.route || cached.route === 'relay') {
+          const upgradeKey = cached.clientIdentifier || cached.base;
+          const lastUpgrade = _lastUpgradeAt.get(upgradeKey) ?? 0;
+          if ((cached.base.startsWith('http://') || !cached.route || cached.route === 'relay')
+            && Date.now() - lastUpgrade > UPGRADE_EVERY_MS) {
             const cachedIsHttps = cached.base.slice(0, 6).toLowerCase() === 'https:';
             // A record saved before clientIdentifier was stored has no identity
             // on it. Fall back to the machineIdentifier /identity just returned,
@@ -152,6 +175,9 @@ export function usePlexAuth() {
                   // cache must never be walked back to http.
                   const better = await pickPlexConnectionDetailed(s, 3500, { httpsOnly: true, noRelay: true });
                   if (sessionRef.current !== session) return;
+                  // Throttled from here: the probe reached an answer. A throw or
+                  // a cancelled attempt leaves it unset, so the next open retries.
+                  _lastUpgradeAt.set(upgradeKey, Date.now());
                   const wantHttps = !cachedIsHttps;
                   const improves = !!better && better.base !== cached.base
                     && ((wantHttps && better.base.startsWith('https://'))
@@ -183,6 +209,7 @@ export function usePlexAuth() {
                   // Same server, new address: carry the rails and pages over so
                   // Home does not refetch itself under the viewer's cursor.
                   rekeyPlexCaches(cached.base, upgraded.base);
+                  rekeyPlexImageCache(cached.base, upgraded.base);
                   connBaseRef.current = upgraded.base;
                   setConn(upgraded);
                 } catch { /* ignore — cached connection keeps working */ }
@@ -192,7 +219,7 @@ export function usePlexAuth() {
           return 'ok';
         } catch { /* stale cache — rediscover */ }
       }
-      const servers = await getPlexServers(accountToken);
+      const servers = await getPlexServers(accountToken, { fresh: true });
       if (!servers.length) {
         setError('No Plex Media Server is linked to this Plex account.');
         setStatus('unreachable');
@@ -244,6 +271,10 @@ export function usePlexAuth() {
     // Drop in-memory catalog caches so the next account (even on the same
     // server base URL) never renders the previous account's rows/posters.
     clearPlexCaches();
+    clearPlexImageCache();
+    _lastUpgradeAt.clear();
+    _relayDelay.clear();
+    authRepairTokenRef.current = null;
     bumpPlexImageEpoch(); // invalidate any queued/in-flight poster URLs
     connBaseRef.current = null;
     setAccountToken(null);
@@ -269,7 +300,13 @@ export function usePlexAuth() {
       // out. Never leave the screen on "Connecting…".
       const prev = statusRef.current;
       const fallback: PlexStatus = prev === 'loading' || prev === 'connecting' ? 'signed-out' : prev;
-      setStatus('connecting');
+      // A repair of a box that is showing its library keeps showing it until
+      // there is actually a new token to switch to. Flipping to 'connecting'
+      // first, then back to 'ready' when the provider had nothing new,
+      // re-ran the library load, which failed the same way and asked for
+      // another repair — forever, with the screen flashing each time.
+      const quietRepair = !!opts?.replace && prev === 'ready';
+      if (!quietRepair) setStatus('connecting');
       const r = await fetchProviderPlexToken(creds, { force: opts?.force });
       if (cancelledRef.current || sessionRef.current !== session) return false;
       if (!r.ok || !r.token) {
@@ -282,10 +319,15 @@ export function usePlexAuth() {
         // same one, the provider's token is what died; replacing it with
         // itself would only burn the line's throttle budget.
         if ((await loadPlexToken()) === r.token) {
+          // The provider has nothing new: stop asking for this token (see
+          // reportAuthFailure). Any other failure may be passing, so it is
+          // not remembered and the next failed request can try again.
+          authRepairTokenRef.current = r.token;
           setProviderNote('Plex rejected the provider token. Ask your provider to refresh it.');
           setStatus(fallback);
           return false;
         }
+        if (quietRepair) setStatus('connecting');
         await resetLocal();
         if (cancelledRef.current) return false;
       }
@@ -372,9 +414,14 @@ export function usePlexAuth() {
   // connection discover() accepted (the /identity check needs no token, so a
   // dead token only shows up at the first real request). Same repair as at
   // launch, same "ours to replace" rule.
+  // Once per token. If the provider hands back nothing new, asking again on
+  // every failed request only calls the edge function in a loop; a new token
+  // (from the provider or a sign-in) makes a repair possible again.
   const reportAuthFailure = useCallback(() => {
     if (linkingProviderRef.current) return;
     void (async () => {
+      const tok = await loadPlexToken();
+      if (tok && authRepairTokenRef.current === tok) return;
       if (!(await tokenIsOurs())) return;
       await linkViaProvider({ force: true, replace: true });
     })();
@@ -396,7 +443,8 @@ export function usePlexAuth() {
     if (demo || !conn || conn.route !== 'relay' || !accountToken) return;
     let stopped = false;
     const session = sessionRef.current;
-    let delay = 45_000;
+    const relayKey = conn.clientIdentifier || conn.base;
+    let delay = _relayDelay.get(relayKey) ?? RELAY_FIRST_DELAY_MS;
     let timer: number | null = null;
     // Returns false when nothing was tried, so a skipped tick does not count
     // toward the backoff below.
@@ -428,6 +476,8 @@ export function usePlexAuth() {
         if (stopped || sessionRef.current !== session) return true;
         bumpPlexImageEpoch();
         rekeyPlexCaches(conn.base, upgraded.base);
+        rekeyPlexImageCache(conn.base, upgraded.base);
+        _relayDelay.delete(relayKey); // escaped: a later relay stretch starts fresh
         connBaseRef.current = upgraded.base;
         setConn(upgraded);
       } catch { /* still on the relay — try again next tick */ }
@@ -439,7 +489,7 @@ export function usePlexAuth() {
     const tick = () => {
       void attempt().then((tried) => {
         if (stopped) return;
-        if (tried) delay = Math.min(delay * 2, 600_000);
+        if (tried) { delay = Math.min(delay * 2, 600_000); _relayDelay.set(relayKey, delay); }
         timer = window.setTimeout(tick, delay);
       });
     };
@@ -458,7 +508,15 @@ export function usePlexAuth() {
       setStatus('linking');
       clearPoll();
       const startedAt = Date.now();
-      pollRef.current = window.setInterval(async () => {
+      // One check at a time, 2.5 s apart. An interval fired every 2.5 s
+      // whether or not the last check had answered, so on a slow link to
+      // plex.tv up to eight were in flight at once, and each one that saw the
+      // token saved it and started linking again.
+      const pollId = {};
+      pollTokenRef.current = pollId;
+      const live = () => pollTokenRef.current === pollId;
+      const poll = async () => {
+        if (!live()) return;
         // Plex PINs die after ~10 minutes. Without this the screen shows a dead
         // code and "Waiting for you to sign in…" forever, polling a 404.
         if (Date.now() - startedAt > 9.5 * 60_000) {
@@ -471,6 +529,7 @@ export function usePlexAuth() {
         }
         try {
           const token = await checkPlexPin(pin.id);
+          if (!live()) return;
           if (token) {
             clearPoll();
             startingRef.current = false;
@@ -484,9 +543,12 @@ export function usePlexAuth() {
             setAccountToken(token);
             setJustLinked(true);
             await discover(token);
+            return;
           }
         } catch { /* keep polling */ }
-      }, 2500);
+        if (live()) pollRef.current = window.setTimeout(() => { void poll(); }, 2500);
+      };
+      pollRef.current = window.setTimeout(() => { void poll(); }, 2500);
     } catch (e) {
       startingRef.current = false;
       setError((e as Error).message || 'Could not start Plex sign-in.');

@@ -32,7 +32,13 @@ export const usePlayerAccount = (): PlayerAccountHookState => {
       // Demo: never read a stored account — keeps ExpirationNoticeDialog,
       // exp-notice storage writes and token clearing inert for demo visitors.
       const acc = isDemo() ? null : await loadPlayerAccount();
-      setAccount(acc);
+      // Every reconcile stamps a new lastCheckedAt; nothing else may have
+      // changed. Keep the old object then, so nothing re-renders for it.
+      setAccount((prev) => {
+        if (!prev || !acc) return acc;
+        const same = JSON.stringify({ ...prev, lastCheckedAt: 0 }) === JSON.stringify({ ...acc, lastCheckedAt: 0 });
+        return same ? prev : acc;
+      });
     } finally {
       setLoading(false);
     }

@@ -3,7 +3,9 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { Loader2, Search, Film, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+// The module-level toast, not the hook: the hook subscribes its caller to
+// every toast state change, which only <Toaster> needs.
+import { toast } from '@/hooks/use-toast';
 import { isPlexKeyOwner } from '@/components/livetv/plexKeyOwner';
 
 interface ResultItem {
@@ -23,7 +25,6 @@ const statusBadge = (s: number): { label: string; cls: string } | null => {
 };
 
 const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
-  const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ResultItem[]>([]);
@@ -64,8 +65,13 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
     setConfirming(item);
   };
 
+  // A ref, set at once: the key handler holds the first render's
+  // submitRequest, whose `requesting` was always false, so a held OK sent the
+  // same request again on every repeat.
+  const requestingRef = useRef(false);
   const submitRequest = async (item: ResultItem) => {
-    if (requesting) return;
+    if (requesting || requestingRef.current) return;
+    requestingRef.current = true;
     setRequesting(true);
     try {
       const { data, error } = await supabase.functions.invoke('overseerr-request', {
@@ -83,6 +89,7 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
     } catch {
       toast({ title: 'Request failed', description: 'Please try again in a moment.', variant: 'destructive' });
     } finally {
+      requestingRef.current = false;
       setRequesting(false);
       setConfirming(null);
     }
@@ -110,6 +117,7 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
         if (isBack) { setConfirming(null); return; }
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { setConfirmIdx((i) => (i === 0 ? 1 : 0)); return; }
         if (e.key === 'Enter' || e.key === ' ') {
+          if (e.repeat) return; // a held OK must not act twice
           if (confirmIdxRef.current === 0) void submitRequest(confirmingRef.current);
           else setConfirming(null);
         }
@@ -141,7 +149,7 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
       else if (e.key === 'ArrowDown') { if (cur + COLS < total) setCursor(cur + COLS); }
       else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setCursor(cur - 1); }
       else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setCursor(cur + 1); }
-      else if (e.key === 'Enter' || e.key === ' ') { const it = resultsRef.current[cur]; if (it) activate(it); }
+      else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const it = resultsRef.current[cur]; if (it) activate(it); }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
@@ -186,10 +194,12 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setCursor(idx); activate(it); }}
                 className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 transition-transform duration-150 ease-out ${focused ? 'scale-105 z-10' : ''}`}>
-                <div className="aspect-[2/3] bg-black/40 flex items-center justify-center">
+                {/* padding-bottom, not aspect-ratio (Chrome 88): on the older
+                    boxes each card grew as its poster landed and re-laid the grid. */}
+                <div className="relative h-0 bg-black/40" style={{ paddingBottom: '150%' }}>
                   {it.posterUrl
-                    ? <img src={it.posterUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
-                    : (it.mediaType === 'tv' ? <Tv className="w-8 h-8 text-brand-ice/40" /> : <Film className="w-8 h-8 text-brand-ice/40" />)}
+                    ? <img src={it.posterUrl} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+                    : <div className="absolute inset-0 flex items-center justify-center">{it.mediaType === 'tv' ? <Tv className="w-8 h-8 text-brand-ice/40" /> : <Film className="w-8 h-8 text-brand-ice/40" />}</div>}
                 </div>
                 {badge && (
                   <span className={`absolute top-2 right-2 px-2 py-1 rounded-lg text-xs font-nunito font-bold ${badge.cls}`}>{badge.label}</span>

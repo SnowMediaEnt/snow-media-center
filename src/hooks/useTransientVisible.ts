@@ -14,10 +14,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  */
 export function useTransientVisible(
   ms = 4000,
-  opts: { watchKeys?: boolean; deps?: ReadonlyArray<unknown>; initial?: boolean } = {},
+  opts: { watchKeys?: boolean; deps?: ReadonlyArray<unknown>; initial?: boolean; enabled?: boolean } = {},
 ): [boolean, () => void] {
-  const { watchKeys = true, deps = [], initial = true } = opts;
-  const [visible, setVisible] = useState(initial);
+  // `enabled: false` parks the flag: hidden, no timer, no re-shows. For chrome
+  // that only exists some of the time (the player's title bar), so its timer
+  // does not re-render the host while the chrome is not even on screen.
+  const { watchKeys = true, deps = [], initial = true, enabled = true } = opts;
+  const [visible, setVisible] = useState(initial && enabled);
   const timerRef = useRef<number | null>(null);
 
   const poke = useCallback(() => {
@@ -26,19 +29,24 @@ export function useTransientVisible(
     timerRef.current = window.setTimeout(() => { timerRef.current = null; setVisible(false); }, ms);
   }, [ms]);
 
-  // Show on mount / when deps change.
+  // Show on mount / when deps change (or when it becomes enabled).
   useEffect(() => {
+    if (!enabled) {
+      if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null; }
+      setVisible(false);
+      return;
+    }
     poke();
     return () => { if (timerRef.current) window.clearTimeout(timerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [poke, ...deps]);
+  }, [poke, enabled, ...deps]);
 
   useEffect(() => {
-    if (!watchKeys) return;
+    if (!watchKeys || !enabled) return;
     const onKey = () => { poke(); };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [watchKeys, poke]);
+  }, [watchKeys, enabled, poke]);
 
   return [visible, poke];
 }

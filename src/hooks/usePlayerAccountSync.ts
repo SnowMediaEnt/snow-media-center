@@ -5,7 +5,7 @@ import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { authenticateRouted, buildPlayerAccount, loadCreds, savePlayerAccount } from '@/lib/xtream';
 import { runWhenIdle } from '@/utils/idle';
-import { markReconciled, reconciledRecently } from '@/lib/panelReconcile';
+import { markReconciled, reconciledRecently, RECONCILE_URGENT_MS } from '@/lib/panelReconcile';
 
 /**
  * Mount once at the top of the signed-in app tree. When a Supabase user is
@@ -49,7 +49,10 @@ export const usePlayerAccountSync = (): void => {
         try {
           // LiveTV's reconcile does this same capture when it runs; one
           // panel round-trip per session is enough.
-          if (reconciledRecently()) return;
+          // Ten minutes, as before: this job also stamps the website link on
+          // the sign-in record, which the Player's own reconcile cannot do for
+          // a viewer who was signed out when it ran.
+          if (reconciledRecently(RECONCILE_URGENT_MS)) return;
           markReconciled();
           const res = await authenticateRouted(account.username, account.password);
           // Expired/disabled lines: the panel still authenticated the account,

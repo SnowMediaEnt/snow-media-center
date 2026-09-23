@@ -47,7 +47,7 @@ import {
   type CatalogCounts,
 } from '@/lib/catalogCounts';
 import { runWhenIdle } from '@/utils/idle';
-import { isQuietRequested } from '@/utils/quietMode';
+import { isPlaybackQuiet } from '@/utils/quietMode';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
@@ -625,7 +625,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (!isActive || countedRef.current) return;
     if (categoriesLoading || categories.length === 0) return;
     if (countsAreFresh(counts)) return;
-    if (playingChannelId || fullscreen || isQuietRequested()) return;
+    if (playingChannelId || fullscreen || isPlaybackQuiet()) return;
     try {
       if (document.documentElement.classList.contains('native-low-memory')) return;
     } catch { /* no document */ }
@@ -634,7 +634,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       if (cancelled) return;
       // Playback may have started during the wait — quiet mode is on for any
       // player, ours or Multi-Screen — in which case the count can wait a week.
-      if (isQuietRequested()) return;
+      if (isPlaybackQuiet()) return;
       countedRef.current = true;
       countLiveStreams(creds)
         .then(({ total, byCat }) => { if (!cancelled) noteCounts({ total, byCat }); })

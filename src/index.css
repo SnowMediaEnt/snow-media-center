@@ -454,7 +454,10 @@
    ============================================================ */
 .tv-ring {
   outline: none;
-  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+  /* The ring and glow switch on at once; only the scale animates. A
+     transitioned box-shadow cannot run on the compositor, so the two tiles
+     (and their posters) were repainted every frame of every move. */
+  transition: transform 150ms ease-out;
 }
 .tv-ring[data-focused="true"] {
   box-shadow:

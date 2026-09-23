@@ -40,7 +40,25 @@ const plexHeaders = (token?: string): Record<string, string> => {
   return h;
 };
 
-async function plexReq<T>(method: 'GET' | 'POST', url: string, token?: string, timeoutMs = 20000): Promise<T> {
+// Identical GETs already on the wire share one request. Nothing else joins
+// them up: the settle screen and Home (when the 9 s cap lets Home in early)
+// asked for the same hubs and section rows at the same moment, and each
+// paid for its own request and parse. POSTs never share.
+const _reqPending = new Map<string, Promise<unknown>>();
+
+function plexReq<T>(method: 'GET' | 'POST', url: string, token?: string, timeoutMs = 20000): Promise<T> {
+  if (method !== 'GET') return plexReqRaw<T>(method, url, token, timeoutMs);
+  const key = `${url}|${token ?? ''}`;
+  const pending = _reqPending.get(key);
+  if (pending) return pending as Promise<T>;
+  const p = plexReqRaw<T>(method, url, token, timeoutMs);
+  _reqPending.set(key, p);
+  const clear = () => { if (_reqPending.get(key) === p) _reqPending.delete(key); };
+  p.then(clear, clear);
+  return p;
+}
+
+async function plexReqRaw<T>(method: 'GET' | 'POST', url: string, token?: string, timeoutMs = 20000): Promise<T> {
   const headers = plexHeaders(token);
   let native = false;
   let CapacitorHttpRef: typeof import('@capacitor/core').CapacitorHttp | null = null;
@@ -94,8 +112,19 @@ export async function checkPlexPin(id: number): Promise<string | null> {
   return data?.authToken || null;
 }
 
-/** Fetch the signed-in Plex account (username/email). Returns null on ANY failure. */
-export async function getPlexAccount(token: string): Promise<{ username?: string; email?: string } | null> {
+/** Fetch the signed-in Plex account (username/email). Returns null on ANY failure.
+ *  Memoised per token for the session: Settings asked plex.tv again every
+ *  time the menu cursor landed on it. A failure is not remembered. */
+const _accountMemo = new Map<string, Promise<{ username?: string; email?: string } | null>>();
+export function getPlexAccount(token: string): Promise<{ username?: string; email?: string } | null> {
+  const hit = _accountMemo.get(token);
+  if (hit) return hit;
+  const p = fetchPlexAccount(token);
+  _accountMemo.set(token, p);
+  void p.then((r) => { if (!r && _accountMemo.get(token) === p) _accountMemo.delete(token); });
+  return p;
+}
+async function fetchPlexAccount(token: string): Promise<{ username?: string; email?: string } | null> {
   try {
     const data = await plexReq<{ username?: string; email?: string; title?: string }>('GET', 'https://plex.tv/api/v2/user', token, 8000);
     if (!data) return null;
@@ -143,8 +172,21 @@ export interface PlexServer {
   name: string; clientIdentifier: string; accessToken?: string; owned: boolean; connections: PlexConnection[];
 }
 
-/** All Plex Media Servers the account can reach. Each carries its OWN accessToken. */
-export async function getPlexServers(token: string): Promise<PlexServer[]> {
+/** All Plex Media Servers the account can reach. Each carries its OWN accessToken.
+ *  A good answer is reused for five minutes: the idle connection upgrade and
+ *  the relay escape each asked plex.tv for the same list on every Plex open. */
+const SERVERS_TTL_MS = 5 * 60 * 1000;
+const _serversMemo = new Map<string, { at: number; list: PlexServer[] }>();
+export async function getPlexServers(token: string, opts?: { fresh?: boolean }): Promise<PlexServer[]> {
+  const hit = _serversMemo.get(token);
+  // `fresh`: a full rediscovery (sign-in, Retry after "unreachable") must see
+  // connections plex.tv published since — e.g. Remote Access just turned on.
+  if (!opts?.fresh && hit && Date.now() - hit.at < SERVERS_TTL_MS) return hit.list;
+  const list = await fetchPlexServers(token);
+  if (list.length) _serversMemo.set(token, { at: Date.now(), list });
+  return list;
+}
+async function fetchPlexServers(token: string): Promise<PlexServer[]> {
   const data = await plexReq<Array<Record<string, unknown>>>('GET', 'https://plex.tv/api/v2/resources?includeHttps=1&includeRelay=1', token);
   return (data || [])
     .filter((d) => String(d.provides || '').includes('server'))
@@ -347,7 +389,23 @@ export async function loadPlexServer(): Promise<PlexSavedServer | null> {
 // ── libraries + items ──────────────────────────────────────────────────────
 
 export interface PlexLibrary { key: string; title: string; type: string; } // type: 'movie' | 'show'
-export async function getPlexLibraries(base: string, token: string): Promise<PlexLibrary[]> {
+/** The server's movie and TV libraries. Reused for five minutes per server:
+ *  every Plex open asked for them again before the settle screen could end,
+ *  and the content bar asks too. */
+const LIBS_TTL_MS = 5 * 60 * 1000;
+const _libsMemo = new Map<string, { at: number; list: PlexLibrary[] }>();
+export async function getPlexLibraries(base: string, token: string, opts?: { fresh?: boolean }): Promise<PlexLibrary[]> {
+  const key = `${base}|${token}`;
+  const hit = _libsMemo.get(key);
+  // `fresh`: Plex's own connect-time load. It is the request a dead token
+  // first fails on (the /identity check needs no token), and that failure is
+  // what triggers the token repair, so it must really go to the server.
+  if (!opts?.fresh && hit && Date.now() - hit.at < LIBS_TTL_MS) return hit.list;
+  const list = await fetchPlexLibraries(base, token);
+  _libsMemo.set(key, { at: Date.now(), list });
+  return list;
+}
+async function fetchPlexLibraries(base: string, token: string): Promise<PlexLibrary[]> {
   const data = await plexReq<{ MediaContainer?: { Directory?: Array<Record<string, unknown>> } }>('GET', `${base}/library/sections`, token);
   const dirs = data?.MediaContainer?.Directory || [];
   // Dedupe by section key: shared/provider servers can return the SAME
@@ -627,7 +685,7 @@ export function setPlexImageFocus(on: boolean): void {
   if (!next) {
     // Release parked waiters up to the concurrency cap.
     while (_imgInflight < MAX_IMG_CONCURRENCY && _imgWaiters.length > 0) {
-      const w = _imgWaiters.shift();
+      const w = _imgWaiters.pop();
       if (!w) break;
       _imgInflight += 1;
       w.resolve();
@@ -647,7 +705,9 @@ export function onPlexImageFocusChange(cb: (on: boolean) => void): () => void {
 function pickNextWaiterIdx(): number {
   for (let i = 0; i < _imgWaiters.length; i++) if (_imgWaiters[i].priority) return i;   // poster/backdrop first
   for (let i = 0; i < _imgWaiters.length; i++) if (_imgWaiters[i].exempt) return i;     // detail secondaries next
-  if (!imageFocusMode) return _imgWaiters.length > 0 ? 0 : -1;                          // browse only when focus is off
+  // Newest first: the tiles under the highlight asked last. First-in first-out
+  // served every poster the viewer had already scrolled past before them.
+  if (!imageFocusMode) return _imgWaiters.length - 1;                                   // browse only when focus is off
   return -1;
 }
 
@@ -859,8 +919,9 @@ export async function getPlexSectionOnDeck(
   token: string,
   sectionKey: string,
 ): Promise<PlexItem[]> {
-  const url = `${base}/library/sections/${sectionKey}/onDeck`;
-  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', url, token);
+  // Trimmed like every rail (RAIL_FIELDS), and on the rail timeout.
+  const url = `${base}/library/sections/${sectionKey}/onDeck?${RAIL_FIELDS}&X-Plex-Container-Start=0&X-Plex-Container-Size=20`;
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', url, token, RAIL_TIMEOUT_MS);
   const items = data?.MediaContainer?.Metadata || [];
   // This endpoint declares no Container-Start/Size, so the response length is
   // whatever the server feels like. Cap it here.
@@ -877,7 +938,25 @@ export async function getPlexSectionOnDeck(
  * or /sorts: Plex's own docs say not to use those, and both are admin-token
  * only — a user browsing a SHARED library would get 401.
  */
-export async function getPlexSectionMeta(
+// Sort options, filter lists and genre/year values change when the server
+// owner edits a library, not while someone browses. Each library visit asked
+// for all of them again (and Discover asked for the same genre lists), so a
+// good answer is kept for twenty minutes.
+const FACET_TTL_MS = 20 * 60 * 1000;
+const _facetMemo = new Map<string, { at: number; value: unknown }>();
+async function facetMemo<T>(key: string, load: () => Promise<T>, keep: (v: T) => boolean): Promise<T> {
+  const hit = _facetMemo.get(key);
+  if (hit && Date.now() - hit.at < FACET_TTL_MS) return hit.value as T;
+  const value = await load();
+  if (keep(value)) _facetMemo.set(key, { at: Date.now(), value });
+  return value;
+}
+
+export function getPlexSectionMeta(base: string, token: string, sectionKey: string): Promise<PlexSectionMeta> {
+  return facetMemo(`${base}|meta|${sectionKey}`, () => fetchPlexSectionMeta(base, token, sectionKey),
+    (m) => !!m && (m.sorts.length > 0 || m.filters.length > 0));
+}
+async function fetchPlexSectionMeta(
   base: string,
   token: string,
   sectionKey: string,
@@ -930,7 +1009,11 @@ export interface PlexFilterValue { key: string; title: string }
  * The selectable values for one filter (genres, years, content ratings…).
  * `keyPath` comes from PlexSectionMeta.filters[].key and is server-relative.
  */
-export async function getPlexFilterValues(
+export function getPlexFilterValues(base: string, token: string, keyPath: string): Promise<PlexFilterValue[]> {
+  const path = keyPath.startsWith('/') ? keyPath : `/${keyPath}`;
+  return facetMemo(`${base}|values|${path}`, () => fetchPlexFilterValues(base, token, path), (v) => v.length > 0);
+}
+async function fetchPlexFilterValues(
   base: string,
   token: string,
   keyPath: string,
@@ -978,7 +1061,9 @@ export async function getPlexLibraryQuery(
   size = 60,
 ): Promise<PlexLibraryPage> {
   const sep = query ? '&' : '';
-  const url = `${base}/library/sections/${sectionKey}/all?${query}${sep}includeGuids=0`
+  // The same trim as the rails: a 120-title page without the cast, crew and
+  // collection lists is about half the size and half the parse.
+  const url = `${base}/library/sections/${sectionKey}/all?${query}${sep}${RAIL_FIELDS}`
     + `&X-Plex-Container-Start=${start}&X-Plex-Container-Size=${size}`;
   const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>>; totalSize?: number; size?: number } }>('GET', url, token);
   const c = data?.MediaContainer;
@@ -989,7 +1074,7 @@ export async function getPlexLibraryQuery(
 
 /** Universal search across all libraries. Returns movies + shows only. */
 export async function searchPlex(base: string, token: string, query: string): Promise<PlexItem[]> {
-  const url = `${base}/hubs/search?query=${encodeURIComponent(query)}&limit=30`;
+  const url = `${base}/hubs/search?query=${encodeURIComponent(query)}&limit=30&${RAIL_FIELDS}`;
   const data = await plexReq<{ MediaContainer?: { Hub?: Array<{ Metadata?: Array<Record<string, unknown>> }> } }>('GET', url, token);
   const hubs = data?.MediaContainer?.Hub || [];
   const out: PlexItem[] = [];
@@ -1061,6 +1146,9 @@ export interface PlexMetadata {
   viewOffset?: number;
   media?: PlexMediaTech;
   librarySectionID?: string;
+  /** The file to play (Media[0].Part[0].key). Play uses it instead of asking
+   *  the server for the same metadata again. */
+  partKey?: string;
 }
 
 export async function getPlexMetadata(base: string, token: string, ratingKey: string): Promise<PlexMetadata> {
@@ -1102,7 +1190,15 @@ export async function getPlexMetadata(base: string, token: string, ratingKey: st
     viewOffset: m.viewOffset as number | undefined,
     media,
     librarySectionID: m.librarySectionID != null ? String(m.librarySectionID) : undefined,
+    partKey: firstPartKey(m),
   };
+}
+
+/** Media[0].Part[0].key of a metadata entry, when the payload carries it. */
+function firstPartKey(m: Record<string, unknown>): string | undefined {
+  const media = Array.isArray(m.Media) ? (m.Media as Array<Record<string, unknown>>)[0] : undefined;
+  const part = media && Array.isArray(media.Part) ? (media.Part as Array<Record<string, unknown>>)[0] : undefined;
+  return part?.key ? String(part.key) : undefined;
 }
 
 export interface PlexSeason {
@@ -1136,6 +1232,8 @@ export interface PlexEpisode {
   /** ms */
   duration?: number;
   summary?: string;
+  /** See PlexMetadata.partKey. */
+  partKey?: string;
 }
 export async function getPlexEpisodes(base: string, token: string, seasonKey: string): Promise<PlexEpisode[]> {
   const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
@@ -1149,6 +1247,7 @@ export async function getPlexEpisodes(base: string, token: string, seasonKey: st
     thumb: e.thumb as string | undefined,
     duration: e.duration as number | undefined,
     summary: e.summary as string | undefined,
+    partKey: firstPartKey(e),
   }));
 }
 
@@ -1221,7 +1320,25 @@ export function getCachedHub(base: string, path: string): PlexItem[] | null {
   if (Date.now() - e.ts >= HUB_TTL_MS) return null;
   return e.items;
 }
-export function setCachedHub(base: string, path: string, items: PlexItem[]): void {
+/** The cached rail however old it is, for painting while a fresh copy loads.
+ *  getCachedHub's five minutes decide when to refetch; they no longer decide
+ *  whether the viewer sees a spinner in place of rails already in memory. */
+export function getCachedHubStale(base: string, path: string): PlexItem[] | null {
+  return _hubCache.get(`${base}|${path}`)?.items ?? null;
+}
+/** The cached rail if it is younger than `maxAgeMs`. */
+export function getCachedHubWithin(base: string, path: string, maxAgeMs: number): PlexItem[] | null {
+  const e = _hubCache.get(`${base}|${path}`);
+  return e && Date.now() - e.ts < maxAgeMs ? e.items : null;
+}
+// Bumped by clearPlexCaches (sign-out). Loaders that cache their answer even
+// when the viewer has moved on pass the epoch they started under, so an
+// answer for the previous account that lands after a sign-out is dropped
+// instead of refilling the cache the next account reads.
+let _hubEpoch = 0;
+export function getHubEpoch(): number { return _hubEpoch; }
+export function setCachedHub(base: string, path: string, items: PlexItem[], epoch?: number): void {
+  if (epoch !== undefined && epoch !== _hubEpoch) return;
   _hubCache.set(`${base}|${path}`, { items, ts: Date.now() });
 }
 
@@ -1239,12 +1356,23 @@ export function rekeyPlexCaches(oldBase: string, newBase: string): void {
   for (const [k, v] of Array.from(_libraryCache.entries())) {
     if (k.startsWith(prefix)) _libraryCache.set(`${newBase}|${k.slice(prefix.length)}`, v);
   }
+  for (const [k, v] of Array.from(_libsMemo.entries())) {
+    if (k.startsWith(prefix)) _libsMemo.set(`${newBase}|${k.slice(prefix.length)}`, v);
+  }
+  for (const [k, v] of Array.from(_facetMemo.entries())) {
+    if (k.startsWith(prefix)) _facetMemo.set(`${newBase}|${k.slice(prefix.length)}`, v);
+  }
 }
 
 /** Wipe ALL in-memory catalog caches (hub rails + library pages). Called on
  *  sign-out so the next Plex account never sees the previous account's rows
  *  when both reach the same server base URL. */
 export function clearPlexCaches(): void {
+  _hubEpoch += 1;
   _libraryCache.clear();
   _hubCache.clear();
+  _accountMemo.clear();
+  _serversMemo.clear();
+  _libsMemo.clear();
+  _facetMemo.clear();
 }

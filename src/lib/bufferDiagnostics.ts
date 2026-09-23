@@ -297,6 +297,10 @@ export function setHostProbeEnabled(on: boolean): void {
 /** Ranged GET against the stream URL allowed for the current stream? */
 function rangeProbeAllowed(): boolean {
   if (hostProbeOverride != null) return hostProbeOverride;
+  // Never on a transcode URL: a GET of Plex's /transcode/universal/start
+  // asks the server to START a transcode, so this probe made the server spin
+  // up a second transcode every 90 s next to the viewer's own.
+  if (/\/transcode\/|\.m3u8(\?|$)/i.test(state.url || '')) return false;
   return state.kind === 'vod';
 }
 
@@ -558,6 +562,8 @@ function clearStallProbe() {
 function scheduleNativeSample(index: number) {
   if (nativeTimer) { clearTimeout(nativeTimer); nativeTimer = null; }
   if (!state.active || !isNativePlatform() || saveDataOn() || !rangeProbeAllowed()) return;
+  // Not on a box already short of memory, as with the stall probes.
+  try { if (document.documentElement.classList.contains('native-low-memory')) return; } catch { /* no document */ }
   const sinceStart = now() - state.startedAt;
   let delay: number;
   if (index < NATIVE_SAMPLE_SCHEDULE_MS.length) delay = Math.max(0, NATIVE_SAMPLE_SCHEDULE_MS[index] - sinceStart);

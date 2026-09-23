@@ -53,40 +53,124 @@ interface Props {
    *  detail-page secondary assets (cast, seasons, episodes, filmography) that
    *  mount while focus mode is on. */
   focusExempt?: boolean;
+  /** Load now, without waiting to be seen: the next few tiles along a rail
+   *  (see the eager effect). Only the viewport gate is skipped; focus-mode
+   *  parking and the network queue still apply. */
+  eager?: boolean;
 }
 
-// Cache the FINAL resolved src per (base|path|size). Keyed without the token
-// so we still hit on remount after a token refresh.
-const _srcCache = new Map<string, string>();
-const SRC_CACHE_MAX = 200;
-const capSrcCache = () => {
-  while (_srcCache.size >= SRC_CACHE_MAX) {
-    const first = _srcCache.keys().next().value;
-    if (first === undefined) break;
-    _srcCache.delete(first);
+// The src that actually painted, per (base|token|path|size). The token is in
+// the key because it is in the URL: a cached URL outliving its token (a
+// provider token repair, another account on the same server) would 401. Written when an image LOADS (not when
+// it is tried), so a failing URL is never remembered; read on mount, so a
+// poster that scrolls out of a rail's window and back in, or comes back after
+// the player closes, paints at once instead of flashing the placeholder and
+// waiting for its visibility check again.
+//
+// Two maps, least-recently-used first out. URL strings are small, so the
+// four hundred-deep rails plus the library rails all fit; data URIs (the
+// http-server fallback below) are whole images in memory and stay capped low.
+const URL_CACHE_MAX = 2000;
+const DATA_CACHE_MAX = 200;
+const _urlCache = new Map<string, string>();
+const _dataCache = new Map<string, string>();
+const cacheGet = (key: string): string | undefined => {
+  for (const m of [_urlCache, _dataCache]) {
+    const v = m.get(key);
+    if (v !== undefined) { m.delete(key); m.set(key, v); return v; }
   }
+  return undefined;
+};
+const cachePut = (key: string, value: string) => {
+  const m = value.startsWith('data:') ? _dataCache : _urlCache;
+  const max = m === _dataCache ? DATA_CACHE_MAX : URL_CACHE_MAX;
+  m.delete(key);
+  while (m.size >= max) {
+    const first = m.keys().next().value;
+    if (first === undefined) break;
+    m.delete(first);
+  }
+  m.set(key, value);
 };
 
-// When the WebView origin is https://localhost, every http:// image URL is
-// blocked by Chrome's mixed-content policy — the plain <img> + photo-transcode
-// fallbacks both fail before we finally hit the CapacitorHttp bridge, wasting
-// two failed round-trips per poster. Detect once and jump straight to the
-// data-URI path when the PMS connection is plain http.
-const PAGE_HTTPS = typeof window !== 'undefined' && window.location.protocol === 'https:';
+/** Everything this loader remembers. Called with clearPlexCaches on sign-out
+ *  and on a token repair. */
+export function clearPlexImageCache(): void {
+  _urlCache.clear();
+  _dataCache.clear();
+  _transcodeFails.clear();
+  _httpImgBlocked.clear();
+}
 
-const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority = false, focusExempt = false }: Props) => {
-  const [src, setSrc] = useState<string | null>(null);
+/** Same server, new address (the idle upgrade, the relay escape): posters that
+ *  already painted keep their URL on the old address, which still answers,
+ *  instead of every mounted tile re-requesting its poster at once. Called only
+ *  on those paths, never on a switch to a different server. */
+export function rekeyPlexImageCache(oldBase: string, newBase: string): void {
+  if (!oldBase || !newBase || oldBase === newBase) return;
+  const prefix = `${oldBase}|`;
+  for (const m of [_urlCache, _dataCache]) {
+    for (const [k, v] of Array.from(m.entries())) {
+      if (k.startsWith(prefix)) m.set(`${newBase}|${k.slice(prefix.length)}`, v);
+    }
+  }
+}
+
+// Servers whose photo transcoder keeps failing. After a few failures on one
+// server its posters go straight to the raw thumb instead of paying a failed
+// transcode request first, every time. A failure only counts when the raw
+// thumb then LOADS — proof the server and the token are fine and it was the
+// transcoder that said no (a Wi-Fi drop or a dead token fails both, and must
+// not push a box onto full-size posters). And it wears off: the transcoder
+// is tried again after ten minutes.
+const TRANSCODE_FAILS_MAX = 3;
+const TRANSCODE_RETRY_MS = 10 * 60 * 1000;
+const _transcodeFails = new Map<string, { count: number; at: number }>();
+const noTranscode = (base: string) => {
+  const f = _transcodeFails.get(base);
+  if (!f || f.count < TRANSCODE_FAILS_MAX) return false;
+  if (Date.now() - f.at > TRANSCODE_RETRY_MS) { _transcodeFails.delete(base); return false; }
+  return true;
+};
+const noteTranscodeFail = (base: string) => {
+  const f = _transcodeFails.get(base);
+  _transcodeFails.set(base, { count: (f?.count ?? 0) + 1, at: Date.now() });
+};
+
+// An https page (Capacitor's https://localhost) with a plain-http Plex server.
+// capacitor.config.ts sets allowMixedContent, so a plain <img> normally loads
+// it — and a plain <img> is far cheaper than the CapacitorHttp → base64 path,
+// which the header calls the heap culprit. So an http server starts on the
+// plain <img>; only if that is actually blocked on this box (both the
+// transcode and the raw thumb fail) is the server marked, and its later
+// posters go straight to the data-URI path.
+const PAGE_HTTPS = typeof window !== 'undefined' && window.location.protocol === 'https:';
+const _httpImgBlocked = new Set<string>();
+
+const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority = false, focusExempt = false, eager = false }: Props) => {
+  const key = path ? `${base}|${token}|${path}|${w}x${h}` : '';
+  // Paint straight from the cache when this poster already loaded once —
+  // unless focus mode would have parked it (see commitSrc).
+  const [src, setSrc] = useState<string | null>(() => {
+    if (!key) return null;
+    if (!priority && !focusExempt && isPlexImageFocusOn()) return null;
+    return cacheGet(key) ?? null;
+  });
   const [err, setErr] = useState(false);
   // Bumped to re-run the load ladder after a failure (see the re-arm below).
   const [armNonce, setArmNonce] = useState(0);
   // Fallback ladder: 0 = photo-transcode, 1 = raw thumb, 2 = data-URI (native).
   const stepRef = useRef(0);
+  // True when this image is on the raw thumb because its transcode failed
+  // (as opposed to going there directly on a no-transcode server).
+  const fellBackRef = useRef(false);
   // Deferred src while imageFocusMode is on and this image is not priority.
   const pendingSrcRef = useRef<string | null>(null);
-  // Viewport gate for the heavy CapacitorHttp bridge fetch — non-priority
-  // images only fire once at/near the viewport.
+  // Viewport gate for non-priority images. A poster that painted from the
+  // cache is already past it.
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [inView, setInView] = useState<boolean>(priority);
+  const [inView, setInView] = useState<boolean>(() => priority || src !== null);
+  const inViewRef = useRef(inView); inViewRef.current = inView;
 
   // Commit a src, honoring focus-mode parking for non-priority images.
   const commitSrc = (s: string) => {
@@ -112,30 +196,31 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     return () => { off(); };
   }, [priority, focusExempt]);
 
+  // The next few tiles along a rail: admitted by position, not geometry. The
+  // rail is an overflow-x scroller, and the visibility check clips to it, so a
+  // tile one slot past the edge never counted as near the screen until the
+  // cursor had already scrolled it in — every Right arrow revealed an empty
+  // tile that only then started loading.
+  useEffect(() => { if (eager) setInView(true); }, [eager]);
+
   // IntersectionObserver gate — only applies to non-priority images.
   useEffect(() => {
-    if (priority) { setInView(true); return; }
+    if (priority || inViewRef.current) return;
     if (typeof IntersectionObserver === 'undefined') { setInView(true); return; }
     const el = wrapRef.current;
     if (!el) return;
+    let late = 0;
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
-        if (e.isIntersecting) { setInView(true); io.disconnect(); return; }
+        if (e.isIntersecting) { setInView(true); io.disconnect(); window.clearTimeout(late); return; }
       }
     }, { rootMargin: '200px' });
     io.observe(el);
-    // Safety net. A box with no laid-out size never intersects, and a poster
-    // frame sized only by `aspect-ratio` is exactly that on a WebView older
-    // than Chrome 88 — which the oldest boxes here are. Left alone those would
-    // now stay blank forever.
-    //
-    // MEASURE, don't blanket-admit. The first version of this just set a timer
-    // and admitted every pending image when it fired, which hands the whole
-    // burst back a moment later — the exact thing the gate exists to prevent.
-    // Checking the box instead admits only the images whose container genuinely
-    // cannot report visibility, and leaves the ordinary off-screen ones waiting
-    // for the user to reach them.
-    const late = window.setTimeout(() => {
+    // Safety net for a box with no laid-out size (it never intersects). Every
+    // Plex poster frame is sized now, so this measures once and admits
+    // nothing; it is kept for any image dropped into an unsized box, and
+    // cleared as soon as the image is admitted.
+    late = window.setTimeout(() => {
       const r = el.getBoundingClientRect();
       if (r.width === 0 && r.height === 0) setInView(true);
     }, 400);
@@ -144,55 +229,53 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
 
   useEffect(() => {
     stepRef.current = 0;
+    fellBackRef.current = false;
     setErr(false);
     pendingSrcRef.current = null;
     if (!path) { setSrc(null); setErr(true); return; }
-    const key = `${base}|${path}|${w}x${h}`;
-    const cached = _srcCache.get(key);
+    const cached = cacheGet(key);
     if (cached) { commitSrc(cached); return; }
     if (/^https?:\/\//i.test(path)) {
       const isPlex = /(^|\.)plex\.tv/i.test(path);
       const resolved = isPlex ? plexTokenizedUrl(path, token) : path;
-      capSrcCache(); _srcCache.set(key, resolved);
       commitSrc(resolved);
       return;
     }
-    // Mixed-content shortcut: https page + http PMS → skip plain <img> and
-    // photo-transcode (both would be blocked) and go straight to CapacitorHttp.
+    // A plain-http server this box has already shown cannot load in an <img>:
+    // straight to CapacitorHttp.
     const baseIsHttp = /^http:\/\//i.test(base);
-    if (PAGE_HTTPS && baseIsHttp && isNativePlatform()) {
+    if (PAGE_HTTPS && baseIsHttp && isNativePlatform() && _httpImgBlocked.has(base)) {
       stepRef.current = 2;
       if (!inView) return; // wait until in-viewport for non-priority
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
       let cancelled = false;
       plexFetchImageDataUri(url, priority, focusExempt)
-        .then((data) => { if (cancelled) return; capSrcCache(); _srcCache.set(key, data); commitSrc(data); })
+        .then((data) => { if (cancelled) return; cachePut(key, data); commitSrc(data); })
         .catch(() => { if (!cancelled) setErr(true); });
       return () => { cancelled = true; };
     }
     // Server-relative: the small photo transcode is the primary source (see
-    // the header — the raw thumb is the full poster).
+    // the header — the raw thumb is the full poster), unless this server's
+    // transcoder has failed repeatedly, in which case the raw thumb is.
     //
-    // VIEWPORT-GATED, exactly like the data-URI branch above. This branch used
-    // to commit immediately, so every mounted tile fetched its poster whether
-    // or not it was on screen. That was invisible while the only caller was a
-    // virtualized grid — it mounts just the visible rows — but the library
-    // rows screen mounts whole horizontal rails, most of each one off-screen.
-    // Opening Movies fired dozens of poster GETs at a PMS that was already
-    // serving the row queries, and the rows arrived late as a result.
-    //
-    // `loading="lazy"` on the <img> does NOT cover this: it landed in Chrome 76
-    // and the oldest boxes here run Chromium 66, where the attribute is inert.
+    // VIEWPORT-GATED. The library rows screen mounts whole horizontal rails,
+    // most of each one off-screen; committing immediately fired dozens of
+    // poster GETs at a server that was still answering the row queries.
+    // `loading="lazy"` does NOT cover this: it landed in Chrome 76 and the
+    // oldest boxes here run Chromium 66, where the attribute is inert.
     if (!inView) return;
+    if (noTranscode(base)) {
+      stepRef.current = 1;
+      commitSrc(`${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`);
+      return;
+    }
     commitSrc(plexPhotoTranscodeUrl(base, path, token, w, h));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base, path, token, w, h, priority, focusExempt, inView, armNonce]);
 
   // One delayed re-arm after a failure, twice at most. Without it every poster
   // on screen during a Wi-Fi blip stays a grey placeholder for the life of the
-  // component: nothing in the effect above re-runs when the network returns,
-  // and HomePanel rails and search results are not virtualized, so they never
-  // remount to recover either.
+  // component: nothing in the effect above re-runs when the network returns.
   const rearmRef = useRef(0);
   useEffect(() => { rearmRef.current = 0; }, [base, path]);
   useEffect(() => {
@@ -201,23 +284,44 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     return () => window.clearTimeout(t);
   }, [err, path]);
 
+  const onImgLoad = () => {
+    if (!src || !key) return;
+    if (stepRef.current === 0) {
+      // Remember what painted (never a failure — this only runs on load). Only
+      // the small transcode (or an absolute URL) is remembered: a raw
+      // full-size fallback must not become this poster's cached answer.
+      if (!src.startsWith('data:')) cachePut(key, src);
+      if (_transcodeFails.has(base)) _transcodeFails.delete(base);
+    } else if (stepRef.current === 1 && fellBackRef.current) {
+      // The transcode failed but the raw poster loaded: that is the
+      // transcoder's failure, and it counts.
+      fellBackRef.current = false;
+      noteTranscodeFail(base);
+    }
+  };
+
   const onImgError = () => {
     if (!path || /^https?:\/\//i.test(path)) { setErr(true); return; }
     const step = stepRef.current;
     if (step === 0) {
-      // The transcoder said no (disabled, or choking): the raw poster still
-      // shows the art, at the old cost, for this one image.
+      // The transcoder said no (disabled, or choking) — or the network did:
+      // the raw poster still shows the art, at the old cost, for this one
+      // image. Whether it counts against the transcoder is decided on load.
+      fellBackRef.current = true;
       stepRef.current = 1;
       commitSrc(`${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`);
       return;
     }
     if (step === 1 && isNativePlatform()) {
+      // Both plain loads failed. On an https page with an http server that is
+      // the mixed-content block: remember it for this server.
+      if (PAGE_HTTPS && /^http:\/\//i.test(base)) _httpImgBlocked.add(base);
       // Last-ditch: CapacitorHttp → base64 data URI. Concurrency-gated in plex.ts.
       stepRef.current = 2;
       if (!priority && !inView) { setErr(true); return; }
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
       plexFetchImageDataUri(url, priority, focusExempt)
-        .then((data) => { capSrcCache(); _srcCache.set(`${base}|${path}|${w}x${h}`, data); commitSrc(data); })
+        .then((data) => { cachePut(key, data); commitSrc(data); })
         .catch(() => setErr(true));
       return;
     }
@@ -232,7 +336,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     );
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return <img ref={wrapRef as any} src={src} alt={alt} className={className} onError={onImgError} loading="lazy" decoding="async" />;
+  return <img ref={wrapRef as any} src={src} alt={alt} className={className} onLoad={onImgLoad} onError={onImgError} loading="lazy" decoding="async" />;
 });
 
 PlexImage.displayName = 'PlexImage';

@@ -12,7 +12,8 @@ import { useVersion } from '@/hooks/useVersion';
  */
 const CHANGELOG: Record<string, string[]> = {
   '1.7.7': [
-    '⚡ Plex is faster on every box: posters arrive at tile size instead of full size, and nothing else runs under the rails while you browse',
+    '⚡ Plex is faster on every box: tile-sized posters, no background library downloads, nothing reloading as you move',
+    '📍 Plex keeps your place: closing a movie puts you back on the same rail or episode list',
     '🎬 Plex: a short "Getting Plex ready…" while every Home rail and its posters load, so the screen is smooth the moment it appears instead of stuttering while rows arrive',
     '🔎 Plex search: Popular searches and your recent ones before you type, and a "Did you mean" row when a title is typed a little wrong',
     '🎞️ Plex Home: Recently Added and Recently Released go a hundred titles deep, and scroll smoothly',

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
+import { keepIfSame } from '@/lib/keepIfSame';
 
 export const PLAYER_SERVER_ALERT_SOURCE = 'player_server';
 const DISMISS_KEY = 'snow-player-server-alert-dismissed-v1';
@@ -50,8 +51,8 @@ export function usePlayerServerAlert(serverLabel: string | null | undefined, ext
       .select('id,app_match,title,message,severity,active,updated_at,source')
       .in('source', [PLAYER_SERVER_ALERT_SOURCE, 'admin'])
       .eq('active', true);
-    if (error) { console.warn('[PlayerServerAlert] fetch failed:', error.message); setRows([]); return; }
-    setRows((data || []) as PlayerServerAlert[]);
+    if (error) { console.warn('[PlayerServerAlert] fetch failed:', error.message); setRows((prev) => (prev.length ? [] : prev)); return; }
+    setRows((prev) => keepIfSame(prev, (data || []) as PlayerServerAlert[]));
   }, []);
 
   useEffect(() => {

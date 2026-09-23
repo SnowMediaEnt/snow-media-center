@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Download, X, RefreshCw } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+// The module-level toast, not the hook: the hook subscribes its caller to
+// every toast state change, which only <Toaster> needs.
+import { toast } from '@/hooks/use-toast';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { useVersion } from '@/hooks/useVersion';
@@ -51,7 +53,6 @@ const isVersionNewer = (a: string, b: string): boolean => {
  *  used to begin four seconds into a Plex session, under the rails. */
 const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
   const { version: currentVersion, versionCode: currentVersionCode, isLoading } = useVersion();
-  const { toast } = useToast();
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   const [prepared, setPrepared] = useState<PreparedUpdate | null>(null);
   const [open, setOpen] = useState(false);

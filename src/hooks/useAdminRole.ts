@@ -49,7 +49,9 @@ export const useAdminRole = () => {
       return () => { cancelled = true; cancel(); };
     }
     return () => { cancelled = true; };
-  }, [user, authLoading]);
+    // Keyed on the id: the role belongs to the account, not to a user object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]);
 
   return { isAdmin, loading: loading || authLoading };
 };

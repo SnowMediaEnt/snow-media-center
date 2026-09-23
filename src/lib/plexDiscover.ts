@@ -56,13 +56,23 @@ const interleave = (lists: Array<PlexItem[] | null>): PlexItem[] => {
 const sections = (libraries: PlexLibrary[]) =>
   libraries.filter((l) => l.type === 'movie' || l.type === 'show');
 
+// Two sections at a time, like Home's stitched rails. Wave 1 runs three of
+// these side by side, and with every section at once that was eleven
+// requests on a four-library server the moment Discover opened.
+const ACROSS_PARALLEL = 2;
 const fetchAcross = async (
   base: string, token: string, libs: PlexLibrary[], query: (l: PlexLibrary) => string | null,
 ): Promise<PlexItem[]> => {
-  const lists = await Promise.all(libs.map((l) => {
-    const q = query(l);
-    return q ? getPlexSectionRow(base, token, l.key, q, PER_SECTION).catch(() => null) : Promise.resolve(null);
-  }));
+  const lists: Array<PlexItem[] | null> = new Array(libs.length).fill(null);
+  let next = 0;
+  const worker = async () => {
+    while (next < libs.length) {
+      const i = next++;
+      const q = query(libs[i]);
+      lists[i] = q ? await getPlexSectionRow(base, token, libs[i].key, q, PER_SECTION).catch(() => null) : null;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(ACROSS_PARALLEL, libs.length) }, worker));
   return interleave(lists);
 };
 

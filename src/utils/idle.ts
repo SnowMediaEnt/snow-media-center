@@ -28,11 +28,26 @@ export const runWhenIdle = (fn: () => void, timeoutMs = 1000): (() => void) => {
   return () => window.clearTimeout(t);
 };
 
+/**
+ * Runs `fn` no sooner than `delayMs` from now, then at the next idle moment
+ * (at most `idleTimeoutMs` later). runWhenIdle's number is a MAXIMUM: every
+ * WebView here has requestIdleCallback, so runWhenIdle(fn, 12000) ran at the
+ * first idle frame, often within milliseconds. Use this when the point is to
+ * wait. Returns a cancel function covering both steps.
+ */
+export const runAfter = (delayMs: number, fn: () => void, idleTimeoutMs = 2000): (() => void) => {
+  let cancelIdle: (() => void) | null = null;
+  const t = window.setTimeout(() => { cancelIdle = runWhenIdle(fn, idleTimeoutMs); }, delayMs);
+  return () => { window.clearTimeout(t); cancelIdle?.(); };
+};
+
 const firstInteractionListeners = new Set<() => void>();
 let firstInteractionFired = false;
+let firstInteractionRan = false;
 let firstInteractionFallback: number | undefined;
 
 const runFirstInteractionListeners = () => {
+  firstInteractionRan = true;
   firstInteractionListeners.forEach((l) => { try { l(); } catch (e) { console.warn('[idle] first-interaction listener threw', e); } });
   firstInteractionListeners.clear();
 };
@@ -49,7 +64,7 @@ const fireFirstInteraction = () => {
   // deferred boot job (analytics session, apps sync, six realtime joins)
   // synchronously inside that keydown put all of it in front of the
   // Player's own chunk fetch. Let the screen change land first.
-  runWhenIdle(runFirstInteractionListeners, 2500);
+  runAfter(2500, runFirstInteractionListeners);
 };
 
 if (typeof window !== 'undefined') {
@@ -66,7 +81,9 @@ if (typeof window !== 'undefined') {
  * background sync isn't permanently starved.
  */
 export const onFirstInteraction = (fn: () => void): (() => void) => {
-  if (firstInteractionFired) {
+  // Immediate only once the deferred batch has actually run; anything that
+  // registers during the deferral joins the batch instead of jumping it.
+  if (firstInteractionRan) {
     // Run async to avoid surprising callers
     queueMicrotask(() => { try { fn(); } catch (e) { console.warn('[idle] listener threw', e); } });
     return () => { /* noop */ };

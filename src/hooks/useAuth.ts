@@ -44,7 +44,18 @@ export const useAuth = () => {
         // player-login bridge is allowed to act again next time it is needed.
         if (event === 'SIGNED_IN') clearWebsiteSignedOut();
         setSession(session);
-        setUser(session?.user ?? null);
+        // The hourly token refresh and the SIGNED_IN that auth-js sends on
+        // every app resume carry the same user, freshly parsed. Keep the old
+        // object then: a new one re-ran every effect keyed on `user` (the
+        // admin-role query, the unread-tickets channel) and re-rendered the
+        // Player and Plex. A real change (USER_UPDATED, another account)
+        // still comes through.
+        setUser((prev) => {
+          const next = session?.user ?? null;
+          if ((event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN')
+            && prev && next && prev.id === next.id && prev.updated_at === next.updated_at) return prev;
+          return next;
+        });
         setLoading(false);
       });
       

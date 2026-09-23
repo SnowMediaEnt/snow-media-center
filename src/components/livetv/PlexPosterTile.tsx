@@ -5,6 +5,9 @@
 import { memo } from 'react';
 import PlexImage from './PlexImage';
 import { POSTER_TILE_H, POSTER_TILE_W, resolutionLabel, type PlexItem } from '@/lib/plex';
+
+const POSTER_GRID_W = 280;
+const POSTER_GRID_H = 420;
 import { tileCaption, resumeFraction } from '@/lib/plexLibraryRows';
 
 interface Props {
@@ -19,12 +22,14 @@ interface Props {
    *  to every tile instead of a fresh closure per tile per render, so a
    *  cursor move does not re-render a hundred memoised tiles. */
   onSelect?: (item: PlexItem) => void;
+  /** Start loading this poster now (the next few tiles along a rail). */
+  eager?: boolean;
   /** The focused tile scrolls itself into view. Rails need it; the grid's
    *  own scroller handles the grid. */
   scrollIntoView?: boolean;
 }
 
-const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onClick, onSelect, scrollIntoView = true }: Props) => {
+const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onClick, onSelect, eager = false, scrollIntoView = true }: Props) => {
   const label = resolutionLabel(item.videoResolution);
   const cap = tileCaption(item);
   const progress = resumeFraction(item);
@@ -44,7 +49,12 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
         className={`tv-ring relative h-0 rounded-lg overflow-hidden bg-black/40 border border-white/10 ${focused ? 'scale-[1.05] z-10' : ''}`}
         style={{ paddingBottom: '150%' }}
       >
-        <PlexImage base={base} path={item.thumb} token={token} w={POSTER_TILE_W} h={POSTER_TILE_H} className="absolute inset-0 w-full h-full object-cover" />
+        {/* Grid tiles are drawn about twice as wide as rail tiles; asking for
+            the rail size there upscaled every poster into a blur. Rails keep
+            POSTER_TILE_W/H, which the settle screen preloads. */}
+        <PlexImage base={base} path={item.thumb} token={token}
+          w={width === 'fill' ? POSTER_GRID_W : POSTER_TILE_W} h={width === 'fill' ? POSTER_GRID_H : POSTER_TILE_H}
+          eager={eager} className="absolute inset-0 w-full h-full object-cover" />
         {label ? (
           <div className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/75 text-xs font-bold font-nunito ${label === '4K' ? 'text-brand-gold' : 'text-white/85'}`}>
             {label}

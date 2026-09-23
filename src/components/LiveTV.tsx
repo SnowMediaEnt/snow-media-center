@@ -3,7 +3,9 @@ import { takeIntent, INTENT_KEYS, type ReportIntent } from '@/lib/appActions';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+// The module-level toast, not the hook: the hook subscribes its caller to
+// every toast state change, which only <Toaster> needs.
+import { toast } from '@/hooks/use-toast';
 import {
   loadCreds,
   clearCreds,
@@ -19,9 +21,9 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
-import { runWhenIdle } from '@/utils/idle';
+import { runAfter, runWhenIdle } from '@/utils/idle';
 import { enterQuiet, exitQuiet, setQuietEverywhere } from '@/utils/quietMode';
-import { markReconciled, reconciledRecently } from '@/lib/panelReconcile';
+import { markReconciled, reconciledRecently, RECONCILE_EVERY_MS, RECONCILE_URGENT_MS } from '@/lib/panelReconcile';
 import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { useVersion } from '@/hooks/useVersion';
@@ -61,7 +63,6 @@ type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex' | 'multi' | 'ba
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
 
-  const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
 
   const [creds, setCreds] = useState<XtreamCreds | null>(null);
@@ -108,6 +109,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const acctServerLabel = playerAccount?.serverLabel || serverLabel || 'your';
   const plexBlocked =
     playerAccount !== null && playerDays !== null && playerDays < 0;
+  // Read by the delayed panel reconcile, which decides how recent is recent.
+  const plexBlockedRef = useRef(plexBlocked); plexBlockedRef.current = plexBlocked;
+  const playerDaysRef = useRef(playerDays); playerDaysRef.current = playerDays;
 
   // Safety net: shell must never mount with a stray fullscreen/multiview flag
   // (only the active player is allowed to set these). Clear on entry so a
@@ -201,19 +205,29 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // panel once (deferred to idle) so the local PlayerAccount picks up the
   // latest expDate/status. Also re-syncs to cloud if signed in.
   const refreshedRef = useRef(false);
+  // The signed-in user is read when the job runs, not a dependency: auth
+  // often finishes loading a moment after the creds, and re-running this
+  // effect then cancelled the pending job for good (the one-shot flag was
+  // already set).
+  const userRef = useRef(user); userRef.current = user;
+  // Whether Plex's player is up (reported by PlexSection).
+  const [plexFullscreen, setPlexFullscreen] = useState(false);
   useEffect(() => {
     // Demo: no panel contact, no sign-in capture, no cloud sync.
     if (DEMO) return;
     if (!creds || refreshedRef.current) return;
-    refreshedRef.current = true;
     // Twelve seconds, not two and a half: this is a panel round-trip with a
     // twenty-second timeout, an edge function and a customer_services write,
     // and at two and a half seconds it landed inside Plex's settle screen
-    // on every Player open. Nothing on screen waits for it.
-    const cancel = runWhenIdle(() => {
+    // on every Player open. Nothing on screen waits for it — except a viewer
+    // on the "expired" screen, who may have just renewed: theirs runs now.
+    const cancel = runAfter(plexBlockedRef.current ? 0 : 12000, () => {
+      // Marked when it runs, so a cancelled wait is simply scheduled again.
+      refreshedRef.current = true;
       (async () => {
         try {
-          if (reconciledRecently()) return;
+          const urgent = plexBlockedRef.current || (playerDaysRef.current !== null && playerDaysRef.current <= 7);
+          if (reconciledRecently(urgent ? RECONCILE_URGENT_MS : RECONCILE_EVERY_MS)) return;
           markReconciled();
           const res = await authenticateRouted(creds.username, creds.password);
           // Expired/disabled/banned lines: sign-in stays refused, but the
@@ -232,14 +246,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           // player-signed-in user, even without a Supabase session. Does NOT
           // bump signin_count.
           void capturePlayerSignin(acc, res.server.label, 'reconcile');
-          if (user?.id && user.email) {
-            void syncPlayerAccountToCloud(user.id, user.email, acc);
+          const u = userRef.current;
+          if (u?.id && u.email) {
+            void syncPlayerAccountToCloud(u.id, u.email, acc);
           }
         } catch { /* swallow — background refresh is best-effort */ }
       })();
-    }, 12000);
+    });
     return cancel;
-  }, [creds, user?.id, user?.email]);
+  }, [creds]);
 
   const onExitLeft = useCallback(() => setPane('sections'), []);
   const onExitUp = useCallback(() => {
@@ -657,6 +672,33 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
 
 
+  // Stable props for PlexSection. It is memoised, and three inline arrows
+  // here re-rendered all of Plex on every Player render: the server-alert
+  // fetch, the account refresh, each toast, each auth event.
+  const onNavigateRef = useRef(onNavigate);
+  useEffect(() => { onNavigateRef.current = onNavigate; }, [onNavigate]);
+  const plexNeedLiveTV = useCallback(() => enterMode('live'), [enterMode]);
+  const plexOpenBufferingGuide = useCallback(() => {
+    try {
+      sessionStorage.setItem('smc-open-buffering-guide', '1');
+      const w = window as unknown as { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number; __bufferingGuideOpen?: boolean };
+      w.__playerOwnsBack = false;
+      w.__overlayHandledBackAt = 0;
+      w.__bufferingGuideOpen = true;
+    } catch { /* ignore */ }
+    onNavigateRef.current?.('support');
+    // Event fallback for other callers / late listeners.
+    setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+  }, []);
+  const plexOpenSupport = useCallback(() => {
+    try {
+      const w = window as unknown as { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };
+      w.__playerOwnsBack = false;
+      w.__overlayHandledBackAt = 0;
+    } catch { /* ignore */ }
+    onNavigateRef.current?.('support');
+  }, []);
+
   if (!credsLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white">
@@ -677,6 +719,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // through to the shared three-pane shell so the canned Movies & Series
   // sections (liveTvDemo fixtures via xtream.ts) are browsable too.
   if (mode === 'movies' && !DEMO) {
+    // A server alert waits while a film is playing (the player owns every key
+    // and would leave it undismissable over the picture) and while the
+    // expired-line screen or the expiry notice is up.
+    const movieAlertShown = !!serverAlert && !expNoticeKind && !plexBlocked && !plexFullscreen;
     return (
       <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
         {plexBlocked ? (
@@ -684,30 +730,16 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         ) : (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <PlexSection
-              isActive={!claimOpen}
+              // A Player-level notice on top owns the remote. Its key listener
+              // cannot stop Plex's (both sit on window), so without this one OK
+              // both dismissed the notice and opened the title under it.
+              isActive={!claimOpen && !expNoticeKind && !movieAlertShown}
+              onFullscreenChange={setPlexFullscreen}
               onExitLeft={leaveMode}
               onExitUp={leaveMode}
-              onNeedLiveTV={() => enterMode('live')}
-              onOpenBufferingGuide={() => {
-                try {
-                  sessionStorage.setItem('smc-open-buffering-guide', '1');
-                  const w = window as unknown as { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number; __bufferingGuideOpen?: boolean };
-                  w.__playerOwnsBack = false;
-                  w.__overlayHandledBackAt = 0;
-                  w.__bufferingGuideOpen = true;
-                } catch { /* ignore */ }
-                onNavigate?.('support');
-                // Event fallback for other callers / late listeners.
-                setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
-              }}
-              onOpenSupport={() => {
-                try {
-                  const w = window as unknown as { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };
-                  w.__playerOwnsBack = false;
-                  w.__overlayHandledBackAt = 0;
-                } catch { /* ignore */ }
-                onNavigate?.('support');
-              }}
+              onNeedLiveTV={plexNeedLiveTV}
+              onOpenBufferingGuide={plexOpenBufferingGuide}
+              onOpenSupport={plexOpenSupport}
             />
           </Suspense>
         )}
@@ -718,6 +750,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             username={playerAccount?.username ?? null}
             days={playerDays ?? 0}
             onDismiss={dismissExpNotice}
+          />
+        )}
+        {/* Alerts placed on Plex (and on the viewer's line) were fetched in
+            Movies & Series but only ever drawn in the Live TV shell. */}
+        {movieAlertShown && serverAlert && (
+          <PlayerServerAlertDialog
+            alert={serverAlert}
+            serverLabel={serverLabel ?? 'Plex'}
+            onDismiss={dismissServerAlert}
           />
         )}
       </div>
@@ -950,29 +991,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           ) : (
             <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
               <PlexSection
-                isActive={pane === 'content' && !claimOpen}
+                isActive={pane === 'content' && !claimOpen && !expNoticeKind && !serverAlert}
                 onExitLeft={onExitLeft}
                 onExitUp={onExitUp}
-                onNeedLiveTV={() => enterMode('live')}
-                onOpenBufferingGuide={() => {
-                  try {
-                    sessionStorage.setItem('smc-open-buffering-guide', '1');
-                    const w = window as unknown as { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number; __bufferingGuideOpen?: boolean };
-                    w.__playerOwnsBack = false;
-                    w.__overlayHandledBackAt = 0;
-                    w.__bufferingGuideOpen = true;
-                  } catch { /* ignore */ }
-                  onNavigate?.('support');
-                  setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
-                }}
-                onOpenSupport={() => {
-                  try {
-                    const w = window as unknown as { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };
-                    w.__playerOwnsBack = false;
-                    w.__overlayHandledBackAt = 0;
-                  } catch { /* ignore */ }
-                  onNavigate?.('support');
-                }}
+                onNeedLiveTV={plexNeedLiveTV}
+                onOpenBufferingGuide={plexOpenBufferingGuide}
+                onOpenSupport={plexOpenSupport}
               />
             </Suspense>
           )

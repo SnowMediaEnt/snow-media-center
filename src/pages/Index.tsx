@@ -32,7 +32,9 @@ import { useSnowMail } from '@/hooks/useSnowMail';
 import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
-import { useToast } from '@/hooks/use-toast';
+// The module-level toast, not the hook: the hook subscribes its caller to
+// every toast state change, which only <Toaster> needs.
+import { toast } from '@/hooks/use-toast';
 
 import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
@@ -452,7 +454,6 @@ const Index = () => {
   const { account: playerAccount } = usePlayerAccount();
   const navigate = useNavigate();
 
-  const { toast } = useToast();
   const handleRootBack = useCallback(() => {
     if (showEasterEgg) {
       setShowEasterEgg(false);

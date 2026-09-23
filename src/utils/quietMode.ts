@@ -90,6 +90,14 @@ export function isQuietRequested(): boolean {
   return reasons.size > 0;
 }
 
+/** True when something is actually PLAYING: a quiet reason other than
+ *  'player-open', which the Player holds for its whole lifetime just to pause
+ *  the home screen's background jobs. Callers that mean "a stream is on
+ *  screen" must use this, not isQuietRequested(). */
+export function isPlaybackQuiet(): boolean {
+  return Array.from(reasons).some((r) => r !== 'player-open');
+}
+
 /** True when quiet is requested AND the device is low-memory (or the gate is bypassed). */
 export function isQuiet(): boolean {
   return isQuietRequested() && (everywhere || isLowMemory());

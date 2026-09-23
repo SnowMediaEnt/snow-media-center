@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useMyUserServices, daysUntil, expiryState, type UserService } from '@/hooks/useUserServices';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
+import { keepIfSame } from '@/lib/keepIfSame';
 
 export interface AppAlert {
   id: string;
@@ -81,7 +82,7 @@ export const useAppAlerts = () => {
         console.warn('[AppAlerts] fetch failed:', error.message);
         setAlerts([]);
       } else {
-        setAlerts((data || []) as AppAlert[]);
+        setAlerts((prev) => keepIfSame(prev, (data || []) as AppAlert[]));
       }
     } catch (e) {
       console.warn('[AppAlerts] fetch threw:', e);
