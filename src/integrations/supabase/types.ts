@@ -2717,6 +2717,48 @@ export type Database = {
           },
         ]
       }
+      plex_requests: {
+        Row: {
+          available_at: string | null
+          device_key: string
+          id: string
+          media_type: string
+          notified_at: string | null
+          overseerr_request_id: number | null
+          poster_url: string | null
+          requested_at: string
+          title: string
+          tmdb_id: number
+          user_id: string | null
+        }
+        Insert: {
+          available_at?: string | null
+          device_key: string
+          id?: string
+          media_type: string
+          notified_at?: string | null
+          overseerr_request_id?: number | null
+          poster_url?: string | null
+          requested_at?: string
+          title: string
+          tmdb_id: number
+          user_id?: string | null
+        }
+        Update: {
+          available_at?: string | null
+          device_key?: string
+          id?: string
+          media_type?: string
+          notified_at?: string | null
+          overseerr_request_id?: number | null
+          poster_url?: string | null
+          requested_at?: string
+          title?: string
+          tmdb_id?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       plex_resellers: {
         Row: {
           auth_token: string | null
