@@ -13,7 +13,7 @@
 //   • Poster images are loaded off the JS heap by PlexImage (see that file).
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Compass, Settings as SettingsIcon, Eye, EyeOff, LogOut, MessageSquare, Tv, Film, Ghost } from 'lucide-react';
-import { activeSeason, loadSeasonRows, loadStoredSeason, storeSeasonRow, type Season } from '@/lib/plexSeasonal';
+import { activeSeason, loadSeasonRows, loadSharedSeason, loadStoredSeason, storeSeasonRow, type Season, type SharedSeasonRow } from '@/lib/plexSeasonal';
 import { useVirtualizer } from '@tanstack/react-virtual';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
@@ -708,11 +708,22 @@ DiscoverPanel.displayName = 'DiscoverPanel';
 // plexSeasonal.ts). Same loading manners as Discover: waits for the cursor to
 // rest on the menu entry and lands one row at a time. What it finds is kept
 // for half a day, across launches, so the lookups run about twice a day.
-const SeasonalPanel = memo(({ isActive, base, token, libraries, adultKeys, season, onPlay, onExitToTabs }: HomePanelProps & { season: Season }) => {
+const SeasonalPanel = memo(({ isActive, base, token, libraries, adultKeys, season, clientIdentifier, onPlay, onExitToTabs }: HomePanelProps & { season: Season; clientIdentifier?: string }) => {
   const libKeysSig = libraries.map((l) => `${l.type}:${l.key}`).join(',');
-  const order = useCallback((got: Record<string, PlexItem[]>): DiscoverRow[] =>
-    season.rows.filter((r) => got[r.id]?.length).map((r) => ({ id: r.id, title: r.title, items: got[r.id] })),
-  [season]);
+  // Rows and titles as the Hub last set them (kept with the stored rows), else
+  // the list that shipped with the app.
+  const orderShared = useCallback((rows: SharedSeasonRow[]): DiscoverRow[] => {
+    try { localStorage.setItem(`smc-season-order:${season.id}`, JSON.stringify(rows.map((r) => [r.id, r.title]))); } catch { /* ignore */ }
+    return rows.filter((r) => r.items.length).map((r) => ({ id: r.id, title: r.title, items: r.items }));
+  }, [season]);
+  const order = useCallback((got: Record<string, PlexItem[]>): DiscoverRow[] => {
+    let defs: Array<[string, string]> = season.rows.map((r) => [r.id, r.title]);
+    try {
+      const saved = JSON.parse(localStorage.getItem(`smc-season-order:${season.id}`) || 'null') as Array<[string, string]> | null;
+      if (Array.isArray(saved) && saved.length) defs = saved;
+    } catch { /* ignore */ }
+    return defs.filter(([id]) => got[id]?.length).map(([id, title]) => ({ id, title, items: got[id] }));
+  }, [season]);
   const [rawRows, setRows] = useState<DiscoverRow[]>(() => order(loadStoredSeason(season.id, base, libKeysSig)));
   const rows = useMemo<DiscoverRow[]>(
     () => rawRows.map((r) => ({ ...r, items: familyOnly(r.items, adultKeys) })).filter((r) => r.items.length > 0),
@@ -734,6 +745,18 @@ const SeasonalPanel = memo(({ isActive, base, token, libraries, adultKeys, seaso
     setRows(order(got));
     if (season.rows.every((r) => have.has(r.id))) { setLoading(false); setDone(true); return; }
     const run = async () => {
+      // The shared answer first: one request, the same rows for everyone.
+      const shared = await loadSharedSeason(season.id, clientIdentifier, libraries);
+      if (cancelled) return;
+      if (shared && epoch === getHubEpoch()) {
+        for (const r of shared) {
+          storeSeasonRow(season.id, base, libKeysSig, r.id, r.items);
+          got[r.id] = r.items;
+        }
+        setRows(orderShared(shared));
+        setLoading(false); setDone(true);
+        return;
+      }
       await loadSeasonRows(base, token, libraries, season, (def, items) => {
         if (epoch !== getHubEpoch()) return; // signed out meanwhile
         storeSeasonRow(season.id, base, libKeysSig, def.id, items);
@@ -750,7 +773,7 @@ const SeasonalPanel = memo(({ isActive, base, token, libraries, adultKeys, seaso
     kickRef.current = start;
     return () => { cancelled = true; window.clearTimeout(timer); kickRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, token, libKeysSig, season]);
+  }, [base, token, libKeysSig, season, clientIdentifier]);
 
   if (loading && rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Gathering the {season.title} collection…</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">{done ? `None of the ${season.title} collection is on this server yet.` : 'Loading…'}</div>;
@@ -3256,6 +3279,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             libraries={familyLibraries}
             adultKeys={adultKeys}
             season={season}
+            clientIdentifier={conn.clientIdentifier}
             onPlay={openDetail}
             onExitToTabs={exitToMenu}
           />

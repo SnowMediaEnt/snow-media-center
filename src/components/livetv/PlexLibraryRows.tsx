@@ -67,6 +67,14 @@ export interface PlexLibraryRowsProps {
 }
 
 /** Cache key for a row, so a revisit paints instantly from the hub cache. */
+// How deep a row goes. It was the request default of 15, so Recently Added
+// and Recently Released stopped at 15 however far you scrolled. The rail only
+// mounts tiles up to a few past the highlight (railCount), so depth costs one
+// bigger request, not more on screen. Less on a box short of memory.
+const LOW_MEMORY_BOX = typeof document !== 'undefined' && document.documentElement.classList.contains('native-low-memory');
+const rowDepth = (id: string) => (id === 'added' || id === 'released'
+  ? (LOW_MEMORY_BOX ? 40 : 100)
+  : (LOW_MEMORY_BOX ? 30 : 50));
 const rowCachePath = (libKey: string, spec: LibraryRowSpec) =>
   spec.kind === 'onDeck'
     ? `/library/sections/${libKey}/onDeck`
@@ -234,7 +242,7 @@ const PlexLibraryRows = memo(({
     try {
       const items = spec.kind === 'onDeck'
         ? await getPlexSectionOnDeck(base, token, libKey)
-        : await getPlexSectionRow(base, token, libKey, spec.query || '');
+        : await getPlexSectionRow(base, token, libKey, spec.query || '', rowDepth(spec.id));
       // An empty-but-successful response is a real answer: the row is hidden.
       // That is the documented behaviour for every guarded row (the date and
       // rating bounds can legitimately match nothing).

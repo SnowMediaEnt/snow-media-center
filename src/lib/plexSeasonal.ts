@@ -7,6 +7,7 @@
 // Adding the next holiday is a new SEASONS entry with its own list.
 import type { PlexItem, PlexLibrary } from '@/lib/plex';
 import { searchPlex } from '@/lib/plex';
+import { supabase } from '@/integrations/supabase/client';
 import { HALLOWEEN_ROWS, type CuratedRow, type CuratedTitle } from '@/data/seasons/halloween';
 
 export interface SeasonRowDef { id: string; title: string }
@@ -121,11 +122,41 @@ export async function loadSeasonRows(
   }
 }
 
+// ── Shared answer ───────────────────────────────────────────────────────
+// The plex-seasonal function matches the list (editable in the Hub) against
+// the Snow Media Plex server once and hands every box the same rows in one
+// request. Used only when this box is on that same server (machine id); the
+// titles from libraries this viewer cannot see are dropped. null means "not
+// available", and the box looks the titles up itself (loadSeasonRows).
+export interface SharedSeasonRow { id: string; title: string; items: PlexItem[] }
+const SHARED_TIMEOUT_MS = 45_000;
+export async function loadSharedSeason(
+  seasonId: string, machineId: string | undefined, libraries: PlexLibrary[],
+): Promise<SharedSeasonRow[] | null> {
+  if (!machineId) return null;
+  try {
+    const call = supabase.functions.invoke('plex-seasonal', { body: { action: 'get', season: seasonId } });
+    const timeout = new Promise<null>((r) => { window.setTimeout(() => r(null), SHARED_TIMEOUT_MS); });
+    const res = await Promise.race([call, timeout]);
+    const data = res && !res.error ? (res.data as { machineId?: string; rows?: SharedSeasonRow[] }) : null;
+    if (!data?.rows?.length || data.machineId !== machineId) return null;
+    const visible = new Set(libraries.map((l) => String(l.key)));
+    return data.rows.map((r) => ({
+      id: String(r.id),
+      title: String(r.title),
+      items: (r.items ?? []).filter((it) => !it.librarySectionID || visible.has(String(it.librarySectionID))),
+    }));
+  } catch {
+    return null;
+  }
+}
+
 // ── Kept across launches ────────────────────────────────────────────────
-// Finding a season's titles is a few hundred searches, so the answer is kept
-// for half a day per server and library set. Cleared on Plex sign-out.
+// Kept for three hours per server and library set, so a box opens the
+// collection instantly and still picks up list changes made in the Hub the
+// same evening. Cleared on Plex sign-out.
 const STORE = 'smc-season-v1:';
-export const SEASON_TTL_MS = 12 * 3600_000;
+export const SEASON_TTL_MS = 3 * 3600_000;
 interface Stored { base: string; libs: string; ts: number; rows: Record<string, PlexItem[]> }
 
 export function loadStoredSeason(seasonId: string, base: string, libs: string, now = Date.now()): Record<string, PlexItem[]> {
