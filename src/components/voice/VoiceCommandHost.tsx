@@ -22,6 +22,7 @@ import {
 } from '@/lib/appActions';
 import { getDeviceId, trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
+import { getPreferredTier } from '@/lib/aiTiers';
 import { openProfiles } from '@/lib/profilesUi';
 import { parseVoiceCommand, type VoiceAction } from '@/lib/voiceCommands';
 import { OPEN_VOICE_EVENT } from '@/lib/voiceUi';
@@ -177,6 +178,9 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
     try {
       const currentVersion = await fetch('/version.json').then((r) => r.json()).then((d) => d.currentVersion).catch(() => undefined);
       const { data: { session } } = await supabase.auth.getSession();
+      // The Snow AI level chosen under Settings → UI (Premium needs an account;
+      // the server charges its gems).
+      const premium = !!session?.user && getPreferredTier('chat') === 'premium';
       const { data, error } = await supabase.functions.invoke('snow-media-ai', {
         body: {
           message: heard,
@@ -186,14 +190,24 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
           saveConversation: false,
           currentVersion,
           device_id: getDeviceId(),
+          ...(premium ? { tier: 'premium' } : {}),
         },
       });
       if (!openRef.current) return;
-      if (error) throw error;
+      if (error) {
+        let failure: { error?: string; message?: string } = {};
+        try { failure = await (error as { context?: Response }).context?.clone().json() ?? {}; } catch { /* not JSON */ }
+        if (failure.error === 'insufficient_gems' || failure.error === 'premium_disabled' || failure.error === 'premium_requires_signin') {
+          setPhase({ kind: 'reply', heard, text: failure.message || 'Snow AI Premium isn\'t available right now — switch to Free under Settings → UI.' });
+          setFocus('close');
+          return;
+        }
+        throw error;
+      }
       const d = data as { blocked?: boolean; reason?: string; response?: string; message?: string; functionCall?: AiCall } | null;
       if (d?.blocked) { setPhase({ kind: 'reply', heard, text: d.reason || 'The assistant is busy right now. Try again in a bit.' }); return; }
-      // Signed in: the same 0.01 Snow Gems an AI Chat message costs.
-      if (session?.user) {
+      // Signed in on Free: the same 0.01 Snow Gems an AI Chat message costs.
+      if (session?.user && !premium) {
         void supabase.rpc('update_user_credits', {
           p_user_id: session.user.id, p_amount: 0.01, p_transaction_type: 'deduction', p_description: `Voice command - "${heard.slice(0, 50)}"`,
         }).then(() => undefined, () => undefined);

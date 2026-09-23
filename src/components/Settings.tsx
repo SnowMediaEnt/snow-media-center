@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo } from '@/lib/demoMode';
 import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound } from 'lucide-react';
 import { openProfiles } from '@/lib/profilesUi';
+import { getPreferredTier, loadAiTiers, setPreferredTier, type AiTier, type AiTierInfo } from '@/lib/aiTiers';
+import { useAuth } from '@/hooks/useAuth';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
@@ -39,6 +41,7 @@ type SettingsFocus =
   | 'tab-ai'
   | 'media-content'
   | 'ui-profiles'
+  | 'ui-ai-tier'
   | 'ui-content-bar-toggle'
   | 'ui-dashboard-size-toggle'
   | 'ui-mail-notify-toggle'
@@ -63,6 +66,24 @@ const Settings = ({ onBack }: SettingsProps) => {
   const deviceAlerts = useDeviceAlerts();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
   const { toast } = useToast();
+  // Snow AI level for AI Chat and voice commands: Free (included) or Premium
+  // (the top model, Snow Gems a message). Premium needs a signed-in account.
+  const { user } = useAuth();
+  const [aiTier, setAiTierState] = useState<AiTier>(() => getPreferredTier('chat'));
+  const [aiPremium, setAiPremium] = useState<AiTierInfo | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void loadAiTiers().then((t) => { if (alive) setAiPremium(t.chat.premium); });
+    return () => { alive = false; };
+  }, []);
+  const aiTierShown = !!aiPremium && !demo;
+  const canPremium = aiTierShown && !!user;
+  const toggleAiTier = () => {
+    if (!canPremium) { toast({ title: 'Sign in for Premium', description: 'Snow AI Premium uses Snow Gems from your account.' }); return; }
+    const next: AiTier = aiTier === 'premium' ? 'free' : 'premium';
+    setPreferredTier('chat', next);
+    setAiTierState(next);
+  };
   const [currentLang, setCurrentLang] = useState<string>(i18n.language || 'en');
   useEffect(() => {
     const onChange = (lng: string) => setCurrentLang(lng);
@@ -136,7 +157,7 @@ const Settings = ({ onBack }: SettingsProps) => {
       }
 
       const getUiFocusOrder = (): SettingsFocus[] => {
-        const order: SettingsFocus[] = ['ui-profiles', 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
+        const order: SettingsFocus[] = ['ui-profiles', ...(aiTierShown ? ['ui-ai-tier' as SettingsFocus] : []), 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
         if (deviceAlerts.supported) order.push('ui-device-alerts-toggle');
         if (isAdmin) {
           order.push('ui-player-toggle');
@@ -180,6 +201,7 @@ const Settings = ({ onBack }: SettingsProps) => {
         }
         if (event.key === 'Enter' || event.key === ' ') {
           if (focusedElement === 'ui-profiles') openProfiles('pick');
+          else if (focusedElement === 'ui-ai-tier') toggleAiTier();
           else if (focusedElement === 'ui-content-bar-toggle') setMediaBarEnabledState(!mediaBarEnabled);
           else if (focusedElement === 'ui-dashboard-size-toggle') saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large');
           else if (focusedElement === 'ui-mail-notify-toggle') saveMailNotify(!mailNotify);
@@ -364,7 +386,9 @@ const Settings = ({ onBack }: SettingsProps) => {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify]);
+  // toggleAiTier reads the state below; it is recreated with it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium]);
 
   useEffect(() => {
     const scrollAllToTop = () => {
@@ -534,6 +558,41 @@ const Settings = ({ onBack }: SettingsProps) => {
                 </div>
               </div>
             </Card>
+            {aiTierShown && (
+              <Card
+                {...settingsFocusAttrs('ui-ai-tier')}
+                tabIndex={0}
+                role="button"
+                aria-pressed={aiTier === 'premium'}
+                onFocus={() => setFocusedElement('ui-ai-tier')}
+                onClick={toggleAiTier}
+                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-ai-tier')}`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <Bot className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                    <div>
+                      <h3 className="text-lg font-bold text-white">
+                        Snow AI: {aiTier === 'premium' && canPremium ? 'Premium' : 'Free'}
+                      </h3>
+                      <p className="text-sm text-white/70 mt-1">
+                        {canPremium
+                          ? `Free is included. Premium uses the most powerful model for AI Chat and voice commands — ${aiPremium?.gems ?? ''} Snow Gems a message. Switch any time to compare.`
+                          : 'Free is included. Sign in to try Premium, the most powerful model (paid with Snow Gems).'}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={aiTier === 'premium' && canPremium}
+                    onCheckedChange={toggleAiTier}
+                    disabled={!canPremium}
+                    aria-label="Snow AI Premium"
+                    className="mt-1"
+                  />
+                </div>
+              </Card>
+            )}
+
             <Card
               {...settingsFocusAttrs('ui-content-bar-toggle')}
               tabIndex={0}

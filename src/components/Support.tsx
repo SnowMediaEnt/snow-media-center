@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense, useCallback, useMemo, useRef } from 'react';
+import { kidsLevel } from '@/lib/kidsFilter';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -61,6 +62,11 @@ const HELP_IDS = [
   'help-cleaner',
 ] as const;
 
+/** A Kids profile's Support: no tickets, paid Remote Access, Device Cleaner
+ *  (it removes apps) or AI Chat (Snow Gems). How to use, Speedtest, the
+ *  Buffering Guide, Support Videos and Posts stay. */
+const KIDS_HIDDEN = new Set<string>(['help-tickets', 'help-remote', 'help-cleaner']);
+
 /** Matches the `md:` breakpoint the card grid switches columns at. */
 const HELP_TWO_COL = '(min-width: 768px)';
 
@@ -69,7 +75,12 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const { badgeCount: unreadMailCount } = useSnowMail();
   // Where to land: the assistant (or a How-to link) can ask for a tab or a
   // tool before Support mounts. Read once, then it is an ordinary visit.
-  const [landing] = useState(() => peekIntent(INTENT_KEYS.support));
+  const kids = !!kidsLevel();
+  const helpIds = useMemo(() => (kids ? HELP_IDS.filter((id) => !KIDS_HIDDEN.has(id)) : [...HELP_IDS]), [kids]);
+  const [landing] = useState(() => {
+    const l = peekIntent(INTENT_KEYS.support);
+    return kids && (l === 'ai' || l === 'tickets' || l === 'cleaner') ? null : l;
+  });
   useEffect(() => { clearIntent(INTENT_KEYS.support); }, []);
   const [tab, setTab] = useState<Tab>(landing === 'posts' ? 'mail' : landing === 'ai' ? 'ai' : 'help');
   const [helpView, setHelpView] = useState<HelpView>(landing === 'tickets' ? 'tickets' : landing === 'cleaner' ? 'cleaner' : landing === 'videos' ? 'videos' : 'menu');
@@ -207,22 +218,22 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     // count instead, so Down moves down a column and Right moves across a row.
     const nav: TVFocusNavigationMap = {
       'support-back': { down: `tab-${tab}` },
-      'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-mail', down: 'help-howto' },
+      'tab-help': { up: 'support-back', right: kids ? 'tab-mail' : 'tab-ai', left: 'tab-mail', down: 'help-howto' },
       'tab-ai': {
         up: 'support-back', right: 'tab-mail', left: 'tab-help',
         down: () => { focusIntoChild('ai'); return null; },
       },
       'tab-mail': {
-        up: 'support-back', right: 'tab-help', left: 'tab-ai',
+        up: 'support-back', right: 'tab-help', left: kids ? 'tab-help' : 'tab-ai',
         down: () => { focusIntoChild('mail'); return null; },
       },
     };
     const stay = () => null;
-    HELP_IDS.forEach((id, i) => {
+    helpIds.forEach((id, i) => {
       const row = Math.floor(i / helpCols);
       const col = i % helpCols;
       const at = (r: number, c: number): string | undefined =>
-        c >= 0 && c < helpCols ? HELP_IDS[r * helpCols + c] : undefined;
+        c >= 0 && c < helpCols ? helpIds[r * helpCols + c] : undefined;
       const down = at(row + 1, col);
       const left = at(row, col - 1);
       const right = at(row, col + 1);
@@ -234,7 +245,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       };
     });
     return nav;
-  }, [tab, focusIntoChild, helpCols]);
+  }, [tab, focusIntoChild, helpCols, helpIds, kids]);
 
   // When a sub-view (videos / tickets) or overlay (speedtest / guide / how-to) is open,
   // the child component owns D-pad + Back. Disabling the parent focus manager
@@ -323,7 +334,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         });
       });
     };
-    const openTickets = () => { setTab('help'); setHelpView('tickets'); };
+    const openTickets = () => { if (kids) return; setTab('help'); setHelpView('tickets'); };
     const openGuide = () => {
       try {
         const o = sessionStorage.getItem('smc-guide-origin');
@@ -332,7 +343,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       setTab('help'); setHelpView('menu'); setShowGuide(true);
     };
     const openHowTo = () => { setTab('help'); setHelpView('menu'); setShowHowTo(true); };
-    const openCleaner = () => { setTab('help'); setHelpView('cleaner'); };
+    const openCleaner = () => { if (kids) return; setTab('help'); setHelpView('cleaner'); };
     const openPosts = () => { setChildFocusActive(false); setTab('mail'); };
     window.addEventListener('support:focus-tab', handler as EventListener);
     window.addEventListener('support:open-tickets', openTickets);
@@ -409,7 +420,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         </div>
 
         <Tabs value={tab} onValueChange={(v) => { setChildFocusActive(false); setTab(v as Tab); }} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-16 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch">
+          <TabsList className={`grid w-full ${kids ? 'grid-cols-2' : 'grid-cols-3'} mb-16 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch`}>
             <TabsTrigger
               value="help"
               data-support-tv-focus-id="tab-help"
@@ -418,14 +429,14 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               <HelpCircle className="w-5 h-5 mr-2" />
               Help
             </TabsTrigger>
-            <TabsTrigger
+            {!kids && <TabsTrigger
               value="ai"
               data-support-tv-focus-id="tab-ai"
               className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <Brain className="w-5 h-5 mr-2" />
               AI Chat
-            </TabsTrigger>
+            </TabsTrigger>}
             <TabsTrigger
               value="mail"
               data-support-tv-focus-id="tab-mail"
@@ -506,6 +517,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                   Tutorials and walkthroughs
                 </span>
               </Button>
+              {!kids && (
               <Button
                 onClick={() => setHelpView('tickets')}
                 variant="outline"
@@ -527,6 +539,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                   {unreadTicketCount > 0 ? 'New reply from Support' : 'Contact Snow Media Support'}
                 </span>
               </Button>
+              )}
+              {!kids && (
               <Button
                 onClick={() => setHelpView('remote')}
                 variant="outline"
@@ -541,6 +555,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                   A technician fixes your box live — $25
                 </span>
               </Button>
+              )}
+              {!kids && (
               <Button
                 onClick={() => setHelpView('cleaner')}
                 variant="outline"
@@ -555,6 +571,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                   Free up space and memory
                 </span>
               </Button>
+              )}
 
             </div>
           </TabsContent>

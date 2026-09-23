@@ -531,7 +531,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
               })}
             </div>
             <p className="text-white/60 text-sm mb-6">
-              Kids profiles see Plex titles up to that rating and only the kids and family channels in Live TV (Teens: every channel that isn't adult), with no Store, Games or Settings.
+              Kids profiles see Plex titles up to that rating and only the kids and family channels in Live TV (Teens: every channel that isn't adult), with no Store, Main Apps, Games, Settings, tickets or Remote Access.
             </p>
           </>
         )}

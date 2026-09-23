@@ -499,8 +499,8 @@ const Index = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { isAdmin: isAdminRole } = useAdminRole();
-  // Who is watching. A Kids profile's home has no Store, Admin, giveaway or
-  // Dashboard, its account button switches profile, and Settings asks for a
+  // Who is watching. A Kids profile's home has no Store, Main Apps, Admin,
+  // giveaway or Dashboard, its account button switches profile, and Settings asks for a
   // grown-up's PIN (see lib/profiles.ts).
   const { profile, count: profileCount } = useActiveProfile();
   const kids = !!profile.kidsLevel;
@@ -909,7 +909,7 @@ const Index = () => {
   // card). Everything below looks cards up by id, never by fixed position.
   const cardIds = useMemo<HomeCardId[]>(
     () => (playerEnabled ? ['player', 'apps', 'support', 'store'] : ['apps', 'support', 'store'])
-      .filter((id) => !(kids && id === 'store')) as HomeCardId[],
+      .filter((id) => !(kids && (id === 'store' || id === 'apps'))) as HomeCardId[],
     [playerEnabled, kids],
   );
   const cardCountRef = useRef(cardIds.length);
@@ -1080,7 +1080,7 @@ const Index = () => {
 
         case 'ArrowUp':
           // If on Main Apps, open the pinned apps popup first
-          if (focusedButton === appsCardIdxRef.current && !isInPopup) {
+          if (appsCardIdxRef.current >= 0 && focusedButton === appsCardIdxRef.current && !isInPopup) {
             setIsInPopup(true);
             setPopupFocusIndex(0);
             return;
