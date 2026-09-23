@@ -456,16 +456,24 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
     if (pickerOpenForTile === null || pickerPane !== 'ch') return;
     const node = chScrollRef.current; if (!node) return;
     if (channelIdx === 0) { node.scrollTop = 0; return; }
-    const top = channelIdx * ROW_HEIGHT;
+    // + 8: the list's own py-2 padding sits above the first row.
+    const top = channelIdx * ROW_HEIGHT + 8;
     const bot = top + ROW_HEIGHT;
     if (top < node.scrollTop) node.scrollTop = top;
-    else if (bot > node.scrollTop + node.clientHeight) node.scrollTop = bot - node.clientHeight;
+    else if (bot + 8 > node.scrollTop + node.clientHeight) node.scrollTop = bot + 8 - node.clientHeight;
   }, [channelIdx, pickerOpenForTile, pickerPane]);
 
   useEffect(() => {
     if (pickerOpenForTile === null || pickerPane !== 'cat') return;
-    try { catVirtualizer.scrollToIndex(categoryIdx, { align: 'auto' }); } catch { /* ignore */ }
-  }, [categoryIdx, pickerOpenForTile, pickerPane, catVirtualizer]);
+    // Same math as the channels (the virtualizer's own scrollToIndex does
+    // not know about the list's 8 px top padding).
+    const node = catScrollRef.current; if (!node) return;
+    if (categoryIdx === 0) { node.scrollTop = 0; return; }
+    const top = categoryIdx * CAT_ROW_HEIGHT + 8;
+    const bot = top + CAT_ROW_HEIGHT;
+    if (top < node.scrollTop) node.scrollTop = top;
+    else if (bot + 8 > node.scrollTop + node.clientHeight) node.scrollTop = bot + 8 - node.clientHeight;
+  }, [categoryIdx, pickerOpenForTile, pickerPane]);
 
   // ── Keyboard handler ─────────────────────────────────────────────────────
   const lastBackAtRef = useRef(0);

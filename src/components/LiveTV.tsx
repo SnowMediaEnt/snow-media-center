@@ -95,16 +95,22 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const [layoutTrial, setLayoutTrial] = useState<{ prev: LiveLayout; next: LiveLayout; ask: boolean } | null>(null);
   useEffect(() => {
     if (!layoutTrial || layoutTrial.ask) return;
-    const t = window.setTimeout(() => setLayoutTrial((lt) => (lt ? { ...lt, ask: true } : lt)), 3000);
+    const t = window.setTimeout(() => {
+      // Already watching a channel full screen (Vibez plays on OK): they have
+      // their answer; keep it rather than ask over the picture.
+      if (document.documentElement.classList.contains('snowplayer-fullscreen')) { setLayoutTrial(null); return; }
+      setLayoutTrial((lt) => (lt ? { ...lt, ask: true } : lt));
+    }, 3000);
     return () => window.clearTimeout(t);
   }, [layoutTrial]);
+  // enterMode is declared further down; reached through a ref.
+  const enterModeRef = useRef<(m: 'live' | 'movies' | 'backups') => void>(() => {});
   const tryLayout = useCallback((prev: LiveLayout, next: LiveLayout) => {
     saveLiveLayout(next);
     setLayoutTrial({ prev, next, ask: false });
     setSettingsOpen(false);
     setSettingsInitialView(undefined);
-    setMode('live');
-    setSection('live');
+    enterModeRef.current('live');
     setPane('content');
   }, []);
   const keepLayout = useCallback(() => setLayoutTrial(null), []);
@@ -366,6 +372,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setPane(m === 'live' ? 'content' : 'sections');
     if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: m, service: serverLabelRef.current }); } catch { /* ignore */ } }
   }, []);
+  enterModeRef.current = enterMode;
   const leaveMode = useCallback(() => {
     if (modeRef.current === 'movies' && plexFromVodRef.current) {
       plexFromVodRef.current = false;
@@ -514,24 +521,39 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // one: sign the Player in with it before asking (see playerAutoSignIn.ts).
   // Once per Player open, after auth has settled; the form shows if nothing
   // works, and never after a deliberate sign-out.
-  const [autoSigningIn, setAutoSigningIn] = useState(false);
-  const autoTriedRef = useRef(false);
-  const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  // 'idle' until it runs, 'done' after; the spinner covers the wait so the
+  // form never appears and is then pulled away mid-typing.
+  const [autoSignIn, setAutoSignIn] = useState<'idle' | 'running' | 'done'>(DEMO ? 'done' : 'idle');
+  const autoCancelRef = useRef(false);
+  useEffect(() => () => { autoCancelRef.current = true; }, []);
+  // Auth normally settles in a moment; don't wait on it for ever.
+  const [authWaitOver, setAuthWaitOver] = useState(false);
   useEffect(() => {
-    if (DEMO || !credsLoaded || creds || authLoading || autoTriedRef.current) return;
-    autoTriedRef.current = true;
-    setAutoSigningIn(true);
-    const timeout = new Promise<null>((r) => window.setTimeout(() => r(null), 15000));
-    void Promise.race([autoSignInPlayer(user?.id ?? null), timeout])
+    const t = window.setTimeout(() => setAuthWaitOver(true), 5000);
+    return () => window.clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    if (autoSignIn !== 'idle' || !credsLoaded) return;
+    if (creds) { setAutoSignIn('done'); return; }
+    if (authLoading && !authWaitOver) return;
+    setAutoSignIn('running');
+    const timer = window.setTimeout(() => {
+      autoCancelRef.current = true;
+      setAutoSignIn('done');
+    }, 15000);
+    void autoSignInPlayer(user?.id ?? null, () => autoCancelRef.current)
       .then((c) => {
-        if (!mountedRef.current || !c) return;
+        if (autoCancelRef.current || !c) return;
         clearPlayerSignedOut();
         setCreds((cur) => cur ?? c);
       })
       .catch(() => { /* the form shows */ })
-      .finally(() => { if (mountedRef.current) setAutoSigningIn(false); });
-  }, [credsLoaded, creds, authLoading, user?.id]);
+      .finally(() => {
+        window.clearTimeout(timer);
+        if (!autoCancelRef.current) setAutoSignIn('done');
+      });
+  }, [autoSignIn, credsLoaded, creds, authLoading, authWaitOver, user?.id]);
+  const autoSigningIn = autoSignIn !== 'done';
 
   const showCredsForm = !DEMO && mode === 'live' && (!creds || accountFormOpen);
   // Demo: the settings hub exposes sign-out / change-credentials / switch-account,
@@ -867,6 +889,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             initial={creds}
             onChildOpenChange={(open) => { credsChildOpenRef.current = open; }}
             onSaved={(c) => {
+              // A background auto sign-in must not save over this one.
+              autoCancelRef.current = true;
               clearPlayerSignedOut();
               setCreds(c);
               setAccountFormOpen(false);

@@ -63,7 +63,12 @@ async function fromAccount(userId: string | null | undefined): Promise<BillingCr
 }
 
 /** Try the viewer's saved lines; the first the panel accepts signs the Player in. */
-export async function autoSignInPlayer(userId: string | null | undefined): Promise<XtreamCreds | null> {
+export async function autoSignInPlayer(
+  userId: string | null | undefined,
+  /** True once the Player stopped waiting (timeout, a manual sign-in, closed):
+   *  nothing may be saved after that. */
+  isCancelled: () => boolean = () => false,
+): Promise<XtreamCreds | null> {
   if (signedOutOnPurpose()) return null;
   const seen = new Set<string>();
   const candidates = [...(await fromBilling()), ...(await fromAccount(userId))].filter((c) => {
@@ -73,7 +78,11 @@ export async function autoSignInPlayer(userId: string | null | undefined): Promi
     return true;
   });
   for (const c of candidates.slice(0, 3)) {
-    const res = await applyServiceToPlayer(c, 'auto');
+    if (isCancelled()) return null;
+    // Only a line the panel actually confirmed, and never once the Player
+    // has moved on (a manual sign-in must not be overwritten).
+    const res = await applyServiceToPlayer(c, 'auto', { requireProbe: true, shouldSave: () => !isCancelled() });
+    if (isCancelled()) return null;
     if (res.ok) {
       try { trackEvent('player_auto_signin', 'player', { ok: true }); } catch { /* ignore */ }
       return res.creds;

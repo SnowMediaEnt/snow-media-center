@@ -56,8 +56,10 @@ class MainActivity : BridgeActivity() {
         }
         val webView = bridge?.webView
         if (name == null || webView == null) return super.dispatchKeyEvent(event)
-        // Act once per press, on the way down; held keys repeat like arrows do.
-        if (event.action == KeyEvent.ACTION_DOWN) {
+        // Act on the way down. Held Fast-forward / Rewind repeat like arrows
+        // do; a held Play/Pause must not toggle back and forth.
+        val toggles = name == "playpause" || name == "play" || name == "pause"
+        if (event.action == KeyEvent.ACTION_DOWN && !(toggles && event.repeatCount > 0)) {
             webView.evaluateJavascript(
                 "window.dispatchEvent(new CustomEvent('smc:mediakey',{detail:'$name'}))",
                 null,

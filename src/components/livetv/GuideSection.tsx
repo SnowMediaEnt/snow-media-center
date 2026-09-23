@@ -303,10 +303,11 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const nativePreviewActive = NATIVE_PLAYBACK && !DEMO && isActive && !fullscreen && previewChannelId != null;
   const [previewRect, setPreviewRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const previewObserverRef = useRef<ResizeObserver | null>(null);
+  const previewMeasureRef = useRef<() => void>(() => {});
   const previewBoxRef = useCallback((el: HTMLDivElement | null) => {
     if (!NATIVE_PLAYBACK) return;
     if (previewObserverRef.current) { previewObserverRef.current.disconnect(); previewObserverRef.current = null; }
-    if (!el) { setPreviewRect(null); return; }
+    if (!el) { setPreviewRect(null); previewMeasureRef.current = () => {}; return; }
     const measure = () => {
       const r = el.getBoundingClientRect();
       const next = { x: r.left, y: r.top, width: r.width, height: r.height };
@@ -315,6 +316,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           && Math.abs(prev.width - next.width) < 1 && Math.abs(prev.height - next.height) < 1
           ? prev : next);
     };
+    previewMeasureRef.current = measure;
     measure();
     if (typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(() => measure());
@@ -322,6 +324,13 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       previewObserverRef.current = ro;
     }
   }, []);
+  // The box can move without changing size (the category row above it grows
+  // from "Loading categories…" to the chips): measure again when a preview
+  // starts and when that row settles, after layout.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => previewMeasureRef.current());
+    return () => cancelAnimationFrame(raf);
+  }, [nativePreviewActive, previewChannelId, categoriesLoading, categories.length]);
   // The page has to be see-through where the preview box is (index.css).
   useEffect(() => {
     if (!nativePreviewActive) return;

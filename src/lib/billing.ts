@@ -261,6 +261,12 @@ export async function applyServiceToPlayer(
   c: BillingCredentials,
   /** Which path signed them in, so Vibez hand-offs are distinguishable in analytics. */
   via: string = 'billing',
+  opts: {
+    /** Asked after the panel check, before anything is saved: false stops here. */
+    shouldSave?: () => boolean;
+    /** Refuse when the panel could not be reached (automatic sign-in). */
+    requireProbe?: boolean;
+  } = {},
 ): Promise<ApplyResult> {
   const server = serverForHost(c.host);
   const creds = normalizeCreds({ host: server.host, username: c.username, password: c.password, output: 'm3u8', serverLabel: server.label });
@@ -282,6 +288,8 @@ export async function applyServiceToPlayer(
     const authed = auth === 1 || auth === '1' || auth === true;
     if (!authed) return { ok: false, error: 'The panel did not accept these login details yet. Please try again in a minute.' };
   }
+  if (!probed && opts.requireProbe) return { ok: false, error: 'The panel could not be reached.' };
+  if (opts.shouldSave && !opts.shouldSave()) return { ok: false, error: 'Cancelled.' };
 
   await saveCreds(creds);
   // Signed in again: a later empty Player may sign itself in from the account.
