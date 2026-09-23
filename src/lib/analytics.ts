@@ -7,7 +7,12 @@
  *  - Events batched (flush every 5s or 20 events).
  *  - Small offline queue persisted to localStorage (cap 200).
  *  - No PII collection beyond signed-in user_id (when available).
+ *  - Only the installed Android app records anything. The web build (the
+ *    marketing site, previews, phone browsers, crawlers) sends nothing:
+ *    those were being counted as devices and app users.
  */
+import { Capacitor } from "@capacitor/core";
+import { App } from "@capacitor/app";
 import { supabase } from "@/integrations/supabase/client";
 import { isDemo } from "@/lib/demoMode";
 
@@ -24,8 +29,14 @@ type EventRow = {
   occurred_at: string;
 };
 
-const APP_VERSION =
-  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_APP_VERSION) || "1.0.0";
+// The installed app's real version (versionName), read from the package at
+// boot. Nothing is sent until it is known, so no row carries a made-up
+// version; if the package cannot be read the column is left empty.
+let appVersion: string | null = null;
+let versionReady: Promise<void> = Promise.resolve();
+// True once initAnalytics has decided this is the installed app. Until then
+// (and for ever on the web) every call below is a no-op.
+let enabled = false;
 const DEVICE_KEY = "smc_device_id";
 const QUEUE_KEY = "smc_analytics_queue";
 const MAX_QUEUE = 200;
@@ -34,7 +45,6 @@ const FLUSH_MS = 5000;
 
 let deviceId: string = "";
 let sessionId: string | null = null;
-let sessionStartMs: number | null = null;
 let userId: string | null = null;
 let started = false;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
@@ -118,11 +128,14 @@ export const getDeviceId = (): string => {
 };
 
 const flush = async () => {
+  if (!enabled) return;
+  // Rows queued before the version was read get it now.
+  await versionReady;
   if (queue.length === 0) {
     if (flushTimer) { clearInterval(flushTimer); flushTimer = null; }
     return;
   }
-  const batch = queue.splice(0, BATCH_SIZE);
+  const batch = queue.splice(0, BATCH_SIZE).map((r) => (r.app_version == null ? { ...r, app_version: appVersion } : r));
   persistQueue();
   try {
     const { error } = await supabase.from("analytics_events").insert(batch as any);
@@ -152,7 +165,7 @@ export const trackEvent = (
   category?: string,
   properties?: Record<string, unknown>
 ) => {
-  if (DEMO) return;
+  if (DEMO || !enabled) return;
   safe(() => {
     if (!deviceId) return;
     queue.push({
@@ -162,7 +175,7 @@ export const trackEvent = (
       event_name: name.slice(0, 128),
       event_category: category?.slice(0, 64) ?? null,
       properties: properties ?? {},
-      app_version: APP_VERSION,
+      app_version: appVersion,
       platform,
       reseller_id: null,
       occurred_at: new Date().toISOString(),
@@ -180,23 +193,24 @@ export const trackEvent = (
 
 /** Track a lightweight crash/error. Never loops. */
 export const trackCrash = (message: string, stack?: string, component?: string) => {
-  if (DEMO) return;
+  if (DEMO || !enabled) return;
   safe(() => {
     if (!deviceId) return;
+    const sid = sessionId;
     try {
-      void supabase
+      void versionReady.then(() => supabase
         .from("analytics_crashes")
         .insert({
           device_id: deviceId,
-          session_id: sessionId,
+          session_id: sid,
           user_id: userId,
           message: (message || "").slice(0, 4000),
           stack: (stack || "").slice(0, 16000),
           component: component?.slice(0, 128) ?? null,
           severity: "error",
-          app_version: APP_VERSION,
+          app_version: appVersion,
           platform,
-        } as any);
+        } as any)).catch(() => { /* never loops */ });
     } catch {}
   });
 };
@@ -204,13 +218,15 @@ export const trackCrash = (message: string, stack?: string, component?: string) 
 
 const startSession = async () => {
   sessionId = uuid();
-  sessionStartMs = Date.now();
+  const sid = sessionId;
+  const startedAt = new Date().toISOString();
+  await versionReady;
   const row = {
-    session_id: sessionId,
+    session_id: sid,
     device_id: deviceId,
     user_id: userId,
-    started_at: new Date().toISOString(),
-    app_version: APP_VERSION,
+    started_at: startedAt,
+    app_version: appVersion,
     platform,
   };
   try {
@@ -218,32 +234,14 @@ const startSession = async () => {
   } catch {}
 };
 
-const upsertDevice = async () => {
-  try {
-    await supabase.from("analytics_devices").upsert(
-      {
-        device_id: deviceId,
-        platform,
-        app_version: APP_VERSION,
-        last_seen_at: new Date().toISOString(),
-        last_user_id: userId,
-      } as any,
-      { onConflict: "device_id" }
-    );
-  } catch {}
-};
+// Devices (analytics_devices) and each session's end time and length are
+// kept on the server from analytics_sessions and the session's last event
+// (snow-admin-app migration 0018); the app only inserts. Its own upsert and
+// end-of-session update were refused by the database a few hundred times a
+// day.
 
-const endSession = () => {
-  if (!sessionId) return;
-  const durationSeconds = sessionStartMs
-    ? Math.max(0, Math.round((Date.now() - sessionStartMs) / 1000))
-    : null;
-  const payload: any = { ended_at: new Date().toISOString() };
-  if (durationSeconds !== null) payload.duration_seconds = durationSeconds;
-  safe(() => {
-    void supabase.from("analytics_sessions").update(payload).eq("session_id", sessionId!);
-  });
-};
+/** A return after this long away starts a new session. */
+const SESSION_GAP_MS = 30 * 60_000;
 
 /** Initialize once at app startup. Safe to call multiple times. */
 export const initAnalytics = () => {
@@ -253,22 +251,26 @@ export const initAnalytics = () => {
   // Defer everything to idle/microtask so we never block first paint.
   const boot = () => {
     safe(() => {
-      // Demo: no sessions, no device upserts, no queue flush, no listeners.
+      // Demo: no sessions, no queue flush, no listeners.
       if (DEMO) return;
+      // The installed Android app only; the web build records nothing.
+      if (!Capacitor.isNativePlatform()) return;
+      enabled = true;
       deviceId = getOrCreateDeviceId();
       loadQueue();
+      versionReady = App.getInfo()
+        .then((info) => { appVersion = info?.version ? String(info.version).slice(0, 32) : null; })
+        .catch(() => { appVersion = null; });
 
       // Resolve current user (non-blocking)
       supabase.auth
         .getUser()
         .then(({ data }) => {
           userId = data?.user?.id ?? null;
-          void upsertDevice();
           void startSession();
           trackEvent("app_open", "lifecycle");
         })
         .catch(() => {
-          void upsertDevice();
           void startSession();
           trackEvent("app_open", "lifecycle");
         });
@@ -278,7 +280,6 @@ export const initAnalytics = () => {
         supabase.auth.onAuthStateChange((event, session) => {
           const prevUserId = userId;
           userId = session?.user?.id ?? null;
-          if (userId) void upsertDevice();
           if (event === 'SIGNED_IN' && userId && userId !== prevUserId) {
             trackEvent('user_signed_in', 'auth', { email: session?.user?.email });
           }
@@ -293,19 +294,28 @@ export const initAnalytics = () => {
       // Anything that was being timed when the app last died.
       recoverTimers();
 
-      // Flush on hide / unload
+      // Flush on hide / unload. Coming back after half an hour or more away
+      // is a new session: without this one session ran on for days on a box
+      // that was never closed, only sent to the background.
+      let hiddenAt = 0;
       safe(() => {
         window.addEventListener("visibilitychange", () => {
           if (document.visibilityState === "hidden") {
+            hiddenAt = Date.now();
             stopAllTimers("app_hidden");
             void flush();
-            endSession();
+          } else if (document.visibilityState === "visible") {
+            const away = hiddenAt ? Date.now() - hiddenAt : 0;
+            hiddenAt = 0;
+            if (away >= SESSION_GAP_MS) {
+              void startSession();
+              trackEvent("app_open", "lifecycle", { resumed: true });
+            }
           }
         });
         window.addEventListener("pagehide", () => {
           stopAllTimers("app_closed");
           void flush();
-          endSession();
         });
       });
 
@@ -434,7 +444,7 @@ export const startTimer = (
   category = "engagement",
   properties?: Record<string, unknown>,
 ) => {
-  if (DEMO) return;
+  if (DEMO || !enabled) return;
   safe(() => {
     if (timers[key]) stopTimer(key);
     const now = Date.now();
