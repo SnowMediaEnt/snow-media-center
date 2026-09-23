@@ -131,7 +131,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const serverLabel = creds?.serverLabel ?? SERVERS.find(s => s.host === creds?.host)?.label ?? null;
   // Demo: never query server-targeted alerts for the canned demo account.
   // While Plex is open an app alert placed on "Plex" shows here too.
-  const { alert: serverAlert, dismiss: dismissServerAlert } = usePlayerServerAlert(DEMO ? null : serverLabel, mode === 'movies' ? ['Plex'] : []);
+  // A new visit each time Live TV or Plex is entered: an alert shows every
+  // time its section opens, like the popup Main Apps shows on launch.
+  const [modeVisit, setModeVisit] = useState(0);
+  useEffect(() => { setModeVisit((v) => v + 1); }, [mode]);
+  const { alert: serverAlert, dismiss: dismissServerAlert, appLabel: serverAlertApp } = usePlayerServerAlert(DEMO ? null : serverLabel, mode === 'movies' ? ['Plex'] : [], modeVisit);
   // Read by the enterMode callbacks, which must not take serverLabel as a
   // dependency (they are handed to memoised children).
   const serverLabelRef = useRef(serverLabel);
@@ -862,7 +866,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         {movieAlertShown && serverAlert && (
           <PlayerServerAlertDialog
             alert={serverAlert}
-            serverLabel={serverLabel ?? 'Plex'}
+            serverLabel={serverAlertApp ?? serverLabel ?? 'Plex'}
             onDismiss={dismissServerAlert}
           />
         )}
@@ -942,7 +946,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       {serverAlert && serverLabel && (
         <PlayerServerAlertDialog
           alert={serverAlert}
-          serverLabel={serverLabel}
+          serverLabel={serverAlertApp ?? serverLabel}
           onDismiss={dismissServerAlert}
         />
       )}

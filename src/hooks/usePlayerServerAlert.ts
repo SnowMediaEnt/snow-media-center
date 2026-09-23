@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
 import { keepIfSame } from '@/lib/keepIfSame';
+import { setPausableInterval } from '@/utils/pausableInterval';
 
 export const PLAYER_SERVER_ALERT_SOURCE = 'player_server';
-const DISMISS_KEY = 'snow-player-server-alert-dismissed-v1';
+/** Pre-event steps have their own dialog; everything else can reach here. */
+const OWN_DIALOG_SOURCES = ['pre_event'];
 
 export interface PlayerServerAlert {
   id: string;
@@ -17,46 +19,47 @@ export interface PlayerServerAlert {
   updated_at: string;
 }
 
-type DismissMap = Record<string, string>; // alert id -> updated_at that was dismissed
-
-const readDismissed = (): DismissMap => {
-  try { const r = localStorage.getItem(DISMISS_KEY); if (r) return JSON.parse(r) as DismissMap; } catch { /* ignore */ }
-  return {};
-};
-const writeDismissed = (m: DismissMap) => {
-  try { localStorage.setItem(DISMISS_KEY, JSON.stringify(m)); } catch { /* ignore */ }
-};
-
 /**
  * Live alert for the Player.
  *
  * Two kinds of row reach here. A Player server notice (source
  * `player_server`) targets Dreamstreams / Vibez / all and matches the
- * signed-in line's server. An ordinary app alert (source `admin`, the one
- * the admin puts on an app tile) ALSO shows here when its app is the
- * server the line is on — a Vibez alert reaches Vibez viewers whether they
- * open the Vibez app or the Player — or when it names one of `extraLabels`,
- * which the Player passes as "Plex" while the Plex section is open. Before
- * this, an app alert never reached the Player and Plex could not be
- * targeted at all. Broadcast app alerts (app_match 'all') stay boot
- * popups only, as they are in Main Apps.
+ * signed-in line's server. Any other app alert (the one the admin puts on an
+ * app, or one raised from an email) shows when its app is the server the line
+ * is on — a Vibez alert reaches Vibez viewers whether they open the Vibez app
+ * or the Player — or when it names one of `extraLabels`, which the Player
+ * passes as "Plex" while Plex is open. Broadcast app alerts (app_match 'all')
+ * stay boot popups only, as they are in Main Apps.
+ *
+ * Like the popup Main Apps shows when an app is launched, it shows every time
+ * the section is opened: "Got it" puts it away for this visit only. `visit`
+ * changes each time Live TV or Plex is entered. (It used to be put away for
+ * good on that box, so after one "Got it" an alert on Plex never showed
+ * again.)
  */
-export function usePlayerServerAlert(serverLabel: string | null | undefined, extraLabels: string[] = []) {
+export function usePlayerServerAlert(serverLabel: string | null | undefined, extraLabels: string[] = [], visit: string | number = 0) {
   const [rows, setRows] = useState<PlayerServerAlert[]>([]);
-  const [dismissed, setDismissed] = useState<DismissMap>(() => readDismissed());
+  const [dismissed, setDismissed] = useState<Record<string, string>>({});
+  useEffect(() => { setDismissed({}); }, [visit]);
 
   const fetchRows = useCallback(async () => {
     const { data, error } = await supabase
       .from('app_alerts')
       .select('id,app_match,title,message,severity,active,updated_at,source')
-      .in('source', [PLAYER_SERVER_ALERT_SOURCE, 'admin'])
       .eq('active', true);
     if (error) { console.warn('[PlayerServerAlert] fetch failed:', error.message); setRows((prev) => (prev.length ? [] : prev)); return; }
-    setRows((prev) => keepIfSame(prev, (data || []) as PlayerServerAlert[]));
+    const list = ((data || []) as PlayerServerAlert[]).filter((a) => !OWN_DIALOG_SOURCES.includes(String(a.source ?? '')));
+    setRows((prev) => keepIfSame(prev, list));
   }, []);
 
+  // Fresh on every visit, so an alert posted a minute ago is there when
+  // Plex opens; the realtime channel covers changes during a visit and a
+  // one-minute check covers a channel that never connected.
   useEffect(() => {
-    const cancelIdle = runWhenIdle(() => { void fetchRows(); }, 1500);
+    const cancelIdle = runWhenIdle(() => { void fetchRows(); }, 800);
+    return cancelIdle;
+  }, [fetchRows, visit]);
+  useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
     const cancelFirst = onFirstInteraction(() => {
       channel = supabase
@@ -64,11 +67,12 @@ export function usePlayerServerAlert(serverLabel: string | null | undefined, ext
         .on('postgres_changes', { event: '*', schema: 'public', table: 'app_alerts' }, () => fetchRows())
         .subscribe();
     });
-    return () => { cancelIdle(); cancelFirst(); if (channel) supabase.removeChannel(channel); };
+    const cancelPoll = setPausableInterval(fetchRows, 60_000);
+    return () => { cancelFirst(); cancelPoll(); if (channel) supabase.removeChannel(channel); };
   }, [fetchRows]);
 
   const extraKey = extraLabels.map((l) => l.trim().toLowerCase()).filter(Boolean).join('|');
-  const alert = useMemo<PlayerServerAlert | null>(() => {
+  const match = useMemo<{ alert: PlayerServerAlert; label: string } | null>(() => {
     const label = (serverLabel ?? '').trim().toLowerCase();
     const extras = extraKey ? extraKey.split('|') : [];
     if (!label && !extras.length) return null;
@@ -76,23 +80,28 @@ export function usePlayerServerAlert(serverLabel: string | null | undefined, ext
     // App names and server labels are not spelled identically ("Vibez TV" on
     // the tile, "Vibez" on the line), so either containing the other counts.
     const names = (m: string, n: string) => !!m && !!n && (m.includes(n) || n.includes(m));
-    const matches = rows
-      .filter(a => {
+    const found = rows
+      .map((a) => {
         const m = (a.app_match || '').trim().toLowerCase();
-        if (a.source === PLAYER_SERVER_ALERT_SOURCE) return !!label && (m === 'all' || m === label);
-        return names(m, label) || extras.some((x) => names(m, x));
+        if (m === 'all' && a.source !== PLAYER_SERVER_ALERT_SOURCE) return null;
+        if (a.source === PLAYER_SERVER_ALERT_SOURCE) return label && (m === 'all' || m === label) ? { alert: a, label: '' } : null;
+        const extra = extras.find((x) => names(m, x));
+        if (extra) return { alert: a, label: extraLabels.find((l) => l.trim().toLowerCase() === extra) ?? '' };
+        return names(m, label) ? { alert: a, label: '' } : null;
       })
-      .filter(a => dismissed[a.id] !== a.updated_at) // show unless dismissed at this exact version
-      .sort((a, b) => (sevRank[b.severity] - sevRank[a.severity]) || b.updated_at.localeCompare(a.updated_at));
-    return matches[0] ?? null;
+      .filter((x): x is { alert: PlayerServerAlert; label: string } => !!x)
+      .filter((x) => dismissed[x.alert.id] !== x.alert.updated_at) // put away this visit, unless edited since
+      .sort((a, b) => (sevRank[b.alert.severity] - sevRank[a.alert.severity]) || b.alert.updated_at.localeCompare(a.alert.updated_at));
+    return found[0] ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, serverLabel, extraKey, dismissed]);
 
+  const alert = match?.alert ?? null;
   const dismiss = useCallback(() => {
     if (!alert) return;
-    const next = { ...readDismissed(), [alert.id]: alert.updated_at };
-    writeDismissed(next);
-    setDismissed(next);
+    setDismissed((d) => ({ ...d, [alert.id]: alert.updated_at }));
   }, [alert]);
 
-  return { alert, dismiss };
+  /** The app the alert is about when it is one of `extraLabels` ("Plex"). */
+  return { alert, dismiss, appLabel: match?.label || null };
 }
