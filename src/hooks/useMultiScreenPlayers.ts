@@ -43,8 +43,6 @@ interface Api {
   applyRect: (screenId: MultiScreenId, rect: CssRect) => Promise<void>;
   focusAudio: (screenId: MultiScreenId | null) => Promise<void>;
   stopAll: () => Promise<void>;
-  suspendOthers: (keep: MultiScreenId, stillWanted: () => boolean) => Promise<void>;
-  resumeOthers: () => void;
 }
 
 export function useMultiScreenPlayers(): Api {
@@ -232,10 +230,6 @@ export function useMultiScreenPlayers(): Api {
     if (focusedAudioRef.current === screenId) focusedAudioRef.current = null;
   }, []);
 
-  // Fullscreen on one tile: stop the others (their URLs stay, so they come
-  // back when fullscreen closes). Each was a stream download and a decoder
-  // competing with the one tile on screen.
-  const suspendedRef = useRef<Set<MultiScreenId>>(new Set());
   const muteUnfocused = useCallback(async (id: MultiScreenId): Promise<void> => {
     // A rebuilt player starts with audio on; keep the unfocused tiles from
     // decoding it (volume alone keeps them silent, not idle).
@@ -243,52 +237,7 @@ export function useMultiScreenPlayers(): Api {
     try { await SnowPlayer.setAudioEnabled({ enabled: false, screenId: id }); } catch { /* ignore */ }
     try { await SnowPlayer.setVolume({ volume: 0, screenId: id }); } catch { /* ignore */ }
   }, []);
-  const suspendOthers = useCallback(async (keep: MultiScreenId, stillWanted: () => boolean): Promise<void> => {
-    for (const id of MS_SLOT_IDS) {
-      // Fullscreen closed while we were still stopping tiles: resumeOthers has
-      // already run, so the rest stay playing.
-      if (!stillWanted()) return;
-      if (id === keep || !slotsRef.current[id].url) continue;
-      const key = `retry-${id}`;
-      const t = retryTimersRef.current[key];
-      if (t) { window.clearTimeout(t); retryTimersRef.current[key] = undefined; }
-      suspendedRef.current.add(id);
-      delete lastRectRef.current[id];
-      try { await SnowPlayer.stop({ screenId: id }); } catch { /* ignore */ }
-      if (!stillWanted() && suspendedRef.current.has(id)) {
-        // Closed mid-stop: this tile missed the resume — restart it here.
-        suspendedRef.current.delete(id);
-        const url = slotsRef.current[id].url;
-        if (url) {
-          SnowPlayer.load({ url, live: true, screenId: id })
-            .then(() => SnowPlayer.play({ screenId: id }))
-            .then(() => muteUnfocused(id))
-            .catch(() => { /* the error listener retries */ });
-          try { window.dispatchEvent(new Event('resize')); } catch { /* ignore */ }
-        }
-        return;
-      }
-    }
-  }, [muteUnfocused]);
-  const resumeOthers = useCallback((): void => {
-    const ids = [...suspendedRef.current];
-    suspendedRef.current.clear();
-    for (const id of ids) {
-      const url = slotsRef.current[id].url;
-      if (!url) continue;
-      updateSlot(id, { buffering: true, bufferingSince: Date.now(), retries: 0, error: null });
-      SnowPlayer.load({ url, live: true, screenId: id })
-        .then(() => SnowPlayer.play({ screenId: id }))
-        // Muted unless it is the focused tile; the section re-focuses audio.
-        .then(() => muteUnfocused(id))
-        .catch(() => { /* the error listener retries */ });
-    }
-    // Tiles send their rects again on the next measure.
-    try { window.dispatchEvent(new Event('resize')); } catch { /* ignore */ }
-  }, [updateSlot, muteUnfocused]);
-
   const stopAll = useCallback(async (): Promise<void> => {
-    suspendedRef.current.clear();
     Object.values(retryTimersRef.current).forEach(t => { if (t) window.clearTimeout(t); });
     retryTimersRef.current = {};
     try { await SnowPlayer.stopAll(); } catch { /* ignore */ }
@@ -323,8 +272,7 @@ export function useMultiScreenPlayers(): Api {
       const snap = rememberedRef.current;
       for (const id of MS_SLOT_IDS) {
         const url = snap[id];
-        // A tile paused behind fullscreen stays paused until fullscreen closes.
-        if (url && !suspendedRef.current.has(id)) {
+        if (url) {
           // Rects will be re-applied by the component on next layout tick.
           SnowPlayer.load({ url, live: true, screenId: id }).catch(() => { /* ignore */ });
           SnowPlayer.play({ screenId: id }).catch(() => { /* ignore */ });
@@ -372,6 +320,6 @@ export function useMultiScreenPlayers(): Api {
   }, []);
 
   return useMemo(() => ({
-    slots, loadSlot, closeSlot, applyRect, focusAudio, stopAll, suspendOthers, resumeOthers,
-  }), [slots, loadSlot, closeSlot, applyRect, focusAudio, stopAll, suspendOthers, resumeOthers]);
+    slots, loadSlot, closeSlot, applyRect, focusAudio, stopAll,
+  }), [slots, loadSlot, closeSlot, applyRect, focusAudio, stopAll]);
 }

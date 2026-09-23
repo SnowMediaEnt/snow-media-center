@@ -121,7 +121,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
   ]);
 
   const {
-    slots, loadSlot, closeSlot, applyRect, focusAudio, stopAll, suspendOthers, resumeOthers,
+    slots, loadSlot, closeSlot, applyRect, focusAudio, stopAll,
   } = useMultiScreenPlayers();
 
   // Picker data
@@ -411,14 +411,12 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
     const sid = spec[tileIdx]?.id;
     if (!sid) return;
     setFullscreenSlot(sid);
-    // Set now, not after the re-render: suspendOthers checks it between stops.
     fullscreenSlotRef.current = sid;
-    // The other tiles were still downloading and decoding behind the one on
-    // screen (and could even paint over it). Pause them until you come back.
-    await suspendOthers(sid, () => fullscreenSlotRef.current === sid);
+    // The other tiles keep playing on purpose: the viewer watches them to
+    // know when to switch.
     await applyRect(sid, { x: 0, y: 0, width: 0, height: 0 });
     await focusAudio(sid);
-  }, [layout, applyRect, focusAudio, suspendOthers]);
+  }, [layout, applyRect, focusAudio]);
 
   const exitFullscreen = useCallback(() => {
     setFullscreenSlot(null);
@@ -426,14 +424,12 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
     // Re-measure all occupied, then re-assert audio on the focused tile.
     requestAnimationFrame(() => {
       measureAndApply();
-      // After the rects: a paused tile restarts in its own box, not fullscreen.
-      resumeOthers();
       const fsid = layoutRef.current
         ? tilesForLayout(layoutRef.current)[focusedTileRef.current]?.id
         : undefined;
       void focusAudio(fsid && slotsRef.current[fsid]?.url ? fsid : null);
     });
-  }, [measureAndApply, focusAudio, resumeOthers]);
+  }, [measureAndApply, focusAudio]);
 
   // Categories virtualizer
   const catScrollRef = useRef<HTMLDivElement | null>(null);
