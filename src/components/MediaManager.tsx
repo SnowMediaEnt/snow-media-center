@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { takeIntent, INTENT_KEYS } from '@/lib/appActions';
 import { kidsLevel } from '@/lib/kidsFilter';
+import { KIDS_IMAGE_TITLE, kidsImageNotice } from '@/lib/kidsAiNotice';
 
 /** A Kids profile's backgrounds are kept child-friendly by the server. */
 const kidsBody = (): { kids_level?: string } => { const l = kidsLevel(); return l ? { kids_level: l } : {}; };
@@ -23,7 +24,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Upload, Trash2, Eye, EyeOff, Loader2, Monitor } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Eye, EyeOff, Loader2, Monitor, ShieldCheck } from 'lucide-react';
 import { useMediaAssets, MediaAsset } from '@/hooks/useMediaAssets';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -528,7 +529,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     void premiumTrialUsed('image').then((used) => { if (!cancelled) setTrialUsed(used); });
     return () => { cancelled = true; };
   }, [user]);
-  const premiumTier = tiers?.premium ?? null;
+  // Premium (paid in Snow Gems) is for grown-ups: a Kids profile has Standard only.
+  const kids = kidsLevel();
+  const premiumTier = kids ? null : (tiers?.premium ?? null);
   // Premium that is switched off in the table falls back to Standard.
   const effectiveTier: AiTier = imageTier === 'premium' && premiumTier ? 'premium' : 'free';
   const tierCost = effectiveTier === 'premium' && premiumTier ? premiumTier.gems : imageConfig.credits * 0.01;
@@ -723,7 +726,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       return;
     }
 
-    const tier: AiTier = opts?.tier ?? effectiveTier;
+    const tier: AiTier = kids ? 'free' : (opts?.tier ?? effectiveTier);
     const premiumGems = premiumTier?.gems ?? 0;
     if (tier === 'premium' && anonMode) {
       toast({ title: 'Sign in for Premium', description: 'Premium images need a signed-in account with Snow Gems.' });
@@ -904,7 +907,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
   const handleCompare = async () => {
     const prompt = generatePrompt.trim();
-    if (!prompt || comparing || generating) return;
+    if (!prompt || comparing || generating || kids) return;
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     if (!currentSession?.user) {
       toast({ title: 'Sign in to compare', description: 'The comparison needs a signed-in account.' });
@@ -1018,6 +1021,15 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         {!isDemo() && (
         <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6 mb-6">
           <h2 className="text-2xl font-bold text-white mb-4">Generate Background with AI</h2>
+          {kids && (
+            <div className="flex items-start rounded-lg bg-emerald-500/15 border border-emerald-300/40 p-3 mb-4">
+              <ShieldCheck className="w-5 h-5 text-emerald-300 mr-2 mt-0.5 shrink-0" />
+              <div>
+                <div className="font-semibold text-white">{KIDS_IMAGE_TITLE}</div>
+                <p className="text-sm text-emerald-100">{kidsImageNotice(kids)}</p>
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <div className="text-white">

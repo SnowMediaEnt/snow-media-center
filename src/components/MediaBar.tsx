@@ -77,17 +77,22 @@ const notSports = (i: MediaItem) => i?.title && i.source !== 'sports';
 const notAdult = (i: MediaItem) => !isAdultTitle(i.title) && !(i.channel && isAdultTitle(i.channel.name));
 const showable = (i: MediaItem) => notSports(i) && notAdult(i);
 
+// The saved bar is kept per profile (profiles.ts swaps it with the rest of a
+// profile's home screen) and stamped with the Kids level it was built for: a
+// bar saved for a grown-up is never shown on a Kids profile, even one saved
+// before profiles kept their own.
 const readCache = (): MediaItem[] | null => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
+    if ((parsed?.kids ?? null) !== kidsLevel()) return null;
     return Array.isArray(parsed?.items) ? (parsed.items as MediaItem[]).filter(showable) : null;
   } catch { return null; }
 };
 
 const writeCache = (items: MediaItem[]) => {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now() })); } catch { /* ignore unavailable localStorage */ }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now(), kids: kidsLevel() })); } catch { /* ignore unavailable localStorage */ }
 };
 
 const isHardwareBackKey = (e: KeyboardEvent) =>
@@ -328,7 +333,8 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
         // The function reports its own failures as HTTP 200 + `error`.
         if (data?.error) throw new Error(String(data.error));
         // The shared feed carries no certificates, so a Kids profile's bar is
-        // built from its own history and channels alone.
+        // built on the box alone: its own history and channels, and the
+        // newest Plex titles of its rating (contentBar.ts).
         const next: MediaItem[] = kidsLevel() ? [] : (data?.items ?? []).filter(showable);
         if (next.length) { feedItemsRef.current = next; composeItems(); }
       } catch (e) {

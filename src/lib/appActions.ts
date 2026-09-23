@@ -70,10 +70,11 @@ export const SCREEN_LABELS: Record<Screen, string> = {
   settings_ui: 'Settings → UI', wallpaper: 'the wallpaper maker', phone_remote: 'Settings → Phone Remote',
 };
 
-/** Screens a Kids profile does not open, by voice or through the assistant. */
+/** Screens a Kids profile does not open, by voice or through the assistant.
+ *  (Settings is open to it: a Kids profile gets a short, safe Settings.) */
 export const KIDS_BLOCKED_SCREENS: ReadonlySet<Screen> = new Set<Screen>([
-  'game_lounge', 'snow_gems', 'giveaway', 'dashboard', 'settings', 'settings_ui', 'wallpaper',
-  'player_settings', 'player_appearance', 'main_apps', 'tickets', 'device_cleaner', 'phone_remote',
+  'game_lounge', 'snow_gems', 'giveaway', 'dashboard',
+  'player_settings', 'player_appearance', 'main_apps', 'tickets', 'device_cleaner',
 ]);
 
 export function openScreen(screen: Screen, navigate: Navigate): string {

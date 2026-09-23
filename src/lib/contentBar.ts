@@ -20,10 +20,10 @@ import {
 import { isAdultChannel, isAdultLabel, isAdultPlexItem, isFlaggedAdult } from '@/lib/adultContent';
 import { buildLines } from '@/lib/liveLines';
 import { loadFavoritesForLine, lineKey } from '@/lib/favoritesSync';
-import { loadPlexServer, getPlexLibraries, getPlexRelated, plexImageUrl } from '@/lib/plex';
+import { loadPlexServer, getPlexLibraries, getPlexRelated, getPlexSectionRow, kidsOnly, plexImageUrl } from '@/lib/plex';
 import { currentViewer, loadWatchHistory, syncWatchHistoryFromCloud, channelKey, type WatchEntry } from '@/lib/watchHistory';
 import { viewerIsAccount } from '@/lib/viewer';
-import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
+import { kidsAllowsChannel, kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
 
 export type BarSource = 'history' | 'live' | 'foryou' | 'plex';
 
@@ -52,6 +52,9 @@ export interface BarItem {
 const CONTINUE_MAX = 10;
 const LIVE_MAX = 10;
 const FORYOU_MAX = 10;
+const KIDS_NEW_MAX = 16;
+const KIDS_NEW_PER_LIB = 10;
+const KIDS_LIBS_MAX = 4;
 const EPG_BUDGET = 10;
 const CLOUD_SYNC_MS = 10 * 60 * 1000;
 
@@ -249,6 +252,8 @@ export async function buildViewerBar(): Promise<ViewerBar> {
           if (forYou.length >= FORYOU_MAX) break;
           if (seenPlex.has(it.ratingKey)) continue;
           if (adultPlex(it.title, it.librarySectionID, { contentRating: it.contentRating, genres: it.genres })) continue;
+          // Plex relates across certificates: a Kids profile keeps its own.
+          if (kidsLevel() && !kidsAllowsPlex(it)) continue;
           seenPlex.add(it.ratingKey);
           forYou.push({
             id: `plex-${it.ratingKey}`, source: 'foryou', kind: it.type, title: it.title,
@@ -259,6 +264,36 @@ export async function buildViewerBar(): Promise<ViewerBar> {
       } catch { /* Plex unreachable or no related hubs */ }
     }
     items.push(...forYou);
+  }
+
+  // ── new for kids: a Kids profile never gets the shared feed (it carries no
+  // certificates), so the bar fills with the newest titles of its own
+  // rating, asked of the Plex server by certificate and checked again here.
+  if (kidsLevel() && plexServer?.base && plexServer.token) {
+    try {
+      const libs = (await getPlexLibraries(plexServer.base, plexServer.token))
+        .filter((l) => l.type === 'movie' || l.type === 'show')
+        .slice(0, KIDS_LIBS_MAX);
+      const rows = await Promise.all(libs.map((l) =>
+        getPlexSectionRow(plexServer.base, plexServer.token, String(l.key), 'sort=addedAt:desc', KIDS_NEW_PER_LIB).catch(() => [])));
+      // One from each library in turn, so movies and shows share the bar.
+      const fresh: BarItem[] = [];
+      for (let i = 0; i < KIDS_NEW_PER_LIB && fresh.length < KIDS_NEW_MAX; i++) {
+        for (let j = 0; j < rows.length; j++) {
+          const it = kidsOnly(rows[j])[i];
+          if (!it || (it.type !== 'movie' && it.type !== 'show') || seenPlex.has(it.ratingKey)) continue;
+          if (adultPlex(it.title, it.librarySectionID, { contentRating: it.contentRating, genres: it.genres })) continue;
+          seenPlex.add(it.ratingKey);
+          fresh.push({
+            id: `plex-${it.ratingKey}`, source: 'plex', kind: it.type, title: it.title,
+            subtitle: it.year ? String(it.year) : undefined, poster: plexPoster(it.thumb),
+            ratingKey: it.ratingKey, librarySectionID: it.librarySectionID ?? String(libs[j].key),
+          });
+          if (fresh.length >= KIDS_NEW_MAX) break;
+        }
+      }
+      items.push(...fresh);
+    } catch { /* Plex unreachable: the bar keeps what it has */ }
   }
 
   return { viewer, items };

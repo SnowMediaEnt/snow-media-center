@@ -515,8 +515,8 @@ const Index = () => {
   const { user } = useAuth();
   const { isAdmin: isAdminRole } = useAdminRole();
   // Who is watching. A Kids profile's home has no Store, Main Apps, Admin,
-  // giveaway or Dashboard, its account button switches profile, and Settings asks for a
-  // grown-up's PIN (see lib/profiles.ts).
+  // giveaway or Dashboard, its account button switches profile, and its
+  // Settings is a short, safe one (see Settings.tsx).
   const { profile } = useActiveProfile();
   const kids = !!profile.kidsLevel;
   const isAdmin = isAdminRole && !kids;
@@ -869,10 +869,7 @@ const Index = () => {
     return () => window.removeEventListener(REMOTE_HOME_EVENT, goHome);
   }, []);
   const onOpenSettingsProfiles = useCallback(() => navigateToRef.current('settings'), []);
-  const onOpenSettings = useCallback(() => {
-    if (kidsRef.current) openProfiles('grownup', () => navigateToRef.current('settings'));
-    else navigateToRef.current('settings');
-  }, []);
+  const onOpenSettings = useCallback(() => navigateToRef.current('settings'), []);
   const onOpenDashboardFromBanner = useCallback(() => navigateToRef.current('user'), []);
   const onLogoFocus = useCallback(() => setFocusedButton(-5), []);
   // Home gift badge → Giveaway section (tracked)
@@ -1164,9 +1161,8 @@ const Index = () => {
           } else if (focusedButton === -7) {
             openProfiles('pick');
           } else if (focusedButton === -1) {
-            // Navigate to settings (a Kids profile: a grown-up's PIN first)
-            if (kidsRef.current) openProfiles('grownup', () => navigateToRef.current('settings'));
-            else navigateToRef.current('settings');
+            // Settings (a Kids profile gets its short, safe Settings).
+            navigateToRef.current('settings');
           } else if (focusedButton >= 0) {
             activateByIndexRef.current[focusedButton]?.();
           } else if (focusedButton === -4 && giveawayBadgeOnRef.current) {

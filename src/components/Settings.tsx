@@ -68,15 +68,21 @@ const Settings = ({ onBack }: SettingsProps) => {
   // Website demo: never surface admin tooling (even to a signed-in admin) and
   // hide the Updates tab entirely — APK self-updating is a device-only concern.
   const demo = isDemo();
-  const isAdmin = hasAdminRole && !demo;
-  const showUpdates = !demo;
+  const { profile: currentProfile } = useActiveProfile();
+  // A Kids profile gets a short Settings: backgrounds (kept kids-safe by the
+  // server), the content bar, language, switching profile and the phone
+  // remote. No updates and no admin tools, even on an admin's account.
+  const kids = !!currentProfile.kidsLevel;
+  const isAdmin = hasAdminRole && !demo && !kids;
+  const showUpdates = !demo && !kids;
+  // Languages are still in beta: offered on admin accounts, Kids profiles too.
+  const showLanguages = hasAdminRole && !demo;
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   const dashboardSize = useDashboardSize();
   const mailNotify = useMailNotify();
   const deviceAlerts = useDeviceAlerts();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
   const { toast } = useToast();
-  const { profile: currentProfile } = useActiveProfile();
   const currentProfileId = currentProfile.id;
   const [profilesList, setProfilesList] = useState(() => loadProfiles());
   useEffect(() => {
@@ -106,7 +112,7 @@ const Settings = ({ onBack }: SettingsProps) => {
     void loadAiTiers().then((t) => { if (alive) setAiPremium(t.chat.premium); });
     return () => { alive = false; };
   }, []);
-  const aiTierShown = !!aiPremium && !demo;
+  const aiTierShown = !!aiPremium && !demo && !kids;
   const canPremium = aiTierShown && !!user;
   const toggleAiTier = () => {
     if (!canPremium) { toast({ title: 'Sign in for Premium', description: 'Snow AI Premium uses Snow Gems from your account.' }); return; }
@@ -158,7 +164,8 @@ const Settings = ({ onBack }: SettingsProps) => {
   };
   const [activeTab, setActiveTab] = useState(() => {
     const want = peekIntent(INTENT_KEYS.settings);
-    return want && ['media', 'ui', 'profiles', 'remote', 'updates', 'alerts', 'ai'].includes(want) ? want : 'media';
+    const open = kids ? ['media', 'ui', 'profiles', 'remote'] : ['media', 'ui', 'profiles', 'remote', 'updates', 'alerts', 'ai'];
+    return want && open.includes(want) ? want : 'media';
   });
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
@@ -187,12 +194,12 @@ const Settings = ({ onBack }: SettingsProps) => {
       }
 
       const getUiFocusOrder = (): SettingsFocus[] => {
-        const order: SettingsFocus[] = ['ui-profiles', ...(aiTierShown ? ['ui-ai-tier' as SettingsFocus] : []), 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
-        if (deviceAlerts.supported) order.push('ui-device-alerts-toggle');
-        if (isAdmin) {
-          order.push('ui-player-toggle');
-          order.push(...SUPPORTED_LANGUAGES.map((lang) => `ui-language-${lang.code}` as SettingsFocus));
-        }
+        const order: SettingsFocus[] = kids
+          ? ['ui-profiles', 'ui-content-bar-toggle']
+          : ['ui-profiles', ...(aiTierShown ? ['ui-ai-tier' as SettingsFocus] : []), 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
+        if (!kids && deviceAlerts.supported) order.push('ui-device-alerts-toggle');
+        if (isAdmin) order.push('ui-player-toggle');
+        if (showLanguages) order.push(...SUPPORTED_LANGUAGES.map((lang) => `ui-language-${lang.code}` as SettingsFocus));
         return order;
       };
 
@@ -213,7 +220,8 @@ const Settings = ({ onBack }: SettingsProps) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
           event.preventDefault(); event.stopPropagation();
         }
-        if (event.key === 'ArrowDown' && focusedElement === 'profiles-switch') setFocusedElement('profiles-manage');
+        // A Kids profile only switches; adding and editing is for grown-ups.
+        if (event.key === 'ArrowDown' && focusedElement === 'profiles-switch' && !kids) setFocusedElement('profiles-manage');
         else if (event.key === 'ArrowUp') setFocusedElement(focusedElement === 'profiles-manage' ? 'profiles-switch' : 'tab-profiles');
         else if (event.key === 'Enter' || event.key === ' ') openProfiles(focusedElement === 'profiles-switch' ? 'pick' : 'manage');
         else if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) setFocusedElement('tab-profiles');
@@ -450,7 +458,7 @@ const Settings = ({ onBack }: SettingsProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   // toggleAiTier reads the state below; it is recreated with it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium]);
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, kids, showLanguages, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium]);
 
   useEffect(() => {
     const scrollAllToTop = () => {
@@ -618,7 +626,7 @@ const Settings = ({ onBack }: SettingsProps) => {
           </TabsContent>
 
           <TabsContent value="ui" className="mt-6 space-y-4">
-            <PlayerAccountCard />
+            {!kids && <PlayerAccountCard />}
             <Card
               {...settingsFocusAttrs('ui-profiles')}
               tabIndex={0}
@@ -632,8 +640,9 @@ const Settings = ({ onBack }: SettingsProps) => {
                 <div>
                   <h3 className="text-lg font-bold text-white">Profiles</h3>
                   <p className="text-sm text-white/70 mt-1">
-                    Switch who's watching, or add profiles for everyone in the house — each with their own
-                    Continue Watching, My List, favourites and home screen. Kids profiles and PINs too.
+                    {kids
+                      ? "Switch who's watching. A grown-up's profile may ask for its PIN."
+                      : "Switch who's watching, or add profiles for everyone in the house — each with their own Continue Watching, My List, favourites and home screen. Kids profiles and PINs too."}
                   </p>
                 </div>
               </div>
@@ -701,6 +710,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               </div>
             </Card>
 
+            {!kids && (<>
             <Card
               {...settingsFocusAttrs('ui-dashboard-size-toggle')}
               tabIndex={0}
@@ -798,6 +808,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 </div>
               </Card>
             )}
+            </>)}
 
             {isAdmin && (
               <Card
@@ -829,7 +840,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               </Card>
             )}
 
-            {isAdmin && (
+            {showLanguages && (
               <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
                 <div className="flex items-start gap-3 mb-4">
                   <Languages className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
@@ -938,7 +949,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 </div>
               ))}
             </div>
-            {(['profiles-switch', 'profiles-manage'] as const).map((id) => (
+            {(kids ? (['profiles-switch'] as const) : (['profiles-switch', 'profiles-manage'] as const)).map((id) => (
               <Card
                 key={id}
                 {...settingsFocusAttrs(id)}

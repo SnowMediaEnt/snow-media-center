@@ -77,7 +77,7 @@ const FAIL_PREFIX = 'smc-pin-fails:';
 export const PROFILE_KEYS = [
   'snow-media-layout', 'snow-active-bg', 'pinned-apps', 'pinned-apps-version', 'snow-theme', 'smc_lang',
   'snow-livetv-layout', 'snow-livetv-last-channel-v1', 'snow-livetv-collapsed-lines', 'snow-livetv-autoplay-next',
-  'smc:plex-recent-searches',
+  'smc:plex-recent-searches', 'snow-media-bar-cache-v6',
 ];
 const PROFILE_PREFIXES = ['snow-livetv-hidden:'];
 
