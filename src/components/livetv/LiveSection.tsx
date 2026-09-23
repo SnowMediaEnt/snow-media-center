@@ -66,6 +66,7 @@ import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveL
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
 import { recordChannelWatch } from '@/lib/watchHistory';
+import { onMediaKey } from '@/lib/mediaKeys';
 import {
   demoGetLiveCategories,
   demoGetLiveStreams,
@@ -1238,6 +1239,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setChannelIdx(next);
     playChannel(visibleChannels[next]);
   }, [visibleChannels, playingChannelId, channelIdx, playChannel]);
+
+  // Remote media buttons while a channel is full screen. A live channel can't
+  // be skipped, so Fast-forward / Next go up a channel and Rewind / Previous
+  // go down one; Play/Pause is handled by the player itself.
+  const changeChannelRef = useRef(changeChannelInFullscreen);
+  useEffect(() => { changeChannelRef.current = changeChannelInFullscreen; }, [changeChannelInFullscreen]);
+  useEffect(() => {
+    if (!isActive || !fullscreen) return;
+    return onMediaKey((k) => {
+      if (k === 'ff' || k === 'next') { changeChannelRef.current(+1); pokeBar(); }
+      else if (k === 'rw' || k === 'prev') { changeChannelRef.current(-1); pokeBar(); }
+      else if (k === 'playpause' || k === 'play' || k === 'pause') pokeBar();
+    });
+  }, [isActive, fullscreen, pokeBar]);
 
   // player_error — track native player fatal error transitions.
   const lastNativeErrorRef = useRef<string | null>(null);

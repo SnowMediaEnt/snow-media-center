@@ -5,6 +5,7 @@
 // auto-retry (matches VideoPlayer's shape), background stop + resume, and
 // the 'streaming-active' documentElement flag for parity.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { onMediaKey } from '@/lib/mediaKeys';
 import { SnowPlayer, type SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { createNativeVideoController, type NativeControllerHandle } from '@/lib/nativeVideoController';
 import type { VideoController } from '@/components/livetv/VideoPlayer';
@@ -380,6 +381,33 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   const getPosition = useCallback(async () => {
     try { return await SnowPlayer.getPosition(); } catch { return { position: 0, duration: 0, playing: false }; }
   }, []);
+
+  // The remote's media buttons, for the stream being watched (not a preview
+  // box). Play/Pause everywhere; Fast-forward / Rewind skip +30 / -10 s on
+  // films and episodes. A live channel can't be skipped, so its section
+  // decides what those two do.
+  const controllerRef = useRef(controller);
+  useEffect(() => { controllerRef.current = controller; }, [controller]);
+  useEffect(() => {
+    if (!active || !background) return;
+    return onMediaKey((k) => {
+      const c = controllerRef.current;
+      if (!c) return;
+      if (k === 'playpause') c.togglePlay();
+      else if (k === 'play') c.play();
+      else if (k === 'pause') c.pause();
+      else if (!live && (k === 'ff' || k === 'rw')) {
+        void (async () => {
+          try {
+            const p = await SnowPlayer.getPosition();
+            const to = k === 'ff' ? p.position + 30 : p.position - 10;
+            const max = p.duration > 0 ? Math.max(0, p.duration - 1) : Number.MAX_SAFE_INTEGER;
+            await SnowPlayer.seekTo({ position: Math.min(max, Math.max(0, to)) });
+          } catch { /* ignore */ }
+        })();
+      }
+    });
+  }, [active, background, live]);
 
   return useMemo(
     () => ({ controller, buffering, error, audioWarning, retry, seekTo, getPosition }),

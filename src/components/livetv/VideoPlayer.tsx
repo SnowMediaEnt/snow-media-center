@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, RotateCw } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { isFireTV } from '@/utils/platform';
+import { onMediaKey } from '@/lib/mediaKeys';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import { enterQuiet, exitQuiet } from '@/utils/quietMode';
@@ -226,6 +227,24 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
       },
     };
   }
+
+  // The remote's media buttons, for the player being watched (never a muted
+  // preview). Films skip +30 / -10 s; a live stream's section decides what
+  // Fast-forward / Rewind mean.
+  const srcRef = useRef(src);
+  useEffect(() => { srcRef.current = src; }, [src]);
+  const watched = muted !== true && chrome !== 'minimal';
+  useEffect(() => {
+    if (!watched) return;
+    return onMediaKey((k) => {
+      const c = controllerRef.current;
+      if (!c) return;
+      if (k === 'playpause') c.togglePlay();
+      else if (k === 'play') c.play();
+      else if (k === 'pause') c.pause();
+      else if ((k === 'ff' || k === 'rw') && !isLiveSrc(srcRef.current)) c.seek(k === 'ff' ? 30 : -10);
+    });
+  }, [watched]);
 
   // Emit onReady once.
   const readyEmittedRef = useRef(false);

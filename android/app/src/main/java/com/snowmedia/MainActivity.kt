@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.KeyEvent
 import android.view.ViewGroup
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
@@ -37,5 +38,31 @@ class MainActivity : BridgeActivity() {
             }
         })
         super.onCreate(savedInstanceState)
+    }
+
+    // The remote's media buttons never reach the page: Android's WebView keeps
+    // KEYCODE_MEDIA_* for the app. Hand them to JS as an 'smc:mediakey' event
+    // (src/lib/mediaKeys.ts), which the players listen for.
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val name = when (event.keyCode) {
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> "playpause"
+            KeyEvent.KEYCODE_MEDIA_PLAY -> "play"
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> "pause"
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> "ff"
+            KeyEvent.KEYCODE_MEDIA_REWIND -> "rw"
+            KeyEvent.KEYCODE_MEDIA_NEXT -> "next"
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> "prev"
+            else -> null
+        }
+        val webView = bridge?.webView
+        if (name == null || webView == null) return super.dispatchKeyEvent(event)
+        // Act once per press, on the way down; held keys repeat like arrows do.
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('smc:mediakey',{detail:'$name'}))",
+                null,
+            )
+        }
+        return true
     }
 }

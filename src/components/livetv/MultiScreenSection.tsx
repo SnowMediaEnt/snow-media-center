@@ -28,7 +28,6 @@ import {
 } from '@/hooks/useMultiScreenPlayers';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
-import ChannelRow from './ChannelRow';
 
 // Demo latch (?demo=1) — false on native, so dead code in the APK.
 const DEMO = isDemo();
@@ -47,7 +46,10 @@ interface TileState {
   nowNext?: EpgNowNext;
 }
 
-const ROW_HEIGHT = 84;
+// Channel picker rows. Sized to be read from the couch: the picker used to
+// be a 40% side panel split in two, which left ~200px for channel names.
+const ROW_HEIGHT = 76;
+const CAT_ROW_HEIGHT = 60;
 
 const LAYOUT_TILE_COUNT: Record<Layout, number> = { '2h': 2, '2v': 2, '4': 4 };
 
@@ -437,7 +439,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
   const catVirtualizer = useVirtualizer({
     count: categories.length,
     getScrollElement: () => catScrollRef.current,
-    estimateSize: () => 48,
+    estimateSize: () => CAT_ROW_HEIGHT,
     overscan: 4,
     getItemKey: (i) => categories[i]?.id ?? i,
   });
@@ -466,6 +468,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
   }, [categoryIdx, pickerOpenForTile, pickerPane, catVirtualizer]);
 
   // ── Keyboard handler ─────────────────────────────────────────────────────
+  const lastBackAtRef = useRef(0);
   useEffect(() => {
     if (!isActive || !native) return;
     const consume = (e: KeyboardEvent) => {
@@ -477,6 +480,15 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
       if (typing) return;
 
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
+      // One press of the remote's Back can arrive twice (the key itself and
+      // the hardware back listener's synthetic Escape). Leaving fullscreen
+      // on the first and then leaving the grid on the second dropped the
+      // viewer on the layout chooser. A second Back this soon is the same press.
+      if (isBack) {
+        const now = Date.now();
+        if (now - lastBackAtRef.current < 350) { consume(e); return; }
+        lastBackAtRef.current = now;
+      }
 
       // Layout picker screen. Left off the first option and Up hand the
       // remote back to the shell (sidebar / header), like every other
@@ -768,97 +780,117 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
         </div>
       )}
 
-      {/* Channel picker (solid bg overlay, right side ~40%) */}
+      {/* Channel picker: a large, solid panel over the grid (the tiles are
+          native video under the WebView, so it must be opaque). Categories
+          take a third, channels two thirds, names at a readable size. */}
       {pickerOpenForTile !== null && (
-        <div className="absolute top-0 right-[2vw] bottom-0 z-40 w-[40%] min-w-[360px] max-w-[560px] bg-brand-navy/95 border border-white/10 rounded-l-2xl flex flex-col">
-          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-            <div className="text-xl text-white font-quicksand font-semibold">Add channel to screen {pickerOpenForTile + 1}</div>
-            <button
-              onClick={() => setPickerOpenForTile(null)}
-              className="p-3 -m-2 rounded-xl text-brand-ice/70 hover:text-white"
-              aria-label="Close"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-          <div className="flex-1 min-h-0 flex">
-            {/* Categories */}
-            <div
-              ref={catScrollRef}
-              className={`w-1/2 overflow-y-auto border-r border-white/10 ${pickerPane === 'cat' ? 'bg-white/5' : ''}`}
-            >
-              <div style={{ height: catVirtualizer.getTotalSize(), position: 'relative' }}>
-                {catVirtualizer.getVirtualItems().map(v => {
-                  const c = categories[v.index];
-                  if (!c) return null;
-                  const focused = pickerPane === 'cat' && categoryIdx === v.index;
-                  const selected = categoryIdx === v.index;
-                  return (
-                    <div
-                      key={c.id}
-                      style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${v.start}px)`, height: 48 }}
-                      className="px-3 pb-1"
-                    >
-                      <div
-                        data-focused={focused ? 'true' : 'false'}
-                        onClick={() => { setCategoryIdx(v.index); setPickerPane('ch'); }}
-                        className={`tv-ring flex items-center justify-between px-3 py-3 rounded-xl cursor-pointer text-sm font-quicksand ${
-                          focused ? 'bg-brand-gold/25 text-white scale-[1.02] z-10'
-                            : selected ? 'bg-white/10 text-white' : 'text-brand-ice hover:bg-white/5'
-                        }`}
-                      >
-                        <span className="truncate">{c.name}</span>
-                        <ChevronRight className="w-4 h-4 flex-shrink-0 opacity-60" />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            {/* Channels */}
-            <div
-              ref={chScrollRef}
-              className={`w-1/2 overflow-y-auto ${pickerPane === 'ch' ? 'bg-white/5' : ''}`}
-            >
-              {loadingChannels ? (
-                <div className="flex items-center justify-center p-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-brand-gold" />
+        <div className="absolute inset-0 z-40 flex items-center justify-center p-[2vw] bg-black/60">
+          <div className="w-full h-full max-w-[1400px] bg-[#0b1a33] border border-white/15 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between flex-shrink-0">
+              <div className="min-w-0">
+                <div className="text-2xl text-white font-quicksand font-bold">Add a channel to screen {pickerOpenForTile + 1}</div>
+                <div className="text-sm text-brand-ice/70 font-nunito mt-0.5">
+                  {pickerPane === 'cat' ? 'Pick a category, then press Right' : 'Press OK to play · Left for categories · Back to close'}
                 </div>
-              ) : channels.length === 0 ? (
-                <div className="p-6 text-sm text-brand-ice/70 font-nunito">No channels.</div>
-              ) : (
-                <div style={{ height: chVirtualizer.getTotalSize(), position: 'relative' }}>
-                  {chVirtualizer.getVirtualItems().map(v => {
-                    const ch = channels[v.index];
-                    if (!ch) return null;
-                    const focused = pickerPane === 'ch' && channelIdx === v.index;
+              </div>
+              <button
+                onClick={() => setPickerOpenForTile(null)}
+                className="p-3 rounded-xl text-brand-ice/70 hover:text-white flex-shrink-0"
+                aria-label="Close"
+              >
+                <X className="w-7 h-7" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 flex">
+              {/* Categories */}
+              <div
+                ref={catScrollRef}
+                className={`w-[34%] flex-shrink-0 overflow-y-auto border-r border-white/10 py-2 ${pickerPane === 'cat' ? 'bg-white/[0.04]' : ''}`}
+              >
+                <div style={{ height: catVirtualizer.getTotalSize(), position: 'relative' }}>
+                  {catVirtualizer.getVirtualItems().map(v => {
+                    const c = categories[v.index];
+                    if (!c) return null;
+                    const focused = pickerPane === 'cat' && categoryIdx === v.index;
+                    const selected = categoryIdx === v.index;
                     return (
                       <div
-                        key={ch.stream_id}
-                        style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${v.start}px)`, height: ROW_HEIGHT }}
-                        className="px-2"
+                        key={c.id}
+                        style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${v.start}px)`, height: CAT_ROW_HEIGHT }}
+                        className="px-3 pb-1.5"
                       >
-                        <ChannelRow
-                          channel={ch}
-                          index={v.index}
-                          isFocused={focused}
-                          isPlaying={false}
-                          isFavorite={false}
-                          onSelect={(i) => setChannelIdx(i)}
-                          onActivate={(i) => {
-                            const c = channels[i];
-                            const tIdx = pickerOpenForTile;
-                            if (c && tIdx !== null) {
-                              setPickerOpenForTile(null);
-                              void openTileForChannel(tIdx, c);
-                            }
-                          }}
-                        />
+                        <div
+                          data-focused={focused ? 'true' : 'false'}
+                          onClick={() => { setCategoryIdx(v.index); setPickerPane('ch'); }}
+                          className={`tv-ring h-full flex items-center justify-between px-4 rounded-xl cursor-pointer text-lg font-quicksand font-semibold ${
+                            focused ? 'bg-brand-gold/25 text-white scale-[1.02] z-10'
+                              : selected ? 'bg-white/10 text-white' : 'text-brand-ice hover:bg-white/5'
+                          }`}
+                        >
+                          <span className="truncate">{c.name}</span>
+                          <ChevronRight className="w-5 h-5 flex-shrink-0 opacity-60 ml-2" />
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-              )}
+              </div>
+              {/* Channels */}
+              <div
+                ref={chScrollRef}
+                className={`flex-1 min-w-0 overflow-y-auto py-2 ${pickerPane === 'ch' ? 'bg-white/[0.04]' : ''}`}
+              >
+                {loadingChannels ? (
+                  <div className="flex items-center justify-center p-10">
+                    <Loader2 className="w-8 h-8 animate-spin text-brand-gold" />
+                  </div>
+                ) : channels.length === 0 ? (
+                  <div className="p-8 text-lg text-brand-ice/70 font-nunito">No channels in this category.</div>
+                ) : (
+                  <div style={{ height: chVirtualizer.getTotalSize(), position: 'relative' }}>
+                    {chVirtualizer.getVirtualItems().map(v => {
+                      const ch = channels[v.index];
+                      if (!ch) return null;
+                      const focused = pickerPane === 'ch' && channelIdx === v.index;
+                      return (
+                        <div
+                          key={ch.stream_id}
+                          style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${v.start}px)`, height: ROW_HEIGHT }}
+                          className="px-3 pb-1.5"
+                        >
+                          <div
+                            data-focused={focused ? 'true' : 'false'}
+                            onClick={() => {
+                              const tIdx = pickerOpenForTile;
+                              if (tIdx !== null) {
+                                setPickerOpenForTile(null);
+                                void openTileForChannel(tIdx, ch);
+                              }
+                            }}
+                            className={`tv-ring h-full flex items-center px-4 rounded-xl cursor-pointer ${
+                              focused ? 'bg-brand-gold/25 scale-[1.01] z-10' : 'hover:bg-white/5'
+                            }`}
+                          >
+                            <span className="w-10 text-right mr-4 text-base tabular-nums text-brand-ice/60 flex-shrink-0">
+                              {ch.num ?? v.index + 1}
+                            </span>
+                            <span className="w-14 h-10 mr-4 flex-shrink-0 rounded-lg bg-white/5 flex items-center justify-center overflow-hidden">
+                              {ch.stream_icon ? (
+                                <img src={ch.stream_icon} alt="" decoding="async" className="max-w-full max-h-full object-contain" />
+                              ) : (
+                                <Tv className="w-5 h-5 text-brand-ice/40" />
+                              )}
+                            </span>
+                            <span className={`flex-1 min-w-0 truncate text-xl font-quicksand font-semibold ${focused ? 'text-white' : 'text-brand-ice'}`}>
+                              {ch.name}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
