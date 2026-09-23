@@ -1,9 +1,12 @@
 // Where each viewer stopped in each Plex title: their own resume points,
 // "Continue Watching", progress bars and "watched" ticks.
 //
-// Not Plex's: every box signs into Plex through the same provider account
-// (see plex-provider-token), so the server's resume points and On Deck are
-// everyone's viewing mixed together. These are kept per viewer — the signed-in
+// Not Plex's: Plex keeps those per ACCOUNT, and most boxes share one — the
+// Hub links each box's plex.tv/link code to your owner or link account, and
+// the provider link hands out the provider account — so the server's resume
+// points and On Deck are everyone's viewing mixed together. (A box on the
+// customer's own Plex account also reports to Plex; see isOwnPlexAccount.)
+// These are kept per viewer — the signed-in
 // Snow Media account, else the box — on the device, and mirrored to the
 // account (watch_history rows of kind 'plex_progress') so they follow the
 // viewer to another box.

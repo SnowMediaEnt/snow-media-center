@@ -160,36 +160,44 @@ export async function isPlexProviderLinked(): Promise<boolean> {
 
 // ── whose Plex account is this box on? ─────────────────────────────────────
 //
-// Plex keeps resume points and On Deck per ACCOUNT, not per device token. A
-// box linked to the provider's account (by the provider link, or by the
-// provider entering its PIN) shares that account with every such box, so its
-// progress must not be reported to Plex. A box signed in with the viewer's
-// own Plex account (the one your email invite shared the server with) can
-// report it, and the server's resume points are then really theirs.
-const PROVIDER_ACCOUNT_KEY = 'snow-plex-provider-account-v1';
-const PROVIDER_ACCOUNT_TTL_MS = 7 * 24 * 3600_000;
+// Plex keeps resume points and On Deck per ACCOUNT, not per device token. The
+// Hub links each box's plex.tv/link code to one account (your owner account
+// or the Hub's link account), and the provider link hands out the provider
+// account — so those boxes each have their own token but share one account
+// and one viewing history. Their progress must not be reported to Plex (the
+// app keeps it per viewer instead, see plexProgress). A box on none of those
+// accounts is on the customer's own Plex account and can report it.
+const SHARED_ACCOUNTS_KEY = 'snow-plex-shared-accounts-v2';
+const SHARED_ACCOUNTS_TTL_MS = 24 * 3600_000;
 
-/** The provider account's Plex uuid (cached a week), or null if unknown. */
-export async function providerPlexAccountId(): Promise<string | null> {
+interface SharedAccounts { uuid: string; usernames: string[] }
+
+/** The accounts many boxes share (cached a day), or null if unknown. */
+export async function sharedPlexAccounts(): Promise<SharedAccounts | null> {
   try {
-    const cached = JSON.parse(localStorage.getItem(PROVIDER_ACCOUNT_KEY) || 'null') as { uuid?: string; at?: number } | null;
-    if (cached?.uuid && Date.now() - (cached.at ?? 0) < PROVIDER_ACCOUNT_TTL_MS) return cached.uuid;
+    const cached = JSON.parse(localStorage.getItem(SHARED_ACCOUNTS_KEY) || 'null') as (SharedAccounts & { at?: number }) | null;
+    if (cached?.uuid && Array.isArray(cached.usernames) && Date.now() - (cached.at ?? 0) < SHARED_ACCOUNTS_TTL_MS) return cached;
   } catch { /* ask */ }
   try {
     const { data, error } = await supabase.functions.invoke('plex-provider-token', { body: { action: 'account' } });
-    const uuid = !error && data?.ok && typeof data.uuid === 'string' ? data.uuid : null;
-    if (uuid) { try { localStorage.setItem(PROVIDER_ACCOUNT_KEY, JSON.stringify({ uuid, at: Date.now() })); } catch { /* ignore */ } }
-    return uuid;
+    // An answer without the Hub's accounts is incomplete: treat as unknown.
+    if (error || !data?.ok || typeof data.uuid !== 'string' || !Array.isArray(data.usernames)) return null;
+    const out: SharedAccounts = { uuid: data.uuid, usernames: (data.usernames as unknown[]).map((u) => String(u).toLowerCase()) };
+    try { localStorage.setItem(SHARED_ACCOUNTS_KEY, JSON.stringify({ ...out, at: Date.now() })); } catch { /* ignore */ }
+    return out;
   } catch {
     return null;
   }
 }
 
-/** True only when this box's Plex token is known to be the viewer's own
- *  account. Unknown counts as shared: nothing is reported to Plex then. */
-export async function isOwnPlexAccount(accountUuid: string | undefined): Promise<boolean> {
-  if (!accountUuid) return false;
+/** True only when this box's Plex account is known to be the viewer's own:
+ *  not provider-linked, and neither the provider account nor one of the
+ *  Hub's accounts. Anything unknown counts as shared (nothing is reported). */
+export async function isOwnPlexAccount(account: { uuid?: string; username?: string } | null | undefined): Promise<boolean> {
+  if (!account?.uuid || !account.username) return false;
   if (await isPlexProviderLinked()) return false;
-  const provider = await providerPlexAccountId();
-  return !!provider && provider !== accountUuid;
+  const shared = await sharedPlexAccounts();
+  if (!shared) return false;
+  if (shared.uuid === account.uuid) return false;
+  return !shared.usernames.includes(account.username.toLowerCase());
 }

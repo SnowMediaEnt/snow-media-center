@@ -396,11 +396,13 @@ async function checkProviderToken(token: string): Promise<TokenVerdict> {
   }
 }
 
-// Which Plex account the provider token belongs to (its uuid only — never
-// the token). A box compares it with the account behind its own token: the
-// same account means it shares the provider's viewing history, so the app
-// keeps resume points per viewer instead of reporting them to Plex.
-let providerAccount: { at: number; uuid: string } | null = null;
+// The Plex accounts many boxes share, so a box can tell whether its own token
+// belongs to one of them: the provider token's account, and the Hub's owner
+// and link accounts (plex_settings; the Hub links each box's plex.tv/link
+// code to one of those, so every such box has its own device token but the
+// same account and the same viewing history). Uuid and usernames only —
+// never a token. A box on none of these is on the customer's own account.
+let providerAccount: { at: number; uuid: string; username: string | null } | null = null;
 async function providerAccountUuid(token: string): Promise<string | null> {
   if (providerAccount && Date.now() - providerAccount.at < OWNER_CHECK_TTL_MS) return providerAccount.uuid;
   try {
@@ -414,9 +416,9 @@ async function providerAccountUuid(token: string): Promise<string | null> {
       },
     });
     if (!res.ok) return null;
-    const u = await res.json() as { uuid?: string };
+    const u = await res.json() as { uuid?: string; username?: string };
     if (!u?.uuid) return null;
-    providerAccount = { at: Date.now(), uuid: String(u.uuid) };
+    providerAccount = { at: Date.now(), uuid: String(u.uuid), username: u.username ? String(u.username) : null };
     return providerAccount.uuid;
   } catch {
     return null;
@@ -438,10 +440,30 @@ Deno.serve(async (req) => {
     let body: Record<string, unknown> = {};
     try { body = raw ? JSON.parse(raw) : {}; } catch { return jsonResponse({ ok: false, reason: 'bad_json' }); }
 
-    // No line needed: the account id alone gives nothing away.
+    // No line needed: account ids and usernames give nothing away.
     if (body.action === 'account') {
       const uuid = await providerAccountUuid(token);
-      return jsonResponse(uuid ? { ok: true, uuid } : { ok: false, reason: 'unknown' });
+      if (!uuid) return jsonResponse({ ok: false, reason: 'unknown' });
+      const usernames = new Set<string>();
+      if (providerAccount?.username) usernames.add(providerAccount.username.toLowerCase());
+      try {
+        const admin = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          { auth: { persistSession: false, autoRefreshToken: false } },
+        );
+        const { data } = await admin.from('plex_settings').select('account_username,link_account_username');
+        for (const r of (data ?? []) as Array<{ account_username: string | null; link_account_username: string | null }>) {
+          if (r.account_username) usernames.add(r.account_username.toLowerCase());
+          if (r.link_account_username) usernames.add(r.link_account_username.toLowerCase());
+        }
+      } catch (e) {
+        // Without the Hub's accounts the answer is incomplete: say so, and the
+        // box treats itself as shared.
+        console.warn('[plex-provider-token] plex_settings read failed:', String((e as Error)?.message || e));
+        return jsonResponse({ ok: false, reason: 'unknown' });
+      }
+      return jsonResponse({ ok: true, uuid, usernames: [...usernames] });
     }
 
     const host = normalizeHost(body.host);

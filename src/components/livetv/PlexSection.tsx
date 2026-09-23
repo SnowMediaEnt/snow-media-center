@@ -1798,7 +1798,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (!tok || DEMO) { setOwnPlexAccount(false); return; }
     let gone = false;
     void getPlexAccount(tok)
-      .then((a) => isOwnPlexAccount(a?.uuid))
+      .then((a) => isOwnPlexAccount(a))
       .then((own) => { if (!gone) setOwnPlexAccount(own); })
       .catch(() => { /* stays shared */ });
     return () => { gone = true; };
