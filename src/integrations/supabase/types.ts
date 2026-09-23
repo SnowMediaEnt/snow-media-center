@@ -1306,6 +1306,69 @@ export type Database = {
           },
         ]
       }
+      channel_overrides: {
+        Row: {
+          channel_name: string | null
+          expires_at: string | null
+          host: string
+          note: string | null
+          set_by: string | null
+          status: string
+          stream_id: number
+          updated_at: string
+        }
+        Insert: {
+          channel_name?: string | null
+          expires_at?: string | null
+          host: string
+          note?: string | null
+          set_by?: string | null
+          status: string
+          stream_id: number
+          updated_at?: string
+        }
+        Update: {
+          channel_name?: string | null
+          expires_at?: string | null
+          host?: string
+          note?: string | null
+          set_by?: string | null
+          status?: string
+          stream_id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      channel_signals: {
+        Row: {
+          channel_name: string | null
+          created_at: string
+          device_hash: string
+          host: string
+          id: number
+          kind: string
+          stream_id: number
+        }
+        Insert: {
+          channel_name?: string | null
+          created_at?: string
+          device_hash: string
+          host: string
+          id?: number
+          kind: string
+          stream_id: number
+        }
+        Update: {
+          channel_name?: string | null
+          created_at?: string
+          device_hash?: string
+          host?: string
+          id?: number
+          kind?: string
+          stream_id?: number
+        }
+        Relationships: []
+      }
       chip_ledger: {
         Row: {
           change: number
@@ -4872,6 +4935,16 @@ export type Database = {
             }
             Returns: Json
           }
+      channel_down_list: {
+        Args: { p_hosts: string[] }
+        Returns: {
+          channel_name: string
+          host: string
+          since: string
+          source: string
+          stream_id: number
+        }[]
+      }
       check_free_ai: {
         Args: { p_device_id: string; p_feature: string }
         Returns: Json
