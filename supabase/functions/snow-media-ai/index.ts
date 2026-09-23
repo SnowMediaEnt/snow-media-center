@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { kidsChatRules, kidsLevelOf } from '../_shared/kidsSafe.ts';
+import { kidsChatRules, kidsLevelOf, kidsTools } from '../_shared/kidsSafe.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import {
   checkPause,
@@ -39,6 +39,9 @@ serve(async (req) => {
     // Resolve caller: authed (Bearer JWT) OR anonymous (device_id in body).
     // resolveCaller parses the JSON body once so we don't re-read the stream.
     const { caller, body } = await resolveCaller(req);
+    // A Kids profile: a safeguarded assistant (see _shared/kidsSafe.ts) — no
+    // account details, no live web results, only the safe app actions.
+    const kidsLevel = kidsLevelOf(body);
 
     // Fail closed: a Bearer header that didn't validate is a real signed-in
     // user with a transient/expired token — never silently downgrade to free.
@@ -349,7 +352,7 @@ serve(async (req) => {
     let liveContext = '';
     let liveCitations: string[] = [];
     const liveTriggers = /\b(ppv|pay[- ]?per[- ]?view|tonight|today|tomorrow|this week|this weekend|upcoming|schedule|live|stream(ing)?\s+(now|tonight|today)|score|fight card|main event|kickoff|tip[- ]?off|game time|when (is|does)|what time|airs?\s+(on|tonight|today)|epg|channel\s+\d+|nfl|nba|mlb|nhl|ufc|wwe|aew|boxing|formula\s*1|f1|premier league|champions league|world cup)\b/i;
-    if (liveTriggers.test(message)) {
+    if (!kidsLevel && liveTriggers.test(message)) {
       const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
       if (PERPLEXITY_API_KEY) {
         try {
@@ -397,6 +400,9 @@ serve(async (req) => {
       return 'English';
     };
     const replyLanguage = detectReplyLanguage(message);
+
+    // A child never sees the account holder's plan, billing or update notes.
+    if (kidsLevel) { userContext = ''; updateContext = ''; }
 
     // System prompt with Snow Media context and app control functions
     const systemPrompt = `LANGUAGE RULE (HIGHEST PRIORITY — OVERRIDES EVERYTHING BELOW): You MUST write your entire reply in ${replyLanguage}. Do NOT use any other language. Do NOT translate or mix languages. The knowledge base/examples/context may be in English — that does NOT change your reply language. Your reply language for THIS turn is: ${replyLanguage}.
@@ -465,7 +471,7 @@ ${updateContext ? `\nSMC APP UPDATE STATUS (tell them clearly if an update is av
 ${liveContext ? `\nLIVE WEB RESULTS (real-time — use as the source of truth for upcoming events / PPV / sports / schedules; cite the date/time clearly):\n${liveContext}\n${liveCitations.length ? `Sources: ${liveCitations.slice(0,5).join(', ')}` : ''}\n` : ''}
 
 APP CONTROL FUNCTIONS — you can act inside the app, not just describe it. Prefer these over the older ones:
-- open_screen: take them to any screen (home, live_tv, guide, multi_screen, plex, player_appearance, main_apps, support, posts, tickets, device_cleaner, buffering_guide, how_to, support_videos, speed_test, dashboard, snow_gems, game_lounge, giveaway, settings, settings_ui, wallpaper). When someone asks HOW to do something, explain it in one or two short steps AND call open_screen to bring them to the right place.
+- open_screen: take them to any screen (home, live_tv, guide, game_day — today's big games and the channel each is on, multi_screen, plex, player_appearance, main_apps, support, posts, tickets, device_cleaner, buffering_guide, how_to, support_videos, speed_test, dashboard, snow_gems, game_lounge, giveaway, settings, settings_ui, wallpaper). When someone asks HOW to do something, explain it in one or two short steps AND call open_screen to bring them to the right place.
 - set_preference: change a setting for them — live_layout (classic|compact|grid), dashboard_size (compact|large), post_notifications (on|off), content_bar (on|off).
 - report_channel: when a channel is down, buffering or silent, ask which channel and what is wrong if you don't know, then call report_channel; the app finds the channel, opens the report with the reason picked, and they press OK to send.
 - install_app: when they want an app from Main Apps, call install_app with its name; the app finds it and starts the download.
@@ -478,9 +484,6 @@ Only call a function when the customer actually wants to go somewhere or do some
 
 All users reach you through the SMC Android app. Be friendly, knowledgeable, and concise; offer app actions when relevant; ground time-sensitive answers in LIVE WEB RESULTS; and use the knowledge base documents for accurate info. Sign off resolved chats with "Stay streaming, stay dreaming."`;
 
-
-    // A Kids profile: everything kept to its age (see _shared/kidsSafe.ts).
-    const kidsLevel = kidsLevelOf(body);
 
     // Spoken to the TV remote (the app's voice commands): act, don't chat.
     const voiceMode = (body as { mode?: unknown }).mode === 'voice_command';
@@ -496,7 +499,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
         model: chatModel,
         instructions: [systemPrompt, voiceMode ? VOICE_RULES : '', kidsLevel ? kidsChatRules(kidsLevel) : ''].filter(Boolean).join('\n\n'),
         input: message,
-        tools: [
+        tools: kidsLevel ? kidsTools() : [
           {
             type: 'function',
             name: 'open_screen',
@@ -506,7 +509,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
               properties: {
                 screen: {
                   type: 'string',
-                  enum: ['home', 'player', 'live_tv', 'guide', 'multi_screen', 'plex', 'backups', 'player_settings', 'player_appearance', 'main_apps', 'support', 'posts', 'tickets', 'device_cleaner', 'buffering_guide', 'how_to', 'support_videos', 'speed_test', 'ai_chat', 'dashboard', 'snow_gems', 'game_lounge', 'giveaway', 'settings', 'settings_ui', 'wallpaper'],
+                  enum: ['home', 'player', 'live_tv', 'guide', 'game_day', 'multi_screen', 'plex', 'backups', 'player_settings', 'player_appearance', 'main_apps', 'support', 'posts', 'tickets', 'device_cleaner', 'buffering_guide', 'how_to', 'support_videos', 'speed_test', 'ai_chat', 'dashboard', 'snow_gems', 'game_lounge', 'giveaway', 'settings', 'settings_ui', 'wallpaper'],
                   description: 'Which screen to open'
                 },
                 reason: { type: 'string', description: 'One short line on why, in the customer\'s language' }

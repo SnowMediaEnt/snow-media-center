@@ -16,7 +16,7 @@ export type Navigate = (section: string) => void;
 
 /** Screens the assistant can open. Keep in step with the edge function's enum. */
 export type Screen =
-  | 'home' | 'player' | 'live_tv' | 'guide' | 'multi_screen' | 'plex' | 'backups' | 'player_appearance' | 'player_settings'
+  | 'home' | 'player' | 'live_tv' | 'guide' | 'game_day' | 'multi_screen' | 'plex' | 'backups' | 'player_appearance' | 'player_settings'
   | 'main_apps' | 'support' | 'posts' | 'tickets' | 'device_cleaner' | 'buffering_guide' | 'how_to' | 'support_videos' | 'speed_test' | 'ai_chat'
   | 'dashboard' | 'snow_gems' | 'game_lounge' | 'giveaway' | 'settings' | 'settings_ui' | 'wallpaper';
 
@@ -62,7 +62,7 @@ export const takeIntent = <T = string>(key: string, json = false): T | null => {
 };
 
 export const SCREEN_LABELS: Record<Screen, string> = {
-  home: 'Home', player: 'the Player', live_tv: 'Live TV', guide: 'the Guide', multi_screen: 'Multi-Screen', plex: 'Plex',
+  home: 'Home', player: 'the Player', live_tv: 'Live TV', guide: 'the Guide', game_day: 'Game Day', multi_screen: 'Multi-Screen', plex: 'Plex',
   backups: 'Backups', player_appearance: 'Player Settings → Appearance', player_settings: 'Player Settings',
   main_apps: 'Main Apps', support: 'Support', posts: 'Posts from Snow Media', tickets: 'Submit a Ticket', device_cleaner: 'Device Cleaner',
   buffering_guide: 'the Buffering Guide', how_to: 'How to use SMC', support_videos: 'Support Videos', speed_test: 'Speed Test', ai_chat: 'AI Chat',
@@ -82,6 +82,7 @@ export function openScreen(screen: Screen, navigate: Navigate): string {
     case 'player': navigate('livetv'); break;
     case 'live_tv': put(INTENT_KEYS.player, { section: 'live' }); navigate('livetv'); break;
     case 'guide': put(INTENT_KEYS.player, { section: 'guide' }); navigate('livetv'); break;
+    case 'game_day': toPlayer({ section: 'gameday' }, navigate); break;
     case 'multi_screen': put(INTENT_KEYS.player, { section: 'multi' }); navigate('livetv'); break;
     case 'plex': put(INTENT_KEYS.player, { section: 'movies' }); navigate('livetv'); break;
     case 'backups': put(INTENT_KEYS.player, { section: 'backups' }); navigate('livetv'); break;
@@ -142,13 +143,29 @@ export function setPreference(key: PreferenceKey, value: string): string | null 
  *  PLAYER_INTENT_EVENT carries the same thing, and the Player clears the
  *  stored copy when it acts on the event). */
 export interface PlayerIntent {
-  section?: 'live' | 'guide' | 'multi' | 'movies' | 'backups';
+  section?: 'live' | 'guide' | 'multi' | 'movies' | 'backups' | 'gameday';
   settings?: 'appearance' | 'hub';
   report?: ReportIntent;
   /** Live TV: play the channel with this name. */
   play?: string;
   /** Plex: open this title (open) or search for it. */
   plex?: { query: string; open: boolean };
+  /** Live TV: play exactly this channel (Game Day, a kickoff reminder). */
+  deeplink?: LiveDeeplink;
+}
+
+/** One channel on one line, as the content bar and Game Day hand it over. */
+export interface LiveDeeplink { host: string; username: string; streamId: number; name?: string; icon?: string; categoryId?: string; num?: number }
+
+/** Hand Live TV a channel to play; it plays it at once if it is open. */
+export function handLiveDeeplink(d: LiveDeeplink): void {
+  try { sessionStorage.setItem('smc-live-deeplink', JSON.stringify(d)); } catch { /* ignore */ }
+  try { window.dispatchEvent(new CustomEvent('smc:live-deeplink')); } catch { /* ignore */ }
+}
+
+/** Play exactly this channel, from anywhere in the app. */
+export function playLiveChannel(d: LiveDeeplink, navigate: Navigate): void {
+  toPlayer({ section: 'live', deeplink: d }, navigate);
 }
 export const PLAYER_INTENT_EVENT = 'smc:player-intent';
 

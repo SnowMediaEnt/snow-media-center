@@ -1,8 +1,9 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, type PlayerIntent } from '@/lib/appActions';
+import { takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, handLiveDeeplink, type PlayerIntent } from '@/lib/appActions';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy } from 'lucide-react';
+import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy, Trophy } from 'lucide-react';
+import { kidsLevel } from '@/lib/kidsFilter';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
 import { toast } from '@/hooks/use-toast';
@@ -40,6 +41,7 @@ import PlexBlockedScreen from './livetv/PlexBlockedScreen';
 
 import LiveSection from './livetv/LiveSection';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
+const GameDaySection = lazy(() => import('./livetv/GameDaySection'));
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const PlexSection = lazy(() => import('./livetv/PlexSection'));
@@ -63,7 +65,7 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-type SectionId = 'live' | 'guide' | 'vod' | 'movies' | 'series' | 'plex' | 'multi' | 'backups';
+type SectionId = 'live' | 'guide' | 'gameday' | 'vod' | 'movies' | 'series' | 'plex' | 'multi' | 'backups';
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
 
@@ -299,6 +301,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, [creds]);
 
   const onExitLeft = useCallback(() => setPane('sections'), []);
+  // Game Day's Watch: the channel has been handed to Live TV; show it.
+  const onGameDayWatch = useCallback(() => { setSection('live'); setPane('content'); }, []);
   const onExitUp = useCallback(() => {
     headerReturnPaneRef.current = 'content';
     setPane('header');
@@ -308,6 +312,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (mode === 'live') return [
       { id: 'live',  label: 'Live TV', icon: Tv },
       { id: 'guide', label: 'Guide',   icon: LayoutGrid },
+      // Today's big games and the channel each is on. Not on a Kids profile
+      // (its channels are the kids ones); a Teens profile has it.
+      ...(kidsLevel() === 'little' || kidsLevel() === 'kids' ? [] : [{ id: 'gameday' as SectionId, label: 'Game Day', icon: Trophy }]),
       // The line's movies, with Plex pinned first for everything else.
       { id: 'vod',   label: 'VOD',     icon: Film },
       { id: 'multi', label: 'Multi-Screen', icon: Grid2X2 },
@@ -404,7 +411,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     else if (sec === 'backups') enterMode('backups');
     else {
       enterMode('live');
-      if (sec === 'guide' || sec === 'multi') { setSection(sec); setPane('content'); }
+      if (sec === 'guide' || sec === 'multi' || sec === 'gameday') { setSection(sec); setPane('content'); }
     }
     const hand = (key: string, event: string, value: unknown) => {
       try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
@@ -413,6 +420,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (intent.report) hand('smc-live-report', 'smc:live-report', intent.report);
     if (intent.play) hand('smc-live-play', 'smc:live-play', intent.play);
     if (intent.plex) hand('smc-plex-voice', 'smc:plex-voice', intent.plex);
+    if (intent.deeplink) handLiveDeeplink(intent.deeplink);
     if (intent.settings) { setSettingsInitialView(intent.settings === 'appearance' ? 'appearance' : undefined); setSettingsOpen(true); }
   }, [enterMode]);
   const applyIntentRef = useRef(applyIntent);
@@ -1079,6 +1087,18 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
               onNavigate={navigateViaRef}
+            />
+          </Suspense>
+        )}
+
+        {section === 'gameday' && creds && (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+            <GameDaySection
+              creds={creds}
+              isActive={pane === 'content' && !claimOpen}
+              onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
+              onWatch={onGameDayWatch}
             />
           </Suspense>
         )}

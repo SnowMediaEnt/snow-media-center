@@ -1186,11 +1186,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const activateChannelRef = useRef(activateChannel);
   useEffect(() => { activateChannelRef.current = activateChannel; }, [activateChannel]);
 
-  // A channel chosen on the content bar: play it as soon as its line is
-  // known. The payload is consumed once; a line no longer signed in here is
-  // simply ignored and the section opens as usual.
+  // A channel chosen on the content bar (or Game Day, or a kickoff
+  // reminder): play it as soon as its line is known. The payload is consumed
+  // once; a line no longer signed in here is simply ignored and the section
+  // opens as usual. 'smc:live-deeplink' asks again while Live TV is open.
   const playChannelRef = useRef(playChannel);
   useEffect(() => { playChannelRef.current = playChannel; }, [playChannel]);
+  const [deeplinkTick, setDeeplinkTick] = useState(0);
+  useEffect(() => {
+    const on = () => setDeeplinkTick((t) => t + 1);
+    window.addEventListener('smc:live-deeplink', on);
+    return () => window.removeEventListener('smc:live-deeplink', on);
+  }, []);
   useEffect(() => {
     if (DEMO) return;
     let raw: string | null = null;
@@ -1212,7 +1219,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const stream: XtreamLiveStream = { stream_id: target.streamId, name: target.name ?? 'Channel', stream_icon: target.icon, category_id: target.categoryId, num: target.num };
     streamLineRef.current.set(stream, line);
     playChannelRef.current(stream);
-  }, [lines]);
+  }, [lines, deeplinkTick]);
 
   // How long one channel is actually watched, and on which service. Starts
   // when a channel goes live and closes when it stops, changes or the viewer

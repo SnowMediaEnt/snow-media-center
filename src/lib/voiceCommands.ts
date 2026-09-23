@@ -32,6 +32,7 @@ const SCREEN_WORDS: Array<[string, Screen | 'profiles']> = [
   ['buffering guide', 'buffering_guide'], ['device cleaner', 'device_cleaner'], ['speed test', 'speed_test'],
   ['speedtest', 'speed_test'], ['support videos', 'support_videos'], ['how to use', 'how_to'],
   ['multi screen', 'multi_screen'], ['multiscreen', 'multi_screen'], ['multi view', 'multi_screen'], ['multiview', 'multi_screen'],
+  ['game day', 'game_day'], ['gameday', 'game_day'], ['todays games', 'game_day'], ['games today', 'game_day'],
   ['tv guide', 'guide'], ['live tv', 'live_tv'], ['live television', 'live_tv'], ['the guide', 'guide'], ['guide', 'guide'],
   ['main apps', 'main_apps'], ['app store', 'main_apps'], ['apps', 'main_apps'],
   ['game lounge', 'game_lounge'], ['games', 'game_lounge'], ['snow gems', 'snow_gems'], ['gems', 'snow_gems'],

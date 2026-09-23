@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { openScreen, setPreference, reportChannel, installApp, generateWallpaper, playChannel, openPlexTitle, openInstalledApp, KIDS_BLOCKED_SCREENS, type Screen, type PreferenceKey } from '@/lib/appActions';
 import { kidsLevel } from '@/lib/kidsFilter';
+import { KIDS_AI_NOTICE, KIDS_AI_TITLE } from '@/lib/kidsAiNotice';
 import { Button } from '@/components/ui/button';
 import { isDemo } from '@/lib/demoMode';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X, Check, Trash2, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X, Check, Trash2, Volume2, VolumeX, ShieldCheck } from 'lucide-react';
 import type { VoiceLifecycleControls } from '@/components/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -1940,6 +1941,17 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               <span className="block text-sm font-semibold text-brand-ice drop-shadow-[0_0_6px_rgba(160,220,255,0.5)]">Voice reply: 0.04 Snow Gems per voice message · multilingual (32+ languages)</span>
             </p>
             
+            {/* A Kids profile: say plainly what this AI will and won't do. */}
+            {kidsLevel() && (
+              <div className="mb-4 rounded-lg border border-emerald-400/60 bg-emerald-900/40 p-3 flex items-start">
+                <ShieldCheck className="w-6 h-6 text-emerald-300 mr-3 mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-bold text-emerald-200">{KIDS_AI_TITLE}</div>
+                  <p className="text-sm text-emerald-50/90">{KIDS_AI_NOTICE}</p>
+                </div>
+              </div>
+            )}
+
             {/* AI Chat Messages */}
             <div
               ref={aiChatContainerRef}
@@ -1955,7 +1967,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 <div className="text-center text-slate-400 py-8">
                   <Brain className="w-12 h-12 mx-auto mb-4 text-purple-400" />
                   <p>Start a conversation with Snow Media AI!</p>
-                  <p className="text-sm mt-2">Try asking: "Help me install an app"</p>
+                  <p className="text-sm mt-2">{kidsLevel() ? 'Try asking: "Find me a cartoon to watch"' : 'Try asking: "Help me install an app"'}</p>
                 </div>
               ) : (
                 aiChat.map((msg, index) => (

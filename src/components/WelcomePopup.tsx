@@ -12,6 +12,7 @@ import { useVersion } from '@/hooks/useVersion';
  */
 const CHANGELOG: Record<string, string[]> = {
   '1.7.7': [
+    '🏈 Game Day in the Player: today\'s big games with live scores and the channel each is on — Watch, or Remind me at kickoff',
     '⚠️ Down channels are marked for everyone: report one (hold OK → Report Channel) and every box sees the warning; hold OK → "It\'s working now" clears it',
     '🎙️ Voice commands: the mic next to Settings (or your remote\'s Search button) — "put on ESPN", "watch The Office", "open YouTube", "take me to the Guide"',
     '👨‍👩‍👧 Profiles: everyone gets their own Continue Watching, My List, favourites and home screen. Kids profiles show only what suits their age, and any profile can have a PIN (Settings → Profiles)',

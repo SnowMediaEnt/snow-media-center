@@ -42,6 +42,7 @@ import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors } from '@/lib/profiles';
 import ProfileGate from '@/components/profiles/ProfileGate';
 import VoiceCommandHost from '@/components/voice/VoiceCommandHost';
+import GameReminderHost from '@/components/GameReminderHost';
 import { openVoice } from '@/lib/voiceUi';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
@@ -1416,6 +1417,9 @@ const Index = () => {
 
       {/* "Who's watching?" at start, and the profile screens on demand. */}
       <ProfileGate onOpenChange={setProfileGateOpen} />
+
+      {/* Game Day kickoff reminders ("Remind me"), over anything. */}
+      <GameReminderHost navigate={stableNavigateTo} />
 
       {/* Voice commands: the mic button, the remote's Search key. */}
       <VoiceCommandHost navigate={stableNavigateTo} blocked={profileGateOpen} />

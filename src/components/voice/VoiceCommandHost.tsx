@@ -23,6 +23,7 @@ import {
 import { getDeviceId, trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { getPreferredTier } from '@/lib/aiTiers';
+import { KIDS_AI_SHORT } from '@/lib/kidsAiNotice';
 import { openProfiles } from '@/lib/profilesUi';
 import { parseVoiceCommand, type VoiceAction } from '@/lib/voiceCommands';
 import { OPEN_VOICE_EVENT } from '@/lib/voiceUi';
@@ -292,7 +293,9 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
             ) : (
               <>
                 <div className="text-2xl font-bold">Listening…</div>
-                <div className="mt-1 text-base text-white/70">Try {EXAMPLES.join(' · ')}</div>
+                <div className="mt-1 text-base text-white/70">
+                  {kidsLevel() ? KIDS_AI_SHORT : `Try ${EXAMPLES.join(' · ')}`}
+                </div>
               </>
             )}
           </div>
