@@ -36,7 +36,7 @@ import {
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
   getPlexAccount,
   setPlexImageFocus, preloadImages, plexPhotoTranscodeUrl, POSTER_TILE_W, POSTER_TILE_H,
-  type PlexLibrary, type PlexItem, type PlexEpisode, type PlexEpisodeInfo, plexRouteLabel,
+  type PlexLibrary, type PlexItem, type PlexEpisode, type PlexPlayInfo, plexRouteLabel,
   setPlexPlaybackActive } from '@/lib/plex';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
@@ -55,6 +55,8 @@ import PlexPosterTile from './PlexPosterTile';
 import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type PlayerPrompt, type SubtitleSearchContext } from './PlexPlayerOverlay';
 import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
+import PlexProgressReporter from './PlexProgressReporter';
+import { continueWatching, initPlexProgress, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
@@ -511,6 +513,16 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
   const [released, setReleased] = useState<PlexItem[]>(() => getCachedHubStale(base, HOME_RELEASED_KEY) ?? []);
   const [popular, setPopular] = useState<PlexItem[]>(() => getCachedHubStale(base, HOME_POPULAR_KEY) ?? []);
   const [loading, setLoading] = useState(!(getCachedHubStale(base, onDeckPath) || getCachedHubStale(base, recentPath)));
+  // Continue Watching: this viewer's own (plexProgress), kept current as
+  // progress is saved. The server's On Deck is only asked for in the demo.
+  const [ownContinue, setOwnContinue] = useState<PlexItem[]>(() => (DEMO ? [] : continueWatching()));
+  useEffect(() => {
+    if (DEMO) return;
+    const refresh = () => setOwnContinue(continueWatching());
+    refresh();
+    window.addEventListener(PLEX_PROGRESS_EVENT, refresh);
+    return () => window.removeEventListener(PLEX_PROGRESS_EVENT, refresh);
+  }, [watchNonce]);
 
   const [hubRetry, setHubRetry] = useState(0);
   const hubRetryRef = useRef(0);
@@ -529,7 +541,9 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     // failure reads as a cache HIT and blocks every later refetch — Home stays
     // an empty rail across remounts until the TTL runs out.
     Promise.all([
-      cachedOd ? Promise.resolve(cachedOd) : getPlexHub(base, token, onDeckPath).catch(() => null),
+      cachedOd ? Promise.resolve(cachedOd)
+        : DEMO ? getPlexHub(base, token, onDeckPath).catch(() => null)
+          : Promise.resolve([] as PlexItem[]),
       cachedRa ? Promise.resolve(cachedRa) : getPlexHub(base, token, recentPath).catch(() => null),
     ]).then(([od, ra]) => {
       // Cache first, even if the viewer already moved on: the answer is paid
@@ -554,7 +568,8 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
   // background, keeping the rails on screen while it loads.
   const seenNonceRef = useRef(watchNonce);
   useEffect(() => {
-    if (watchNonce === seenNonceRef.current || DEMO) return;
+    // Only the demo's Continue Watching comes from the server (see ownContinue).
+    if (watchNonce === seenNonceRef.current || !DEMO) return;
     seenNonceRef.current = watchNonce;
     let cancelled = false;
     const epoch = getHubEpoch();
@@ -595,7 +610,9 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     // Filtered here, after the cache, so a rail cached before a library was
     // marked adult is caught on replay too.
     const r: DiscoverRow[] = [];
-    const cont = familyOnly(onDeck, adultKeys);
+    // This viewer's own (plexProgress). The server's On Deck belongs to the
+    // shared provider account, so it was everyone's viewing mixed together.
+    const cont = familyOnly(DEMO ? onDeck : ownContinue, adultKeys);
     if (cont.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: cont.slice(0, RAIL_CAP) });
     r.push({ id: 'added', title: 'Recently Added', items: familyOnly(recent, adultKeys).slice(0, RAIL_CAP) });
     const rel = familyOnly(released, adultKeys);
@@ -604,7 +621,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const pop = familyOnly(popular, adultKeys);
     if (pop.length > 0) r.push({ id: 'popular', title: 'Most Watched', items: pop });
     return r;
-  }, [onDeck, recent, released, popular, adultKeys]);
+  }, [onDeck, ownContinue, recent, released, popular, adultKeys]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;
@@ -1756,6 +1773,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [extraSubs, setExtraSubs] = useState<SnowSubtitle[] | undefined>(undefined);
   const [qualityKey, setQualityKey] = useState<string>('original');
   useEffect(() => { void loadPlexQuality().then(setQualityKey); }, []);
+  // This viewer's resume points and Continue Watching: from the box at once,
+  // then brought up to date from their account (another box they use).
+  useEffect(() => {
+    if (DEMO) return;
+    void initPlexProgress().then(() => pullProgressFromCloud());
+  }, []);
 
   // Image focus mode: while a detail page is open, the browse grid, rails and
   // search results park their loads so the detail page's own images own the
@@ -2425,16 +2448,19 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const show = detailRef.current;
     try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', ratingKey: ep.ratingKey, showKey: show?.ratingKey, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     if (!DEMO && show) recordPlexWatch({ ...show, type: 'show', grandparentTitle: undefined }, undefined);
-    void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '', ep.partKey);
+    // Pick up where this viewer stopped (their own progress, see plexProgress).
+    void playRatingKey(ep.ratingKey, ep.title, resumeSeconds(ep.ratingKey), ctx, '', ep.partKey);
   }, [playRatingKey, conn]);
 
   // Skip Intro / Up Next (EpisodeAutoplay). The next episode starts in place,
   // from the start, with the same subtitle search context an episode opened
   // from its show would have.
   const [playerPrompt, setPlayerPrompt] = useState<PlayerPrompt | null>(null);
+  // What is playing, once EpisodeAutoplay has read it (for PlexProgressReporter).
+  const [playInfo, setPlayInfo] = useState<PlexPlayInfo | null>(null);
   const autoNextRef = useRef<(() => boolean) | null>(null);
   const registerAutoNext = useCallback((fn: (() => boolean) | null) => { autoNextRef.current = fn; }, []);
-  const playNextEpisode = useCallback((ep: NextEpisode, info: PlexEpisodeInfo) => {
+  const playNextEpisode = useCallback((ep: NextEpisode, info: PlexPlayInfo) => {
     try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', ratingKey: ep.ratingKey, showKey: info.showKey, autoNext: true, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     if (!DEMO && info.showKey) {
       recordPlexWatch({ ratingKey: info.showKey, title: info.showTitle || ep.title, type: 'show', thumb: info.showThumb }, undefined);
@@ -3211,6 +3237,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             prompt={playerPrompt}
           />
         )}
+        {conn && !DEMO && (
+          <PlexProgressReporter
+            active={nativeActive && !slowLoad}
+            ratingKey={fullscreen ? playing?.ratingKey ?? null : null}
+            info={playInfo}
+            getPosition={native.getPosition}
+          />
+        )}
         {conn && (
           <EpisodeAutoplay
             active={nativeActive && !slowLoad}
@@ -3221,6 +3255,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             seekTo={native.seekTo}
             onPrompt={setPlayerPrompt}
             onPlayNext={playNextEpisode}
+            onInfo={setPlayInfo}
             registerEnded={registerAutoNext}
           />
         )}

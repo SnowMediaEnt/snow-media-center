@@ -3,14 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerPrompt } from './PlexPlayerOverlay';
 
 const info = {
-  ratingKey: '11', title: 'Pilot', index: 1, seasonIndex: 1, seasonKey: '10', showKey: '1', showTitle: 'Show',
+  ratingKey: '11', kind: 'episode', title: 'Pilot', index: 1, seasonIndex: 1, seasonKey: '10', showKey: '1', showTitle: 'Show',
   duration: 1800,
   markers: [{ type: 'intro', start: 30, end: 95 }, { type: 'credits', start: 1740, end: 1800 }],
 };
 const next = { ratingKey: '12', title: 'Two', index: 2, seasonIndex: 1 };
 
 vi.mock('@/lib/plex', () => ({
-  getPlexEpisodeInfo: vi.fn(async () => info),
+  getPlexPlayInfo: vi.fn(async () => info),
   getNextPlexEpisode: vi.fn(async () => next),
 }));
 

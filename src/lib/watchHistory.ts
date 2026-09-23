@@ -128,6 +128,9 @@ export async function syncWatchHistoryFromCloud(userId: string): Promise<WatchEn
       .from('watch_history')
       .select('kind,item_key,title,subtitle,poster,payload,watched_at,count')
       .eq('user_id', userId)
+      // The same table holds Plex resume points (kind 'plex_progress', see
+      // plexProgress); only watched channels and titles belong here.
+      .in('kind', ['channel', 'plex'])
       .order('watched_at', { ascending: false })
       .limit(MAX);
     if (error || !data) return local;

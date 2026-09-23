@@ -16,6 +16,7 @@ import { isNativePlatform } from '@/utils/platform';
 import { runWhenIdle } from '@/utils/idle';
 import type { SubtitleSearchContext } from './PlexPlayerOverlay';
 import { isPlexKeyOwner } from './plexKeyOwner';
+import { getProgress, isWatched, progressPercent, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 
 interface Props {
   isActive: boolean;
@@ -79,9 +80,14 @@ ResBadge.displayName = 'ResBadge';
  *  when it becomes the focused row: each Up/Down used to rebuild every row and
  *  re-attach every row's scroll callback, which on a hundred-episode season
  *  is a lot of work per press on an old box. */
-const EpisodeRow = memo(({ ep, base, token, focused }: { ep: PlexEpisode; base: string; token: string; focused: boolean }) => {
+// `progressTick` only makes a row redraw when this viewer's progress changes.
+const EpisodeRow = memo(({ ep, base, token, focused }: { ep: PlexEpisode; base: string; token: string; focused: boolean; progressTick: number }) => {
   const ref = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => { if (focused) ref.current?.scrollIntoView({ block: 'nearest' }); }, [focused]);
+  // This viewer's own progress (plexProgress), same rule as the resume.
+  const resumePct = progressPercent(ep.ratingKey);
+  const left = resumePct != null ? (getProgress(ep.ratingKey)?.dur ?? 0) - (resumeSeconds(ep.ratingKey) ?? 0) : 0;
+  const watched = isWatched(ep.ratingKey);
   return (
     <div ref={ref}
       data-focused={focused ? 'true' : 'false'}
@@ -89,14 +95,25 @@ const EpisodeRow = memo(({ ep, base, token, focused }: { ep: PlexEpisode; base: 
       {/* A fixed 72 px, not aspect-video: aspect-ratio is Chrome 88, and on
           the older boxes each row grew when its thumbnail landed, shifting
           the list under the highlight. */}
-      <div className="w-32 h-[72px] flex-shrink-0 rounded-lg overflow-hidden bg-black/60">
+      <div className="relative w-32 h-[72px] flex-shrink-0 rounded-lg overflow-hidden bg-black/60">
         <PlexImage base={base} path={ep.thumb} token={token} w={320} h={180} focusExempt className="w-full h-full object-cover" />
+        {/* Where this viewer stopped (OK resumes there). */}
+        {resumePct != null && (
+          <div className="absolute left-0 right-0 bottom-0 h-1.5 bg-black/60">
+            <div className="h-full bg-brand-gold" style={{ width: `${resumePct}%` }} />
+          </div>
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="font-quicksand font-semibold text-sm truncate">
           {ep.index != null ? `${ep.index}. ` : ''}{ep.title}
         </div>
-        <div className="text-xs text-brand-ice/70 font-nunito">{fmtRuntime(ep.duration)}</div>
+        <div className="text-xs text-brand-ice/70 font-nunito">
+          {fmtRuntime(ep.duration)}
+          {resumePct != null && left > 0
+            ? ` · ${fmtRuntime(left * 1000)} left`
+            : watched ? ' · ✓ Watched' : ''}
+        </div>
         {ep.summary && <div className="text-xs text-brand-ice/70 font-nunito line-clamp-2 mt-1">{ep.summary}</div>}
       </div>
     </div>
@@ -109,6 +126,15 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   //    filmography pushes; Back pops before we ever hit onBack().
   const [stack, setStack] = useState<PlexItem[]>([item]);
   const current = stack[stack.length - 1];
+
+  // Resume points and watched ticks are this viewer's (plexProgress); redraw
+  // when they change, e.g. the final save as the player closes.
+  const [progressTick, setProgressTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setProgressTick((t) => t + 1);
+    window.addEventListener(PLEX_PROGRESS_EVENT, bump);
+    return () => window.removeEventListener(PLEX_PROGRESS_EVENT, bump);
+  }, []);
 
   const [meta, setMeta] = useState<PlexMetadata | null>(null);
   const [metaLoading, setMetaLoading] = useState(true);
@@ -225,9 +251,11 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
   const isShow = (meta?.type ?? current.type) === 'show';
   const isEpisode = (meta?.type ?? current.type) === 'episode';
-  const viewOffset = meta?.viewOffset ?? 0;
-  const canResume = !isShow && viewOffset > 0 && (!meta?.duration || viewOffset < meta.duration - 30000);
-  const resumeSec = Math.floor(viewOffset / 1000);
+  // This viewer's own resume point (plexProgress), not the server's: every
+  // box shares one Plex account, so the server's is anyone's.
+  const ownResume = !isShow ? resumeSeconds(current.ratingKey) : undefined;
+  const canResume = ownResume != null;
+  const resumeSec = ownResume ?? 0;
 
   const detailButtons: Array<{ id: string; label: string }> = useMemo(() => {
     const b: Array<{ id: string; label: string }> = [];
@@ -629,7 +657,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
             ) : (
               <div className="flex flex-col gap-2 px-1 py-1">
                 {episodes.map((ep, i) => (
-                  <EpisodeRow key={ep.ratingKey} ep={ep} base={base} token={token} focused={isActive && epIdx === i} />
+                  <EpisodeRow key={ep.ratingKey} ep={ep} base={base} token={token} focused={isActive && epIdx === i} progressTick={progressTick} />
                 ))}
               </div>
             )}

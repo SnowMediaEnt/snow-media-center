@@ -13,7 +13,7 @@
 // the whole Plex screen. Near the intro and the end it checks every second,
 // otherwise every five.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getNextPlexEpisode, getPlexEpisodeInfo, type PlexEpisode, type PlexEpisodeInfo } from '@/lib/plex';
+import { getNextPlexEpisode, getPlexPlayInfo, type PlexEpisode, type PlexPlayInfo } from '@/lib/plex';
 import type { PlayerPrompt } from './PlexPlayerOverlay';
 
 export type NextEpisode = PlexEpisode & { seasonIndex?: number };
@@ -27,7 +27,9 @@ interface Props {
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
   seekTo: (seconds: number) => Promise<void>;
   onPrompt: (prompt: PlayerPrompt | null) => void;
-  onPlayNext: (ep: NextEpisode, info: PlexEpisodeInfo) => void;
+  onPlayNext: (ep: NextEpisode, info: PlexPlayInfo) => void;
+  /** What is playing (movie or episode), once known; null when it changes. */
+  onInfo?: (info: PlexPlayInfo | null) => void;
   /** Receives the function the player runs when the episode ends: true when
    *  it started the next episode (so the player must not close). */
   registerEnded: (fn: (() => boolean) | null) => void;
@@ -42,8 +44,8 @@ const episodeLabel = (ep: NextEpisode): string => {
   return `${se}${ep.title}`.trim();
 };
 
-const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, seekTo, onPrompt, onPlayNext, registerEnded }: Props) => {
-  const [info, setInfo] = useState<PlexEpisodeInfo | null>(null);
+const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, seekTo, onPrompt, onPlayNext, onInfo, registerEnded }: Props) => {
+  const [info, setInfo] = useState<PlexPlayInfo | null>(null);
   const [next, setNext] = useState<NextEpisode | null>(null);
   const [pos, setPos] = useState<{ at: number; dur: number; playing: boolean } | null>(null);
   const [dismissed, setDismissed] = useState(false);
@@ -54,6 +56,7 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
   const seekToRef = useRef(seekTo); useEffect(() => { seekToRef.current = seekTo; }, [seekTo]);
   const onPromptRef = useRef(onPrompt); useEffect(() => { onPromptRef.current = onPrompt; }, [onPrompt]);
   const onPlayNextRef = useRef(onPlayNext); useEffect(() => { onPlayNextRef.current = onPlayNext; }, [onPlayNext]);
+  const onInfoRef = useRef(onInfo); useEffect(() => { onInfoRef.current = onInfo; }, [onInfo]);
 
   // What this episode is and what follows it. A new title starts clean.
   useEffect(() => {
@@ -62,7 +65,7 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
     if (!ratingKey || !base) return;
     let gone = false;
     void (async () => {
-      const i = await getPlexEpisodeInfo(base, token, ratingKey).catch(() => null);
+      const i = await getPlexPlayInfo(base, token, ratingKey).catch(() => null);
       if (gone || !i) return;
       setInfo(i);
       const n = await getNextPlexEpisode(base, token, i).catch(() => null);

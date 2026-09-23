@@ -27,6 +27,8 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PlexPosterTile from './PlexPosterTile';
+import { isDemo } from '@/lib/demoMode';
+import { continueWatching, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import {
   getPlexSectionOnDeck, getPlexSectionRow, getCachedHub, getCachedHubStale, getHubEpoch, setCachedHub,
   getPlexSectionMeta, getPlexFilterValues, getPlexLibraryQuery,
@@ -240,8 +242,11 @@ const PlexLibraryRows = memo(({
       return;
     }
     try {
+      // Continue Watching is this viewer's own (plexProgress); the server's On
+      // Deck belongs to the Plex account every box shares. The demo keeps the
+      // server's canned one.
       const items = spec.kind === 'onDeck'
-        ? await getPlexSectionOnDeck(base, token, libKey)
+        ? (isDemo() ? await getPlexSectionOnDeck(base, token, libKey) : continueWatching(30, libKey))
         : await getPlexSectionRow(base, token, libKey, spec.query || '', rowDepth(spec.id));
       // An empty-but-successful response is a real answer: the row is hidden.
       // That is the documented behaviour for every guarded row (the date and
@@ -288,6 +293,19 @@ const PlexLibraryRows = memo(({
     void fetchRow(spec);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchNonce]);
+  // The final save as the player closes lands a moment after the nonce, and
+  // an account's progress can arrive from another box: follow both.
+  useEffect(() => {
+    if (isDemo()) return;
+    const refresh = () => {
+      const spec = specs.find((x) => x.kind === 'onDeck');
+      if (!spec) return;
+      fetchedRef.current.delete(spec.id);
+      void fetchRow(spec);
+    };
+    window.addEventListener(PLEX_PROGRESS_EVENT, refresh);
+    return () => window.removeEventListener(PLEX_PROGRESS_EVENT, refresh);
+  }, [specs, fetchRow]);
 
   // Wave 2 once the user reaches the last loaded row — never at tab-enter.
   useEffect(() => {

@@ -24,16 +24,20 @@ describe('episode markers and next episode', () => {
       ratingKey: '11', type: 'episode', title: 'Pilot', index: 1, parentIndex: 1, parentRatingKey: '10', grandparentRatingKey: '1', duration: 1_800_000,
       Marker: [{ type: 'intro', startTimeOffset: 30_000, endTimeOffset: 95_000 }, { type: 'credits', startTimeOffset: 1_740_000, endTimeOffset: 1_800_000 }],
     }]);
-    const { getPlexEpisodeInfo } = await import('./plex');
-    const info = await getPlexEpisodeInfo('http://pms', 't', '11');
+    const { getPlexPlayInfo } = await import('./plex');
+    const info = await getPlexPlayInfo('http://pms', 't', '11');
+    expect(info?.kind).toBe('episode');
     expect(info?.markers).toEqual([{ type: 'intro', start: 30, end: 95 }, { type: 'credits', start: 1740, end: 1800 }]);
     expect(info?.duration).toBe(1800);
   });
 
-  it('is null for a movie', async () => {
-    answers['/library/metadata/5'] = meta([{ ratingKey: '5', type: 'movie', title: 'Film' }]);
-    const { getPlexEpisodeInfo } = await import('./plex');
-    expect(await getPlexEpisodeInfo('http://pms', 't', '5')).toBeNull();
+  it('describes a movie too, and a movie has no next episode', async () => {
+    answers['/library/metadata/5'] = meta([{ ratingKey: '5', type: 'movie', title: 'Film', librarySectionID: 3 }]);
+    const { getPlexPlayInfo, getNextPlexEpisode } = await import('./plex');
+    const info = await getPlexPlayInfo('http://pms', 't', '5');
+    expect(info?.kind).toBe('movie');
+    expect(info?.librarySectionID).toBe('3');
+    expect(await getNextPlexEpisode('http://pms', 't', info!)).toBeNull();
   });
 
   it('finds the next episode, then the next season, then nothing', async () => {
@@ -47,7 +51,7 @@ describe('episode markers and next episode', () => {
     ]);
     answers['/library/metadata/20/children'] = meta([{ ratingKey: '21', type: 'episode', title: 'S2 opener', index: 1 }]);
     const { getNextPlexEpisode } = await import('./plex');
-    const base = { title: '', markers: [], seasonKey: '10', showKey: '1', seasonIndex: 1 };
+    const base = { title: '', kind: 'episode' as const, markers: [], seasonKey: '10', showKey: '1', seasonIndex: 1 };
     expect((await getNextPlexEpisode('http://pms', 't', { ...base, ratingKey: '11', index: 1 }))?.ratingKey).toBe('12');
     const n = await getNextPlexEpisode('http://pms', 't', { ...base, ratingKey: '12', index: 2 });
     expect(n?.ratingKey).toBe('21');

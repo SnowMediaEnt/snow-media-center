@@ -1269,12 +1269,15 @@ export async function getPlexEpisodes(base: string, token: string, seasonKey: st
 /** A stretch of an episode Plex has marked, in seconds. */
 export interface PlexMarker { type: string; start: number; end: number }
 
-/** What the player needs about the episode on screen: where its intro and
- *  credits are (Plex's own markers — present when the server's intro/credits
- *  detection has run) and where it sits in its show. */
-export interface PlexEpisodeInfo {
+/** What the player needs about the title on screen: whether it is an
+ *  episode, where its intro and credits are (Plex's own markers — present
+ *  when the server's intro/credits detection has run) and, for an episode,
+ *  where it sits in its show. */
+export interface PlexPlayInfo {
   ratingKey: string;
+  kind: 'movie' | 'episode';
   title: string;
+  librarySectionID?: string;
   index?: number;
   seasonIndex?: number;
   seasonKey?: string;
@@ -1286,14 +1289,14 @@ export interface PlexEpisodeInfo {
   markers: PlexMarker[];
 }
 
-/** Episode details with markers, or null when the title is not an episode. */
-export async function getPlexEpisodeInfo(base: string, token: string, ratingKey: string): Promise<PlexEpisodeInfo | null> {
+/** Details and markers for a movie or an episode; null for anything else. */
+export async function getPlexPlayInfo(base: string, token: string, ratingKey: string): Promise<PlexPlayInfo | null> {
   const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
     // Not RAIL_FIELDS: that trim excludes Marker, the one element wanted here.
     'GET', `${base}/library/metadata/${ratingKey}?includeMarkers=1&includeGuids=0&excludeElements=Director,Writer,Role,Producer,Country,Collection,Label,Guid,Chapter,Genre`, token, RAIL_TIMEOUT_MS,
   );
   const m = data?.MediaContainer?.Metadata?.[0];
-  if (!m || m.type !== 'episode') return null;
+  if (!m || (m.type !== 'episode' && m.type !== 'movie')) return null;
   const markers = (Array.isArray(m.Marker) ? (m.Marker as Array<Record<string, unknown>>) : [])
     .map((k) => ({
       type: String(k.type || ''),
@@ -1305,7 +1308,9 @@ export async function getPlexEpisodeInfo(base: string, token: string, ratingKey:
   const str = (v: unknown) => (v != null && v !== '' ? String(v) : undefined);
   return {
     ratingKey: String(m.ratingKey ?? ratingKey),
+    kind: m.type === 'episode' ? 'episode' : 'movie',
     title: String(m.title ?? ''),
+    librarySectionID: str(m.librarySectionID),
     index: num(m.index),
     seasonIndex: num(m.parentIndex),
     seasonKey: str(m.parentRatingKey),
@@ -1320,8 +1325,9 @@ export async function getPlexEpisodeInfo(base: string, token: string, ratingKey:
 /** The episode after this one: the next in its season, else the first of the
  *  next season. Null at the end of the show. */
 export async function getNextPlexEpisode(
-  base: string, token: string, info: PlexEpisodeInfo,
+  base: string, token: string, info: PlexPlayInfo,
 ): Promise<(PlexEpisode & { seasonIndex?: number }) | null> {
+  if (info.kind !== 'episode') return null;
   const byIndex = <T extends { index?: number }>(list: T[]) =>
     list.slice().sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
   if (info.seasonKey) {
