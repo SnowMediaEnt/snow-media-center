@@ -825,6 +825,8 @@ export type Database = {
           first_seen_at: string
           first_user_id: string | null
           form_factor: string | null
+          gone_at: string | null
+          gone_reason: string | null
           id: string
           last_seen_at: string
           last_user_id: string | null
@@ -841,6 +843,8 @@ export type Database = {
           first_seen_at?: string
           first_user_id?: string | null
           form_factor?: string | null
+          gone_at?: string | null
+          gone_reason?: string | null
           id?: string
           last_seen_at?: string
           last_user_id?: string | null
@@ -857,6 +861,8 @@ export type Database = {
           first_seen_at?: string
           first_user_id?: string | null
           form_factor?: string | null
+          gone_at?: string | null
+          gone_reason?: string | null
           id?: string
           last_seen_at?: string
           last_user_id?: string | null
