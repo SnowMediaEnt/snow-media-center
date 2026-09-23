@@ -410,6 +410,28 @@ const BufferingGuide = ({
         .sort((a, b) => a.score - b.score);
 
       const next = scored[0]?.el;
+
+      // Leaving the step's content for the footer (Back / Next) or the
+      // header while part of the step is still out of view: scroll the rest
+      // into view first. Without this the bottom of the speed test and VPN
+      // steps could never be reached; focus jumped straight to the footer.
+      if (key === 'ArrowDown' || key === 'ArrowUp') {
+        const scroller = contentRef.current;
+        const leavingContent = !!scroller && !!activeEl && scroller.contains(activeEl) && (!next || !scroller.contains(next));
+        if (scroller && leavingContent) {
+          const canDown = scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 4;
+          const canUp = scroller.scrollTop > 4;
+          if (key === 'ArrowDown' && canDown) {
+            scroller.scrollBy({ top: Math.round(scroller.clientHeight * 0.6), behavior: 'smooth' });
+            return;
+          }
+          if (key === 'ArrowUp' && canUp) {
+            scroller.scrollBy({ top: -Math.round(scroller.clientHeight * 0.6), behavior: 'smooth' });
+            return;
+          }
+        }
+      }
+
       if (next) {
         next.focus();
         lastFocusedRef.current = next;
@@ -997,7 +1019,7 @@ const BufferingGuide = ({
       </div>
 
       {/* Content */}
-      <div ref={contentRef} className="flex-1 overflow-y-auto px-[5vw] py-4">
+      <div ref={contentRef} className="flex-1 overflow-y-auto px-[5vw] pt-4 pb-12">
         <div className="max-w-5xl mx-auto">
           {step === 'intro' && (
             <>
