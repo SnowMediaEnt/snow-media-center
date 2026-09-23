@@ -4,8 +4,8 @@
 // line ever reaches this function. The old ESPN "live now" feed is gone.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { isAdultLabel, isAdultPlexItem } from '../_shared/adultContent.ts';
+import { plexBase, plexBaseFailed } from '../_shared/plexBase.ts';
 
-const PLEX_URL = (Deno.env.get('PLEX_SERVER_URL') ?? '').replace(/\/+$/, '');
 const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN') ?? '';
 let PLEX_MACHINE_ID = '';
 
@@ -41,12 +41,19 @@ const safe = async <T>(p: Promise<T>, label: string): Promise<T | null> => {
 
 // ---------- Plex (VOD) ----------
 const plexFetch = async (path: string) => {
-  if (!PLEX_URL || !PLEX_TOKEN) return null;
+  if (!PLEX_TOKEN) return null;
+  const base = await plexBase();
+  if (!base) return null;
   const sep = path.includes('?') ? '&' : '?';
-  const url = `${PLEX_URL}${path}${sep}X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`Plex ${res.status}`);
-  return await res.json();
+  const url = `${base}${path}${sep}X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error(`Plex ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    if ((e as Error)?.name === 'TimeoutError' || (e as Error)?.name === 'TypeError') plexBaseFailed(base);
+    throw e;
+  }
 };
 
 // Posters are served through our own signed proxy so the Plex origin and
@@ -162,7 +169,7 @@ const mapPlexItem = async (m: any): Promise<Item & { _seriesKey?: string; _dedup
 };
 
 const fetchMachineId = async () => {
-  if (PLEX_MACHINE_ID || !PLEX_URL || !PLEX_TOKEN) return;
+  if (PLEX_MACHINE_ID || !PLEX_TOKEN) return;
   try {
     const data = await plexFetch('/identity');
     const id = data?.MediaContainer?.machineIdentifier;

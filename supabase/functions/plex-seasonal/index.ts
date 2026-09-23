@@ -14,10 +14,12 @@
 // The Plex origin and token never leave the server: items carry only
 // ratingKeys and server-relative image paths, which a box resolves against its
 // own connection; the Hub's posters come through the signed poster-proxy.
-// Secrets: PLEX_SERVER_URL, PLEX_TOKEN, POSTER_PROXY_SECRET (as media-bar-feed).
+// Secrets: PLEX_SERVER_URL (with a plex.tv fallback, see _shared/plexBase.ts),
+// PLEX_TOKEN, POSTER_PROXY_SECRET (as media-bar-feed).
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { isAdultLabel } from '../_shared/adultContent.ts';
+import { plexBase, plexBaseFailed } from '../_shared/plexBase.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,7 +28,6 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-const PLEX_URL = (Deno.env.get('PLEX_SERVER_URL') ?? '').replace(/\/+$/, '');
 const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN') ?? '';
 const SUPABASE_URL = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/+$/, '');
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -56,10 +57,11 @@ async function isAdmin(req: Request): Promise<boolean> {
 // ── Plex ────────────────────────────────────────────────────────────────
 async function plex(path: string, timeoutMs = 45_000) {
   const sep = path.includes('?') ? '&' : '?';
-  const res = await fetch(`${PLEX_URL}${path}${sep}X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`, {
+  const base = await plexBase();
+  const res = await fetch(`${base}${path}${sep}X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(timeoutMs),
-  });
+  }).catch((e) => { plexBaseFailed(base); throw e; });
   if (!res.ok) throw new Error(`Plex ${res.status} on ${path.split('?')[0]}`);
   return await res.json();
 }
@@ -171,17 +173,33 @@ async function build(season: string) {
   return payload;
 }
 
-/** Take the build lease; false when another build is already running. */
+/** Take the build lease; false when another build is already running.
+ *  Read, then update only if it is still what was read (no or-filter: the
+ *  project's API rejected that one with a "column does not exist" error). The
+ *  lease only stops two boxes building at once, so if taking it fails for any
+ *  other reason the build goes ahead rather than never happening. */
 async function claim(season: string): Promise<boolean> {
   const client = db();
-  await client.from('seasonal_cache').upsert({ season }, { onConflict: 'season', ignoreDuplicates: true });
-  const cutoff = new Date(Date.now() - BUILD_LEASE_MS).toISOString();
-  const { data } = await client.from('seasonal_cache')
-    .update({ building_at: new Date().toISOString() })
-    .eq('season', season)
-    .or(`building_at.is.null,building_at.lt.${cutoff}`)
-    .select('season');
-  return (data ?? []).length > 0;
+  try {
+    const { data: cur, error: readErr } = await client.from('seasonal_cache')
+      .select('building_at').eq('season', season).maybeSingle();
+    if (readErr) throw readErr;
+    if (!cur) {
+      const { error } = await client.from('seasonal_cache').insert({ season, building_at: new Date().toISOString() });
+      // Someone else inserted it a moment ago: they are building.
+      return !error;
+    }
+    const held = cur.building_at ? Date.parse(cur.building_at as string) : 0;
+    if (held && Date.now() - held < BUILD_LEASE_MS) return false;
+    let q = client.from('seasonal_cache').update({ building_at: new Date().toISOString() }).eq('season', season);
+    q = cur.building_at ? q.eq('building_at', cur.building_at as string) : q.is('building_at', null);
+    const { data, error } = await q.select('season');
+    if (error) throw error;
+    return (data ?? []).length > 0;
+  } catch (e) {
+    console.warn('[plex-seasonal] lease not taken, building anyway:', String((e as Error)?.message || e));
+    return true;
+  }
 }
 
 async function buildSafely(season: string) {
@@ -203,7 +221,7 @@ const background = (p: Promise<unknown>) => {
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   try {
-    if (!PLEX_URL || !PLEX_TOKEN) return json({ error: 'Plex is not configured on the server.' }, 500);
+    if (!PLEX_TOKEN) return json({ error: 'Plex is not configured on the server.' }, 500);
     const body = await req.json().catch(() => ({}));
     const season = String(body.season || 'halloween');
     if (!SEASONS.has(season)) return json({ error: 'unknown season' }, 400);

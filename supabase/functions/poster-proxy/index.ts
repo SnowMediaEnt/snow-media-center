@@ -1,8 +1,8 @@
 // Public poster proxy: hides the Plex origin + X-Plex-Token from clients.
 // GET ?p=<plex thumb path>&s=<hex HMAC-SHA256 of p with POSTER_PROXY_SECRET>
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { plexBase, plexBaseFailed } from '../_shared/plexBase.ts';
 
-const PLEX_URL = (Deno.env.get('PLEX_SERVER_URL') ?? '').replace(/\/+$/, '');
 const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN') ?? '';
 const SECRET = Deno.env.get('POSTER_PROXY_SECRET') ?? '';
 
@@ -42,7 +42,7 @@ const notFound = () =>
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'GET') return notFound();
-  if (!PLEX_URL || !PLEX_TOKEN || !SECRET) return notFound();
+  if (!PLEX_TOKEN || !SECRET) return notFound();
 
   try {
     const url = new URL(req.url);
@@ -58,8 +58,10 @@ Deno.serve(async (req) => {
     // purpose — it only ever makes the same picture smaller.
     const wParam = Number(url.searchParams.get('w'));
     const w = Number.isFinite(wParam) && wParam >= 40 && wParam < 300 ? Math.round(wParam) : 300;
-    const upstream = `${PLEX_URL}/photo/:/transcode?width=${w}&height=${Math.round(w * 1.5)}&minSize=1&upscale=1&url=${encodeURIComponent(p)}&X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
-    const res = await fetch(upstream, { signal: AbortSignal.timeout(10000) });
+    const base = await plexBase();
+    if (!base) return notFound();
+    const upstream = `${base}/photo/:/transcode?width=${w}&height=${Math.round(w * 1.5)}&minSize=1&upscale=1&url=${encodeURIComponent(p)}&X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
+    const res = await fetch(upstream, { signal: AbortSignal.timeout(10000) }).catch((e) => { plexBaseFailed(base); throw e; });
     if (!res.ok || !res.body) return notFound();
 
     return new Response(res.body, {
