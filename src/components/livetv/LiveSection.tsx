@@ -8,6 +8,7 @@ import {
   SAVED_ACCOUNTS_REFRESH_EVENT,
   getLiveCategories,
   getLiveStreams,
+  forgetLiveStreams,
   getShortEpg,
   buildLiveStreamUrl,
   buildNativeLiveUrl,
@@ -46,10 +47,10 @@ import {
   tallyByCategory,
   type CatalogCounts,
 } from '@/lib/catalogCounts';
-import { runWhenIdle } from '@/utils/idle';
+import { runAfter } from '@/utils/idle';
 import { isPlaybackQuiet } from '@/utils/quietMode';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
-import { isFireTV } from '@/utils/platform';
+import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import ChannelRow from './ChannelRow';
 import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
@@ -105,6 +106,12 @@ const GRID_COLS = 5;
 const CAT_ROW_HEIGHT = 48; // px — matches py-2.5 + text-sm + 4px vertical gap (space-y-1)
 const CAT_FOCUS_PAD = 8;   // px — breathing room so the focus ring is never flush to the pane edge
 const EPG_MAX_CONCURRENT = 5;
+const EPG_CACHE_MAX = 400;
+// Cloud favourites pulls, per line, shared across Live TV visits.
+const FAV_PULL_FRESH_MS = 10 * 60_000;
+const WATCH_RECORD_DWELL_MS = 6000;
+const _favPulls = new Map<string, { at: number; done: boolean; p: Promise<Map<number, FavChannel> | null> }>();
+const EPG_TTL_MS = 15 * 60_000;
 const PREVIEW_DEBOUNCE_MS = 700;
 
 const formatTime = (ms?: number) => {
@@ -227,6 +234,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // The list filters once typing pauses: each keystroke scanned every name in
+  // every line's full line-up (30k+ strings) on the main thread.
+  const [searchQ, setSearchQ] = useState('');
+  useEffect(() => {
+    if (!searchQuery) { setSearchQ(''); return; }
+    const t = window.setTimeout(() => setSearchQ(searchQuery), 150);
+    return () => window.clearTimeout(t);
+  }, [searchQuery]);
 
   // Favourites, one list per line. The active line's list is the local store;
   // every other line's lives in its stash (favoritesSync routes both).
@@ -305,12 +320,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const line = lineFor(f);
     try {
       const catId = f.category_id ? String(f.category_id) : undefined;
+      // A genuinely fresh copy, not the list kept from earlier in the visit.
+      if (catId) forgetLiveStreams(line, catId);
       const inCat = catId ? await fetchLiveStreams(line, catId) : [];
       tagLine(inCat, line);
       let list = inCat;
       let hit = list.find((st) => st.stream_id === f.stream_id) ? null : list.find((st) => favKey(st) === favKey(f));
       if (list.some((st) => st.stream_id === f.stream_id)) return 'same';
       if (!hit) {
+        forgetLiveStreams(line);
         list = tagLine(await fetchLiveStreams(line), line);
         if (list.some((st) => st.stream_id === f.stream_id)) return 'same';
         hit = list.find((st) => favKey(st) === favKey(f)) ?? null;
@@ -354,11 +372,24 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // THEN the cloud, line by line. The local list is passed as a GETTER so it
     // is read after the pull resolves — a toggle made during the round-trip
     // is merged, not overwritten.
+    // Once per line every 10 minutes, not on every return to Live TV; a pull
+    // already on its way (the saved accounts arriving re-runs this) is shared.
     for (const line of lines) {
-      void reconcileFavoritesForLine(line, () => loadFavoritesForLine(line)).then((next) => {
+      const k = lineKey(line);
+      const prev = _favPulls.get(k);
+      let p: Promise<Map<number, FavChannel> | null>;
+      if (prev && !prev.done) p = prev.p;
+      else if (prev && Date.now() - prev.at < FAV_PULL_FRESH_MS) continue;
+      else {
+        const entry = { at: Date.now(), done: false, p: reconcileFavoritesForLine(line, () => loadFavoritesForLine(line)) };
+        entry.p.then(() => { entry.done = true; }, () => { _favPulls.delete(k); });
+        _favPulls.set(k, entry);
+        p = entry.p;
+      }
+      void p.then((next) => {
         if (cancelled || !next) return;
         adoptFavoritesFor(line, next);
-      });
+      }, () => { /* offline: local favourites stand */ });
     }
     return () => { cancelled = true; flushFavoritesPush(); };
   }, [linesKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -539,48 +570,66 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // 2) Lazy-load the focused category's channels, from its own line.
   //    - Skip headers and Favorites (rendered from metadata cache).
   //    - "All channels" is STRICTLY opt-in: never auto-fetch on focus.
+  //    - Only once focus settles (250 ms) — or at once when the viewer opens
+  //      it. Holding ▼ through the categories used to download and parse the
+  //      list of every category passed, all at the same time.
+  //    Keyed on the category's id rather than the entry object, which is
+  //    rebuilt whenever any list, count or favourite changes.
+  const currentCatRef = useRef(currentCat);
+  currentCatRef.current = currentCat;
+  const catFetchKey = currentCat && !currentCat.isHeader && !currentCat.isFav
+    && (!currentCat.isAll || allOptedInRef.current) && !streamsByCat.has(currentCat.id)
+    ? currentCat.id : null;
+  const openedNow = pane === 'channels';
   useEffect(() => {
-    if (!currentCat || currentCat.isHeader || currentCat.isFav) return;
-    if (currentCat.isAll && !allOptedInRef.current) return;
-    if (streamsByCat.has(currentCat.id)) return;
+    const cat = currentCatRef.current;
+    if (!catFetchKey || !cat || cat.id !== catFetchKey) return;
     let cancelled = false;
-    const key = currentCat.id;
-    const line = currentCat.line;
-    const catId = currentCat.catId;
-    const isAll = !!currentCat.isAll;
+    const key = cat.id;
+    const line = cat.line;
+    const catId = cat.catId;
+    const isAll = !!cat.isAll;
     setLoadingCat(key);
-    const fetchPromise = isAll
-      ? fetchLiveStreams(line)
-      : fetchLiveStreams(line, catId);
-    fetchPromise
-      .then((list) => {
-        if (cancelled) return;
-        tagLine(list, line);
-        setStreamsByCat(prev => {
-          const n = new Map(prev);
-          n.set(key, list);
-          return n;
+    const start = () => {
+      const fetchPromise = isAll
+        ? fetchLiveStreams(line)
+        : fetchLiveStreams(line, catId);
+      fetchPromise
+        .then((list) => {
+          if (cancelled) return;
+          tagLine(list, line);
+          setStreamsByCat(prev => {
+            const n = new Map(prev);
+            n.set(key, list);
+            return n;
+          });
+          // A list in hand is a free measurement, and a chance to re-link
+          // favourites the provider moved.
+          if (isAll) noteCountsFor(line, { total: list.length, byCat: tallyByCategory(list) });
+          else if (catId) noteCountsFor(line, { byCat: { [catId]: list.length } });
+          healFavorites(line, list, isAll ? null : (catId ?? null));
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setStreamsByCat(prev => {
+            const n = new Map(prev);
+            n.set(key, []);
+            return n;
+          });
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setLoadingCat(prev => (prev === key ? null : prev));
         });
-        // A list in hand is a free measurement, and a chance to re-link
-        // favourites the provider moved.
-        if (isAll) noteCountsFor(line, { total: list.length, byCat: tallyByCategory(list) });
-        else if (catId) noteCountsFor(line, { byCat: { [catId]: list.length } });
-        healFavorites(line, list, isAll ? null : (catId ?? null));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setStreamsByCat(prev => {
-          const n = new Map(prev);
-          n.set(key, []);
-          return n;
-        });
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoadingCat(prev => (prev === key ? null : prev));
-      });
-    return () => { cancelled = true; };
-  }, [currentCat, streamsByCat, noteCountsFor, tagLine, healFavorites]);
+    };
+    const t = window.setTimeout(start, openedNow ? 0 : 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+      // Passed over: no spinner left behind on it.
+      setLoadingCat(prev => (prev === key ? null : prev));
+    };
+  }, [catFetchKey, openedNow, noteCountsFor, tagLine, healFavorites]);
 
   // Full-catalog channel lists, one per line, fetched lazily ONLY when search
   // is opened. Search runs across every line.
@@ -621,32 +670,35 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // on a box already short of memory: there the badges still fill in from
   // whatever the viewer opens.
   const countedRef = useRef(false);
+  // Only leaving Live TV throws a finished count away. It used to be dropped
+  // whenever `counts` changed — and the first category list to arrive always
+  // changes it — so the full line-up was downloaded and then discarded.
+  const countMountedRef = useRef(true);
+  useEffect(() => () => { countMountedRef.current = false; }, []);
+  const countsFresh = countsAreFresh(counts);
   useEffect(() => {
     if (!isActive || countedRef.current) return;
     if (categoriesLoading || categories.length === 0) return;
-    if (countsAreFresh(counts)) return;
+    if (countsFresh) return;
     if (playingChannelId || fullscreen || isPlaybackQuiet()) return;
-    try {
-      if (document.documentElement.classList.contains('native-low-memory')) return;
-    } catch { /* no document */ }
-    let cancelled = false;
-    const cancelIdle = runWhenIdle(() => {
-      if (cancelled) return;
-      // Playback may have started during the wait — quiet mode is on for any
-      // player, ours or Multi-Screen — in which case the count can wait a week.
-      if (isPlaybackQuiet()) return;
+    if (isLowMemoryBox()) return;
+    // A real 8 s wait (runWhenIdle's number is only an upper bound).
+    return runAfter(8000, () => {
+      // Playback or a preview may have started during the wait — quiet mode
+      // is on for any player, ours or Multi-Screen — in which case the count
+      // can wait for another visit.
+      if (isPlaybackQuiet() || (NATIVE_PLAYBACK && previewChannelRef.current)) return;
       countedRef.current = true;
       countLiveStreams(creds)
-        .then(({ total, byCat }) => { if (!cancelled) noteCounts({ total, byCat }); })
+        .then(({ total, byCat }) => { if (countMountedRef.current) noteCounts({ total, byCat }); })
         .catch(() => { countedRef.current = false; });
-    }, 8000);
-    return () => { cancelled = true; cancelIdle(); };
-  }, [isActive, categoriesLoading, categories.length, counts, playingChannelId, fullscreen, creds, noteCounts]);
+    });
+  }, [isActive, categoriesLoading, categories.length, countsFresh, playingChannelId, fullscreen, creds, noteCounts]);
 
   // Resolve channel list for the focused category / favorites / search.
   const visibleChannels: XtreamLiveStream[] = useMemo(() => {
     if (searchOpen) {
-      const q = searchQuery.trim().toLowerCase();
+      const q = searchQ.trim().toLowerCase();
       if (!q) return [];
       const out: XtreamLiveStream[] = [];
       for (const line of lines) {
@@ -669,7 +721,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       });
     }
     return streamsByCat.get(currentCat.id) || [];
-  }, [searchOpen, searchQuery, lines, allByLine, currentCat, streamsByCat, favsByLine]);
+  }, [searchOpen, searchQ, lines, allByLine, currentCat, streamsByCat, favsByLine]);
 
   const channelsLoading = searchOpen
     ? allChannelsLoading
@@ -678,7 +730,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         && (loadingCat === currentCat.id || !streamsByCat.has(currentCat.id)));
 
   // Reset channel focus whenever the visible list changes context.
-  useEffect(() => { setChannelIdx(0); }, [categoryIdx, searchOpen, searchQuery]);
+  useEffect(() => { setChannelIdx(0); }, [categoryIdx, searchOpen, searchQ]);
 
   // The assistant's "report ESPN, it's buffering": search every line for the
   // channel, then open Report with the reason already picked. The viewer
@@ -695,7 +747,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return () => clearTimeout(giveUp);
   }, [pendingReport, lines.length]);
   useEffect(() => {
-    if (!pendingReport || !searchOpen || searchQuery !== pendingReport.search || visibleChannels.length === 0) return;
+    if (!pendingReport || !searchOpen || searchQ !== pendingReport.search || visibleChannels.length === 0) return;
     const q = pendingReport.search.trim().toLowerCase();
     const hit = visibleChannels.find((s) => s.name.toLowerCase() === q) ?? visibleChannels[0];
     const issue = (pendingReport.issue || '').toLowerCase();
@@ -704,7 +756,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setPendingReport(null);
     setReportPreset({ choice, note: pendingReport.details || (choice === 'Other' ? pendingReport.issue : undefined) });
     setReportFor(hit);
-  }, [pendingReport, searchOpen, searchQuery, visibleChannels]);
+  }, [pendingReport, searchOpen, searchQ, visibleChannels]);
   useEffect(() => { if (!reportFor) setReportPreset(null); }, [reportFor]);
   // Safety clamp: never let channelIdx point past the current list.
   useEffect(() => {
@@ -737,12 +789,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const colsRef = useRef(cols); useEffect(() => { colsRef.current = cols; }, [cols]);
   // One virtual row per list row, or per GRID_COLS tiles in the grid.
   const rowCount = Math.ceil(visibleChannels.length / cols);
+  // Stable key functions: an inline one made the virtualizer re-measure the
+  // whole list on every render. Fewer spare rows on weak boxes — each one is
+  // a logo decoded at full size (Chromium 66 ignores loading="lazy").
+  const rowItemKey = useCallback(
+    (i: number) => (cols === 1 ? (visibleChannels[i]?.stream_id ?? i) : i),
+    [cols, visibleChannels],
+  );
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => rowHeight,
-    overscan: isFireTV() ? 2 : 8,
-    getItemKey: (i) => (cols === 1 ? (visibleChannels[i]?.stream_id ?? i) : i),
+    overscan: isFireTV() || isLowMemoryBox() ? (cols > 1 ? 1 : 2) : 8,
+    getItemKey: rowItemKey,
   });
   // Switching layout changes every slot's height: drop the measurements.
   useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [rowHeight, cols]);
@@ -750,18 +809,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // Virtualize the category pane too — Vibez can expose 100+ categories and
   // rendering them all caused layout thrash that interfered with D-pad
   // focus scrolling on TV/STB devices.
+  const catItemKey = useCallback((i: number) => visibleCategories[i]?.id ?? i, [visibleCategories]);
   const categoryVirtualizer = useVirtualizer({
     count: visibleCategories.length,
     getScrollElement: () => categoriesScrollRef.current,
     estimateSize: () => CAT_ROW_HEIGHT,
-    overscan: isFireTV() ? 4 : 10,
-    getItemKey: (i) => visibleCategories[i]?.id ?? i,
+    overscan: isFireTV() || isLowMemoryBox() ? 4 : 10,
+    getItemKey: catItemKey,
   });
 
   useEffect(() => {
     rowVirtualizer.scrollToOffset(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryIdx, searchOpen, searchQuery]);
+  }, [categoryIdx, searchOpen, searchQ]);
 
   // Vertical-only "scroll focused row into view" helper.
   //
@@ -813,8 +873,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     apply();
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
+    // `fullscreen`: leaving it rebuilds the list at the top; put the channel
+    // you zapped to back in view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelIdx, visibleChannels.length, cols, rowHeight]);
+  }, [channelIdx, visibleChannels.length, cols, rowHeight, fullscreen]);
 
   // Keep the focused category visible.
   //
@@ -860,9 +922,24 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // EPG lazy fetch with concurrency cap
   const epgKey = useCallback((st: XtreamLiveStream) => `${lineKey(lineFor(st))}:${st.stream_id}`, [lineFor]);
   const epgFor = useCallback((st: XtreamLiveStream | null | undefined) => (st ? epgCacheRef.current.get(epgKey(st)) : undefined), [epgKey]);
+  // The queue only ever holds rows on screen (plus the focused channel). It
+  // used to keep every row ever scrolled past and drained it to the end —
+  // through fullscreen playback and after Live TV had closed — with the rows
+  // actually on screen waiting behind the stale ones.
+  // An answer is good until its current programme ends (15 min at most, so
+  // a finished show does not sit there with a full bar); the oldest go first.
+  const epgExpRef = useRef<Map<string, number>>(new Map());
+  const epgAliveRef = useRef(true);
+  const epgTickTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    epgAliveRef.current = false;
+    epgQueueRef.current = [];
+    if (epgTickTimerRef.current) window.clearTimeout(epgTickTimerRef.current);
+  }, []);
   const enqueueEpg = useCallback((st: XtreamLiveStream) => {
     const key = epgKey(st);
-    if (epgCacheRef.current.has(key) || epgPendingRef.current.has(key)) return;
+    if (epgPendingRef.current.has(key)) return;
+    if (epgCacheRef.current.has(key) && (epgExpRef.current.get(key) ?? 0) > Date.now()) return;
     epgPendingRef.current.add(key);
     epgQueueRef.current.push({ key, line: lineFor(st), id: st.stream_id });
     pumpEpg();
@@ -870,16 +947,38 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [epgKey, lineFor]);
 
   const pumpEpg = useCallback(() => {
-    while (epgInFlightRef.current < EPG_MAX_CONCURRENT && epgQueueRef.current.length) {
+    // Replies arrive in bursts; one re-render per burst, not per reply.
+    const tick = () => {
+      if (epgTickTimerRef.current) return;
+      epgTickTimerRef.current = window.setTimeout(() => {
+        epgTickTimerRef.current = null;
+        if (epgAliveRef.current) forceEpgTick(t => t + 1);
+      }, 150);
+    };
+    const put = (key: string, v: EpgNowNext) => {
+      const cache = epgCacheRef.current;
+      const exp = epgExpRef.current;
+      cache.delete(key);
+      cache.set(key, v);
+      const now = Date.now();
+      exp.set(key, Math.min(v.now?.end && v.now.end > now ? v.now.end : now + EPG_TTL_MS, now + EPG_TTL_MS));
+      while (cache.size > EPG_CACHE_MAX) {
+        const oldest = cache.keys().next().value as string;
+        cache.delete(oldest);
+        exp.delete(oldest);
+      }
+    };
+    while (epgAliveRef.current && epgInFlightRef.current < EPG_MAX_CONCURRENT && epgQueueRef.current.length) {
       const { key, line, id } = epgQueueRef.current.shift()!;
       epgInFlightRef.current++;
       fetchShortEpg(line, id, 4)
-        .then(res => { epgCacheRef.current.set(key, pickNowNext(res.epg_listings || [])); })
-        .catch(() => { epgCacheRef.current.set(key, {}); })
+        .then(res => { if (epgAliveRef.current) put(key, pickNowNext(res.epg_listings || [])); })
+        .catch(() => { if (epgAliveRef.current) put(key, {}); })
         .finally(() => {
           epgInFlightRef.current--;
           epgPendingRef.current.delete(key);
-          forceEpgTick(t => t + 1);
+          if (!epgAliveRef.current) return;
+          tick();
           if (epgQueueRef.current.length) pumpEpg();
         });
     }
@@ -887,14 +986,25 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const virtualItems = rowVirtualizer.getVirtualItems();
   useEffect(() => {
-    for (const v of virtualItems) {
-      for (let c = 0; c < cols; c++) {
-        const s = visibleChannels[v.index * cols + c];
-        if (s) enqueueEpg(s);
+    // In fullscreen only the channel being watched matters.
+    const want: XtreamLiveStream[] = [];
+    if (focusedChannel) want.push(focusedChannel);
+    if (!fullscreen) {
+      for (const v of virtualItems) {
+        for (let c = 0; c < cols; c++) {
+          const s = visibleChannels[v.index * cols + c];
+          if (s) want.push(s);
+        }
       }
     }
-    if (focusedChannel) enqueueEpg(focusedChannel);
-  }, [virtualItems, visibleChannels, focusedChannel, enqueueEpg, cols]);
+    const keys = new Set(want.map(epgKey));
+    epgQueueRef.current = epgQueueRef.current.filter((q) => {
+      if (keys.has(q.key)) return true;
+      epgPendingRef.current.delete(q.key);
+      return false;
+    });
+    for (const s of want) enqueueEpg(s);
+  }, [virtualItems, visibleChannels, focusedChannel, enqueueEpg, epgKey, cols, fullscreen]);
 
   const focusedNowNext = epgFor(focusedChannel);
 
@@ -968,6 +1078,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => { previewChannelRef.current = previewChannel; }, [previewChannel]);
 
   const lastPlayRef = useRef<{ id: number; ts: number } | null>(null);
+  const watchRecordTimerRef = useRef<number | null>(null);
+  useEffect(() => () => { if (watchRecordTimerRef.current) window.clearTimeout(watchRecordTimerRef.current); }, []);
   // What is on screen right now, for the watch timer below.
   const watchingRef = useRef<{ channel: string; category: string } | null>(null);
   const playChannel = useCallback((stream: XtreamLiveStream) => {
@@ -986,7 +1098,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         const catName = visibleCategories.find(c => c.id === (currentCat?.id ?? ''))?.name
           ?? currentCat?.name ?? '';
         watchingRef.current = { channel: stream.name, category: catName };
-        recordChannelWatch(stream, line, catName);
+        // Into history only once it has stayed on screen: zapping through
+        // twenty channels was twenty storage rewrites and cloud upserts,
+        // each landing while the next stream was starting.
+        if (watchRecordTimerRef.current) window.clearTimeout(watchRecordTimerRef.current);
+        watchRecordTimerRef.current = window.setTimeout(() => {
+          watchRecordTimerRef.current = null;
+          try { recordChannelWatch(stream, line, catName); } catch { /* ignore */ }
+        }, WATCH_RECORD_DWELL_MS);
         trackEvent('channel_play', 'player', {
           channel: stream.name,
           category: catName,
@@ -1186,6 +1305,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
   useEffect(() => { visibleCategoriesRef.current = visibleCategories; }, [visibleCategories]);
   useEffect(() => { visibleChannelsRef.current = visibleChannels; }, [visibleChannels]);
+  // Stable row handlers, so ChannelRow's memo holds: inline arrows re-rendered
+  // every mounted row (≈95 tiles in the grid) on every key press and EPG reply.
+  const onRowSelect = useCallback((i: number) => { setChannelIdx(i); }, []);
+  const onRowActivate = useCallback((i: number) => {
+    setPane('channels');
+    setChannelIdx(i);
+    const ch = visibleChannelsRef.current[i];
+    if (ch) activateChannelRef.current(ch);
+  }, []);
+  const onRowLongPress = useCallback((i: number) => {
+    setChannelIdx(i);
+    setReportFor(visibleChannelsRef.current[i] ?? null);
+  }, []);
   useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
   useEffect(() => { barVisibleRef.current = barVisible; }, [barVisible]);
   useEffect(() => { barFocusRef.current = barFocus; }, [barFocus]);
@@ -1866,9 +1998,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       isPlaying={playingChannelId === s.stream_id}
                       isFavorite={isFav(s)}
                       nowNext={epgFor(s)}
-                      onSelect={(i) => { setChannelIdx(i); }}
-                      onActivate={(i) => { setPane('channels'); setChannelIdx(i); activateChannel(visibleChannels[i]); }}
-                      onLongPress={(i) => { setChannelIdx(i); setReportFor(visibleChannels[i]); }}
+                      onSelect={onRowSelect}
+                      onActivate={onRowActivate}
+                      onLongPress={onRowLongPress}
                     />
                   );
                 })}

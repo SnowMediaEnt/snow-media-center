@@ -20,6 +20,10 @@ interface Props {
 // One channel in the list, in whichever shape the layout asks for. Each
 // shape's height must stay in step with the slot LiveSection gives it (see
 // rowHeightFor there) — the D-pad scroll math is written against the slot.
+// One shared formatter: toLocaleTimeString with options builds a new one per
+// call, twice per row per render on Chromium 66.
+const TIME_FMT = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' });
+
 const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, nowNext, onSelect, onActivate, onLongPress, variant = 'compact' }: Props) => {
   const [iconError, setIconError] = useState(false);
   const [iconLoaded, setIconLoaded] = useState(false);
@@ -40,10 +44,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
     if (lpTimerRef.current) { window.clearTimeout(lpTimerRef.current); lpTimerRef.current = null; }
   };
 
-  const formatTime = (ms?: number) => {
-    if (!ms) return '';
-    return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const formatTime = (ms?: number) => (ms ? TIME_FMT.format(ms) : '');
   const now = nowNext?.now;
   const progress = (() => {
     if (!now) return 0;

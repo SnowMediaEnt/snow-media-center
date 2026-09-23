@@ -14,6 +14,7 @@ import {
   savePlayerAccount,
   clearPlayerAccount,
   bumpXtreamRefresh,
+  clearLiveCatalogue,
   daysUntilExp,
   SERVERS,
   type XtreamCreds,
@@ -299,7 +300,18 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
 
+  // Fresh channel lists once per Player open, done BEFORE any Live section
+  // mounts. It used to run 250 ms after Live TV opened: the section had
+  // already asked for its categories, so the refresh threw that answer away
+  // and fetched it again, and it also expired the weekly channel count, so
+  // the full line-up was downloaded and counted on every open. Bumping here,
+  // while nothing is listening yet, makes the first request the fresh one.
+  const autoRefreshedRef = useRef(false);
   const enterMode = useCallback((m: 'live' | 'movies' | 'backups') => {
+    if (m !== 'movies' && !autoRefreshedRef.current) {
+      autoRefreshedRef.current = true;
+      bumpXtreamRefresh();
+    }
     if (m === 'backups') {
       // Backups lands in the normal Live shell with the Backups section
       // selected — no new top-level mode.
@@ -440,19 +452,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, [toast, serverLabel]);
 
 
-  // Auto-refresh once whenever the Player opens INTO LIVE TV with valid
-  // creds. It used to fire on every Player open, mode or not: for someone
-  // going to Plex that was two "channels" toasts (each re-rendering every
-  // toast subscriber, Plex included) and a channel-list cache wipe, all
-  // landing inside Plex's settle screen, for a list they were not looking at.
-  const autoRefreshedRef = useRef(false);
-  useEffect(() => {
-    if (!creds || mode !== 'live' || autoRefreshedRef.current) return;
-    autoRefreshedRef.current = true;
-    // Defer a tick so the child sections have mounted their listeners.
-    const t = window.setTimeout(() => { refreshChannels(); }, 250);
-    return () => window.clearTimeout(t);
-  }, [creds, mode, refreshChannels]);
+  // The live lists are only worth keeping while Live TV is on screen. Leaving
+  // for the chooser or Plex, closing the Player, or changing account drops
+  // them; a full line-up is tens of MB of objects on a 1-2 GB box.
+  useEffect(() => { if (mode !== 'live') clearLiveCatalogue(); }, [mode]);
+  useEffect(() => () => clearLiveCatalogue(), []);
 
   const showCredsForm = !DEMO && mode === 'live' && (!creds || accountFormOpen);
   // Demo: the settings hub exposes sign-out / change-credentials / switch-account,
@@ -461,6 +465,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   const onSwitchAccount = useCallback((c: XtreamCreds) => {
     if (DEMO) return; // demo account is fixed
+    clearLiveCatalogue();
     setCreds(c);
     setSettingsOpen(false);
     setAccountFormOpen(false);
@@ -677,6 +682,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // fetch, the account refresh, each toast, each auth event.
   const onNavigateRef = useRef(onNavigate);
   useEffect(() => { onNavigateRef.current = onNavigate; }, [onNavigate]);
+  // Same for Live TV and the Guide: the raw prop is a new arrow on every home
+  // screen render, which re-rendered both memoised sections behind playback.
+  const navigateViaRef = useCallback((view: string) => { onNavigateRef.current?.(view); }, []);
   const plexNeedLiveTV = useCallback(() => enterMode('live'), [enterMode]);
   const plexOpenBufferingGuide = useCallback(() => {
     try {
@@ -919,7 +927,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onExitLeft={onExitLeft}
             onExitUp={onExitUp}
             onBack={onBack}
-            onNavigate={onNavigate}
+            onNavigate={navigateViaRef}
           />
         )}
 
@@ -930,7 +938,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               isActive={pane === 'content' && !claimOpen}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
-              onNavigate={onNavigate}
+              onNavigate={navigateViaRef}
             />
           </Suspense>
         )}

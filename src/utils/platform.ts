@@ -17,6 +17,12 @@ export const isFireTV = (): boolean =>
   typeof navigator !== 'undefined' &&
   /\bAFT[A-Z0-9]+\b|Fire ?TV|FireOS/i.test(navigator.userAgent || '');
 
+/** Fire TV sticks, 1–2 GB boxes and legacy WebViews — main.tsx tags <html>
+ *  with `native-low-memory` at boot. Lists render fewer spare rows there. */
+export const isLowMemoryBox = (): boolean => {
+  try { return document.documentElement.classList.contains('native-low-memory'); } catch { return false; }
+};
+
 export const isNativePlatform = (): boolean => {
   if (_isNative) return true;
   try {

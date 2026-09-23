@@ -151,16 +151,24 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     let stateH: { remove?: () => void } | null = null;
     let errH: { remove?: () => void } | null = null;
     let audioH: { remove?: () => void } | null = null;
+    // Added after awaits: if the player went inactive in between, the cleanup
+    // below has already run, so each handle removes itself as it arrives.
+    let gone = false;
+    const keep = <T extends { remove?: () => void }>(h: T): T | null => {
+      if (gone) { try { h?.remove?.(); } catch { /* ignore */ } return null; }
+      return h;
+    };
     (async () => {
       try {
-        audioH = await SnowPlayer.addListener('audioUnsupported', (data) => {
+        audioH = keep(await SnowPlayer.addListener('audioUnsupported', (data) => {
           if (data.screenId && data.screenId !== 'main') return;
           setAudioWarning({
             codecs: data.codecs || 'unknown',
             ffmpegAvailable: data.ffmpegAvailable === true,
           });
-        });
-        stateH = await SnowPlayer.addListener('playerState', (data) => {
+        }));
+        if (gone) return;
+        stateH = keep(await SnowPlayer.addListener('playerState', (data) => {
           if ((data as { screenId?: string }).screenId && (data as { screenId?: string }).screenId !== 'main') return;
           // Mirror stall state into the buffering diagnostics (never throws).
           if (data.state === 'buffering') { setBuffering(true); try { diagBuffering(true); } catch { /* ignore */ } }
@@ -169,8 +177,9 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           // Playing is authoritative — clear the spinner immediately.
           if (data.playing === true) { setBuffering(false); quietOn(); try { diagBuffering(false); } catch { /* ignore */ } }
           if (typeof data.playing === 'boolean') markStreaming(data.playing);
-        });
-        errH = await SnowPlayer.addListener('playerError', (data) => {
+        }));
+        if (gone) return;
+        errH = keep(await SnowPlayer.addListener('playerError', (data) => {
           if ((data as { screenId?: string }).screenId && (data as { screenId?: string }).screenId !== 'main') return;
           markStreaming(false);
           quietOff();
@@ -180,7 +189,11 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           // AUDIO_DECODE is a codec-init failure — auto-retrying the same URL
           // won't fix it. Surface immediately so the caller (PlexSection) can
           // fall back to a server-side transcode.
-          if (code === 'AUDIO_DECODE' || retriesRef.current >= maxRetries) {
+          // RECONNECT_EXHAUSTED means the native side already tried 20 times,
+          // and every load() here restarts that count — so one fresh start,
+          // not maxRetries × 20 more connections to a dead stream.
+          if (code === 'AUDIO_DECODE' || retriesRef.current >= maxRetries
+            || (code === 'RECONNECT_EXHAUSTED' && retriesRef.current >= 1)) {
             setError({ code, message: msg });
             return;
           }
@@ -188,10 +201,11 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           const delay = Math.min(8000, 500 * 2 ** retriesRef.current);
           clearRetryTimer();
           retryTimerRef.current = window.setTimeout(() => { setRetryNonce((n) => n + 1); }, delay) as unknown as number;
-        });
+        }));
       } catch { /* ignore */ }
     })();
     return () => {
+      gone = true;
       try { stateH?.remove?.(); } catch { /* ignore */ }
       try { errH?.remove?.(); } catch { /* ignore */ }
       try { audioH?.remove?.(); } catch { /* ignore */ }
@@ -320,8 +334,19 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     if (!active) return;
     let capH: { remove?: () => void } | undefined;
     let cancelled = false;
-    const onHidden = () => { void SnowPlayer.stop().catch(() => { /* ignore */ }); markStreaming(false); quietOff(); try { diagEnd(); } catch { /* ignore */ } };
-    const onVisible = () => { try { cbReloadRef.current?.(); } catch { /* ignore */ } setRetryNonce((n) => n + 1); };
+    // visibilitychange and appStateChange both fire on every background and
+    // resume; without this flag the stream was opened twice on each resume.
+    let hidden = false;
+    const onHidden = () => {
+      if (hidden) return;
+      hidden = true;
+      void SnowPlayer.stop().catch(() => { /* ignore */ }); markStreaming(false); quietOff(); try { diagEnd(); } catch { /* ignore */ }
+    };
+    const onVisible = () => {
+      if (!hidden) return;
+      hidden = false;
+      try { cbReloadRef.current?.(); } catch { /* ignore */ } setRetryNonce((n) => n + 1);
+    };
     const onVis = () => { if (document.hidden) onHidden(); else onVisible(); };
     document.addEventListener('visibilitychange', onVis);
     (async () => {

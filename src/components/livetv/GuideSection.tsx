@@ -24,7 +24,7 @@ import {
   type XtreamLiveStream,
   type XtreamEpgEntry,
 } from '@/lib/xtream';
-import { isFireTV } from '@/utils/platform';
+import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import BufferingDiagnostics from './BufferingDiagnostics';
@@ -74,8 +74,12 @@ const halfHourFloor = (t: number) => {
   return d.getTime();
 };
 
-const formatSlot = (ms: number) =>
-  new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+// One formatter for the whole Guide. toLocaleTimeString with options builds a
+// new ICU formatter on every call — dozens per render on Chromium 66.
+const SLOT_FMT = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' });
+const formatSlot = (ms: number) => SLOT_FMT.format(ms);
+// Programme guides kept for this visit; the oldest go first past this.
+const EPG_CACHE_MAX = 300;
 
 const decodePrograms = (entries: XtreamEpgEntry[]): DecodedProgram[] =>
   entries
@@ -100,18 +104,21 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const [windowStart, setWindowStart] = useState<number>(() => halfHourFloor(Date.now()));
   const nowInitialRef = useRef(halfHourFloor(Date.now()));
 
-  // Bump every 30s so the NOW line + auto-EPG refresh keep pace.
-  const [nowTick, setNowTick] = useState(Date.now());
-  useEffect(() => {
-    const t = window.setInterval(() => setNowTick(Date.now()), 30_000);
-    return () => window.clearInterval(t);
-  }, []);
-
   // Volume + playback
   const [volume, setVolume] = useState<number>(() => loadVolume());
   useEffect(() => { saveVolume(volume); }, [volume]);
   const [playingChannelId, setPlayingChannelId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+
+  // Bump every 30s so the NOW line keeps pace — only while the grid is on
+  // screen; a full-grid re-render behind fullscreen playback helps nobody.
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    if (fullscreen || !isActive) return;
+    setNowTick(Date.now());
+    const t = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, [fullscreen, isActive]);
 
   // Refresh event → wipe caches
   const [refreshTick, setRefreshTick] = useState(0);
@@ -144,17 +151,24 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
 
   const currentCategory = categories[categoryIdx];
 
-  // Load channels for selected category
+  // Load channels for selected category. A short settle first: moving ◀▶
+  // through the category bar used to download (and keep) the list of every
+  // category passed on the way.
+  const firstCategoryRef = useRef(true);
   useEffect(() => {
     if (!currentCategory) { setChannels([]); return; }
     let cancelled = false;
     setChannelsLoading(true);
     setRowIdx(0);
-    fetchLiveStreams(creds, String(currentCategory.category_id))
-      .then(list => { if (!cancelled) setChannels(list || []); })
-      .catch(() => { if (!cancelled) setChannels([]); })
-      .finally(() => { if (!cancelled) setChannelsLoading(false); });
-    return () => { cancelled = true; };
+    const delay = firstCategoryRef.current ? 0 : 250;
+    firstCategoryRef.current = false;
+    const t = window.setTimeout(() => {
+      fetchLiveStreams(creds, String(currentCategory.category_id))
+        .then(list => { if (!cancelled) setChannels(list || []); })
+        .catch(() => { if (!cancelled) setChannels([]); })
+        .finally(() => { if (!cancelled) setChannelsLoading(false); });
+    }, delay);
+    return () => { cancelled = true; window.clearTimeout(t); };
   }, [creds, currentCategory, refreshTick]);
 
   // Clamp row
@@ -162,14 +176,16 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     if (rowIdx >= channels.length) setRowIdx(0);
   }, [channels.length, rowIdx]);
 
-  // Virtualizer for channel rows
+  // Virtualizer for channel rows. A stable key function: an inline one made
+  // the virtualizer re-measure every channel on every render.
+  const getItemKey = useCallback((i: number) => channels[i]?.stream_id ?? i, [channels]);
   const scrollParentRef = useRef<HTMLDivElement | null>(null);
   const rowVirtualizer = useVirtualizer({
     count: channels.length,
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: isFireTV() ? 2 : 6,
-    getItemKey: (i) => channels[i]?.stream_id ?? i,
+    overscan: isFireTV() || isLowMemoryBox() ? 2 : 6,
+    getItemKey,
   });
 
   // EPG lazy fetch (concurrency-capped)
@@ -178,17 +194,28 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const epgQueueRef = useRef<number[]>([]);
   const epgInFlightRef = useRef(0);
   const [, forceEpgTick] = useState(0);
+  // The queue used to outlive everything: rows scrolled past, a new category,
+  // fullscreen playback, even leaving the Guide — it drained every id ever
+  // seen. Now it only ever holds rows on screen, and stops when the Guide goes.
+  const epgAliveRef = useRef(true);
+  useEffect(() => () => { epgAliveRef.current = false; epgQueueRef.current = []; }, []);
 
   const pumpEpg = useCallback(() => {
-    while (epgInFlightRef.current < EPG_MAX_CONCURRENT && epgQueueRef.current.length) {
+    while (epgAliveRef.current && epgInFlightRef.current < EPG_MAX_CONCURRENT && epgQueueRef.current.length) {
       const id = epgQueueRef.current.shift()!;
       epgInFlightRef.current++;
+      const put = (programs: DecodedProgram[]) => {
+        const cache = epgCacheRef.current;
+        cache.set(id, programs);
+        while (cache.size > EPG_CACHE_MAX) cache.delete(cache.keys().next().value as number);
+      };
       fetchShortEpg(creds, id, 16)
-        .then(res => { epgCacheRef.current.set(id, decodePrograms(res.epg_listings || [])); })
-        .catch(() => { epgCacheRef.current.set(id, []); })
+        .then(res => { if (epgAliveRef.current) put(decodePrograms(res.epg_listings || [])); })
+        .catch(() => { if (epgAliveRef.current) put([]); })
         .finally(() => {
           epgInFlightRef.current--;
           epgPendingRef.current.delete(id);
+          if (!epgAliveRef.current) return;
           forceEpgTick(t => t + 1);
           if (epgQueueRef.current.length) pumpEpg();
         });
@@ -204,11 +231,37 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
 
   const virtualItems = rowVirtualizer.getVirtualItems();
   useEffect(() => {
-    for (const v of virtualItems) {
-      const s = channels[v.index];
-      if (s) enqueueEpg(s.stream_id);
+    // Drop queued rows that are no longer on screen (in-flight ones finish).
+    const visible = new Set<number>();
+    if (!fullscreen) {
+      for (const v of virtualItems) {
+        const s = channels[v.index];
+        if (s) visible.add(s.stream_id);
+      }
     }
-  }, [virtualItems, channels, enqueueEpg]);
+    const keep: number[] = [];
+    for (const id of epgQueueRef.current) {
+      if (visible.has(id)) keep.push(id);
+      else epgPendingRef.current.delete(id);
+    }
+    epgQueueRef.current = keep;
+    visible.forEach(enqueueEpg);
+  }, [virtualItems, channels, enqueueEpg, fullscreen]);
+
+  // Keep the focused category in view — once per move, and only this bar's
+  // own scroll. The old inline ref ran scrollIntoView on every render (each
+  // EPG reply included) and could nudge the page's scroll too.
+  const catBarRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!isActive || focusZone !== 'category') return;
+    const bar = catBarRef.current;
+    const el = bar?.querySelector<HTMLElement>(`[data-cat-i="${categoryIdx}"]`);
+    if (!bar || !el) return;
+    const left = el.offsetLeft - bar.offsetLeft;
+    const right = left + el.offsetWidth;
+    if (left < bar.scrollLeft) bar.scrollLeft = left - 8;
+    else if (right > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = right - bar.clientWidth + 8;
+  }, [categoryIdx, focusZone, isActive, categories.length]);
 
   // Keep focused row visible
   useEffect(() => {
@@ -220,7 +273,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     const bot = top + ROW_HEIGHT;
     if (top < node.scrollTop) node.scrollTop = top;
     else if (bot > node.scrollTop + node.clientHeight) node.scrollTop = bot - node.clientHeight;
-  }, [rowIdx, channels.length]);
+    // `fullscreen`: the grid is rebuilt when playback closes, back at the top.
+  }, [rowIdx, channels.length, fullscreen]);
 
   const windowEnd = windowStart + WINDOW_MINUTES * 60_000;
   const slotStarts = useMemo(
@@ -471,14 +525,14 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         ) : categories.length === 0 ? (
           <div className="text-brand-ice/70 font-nunito text-sm px-2 py-1">No categories.</div>
         ) : (
-          <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden whitespace-nowrap py-1 px-2 -mx-2">
+          <div ref={catBarRef} className="flex items-center gap-2 overflow-x-auto overflow-y-hidden whitespace-nowrap py-1 px-2 -mx-2">
             {categories.map((c, i) => {
               const isFocused = isActive && focusZone === 'category' && categoryIdx === i;
               const isSelected = categoryIdx === i;
               return (
                 <button
                   key={c.category_id}
-                  ref={el => { if (isFocused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
+                  data-cat-i={i}
                   data-focused={isFocused ? 'true' : 'false'}
                   onClick={() => { setCategoryIdx(i); setFocusZone('grid'); }}
                   className={`

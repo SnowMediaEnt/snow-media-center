@@ -361,6 +361,9 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
     // Start the no-frames watchdog. Targets the "black video but timer advances"
     // failure mode: MSE samples appended but the decoder emits nothing.
     const startWatchdog = (recover: () => Promise<boolean> | boolean, fallback: () => Promise<void> | void) => {
+      // A zap during play() lands here after cleanup: an interval started
+      // now would never be cleared.
+      if (cancelled) return;
       clearWatchdogs();
       const startedAt = Date.now();
       let noFramesSince = startedAt;
@@ -425,6 +428,8 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
             return;
           }
           const Hls = (await import('hls.js')).default;
+          // Zapped away during the first-time import: attach nothing.
+          if (cancelled) return;
           if (Hls.isSupported()) {
             const hls = new Hls({
               liveDurationInfinity: true,
@@ -555,6 +560,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
     // Mpegts engine attachment, extracted so the HLS watchdog can fall back to it.
     const attachMpegts = async (url: string) => {
       const mpegts = (await import('mpegts.js')).default;
+      if (cancelled) return;
       if (mpegts.getFeatureList().mseLivePlayback) {
         const player = mpegts.createPlayer(
           { type: 'mpegts', url, isLive: true, hasAudio: true, hasVideo: true },
@@ -565,6 +571,10 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
             liveBufferLatencyMaxLatency: 8,
             liveBufferLatencyMinRemain: 2,
             autoCleanupSourceBuffer: true,
+            // The defaults keep 120–180 s behind the playhead in the
+            // renderer (≈100 MB); only "Rewind 10s" ever reaches back.
+            autoCleanupMaxBackwardDuration: 60,
+            autoCleanupMinBackwardDuration: 30,
           },
         );
         engineRef.current = 'mpegts';
@@ -598,6 +608,9 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
             try { video.volume = Math.min(1, Math.max(0, volume)); } catch { /* ignore */ }
           }
         } catch { /* ignore */ }
+        // Zapped during play(): cleanup already tore this player down (it was
+        // in teardownRef then), so just stop — no watchdog for a dead player.
+        if (cancelled) return;
 
         // Watchdog: if still no frames, give up gracefully (no further fallback).
         startWatchdog(

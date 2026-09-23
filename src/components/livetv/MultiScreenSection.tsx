@@ -121,7 +121,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
   ]);
 
   const {
-    slots, loadSlot, closeSlot, applyRect, focusAudio, stopAll,
+    slots, loadSlot, closeSlot, applyRect, focusAudio, stopAll, suspendOthers, resumeOthers,
   } = useMultiScreenPlayers();
 
   // Picker data
@@ -197,7 +197,9 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const latestCatRef = useRef<string | null>(null);
   const loadChannelsFor = useCallback(async (catId: string) => {
+    latestCatRef.current = catId;
     if (catId === '__favs__') {
       const favs = Array.from(loadFavoritesData().values()).map(f => ({
         stream_id: f.stream_id,
@@ -217,21 +219,28 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
     try {
       const list = await getLiveStreams(creds, catId);
       channelsCacheRef.current.set(catId, list);
-      setChannels(list);
+      // A slower, older category must not replace the one now highlighted.
+      if (latestCatRef.current === catId) setChannels(list);
     } catch {
-      setChannels([]);
+      if (latestCatRef.current === catId) setChannels([]);
     } finally {
-      setLoadingChannels(false);
+      if (latestCatRef.current === catId) setLoadingChannels(false);
     }
   }, [creds]);
 
   // When channel pane opens or category changes, load channels.
+  // Once focus settles on a category — holding ▼ in the picker used to
+  // download the list of every category passed. Kept lists show at once.
   useEffect(() => {
     if (pickerOpenForTile === null) return;
     const cat = categories[categoryIdx];
     if (!cat) return;
-    void loadChannelsFor(cat.id);
     setChannelIdx(0);
+    if (cat.id === '__favs__' || channelsCacheRef.current.has(cat.id)) { void loadChannelsFor(cat.id); return; }
+    latestCatRef.current = cat.id;
+    setLoadingChannels(true);
+    const t = window.setTimeout(() => { void loadChannelsFor(cat.id); }, 250);
+    return () => window.clearTimeout(t);
   }, [categoryIdx, pickerOpenForTile, categories, loadChannelsFor]);
 
   // Measure tiles → applyRect for each occupied slot.
@@ -248,19 +257,22 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
     for (let i = 0; i < spec.length; i++) {
       const el = tileRefs.current[i];
       const sid = spec[i].id;
-      const s = slots[sid];
+      const s = slotsRef.current[sid];
       if (!el || !s.url) continue;
       const r = el.getBoundingClientRect();
       void applyRect(sid, { x: r.left, y: r.top, width: r.width, height: r.height });
     }
-  }, [layout, slots, applyRect]);
+  }, [layout, applyRect]);
 
+  // Re-measure when a tile gains or loses a stream — not on every buffering
+  // flip, which used to re-measure every tile and re-bind the listeners.
+  const occupiedKey = MS_SLOT_IDS.map((id) => (slots[id].url ? '1' : '0')).join('');
   useEffect(() => {
     if (!layout) return;
     // Rect after layout/paint
     const raf = requestAnimationFrame(() => measureAndApply());
     return () => cancelAnimationFrame(raf);
-  }, [layout, fullscreenSlot, measureAndApply, tiles]);
+  }, [layout, fullscreenSlot, measureAndApply, tiles, occupiedKey]);
 
   useEffect(() => {
     const onResize = () => measureAndApply();
@@ -296,7 +308,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
 
   // 4-grid hint bar: any slot buffering > 6s
   useEffect(() => {
-    if (layout !== '4' || hintDismissedForSession) return;
+    if (layout !== '4' || hintDismissedForSession || showHint) return;
     const id = window.setInterval(() => {
       const now = Date.now();
       const bad = MS_SLOT_IDS.some(sid => {
@@ -398,21 +410,26 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
     const sid = spec[tileIdx]?.id;
     if (!sid) return;
     setFullscreenSlot(sid);
+    // The other tiles were still downloading and decoding behind the one on
+    // screen (and could even paint over it). Pause them until you come back.
+    await suspendOthers(sid);
     await applyRect(sid, { x: 0, y: 0, width: 0, height: 0 });
     await focusAudio(sid);
-  }, [layout, applyRect, focusAudio]);
+  }, [layout, applyRect, focusAudio, suspendOthers]);
 
   const exitFullscreen = useCallback(() => {
     setFullscreenSlot(null);
     // Re-measure all occupied, then re-assert audio on the focused tile.
     requestAnimationFrame(() => {
       measureAndApply();
+      // After the rects: a paused tile restarts in its own box, not fullscreen.
+      resumeOthers();
       const fsid = layoutRef.current
         ? tilesForLayout(layoutRef.current)[focusedTileRef.current]?.id
         : undefined;
       void focusAudio(fsid && slotsRef.current[fsid]?.url ? fsid : null);
     });
-  }, [measureAndApply, focusAudio]);
+  }, [measureAndApply, focusAudio, resumeOthers]);
 
   // Categories virtualizer
   const catScrollRef = useRef<HTMLDivElement | null>(null);
@@ -550,9 +567,8 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
         const n = layoutNeighbor(layoutRef.current, focusedTileRef.current, dir);
         if (n !== null) {
           consume(e);
+          // Audio follows via the focusedSid effect.
           setFocusedTile(n);
-          const sid = tilesForLayout(layoutRef.current!)[n]?.id;
-          void focusAudio(sid && slotsRef.current[sid]?.url ? sid : null);
         }
         return;
       }

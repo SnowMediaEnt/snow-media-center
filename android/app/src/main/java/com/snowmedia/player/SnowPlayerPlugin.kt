@@ -2,6 +2,8 @@
 
 package com.snowmedia.player
 
+import android.app.ActivityManager
+import android.content.Context
 import android.graphics.Color
 import android.net.Uri
 import android.os.Handler
@@ -147,7 +149,11 @@ class SnowPlayerPlugin : Plugin() {
     private fun scheduleWatchdog(s: PlayerSlot, screenId: String) {
         s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
         val r = Runnable {
-            if (s.currentUrl != null && !s.firstFrameSeen) reconnect(s, screenId)
+            // A radio channel never renders a video frame. It used to be torn
+            // down and reconnected every 8 s (≈120 times) while playing fine.
+            val p = s.player
+            val audioOnly = p != null && p.isPlaying && !p.currentTracks.containsType(C.TRACK_TYPE_VIDEO)
+            if (s.currentUrl != null && !s.firstFrameSeen && !audioOnly) reconnect(s, screenId)
         }
         s.watchdogRunnable = r
         mainHandler.postDelayed(r, FIRST_FRAME_TIMEOUT_MS)
@@ -265,6 +271,32 @@ class SnowPlayerPlugin : Plugin() {
         return true
     }
 
+    private fun isLowRamBox(ctx: Context): Boolean {
+        return try {
+            val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val mi = ActivityManager.MemoryInfo()
+            am.getMemoryInfo(mi)
+            am.isLowRamDevice || mi.totalMem <= 2_200_000_000L
+        } catch (e: Throwable) {
+            false
+        }
+    }
+
+    /** Multi-Screen tiles: stop() only stopped the media, so after one visit
+     *  up to four players (threads, views, last-frame buffers) stayed alive
+     *  for the rest of the session. load() rebuilds all of this on demand. */
+    private fun releaseSlot(s: PlayerSlot) {
+        s.player?.release()
+        s.player = null
+        s.trackSelector = null
+        s.container?.let { c -> (c.parent as? ViewGroup)?.removeView(c) }
+        s.container = null
+        s.textureView = null
+        s.subtitleView = null
+        s.videoW = 0
+        s.videoH = 0
+    }
+
     private fun buildPlayer(s: PlayerSlot, screenId: String) {
         val act = activity ?: return
         val ts = DefaultTrackSelector(act)
@@ -309,10 +341,24 @@ class SnowPlayerPlugin : Plugin() {
                     .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6)),
             )
         // Trimmed buffers for non-main slots so up to 4 concurrent players fit
-        // in Fire TV memory. "main" keeps the library default (no LoadControl).
+        // in Fire TV memory — capped in bytes too, or a 15 Mb/s tile could
+        // hold ~30 MB. "main" keeps the library default (up to ~138 MB of
+        // buffer) except on 2 GB-class boxes, where that memory is what gets
+        // the WebView killed; there it keeps 15–30 s, time before size so a
+        // high-bitrate Plex film still has its 15 s.
+        val lowRam = isLowRamBox(act)
         if (screenId != MAIN) {
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(4000, 15000, 1000, 2000)
+                .setTargetBufferBytes(if (lowRam) 6 * 1024 * 1024 else 10 * 1024 * 1024)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+            builder.setLoadControl(loadControl)
+        } else if (lowRam) {
+            val loadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(15000, 30000, 2500, 5000)
+                .setTargetBufferBytes(48 * 1024 * 1024)
+                .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
             builder.setLoadControl(loadControl)
         }
@@ -536,8 +582,10 @@ class SnowPlayerPlugin : Plugin() {
     @PluginMethod
     fun stop(call: PluginCall) {
         val s = slot(call)
+        val screenId = screenIdOf(call)
         activity?.runOnUiThread {
             stopSlot(s)
+            if (screenId != MAIN) releaseSlot(s)
             if (!anySlotStreaming()) {
                 activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
@@ -548,7 +596,10 @@ class SnowPlayerPlugin : Plugin() {
     @PluginMethod
     fun stopAll(call: PluginCall) {
         activity?.runOnUiThread {
-            for (s in slots.values) stopSlot(s)
+            for ((id, s) in slots) {
+                stopSlot(s)
+                if (id != MAIN) releaseSlot(s)
+            }
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             call.resolve()
         }

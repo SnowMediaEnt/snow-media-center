@@ -4,7 +4,7 @@
 // only filters server/tenant targeting.
 import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { RefreshCw, LifeBuoy, Radio, Film } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { useBackupStreams, type BackupStream } from '@/hooks/useBackupStreams';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
@@ -34,12 +34,18 @@ interface Props {
   serverLabel?: string | null;
 }
 
+// Posters here are whatever URL an admin pasted. A TMDB "original" is about
+// 2000x3000 (≈24 MB decoded) for a 150 px card, and Chromium 66 ignores
+// loading="lazy", so every one decodes at once. Ask TMDB for a tile size.
+const tilePoster = (url: string) =>
+  url.replace(/(image\.tmdb\.org\/t\/p\/)(original|w\d{4,})\//, '$1w342/');
+
 const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Props) => {
-  const { toast } = useToast();
-  const { live, vod, loading, refresh } = useBackupStreams(serverLabel ?? null);
+  const [playing, setPlaying] = useState<BackupStream | null>(null);
+  // Paused while a stream plays: the 60 s safety poll waits until you stop.
+  const { live, vod, loading, refresh } = useBackupStreams(serverLabel ?? null, !!playing);
 
   const [focus, setFocus] = useState<Focus>({ row: 'refresh', col: 0 });
-  const [playing, setPlaying] = useState<BackupStream | null>(null);
   // On-screen title: shows 4 s on play / title change / any key, then hides.
   const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [volume, setVolume] = useState<number>(() => loadVolume());
@@ -60,7 +66,6 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
   const onExitUpRef = useRef(onExitUp);
   const serverLabelRef = useRef(serverLabel);
   const refreshRef = useRef(refresh);
-  const toastRef = useRef(toast);
   useEffect(() => { focusRef.current = focus; }, [focus]);
   useEffect(() => { playingRef.current = playing; }, [playing]);
   useEffect(() => { liveRef.current = live; }, [live]);
@@ -69,7 +74,6 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
   useEffect(() => { onExitUpRef.current = onExitUp; }, [onExitUp]);
   useEffect(() => { serverLabelRef.current = serverLabel; }, [serverLabel]);
   useEffect(() => { refreshRef.current = refresh; }, [refresh]);
-  useEffect(() => { toastRef.current = toast; }, [toast]);
   useEffect(() => {
     rowsRef.current = ['refresh', ...(live.length ? ['live' as const] : []), ...(vod.length ? ['vod' as const] : [])];
   }, [live.length, vod.length]);
@@ -116,7 +120,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
   const doRefresh = useCallback(() => {
     refreshRef.current();
     if (!DEMO) { try { trackEvent('backup_refresh', 'player', {}); } catch { /* ignore */ } }
-    toastRef.current({ title: 'Updated', description: 'Backup list refreshed.' });
+    toast({ title: 'Updated', description: 'Backup list refreshed.' });
   }, []);
 
   // Clamp focus when shelves appear/disappear (rows can shrink on refresh).
@@ -345,7 +349,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
                 >
                   {s.poster_url ? (
                     <div className="w-full aspect-[2/3] bg-black/40">
-                      <img src={s.poster_url} alt={s.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      <img src={tilePoster(s.poster_url)} alt={s.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     </div>
                   ) : (
                     <div className="w-full aspect-[2/3] bg-black/40 flex items-center justify-center p-3 text-center">

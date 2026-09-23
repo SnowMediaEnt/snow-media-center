@@ -5,13 +5,15 @@
 //   2. Realtime subscription armed inside onFirstInteraction — NOT at mount.
 //      Deferring the websocket handshake stops two channels racing during
 //      boot on Android TV WebViews.
-//   3. setPausableInterval as a 60s safety net.
+//   3. setPausableInterval as a 60s safety net — skipped while a backup
+//      stream is playing, so the list never competes with playback.
 // RLS already filters to active rows inside their start/end window, so no
 // client-side filtering on active/starts_at/ends_at here.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { keepIfSame } from '@/lib/keepIfSame';
 
 export interface BackupStream {
   id: string;
@@ -28,9 +30,13 @@ export interface BackupStream {
 
 const SELECT = 'id,kind,title,subtitle,url,poster_url,server_label,reseller_id,sort,updated_at';
 
-export function useBackupStreams(serverLabel: string | null) {
+let _channelSeq = 0;
+
+export function useBackupStreams(serverLabel: string | null, paused = false) {
   const [rows, setRows] = useState<BackupStream[]>([]);
   const [loading, setLoading] = useState(true);
+  const pausedRef = useRef(paused);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
 
   const fetchRows = useCallback(async () => {
     const { data, error } = await supabase
@@ -38,7 +44,8 @@ export function useBackupStreams(serverLabel: string | null) {
       .select(SELECT)
       .order('sort', { ascending: true });
     if (error) { console.warn('[BackupStreams] fetch failed:', error.message); setLoading(false); return; }
-    setRows((data || []) as BackupStream[]);
+    // Same list back → same array, so the section does not re-render.
+    setRows((prev) => keepIfSame(prev, (data || []) as BackupStream[]));
     setLoading(false);
   }, []);
 
@@ -46,13 +53,15 @@ export function useBackupStreams(serverLabel: string | null) {
     const cancelIdle = runWhenIdle(() => { void fetchRows(); }, 1500);
     let channel: ReturnType<typeof supabase.channel> | null = null;
     const cancelFirst = onFirstInteraction(() => {
+      // Unique name: re-entering Backups before the old channel's leave is
+      // acknowledged would otherwise hand back that dying channel.
       channel = supabase
-        .channel('backup_streams_changes')
+        .channel(`backup_streams_changes_${++_channelSeq}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'backup_streams' }, () => { void fetchRows(); })
         .subscribe();
     });
     // Essential: this list lives inside the Player, where quiet mode is on.
-    const cancelInterval = setPausableInterval(() => { void fetchRows(); }, 60_000, { essential: true });
+    const cancelInterval = setPausableInterval(() => { if (!pausedRef.current) void fetchRows(); }, 60_000, { essential: true });
     return () => { cancelIdle(); cancelFirst(); cancelInterval(); if (channel) supabase.removeChannel(channel); };
   }, [fetchRows]);
 

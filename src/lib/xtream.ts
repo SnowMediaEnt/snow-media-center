@@ -543,6 +543,10 @@ export function bumpXtreamRefresh(): number {
   return xtreamRefreshNonce;
 }
 export function getXtreamRefreshNonce(): number { return xtreamRefreshNonce; }
+/** Drop the kept live lists without asking anyone to refetch. The Player
+ *  calls this when it leaves Live TV, closes, or changes account, so a full
+ *  line-up is not held in memory through a Plex session or on the home screen. */
+export function clearLiveCatalogue(): void { _liveCatalogue.clear(); }
 
 // --- API endpoints ----------------------------------------------------------
 
@@ -658,16 +662,39 @@ export async function authenticateRouted(
 // downloads of a catalogue that does not change between them. Keyed by the
 // full URL (creds + category + the refresh nonce), and cleared outright by
 // bumpXtreamRefresh(), which "Update Channels" and opening the Player both
-// call, so freshness is exactly what it was. A failed request is not kept.
+// call, so freshness is exactly what it was, and by clearLiveCatalogue() the
+// moment Live TV is left. A failed request is not kept.
+// Least-recently-used, and small: browsing category after category used to
+// keep every list ever opened — most of the catalogue — for the whole visit.
+// The sections hold their own reference to the list on screen, so dropping
+// one here only means a later revisit asks the panel again.
 const _liveCatalogue = new Map<string, Promise<unknown>>();
+const liveCatalogueMax = (): number => {
+  try { return document.documentElement.classList.contains('native-low-memory') ? 8 : 24; } catch { return 24; }
+};
 const memoLive = <T,>(url: string, fetcher: () => Promise<T>): Promise<T> => {
   let p = _liveCatalogue.get(url) as Promise<T> | undefined;
-  if (!p) {
-    p = fetcher().catch((e) => { _liveCatalogue.delete(url); throw e; });
+  if (p) {
+    _liveCatalogue.delete(url);
     _liveCatalogue.set(url, p);
+    return p;
   }
+  const mine = fetcher().catch((e) => {
+    if (_liveCatalogue.get(url) === mine) _liveCatalogue.delete(url);
+    throw e;
+  });
+  p = mine;
+  _liveCatalogue.set(url, p);
+  const max = liveCatalogueMax();
+  while (_liveCatalogue.size > max) _liveCatalogue.delete(_liveCatalogue.keys().next().value as string);
   return p;
 };
+/** Forget one kept live list (a favourite heal wants a genuinely fresh copy). */
+export function forgetLiveStreams(c: XtreamCreds, categoryId?: string): void {
+  const params: Record<string, string | number> = { action: 'get_live_streams' };
+  if (categoryId) params.category_id = categoryId;
+  _liveCatalogue.delete(buildBase(c, params));
+}
 
 export async function getLiveCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
   if (isDemo()) return demoGetLiveCategories();

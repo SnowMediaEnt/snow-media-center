@@ -395,7 +395,7 @@ const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayou
     {currentView === 'ai-conversations' && <AIConversationSystem onBack={goBack} />}
     {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={goBack} />}
     {currentView === 'admin-support' && <AdminSupportDashboard onBack={goBack} />}
-    {currentView === 'livetv' && <LiveTV onBack={goBack} onNavigate={(view) => navigateTo(view)} />}
+    {currentView === 'livetv' && <LiveTV onBack={goBack} onNavigate={navigateTo} />}
     {currentView === 'account-signin' && (
       <AccountChooser
         onBack={goBack}
