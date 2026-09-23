@@ -13,6 +13,7 @@ import {
 } from '@/lib/theme';
 import { LIVE_LAYOUTS, saveLiveLayout, useLiveLayout, type LiveLayout } from '@/lib/liveLayout';
 import LiveLayoutWire from './LiveLayoutWire';
+import { keepInView } from '@/utils/keepInView';
 
 interface Props {
   onBack: () => void;
@@ -59,6 +60,16 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
   const [focusIdx, setFocusIdx] = useState(1);
   const focusIdxRef = useRef(focusIdx);
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
+  // Follow the highlight down the page: Background, Text color and Reset sit
+  // below the fold on a TV, and nothing scrolled them into view.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    if (focusIdx <= 1) { node.scrollTop = 0; return; }
+    const el = node.querySelector<HTMLElement>('[data-focused="true"]');
+    if (el) keepInView(node, el, 24);
+  }, [focusIdx]);
 
   const findChip = (idx: number): { chip: Chip; group: number; posInGroup: number } | null => {
     if (idx <= 0 || idx >= groupStarts.resetIdx) return null;
@@ -212,7 +223,7 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
+      <div ref={scrollRef} className="flex-1 overflow-auto p-6 flex items-start justify-center">
         <div className="w-full max-w-3xl space-y-6">
           {groups.map((g, gi) => (
             <div key={groupLabels[gi]} className="space-y-3">

@@ -284,6 +284,8 @@ export async function applyServiceToPlayer(
   }
 
   await saveCreds(creds);
+  // Signed in again: a later empty Player may sign itself in from the account.
+  try { localStorage.removeItem('smc-player-signed-out'); } catch { /* ignore */ }
   const acc = buildPlayerAccount(server, creds, ui);
   await savePlayerAccount(acc);
   void upsertSavedAccount({

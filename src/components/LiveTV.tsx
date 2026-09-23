@@ -20,6 +20,7 @@ import {
   type XtreamCreds,
 } from '@/lib/xtream';
 import { saveLiveLayout, type LiveLayout } from '@/lib/liveLayout';
+import { autoSignInPlayer, clearPlayerSignedOut, markPlayerSignedOut } from '@/lib/playerAutoSignIn';
 import { useAuth } from '@/hooks/useAuth';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
@@ -459,6 +460,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (DEMO) { demoAccountNote(); return; }
     await clearCreds();
     await clearPlayerAccount();
+    // Signed out on purpose: the next open asks, instead of signing back in.
+    markPlayerSignedOut();
     setCreds(null);
     setAccountFormOpen(false);
     setSettingsOpen(false);
@@ -506,6 +509,29 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // them; a full line-up is tens of MB of objects on a 1-2 GB box.
   useEffect(() => { if (mode !== 'live') clearLiveCatalogue(); }, [mode]);
   useEffect(() => () => clearLiveCatalogue(), []);
+
+  // No line on this box, but the viewer's billing or Snow Media account has
+  // one: sign the Player in with it before asking (see playerAutoSignIn.ts).
+  // Once per Player open, after auth has settled; the form shows if nothing
+  // works, and never after a deliberate sign-out.
+  const [autoSigningIn, setAutoSigningIn] = useState(false);
+  const autoTriedRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => {
+    if (DEMO || !credsLoaded || creds || authLoading || autoTriedRef.current) return;
+    autoTriedRef.current = true;
+    setAutoSigningIn(true);
+    const timeout = new Promise<null>((r) => window.setTimeout(() => r(null), 15000));
+    void Promise.race([autoSignInPlayer(user?.id ?? null), timeout])
+      .then((c) => {
+        if (!mountedRef.current || !c) return;
+        clearPlayerSignedOut();
+        setCreds((cur) => cur ?? c);
+      })
+      .catch(() => { /* the form shows */ })
+      .finally(() => { if (mountedRef.current) setAutoSigningIn(false); });
+  }, [credsLoaded, creds, authLoading, user?.id]);
 
   const showCredsForm = !DEMO && mode === 'live' && (!creds || accountFormOpen);
   // Demo: the settings hub exposes sign-out / change-credentials / switch-account,
@@ -824,6 +850,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
 
   // Sign-in screen — shown when no creds OR user opened account form
+  if (showCredsForm && autoSigningIn && !accountFormOpen) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center text-white bg-black/70">
+        <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
+        <p className="mt-4 text-lg font-nunito text-brand-ice/80">Signing you in with your account…</p>
+      </div>
+    );
+  }
+
   if (showCredsForm) {
     return (
       <div className="min-h-screen text-white bg-black/70">
@@ -832,6 +867,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             initial={creds}
             onChildOpenChange={(open) => { credsChildOpenRef.current = open; }}
             onSaved={(c) => {
+              clearPlayerSignedOut();
               setCreds(c);
               setAccountFormOpen(false);
             }}

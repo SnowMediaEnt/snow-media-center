@@ -289,13 +289,58 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     [playingChannelId, creds],
   );
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!playingChannelId;
+
+  // Preview: the highlighted channel plays in the box above the grid once
+  // the highlight rests on it, the same way Live TV's preview works. Same
+  // player and stream as full screen, so OK on it only moves the picture.
+  const [previewChannelId, setPreviewChannelId] = useState<number | null>(null);
+  const focusedGuideChannel = focusZone === 'grid' ? channels[rowIdx] ?? null : null;
+  useEffect(() => {
+    if (!NATIVE_PLAYBACK || DEMO || fullscreen || !focusedGuideChannel) { setPreviewChannelId(null); return; }
+    const t = window.setTimeout(() => setPreviewChannelId(focusedGuideChannel.stream_id), 700);
+    return () => window.clearTimeout(t);
+  }, [focusedGuideChannel, fullscreen]);
+  const nativePreviewActive = NATIVE_PLAYBACK && !DEMO && isActive && !fullscreen && previewChannelId != null;
+  const [previewRect, setPreviewRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const previewObserverRef = useRef<ResizeObserver | null>(null);
+  const previewBoxRef = useCallback((el: HTMLDivElement | null) => {
+    if (!NATIVE_PLAYBACK) return;
+    if (previewObserverRef.current) { previewObserverRef.current.disconnect(); previewObserverRef.current = null; }
+    if (!el) { setPreviewRect(null); return; }
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      const next = { x: r.left, y: r.top, width: r.width, height: r.height };
+      setPreviewRect((prev) =>
+        prev && Math.abs(prev.x - next.x) < 1 && Math.abs(prev.y - next.y) < 1
+          && Math.abs(prev.width - next.width) < 1 && Math.abs(prev.height - next.height) < 1
+          ? prev : next);
+    };
+    measure();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => measure());
+      ro.observe(el);
+      previewObserverRef.current = ro;
+    }
+  }, []);
+  // The page has to be see-through where the preview box is (index.css).
+  useEffect(() => {
+    if (!nativePreviewActive) return;
+    document.documentElement.classList.add('snowplayer-preview');
+    return () => { document.documentElement.classList.remove('snowplayer-preview'); };
+  }, [nativePreviewActive]);
+
+  const toTs = (u: string | null) => (u ? u.replace(/\.m3u8(\?|$)/i, '.ts$1') : null);
   const nativeUrl = nativeActive
-    ? (streamUrl ? streamUrl.replace(/\.m3u8(\?|$)/i, '.ts$1') : null)
-    : null;
+    ? toTs(streamUrl)
+    : nativePreviewActive && previewChannelId != null
+      ? toTs(buildLiveStreamUrl(creds, previewChannelId))
+      : null;
   const native = useNativePlayer({
-    active: nativeActive,
+    active: nativeActive || nativePreviewActive,
     url: nativeUrl,
     volume,
+    rect: nativeActive ? undefined : previewRect,
+    background: nativeActive,
   });
   useEffect(() => {
     if (!nativeActive) return;
@@ -330,6 +375,18 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   useEffect(() => { nativeErrorRef.current = native.error; }, [native.error]);
   useEffect(() => { nativeRetryRef.current = native.retry; }, [native.retry]);
 
+  // One press of the remote's Back arrives twice: this section's hardware
+  // back listener and the Player shell's synthetic Escape. The first closed
+  // full screen and the second then left the Guide for the side menu. A
+  // second Back this soon is the same press.
+  const lastBackAtRef = useRef(0);
+  const freshBack = () => {
+    const now = Date.now();
+    if (now - lastBackAtRef.current < 350) return false;
+    lastBackAtRef.current = now;
+    return true;
+  };
+
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
@@ -337,6 +394,10 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         const target = e.target as HTMLElement;
         const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
         if (typing) return;
+        if ((e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) && !freshBack()) {
+          e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+          return;
+        }
 
         if (fullscreenRef.current) {
           const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
@@ -429,6 +490,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       try {
         const h = await CapApp.addListener('backButton', () => {
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+          if (!freshBack()) return;
           if (fullscreenRef.current) { setFullscreen(false); return; }
           onExitLeft();
         });
@@ -515,7 +577,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const canGoEarlier = windowStart > nowInitialRef.current;
 
   return (
-    <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden bg-black/30">
+    <div data-native-clear className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden bg-black/30">
       {/* Category selector row */}
       <div className={`flex-shrink-0 border-b border-white/10 bg-black/40 px-3 py-2 ${focusZone === 'category' && isActive ? 'bg-white/5' : ''}`}>
         {categoriesLoading && categories.length === 0 ? (
@@ -547,6 +609,49 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           </div>
         )}
       </div>
+
+      {/* Preview: the highlighted channel, and what is on now and next */}
+      {(() => {
+        const ch = focusedGuideChannel ?? channels[rowIdx] ?? null;
+        const list = ch ? epgCacheRef.current.get(ch.stream_id) : undefined;
+        const n = Date.now();
+        const now = list?.find((p) => p.start <= n && n < p.end);
+        const next = list?.find((p) => p.start >= n);
+        return (
+          <div data-native-clear className="flex-shrink-0 flex items-stretch px-4 py-3 border-b border-white/10" style={{ height: '27vh' }}>
+            <div
+              ref={previewBoxRef}
+              className={`h-full flex-shrink-0 rounded-xl overflow-hidden border border-white/10 flex items-center justify-center ${nativePreviewActive ? '' : 'bg-black'}`}
+              style={{ width: 'calc(27vh * 16 / 9 - 24px * 16 / 9)' }}
+            >
+              {!nativePreviewActive && (
+                ch?.stream_icon
+                  ? <img src={ch.stream_icon} alt="" className="max-w-[60%] max-h-[60%] object-contain opacity-80" />
+                  : <Tv className="w-10 h-10 text-brand-ice/30" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0 pl-5 flex flex-col justify-center">
+              {ch ? (
+                <>
+                  <h3 className="text-2xl font-quicksand font-bold text-white truncate">{ch.name}</h3>
+                  {now ? (
+                    <>
+                      <p className="mt-1 text-lg text-brand-ice/90 font-nunito truncate">Now: {now.title}</p>
+                      <p className="text-sm text-brand-ice/60 font-nunito">{formatSlot(now.start)} – {formatSlot(now.end)}</p>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-base text-brand-ice/60 font-nunito">No programme information</p>
+                  )}
+                  {next && <p className="mt-2 text-base text-brand-ice/70 font-nunito truncate">Next: {next.title} · {formatSlot(next.start)}</p>}
+                  <p className="mt-2 text-xs text-brand-ice/45 font-nunito">OK to watch full screen</p>
+                </>
+              ) : (
+                <p className="text-base text-brand-ice/60 font-nunito">Pick a channel to preview it here.</p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Time header */}
       <div

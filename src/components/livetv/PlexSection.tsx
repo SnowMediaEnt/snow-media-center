@@ -732,7 +732,10 @@ const SearchTile = memo(({ item: it, base, token, focused, onSelect }: {
       data-focused={focused ? 'true' : 'false'}>
       {/* padding-bottom, not aspect-ratio: see PlexPosterTile. */}
       <div className="relative h-0" style={{ paddingBottom: '150%' }}>
-        <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="absolute inset-0 w-full h-full object-cover" />
+        {/* eager + focusExempt: at most a few rows of results, and they are
+            the thing on screen. The viewport gate and focus-mode parking
+            could leave them on the grey placeholder. */}
+        <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} eager focusExempt className="absolute inset-0 w-full h-full object-cover" />
         <ResChip label={label} />
       </div>
       <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
@@ -740,6 +743,38 @@ const SearchTile = memo(({ item: it, base, token, focused, onSelect }: {
   );
 });
 SearchTile.displayName = 'SearchTile';
+
+// Cover art for a suggested search ("Popular", "Recent"): the top movie or
+// show that search finds on this server. Remembered for the session, so the
+// row paints at once the next time the box opens.
+const _chipArt = new Map<string, PlexItem | null>();
+const chipArtKey = (base: string, label: string) => `${base}|${label.toLowerCase()}`;
+
+/** A suggestion as a poster: the title's art, the search underneath. */
+const ChipTile = memo(({ chip, art, base, token, focused, onPick }: {
+  chip: SearchChip; art: PlexItem | null | undefined; base: string; token: string; focused: boolean; onPick: (c: SearchChip) => void;
+}) => {
+  const it = chip.item ?? art ?? null;
+  return (
+    <div
+      ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
+      onClick={() => onPick(chip)}
+      className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${focused ? 'scale-105 z-10' : ''}`}
+      data-focused={focused ? 'true' : 'false'}>
+      <div className="relative h-0" style={{ paddingBottom: '150%' }}>
+        {it?.thumb ? (
+          <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} eager focusExempt className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-navy/70 to-black/80 p-3 text-center">
+            <span className="text-lg font-quicksand font-bold text-white/85 leading-snug">{chip.label}</span>
+          </div>
+        )}
+      </div>
+      <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{chip.label}</div>
+    </div>
+  );
+});
+ChipTile.displayName = 'ChipTile';
 
 const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTabs }: SearchPanelProps) => {
   const [query, setQuery] = useState('');
@@ -776,15 +811,38 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
     // With something typed, the only chips are "Did you mean"; the popular
     // and recent rows belong to the empty box.
     if (query.trim()) {
-      return familyOnly(didYouMean, adultKeys).map((it) => ({ label: it.year ? `${it.title} (${it.year})` : it.title, group: 'didyoumean' as const, item: it }));
+      return familyOnly(didYouMean, adultKeys).slice(0, COLS).map((it) => ({ label: it.year ? `${it.title} (${it.year})` : it.title, group: 'didyoumean' as const, item: it }));
     }
+    // One row of posters per group, so Up/Down move between the rows.
     const seen = new Set<string>();
     const out: SearchChip[] = [];
-    for (const label of popular) { const k = label.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ label, group: 'popular' }); } }
-    for (const label of recent) { const k = label.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ label, group: 'recent' }); } }
+    let n = 0;
+    for (const label of popular) { const k = label.toLowerCase(); if (n < COLS && !seen.has(k)) { seen.add(k); out.push({ label, group: 'popular' }); n++; } }
+    n = 0;
+    for (const label of recent) { const k = label.toLowerCase(); if (n < COLS && !seen.has(k)) { seen.add(k); out.push({ label, group: 'recent' }); n++; } }
     return out;
   }, [popular, recent, didYouMean, query, adultKeys]);
   const showChips = chips.length > 0;
+
+  // Posters for the suggestion rows, two searches at a time.
+  const [chipArtTick, setChipArtTick] = useState(0);
+  useEffect(() => {
+    const todo = chips.filter((c) => !c.item && !_chipArt.has(chipArtKey(base, c.label)));
+    if (!todo.length) return;
+    let cancelled = false;
+    void mapLimit(todo, HOME_PARALLEL, async (c) => {
+      if (cancelled) return;
+      let hit: PlexItem | null = null;
+      try {
+        const r = familyOnly(await searchPlex(base, token, c.label), searchCtxRef.current.adultKeys);
+        hit = r.find((it) => !!it.thumb) ?? null;
+      } catch { hit = null; }
+      _chipArt.set(chipArtKey(base, c.label), hit);
+      if (!cancelled) setChipArtTick((t) => t + 1);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chips, base]);
 
   // A search the viewer meant — they went down into the results or opened
   // one — is what "Popular searches" counts and what this box remembers.
@@ -896,20 +954,29 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       if (!keys.includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       if (zoneRef.current === 'chips') {
-        // The chips wrap as one list across both groups; Left/Right walk it,
-        // Up returns to the box, Enter searches for the chip.
+        // Each group is one row of posters. Left/Right move along the row,
+        // Up/Down move between rows keeping the column (Up off the top row
+        // is the search box, Down off the last is the results), OK searches.
         const list = chipsRef.current;
         const i = chipIdxRef.current;
-        if (e.key === 'ArrowUp') { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); }
-        else if (e.key === 'ArrowLeft') { if (i > 0) setChipIdx(i - 1); else onExitRef.current(); }
-        else if (e.key === 'ArrowRight') { if (i + 1 < list.length) setChipIdx(i + 1); }
-        else if (e.key === 'ArrowDown') {
-          // Next group down, else the results under the chips.
-          const g = list[i]?.group;
-          const j = list.findIndex((c, k) => k > i && c.group !== g);
-          if (j >= 0) setChipIdx(j);
-          else if (resultsRef.current.length > 0) { setZone('grid'); setCursor(0); commit(queryRef.current); }
+        const groups: number[][] = [];
+        list.forEach((c, k) => {
+          if (k === 0 || list[k - 1].group !== c.group) groups.push([]);
+          groups[groups.length - 1].push(k);
+        });
+        const gi = groups.findIndex((g) => g.includes(i));
+        const row = groups[gi] ?? [];
+        const col = Math.max(0, row.indexOf(i));
+        if (e.key === 'ArrowUp') {
+          if (gi > 0) { const up = groups[gi - 1]; setChipIdx(up[Math.min(col, up.length - 1)]); }
+          else { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); }
         }
+        else if (e.key === 'ArrowDown') {
+          if (gi >= 0 && gi < groups.length - 1) { const dn = groups[gi + 1]; setChipIdx(dn[Math.min(col, dn.length - 1)]); }
+          else if (resultsRef.current.length > 0) { setZone('grid'); setCursor(Math.min(col, resultsRef.current.length - 1)); commit(queryRef.current); }
+        }
+        else if (e.key === 'ArrowLeft') { if (col > 0) setChipIdx(row[col - 1]); else onExitRef.current(); }
+        else if (e.key === 'ArrowRight') { if (col + 1 < row.length) setChipIdx(row[col + 1]); }
         else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const c = list[i]; if (c) pickChip(c); }
         return;
       }
@@ -917,7 +984,13 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       const cur = cursorRef.current;
       if (e.key === 'ArrowUp') {
         if (cur >= COLS) setCursor(cur - COLS);
-        else if (showChipsRef.current) { setZone('chips'); setChipIdx(Math.max(0, chipsRef.current.length - 1)); }
+        else if (showChipsRef.current) {
+          const list = chipsRef.current;
+          const lastGroup = list.length ? list[list.length - 1].group : null;
+          const lastRow = list.map((c, k) => ({ c, k })).filter(({ c }) => c.group === lastGroup).map(({ k }) => k);
+          setZone('chips');
+          setChipIdx(lastRow.length ? lastRow[Math.min(cur, lastRow.length - 1)] : 0);
+        }
         else { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); }
       }
       else if (e.key === 'ArrowDown') { if (cur + COLS < total) setCursor(cur + COLS); }
@@ -929,6 +1002,11 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
     return () => window.removeEventListener('keydown', handler, true);
   }, [isActive, commit, pickChip]);
 
+  const pickChipAt = useCallback((c: SearchChip) => {
+    const idx = chipsRef.current.indexOf(c);
+    if (idx >= 0) setChipIdx(idx);
+    pickChip(c);
+  }, [pickChip]);
   const rows = Math.ceil(results.length / COLS);
   // One click handler for every result, so a cursor move or a keystroke only
   // re-renders the tiles whose highlight changed (SearchTile is memoised).
@@ -963,24 +1041,18 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
                 <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-2">
                   {group === 'didyoumean' ? 'Did you mean' : group === 'popular' ? 'Popular searches' : 'Recent on this box'}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {mine.map(({ c, i }) => {
-                    const focused = isActive && zone === 'chips' && chipIdx === i;
-                    return (
-                      <button
-                        key={`${group}:${c.label}`}
-                        type="button"
-                        tabIndex={-1}
-                        data-focused={focused ? 'true' : 'false'}
-                        onClick={() => { setChipIdx(i); pickChip(c); }}
-                        className={`tv-ring appearance-none px-4 py-2 rounded-full border text-sm font-nunito transition-transform duration-150 ${
-                          focused ? 'bg-brand-gold/25 border-brand-gold text-white scale-105 z-10' : 'bg-white/5 border-white/15 text-white/85'
-                        }`}
-                      >
-                        {c.label}
-                      </button>
-                    );
-                  })}
+                <div className="grid grid-cols-6 gap-3" data-art-tick={chipArtTick}>
+                  {mine.map(({ c, i }) => (
+                    <ChipTile
+                      key={`${group}:${c.label}`}
+                      chip={c}
+                      art={c.item ? undefined : _chipArt.get(chipArtKey(base, c.label))}
+                      base={base}
+                      token={token}
+                      focused={isActive && zone === 'chips' && chipIdx === i}
+                      onPick={pickChipAt}
+                    />
+                  ))}
                 </div>
               </div>
             );
