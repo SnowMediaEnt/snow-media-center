@@ -46,6 +46,8 @@ import {
 } from '@/lib/plexDemo';
 import PlexAuthScreen from './PlexAuthScreen';
 import OverseerrRequestPanel from './OverseerrRequestPanel';
+import { overseerrRequest, overseerrSearch, missingFromPlex, type OverseerrItem } from '@/lib/overseerr';
+import { tmdbSized } from '@/lib/tmdbImage';
 import PlexImage from './PlexImage';
 import PlexLibraryRows from './PlexLibraryRows';
 import PlexPosterTile from './PlexPosterTile';
@@ -783,7 +785,16 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   const results = useMemo(() => familyOnly(rawResults, adultKeys), [rawResults, adultKeys]);
   const [loading, setLoading] = useState(false);
   // 'chips' is the suggestion rows shown before anything is typed.
-  const [zone, setZone] = useState<'input' | 'chips' | 'grid'>('input');
+  const [zone, setZone] = useState<'input' | 'chips' | 'grid' | 'request'>('input');
+  // "Not on Plex yet? Request it": what Overseerr finds for the same search
+  // that this server does not have. OK asks, then requests (approved
+  // automatically; shows with every season).
+  const [reqItems, setReqItems] = useState<OverseerrItem[]>([]);
+  const [reqCursor, setReqCursor] = useState(0);
+  const [reqSent, setReqSent] = useState<Record<number, 'requested' | 'already'>>({});
+  const [confirmReq, setConfirmReq] = useState<OverseerrItem | null>(null);
+  const [confirmIdx, setConfirmIdx] = useState(0);
+  const [requesting, setRequesting] = useState(false);
   const [cursor, setCursor] = useState(0);
   const [chipIdx, setChipIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -867,7 +878,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   searchCtxRef.current = { base, token, adultKeys };
   useEffect(() => {
     const q = query.trim();
-    if (!q) { setResults([]); setDidYouMean([]); return; }
+    if (!q) { setResults([]); setDidYouMean([]); setReqItems([]); return; }
     const mySeq = ++seqRef.current;
     setLoading(true);
     const t = window.setTimeout(() => {
@@ -879,6 +890,12 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         if (mySeq !== seqRef.current) return;
         setResults(r); setCursor(0); setLoading(false);
         const family = familyOnly(r, searchCtxRef.current.adultKeys);
+        // Alongside: what could be requested for this search.
+        void overseerrSearch(q).then((found) => {
+          if (mySeq !== seqRef.current) return;
+          setReqItems(missingFromPlex(found, family, COLS));
+          setReqCursor(0);
+        });
         if (!searchLooksThin(q, family)) { setDidYouMean([]); return; }
         // Thin answer. Search for the pieces of what was typed and score
         // everything that comes back against it.
@@ -903,6 +920,48 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
 
   const zoneRef = useRef(zone); useEffect(() => { zoneRef.current = zone; }, [zone]);
   const cursorRef = useRef(cursor); useEffect(() => { cursorRef.current = cursor; }, [cursor]);
+  const reqItemsRef = useRef(reqItems); useEffect(() => { reqItemsRef.current = reqItems; }, [reqItems]);
+  const reqSentRef = useRef(reqSent); useEffect(() => { reqSentRef.current = reqSent; }, [reqSent]);
+  const reqCursorRef = useRef(reqCursor); useEffect(() => { reqCursorRef.current = reqCursor; }, [reqCursor]);
+  const confirmReqRef = useRef(confirmReq); useEffect(() => { confirmReqRef.current = confirmReq; }, [confirmReq]);
+  const confirmIdxRef = useRef(confirmIdx); useEffect(() => { confirmIdxRef.current = confirmIdx; }, [confirmIdx]);
+  const requestingRef = useRef(requesting); useEffect(() => { requestingRef.current = requesting; }, [requesting]);
+  useEffect(() => {
+    const w = window as unknown as { __plexRequestAsk?: boolean };
+    w.__plexRequestAsk = !!confirmReq;
+    return () => { w.__plexRequestAsk = false; };
+  }, [confirmReq]);
+  // Leaving the row when it empties (a new search found nothing to request).
+  useEffect(() => { if (zone === 'request' && reqItems.length === 0) setZone(results.length ? 'grid' : 'input'); }, [zone, reqItems.length, results.length]);
+  // Already on its way: say so instead of asking again.
+  const askRequest = useCallback((it: OverseerrItem) => {
+    if (reqSentRef.current[it.id] || it.status === 2 || it.status === 3) {
+      toast({ title: 'Already requested', description: `${it.title} is already on its way to Plex.` });
+      return;
+    }
+    setConfirmIdx(0);
+    setConfirmReq(it);
+  }, []);
+  const askRequestRef = useRef(askRequest);
+  const sendRequest = useCallback(async (it: OverseerrItem) => {
+    if (requestingRef.current) return;
+    setRequesting(true);
+    const res = await overseerrRequest(it);
+    setRequesting(false);
+    setConfirmReq(null);
+    if (res === 'failed') {
+      toast({ title: "Couldn't send that request", description: 'Please try again in a minute.', variant: 'destructive' });
+      return;
+    }
+    setReqSent((m) => ({ ...m, [it.id]: res }));
+    try { trackEvent('plex_request', 'player', { media: it.mediaType, title: it.title.slice(0, 80), result: res }); } catch { /* ignore */ }
+    toast({
+      title: res === 'already' ? 'Already requested' : 'Requested!',
+      description: res === 'already'
+        ? `${it.title} is already on its way.`
+        : `${it.title} will be added to Plex${it.mediaType === 'tv' ? ', every season' : ''} — usually within a few hours.`,
+    });
+  }, []);
   const chipIdxRef = useRef(chipIdx); useEffect(() => { chipIdxRef.current = chipIdx; }, [chipIdx]);
   const chipsRef = useRef(chips); useEffect(() => { chipsRef.current = chips; }, [chips]);
   const showChipsRef = useRef(showChips); useEffect(() => { showChipsRef.current = showChips; }, [showChips]);
@@ -924,6 +983,22 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
       if (!isPlexKeyOwner('browse')) return;
+      // The "Request it?" question owns the remote while it is up.
+      if (confirmReqRef.current) {
+        const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
+        const k = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', ' '];
+        if (!isBack && !k.includes(e.key)) return;
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        if (isBack) { setConfirmReq(null); return; }
+        if (e.key === 'ArrowLeft') setConfirmIdx(0);
+        else if (e.key === 'ArrowRight') setConfirmIdx(1);
+        else if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+          const it = confirmReqRef.current;
+          if (confirmIdxRef.current === 0 && it) void sendRequest(it);
+          else setConfirmReq(null);
+        }
+        return;
+      }
       const t = e.target as HTMLElement;
       const inInput = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
       if (zoneRef.current === 'input') {
@@ -942,6 +1017,9 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
             e.preventDefault(); e.stopPropagation(); inputRef.current?.blur(); setZone('chips'); setChipIdx(0);
           } else if (resultsRef.current.length > 0) {
             e.preventDefault(); e.stopPropagation(); inputRef.current?.blur(); setZone('grid'); setCursor(0);
+            commit(queryRef.current);
+          } else if (reqItemsRef.current.length > 0) {
+            e.preventDefault(); e.stopPropagation(); inputRef.current?.blur(); setZone('request'); setReqCursor(0);
             commit(queryRef.current);
           }
         } else if (inInput && e.key === 'ArrowUp') {
@@ -974,10 +1052,28 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         else if (e.key === 'ArrowDown') {
           if (gi >= 0 && gi < groups.length - 1) { const dn = groups[gi + 1]; setChipIdx(dn[Math.min(col, dn.length - 1)]); }
           else if (resultsRef.current.length > 0) { setZone('grid'); setCursor(Math.min(col, resultsRef.current.length - 1)); commit(queryRef.current); }
+          else if (reqItemsRef.current.length > 0) { setZone('request'); setReqCursor(Math.min(col, reqItemsRef.current.length - 1)); }
         }
         else if (e.key === 'ArrowLeft') { if (col > 0) setChipIdx(row[col - 1]); else onExitRef.current(); }
         else if (e.key === 'ArrowRight') { if (col + 1 < row.length) setChipIdx(row[col + 1]); }
         else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const c = list[i]; if (c) pickChip(c); }
+        return;
+      }
+      if (zoneRef.current === 'request') {
+        const list = reqItemsRef.current;
+        const i = reqCursorRef.current;
+        if (e.key === 'ArrowLeft') { if (i > 0) setReqCursor(i - 1); else onExitRef.current(); }
+        else if (e.key === 'ArrowRight') { if (i + 1 < list.length) setReqCursor(i + 1); }
+        else if (e.key === 'ArrowUp') {
+          const n = resultsRef.current.length;
+          if (n > 0) { setZone('grid'); setCursor(Math.min(n - 1, Math.floor((n - 1) / COLS) * COLS + i)); }
+          else if (showChipsRef.current) { setZone('chips'); setChipIdx(Math.max(0, chipsRef.current.length - 1)); }
+          else { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); }
+        }
+        else if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+          const it = list[i];
+          if (it) askRequestRef.current(it);
+        }
         return;
       }
       const total = resultsRef.current.length;
@@ -993,14 +1089,17 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         }
         else { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); }
       }
-      else if (e.key === 'ArrowDown') { if (cur + COLS < total) setCursor(cur + COLS); }
+      else if (e.key === 'ArrowDown') {
+        if (cur + COLS < total) setCursor(cur + COLS);
+        else if (reqItemsRef.current.length > 0) { setZone('request'); setReqCursor(Math.min(cur % COLS, reqItemsRef.current.length - 1)); }
+      }
       else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setCursor(cur - 1); else onExitRef.current(); }
       else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setCursor(cur + 1); }
       else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const it = resultsRef.current[cur]; if (it) { commit(queryRef.current); onPlayRef.current(it); } }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, commit, pickChip]);
+  }, [isActive, commit, pickChip, sendRequest]);
 
   const pickChipAt = useCallback((c: SearchChip) => {
     const idx = chipsRef.current.indexOf(c);
@@ -1060,7 +1159,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         </div>
       )}
       {results.length === 0 ? (
-        showChips ? null : <div className="text-brand-ice/70 font-nunito text-sm text-center py-6">{query.trim() ? (loading ? 'Searching…' : 'No results.') : 'Type to search Plex.'}</div>
+        showChips || reqItems.length ? null : <div className="text-brand-ice/70 font-nunito text-sm text-center py-6">{query.trim() ? (loading ? 'Searching…' : 'No results.') : 'Type to search Plex.'}</div>
       ) : (
         <div className="grid grid-cols-6 gap-3">
           {Array.from({ length: rows * COLS }).map((_, idx) => {
@@ -1073,10 +1172,79 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
           })}
         </div>
       )}
+      {reqItems.length > 0 && (
+        <div>
+          <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-1">Not on Plex yet? Request it</div>
+          <div className="text-sm text-brand-ice/50 font-nunito mb-2">Press OK on a title and we will add it to Plex for you.</div>
+          <div className="grid grid-cols-6 gap-3">
+            {reqItems.map((it, i) => (
+              <RequestTile
+                key={`${it.mediaType}:${it.id}`}
+                item={it}
+                sent={reqSent[it.id]}
+                focused={isActive && zone === 'request' && reqCursor === i && !confirmReq}
+                onPick={() => { setZone('request'); setReqCursor(i); askRequest(it); }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      {confirmReq && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70" role="dialog" aria-label="Request this title?">
+          <div className="max-w-lg w-full mx-6 rounded-3xl border border-brand-gold/40 bg-[#0b1220] p-7 text-center shadow-2xl">
+            <div className="text-2xl font-quicksand font-bold text-white">
+              Request {confirmReq.title}{confirmReq.year ? ` (${confirmReq.year})` : ''}?
+            </div>
+            <p className="mt-2 text-base text-white/75 font-nunito">
+              {confirmReq.mediaType === 'tv'
+                ? 'Every season will be added to Plex, usually within a few hours.'
+                : 'It will be added to Plex, usually within a few hours.'}
+            </p>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button type="button" disabled={requesting} onClick={() => void sendRequest(confirmReq)}
+                className={`h-12 rounded-xl text-lg font-quicksand font-bold bg-brand-gold text-slate-900 ${confirmIdx === 0 ? 'ring-4 ring-brand-ice scale-105' : ''}`}>
+                {requesting ? 'Sending…' : 'Request'}
+              </button>
+              <button type="button" onClick={() => setConfirmReq(null)}
+                className={`h-12 rounded-xl text-lg font-quicksand font-bold bg-slate-800 border border-slate-600 text-white ${confirmIdx === 1 ? 'ring-4 ring-brand-ice scale-105' : ''}`}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 });
 SearchPanel.displayName = 'SearchPanel';
+
+/** A title Overseerr can fetch: its poster, and where it stands. */
+const RequestTile = memo(({ item: it, sent, focused, onPick }: {
+  item: OverseerrItem; sent?: 'requested' | 'already'; focused: boolean; onPick: () => void;
+}) => {
+  const state = sent ? 'Requested' : it.status === 4 ? 'Partly on Plex' : it.status >= 2 ? 'Requested' : null;
+  return (
+    <div
+      ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
+      onClick={onPick}
+      className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-dashed border-brand-gold/40 ${focused ? 'scale-105 z-10' : ''}`}
+      data-focused={focused ? 'true' : 'false'}>
+      <div className="relative h-0" style={{ paddingBottom: '150%' }}>
+        {it.posterUrl
+          ? <img src={tmdbSized(it.posterUrl, 'w185')} alt="" decoding="async" className="absolute inset-0 w-full h-full object-cover opacity-80" />
+          : <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-navy/70 to-black/80 p-3 text-center"><span className="text-base font-quicksand font-bold text-white/85">{it.title}</span></div>}
+        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/75 text-[11px] font-nunito font-semibold text-white/90">{it.mediaType === 'tv' ? 'Show' : 'Movie'}</span>
+        <span className={`absolute bottom-2 left-2 right-2 px-2 py-1 rounded-lg text-center text-xs font-nunito font-bold ${state ? 'bg-emerald-600/85 text-white' : 'bg-brand-gold/90 text-slate-900'}`}>
+          {state ?? '+ Request'}
+        </span>
+      </div>
+      <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>
+        {it.title}{it.year ? ` (${it.year})` : ''}
+      </div>
+    </div>
+  );
+});
+RequestTile.displayName = 'RequestTile';
 
 // ─── SETTINGS PANEL (formerly Manage) ──────────────────────────────────────
 interface ManagePanelProps {
@@ -2553,6 +2721,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       const target = e.target as HTMLElement;
       const inInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
+      // Search's "Request it?" question closes on Back; it handles the key.
+      if (isBack && (window as unknown as { __plexRequestAsk?: boolean }).__plexRequestAsk) return;
 
       // Not-ready statuses (auth screen etc): only Back is handled here — all
       // other keys pass through to whatever else is listening.
