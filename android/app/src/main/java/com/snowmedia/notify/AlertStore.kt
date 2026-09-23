@@ -62,6 +62,19 @@ internal class AlertStore(context: Context) {
         get() = prefs.getStringSet(KEY_DISMISSED, emptySet()) ?: emptySet()
         set(v) = prefs.edit().putStringSet(KEY_DISMISSED, v).apply()
 
+    /**
+     * Plex requests made on this box: its private request key, and whether any
+     * are still on their way. While pending, each poll also asks the
+     * overseerr-request function whether they have arrived.
+     */
+    var requestKey: String?
+        get() = prefs.getString(KEY_REQ_KEY, null)
+        set(v) = prefs.edit().putString(KEY_REQ_KEY, v).apply()
+
+    var requestPending: Boolean
+        get() = prefs.getBoolean(KEY_REQ_PENDING, false)
+        set(v) = prefs.edit().putBoolean(KEY_REQ_PENDING, v).apply()
+
     fun clearPosted() {
         prefs.edit().remove(KEY_SHOWN).remove(KEY_DISMISSED).apply()
     }
@@ -73,5 +86,7 @@ internal class AlertStore(context: Context) {
         const val KEY_KEY = "supabase_key"
         const val KEY_SHOWN = "shown_ids"
         const val KEY_DISMISSED = "dismissed_ids"
+        const val KEY_REQ_KEY = "request_key"
+        const val KEY_REQ_PENDING = "request_pending"
     }
 }

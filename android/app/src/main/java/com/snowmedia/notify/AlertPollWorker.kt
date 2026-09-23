@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import org.json.JSONArray
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -73,8 +74,55 @@ class AlertPollWorker(context: Context, params: WorkerParameters) : Worker(conte
         }
 
         reconcile(store, fresh, liveIds)
+        checkPlexRequests(store, url, key)
         continueChain()
         return Result.success()
+    }
+
+    /**
+     * "Now on Plex": while this box has requests on their way, ask the
+     * overseerr-request function whether any arrived and post each one. Kept
+     * out of `shown` on purpose — these are not app_alerts rows, and the
+     * active-set reconcile would otherwise cancel them on the next tick.
+     */
+    private fun checkPlexRequests(store: AlertStore, baseUrl: String, apiKey: String) {
+        val deviceKey = store.requestKey
+        if (!store.requestPending || deviceKey.isNullOrBlank()) return
+        val conn = (URL("${baseUrl.trimEnd('/')}/functions/v1/overseerr-request").openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            doOutput = true
+            setRequestProperty("apikey", apiKey)
+            setRequestProperty("Authorization", "Bearer $apiKey")
+            setRequestProperty("Content-Type", "application/json")
+            connectTimeout = 15_000
+            readTimeout = 30_000
+        }
+        try {
+            val body = JSONObject().put("action", "check").put("deviceKey", deviceKey).toString()
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            if (conn.responseCode !in 200..299) return
+            val res = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+            val ready = res.optJSONArray("ready") ?: JSONArray()
+            for (i in 0 until ready.length()) {
+                val o = ready.getJSONObject(i)
+                val title = o.optString("title").ifBlank { "Your request" }
+                val kind = if (o.optString("mediaType") == "tv") "tv" else "movie"
+                AlertNotifier.post(
+                    applicationContext,
+                    Alert(
+                        id = "plexreq-$kind-${o.optInt("tmdbId")}",
+                        title = "Now on Plex",
+                        message = "$title is ready to watch. Open the Player, then Plex.",
+                        severity = "info",
+                    ),
+                )
+            }
+            store.requestPending = res.optInt("pending", 0) > 0
+        } catch (e: Exception) {
+            Log.w(TAG, "Plex request check failed: ${e.message}")
+        } finally {
+            conn.disconnect()
+        }
     }
 
     private fun continueChain() {

@@ -12,6 +12,7 @@ import easterEggImg from '@/assets/easter-egg.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import AppAlertDialog from '@/components/AppAlertDialog';
 import PlayerNudgeDialog from '@/components/PlayerNudgeDialog';
+import RequestReadyDialog from '@/components/RequestReadyDialog';
 import { playerNudgeOff } from '@/lib/playerNudge';
 import { retiredAppFor } from '@/lib/retiredApps';
 import { openScreen } from '@/lib/appActions';
@@ -606,6 +607,7 @@ const Index = () => {
     }
   }, [resolvePackageName, toast]);
 
+  const openPlexFromReady = useCallback(() => openScreen('plex', navigateTo), [navigateTo]);
   // A pinned Dreamstreams / VibezTV / Plex tile: suggest the Player first.
   const [nudgeApp, setNudgeApp] = useState<LaunchableApp | null>(null);
   // Entry point used by the popup — the Player suggestion, then the alert
@@ -1271,6 +1273,9 @@ const Index = () => {
           </div>
         </div>
       )}
+
+      {/* A title this box requested from Plex search has arrived. */}
+      {currentView === 'home' && <RequestReadyDialog onWatch={openPlexFromReady} />}
 
       <PlayerNudgeDialog
         appName={nudgeApp?.name ?? null}

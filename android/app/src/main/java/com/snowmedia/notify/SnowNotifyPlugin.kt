@@ -128,6 +128,22 @@ class SnowNotifyPlugin : Plugin() {
         call.resolve(JSObject().put("enabled", true))
     }
 
+    /**
+     * Plex requests from this box (src/lib/overseerr.ts): remember the key and
+     * whether anything is pending, and poll now so a fresh request is watched
+     * from the next tick.
+     */
+    @PluginMethod
+    fun watchRequests(call: PluginCall) {
+        val key = call.getString("deviceKey")?.trim().orEmpty()
+        val pending = call.getBoolean("pending", false) ?: false
+        val store = AlertStore(context)
+        if (key.isNotEmpty()) store.requestKey = key
+        store.requestPending = pending
+        if (pending && store.enabled && store.configured) AlertPollScheduler.start(context)
+        call.resolve()
+    }
+
     private fun needsRuntimePermission(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=

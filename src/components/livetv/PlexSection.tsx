@@ -959,7 +959,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       title: res === 'already' ? 'Already requested' : 'Requested!',
       description: res === 'already'
         ? `${it.title} is already on its way.`
-        : `${it.title} will be added to Plex${it.mediaType === 'tv' ? ', every season' : ''} — usually within a few hours.`,
+        : `${it.title} will be added to Plex${it.mediaType === 'tv' ? ', every season' : ''}, usually within a few hours. We'll let you know when it's ready.`,
     });
   }, []);
   const chipIdxRef = useRef(chipIdx); useEffect(() => { chipIdxRef.current = chipIdx; }, [chipIdx]);
@@ -1174,8 +1174,17 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       )}
       {reqItems.length > 0 && (
         <div>
-          <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-1">Not on Plex yet? Request it</div>
-          <div className="text-sm text-brand-ice/50 font-nunito mb-2">Press OK on a title and we will add it to Plex for you.</div>
+          {results.length === 0 && !loading ? (
+            <>
+              <div className="text-xl font-quicksand font-bold text-white mb-1">“{query.trim()}” isn’t on Plex yet</div>
+              <div className="text-base text-brand-ice/70 font-nunito mb-3">Pick it below and press OK to request it — we will add it to Plex for you and let you know when it’s ready.</div>
+            </>
+          ) : (
+            <>
+              <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-1">Not on Plex yet? Request it</div>
+              <div className="text-sm text-brand-ice/50 font-nunito mb-2">Press OK on a title and we will add it to Plex for you, and let you know when it’s ready.</div>
+            </>
+          )}
           <div className="grid grid-cols-6 gap-3">
             {reqItems.map((it, i) => (
               <RequestTile
@@ -1191,15 +1200,30 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       )}
       {confirmReq && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70" role="dialog" aria-label="Request this title?">
-          <div className="max-w-lg w-full mx-6 rounded-3xl border border-brand-gold/40 bg-[#0b1220] p-7 text-center shadow-2xl">
-            <div className="text-2xl font-quicksand font-bold text-white">
-              Request {confirmReq.title}{confirmReq.year ? ` (${confirmReq.year})` : ''}?
+          <div className="max-w-2xl w-full mx-6 rounded-3xl border border-brand-gold/40 bg-[#0b1220] p-7 shadow-2xl">
+            <div className="flex items-start text-left">
+              {confirmReq.posterUrl && (
+                <img src={tmdbSized(confirmReq.posterUrl, 'w185')} alt="" className="w-32 h-48 rounded-xl object-cover mr-6 flex-shrink-0" />
+              )}
+              <div className="min-w-0">
+                <div className="text-xs uppercase tracking-wider text-brand-gold font-nunito font-bold">
+                  {confirmReq.mediaType === 'tv' ? 'Show' : 'Movie'} · not on Plex yet
+                </div>
+                <div className="mt-1 text-2xl font-quicksand font-bold text-white leading-tight">
+                  {confirmReq.title}{confirmReq.year ? ` (${confirmReq.year})` : ''}
+                </div>
+                {confirmReq.overview && (
+                  <p className="mt-2 text-sm text-white/70 font-nunito leading-snug" style={{ display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {confirmReq.overview}
+                  </p>
+                )}
+                <p className="mt-3 text-base text-white/85 font-nunito">
+                  {confirmReq.mediaType === 'tv'
+                    ? 'Request it and every season is added to Plex, usually within a few hours. We will let you know when it’s ready.'
+                    : 'Request it and it is added to Plex, usually within a few hours. We will let you know when it’s ready.'}
+                </p>
+              </div>
             </div>
-            <p className="mt-2 text-base text-white/75 font-nunito">
-              {confirmReq.mediaType === 'tv'
-                ? 'Every season will be added to Plex, usually within a few hours.'
-                : 'It will be added to Plex, usually within a few hours.'}
-            </p>
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button type="button" disabled={requesting} onClick={() => void sendRequest(confirmReq)}
                 className={`h-12 rounded-xl text-lg font-quicksand font-bold bg-brand-gold text-slate-900 ${confirmIdx === 0 ? 'ring-4 ring-brand-ice scale-105' : ''}`}>

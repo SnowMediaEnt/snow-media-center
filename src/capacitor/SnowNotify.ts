@@ -33,6 +33,9 @@ export interface SnowNotifyPlugin {
   enable(options: { supabaseUrl: string; supabaseKey: string }): Promise<SnowNotifyStatus>;
   disable(): Promise<{ enabled: boolean }>;
   pollNow(): Promise<{ enabled: boolean }>;
+  /** Plex requests from this box: while `pending`, the alert job also asks
+   *  whether they have arrived and posts "Now on Plex" when they have. */
+  watchRequests(options: { deviceKey: string; pending: boolean }): Promise<void>;
 }
 
 const unavailable: SnowNotifyPlugin = {
@@ -40,6 +43,7 @@ const unavailable: SnowNotifyPlugin = {
   enable: async () => ({ enabled: false, configured: true, permission: 'denied' }),
   disable: async () => ({ enabled: false }),
   pollNow: async () => ({ enabled: false }),
+  watchRequests: async () => undefined,
 };
 
 export const SnowNotify = registerPlugin<SnowNotifyPlugin>('SnowNotify', { web: unavailable });
