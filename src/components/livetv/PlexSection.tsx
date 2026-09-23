@@ -382,6 +382,19 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs }:
   const railHRef = useRef(0);
   const measureRail = (el: HTMLDivElement | null) => { if (el && !railHRef.current) railHRef.current = el.offsetHeight; };
 
+  // The focused tile scrolls itself into view, but only just: coming back up
+  // to a rail left its heading above the top of the screen (the first rail's
+  // name stayed hidden until the screen was reopened). Bring the whole rail,
+  // heading included, into view after the tile has placed itself.
+  const railBoxRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  useEffect(() => {
+    if (!isActive) return;
+    const id = rows[row]?.id;
+    const box = id ? railBoxRefs.current[id] : null;
+    if (box) box.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row, isActive]);
+
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
@@ -414,7 +427,7 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs }:
   return (
     <div className="flex flex-col gap-4">
       {rows.map((r, ri) => (
-        <div key={r.id} data-plex-row={r.id}>
+        <div key={r.id} data-plex-row={r.id} ref={(el) => { railBoxRefs.current[r.id] = el; }}>
           <div className="text-base font-quicksand font-semibold text-white/90 mb-2">{r.title}</div>
           {(ri < row - RAIL_ROWS_SPAN || ri > row + RAIL_ROWS_SPAN) ? (
             <div aria-hidden="true" style={{ height: railHRef.current || RAIL_H_FALLBACK }} />
@@ -2401,14 +2414,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     fileKbps, targetKbps: qualityCapKbps, transcoding: useTranscode, route: conn?.route,
   }), [fileKbps, qualityCapKbps, useTranscode, conn?.route]);
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext, partKey?: string) => {
-    try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie', route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
+    // ratingKey feeds the content bar's "Popular this week" (media-bar-feed).
+    try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie', ratingKey: it.ratingKey, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     if (!DEMO) recordPlexWatch(it);
     void playRatingKey(it.ratingKey, it.title, resumeSec, ctx, resolutionLabel(it.videoResolution), partKey);
   }, [playRatingKey, conn]);
   const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext) => {
-    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     // The SHOW is what to come back to and what "more like this" keys off.
     const show = detailRef.current;
+    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', ratingKey: ep.ratingKey, showKey: show?.ratingKey, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     if (!DEMO && show) recordPlexWatch({ ...show, type: 'show', grandparentTitle: undefined }, undefined);
     void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '', ep.partKey);
   }, [playRatingKey, conn]);

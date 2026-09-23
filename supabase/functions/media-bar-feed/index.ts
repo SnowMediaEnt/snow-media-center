@@ -262,10 +262,56 @@ const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Ite
   };
 };
 
+// ---------- Popular this week ----------
+// What Snow Media viewers have actually been playing on Plex over the last
+// seven days (the app's plex_play events), ranked by how many boxes played it.
+// A fresh install with nothing watched still gets a full bar of what everyone
+// else is into. Events carry the ratingKey (the show's for an episode); older
+// ones only a title, which is matched against the lists already fetched.
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const fetchPopularThisWeek = async (known: Item[]): Promise<Item[]> => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return [];
+  const since = new Date(Date.now() - 7 * 86400_000).toISOString();
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/analytics_events?select=device_id,properties&event_name=eq.plex_play&occurred_at=gte.${encodeURIComponent(since)}&order=occurred_at.desc&limit=3000`,
+    { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` }, signal: AbortSignal.timeout(6000) },
+  );
+  if (!res.ok) throw new Error(`analytics ${res.status}`);
+  const rows = await res.json() as Array<{ device_id: string; properties: Record<string, unknown> | null }>;
+  const byKey = new Map<string, Set<string>>();
+  const byTitle = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const p = r.properties ?? {};
+    const rk = p.showKey ?? p.ratingKey;
+    if (rk) {
+      const k = String(rk);
+      (byKey.get(k) ?? byKey.set(k, new Set()).get(k)!).add(r.device_id);
+    } else if (typeof p.title === 'string' && p.type === 'movie') {
+      const t = p.title.trim().toLowerCase();
+      if (t) (byTitle.get(t) ?? byTitle.set(t, new Set()).get(t)!).add(r.device_id);
+    }
+  }
+  const topKeys = [...byKey.entries()].sort((a, b) => b[1].size - a[1].size).slice(0, 24).map(([k]) => k);
+  const out: Item[] = [];
+  if (topKeys.length) {
+    const meta = await safe(plexFetch(`/library/metadata/${topKeys.join(',')}`), 'plex popular week');
+    const list = familySafe(meta?.MediaContainer?.Metadata);
+    const order = new Map(topKeys.map((k, i) => [k, i]));
+    list.sort((a: any, b: any) => (order.get(String(a.ratingKey)) ?? 99) - (order.get(String(b.ratingKey)) ?? 99));
+    for (const m of list) out.push(await mapPlexItem(m));
+  }
+  const knownByTitle = new Map(known.filter((i) => i.kind === 'movie').map((i) => [i.title.trim().toLowerCase(), i]));
+  for (const [t] of [...byTitle.entries()].sort((a, b) => b[1].size - a[1].size).slice(0, 24)) {
+    const hit = knownByTitle.get(t);
+    if (hit) out.push(hit);
+  }
+  return out.map((i) => ({ ...i, subtitle: `Popular this week${i.subtitle ? ` · ${i.subtitle}` : ''}` }));
+};
+
 // ---------- Weave ----------
 // Order: continue watching → movies/shows interleaved.
 // Goal: a long, varied feed so the bar effectively never "ends".
-const weave = (movies: Item[], liveSports: Item[], shows: Item[], onDeck: Item[]): Item[] => {
+const weave = (movies: Item[], liveSports: Item[], shows: Item[], onDeck: Item[], popularWeek: Item[] = []): Item[] => {
   const out: Item[] = [];
   const seen = new Set<string>();
   const push = (i?: Item) => {
@@ -276,6 +322,7 @@ const weave = (movies: Item[], liveSports: Item[], shows: Item[], onDeck: Item[]
 
   for (const s of liveSports) push(s);
   for (const d of onDeck) push(d);
+  for (const p of popularWeek) push(p);
 
   const m = movies.slice();
   const sh = shows.slice();
@@ -299,17 +346,39 @@ const toPublicItem = (i: Item): Item => ({
   ratingKey: i.ratingKey,
 });
 
+// The same feed goes to every box, and building it is five Plex calls plus a
+// signature per poster. Kept for five minutes per warm instance and refreshed
+// in the background after that, so a box opening Home is answered at once
+// instead of waiting on the Plex server.
+const FEED_FRESH_MS = 5 * 60_000;
+let feedCache: { at: number; items: Item[] } | null = null;
+let feedBuilding: Promise<Item[]> | null = null;
+const buildFeed = async (): Promise<Item[]> => {
+  const plex = await safe(fetchPlex(), 'plex');
+  const known = [...(plex?.movies ?? []), ...(plex?.shows ?? [])];
+  const popularWeek = (await safe(fetchPopularThisWeek(known), 'popular this week')) ?? [];
+  const items = weave(plex?.movies ?? [], [], plex?.shows ?? [], plex?.onDeck ?? [], popularWeek);
+  if (items.length) feedCache = { at: Date.now(), items };
+  return items;
+};
+const getFeed = async (): Promise<Item[]> => {
+  if (feedCache) {
+    if (Date.now() - feedCache.at > FEED_FRESH_MS && !feedBuilding) {
+      feedBuilding = buildFeed().finally(() => { feedBuilding = null; });
+      // deno-lint-ignore no-explicit-any
+      (globalThis as any).EdgeRuntime?.waitUntil?.(feedBuilding);
+    }
+    return feedCache.items;
+  }
+  feedBuilding ??= buildFeed().finally(() => { feedBuilding = null; });
+  return await feedBuilding;
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
     const isPublic = new URL(req.url).searchParams.get('public') === '1';
-    const plex = await safe(fetchPlex(), 'plex');
-    let items = weave(
-      plex?.movies ?? [],
-      [],
-      plex?.shows ?? [],
-      plex?.onDeck ?? [],
-    );
+    let items = await getFeed();
     if (isPublic) items = items.map(toPublicItem);
     return new Response(
       JSON.stringify({

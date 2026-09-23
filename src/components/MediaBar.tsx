@@ -194,6 +194,33 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
   }
 };
 
+// A poster from our poster-proxy comes in two steps: a tiny copy (a few KB)
+// that is on screen almost at once, then the sharp one over it when it has
+// loaded. Anything else (channel logos, other hosts) loads as it is.
+const isProxied = (src: string) => src.includes('/poster-proxy?');
+const BarPoster = memo(({ src, className }: { src: string; className: string }) => {
+  const [sharp, setSharp] = useState(false);
+  const hide = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.visibility = 'hidden'; };
+  if (!isProxied(src)) {
+    return <img src={src} alt="" decoding="async" className={className} onError={hide} />;
+  }
+  return (
+    <>
+      {!sharp && <img src={`${src}&w=60`} alt="" decoding="async" className={className} onError={hide} />}
+      <img
+        src={src}
+        alt=""
+        decoding="async"
+        className={className}
+        style={sharp ? undefined : { opacity: 0 }}
+        onLoad={() => setSharp(true)}
+        onError={hide}
+      />
+    </>
+  );
+});
+BarPoster.displayName = 'BarPoster';
+
 const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: Props) => {
   const cached = useMemo(readCache, []);
   const [items, setItems] = useState<MediaItem[]>(cached ?? []);
@@ -271,6 +298,9 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
   // doesn't compete with home-screen boot. Skeletons still render in cards.
   const [imagesReady, setImagesReady] = useState(false);
   useEffect(() => {
+    // A fresh install has nothing cached to show: no reason to wait for a
+    // key press before the first posters.
+    if (!cached?.length) return runWhenIdle(() => setImagesReady(true), 1200);
     const cancelInteraction = onFirstInteraction(() => {
       const cancelIdle = runWhenIdle(() => setImagesReady(true), 800);
       // Free the closure if unmounted before idle fires.
@@ -318,9 +348,11 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
       }
     };
     const loadAll = () => { void loadViewer(); void load(); };
-    const cancelFirst = onFirstInteraction(() => {
-      cancelIdleFirst = runWhenIdle(loadAll, 3500);
-    });
+    // With a cached bar on screen the refresh can wait for the first key
+    // press; a fresh install (empty bar) loads straight away.
+    const cancelFirst = cached?.length
+      ? onFirstInteraction(() => { cancelIdleFirst = runWhenIdle(loadAll, 3500); })
+      : runWhenIdle(loadAll, 1200);
     // A new play, or a different account signing in, reshapes the rows.
     let debounce: number | null = null;
     const onHistory = () => {
@@ -507,17 +539,11 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                   >
                     <div className={`relative w-full flex-shrink-0 overflow-hidden media-poster ${item.channel ? 'bg-white/90' : 'bg-black/60'}`}>
                       {item.poster && imagesReady ? (
-                        <img
+                        <BarPoster
                           src={item.poster}
-                          alt=""
-                          loading="lazy"
-                          decoding="async"
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          {...({ fetchpriority: 'low' } as any)}
                           // Channel logos are drawn for a light card and must
                           // not be cropped; posters fill the tile.
                           className={item.channel ? 'absolute inset-0 m-auto max-w-[80%] max-h-[70%] object-contain' : 'absolute top-0 left-0 w-full h-full object-cover'}
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
                         />
                       ) : item.channel ? (
                         <div className="absolute inset-0 flex items-center justify-center">

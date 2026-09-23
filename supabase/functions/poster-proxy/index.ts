@@ -53,7 +53,12 @@ Deno.serve(async (req) => {
     const expected = await sign(p);
     if (!timingSafeEqual(expected, s.toLowerCase())) return notFound();
 
-    const upstream = `${PLEX_URL}/photo/:/transcode?width=300&height=450&minSize=1&upscale=1&url=${encodeURIComponent(p)}&X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
+    // Optional smaller size (?w=, 40-300) for a quick first paint: the app
+    // shows a tiny copy while the full one loads. Outside the signature on
+    // purpose — it only ever makes the same picture smaller.
+    const wParam = Number(url.searchParams.get('w'));
+    const w = Number.isFinite(wParam) && wParam >= 40 && wParam < 300 ? Math.round(wParam) : 300;
+    const upstream = `${PLEX_URL}/photo/:/transcode?width=${w}&height=${Math.round(w * 1.5)}&minSize=1&upscale=1&url=${encodeURIComponent(p)}&X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
     const res = await fetch(upstream, { signal: AbortSignal.timeout(10000) });
     if (!res.ok || !res.body) return notFound();
 
