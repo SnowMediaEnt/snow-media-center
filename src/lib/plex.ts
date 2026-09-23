@@ -115,8 +115,8 @@ export async function checkPlexPin(id: number): Promise<string | null> {
 /** Fetch the signed-in Plex account (username/email). Returns null on ANY failure.
  *  Memoised per token for the session: Settings asked plex.tv again every
  *  time the menu cursor landed on it. A failure is not remembered. */
-const _accountMemo = new Map<string, Promise<{ username?: string; email?: string } | null>>();
-export function getPlexAccount(token: string): Promise<{ username?: string; email?: string } | null> {
+const _accountMemo = new Map<string, Promise<{ username?: string; email?: string; uuid?: string } | null>>();
+export function getPlexAccount(token: string): Promise<{ username?: string; email?: string; uuid?: string } | null> {
   const hit = _accountMemo.get(token);
   if (hit) return hit;
   const p = fetchPlexAccount(token);
@@ -124,13 +124,14 @@ export function getPlexAccount(token: string): Promise<{ username?: string; emai
   void p.then((r) => { if (!r && _accountMemo.get(token) === p) _accountMemo.delete(token); });
   return p;
 }
-async function fetchPlexAccount(token: string): Promise<{ username?: string; email?: string } | null> {
+async function fetchPlexAccount(token: string): Promise<{ username?: string; email?: string; uuid?: string } | null> {
   try {
-    const data = await plexReq<{ username?: string; email?: string; title?: string }>('GET', 'https://plex.tv/api/v2/user', token, 8000);
+    const data = await plexReq<{ username?: string; email?: string; title?: string; uuid?: string }>('GET', 'https://plex.tv/api/v2/user', token, 8000);
     if (!data) return null;
     return {
       username: (data.username || data.title) as string | undefined,
       email: data.email as string | undefined,
+      uuid: data.uuid ? String(data.uuid) : undefined,
     };
   } catch {
     return null;
@@ -1262,6 +1263,27 @@ export async function getPlexEpisodes(base: string, token: string, seasonKey: st
     summary: e.summary as string | undefined,
     partKey: firstPartKey(e),
   }));
+}
+
+// ── playback progress on the server ────────────────────────────────────────
+
+/** Tell the server what is playing and where, as the Plex apps do. The server
+ *  keeps resume points and On Deck per Plex ACCOUNT, so this is only sent
+ *  when the box is signed in with the viewer's own Plex account — never with
+ *  the shared provider account, where it would mix everyone's viewing (see
+ *  plexProgress for the per-viewer copy every box keeps). Never throws. */
+export async function reportPlexTimeline(
+  base: string, token: string, ratingKey: string,
+  state: 'playing' | 'paused' | 'stopped', timeSec: number, durationSec: number,
+): Promise<void> {
+  if (!base || !ratingKey || !(durationSec > 0)) return;
+  const q = `ratingKey=${encodeURIComponent(ratingKey)}`
+    + `&key=${encodeURIComponent(`/library/metadata/${ratingKey}`)}`
+    + `&identifier=com.plexapp.plugins.library`
+    + `&state=${state}`
+    + `&time=${Math.max(0, Math.round(timeSec * 1000))}`
+    + `&duration=${Math.round(durationSec * 1000)}`;
+  try { await plexReq('GET', `${base}/:/timeline?${q}`, token, 8000); } catch { /* the next report will do */ }
 }
 
 // ── episode playback: markers and what comes next ─────────────────────────

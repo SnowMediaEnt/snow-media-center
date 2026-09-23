@@ -65,3 +65,21 @@ describe('plexProgress', () => {
     expect(upserts).toHaveLength(1);
   });
 });
+
+describe('mergeContinue', () => {
+  it('keeps this box first, adds the server titles it lacks, one episode per show', async () => {
+    const m = await import('./plexProgress');
+    const own = [
+      { ratingKey: 'e2', title: 'Ep 2', type: 'episode', grandparentTitle: 'Show' },
+      { ratingKey: 'm1', title: 'Film', type: 'movie' },
+    ];
+    const server = [
+      { ratingKey: 'm1', title: 'Film', type: 'movie' },
+      { ratingKey: 'e3', title: 'Ep 3', type: 'episode', grandparentTitle: 'Show' },
+      { ratingKey: 'x1', title: 'Other', type: 'episode', grandparentTitle: 'Other Show' },
+      { ratingKey: 'x2', title: 'Other 2', type: 'episode', grandparentTitle: 'Other Show' },
+      { ratingKey: 'm9', title: 'New', type: 'movie' },
+    ];
+    expect(m.mergeContinue(own, server).map((i) => i.ratingKey)).toEqual(['e2', 'm1', 'x1', 'm9']);
+  });
+});

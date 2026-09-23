@@ -56,7 +56,7 @@ import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type PlayerPrompt, type SubtitleSearchContext } from './PlexPlayerOverlay';
 import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
 import PlexProgressReporter from './PlexProgressReporter';
-import { continueWatching, initPlexProgress, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
+import { continueWatching, initPlexProgress, mergeContinue, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { myList, pullFavoritesFromCloud, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
@@ -87,7 +87,7 @@ const getPlexLibraryItems = DEMO ? demoGetLibraryItems : _getPlexLibraryItems;
 const getPlexHub = DEMO ? demoGetHub : _getPlexHub;
 const searchPlex = DEMO ? demoSearchPlex : _searchPlex;
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
-import { isProviderServer } from '@/lib/plexProvider';
+import { isOwnPlexAccount, isProviderServer } from '@/lib/plexProvider';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
@@ -502,8 +502,11 @@ interface HomePanelProps {
   onExitToTabs: () => void;
   /** Bumped when the player closes (see PlexSection). */
   watchNonce?: number;
+  /** The box is on the viewer's own Plex account: the server's Continue
+   *  Watching is theirs too and joins the app's own. */
+  serverResume?: boolean;
 }
-const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs, watchNonce = 0 }: HomePanelProps) => {
+const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs, watchNonce = 0, serverResume = false }: HomePanelProps) => {
   const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=100';
   // Seeded from the cache however old it is: rails already in memory are
@@ -552,7 +555,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     // an empty rail across remounts until the TTL runs out.
     Promise.all([
       cachedOd ? Promise.resolve(cachedOd)
-        : DEMO ? getPlexHub(base, token, onDeckPath).catch(() => null)
+        : (DEMO || serverResume) ? getPlexHub(base, token, onDeckPath).catch(() => null)
           : Promise.resolve([] as PlexItem[]),
       cachedRa ? Promise.resolve(cachedRa) : getPlexHub(base, token, recentPath).catch(() => null),
     ]).then(([od, ra]) => {
@@ -572,14 +575,15 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
       }
     });
     return () => { cancelled = true; if (retry) window.clearTimeout(retry); };
-  }, [base, token, hubRetry]);
+  }, [base, token, hubRetry, serverResume]);
 
   // After playback, Continue Watching changes: refetch just that rail, in the
   // background, keeping the rails on screen while it loads.
   const seenNonceRef = useRef(watchNonce);
   useEffect(() => {
-    // Only the demo's Continue Watching comes from the server (see ownContinue).
-    if (watchNonce === seenNonceRef.current || !DEMO) return;
+    // The server's Continue Watching is only used in the demo and on the
+    // viewer's own Plex account (see ownContinue).
+    if (watchNonce === seenNonceRef.current || !(DEMO || serverResume)) return;
     seenNonceRef.current = watchNonce;
     let cancelled = false;
     const epoch = getHubEpoch();
@@ -622,7 +626,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const r: DiscoverRow[] = [];
     // This viewer's own (plexProgress). The server's On Deck belongs to the
     // shared provider account, so it was everyone's viewing mixed together.
-    const cont = familyOnly(DEMO ? onDeck : ownContinue, adultKeys);
+    const cont = familyOnly(DEMO ? onDeck : serverResume ? mergeContinue(ownContinue, onDeck) : ownContinue, adultKeys);
     if (cont.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: cont.slice(0, RAIL_CAP) });
     const mine = familyOnly(listItems, adultKeys);
     if (mine.length > 0) r.push({ id: 'mylist', title: 'My List', items: mine.slice(0, RAIL_CAP) });
@@ -633,7 +637,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const pop = familyOnly(popular, adultKeys);
     if (pop.length > 0) r.push({ id: 'popular', title: 'Most Watched', items: pop });
     return r;
-  }, [onDeck, ownContinue, listItems, recent, released, popular, adultKeys]);
+  }, [onDeck, ownContinue, listItems, recent, released, popular, adultKeys, serverResume]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;
@@ -1785,6 +1789,21 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [extraSubs, setExtraSubs] = useState<SnowSubtitle[] | undefined>(undefined);
   const [qualityKey, setQualityKey] = useState<string>('original');
   useEffect(() => { void loadPlexQuality().then(setQualityKey); }, []);
+  // Is this box on the viewer's own Plex account (not the shared provider
+  // account)? Then its progress is also reported to Plex and the server's
+  // Continue Watching / resume points are theirs too. Unknown = shared.
+  const [ownPlexAccount, setOwnPlexAccount] = useState(false);
+  useEffect(() => {
+    const tok = accountToken ?? conn?.token;
+    if (!tok || DEMO) { setOwnPlexAccount(false); return; }
+    let gone = false;
+    void getPlexAccount(tok)
+      .then((a) => isOwnPlexAccount(a?.uuid))
+      .then((own) => { if (!gone) setOwnPlexAccount(own); })
+      .catch(() => { /* stays shared */ });
+    return () => { gone = true; };
+  }, [accountToken, conn?.token]);
+
   // This viewer's resume points and Continue Watching: from the box at once,
   // then brought up to date from their account (another box they use).
   useEffect(() => {
@@ -3255,6 +3274,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             ratingKey={fullscreen ? playing?.ratingKey ?? null : null}
             info={playInfo}
             getPosition={native.getPosition}
+            server={ownPlexAccount ? { base: conn.base, token: conn.token } : null}
           />
         )}
         {conn && (
@@ -3356,6 +3376,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             onPlay={openDetail}
             onExitToTabs={exitToMenu}
             watchNonce={watchNonce}
+            serverResume={ownPlexAccount}
           />
         ) : currentTab?.type === 'discover' && conn ? (
           <DiscoverPanel
@@ -3409,6 +3430,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             onOpen={openDetail}
             onExitToTabs={exitToMenu}
             watchNonce={watchNonce}
+            serverResume={ownPlexAccount}
           />
         ) : itemsLoading && items.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/70 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading…</div>
@@ -3457,6 +3479,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           onPlayEpisode={playEpisode}
           onBack={closeDetail}
           watchNonce={watchNonce}
+          serverResume={ownPlexAccount}
         />
       )}
     </div>

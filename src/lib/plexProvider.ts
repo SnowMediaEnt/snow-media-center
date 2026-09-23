@@ -157,3 +157,39 @@ export async function isPlexProviderLinked(): Promise<boolean> {
   } catch { /* not native */ }
   try { return localStorage.getItem(PROVIDER_FLAG_KEY) === '1'; } catch { return false; }
 }
+
+// ── whose Plex account is this box on? ─────────────────────────────────────
+//
+// Plex keeps resume points and On Deck per ACCOUNT, not per device token. A
+// box linked to the provider's account (by the provider link, or by the
+// provider entering its PIN) shares that account with every such box, so its
+// progress must not be reported to Plex. A box signed in with the viewer's
+// own Plex account (the one your email invite shared the server with) can
+// report it, and the server's resume points are then really theirs.
+const PROVIDER_ACCOUNT_KEY = 'snow-plex-provider-account-v1';
+const PROVIDER_ACCOUNT_TTL_MS = 7 * 24 * 3600_000;
+
+/** The provider account's Plex uuid (cached a week), or null if unknown. */
+export async function providerPlexAccountId(): Promise<string | null> {
+  try {
+    const cached = JSON.parse(localStorage.getItem(PROVIDER_ACCOUNT_KEY) || 'null') as { uuid?: string; at?: number } | null;
+    if (cached?.uuid && Date.now() - (cached.at ?? 0) < PROVIDER_ACCOUNT_TTL_MS) return cached.uuid;
+  } catch { /* ask */ }
+  try {
+    const { data, error } = await supabase.functions.invoke('plex-provider-token', { body: { action: 'account' } });
+    const uuid = !error && data?.ok && typeof data.uuid === 'string' ? data.uuid : null;
+    if (uuid) { try { localStorage.setItem(PROVIDER_ACCOUNT_KEY, JSON.stringify({ uuid, at: Date.now() })); } catch { /* ignore */ } }
+    return uuid;
+  } catch {
+    return null;
+  }
+}
+
+/** True only when this box's Plex token is known to be the viewer's own
+ *  account. Unknown counts as shared: nothing is reported to Plex then. */
+export async function isOwnPlexAccount(accountUuid: string | undefined): Promise<boolean> {
+  if (!accountUuid) return false;
+  if (await isPlexProviderLinked()) return false;
+  const provider = await providerPlexAccountId();
+  return !!provider && provider !== accountUuid;
+}

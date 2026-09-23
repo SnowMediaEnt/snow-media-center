@@ -33,6 +33,8 @@ interface Props {
   /** Bumped when the player closes. The page stays mounted under the player
    *  now, so its Resume point is refreshed on this instead of on a remount. */
   watchNonce?: number;
+  /** On the viewer's own Plex account: the server's resume point is theirs. */
+  serverResume?: boolean;
 }
 
 type Step = 'detail' | 'seasons' | 'episodes' | 'actorGrid';
@@ -122,7 +124,7 @@ const EpisodeRow = memo(({ ep, base, token, focused }: { ep: PlexEpisode; base: 
 });
 EpisodeRow.displayName = 'EpisodeRow';
 
-const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, onBack, watchNonce = 0 }: Props) => {
+const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, onBack, watchNonce = 0, serverResume = false }: Props) => {
   // ── back-stack of items (top = current). Opening a title from actor
   //    filmography pushes; Back pops before we ever hit onBack().
   const [stack, setStack] = useState<PlexItem[]>([item]);
@@ -256,9 +258,12 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
   const isShow = (meta?.type ?? current.type) === 'show';
   const isEpisode = (meta?.type ?? current.type) === 'episode';
-  // This viewer's own resume point (plexProgress), not the server's: every
-  // box shares one Plex account, so the server's is anyone's.
-  const ownResume = !isShow ? resumeSeconds(current.ratingKey) : undefined;
+  // This viewer's own resume point (plexProgress). The server's only counts
+  // on the viewer's own Plex account; on the shared provider account it is
+  // anyone's.
+  const serverOffset = serverResume && !isShow && meta?.viewOffset && (!meta.duration || meta.viewOffset < meta.duration - 60_000) && meta.viewOffset > 60_000
+    ? Math.floor(meta.viewOffset / 1000) : undefined;
+  const ownResume = !isShow ? (resumeSeconds(current.ratingKey) ?? serverOffset) : undefined;
   const canResume = ownResume != null;
   const resumeSec = ownResume ?? 0;
 

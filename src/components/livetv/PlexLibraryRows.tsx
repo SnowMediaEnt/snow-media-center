@@ -28,7 +28,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PlexPosterTile from './PlexPosterTile';
 import { isDemo } from '@/lib/demoMode';
-import { continueWatching, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
+import { continueWatching, mergeContinue, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import {
   getPlexSectionOnDeck, getPlexSectionRow, getCachedHub, getCachedHubStale, getHubEpoch, setCachedHub,
   getPlexSectionMeta, getPlexFilterValues, getPlexLibraryQuery,
@@ -66,6 +66,8 @@ export interface PlexLibraryRowsProps {
    *  what was just played moved in it. The panel now stays mounted under the
    *  player, so nothing else would refresh it. */
   watchNonce?: number;
+  /** On the viewer's own Plex account (see PlexSection.ownPlexAccount). */
+  serverResume?: boolean;
 }
 
 /** Cache key for a row, so a revisit paints instantly from the hub cache. */
@@ -84,7 +86,7 @@ const rowCachePath = (libKey: string, spec: LibraryRowSpec) =>
 
 const PlexLibraryRows = memo(({
   isActive, isCurrent, base, token, libKey, libTitle, sectionType,
-  onOpen, onExitToTabs, watchNonce = 0,
+  onOpen, onExitToTabs, watchNonce = 0, serverResume = false,
 }: PlexLibraryRowsProps) => {
   const specs = useMemo(() => libraryRowSpecs(sectionType), [sectionType]);
 
@@ -246,7 +248,10 @@ const PlexLibraryRows = memo(({
       // Deck belongs to the Plex account every box shares. The demo keeps the
       // server's canned one.
       const items = spec.kind === 'onDeck'
-        ? (isDemo() ? await getPlexSectionOnDeck(base, token, libKey) : continueWatching(30, libKey))
+        ? (isDemo() ? await getPlexSectionOnDeck(base, token, libKey)
+          // On the viewer's own Plex account the server's is theirs too.
+          : serverResume ? mergeContinue(continueWatching(30, libKey), await getPlexSectionOnDeck(base, token, libKey).catch(() => []))
+            : continueWatching(30, libKey))
         : await getPlexSectionRow(base, token, libKey, spec.query || '', rowDepth(spec.id));
       // An empty-but-successful response is a real answer: the row is hidden.
       // That is the documented behaviour for every guarded row (the date and
@@ -262,7 +267,7 @@ const PlexLibraryRows = memo(({
     } finally {
       setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
     }
-  }, [base, token, libKey]);
+  }, [base, token, libKey, serverResume]);
 
   // Wave 1 — prefetched on isCurrent, NOT isActive (see the header). Behind
   // the same 400ms dwell the old grid used: the panel mounts as soon as its

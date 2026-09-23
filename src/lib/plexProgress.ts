@@ -210,3 +210,21 @@ export function initPlexProgress(): Promise<void> {
 export function __resetPlexProgressForTests(v = 'device'): void {
   __setViewerForTests(v); memo = null; lastCloud.clear();
 }
+
+/** On the viewer's own Plex account the server's Continue Watching is theirs
+ *  too (the Plex apps on their other devices): this box's first, then the
+ *  server's titles it does not already have — one episode per show. */
+export function mergeContinue(own: PlexItem[], server: PlexItem[]): PlexItem[] {
+  const keys = new Set(own.map((i) => i.ratingKey));
+  const shows = new Set(own.filter((i) => i.type === 'episode' && i.grandparentTitle).map((i) => i.grandparentTitle!.toLowerCase()));
+  const extra = server.filter((i) => {
+    if (keys.has(i.ratingKey)) return false;
+    if (i.type === 'episode' && i.grandparentTitle) {
+      const show = i.grandparentTitle.toLowerCase();
+      if (shows.has(show)) return false;
+      shows.add(show);
+    }
+    return true;
+  });
+  return [...own, ...extra];
+}

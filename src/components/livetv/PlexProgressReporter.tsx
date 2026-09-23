@@ -1,10 +1,15 @@
 // Saves where this viewer is in the Plex title on screen (see plexProgress:
-// the viewer's own resume points, not the shared Plex account's). Renders
-// nothing. Every fifteen seconds it reads the playhead and saves it on the
-// box; when the title changes or the player closes it saves the last
-// position it saw as final, which also copies it to the viewer's account.
+// the viewer's own resume points, which every box keeps). Renders nothing.
+// Every fifteen seconds it reads the playhead and saves it on the box; when
+// the title changes or the player closes it saves the last position it saw
+// as final, which also copies it to the viewer's account.
+//
+// When the box is signed into Plex with the viewer's OWN Plex account
+// (`server`), the same progress is also reported to the server, so the Plex
+// apps on their other devices and the server's Continue Watching agree. With
+// the shared provider account it is not: that account's progress is everyone's.
 import { memo, useEffect, useRef } from 'react';
-import type { PlexPlayInfo } from '@/lib/plex';
+import { reportPlexTimeline, type PlexPlayInfo } from '@/lib/plex';
 import { saveProgress, type PlexProgress } from '@/lib/plexProgress';
 
 interface Props {
@@ -13,6 +18,8 @@ interface Props {
   /** What is playing, from EpisodeAutoplay; nothing is saved until it is known. */
   info: PlexPlayInfo | null;
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
+  /** Also report to this server (own Plex account only). */
+  server?: { base: string; token: string } | null;
 }
 
 const EVERY_MS = 15_000;
@@ -32,8 +39,9 @@ const snapshot = (info: PlexPlayInfo, at: number, dur: number): Snapshot => ({
   index: info.index,
 });
 
-const PlexProgressReporter = memo(({ active, ratingKey, info, getPosition }: Props) => {
+const PlexProgressReporter = memo(({ active, ratingKey, info, getPosition, server }: Props) => {
   const getPositionRef = useRef(getPosition); useEffect(() => { getPositionRef.current = getPosition; }, [getPosition]);
+  const serverRef = useRef(server); serverRef.current = server;
   // The last playhead seen for the title on screen, for the final save.
   const lastRef = useRef<Snapshot | null>(null);
   const known = !!info && !!ratingKey && info.ratingKey === ratingKey;
@@ -47,6 +55,8 @@ const PlexProgressReporter = memo(({ active, ratingKey, info, getPosition }: Pro
         if (!alive || !(p.duration > 0) || !(p.position > 0)) return;
         lastRef.current = snapshot(info, p.position, p.duration);
         saveProgress(lastRef.current);
+        const srv = serverRef.current;
+        if (srv) void reportPlexTimeline(srv.base, srv.token, info.ratingKey, p.playing ? 'playing' : 'paused', p.position, p.duration);
       } catch { /* next beat */ }
     };
     const id = window.setInterval(() => { void beat(); }, EVERY_MS);
@@ -61,6 +71,8 @@ const PlexProgressReporter = memo(({ active, ratingKey, info, getPosition }: Pro
       const last = lastRef.current;
       if (last && last.ratingKey === ratingKey) {
         saveProgress(last, true);
+        const srv = serverRef.current;
+        if (srv) void reportPlexTimeline(srv.base, srv.token, last.ratingKey, 'stopped', last.at, last.dur);
         lastRef.current = null;
       }
     };

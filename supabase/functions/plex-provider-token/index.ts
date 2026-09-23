@@ -396,6 +396,33 @@ async function checkProviderToken(token: string): Promise<TokenVerdict> {
   }
 }
 
+// Which Plex account the provider token belongs to (its uuid only — never
+// the token). A box compares it with the account behind its own token: the
+// same account means it shares the provider's viewing history, so the app
+// keeps resume points per viewer instead of reporting them to Plex.
+let providerAccount: { at: number; uuid: string } | null = null;
+async function providerAccountUuid(token: string): Promise<string | null> {
+  if (providerAccount && Date.now() - providerAccount.at < OWNER_CHECK_TTL_MS) return providerAccount.uuid;
+  try {
+    const res = await fetch('https://plex.tv/api/v2/user', {
+      signal: AbortSignal.timeout(8000),
+      headers: {
+        Accept: 'application/json',
+        'X-Plex-Token': token,
+        'X-Plex-Client-Identifier': 'smc-plex-provider-token',
+        'X-Plex-Product': 'Snow Media Center',
+      },
+    });
+    if (!res.ok) return null;
+    const u = await res.json() as { uuid?: string };
+    if (!u?.uuid) return null;
+    providerAccount = { at: Date.now(), uuid: String(u.uuid) };
+    return providerAccount.uuid;
+  } catch {
+    return null;
+  }
+}
+
 // ── handler ────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -410,6 +437,12 @@ Deno.serve(async (req) => {
     if (raw.length > MAX_BODY_BYTES) return jsonResponse({ ok: false, reason: 'body_too_large' });
     let body: Record<string, unknown> = {};
     try { body = raw ? JSON.parse(raw) : {}; } catch { return jsonResponse({ ok: false, reason: 'bad_json' }); }
+
+    // No line needed: the account id alone gives nothing away.
+    if (body.action === 'account') {
+      const uuid = await providerAccountUuid(token);
+      return jsonResponse(uuid ? { ok: true, uuid } : { ok: false, reason: 'unknown' });
+    }
 
     const host = normalizeHost(body.host);
     if (!host || !ALLOWED_HOSTS.includes(host as (typeof ALLOWED_HOSTS)[number])) {
