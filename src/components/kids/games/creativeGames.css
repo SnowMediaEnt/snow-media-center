@@ -29,6 +29,10 @@
 .kids-creative__instruction small { display: block; color: #8de3ff; font-size: .78rem; font-weight: 950; letter-spacing: .15em; }
 .kids-creative__instruction strong { display: block; font-size: clamp(1rem, 1.8vw, 1.65rem); line-height: 1.2; }
 .kids-creative__counter { flex: none; padding: 8px 13px; border-radius: 13px; background: rgba(162, 235, 255, .15); color: #c2f2ff; font-size: clamp(.8rem, 1.1vw, 1.1rem); font-weight: 950; }
+.kids-world__requirements { display: inline-flex; align-items: center; gap: 8px; }
+.kids-world__requirements > span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: #ffffff1c; opacity: .5; }
+.kids-world__requirements > span[data-found="true"] { background: #b9f5d2; color: #154a45; opacity: 1; box-shadow: 0 0 15px #7af6c077; }
+.kids-world__requirements svg { width: 22px; height: 22px; }
 .kids-creative__footer { display: flex; justify-content: space-between; align-items: center; gap: 15px; min-height: 65px; padding-top: 4px; }
 .kids-creative__hint { display: flex; align-items: center; gap: 8px; color: #d0ecff; font-size: clamp(.85rem, 1.15vw, 1.05rem); font-weight: 750; }
 .kids-creative__hint svg { width: 19px; flex: none; }
@@ -98,6 +102,7 @@
   .kids-creative__instruction-icon { width: 84px; height: 84px; }.kids-creative__instruction-icon svg { width: 50px; height: 50px; }
   .kids-creative__instruction small { font-size: 1.4rem; }.kids-creative__instruction strong { font-size: 2.5rem; }
   .kids-creative__counter { font-size: 1.8rem; }.kids-creative__hint, .kids-creative__controls span { font-size: 1.65rem; }
+  .kids-world__requirements > span { width: 58px; height: 58px; border-radius: 16px; }.kids-world__requirements svg { width: 39px; height: 39px; }
   .kids-creative__controls button { min-height: 86px; font-size: 1.7rem; }
   .kids-world__grid { width: min(100%, 1900px); gap: 25px; padding: 30px; }
   .kids-world__cell > span { width: 170px; }.kids-world__moon { width: 90px; height: 90px; }

@@ -14,10 +14,11 @@ const SYMBOLS = {
   down: { label: 'Apple', Icon: Apple, cue: 'card' },
   left: { label: 'TV', Icon: Tv, cue: 'triviaCorrect' },
 } as const;
-const lengthFor = (tier: KidsGameProps['tier'], level: number) => tier === 'little' ? Math.min(3, 2 + Math.floor(level / 4)) : tier === 'kids' ? Math.min(5, 3 + Math.floor(level / 3)) : Math.min(6, 4 + Math.floor(level / 3));
-const PATTERN_STEPS = [0, 1, 3, 2, 0, 3];
-export const patternFor = (level: number, round: number, count: number): Direction[] =>
-  Array.from({ length: count }, (_, index) => DIRECTIONS[(level * 7 + round * 5 + PATTERN_STEPS[index]) % 4]);
+export const patternLengthFor = (tier: KidsGameProps['tier'], level: number, round: number) =>
+  Math.min(tier === 'little' ? 5 : tier === 'kids' ? 7 : 9, Math.max(1, level) + Math.max(0, round));
+const PATTERN_STEPS = [0, 1, 3, 2, 0, 3, 1, 2];
+export const patternFor = (level: number, count: number): Direction[] =>
+  Array.from({ length: count }, (_, index) => DIRECTIONS[(level * 7 + PATTERN_STEPS[index % PATTERN_STEPS.length] + Math.floor(index / PATTERN_STEPS.length)) % 4]);
 
 export default function BeatBlizzard({ tier, progress, onComplete, onBack, soundOn }: KidsGameProps) {
   const [level, setLevel] = useState(progress.level);
@@ -32,7 +33,7 @@ export default function BeatBlizzard({ tier, progress, onComplete, onBack, sound
   const completedRef = useRef(false);
   const padRef = useRef<HTMLDivElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
-  const pattern = useMemo(() => patternFor(level, round, lengthFor(tier, level)), [tier, level, round]);
+  const pattern = useMemo(() => patternFor(level, patternLengthFor(tier, level, round)), [tier, level, round]);
 
   const clearTimers = useCallback(() => {
     timerRef.current.forEach(window.clearTimeout);

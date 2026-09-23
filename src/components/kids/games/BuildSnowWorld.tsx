@@ -9,10 +9,14 @@ const PIECES: Piece[] = ['empty', 'pine', 'cabin', 'star'];
 const icon = (piece: Piece) => piece === 'pine' ? <TreePine /> : piece === 'cabin' ? <House /> : piece === 'star' ? <Star /> : <Snowflake />;
 const name = (piece: Piece) => piece === 'pine' ? 'pine tree' : piece === 'cabin' ? 'cozy cabin' : 'shining star';
 
-function goalFor(tier: KidsGameProps['tier'], level: number): { piece: Piece; count: number; extra?: { piece: Piece; count: number } } {
-  if (tier === 'little') return { piece: level % 3 === 0 ? 'star' : 'pine', count: Math.min(4, 1 + Math.ceil(level / 2)) };
-  if (tier === 'kids') return { piece: level % 2 ? 'pine' : 'star', count: Math.min(5, 2 + Math.ceil(level / 3)), extra: { piece: 'cabin', count: 1 } };
-  return { piece: level % 2 ? 'star' : 'pine', count: Math.min(6, 3 + Math.ceil(level / 3)), extra: { piece: 'cabin', count: 2 } };
+function goalFor(tier: KidsGameProps['tier'], level: number): { theme: string; pieces: Piece[] } {
+  const scenes: Array<{ theme: string; pieces: Piece[] }> = [
+    { theme: 'winter forest', pieces: ['pine', 'cabin', 'star'] },
+    { theme: 'snowy village', pieces: ['cabin', 'pine', 'star'] },
+    { theme: 'starlit meadow', pieces: ['star', 'pine', 'cabin'] },
+  ];
+  const scene = scenes[(Math.max(1, level) - 1) % scenes.length];
+  return { theme: scene.theme, pieces: scene.pieces.slice(0, tier === 'little' ? 1 : tier === 'kids' ? 2 : 3) };
 }
 
 export default function BuildSnowWorld({ tier, progress, onComplete, onBack, soundOn }: KidsGameProps) {
@@ -27,9 +31,7 @@ export default function BuildSnowWorld({ tier, progress, onComplete, onBack, sou
   const backRef = useRef<HTMLButtonElement>(null);
   const { play } = useGameAudio();
   const goal = useMemo(() => goalFor(tier, level), [tier, level]);
-  const placed = cells.filter(piece => piece === goal.piece).length;
-  const extraPlaced = goal.extra ? cells.filter(piece => piece === goal.extra?.piece).length : 0;
-  const ready = placed >= goal.count && (!goal.extra || extraPlaced >= goal.extra.count);
+  const ready = goal.pieces.every(piece => cells.includes(piece));
 
   useEffect(() => { cellsRef.current[cursor]?.focus({ preventScroll: true }); }, [cursor]);
   useEffect(() => { if (done) finishRef.current?.focus({ preventScroll: true }); }, [done]);
@@ -85,7 +87,7 @@ export default function BuildSnowWorld({ tier, progress, onComplete, onBack, sou
     setDone(true);
     setMessage('Your snow world is glowing!');
     if (soundOn) play('win', { volume: 0.55 });
-    onComplete({ score: goal.count * 100 + (goal.extra?.count ?? 0) * 150, stars: 3, level: level + 1 });
+    onComplete({ score: goal.pieces.length * 150, stars: 3, level: level + 1 });
   };
 
   const next = () => {
@@ -98,12 +100,12 @@ export default function BuildSnowWorld({ tier, progress, onComplete, onBack, sou
   return <section className="kids-creative kids-world" aria-label="Build a Snow World" onKeyDown={keyDown}>
     <div className="kids-creative__header">
       <button ref={backRef} type="button" className="kids-creative__back" onClick={onBack}><ArrowLeft /> Lounge</button>
-      <div><span className="kids-creative__eyebrow">CREATE & COUNT · LEVEL {level}</span><h2>Build a Snow World</h2></div>
+      <div><span className="kids-creative__eyebrow">CREATE & EXPLORE · LEVEL {level}</span><h2>Build a Snow World</h2></div>
       <span className="kids-creative__badge"><Star /> {progress.stars} stars</span>
     </div>
-    <div className="kids-creative__instruction"><span className="kids-creative__instruction-icon">{icon(goal.piece)}</span>
-      <div><small>YOUR MISSION</small><strong>Place {goal.count} {name(goal.piece)}{goal.count > 1 ? 's' : ''}{goal.extra ? ` and ${goal.extra.count} ${name(goal.extra.piece)}${goal.extra.count > 1 ? 's' : ''}` : ''}.</strong></div>
-      <span className="kids-creative__counter">{Math.min(placed, goal.count)}/{goal.count}{goal.extra ? ` · ${Math.min(extraPlaced, goal.extra.count)}/${goal.extra.count}` : ''}</span>
+    <div className="kids-creative__instruction"><span className="kids-creative__instruction-icon">{icon(goal.pieces[0])}</span>
+      <div><small>YOUR DESIGN MISSION</small><strong>Make a {goal.theme} with {goal.pieces.map(piece => `a ${name(piece)}`).join(' and ')}.</strong></div>
+      <span className="kids-creative__counter kids-world__requirements" aria-label={goal.pieces.map(piece => `${name(piece)} ${cells.includes(piece) ? 'placed' : 'needed'}`).join(', ')}>{goal.pieces.map(piece => <span key={piece} data-found={cells.includes(piece)} title={name(piece)}>{icon(piece)}</span>)}</span>
     </div>
     <div className="kids-world__scene">
       <div className="kids-world__sky"><span className="kids-world__moon" /><span className="kids-world__mountains" /></div>

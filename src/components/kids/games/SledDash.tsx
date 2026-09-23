@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Flag, Mountain, Star } from 'lucide-react';
 import type { KidsGameProps } from '../types';
 import { useGameAudio } from '../../games/shared/gameAudio';
-import { actionChallenge, actionKey } from './actionChallenges';
+import { actionKey, sledChallenge } from './actionChallenges';
 import './SledDash.css';
 
 export default function SledDash({ tier, progress, soundOn, onComplete, onBack }: KidsGameProps) {
@@ -17,7 +17,7 @@ export default function SledDash({ tier, progress, soundOn, onComplete, onBack }
   const gates = useRef<(HTMLButtonElement | null)[]>([]);
   const audio = useGameAudio();
   const [level] = useState(() => Math.max(1, progress.level || 1));
-  const question = useMemo(() => actionChallenge(tier, level, round, 3), [tier, level, round]);
+  const question = useMemo(() => sledChallenge(tier, level, round), [tier, level, round]);
   useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => { if (!done) gates.current[lane]?.focus(); }, [lane, round, done]);
   function glide(nextLane = lane) {
@@ -40,7 +40,7 @@ export default function SledDash({ tier, progress, soundOn, onComplete, onBack }
         if (soundOn) audio.play('win', { volume: 0.55 });
       } else {
         setRound((n) => n + 1);
-        setMessage('A new trail! Find the next answer.');
+        setMessage('A new trail! Find the next word.');
       }
       setGliding(false);
       locked.current = false;
