@@ -818,8 +818,14 @@ function mapMetadata(items: Array<Record<string, unknown>>): PlexItem[] {
     ratingKey: String(m.ratingKey ?? ''),
     title: String(m.title || m.grandparentTitle || ''),
     type: String(m.type || 'movie'),
-    thumb: (m.thumb as string | undefined) || (m.grandparentThumb as string | undefined),
-    art: m.art as string | undefined,
+    // An episode's own thumb is a still from the episode; on a poster tile
+    // (Continue Watching, Recently Aired) the show's poster is what reads, as
+    // it does in the Plex app. The episode list uses its own mapping and
+    // keeps the stills.
+    thumb: m.type === 'episode'
+      ? ((m.grandparentThumb as string | undefined) || (m.parentThumb as string | undefined) || (m.thumb as string | undefined))
+      : ((m.thumb as string | undefined) || (m.grandparentThumb as string | undefined)),
+    art: (m.art as string | undefined) || (m.type === 'episode' ? (m.grandparentArt as string | undefined) : undefined),
     year: m.year as number | undefined,
     summary: m.summary as string | undefined,
     duration: m.duration as number | undefined,

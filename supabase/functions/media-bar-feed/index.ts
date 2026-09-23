@@ -149,7 +149,9 @@ const mapPlexItem = async (m: any): Promise<Item & { _seriesKey?: string; _dedup
     kind: isMovie ? 'movie' : (isEpisode ? 'episode' : m.type ?? 'show'),
     title: isEpisode ? (m.title ?? 'Episode') : (m.title ?? 'Untitled'),
     subtitle,
-    poster: await plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
+    // An episode's own thumb is a still from the episode; the show's poster
+    // is what the tile should show.
+    poster: await plexImage(isEpisode ? (m.grandparentThumb ?? m.parentThumb ?? m.thumb) : (m.thumb ?? m.parentThumb ?? m.grandparentThumb)),
     ratingKey,
     key: m.key,
     guid: m.guid,
