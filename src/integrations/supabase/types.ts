@@ -825,6 +825,8 @@ export type Database = {
           first_seen_at: string
           first_user_id: string | null
           form_factor: string | null
+          gone_at: string | null
+          gone_reason: string | null
           id: string
           last_seen_at: string
           last_user_id: string | null
@@ -841,6 +843,8 @@ export type Database = {
           first_seen_at?: string
           first_user_id?: string | null
           form_factor?: string | null
+          gone_at?: string | null
+          gone_reason?: string | null
           id?: string
           last_seen_at?: string
           last_user_id?: string | null
@@ -857,6 +861,8 @@ export type Database = {
           first_seen_at?: string
           first_user_id?: string | null
           form_factor?: string | null
+          gone_at?: string | null
+          gone_reason?: string | null
           id?: string
           last_seen_at?: string
           last_user_id?: string | null
@@ -3097,6 +3103,42 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_pin_resets: {
+        Row: {
+          attempts: number
+          code_hash: string
+          created_at: string
+          expires_at: string
+          id: string
+          profile_id: string
+          ticket_id: string | null
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          profile_id: string
+          ticket_id?: string | null
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          profile_id?: string
+          ticket_id?: string | null
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -4460,6 +4502,39 @@ export type Database = {
           plan_name?: string
           service_type?: Database["public"]["Enums"]["service_type"]
           status?: Database["public"]["Enums"]["subscription_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      viewer_profiles: {
+        Row: {
+          avatar: string
+          id: string
+          kids_level: string | null
+          name: string
+          pin_hash: string | null
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar?: string
+          id: string
+          kids_level?: string | null
+          name: string
+          pin_hash?: string | null
+          position?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar?: string
+          id?: string
+          kids_level?: string | null
+          name?: string
+          pin_hash?: string | null
+          position?: number
           updated_at?: string
           user_id?: string
         }
