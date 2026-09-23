@@ -65,8 +65,8 @@ import {
 } from '@/lib/plexDiscover';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
-import { explainPlexStall } from '@/lib/plexStallVerdict';
-import type { DiagSnapshot } from '@/lib/bufferDiagnostics';
+import { autoDropPreset, explainPlexStall } from '@/lib/plexStallVerdict';
+import { getSnapshot as getDiagSnapshot, type DiagSnapshot } from '@/lib/bufferDiagnostics';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { pauseLoading, resumeLoading, waitForResume } from '@/lib/loadGate';
 
@@ -2689,6 +2689,36 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   // Reset the auto-revert guard when a new title starts.
   useEffect(() => { autoRevertRef.current = null; }, [playing?.ratingKey]);
+
+  // Automatic quality, like the Plex app's. Playback starts at Original; if
+  // the file keeps buffering because it is bigger than what arrives (a 1080p
+  // remux runs 25-40 Mb/s), drop once to the quality the connection carries
+  // and say so. A stall still going after 6 s, or a second stall, counts; the
+  // first load does not. Once per title, and never while already converting.
+  const autoDropRef = useRef<{ key: string | null; stalls: number; done: boolean }>({ key: null, stalls: 0, done: false });
+  useEffect(() => { autoDropRef.current = { key: playing?.ratingKey ?? null, stalls: 0, done: false }; }, [playing?.ratingKey]);
+  useEffect(() => {
+    if (!(nativeActive && native.buffering && !useTranscode && playing && conn)) return;
+    if (stillLoadingRef.current) return;
+    const st = autoDropRef.current;
+    if (st.done || st.key !== playing.ratingKey) return;
+    st.stalls += 1;
+    let cancelled = false;
+    const drop = async () => {
+      if (cancelled || st.done) return;
+      const preset = autoDropPreset(fileKbps, getDiagSnapshot());
+      if (!preset) return;
+      st.done = true;
+      let resume = 0;
+      try { const p = await native.getPosition(); resume = p.position; } catch { /* from the start */ }
+      if (cancelled) return;
+      try { trackEvent('plex_auto_quality', 'player', { preset: preset.key, fileKbps: fileKbps ?? 0 }); } catch { /* ignore */ }
+      changeQuality(preset.key, resume);
+      try { toast({ title: `Switched to ${preset.label} to stop the buffering`, description: 'Change it any time under Quality.' }); } catch { /* ignore */ }
+    };
+    const timer = window.setTimeout(() => { void drop(); }, st.stalls >= 2 ? 0 : 6000);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [native.buffering, nativeActive, useTranscode, playing, conn, fileKbps, native, changeQuality]);
 
   // Network-class failure while playing: retry by itself the moment the device
   // reports connectivity again, instead of parking on "Playback Error" until

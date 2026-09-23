@@ -355,8 +355,7 @@ class SnowPlayerPlugin : Plugin() {
         // in Fire TV memory — capped in bytes too, or a 15 Mb/s tile could
         // hold ~30 MB. "main" keeps the library default (up to ~138 MB of
         // buffer) except on 2 GB-class boxes, where that memory is what gets
-        // the WebView killed; there it keeps 15–30 s, time before size so a
-        // high-bitrate Plex film still has its 15 s.
+        // the WebView killed; there it is capped at 80 MB (see below).
         val lowRam = isLowRamBox(act)
         if (screenId != MAIN) {
             val loadControl = DefaultLoadControl.Builder()
@@ -366,14 +365,27 @@ class SnowPlayerPlugin : Plugin() {
                 .build()
             builder.setLoadControl(loadControl)
         } else if (lowRam) {
+            // Up to a minute ahead, about 80 MB. A 1080p film (8-12 Mb/s)
+            // now gets the full minute (it had 15-30 s, so any dip in the
+            // server's or the Wi-Fi's speed became a spinner); a 30 Mb/s
+            // remux stops near its 20 s minimum. Time before size, so a badly
+            // interleaved file can always fill its minimum instead of
+            // stalling with the byte budget spent on one track.
             val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(15000, 30000, 2500, 5000)
-                .setTargetBufferBytes(48 * 1024 * 1024)
+                .setBufferDurationsMs(20000, 60000, 2500, 5000)
+                .setTargetBufferBytes(80 * 1024 * 1024)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
             builder.setLoadControl(loadControl)
         }
         val p = builder.build()
+        // Keep the Wi-Fi radio at full speed while playing. Without a Wi-Fi
+        // lock many Android TV boxes drop the radio into power saving once
+        // the app is just "showing video", and throughput collapses: a
+        // 1080p film buffers on a connection that plays it fine in the Plex
+        // app, which (like every streaming app) holds this lock. A VPN can't
+        // help with that. Held only while playing; released on pause/stop.
+        p.setWakeMode(C.WAKE_MODE_NETWORK)
         p.setVideoTextureView(s.textureView)
         p.volume = s.volume
         p.addListener(object : Player.Listener {

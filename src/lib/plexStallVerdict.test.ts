@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DiagSnapshot } from './bufferDiagnostics';
-import { explainPlexStall, presetFor } from './plexStallVerdict';
+import { autoDropPreset, explainPlexStall, presetFor } from './plexStallVerdict';
 
 const snap = (o: Partial<DiagSnapshot>): DiagSnapshot => ({
   verdict: 'unknown', headline: 'Buffering…', detail: '', streamKbps: null, streamEarlyKbps: null,
@@ -34,5 +34,17 @@ describe('presetFor', () => {
     expect(presetFor(12000)).toBe('1080p · 8 Mbps');
     expect(presetFor(5000)).toBe('720p · 3 Mbps');
     expect(presetFor(500)).toBe('480p · 2 Mbps');
+  });
+});
+
+describe('autoDropPreset', () => {
+  const none = { hostKbps: null, streamKbps: null, probeKbps: null };
+  it('drops a 1080p remux to what the stream gets', () => {
+    expect(autoDropPreset(35000, { ...none, hostKbps: 11000 })?.key).toBe('1080-8');
+    expect(autoDropPreset(35000, none)?.key).toBe('1080-12');
+  });
+  it('leaves small files and unknown sizes alone', () => {
+    expect(autoDropPreset(6000, { ...none, hostKbps: 20000 })).toBeNull();
+    expect(autoDropPreset(undefined, { ...none, hostKbps: 2000 })).toBeNull();
   });
 });

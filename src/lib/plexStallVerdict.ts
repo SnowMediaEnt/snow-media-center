@@ -10,7 +10,7 @@
 //     upload (or its converting) is the bottleneck.
 // Returns null when there is nothing Plex-specific to add.
 import { formatMbps, type ClassifyResult, type DiagSnapshot } from '@/lib/bufferDiagnostics';
-import { PLEX_QUALITY_PRESETS, type PlexRoute } from '@/lib/plex';
+import { PLEX_QUALITY_PRESETS, type PlexQualityPreset, type PlexRoute } from '@/lib/plex';
 
 export interface PlexStallContext {
   /** Average bitrate of the file, kbps. */
@@ -22,11 +22,30 @@ export interface PlexStallContext {
 }
 
 /** The best quality preset that fits comfortably in `kbps`. */
-export function presetFor(kbps: number): string {
+export function fitPreset(kbps: number): PlexQualityPreset {
   const fit = PLEX_QUALITY_PRESETS
     .filter((p) => p.maxVideoBitrateKbps && p.maxVideoBitrateKbps <= kbps * 0.75)
     .sort((a, b) => (b.maxVideoBitrateKbps ?? 0) - (a.maxVideoBitrateKbps ?? 0))[0];
-  return (fit ?? PLEX_QUALITY_PRESETS[PLEX_QUALITY_PRESETS.length - 1]).label;
+  return fit ?? PLEX_QUALITY_PRESETS[PLEX_QUALITY_PRESETS.length - 1];
+}
+export const presetFor = (kbps: number): string => fitPreset(kbps).label;
+
+/**
+ * Automatic quality, like the Plex app's: the preset to drop to when a file
+ * played as-is keeps buffering. Only when the file is clearly bigger than
+ * what arrives (a lower quality would actually be smaller); null means
+ * converting would not help, so leave it alone.
+ */
+export function autoDropPreset(fileKbps: number | undefined, snap: Pick<DiagSnapshot, 'hostKbps' | 'streamKbps' | 'probeKbps'>): PlexQualityPreset | null {
+  if (!fileKbps) return null;
+  const seen = [snap.hostKbps, snap.streamKbps].filter((n): n is number => n != null && n > 0);
+  // What the stream actually gets; failing that, the general internet;
+  // failing that, assume half of what the file needs.
+  const budget = seen.length ? Math.min(...seen) : (snap.probeKbps ?? fileKbps / 2);
+  // Plenty arriving: the size of the file is not what is stalling it.
+  if (budget >= fileKbps * 1.2) return null;
+  const p = fitPreset(Math.min(budget, fileKbps));
+  return p.maxVideoBitrateKbps && p.maxVideoBitrateKbps < fileKbps * 0.8 ? p : null;
 }
 
 export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): ClassifyResult | null {
