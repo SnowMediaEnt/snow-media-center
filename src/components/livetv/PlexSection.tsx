@@ -57,6 +57,7 @@ import PlexPlayerOverlay, { type PlayerPrompt, type SubtitleSearchContext } from
 import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
 import PlexProgressReporter from './PlexProgressReporter';
 import { continueWatching, initPlexProgress, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
+import { myList, pullFavoritesFromCloud, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
@@ -523,6 +524,15 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     window.addEventListener(PLEX_PROGRESS_EVENT, refresh);
     return () => window.removeEventListener(PLEX_PROGRESS_EVENT, refresh);
   }, [watchNonce]);
+  // My List (plexFavorites), kept current as titles are added and removed.
+  const [listItems, setListItems] = useState<PlexItem[]>(() => (DEMO ? [] : myList()));
+  useEffect(() => {
+    if (DEMO) return;
+    const refresh = () => setListItems(myList());
+    refresh();
+    window.addEventListener(PLEX_FAVORITES_EVENT, refresh);
+    return () => window.removeEventListener(PLEX_FAVORITES_EVENT, refresh);
+  }, []);
 
   const [hubRetry, setHubRetry] = useState(0);
   const hubRetryRef = useRef(0);
@@ -614,6 +624,8 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     // shared provider account, so it was everyone's viewing mixed together.
     const cont = familyOnly(DEMO ? onDeck : ownContinue, adultKeys);
     if (cont.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: cont.slice(0, RAIL_CAP) });
+    const mine = familyOnly(listItems, adultKeys);
+    if (mine.length > 0) r.push({ id: 'mylist', title: 'My List', items: mine.slice(0, RAIL_CAP) });
     r.push({ id: 'added', title: 'Recently Added', items: familyOnly(recent, adultKeys).slice(0, RAIL_CAP) });
     const rel = familyOnly(released, adultKeys);
     if (rel.length > 0) r.push({ id: 'released', title: 'Recently Released', items: rel });
@@ -621,7 +633,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const pop = familyOnly(popular, adultKeys);
     if (pop.length > 0) r.push({ id: 'popular', title: 'Most Watched', items: pop });
     return r;
-  }, [onDeck, ownContinue, recent, released, popular, adultKeys]);
+  }, [onDeck, ownContinue, listItems, recent, released, popular, adultKeys]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;
@@ -1777,7 +1789,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // then brought up to date from their account (another box they use).
   useEffect(() => {
     if (DEMO) return;
-    void initPlexProgress().then(() => pullProgressFromCloud());
+    void initPlexProgress().then(() => Promise.all([pullProgressFromCloud(), pullFavoritesFromCloud()]));
   }, []);
 
   // Image focus mode: while a detail page is open, the browse grid, rails and

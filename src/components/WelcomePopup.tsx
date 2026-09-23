@@ -24,6 +24,7 @@ const CHANGELOG: Record<string, string[]> = {
     '🎬 Plex search: if we do not have it, request it right there and it is added to Plex for you',
     '⏭️ Plex shows: Skip Intro, and the next episode plays by itself when the credits roll',
     '📍 Plex Continue Watching and Resume are now your own, and follow your account to any box',
+    '➕ Plex My List: save movies and shows to a row on Plex Home, on every box you sign in on',
     '🎃 Plex Halloween: a hand-picked collection at the top of Plex, with rows for kids and families and for every kind of horror fan',
     '📶 Plex buffers less: it starts at original quality and drops only if a film keeps buffering, and the buffering card says why',
     '🛠️ The buffering guide is redesigned: bigger, clearer, with a step tracker and big buttons made for the remote',

@@ -5,7 +5,7 @@
 // and share the same Back stack as show → seasons → episodes.
 // Fire-TV D-pad only. All Plex HTTP via plex.ts.
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Play, RotateCw, List } from 'lucide-react';
+import { Loader2, Play, RotateCw, List, Plus, Check } from 'lucide-react';
 import { getPlexMetadata as _getPlexMetadata, getPlexSeasons as _getPlexSeasons,
   getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, resolutionLabel,
   type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson } from '@/lib/plex';
@@ -17,6 +17,7 @@ import { runWhenIdle } from '@/utils/idle';
 import type { SubtitleSearchContext } from './PlexPlayerOverlay';
 import { isPlexKeyOwner } from './plexKeyOwner';
 import { getProgress, isWatched, progressPercent, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
+import { isFavorite, toggleFavorite, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 
 interface Props {
   isActive: boolean;
@@ -133,7 +134,11 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   useEffect(() => {
     const bump = () => setProgressTick((t) => t + 1);
     window.addEventListener(PLEX_PROGRESS_EVENT, bump);
-    return () => window.removeEventListener(PLEX_PROGRESS_EVENT, bump);
+    window.addEventListener(PLEX_FAVORITES_EVENT, bump);
+    return () => {
+      window.removeEventListener(PLEX_PROGRESS_EVENT, bump);
+      window.removeEventListener(PLEX_FAVORITES_EVENT, bump);
+    };
   }, []);
 
   const [meta, setMeta] = useState<PlexMetadata | null>(null);
@@ -257,6 +262,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const canResume = ownResume != null;
   const resumeSec = ownResume ?? 0;
 
+  // My List is for movies and shows (an episode's show is what gets saved).
+  const canList = !isEpisode && !isDemo();
+  const listed = canList && isFavorite(current.ratingKey);
   const detailButtons: Array<{ id: string; label: string }> = useMemo(() => {
     const b: Array<{ id: string; label: string }> = [];
     if (isShow) b.push({ id: 'browse', label: 'Browse Episodes' });
@@ -266,8 +274,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
       const m = Math.floor((resumeSec % 3600) / 60);
       b.push({ id: 'resume', label: `Resume ${h > 0 ? `${h}:${String(m).padStart(2, '0')}` : `${m}m`}` });
     }
+    if (canList) b.push({ id: 'mylist', label: listed ? 'In My List' : 'My List' });
     return b;
-  }, [isShow, canResume, resumeSec]);
+  }, [isShow, canResume, resumeSec, canList, listed]);
 
   useEffect(() => { if (btn >= detailButtons.length) setBtn(0); }, [detailButtons.length, btn]);
 
@@ -337,7 +346,17 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     if (id === 'play') playCurrent(undefined);
     else if (id === 'resume') playCurrent(resumeSec);
     else if (id === 'browse') { setStep('seasons'); void loadSeasons(); }
-  }, [playCurrent, resumeSec, loadSeasons]);
+    else if (id === 'mylist') {
+      const c = currentRef.current;
+      toggleFavorite({
+        ratingKey: c.ratingKey,
+        title: meta?.title || c.title,
+        type: isShow ? 'show' : 'movie',
+        year: meta?.year ?? c.year,
+        librarySectionID: meta?.librarySectionID ?? c.librarySectionID,
+      });
+    }
+  }, [playCurrent, resumeSec, loadSeasons, meta, isShow]);
 
   const pushItem = useCallback((next: PlexItem) => {
     setStack((s) => [...s, next]);
@@ -557,6 +576,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       {b.id === 'play' && <Play className="w-4 h-4 fill-current" />}
                       {b.id === 'resume' && <RotateCw className="w-4 h-4" />}
                       {b.id === 'browse' && <List className="w-4 h-4" />}
+                      {b.id === 'mylist' && (listed ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />)}
                       {b.label}
                     </button>
                   );

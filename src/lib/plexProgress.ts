@@ -12,6 +12,7 @@
 // every storage or network failure is swallowed.
 import { supabase } from '@/integrations/supabase/client';
 import type { PlexItem } from '@/lib/plex';
+import { __setViewerForTests, onViewerChange, resolveViewer, viewerIsAccount, viewerKey } from '@/lib/viewer';
 
 export interface PlexProgress {
   ratingKey: string;
@@ -43,32 +44,13 @@ const DONE_SHARE = 0.92;
 /** Cloud copies at most this often per title while it plays. */
 const CLOUD_EVERY_MS = 60_000;
 
-let viewer = 'device';
-let viewerResolved: Promise<void> | null = null;
-
-/** The viewer: the Snow Media user id when signed in, else the box. */
-function resolveViewer(): Promise<void> {
-  viewerResolved ??= (async () => {
-    try {
-      const { data } = await supabase.auth.getSession();
-      viewer = data.session?.user?.id ?? 'device';
-    } catch { viewer = 'device'; }
-    try {
-      supabase.auth.onAuthStateChange((_e, session) => {
-        const next = session?.user?.id ?? 'device';
-        if (next === viewer) return;
-        viewer = next;
-        memo = null;
-        emit();
-      });
-    } catch { /* no auth in this build */ }
-  })();
-  return viewerResolved;
-}
+// A change of viewer (sign-in, sign-out) means another viewer's list.
+onViewerChange(() => { memo = null; emit(); });
 
 let memo: { viewer: string; map: Record<string, PlexProgress> } | null = null;
 
 const load = (): Record<string, PlexProgress> => {
+  const viewer = viewerKey();
   if (memo && memo.viewer === viewer) return memo.map;
   let map: Record<string, PlexProgress> = {};
   try {
@@ -85,6 +67,7 @@ const save = (map: Record<string, PlexProgress>) => {
   const list = Object.values(map).sort((a, b) => b.t - a.t).slice(0, MAX);
   const trimmed: Record<string, PlexProgress> = {};
   for (const p of list) trimmed[p.ratingKey] = p;
+  const viewer = viewerKey();
   memo = { viewer, map: trimmed };
   try { localStorage.setItem(PREFIX + viewer, JSON.stringify(trimmed)); } catch { /* full or unavailable */ }
   emit();
@@ -101,11 +84,11 @@ const emit = () => {
 
 const lastCloud = new Map<string, number>();
 const toCloud = (p: PlexProgress, force: boolean) => {
-  if (viewer === 'device') return;
+  if (!viewerIsAccount()) return;
   const now = Date.now();
   if (!force && now - (lastCloud.get(p.ratingKey) ?? 0) < CLOUD_EVERY_MS) return;
   lastCloud.set(p.ratingKey, now);
-  const userId = viewer;
+  const userId = viewerKey();
   void (async () => {
     try {
       await supabase.from('watch_history').upsert({
@@ -194,8 +177,8 @@ export function continueWatching(limit = 30, sectionId?: string): PlexItem[] {
 /** Fold the account's copy into this box (newest wins). Call on Plex open. */
 export async function pullProgressFromCloud(): Promise<void> {
   await resolveViewer();
-  if (viewer === 'device') return;
-  const userId = viewer;
+  if (!viewerIsAccount()) return;
+  const userId = viewerKey();
   try {
     const { data, error } = await supabase
       .from('watch_history')
@@ -204,7 +187,7 @@ export async function pullProgressFromCloud(): Promise<void> {
       .eq('kind', PROGRESS_KIND)
       .order('watched_at', { ascending: false })
       .limit(MAX);
-    if (error || !data || viewer !== userId) return;
+    if (error || !data || viewerKey() !== userId) return;
     const map = { ...load() };
     let changed = false;
     for (const r of data) {
@@ -225,5 +208,5 @@ export function initPlexProgress(): Promise<void> {
 
 /** Tests only. */
 export function __resetPlexProgressForTests(v = 'device'): void {
-  viewer = v; memo = null; viewerResolved = Promise.resolve(); lastCloud.clear();
+  __setViewerForTests(v); memo = null; lastCloud.clear();
 }
