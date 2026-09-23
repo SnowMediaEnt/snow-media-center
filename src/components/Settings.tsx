@@ -8,10 +8,12 @@ import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
 import { peekIntent, clearIntent, INTENT_KEYS } from '@/lib/appActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo } from '@/lib/demoMode';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone } from 'lucide-react';
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors, loadProfiles, PROFILES_EVENT } from '@/lib/profiles';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
+import PairingQR from '@/components/remote/PairingQR';
+import { PHONE_REMOTE_EVENT, connectedPhones, isPaired, setTypingHintEnabled, typingHintEnabled, unpairAllPhones } from '@/lib/phoneRemote';
 import { getPreferredTier, loadAiTiers, setPreferredTier, type AiTier, type AiTierInfo } from '@/lib/aiTiers';
 import { useAuth } from '@/hooks/useAuth';
 import MediaManager from '@/components/MediaManager';
@@ -44,6 +46,9 @@ type SettingsFocus =
   | 'media-content'
   | 'ui-profiles'
   | 'tab-profiles'
+  | 'tab-remote'
+  | 'remote-hint'
+  | 'remote-unpair'
   | 'profiles-switch'
   | 'profiles-manage'
   | 'ui-ai-tier'
@@ -79,6 +84,18 @@ const Settings = ({ onBack }: SettingsProps) => {
     window.addEventListener(PROFILES_EVENT, on);
     return () => window.removeEventListener(PROFILES_EVENT, on);
   }, []);
+  // Phone remote: pairing lives here (Settings → Phone Remote).
+  const [remoteTick, setRemoteTick] = useState(0);
+  useEffect(() => {
+    const on = () => setRemoteTick((t) => t + 1);
+    window.addEventListener(PHONE_REMOTE_EVENT, on);
+    const id = window.setInterval(on, 15_000);
+    return () => { window.removeEventListener(PHONE_REMOTE_EVENT, on); window.clearInterval(id); };
+  }, []);
+  void remoteTick;
+  const remotePhones = connectedPhones();
+  const remotePaired = isPaired();
+  const remoteHint = typingHintEnabled();
   // Snow AI level for AI Chat and voice commands: Free (included) or Premium
   // (the top model, Snow Gems a message). Premium needs a signed-in account.
   const { user } = useAuth();
@@ -141,7 +158,7 @@ const Settings = ({ onBack }: SettingsProps) => {
   };
   const [activeTab, setActiveTab] = useState(() => {
     const want = peekIntent(INTENT_KEYS.settings);
-    return want && ['media', 'ui', 'profiles', 'updates', 'alerts', 'ai'].includes(want) ? want : 'media';
+    return want && ['media', 'ui', 'profiles', 'remote', 'updates', 'alerts', 'ai'].includes(want) ? want : 'media';
   });
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
@@ -178,6 +195,19 @@ const Settings = ({ onBack }: SettingsProps) => {
         }
         return order;
       };
+
+      if (focusedElement === 'remote-hint' || focusedElement === 'remote-unpair') {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
+          event.preventDefault(); event.stopPropagation();
+        }
+        if (event.key === 'ArrowDown' && focusedElement === 'remote-hint') setFocusedElement('remote-unpair');
+        else if (event.key === 'ArrowUp') setFocusedElement(focusedElement === 'remote-unpair' ? 'remote-hint' : 'tab-remote');
+        else if (event.key === 'Enter' || event.key === ' ') {
+          if (focusedElement === 'remote-hint') setTypingHintEnabled(!typingHintEnabled());
+          else { void unpairAllPhones(); toast({ title: 'Phones unpaired', description: 'Pair again with the new code.' }); }
+        } else if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) setFocusedElement('tab-remote');
+        return;
+      }
 
       if (focusedElement === 'profiles-switch' || focusedElement === 'profiles-manage') {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
@@ -332,8 +362,8 @@ const Settings = ({ onBack }: SettingsProps) => {
       }
 
       const tabs: SettingsFocus[] = (isAdmin
-        ? ['tab-media', 'tab-ui', 'tab-profiles', 'tab-updates', 'tab-alerts', 'tab-ai']
-        : ['tab-media', 'tab-ui', 'tab-profiles', 'tab-updates']
+        ? ['tab-media', 'tab-ui', 'tab-profiles', 'tab-remote', 'tab-updates', 'tab-alerts', 'tab-ai']
+        : ['tab-media', 'tab-ui', 'tab-profiles', 'tab-remote', 'tab-updates']
       ).filter((tab) => showUpdates || tab !== 'tab-updates') as SettingsFocus[];
       const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
 
@@ -341,6 +371,7 @@ const Settings = ({ onBack }: SettingsProps) => {
         if (f === 'tab-media') return 'media';
         if (f === 'tab-ui') return 'ui';
         if (f === 'tab-profiles') return 'profiles';
+        if (f === 'tab-remote') return 'remote';
         if (f === 'tab-updates') return 'updates';
         if (f === 'tab-alerts') return 'alerts';
         if (f === 'tab-ai') return 'ai';
@@ -380,6 +411,8 @@ const Settings = ({ onBack }: SettingsProps) => {
             }, 30);
           } else if (focusedElement === 'tab-profiles' && activeTab === 'profiles') {
             setFocusedElement('profiles-switch');
+          } else if (focusedElement === 'tab-remote' && activeTab === 'remote') {
+            setFocusedElement('remote-hint');
           } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
             setFocusedElement('updates-content');
             setTimeout(() => {
@@ -405,6 +438,7 @@ const Settings = ({ onBack }: SettingsProps) => {
           else if (focusedElement === 'tab-media') setActiveTab('media');
           else if (focusedElement === 'tab-ui') setActiveTab('ui');
           else if (focusedElement === 'tab-profiles') setActiveTab('profiles');
+          else if (focusedElement === 'tab-remote') setActiveTab('remote');
           else if (focusedElement === 'tab-updates') setActiveTab('updates');
           else if (focusedElement === 'tab-alerts') setActiveTab('alerts');
           else if (focusedElement === 'tab-ai') setActiveTab('ai');
@@ -476,8 +510,8 @@ const Settings = ({ onBack }: SettingsProps) => {
     setFocusedElement('tab-media');
   };
 
-  const tabCount = (isAdmin ? 6 : 4) - (showUpdates ? 0 : 1);
-  const tabColsClass = tabCount === 6 ? 'grid-cols-6' : tabCount === 5 ? 'grid-cols-5' : tabCount === 4 ? 'grid-cols-4' : tabCount === 3 ? 'grid-cols-3' : 'grid-cols-2';
+  const tabCount = (isAdmin ? 7 : 5) - (showUpdates ? 0 : 1);
+  const tabColsClass = tabCount === 7 ? 'grid-cols-7' : tabCount === 6 ? 'grid-cols-6' : tabCount === 5 ? 'grid-cols-5' : tabCount === 4 ? 'grid-cols-4' : tabCount === 3 ? 'grid-cols-3' : 'grid-cols-2';
 
   return (
     <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
@@ -527,6 +561,15 @@ const Settings = ({ onBack }: SettingsProps) => {
             >
               <UsersRound className="w-4 h-4 mr-2" />
               Profiles
+            </TabsTrigger>
+            <TabsTrigger
+              {...settingsFocusAttrs('tab-remote')}
+              onFocus={() => setFocusedElement('tab-remote')}
+              value="remote"
+              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-remote')}`}
+            >
+              <Smartphone className="w-4 h-4 mr-2" />
+              Phone Remote
             </TabsTrigger>
             {showUpdates && (
               <TabsTrigger
@@ -829,6 +872,54 @@ const Settings = ({ onBack }: SettingsProps) => {
                 </div>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="remote" className="mt-6">
+            <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+              <div className="flex flex-wrap items-start">
+                <div className="mr-8 mb-4">
+                  {activeTab === 'remote' && <PairingQR size={220} />}
+                </div>
+                <div className="flex-1 min-w-[16rem]">
+                  <h3 className="text-2xl font-bold text-white mb-2">Use your phone as a remote</h3>
+                  <ol className="text-white/80 space-y-1 mb-4 list-decimal pl-5">
+                    <li>Scan the QR code with your phone's camera, or go to <span className="font-semibold text-white">snowmediaent.com/remote</span></li>
+                    <li>Enter the code shown here</li>
+                    <li>Move, select, go back, play/pause, type and talk — right from your phone</li>
+                  </ol>
+                  <p className="text-sm text-white/60 mb-4">
+                    {remotePhones > 0 ? `📱 ${remotePhones} phone${remotePhones === 1 ? '' : 's'} connected now.` : remotePaired ? 'A phone is paired — open snowmediaent.com/remote on it to use it.' : 'No phone paired yet.'}
+                    {' '}Paired phones stay paired; the code changes every few minutes.
+                  </p>
+                  <Card
+                    {...settingsFocusAttrs('remote-hint')}
+                    tabIndex={0}
+                    role="button"
+                    aria-pressed={remoteHint}
+                    onFocus={() => setFocusedElement('remote-hint')}
+                    onClick={() => setTypingHintEnabled(!remoteHint)}
+                    className={`tv-ring bg-slate-800/80 border-slate-600 p-4 mb-3 transition-all duration-150 ${focusRing('remote-hint')}`}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-semibold text-white">Show the QR code when typing</div>
+                        <div className="text-sm text-white/70">A small card offers your phone's keyboard whenever a text box is open on the TV.</div>
+                      </div>
+                      <Switch checked={remoteHint} onCheckedChange={(v) => setTypingHintEnabled(!!v)} aria-label="Show the QR code when typing" />
+                    </div>
+                  </Card>
+                  <Button
+                    {...settingsFocusAttrs('remote-unpair')}
+                    variant="outline"
+                    onFocus={() => setFocusedElement('remote-unpair')}
+                    onClick={() => { void unpairAllPhones(); toast({ title: 'Phones unpaired', description: 'Pair again with the new code.' }); }}
+                    className={`tv-ring ${focusRing('remote-unpair')}`}
+                  >
+                    Unpair all phones
+                  </Button>
+                </div>
+              </div>
+            </Card>
           </TabsContent>
 
           <TabsContent value="profiles" className="mt-6 space-y-4">

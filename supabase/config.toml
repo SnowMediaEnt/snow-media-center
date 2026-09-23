@@ -114,3 +114,6 @@ verify_jwt = false
 
 [functions.game-day]
 verify_jwt = false
+
+[functions.phone-remote]
+verify_jwt = false

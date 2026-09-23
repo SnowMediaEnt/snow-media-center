@@ -88,6 +88,8 @@ export interface AppManagerPlugin {
   startVoiceInput(options?: { prompt?: string }): Promise<{ text: string }>;
   /** Cancels any pending native speech input session. */
   cancelVoiceInput(): Promise<void>;
+  /** Phone remote: press a remote key (Android KeyEvent code) as the box's own remote would. */
+  injectKey(options: { keyCode: number }): Promise<void>;
 
   // ---- Device Cleaner ----
   /** Free and total space on the data partition, plus memory. */
@@ -139,6 +141,7 @@ const webFallback: AppManagerPlugin = {
   async isSpeechRecognitionAvailable() { return { available: false }; },
   async startVoiceInput() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async cancelVoiceInput() { /* no-op on web */ },
+  async injectKey() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async getStorageInfo() { return { totalBytes: 0, freeBytes: 0, totalMemoryBytes: 0, freeMemoryBytes: 0, lowMemory: false }; },
   async hasUsageAccess() { return { enabled: false }; },
   async openUsageAccessSettings() { return { opened: false }; },

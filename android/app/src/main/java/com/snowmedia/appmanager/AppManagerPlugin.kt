@@ -692,6 +692,38 @@ class AppManagerPlugin : Plugin() {
     call.resolve()
   }
 
+  /**
+   * Phone remote (src/lib/phoneRemote.ts): press a remote key as if it came
+   * from the box's own remote. It goes through the activity like a real key,
+   * so D-pad presses reach the page as ordinary keydowns, OK clicks what is
+   * focused, Back reaches the app's back handling and the media keys reach
+   * MainActivity's forwarding. Only the keys a remote has are accepted.
+   */
+  @PluginMethod
+  fun injectKey(call: PluginCall) {
+    val code = call.getInt("keyCode") ?: run { call.reject("keyCode required"); return }
+    val allowed = setOf(
+      android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN,
+      android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
+      android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER,
+      android.view.KeyEvent.KEYCODE_BACK, android.view.KeyEvent.KEYCODE_DEL, android.view.KeyEvent.KEYCODE_MENU,
+      android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+      android.view.KeyEvent.KEYCODE_MEDIA_REWIND, android.view.KeyEvent.KEYCODE_SEARCH,
+    )
+    if (code !in allowed) { call.reject("key not allowed"); return }
+    val act = activity ?: run { call.reject("no activity"); return }
+    act.runOnUiThread {
+      try {
+        val now = android.os.SystemClock.uptimeMillis()
+        act.dispatchKeyEvent(android.view.KeyEvent(now, now, android.view.KeyEvent.ACTION_DOWN, code, 0))
+        act.dispatchKeyEvent(android.view.KeyEvent(now, android.os.SystemClock.uptimeMillis(), android.view.KeyEvent.ACTION_UP, code, 0))
+        call.resolve()
+      } catch (e: Exception) {
+        call.reject(e.message ?: "inject failed")
+      }
+    }
+  }
+
   private fun finishVoiceSession() {
     voiceListening = false
     voiceTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }

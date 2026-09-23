@@ -18,7 +18,7 @@ export type Navigate = (section: string) => void;
 export type Screen =
   | 'home' | 'player' | 'live_tv' | 'guide' | 'game_day' | 'multi_screen' | 'plex' | 'backups' | 'player_appearance' | 'player_settings'
   | 'main_apps' | 'support' | 'posts' | 'tickets' | 'device_cleaner' | 'buffering_guide' | 'how_to' | 'support_videos' | 'speed_test' | 'ai_chat'
-  | 'dashboard' | 'snow_gems' | 'game_lounge' | 'giveaway' | 'settings' | 'settings_ui' | 'wallpaper';
+  | 'dashboard' | 'snow_gems' | 'game_lounge' | 'giveaway' | 'settings' | 'settings_ui' | 'wallpaper' | 'phone_remote';
 
 export type PreferenceKey = 'live_layout' | 'dashboard_size' | 'post_notifications' | 'content_bar';
 
@@ -67,13 +67,13 @@ export const SCREEN_LABELS: Record<Screen, string> = {
   main_apps: 'Main Apps', support: 'Support', posts: 'Posts from Snow Media', tickets: 'Submit a Ticket', device_cleaner: 'Device Cleaner',
   buffering_guide: 'the Buffering Guide', how_to: 'How to use SMC', support_videos: 'Support Videos', speed_test: 'Speed Test', ai_chat: 'AI Chat',
   dashboard: 'your Dashboard', snow_gems: 'Snow Gems', game_lounge: 'the Game Lounge', giveaway: 'the Giveaway', settings: 'Settings',
-  settings_ui: 'Settings → UI', wallpaper: 'the wallpaper maker',
+  settings_ui: 'Settings → UI', wallpaper: 'the wallpaper maker', phone_remote: 'Settings → Phone Remote',
 };
 
 /** Screens a Kids profile does not open, by voice or through the assistant. */
 export const KIDS_BLOCKED_SCREENS: ReadonlySet<Screen> = new Set<Screen>([
   'game_lounge', 'snow_gems', 'giveaway', 'dashboard', 'settings', 'settings_ui', 'wallpaper',
-  'player_settings', 'player_appearance', 'main_apps', 'tickets', 'device_cleaner',
+  'player_settings', 'player_appearance', 'main_apps', 'tickets', 'device_cleaner', 'phone_remote',
 ]);
 
 export function openScreen(screen: Screen, navigate: Navigate): string {
@@ -105,6 +105,7 @@ export function openScreen(screen: Screen, navigate: Navigate): string {
     case 'settings': navigate('settings'); break;
     case 'settings_ui': put(INTENT_KEYS.settings, 'ui'); navigate('settings'); break;
     case 'wallpaper': put(INTENT_KEYS.settings, 'media'); navigate('settings'); break;
+    case 'phone_remote': put(INTENT_KEYS.settings, 'remote'); navigate('settings'); break;
   }
   try { trackEvent('ai_open_screen', 'ai', { screen }); } catch { void 0; }
   return SCREEN_LABELS[screen] ?? screen;

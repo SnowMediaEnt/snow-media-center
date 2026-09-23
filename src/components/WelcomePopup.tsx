@@ -11,7 +11,8 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
-  '1.7.7': [
+  '1.7.8': [
+    '📱 Phone remote: Settings → Phone Remote, scan the QR (or go to snowmediaent.com/remote) — move, select, type and talk from your phone',
     '🏈 Game Day in the Player: today\'s big games with live scores and the channel each is on — Watch, or Remind me at kickoff',
     '⚠️ Down channels are marked for everyone: report one (hold OK → Report Channel) and every box sees the warning; hold OK → "It\'s working now" clears it',
     '🎙️ Voice commands: the mic next to Settings (or your remote\'s Search button) — "put on ESPN", "watch The Office", "open YouTube", "take me to the Guide"',

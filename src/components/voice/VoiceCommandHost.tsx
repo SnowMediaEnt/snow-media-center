@@ -28,6 +28,7 @@ import { openProfiles } from '@/lib/profilesUi';
 import { parseVoiceCommand, type VoiceAction } from '@/lib/voiceCommands';
 import { OPEN_VOICE_EVENT } from '@/lib/voiceUi';
 import { MEDIA_KEY_EVENT } from '@/lib/mediaKeys';
+import { REMOTE_VOICE_EVENT } from '@/lib/phoneRemote';
 
 
 const SEARCH_KEYS = new Set(['BrowserSearch', 'Search', 'LaunchAssistant']);
@@ -48,6 +49,8 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: 'listening' });
   const [attempt, setAttempt] = useState(0);
+  // Heard on the phone remote: the words are already here, the TV's mic stays off.
+  const [fromPhone, setFromPhone] = useState(false);
   const [focus, setFocus] = useState<'mic' | 'close'>('mic');
   const rootRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | null>(null);
@@ -69,6 +72,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
     if (closeTimer.current) { window.clearTimeout(closeTimer.current); closeTimer.current = null; }
     setPhase({ kind: 'listening' });
     setFocus('mic');
+    setFromPhone(false);
     setAttempt((a) => a + 1);
     setOpen(true);
     try { trackEvent('voice_open', 'ai'); } catch { void 0; }
@@ -220,6 +224,22 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
     }
   }, [runAiCall]);
 
+  // The phone remote's voice button: what it heard, run like a spoken command.
+  const actRef = useRef<(heard: string) => void>(() => {});
+  useEffect(() => {
+    const on = (e: Event) => {
+      const heard = String((e as CustomEvent<string>).detail || '').trim();
+      if (!heard || blockedRef.current) return;
+      if (closeTimer.current) { window.clearTimeout(closeTimer.current); closeTimer.current = null; }
+      setFromPhone(true);
+      setFocus('close');
+      setOpen(true);
+      actRef.current(heard);
+    };
+    window.addEventListener(REMOTE_VOICE_EVENT, on);
+    return () => window.removeEventListener(REMOTE_VOICE_EVENT, on);
+  }, []);
+
   const onTranscription = useCallback(async (text: string, controls: VoiceLifecycleControls) => {
     controls.setVoiceState('idle');
     const heard = text.trim();
@@ -227,6 +247,10 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
     try { trackEvent('voice_command', 'ai', { local: parseVoiceCommand(heard).kind !== 'ai' }); } catch { void 0; }
     await act(heard, parseVoiceCommand(heard));
   }, [act]);
+  actRef.current = (heard: string) => {
+    try { trackEvent('voice_command', 'ai', { local: parseVoiceCommand(heard).kind !== 'ai', phone: true }); } catch { void 0; }
+    void act(heard, parseVoiceCommand(heard));
+  };
 
   // ── keys while open ──
   const lastBack = useRef(0);
@@ -301,7 +325,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
           </div>
           <div className="ml-5 flex shrink-0 items-center">
             <div data-voice-mic className={`mr-3 rounded-xl ${focus === 'mic' ? 'ring-4 ring-white' : ''}`}>
-              <VoiceInput key={attempt} autoStart prompt="Say a command" onTranscription={onTranscription} />
+              <VoiceInput key={attempt} autoStart={!fromPhone} prompt="Say a command" onTranscription={onTranscription} />
             </div>
             <button
               type="button"
