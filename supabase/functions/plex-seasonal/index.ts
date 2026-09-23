@@ -174,16 +174,13 @@ async function build(season: string) {
 /** Take the build lease; false when another build is already running. */
 async function claim(season: string): Promise<boolean> {
   const client = db();
-  const probe = await client.from('seasonal_cache').select('season,building_at').eq('season', season);
-  console.log('[debug] url host:', SUPABASE_URL.split('//')[1], 'probe err:', JSON.stringify(probe.error ?? null), 'probe rows:', (probe.data ?? []).length);
-  const up = await client.from('seasonal_cache').upsert({ season }, { onConflict: 'season', ignoreDuplicates: true });
+  await client.from('seasonal_cache').upsert({ season }, { onConflict: 'season', ignoreDuplicates: true });
   const cutoff = new Date(Date.now() - BUILD_LEASE_MS).toISOString();
-  const { data, error } = await client.from('seasonal_cache')
+  const { data } = await client.from('seasonal_cache')
     .update({ building_at: new Date().toISOString() })
     .eq('season', season)
     .or(`building_at.is.null,building_at.lt.${cutoff}`)
     .select('season');
-  console.log('[debug] claim upsert err:', JSON.stringify(up.error ?? null), 'update err:', JSON.stringify(error ?? null), 'rows:', (data ?? []).length);
   return (data ?? []).length > 0;
 }
 
