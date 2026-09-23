@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { kidsChatRules, kidsLevelOf, kidsTools } from '../_shared/kidsSafe.ts';
+import { KIDS_REFUSAL, KIDS_SCREENS, KIDS_TOOL_NAMES, kidsBlockedMessage, kidsLevelOf, kidsSafeReply, kidsSystemPrompt, kidsTools } from '../_shared/kidsSafe.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import {
   checkPause,
@@ -150,6 +150,22 @@ serve(async (req) => {
 
     if (!message) {
       throw new Error('Message is required');
+    }
+
+    // Kids profile: a request that is off-limits is answered here, without
+    // asking the model (and without spending anything on it).
+    if (kidsLevel && kidsBlockedMessage(String(message), kidsLevel)) {
+      if (anonReserved && !anonReservationSettled) {
+        await settleFree({
+          deviceId: anonDeviceIdForSettle, ipHash: anonIpHashForSettle, feature: 'chat',
+          estCostUsd: anonEstCostUsd, estImages: 0, actualCostUsd: 0, actualImages: 0, succeeded: false,
+        });
+        anonReservationSettled = true;
+      }
+      return new Response(JSON.stringify({
+        message: KIDS_REFUSAL, response: KIDS_REFUSAL, conversationId: null, functionCall: null,
+        tier: 'free', kids: true, charged_gems: 0, trial_used: false,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Which level of AI. Free is what it always was. Premium is the top
@@ -497,7 +513,11 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
       },
       body: JSON.stringify({
         model: chatModel,
-        instructions: [systemPrompt, voiceMode ? VOICE_RULES : '', kidsLevel ? kidsChatRules(kidsLevel) : ''].filter(Boolean).join('\n\n'),
+        // A Kids profile gets only the kids helper's instructions — none of
+        // the grown-up support prompt.
+        instructions: kidsLevel
+          ? kidsSystemPrompt(kidsLevel, replyLanguage, voiceMode)
+          : [systemPrompt, voiceMode ? VOICE_RULES : ''].filter(Boolean).join('\n\n'),
         input: message,
         tools: kidsLevel ? kidsTools() : [
           {
@@ -837,6 +857,14 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
     const promptTokens = data.usage?.input_tokens ?? 0;
     const completionTokens = data.usage?.output_tokens ?? 0;
     const totalTokens = data.usage?.total_tokens ?? (promptTokens + completionTokens);
+    // Kids profile: the reply is checked on the way out, whatever the model did.
+    if (kidsLevel) {
+      assistantContent = kidsSafeReply(assistantContent, kidsLevel);
+      if (functionCall && !KIDS_TOOL_NAMES.has(functionCall.name)) functionCall = null;
+      if (functionCall?.name === 'open_screen' && !KIDS_SCREENS.has(String(functionCall.arguments?.screen ?? ''))) functionCall = null;
+      if (functionCall && assistantContent === KIDS_REFUSAL) functionCall = null;
+    }
+
     const anonCostUsd = caller.authed ? 0 : gpt54NanoCostUsd(promptTokens, completionTokens);
     try {
       await logUsage({

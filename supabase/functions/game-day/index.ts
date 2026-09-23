@@ -6,6 +6,7 @@
 //
 //   POST {} (or {op:'list'})   anyone (verify_jwt=false)
 //   → { ok, games: Game[], at }
+//   POST {op:'check'}          each league's event count today, or 'failed'
 //
 // A game: league, teams (names, short names, logos sized for a TV row),
 // start time, state (pre | in), the live detail ("Q3 5:32") and score, and
@@ -32,7 +33,14 @@ const LEAGUES: Array<{ id: string; label: string; path: string }> = [
 ];
 
 const CACHE_MS = 4 * 60_000;
-const FETCH_TIMEOUT_MS = 7000;
+const FETCH_TIMEOUT_MS = 10_000;
+/** ESPN turns away requests that don't look like a browser's. */
+const ESPN_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+const ESPN_HOSTS = ['https://site.api.espn.com', 'https://site.web.api.espn.com'];
 /** College scoreboards list dozens of small games; keep the televised ones. */
 const MAX_PER_LEAGUE = 40;
 
@@ -90,13 +98,30 @@ const networksOf = (comp: Any): string[] => {
   return [...out].slice(0, 6);
 };
 
+/** One league's scoreboard for a day, from ESPN's main host or, failing
+ *  that, its second one. Failures are logged (status and host only). */
+async function fetchScoreboard(l: { id: string; path: string }, date: string): Promise<Any | null> {
+  for (const host of ESPN_HOSTS) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${host}/apis/site/v2/sports/${l.path}/scoreboard?dates=${date}&limit=200`, { signal: ctl.signal, headers: ESPN_HEADERS });
+      if (res.ok) return await res.json();
+      console.error(`[game-day] ${l.id} ${date} ${host}: HTTP ${res.status}`);
+      await res.body?.cancel();
+    } catch (e) {
+      console.error(`[game-day] ${l.id} ${date} ${host}: ${(e as Error).name} ${(e as Error).message}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return null;
+}
+
 async function fetchLeague(l: { id: string; label: string; path: string }, date: string): Promise<Game[]> {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${l.path}/scoreboard?dates=${date}&limit=200`, { signal: ctl.signal });
-    if (!res.ok) return [];
-    const data = await res.json() as Any;
+    const data = await fetchScoreboard(l, date);
+    if (!data) return [];
     const out: Game[] = [];
     for (const e of data?.events ?? []) {
       const state = String(e?.status?.type?.state ?? '');
@@ -123,10 +148,9 @@ async function fetchLeague(l: { id: string; label: string; path: string }, date:
     // Keep the ones on TV first when a league lists a lot (college).
     out.sort((a, b) => Number(b.networks.length > 0) - Number(a.networks.length > 0));
     return out.slice(0, MAX_PER_LEAGUE);
-  } catch {
+  } catch (e) {
+    console.error(`[game-day] ${l.id} ${date}: ${(e as Error).message}`);
     return [];
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -149,12 +173,27 @@ async function build(): Promise<Game[]> {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+  let op = '';
+  try { op = String((await req.clone().json())?.op ?? ''); } catch { /* no body */ }
+  // {op:'check'}: how many games each league returned just now (for testing).
+  if (op === 'check') {
+    const date = ymd(new Date());
+    const counts: Record<string, number | string> = {};
+    await Promise.all(LEAGUES.map(async (l) => {
+      const data = await fetchScoreboard(l, date);
+      counts[l.id] = data ? (data.events?.length ?? 0) : 'failed';
+    }));
+    return json({ ok: true, date, counts });
+  }
   try {
     if (!cache || Date.now() - cache.at > CACHE_MS) {
       building ??= build().finally(() => { building = null; });
       const games = await building;
-      // A failed round (every league empty) keeps the last good list.
-      if (games.length || !cache) cache = { at: Date.now(), games };
+      // A failed round (every league empty) keeps the last good list; with
+      // none, it's tried again in a minute rather than four.
+      cache = games.length
+        ? { at: Date.now(), games }
+        : { at: Date.now() - CACHE_MS + 60_000, games: cache?.games ?? [] };
     }
     return json({ ok: true, games: cache.games, at: new Date(cache.at).toISOString() });
   } catch (e) {
