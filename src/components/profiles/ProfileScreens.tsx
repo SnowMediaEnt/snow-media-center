@@ -419,9 +419,9 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
   if (screen.kind === 'pick' || screen.kind === 'manage') {
     const managing = screen.kind === 'manage';
     title = managing ? 'Manage profiles' : 'Who\'s watching?';
-    const introSeen = (() => { try { return !!localStorage.getItem('smc-profiles-intro-seen'); } catch { return true; } })();
+    // Just the main profile: say what adding one is for.
     subtitle = managing ? 'Pick a profile to change it.'
-      : !introSeen && profiles.length === 1
+      : profiles.length === 1
         ? 'Everyone in the house can have their own profile — their own Continue Watching, My List, favourites and home screen. Kids profiles only show what\'s right for their age.'
         : null;
     body = (

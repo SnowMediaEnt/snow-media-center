@@ -90,6 +90,7 @@ const BroadcastAlertPopup = lazy(() => import('@/components/BroadcastAlertPopup'
 const LiveTV = lazy(() => import('@/components/LiveTV'));
 const Giveaway = lazy(() => import('@/components/Giveaway'));
 const GiveawayPromoPopup = lazy(() => import('@/components/GiveawayPromoPopup'));
+const ProfilesIntroPopup = lazy(() => import('@/components/profiles/ProfilesIntroPopup'));
 const AccountChooser = lazy(() => import('@/components/AccountChooser'));
 
 
@@ -856,6 +857,7 @@ const Index = () => {
   }, []);
 
   const onOpenProfilesPick = useCallback(() => openProfiles('pick'), []);
+  const onOpenSettingsProfiles = useCallback(() => navigateToRef.current('settings'), []);
   const onOpenSettings = useCallback(() => {
     if (kidsRef.current) openProfiles('grownup', () => navigateToRef.current('settings'));
     else navigateToRef.current('settings');
@@ -1461,6 +1463,13 @@ const Index = () => {
       {overlaysReady && currentView === 'home' && (
         <Suspense fallback={null}>
           <MediaBarPrompt />
+        </Suspense>
+      )}
+
+      {/* Profiles, introduced once (the app opens straight to Home). */}
+      {overlaysReady && currentView === 'home' && (
+        <Suspense fallback={null}>
+          <ProfilesIntroPopup onSetUp={onOpenSettingsProfiles} />
         </Suspense>
       )}
 

@@ -18,9 +18,13 @@ beforeEach(async () => {
 });
 
 describe('profiles', () => {
-  it('always has a main profile, asks on first run, and not again in the same run', async () => {
+  it('opens straight to Home with one profile; asks once there is a choice, not again in the same run', async () => {
     const p = await import('./profiles');
     expect(p.loadProfiles().map((x) => x.id)).toEqual(['main']);
+    expect((await p.initProfiles()).needsPick).toBe(false);
+    p.createProfile({ name: 'Mia', avatar: 'pink', kidsLevel: 'kids' });
+    sessionStorage.clear();
+    p.__resetProfilesForTests();
     expect((await p.initProfiles()).needsPick).toBe(true);
     expect(p.pickProfile('main')).toBe('same');
     p.__resetProfilesForTests();

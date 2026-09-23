@@ -388,7 +388,9 @@ let lastAccount: string | null | undefined;
 
 /** Work out who is watching at start. `needsPick`: show "Who's watching?" —
  *  nothing picked in this run of the app yet, and a choice to make (more
- *  than one profile, a PIN to ask for, or profiles never introduced). */
+ *  than one profile, or a PIN to ask for). A box with just the main profile
+ *  opens straight to Home; profiles are introduced by a popup instead
+ *  (ProfilesIntroPopup). */
 export function initProfiles(): Promise<{ needsPick: boolean }> {
   init ??= (async () => {
     await resolveViewer();
@@ -409,11 +411,15 @@ export function initProfiles(): Promise<{ needsPick: boolean }> {
       void pullProfiles();
     });
     void pullProfiles();
-    const needsPick = !sessionId && (list.length > 1 || list.some((p) => !!p.pinHash) || !ls.get(INTRO_KEY));
+    const needsPick = !sessionId && (list.length > 1 || list.some((p) => !!p.pinHash));
     return { needsPick };
   })();
   return init;
 }
+
+/** The one-time popup that introduces profiles (see ProfilesIntroPopup). */
+export const profilesIntroSeen = (): boolean => !!ls.get(INTRO_KEY);
+export const markProfilesIntroSeen = (): void => ls.set(INTRO_KEY, '1');
 
 /** The one the picker starts on. */
 export const lastPickedId = (): string => ls.get(LAST_PREFIX + accountKey()) || MAIN_PROFILE;

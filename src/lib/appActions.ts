@@ -27,7 +27,7 @@ export interface ReportIntent { search: string; issue?: string; details?: string
 export const INTENT_KEYS = {
   player: 'smc-player-intent',      // { section?: 'live'|'guide'|'multi'|'movies'|'backups', settings?: 'appearance'|'hub', report?: ReportIntent }
   support: 'smc-support-open',      // 'posts' | 'tickets' | 'cleaner' | 'speedtest' | 'videos' | 'ai'
-  settings: 'smc-settings-tab',     // 'media' | 'ui' | 'updates' | 'alerts' | 'ai'
+  settings: 'smc-settings-tab',     // 'media' | 'ui' | 'profiles' | 'updates' | 'alerts' | 'ai'
   installApp: 'smc-install-app',    // app name
   wallpaper: 'smc-wallpaper-prompt', // prompt text
 } as const;
