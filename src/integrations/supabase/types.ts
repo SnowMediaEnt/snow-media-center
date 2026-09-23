@@ -4345,6 +4345,42 @@ export type Database = {
         }
         Relationships: []
       }
+      watch_history: {
+        Row: {
+          count: number
+          item_key: string
+          kind: string
+          payload: Json
+          poster: string | null
+          subtitle: string | null
+          title: string
+          user_id: string
+          watched_at: string
+        }
+        Insert: {
+          count?: number
+          item_key: string
+          kind: string
+          payload?: Json
+          poster?: string | null
+          subtitle?: string | null
+          title: string
+          user_id: string
+          watched_at?: string
+        }
+        Update: {
+          count?: number
+          item_key?: string
+          kind?: string
+          payload?: Json
+          poster?: string | null
+          subtitle?: string | null
+          title?: string
+          user_id?: string
+          watched_at?: string
+        }
+        Relationships: []
+      }
       web_push_subscriptions: {
         Row: {
           auth: string
@@ -4455,6 +4491,7 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_app_versions: { Args: { p_days?: number }; Returns: Json }
       admin_create_remote_access_code: {
         Args: {
           p_expires_in_hours?: number
