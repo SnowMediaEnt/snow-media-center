@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { takeIntent, INTENT_KEYS, openScreen } from '@/lib/appActions';
 import { retiredAppFor } from '@/lib/retiredApps';
 import RetiredAppDialog from '@/components/RetiredAppDialog';
+import PlayerNudgeDialog from '@/components/PlayerNudgeDialog';
+import { playerNudgeOff } from '@/lib/playerNudge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -111,6 +113,8 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
   // A Download press on Dreamstreams, VibezTV or Plex: those live in the
   // Player now, so the press gets a notice first (src/lib/retiredApps.ts).
   const [retiredApp, setRetiredApp] = useState<AppData | null>(null);
+  // Opening the old Dreamstreams / VibezTV / Plex app: suggest the Player first.
+  const [nudgeApp, setNudgeApp] = useState<AppData | null>(null);
 
   // Helper function to get the apps for a tab.
   // 'featured' = curated featured list (sorted A→Z)
@@ -147,12 +151,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
       if (showSpeedTest || showGuide) return;
       // If a modal/dialog is open (alert popup, context menu, download progress),
       // let the dialog handle keys natively. Don't move background focus.
-      if (pendingAlert || retiredApp || contextMenu.app || downloadingApp) {
+      if (pendingAlert || retiredApp || nudgeApp || contextMenu.app || downloadingApp) {
         if (event.key === 'Escape' || event.key === 'Backspace') {
           event.preventDefault();
           event.stopPropagation();
           if (pendingAlert) setPendingAlert(null);
           else if (retiredApp) setRetiredApp(null);
+          else if (nudgeApp) setNudgeApp(null);
           else if (contextMenu.app) setContextMenu({ app: null, position: { x: 0, y: 0 } });
         }
         return;
@@ -366,7 +371,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, retiredApp, contextMenu.app, downloadingApp, toast, expandedAppId]);
+  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, retiredApp, nudgeApp, contextMenu.app, downloadingApp, toast, expandedAppId]);
 
   // Scroll focused element into view
   useEffect(() => {
@@ -610,8 +615,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
     }
   };
 
-  // Wrapper used by all UI launch entry points: shows the alert popup first if one exists.
-  const attemptLaunch = useCallback((app: AppData) => {
+  // Wrapper used by all UI launch entry points: the Player suggestion for the
+  // old DS / Vibez / Plex apps, then the alert popup if one exists.
+  const attemptLaunch = useCallback((app: AppData, opts: { skipNudge?: boolean } = {}) => {
+    if (!opts.skipNudge && retiredAppFor(app.name) && !playerNudgeOff()) {
+      setNudgeApp(app);
+      return;
+    }
     const alert = getAlertForApp(app.name);
     if (alert) {
       try { trackAlertShown(alert.title || app.name); } catch { void 0; }
@@ -1128,6 +1138,20 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
         onOpenPlayer={openPlayerFor}
         onDownloadAnyway={() => { const app = retiredApp; setRetiredApp(null); if (app) void handleDownload(app, { skipRetiredNotice: true }); }}
         onDismiss={() => setRetiredApp(null)}
+      />
+
+      {/* Opening the old DS / Vibez / Plex app: suggest the Player */}
+      <PlayerNudgeDialog
+        appName={nudgeApp?.name ?? null}
+        info={nudgeApp ? retiredAppFor(nudgeApp.name) : null}
+        open={!!nudgeApp}
+        onOpenPlayer={() => {
+          const info = nudgeApp ? retiredAppFor(nudgeApp.name) : null;
+          setNudgeApp(null);
+          if (info && onNavigate) openScreen(info.screen, onNavigate);
+        }}
+        onContinue={() => { const app = nudgeApp; setNudgeApp(null); if (app) attemptLaunch(app, { skipNudge: true }); }}
+        onDismiss={() => setNudgeApp(null)}
       />
 
       {/* App Alert Popup (e.g. "Dreamstreams EPG is down") */}

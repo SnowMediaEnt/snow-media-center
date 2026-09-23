@@ -11,6 +11,10 @@ import smeLogo from '@/assets/sme-logo-512.png';
 import easterEggImg from '@/assets/easter-egg.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import AppAlertDialog from '@/components/AppAlertDialog';
+import PlayerNudgeDialog from '@/components/PlayerNudgeDialog';
+import { playerNudgeOff } from '@/lib/playerNudge';
+import { retiredAppFor } from '@/lib/retiredApps';
+import { openScreen } from '@/lib/appActions';
 import ServiceExpirationBanner from '@/components/ServiceExpirationBanner';
 
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
@@ -602,8 +606,15 @@ const Index = () => {
     }
   }, [resolvePackageName, toast]);
 
-  // Entry point used by the popup — shows alert popup first if one exists
-  const handleLaunchPinnedApp = useCallback(async (app: LaunchableApp) => {
+  // A pinned Dreamstreams / VibezTV / Plex tile: suggest the Player first.
+  const [nudgeApp, setNudgeApp] = useState<LaunchableApp | null>(null);
+  // Entry point used by the popup — the Player suggestion, then the alert
+  // popup if one exists.
+  const handleLaunchPinnedApp = useCallback(async (app: LaunchableApp, opts: { skipNudge?: boolean } = {}) => {
+    if (!opts.skipNudge && retiredAppFor(app.name) && !playerNudgeOff()) {
+      setNudgeApp(app);
+      return;
+    }
     const alert = getAlertForApp(app.name);
     if (alert) {
       setPendingAlert({ alert, app });
@@ -1260,6 +1271,19 @@ const Index = () => {
           </div>
         </div>
       )}
+
+      <PlayerNudgeDialog
+        appName={nudgeApp?.name ?? null}
+        info={nudgeApp ? retiredAppFor(nudgeApp.name) : null}
+        open={!!nudgeApp}
+        onOpenPlayer={() => {
+          const info = nudgeApp ? retiredAppFor(nudgeApp.name) : null;
+          setNudgeApp(null);
+          if (info) openScreen(info.screen, navigateTo);
+        }}
+        onContinue={() => { const app = nudgeApp; setNudgeApp(null); if (app) void handleLaunchPinnedApp(app, { skipNudge: true }); }}
+        onDismiss={() => setNudgeApp(null)}
+      />
 
       <AppAlertDialog
         alert={pendingAlert?.alert ?? null}
