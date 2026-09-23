@@ -79,8 +79,16 @@ const REMOTE_APPS_URL = 'https://snowmediaapps.com/guesswhat/apps.json.php';
 // the loaded list down to the public SMC / Canvas installers. Downloads still
 // work (the browser just opens the URL).
 const DEMO_APP_NAME_RE = /(snow\s*media|smc|canvas)/i;
+// A Snow Media Center entry in the feed is for boxes still on 1.6.6: their
+// Main Apps is the easiest place to uninstall the old copy from before the
+// one-time reinstall (see the steps at the top of public/update.json). On
+// this version that entry is this app itself — Launch would do nothing and
+// Uninstall would remove the app — so it is not listed here.
+const OWN_PACKAGE = 'app.lovable.f44324110df840aea0a1fb97cafa76e7';
 const filterAppsForDemo = (list: AppData[]): AppData[] =>
-  isDemo() ? list.filter((a) => DEMO_APP_NAME_RE.test(a.name)) : list;
+  isDemo()
+    ? list.filter((a) => DEMO_APP_NAME_RE.test(a.name))
+    : list.filter((a) => a.packageName !== OWN_PACKAGE);
 const REMOTE_APPS_KEY = 'tJIso9tAokZ937fFcnpWT6YL0oJQ';
 
 export const useAppData = () => {
