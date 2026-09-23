@@ -36,7 +36,7 @@ import {
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
   getPlexAccount,
   setPlexImageFocus, preloadImages, plexPhotoTranscodeUrl, POSTER_TILE_W, POSTER_TILE_H,
-  type PlexLibrary, type PlexItem, type PlexEpisode, plexRouteLabel,
+  type PlexLibrary, type PlexItem, type PlexEpisode, type PlexEpisodeInfo, plexRouteLabel,
   setPlexPlaybackActive } from '@/lib/plex';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
@@ -53,7 +53,8 @@ import PlexImage from './PlexImage';
 import PlexLibraryRows from './PlexLibraryRows';
 import PlexPosterTile from './PlexPosterTile';
 import PlexDetail from './PlexDetail';
-import PlexPlayerOverlay, { type SubtitleSearchContext } from './PlexPlayerOverlay';
+import PlexPlayerOverlay, { type PlayerPrompt, type SubtitleSearchContext } from './PlexPlayerOverlay';
+import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
@@ -2427,6 +2428,22 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '', ep.partKey);
   }, [playRatingKey, conn]);
 
+  // Skip Intro / Up Next (EpisodeAutoplay). The next episode starts in place,
+  // from the start, with the same subtitle search context an episode opened
+  // from its show would have.
+  const [playerPrompt, setPlayerPrompt] = useState<PlayerPrompt | null>(null);
+  const autoNextRef = useRef<(() => boolean) | null>(null);
+  const registerAutoNext = useCallback((fn: (() => boolean) | null) => { autoNextRef.current = fn; }, []);
+  const playNextEpisode = useCallback((ep: NextEpisode, info: PlexEpisodeInfo) => {
+    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', ratingKey: ep.ratingKey, showKey: info.showKey, autoNext: true, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
+    if (!DEMO && info.showKey) {
+      recordPlexWatch({ ratingKey: info.showKey, title: info.showTitle || ep.title, type: 'show', thumb: info.showThumb }, undefined);
+    }
+    const ctx: SubtitleSearchContext = { title: ep.title, grandparentTitle: info.showTitle, season: ep.seasonIndex, episode: ep.index };
+    setPlayerPrompt(null);
+    void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '', ep.partKey);
+  }, [playRatingKey, conn]);
+
   // (plex_error tracked below, once `native` is declared.)
 
 
@@ -2559,7 +2576,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     subtitles: extraSubs,
     onTracksChanged,
     onPlayStateChange: onPlayStateChangeCb,
-    onEnded: () => { setPlexKeyOwner(detailRef.current ? 'detail' : 'browse'); setFullscreen(false); setStreamUrl(null); setUseTranscode(false); },
+    onEnded: () => {
+      // An episode with the next one lined up carries straight on.
+      if (autoNextRef.current?.()) return;
+      setPlexKeyOwner(detailRef.current ? 'detail' : 'browse'); setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
+    },
     onReload: () => { armSlowLoadTimerRef.current?.(); },
   });
   // Reset the safety-net guard whenever the underlying title changes.
@@ -3187,6 +3208,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             volume={volume}
             onChangeVolume={changeVolume}
             onFixAudio={fixAudioTranscode}
+            prompt={playerPrompt}
+          />
+        )}
+        {conn && (
+          <EpisodeAutoplay
+            active={nativeActive && !slowLoad}
+            base={conn.base}
+            token={conn.token}
+            ratingKey={fullscreen ? playing?.ratingKey ?? null : null}
+            getPosition={native.getPosition}
+            seekTo={native.seekTo}
+            onPrompt={setPlayerPrompt}
+            onPlayNext={playNextEpisode}
+            registerEnded={registerAutoNext}
           />
         )}
 

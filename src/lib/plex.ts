@@ -1264,6 +1264,80 @@ export async function getPlexEpisodes(base: string, token: string, seasonKey: st
   }));
 }
 
+// ── episode playback: markers and what comes next ─────────────────────────
+
+/** A stretch of an episode Plex has marked, in seconds. */
+export interface PlexMarker { type: string; start: number; end: number }
+
+/** What the player needs about the episode on screen: where its intro and
+ *  credits are (Plex's own markers — present when the server's intro/credits
+ *  detection has run) and where it sits in its show. */
+export interface PlexEpisodeInfo {
+  ratingKey: string;
+  title: string;
+  index?: number;
+  seasonIndex?: number;
+  seasonKey?: string;
+  showKey?: string;
+  showTitle?: string;
+  showThumb?: string;
+  /** seconds */
+  duration?: number;
+  markers: PlexMarker[];
+}
+
+/** Episode details with markers, or null when the title is not an episode. */
+export async function getPlexEpisodeInfo(base: string, token: string, ratingKey: string): Promise<PlexEpisodeInfo | null> {
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
+    // Not RAIL_FIELDS: that trim excludes Marker, the one element wanted here.
+    'GET', `${base}/library/metadata/${ratingKey}?includeMarkers=1&includeGuids=0&excludeElements=Director,Writer,Role,Producer,Country,Collection,Label,Guid,Chapter,Genre`, token, RAIL_TIMEOUT_MS,
+  );
+  const m = data?.MediaContainer?.Metadata?.[0];
+  if (!m || m.type !== 'episode') return null;
+  const markers = (Array.isArray(m.Marker) ? (m.Marker as Array<Record<string, unknown>>) : [])
+    .map((k) => ({
+      type: String(k.type || ''),
+      start: Number(k.startTimeOffset) / 1000,
+      end: Number(k.endTimeOffset) / 1000,
+    }))
+    .filter((k) => k.type && Number.isFinite(k.start) && Number.isFinite(k.end) && k.end > k.start);
+  const num = (v: unknown) => (typeof v === 'number' ? v : undefined);
+  const str = (v: unknown) => (v != null && v !== '' ? String(v) : undefined);
+  return {
+    ratingKey: String(m.ratingKey ?? ratingKey),
+    title: String(m.title ?? ''),
+    index: num(m.index),
+    seasonIndex: num(m.parentIndex),
+    seasonKey: str(m.parentRatingKey),
+    showKey: str(m.grandparentRatingKey),
+    showTitle: str(m.grandparentTitle),
+    showThumb: str(m.grandparentThumb),
+    duration: typeof m.duration === 'number' ? m.duration / 1000 : undefined,
+    markers,
+  };
+}
+
+/** The episode after this one: the next in its season, else the first of the
+ *  next season. Null at the end of the show. */
+export async function getNextPlexEpisode(
+  base: string, token: string, info: PlexEpisodeInfo,
+): Promise<(PlexEpisode & { seasonIndex?: number }) | null> {
+  const byIndex = <T extends { index?: number }>(list: T[]) =>
+    list.slice().sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+  if (info.seasonKey) {
+    const eps = byIndex(await getPlexEpisodes(base, token, info.seasonKey));
+    const at = eps.findIndex((e) => e.ratingKey === info.ratingKey);
+    const next = at >= 0 ? eps[at + 1] : eps.find((e) => (e.index ?? 0) > (info.index ?? 0));
+    if (next) return { ...next, seasonIndex: info.seasonIndex };
+  }
+  if (!info.showKey) return null;
+  const seasons = byIndex(await getPlexSeasons(base, token, info.showKey));
+  const nextSeason = seasons.find((s) => (s.index ?? 0) > (info.seasonIndex ?? 0));
+  if (!nextSeason) return null;
+  const first = byIndex(await getPlexEpisodes(base, token, nextSeason.ratingKey))[0];
+  return first ? { ...first, seasonIndex: nextSeason.index } : null;
+}
+
 /** Titles on a library section featuring the given actor. */
 export async function getPlexActorItems(
   base: string,

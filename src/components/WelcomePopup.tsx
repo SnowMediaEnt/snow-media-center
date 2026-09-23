@@ -22,6 +22,7 @@ const CHANGELOG: Record<string, string[]> = {
     '⏯️ The Play/Pause, Fast-forward and Rewind buttons on your remote now work in Live TV, Plex and VOD',
     '📺 Multi-Screen: a big, readable channel picker, and Back from full screen returns to your screens',
     '🎬 Plex search: if we do not have it, request it right there and it is added to Plex for you',
+    '⏭️ Plex shows: Skip Intro, and the next episode plays by itself when the credits roll',
     '🎃 Plex Halloween: a hand-picked collection at the top of Plex, with rows for kids and families and for every kind of horror fan',
     '📶 Plex buffers less: it starts at original quality and drops only if a film keeps buffering, and the buffering card says why',
     '🛠️ The buffering guide is redesigned: bigger, clearer, with a step tracker and big buttons made for the remote',

@@ -31,6 +31,20 @@ export interface SubtitleSearchContext {
   episode?: number;
 }
 
+/** A one-press action offered over the picture: Skip Intro, or the next
+ *  episode at the credits. OK takes it while the control bar is hidden; Back
+ *  dismisses it when it can be dismissed (onBack). */
+export interface PlayerPrompt {
+  kind: 'skip' | 'next';
+  label: string;
+  /** e.g. "S2 · E5  The Title" */
+  detail?: string;
+  /** Seconds left before it happens by itself. */
+  countdown?: number;
+  onOk: () => void;
+  onBack?: () => void;
+}
+
 interface Props {
   active: boolean;                              // component only wires listeners when true
   title: string;
@@ -65,6 +79,8 @@ interface Props {
    *  should reload the stream as an audio-only transcode at the given
    *  resume position. */
   onFixAudio?: (resumeSec: number) => void;
+  /** Skip Intro / Up Next, drawn over the picture (see PlayerPrompt). */
+  prompt?: PlayerPrompt | null;
 }
 
 
@@ -77,7 +93,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
   const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'format' | 'volume' | 'help'>('none');
@@ -271,6 +287,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const onOpenBufferingGuideRef = useRef(onOpenBufferingGuide); useEffect(() => { onOpenBufferingGuideRef.current = onOpenBufferingGuide; }, [onOpenBufferingGuide]);
   const onOpenSupportRef = useRef(onOpenSupport); useEffect(() => { onOpenSupportRef.current = onOpenSupport; }, [onOpenSupport]);
   const onFixAudioRef = useRef(onFixAudio); useEffect(() => { onFixAudioRef.current = onFixAudio; }, [onFixAudio]);
+  const promptRef = useRef(prompt); useEffect(() => { promptRef.current = prompt; }, [prompt]);
 
   useEffect(() => {
     if (!active) return;
@@ -299,14 +316,21 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           setVisible(false); return;
         }
-        // hidden → let parent handle
+        // hidden → a dismissable prompt (Up Next) goes first, then the parent
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        if (promptRef.current?.onBack) { promptRef.current.onBack(); return; }
         onBackHiddenRef.current();
         return;
       }
       if (!isNav) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
 
+      // With the bar hidden, OK takes the prompt on screen (Skip Intro, next
+      // episode); any other key shows the bar as before.
+      if (!visibleRef.current && isOk && promptRef.current) {
+        if (!e.repeat) promptRef.current.onOk();
+        return;
+      }
       // Any key shows the overlay + resets the auto-hide timer.
       if (!visibleRef.current) { showRef.current(); return; }
       armHideRef.current();
@@ -460,7 +484,30 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     return () => window.removeEventListener('keydown', handler, true);
   }, [active]);
 
-  if (!visible) return null;
+  // The prompt sits bottom-right over the picture, and above the control bar
+  // while that is open; it steps aside while a menu is up.
+  const promptEl = active && prompt && (!visible || menu === 'none') ? (
+    <div className={`absolute right-12 ${visible ? 'bottom-44' : 'bottom-12'} z-30 pointer-events-none animate-fade-in`}>
+      <div className="rounded-2xl bg-black/85 border-2 border-brand-gold px-6 py-4 max-w-md">
+        {prompt.kind === 'next' && (
+          <p className="text-xs uppercase tracking-wider text-brand-gold font-nunito mb-1">
+            Up next{prompt.countdown != null ? ` · playing in ${prompt.countdown}` : ''}
+          </p>
+        )}
+        {prompt.detail && <p className="text-white font-quicksand font-semibold text-lg leading-tight mb-2 truncate">{prompt.detail}</p>}
+        <div className="flex items-center">
+          <span className="rounded-xl bg-brand-gold text-brand-navy font-bold font-quicksand px-5 py-2 text-base">
+            {prompt.label}
+          </span>
+          <span className="ml-4 text-xs text-brand-ice/80 font-nunito">
+            {visible ? '' : `OK${prompt.onBack ? ' · BACK to keep watching' : ''}`}
+          </span>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  if (!visible) return promptEl;
 
   const scrubbing = row === 'scrub';
   const shownPos = scrubbing && scrubPos != null ? scrubPos : pos;
@@ -493,6 +540,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
   return (
     <>
+      {promptEl}
       <div className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-16 pb-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
         <div className="max-w-6xl mx-auto pointer-events-auto">
           <p className="text-xl font-quicksand font-bold text-white truncate mb-2">
