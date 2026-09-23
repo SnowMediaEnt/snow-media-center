@@ -2483,6 +2483,47 @@ export type Database = {
         }
         Relationships: []
       }
+      kids_game_progress: {
+        Row: {
+          best_score: number
+          game_id: string
+          level: number
+          plays: number
+          profile_id: string
+          stars: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          best_score?: number
+          game_id: string
+          level?: number
+          plays?: number
+          profile_id: string
+          stars?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          best_score?: number
+          game_id?: string
+          level?: number
+          plays?: number
+          profile_id?: string
+          stars?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kids_game_progress_user_id_profile_id_fkey"
+            columns: ["user_id", "profile_id"]
+            isOneToOne: false
+            referencedRelation: "viewer_profiles"
+            referencedColumns: ["user_id", "id"]
+          },
+        ]
+      }
       knowledge_documents: {
         Row: {
           category: string | null
