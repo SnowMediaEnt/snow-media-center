@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Coins, Loader2, LogIn, Save, Sparkles, Trophy, UserRound, Volume2, VolumeX, X } from 'lucide-react';
+import { Coins, Loader2, LogIn, Save, Trophy, UserRound, Volume2, VolumeX, X } from 'lucide-react';
+import smcLogo from '@/assets/slots/smc.png';
 import { Button } from '@/components/ui/button';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
@@ -218,7 +219,7 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
       <header className="snow-game-topbar snow-games-lobby__topbar relative z-10">
         <BackButton data-game-focus={0} data-tv-focused={focusIndex === 0 ? 'true' : 'false'} onFocus={() => setFocusIndex(0)} onClick={onBack} label={t('games.hub.back')} focused={focusIndex === 0} />
         <div className="snow-games-lobby__heading text-center">
-          <div className="snow-games-lobby__title-row"><Sparkles aria-hidden="true" /><h1 className="snow-lobby__title">{t('games.hub.heroTitle')}</h1><Sparkles aria-hidden="true" /></div>
+          <div className="snow-games-lobby__title-row"><img className="snow-games-lobby__brand-logo" src={smcLogo} alt="" /><h1 className="snow-lobby__title">{t('games.hub.heroTitle')}</h1></div>
           <p className="snow-lobby__subtitle">{t('games.hub.heroTagline')}</p>
         </div>
         <div className="snow-chip-badge"><Coins aria-hidden="true" /><span><small>{t('games.shared.playChips')}</small><strong>{balance === null ? '—' : balance.toLocaleString()}</strong></span></div>

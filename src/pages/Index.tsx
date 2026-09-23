@@ -2,7 +2,7 @@ import { memo, useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv, Gift, Mic } from 'lucide-react';
+import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv, Gift, Mic, Gamepad2 } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 // MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
 const MediaBar = lazy(() => import('@/components/MediaBar'));
@@ -38,6 +38,7 @@ import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
+import { homeCardIds, profileGameView, type HomeCardId } from '@/lib/kidsGameNavigation';
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors } from '@/lib/profiles';
 import ProfileGate from '@/components/profiles/ProfileGate';
@@ -74,6 +75,7 @@ const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'
 const AIConversationSystem = lazy(() => import('@/components/AIConversationSystem'));
 const AdminSupportDashboard = lazy(() => import('@/components/AdminSupportDashboard'));
 const Games = lazy(() => import('@/components/Games'));
+const KidsGameLounge = lazy(() => import('@/components/kids/KidsGameLounge'));
 const DailySpinGame = lazy(() => import('@/components/games/DailySpin'));
 const SlotsGame = lazy(() => import('@/components/games/Slots'));
 const BlackjackGame = lazy(() => import('@/components/games/Blackjack'));
@@ -103,8 +105,7 @@ const RouteFallback = () => (
   </div>
 );
 
-type HomeCardId = 'player' | 'apps' | 'support' | 'store';
-const HOME_CARD_VIEW: Record<HomeCardId, string> = { player: 'livetv', apps: 'apps', support: 'support', store: 'store' };
+const HOME_CARD_VIEW: Record<HomeCardId, string> = { player: 'livetv', apps: 'apps', support: 'support', store: 'store', 'kids-games': 'kids-games' };
 
 const HomeActionCard = memo(({
   button,
@@ -453,6 +454,7 @@ const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayou
     {currentView === 'settings' && <Settings onBack={goBack} layoutMode={layoutMode} onLayoutChange={onLayoutChange} />}
     {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} onGiveaway={() => navigateTo('giveaway')} />}
     {currentView === 'games' && <Games onBack={goBack} onOpenGame={(view) => navigateTo(view)} />}
+    {currentView === 'kids-games' && <KidsGameLounge onBack={goBack} />}
     {currentView === 'giveaway' && <Giveaway onBack={goBack} />}
     {currentView === 'game-daily-spin' && <DailySpinGame onBack={goBack} />}
     {currentView === 'game-slots' && <SlotsGame onBack={goBack} />}
@@ -556,7 +558,12 @@ const Index = () => {
     }
     return false;
   }, [showEasterEgg, isInPopup, isInMediaBar]);
-  const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
+  const { currentView: requestedView, navigateTo: navigateToView, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
+  // Resolve before rendering so a restored adult game never mounts for a child.
+  const currentView = profileGameView(requestedView, profile.kidsLevel);
+  const navigateTo = useCallback((view: string) => {
+    navigateToView(profileGameView(view, profile.kidsLevel));
+  }, [navigateToView, profile.kidsLevel]);
 
   // Resume post-auth view (e.g., returning from /auth after Sign In on the Tickets page)
   useEffect(() => {
@@ -933,9 +940,8 @@ const Index = () => {
   // at the far left and is the card focused at launch (focusedButton 0 = first
   // card). Everything below looks cards up by id, never by fixed position.
   const cardIds = useMemo<HomeCardId[]>(
-    () => (playerEnabled ? ['player', 'apps', 'support', 'store'] : ['apps', 'support', 'store'])
-      .filter((id) => !(kids && (id === 'store' || id === 'apps'))) as HomeCardId[],
-    [playerEnabled, kids],
+    () => homeCardIds(playerEnabled, profile.kidsLevel),
+    [playerEnabled, profile.kidsLevel],
   );
   const cardCountRef = useRef(cardIds.length);
   useEffect(() => { cardCountRef.current = cardIds.length; }, [cardIds.length]);
@@ -994,7 +1000,7 @@ const Index = () => {
         // channels → categories → sections → exit hierarchy). Without this,
         // the synthetic back keydown dispatched at window level reaches this
         // first-registered handler and pops the Player to home.
-        if (currentViewRef.current === 'livetv') return;
+        if (currentViewRef.current === 'livetv' || currentViewRef.current === 'kids-games') return;
         event.preventDefault();
         event.stopPropagation();
 
@@ -1195,6 +1201,7 @@ const Index = () => {
       apps: { icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
       support: { icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
       store: { icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' },
+      'kids-games': { icon: Gamepad2, title: 'Kids Game Lounge', description: 'Play, learn & explore', variant: 'purple' },
     };
     return cardIds.map((id) => byId[id]);
   }, [cardIds, t]);
