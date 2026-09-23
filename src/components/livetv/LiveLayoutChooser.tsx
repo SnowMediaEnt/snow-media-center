@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { LIVE_LAYOUTS, DEFAULT_LIVE_LAYOUT, saveLiveLayout, type LiveLayout } from '@/lib/liveLayout';
 import { trackEvent } from '@/lib/analytics';
+import LiveLayoutWire from './LiveLayoutWire';
 
 interface Props {
   onDone: (layout: LiveLayout) => void;
@@ -16,53 +17,6 @@ interface Props {
 
 const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 23 || e.keyCode === 66;
 const isBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
-
-/** A miniature of each layout, drawn with boxes so it reads from the couch. */
-const Wire = ({ id }: { id: LiveLayout }) => {
-  const bar = 'rounded-[2px] bg-white/25';
-  const hot = 'rounded-[2px] bg-brand-gold';
-  if (id === 'classic') {
-    return (
-      <div className="w-full aspect-video rounded-lg bg-[#0b1020] p-2 flex gap-1.5">
-        <div className="w-[24%] flex flex-col gap-1">
-          {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className={`h-[10%] ${i === 1 ? hot : bar}`} />)}
-        </div>
-        <div className="flex-1 flex flex-col gap-1.5">
-          <div className="h-[38%] rounded-[3px] bg-brand-ice/40" />
-          <div className="flex-1 flex flex-col gap-1">
-            {[0, 1, 2, 3].map((i) => <div key={i} className={`h-[18%] ${i === 0 ? hot : bar}`} />)}
-          </div>
-        </div>
-      </div>
-    );
-  }
-  if (id === 'grid') {
-    return (
-      <div className="w-full aspect-video rounded-lg bg-[#0b1020] p-2 flex gap-1.5">
-        <div className="w-[24%] flex flex-col gap-1">
-          {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className={`h-[10%] ${i === 1 ? hot : bar}`} />)}
-        </div>
-        <div className="flex-1 grid grid-cols-4 gap-1 content-start">
-          {Array.from({ length: 12 }).map((_, i) => <div key={i} className={`aspect-[4/3] ${i === 0 ? hot : 'rounded-[2px] bg-white/20'}`} />)}
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="w-full aspect-video rounded-lg bg-[#0b1020] p-2 flex gap-1.5">
-      <div className="w-[42%] flex flex-col gap-1">
-        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <div key={i} className={`h-[9%] ${i === 2 ? hot : bar}`} />)}
-      </div>
-      <div className="flex-1 flex flex-col gap-1.5">
-        <div className="flex-1 rounded-[3px] bg-brand-ice/40" />
-        <div className="h-[16%] flex flex-col gap-1">
-          <div className={`h-1/2 ${bar}`} />
-          <div className="h-1/2 rounded-[2px] bg-white/15" />
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const LiveLayoutChooser = ({ onDone }: Props) => {
   const [idx, setIdx] = useState(() => Math.max(0, LIVE_LAYOUTS.findIndex((l) => l.id === DEFAULT_LIVE_LAYOUT)));
@@ -126,7 +80,7 @@ const LiveLayoutChooser = ({ onDone }: Props) => {
                   <span className="text-xs font-black uppercase tracking-wider">Selected</span>
                 </div>
               )}
-              <Wire id={l.id} />
+              <LiveLayoutWire id={l.id} />
               <div className={`mt-4 text-2xl font-extrabold ${picked ? 'text-brand-gold' : 'text-white/70'}`}>{l.label}</div>
               <div className={`mt-1 text-base leading-snug ${picked ? 'text-white/80' : 'text-white/50'}`}>{l.desc}</div>
             </div>

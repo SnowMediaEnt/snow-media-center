@@ -19,6 +19,7 @@ import {
   SERVERS,
   type XtreamCreds,
 } from '@/lib/xtream';
+import { saveLiveLayout, type LiveLayout } from '@/lib/liveLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
@@ -43,6 +44,7 @@ const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const PlexSection = lazy(() => import('./livetv/PlexSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 const ClaimAccountCard = lazy(() => import('./livetv/ClaimAccountCard'));
+const LayoutTrialPrompt = lazy(() => import('./livetv/LayoutTrialPrompt'));
 const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
 const MultiScreenSection = lazy(() => import('./livetv/MultiScreenSection'));
 const BackupsSection = lazy(() => import('./livetv/BackupsSection'));
@@ -87,6 +89,34 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => { modeRef.current = mode; }, [mode]);
   const [sectionIdx, setSectionIdx] = useState(0);
   const [pane, setPane] = useState<'header' | 'sections' | 'content'>('sections');
+  // Trying a Live TV layout picked in Appearance: Live TV shows in it, and
+  // after a few seconds asks Keep / Change.
+  const [layoutTrial, setLayoutTrial] = useState<{ prev: LiveLayout; next: LiveLayout; ask: boolean } | null>(null);
+  useEffect(() => {
+    if (!layoutTrial || layoutTrial.ask) return;
+    const t = window.setTimeout(() => setLayoutTrial((lt) => (lt ? { ...lt, ask: true } : lt)), 3000);
+    return () => window.clearTimeout(t);
+  }, [layoutTrial]);
+  const tryLayout = useCallback((prev: LiveLayout, next: LiveLayout) => {
+    saveLiveLayout(next);
+    setLayoutTrial({ prev, next, ask: false });
+    setSettingsOpen(false);
+    setSettingsInitialView(undefined);
+    setMode('live');
+    setSection('live');
+    setPane('content');
+  }, []);
+  const keepLayout = useCallback(() => setLayoutTrial(null), []);
+  const changeLayout = useCallback(() => {
+    setLayoutTrial((lt) => { if (lt) saveLiveLayout(lt.prev); return null; });
+    setSettingsInitialView('appearance');
+    setSettingsOpen(true);
+  }, []);
+  const trialAsking = !!layoutTrial?.ask;
+  // Left Live TV before the question came up: the new layout simply stays.
+  useEffect(() => {
+    if (layoutTrial && (section !== 'live' || mode !== 'live' || settingsOpen)) setLayoutTrial(null);
+  }, [layoutTrial, section, mode, settingsOpen]);
   const [headerIdx, setHeaderIdx] = useState(0);
   // Where to return when leaving the header via Down.
   const headerReturnPaneRef = useRef<'sections' | 'content'>('sections');
@@ -823,6 +853,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           onSignOut={() => { void signOut(); }}
           onChangeCredentials={() => { if (DEMO) demoAccountNote(); else setAccountFormOpen(true); }}
           onSwitchAccount={onSwitchAccount}
+          onTryLayout={tryLayout}
         />
       </Suspense>
     );
@@ -942,7 +973,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         {section === 'live' && (
           <LiveSection
             creds={creds!}
-            isActive={pane === 'content' && !claimOpen}
+            isActive={pane === 'content' && !claimOpen && !trialAsking}
             onExitLeft={onExitLeft}
             onExitUp={onExitUp}
             onBack={onBack}
@@ -1049,6 +1080,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           days={playerDays ?? 0}
           onDismiss={dismissExpNotice}
         />
+      )}
+      {trialAsking && layoutTrial && (
+        <Suspense fallback={null}>
+          <LayoutTrialPrompt layout={layoutTrial.next} onKeep={keepLayout} onChange={changeLayout} />
+        </Suspense>
       )}
       {claimOpen && playerAccount && !isClaimDone(playerAccount) && (
         <Suspense fallback={null}>

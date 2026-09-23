@@ -12,8 +12,14 @@ import {
   resetTheme,
 } from '@/lib/theme';
 import { LIVE_LAYOUTS, saveLiveLayout, useLiveLayout, type LiveLayout } from '@/lib/liveLayout';
+import LiveLayoutWire from './LiveLayoutWire';
 
-interface Props { onBack: () => void }
+interface Props {
+  onBack: () => void;
+  /** Picking a different Live TV layout: try it on the real screen (the
+   *  Player shows Live TV in it, then asks Keep / Change). */
+  onTryLayout?: (prev: LiveLayout, next: LiveLayout) => void;
+}
 
 type ChipKind = 'liveLayout' | 'fontScale' | 'fontFamily' | 'accent' | 'bg' | 'text';
 interface Chip {
@@ -25,9 +31,11 @@ interface Chip {
   groupIdx: number;
 }
 
-const AppearanceScreen = memo(({ onBack }: Props) => {
+const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
   const [theme, setTheme] = useTheme();
   const liveLayout = useLiveLayout();
+  const liveLayoutRef = useRef(liveLayout);
+  liveLayoutRef.current = liveLayout;
 
   const groups = useMemo(() => {
     const gLayout: Chip[] = LIVE_LAYOUTS.map(l => ({ kind: 'liveLayout', id: l.id, label: l.label, groupIdx: 0 }));
@@ -75,7 +83,11 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
   };
 
   const applyChip = (chip: Chip) => {
-    if (chip.kind === 'liveLayout') saveLiveLayout(chip.id as LiveLayout);
+    if (chip.kind === 'liveLayout') {
+      const next = chip.id as LiveLayout;
+      if (next !== liveLayoutRef.current && onTryLayout) onTryLayout(liveLayoutRef.current, next);
+      else saveLiveLayout(next);
+    }
     else if (chip.kind === 'fontScale' && typeof chip.value === 'number') setTheme({ fontScale: chip.value });
     else if (chip.kind === 'fontFamily') setTheme({ fontFamily: chip.id });
     else if (chip.kind === 'accent' && chip.hsl) setTheme({ accentColor: chip.hsl });
@@ -141,6 +153,24 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
   const renderChip = (chip: Chip, flatIdx: number) => {
     const focused = focusIdx === flatIdx;
     const selected = isSelected(chip);
+    // Live TV layouts are pictures of the screen, not text chips.
+    if (chip.kind === 'liveLayout') {
+      return (
+        <div
+          key={`${chip.kind}-${chip.id}`}
+          data-focused={focused ? 'true' : 'false'}
+          data-selected={selected ? 'true' : 'false'}
+          onClick={() => { setFocusIdx(flatIdx); applyChip(chip); }}
+          className={`tv-ring relative rounded-2xl p-3 border cursor-pointer transition-transform ${selected ? 'bg-brand-gold/15 border-brand-gold/60' : 'bg-slate-900/60 border-white/10'} ${focused ? 'scale-105 z-10' : ''}`}
+        >
+          <LiveLayoutWire id={chip.id as LiveLayout} />
+          <div className="mt-2 flex items-center justify-between">
+            <span className={`text-base font-quicksand font-bold ${selected ? 'text-brand-gold' : 'text-white'}`}>{chip.label}</span>
+            {selected && <Check className="w-4 h-4 text-brand-gold" />}
+          </div>
+        </div>
+      );
+    }
     const showDot = chip.kind === 'accent' || chip.kind === 'bg' || chip.kind === 'text';
     return (
       <div
@@ -163,7 +193,9 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
   };
 
   const groupLabels = ['Live TV layout', 'Text size', 'Font', 'Highlight color', 'Background', 'Text color'];
-  const groupHints: Record<number, string> = { 0: LIVE_LAYOUTS.find(l => l.id === liveLayout)?.desc ?? '' };
+  const groupHints: Record<number, string> = {
+    0: `${LIVE_LAYOUTS.find(l => l.id === liveLayout)?.desc ?? ''}${onTryLayout ? ' · Pick another to try it on the Live TV screen.' : ''}`,
+  };
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
@@ -186,9 +218,15 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
             <div key={groupLabels[gi]} className="space-y-3">
               <div className="text-xs uppercase tracking-wide text-white/70">{groupLabels[gi]}</div>
               {groupHints[gi] ? <div className="text-sm font-nunito text-brand-ice/70">{groupHints[gi]}</div> : null}
-              <div className="flex flex-wrap gap-2">
-                {g.map((chip, ci) => renderChip(chip, groupStarts.starts[gi] + ci))}
-              </div>
+              {gi === 0 ? (
+                <div className="grid grid-cols-3 gap-4">
+                  {g.map((chip, ci) => renderChip(chip, groupStarts.starts[gi] + ci))}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {g.map((chip, ci) => renderChip(chip, groupStarts.starts[gi] + ci))}
+                </div>
+              )}
             </div>
           ))}
 

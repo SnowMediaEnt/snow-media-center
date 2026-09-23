@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, KeyRound, Users, Palette, LogOut, Loader2, CreditCard, ListFilter } from 'lucide-react';
 import type { XtreamCreds } from '@/lib/xtream';
+import type { LiveLayout } from '@/lib/liveLayout';
 import { useToast } from '@/hooks/use-toast';
 import { isDemo } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
@@ -24,6 +25,8 @@ interface Props {
   onSignOut: () => void;
   onChangeCredentials: () => void;
   onSwitchAccount: (c: XtreamCreds) => void;
+  /** Try a Live TV layout on the real screen (see AppearanceScreen). */
+  onTryLayout?: (prev: LiveLayout, next: LiveLayout) => void;
 }
 
 type View = 'menu' | 'billing' | 'account' | 'switch' | 'categories' | 'appearance';
@@ -37,7 +40,7 @@ const fallback = (
   </div>
 );
 
-const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials, onSwitchAccount }: Props) => {
+const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials, onSwitchAccount, onTryLayout }: Props) => {
   const [view, setView] = useState<View>(initialView ?? 'menu');
   const [menuIdx, setMenuIdx] = useState(1); // start on first list row (skip Back)
   const menuIdxRef = useRef(menuIdx);
@@ -147,7 +150,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
   if (view === 'appearance') {
     return (
       <Suspense fallback={fallback}>
-        <AppearanceScreen onBack={() => setView('menu')} />
+        <AppearanceScreen onBack={() => setView('menu')} onTryLayout={onTryLayout} />
       </Suspense>
     );
   }
