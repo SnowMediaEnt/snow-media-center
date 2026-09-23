@@ -127,6 +127,93 @@ export type Database = {
           },
         ]
       }
+      admin_ai_messages: {
+        Row: {
+          content: string | null
+          conversation_id: string
+          created_at: string
+          created_by: string | null
+          id: number
+          role: string
+          tool_call_id: string | null
+          tool_calls: Json | null
+        }
+        Insert: {
+          content?: string | null
+          conversation_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: never
+          role: string
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: never
+          role?: string
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+        }
+        Relationships: []
+      }
+      admin_ai_proposals: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          expires_at: string
+          id: string
+          kind: string
+          params: Json
+          preview: Json
+          result: Json | null
+          status: string
+          target_count: number
+          targets: Json
+          title: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          expires_at?: string
+          id?: string
+          kind: string
+          params?: Json
+          preview?: Json
+          result?: Json | null
+          status?: string
+          target_count?: number
+          targets?: Json
+          title: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          expires_at?: string
+          id?: string
+          kind?: string
+          params?: Json
+          preview?: Json
+          result?: Json | null
+          status?: string
+          target_count?: number
+          targets?: Json
+          title?: string
+        }
+        Relationships: []
+      }
       admin_devices: {
         Row: {
           apns_environment: string
@@ -1633,6 +1720,39 @@ export type Database = {
         Update: {
           last_claim_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      deleted_posts: {
+        Row: {
+          deleted_at: string
+          deleted_by: string | null
+          id: string
+          kind: string
+          post_id: string
+          restored_at: string | null
+          row_data: Json
+          title: string | null
+        }
+        Insert: {
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          kind: string
+          post_id: string
+          restored_at?: string | null
+          row_data: Json
+          title?: string | null
+        }
+        Update: {
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          kind?: string
+          post_id?: string
+          restored_at?: string | null
+          row_data?: Json
+          title?: string | null
         }
         Relationships: []
       }
@@ -4491,6 +4611,11 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_ai_read: {
+        Args: { p_limit?: number; p_sql: string }
+        Returns: Json
+      }
+      admin_ai_schema: { Args: never; Returns: Json }
       admin_app_versions: { Args: { p_days?: number }; Returns: Json }
       admin_create_remote_access_code: {
         Args: {
@@ -4499,6 +4624,10 @@ export type Database = {
           p_note?: string
           p_request_id?: string
         }
+        Returns: Json
+      }
+      admin_delete_posts: {
+        Args: { p_mail_ids?: string[]; p_news_ids?: string[] }
         Returns: Json
       }
       admin_gem_activity: {
@@ -4555,6 +4684,7 @@ export type Database = {
           use_count: number
         }[]
       }
+      admin_posts: { Args: never; Returns: Json }
       admin_relink_line: {
         Args: { p_customer_id: string; p_panel_username: string }
         Returns: Json
@@ -4567,6 +4697,7 @@ export type Database = {
         Args: { p_approve: boolean; p_hold_id: string; p_note?: string }
         Returns: Json
       }
+      admin_restore_post: { Args: { p_deleted_id: string }; Returns: Json }
       admin_revoke_remote_access_code: {
         Args: { p_code_id: string }
         Returns: Json
