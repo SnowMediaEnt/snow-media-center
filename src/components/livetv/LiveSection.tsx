@@ -48,6 +48,7 @@ import {
   type CatalogCounts,
 } from '@/lib/catalogCounts';
 import { runAfter } from '@/utils/idle';
+import { keepInView } from '@/utils/keepInView';
 import { isPlaybackQuiet } from '@/utils/quietMode';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
@@ -820,7 +821,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     count: visibleCategories.length,
     getScrollElement: () => categoriesScrollRef.current,
     estimateSize: () => CAT_ROW_HEIGHT,
-    overscan: isFireTV() || isLowMemoryBox() ? 4 : 10,
+    overscan: isFireTV() ? 4 : 10,
     getItemKey: catItemKey,
   });
 
@@ -920,9 +921,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         node.scrollTop = rowBottom + CAT_FOCUS_PAD - node.clientHeight;
       }
     };
+    // Then check against what is really on screen, once the row is drawn.
+    const settle = () => {
+      const node = categoriesScrollRef.current;
+      const el = node?.querySelector<HTMLElement>(`[data-cat-idx="${categoryIdx}"]`);
+      if (node && el) keepInView(node, el, CAT_FOCUS_PAD);
+    };
     apply();
-    const raf = requestAnimationFrame(apply);
-    return () => cancelAnimationFrame(raf);
+    let raf2 = 0;
+    const raf = requestAnimationFrame(() => { apply(); raf2 = requestAnimationFrame(settle); });
+    return () => { cancelAnimationFrame(raf); cancelAnimationFrame(raf2); };
   }, [categoryIdx, visibleCategories.length, searchOpen]);
 
   // EPG lazy fetch with concurrency cap
@@ -1034,12 +1042,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       || document.documentElement.classList.contains('legacy-webview')
     ),
   );
+  // The Vibez (grid) layout has no preview box, so it never starts a preview
+  // stream: OK plays full screen. It used to open one behind the logo wall.
+  const noPreview = previewDisabled || layout === 'grid';
   useEffect(() => {
-    if (previewDisabled) return;
-    if (!focusedChannel) { setPreviewChannel(null); return; }
+    if (noPreview || !focusedChannel) { setPreviewChannel(null); return; }
     const t = window.setTimeout(() => setPreviewChannel(focusedChannel), PREVIEW_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
-  }, [focusedChannel, previewDisabled]);
+  }, [focusedChannel, noPreview]);
 
   const previewUrl = useMemo(
     // Demo: no stream URL may ever be constructed — the host is a sentinel.

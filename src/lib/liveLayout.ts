@@ -12,7 +12,9 @@ export const DEFAULT_LIVE_LAYOUT: LiveLayout = 'compact';
 export const LIVE_LAYOUTS: Array<{ id: LiveLayout; label: string; desc: string }> = [
   { id: 'classic', label: 'Classic', desc: 'Categories beside a tall channel list, preview above it' },
   { id: 'compact', label: 'Compact', desc: 'Slim channel list, categories one press away, big preview' },
-  { id: 'grid', label: 'Grid', desc: 'Categories beside a wall of channel logos, OK plays' },
+  // Shown as "Vibez": the layout Vibez viewers know. The id stays 'grid' so
+  // boxes that already chose it keep it.
+  { id: 'grid', label: 'Vibez', desc: 'Categories beside a wall of channel logos, OK plays (no preview)' },
 ];
 
 const isLayout = (v: unknown): v is LiveLayout => v === 'classic' || v === 'compact' || v === 'grid';

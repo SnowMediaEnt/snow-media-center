@@ -24,6 +24,7 @@ import {
 } from '@/lib/catalogCounts';
 import PosterCard from './PosterCard';
 import { tmdbSized } from '@/lib/tmdbImage';
+import { keepInView } from '@/utils/keepInView';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
@@ -486,6 +487,18 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridIdx, visibleMovies.length]);
 
+  // Keep the highlighted category on screen as the remote moves down the
+  // list — it had no scroll-follow at all, so the highlight slid off the
+  // bottom of the pane. Also on return from a film (the pane is rebuilt).
+  const catScrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = catScrollRef.current;
+    if (!node) return;
+    if (categoryIdx === 0) { node.scrollTop = 0; return; }
+    const el = node.querySelector<HTMLElement>(`[data-cat-i="${categoryIdx}"]`);
+    if (el) keepInView(node, el, 8);
+  }, [categoryIdx, gridShown, searchOpen, visibleCategories.length]);
+
   // Demo notice owns the D-pad while open: swallow every key so focus can't
   // leak into the grid behind it. OK / Back / Escape dismiss. (Plex pattern.)
   useEffect(() => {
@@ -590,7 +603,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
   return (
     <div className="flex-1 min-h-0 flex">
       {/* Pane 2 — Categories */}
-      <div className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
+      <div ref={catScrollRef} className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
@@ -628,6 +641,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
               return (
                 <div
                   key={c.id}
+                  data-cat-i={i}
                   data-focused={isFocused ? 'true' : 'false'}
                   onClick={() => {
                     userMovedRef.current = true;
