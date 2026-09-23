@@ -540,7 +540,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
               })}
             </div>
             <p className="text-white/60 text-sm mb-6">
-              Kids profiles see Plex titles up to that rating and only the kids and family channels in Live TV (Teens: every channel that isn't adult), with no Store, Main Apps, Games, Settings, tickets or Remote Access. Their AI is kids-safe: G-rated, and it only helps with kids shows, movies, channels and games.
+              Kids profiles see Plex titles up to that rating, age-appropriate Live TV channels, and their own Kids Game Lounge. The adult Game Lounge, Store, Main Apps, Settings, tickets, and Remote Access stay hidden. Their AI is G-rated and helps only with kids shows, movies, channels, and games.
             </p>
           </>
         )}

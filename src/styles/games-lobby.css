@@ -75,6 +75,7 @@
 
 .snow-games-lobby__title-row > svg:first-child { margin-right: 12px; }
 .snow-games-lobby__title-row > svg:last-child { margin-left: 12px; }
+.snow-games-lobby__brand-logo { width: 52px; height: 52px; flex: 0 0 52px; margin-right: 16px; border-radius: 12px; object-fit: cover; box-shadow: 0 0 18px rgba(106, 206, 255, .3); }
 
 .snow-games-lobby .snow-lobby__title {
   margin: 0;
@@ -484,6 +485,7 @@ html[data-game-fx="reduced"] .snow-games-lobby .snow-game-art,
   .snow-games-lobby .snow-lobby__title { font-size: 27px; }
   .snow-games-lobby .snow-lobby__subtitle { margin-top: 5px; font-size: 11px; }
   .snow-games-lobby__title-row > svg { width: 18px; height: 18px; }
+  .snow-games-lobby__brand-logo { width: 40px; height: 40px; flex-basis: 40px; margin-right: 10px; border-radius: 9px; }
 
   .snow-games-lobby .snow-chip-badge {
     width: 158px;
@@ -601,6 +603,7 @@ html[data-game-fx="reduced"] .snow-games-lobby .snow-game-art,
   .snow-games-lobby .snow-lobby__title { font-size: 66px; }
   .snow-games-lobby .snow-lobby__subtitle { margin-top: 13px; font-size: 23px; }
   .snow-games-lobby__title-row > svg { width: 38px; height: 38px; }
+  .snow-games-lobby__brand-logo { width: 86px; height: 86px; flex-basis: 86px; margin-right: 26px; border-radius: 20px; }
 
   .snow-games-lobby .snow-chip-badge {
     width: 300px;

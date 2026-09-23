@@ -1,0 +1,107 @@
+.kids-creative {
+  width: 100%; height: 100%; min-height: 0; display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: clamp(10px, 1.4vh, 18px); padding: clamp(14px, 2vh, 28px);
+  border: 1px solid rgba(178, 228, 255, .36); border-radius: 30px;
+  background: radial-gradient(circle at 78% 8%, rgba(77, 201, 251, .32), transparent 39%),
+    linear-gradient(135deg, #0c2856, #113c62 55%, #144b64);
+  color: #f7fdff; box-shadow: 0 22px 70px rgba(1, 20, 48, .4);
+  overflow: hidden;
+}
+.kids-creative button { touch-action: manipulation; cursor: pointer; }
+.kids-creative button:focus-visible,
+.kids-creative button[data-focused="true"] {
+  outline: 4px solid #fffde8; outline-offset: 3px;
+  box-shadow: 0 0 0 8px rgba(35, 217, 255, .5), 0 0 30px rgba(255, 235, 122, .55);
+  position: relative; z-index: 5;
+}
+.kids-creative__header { display: grid; grid-template-columns: minmax(130px, 1fr) 2fr minmax(130px, 1fr); align-items: center; gap: 16px; }
+.kids-creative__header > div { text-align: center; }
+.kids-creative__eyebrow { color: #99edff; font-size: clamp(.72rem, 1vw, 1rem); letter-spacing: .16em; font-weight: 900; }
+.kids-creative__header h2 { margin: 2px 0 0; font-size: clamp(1.45rem, 3vw, 3rem); line-height: 1.06; font-weight: 950; letter-spacing: -.04em; }
+.kids-creative__back, .kids-creative__badge { display: inline-flex; align-items: center; gap: 9px; width: fit-content; min-height: 48px; padding: 8px 15px; border: 1px solid rgba(193, 235, 255, .4); border-radius: 17px; background: rgba(9, 37, 70, .8); color: white; font-weight: 850; }
+.kids-creative__back svg, .kids-creative__badge svg { width: 21px; height: 21px; }
+.kids-creative__badge { justify-self: end; color: #ffeb90; }
+.kids-creative__instruction { display: flex; align-items: center; gap: 16px; min-height: 80px; padding: 11px 20px; border: 2px solid rgba(160, 237, 255, .37); border-radius: 22px; background: rgba(7, 32, 73, .58); }
+.kids-creative__instruction-icon { display: grid; place-items: center; width: 51px; height: 51px; flex: none; border-radius: 16px; background: linear-gradient(145deg, #f9de7b, #ffc77e); color: #153153; }
+.kids-creative__instruction-icon svg { width: 32px; height: 32px; }
+.kids-creative__instruction div { min-width: 0; flex: 1; }
+.kids-creative__instruction small { display: block; color: #8de3ff; font-size: .78rem; font-weight: 950; letter-spacing: .15em; }
+.kids-creative__instruction strong { display: block; font-size: clamp(1rem, 1.8vw, 1.65rem); line-height: 1.2; }
+.kids-creative__counter { flex: none; padding: 8px 13px; border-radius: 13px; background: rgba(162, 235, 255, .15); color: #c2f2ff; font-size: clamp(.8rem, 1.1vw, 1.1rem); font-weight: 950; }
+.kids-creative__footer { display: flex; justify-content: space-between; align-items: center; gap: 15px; min-height: 65px; padding-top: 4px; }
+.kids-creative__hint { display: flex; align-items: center; gap: 8px; color: #d0ecff; font-size: clamp(.85rem, 1.15vw, 1.05rem); font-weight: 750; }
+.kids-creative__hint svg { width: 19px; flex: none; }
+.kids-creative__controls { display: flex; align-items: center; gap: 15px; }
+.kids-creative__controls span { color: #a9daf0; font-size: .88rem; font-weight: 750; }
+.kids-creative__controls button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 9px 22px; border-radius: 16px; background: linear-gradient(145deg, #fff3a6, #f9c979); color: #203658; font-weight: 950; white-space: nowrap; box-shadow: 0 5px 0 #ba8749; }
+.kids-creative__controls button svg { width: 21px; }
+.kids-creative__controls button:disabled { opacity: .48; box-shadow: none; cursor: default; }
+.kids-world__scene { position: relative; display: flex; justify-content: center; min-height: 0; overflow: hidden; border: 2px solid rgba(197, 243, 255, .52); border-radius: 26px; background: linear-gradient(#579ed0 0%, #94d6e9 57%, #e8faff 58%, #f8fdff 100%); }
+.kids-world__sky { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.kids-world__moon { position: absolute; top: 11%; right: 14%; width: 55px; height: 55px; border-radius: 50%; background: #fffbd0; box-shadow: 0 0 40px #fff7a9; }
+.kids-world__mountains { position: absolute; left: -10%; right: -10%; bottom: 24%; height: 42%; opacity: .5; background: #d5f3fc; clip-path: polygon(0 100%, 12% 36%, 21% 100%, 36% 20%, 54% 100%, 67% 30%, 83% 100%, 91% 49%, 100% 100%); }
+.kids-world__grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: clamp(6px, 1vw, 15px); width: min(100%, 1020px); height: 100%; padding: clamp(10px, 2vh, 25px); }
+.kids-world__cell { display: grid; place-items: center; min-height: 0; border: 2px dashed rgba(23, 99, 146, .35); border-radius: 20px; background: rgba(255, 255, 255, .17); color: #245270; }
+.kids-world__cell > span { display: grid; place-items: center; width: clamp(45px, 7vw, 105px); aspect-ratio: 1; border-radius: 25px; background: rgba(255, 255, 255, .2); }
+.kids-world__cell svg { width: 54%; height: 54%; stroke-width: 2.4; }
+.kids-world__cell--pine > span { background: #d9f8d6; color: #096a61; box-shadow: 0 9px 0 #65a3a4; }
+.kids-world__cell--cabin > span { background: #ffdfb5; color: #b35b3f; box-shadow: 0 9px 0 #c88466; }
+.kids-world__cell--star > span { background: #fff1ae; color: #ba7a13; box-shadow: 0 0 27px #fff6ac; }
+.kids-world__cell--empty svg { opacity: .37; }
+.kids-beat__stage { position: relative; display: grid; place-items: center; align-content: center; gap: clamp(8px, 1.5vh, 18px); min-height: 0; overflow: hidden; border: 2px solid rgba(197, 243, 255, .4); border-radius: 26px; background: radial-gradient(circle at center, #255aa3 0%, #1b3a73 48%, #122a60 100%); }
+.kids-beat__storm { position: absolute; inset: 0; display: flex; justify-content: space-around; align-items: center; opacity: .08; pointer-events: none; }
+.kids-beat__storm svg { width: 19%; height: 50%; animation: kids-snow-float 4s ease-in-out infinite alternate; }
+@keyframes kids-snow-float { to { transform: translateY(14px) rotate(18deg); } }
+.kids-beat__pad { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: clamp(6px, 1vh, 12px); width: min(52vh, 450px, 60vw); aspect-ratio: 1; outline: none; }
+.kids-beat__pad button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 3px solid rgba(209, 249, 255, .72); border-radius: 26px; background: linear-gradient(155deg, #268cc4, #2859a3); color: white; box-shadow: 0 8px 0 #0d276e, inset 0 1px 22px rgba(255,255,255,.15); }
+.kids-beat__pad button[data-direction="up"] { background: linear-gradient(155deg, #267fbc, #164879); color: #d1f7ff; }
+.kids-beat__pad button[data-direction="right"] { background: linear-gradient(155deg, #56b6d0, #2a779e); color: #fff; }
+.kids-beat__pad button[data-direction="down"] { background: linear-gradient(155deg, #f47e79, #b9415f); color: #fff7bd; }
+.kids-beat__pad button[data-direction="left"] { background: linear-gradient(155deg, #b687d2, #6750a0); color: #ffe8a4; }
+.kids-beat__pad button span { color: #fff; font-size: clamp(.68rem, 1vw, .95rem); font-weight: 950; letter-spacing: .06em; text-shadow: 0 1px 3px #092441; }
+.kids-beat__pad button:disabled { opacity: 1; }
+.kids-beat__pad button[data-lit="true"] { background: linear-gradient(145deg, #fff4ae, #ffb575); color: #25386f; box-shadow: 0 0 40px #ffea87, 0 8px 0 #a97a4e; transform: scale(1.08); }
+.kids-beat__pad button svg:first-child { width: clamp(26px, 5vh, 53px); height: clamp(26px, 5vh, 53px); }
+.kids-beat__pad button[data-direction="right"] svg:first-child { fill: #fff; stroke: #b9e7f7; stroke-width: 2.5; filter: drop-shadow(0 3px 3px #2d607d); }
+.kids-beat__pad button[data-direction="up"] { grid-area: 1 / 2; }
+.kids-beat__pad button[data-direction="right"] { grid-area: 2 / 3; }
+.kids-beat__pad button[data-direction="down"] { grid-area: 3 / 2; }
+.kids-beat__pad button[data-direction="left"] { grid-area: 2 / 1; }
+.kids-beat__center { grid-area: 2 / 2; display: grid; place-items: center; color: #ffe9a8; }
+.kids-beat__center svg { width: 60%; height: 60%; filter: drop-shadow(0 0 18px #ffdc94); }
+.kids-beat__center img { width: 74%; aspect-ratio: 1; border-radius: 20%; box-shadow: 0 0 24px rgba(255, 224, 132, .58); }
+.kids-beat__pad:focus-visible { border-radius: 25px; box-shadow: 0 0 0 5px #fff7c5; }
+.kids-beat__progress { display: flex; gap: 12px; }
+.kids-beat__progress span { width: 17px; height: 17px; border-radius: 50%; border: 2px solid #abe5fd; background: rgba(255,255,255,.2); }
+.kids-beat__progress span[data-active="true"] { background: #ffe394; box-shadow: 0 0 16px #ffe394; }
+@media (max-height: 700px) {
+  .kids-creative { gap: 7px; padding: 11px; border-radius: 18px; }
+  .kids-creative__instruction { min-height: 56px; padding: 6px 12px; }
+  .kids-creative__instruction-icon { width: 40px; height: 40px; }
+  .kids-creative__footer { min-height: 50px; }
+  .kids-creative__controls button { min-height: 42px; }
+  .kids-beat__pad { width: min(40vh, 330px, 55vw); }
+}
+@media (max-width: 900px) {
+  .kids-creative__header { grid-template-columns: 110px 1fr 110px; }
+  .kids-creative__controls span { display: none; }
+  .kids-creative__hint { font-size: .8rem; }
+}
+@media (prefers-reduced-motion: reduce) { .kids-beat__storm svg { animation: none; } }
+@media (min-width: 2560px) and (min-height: 1400px) {
+  .kids-creative { padding: 42px; gap: 28px; border-radius: 40px; }
+  .kids-creative__eyebrow { font-size: 1.8rem; }.kids-creative__header h2 { font-size: 5.6rem; }
+  .kids-creative__back, .kids-creative__badge { min-height: 80px; padding: 16px 25px; font-size: 1.8rem; }
+  .kids-creative__back svg, .kids-creative__badge svg { width: 34px; height: 34px; }
+  .kids-creative__instruction { min-height: 135px; padding: 22px 32px; }
+  .kids-creative__instruction-icon { width: 84px; height: 84px; }.kids-creative__instruction-icon svg { width: 50px; height: 50px; }
+  .kids-creative__instruction small { font-size: 1.4rem; }.kids-creative__instruction strong { font-size: 2.5rem; }
+  .kids-creative__counter { font-size: 1.8rem; }.kids-creative__hint, .kids-creative__controls span { font-size: 1.65rem; }
+  .kids-creative__controls button { min-height: 86px; font-size: 1.7rem; }
+  .kids-world__grid { width: min(100%, 1900px); gap: 25px; padding: 30px; }
+  .kids-world__cell > span { width: 170px; }.kids-world__moon { width: 90px; height: 90px; }
+  .kids-beat__pad { width: min(58vh, 850px, 60vw); }.kids-beat__pad button svg:first-child { width: 90px; height: 90px; }
+  .kids-beat__pad button span { font-size: 1.7rem; }
+  .kids-beat__progress span { width: 28px; height: 28px; }
+}
