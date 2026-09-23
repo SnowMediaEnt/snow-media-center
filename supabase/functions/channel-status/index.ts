@@ -3,9 +3,12 @@
 //   list   {hosts}                             anyone: the channels down now on
 //                                              those Live TV hosts, as
 //                                              "host|stream_id" keys. Kept for
-//                                              a minute per instance.
+//                                              20 s per instance.
 //   signal {host, stream_id, name, kind, device_id}
-//                                              anyone: kind down | fail | ok.
+//                                              anyone: kind down (a viewer's
+//                                              report: shows for everyone) |
+//                                              clear (a viewer says it works) |
+//                                              fail | ok (see the migrations).
 //                                              At most 40 an hour per box.
 //   admin_list                                 admins: down now, and what was
 //                                              signalled in the last 3 hours
@@ -26,7 +29,7 @@ const json = (body: unknown, status = 200) =>
 
 const HOST = /^[a-z0-9.-]{1,100}(?::\d{1,5})?$/;
 const MAX_SIGNALS_PER_HOUR = 40;
-const LIST_TTL_MS = 60_000;
+const LIST_TTL_MS = 20_000;
 
 const listCache = new Map<string, { at: number; down: string[] }>();
 
@@ -67,7 +70,7 @@ Deno.serve(async (req) => {
       const streamId = Number(body.stream_id);
       const kind = String(body.kind ?? '');
       const deviceId = String(body.device_id ?? '').slice(0, 200);
-      if (!HOST.test(host) || !Number.isInteger(streamId) || streamId <= 0 || !['down', 'fail', 'ok'].includes(kind) || deviceId.length < 8) {
+      if (!HOST.test(host) || !Number.isInteger(streamId) || streamId <= 0 || !['down', 'fail', 'ok', 'clear'].includes(kind) || deviceId.length < 8) {
         return json({ ok: false, reason: 'bad_request' }, 400);
       }
       const deviceHash = await sha256(`smc-channel:${deviceId}`);
@@ -121,13 +124,13 @@ Deno.serve(async (req) => {
         .select('host,stream_id,channel_name,kind,device_hash,created_at').gte('created_at', since)
         .order('created_at', { ascending: false }).limit(2000);
       if (error) return json({ ok: false, reason: 'db_error' });
-      const byChannel = new Map<string, { host: string; stream_id: number; name: string | null; down: Set<string>; fail: Set<string>; ok: Set<string>; last: string }>();
+      const byChannel = new Map<string, { host: string; stream_id: number; name: string | null; down: Set<string>; fail: Set<string>; ok: Set<string>; clear: Set<string>; last: string }>();
       for (const r of rows ?? []) {
         const k = `${r.host}|${r.stream_id}`;
         let c = byChannel.get(k);
-        if (!c) { c = { host: r.host, stream_id: r.stream_id, name: r.channel_name, down: new Set(), fail: new Set(), ok: new Set(), last: r.created_at }; byChannel.set(k, c); }
+        if (!c) { c = { host: r.host, stream_id: r.stream_id, name: r.channel_name, down: new Set(), fail: new Set(), ok: new Set(), clear: new Set(), last: r.created_at }; byChannel.set(k, c); }
         c.name ??= r.channel_name;
-        (c[r.kind as 'down' | 'fail' | 'ok']).add(r.device_hash);
+        (c[r.kind as 'down' | 'fail' | 'ok' | 'clear']).add(r.device_hash);
       }
       const hosts = [...new Set([...byChannel.values()].map((c) => c.host))];
       const { data: overrides } = await admin.from('channel_overrides').select('*');
@@ -135,12 +138,12 @@ Deno.serve(async (req) => {
       const { data: downNow } = hosts.length ? await admin.rpc('channel_down_list', { p_hosts: hosts }) : { data: [] };
       const downKeys = new Set(((downNow ?? []) as Array<{ host: string; stream_id: number }>).map((r) => `${r.host}|${r.stream_id}`));
       const channels = [...byChannel.entries()].map(([k, c]) => ({
-        key: k, host: c.host, stream_id: c.stream_id, name: c.name, reports: c.down.size, failures: c.fail.size, working: c.ok.size,
+        key: k, host: c.host, stream_id: c.stream_id, name: c.name, reports: c.down.size, failures: c.fail.size, working: c.ok.size, cleared: c.clear.size,
         last: c.last, down: downKeys.has(k),
       }));
       for (const o of overrides ?? []) {
         const k = `${o.host}|${o.stream_id}`;
-        if (!byChannel.has(k)) channels.push({ key: k, host: o.host, stream_id: o.stream_id, name: o.channel_name, reports: 0, failures: 0, working: 0, last: o.updated_at, down: downKeys.has(k) });
+        if (!byChannel.has(k)) channels.push({ key: k, host: o.host, stream_id: o.stream_id, name: o.channel_name, reports: 0, failures: 0, working: 0, cleared: 0, last: o.updated_at, down: downKeys.has(k) });
       }
       return json({
         ok: true,

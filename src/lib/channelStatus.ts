@@ -3,10 +3,14 @@
 // ⚠️ when its "host|stream_id" is in the list.
 //
 // Light on purpose: while Live TV is open the box asks for the list of down
-// channels on its own lines — a handful of short keys — every three minutes,
-// and only while the app is on screen. It sends a signal when a viewer reports
-// a channel down, when a channel fails to start, and when a channel shown as
-// down plays fine; each at most once per channel every ten minutes.
+// channels on its own lines — a handful of short keys — every two minutes,
+// and only while the app is on screen.
+//
+// One viewer's "Channel down" report marks it for every box (for up to three
+// hours); a viewer holding OK on it and choosing "It's working now" clears it
+// for everyone, as does a box that plays it fine. Two boxes where it failed
+// to start also mark it. The box's own report or clear shows at once; the
+// automatic signals go at most once per channel every ten minutes.
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getDeviceId } from '@/lib/analytics';
@@ -14,8 +18,10 @@ import { isDemo } from '@/lib/demoMode';
 import { normalizeHost } from '@/lib/favoritesSync';
 import type { XtreamCreds } from '@/lib/xtream';
 
-const POLL_MS = 3 * 60_000;
+const POLL_MS = 2 * 60_000;
 const SIGNAL_EVERY_MS = 10 * 60_000;
+/** A viewer's own report or clear: only a double press is dropped. */
+const MANUAL_EVERY_MS = 5_000;
 export const CHANNEL_STATUS_EVENT = 'smc-channel-status:changed';
 
 export const channelStatusKey = (host: string, streamId: number): string => `${normalizeHost(host)}|${streamId}`;
@@ -74,18 +80,22 @@ export const isChannelDown = (set: Set<string>, host: string, streamId: number):
 
 const lastSent = new Map<string, number>();
 
-/** Tell the others: 'down' (a viewer reported it), 'fail' (it didn't start
- *  here), 'ok' (a channel shown as down played fine here). */
-export function signalChannel(host: string, streamId: number, name: string, kind: 'down' | 'fail' | 'ok'): void {
+/** Tell the others: 'down' (a viewer reported it), 'clear' (a viewer says
+ *  it works), 'fail' (it didn't start here), 'ok' (a channel shown as down
+ *  played fine here). */
+export function signalChannel(host: string, streamId: number, name: string, kind: 'down' | 'fail' | 'ok' | 'clear'): void {
   if (isDemo() || !host || !(streamId > 0)) return;
   // A box that is offline can't tell a dead channel from its own connection.
   if (kind === 'fail' && typeof navigator !== 'undefined' && navigator.onLine === false) return;
   const k = `${channelStatusKey(host, streamId)}|${kind}`;
   const now = Date.now();
-  if (now - (lastSent.get(k) ?? 0) < SIGNAL_EVERY_MS) return;
+  const manual = kind === 'down' || kind === 'clear';
+  if (now - (lastSent.get(k) ?? 0) < (manual ? MANUAL_EVERY_MS : SIGNAL_EVERY_MS)) return;
   lastSent.set(k, now);
   const key = channelStatusKey(host, streamId);
-  if (kind === 'ok' && down.delete(key)) emit();
+  // Show this box's own answer straight away.
+  if ((kind === 'ok' || kind === 'clear') && down.delete(key)) { down = new Set(down); emit(); }
+  if (kind === 'down' && !down.has(key)) { down = new Set(down).add(key); emit(); }
   void supabase.functions.invoke('channel-status', {
     body: { op: 'signal', host: normalizeHost(host), stream_id: streamId, name: name.slice(0, 200), kind, device_id: getDeviceId() },
   }).then(() => {

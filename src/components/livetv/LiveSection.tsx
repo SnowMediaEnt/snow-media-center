@@ -2267,6 +2267,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             initialChoice={reportPreset?.choice}
             initialNote={reportPreset?.note}
             onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down')}
+            isDown={isChannelDown(downSet, lineFor(reportFor).host, reportFor.stream_id)}
+            onClearDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'clear')}
             onOpenBufferingGuide={() => {
               setReportFor(null);
               enterFiredRef.current = false;
@@ -2312,6 +2314,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             initialChoice={reportPreset?.choice}
             initialNote={reportPreset?.note}
             onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down')}
+            isDown={isChannelDown(downSet, lineFor(reportFor).host, reportFor.stream_id)}
+            onClearDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'clear')}
             onOpenBufferingGuide={() => {
               setReportFor(null);
               enterFiredRef.current = false;
@@ -2384,6 +2388,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             initialChoice={reportPreset?.choice}
             initialNote={reportPreset?.note}
             onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down')}
+            isDown={isChannelDown(downSet, lineFor(reportFor).host, reportFor.stream_id)}
+            onClearDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'clear')}
             onOpenBufferingGuide={() => {
               setReportFor(null);
               enterFiredRef.current = false;

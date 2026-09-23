@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle, Star, StarOff, Flag, X, RefreshCw } from 'lucide-react';
+import { Loader2, AlertTriangle, Star, StarOff, Flag, X, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
@@ -27,6 +27,10 @@ interface Props {
   initialNote?: string;
   /** "Channel down" was sent: the caller tells the other boxes (⚠️). */
   onReportedDown?: () => void;
+  /** The channel shows ⚠️ right now … */
+  isDown?: boolean;
+  /** … and the viewer says it works: clear it for everyone. */
+  onClearDown?: () => void;
   onClose: () => void;
 }
 
@@ -55,6 +59,8 @@ const ReportChannelDialog = memo(({
   initialChoice,
   initialNote,
   onReportedDown,
+  isDown = false,
+  onClearDown,
   onClose,
 }: Props) => {
   const { toast } = useToast();
@@ -117,6 +123,22 @@ const ReportChannelDialog = memo(({
     },
     [channelId, channelName, categoryName, account],
   );
+
+  // The Channel Options rows. "It's working now" leads when the channel
+  // shows ⚠️: anyone watching it can clear it for everyone.
+  const menuItems: Array<{ label: string; icon: typeof Flag; run: () => void }> = [
+    ...(isDown && onClearDown ? [{
+      label: "It's working now — remove ⚠️",
+      icon: CheckCircle2,
+      run: () => { onClearDown(); toast({ title: 'Thanks!', description: 'The warning is gone for everyone.' }); onClose(); },
+    }] : []),
+    { label: 'Report Channel', icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } },
+    { label: isFavorite ? 'Remove from Favorites' : 'Add to Favorites', icon: isFavorite ? StarOff : Star, run: () => { onToggleFavorite?.(); onClose(); } },
+    ...(canRefresh ? [{ label: refreshing ? 'Refreshing…' : 'Refresh channel link', icon: RefreshCw, run: () => { void refreshNow(); } }] : []),
+    { label: 'Cancel', icon: X, run: onClose },
+  ];
+  const menuItemsRef = useRef(menuItems);
+  menuItemsRef.current = menuItems;
 
   const submit = useCallback(
     async (choice: Choice, otherNote = '') => {
@@ -217,10 +239,10 @@ const ReportChannelDialog = memo(({
         !!target &&
         (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
 
-      // MENU
+      // MENU (menuItemsRef: the rows on screen, top to bottom)
       if (step === 'menu') {
-        // 0 Report · 1 Favourite toggle · [2 Refresh, favourites only] · last Cancel
-        const count = canRefresh ? 4 : 3;
+        const items = menuItemsRef.current;
+        const count = items.length;
         if (e.key === 'ArrowDown') {
           e.preventDefault(); e.stopPropagation();
           setFocusIdx(i => (i + 1) % count);
@@ -233,17 +255,7 @@ const ReportChannelDialog = memo(({
         }
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault(); e.stopPropagation();
-          if (focusIdx === 0) {
-            setStep('reasons');
-            setFocusIdx(0);
-          } else if (focusIdx === 1) {
-            onToggleFavorite?.();
-            onClose();
-          } else if (canRefresh && focusIdx === 2) {
-            void refreshNow();
-          } else {
-            onClose();
-          }
+          items[focusIdx]?.run();
           return;
         }
         e.stopPropagation();
@@ -362,12 +374,7 @@ const ReportChannelDialog = memo(({
 
         {step === 'menu' && (
           <div className="space-y-2">
-            {[
-              { label: 'Report Channel', icon: Flag },
-              { label: isFavorite ? 'Remove from Favorites' : 'Add to Favorites', icon: isFavorite ? StarOff : Star },
-              ...(canRefresh ? [{ label: refreshing ? 'Refreshing…' : 'Refresh channel link', icon: RefreshCw }] : []),
-              { label: 'Cancel', icon: X },
-            ].map((item, i, all) => {
+            {menuItems.map((item, i, all) => {
               const focused = focusIdx === i;
               const Icon = item.icon;
               const isCancel = i === all.length - 1;
@@ -377,12 +384,7 @@ const ReportChannelDialog = memo(({
                   type="button"
                   data-focused={focused ? 'true' : 'false'}
                   onMouseEnter={() => setFocusIdx(i)}
-                  onClick={() => {
-                    if (i === 0) { setStep('reasons'); setFocusIdx(0); }
-                    else if (i === 1) { onToggleFavorite?.(); onClose(); }
-                    else if (canRefresh && i === 2) { void refreshNow(); }
-                    else onClose();
-                  }}
+                  onClick={() => item.run()}
                   className={`tv-ring w-full text-left px-4 py-3 rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center gap-3 ${
                     focused
                       ? (isCancel

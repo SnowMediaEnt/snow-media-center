@@ -43,3 +43,17 @@ describe('channelStatus', () => {
     expect(seen.length).toBe(1);
   });
 });
+
+describe('channelStatus: a viewer’s own report and clear', () => {
+  it('shows a report on this box at once and clears it at once', async () => {
+    const m = await import('./channelStatus');
+    const seen: number[] = [];
+    window.addEventListener(m.CHANNEL_STATUS_EVENT, () => seen.push(1));
+    m.signalChannel('strmz.xyz', 11, 'TNT', 'down');
+    expect(seen.length).toBe(1);
+    m.signalChannel('strmz.xyz', 11, 'TNT', 'clear');
+    expect(seen.length).toBe(2);
+    await Promise.resolve();
+    expect(calls.filter((c) => c.op === 'signal').map((c) => c.kind)).toEqual(['down', 'clear']);
+  });
+});

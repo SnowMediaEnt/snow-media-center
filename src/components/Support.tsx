@@ -62,9 +62,10 @@ const HELP_IDS = [
   'help-cleaner',
 ] as const;
 
-/** A Kids profile's Support: no tickets, paid Remote Access or Device Cleaner
- *  (it removes apps). How to use, Speedtest, the Buffering Guide, Support
- *  Videos, Posts and AI Chat (kept to the profile's age by the server) stay. */
+/** A Kids profile's Support: no tickets, paid Remote Access, Device Cleaner
+ *  (it removes apps) or Posts (grown-up news). How to use, Speedtest, the
+ *  Buffering Guide, Support Videos and AI Chat (kept to the profile's age by
+ *  the server) stay. */
 const KIDS_HIDDEN = new Set<string>(['help-tickets', 'help-remote', 'help-cleaner']);
 
 /** Matches the `md:` breakpoint the card grid switches columns at. */
@@ -79,7 +80,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const helpIds = useMemo(() => (kids ? HELP_IDS.filter((id) => !KIDS_HIDDEN.has(id)) : [...HELP_IDS]), [kids]);
   const [landing] = useState(() => {
     const l = peekIntent(INTENT_KEYS.support);
-    return kids && (l === 'tickets' || l === 'cleaner') ? null : l;
+    return kids && (l === 'tickets' || l === 'cleaner' || l === 'posts') ? null : l;
   });
   useEffect(() => { clearIntent(INTENT_KEYS.support); }, []);
   const [tab, setTab] = useState<Tab>(landing === 'posts' ? 'mail' : landing === 'ai' ? 'ai' : 'help');
@@ -218,9 +219,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     // count instead, so Down moves down a column and Right moves across a row.
     const nav: TVFocusNavigationMap = {
       'support-back': { down: `tab-${tab}` },
-      'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-mail', down: 'help-howto' },
+      'tab-help': { up: 'support-back', right: 'tab-ai', left: kids ? 'tab-ai' : 'tab-mail', down: 'help-howto' },
       'tab-ai': {
-        up: 'support-back', right: 'tab-mail', left: 'tab-help',
+        up: 'support-back', right: kids ? 'tab-help' : 'tab-mail', left: 'tab-help',
         down: () => { focusIntoChild('ai'); return null; },
       },
       'tab-mail': {
@@ -245,7 +246,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       };
     });
     return nav;
-  }, [tab, focusIntoChild, helpCols, helpIds]);
+  }, [tab, focusIntoChild, helpCols, helpIds, kids]);
 
   // When a sub-view (videos / tickets) or overlay (speedtest / guide / how-to) is open,
   // the child component owns D-pad + Back. Disabling the parent focus manager
@@ -344,7 +345,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     };
     const openHowTo = () => { setTab('help'); setHelpView('menu'); setShowHowTo(true); };
     const openCleaner = () => { if (kids) return; setTab('help'); setHelpView('cleaner'); };
-    const openPosts = () => { setChildFocusActive(false); setTab('mail'); };
+    const openPosts = () => { if (kids) return; setChildFocusActive(false); setTab('mail'); };
     window.addEventListener('support:focus-tab', handler as EventListener);
     window.addEventListener('support:open-tickets', openTickets);
     window.addEventListener('support:open-cleaner', openCleaner);
@@ -420,7 +421,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         </div>
 
         <Tabs value={tab} onValueChange={(v) => { setChildFocusActive(false); setTab(v as Tab); }} className="w-full">
-          <TabsList className={`grid w-full grid-cols-3 mb-16 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch`}>
+          <TabsList className={`grid w-full ${kids ? 'grid-cols-2' : 'grid-cols-3'} mb-16 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch`}>
             <TabsTrigger
               value="help"
               data-support-tv-focus-id="tab-help"
@@ -437,6 +438,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               <Brain className="w-5 h-5 mr-2" />
               AI Chat
             </TabsTrigger>
+            {!kids && (
             <TabsTrigger
               value="mail"
               data-support-tv-focus-id="tab-mail"
@@ -450,6 +452,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 </span>
               )}
             </TabsTrigger>
+            )}
           </TabsList>
 
 
