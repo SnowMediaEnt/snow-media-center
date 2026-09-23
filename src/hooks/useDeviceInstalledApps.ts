@@ -101,6 +101,13 @@ const runFetch = async (force = false): Promise<void> => {
   return inflight;
 };
 
+/** The installed apps, enumerating them first if nothing has yet (voice
+ *  commands' "open YouTube"). Empty off-device. */
+export async function getInstalledAppsNow(): Promise<InstalledAppInfo[]> {
+  if (!hasFetched) { try { await runFetch(); } catch { /* empty */ } }
+  return snapshot.installedApps;
+}
+
 /**
  * Shared installed-apps source. The native enumeration runs once per session
  * (or when `refresh()` is called and the debounce window has elapsed); every

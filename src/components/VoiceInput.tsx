@@ -38,6 +38,10 @@ interface VoiceInputProps {
   onRestoreFocus?: () => void;
   disabled?: boolean;
   className?: string;
+  /** Start listening as soon as it appears (the voice command overlay). */
+  autoStart?: boolean;
+  /** The line the Android speech dialog shows. */
+  prompt?: string;
 }
 
 const ACTIVE_CAPTURE_STATES = new Set<VoiceState>([
@@ -71,6 +75,8 @@ export const VoiceInput = ({
   onRestoreFocus,
   disabled = false,
   className = '',
+  autoStart = false,
+  prompt = 'Ask Snow Media AI',
 }: VoiceInputProps) => {
   const [localVoiceState, setLocalVoiceState] = useState<VoiceState>('idle');
   const voiceStateRef = useRef<VoiceState>('idle');
@@ -458,7 +464,7 @@ export const VoiceInput = ({
     nativePendingRef.current = true;
     transitionVoiceState('listening');
     try {
-      const result = await AppManager.startVoiceInput({ prompt: 'Ask Snow Media AI' });
+      const result = await AppManager.startVoiceInput({ prompt });
       cooldownUntilRef.current = Date.now() + NATIVE_COOLDOWN_MS;
       nativePendingRef.current = false;
       const text = result.text?.trim() ?? '';
@@ -553,6 +559,14 @@ export const VoiceInput = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    void startRecording();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
 
   const isListening = currentVoiceState === 'listening';
   const isBusy = currentVoiceState === 'requesting_permission'

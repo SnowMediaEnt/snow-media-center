@@ -469,11 +469,18 @@ APP CONTROL FUNCTIONS — you can act inside the app, not just describe it. Pref
 - report_channel: when a channel is down, buffering or silent, ask which channel and what is wrong if you don't know, then call report_channel; the app finds the channel, opens the report with the reason picked, and they press OK to send.
 - install_app: when they want an app from Main Apps, call install_app with its name; the app finds it and starts the download.
 - generate_wallpaper: when they want a new background, ask what they'd like (or use their words) and call generate_wallpaper with a clean, family-friendly description; the app makes it under Settings → Media.
+- play_channel: when they want to watch a Live TV channel ("put on ESPN", "turn on the news"), call play_channel with the channel name; the app finds it in their line-up and plays it.
+- plex_title: when they want a movie or show, call plex_title with its title — action "open" to go straight to it, "search" to look. For a sports event or PPV, name the category instead (see WHERE TO WATCH SPORTS) and use play_channel only when a specific channel was named.
+- open_app: when they want another app on their box opened (YouTube, Downloader…), call open_app with its name; if it isn't installed the app offers it from Main Apps.
 Older functions still work: navigate_to_section, find_support_video, change_background, open_store_section, show_credits_info, help_with_installation.
 Only call a function when the customer actually wants to go somewhere or do something. Never call one for a general question. Say what you are doing in one short line when you call one.
 
 All users reach you through the SMC Android app. Be friendly, knowledgeable, and concise; offer app actions when relevant; ground time-sensitive answers in LIVE WEB RESULTS; and use the knowledge base documents for accurate info. Sign off resolved chats with "Stay streaming, stay dreaming."`;
 
+
+    // Spoken to the TV remote (the app's voice commands): act, don't chat.
+    const voiceMode = (body as { mode?: unknown }).mode === 'voice_command';
+    const VOICE_RULES = `VOICE COMMAND MODE (this turn): the customer spoke to their TV remote, and your reply is shown in one small box on the TV. If they want to go somewhere, watch something or open something, call exactly ONE function (play_channel, plex_title, open_app, open_screen, install_app, report_channel, set_preference) and write at most one short line. If it is a question, answer in at most two short sentences (under 35 words). No greeting, no sign-off, no lists.`;
 
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -483,7 +490,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
       },
       body: JSON.stringify({
         model: chatModel,
-        instructions: systemPrompt,
+        instructions: voiceMode ? `${systemPrompt}\n\n${VOICE_RULES}` : systemPrompt,
         input: message,
         tools: [
           {
@@ -552,6 +559,43 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
                 prompt: { type: 'string', description: 'A clean, vivid description of the picture, in English' }
               },
               required: ['prompt']
+            }
+          },
+          {
+            type: 'function',
+            name: 'play_channel',
+            description: 'Play a Live TV channel on the customer\'s TV: the app searches their line-up for the name and plays the best match.',
+            parameters: {
+              type: 'object',
+              properties: {
+                channel_name: { type: 'string', description: 'The channel as the customer said it (e.g. ESPN, CNN, Fox Sports 1, Nick Jr)' }
+              },
+              required: ['channel_name']
+            }
+          },
+          {
+            type: 'function',
+            name: 'plex_title',
+            description: 'Find a movie or TV show on Plex: open its page when the title matches, otherwise show Plex search with it typed.',
+            parameters: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: 'The movie or show title' },
+                action: { type: 'string', enum: ['open', 'search'], description: 'open: go straight to it; search: show search results' }
+              },
+              required: ['title']
+            }
+          },
+          {
+            type: 'function',
+            name: 'open_app',
+            description: 'Open another app that is installed on the customer\'s box (the app offers it from Main Apps when it is not installed).',
+            parameters: {
+              type: 'object',
+              properties: {
+                app_name: { type: 'string', description: 'The app name as the customer said it' }
+              },
+              required: ['app_name']
             }
           },
           {

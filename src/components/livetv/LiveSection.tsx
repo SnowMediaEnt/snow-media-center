@@ -65,6 +65,7 @@ import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
+import { bestChannel } from '@/lib/voiceCommands';
 import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
 import { recordChannelWatch } from '@/lib/watchHistory';
 import { onMediaKey } from '@/lib/mediaKeys';
@@ -765,6 +766,52 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setReportFor(hit);
   }, [pendingReport, searchOpen, searchQ, visibleChannels]);
   useEffect(() => { if (!reportFor) setReportPreset(null); }, [reportFor]);
+
+  // Asked while Live TV is already open (the assistant, a voice command).
+  useEffect(() => {
+    const onReport = (e: Event) => { clearIntent('smc-live-report'); setPendingReport((e as CustomEvent<ReportIntent>).detail); };
+    const onPlay = (e: Event) => { clearIntent('smc-live-play'); setPendingPlay(String((e as CustomEvent<string>).detail || '')); };
+    window.addEventListener('smc:live-report', onReport);
+    window.addEventListener('smc:live-play', onPlay);
+    return () => { window.removeEventListener('smc:live-report', onReport); window.removeEventListener('smc:live-play', onPlay); };
+  }, []);
+
+  // "Put on ESPN": search every line for the name and play the best match
+  // (favourites win a tie). Nothing close within a few seconds: the search
+  // stays open with the name typed, for the viewer to pick from.
+  const [pendingPlay, setPendingPlay] = useState<string | null>(() => peekIntent<string>('smc-live-play', true));
+  useEffect(() => { clearIntent('smc-live-play'); }, []);
+  const pendingPlaySearchRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pendingPlay || lines.length === 0) return;
+    setFullscreen(false);
+    setSearchOpen(true);
+    // Providers name channels "US| ESPN FHD": search on the spoken name's
+    // first word, then rank the list by the whole name.
+    const first = pendingPlay.trim().split(/\s+/)[0] || pendingPlay;
+    pendingPlaySearchRef.current = first;
+    setSearchQuery(first);
+    const giveUp = setTimeout(() => {
+      setPendingPlay(null);
+      setSearchQuery(pendingPlay);
+    }, 12000);
+    return () => clearTimeout(giveUp);
+  }, [pendingPlay, lines.length]);
+  useEffect(() => {
+    if (!pendingPlay || !searchOpen || searchQ !== pendingPlaySearchRef.current || visibleChannels.length === 0) return;
+    const favIds = new Set<number>();
+    for (const m of favsByLine.values()) for (const id of m.keys()) favIds.add(id);
+    const hit = bestChannel(pendingPlay, visibleChannels, favIds);
+    const said = pendingPlay;
+    setPendingPlay(null);
+    if (hit) {
+      setSearchOpen(false);
+      setSearchQuery('');
+      playChannelRef.current(hit);
+    } else {
+      setSearchQuery(said);
+    }
+  }, [pendingPlay, searchOpen, searchQ, visibleChannels, favsByLine]);
   // Safety clamp: never let channelIdx point past the current list.
   useEffect(() => {
     if (channelIdx >= visibleChannels.length) setChannelIdx(0);

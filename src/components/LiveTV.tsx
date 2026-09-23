@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { takeIntent, INTENT_KEYS, type ReportIntent } from '@/lib/appActions';
+import { takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, type PlayerIntent } from '@/lib/appActions';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy } from 'lucide-react';
@@ -394,6 +394,42 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     plexFromVodRef.current = true;
   }, [enterMode]);
 
+  // What the assistant or a voice command asked for. The channel to play or
+  // report and the Plex title are handed on through sessionStorage (read by
+  // LiveSection / PlexSection when they mount) and an event (for when they
+  // are already on screen).
+  const applyIntent = useCallback((intent: PlayerIntent) => {
+    const sec = intent.section ?? 'live';
+    if (sec === 'movies') { enterMode('movies'); if (intent.plex) setPane('content'); }
+    else if (sec === 'backups') enterMode('backups');
+    else {
+      enterMode('live');
+      if (sec === 'guide' || sec === 'multi') { setSection(sec); setPane('content'); }
+    }
+    const hand = (key: string, event: string, value: unknown) => {
+      try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+      try { window.dispatchEvent(new CustomEvent(event, { detail: value })); } catch { /* ignore */ }
+    };
+    if (intent.report) hand('smc-live-report', 'smc:live-report', intent.report);
+    if (intent.play) hand('smc-live-play', 'smc:live-play', intent.play);
+    if (intent.plex) hand('smc-plex-voice', 'smc:plex-voice', intent.plex);
+    if (intent.settings) { setSettingsInitialView(intent.settings === 'appearance' ? 'appearance' : undefined); setSettingsOpen(true); }
+  }, [enterMode]);
+  const applyIntentRef = useRef(applyIntent);
+  applyIntentRef.current = applyIntent;
+  // Already open: act on it now (the stored copy is for a Player that opens).
+  useEffect(() => {
+    const on = (e: Event) => {
+      if (!playerOpenRef.current) return;
+      const intent = (e as CustomEvent<PlayerIntent>).detail;
+      if (!intent) return;
+      takeIntent(INTENT_KEYS.player);
+      applyIntentRef.current(intent);
+    };
+    window.addEventListener(PLAYER_INTENT_EVENT, on);
+    return () => window.removeEventListener(PLAYER_INTENT_EVENT, on);
+  }, []);
+
   // player_open — once per LiveTV mount.
   const playerOpenRef = useRef(false);
   useEffect(() => {
@@ -401,18 +437,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     playerOpenRef.current = true;
     // The assistant's "open Live TV / the Guide / Plex / Appearance", or a
     // channel to report: read once, act once the Player knows its sign-in.
-    const intent = takeIntent<{ section?: string; settings?: string; report?: ReportIntent }>(INTENT_KEYS.player, true);
-    if (intent && creds) {
-      const sec = intent.section ?? 'live';
-      if (sec === 'movies') enterMode('movies');
-      else if (sec === 'backups') enterMode('backups');
-      else {
-        enterMode('live');
-        if (sec === 'guide' || sec === 'multi') { setSection(sec); setPane('content'); }
-      }
-      if (intent.report) { try { sessionStorage.setItem('smc-live-report', JSON.stringify(intent.report)); } catch { /* ignore */ } }
-      if (intent.settings) { setSettingsInitialView(intent.settings === 'appearance' ? 'appearance' : undefined); setSettingsOpen(true); }
-    }
+    const intent = takeIntent<PlayerIntent>(INTENT_KEYS.player, true);
+    if (intent && creds) applyIntentRef.current(intent);
     if (!DEMO) {
       try {
         trackEvent('player_open', 'player', {

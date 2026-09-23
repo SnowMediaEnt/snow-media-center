@@ -2,7 +2,7 @@ import { memo, useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv, Gift } from 'lucide-react';
+import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv, Gift, Mic } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 // MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
 const MediaBar = lazy(() => import('@/components/MediaBar'));
@@ -41,6 +41,8 @@ import { useActiveProfile } from '@/hooks/useActiveProfile';
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors } from '@/lib/profiles';
 import ProfileGate from '@/components/profiles/ProfileGate';
+import VoiceCommandHost from '@/components/voice/VoiceCommandHost';
+import { openVoice } from '@/lib/voiceUi';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
 import { toast } from '@/hooks/use-toast';
@@ -213,6 +215,8 @@ interface HomeHeaderProps {
   onOpenGiveaway?: () => void;
   /** Who is watching, when there is more than one profile (or a Kids one). */
   profileBadge?: { name: string; avatar: string; kids: boolean } | null;
+  isVoiceFocused?: boolean;
+  onOpenVoice?: () => void;
 }
 
 /** The profile's colour square with its initial. */
@@ -233,6 +237,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
     adminLabel, dashboardLabel, signInLabel, settingsLabel,
     onOpenAdmin, onOpenUser, onOpenAuth, onOpenSettings,
     showGiveawayBadge, isGiveawayFocused, giveawayLabel, onOpenGiveaway, profileBadge,
+    isVoiceFocused, onOpenVoice,
   } = props;
   const dotSize = tier === 'xl' ? 28 : tier === 'lg' ? 24 : 20;
 
@@ -333,6 +338,17 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
       >
         <SettingsIcon className={`mr-2 ${iconClass}`} />
         {settingsLabel}
+      </Button>
+      <Button
+        onClick={onOpenVoice}
+        variant="gold"
+        size={btnSize}
+        tabIndex={0}
+        aria-label="Voice"
+        data-focused={isVoiceFocused ? 'true' : 'false'}
+        className={`tv-focusable home-focus-surface ${btnClass}`}
+      >
+        <Mic className={iconClass} />
       </Button>
     </div>
   );
@@ -466,7 +482,8 @@ type LaunchableApp = {
 const Index = () => {
   // Header slots, left to right:
   //   -5 logo (INVISIBLE — see LogoButton), -4 giveaway badge, -3 admin,
-  //   -2 auth/user, -1 settings, then 0-3 the main app cards.
+  //   -2 auth/user, -1 settings, -6 voice (right of Settings), then 0-3 the
+  //   main app cards.
   // -5 is always present; -4 and -3 are conditional.
   const [focusedButton, setFocusedButton] = useState(0);
   const [logoClickCount, setLogoClickCount] = useState(0);
@@ -895,6 +912,10 @@ const Index = () => {
       .filter((id) => !(kids && id === 'store')) as HomeCardId[],
     [playerEnabled, kids],
   );
+  const cardCountRef = useRef(cardIds.length);
+  useEffect(() => { cardCountRef.current = cardIds.length; }, [cardIds.length]);
+  // A card that went away (a Kids profile's Store) takes the focus with it.
+  useEffect(() => { setFocusedButton((b) => (b >= cardIds.length ? cardIds.length - 1 : b)); }, [cardIds.length]);
   const appsCardIdx = cardIds.indexOf('apps');
   const appsCardIdxRef = useRef(appsCardIdx);
   useEffect(() => { appsCardIdxRef.current = appsCardIdx; }, [appsCardIdx]);
@@ -1003,13 +1024,16 @@ const Index = () => {
       }
 
       // Home screen navigation
-      const maxButtons = playerEnabledRef.current ? 3 : 2;
+      // The last card's index (a Kids profile has no Store card).
+      const maxButtons = cardCountRef.current - 1;
 
       switch (event.key) {
         case 'ArrowLeft':
           if (focusedButton > 0) {
             setFocusedButton(focusedButton - 1);
           } else if (focusedButton === 0) {
+            setFocusedButton(-6); // voice
+          } else if (focusedButton === -6) {
             setFocusedButton(-1); // settings
           } else if (focusedButton === -1) {
             setFocusedButton(-2); // user/auth
@@ -1047,7 +1071,9 @@ const Index = () => {
           } else if (focusedButton === -2) {
             setFocusedButton(-1); // dashboard → settings
           } else if (focusedButton === -1) {
-            setFocusedButton(0); // settings → first app
+            setFocusedButton(-6); // settings → voice
+          } else if (focusedButton === -6) {
+            setFocusedButton(0); // voice → first app
           }
           break;
 
@@ -1066,8 +1092,8 @@ const Index = () => {
               setIsInMediaBar(true);
             } else {
               // No content bar — jump directly to the top row.
-              // Left/middle cards land on Sign In / Dashboard, right card on Settings.
-              setFocusedButton(focusedButton >= maxButtons ? -1 : -2);
+              // Left/middle cards land on Sign In / Dashboard, right card on Voice (beside Settings).
+              setFocusedButton(focusedButton >= maxButtons ? -6 : -2);
             }
           }
           break;
@@ -1101,6 +1127,8 @@ const Index = () => {
               navigateToRef.current('account-signin');
             }
 
+          } else if (focusedButton === -6) {
+            openVoice();
           } else if (focusedButton === -1) {
             // Navigate to settings (a Kids profile: a grown-up's PIN first)
             if (kidsRef.current) openProfiles('grownup', () => navigateToRef.current('settings'));
@@ -1182,6 +1210,8 @@ const Index = () => {
             giveawayLabel={t('home.giveaway.title')}
             onOpenGiveaway={onOpenGiveaway}
             profileBadge={profileCount > 1 || kids ? { name: profile.name, avatar: profile.avatar, kids } : null}
+            isVoiceFocused={focusedButton === -6}
+            onOpenVoice={openVoice}
           />
 
           {/* Expiration banner — top-left, absolute, never displaces the header row */}
@@ -1361,6 +1391,9 @@ const Index = () => {
 
       {/* "Who's watching?" at start, and the profile screens on demand. */}
       <ProfileGate onOpenChange={setProfileGateOpen} />
+
+      {/* Voice commands: the mic button, the remote's Search key. */}
+      <VoiceCommandHost navigate={stableNavigateTo} blocked={profileGateOpen} />
 
       {/* First-launch welcome + per-version "What's New" popup — mounted only
           after first-frame idle so its effect chain doesn't pile onto boot. */}

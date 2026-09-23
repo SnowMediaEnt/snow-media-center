@@ -41,6 +41,7 @@ import {
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
+import { titleMatches } from '@/lib/voiceCommands';
 import { commitSearch, fallbackSuggestions, fetchPopularSearches, loadRecentSearches } from '@/lib/plexSearches';
 import { rankSuggestions, searchLooksThin, searchVariants } from '@/lib/plexFuzzy';
 import {
@@ -854,7 +855,7 @@ function getCachedDiscover(base: string): DiscoverRow[] {
 }
 
 // ─── SEARCH PANEL ──────────────────────────────────────────────────────────
-type SearchPanelProps = Omit<HomePanelProps, 'libraries'>;
+type SearchPanelProps = Omit<HomePanelProps, 'libraries'> & { initialQuery?: string };
 interface SearchChip { label: string; group: 'didyoumean' | 'popular' | 'recent'; item?: PlexItem }
 
 /** One search result. Memoised: the grid re-rendered every result on every
@@ -915,8 +916,9 @@ const ChipTile = memo(({ chip, art, base, token, focused, onPick }: {
 });
 ChipTile.displayName = 'ChipTile';
 
-const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTabs }: SearchPanelProps) => {
-  const [query, setQuery] = useState('');
+const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTabs, initialQuery }: SearchPanelProps) => {
+  // A voice search arrives with its words already typed.
+  const [query, setQuery] = useState(initialQuery ?? '');
   // What the server answered; `results` is that with adult titles removed.
   const [rawResults, setResults] = useState<PlexItem[]>([]);
   const results = useMemo(() => familyOnly(rawResults, adultKeys), [rawResults, adultKeys]);
@@ -1721,6 +1723,31 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     })(),
   );
 
+  // A voice command's "watch The Office" / "search for Batman" (see
+  // appActions.openPlexTitle): read once here, or taken from the event when
+  // Plex is already open.
+  const voiceRef = useRef<{ query: string; open: boolean } | null>(
+    (() => {
+      try {
+        const raw = sessionStorage.getItem('smc-plex-voice');
+        if (!raw) return null;
+        sessionStorage.removeItem('smc-plex-voice');
+        return JSON.parse(raw);
+      } catch { return null; }
+    })(),
+  );
+  const [voiceTick, setVoiceTick] = useState(0);
+  const [voiceSearch, setVoiceSearch] = useState<string | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => {
+      try { sessionStorage.removeItem('smc-plex-voice'); } catch { /* ignore */ }
+      const d = (e as CustomEvent<{ query: string; open: boolean }>).detail;
+      if (d?.query) { voiceRef.current = d; setVoiceTick((t) => t + 1); }
+    };
+    window.addEventListener('smc:plex-voice', on);
+    return () => window.removeEventListener('smc:plex-voice', on);
+  }, []);
+
   const [libraries, setLibraries] = useState<PlexLibrary[]>([]);
   // Error from the last library fetch, or null. Rendered in Settings so a
   // failure is readable on the TV instead of looking identical to a server
@@ -1845,7 +1872,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // library effect below re-fetches on its own, so revealing early is safe.
     if (warmedRef.current) { setWarmedUp(true); return; }
     warmedRef.current = true;
-    if (deeplinkRef.current) { setWarmedUp(true); return; }
+    if (deeplinkRef.current || voiceRef.current) { setWarmedUp(true); return; }
     let cancelled = false;
     const gone = () => cancelled;
     const base = conn.base;
@@ -2385,6 +2412,32 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     detailRef.current = item;
     setDetailItem(item);
   }, []);
+  // The voice command: a title whose name matches what was said opens its
+  // page; otherwise (or for "search for …") Search opens with it typed.
+  useEffect(() => {
+    const v = voiceRef.current;
+    if (!v || status !== 'ready' || !conn) return;
+    voiceRef.current = null;
+    let cancelled = false;
+    const goSearch = () => {
+      if (cancelled) return;
+      setVoiceSearch(v.query);
+      const i = tabs.findIndex((t) => t.type === 'search');
+      if (i >= 0) { setLibIdx(i); setMenuKey(tabs[i].key); }
+      setZone('grid');
+    };
+    if (!v.open) { goSearch(); return; }
+    searchPlex(conn.base, conn.token, v.query)
+      .then((results) => {
+        if (cancelled) return;
+        const hit = familyOnly(results, adultKeys).find((r) => titleMatches(v.query, r.title));
+        if (hit) { setDeepLinked(true); openDetail(hit); } else goSearch();
+      })
+      .catch(goSearch);
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when Plex is ready or a new command arrives
+  }, [status, conn, voiceTick, tabs.length]);
+
   const closeDetail = useCallback(() => {
     setPlexKeyOwner('browse');
     resumeLoading();
@@ -3410,7 +3463,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             onExitToTabs={exitToMenu}
           />
         ) : currentTab?.type === 'search' && conn ? (
-          <SearchPanel isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} base={conn.base} token={conn.token} adultKeys={adultKeys} onPlay={openDetail} onExitToTabs={exitToMenu} />
+          <SearchPanel key={voiceSearch ?? 'search'} initialQuery={voiceSearch ?? undefined} isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} base={conn.base} token={conn.token} adultKeys={adultKeys} onPlay={openDetail} onExitToTabs={exitToMenu} />
 
         ) : currentTab?.type === 'request' ? (
           <OverseerrRequestPanel isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} onExitToTabs={exitToMenu} />

@@ -41,7 +41,7 @@ class MainActivity : BridgeActivity() {
     }
 
     // The remote's media buttons never reach the page: Android's WebView keeps
-    // KEYCODE_MEDIA_* for the app. Hand them to JS as an 'smc:mediakey' event
+    // KEYCODE_MEDIA_* (and Search) for the app. Hand them to JS as an 'smc:mediakey' event
     // (src/lib/mediaKeys.ts), which the players listen for.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val name = when (event.keyCode) {
@@ -52,13 +52,17 @@ class MainActivity : BridgeActivity() {
             KeyEvent.KEYCODE_MEDIA_REWIND -> "rw"
             KeyEvent.KEYCODE_MEDIA_NEXT -> "next"
             KeyEvent.KEYCODE_MEDIA_PREVIOUS -> "prev"
+            // The remote's Search / voice key opens voice commands
+            // (VoiceCommandHost). Boxes whose Assistant key is kept by the
+            // system never send it; the home screen's mic button covers them.
+            KeyEvent.KEYCODE_SEARCH -> "search"
             else -> null
         }
         val webView = bridge?.webView
         if (name == null || webView == null) return super.dispatchKeyEvent(event)
         // Act on the way down. Held Fast-forward / Rewind repeat like arrows
         // do; a held Play/Pause must not toggle back and forth.
-        val toggles = name == "playpause" || name == "play" || name == "pause"
+        val toggles = name == "playpause" || name == "play" || name == "pause" || name == "search"
         if (event.action == KeyEvent.ACTION_DOWN && !(toggles && event.repeatCount > 0)) {
             webView.evaluateJavascript(
                 "window.dispatchEvent(new CustomEvent('smc:mediakey',{detail:'$name'}))",

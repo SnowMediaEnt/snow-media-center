@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { openScreen, setPreference, reportChannel, installApp, generateWallpaper, type Screen, type PreferenceKey } from '@/lib/appActions';
+import { openScreen, setPreference, reportChannel, installApp, generateWallpaper, playChannel, openPlexTitle, openInstalledApp, type Screen, type PreferenceKey } from '@/lib/appActions';
+import { kidsLevel } from '@/lib/kidsFilter';
 import { Button } from '@/components/ui/button';
 import { isDemo } from '@/lib/demoMode';
 import { Card } from '@/components/ui/card';
@@ -724,6 +725,27 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         stopVoicePlayback();
         generateWallpaper(String(args.prompt || ''), onNavigate);
         toast({ title: 'Wallpaper', description: 'Making it now — this takes a moment.' });
+        break;
+      }
+      case 'play_channel': {
+        if (!onNavigate || !args.channel_name) break;
+        stopVoicePlayback();
+        playChannel(String(args.channel_name), onNavigate);
+        toast({ title: 'Live TV', description: `Finding ${args.channel_name}.` });
+        break;
+      }
+      case 'plex_title': {
+        if (!onNavigate || !args.title) break;
+        stopVoicePlayback();
+        openPlexTitle(String(args.title), args.action !== 'search', onNavigate);
+        toast({ title: 'Plex', description: `Finding ${args.title}.` });
+        break;
+      }
+      case 'open_app': {
+        if (!onNavigate || !args.app_name) break;
+        if (kidsLevel()) { toast({ title: 'Ask a grown-up', description: 'Opening other apps needs a grown-up profile.' }); break; }
+        stopVoicePlayback();
+        void openInstalledApp(String(args.app_name), onNavigate).then((said) => toast({ title: 'Apps', description: said }));
         break;
       }
       default:

@@ -132,11 +132,64 @@ export function setPreference(key: PreferenceKey, value: string): string | null 
   }
 }
 
+/** What the Player is asked to do when it opens (or, already open, at once:
+ *  PLAYER_INTENT_EVENT carries the same thing, and the Player clears the
+ *  stored copy when it acts on the event). */
+export interface PlayerIntent {
+  section?: 'live' | 'guide' | 'multi' | 'movies' | 'backups';
+  settings?: 'appearance' | 'hub';
+  report?: ReportIntent;
+  /** Live TV: play the channel with this name. */
+  play?: string;
+  /** Plex: open this title (open) or search for it. */
+  plex?: { query: string; open: boolean };
+}
+export const PLAYER_INTENT_EVENT = 'smc:player-intent';
+
+const toPlayer = (intent: PlayerIntent, navigate: Navigate) => {
+  put(INTENT_KEYS.player, intent);
+  try { window.dispatchEvent(new CustomEvent<PlayerIntent>(PLAYER_INTENT_EVENT, { detail: intent })); } catch { /* ignore */ }
+  navigate('livetv');
+};
+
+/** Live TV: find the channel and play it. */
+export function playChannel(name: string, navigate: Navigate): void {
+  toPlayer({ section: 'live', play: name }, navigate);
+  try { trackEvent('voice_play_channel', 'ai'); } catch { void 0; }
+}
+
+/** Plex: open a title by name (or search for it when there is no clear match). */
+export function openPlexTitle(query: string, open: boolean, navigate: Navigate): void {
+  toPlayer({ section: 'movies', plex: { query, open } }, navigate);
+  try { trackEvent('voice_plex', 'ai', { open }); } catch { void 0; }
+}
+
 /** Live TV: find the channel and open Report with the reason picked. */
 export function reportChannel(intent: ReportIntent, navigate: Navigate): void {
-  put(INTENT_KEYS.player, { section: 'live', report: intent });
-  navigate('livetv');
+  toPlayer({ section: 'live', report: intent }, navigate);
   try { trackEvent('ai_report_channel', 'ai'); } catch { void 0; }
+}
+
+/** Open an app installed on the box by (spoken) name. Not installed: Main
+ *  Apps opens and starts its download. Returns a line saying which. */
+export async function openInstalledApp(name: string, navigate: Navigate): Promise<string> {
+  const [{ getInstalledAppsNow }, { bestApp }] = await Promise.all([
+    import('@/hooks/useDeviceInstalledApps'),
+    import('@/lib/voiceCommands'),
+  ]);
+  const app = bestApp(name, await getInstalledAppsNow());
+  if (!app) {
+    installApp(name, navigate);
+    return `${name} isn't on this box — finding it in Main Apps.`;
+  }
+  try {
+    const { AppManager } = await import('@/capacitor/AppManager');
+    await AppManager.launch({ packageName: app.packageName });
+    try { trackEvent('voice_open_app', 'ai', { app: app.appName }); } catch { void 0; }
+    return `Opening ${app.appName}…`;
+  } catch {
+    return `${app.appName} didn't open. Try it from Main Apps.`;
+  }
 }
 
 /** Main Apps: find the app and start its download. */
