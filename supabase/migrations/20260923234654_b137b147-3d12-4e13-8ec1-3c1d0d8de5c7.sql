@@ -1,0 +1,21 @@
+REVOKE EXECUTE ON FUNCTION public.capture_player_signin(text, text, text, date, text, integer, boolean, text, text, uuid, uuid, text, text) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.capture_player_signin(text, text, text, date, text, integer, boolean, text, text, uuid, uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.capture_player_signin(text, text, text, date, text, integer, boolean, text, text, uuid, uuid, text, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.capture_player_signin(text, text, text, date, text, integer, boolean, text, text, uuid, uuid, text) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.link_claimed_panel_line(uuid, uuid, text, text, text, date, integer, boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.link_claimed_panel_line(uuid, uuid, text, text, text, date, integer, boolean) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.giveaway_backfill_active(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.giveaway_draw_winners(uuid, integer, text) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.giveaway_review_entry(uuid, boolean, text) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.giveaway_invalidate_entry(uuid, text) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.giveaway_admin_overview(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.giveaway_backfill_active(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.giveaway_draw_winners(uuid, integer, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.giveaway_review_entry(uuid, boolean, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.giveaway_invalidate_entry(uuid, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.giveaway_admin_overview(uuid) TO authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.giveaway_display_name(uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.giveaway_display_name(uuid, uuid) TO service_role;
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+CREATE POLICY "Users can update their own profile" ON public.profiles
+  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
