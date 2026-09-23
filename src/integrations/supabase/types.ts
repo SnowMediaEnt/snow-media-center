@@ -3013,6 +3013,116 @@ export type Database = {
         }
         Relationships: []
       }
+      remote_access_code_attempts: {
+        Row: {
+          attempted_at: string
+          id: number
+          succeeded: boolean
+          user_id: string
+        }
+        Insert: {
+          attempted_at?: string
+          id?: number
+          succeeded: boolean
+          user_id: string
+        }
+        Update: {
+          attempted_at?: string
+          id?: number
+          succeeded?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
+      remote_access_code_redemptions: {
+        Row: {
+          code_id: string
+          id: string
+          redeemed_at: string
+          request_id: string | null
+          user_id: string
+        }
+        Insert: {
+          code_id: string
+          id?: string
+          redeemed_at?: string
+          request_id?: string | null
+          user_id: string
+        }
+        Update: {
+          code_id?: string
+          id?: string
+          redeemed_at?: string
+          request_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remote_access_code_redemptions_code_id_fkey"
+            columns: ["code_id"]
+            isOneToOne: false
+            referencedRelation: "remote_access_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remote_access_code_redemptions_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "remote_support_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remote_access_codes: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          last_used_at: string | null
+          max_uses: number
+          note: string | null
+          request_id: string | null
+          revoked_at: string | null
+          uses: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          last_used_at?: string | null
+          max_uses?: number
+          note?: string | null
+          request_id?: string | null
+          revoked_at?: string | null
+          uses?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          last_used_at?: string | null
+          max_uses?: number
+          note?: string | null
+          request_id?: string | null
+          revoked_at?: string | null
+          uses?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remote_access_codes_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "remote_support_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       remote_support_requests: {
         Row: {
           admin_note: string | null
@@ -4182,10 +4292,6 @@ export type Database = {
       }
     }
     Functions: {
-      get_popular_plex_searches: {
-        Args: { p_limit?: number }
-        Returns: { query: string; searches: number }[]
-      }
       account_email_exists: { Args: { p_email: string }; Returns: boolean }
       adjust_customer_coins: {
         Args: { p_customer_id: string; p_delta: number; p_reason: string }
@@ -4209,6 +4315,15 @@ export type Database = {
           p_reason: string
           p_request_id: string
           p_user_id: string
+        }
+        Returns: Json
+      }
+      admin_create_remote_access_code: {
+        Args: {
+          p_expires_in_hours?: number
+          p_max_uses?: number
+          p_note?: string
+          p_request_id?: string
         }
         Returns: Json
       }
@@ -4270,8 +4385,16 @@ export type Database = {
         Args: { p_customer_id: string; p_panel_username: string }
         Returns: Json
       }
+      admin_remote_access_overview: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
       admin_resolve_gem_hold: {
         Args: { p_approve: boolean; p_hold_id: string; p_note?: string }
+        Returns: Json
+      }
+      admin_revoke_remote_access_code: {
+        Args: { p_code_id: string }
         Returns: Json
       }
       admin_unlink_line: {
@@ -4280,6 +4403,10 @@ export type Database = {
           p_note?: string
           p_panel_username: string
         }
+        Returns: Json
+      }
+      admin_update_remote_request: {
+        Args: { p_action: string; p_note?: string; p_request_id: string }
         Returns: Json
       }
       ai_tokens_last_hour: { Args: never; Returns: number }
@@ -4421,6 +4548,13 @@ export type Database = {
         }[]
       }
       get_customer_balance: { Args: { p_customer_id: string }; Returns: number }
+      get_popular_plex_searches: {
+        Args: { p_limit?: number }
+        Returns: {
+          query: string
+          searches: number
+        }[]
+      }
       get_qr_session: {
         Args: { p_token: string }
         Returns: {
@@ -4605,6 +4739,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      redeem_remote_access_code: {
+        Args: { p_code: string; p_request_id?: string }
+        Returns: Json
+      }
+      redeem_remote_support_code: {
+        Args: { p_code: string; p_request_id: string }
+        Returns: Json
+      }
       reserve_free_ai: {
         Args: {
           p_device_id: string
@@ -4684,7 +4826,6 @@ export type Database = {
         Returns: Json
       }
       start_remote_support_session: { Args: { p_id: string }; Returns: boolean }
-      redeem_remote_support_code: { Args: { p_request_id: string; p_code: string }; Returns: Json }
       tenant_analytics_daily: {
         Args: { p_code: string; p_days: number }
         Returns: {
