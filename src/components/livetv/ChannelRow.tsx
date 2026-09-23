@@ -1,5 +1,5 @@
 import { memo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
-import { Tv, Star, Radio } from 'lucide-react';
+import { Tv, Star, Radio, AlertTriangle } from 'lucide-react';
 import type { XtreamLiveStream, EpgNowNext } from '@/lib/xtream';
 
 interface Props {
@@ -8,6 +8,8 @@ interface Props {
   isFocused: boolean;
   isPlaying: boolean;
   isFavorite: boolean;
+  /** Down right now, by what other boxes see (lib/channelStatus). */
+  isDown?: boolean;
   nowNext?: EpgNowNext;
   onSelect: (index: number) => void;
   onActivate: (index: number) => void;
@@ -24,7 +26,9 @@ interface Props {
 // call, twice per row per render on Chromium 66.
 const TIME_FMT = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' });
 
-const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, nowNext, onSelect, onActivate, onLongPress, variant = 'compact' }: Props) => {
+const DOWN_LABEL = 'Reported down right now';
+
+const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isDown = false, nowNext, onSelect, onActivate, onLongPress, variant = 'compact' }: Props) => {
   const [iconError, setIconError] = useState(false);
   const [iconLoaded, setIconLoaded] = useState(false);
   const showIcon = channel.stream_icon && !iconError;
@@ -110,6 +114,11 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
             <span className="absolute top-1.5 left-1.5 text-xs px-1.5 py-0.5 rounded-md bg-brand-gold text-black font-nunito font-bold leading-4">LIVE</span>
           )}
           {isFavorite && <Star className="absolute top-1.5 right-1.5 w-4 h-4 text-brand-gold fill-brand-gold" />}
+          {isDown && (
+            <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/70 p-0.5" title={DOWN_LABEL} aria-label={DOWN_LABEL}>
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+            </span>
+          )}
           {now && (
             <div className="absolute left-0 right-0 bottom-0 h-[3px] bg-black/20">
               <div className="h-full bg-brand-gold" style={{ width: `${progress}%` }} />
@@ -142,6 +151,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
         {logo('w-14 h-14', 'w-7 h-7')}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
+            {isDown && <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" aria-label={DOWN_LABEL} />}
             <span className={`font-quicksand font-semibold truncate ${isFocused ? 'text-white' : 'text-brand-ice'}`}>
               {channel.name}
             </span>
@@ -156,7 +166,9 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
               }`}
             />
           </div>
-          {now ? (
+          {isDown ? (
+            <p className="text-xs text-amber-300 truncate font-nunito mt-1">{DOWN_LABEL} — we&apos;re on it</p>
+          ) : now ? (
             <>
               <p className="text-xs text-brand-ice/70 truncate font-nunito mt-1">{now.title}</p>
               <div className="mt-1 flex items-center gap-2">
@@ -195,6 +207,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
+          {isDown && <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" aria-label={DOWN_LABEL} />}
           <span className={`font-quicksand font-semibold text-base truncate ${isFocused ? 'text-white' : 'text-white/90'}`}>
             {channel.name}
           </span>
@@ -205,8 +218,8 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
           )}
           {isFavorite && <Star className="w-3.5 h-3.5 text-brand-gold fill-brand-gold flex-shrink-0" />}
         </div>
-        <p className={`text-xs font-nunito truncate ${now ? 'text-brand-ice/75' : 'text-brand-ice/50 italic'}`}>
-          {now ? now.title : 'No information'}
+        <p className={`text-xs font-nunito truncate ${isDown ? 'text-amber-300' : now ? 'text-brand-ice/75' : 'text-brand-ice/50 italic'}`}>
+          {isDown ? DOWN_LABEL : now ? now.title : 'No information'}
         </p>
       </div>
 

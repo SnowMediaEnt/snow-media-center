@@ -12,6 +12,7 @@ import { useVersion } from '@/hooks/useVersion';
  */
 const CHANGELOG: Record<string, string[]> = {
   '1.7.7': [
+    '⚠️ Down channels are marked: when viewers report a channel down or it won\'t start for them, it shows a warning triangle until it\'s back',
     '🎙️ Voice commands: the mic next to Settings (or your remote\'s Search button) — "put on ESPN", "watch The Office", "open YouTube", "take me to the Guide"',
     '👨‍👩‍👧 Profiles: "Who\'s watching?" when the app opens — everyone gets their own Continue Watching, My List, favourites and home screen. Kids profiles show only what suits their age, and any profile can have a PIN (Settings → UI → Profiles)',
     '⚡ Plex is faster on every box: tile-sized posters, no background library downloads, nothing reloading as you move',

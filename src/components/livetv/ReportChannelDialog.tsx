@@ -25,6 +25,8 @@ interface Props {
   /** Open past the menu with a reason picked (the assistant's report). */
   initialChoice?: Choice;
   initialNote?: string;
+  /** "Channel down" was sent: the caller tells the other boxes (⚠️). */
+  onReportedDown?: () => void;
   onClose: () => void;
 }
 
@@ -52,6 +54,7 @@ const ReportChannelDialog = memo(({
   onOpenBufferingGuide,
   initialChoice,
   initialNote,
+  onReportedDown,
   onClose,
 }: Props) => {
   const { toast } = useToast();
@@ -127,6 +130,7 @@ const ReportChannelDialog = memo(({
           onClose();
           return;
         }
+        if (choice === 'Channel down') { try { onReportedDown?.(); } catch { /* ignore */ } }
         const subject = `Channel issue: ${channelName}`;
         const message = buildMessage(choice, otherNote);
         if (user) {
@@ -153,7 +157,7 @@ const ReportChannelDialog = memo(({
         });
       }
     },
-    [createTicket, buildMessage, channelName, onClose, submitting, toast, user],
+    [createTicket, buildMessage, channelName, onClose, onReportedDown, submitting, toast, user],
   );
 
   const onPick = useCallback(

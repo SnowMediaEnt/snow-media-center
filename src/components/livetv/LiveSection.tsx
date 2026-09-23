@@ -66,6 +66,7 @@ import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import { bestChannel } from '@/lib/voiceCommands';
+import { isChannelDown, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
 import { recordChannelWatch } from '@/lib/watchHistory';
 import { onMediaKey } from '@/lib/mediaKeys';
@@ -1229,6 +1230,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [playingChannelId, playingLine.serverLabel]);
 
 
+  // Channels other boxes see as down right now (⚠️ on the row), for the
+  // lines on screen, kept fresh while Live TV has the remote.
+  const downSet = useDownChannels(lines, isActive);
+  const playingStreamName = (id: number): string =>
+    visibleChannels.find((s) => s.stream_id === id)?.name ?? favoritesOf(playingLine).get(id)?.name ?? '';
+
   // Native ExoPlayer wiring — fullscreen, or the preview box while browsing.
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!playingChannelId;
   // The preview: the dwelt-on channel, in the box, while this section has
@@ -1310,6 +1317,33 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       else if (k === 'playpause' || k === 'play' || k === 'pause') pokeBar();
     });
   }, [isActive, fullscreen, pokeBar]);
+
+  // What the native player is showing: the full-screen channel, or the one
+  // in the preview box.
+  const nativeStream = nativeActive && playingChannelId
+    ? { host: playingLine.host, id: playingChannelId, name: playingStreamName(playingChannelId) }
+    : nativePreviewActive && previewChannel
+      ? { host: lineFor(previewChannel).host, id: previewChannel.stream_id, name: previewChannel.name }
+      : null;
+  const nativeStreamRef = useRef(nativeStream); nativeStreamRef.current = nativeStream;
+
+  // Down channels (⚠️): a channel that won't start here tells the other
+  // boxes; one shown as down that plays fine for a while clears it.
+  useEffect(() => {
+    const st = nativeStreamRef.current;
+    if (!st || !native.error) return;
+    signalChannel(st.host, st.id, st.name, 'fail');
+  }, [native.error]);
+  const nativeKey = nativeStream ? `${nativeStream.host}|${nativeStream.id}` : '';
+  const shownDown = !!nativeStream && isChannelDown(downSet, nativeStream.host, nativeStream.id);
+  useEffect(() => {
+    if (!shownDown || native.buffering || native.error) return;
+    const t = window.setTimeout(() => {
+      const st = nativeStreamRef.current;
+      if (st) signalChannel(st.host, st.id, st.name, 'ok');
+    }, 12_000);
+    return () => window.clearTimeout(t);
+  }, [shownDown, nativeKey, native.buffering, native.error]);
 
   // player_error — track native player fatal error transitions.
   const lastNativeErrorRef = useRef<string | null>(null);
@@ -1786,6 +1820,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               onPlayStateChange={(paused) => setIsPaused(paused)}
               onTracksChanged={() => setTracksTick(t => t + 1)}
               onError={(msg) => {
+                if (playingChannelId) signalChannel(playingLine.host, playingChannelId, playingStreamName(playingChannelId), 'fail');
                 try {
                   const ch = visibleChannels.find(s => s.stream_id === playingChannelId);
                   trackEvent('player_error', 'player', {
@@ -2074,6 +2109,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       isFocused={isActive && pane === 'channels' && idx === safeChannelIdx}
                       isPlaying={playingChannelId === s.stream_id}
                       isFavorite={isFav(s)}
+                      isDown={isChannelDown(downSet, lineFor(s).host, s.stream_id)}
                       nowNext={epgFor(s)}
                       onSelect={onRowSelect}
                       onActivate={onRowActivate}
@@ -2230,6 +2266,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             onRefreshFavorite={() => refreshFavorite(reportFor)}
             initialChoice={reportPreset?.choice}
             initialNote={reportPreset?.note}
+            onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down')}
             onOpenBufferingGuide={() => {
               setReportFor(null);
               enterFiredRef.current = false;
@@ -2274,6 +2311,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             onRefreshFavorite={() => refreshFavorite(reportFor)}
             initialChoice={reportPreset?.choice}
             initialNote={reportPreset?.note}
+            onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down')}
             onOpenBufferingGuide={() => {
               setReportFor(null);
               enterFiredRef.current = false;
@@ -2345,6 +2383,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             onRefreshFavorite={() => refreshFavorite(reportFor)}
             initialChoice={reportPreset?.choice}
             initialNote={reportPreset?.note}
+            onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down')}
             onOpenBufferingGuide={() => {
               setReportFor(null);
               enterFiredRef.current = false;
