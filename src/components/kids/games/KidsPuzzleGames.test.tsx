@@ -30,7 +30,12 @@ describe('kids puzzle games', () => {
   it('creates exactly two cards per educational pair at every tier', () => {
     for (const tier of ['little', 'kids', 'teens'] as const) {
       const cards = createWinterCards(tier, 4);
-      for (const pair of new Set(cards.map(card => card.pair))) expect(cards.filter(card => card.pair === pair)).toHaveLength(2);
+      for (const pair of new Set(cards.map(card => card.pair))) {
+        const matching = cards.filter(card => card.pair === pair);
+        expect(matching).toHaveLength(2);
+        expect(matching[0].label).toBe(matching[1].label);
+        expect(matching[0].label).not.toMatch(/\d|[+×]/);
+      }
       expect(cards.length).toBe(tier === 'little' ? 6 : tier === 'kids' ? 8 : 12);
     }
   });

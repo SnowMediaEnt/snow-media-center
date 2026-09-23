@@ -20,3 +20,6 @@
   .kp-card{font-size:54px;border-radius:26px}.kp-card>span>svg{width:76px;height:76px}.kp-card .kp-shape{font-size:84px}
   .kp-footer,.kp-match-message{font-size:26px}.kp-finish h2{font-size:70px}.kp-finish p{font-size:34px}.kp-finish button{font-size:34px}
 }
+.kp-card.is-open > span:first-child { font-size: clamp(80px, 11vh, 140px); line-height: 1; filter: drop-shadow(0 10px 14px #16466a25); }
+@media(max-height:720px){.kp-card.is-open > span:first-child { font-size: clamp(55px, 10vh, 90px); }}
+@media(min-width:2560px) and (min-height:1400px){.kp-card.is-open > span:first-child { font-size: clamp(150px, 11vh, 250px); }}

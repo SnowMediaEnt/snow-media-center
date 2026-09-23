@@ -1,22 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { actionChallenge } from './actionChallenges';
+import { SNOWBALL_COLORS, sledChallenge, snowballChallenge } from './actionChallenges';
 
-describe('educational action challenges', () => {
-  it('always offers one unambiguous answer for every tier and gate count', () => {
-    for (const tier of ['little', 'kids', 'teens'] as const) for (const count of [3, 6]) for (let level = 1; level <= 20; level++) for (let round = 0; round < 8; round++) {
-      const q = actionChallenge(tier, level, round, count);
-      expect(q.answers).toHaveLength(count);
-      expect(new Set(q.answers).size).toBe(count);
-      expect(q.correct).toBeGreaterThanOrEqual(0);
-      expect(q.correct).toBeLessThan(count);
-      if (tier === 'little') {
-        if (q.prompt.includes('How many')) expect(Number(q.answers[q.correct])).toBe(q.symbol!.split(' ').length);
-        else expect(q.answers[q.correct]).toBe(q.symbol);
-      } else {
-        const [, a, operator, b] = q.prompt.match(/(\d+) ([+−×]) (\d+)/)!;
-        const expected = operator === '+' ? Number(a) + Number(b) : operator === '−' ? Number(a) - Number(b) : Number(a) * Number(b);
-        expect(Number(q.answers[q.correct])).toBe(expected);
-      }
+describe('distinct educational action games', () => {
+  it('keeps snowball targets about colors, shapes and later color mixing', () => {
+    for (const tier of ['little', 'kids', 'teens'] as const) for (let level = 1; level <= 20; level++) for (let round = 0; round < 8; round++) {
+      const challenge = snowballChallenge(tier, level, round);
+      expect(challenge.answers).toHaveLength(6);
+      expect(new Set(challenge.answers).size).toBe(6);
+      expect(challenge.answers[challenge.correct]).toBeTruthy();
+      expect(challenge.prompt).not.toMatch(/\d/);
+      if (challenge.kind === 'color') expect(SNOWBALL_COLORS[challenge.answers[challenge.correct]]).toBeTruthy();
+      else expect(challenge.answers[challenge.correct]).toBe(challenge.symbol);
     }
+    expect(snowballChallenge('little', 1, 0).clueColor).toBe('Red');
+    expect(snowballChallenge('kids', 3, 2).prompt).toContain('Mix');
+  });
+
+  it('makes sled gates about picture words, missing letters and vocabulary', () => {
+    for (const tier of ['little', 'kids', 'teens'] as const) for (let level = 1; level <= 20; level++) for (let round = 0; round < 8; round++) {
+      const challenge = sledChallenge(tier, level, round);
+      expect(challenge.answers).toHaveLength(3);
+      expect(new Set(challenge.answers).size).toBe(3);
+      expect(challenge.answers[challenge.correct]).toBeTruthy();
+      expect(challenge.prompt).not.toMatch(/\d/);
+    }
+    expect(sledChallenge('little', 1, 0).prompt).toContain('picture');
+    expect(sledChallenge('kids', 1, 1).prompt).toContain('Finish');
+    expect(sledChallenge('teens', 1, 0).prompt).toContain('means');
   });
 });

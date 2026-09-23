@@ -16,12 +16,12 @@ import BeatBlizzard from './games/BeatBlizzard';
 import './KidsGameLounge.css';
 
 const GAMES = [
-  { id: 'snowball-splash', title: 'Snowball Splash', skill: 'SHAPES · LETTERS · NUMBERS', detail: 'Find your target and throw!', Icon: Crosshair },
-  { id: 'penguin-path', title: 'Penguin Path', skill: 'COUNTING · PATTERNS', detail: 'Help Pip find the fish.', Icon: Footprints },
-  { id: 'sled-dash', title: 'Sled Dash', skill: 'WORDS · MATH', detail: 'Choose the right way downhill.', Icon: Wind },
-  { id: 'winter-match', title: 'Winter Match', skill: 'MEMORY · MATCHING', detail: 'Turn over the snowy cards.', Icon: Puzzle },
-  { id: 'snow-world', title: 'Build a Snow World', skill: 'CREATE · COUNT', detail: 'Make a world of your own.', Icon: Trees },
-  { id: 'beat-blizzard', title: 'Beat the Blizzard', skill: 'MUSIC · PATTERNS', detail: 'Listen and repeat the beat.', Icon: Music2 },
+  { id: 'snowball-splash', title: 'Snowball Splash', skill: 'COLORS · SHAPES', detail: 'Spot a color or shape and throw!', Icon: Crosshair },
+  { id: 'penguin-path', title: 'Penguin Path', skill: 'NUMBERS · SEQUENCES', detail: 'Help Pip find the fish.', Icon: Footprints },
+  { id: 'sled-dash', title: 'Sled Dash', skill: 'WORDS · READING', detail: 'Read the gate and race downhill.', Icon: Wind },
+  { id: 'winter-match', title: 'Winter Match', skill: 'MEMORY · PICTURES', detail: 'Remember the hidden pictures.', Icon: Puzzle },
+  { id: 'snow-world', title: 'Build a Snow World', skill: 'CREATE · DESIGN', detail: 'Make a world of your own.', Icon: Trees },
+  { id: 'beat-blizzard', title: 'Beat the Blizzard', skill: 'MUSIC · MEMORY', detail: 'Listen and repeat the beat.', Icon: Music2 },
 ] as const;
 
 type Props = { onBack: () => void };
