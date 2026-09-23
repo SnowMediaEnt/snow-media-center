@@ -110,7 +110,10 @@ const EPG_CACHE_MAX = 400;
 // Cloud favourites pulls, per line, shared across Live TV visits.
 const FAV_PULL_FRESH_MS = 10 * 60_000;
 const WATCH_RECORD_DWELL_MS = 6000;
-const _favPulls = new Map<string, { at: number; done: boolean; p: Promise<Map<number, FavChannel> | null> }>();
+// A pull that came back empty-handed (offline looks the same as "nothing
+// new") is retried sooner.
+const FAV_PULL_EMPTY_RETRY_MS = 2 * 60_000;
+const _favPulls = new Map<string, { at: number; done: boolean; got: boolean; p: Promise<Map<number, FavChannel> | null> }>();
 const EPG_TTL_MS = 15 * 60_000;
 const PREVIEW_DEBOUNCE_MS = 700;
 
@@ -379,10 +382,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const prev = _favPulls.get(k);
       let p: Promise<Map<number, FavChannel> | null>;
       if (prev && !prev.done) p = prev.p;
-      else if (prev && Date.now() - prev.at < FAV_PULL_FRESH_MS) continue;
+      else if (prev && Date.now() - prev.at < (prev.got ? FAV_PULL_FRESH_MS : FAV_PULL_EMPTY_RETRY_MS)) continue;
       else {
-        const entry = { at: Date.now(), done: false, p: reconcileFavoritesForLine(line, () => loadFavoritesForLine(line)) };
-        entry.p.then(() => { entry.done = true; }, () => { _favPulls.delete(k); });
+        const entry = { at: Date.now(), done: false, got: false, p: reconcileFavoritesForLine(line, () => loadFavoritesForLine(line)) };
+        entry.p.then((next) => { entry.done = true; entry.got = !!next; }, () => { _favPulls.delete(k); });
         _favPulls.set(k, entry);
         p = entry.p;
       }
@@ -629,7 +632,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       // Passed over: no spinner left behind on it.
       setLoadingCat(prev => (prev === key ? null : prev));
     };
-  }, [catFetchKey, openedNow, noteCountsFor, tagLine, healFavorites]);
+    // refreshTick: "Update Channels" while this category is loading must drop
+    // the old answer and ask again under the new nonce.
+  }, [catFetchKey, openedNow, refreshTick, noteCountsFor, tagLine, healFavorites]);
 
   // Full-catalog channel lists, one per line, fetched lazily ONLY when search
   // is opened. Search runs across every line.

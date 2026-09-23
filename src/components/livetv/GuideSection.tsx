@@ -110,15 +110,15 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const [playingChannelId, setPlayingChannelId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
 
-  // Bump every 30s so the NOW line keeps pace — only while the grid is on
-  // screen; a full-grid re-render behind fullscreen playback helps nobody.
+  // Bump every 30s so the NOW line keeps pace — not behind fullscreen
+  // playback, where a full-grid re-render helps nobody.
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => {
-    if (fullscreen || !isActive) return;
+    if (fullscreen) return;
     setNowTick(Date.now());
     const t = window.setInterval(() => setNowTick(Date.now()), 30_000);
     return () => window.clearInterval(t);
-  }, [fullscreen, isActive]);
+  }, [fullscreen]);
 
   // Refresh event → wipe caches
   const [refreshTick, setRefreshTick] = useState(0);

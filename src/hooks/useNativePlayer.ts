@@ -83,6 +83,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   const [controller, setController] = useState<VideoController | null>(null);
   const nonceRef = useRef(0);
   const retriesRef = useRef(0);
+  // One fresh start after the plugin gives up, per outage (see playerError).
+  const exhaustRetriedRef = useRef(false);
   const retryTimerRef = useRef<number | null>(null);
 
   const cbTracksRef = useRef(onTracksChanged);
@@ -125,6 +127,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     if (retryBusyRef.current) return;
     retryBusyRef.current = true;
     retriesRef.current = 0;
+    exhaustRetriedRef.current = false;
     setError(null);
     setRetryNonce((n) => n + 1);
     window.setTimeout(() => { retryBusyRef.current = false; }, 800);
@@ -175,7 +178,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           else if (data.state === 'ready') { setBuffering(false); try { diagBuffering(false); } catch { /* ignore */ } }
           else if (data.state === 'ended') { markStreaming(false); quietOff(); try { diagEnd(); } catch { /* ignore */ } cbEndedRef.current?.(); }
           // Playing is authoritative — clear the spinner immediately.
-          if (data.playing === true) { setBuffering(false); quietOn(); try { diagBuffering(false); } catch { /* ignore */ } }
+          if (data.playing === true) { exhaustRetriedRef.current = false; setBuffering(false); quietOn(); try { diagBuffering(false); } catch { /* ignore */ } }
           if (typeof data.playing === 'boolean') markStreaming(data.playing);
         }));
         if (gone) return;
@@ -192,12 +195,14 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           // RECONNECT_EXHAUSTED means the native side already tried 20 times,
           // and every load() here restarts that count — so one fresh start,
           // not maxRetries × 20 more connections to a dead stream.
+          // Counted per outage: playback resuming clears it.
           if (code === 'AUDIO_DECODE' || retriesRef.current >= maxRetries
-            || (code === 'RECONNECT_EXHAUSTED' && retriesRef.current >= 1)) {
+            || (code === 'RECONNECT_EXHAUSTED' && exhaustRetriedRef.current)) {
             setError({ code, message: msg });
             return;
           }
           retriesRef.current += 1;
+          if (code === 'RECONNECT_EXHAUSTED') exhaustRetriedRef.current = true;
           const delay = Math.min(8000, 500 * 2 ** retriesRef.current);
           clearRetryTimer();
           retryTimerRef.current = window.setTimeout(() => { setRetryNonce((n) => n + 1); }, delay) as unknown as number;
@@ -217,6 +222,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // error panel eventually surfaces on permanently hung streams.
   useEffect(() => {
     retriesRef.current = 0;
+    exhaustRetriedRef.current = false;
     // Codec support is per-stream — don't carry a warning to the next channel.
     setAudioWarning(null);
   }, [active, url]);
@@ -313,6 +319,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     setBuffering(false);
     setError(null);
     retriesRef.current = 0;
+    exhaustRetriedRef.current = false;
   }, [active]);
 
   useEffect(() => {

@@ -211,10 +211,11 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
       })) as XtreamLiveStream[];
       setChannels(favs);
       channelsCacheRef.current.set(catId, favs);
+      setLoadingChannels(false);
       return;
     }
     const cached = channelsCacheRef.current.get(catId);
-    if (cached) { setChannels(cached); return; }
+    if (cached) { setChannels(cached); setLoadingChannels(false); return; }
     setLoadingChannels(true);
     try {
       const list = await getLiveStreams(creds, catId);
@@ -232,7 +233,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
   // Once focus settles on a category — holding ▼ in the picker used to
   // download the list of every category passed. Kept lists show at once.
   useEffect(() => {
-    if (pickerOpenForTile === null) return;
+    if (pickerOpenForTile === null) { latestCatRef.current = null; setLoadingChannels(false); return; }
     const cat = categories[categoryIdx];
     if (!cat) return;
     setChannelIdx(0);
@@ -410,15 +411,18 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
     const sid = spec[tileIdx]?.id;
     if (!sid) return;
     setFullscreenSlot(sid);
+    // Set now, not after the re-render: suspendOthers checks it between stops.
+    fullscreenSlotRef.current = sid;
     // The other tiles were still downloading and decoding behind the one on
     // screen (and could even paint over it). Pause them until you come back.
-    await suspendOthers(sid);
+    await suspendOthers(sid, () => fullscreenSlotRef.current === sid);
     await applyRect(sid, { x: 0, y: 0, width: 0, height: 0 });
     await focusAudio(sid);
   }, [layout, applyRect, focusAudio, suspendOthers]);
 
   const exitFullscreen = useCallback(() => {
     setFullscreenSlot(null);
+    fullscreenSlotRef.current = null;
     // Re-measure all occupied, then re-assert audio on the focused tile.
     requestAnimationFrame(() => {
       measureAndApply();

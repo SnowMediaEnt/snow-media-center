@@ -43,7 +43,7 @@ interface Api {
   applyRect: (screenId: MultiScreenId, rect: CssRect) => Promise<void>;
   focusAudio: (screenId: MultiScreenId | null) => Promise<void>;
   stopAll: () => Promise<void>;
-  suspendOthers: (keep: MultiScreenId) => Promise<void>;
+  suspendOthers: (keep: MultiScreenId, stillWanted: () => boolean) => Promise<void>;
   resumeOthers: () => void;
 }
 
@@ -236,8 +236,18 @@ export function useMultiScreenPlayers(): Api {
   // back when fullscreen closes). Each was a stream download and a decoder
   // competing with the one tile on screen.
   const suspendedRef = useRef<Set<MultiScreenId>>(new Set());
-  const suspendOthers = useCallback(async (keep: MultiScreenId): Promise<void> => {
+  const muteUnfocused = useCallback(async (id: MultiScreenId): Promise<void> => {
+    // A rebuilt player starts with audio on; keep the unfocused tiles from
+    // decoding it (volume alone keeps them silent, not idle).
+    if (focusedAudioRef.current === id) return;
+    try { await SnowPlayer.setAudioEnabled({ enabled: false, screenId: id }); } catch { /* ignore */ }
+    try { await SnowPlayer.setVolume({ volume: 0, screenId: id }); } catch { /* ignore */ }
+  }, []);
+  const suspendOthers = useCallback(async (keep: MultiScreenId, stillWanted: () => boolean): Promise<void> => {
     for (const id of MS_SLOT_IDS) {
+      // Fullscreen closed while we were still stopping tiles: resumeOthers has
+      // already run, so the rest stay playing.
+      if (!stillWanted()) return;
       if (id === keep || !slotsRef.current[id].url) continue;
       const key = `retry-${id}`;
       const t = retryTimersRef.current[key];
@@ -245,8 +255,21 @@ export function useMultiScreenPlayers(): Api {
       suspendedRef.current.add(id);
       delete lastRectRef.current[id];
       try { await SnowPlayer.stop({ screenId: id }); } catch { /* ignore */ }
+      if (!stillWanted() && suspendedRef.current.has(id)) {
+        // Closed mid-stop: this tile missed the resume — restart it here.
+        suspendedRef.current.delete(id);
+        const url = slotsRef.current[id].url;
+        if (url) {
+          SnowPlayer.load({ url, live: true, screenId: id })
+            .then(() => SnowPlayer.play({ screenId: id }))
+            .then(() => muteUnfocused(id))
+            .catch(() => { /* the error listener retries */ });
+          try { window.dispatchEvent(new Event('resize')); } catch { /* ignore */ }
+        }
+        return;
+      }
     }
-  }, []);
+  }, [muteUnfocused]);
   const resumeOthers = useCallback((): void => {
     const ids = [...suspendedRef.current];
     suspendedRef.current.clear();
@@ -256,18 +279,13 @@ export function useMultiScreenPlayers(): Api {
       updateSlot(id, { buffering: true, bufferingSince: Date.now(), retries: 0, error: null });
       SnowPlayer.load({ url, live: true, screenId: id })
         .then(() => SnowPlayer.play({ screenId: id }))
-        .then(async () => {
-          // Muted unless it is the focused tile; the section re-focuses audio.
-          if (focusedAudioRef.current !== id) {
-            try { await SnowPlayer.setAudioEnabled({ enabled: false, screenId: id }); } catch { /* ignore */ }
-            try { await SnowPlayer.setVolume({ volume: 0, screenId: id }); } catch { /* ignore */ }
-          }
-        })
+        // Muted unless it is the focused tile; the section re-focuses audio.
+        .then(() => muteUnfocused(id))
         .catch(() => { /* the error listener retries */ });
     }
     // Tiles send their rects again on the next measure.
     try { window.dispatchEvent(new Event('resize')); } catch { /* ignore */ }
-  }, [updateSlot]);
+  }, [updateSlot, muteUnfocused]);
 
   const stopAll = useCallback(async (): Promise<void> => {
     suspendedRef.current.clear();
@@ -310,6 +328,8 @@ export function useMultiScreenPlayers(): Api {
           // Rects will be re-applied by the component on next layout tick.
           SnowPlayer.load({ url, live: true, screenId: id }).catch(() => { /* ignore */ });
           SnowPlayer.play({ screenId: id }).catch(() => { /* ignore */ });
+          // stopAll released the players, and with them each tile's mute.
+          void muteUnfocused(id);
         }
       }
       // Kick the section into re-measuring so applyRect fires post-restore.
