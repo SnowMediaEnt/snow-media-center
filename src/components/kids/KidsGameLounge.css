@@ -82,3 +82,54 @@
   .kids-lounge__art-icon { width: min(85%, 24vh); height: min(85%, 24vh); }
   .kids-lounge__footer { font-size: 1.4rem; }
 }
+
+/* Android TV boxes can be pinned to Chromium/WebView 66. That engine ignores
+   min()/clamp() values entirely (including padding and grid gaps), which makes
+   the six cards run edge-to-edge and shrinks the logo/art to intrinsic SVG size.
+   Keep the fluid design above for current WebViews and give older ones explicit
+   dimensions. No Kotlin WebView flag can add missing CSS layout features. */
+@supports not (width: min(100%, 1760px)) {
+  .kids-lounge { padding: 26px 48px; }
+  .kids-lounge__shell, .kids-lounge--playing > * { width: 100%; max-width: 1760px; }
+  .kids-lounge__shell { gap: 16px; }
+  .kids-lounge__back, .kids-lounge__sound { font-size: 1.1rem; }
+  .kids-lounge__brand-icon { width: 72px; height: 72px; flex: none; }
+  .kids-lounge__brand small { font-size: .85rem; }
+  .kids-lounge__brand h1 { font-size: 2.7rem; }
+  .kids-lounge__brand p { font-size: 1.05rem; }
+  .kids-lounge__star { font-size: 1.05rem; }
+  .kids-lounge__ribbon { font-size: 1.05rem; }
+  .kids-lounge__grid { gap: 16px; }
+  .kids-lounge__card { padding: 20px; border-radius: 25px; }
+  .kids-lounge__card-copy small { font-size: .76rem; }
+  .kids-lounge__card-copy strong { margin-top: 10px; font-size: 2rem; }
+  .kids-lounge__card-copy > span { font-size: 1rem; }
+  .kids-lounge__card-copy em { font-size: .75rem; }
+  .kids-lounge__art-icon { width: 85%; height: 85%; max-width: 150px; max-height: 150px; }
+  .kids-lounge__card-play { font-size: .9rem; width: auto; align-self: flex-start; }
+  .kids-lounge__footer { font-size: .9rem; }
+
+  /* Flexbox gap was added after these WebViews; grid gap above still works. */
+  .kids-lounge__brand > * + * { margin-left: 18px; }
+  .kids-lounge__tools > * + * { margin-left: 12px; }
+  .kids-lounge__back > svg, .kids-lounge__star > svg,
+  .kids-lounge__ribbon > svg { margin-right: 8px; }
+  .kids-lounge__card-play > span { margin-left: 8px; }
+
+  @media (max-height: 700px) {
+    .kids-lounge { padding: 12px 32px; }
+    .kids-lounge__shell, .kids-lounge__grid { gap: 9px; }
+    .kids-lounge__brand-icon { width: 52px; height: 52px; }
+    .kids-lounge__card { padding: 12px; }
+    .kids-lounge__card-copy strong { font-size: 1.6rem; }
+    .kids-lounge__art-icon { max-width: 100px; max-height: 100px; }
+  }
+  @media (min-width: 2560px) and (min-height: 1400px) {
+    .kids-lounge { padding: 46px 86px; }
+    .kids-lounge__shell, .kids-lounge--playing > * { max-width: 3200px; }
+    .kids-lounge__shell, .kids-lounge__grid { gap: 28px; }
+    .kids-lounge__brand-icon { width: 125px; height: 125px; }
+    .kids-lounge__card { padding: 36px; border-radius: 38px; }
+    .kids-lounge__art-icon { max-width: 330px; max-height: 330px; }
+  }
+}

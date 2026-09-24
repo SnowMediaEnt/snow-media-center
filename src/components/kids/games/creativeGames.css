@@ -110,3 +110,36 @@
   .kids-beat__pad button span { font-size: 1.7rem; }
   .kids-beat__progress span { width: 28px; height: 28px; }
 }
+
+/* Fixed-size safety net for older Android WebViews used by TV boxes. */
+@supports not (width: min(100%, 1020px)) {
+  .kids-creative { gap: 14px; padding: 20px; }
+  .kids-creative__eyebrow { font-size: .85rem; }
+  .kids-creative__header h2 { font-size: 2.3rem; }
+  .kids-creative__instruction strong { font-size: 1.35rem; }
+  .kids-creative__counter { font-size: .95rem; }
+  .kids-creative__hint { font-size: .95rem; }
+  .kids-world__sky, .kids-beat__storm { top: 0; right: 0; bottom: 0; left: 0; }
+  .kids-world__grid { width: 100%; max-width: 1020px; gap: 10px; padding: 18px; }
+  .kids-world__cell > span { width: 70px; height: 70px; }
+  .kids-beat__stage { gap: 12px; }
+  .kids-beat__pad { width: 400px; height: 400px; max-width: 55vh; max-height: 55vh; gap: 9px; }
+  .kids-beat__pad button span { font-size: .8rem; }
+  .kids-beat__pad button svg:first-child { width: 42px; height: 42px; }
+
+  .kids-creative__back > svg, .kids-creative__badge > svg,
+  .kids-creative__hint > svg, .kids-creative__controls button > svg { margin-right: 8px; }
+  .kids-creative__instruction > * + *, .kids-creative__controls > * + * { margin-left: 15px; }
+  .kids-beat__progress > * + *, .kids-world__requirements > * + * { margin-left: 8px; }
+
+  @media (max-height: 700px) {
+    .kids-creative { gap: 7px; padding: 11px; }
+    .kids-beat__pad { width: 300px; height: 300px; max-width: 45vh; max-height: 45vh; }
+  }
+  @media (min-width: 2560px) and (min-height: 1400px) {
+    .kids-creative { gap: 28px; padding: 42px; }
+    .kids-world__grid { max-width: 1900px; gap: 25px; padding: 30px; }
+    .kids-world__cell > span { width: 170px; height: 170px; }
+    .kids-beat__pad { width: 800px; height: 800px; max-width: 58vh; max-height: 58vh; }
+  }
+}
