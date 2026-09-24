@@ -8,7 +8,8 @@
 // the remote type into the PIN pad, Back steps back a screen.
 //
 // Modes
-//   gate     at start: pick someone to continue (Back does nothing)
+//   gate     at start: pick someone to continue (Back does nothing, unless
+//            the box is holding a Kids profile's limits: Back keeps them)
 //   pick     switching from Settings or the Kids home button (Back closes)
 //   manage   Settings → Profiles: straight to adding and editing (Back to pick)
 //   grownup  a Kids profile opening Settings: any grown-up's PIN, when a
@@ -18,8 +19,9 @@ import { App as CapApp } from '@capacitor/app';
 import { Check, Delete, Lock, Pencil, Plus, UserRound } from 'lucide-react';
 import { KIDS_LEVELS, type KidsLevel } from '@/lib/kidsFilter';
 import {
-  AVATARS, FORGOT_AFTER, MAX_PROFILES, PROFILES_EVENT, activeProfile, avatarColors, checkPin, createProfile,
-  deleteProfile, getProfile, grownUpsWithPin, lastPickedId, loadProfiles, pickProfile, pinFailures, pinLockedFor, pinsAvailable,
+  AVATARS, FORGOT_AFTER, MAX_PROFILES, PROFILES_EVENT, activeProfile, avatarColors, boxProfilesToBring, bringBoxProfiles,
+  checkGrownUpPin, checkPin, createProfile, deleteProfile, getProfile, grownUpPadLockedFor, grownUpsWithPin,
+  kidsHoldNeedsGrownUp, lastPickedId, loadProfiles, pickProfile, pinFailures, pinLockedFor, pinsAvailable, pullProfiles,
   requestPinReset, setPin, updateProfile, verifyPinReset, type Profile,
 } from '@/lib/profiles';
 import { MAIN_PROFILE } from '@/lib/viewer';
@@ -32,7 +34,7 @@ type Screen =
   | { kind: 'manage' }
   | { kind: 'edit'; id: string | null }
   | { kind: 'pin'; purpose: 'unlock'; profileId: string; then: After }
-  | { kind: 'pin'; purpose: 'grownup'; then: After }
+  | { kind: 'pin'; purpose: 'grownup'; then: After; forId?: string }
   | { kind: 'pin'; purpose: 'new'; profileId: string }
   | { kind: 'pin'; purpose: 'confirm'; profileId: string; first: string }
   | { kind: 'forgot'; profileId: string; then: After };
@@ -42,6 +44,9 @@ interface Props {
   onClose: () => void;
   /** grownup: the PIN was right (or nobody has one). */
   onGrownUpOk?: () => void;
+  /** The grown-up pad for a Kids profile kept from a signed-out account:
+   *  signing in to it again is the way on when its PIN is forgotten. */
+  onSignIn?: () => void;
 }
 
 const BACK_KEYS = new Set(['Escape', 'Backspace', 'GoBack', 'BrowserBack']);
@@ -165,7 +170,7 @@ const PinPad = ({ length, value, onDigit, onDelete, onSubmit, focus, setFocus }:
 
 // ── the overlay ────────────────────────────────────────────────────────────
 
-const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
+const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const [profiles, setProfiles] = useState<Profile[]>(() => loadProfiles());
   const [stack, setStack] = useState<Screen[]>(() => [mode === 'grownup' ? { kind: 'pin', purpose: 'grownup', then: 'grownup' } : { kind: 'pick' }]);
@@ -181,11 +186,16 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
   const [message, setMessage] = useState<string | null>(null);
   // Profiles whose PIN was given while this is open: not asked twice.
   const unlocked = useRef(new Set<string>());
+  // A grown-up's PIN was given while this is open (the grown-up pad, or a
+  // grown-up profile's own): not asked for again.
+  const grownUpOk = useRef(false);
   const current = useMemo(() => activeProfile(), [profiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const on = () => setProfiles(loadProfiles());
     window.addEventListener(PROFILES_EVENT, on);
+    // The account's list: a PIN support cleared, a profile added on another box.
+    void pullProfiles();
     return () => window.removeEventListener(PROFILES_EVENT, on);
   }, []);
 
@@ -224,14 +234,23 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
 
   const choose = useCallback((p: Profile) => {
     if (p.pinHash && !unlocked.current.has(p.id)) push({ kind: 'pin', purpose: 'unlock', profileId: p.id, then: 'pick' }, 'pad-1');
+    // Out of a Kids profile kept from an account that signed out: one of its
+    // grown-ups says so.
+    else if (!p.kidsLevel && !grownUpOk.current && kidsHoldNeedsGrownUp()) push({ kind: 'pin', purpose: 'grownup', then: 'pick', forId: p.id }, 'pad-1');
     else finish('pick', p.id);
   }, [finish, push]);
 
+  // Changing profiles is a grown-up's job from a Kids profile, and at the
+  // start-up gate of a house that has one (whoever is picking may be the kid).
+  const needGrownUp = useCallback(() => {
+    if (grownUpOk.current || grownUpsWithPin().length === 0) return false;
+    return !!current.kidsLevel || (mode === 'gate' && profiles.some((p) => !!p.kidsLevel));
+  }, [current.kidsLevel, mode, profiles]);
+
   const openManage = useCallback(() => {
-    // From a Kids profile, changing profiles is a grown-up's job.
-    if (current.kidsLevel && grownUpsWithPin().length > 0) push({ kind: 'pin', purpose: 'grownup', then: 'manage' }, 'pad-1');
+    if (needGrownUp()) push({ kind: 'pin', purpose: 'grownup', then: 'manage' }, 'pad-1');
     else push({ kind: 'manage' }, `m-${profiles[0]?.id ?? MAIN_PROFILE}`);
-  }, [current.kidsLevel, profiles, push]);
+  }, [needGrownUp, profiles, push]);
 
   const openEdit = useCallback((p: Profile | null) => {
     if (p?.pinHash && !unlocked.current.has(p.id)) push({ kind: 'pin', purpose: 'unlock', profileId: p.id, then: 'edit' }, 'pad-1');
@@ -254,16 +273,24 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
       if (!p) { pop(); return; }
       const wait = pinLockedFor(p.id);
       if (wait > 0) { setDigits(''); setMessage(`Too many tries — wait ${Math.ceil(wait / 1000)} seconds.`); return; }
-      if (checkPin(p, value)) { unlocked.current.add(p.id); finish(screen.then, p.id); return; }
+      if (checkPin(p, value)) {
+        unlocked.current.add(p.id);
+        if (!p.kidsLevel) grownUpOk.current = true;
+        finish(screen.then, p.id);
+        return;
+      }
       setDigits('');
       const left = pinLockedFor(p.id);
       setMessage(left > 0 ? `Wrong PIN. Too many tries — wait ${Math.ceil(left / 1000)} seconds.` : 'Wrong PIN. Try again.');
       return;
     }
     if (screen.purpose === 'grownup') {
-      const ok = grownUpsWithPin().some((p) => pinLockedFor(p.id) === 0 && checkPin(p, value));
-      if (ok) { finish(screen.then); return; }
-      setDigits(''); setMessage('That isn\'t a grown-up\'s PIN.');
+      const wait = grownUpPadLockedFor();
+      if (wait > 0) { setDigits(''); setMessage(`Too many tries — wait ${Math.ceil(wait / 1000)} seconds.`); return; }
+      if (checkGrownUpPin(value)) { grownUpOk.current = true; finish(screen.then, screen.forId); return; }
+      setDigits('');
+      const left = grownUpPadLockedFor();
+      setMessage(left > 0 ? `That isn't a grown-up's PIN. Too many tries — wait ${Math.ceil(left / 1000)} seconds.` : 'That isn\'t a grown-up\'s PIN.');
       return;
     }
     if (screen.purpose === 'new') {
@@ -347,7 +374,9 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
   const handlersRef = useRef<{ back: () => void; ok: () => void }>({ back: () => {}, ok: () => {} });
   handlersRef.current.back = () => {
     if (stack.length > 1) { pop(); return; }
-    if (mode !== 'gate') onClose();
+    // The gate holding a Kids profile's limits can be left with them kept:
+    // otherwise a forgotten grown-up PIN would leave no way on.
+    if (mode !== 'gate' || kidsHoldNeedsGrownUp()) onClose();
   };
   handlersRef.current.ok = () => {
     const el = rootRef.current?.querySelector<HTMLElement>(`[data-pf="${focus}"]`);
@@ -434,10 +463,14 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
   let body: React.ReactNode = null;
   let title = '';
   let subtitle: string | null = null;
+  // The subtitle is a warning (a wrong PIN): above the pad, where a 540-line
+  // screen still shows it.
+  let alert = false;
 
   if (screen.kind === 'pick' || screen.kind === 'manage') {
     const managing = screen.kind === 'manage';
     title = managing ? 'Manage profiles' : 'Who\'s watching?';
+    const toBring = managing ? boxProfilesToBring() : [];
     // Just the main profile: say what adding one is for.
     subtitle = managing ? 'Pick a profile to change it.'
       : profiles.length === 1
@@ -474,7 +507,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
               type="button"
               data-pf="add"
               data-focused={focus === 'add' ? 'true' : 'false'}
-              onClick={() => { setFocus('add'); if (current.kidsLevel && grownUpsWithPin().length > 0 && !managing) openManage(); else openEdit(null); }}
+              onClick={() => { setFocus('add'); if (!managing && needGrownUp()) openManage(); else openEdit(null); }}
               className="flex flex-col items-center m-4 rounded-2xl p-2 outline-none"
             >
               <div
@@ -487,11 +520,17 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
             </button>
           )}
         </div>
-        <div className="flex justify-center mt-8">
+        <div className="flex flex-wrap justify-center mt-8">
           {managing
             ? <Btn id="done" {...fp} onPress={() => pop(`p-${current.id}`)}>Done</Btn>
             : <Btn id="manage" {...fp} onPress={openManage}><span className="inline-flex items-center"><Pencil className="w-5 h-5 mr-2" />Manage profiles</span></Btn>}
-          {!managing && (mode === 'pick' || mode === 'manage') && <Btn id="cancel" {...fp} className="ml-4" onPress={onClose}>Cancel</Btn>}
+          {/* Made on this box before signing in: the account's list doesn't have them. */}
+          {toBring.length > 0 && profiles.length < MAX_PROFILES && (
+            <Btn id="bring" {...fp} className="ml-4" onPress={() => { const first = toBring[0].id; if (bringBoxProfiles() > 0) setFocus(`m-${first}`); }}>
+              Add {toBring.map((p) => p.name).join(', ')} from this box
+            </Btn>
+          )}
+          {!managing && (mode === 'pick' || mode === 'manage' || kidsHoldNeedsGrownUp()) && <Btn id="cancel" {...fp} className="ml-4" onPress={onClose}>Cancel</Btn>}
         </div>
       </>
     );
@@ -576,7 +615,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
                   {p?.pinHash && <Btn id="pin-off" {...fp} onPress={() => { if (screen.id) setPin(screen.id, null); }}>Remove PIN</Btn>}
                 </>
               ) : (
-                <p className="text-white/60">Sign in to your Snow Media account to add a PIN — that's how a forgotten one gets reset.</p>
+                <p className="text-white/60">Sign in to your Snow Media account to add a PIN — that's how a forgotten one gets reset. Then Manage profiles brings this box's profiles to the account.</p>
               )}
             </div>
           </>
@@ -608,18 +647,24 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
       : screen.purpose === 'grownup' ? 'Ask a grown-up'
         : screen.purpose === 'new' ? `New PIN for ${p?.name ?? 'this profile'}`
           : 'Enter the new PIN again';
-    subtitle = screen.purpose === 'grownup' ? 'A grown-up\'s profile PIN opens this.'
-      : screen.purpose === 'new' ? 'Four numbers. Use the number keys on the remote, or the pad.' : null;
+    subtitle = message ?? (screen.purpose === 'grownup' ? 'A grown-up\'s profile PIN opens this.'
+      : screen.purpose === 'new' ? 'Four numbers. Use the number keys on the remote, or the pad.' : null);
+    alert = !!message;
     const showForgot = screen.purpose === 'unlock' && p && pinFailures(p.id) >= FORGOT_AFTER;
+    // Its account signed out, so no "Forgot PIN?" here: signing in to it
+    // again brings back its profiles, and the reset with them.
+    const showSignIn = screen.purpose === 'grownup' && !!onSignIn && kidsHoldNeedsGrownUp();
+    // A 540-line screen has no room for the picture as well as the pad.
+    const roomy = window.innerHeight >= 640;
     body = (
       <div className="flex flex-col items-center">
-        {p && <div className="mb-6"><Avatar p={p} size={80} /></div>}
+        {p && roomy && <div className="mb-6"><Avatar p={p} size={80} /></div>}
         <PinPad {...fp} length={4} value={digits} onDigit={typeDigit} onDelete={() => setDigits((d) => d.slice(0, -1))} onSubmit={() => { if (digits.length === 4) submitPin(digits); }} />
-        {message && <p className="text-amber-300 mt-4 text-lg">{message}</p>}
         <div className="flex mt-6">
           {showForgot && p && pinsAvailable() && (
             <Btn id="forgot" {...fp} className="mr-3" onPress={() => push({ kind: 'forgot', profileId: p.id, then: screen.purpose === 'unlock' ? screen.then : 'pick' }, 'pad-1')}>Forgot PIN?</Btn>
           )}
+          {showSignIn && <Btn id="signin" {...fp} className="mr-3" onPress={() => onSignIn?.()}>Forgot it? Sign in again</Btn>}
           <Btn id="pin-back" {...fp} onPress={() => handlersRef.current.back()}>Back</Btn>
         </div>
       </div>
@@ -632,8 +677,9 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
         <p className={`mb-6 text-lg ${forgot?.state === 'failed' ? 'text-amber-300' : 'text-white/80'}`}>{forgot?.text ?? ''}</p>
         {forgot?.state === 'sent' && (
           <>
+            {/* Above the pad, where a 540-line screen still shows it. */}
+            {message && <p className="text-amber-300 mb-4 text-lg">{message}</p>}
             <PinPad {...fp} length={6} value={digits} onDigit={typeDigit} onDelete={() => setDigits((d) => d.slice(0, -1))} onSubmit={() => { /* the sixth digit checks it */ }} />
-            {message && <p className="text-amber-300 mt-4 text-lg">{message}</p>}
           </>
         )}
         <div className="flex mt-6">
@@ -657,7 +703,9 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
       data-state="open"
       aria-label={title}
       data-profile-screens
-      className="fixed inset-0 z-[150] overflow-y-auto text-white"
+      // tv-safe-scroll: a control scrolled into view stops short of the
+      // screen's overscan edge rather than flush against it.
+      className="fixed inset-0 z-[150] overflow-y-auto tv-safe-scroll text-white"
       style={{ backgroundColor: '#071b3a', backgroundImage: 'linear-gradient(157deg, #071b3a 0%, #0e2550 30%, #2b1550 65%, #143f5c 100%)' }}
     >
       <div className="min-h-full flex flex-col items-center justify-center px-8 py-10">
@@ -666,7 +714,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
           <span className="text-sm uppercase tracking-widest">Profiles</span>
         </div>
         <h1 className="text-4xl font-bold text-center mb-3">{title}</h1>
-        {subtitle && <p className="text-white/70 text-lg text-center max-w-2xl mb-6">{subtitle}</p>}
+        {subtitle && <p className={`${alert ? 'text-amber-300' : 'text-white/70'} text-lg text-center max-w-2xl mb-6`}>{subtitle}</p>}
         <div className="mt-4 w-full">{body}</div>
       </div>
     </div>

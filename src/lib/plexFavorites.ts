@@ -7,7 +7,7 @@
 // here since the last pull is kept even if the account has not got it yet.
 import { supabase } from '@/integrations/supabase/client';
 import type { PlexItem } from '@/lib/plex';
-import { cloudItemKey, fromCloudItemKey, onViewerChange, resolveViewer, scopeToProfile, viewerAccountId, viewerKey, __setViewerForTests } from '@/lib/viewer';
+import { cloudItemKey, fromCloudItemKey, onViewerChange, resolveViewer, scopeToProfile, viewerAccountConfirmed, viewerAccountId, viewerKey, __setViewerForTests } from '@/lib/viewer';
 
 export interface PlexFavorite {
   ratingKey: string;
@@ -126,7 +126,9 @@ export function myList(): PlexItem[] {
 export async function pullFavoritesFromCloud(): Promise<void> {
   await resolveViewer();
   const userId = viewerAccountId();
-  if (!userId) return;
+  // A session not refreshed yet reads as nobody: no rows, which would drop
+  // the whole list here.
+  if (!userId || !viewerAccountConfirmed()) return;
   const viewer = viewerKey();
   try {
     const { data, error } = await scopeToProfile(supabase

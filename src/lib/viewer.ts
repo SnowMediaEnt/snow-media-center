@@ -13,6 +13,9 @@ import { supabase } from '@/integrations/supabase/client';
 export const MAIN_PROFILE = 'main';
 
 let account: string | null = null;
+// False while the account is only the one this box remembers (its session
+// couldn't be refreshed yet: offline, or Supabase unreachable).
+let confirmed = false;
 let profile = MAIN_PROFILE;
 let resolved: Promise<string> | null = null;
 const listeners = new Set<(v: string) => void>();
@@ -35,6 +38,24 @@ export const viewerIsAccount = (): boolean => account != null;
 
 /** The signed-in account id, or null. */
 export const viewerAccountId = (): string | null => account;
+
+/** True when the account's session is live, so reads from it are the
+ *  account's rows. False while it is only remembered (see storedAccountId):
+ *  a read then answers as nobody, with no rows and no error. */
+export const viewerAccountConfirmed = (): boolean => account != null && confirmed;
+
+const AUTH_TOKEN_KEY = 'sb-falmwzhvxoefvkfsiylp-auth-token';
+
+/** The account the box's stored session belongs to, read without the
+ *  network. Supabase keeps it while a refresh fails on the network and
+ *  removes it on a real sign-out. */
+export function storedAccountId(): string | null {
+  try {
+    const raw = localStorage.getItem(AUTH_TOKEN_KEY);
+    const id = raw ? (JSON.parse(raw) as { user?: { id?: unknown } })?.user?.id : null;
+    return typeof id === 'string' && id ? id : null;
+  } catch { return null; }
+}
 
 /** The profile being watched as ('main' unless another was picked). */
 export const viewerProfileId = (): string => profile;
@@ -64,16 +85,24 @@ export function scopeToProfile<Q extends { like: (c: string, v: string) => Q; no
   return p === MAIN_PROFILE ? q.not('item_key', 'like', 'p:%') : q.like('item_key', `p:${p}:%`);
 }
 
-/** Resolves the viewer once and follows sign-in / sign-out after that. */
+/** Resolves the viewer once and follows sign-in / sign-out after that.
+ *  A session that can't be refreshed at start (offline) is still that
+ *  account's: a Kids profile on it must not become the box's grown-up one. */
 export function resolveViewer(): Promise<string> {
   resolved ??= (async () => {
     try {
       const { data } = await supabase.auth.getSession();
-      account = data.session?.user?.id ?? null;
-    } catch { account = null; }
+      const live = data.session?.user?.id ?? null;
+      account = live ?? storedAccountId();
+      confirmed = live != null;
+    } catch { account = storedAccountId(); confirmed = false; }
     try {
-      supabase.auth.onAuthStateChange((_e, session) => {
-        const next = session?.user?.id ?? null;
+      supabase.auth.onAuthStateChange((event, session) => {
+        // Only SIGNED_OUT ends the session; a null one otherwise is a refresh
+        // that failed on the network, and the stored session stands.
+        const live = session?.user?.id ?? null;
+        const next = live ?? (event === 'SIGNED_OUT' ? null : storedAccountId());
+        confirmed = live != null;
         if (next === account) return;
         account = next;
         notify();
@@ -96,6 +125,7 @@ export function __setViewerForTests(v: string): void {
   const m = /^(.*):p:([a-z0-9]+)$/.exec(v);
   const acc = m ? m[1] : v;
   account = acc === 'device' ? null : acc;
+  confirmed = account != null;
   profile = m ? m[2] : MAIN_PROFILE;
   resolved = Promise.resolve(key());
 }

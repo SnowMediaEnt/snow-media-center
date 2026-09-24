@@ -35,9 +35,11 @@ const MAX = 60;
 const storageKey = (viewer: string) => `${PREFIX}${viewer}`;
 
 /** The viewer key (see viewer.ts): the Snow Media account when signed in,
- *  else the box, plus the profile picked on it. */
+ *  else the box, plus the profile picked on it. Read now, not the key from the
+ *  first resolve: a sign-in, sign-out or profile switch since then counts. */
 export async function currentViewer(): Promise<string> {
-  return resolveViewer();
+  await resolveViewer();
+  return viewerKey();
 }
 
 export const loadWatchHistory = (viewer: string): WatchEntry[] => {
