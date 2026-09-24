@@ -201,13 +201,18 @@ serve(async (req) => {
       message,
       conversationId: incomingConversationId,
       saveConversation: rawSaveConversation = false,
-      currentVersion: clientCurrentVersion,
+      currentVersion: rawCurrentVersion,
     } = body as {
       message?: string;
       conversationId?: string;
       saveConversation?: boolean;
-      currentVersion?: string;
+      currentVersion?: unknown;
     };
+    // The app's version name ("1.7.8"). It goes into the prompt too, so it is
+    // kept short: otherwise it would carry what MAX_MESSAGE_CHARS keeps out.
+    const clientCurrentVersion = typeof rawCurrentVersion === 'string' && rawCurrentVersion.trim()
+      ? rawCurrentVersion.trim().slice(0, 32)
+      : undefined;
 
     // Never persist for anonymous callers (no user_id to scope to).
     const saveConversation = caller.authed ? rawSaveConversation : false;

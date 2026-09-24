@@ -131,6 +131,19 @@ describe('snow-media-ai', () => {
     expect(openAiCalls()).toHaveLength(0);
   });
 
+  it('keeps the app version short, so it cannot carry what the message cap keeps out', async () => {
+    const openAi = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => (String(url).endsWith('/smc/update.json')
+      ? new Response(JSON.stringify({ version: '1.7.9', downloadUrl: 'https://example.test/smc.apk' }))
+      : openAi(url, init)));
+    const out = await ask({ message: 'is there an update?', currentVersion: `1.7.8${'x'.repeat(100_000)}` });
+    expect(out.status).toBe(200);
+    const sent = String(openAiCalls()[0][1]?.body);
+    expect(sent).toContain('Installed SMC version: 1.7.8');
+    expect(sent).not.toContain('x'.repeat(40));
+    expect(sent.length).toBeLessThan(60_000);
+  });
+
   it('stops a signed-in account at its hourly allowance, and counts what a call used', async () => {
     hourlyAllowed = false;
     const blocked = await ask({ message: 'hello' });
