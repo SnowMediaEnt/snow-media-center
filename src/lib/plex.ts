@@ -461,6 +461,8 @@ export interface PlexItem {
   viewCount?: number;
   /** When it was last played, ms since epoch (Continue Watching's order). */
   lastViewedAt?: number;
+  /** When the server added it (ms); a series: its newest episode's. */
+  addedAt?: number;
 }
 
 /** Rating, certificate and genres as Plex sends them on LIST payloads, so
@@ -858,6 +860,7 @@ function mapMetadata(items: Array<Record<string, unknown>>): PlexItem[] {
     viewCount: typeof m.viewCount === 'number' ? m.viewCount : undefined,
     // Plex sends seconds.
     lastViewedAt: typeof m.lastViewedAt === 'number' ? m.lastViewedAt * 1000 : undefined,
+    addedAt: typeof m.addedAt === 'number' ? m.addedAt * 1000 : undefined,
   })));
 }
 
@@ -916,6 +919,40 @@ export async function getPlexRecentlyAdded(base: string, token: string, size = 1
   return foldRecentlyAdded(data?.MediaContainer?.Metadata || []);
 }
 
+/** One library's newest additions, newest first: films, or for a TV library
+ *  its newest episodes folded into their series, so a new episode of a show
+ *  already on the server brings the show forward. The server-wide list
+ *  (getPlexRecentlyAdded) leaves out libraries hidden from the server's home
+ *  screen and is short per library; Home adds these to it. */
+export async function getPlexSectionAdded(base: string, token: string, sectionKey: string, kind: 'movie' | 'show', size = 40): Promise<PlexItem[]> {
+  // A film's certificate filters it at the server (Kids); an episode's does not
+  // reliably, so a series is checked on its own certificate after folding.
+  const query = kind === 'movie' ? withKids('type=1&sort=addedAt:desc') : 'type=4&sort=addedAt:desc';
+  const url = `${base}/library/sections/${sectionKey}/all?${query}&${RAIL_FIELDS}&X-Plex-Container-Start=0&X-Plex-Container-Size=${size}`;
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', url, token, RAIL_TIMEOUT_MS);
+  return foldRecentlyAdded(data?.MediaContainer?.Metadata || []);
+}
+
+/** Titles from several lists, newest addition first, each once. Titles the
+ *  server gave no date keep their place after the dated ones. */
+export function newestAdded(lists: PlexItem[][], cap = 60): PlexItem[] {
+  const best = new Map<string, { it: PlexItem; i: number }>();
+  let i = 0;
+  for (const list of lists) {
+    for (const it of list) {
+      const k = String(it.ratingKey);
+      const have = best.get(k);
+      if (!have || (it.addedAt ?? 0) > (have.it.addedAt ?? 0)) best.set(k, { it, i: have ? have.i : i });
+      i += 1;
+    }
+  }
+  return [...best.values()]
+    // The index breaks ties: Array#sort is not stable on an old WebView.
+    .sort((a, b) => (b.it.addedAt ?? -1) - (a.it.addedAt ?? -1) || a.i - b.i)
+    .map(({ it }) => it)
+    .slice(0, cap);
+}
+
 /** The folding half of getPlexRecentlyAdded (exported for tests). */
 export function foldRecentlyAdded(list: Array<Record<string, unknown>>): PlexItem[] {
   const asShow = (m: Record<string, unknown>): Record<string, unknown> | null => {
@@ -924,7 +961,7 @@ export function foldRecentlyAdded(list: Array<Record<string, unknown>>): PlexIte
       return {
         ratingKey: m.parentRatingKey, type: 'show', title: m.parentTitle,
         thumb: m.parentThumb || m.thumb, art: m.art, year: m.parentYear,
-        librarySectionID: m.librarySectionID,
+        librarySectionID: m.librarySectionID, addedAt: m.addedAt,
       };
     }
     if (m.type === 'episode') {
@@ -934,7 +971,7 @@ export function foldRecentlyAdded(list: Array<Record<string, unknown>>): PlexIte
         thumb: m.grandparentThumb || m.parentThumb || m.thumb, art: m.grandparentArt || m.art,
         // An episode normally carries its show's certificate.
         contentRating: m.contentRating,
-        librarySectionID: m.librarySectionID,
+        librarySectionID: m.librarySectionID, addedAt: m.addedAt,
       };
     }
     return m;

@@ -27,7 +27,9 @@ import {
   getPlexLibraryItems as _getPlexLibraryItems,
   getPlexHub as _getPlexHub,
   getPlexRecentlyAdded,
+  getPlexSectionAdded,
   getPlexSectionRow,
+  newestAdded,
   searchPlex as _searchPlex,
   getPlexPart,
   plexDirectUrl, plexTranscodeUrl, loadHiddenPlexLibs, saveHiddenPlexLibs,
@@ -121,6 +123,8 @@ const HOME_POPULAR_KEY = 'smc:home/popular';
 const HOME_NEW_EPISODES_KEY = 'smc:home/new-episodes';
 // Recently Added: one server-wide list, folded (getPlexRecentlyAdded).
 const HOME_ADDED_KEY = 'smc:home/added';
+// Each library's own newest additions (loadAdded), merged into the above.
+const HOME_ADDED_LIBS_KEY = 'smc:home/added-libs';
 /** These rails are fetched for the profile in use — with a Kids profile's
  *  certificates (getPlexSectionRow, kidsOnly) — so each Kids level keeps its
  *  own copy: a grown-up's would be filtered down to little, and a child's is
@@ -209,6 +213,27 @@ async function loadReleased(base: string, token: string, libraries: PlexLibrary[
     return m.length ? m : null;
   });
   return gone() ? null : merged;
+}
+
+/** Recently Added from each film and TV library, merged with the server-wide
+ *  list by when the server added each title (a series by its newest
+ *  episode): the server-wide list alone missed libraries hidden from the
+ *  server's home screen and ran short on a busy one, so new downloads did not
+ *  show. Kept five minutes like the other rails. */
+async function loadAdded(base: string, token: string, libraries: PlexLibrary[], gone: () => boolean): Promise<PlexItem[] | null> {
+  const key = homeKey(HOME_ADDED_LIBS_KEY);
+  let perLibrary = getCachedHub(base, key);
+  if (!perLibrary) {
+    const libs = libraries.filter((l) => l.type === 'movie' || l.type === 'show').slice(0, 8);
+    if (!libs.length) return null;
+    const epoch = getHubEpoch();
+    const lists = await mapLimit(libs, HOME_PARALLEL, (l) =>
+      getPlexSectionAdded(base, token, l.key, l.type === 'movie' ? 'movie' : 'show', l.type === 'movie' ? (LOW_MEMORY ? 20 : 40) : (LOW_MEMORY ? 40 : 80)).catch(() => null));
+    if (lists.every((l) => l === null)) return null;
+    perLibrary = lists.flatMap((l) => l ?? []);
+    setCachedHub(base, key, perLibrary, epoch);
+  }
+  return gone() ? null : perLibrary;
 }
 
 /** Home's Popular rail: the films and series played most on this server,
@@ -619,6 +644,8 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
   // a full reload every time Home is revisited after five minutes.
   const [onDeck, setOnDeck] = useState<PlexItem[]>(() => getCachedHubStale(base, onDeckPath) ?? []);
   const [recent, setRecent] = useState<PlexItem[]>(() => getCachedHubStale(base, recentPath) ?? []);
+  // Each library's own newest additions (loadAdded), merged with `recent`.
+  const [addedLibs, setAddedLibs] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_ADDED_LIBS_KEY)) ?? []);
   const [released, setReleased] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_RELEASED_KEY)) ?? []);
   const [popular, setPopular] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_POPULAR_KEY)) ?? []);
   const [newEpisodes, setNewEpisodes] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_NEW_EPISODES_KEY)) ?? []);
@@ -757,6 +784,9 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     // stayed open, for Popular on a low-memory box, and for New Episodes,
     // the last rail, which never holds up the settle screen.
     void (async () => {
+      const added = await loadAdded(base, token, libraries, gone);
+      if (cancelled) return;
+      if (added) setAddedLibs(added);
       const rel = await loadReleased(base, token, libraries, gone);
       if (cancelled) return;
       if (rel) setReleased(rel);
@@ -783,7 +813,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     if (cont.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: cont.slice(0, RAIL_CAP) });
     const mine = familyOnly(listItems, adultKeys, true);
     if (mine.length > 0) r.push({ id: 'mylist', title: 'My List', items: mine.slice(0, RAIL_CAP) });
-    r.push({ id: 'added', title: 'Recently Added', items: familyOnly(recent, adultKeys).slice(0, RAIL_CAP) });
+    r.push({ id: 'added', title: 'Recently Added', items: familyOnly(newestAdded([recent, addedLibs], RAIL_CAP * 2), adultKeys).slice(0, RAIL_CAP) });
     const rel = familyOnly(released, adultKeys);
     if (rel.length > 0) r.push({ id: 'released', title: 'Recently Released', items: rel });
     // Most played on this server (see loadPopular); says so on the tin.
@@ -793,7 +823,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const eps = familyOnly(newEpisodes, adultKeys);
     if (eps.length > 0) r.push({ id: 'episodes', title: 'New Episodes', items: eps });
     return r;
-  }, [onDeck, ownContinue, upNext, listItems, recent, released, popular, newEpisodes, adultKeys, serverResume, popularTitle]);
+  }, [onDeck, ownContinue, upNext, listItems, recent, addedLibs, released, popular, newEpisodes, adultKeys, serverResume, popularTitle]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;
