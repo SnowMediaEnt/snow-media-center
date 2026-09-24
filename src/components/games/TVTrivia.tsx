@@ -32,6 +32,7 @@ import {
   loadSnowTriviaQuestions,
   SNOW_MEDIA_TRIVIA_FALLBACK,
   type SnowTriviaTopic,
+  type TriviaDifficulty,
   type TriviaCategory,
   type TriviaQuestion,
 } from '@/lib/triviaQuestions';
@@ -43,7 +44,6 @@ interface TVTriviaProps {
 
 export type { TriviaQuestion } from '@/lib/triviaQuestions';
 export type TriviaMode = 'snow' | 'mixed';
-type TriviaDifficulty = 'easy' | 'standard' | 'expert';
 
 /**
  * Bundled, family-friendly questions keep TV Trivia instant and fully offline.
@@ -263,9 +263,10 @@ const shuffled = <T,>(items: T[]): T[] => {
 export const createTriviaSession = (
   bank: TriviaQuestion[] = TRIVIA_QUESTIONS,
   mode: TriviaMode = 'mixed',
+  difficulty: TriviaDifficulty = 'standard',
 ): TriviaQuestion[] => {
   const available = mode === 'snow'
-    ? bank.filter((question) => question.category === 'snow')
+    ? bank.filter((question) => question.category === 'snow' && (question.difficulty ?? 'easy') === difficulty)
     : bank.filter((question) => question.category !== 'snow');
   if (available.length === 0) return [];
   if (mode === 'snow') {
@@ -327,7 +328,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   const [mode, setMode] = useState<TriviaMode>(initialTriviaMode);
   const [difficulty, setDifficulty] = useState<TriviaDifficulty>(initialDifficulty);
   const [questionBank, setQuestionBank] = useState<TriviaQuestion[]>(TRIVIA_QUESTIONS);
-  const [questions, setQuestions] = useState<TriviaQuestion[]>(() => createTriviaSession(TRIVIA_QUESTIONS, initialTriviaMode()));
+  const [questions, setQuestions] = useState<TriviaQuestion[]>(() => createTriviaSession(TRIVIA_QUESTIONS, initialTriviaMode(), initialDifficulty()));
   const [contentSource, setContentSource] = useState<'network' | 'cache' | 'bundled'>('bundled');
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -349,6 +350,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   const answerRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const nextRef = useRef<HTMLButtonElement>(null);
   const modeValueRef = useRef(mode);
+  const difficultyValueRef = useRef(difficulty);
   const sessionTouchedRef = useRef(false);
   const completionCuePlayedRef = useRef(false);
   const settlementSentRef = useRef(false);
@@ -362,7 +364,8 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
 
   useEffect(() => {
     modeValueRef.current = mode;
-  }, [mode]);
+    difficultyValueRef.current = difficulty;
+  }, [mode, difficulty]);
 
   useEffect(() => {
     let cancelled = false;
@@ -374,7 +377,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
       // Fresh published content may replace the untouched opening question,
       // but it never changes a round after the viewer has started answering.
       if (!sessionTouchedRef.current) {
-        setQuestions(createTriviaSession(nextBank, modeValueRef.current));
+        setQuestions(createTriviaSession(nextBank, modeValueRef.current, difficultyValueRef.current));
         setQuestionIndex(0);
         setSelectedAnswer(null);
       }
@@ -424,11 +427,11 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     setFocusZone('answer');
   }, [questionIndex, questions.length, selectedAnswer]);
 
-  const resetRound = useCallback((nextMode: TriviaMode) => {
+  const resetRound = useCallback((nextMode: TriviaMode, nextDifficulty: TriviaDifficulty) => {
     sessionTouchedRef.current = false;
     completionCuePlayedRef.current = false;
     settlementSentRef.current = false;
-    setQuestions(createTriviaSession(questionBank, nextMode));
+    setQuestions(createTriviaSession(questionBank, nextMode, nextDifficulty));
     setQuestionIndex(0);
     setSelectedAnswer(null);
     setScore(0);
@@ -443,8 +446,8 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   }, [questionBank]);
 
   const playAgain = useCallback(() => {
-    resetRound(mode);
-  }, [mode, resetRound]);
+    resetRound(mode, difficulty);
+  }, [difficulty, mode, resetRound]);
 
   useEffect(() => {
     if (!finished || completionCuePlayedRef.current) return;
@@ -460,14 +463,15 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     setMode(nextMode);
     modeValueRef.current = nextMode;
     try { localStorage.setItem(MODE_STORAGE_KEY, nextMode); } catch { /* keep the in-memory choice */ }
-    resetRound(nextMode);
-  }, [mode, resetRound]);
+    resetRound(nextMode, difficulty);
+  }, [difficulty, mode, resetRound]);
 
   const switchDifficulty = useCallback(() => {
     const next = DIFFICULTIES[(DIFFICULTIES.indexOf(difficulty) + 1) % DIFFICULTIES.length];
     setDifficulty(next);
+    difficultyValueRef.current = next;
     try { localStorage.setItem(DIFFICULTY_STORAGE_KEY, next); } catch { /* keep in memory */ }
-    resetRound(mode);
+    resetRound(mode, next);
   }, [difficulty, mode, resetRound]);
 
   useEffect(() => {
@@ -665,7 +669,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
         <div className="snow-trivia__free-play">
           <Sparkles aria-hidden="true" />
           <span>{mode === 'snow' ? 'Snow Media & Streaming' : 'Real World Random'} · {difficulty} · {user ? `${DIFFICULTY_BET[difficulty]} Snow Coins · Balance ${balance?.toLocaleString() ?? '—'}` : 'Guest practice'}</span>
-          <i>{contentSource === 'network' ? 'Updated' : 'Offline ready'}</i>
+          <i>{contentSource === 'network' && question?.origin === 'published' ? 'Updated' : 'Offline ready'}</i>
         </div>
       </section>
 

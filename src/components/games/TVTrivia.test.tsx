@@ -83,6 +83,28 @@ describe('TV Trivia', () => {
     expect(new Set(session.map((question) => question.topic))).toEqual(
       new Set(['devices', 'service', 'app', 'history']),
     );
+    expect(session.every((question) => question.difficulty === 'standard')).toBe(true);
+  });
+
+  it('keeps ten sourced Snow questions in each distinct difficulty tier', () => {
+    for (const difficulty of ['easy', 'standard', 'expert'] as const) {
+      const tier = TRIVIA_QUESTIONS.filter((question) => question.category === 'snow' && question.difficulty === difficulty);
+      expect(tier.length).toBeGreaterThanOrEqual(TRIVIA_SESSION_LENGTH);
+      expect(new Set(tier.map((question) => question.topic))).toEqual(new Set(['devices', 'service', 'app', 'history']));
+      expect(new Set(tier.map((question) => question.prompt)).size).toBe(tier.length);
+      expect(tier.every((question) => question.answers.length === 4 && new Set(question.answers).size === 4 && Boolean(question.fact))).toBe(true);
+      const session = createTriviaSession(TRIVIA_QUESTIONS, 'snow', difficulty);
+      expect(session).toHaveLength(TRIVIA_SESSION_LENGTH);
+      expect(session.every((question) => question.difficulty === difficulty)).toBe(true);
+    }
+  });
+
+  it('changes the actual Snow question tier when Expert is selected', () => {
+    render(<TVTrivia onBack={() => {}} />);
+    expect(visibleQuestion().difficulty).toBe('standard');
+    fireEvent.click(screen.getByRole('button', { name: /standard difficulty/ }));
+    expect(screen.getByRole('button', { name: /expert difficulty/ })).toBeTruthy();
+    expect(visibleQuestion().difficulty).toBe('expert');
   });
 
   it('starts with readable session status and makes clear that play is coin-free', async () => {

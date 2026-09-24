@@ -17,6 +17,7 @@ const publishedQuestion = {
   correct: 0,
   fact: 'The directional pad moves focus between controls on a television screen.',
   points: 125,
+  difficulty: 'expert',
 };
 
 describe('Snow Media trivia question loader', () => {
@@ -34,12 +35,13 @@ describe('Snow Media trivia question loader', () => {
 
     const result = await loadSnowTriviaQuestions();
 
-    expect(invoke).toHaveBeenCalledWith('trivia-questions', { body: { limit: 100 } });
+    expect(invoke).toHaveBeenCalledWith('trivia-questions', { body: { limit: 200 } });
     expect(result.source).toBe('network');
     expect(result.questions.find((question) => question.id === publishedQuestion.id)).toMatchObject({
       category: 'snow',
       topic: 'devices',
       points: 125,
+      difficulty: 'expert',
       origin: 'published',
     });
     expect(result.questions.length).toBe(SNOW_MEDIA_TRIVIA_FALLBACK.length + 1);
@@ -72,5 +74,18 @@ describe('Snow Media trivia question loader', () => {
     expect(result.source).toBe('bundled');
     expect(result.questions).toHaveLength(SNOW_MEDIA_TRIVIA_FALLBACK.length);
     expect(result.questions.every((question) => question.origin === 'bundled')).toBe(true);
+  });
+
+  it('treats older published rows as Easy and refuses unknown difficulty labels', async () => {
+    invoke.mockResolvedValue({
+      data: { ok: true, questions: [
+        { ...publishedQuestion, id: 'legacy', difficulty: undefined },
+        { ...publishedQuestion, id: 'bad-tier', difficulty: 'impossible' },
+      ] },
+      error: null,
+    });
+    const result = await loadSnowTriviaQuestions();
+    expect(result.questions.find((question) => question.id === 'legacy')?.difficulty).toBe('easy');
+    expect(result.questions.some((question) => question.id === 'bad-tier')).toBe(false);
   });
 });

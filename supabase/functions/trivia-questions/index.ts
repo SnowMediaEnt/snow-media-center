@@ -10,6 +10,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 type TriviaRow = {
   slug: string;
   topic: 'devices' | 'service' | 'app' | 'history';
+  difficulty?: 'easy' | 'standard' | 'expert';
   prompt: string;
   answers: string[];
   correct_index: number;
@@ -52,19 +53,31 @@ Deno.serve(async (request) => {
       // An empty or malformed body simply uses the safe default.
     }
   }
-  const limit = Math.max(10, Math.min(100, requestedLimit));
+  const limit = Math.max(10, Math.min(200, requestedLimit));
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from('trivia_questions')
-    .select('slug,topic,prompt,answers,correct_index,fact,points,published_at,updated_at')
+    .select('slug,topic,difficulty,prompt,answers,correct_index,fact,points,published_at,updated_at')
     .eq('is_published', true)
     .order('sort_order', { ascending: true })
     .order('published_at', { ascending: false, nullsFirst: false })
     .limit(limit);
+
+  // A GitHub-connected function may deploy before the SQL migration. Keep the
+  // existing bank available during that window; legacy rows are Easy.
+  if (error && /difficulty/i.test(error.message)) {
+    ({ data, error } = await admin
+      .from('trivia_questions')
+      .select('slug,topic,prompt,answers,correct_index,fact,points,published_at,updated_at')
+      .eq('is_published', true)
+      .order('sort_order', { ascending: true })
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .limit(limit));
+  }
 
   if (error) {
     console.error('[trivia-questions] published read failed:', error.message);
@@ -81,11 +94,13 @@ Deno.serve(async (request) => {
       row.answers.length === 4 &&
       Number.isInteger(row.correct_index) &&
       row.correct_index >= 0 && row.correct_index <= 3 &&
+      ['easy', 'standard', 'expert'].includes(row.difficulty ?? 'easy') &&
       row.topic in TOPIC_LABEL
     ))
     .map((row) => ({
       id: row.slug,
       topic: row.topic,
+      difficulty: row.difficulty ?? 'easy',
       categoryLabel: `Snow Media · ${TOPIC_LABEL[row.topic]}`,
       prompt: row.prompt,
       answers: row.answers,
