@@ -892,18 +892,19 @@ const Settings = ({ onBack }: SettingsProps) => {
             <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
               <div className="flex flex-wrap items-start">
                 <div className="mr-8 mb-4">
-                  {activeTab === 'remote' && <PairingQR size={220} />}
+                  {/* Smaller on short layouts (960x540) so the code under it is on screen. */}
+                  {activeTab === 'remote' && <PairingQR size={window.innerHeight < 640 ? 150 : 220} />}
                 </div>
                 <div className="flex-1 min-w-[16rem]">
                   <h3 className="text-2xl font-bold text-white mb-2">Use your phone as a remote</h3>
                   <ol className="text-white/80 space-y-1 mb-4 list-decimal pl-5">
                     <li>Scan the QR code with your phone's camera, or go to <span className="font-semibold text-white">snowmediaent.com/remote</span></li>
-                    <li>Enter the code shown here</li>
+                    <li>Enter the code shown here, then choose Allow on the TV</li>
                     <li>Move, select, go back, play/pause, type and talk — right from your phone</li>
                   </ol>
                   <p className="text-sm text-white/60 mb-4">
                     {remotePhones > 0 ? `📱 ${remotePhones} phone${remotePhones === 1 ? '' : 's'} connected now.` : remotePaired ? 'A phone is paired — open snowmediaent.com/remote on it to use it.' : 'No phone paired yet.'}
-                    {' '}Paired phones stay paired; the code changes every few minutes.
+                    {' '}Paired phones stay paired; each code works once.
                   </p>
                   <Card
                     {...settingsFocusAttrs('remote-hint')}
