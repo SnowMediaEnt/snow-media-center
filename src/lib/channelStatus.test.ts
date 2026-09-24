@@ -57,3 +57,21 @@ describe('channelStatus: a viewer’s own report and clear', () => {
     expect(calls.filter((c) => c.op === 'signal').map((c) => c.kind)).toEqual(['down', 'clear']);
   });
 });
+
+describe('channelStatus: a flooded list', () => {
+  it('ignores a list longer than the server ever sends, and keeps the last one', async () => {
+    const { supabase } = await import('@/integrations/supabase/client');
+    const m = await import('./channelStatus');
+    m.__setDownForTests(['strmz.xyz|3']);
+    const invoke = vi.mocked(supabase.functions.invoke);
+    invoke.mockImplementationOnce(async () => ({
+      data: { ok: true, down: Array.from({ length: m.MAX_DOWN_CHANNELS + 1 }, (_, i) => `strmz.xyz|${i + 100}`) }, error: null,
+    }) as never);
+    const { act, renderHook } = await import('@testing-library/react');
+    const { result } = renderHook(() => m.useDownChannels([{ host: 'strmz.xyz' }], true));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith('channel-status', { body: { op: 'list', hosts: ['strmz.xyz'] } }));
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect([...result.current]).toEqual(['strmz.xyz|3']);
+  });
+});
+

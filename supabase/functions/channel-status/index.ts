@@ -9,16 +9,36 @@
 //                                              report: shows for everyone) |
 //                                              clear (a viewer says it works) |
 //                                              fail | ok (see the migrations).
-//                                              At most 40 an hour per box.
+//                                              Limits below; counts only from
+//                                              a box we know (knownBox).
 //   admin_list                                 admins: down now, and what was
 //                                              signalled in the last 3 hours
 //   admin_set {host, stream_id, name, status, hours}
 //                                              admins: status down | ok for a
 //                                              while, or null to clear
 //
-// Boxes are counted by a hash of their device id; nothing else about them is
-// kept, and signals older than two days are deleted.
+// Boxes are counted by a hash of their device id, callers by a hash of their
+// IP address (an IPv6 /64 counts once); nothing else about them is kept, and
+// signals older than two days are deleted.
+//
+// One report from a real box is still enough to put ⚠️ on a channel for
+// everyone (migration 20260927060000). What stops a script doing that to a
+// whole line-up (migration 20260930061000):
+//   * limits per device id AND per IP, so a new made-up device id with every
+//     request no longer gets around them;
+//   * only signals from a box we know count: one that signed a line in on
+//     that host (player_signins, written only once the panel accepted the
+//     line) or that has been sending analytics for half an hour. Other
+//     signals are stored as untrusted: the Hub shows them, boxes never see
+//     them;
+//   * the list a box downloads holds at most 500 channels.
+// The trade-off: a box that is brand new AND never signed a line in on that
+// host (a second box on a line someone else signed in) is not counted for
+// its first half hour. And the analytics check only raises the bar, since
+// analytics rows can be written by anyone with the public key; the per-IP
+// limit is what caps a determined script.
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { hashClientIpKey } from '../_shared/clientIp.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,7 +48,18 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
 const HOST = /^[a-z0-9.-]{1,100}(?::\d{1,5})?$/;
+// An hour's signals: of any kind / 'down' and 'clear' (a viewer's own
+// report or all-clear). A box sends each automatic kind at most once per
+// channel every ten minutes. Per IP they are generous, for homes with
+// several boxes and phones behind one address.
 const MAX_SIGNALS_PER_HOUR = 40;
+const MAX_MANUAL_PER_HOUR = 10;
+const MAX_SIGNALS_PER_IP_HOUR = 200;
+const MAX_MANUAL_PER_IP_HOUR = 20;
+// A box whose analytics go back this far counts as known.
+const KNOWN_BOX_AFTER_MS = 30 * 60 * 1000;
+// Never more than this many down channels in one list (the SQL caps it too).
+const MAX_DOWN_LIST = 500;
 const LIST_TTL_MS = 20_000;
 
 const listCache = new Map<string, { at: number; down: string[] }>();
@@ -37,6 +68,32 @@ const sha256 = async (s: string) => {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 };
+
+type Admin = ReturnType<typeof createClient>;
+
+/** This hour's signals for one device or IP: all of them, and down/clear. */
+async function hourCounts(admin: Admin, column: 'device_hash' | 'ip_hash', value: string, cap: number) {
+  const { data } = await admin.from('channel_signals')
+    .select('kind').eq(column, value).gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString())
+    .limit(cap + 1);
+  const kinds = ((data ?? []) as Array<{ kind: string }>).map((r) => r.kind);
+  return { all: kinds.length, manual: kinds.filter((k) => k === 'down' || k === 'clear').length };
+}
+
+/** A box we have seen before: signed a line in on this host, or has been
+ *  sending analytics for a while (see the top of this file). */
+async function knownBox(admin: Admin, deviceId: string, host: string): Promise<boolean> {
+  try {
+    const [line, seen] = await Promise.all([
+      admin.from('player_signins').select('id').eq('device_id', deviceId).eq('panel_host', host).limit(1),
+      admin.from('analytics_sessions').select('id').eq('device_id', deviceId)
+        .lt('created_at', new Date(Date.now() - KNOWN_BOX_AFTER_MS).toISOString()).limit(1),
+    ]);
+    return !!((line.data ?? []).length || (seen.data ?? []).length);
+  } catch {
+    return false;
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
@@ -60,7 +117,7 @@ Deno.serve(async (req) => {
       if (hit && Date.now() - hit.at < LIST_TTL_MS) return json({ ok: true, down: hit.down });
       const { data, error } = await admin.rpc('channel_down_list', { p_hosts: hosts });
       if (error) { console.error('[channel-status] list:', error.message); return json({ ok: false, reason: 'db_error' }); }
-      const down = ((data ?? []) as Array<{ host: string; stream_id: number }>).map((r) => `${r.host}|${r.stream_id}`);
+      const down = ((data ?? []) as Array<{ host: string; stream_id: number }>).slice(0, MAX_DOWN_LIST).map((r) => `${r.host}|${r.stream_id}`);
       listCache.set(cacheKey, { at: Date.now(), down });
       return json({ ok: true, down });
     }
@@ -73,16 +130,27 @@ Deno.serve(async (req) => {
       if (!HOST.test(host) || !Number.isInteger(streamId) || streamId <= 0 || !['down', 'fail', 'ok', 'clear'].includes(kind) || deviceId.length < 8) {
         return json({ ok: false, reason: 'bad_request' }, 400);
       }
+      const manual = kind === 'down' || kind === 'clear';
       const deviceHash = await sha256(`smc-channel:${deviceId}`);
-      const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const { count } = await admin.from('channel_signals')
-        .select('id', { count: 'exact', head: true }).eq('device_hash', deviceHash).gte('created_at', hourAgo);
-      if ((count ?? 0) >= MAX_SIGNALS_PER_HOUR) return json({ ok: false, reason: 'rate_limited' });
+      const ipHash = await hashClientIpKey(req.headers, 'smc-channel-ip:');
+      const [byDevice, byIp] = await Promise.all([
+        hourCounts(admin, 'device_hash', deviceHash, MAX_SIGNALS_PER_HOUR),
+        ipHash ? hourCounts(admin, 'ip_hash', ipHash, MAX_SIGNALS_PER_IP_HOUR) : Promise.resolve({ all: 0, manual: 0 }),
+      ]);
+      if (
+        byDevice.all >= MAX_SIGNALS_PER_HOUR || byIp.all >= MAX_SIGNALS_PER_IP_HOUR
+        || (manual && (byDevice.manual >= MAX_MANUAL_PER_HOUR || byIp.manual >= MAX_MANUAL_PER_IP_HOUR))
+      ) {
+        return json({ ok: false, reason: 'rate_limited' });
+      }
+      const trusted = await knownBox(admin, deviceId, host);
       const name = typeof body.name === 'string' ? body.name.slice(0, 200) : null;
-      const { error } = await admin.from('channel_signals').insert({ host, stream_id: streamId, channel_name: name, kind, device_hash: deviceHash });
+      const { error } = await admin.from('channel_signals').insert({
+        host, stream_id: streamId, channel_name: name, kind, device_hash: deviceHash, ip_hash: ipHash, trusted,
+      });
       if (error) { console.error('[channel-status] signal:', error.message); return json({ ok: false, reason: 'db_error' }); }
       // Drop the host's cached list so the change shows at the next ask.
-      for (const k of listCache.keys()) if (k.split(',').includes(host)) listCache.delete(k);
+      if (trusted) for (const k of listCache.keys()) if (k.split(',').includes(host)) listCache.delete(k);
       // Now and then, forget signals nobody needs any more.
       if (Math.random() < 0.02) {
         await admin.from('channel_signals').delete().lt('created_at', new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString());
@@ -118,32 +186,32 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
 
-      // admin_list
+      // admin_list: counted per channel in SQL, so a flood of junk rows
+      // cannot push real reports off the page. `ignored` is signals from
+      // boxes we don't know, which boxes never see.
       const since = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
-      const { data: rows, error } = await admin.from('channel_signals')
-        .select('host,stream_id,channel_name,kind,device_hash,created_at').gte('created_at', since)
-        .order('created_at', { ascending: false }).limit(2000);
-      if (error) return json({ ok: false, reason: 'db_error' });
-      const byChannel = new Map<string, { host: string; stream_id: number; name: string | null; down: Set<string>; fail: Set<string>; ok: Set<string>; clear: Set<string>; last: string }>();
-      for (const r of rows ?? []) {
-        const k = `${r.host}|${r.stream_id}`;
-        let c = byChannel.get(k);
-        if (!c) { c = { host: r.host, stream_id: r.stream_id, name: r.channel_name, down: new Set(), fail: new Set(), ok: new Set(), clear: new Set(), last: r.created_at }; byChannel.set(k, c); }
-        c.name ??= r.channel_name;
-        (c[r.kind as 'down' | 'fail' | 'ok' | 'clear']).add(r.device_hash);
-      }
-      const hosts = [...new Set([...byChannel.values()].map((c) => c.host))];
+      const { data: rows, error } = await admin.rpc('channel_signal_summary', { p_since: since });
+      if (error) { console.error('[channel-status] admin_list:', error.message); return json({ ok: false, reason: 'db_error' }); }
+      type Summary = { host: string; stream_id: number; channel_name: string | null; reports: number; failures: number; working: number; cleared: number; ignored: number; last_at: string };
+      const summary = (rows ?? []) as Summary[];
+      const hosts = [...new Set(summary.map((c) => c.host))];
       const { data: overrides } = await admin.from('channel_overrides').select('*');
       for (const o of overrides ?? []) if (!hosts.includes(o.host)) hosts.push(o.host);
       const { data: downNow } = hosts.length ? await admin.rpc('channel_down_list', { p_hosts: hosts }) : { data: [] };
       const downKeys = new Set(((downNow ?? []) as Array<{ host: string; stream_id: number }>).map((r) => `${r.host}|${r.stream_id}`));
-      const channels = [...byChannel.entries()].map(([k, c]) => ({
-        key: k, host: c.host, stream_id: c.stream_id, name: c.name, reports: c.down.size, failures: c.fail.size, working: c.ok.size, cleared: c.clear.size,
-        last: c.last, down: downKeys.has(k),
-      }));
+      const seen = new Set<string>();
+      const channels = summary.map((c) => {
+        const k = `${c.host}|${c.stream_id}`;
+        seen.add(k);
+        return {
+          key: k, host: c.host, stream_id: c.stream_id, name: c.channel_name,
+          reports: Number(c.reports) || 0, failures: Number(c.failures) || 0, working: Number(c.working) || 0,
+          cleared: Number(c.cleared) || 0, ignored: Number(c.ignored) || 0, last: c.last_at, down: downKeys.has(k),
+        };
+      });
       for (const o of overrides ?? []) {
         const k = `${o.host}|${o.stream_id}`;
-        if (!byChannel.has(k)) channels.push({ key: k, host: o.host, stream_id: o.stream_id, name: o.channel_name, reports: 0, failures: 0, working: 0, cleared: 0, last: o.updated_at, down: downKeys.has(k) });
+        if (!seen.has(k)) channels.push({ key: k, host: o.host, stream_id: o.stream_id, name: o.channel_name, reports: 0, failures: 0, working: 0, cleared: 0, ignored: 0, last: o.updated_at, down: downKeys.has(k) });
       }
       return json({
         ok: true,
