@@ -3,6 +3,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { Resend } from 'npm:resend@4.0.0';
+import { hashClientIpKey } from './clientIp.ts';
 
 export const ADMIN_OWNER_EMAIL = 'Joshua.perez@snowmediaent.com';
 
@@ -310,27 +311,14 @@ export function isAuthError(caller: Caller): boolean {
 }
 
 /**
- * Hash the client IP (first hop in x-forwarded-for, falling back to
- * cf-connecting-ip / x-real-ip). Returns a hex SHA-256 string, or null
- * if no IP could be determined.
+ * Hash the client IP: cf-connecting-ip when it holds a caller's address,
+ * else the first x-forwarded-for hop / x-real-ip as before (see
+ * _shared/clientIp.ts for why the caller-chosen first hop is no longer
+ * trusted first). Returns a hex SHA-256 string, or null if no IP could be
+ * determined.
  */
 export async function hashClientIp(req: Request): Promise<string | null> {
-  const xff = req.headers.get('x-forwarded-for');
-  const cf = req.headers.get('cf-connecting-ip');
-  const real = req.headers.get('x-real-ip');
-  let ip: string | null = null;
-  if (xff) ip = xff.split(',')[0]?.trim() || null;
-  if (!ip && cf) ip = cf.trim();
-  if (!ip && real) ip = real.trim();
-  if (!ip) return null;
-  try {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip));
-    return Array.from(new Uint8Array(buf))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-  } catch {
-    return null;
-  }
+  return await hashClientIpKey(req.headers);
 }
 
 export interface ReserveResult {
