@@ -3492,21 +3492,66 @@ export type Database = {
           created_at: string
           id: number
           ip_hash: string
+          kind: string
         }
         Insert: {
           created_at?: string
           id?: number
           ip_hash: string
+          kind?: string
         }
         Update: {
           created_at?: string
           id?: number
           ip_hash?: string
+          kind?: string
         }
         Relationships: []
       }
+      remote_join_requests: {
+        Row: {
+          allowed: boolean | null
+          created_at: string
+          device: string
+          expires_at: string
+          notified_at: string
+          rid: string
+          secret: string
+          token_hash: string
+        }
+        Insert: {
+          allowed?: boolean | null
+          created_at?: string
+          device: string
+          expires_at: string
+          notified_at?: string
+          rid: string
+          secret: string
+          token_hash: string
+        }
+        Update: {
+          allowed?: boolean | null
+          created_at?: string
+          device?: string
+          expires_at?: string
+          notified_at?: string
+          rid?: string
+          secret?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remote_join_requests_secret_fkey"
+            columns: ["secret"]
+            isOneToOne: false
+            referencedRelation: "remote_pairings"
+            referencedColumns: ["secret"]
+          },
+        ]
+      }
       remote_pairings: {
         Row: {
+          approved_at: string | null
           created_at: string
           device_hash: string
           label: string | null
@@ -3514,6 +3559,7 @@ export type Database = {
           secret: string
         }
         Insert: {
+          approved_at?: string | null
           created_at?: string
           device_hash: string
           label?: string | null
@@ -3521,6 +3567,7 @@ export type Database = {
           secret: string
         }
         Update: {
+          approved_at?: string | null
           created_at?: string
           device_hash?: string
           label?: string | null
@@ -5342,6 +5389,17 @@ export type Database = {
       redeem_remote_support_code: {
         Args: { p_code: string; p_request_id: string }
         Returns: Json
+      }
+      remote_gate: {
+        Args: {
+          p_all_max: number
+          p_all_window_s: number
+          p_ip_hash: string
+          p_ip_max: number
+          p_ip_window_s: number
+          p_kind: string
+        }
+        Returns: string
       }
       reserve_free_ai: {
         Args: {
