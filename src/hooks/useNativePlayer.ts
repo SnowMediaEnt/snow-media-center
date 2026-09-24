@@ -63,14 +63,15 @@ export interface NativePlayerState {
 const MAX_RETRIES_DEFAULT = 5;
 
 /** A CSS-px viewport rect for the plugin, which scales it to device px
- *  against the WebView's own size. Degenerate rects are dropped. */
-async function applyRect(r: NativeRect): Promise<void> {
+ *  against the WebView's own size. Degenerate rects are dropped. `blank`
+ *  covers the current picture until the next stream's first frame. */
+async function applyRect(r: NativeRect, blank = false): Promise<void> {
   const l = Math.round(r.x), t = Math.round(r.y);
   const w = Math.round(r.x + r.width) - l, h = Math.round(r.y + r.height) - t;
   if (w <= 0 || h <= 0) return;
   await SnowPlayer.setRect({
     x: l, y: t, width: w, height: h,
-    cssW: Math.round(window.innerWidth), cssH: Math.round(window.innerHeight),
+    cssW: Math.round(window.innerWidth), cssH: Math.round(window.innerHeight), blank,
   });
 }
 
@@ -244,8 +245,12 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     (async () => {
       try {
         const r = rectRef.current;
-        if (r === undefined) await SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0, fullscreen: true });
-        else if (r) await applyRect(r);
+        // `blank`: whatever is on screen is the stream being replaced (last
+        // channel, the film before). The plugin covers it with black as this
+        // call lands — before the rect effect below can move it to a new size
+        // — and uncovers on the new stream's first frame.
+        if (r === undefined) await SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0, fullscreen: true, blank: true });
+        else if (r) await applyRect(r, true);
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.load({ url, live, isLive: live, subtitles });
         if (cancelled || myNonce !== nonceRef.current) return;
