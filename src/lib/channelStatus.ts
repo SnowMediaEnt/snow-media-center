@@ -4,7 +4,8 @@
 //
 // Light on purpose: while Live TV is open the box asks for the list of down
 // channels on its own lines — a handful of short keys — every two minutes,
-// and only while the app is on screen.
+// only while the app is on screen, and not while a stream plays on a
+// low-memory box (quiet mode) or full screen (the caller passes `active`).
 //
 // One viewer's "Channel down" report marks it for every box (for up to three
 // hours); a viewer holding OK on it and choosing "It's working now" clears it
@@ -17,6 +18,7 @@ import { getDeviceId } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import { normalizeHost } from '@/lib/favoritesSync';
 import type { XtreamCreds } from '@/lib/xtream';
+import { setPausableInterval } from '@/utils/pausableInterval';
 
 const POLL_MS = 2 * 60_000;
 const SIGNAL_EVERY_MS = 10 * 60_000;
@@ -30,16 +32,29 @@ let down = new Set<string>();
 let hostsKey = '';
 let fetchedAt = 0;
 let inflight: Promise<void> | null = null;
+let inflightKey = '';
+/** A different set of lines asked while a list was on its way. */
+let nextKey = '';
 
 const emit = () => { try { window.dispatchEvent(new CustomEvent(CHANNEL_STATUS_EVENT)); } catch { /* ignore */ } };
 
 async function refresh(hosts: string[], force = false): Promise<void> {
   const key = hosts.join(',');
   if (!force && key === hostsKey && Date.now() - fetchedAt < POLL_MS - 5_000) return;
-  if (inflight) return inflight;
+  if (inflight) {
+    if (inflightKey === key) return inflight;
+    // The lines changed while the list was on its way (the saved lines load
+    // just after the first one): ask again for the new set once it lands,
+    // and don't let the old answer replace the list meanwhile.
+    nextKey = key;
+    return inflight.then(() => refresh(hosts, force));
+  }
+  inflightKey = key;
+  nextKey = '';
   inflight = (async () => {
     try {
       const { data, error } = await supabase.functions.invoke('channel-status', { body: { op: 'list', hosts } });
+      if (nextKey && nextKey !== key) return;
       if (error) return;
       const r = data as { ok?: boolean; down?: unknown } | null;
       if (!r?.ok || !Array.isArray(r.down)) return;
@@ -68,15 +83,22 @@ export function useDownChannels(lines: Pick<XtreamCreds, 'host'>[], active: bool
     const hs = hostsSig.split(',');
     const tick = () => { if (document.visibilityState !== 'hidden') void refresh(hs); };
     tick();
-    const id = window.setInterval(tick, POLL_MS);
+    const stop = setPausableInterval(tick, POLL_MS);
     document.addEventListener('visibilitychange', tick);
-    return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', tick); };
+    return () => { stop(); document.removeEventListener('visibilitychange', tick); };
   }, [active, hostsSig]);
   return set;
 }
 
 export const isChannelDown = (set: Set<string>, host: string, streamId: number): boolean =>
   set.size > 0 && set.has(channelStatusKey(host, streamId));
+
+/** Whether a native player error is the channel's fault. This box's own
+ *  audio decoder failing (AUDIO_DECODE, common with Dolby audio on cheap
+ *  boxes) or a load the player refused on the device before any stream was
+ *  asked for (no code) says nothing about the channel. */
+export const isChannelFailure = (error: { code?: string } | null | undefined): boolean =>
+  !!error?.code && error.code !== 'AUDIO_DECODE';
 
 const lastSent = new Map<string, number>();
 
@@ -105,4 +127,4 @@ export function signalChannel(host: string, streamId: number, name: string, kind
 }
 
 /** Tests only. */
-export function __setDownForTests(keys: string[]): void { down = new Set(keys); lastSent.clear(); emit(); }
+export function __setDownForTests(keys: string[]): void { down = new Set(keys); hostsKey = ''; fetchedAt = 0; nextKey = ''; lastSent.clear(); emit(); }
