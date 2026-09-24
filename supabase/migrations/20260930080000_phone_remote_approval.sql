@@ -25,7 +25,15 @@
 -- only, like the tables it builds on (20260928060000_phone_remote.sql).
 
 -- Codes: 8 letters. The old 6-digit ones lived ten minutes; drop any left.
-alter table public.remote_codes drop constraint if exists remote_codes_code_check;
+-- (The only check on remote_codes is the code's format, whatever name it
+-- got when the table was made.)
+do $$
+declare c record;
+begin
+  for c in select conname from pg_constraint where conrelid = 'public.remote_codes'::regclass and contype = 'c' loop
+    execute format('alter table public.remote_codes drop constraint %I', c.conname);
+  end loop;
+end $$;
 delete from public.remote_codes where code !~ '^[BCDFGHJKLMNPQRSTVWXZ]{8}$';
 alter table public.remote_codes add constraint remote_codes_code_check check (code ~ '^[BCDFGHJKLMNPQRSTVWXZ]{8}$');
 
