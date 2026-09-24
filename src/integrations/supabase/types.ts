@@ -720,6 +720,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_user_hourly: {
+        Row: {
+          calls: number
+          hour_bucket: string
+          tokens: number
+          user_id: string
+        }
+        Insert: {
+          calls?: number
+          hour_bucket: string
+          tokens?: number
+          user_id: string
+        }
+        Update: {
+          calls?: number
+          hour_bucket?: string
+          tokens?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       analytics_crashes: {
         Row: {
           app_version: string | null
@@ -1346,8 +1367,10 @@ export type Database = {
           device_hash: string
           host: string
           id: number
+          ip_hash: string | null
           kind: string
           stream_id: number
+          trusted: boolean
         }
         Insert: {
           channel_name?: string | null
@@ -1355,8 +1378,10 @@ export type Database = {
           device_hash: string
           host: string
           id?: number
+          ip_hash?: string | null
           kind: string
           stream_id: number
+          trusted?: boolean
         }
         Update: {
           channel_name?: string | null
@@ -1364,8 +1389,10 @@ export type Database = {
           device_hash?: string
           host?: string
           id?: number
+          ip_hash?: string | null
           kind?: string
           stream_id?: number
+          trusted?: boolean
         }
         Relationships: []
       }
@@ -3465,21 +3492,66 @@ export type Database = {
           created_at: string
           id: number
           ip_hash: string
+          kind: string
         }
         Insert: {
           created_at?: string
           id?: number
           ip_hash: string
+          kind?: string
         }
         Update: {
           created_at?: string
           id?: number
           ip_hash?: string
+          kind?: string
         }
         Relationships: []
       }
+      remote_join_requests: {
+        Row: {
+          allowed: boolean | null
+          created_at: string
+          device: string
+          expires_at: string
+          notified_at: string
+          rid: string
+          secret: string
+          token_hash: string
+        }
+        Insert: {
+          allowed?: boolean | null
+          created_at?: string
+          device: string
+          expires_at: string
+          notified_at?: string
+          rid: string
+          secret: string
+          token_hash: string
+        }
+        Update: {
+          allowed?: boolean | null
+          created_at?: string
+          device?: string
+          expires_at?: string
+          notified_at?: string
+          rid?: string
+          secret?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remote_join_requests_secret_fkey"
+            columns: ["secret"]
+            isOneToOne: false
+            referencedRelation: "remote_pairings"
+            referencedColumns: ["secret"]
+          },
+        ]
+      }
       remote_pairings: {
         Row: {
+          approved_at: string | null
           created_at: string
           device_hash: string
           label: string | null
@@ -3487,6 +3559,7 @@ export type Database = {
           secret: string
         }
         Insert: {
+          approved_at?: string | null
           created_at?: string
           device_hash: string
           label?: string | null
@@ -3494,6 +3567,7 @@ export type Database = {
           secret: string
         }
         Update: {
+          approved_at?: string | null
           created_at?: string
           device_hash?: string
           label?: string | null
@@ -4965,6 +5039,14 @@ export type Database = {
         Returns: Json
       }
       ai_tokens_last_hour: { Args: never; Returns: number }
+      ai_user_hourly_add: {
+        Args: { p_tokens: number; p_user_id: string }
+        Returns: undefined
+      }
+      ai_user_hourly_take: {
+        Args: { p_max_calls: number; p_max_tokens: number; p_user_id: string }
+        Returns: Json
+      }
       analytics_active_users: {
         Args: { p_period?: string }
         Returns: {
@@ -5011,42 +5093,24 @@ export type Database = {
           total_events: number
         }[]
       }
-      capture_player_signin:
-        | {
-            Args: {
-              p_device_id: string
-              p_expiration_date: string
-              p_host: string
-              p_is_trial: boolean
-              p_matched_customer_id: string
-              p_max_connections: number
-              p_password: string
-              p_reason: string
-              p_server_label: string
-              p_status: string
-              p_supabase_user_id: string
-              p_username: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_device_id: string
-              p_expiration_date: string
-              p_host: string
-              p_is_trial: boolean
-              p_matched_customer_id: string
-              p_max_connections: number
-              p_password: string
-              p_reason: string
-              p_server_label: string
-              p_status: string
-              p_supabase_user_id: string
-              p_tenant_code?: string
-              p_username: string
-            }
-            Returns: Json
-          }
+      capture_player_signin: {
+        Args: {
+          p_device_id: string
+          p_expiration_date: string
+          p_host: string
+          p_is_trial: boolean
+          p_matched_customer_id: string
+          p_max_connections: number
+          p_password: string
+          p_reason: string
+          p_server_label: string
+          p_status: string
+          p_supabase_user_id: string
+          p_tenant_code?: string
+          p_username: string
+        }
+        Returns: Json
+      }
       channel_down_list: {
         Args: { p_hosts: string[] }
         Returns: {
@@ -5055,6 +5119,20 @@ export type Database = {
           since: string
           source: string
           stream_id: number
+        }[]
+      }
+      channel_signal_summary: {
+        Args: { p_since: string }
+        Returns: {
+          channel_name: string
+          cleared: number
+          failures: number
+          host: string
+          ignored: number
+          last_at: string
+          reports: number
+          stream_id: number
+          working: number
         }[]
       }
       check_free_ai: {
@@ -5311,6 +5389,17 @@ export type Database = {
       redeem_remote_support_code: {
         Args: { p_code: string; p_request_id: string }
         Returns: Json
+      }
+      remote_gate: {
+        Args: {
+          p_all_max: number
+          p_all_window_s: number
+          p_ip_hash: string
+          p_ip_max: number
+          p_ip_window_s: number
+          p_kind: string
+        }
+        Returns: string
       }
       reserve_free_ai: {
         Args: {
