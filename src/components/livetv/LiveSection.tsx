@@ -66,7 +66,7 @@ import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import { bestChannel } from '@/lib/voiceCommands';
-import { isChannelDown, signalChannel, useDownChannels } from '@/lib/channelStatus';
+import { isChannelDown, isChannelFailure, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
 import { recordChannelWatch } from '@/lib/watchHistory';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
@@ -1258,8 +1258,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
 
   // Channels other boxes see as down right now (⚠️ on the row), for the
-  // lines on screen, kept fresh while Live TV has the remote.
-  const downSet = useDownChannels(lines, isActive);
+  // lines on screen, kept fresh while Live TV has the remote. Not while a
+  // channel plays full screen: no row is on screen, and the auto-'ok' below
+  // works from the last list.
+  const downSet = useDownChannels(lines, isActive && !fullscreen);
   const playingStreamName = (id: number): string =>
     visibleChannels.find((s) => s.stream_id === id)?.name ?? favoritesOf(playingLine).get(id)?.name ?? '';
 
@@ -1355,10 +1357,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const nativeStreamRef = useRef(nativeStream); nativeStreamRef.current = nativeStream;
 
   // Down channels (⚠️): a channel that won't start here tells the other
-  // boxes; one shown as down that plays fine for a while clears it.
+  // boxes (not when only this box's own player failed, see
+  // isChannelFailure); one shown as down that plays fine for a while clears it.
   useEffect(() => {
     const st = nativeStreamRef.current;
-    if (!st || !native.error) return;
+    if (!st || !isChannelFailure(native.error)) return;
     signalChannel(st.host, st.id, st.name, 'fail');
   }, [native.error]);
   const nativeKey = nativeStream ? `${nativeStream.host}|${nativeStream.id}` : '';

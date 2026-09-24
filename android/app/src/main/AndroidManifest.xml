@@ -41,8 +41,18 @@
         </intent>
     </queries>
 
+    <!-- No backup: the app's data holds the website session and the saved
+         player lines with their passwords, and adb backup on Android 9-11
+         boxes (Fire OS 7 included) would copy them off the box. The app
+         does not rely on backup (it is sideloaded, and Fire TV has no Google
+         backup); a box that loses its data just signs in again.
+         data_extraction_rules covers the Android 12+ device-to-device
+         transfer, which ignores allowBackup. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:replace="android:allowBackup"
+        tools:targetApi="31"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"

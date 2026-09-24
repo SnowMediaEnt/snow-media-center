@@ -53,7 +53,8 @@ const App = () => {
 
 
   // Deep link handler — open snowmedia://sso?token=... or https://snowmediaent.com/sso?token=...
-  // and route into the in-app /sso consumer page so the magic link signs the user in.
+  // and route into the in-app /sso consumer page, which asks the viewer before
+  // the link signs the box in (any app on the box can open one of these).
   useEffect(() => {
     let urlListener: any = null;
 
@@ -76,7 +77,8 @@ const App = () => {
           // Force a soft reload of the route
           window.dispatchEvent(new PopStateEvent("popstate"));
         } catch (err) {
-          console.error("[App] Failed to handle deep link:", event.url, err);
+          // Never the URL itself: it carries the sign-in tokens.
+          console.error("[App] Failed to handle deep link:", err instanceof Error ? err.message : "unknown error");
         }
       });
     };

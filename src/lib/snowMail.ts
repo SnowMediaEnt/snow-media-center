@@ -256,44 +256,6 @@ export const mailLongDate = (iso: string): string => {
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 };
 
-/* ── the html block: a strict allow-list, no scripts, no styles, no links out ── */
+/* ── the html block: see ./mailHtml (a strict allow-list, rebuilt, never passed through) ── */
 
-const ALLOWED = new Set(['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'a', 'img', 'blockquote', 'span', 'div']);
-
-/** Keeps text and structure only. `<a>` loses its href (links are shown as
- *  QR codes elsewhere) and `<img>` keeps only an https src. */
-export function sanitizeMailHtml(raw: string): string {
-  let input = raw.replace(/<(script|style|iframe|object|embed|form)\b[\s\S]*?<\/\1\s*>/gi, '');
-  input = input.replace(/<!--[\s\S]*?-->/g, '');
-  let out = '';
-  const tagRe = /<\/?([a-zA-Z][a-zA-Z0-9]*)([^>]*)>/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  const open: string[] = [];
-  while ((m = tagRe.exec(input)) !== null) {
-    out += input.slice(last, m.index);
-    last = tagRe.lastIndex;
-    const name = m[1].toLowerCase();
-    const attrs = m[2] ?? '';
-    const closing = m[0].startsWith('</');
-    if (!ALLOWED.has(name)) continue;
-    if (name === 'br') { out += '<br />'; continue; }
-    if (name === 'img') {
-      const src = /src\s*=\s*["']?(https:\/\/[^"'\s>]+)/i.exec(attrs)?.[1];
-      if (src) out += `<img src="${src.replace(/"/g, '&quot;')}" alt="" />`;
-      continue;
-    }
-    if (closing) {
-      const idx = open.lastIndexOf(name);
-      if (idx === -1) continue;
-      open.splice(idx, 1);
-      out += `</${name}>`;
-      continue;
-    }
-    open.push(name);
-    out += `<${name}>`;
-  }
-  out += input.slice(last);
-  for (let i = open.length - 1; i >= 0; i -= 1) out += `</${open[i]}>`;
-  return out;
-}
+export { sanitizeMailHtml } from '@/lib/mailHtml';

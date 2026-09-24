@@ -71,7 +71,8 @@ const logStartupDiagnostics = async () => {
   console.log(`[STARTUP] Network: ${online ? 'ONLINE' : 'OFFLINE'}`);
   console.log(`[STARTUP] Storage Ready: ${storageReady}`);
   console.log(`[STARTUP] User Agent: ${navigator.userAgent.substring(0, 100)}...`);
-  console.log(`[STARTUP] Location: ${window.location.href}`);
+  // Never the query or hash: a sign-in link carries its tokens there.
+  console.log(`[STARTUP] Location: ${window.location.origin}${window.location.pathname}`);
   console.log('='.repeat(60));
 
   if (!storageReady) {
