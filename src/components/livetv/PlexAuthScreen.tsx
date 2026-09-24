@@ -1,7 +1,8 @@
 import { memo, useEffect, useState } from 'react';
-import { Loader2, Tv, AlertTriangle, LogIn, WifiOff } from 'lucide-react';
+import { Loader2, Tv, AlertTriangle, LogIn, WifiOff, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PlexStatus } from '@/hooks/usePlexAuth';
+import { kidsLevel } from '@/lib/kidsFilter';
 
 interface Props {
   status: PlexStatus;
@@ -24,8 +25,12 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
   // Two-button screens: unreachable (0=Retry, 1=Sign out), signed-out with a
   // Live TV line (0=Connect with Live TV, 1=own server code) and signed-out
   // without one (0=Sign into Live TV, 1=own server code).
+  // A Kids profile gets one button on each: it signs nothing in or out (no
+  // own-server code, no Sign out of Plex, no way to the Live TV sign-in).
+  // Only the household's line links Plex, as it does on its own.
+  const kids = !!kidsLevel();
   const [focusIdx, setFocusIdx] = useState(0);
-  const twoButtons = status === 'unreachable' || (status === 'signed-out' && (providerAvailable || !!onNeedLiveTV));
+  const twoButtons = !kids && (status === 'unreachable' || (status === 'signed-out' && (providerAvailable || !!onNeedLiveTV)));
 
   useEffect(() => { setFocusIdx(0); }, [status, providerAvailable]);
 
@@ -56,12 +61,17 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
       }
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        if (kids) {
+          if (status === 'signed-out') { if (providerAvailable) onLinkWithProvider?.(); else onCancel(); }
+          else if (status === 'unreachable' || status === 'error') onRetry();
+          return;
+        }
         if (status === 'signed-out' || status === 'error') onStartLink();
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [status, focusIdx, twoButtons, providerAvailable, onStartLink, onLinkWithProvider, onNeedLiveTV, onCancel, onRetry, onSignOut]);
+  }, [kids, status, focusIdx, twoButtons, providerAvailable, onStartLink, onLinkWithProvider, onNeedLiveTV, onCancel, onRetry, onSignOut]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-8 text-white">
@@ -73,12 +83,12 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
         {(status === 'signed-out' && providerAvailable) && (
           <>
             <h2 className="text-2xl font-quicksand font-bold mb-2">Connect your Plex</h2>
-            <p className="text-brand-ice/80 font-nunito mb-2">
+            <p className={`text-brand-ice/80 font-nunito ${kids && !providerNote ? 'mb-6' : 'mb-2'}`}>
               Plex comes with your Live TV account. Press <span className="text-brand-gold font-semibold">Connect with Live TV</span> and this device links itself. Snow Media members never need a code.
             </p>
             {providerNote ? (
               <p className="text-brand-gold/90 font-nunito text-sm mb-6 max-w-sm mx-auto">{providerNote}</p>
-            ) : (
+            ) : kids ? null : (
               <p className="text-brand-ice/70 font-nunito text-sm mb-6">
                 The second button is only for people who run their own Plex server.
               </p>
@@ -88,15 +98,31 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
                 className={`tv-ring tv-ring-contrast relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 0 ? 'scale-105 z-10' : ''}`}>
                 <LogIn className="w-4 h-4 mr-2" /> Connect with Live TV
               </Button>
-              <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onStartLink}
-                className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}>
-                I run my own Plex server
-              </Button>
+              {!kids && (
+                <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onStartLink}
+                  className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}>
+                  I run my own Plex server
+                </Button>
+              )}
             </div>
           </>
         )}
 
-        {(status === 'signed-out' && !providerAvailable) && (
+        {/* Kids, no line on the box: who to ask, and Back. */}
+        {(status === 'signed-out' && !providerAvailable && kids) && (
+          <>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">Ask a grown-up to sign in to Live TV</h2>
+            <p className="text-brand-ice/80 font-nunito mb-6">
+              Plex comes with Live TV. Once a grown-up has signed in, Plex connects here on its own.
+            </p>
+            <Button variant="gold" data-focused="true" onClick={onCancel}
+              className="tv-ring tv-ring-contrast relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out scale-105 z-10">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Back
+            </Button>
+          </>
+        )}
+
+        {(status === 'signed-out' && !providerAvailable && !kids) && (
           <>
             <h2 className="text-2xl font-quicksand font-bold mb-2">Sign into Live TV first</h2>
             <p className="text-brand-ice/80 font-nunito mb-2">
@@ -153,19 +179,23 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
         {status === 'unreachable' && (
           <>
             <h2 className="text-2xl font-quicksand font-bold mb-2">Can't reach your Plex server</h2>
-            <p className="text-brand-ice/80 font-nunito text-sm mb-4">{error || 'Your Plex server did not respond.'}</p>
-            <p className="text-brand-ice/70 font-nunito text-sm mb-6 max-w-sm mx-auto">
-              Wrong account? If you signed in with your personal Plex account by mistake, sign out and choose Connect with Live TV instead.
-            </p>
+            <p className={`text-brand-ice/80 font-nunito text-sm ${kids ? 'mb-6' : 'mb-4'}`}>{error || 'Your Plex server did not respond.'}</p>
+            {!kids && (
+              <p className="text-brand-ice/70 font-nunito text-sm mb-6 max-w-sm mx-auto">
+                Wrong account? If you signed in with your personal Plex account by mistake, sign out and choose Connect with Live TV instead.
+              </p>
+            )}
             <div className="flex items-center justify-center gap-3">
               <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onRetry}
                 className={`tv-ring tv-ring-contrast relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 0 ? 'scale-105 z-10' : ''}`}>
                 Retry connection
               </Button>
-              <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onSignOut}
-                className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}>
-                Sign out of Plex
-              </Button>
+              {!kids && (
+                <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onSignOut}
+                  className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}>
+                  Sign out of Plex
+                </Button>
+              )}
             </div>
           </>
         )}
@@ -174,7 +204,7 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
           <>
             <h2 className="text-2xl font-quicksand font-bold mb-2">Plex connection problem</h2>
             <p className="text-brand-ice/80 font-nunito text-sm mb-6">{error || 'Something went wrong.'}</p>
-            <Button variant="gold" autoFocus data-focused="true" onClick={onStartLink} className="tv-ring tv-ring-contrast relative h-12 rounded-xl px-8 transition-transform duration-150 ease-out scale-105 z-10">
+            <Button variant="gold" autoFocus data-focused="true" onClick={kids ? onRetry : onStartLink} className="tv-ring tv-ring-contrast relative h-12 rounded-xl px-8 transition-transform duration-150 ease-out scale-105 z-10">
               Try again
             </Button>
           </>
