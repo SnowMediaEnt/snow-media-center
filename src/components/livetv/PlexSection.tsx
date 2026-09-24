@@ -61,6 +61,7 @@ import PlexPlayerOverlay, { type PlayerPrompt, type SubtitleSearchContext } from
 import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
 import PlexProgressReporter from './PlexProgressReporter';
 import { continueWatching, initPlexProgress, mergeContinue, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
+import { upNextEpisodes } from '@/lib/plexUpNext';
 import { myList, pullFavoritesFromCloud, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
@@ -606,6 +607,10 @@ interface HomePanelProps {
    *  where the plays are everyone's; "Most Watched" on a viewer's own. */
   popularTitle?: string;
 }
+/** Home asks again this often while Plex stays open… */
+const HOME_REFRESH_MS = 3 * 60 * 60 * 1000;
+/** …and when the viewer comes back to Home or the app after this long. */
+const HOME_RETURN_MS = 30 * 60 * 1000;
 const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs, watchNonce = 0, serverResume = false, popularTitle = 'Most Watched' }: HomePanelProps) => {
   const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const recentPath = homeKey(HOME_ADDED_KEY);
@@ -618,6 +623,38 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
   const [popular, setPopular] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_POPULAR_KEY)) ?? []);
   const [newEpisodes, setNewEpisodes] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_NEW_EPISODES_KEY)) ?? []);
   const [loading, setLoading] = useState(!(getCachedHubStale(base, onDeckPath) || getCachedHubStale(base, recentPath)));
+  // Home keeps itself current while Plex stays open: every few hours, and
+  // when the viewer comes back to Home or to the app after a while away, the
+  // rails are asked for again (each still from its five-minute cache, so this
+  // costs nothing when they are fresh) and Continue Watching is folded in
+  // from the account, where other boxes and profiles write it. Never while
+  // something is playing.
+  const [refreshTick, setRefreshTick] = useState(0);
+  const lastRefreshRef = useRef(Date.now());
+  useEffect(() => {
+    if (DEMO) return;
+    const refresh = (minAge: number) => {
+      if (Date.now() - lastRefreshRef.current < minAge) return;
+      if (document.documentElement.classList.contains('streaming-active')) return;
+      lastRefreshRef.current = Date.now();
+      setRefreshTick((t) => t + 1);
+    };
+    const id = window.setInterval(() => refresh(HOME_REFRESH_MS), 10 * 60 * 1000);
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(HOME_RETURN_MS); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
+  }, []);
+  useEffect(() => {
+    if (!isActive || DEMO) return;
+    if (Date.now() - lastRefreshRef.current < HOME_RETURN_MS) return;
+    lastRefreshRef.current = Date.now();
+    setRefreshTick((t) => t + 1);
+  }, [isActive]);
+  useEffect(() => {
+    if (!refreshTick || DEMO) return;
+    void pullProgressFromCloud();
+  }, [refreshTick]);
+
   // Continue Watching: this viewer's own (plexProgress), kept current as
   // progress is saved. The server's On Deck is only asked for in the demo.
   const [ownContinue, setOwnContinue] = useState<PlexItem[]>(() => (DEMO ? [] : continueWatching()));
@@ -627,7 +664,16 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     refresh();
     window.addEventListener(PLEX_PROGRESS_EVENT, refresh);
     return () => window.removeEventListener(PLEX_PROGRESS_EVENT, refresh);
-  }, [watchNonce]);
+  }, [watchNonce, refreshTick]);
+  // The next episode of each show whose latest episode was finished (on the
+  // viewer's own Plex account the server's On Deck already has these).
+  const [upNext, setUpNext] = useState<PlexItem[]>([]);
+  useEffect(() => {
+    if (DEMO || serverResume) return;
+    let cancelled = false;
+    void upNextEpisodes(base, token).then((items) => { if (!cancelled) setUpNext(items); }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [base, token, serverResume, ownContinue]);
   // My List (plexFavorites), kept current as titles are added and removed.
   const [listItems, setListItems] = useState<PlexItem[]>(() => (DEMO ? [] : myList()));
   useEffect(() => {
@@ -676,7 +722,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
       }
     });
     return () => { cancelled = true; if (retry) window.clearTimeout(retry); };
-  }, [base, token, hubRetry, serverResume, recentPath]);
+  }, [base, token, hubRetry, serverResume, recentPath, refreshTick]);
 
   // After playback, Continue Watching changes: refetch just that rail, in the
   // background, keeping the rails on screen while it loads.
@@ -725,7 +771,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     // libKeysSig stands in for `libraries`: the array identity changes on every
     // parent render, the section keys do not.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, token, libKeysSig]);
+  }, [base, token, libKeysSig, refreshTick]);
 
   const rows = useMemo<DiscoverRow[]>(() => {
     // Filtered here, after the cache, so a rail cached before a library was
@@ -733,7 +779,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const r: DiscoverRow[] = [];
     // This viewer's own (plexProgress). The server's On Deck belongs to the
     // shared provider account, so it was everyone's viewing mixed together.
-    const cont = familyOnly(DEMO ? onDeck : serverResume ? mergeContinue(ownContinue, onDeck) : ownContinue, adultKeys, !DEMO && !serverResume);
+    const cont = familyOnly(DEMO ? onDeck : serverResume ? mergeContinue(ownContinue, onDeck) : mergeContinue(ownContinue, upNext), adultKeys, !DEMO && !serverResume);
     if (cont.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: cont.slice(0, RAIL_CAP) });
     const mine = familyOnly(listItems, adultKeys, true);
     if (mine.length > 0) r.push({ id: 'mylist', title: 'My List', items: mine.slice(0, RAIL_CAP) });
@@ -747,7 +793,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const eps = familyOnly(newEpisodes, adultKeys);
     if (eps.length > 0) r.push({ id: 'episodes', title: 'New Episodes', items: eps });
     return r;
-  }, [onDeck, ownContinue, listItems, recent, released, popular, newEpisodes, adultKeys, serverResume, popularTitle]);
+  }, [onDeck, ownContinue, upNext, listItems, recent, released, popular, newEpisodes, adultKeys, serverResume, popularTitle]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;

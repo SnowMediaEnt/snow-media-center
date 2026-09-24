@@ -113,9 +113,41 @@ describe('continueWatching', () => {
       m.saveProgress({ ratingKey: 'e2', kind: 'episode', title: 'Second', at: 600, dur: 1800, showKey: 'sh', showTitle: 'Bluey', season: 1, index: 2 });
       await tick();
     } finally { vi.useRealTimers(); }
-    const row = m.continueWatching();
+    const row = m.continueWatching(30, undefined, 3_000_000);
     expect(row.map((i) => i.ratingKey)).toEqual(['e2', 'm1']);
     expect(row[0]).toMatchObject({ type: 'episode', grandparentTitle: 'Bluey', thumb: '/library/metadata/sh/thumb' });
     expect(row.map((i) => i.lastViewedAt)).toEqual([3_000_000, 2_000_000]);
+  });
+});
+
+describe('plexProgress: Continue Watching stays current', () => {
+  it('lets go of a title not touched in 30 days, and keeps its resume point', async () => {
+    const m = await import('./plexProgress');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date(2026, 0, 1));
+      m.saveProgress({ ratingKey: 'old', kind: 'movie', title: 'Old Film', at: 1200, dur: 6000 });
+      await tick();
+      vi.setSystemTime(new Date(2026, 1, 10));
+      m.saveProgress({ ratingKey: 'new', kind: 'movie', title: 'New Film', at: 1200, dur: 6000 });
+      await tick();
+    } finally { vi.useRealTimers(); }
+    expect(m.continueWatching(30, undefined, new Date(2026, 1, 10).getTime()).map((i) => i.ratingKey)).toEqual(['new']);
+    expect(m.resumeSeconds('old')).toBe(1200);
+  });
+
+  it('lists shows whose latest episode was finished, not ones stopped part-way', async () => {
+    const m = await import('./plexProgress');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date(2026, 0, 1, 10));
+      m.saveProgress({ ratingKey: 'a1', kind: 'episode', title: 'A1', at: 1790, dur: 1800, showKey: 'A', showTitle: 'Show A', season: 1, index: 3 });
+      await tick();
+      vi.setSystemTime(new Date(2026, 0, 1, 11));
+      m.saveProgress({ ratingKey: 'b1', kind: 'episode', title: 'B1', at: 600, dur: 1800, showKey: 'B', showTitle: 'Show B', season: 2, index: 1 });
+      await tick();
+    } finally { vi.useRealTimers(); }
+    const got = m.finishedShows(8, new Date(2026, 0, 2).getTime());
+    expect(got.map((s) => [s.showKey, s.season, s.index])).toEqual([['A', 1, 3]]);
   });
 });

@@ -50,6 +50,7 @@ export interface BarItem {
 }
 
 const CONTINUE_MAX = 10;
+const CONTINUE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const LIVE_MAX = 10;
 const FORYOU_MAX = 10;
 const KIDS_POPULAR_MAX = 10;
@@ -171,6 +172,8 @@ export async function buildViewerBar(): Promise<ViewerBar> {
   // ── continue watching ────────────────────────────────────────────────────
   for (const e of history) {
     if (items.length >= CONTINUE_MAX) break;
+    // What they are watching now, not everything they ever opened.
+    if (Date.now() - e.watchedAt > CONTINUE_MAX_AGE_MS) continue;
     if (e.kind === 'channel' && e.channel) {
       const line = lineFor(lines, e.channel.host, e.channel.username);
       if (!line) continue;

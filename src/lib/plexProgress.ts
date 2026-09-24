@@ -45,6 +45,10 @@ const MAX = 400;
 const EDGE_S = 60;
 /** Past this share of the running time a title counts as watched. */
 const DONE_SHARE = 0.92;
+/** Continue Watching lets go of a title not touched in this long: the row is
+ *  what someone is watching now, not everything they ever started. (Its
+ *  resume point is kept.) */
+export const CONTINUE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 /** Cloud copies at most this often per title while it plays. */
 const CLOUD_EVERY_MS = 60_000;
 
@@ -151,12 +155,13 @@ export function isWatched(ratingKey: string): boolean {
 
 /** Continue Watching: titles stopped part-way, newest first, one episode per
  *  show (the latest), as tiles. Episodes show their show's poster. */
-export function continueWatching(limit = 30, sectionId?: string): PlexItem[] {
+export function continueWatching(limit = 30, sectionId?: string, now = Date.now()): PlexItem[] {
   const seenShows = new Set<string>();
   const out: PlexItem[] = [];
   const list = Object.values(load()).sort((a, b) => b.t - a.t);
   for (const p of list) {
     if (out.length >= limit) break;
+    if (now - p.t > CONTINUE_MAX_AGE_MS) break;
     if (sectionId && p.librarySectionID !== sectionId) continue;
     if (p.kind === 'episode' && p.showKey) {
       if (seenShows.has(p.showKey)) continue;
@@ -176,6 +181,26 @@ export function continueWatching(limit = 30, sectionId?: string): PlexItem[] {
       index: p.index,
       lastViewedAt: p.t,
     });
+  }
+  return out;
+}
+
+/** A show whose latest watched episode was finished, for "next episode" in
+ *  Continue Watching (the next one is found on the server). Newest first,
+ *  within CONTINUE_MAX_AGE_MS; a show stopped part-way is already in
+ *  continueWatching and is not here. */
+export interface FinishedShow {
+  showKey: string; showTitle?: string; season: number; index: number; t: number; librarySectionID?: string;
+}
+export function finishedShows(limit = 8, now = Date.now()): FinishedShow[] {
+  const seen = new Set<string>();
+  const out: FinishedShow[] = [];
+  for (const p of Object.values(load()).sort((a, b) => b.t - a.t)) {
+    if (out.length >= limit || now - p.t > CONTINUE_MAX_AGE_MS) break;
+    if (p.kind !== 'episode' || !p.showKey || seen.has(p.showKey)) continue;
+    seen.add(p.showKey);
+    if (!p.done || p.season == null || p.index == null) continue;
+    out.push({ showKey: p.showKey, showTitle: p.showTitle, season: p.season, index: p.index, t: p.t, librarySectionID: p.librarySectionID });
   }
   return out;
 }
