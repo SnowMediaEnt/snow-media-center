@@ -14,6 +14,14 @@
 //                                 profiles, for the Hub's ticket page
 //   admin_clear {user_id, profile_id, ticket_id?}
 //                                 admins: clear the PIN; notes it on the ticket
+//                                 and emails the account address that support
+//                                 removed it
+//
+// "Forgot PIN?" is on the TV, so anyone holding the remote can start a
+// request, including the person the PIN keeps out. The emailed code proves
+// the account holder; a ticket does not. So the ticket tells the admin to
+// clear the PIN only once the account holder has confirmed from the
+// account's email, and a clear always tells that address it happened.
 //
 // Codes are kept hashed in profile_pin_resets (no client can read it), last
 // 30 minutes, allow 5 tries, and at most 3 are sent an hour. Nothing here logs
@@ -70,6 +78,13 @@ const emailHtml = (profileName: string, code: string) => `
   <p style="margin:12px 0 0;color:#555">Didn't ask for this? You can ignore this email — the PIN stays as it is.</p>
 </div>`;
 
+const clearedHtml = (profileName: string) => `
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0b1b36">
+  <h2 style="margin:0 0 12px">The PIN on “${escapeHtml(profileName)}” was removed</h2>
+  <p style="margin:0 0 16px">Snow Media support removed the PIN from this profile in Snow Media Center. The profile opens without a PIN now; you can set a new one under Settings → Profiles.</p>
+  <p style="margin:12px 0 0;color:#555">Didn't ask for this? Set a new PIN on the profile and reply to this email so we can look into it.</p>
+</div>`;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   if (req.method !== 'POST') return json({ ok: false, reason: 'method' }, 405);
@@ -122,7 +137,27 @@ Deno.serve(async (req) => {
         message: `We've removed the PIN from the "${prof.name}" profile. Open Snow Media Center and pick the profile — it won't ask for a PIN. You can set a new one under Settings → Profiles.`,
       });
     }
-    return json({ ok: true });
+    // The account holder always hears about it, at the account's address:
+    // the ticket is readable on the TV, where the request may not have come
+    // from them.
+    let notified = false;
+    try {
+      const { data: owner } = await admin.auth.admin.getUserById(userId);
+      const to = owner?.user?.email ?? null;
+      const apiKey = Deno.env.get('RESEND_API_KEY');
+      if (to && apiKey) {
+        const { error: sendErr } = await new Resend(apiKey).emails.send({
+          from: FROM, to: [to], replyTo: REPLY_TO,
+          subject: `The PIN on your "${prof.name}" profile was removed`,
+          html: clearedHtml(prof.name),
+        });
+        if (sendErr) console.error('[profile-pin-reset] clear notice failed:', (sendErr as { message?: string }).message ?? 'unknown');
+        else notified = true;
+      }
+    } catch (e) {
+      console.error('[profile-pin-reset] clear notice threw:', (e as Error).message);
+    }
+    return json({ ok: true, notified });
   }
 
   // ── owner ───────────────────────────────────────────────────────────────
@@ -143,7 +178,11 @@ Deno.serve(async (req) => {
     const email = caller.email ?? null;
     const note = `Forgot the PIN for their "${profile.name}" profile.\n`
       + (email ? `A reset code was emailed to ${maskEmail(email)}. ` : 'There is no email on this account, so no code could be sent. ')
-      + `If they can't get it, clear the PIN from this ticket in the Hub (Profiles panel) and reply to let them know.`;
+      + `This was asked for on the TV, where anyone holding the remote can press "Forgot PIN?". `
+      + (email
+        ? `If the code doesn't arrive, clear the PIN from this ticket in the Hub (Profiles panel) only once the account holder has confirmed from ${maskEmail(email)} (a reply to our email, or a message from that address). `
+        : `Clear the PIN from this ticket in the Hub (Profiles panel) only once you are sure you are talking to the account holder. `)
+      + `The account's email is told whenever the PIN is cleared.`;
     let ticketId: string | null = null;
     try {
       const { data: open } = await admin.from('support_tickets')
