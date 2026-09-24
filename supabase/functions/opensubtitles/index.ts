@@ -2,7 +2,13 @@
 // Actions: search, download. verify_jwt=false (player may be signed out).
 // Gracefully returns {ok:false, reason:'not_configured'} if OPENSUBTITLES_API_KEY
 // is missing or literal 'PENDING' (user hasn't generated their consumer key yet).
+//
+// Every download spends one of the account's daily downloads, for every
+// viewer, so downloads are limited per IP an hour; over it the answer is
+// { ok:false, reason:'quota' }, which the player already shows.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from 'npm:@supabase/supabase-js@2';
+import { clientIp, hashIp, logIpHeadersOnce, throttle, type ThrottleDb } from '../_shared/requestGuard.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,6 +19,20 @@ const json = (body: unknown, status = 200) =>
 
 const BASE = 'https://api.opensubtitles.com/api/v1';
 const UA = 'SnowMediaCenter v1.0';
+
+const DOWNLOADS_PER_IP_PER_HOUR = 20;
+const HOUR_MS = 60 * 60 * 1000;
+
+/** Counts a download against the caller's IP; true while under the limit. */
+async function downloadAllowed(req: Request): Promise<boolean> {
+  const url = Deno.env.get('SUPABASE_URL');
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) return true;
+  logIpHeadersOnce('opensubtitles', req.headers);
+  const ipHash = await hashIp(clientIp(req.headers));
+  const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } }) as unknown as ThrottleDb;
+  return await throttle(db, ipHash && `os:${ipHash}`, DOWNLOADS_PER_IP_PER_HOUR, HOUR_MS);
+}
 
 // Module-level login token cache (~23h).
 let cachedToken: string | null = null;
@@ -101,6 +121,7 @@ serve(async (req) => {
     if (action === 'download') {
       const fileId = Number(body.file_id);
       if (!fileId) return json({ ok: false, reason: 'error' });
+      if (!(await downloadAllowed(req))) return json({ ok: false, reason: 'quota' });
       const doDownload = async (token: string) => {
         return await fetch(`${BASE}/download`, {
           method: 'POST',

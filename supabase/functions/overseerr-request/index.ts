@@ -17,8 +17,14 @@
 // app calls it on launch and when Plex opens; the native alert job calls it
 // every five minutes while anything is pending, so the TV gets a notification
 // even with the app closed.
+//
+// Anyone can call this, and a request downloads for real, so 'request' is
+// limited: a few per IP an hour, and a daily total for everyone
+// (OVERSEERR_DAILY_CAP, default 100). Over either, the answer is
+// { ok:false, reason:'busy' }, which the app shows as a failed request.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { clientIp, hashIp, logIpHeadersOnce, throttle, type ThrottleDb } from '../_shared/requestGuard.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +43,10 @@ const admin = () => createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
+
+const REQUESTS_PER_IP_PER_HOUR = 10;
+const DAILY_CAP_DEFAULT = 100;
+const HOUR_MS = 60 * 60 * 1000;
 
 /** A per-install random key: long, plain characters only. */
 const deviceKeyOf = (v: unknown): string | null => {
@@ -90,6 +100,15 @@ serve(async (req) => {
       const mediaType = body.mediaType === 'tv' ? 'tv' : 'movie';
       const tmdbId = Number(body.tmdbId);
       if (!tmdbId) return json({ error: 'tmdbId required' }, 400);
+      const db = admin() as unknown as ThrottleDb;
+      logIpHeadersOnce('overseerr-request', req.headers);
+      const ipHash = await hashIp(clientIp(req.headers));
+      const dailyCap = Number(env('OVERSEERR_DAILY_CAP')) || DAILY_CAP_DEFAULT;
+      if (!(await throttle(db, ipHash && `ovr:${ipHash}`, REQUESTS_PER_IP_PER_HOUR, HOUR_MS))
+          || !(await throttle(db, 'ovr:all', dailyCap, 24 * HOUR_MS))) {
+        console.warn('[overseerr-request] request refused: over the hourly per-IP or daily limit');
+        return json({ ok: false, reason: 'busy' });
+      }
       const payload: Record<string, unknown> = { mediaType, mediaId: tmdbId };
       if (mediaType === 'tv') {
         // Every season.
