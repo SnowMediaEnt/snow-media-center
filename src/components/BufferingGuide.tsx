@@ -65,8 +65,6 @@ interface State {
   vpnTest: VpnTest;
 }
 
-const SUPPORT_EMAIL = 'support@snowmediaent.com';
-
 const STEPS = ['intro', 'step1', 'step2', 'step3', 'step4', 'summary'] as const;
 type StepKey = typeof STEPS[number];
 
@@ -939,25 +937,21 @@ const BufferingGuide = ({
     await submitAsTicket(report.subject, report.body);
   };
 
+  // Signed out, so a guest report: it lands in the ticket queue (and on
+  // Discord and the support inbox) through report-channel. send-custom-email
+  // needs an account and always refused this.
   const submitAnonymousChannelReport = async () => {
     const report = buildChannelReport();
     if (!report) return;
     try {
       setSubmittingTicket(true);
-      const ts = new Date().toLocaleString();
-      await supabase.functions.invoke('send-custom-email', {
+      const { error } = await supabase.functions.invoke('report-channel', {
         body: {
-          to: SUPPORT_EMAIL,
           subject: `[Anonymous Report] ${report.subject}`,
-          html: `
-            <h3>Anonymous Channel/Title Report</h3>
-            <p><em>Submitted from Buffering Guide by an unauthenticated user.</em></p>
-            <div style="margin-top: 16px; padding: 12px; background: #f5f5f5; border-radius: 5px; white-space: pre-wrap;">${report.body.replace(/\n/g, '<br>')}</div>
-            <p style="margin-top: 16px; font-size: 12px; color: #666;">Received: ${ts}</p>
-          `,
-          fromName: 'Snow Media Anonymous Report',
+          message: `${report.body}\n\nSent from the Buffering Guide without an account.`,
         },
       });
+      if (error) throw error;
       toast({
         title: 'Report sent',
         description: 'Thanks! Sign in next time to track it on your account.',
