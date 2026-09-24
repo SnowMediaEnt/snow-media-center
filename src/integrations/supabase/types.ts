@@ -5011,42 +5011,24 @@ export type Database = {
           total_events: number
         }[]
       }
-      capture_player_signin:
-        | {
-            Args: {
-              p_device_id: string
-              p_expiration_date: string
-              p_host: string
-              p_is_trial: boolean
-              p_matched_customer_id: string
-              p_max_connections: number
-              p_password: string
-              p_reason: string
-              p_server_label: string
-              p_status: string
-              p_supabase_user_id: string
-              p_username: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_device_id: string
-              p_expiration_date: string
-              p_host: string
-              p_is_trial: boolean
-              p_matched_customer_id: string
-              p_max_connections: number
-              p_password: string
-              p_reason: string
-              p_server_label: string
-              p_status: string
-              p_supabase_user_id: string
-              p_tenant_code?: string
-              p_username: string
-            }
-            Returns: Json
-          }
+      capture_player_signin: {
+        Args: {
+          p_device_id: string
+          p_expiration_date: string
+          p_host: string
+          p_is_trial: boolean
+          p_matched_customer_id: string
+          p_max_connections: number
+          p_password: string
+          p_reason: string
+          p_server_label: string
+          p_status: string
+          p_supabase_user_id: string
+          p_tenant_code?: string
+          p_username: string
+        }
+        Returns: Json
+      }
       channel_down_list: {
         Args: { p_hosts: string[] }
         Returns: {
