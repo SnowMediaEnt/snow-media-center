@@ -2,7 +2,12 @@
 // shows up in the admin dashboard. verify_jwt=false in supabase/config.toml.
 // Safety: guests can only file reports under a hardcoded sentinel user
 // ("Player Reports"); they cannot spoof another user_id.
+//
+// Every ticket also reaches Discord, the admin inbox and the admins' phones
+// (notify-ticket), so reports are limited per IP and in total per hour, and
+// every subject carries a guest tag so none can pass for another kind of alert.
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { clientIp, hashIp, logIpHeadersOnce, throttle, type ThrottleDb } from '../_shared/requestGuard.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,6 +17,14 @@ const corsHeaders = {
 const SENTINEL_EMAIL = 'player-reports@snowmediaapps.com';
 const SENTINEL_NAME = 'Player Reports';
 let cachedSentinelId: string | null = null;
+
+const PER_IP_PER_HOUR = 6;
+const ALL_PER_HOUR = 100;
+const HOUR_MS = 60 * 60 * 1000;
+// What the app, the Canvas app and the Buffering Guide put in front already.
+const GUEST_TAGS = ['[Channel Report]', '[Guest Ticket]', '[Anonymous Report]'];
+const tagged = (subject: string) =>
+  GUEST_TAGS.some((t) => subject.startsWith(t)) ? subject : `[Guest Report] ${subject}`;
 
 async function resolveSentinelUserId(admin: ReturnType<typeof createClient>): Promise<string> {
   if (cachedSentinelId) return cachedSentinelId;
@@ -71,10 +84,20 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
-    const subject = rawSubject.slice(0, 200);
+    const subject = tagged(rawSubject.replace(/\s+/g, ' ')).slice(0, 200);
     const message = rawMessage.slice(0, 2000);
 
     const admin = createClient(url, key, { auth: { persistSession: false } });
+    logIpHeadersOnce('report-channel', req.headers);
+    const ipHash = await hashIp(clientIp(req.headers));
+    const db = admin as unknown as ThrottleDb;
+    if (!(await throttle(db, ipHash && `rc:${ipHash}`, PER_IP_PER_HOUR, HOUR_MS))
+        || !(await throttle(db, 'rc:all', ALL_PER_HOUR, HOUR_MS))) {
+      return new Response(
+        JSON.stringify({ error: 'Too many reports right now. Please try again in an hour.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
     const sentinelId = await resolveSentinelUserId(admin);
 
     const { data: ticket, error: ticketErr } = await admin
