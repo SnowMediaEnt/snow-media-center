@@ -45,7 +45,8 @@ import ProfileGate from '@/components/profiles/ProfileGate';
 import VoiceCommandHost from '@/components/voice/VoiceCommandHost';
 import GameReminderHost from '@/components/GameReminderHost';
 import PhoneTypingHint from '@/components/remote/PhoneTypingHint';
-import { REMOTE_HOME_EVENT, startPhoneRemote } from '@/lib/phoneRemote';
+import { startPhoneRemote } from '@/lib/phoneRemote';
+import { useRemoteHome } from '@/hooks/useRemoteHome';
 import { openVoice } from '@/lib/voiceUi';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
@@ -868,13 +869,10 @@ const Index = () => {
 
   const onOpenProfilesPick = useCallback(() => openProfiles('pick'), []);
   // Phone remote: listen for a paired phone once the home screen has settled;
-  // its Home button comes back here.
+  // its Home button comes back here, never over an open dialog and through a
+  // casino game's Back guard (see useRemoteHome).
   useEffect(() => runWhenIdle(() => { try { startPhoneRemote(); } catch { /* offline */ } }, 2500), []);
-  useEffect(() => {
-    const goHome = () => navigateToRef.current('home');
-    window.addEventListener(REMOTE_HOME_EVENT, goHome);
-    return () => window.removeEventListener(REMOTE_HOME_EVENT, goHome);
-  }, []);
+  useRemoteHome(currentView, stableNavigateTo);
   const onOpenSettingsProfiles = useCallback(() => navigateToRef.current('settings'), []);
   const onOpenSettings = useCallback(() => navigateToRef.current('settings'), []);
   const onOpenDashboardFromBanner = useCallback(() => navigateToRef.current('user'), []);
