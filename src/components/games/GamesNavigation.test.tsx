@@ -16,6 +16,10 @@ vi.mock('@/hooks/useGameSocket', () => ({
   useGameSocket: () => ({ status: 'connected', balance: 5000, errorMessage: null }),
 }));
 
+vi.mock('@/lib/gameSocket', () => ({
+  gameSocket: { getLoungeState: vi.fn().mockResolvedValue({ ok: true, gameName: '', leaders: [] }) },
+}));
+
 const onBack = vi.fn();
 const onOpenGame = vi.fn();
 
@@ -157,5 +161,26 @@ describe('Games hub D-pad navigation', () => {
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(localStorage.getItem('snow-games-muted-v1')).toBe('true');
     expect(onOpenGame).not.toHaveBeenCalled();
+  });
+
+  it('moves Right from the end of a game name to Save without blocking caret editing', async () => {
+    renderHub();
+    fireEvent.click(tile(10));
+    const name = await screen.findByRole('textbox', { name: 'Your public game name' }) as HTMLInputElement;
+    const save = screen.getByRole('button', { name: 'Save' });
+    fireEvent.change(name, { target: { value: 'Snow Fan' } });
+    act(() => { name.focus(); name.setSelectionRange(4, 4); });
+
+    expect(fireEvent.keyDown(name, { key: 'ArrowRight' })).toBe(true);
+    expect(document.activeElement).toBe(name);
+
+    act(() => name.setSelectionRange(name.value.length, name.value.length));
+    expect(fireEvent.keyDown(name, { key: 'ArrowRight' })).toBe(false);
+    expect(document.activeElement).toBe(save);
+
+    fireEvent.keyDown(save, { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(name);
+    fireEvent.keyDown(name, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(save);
   });
 });
