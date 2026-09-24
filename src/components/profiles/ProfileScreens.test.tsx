@@ -57,4 +57,37 @@ describe('ProfileScreens', () => {
     const mia = p.loadProfiles().find((x) => x.name === 'Mia');
     expect(mia?.kidsLevel).toBe('kids');
   });
+
+  it("the remote's OK (Enter, keyCode 13) presses the focused control, not the digit 6", async () => {
+    // jsdom has no layout: put the controls in one row, in page order.
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const all = Array.from(document.querySelectorAll('[data-pf]'));
+      const i = Math.max(0, all.indexOf(this));
+      return { left: i * 200, top: 0, width: 150, height: 150, right: i * 200 + 150, bottom: 150, x: i * 200, y: 0, toJSON() {} } as DOMRect;
+    });
+    const { default: Screens } = await import('./ProfileScreens');
+    render(<Screens mode="pick" onClose={() => {}} />);
+    await key('ArrowRight');
+    await act(() => { fireEvent.keyDown(window, { key: 'Enter', keyCode: 13 }); });
+    expect(screen.getByPlaceholderText('Their name')).toBeTruthy();
+    rect.mockRestore();
+  });
+
+  it('Backspace and space in the name box type; they do not leave it', async () => {
+    const { default: Screens } = await import('./ProfileScreens');
+    render(<Screens mode="pick" onClose={() => {}} />);
+    fireEvent.click(screen.getByText('Add profile'));
+    const box = screen.getByPlaceholderText('Their name') as HTMLInputElement;
+    fireEvent.change(box, { target: { value: 'Mia' } });
+    box.focus();
+    vi.useFakeTimers();
+    for (const k of [{ key: 'Backspace', keyCode: 8 }, { key: ' ', keyCode: 32 }, { key: 'Backspace', keyCode: 8 }]) {
+      await act(() => { fireEvent.keyDown(document.activeElement ?? window, k); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    }
+    vi.useRealTimers();
+    // Still in the editor, still typing, the name kept.
+    expect((screen.getByPlaceholderText('Their name') as HTMLInputElement).value).toBe('Mia');
+    expect(document.activeElement).toBe(screen.getByPlaceholderText('Their name'));
+  });
 });

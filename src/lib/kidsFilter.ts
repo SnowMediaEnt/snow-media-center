@@ -76,6 +76,14 @@ export function kidsRatingQuery(l: KidsLevel | null = level): string {
 
 const KIDS_CATEGORY = /(^|[^a-z])(kids?|children|childrens|child|family|families|cartoons?|toons?|animation|animated|disney|nick|nickelodeon|nick\s*jr|junior|jr|baby|babies|preschool|boomerang|pbs\s*kids|cbeebies|cbbc|nursery)([^a-z]|$)/i;
 
+/** A name that says kids or family: a Live TV category, a Plex library. */
+export const isKidsLabel = (name: unknown): boolean => KIDS_CATEGORY.test(String(name ?? '').replace(/[_|/.-]+/g, ' '));
+
+/** Plex genres made for children. A certificate alone lets through grown-up
+ *  shows rated TV-PG and PG; a Kids profile's suggestions also need one of these. */
+export const KIDS_GENRE = /^(animation|anime|family|kids|children|children's|childrens|cartoons?)$/i;
+export const hasKidsGenre = (genres: string[] | undefined): boolean => (genres ?? []).some((g) => KIDS_GENRE.test(g.trim()));
+
 /** A Live TV category the profile may open. */
 export function kidsAllowsCategory(name: unknown, row?: unknown, l: KidsLevel | null = level): boolean {
   if (!l) return true;

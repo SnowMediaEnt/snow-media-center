@@ -46,10 +46,20 @@ interface Props {
 
 const BACK_KEYS = new Set(['Escape', 'Backspace', 'GoBack', 'BrowserBack']);
 const isBack = (e: KeyboardEvent) => BACK_KEYS.has(e.key) || e.keyCode === 4 || e.keyCode === 27;
-const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23 || e.keyCode === 66;
+/** Back while typing: Backspace deletes a letter there, it doesn't leave. */
+const isTypingBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'GoBack' || e.key === 'BrowserBack' || e.keyCode === 4 || e.keyCode === 27;
+// The remote's OK (DPAD_CENTER) reaches the page as Enter, keyCode 13.
+const isEnter = (e: KeyboardEvent) => e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 23;
+const isOk = (e: KeyboardEvent) => isEnter(e) || e.key === ' ';
+// DOM key codes (48–57 and the number pad), never Android ones: the page only
+// ever sees DOM codes, and reading 7–16 as Android's KEYCODE_0..9 turned OK
+// (13) into a 6.
 const digitOf = (e: KeyboardEvent): string | null => {
   if (/^[0-9]$/.test(e.key)) return e.key;
-  if (e.keyCode >= 7 && e.keyCode <= 16) return String(e.keyCode - 7); // Android KEYCODE_0..9
+  if (e.key === 'Unidentified' || !e.key) {
+    if (e.keyCode >= 48 && e.keyCode <= 57) return String(e.keyCode - 48);
+    if (e.keyCode >= 96 && e.keyCode <= 105) return String(e.keyCode - 96);
+  }
   return null;
 };
 
@@ -347,6 +357,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
   };
 
   const lastBackRef = useRef(0);
+  const leftInputAtRef = useRef(0);
   const doBack = useCallback(() => {
     const now = Date.now();
     if (now - lastBackRef.current < 350) return; // the key and the hardware event are one press
@@ -359,9 +370,11 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
     const onKey = (e: KeyboardEvent) => {
       const typing = document.activeElement instanceof HTMLInputElement;
       if (typing) {
-        // The name box: the TV keyboard has it; Up/Down, OK and Back leave it.
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || isOk(e) || isBack(e)) {
+        // The name box: the TV keyboard has it; Up/Down, OK (Enter) and Back
+        // leave it. Backspace, space and letters are typing.
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || isEnter(e) || isTypingBack(e)) {
           e.preventDefault(); e.stopImmediatePropagation();
+          leftInputAtRef.current = Date.now();
           (document.activeElement as HTMLInputElement).blur();
           if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
             const next = rootRef.current && nearest(rootRef.current, focus, e.key === 'ArrowUp' ? 'up' : 'down');
@@ -372,6 +385,14 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
       }
       e.stopImmediatePropagation();
       if (isBack(e)) { e.preventDefault(); doBack(); return; }
+      if (isOk(e)) {
+        e.preventDefault();
+        // Amazon's keyboard sends one more Enter as it closes: that must not
+        // press the name box again and reopen the keyboard.
+        if (Date.now() - leftInputAtRef.current < 700) return;
+        handlersRef.current.ok();
+        return;
+      }
       const d = digitOf(e);
       if (d != null) { e.preventDefault(); typeDigit(d); return; }
       const dir = e.key === 'ArrowUp' ? 'up' : e.key === 'ArrowDown' ? 'down' : e.key === 'ArrowLeft' ? 'left' : e.key === 'ArrowRight' ? 'right' : null;
@@ -379,9 +400,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk }: Props) => {
         e.preventDefault();
         const next = rootRef.current && nearest(rootRef.current, focus, dir);
         if (next) setFocus(next);
-        return;
       }
-      if (isOk(e)) { e.preventDefault(); handlersRef.current.ok(); }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);

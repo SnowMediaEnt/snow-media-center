@@ -20,10 +20,10 @@ import {
 import { isAdultChannel, isAdultLabel, isAdultPlexItem, isFlaggedAdult } from '@/lib/adultContent';
 import { buildLines } from '@/lib/liveLines';
 import { loadFavoritesForLine, lineKey } from '@/lib/favoritesSync';
-import { loadPlexServer, getPlexLibraries, getPlexRelated, getPlexSectionRow, kidsOnly, plexImageUrl } from '@/lib/plex';
+import { loadPlexServer, getPlexLibraries, getPlexRelated, getPlexSectionRow, getPlexFilterValues, kidsOnly, plexImageUrl } from '@/lib/plex';
 import { currentViewer, loadWatchHistory, syncWatchHistoryFromCloud, channelKey, type WatchEntry } from '@/lib/watchHistory';
 import { viewerIsAccount } from '@/lib/viewer';
-import { kidsAllowsChannel, kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
+import { KIDS_GENRE, hasKidsGenre, isKidsLabel, kidsAllowsChannel, kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
 
 export type BarSource = 'history' | 'live' | 'foryou' | 'plex';
 
@@ -52,8 +52,9 @@ export interface BarItem {
 const CONTINUE_MAX = 10;
 const LIVE_MAX = 10;
 const FORYOU_MAX = 10;
-const KIDS_NEW_MAX = 16;
-const KIDS_NEW_PER_LIB = 10;
+const KIDS_POPULAR_MAX = 10;
+const KIDS_NEW_MAX = 10;
+const KIDS_PER_ROW = 10;
 const KIDS_LIBS_MAX = 4;
 const EPG_BUDGET = 10;
 const CLOUD_SYNC_MS = 10 * 60 * 1000;
@@ -238,6 +239,16 @@ export async function buildViewerBar(): Promise<ViewerBar> {
 
   await fillNowPlaying(items, lines);
 
+  // A Kids profile's Plex libraries, and which of them are kids libraries.
+  let kidsPlexLibs: Array<{ key: string; title: string; type: string }> = [];
+  let kidsLibKeys = new Set<string>();
+  if (kidsLevel() && plexServer?.base && plexServer.token) {
+    try {
+      kidsPlexLibs = (await getPlexLibraries(plexServer.base, plexServer.token)).filter((l) => l.type === 'movie' || l.type === 'show');
+      kidsLibKeys = new Set(kidsPlexLibs.filter((l) => isKidsLabel(l.title)).map((l) => String(l.key)));
+    } catch { /* libraries unreachable */ }
+  }
+
   // ── for you: Plex titles like the last few they watched ──────────────────
   if (plexServer?.base && plexServer.token) {
     // An adult title is never a seed either: "because you watched" must not
@@ -252,8 +263,9 @@ export async function buildViewerBar(): Promise<ViewerBar> {
           if (forYou.length >= FORYOU_MAX) break;
           if (seenPlex.has(it.ratingKey)) continue;
           if (adultPlex(it.title, it.librarySectionID, { contentRating: it.contentRating, genres: it.genres })) continue;
-          // Plex relates across certificates: a Kids profile keeps its own.
-          if (kidsLevel() && !kidsAllowsPlex(it)) continue;
+          // Plex relates across certificates and audiences: a Kids profile
+          // keeps its own certificate, and only titles made for children.
+          if (kidsLevel() && (!kidsAllowsPlex(it) || !(hasKidsGenre(it.genres) || kidsLibKeys.has(String(it.librarySectionID ?? ''))))) continue;
           seenPlex.add(it.ratingKey);
           forYou.push({
             id: `plex-${it.ratingKey}`, source: 'foryou', kind: it.type, title: it.title,
@@ -266,33 +278,52 @@ export async function buildViewerBar(): Promise<ViewerBar> {
     items.push(...forYou);
   }
 
-  // ── new for kids: a Kids profile never gets the shared feed (it carries no
-  // certificates), so the bar fills with the newest titles of its own
-  // rating, asked of the Plex server by certificate and checked again here.
+  // ── for kids: a Kids profile never gets the shared feed (it carries no
+  // certificates), and a certificate alone lets grown-up TV-PG / PG titles
+  // through. So its Plex rows come from the server's kids libraries (by name)
+  // or, without those, from its kids genres — what is most watched first
+  // (boxes share the Plex account, so that is what other households watch),
+  // then what is new — each still limited to the profile's certificate.
   if (kidsLevel() && plexServer?.base && plexServer.token) {
     try {
-      const libs = (await getPlexLibraries(plexServer.base, plexServer.token))
-        .filter((l) => l.type === 'movie' || l.type === 'show')
-        .slice(0, KIDS_LIBS_MAX);
-      const rows = await Promise.all(libs.map((l) =>
-        getPlexSectionRow(plexServer.base, plexServer.token, String(l.key), 'sort=addedAt:desc', KIDS_NEW_PER_LIB).catch(() => [])));
-      // One from each library in turn, so movies and shows share the bar.
-      const fresh: BarItem[] = [];
-      for (let i = 0; i < KIDS_NEW_PER_LIB && fresh.length < KIDS_NEW_MAX; i++) {
-        for (let j = 0; j < rows.length; j++) {
-          const it = kidsOnly(rows[j])[i];
-          if (!it || (it.type !== 'movie' && it.type !== 'show') || seenPlex.has(it.ratingKey)) continue;
-          if (adultPlex(it.title, it.librarySectionID, { contentRating: it.contentRating, genres: it.genres })) continue;
-          seenPlex.add(it.ratingKey);
-          fresh.push({
-            id: `plex-${it.ratingKey}`, source: 'plex', kind: it.type, title: it.title,
-            subtitle: it.year ? String(it.year) : undefined, poster: plexPoster(it.thumb),
-            ratingKey: it.ratingKey, librarySectionID: it.librarySectionID ?? String(libs[j].key),
-          });
-          if (fresh.length >= KIDS_NEW_MAX) break;
-        }
+      const { base, token } = plexServer;
+      const libs = kidsPlexLibs;
+      const kidsLibs = libs.filter((l) => kidsLibKeys.has(String(l.key)));
+      let sources: Array<{ key: string; query: string }>;
+      if (kidsLibs.length) {
+        sources = kidsLibs.slice(0, KIDS_LIBS_MAX).map((l) => ({ key: String(l.key), query: '' }));
+      } else {
+        const withGenres = await Promise.all(libs.slice(0, KIDS_LIBS_MAX).map(async (l) => {
+          const genres = await getPlexFilterValues(base, token, `/library/sections/${l.key}/genre`).catch(() => []);
+          const keys = genres.filter((g) => KIDS_GENRE.test(g.title.trim())).map((g) => g.key);
+          return keys.length ? { key: String(l.key), query: `genre=${keys.map(encodeURIComponent).join(',')}` } : null;
+        }));
+        sources = withGenres.filter((x): x is { key: string; query: string } => !!x);
       }
-      items.push(...fresh);
+      const ask = (sort: string) => Promise.all(sources.map((src) =>
+        getPlexSectionRow(base, token, src.key, src.query ? `${src.query}&sort=${sort}` : `sort=${sort}`, KIDS_PER_ROW).catch(() => [])));
+      const [popular, fresh] = await Promise.all([ask('viewCount:desc'), ask('addedAt:desc')]);
+      const kidsRows: BarItem[] = [];
+      const take = (rows: Awaited<ReturnType<typeof ask>>, subtitle: string, cap: number) => {
+        // One from each library in turn, so movies and shows share the bar.
+        let took = 0;
+        for (let i = 0; i < KIDS_PER_ROW && took < cap; i++) {
+          for (let j = 0; j < rows.length && took < cap; j++) {
+            const it = kidsOnly(rows[j])[i];
+            if (!it || (it.type !== 'movie' && it.type !== 'show') || seenPlex.has(it.ratingKey)) continue;
+            if (adultPlex(it.title, it.librarySectionID, { contentRating: it.contentRating, genres: it.genres })) continue;
+            seenPlex.add(it.ratingKey);
+            kidsRows.push({
+              id: `plex-${it.ratingKey}`, source: 'plex', kind: it.type, title: it.title, subtitle,
+              poster: plexPoster(it.thumb), ratingKey: it.ratingKey, librarySectionID: it.librarySectionID ?? sources[j].key,
+            });
+            took += 1;
+          }
+        }
+      };
+      take(popular, 'Popular with kids', KIDS_POPULAR_MAX);
+      take(fresh, 'New for kids', KIDS_NEW_MAX);
+      items.push(...kidsRows);
     } catch { /* Plex unreachable: the bar keeps what it has */ }
   }
 
