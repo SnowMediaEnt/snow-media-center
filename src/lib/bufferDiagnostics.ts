@@ -18,12 +18,20 @@
  *      an Xtream live URL that a 1-connection line would count or drop.
  *      `setHostProbeEnabled(true)` opts live streams into the ranged GET.
  *
- * Probes run only while a stall has lasted ≥ 1.5 s, at most once every 20 s
- * across the whole stream (not per stall — waiting/playing flapping does not
- * multiply rounds), once more ≥ 10 s after recovery, and never in the first
- * 6 s of a stream (play() on an empty element fires `waiting`). Never while
- * `document.hidden`. Every network call is wrapped; nothing here throws and
+ * Probes run only while a stall has lasted ≥ 0.5 s — so the numbers are in
+ * by the time the card shows at 2 s — at most once every 20 s across the
+ * whole stream (not per stall — waiting/playing flapping does not multiply
+ * rounds), once more ≥ 10 s after recovery, and never in the first 6 s of a
+ * live stream (play() on an empty element fires `waiting`, and zapping must
+ * not probe) or 1.5 s of a film. Never while `document.hidden`. On a
+ * low-memory box only the 256 KB internet probe runs, at most once a minute
+ * and only mid-stall. Every network call is wrapped; nothing here throws and
  * nothing blocks.
+ *
+ * The native player also reports how fast its own downloads arrive
+ * (`recordPlayerRate`, every 3 s while data flows): the card's "Now". It costs
+ * no network and is kept apart from the stream samples, since between stalls
+ * it follows the buffer filling up, not the connection.
  *
  * The classification lives in the pure `classify()` so it can be unit-tested
  * without the DOM. Worked examples:
@@ -62,6 +70,11 @@ export interface DiagSnapshot {
   probeKbps: number | null;
   /** Neutral probe time-to-first-byte, ms. */
   probeMs: number | null;
+  /** The internet probe ran and failed (vs not run yet). */
+  probeFailed: boolean;
+  /** How fast the native player's downloads are arriving right now, kbps
+   *  (null until it has reported; 0 = nothing arriving). */
+  nowKbps: number | null;
   /** Stream-host probe throughput, kbps (null when unknown / playlist). */
   hostKbps: number | null;
   /** Stream-host probe time-to-first-byte, ms (null on CORS / network error). */
@@ -102,13 +115,18 @@ const RECENT_MAX_SAMPLES = 5;
 const RECENT_MIN_SAMPLES = 2;
 const ENGINE_ESTIMATE_TTL_MS = 20_000;
 
-const PROBE_AFTER_STALL_MS = 1_500;
+const PROBE_AFTER_STALL_MS = 500;
 const PROBE_INTERVAL_MS = 20_000;
+// Low-memory boxes (every Fire TV): the internet probe alone, this rarely.
+const LOW_MEMORY_PROBE_INTERVAL_MS = 60_000;
 const RECOVERY_PROBE_DELAY_MS = 3_000;
 // Recovery round may run sooner than the 20 s floor, but not sooner than this.
 const RECOVERY_PROBE_MIN_GAP_MS = 10_000;
-// No probe round until the stream has had a chance to start.
+// No probe round until the stream has had a chance to start. A film starts
+// once, so a slow start there is worth measuring sooner; a live stream is
+// zapped through and must never probe on each channel.
 const PROBE_WARMUP_MS = 6_000;
+const PROBE_WARMUP_VOD_MS = 1_500;
 const VERDICT_HOLD_MS = 4_000;
 const TICK_MS = 1_000;
 
@@ -122,6 +140,8 @@ const NATIVE_SAMPLE_SCHEDULE_MS = [6_000, 40_000];
 const NATIVE_SAMPLE_INTERVAL_MS = 90_000;
 // Below this many bytes a throughput number is noise; keep TTFB only.
 const MIN_BYTES_FOR_KBPS = 8_192;
+// The player's rate reports kept for "Your speed" (a 3 s window each).
+const PLAYER_RATE_WINDOW_MS = 180_000;
 
 // ── Formatting ──────────────────────────────────────────────────────────────
 export function formatMbps(kbps: number | null | undefined): string {
@@ -224,6 +244,7 @@ interface State {
   probeMs: number | null;
   hostKbps: number | null;
   hostMs: number | null;
+  playerRates: Sample[];
   held: ClassifyResult | null;
   holdUntil: number;
   reported: Set<Verdict>;
@@ -244,6 +265,7 @@ const freshState = (): State => ({
   probeMs: null,
   hostKbps: null,
   hostMs: null,
+  playerRates: [],
   held: null,
   holdUntil: 0,
   reported: new Set<Verdict>(),
@@ -273,6 +295,10 @@ const isHidden = (): boolean => {
 const isOnline = (): boolean => {
   try { return typeof navigator === 'undefined' || navigator.onLine !== false; } catch { return true; }
 };
+const lowMemory = (): boolean => {
+  try { return typeof document !== 'undefined' && document.documentElement.classList.contains('native-low-memory'); } catch { return false; }
+};
+const warmupMs = (): number => (state.kind === 'vod' ? PROBE_WARMUP_VOD_MS : PROBE_WARMUP_MS);
 const saveDataOn = (): boolean => {
   try {
     const nav = navigator as Navigator & { connection?: { saveData?: boolean } };
@@ -334,6 +360,7 @@ function recentKbps(at: number): number | null {
 const IDLE_SNAPSHOT: DiagSnapshot = {
   verdict: 'ok', headline: 'Playing normally', detail: '',
   streamKbps: null, streamEarlyKbps: null, probeKbps: null, probeMs: null,
+  probeFailed: false, nowKbps: null,
   hostKbps: null, hostMs: null, bufferingForMs: 0, online: true, updatedAt: 0,
 };
 let snapshot: DiagSnapshot = IDLE_SNAPSHOT;
@@ -367,6 +394,9 @@ function computeSnapshot(): DiagSnapshot {
     streamEarlyKbps: early,
     probeKbps: state.probeKbps,
     probeMs: state.probeMs,
+    probeFailed: state.probeKbps == null && state.neutralFailStreak > 0,
+    // The plugin goes quiet after reporting a 0, so the last report stands.
+    nowKbps: state.playerRates.length ? state.playerRates[state.playerRates.length - 1].kbps : null,
     hostKbps: state.hostKbps,
     hostMs: state.hostMs,
     bufferingForMs: state.buffering ? Math.max(0, t - state.bufferingSince) : 0,
@@ -514,16 +544,18 @@ async function runStallProbes(minGapMs: number = PROBE_INTERVAL_MS): Promise<boo
   if (!state.active || probeInFlight || isHidden()) return false;
   // A stalled stream on a 2 GB box does not need a 256 KB bandwidth probe plus
   // an origin GET every 20 s competing with the buffer that is trying to fill.
-  // classify() already copes with probeKbps being null.
-  if (typeof document !== 'undefined' && document.documentElement.classList.contains('native-low-memory')) return false;
+  // But without the internet probe the card could never say how fast the
+  // internet is — and every Fire TV is such a box. So: that probe alone, at
+  // most once a minute. classify() copes with the host numbers being null.
+  const lowMem = lowMemory();
   const t = now();
-  if (state.samples.length === 0 && t - state.startedAt < PROBE_WARMUP_MS) return false;
-  if (lastProbeAt > 0 && t - lastProbeAt < minGapMs) return false;
+  if (state.samples.length === 0 && t - state.startedAt < warmupMs()) return false;
+  if (lastProbeAt > 0 && t - lastProbeAt < (lowMem ? Math.max(minGapMs, LOW_MEMORY_PROBE_INTERVAL_MS) : minGapMs)) return false;
   probeInFlight = true;
   lastProbeAt = t;
   try {
     const native = isNativePlatform();
-    await Promise.all([
+    await Promise.all(lowMem ? [runNeutralProbe()] : [
       runNeutralProbe(),
       runHostProbe(HOST_PROBE_BYTES, native),
     ]);
@@ -535,12 +567,12 @@ async function runStallProbes(minGapMs: number = PROBE_INTERVAL_MS): Promise<boo
   return true;
 }
 
-/** Delay until the cadence floor allows the next stall round (≥ 1 s). */
-function nextStallDelay(): number {
+/** Delay until the cadence floor allows the next stall round (≥ `floorMs`). */
+function nextStallDelay(floorMs = 1_000): number {
   const t = now();
-  const warmup = state.samples.length === 0 ? state.startedAt + PROBE_WARMUP_MS - t : 0;
-  const cadence = lastProbeAt > 0 ? lastProbeAt + PROBE_INTERVAL_MS - t : 0;
-  return Math.max(1_000, warmup, cadence);
+  const warmup = state.samples.length === 0 ? state.startedAt + warmupMs() - t : 0;
+  const cadence = lastProbeAt > 0 ? lastProbeAt + (lowMemory() ? LOW_MEMORY_PROBE_INTERVAL_MS : PROBE_INTERVAL_MS) - t : 0;
+  return Math.max(floorMs, warmup, cadence);
 }
 
 function scheduleStallProbe(delay: number) {
@@ -627,6 +659,36 @@ export function recordStreamThroughput(bytes: number, durationMs: number): void 
   if (state.buffering) emit();
 }
 
+/**
+ * The native player's own download rate, kbps (a 3 s window). Shown as the
+ * card's "Now" and kept for `getPlayerSpeedKbps`. Not a stream sample: once
+ * the buffer is full it drops to the video's own bitrate or to 0, which the
+ * throttling check would read as a collapse.
+ */
+export function recordPlayerRate(kbps: number): void {
+  if (!state.active) return;
+  if (!Number.isFinite(kbps) || kbps < 0 || kbps > 5_000_000) return;
+  const t = now();
+  state.playerRates.push({ t, kbps });
+  const cutoff = t - PLAYER_RATE_WINDOW_MS;
+  while (state.playerRates.length > 1 && state.playerRates[0].t < cutoff) state.playerRates.shift();
+  // Only the card shows it, and only mid-stall; no re-render otherwise.
+  if (state.buffering) emit();
+}
+
+/**
+ * "Your speed" for a quality menu: the fastest the player's downloads came
+ * in over the last 3 minutes — when it is filling its buffer it pulls as fast
+ * as the connection to the server allows. null before any report, or when
+ * nothing has arrived.
+ */
+export function getPlayerSpeedKbps(): number | null {
+  if (!state.active) return null;
+  let best = 0;
+  for (const r of state.playerRates) if (r.kbps > best) best = r.kbps;
+  return best > 0 ? best : null;
+}
+
 /** hls.bandwidthEstimate (bits per second). */
 export function recordEngineEstimate(bps: number): void {
   if (!state.active) return;
@@ -645,7 +707,7 @@ export function setBuffering(on: boolean): void {
     state.holdUntil = 0;
     if (recoveryTimer) { clearTimeout(recoveryTimer); recoveryTimer = null; }
     if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-    scheduleStallProbe(Math.max(PROBE_AFTER_STALL_MS, nextStallDelay()));
+    scheduleStallProbe(nextStallDelay(PROBE_AFTER_STALL_MS));
     ensureTicking();
   } else {
     clearStallProbe();
@@ -656,6 +718,8 @@ export function setBuffering(on: boolean): void {
     recoveryTimer = setTimeout(async () => {
       recoveryTimer = null;
       if (!state.active || state.buffering) return;
+      // Playing again: a low-memory box probes mid-stall only.
+      if (lowMemory()) return;
       await runStallProbes(RECOVERY_PROBE_MIN_GAP_MS);
     }, RECOVERY_PROBE_DELAY_MS);
     ensureTicking();

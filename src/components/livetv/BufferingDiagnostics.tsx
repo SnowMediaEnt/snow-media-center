@@ -14,6 +14,8 @@ import { formatMbps, useBufferDiagnostics, type ClassifyResult, type DiagSnapsho
  *   low-memory mode strips them anyway).
  * - aria-live sits on the verdict headline only, so TalkBack announces a
  *   verdict change, not the per-second counter.
+ * - "Now" (how fast the stream is arriving) always sits next to "Needs";
+ *   a number not measured yet reads "Checking…", never a bare dash.
  */
 
 interface BufferingDiagnosticsProps {
@@ -42,6 +44,10 @@ interface BufferingDiagnosticsProps {
 
 const SHOW_AFTER_MS = 2000;
 const LINGER_MS = 2500;
+
+/** A measured speed, or what is going on while there is none. */
+const speed = (kbps: number | null | undefined, failed = false): string =>
+  kbps != null ? formatMbps(kbps) : failed ? '—' : 'Checking…';
 
 const VERDICT_COLOR: Record<Verdict, string> = {
   throttling: 'text-brand-gold',
@@ -92,7 +98,9 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
 
   const cornerCls = corner === 'top-left' ? 'top-4 left-4' : 'top-4 right-4';
   const seconds = snap.bufferingForMs > 0 ? Math.round(snap.bufferingForMs / 1000) : elapsedSec;
-  const recoveredKbps = snap.streamKbps ?? snap.probeKbps;
+  const recoveredKbps = snap.nowKbps ? snap.nowKbps : snap.streamKbps ?? snap.probeKbps;
+  // The player's own rate first (native); the engine's samples otherwise.
+  const nowKbps = snap.nowKbps ?? snap.streamKbps;
   // The prop says we are stalled but the module says 'ok' (integrator passes
   // the prop without wiring setBuffering/beginStream): show a neutral verdict
   // rather than "Buffering · 7s" next to a green "Playing normally".
@@ -116,16 +124,18 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
             <span className="inline-block w-[6px] h-[6px] rounded-full bg-brand-gold" aria-hidden="true" />
             <span className="tabular-nums">Buffering · {seconds}s</span>
           </div>
-          <div className="mt-1 flex items-center gap-3 text-xs text-brand-ice/70 tabular-nums">
-            <span>
-              Stream {formatMbps(snap.streamKbps)}
+          {/* Inline, not flex: three numbers plus "Checking…" can outgrow the
+              card, and inline spans wrap without a flex-gap fallback. */}
+          <p className="mt-1 text-xs text-brand-ice/70 tabular-nums leading-snug">
+            <span className="mr-3 whitespace-nowrap">
+              Now <span className="text-white/90">{speed(nowKbps)}</span>
               {snap.streamEarlyKbps != null && (
                 <span className="text-brand-ice/70"> was {(snap.streamEarlyKbps / 1000).toFixed(1)}</span>
               )}
             </span>
-            <span>Internet {formatMbps(snap.probeKbps)}</span>
-            {needKbps != null && <span>Needs {formatMbps(needKbps)}</span>}
-          </div>
+            {needKbps != null && <span className="mr-3 whitespace-nowrap">Needs {formatMbps(needKbps)}</span>}
+            <span className="whitespace-nowrap">Internet {speed(snap.probeKbps, snap.probeFailed)}</span>
+          </p>
           <p aria-live="polite" className={`mt-2 text-sm font-semibold leading-snug ${VERDICT_COLOR[shown.verdict]}`}>{shown.headline}</p>
           {shown.detail && (
             <p className="mt-1 text-xs text-brand-ice/70 leading-snug">{shown.detail}</p>

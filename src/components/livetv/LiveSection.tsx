@@ -469,9 +469,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [slowConn, setSlowConn] = useState(false);
   const [tracksTick, setTracksTick] = useState(0);
   const barHideTimerRef = useRef<number | null>(null);
+  // Paused on purpose: the bar stays up (set in render, see barPaused below).
+  const barPausedRef = useRef(false);
   const pokeBar = useCallback(() => {
     setBarVisible(true);
     if (barHideTimerRef.current) window.clearTimeout(barHideTimerRef.current);
+    barHideTimerRef.current = null;
+    if (barPausedRef.current) return;
     barHideTimerRef.current = window.setTimeout(() => {
       setBarVisible(false);
       setSubMenuOpen(false);
@@ -1466,6 +1470,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, []);
   useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
   useEffect(() => { barVisibleRef.current = barVisible; }, [barVisible]);
+  // A pause — the remote's Play/Pause, OK on ▶❚❚, the phone remote — brings
+  // the bar up on Play and holds it (pokeBar arms no hide while paused);
+  // playing again hides it after the usual 5 s. Native: the player's own
+  // paused flag, since isPaused also turns true on every stall there.
+  const barPaused = fullscreen && (NATIVE_PLAYBACK ? native.paused : isPaused);
+  barPausedRef.current = barPaused;
+  const barPausedPrevRef = useRef(barPaused);
+  useEffect(() => {
+    if (barPausedPrevRef.current === barPaused) return;
+    barPausedPrevRef.current = barPaused;
+    if (barPaused) { if (!barVisibleRef.current) setBarFocus('play'); pokeBar(); }
+    else if (barVisibleRef.current) pokeBar();
+  }, [barPaused, pokeBar]);
   useEffect(() => { barFocusRef.current = barFocus; }, [barFocus]);
   useEffect(() => { subMenuOpenRef.current = subMenuOpen; }, [subMenuOpen]);
   useEffect(() => { audioMenuOpenRef.current = audioMenuOpen; }, [audioMenuOpen]);

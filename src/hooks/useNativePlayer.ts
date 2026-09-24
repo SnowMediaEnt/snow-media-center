@@ -10,7 +10,7 @@ import { SnowPlayer, type SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { createNativeVideoController, type NativeControllerHandle } from '@/lib/nativeVideoController';
 import type { VideoController } from '@/components/livetv/VideoPlayer';
 import { enterQuiet, exitQuiet } from '@/utils/quietMode';
-import { beginStream as diagBegin, endStream as diagEnd, setBuffering as diagBuffering } from '@/lib/bufferDiagnostics';
+import { beginStream as diagBegin, endStream as diagEnd, setBuffering as diagBuffering, recordPlayerRate as diagPlayerRate } from '@/lib/bufferDiagnostics';
 
 interface UseNativePlayerArgs {
   active: boolean;
@@ -51,6 +51,9 @@ export interface NativeRect { x: number; y: number; width: number; height: numbe
 export interface NativePlayerState {
   controller: VideoController | null;
   buffering: boolean;
+  /** Paused on purpose — by any remote, the phone, or the system. Unlike the
+   *  controller's play state this stays false through a stall. */
+  paused: boolean;
   error: { code?: string; message: string } | null;
   /** Set when the stream carries audio this device can't decode. NOT an error —
    *  video keeps playing, there is simply no sound. */
@@ -77,6 +80,7 @@ async function applyRect(r: NativeRect, blank = false): Promise<void> {
 
 export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true }: UseNativePlayerArgs): NativePlayerState {
   const [buffering, setBuffering] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
   const [audioWarning, setAudioWarning] = useState<{ codecs: string; ffmpegAvailable: boolean } | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -142,6 +146,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
       handleRef.current = createNativeVideoController({
         onTracksChanged: () => cbTracksRef.current?.(),
         onPlayStateChange: (p) => cbPlayStateRef.current?.(p),
+        onPausedChange: setPaused,
       });
       setController(handleRef.current.controller);
     }
@@ -156,6 +161,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     let stateH: { remove?: () => void } | null = null;
     let errH: { remove?: () => void } | null = null;
     let audioH: { remove?: () => void } | null = null;
+    let rateH: { remove?: () => void } | null = null;
     // Added after awaits: if the player went inactive in between, the cleanup
     // below has already run, so each handle removes itself as it arrives.
     let gone = false;
@@ -171,6 +177,12 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
             codecs: data.codecs || 'unknown',
             ffmpegAvailable: data.ffmpegAvailable === true,
           });
+        }));
+        if (gone) return;
+        // The player's own download speed, for the buffering card's "Now".
+        rateH = keep(await SnowPlayer.addListener('bandwidth', (data) => {
+          if (data.screenId && data.screenId !== 'main') return;
+          if (typeof data.kbps === 'number') { try { diagPlayerRate(data.kbps); } catch { /* ignore */ } }
         }));
         if (gone) return;
         stateH = keep(await SnowPlayer.addListener('playerState', (data) => {
@@ -216,6 +228,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
       try { stateH?.remove?.(); } catch { /* ignore */ }
       try { errH?.remove?.(); } catch { /* ignore */ }
       try { audioH?.remove?.(); } catch { /* ignore */ }
+      try { rateH?.remove?.(); } catch { /* ignore */ }
     };
   }, [active, maxRetries]);
 
@@ -235,6 +248,9 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     const myNonce = ++nonceRef.current;
     let cancelled = false;
     setBuffering(true);
+    // A new stream (or a reload) starts playing.
+    setPaused(false);
+    handleRef.current?.resetPaused?.();
     setError(null);
     clearRetryTimer();
     // Buffering diagnostics: ExoPlayer has no engine throughput stats, so the
@@ -323,6 +339,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
       setController(null);
     }
     setBuffering(false);
+    setPaused(false);
     setError(null);
     retriesRef.current = 0;
     exhaustRetriedRef.current = false;
@@ -415,7 +432,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   }, [active, background, live]);
 
   return useMemo(
-    () => ({ controller, buffering, error, audioWarning, retry, seekTo, getPosition }),
-    [controller, buffering, error, audioWarning, retry, seekTo, getPosition],
+    () => ({ controller, buffering, paused, error, audioWarning, retry, seekTo, getPosition }),
+    [controller, buffering, paused, error, audioWarning, retry, seekTo, getPosition],
   );
 }
