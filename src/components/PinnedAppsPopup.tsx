@@ -9,6 +9,7 @@ import { InstalledApp } from '@/data/installedApps';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { overlayAboveOwnsBack } from '@/lib/overlayBack';
 
 interface PinnedAppsPopupProps {
   pinnedApps: PinnedApp[];
@@ -153,6 +154,8 @@ const PinnedAppsPopup = ({
 
   // Hardware Back while focused inside the pinned-app slots should leave the
   // popup only; it must not bubble to Home's double-back-to-exit handler.
+  // A popup over the row (the voice overlay) takes the press instead: one
+  // Back closes it and the highlight stays on the row.
   useEffect(() => {
     if (!isVisible || focusedIndex < 0 || showAppSelector) return;
 
@@ -161,6 +164,7 @@ const PinnedAppsPopup = ({
     (async () => {
       try {
         listener = await CapApp.addListener('backButton', () => {
+          if (overlayAboveOwnsBack()) return;
           (document.activeElement as HTMLElement | null)?.blur?.();
           onExitFocus();
         });

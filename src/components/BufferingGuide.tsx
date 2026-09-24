@@ -35,6 +35,7 @@ import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
+import { overlayAboveOwnsBack } from '@/lib/overlayBack';
 import { MessageSquare } from 'lucide-react';
 
 interface BufferingGuideProps {
@@ -759,6 +760,8 @@ const BufferingGuide = ({
   // Capacitor native back button — intercept so the global navigation
   // handler doesn't pop us all the way out to the Home Screen. Always
   // step back inside the guide first, and only close when on the intro.
+  // When the guide last marked a press handled (see overlayAboveOwnsBack).
+  const ownBackAtRef = useRef(0);
   useLayoutEffect(() => {
     let handle: { remove?: () => void } | undefined;
     let cancelled = false;
@@ -767,9 +770,14 @@ const BufferingGuide = ({
         const { App } = await import('@capacitor/app');
         handle = await App.addListener('backButton', () => {
           if (cancelled) return;
+          // A popup over the guide (the voice overlay, a kickoff reminder)
+          // takes this press: it closes, and the guide stays where it is.
+          if (overlayAboveOwnsBack(rootRef.current, ownBackAtRef.current)) return;
           // Mark the back press as handled so the global navigation
           // handler in useNavigation doesn't also pop Support → Home.
-          (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+          const now = Date.now();
+          ownBackAtRef.current = now;
+          (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = now;
           if (showSpeedTest) return;
           if (showAnonConfirm) { setShowAnonConfirm(false); return; }
           if (showVpnSkipConfirm) { setShowVpnSkipConfirm(false); return; }
