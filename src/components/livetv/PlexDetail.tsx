@@ -314,10 +314,10 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     [isShow, ownVersions, copies],
   );
   const multi = versions.length > 1;
-  const baseChoice = useMemo(
-    () => (chosenId ? versions.find((v) => v.id === chosenId) ?? null : null) ?? defaultVersion(versions, current),
-    [chosenId, versions, current],
-  );
+  const baseChoice = useMemo(() => {
+    const picked = chosenId ? versions.find((v) => v.id === chosenId) : undefined;
+    return picked ?? defaultVersion(versions, current);
+  }, [chosenId, versions, current]);
   const effective = useMemo(
     () => startVersion(versions, baseChoice, chosenId != null, speedKbps),
     [versions, baseChoice, chosenId, speedKbps],
