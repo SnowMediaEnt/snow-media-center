@@ -54,7 +54,11 @@ Deno.serve(async (req) => {
       return json({ error: 'rate_limited' }, 429);
     }
 
-    const content = `${raw.slice(0, 1600)}\n-# Sent by account ${(user.email || user.id).slice(0, 200)}`;
+    // Cut to fit, then close a code block the cut (or the caller) left open,
+    // so the account line below always shows as itself.
+    let text = raw.slice(0, 1600);
+    if ((text.match(/```/g) ?? []).length % 2) text += '\n```';
+    const content = `${text}\n-# Sent by account ${(user.email || user.id).slice(0, 200).replace(/[`*_~|<>\\]/g, '\\$&')}`;
 
     const res = await fetch(hook, {
       method: 'POST',
