@@ -203,6 +203,56 @@ describe('gameDay', () => {
       const { channelsForGame } = await import('./gameDay');
       const epl = game({ league: 'epl', leagueLabel: 'Premier League', home: team('Arsenal', 'Arsenal', 'Arsenal'), away: team('Chelsea', 'Chelsea', 'Chelsea') });
       expect(ids(channelsForGame(epl, [chans(120, 'Football 05: Arsenal vs Chelsea', 'UK| FOOTBALL'), chans(121, 'NFL 05: Arsenal vs Chelsea', 'US| NFL')]))).toEqual([120]);
+      const liga = game({ league: 'laliga', leagueLabel: 'La Liga', home: team('Barcelona', 'Barcelona', 'Barcelona', 'BAR'), away: team('Real Madrid', 'Real Madrid', 'Real Madrid', 'RMA') });
+      expect(ids(channelsForGame(liga, [
+        chans(122, 'LA LIGA 02: Real Madrid vs Barcelona', 'ES| LA LIGA'),
+        chans(123, 'Football 07: Real Madrid v Barcelona', 'UK| FOOTBALL'),
+        chans(124, 'SOCCER 03: RMA vs BAR', 'US| SOCCER'),
+      ]))).toEqual([122, 123, 124]);
+    });
+  });
+
+  describe('events without teams: races, golf, tennis', () => {
+    const f1 = (over: Partial<Game> = {}) => game({
+      id: 'f1:1:race', league: 'f1', leagueLabel: 'F1', name: 'Italian GP · Race', event: 'Italian GP', session: 'Race',
+      places: ['Autodromo Nazionale Monza', 'Monza'], networks: ['ESPN'], ...over,
+    });
+
+    it('a race by its name or its circuit, on a channel of the sport, never the other session', async () => {
+      const { channelsForGame } = await import('./gameDay');
+      const got = channelsForGame(f1(), [
+        chans(300, 'F1: Italian Grand Prix', 'US| RACING'),
+        chans(301, 'RACING 02: Formula 1 Monza (Race)', 'RACING EVENTS'),
+        chans(302, 'F1: Italian GP Qualifying', 'US| RACING'),
+        chans(303, 'NASCAR Cup: Kansas', 'US| RACING'),
+        chans(304, 'US| Italian Food Network', 'US| ENTERTAINMENT'),
+        chans(305, 'UK| Sky Sports F1 HD', 'UK| SPORTS'),
+        chans(306, 'US| ESPN HD', 'US| SPORTS'),
+      ]);
+      const by = Object.fromEntries(got.map((c) => [c.stream.stream_id, c.via]));
+      expect(by).toEqual({ 300: 'game', 301: 'game', 305: 'league', 306: 'network' });
+    });
+
+    it('NASCAR by its track, golf and tennis by their tournament', async () => {
+      const { channelsForGame } = await import('./gameDay');
+      const nascar = game({ id: 'nascar:1', league: 'nascar', name: 'Hollywood Casino 400 · Race', event: 'Hollywood Casino 400', session: 'Race', places: ['Kansas Speedway', 'Kansas City'] });
+      expect(ids(channelsForGame(nascar, [chans(310, 'NASCAR Cup Series: Kansas', 'US| RACING'), chans(311, 'NASCAR Cup Series: Talladega', 'US| RACING')]))).toEqual([310]);
+      const golf = game({ id: 'pga:1', league: 'pga', name: 'TOUR Championship', event: 'TOUR Championship', places: ['East Lake Golf Club'] });
+      expect(ids(channelsForGame(golf, [chans(320, 'PGA TOUR: TOUR Championship Rd 3', 'US| GOLF'), chans(321, 'PGA TOUR: Shriners Open', 'US| GOLF')]))).toEqual([320]);
+      const tennis = game({ id: 'atp:1', league: 'atp', name: 'US Open', event: 'US Open', places: ['USTA Billie Jean King National Tennis Center'] });
+      expect(ids(channelsForGame(tennis, [chans(330, 'Tennis: US Open Court 5', 'US| TENNIS'), chans(331, 'US| Open House', 'US| ENTERTAINMENT')]))).toEqual([330]);
+    });
+
+    it("the guide's listing for another session is not this one", async () => {
+      const { checkGuides } = await import('./gameDay');
+      const now = Date.parse('2026-09-27T12:00:00Z');
+      const g = f1({ start: new Date(now + 60 * 60_000).toISOString() });
+      const at = now + 55 * 60_000;
+      epg[340] = [{ title: 'Formula 1 Racing', description: 'Italian Grand Prix. From Monza.', start: at, end: at + 2 * 60 * 60_000 }];
+      epg[341] = [{ title: 'F1 Qualifying: Italian Grand Prix', description: '', start: at, end: at + 60 * 60_000 }];
+      const list = [chans(340, 'RACING 01', 'US| RACING'), chans(341, 'RACING 02', 'US| RACING')];
+      const got = await checkGuides(g, list, [], [g], now);
+      expect(got.map((c) => [c.stream.stream_id, c.via, c.score])).toEqual([[340, 'game', 95]]);
     });
   });
 
@@ -247,11 +297,25 @@ describe('gameDay', () => {
       expect(by[1].note).toBe('Guide: MLB Baseball — New York Yankees at Boston Red Sox. From Fenway Park.');
       expect(by[2]).toMatchObject({ score: 20, via: 'network', note: 'Guide: another game — Rays @ Orioles' });
       expect(by[4]).toMatchObject({ score: 95, via: 'local', note: 'Guide: Yankees at Red Sox' });
-      // No guide for YES: it stays as it was. A channel is named for the game,
-      // so the numbered channels' guide is not asked.
+      // A numbered league channel's guide counts too, even with a channel
+      // named for the game: both are read.
+      expect(by[5]).toMatchObject({ score: 95, via: 'game' });
+      // No guide for YES: it stays as it was. The channel named for the game
+      // needs no guide.
       expect(by[3]).toBeUndefined();
-      expect(by[5]).toBeUndefined();
-      expect(vi.mocked(xtream.getShortEpg).mock.calls.map((c) => c[1])).not.toContain(5);
+      expect(vi.mocked(xtream.getShortEpg).mock.calls.map((c) => c[1])).not.toContain(6);
+    });
+
+    it('hands over what it has after each few lookups', async () => {
+      const { checkGuides } = await import('./gameDay');
+      const g = mlb({ start: new Date(kick).toISOString() });
+      const list = Array.from({ length: 6 }, (_, i) => chans(200 + i, `MLB ${String(i + 1).padStart(2, '0')}`, 'MLB ZONE'));
+      epg[200] = on('Yankees at Red Sox');
+      epg[205] = on('Yankees at Red Sox');
+      const partial: number[][] = [];
+      const got = await checkGuides(g, list, [], [g], now, (links) => partial.push(ids(links)));
+      expect(partial).toEqual([[200]]);
+      expect(ids(got)).toEqual([200, 205]);
     });
 
     it("reads the numbered league channels' guide when no channel is named for the game", async () => {
@@ -275,6 +339,11 @@ describe('gameDay', () => {
     const { categoryWeight } = await import('./gameDay');
     expect(categoryWeight('US| NFL SUNDAY TICKET')).toBe(3);
     expect(categoryWeight('MLB TEAMS')).toBe(3);
+    expect(categoryWeight('NBA ZONE')).toBe(3);
+    expect(categoryWeight('NHL PPV')).toBe(3);
+    expect(categoryWeight('US| RACING')).toBe(3);
+    expect(categoryWeight('GOLF')).toBe(3);
+    expect(categoryWeight('LA LIGA')).toBe(3);
     expect(categoryWeight('PPV EVENTS')).toBe(2);
     expect(categoryWeight('US| SPORTS')).toBe(2);
     expect(categoryWeight('US| LOCALS')).toBe(1);

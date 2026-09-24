@@ -10,10 +10,11 @@
 //
 // A game's channels ("links"), best first:
 //   game     an event channel whose name has the game: "MLB 07: Yankees vs
-//            Red Sox 7:05 PM", "PPV 3: NYY @ BOS", "UFC 320: Ankalaev vs
-//            Pereira". These mostly have no guide; the name is what changes
-//            with each day's games. Only when no name has the game, a
-//            numbered league channel ("MLB 07") whose guide does.
+//            Red Sox 7:05 PM", "NBA ZONE 3: Lakers @ Celtics", "PPV 3: NYY @
+//            BOS", "UFC 320: Ankalaev vs Pereira", "F1: Italian GP Race",
+//            "NASCAR: Kansas". These mostly have no guide; the name is what
+//            changes with each day's games. A numbered league channel ("MLB
+//            07") whose guide has the game counts too: both are checked.
 //   network  the national networks showing it (ESPN, FS1, FOX and its locals)
 //   local    the local and regional networks showing it (YES, NESN, Bally …)
 //   team     a channel named after one of the teams, in that league
@@ -21,6 +22,9 @@
 // The networks and locals do have a guide: as a game's list opens, it says
 // which of them has this game (and which has another one), and finds the
 // teams' cities' channels that have it (checkGuides).
+// Every sport the game-day function lists works the same way: the team
+// sports, fight cards, and events without teams (races, golf and tennis
+// tournaments), found by their name or their circuit, course or venue.
 // Streaming-only services (MLB.tv, ESPN+, Peacock …) are never links: no line
 // carries them as a channel.
 import { supabase } from '@/integrations/supabase/client';
@@ -37,6 +41,10 @@ export interface Game {
   state: 'pre' | 'in'; detail: string; home: GameTeam | null; away: GameTeam | null; networks: string[];
   /** Local and regional TV (older lists from the function have none). */
   locals?: GameLocal[];
+  /** Events without teams (fight cards, races, golf and tennis): the event's
+   *  own name ("Italian GP"), the race session ("Race", "Qualifying"), and
+   *  the circuit, course or venue with its city ("Monza"). */
+  event?: string; session?: string; places?: string[];
 }
 
 export type LinkKind = 'game' | 'network' | 'local' | 'team' | 'league';
@@ -89,24 +97,43 @@ export async function fetchGames(force = false): Promise<Game[]> {
 const LEAGUE_WORDS: Record<string, RegExp> = {
   nfl: /\b(nfl|red ?zone|sunday ticket)\b/,
   ncaaf: /\b(ncaaf|ncaa football|college football|cfb|sec network|acc network|big ten network|btn)\b/,
+  ufl: /\b(ufl)\b/,
   nba: /\b(nba|league pass)\b/,
   wnba: /\b(wnba)\b/,
   ncaab: /\b(ncaab|ncaa basketball|college basketball|march madness)\b/,
   mlb: /\b(mlb|extra innings)\b/,
   nhl: /\b(nhl|center ice)\b/,
   mls: /\b(mls|season pass)\b/,
+  nwsl: /\b(nwsl)\b/,
+  ligamx: /\b(liga ?mx)\b/,
   epl: /\b(epl|premier league)\b/,
+  laliga: /\b(la ?liga)\b/,
+  seriea: /\b(serie a)\b/,
+  bundesliga: /\b(bundesliga)\b/,
+  ligue1: /\b(ligue 1|ligue1)\b/,
   ucl: /\b(ucl|champions league)\b/,
+  uel: /\b(uel|europa league)\b/,
   ufc: /\b(ufc|fight night)\b/,
+  f1: /\b(f1|formula ?1|formula one)\b/,
+  nascar: /\b(nascar)\b/,
+  indycar: /\b(indy ?car|indy 500)\b/,
+  pga: /\b(pga)\b/,
+  lpga: /\b(lpga)\b/,
+  atp: /\b(atp)\b/,
+  wta: /\b(wta)\b/,
 };
+const SOCCER_LEAGUES = ['mls', 'nwsl', 'ligamx', 'epl', 'laliga', 'seriea', 'bundesliga', 'ligue1', 'ucl', 'uel'];
 /** A sport's word stands for its leagues ("Baseball" → MLB). */
 const SPORT_LEAGUES: Array<[RegExp, string[]]> = [
   [/\bbaseball\b/, ['mlb']],
   [/\bhockey\b/, ['nhl']],
   [/\bbasketball\b/, ['nba', 'wnba', 'ncaab']],
-  [/\bfootball\b/, ['nfl', 'ncaaf']],
-  [/\b(soccer|futbol)\b/, ['mls', 'epl', 'ucl']],
+  [/\bfootball\b/, ['nfl', 'ncaaf', 'ufl']],
+  [/\b(soccer|futbol|futebol)\b/, SOCCER_LEAGUES],
   [/\b(mma|boxing|fights?)\b/, ['ufc']],
+  [/\b(racing|motorsports?|motor sports?|speedway)\b/, ['f1', 'nascar', 'indycar']],
+  [/\bgolf\b/, ['pga', 'lpga']],
+  [/\btennis\b/, ['atp', 'wta']],
 ];
 
 /** Leagues named outright ("NFL", "MLB"), not by their sport's word. */
@@ -342,17 +369,57 @@ const sideIn = (text: string, w: TeamWords, codes: boolean): Side => ({
   weak: has(text, w.place),
 });
 
-interface Card { event: string[]; fighters: string[] }
-/** A fight card's words: its number ("ufc 320") and its two headliners. */
+/** Words that say what kind of event it is, not which one: never enough on
+ *  their own ("Grand Prix", "Championship", "Speedway", "Open"). */
+const EVENT_GENERIC = new Set([
+  'grand', 'prix', 'race', 'racing', 'formula', 'series', 'nascar', 'indycar', 'indy', 'championship', 'championships',
+  'open', 'tour', 'pga', 'lpga', 'atp', 'wta', 'masters', 'international', 'classic', 'invitational', 'presented', 'world',
+  'final', 'finals', 'round', 'session', 'qualifying', 'practice', 'sprint', 'live', 'tournament', 'event', 'stage', 'gran',
+  'premio', 'club', 'golf', 'tennis', 'fight', 'night', 'main', 'card', 'prelims', 'early', 'speedway', 'motor', 'raceway',
+  'autodromo', 'circuit', 'national', 'nazionale', 'park', 'country', 'stadium', 'arena', 'center', 'centre', 'street',
+  'city', 'united', 'states', 'north', 'south', 'east', 'west', 'lake', 'beach', 'saint', 'santa', 'grande', 'royal',
+  'cup', 'series', 'league', 'motorsports', 'international', 'course', 'links', 'resort', 'hills', 'springs', 'valley',
+]);
+
+/** An event's words: phrases one whole piece of which names it ("us open",
+ *  "italian gp", "ufc 320", "kansas speedway"), single words that do alone
+ *  ("italian", "monza", "kansas"), and for a fight card its two headliners,
+ *  both needed ("ankalaev", "pereira"). */
+interface Card { phrases: string[]; words: string[]; pair: string[] }
 const cardWords = (g: Game): Card => {
-  const n = normalizeSpeech(String(g.name ?? ''));
-  const num = /\bufc \d{2,3}\b/.exec(n)?.[0];
-  const vs = /([a-z]+)(?: \d+)? vs ([a-z]+)/.exec(n);
-  const fighters = vs ? [vs[1], vs[2]].filter((w) => w.length >= 3) : [];
-  return { event: num ? spaced([num]) : [], fighters: fighters.length === 2 ? spaced(fighters) : [] };
+  const name = normalizeSpeech(String(g.event || g.name || '').split(' · ')[0]);
+  if (g.league === 'ufc') {
+    const num = /\bufc \d{2,3}\b/.exec(name)?.[0];
+    const vs = /([a-z]+)(?: \d+)? vs ([a-z]+)/.exec(name);
+    const fighters = vs ? [vs[1], vs[2]].filter((w) => w.length >= 3) : [];
+    return { phrases: num ? spaced([num]) : [], words: [], pair: fighters.length === 2 ? spaced(fighters) : [] };
+  }
+  const places = (g.places ?? []).map((p) => normalizeSpeech(String(p ?? ''))).filter(Boolean);
+  const phrases = [name, ...places].filter((p) => p.length >= 5 && (p.includes(' ') || !EVENT_GENERIC.has(p)));
+  const words = [name, ...places]
+    .flatMap((p) => p.split(' '))
+    .filter((w) => w.length >= 4 && !/^\d+$/.test(w) && !EVENT_GENERIC.has(w));
+  return { phrases: spaced([...new Set(phrases)]), words: spaced([...new Set(words)]), pair: [] };
 };
 const cardIn = (text: string, c: Card): boolean =>
-  has(text, c.event) || (c.fighters.length === 2 && c.fighters.every((f) => text.includes(f)));
+  has(text, c.phrases) || has(text, c.words) || (c.pair.length === 2 && c.pair.every((f) => text.includes(f)));
+
+/** A race weekend's sessions, as a game or a channel's name says them. */
+const SESSION_WORDS: Array<[string, RegExp]> = [
+  ['qualifying', /\b(qualifying|quali|qual)\b/],
+  ['sprint', /\bsprint\b/],
+  ['practice', /\b(practice|fp ?\d)\b/],
+  ['race', /\brace\b/],
+];
+const sessionsIn = (text: string): string[] => SESSION_WORDS.filter(([, re]) => re.test(text)).map(([k]) => k);
+/** A name or listing for another session of the weekend (qualifying, for
+ *  the race). A name that says no session is any of them. */
+const otherSession = (text: string, g: Game): boolean => {
+  if (!g.session) return false;
+  const want = sessionsIn(normalizeSpeech(g.session));
+  const said = sessionsIn(text);
+  return want.length > 0 && said.length > 0 && !said.some((k) => want.includes(k));
+};
 
 const MONTHS: Record<string, number> = {
   jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5, jun: 6, june: 6,
@@ -476,15 +543,20 @@ const gameWords = (g: Game): GameWords => {
 };
 
 /** How well an event channel's name has the game: 100 by the teams' names
- *  (or a card's number or headliners), 90 by their cities alone on a channel
- *  of the league; 12 less when it gives another kickoff time (the other game
- *  of a doubleheader). 0 when it doesn't have the game; -1 when it has it on
- *  another day (a name not yet changed from yesterday's game): then the
- *  channel is nothing to this game. */
-const eventScore = (c: SportsChannel, w: GameWords, inLeague: boolean): number => {
+ *  (or an event's name, place or headliners, on a channel of its sport or a
+ *  PPV / event one), 90 by the teams' cities alone on a channel of the
+ *  league; 12 less when it gives another kickoff time (the other game of a
+ *  doubleheader). 0 when it doesn't have the game; -1 when it has it on
+ *  another day (a name not yet changed from yesterday's game) or another
+ *  session (yesterday's qualifying): then the channel is nothing to it. */
+const eventScore = (c: SportsChannel, g: Game, w: GameWords, inLeague: boolean): number => {
   let score = 0;
   if (w.card) {
-    if (cardIn(c.full, w.card)) score = 100;
+    const ofSport = inLeague || (!c.leagues.length && EVENTS.test(`${c.cat} ${c.full}`));
+    if (ofSport && cardIn(c.full, w.card)) {
+      if (otherSession(c.full, g)) return -1;
+      score = 100;
+    }
   } else {
     const h = sideIn(c.full, w.home, inLeague), a = sideIn(c.full, w.away, inLeague);
     if ((h.strong || h.weak) && (a.strong || a.weak)) score = h.strong || a.strong ? 100 : inLeague ? 90 : 0;
@@ -499,7 +571,7 @@ const eventScore = (c: SportsChannel, w: GameWords, inLeague: boolean): number =
 
 // ── a game's channels ──────────────────────────────────────────────────────
 
-const SOCCER = new Set(['mls', 'epl', 'ucl']);
+const SOCCER = new Set(SOCCER_LEAGUES);
 /** A channel of another league: never this game's ("Kings", "Rangers",
  *  "Giants" and "Cardinals" play in two leagues each). A "Football" channel
  *  that names no league is soccer as often as not. */
@@ -507,9 +579,19 @@ const otherLeague = (c: SportsChannel, league: string): boolean => {
   if (!c.leagues.length || c.leagues.includes(league)) return false;
   if (SOCCER.has(league)) {
     const text = `${c.cat} ${c.full}`;
-    if (/\bfootball\b/.test(text) && !namedLeagues(text).length) return false;
+    if (/\bfootball\b/.test(text) && !namedLeagues(text).some((l) => !SOCCER.has(l))) return false;
   }
   return true;
+};
+
+/** Words a channel's name carries besides what is on it. */
+const CHANNEL_WORDS = new Set(['sky', 'sports', 'sport', 'tv', 'channel', 'network', 'hd', 'fhd', 'uhd', 'plus', 'live', 'us', 'uk', 'usa', 'ca', 'extra', 'pass', 'zone', 'hub', 'main', 'feed', 'official', 'en', 'es', 'espanol']);
+/** A channel named for a league and nothing else. */
+const leagueOnly = (name: string, league: string): boolean => {
+  const re = LEAGUE_WORDS[league];
+  if (!re || !re.test(name)) return false;
+  return name.replace(new RegExp(re.source, 'g'), ' ').split(' ')
+    .every((w) => !w || CHANNEL_WORDS.has(w) || EVENT_GENERIC.has(w));
 };
 
 /** A league's own channel: "MLB Zone", "NFL RedZone", "NBA TV", "NHL Network". */
@@ -535,7 +617,7 @@ export function channelsForGame(game: Game, channels: SportsChannel[], limit = 1
     const inLeague = c.leagues.includes(game.league);
     const other = !inLeague && otherLeague(c, game.league);
     if (!other) {
-      const s = eventScore(c, w, inLeague);
+      const s = eventScore(c, game, w, inLeague);
       if (s < 0) continue;
       if (s > 0) { found.push({ line: c.line, stream: c.stream, score: s, via: 'game' }); continue; }
     }
@@ -554,7 +636,11 @@ export function channelsForGame(game: Game, channels: SportsChannel[], limit = 1
       const s = local === 90 ? 66 : 58;
       if (s > score) { score = s; via = 'local'; }
     }
-    if (!score && leagueLinks < 4 && inLeague && LEAGUE_CHANNEL.test(c.name) && !isNumberedEvent(c, game.league)) {
+    // A league's own channels; for an event, also a channel named for the
+    // league and nothing else ("Sky Sports F1", "UFC Fight Pass"), not one
+    // named for another event ("NASCAR Cup: Talladega").
+    const leagueOwn = LEAGUE_CHANNEL.test(c.name) || (!!w.card && leagueOnly(c.name, game.league));
+    if (!score && leagueLinks < 4 && inLeague && leagueOwn && !isNumberedEvent(c, game.league)) {
       leagueLinks += 1;
       score = 30;
       via = 'league';
@@ -593,8 +679,10 @@ export function leagueCategories(game: Game, channels: SportsChannel[], limit = 
 
 // ── the guide ──────────────────────────────────────────────────────────────
 
-/** Guide lookups for one game's list, at most, four at a time. */
-const GUIDE_MAX = { found: 10, city: 8, numbered: 8 };
+/** Guide lookups for one game's list, four at a time: the networks and
+ *  locals found, the league's numbered channels, the league's and teams' own
+ *  channels found, and the teams' cities' channels. */
+const GUIDE_MAX = { found: 10, numbered: 8, league: 4, city: 6 };
 /** A game further off than this is past what a short guide covers. */
 const GUIDE_AHEAD_MS = 6 * 60 * 60_000;
 const guideCache = new Map<string, { at: number; from: SportsChannel[]; links: GameChannel[] }>();
@@ -613,7 +701,7 @@ const readGuide = (entries: XtreamEpgEntry[]): Listing[] => entries
  *  by name (short codes are not enough here: "no" and "ne" are words), or a
  *  card's number or headliners. */
 const listingHas = (text: string, g: Game): boolean => {
-  if (!g.home && !g.away) return cardIn(text, cardWords(g));
+  if (!g.home && !g.away) return cardIn(text, cardWords(g)) && !otherSession(text, g);
   const w = gameWords(g);
   const h = sideIn(text, w.home, false), a = sideIn(text, w.away, false);
   return (h.strong && (a.strong || a.weak)) || (a.strong && h.weak);
@@ -628,11 +716,17 @@ const guideNote = (e: Listing, g: Game): string => {
 
 /** What the guide says about a game's channels, as links to lay over the
  *  list: the networks and locals found by name that the guide shows with this
- *  game (first) or with another of today's games (last); the teams' cities'
- *  channels the guide shows with it; and, when no channel's name has the
- *  game, the league's numbered channels the guide shows with it. Looked at
- *  around kickoff (now, for a game under way); kept ten minutes. */
-export async function checkGuides(game: Game, channels: SportsChannel[], found: GameChannel[], games: Game[] = [], now = Date.now()): Promise<GameChannel[]> {
+ *  game (first) or with another of today's games (last); the league's
+ *  numbered channels ("MLB 07"), and the league's and teams' own channels,
+ *  the guide shows with it (names are read too, by channelsForGame: a game
+ *  may be in either); and the teams' cities' channels the guide shows with
+ *  it. Looked at around kickoff (now, for a game under way); kept ten
+ *  minutes. `onPartial` hears the links so far after each few lookups, so
+ *  the list fills in as the answers come. */
+export async function checkGuides(
+  game: Game, channels: SportsChannel[], found: GameChannel[], games: Game[] = [], now = Date.now(),
+  onPartial?: (links: GameChannel[]) => void,
+): Promise<GameChannel[]> {
   const hit = guideCache.get(game.id);
   if (hit && hit.from === channels && now - hit.at < CHANNELS_TTL_MS) return hit.links;
   const start = Date.parse(game.start);
@@ -640,34 +734,38 @@ export async function checkGuides(game: Game, channels: SportsChannel[], found: 
   if (!live && !(start - now < GUIDE_AHEAD_MS)) return [];
   const at = live || !Number.isFinite(start) ? now : Math.max(now, start + 10 * 60_000);
 
-  const seen = new Set<string>();
+  // A channel named for the game says so already.
+  const seen = new Set<string>(found.filter((f) => f.via === 'game').map(linkKey));
   const cands: Array<{ line: XtreamCreds; stream: XtreamLiveStream; via: LinkKind; was?: GameChannel }> = [];
+  const add = (c: { line: XtreamCreds; stream: XtreamLiveStream }, via: LinkKind, was?: GameChannel): boolean => {
+    const k = linkKey(c);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    cands.push({ line: c.line, stream: c.stream, via, was });
+    return true;
+  };
+  let n = 0;
   for (const f of found) {
-    if (f.via !== 'network' && f.via !== 'local') continue;
-    if (cands.length >= GUIDE_MAX.found) break;
-    seen.add(linkKey(f));
-    cands.push({ line: f.line, stream: f.stream, via: f.via, was: f });
+    if (n >= GUIDE_MAX.found) break;
+    if ((f.via === 'network' || f.via === 'local') && add(f, f.via, f)) n += 1;
+  }
+  n = 0;
+  for (const c of channels) {
+    if (n >= GUIDE_MAX.numbered) break;
+    if (isNumberedEvent(c, game.league) && add(c, 'game')) n += 1;
+  }
+  n = 0;
+  for (const f of found) {
+    if (n >= GUIDE_MAX.league) break;
+    if ((f.via === 'league' || f.via === 'team') && add(f, f.via, f)) n += 1;
   }
   if (game.home || game.away) {
     const w = gameWords(game);
     const city = [...w.home.place, ...w.away.place, ...w.home.shortPlace, ...w.away.shortPlace, ...w.home.own, ...w.away.own];
-    let n = 0;
+    n = 0;
     for (const c of channels) {
       if (n >= GUIDE_MAX.city) break;
-      if (c.leagues.length || seen.has(linkKey(c)) || !has(` ${c.name} `, city)) continue;
-      seen.add(linkKey(c));
-      cands.push({ line: c.line, stream: c.stream, via: 'local' });
-      n += 1;
-    }
-  }
-  if (!found.some((f) => f.via === 'game')) {
-    let n = 0;
-    for (const c of channels) {
-      if (n >= GUIDE_MAX.numbered) break;
-      if (!isNumberedEvent(c, game.league) || seen.has(linkKey(c))) continue;
-      seen.add(linkKey(c));
-      cands.push({ line: c.line, stream: c.stream, via: 'game' });
-      n += 1;
+      if (!c.leagues.length && has(` ${c.name} `, city) && add(c, 'local')) n += 1;
     }
   }
 
@@ -695,6 +793,7 @@ export async function checkGuides(game: Game, channels: SportsChannel[], found: 
       return null;
     }));
     for (const l of batch) if (l) links.push(l);
+    if (onPartial && i + 4 < cands.length) onPartial(links.slice());
   }
   guideCache.set(game.id, { at: now, from: channels, links });
   return links;

@@ -54,6 +54,10 @@ type PickItem =
  *  not take the focus away. */
 interface Picker { gameId: string; focus: number; moved: boolean; scanning: boolean; extra: GameChannel[] }
 
+const pickKey = (it: PickItem): string => (it.kind === 'link'
+  ? `l|${it.link.line.host}|${it.link.line.username}|${it.link.stream.stream_id}`
+  : `b|${it.line.host}|${it.line.username}|${it.categoryId}`);
+
 const TeamCell = ({ name, logo, score, live }: { name: string; logo: string | null; score: string | null; live: boolean }) => (
   <div className="flex items-center min-w-0">
     {logo
@@ -177,10 +181,32 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     if (!channels) return;
     // What the networks' and locals' guide says (and, when no channel is
     // named for the game, the league's numbered channels' guide).
-    void checkGuides(r.game, channels, r.found, games ?? [])
-      .then((extra) => setPicker((p) => (p && p.gameId === gameId ? { ...p, extra, scanning: false, focus: extra.length && !p.moved ? 0 : p.focus } : p)))
+    // The list fills in as the answers come (a few lookups at a time).
+    const lay = (extra: GameChannel[], done: boolean) => setPicker((p) => (p && p.gameId === gameId
+      ? { ...p, extra, scanning: !done, focus: extra.length && !p.moved ? 0 : p.focus }
+      : p));
+    void checkGuides(r.game, channels, r.found, games ?? [], Date.now(), (partial) => lay(partial, false))
+      .then((extra) => lay(extra, true))
       .catch(() => setPicker((p) => (p && p.gameId === gameId ? { ...p, scanning: false } : p)));
   }, [rows, channels, isDown, games]);
+
+  // The guide's answers reorder the list: a viewer who has moved stays on the
+  // channel they were on, not on whatever now sits at that row.
+  const focusKeyRef = useRef<string | null>(null);
+  const lastOrderRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!picker) { focusKeyRef.current = null; lastOrderRef.current = null; return; }
+    // The list is rebuilt on every move: what counts is whether its order did.
+    const order = pickItems.map(pickKey).join(',');
+    const changed = lastOrderRef.current !== null && lastOrderRef.current !== order;
+    lastOrderRef.current = order;
+    if (changed && picker.moved && focusKeyRef.current) {
+      const i = pickItems.findIndex((it) => pickKey(it) === focusKeyRef.current);
+      if (i >= 0 && i !== picker.focus) { setPicker((p) => (p ? { ...p, focus: i } : p)); return; }
+    }
+    const cur = pickItems[picker.focus];
+    focusKeyRef.current = cur ? pickKey(cur) : null;
+  }, [picker, pickItems]);
 
   const closePicker = useCallback(() => setPicker(null), []);
 

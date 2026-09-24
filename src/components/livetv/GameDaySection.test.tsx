@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const soon = new Date(Date.now() + 60 * 60_000).toISOString();
+/** What the guide check answers: a test may hold it back and hand it over later. */
+const guide = vi.hoisted(() => ({ answer: null as null | (() => Promise<unknown[]>) }));
 const line = { host: 'http://h', username: 'u', password: 'p' };
 const team = (short: string, location: string) => ({ short, name: `${location} ${short}`, location, abbr: '', logo: null, score: null });
 vi.mock('@/lib/gameDay', async (orig) => {
@@ -19,7 +21,7 @@ vi.mock('@/lib/gameDay', async (orig) => {
       real.sportsChannel(line as never, { stream_id: 7, name: 'US| FOX 5 New York' } as never, 'US| LOCALS')!,
       real.sportsChannel(line as never, { stream_id: 3, name: 'USA | A&E' } as never, 'USA')!,
     ],
-    checkGuides: async () => [],
+    checkGuides: () => (guide.answer ? guide.answer() : Promise.resolve([])),
   };
 });
 vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/xtream')>()), loadSavedAccounts: async () => [] }));
@@ -28,7 +30,7 @@ vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 const key = (k: string) => act(() => { fireEvent.keyDown(window, { key: k }); });
 
-beforeEach(() => { sessionStorage.clear(); localStorage.clear(); Element.prototype.scrollIntoView = vi.fn(); });
+beforeEach(() => { sessionStorage.clear(); localStorage.clear(); Element.prototype.scrollIntoView = vi.fn(); guide.answer = null; });
 
 describe('GameDaySection', () => {
   it("Watch lists the game's channels; OK plays the one picked", async () => {
@@ -49,6 +51,25 @@ describe('GameDaySection', () => {
     await key('ArrowRight');
     await key('Enter');
     expect(await screen.findByText('Reminder on')).toBeTruthy();
+  });
+
+  it("the guide's answer arriving later leaves the highlight on the channel it was on", async () => {
+    const real = await vi.importActual<typeof import('@/lib/gameDay')>('@/lib/gameDay');
+    let release: (links: unknown[]) => void = () => {};
+    guide.answer = () => new Promise((r) => { release = r; });
+    const { default: GameDay } = await import('./GameDaySection');
+    const onWatch = vi.fn();
+    render(<GameDay creds={line as never} isActive onExitLeft={() => {}} onWatch={onWatch} />);
+    expect(await screen.findByText('NFL 01: Bears vs Packers')).toBeTruthy();
+    await key('Enter');
+    await key('ArrowDown');
+    // FOX 5 is highlighted; now the guide confirms another channel, which goes first.
+    const confirmed = { line, stream: { stream_id: 3, name: 'USA | A&E' }, score: 95, via: 'network', note: 'Guide: Bears at Packers' };
+    await act(async () => { release([confirmed]); await Promise.resolve(); });
+    expect(await screen.findByText('Guide: Bears at Packers')).toBeTruthy();
+    expect(real.LINK_LABELS.network).toBe('National TV');
+    await key('Enter');
+    expect(JSON.parse(sessionStorage.getItem('smc-live-deeplink') || '{}')).toMatchObject({ streamId: 7 });
   });
 
   it('a game only on a streaming service says so and plays nothing', async () => {

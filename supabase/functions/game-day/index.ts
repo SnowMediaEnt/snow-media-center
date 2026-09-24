@@ -13,6 +13,12 @@
 // start time, state (pre | in), the live detail ("Q3 5:32") and score, the TV
 // networks carrying it nationally, and the local / regional ones (RSNs) with
 // the team whose market they serve. Finished games are left out.
+//
+// Sports without two teams are events: a fight card (UFC), a race session
+// (F1, NASCAR, IndyCar: the race, qualifying and sprint, not practice), a golf
+// tournament, a tennis tournament. They carry no teams; `event` is their
+// name ("Italian GP"), `session` the race session, and `places` the circuit,
+// course or venue and its city — what providers put in a channel's name.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -20,18 +26,37 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-const LEAGUES: Array<{ id: string; label: string; path: string }> = [
-  { id: 'nfl', label: 'NFL', path: 'football/nfl' },
-  { id: 'ncaaf', label: 'College Football', path: 'football/college-football' },
-  { id: 'nba', label: 'NBA', path: 'basketball/nba' },
-  { id: 'wnba', label: 'WNBA', path: 'basketball/wnba' },
-  { id: 'ncaab', label: 'College Basketball', path: 'basketball/mens-college-basketball' },
-  { id: 'mlb', label: 'MLB', path: 'baseball/mlb' },
-  { id: 'nhl', label: 'NHL', path: 'hockey/nhl' },
-  { id: 'mls', label: 'MLS', path: 'soccer/usa.1' },
-  { id: 'epl', label: 'Premier League', path: 'soccer/eng.1' },
-  { id: 'ucl', label: 'Champions League', path: 'soccer/uefa.champions' },
-  { id: 'ufc', label: 'UFC', path: 'mma/ufc' },
+/** How a league's scoreboard reads: two teams a game (by date), a fight card
+ *  (by date), or events whose sessions or rounds run over several days (the
+ *  current ones, no date). */
+type Kind = 'teams' | 'card' | 'racing' | 'golf' | 'tennis';
+const LEAGUES: Array<{ id: string; label: string; path: string; kind: Kind }> = [
+  { id: 'nfl', label: 'NFL', path: 'football/nfl', kind: 'teams' },
+  { id: 'ncaaf', label: 'College Football', path: 'football/college-football', kind: 'teams' },
+  { id: 'ufl', label: 'UFL', path: 'football/ufl', kind: 'teams' },
+  { id: 'nba', label: 'NBA', path: 'basketball/nba', kind: 'teams' },
+  { id: 'wnba', label: 'WNBA', path: 'basketball/wnba', kind: 'teams' },
+  { id: 'ncaab', label: 'College Basketball', path: 'basketball/mens-college-basketball', kind: 'teams' },
+  { id: 'mlb', label: 'MLB', path: 'baseball/mlb', kind: 'teams' },
+  { id: 'nhl', label: 'NHL', path: 'hockey/nhl', kind: 'teams' },
+  { id: 'mls', label: 'MLS', path: 'soccer/usa.1', kind: 'teams' },
+  { id: 'nwsl', label: 'NWSL', path: 'soccer/usa.nwsl', kind: 'teams' },
+  { id: 'ligamx', label: 'Liga MX', path: 'soccer/mex.1', kind: 'teams' },
+  { id: 'epl', label: 'Premier League', path: 'soccer/eng.1', kind: 'teams' },
+  { id: 'laliga', label: 'La Liga', path: 'soccer/esp.1', kind: 'teams' },
+  { id: 'seriea', label: 'Serie A', path: 'soccer/ita.1', kind: 'teams' },
+  { id: 'bundesliga', label: 'Bundesliga', path: 'soccer/ger.1', kind: 'teams' },
+  { id: 'ligue1', label: 'Ligue 1', path: 'soccer/fra.1', kind: 'teams' },
+  { id: 'ucl', label: 'Champions League', path: 'soccer/uefa.champions', kind: 'teams' },
+  { id: 'uel', label: 'Europa League', path: 'soccer/uefa.europa', kind: 'teams' },
+  { id: 'ufc', label: 'UFC', path: 'mma/ufc', kind: 'card' },
+  { id: 'f1', label: 'F1', path: 'racing/f1', kind: 'racing' },
+  { id: 'nascar', label: 'NASCAR', path: 'racing/nascar-premier', kind: 'racing' },
+  { id: 'indycar', label: 'IndyCar', path: 'racing/irl', kind: 'racing' },
+  { id: 'pga', label: 'PGA Tour', path: 'golf/pga', kind: 'golf' },
+  { id: 'lpga', label: 'LPGA', path: 'golf/lpga', kind: 'golf' },
+  { id: 'atp', label: 'ATP Tennis', path: 'tennis/atp', kind: 'tennis' },
+  { id: 'wta', label: 'WTA Tennis', path: 'tennis/wta', kind: 'tennis' },
 ];
 
 const CACHE_MS = 4 * 60_000;
@@ -45,12 +70,17 @@ const ESPN_HEADERS = {
 const ESPN_HOSTS = ['https://site.api.espn.com', 'https://site.web.api.espn.com'];
 /** College scoreboards list dozens of small games; keep the televised ones. */
 const MAX_PER_LEAGUE = 40;
+/** ESPN requests in flight at once, per build. */
+const MAX_PARALLEL = 8;
 
 interface Team { name: string; short: string; abbr: string; location: string; logo: string | null; score: string | null }
 interface Game {
   id: string; league: string; leagueLabel: string; name: string; start: string;
   state: 'pre' | 'in'; detail: string; home: Team | null; away: Team | null; networks: string[];
   locals: Array<{ name: string; market: 'home' | 'away' }>;
+  /** Events only (no teams): the event's own name, the race session, and the
+   *  circuit, course or venue with its city. */
+  event?: string; session?: string; places?: string[];
 }
 
 let cache: { at: number; games: Game[] } | null = null;
@@ -110,19 +140,21 @@ const broadcastsOf = (comp: Any): { networks: string[]; locals: Array<{ name: st
   };
 };
 
-/** One league's scoreboard for a day, from ESPN's main host or, failing
- *  that, its second one. Failures are logged (status and host only). */
-async function fetchScoreboard(l: { id: string; path: string }, date: string): Promise<Any | null> {
+/** One league's scoreboard for a day (or, with no day, its current events),
+ *  from ESPN's main host or, failing that, its second one. Failures are
+ *  logged (status and host only). */
+async function fetchScoreboard(l: { id: string; path: string }, date?: string): Promise<Any | null> {
+  const query = date ? `?dates=${date}&limit=200` : '';
   for (const host of ESPN_HOSTS) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(`${host}/apis/site/v2/sports/${l.path}/scoreboard?dates=${date}&limit=200`, { signal: ctl.signal, headers: ESPN_HEADERS });
+      const res = await fetch(`${host}/apis/site/v2/sports/${l.path}/scoreboard${query}`, { signal: ctl.signal, headers: ESPN_HEADERS });
       if (res.ok) return await res.json();
-      console.error(`[game-day] ${l.id} ${date} ${host}: HTTP ${res.status}`);
+      console.error(`[game-day] ${l.id} ${date ?? 'current'} ${host}: HTTP ${res.status}`);
       await res.body?.cancel();
     } catch (e) {
-      console.error(`[game-day] ${l.id} ${date} ${host}: ${(e as Error).name} ${(e as Error).message}`);
+      console.error(`[game-day] ${l.id} ${date ?? 'current'} ${host}: ${(e as Error).name} ${(e as Error).message}`);
     } finally {
       clearTimeout(timer);
     }
@@ -130,7 +162,7 @@ async function fetchScoreboard(l: { id: string; path: string }, date: string): P
   return null;
 }
 
-async function fetchLeague(l: { id: string; label: string; path: string }, date: string): Promise<Game[]> {
+async function fetchLeague(l: { id: string; label: string; path: string; kind: Kind }, date: string): Promise<Game[]> {
   try {
     const data = await fetchScoreboard(l, date);
     if (!data) return [];
@@ -143,7 +175,7 @@ async function fetchLeague(l: { id: string; label: string; path: string }, date:
       const home = team(cs.find((c: Any) => c?.homeAway === 'home') ?? cs[0]);
       const away = team(cs.find((c: Any) => c?.homeAway === 'away') ?? cs[1]);
       // A fight card is one event: its name, not its first bout.
-      const isCard = l.id === 'ufc';
+      const isCard = l.kind === 'card';
       out.push({
         id: `${l.id}:${e.id}`,
         league: l.id,
@@ -155,6 +187,7 @@ async function fetchLeague(l: { id: string; label: string; path: string }, date:
         home: isCard ? null : home,
         away: isCard ? null : away,
         ...broadcastsOf(comp),
+        ...(isCard ? { event: String(e.name ?? '') } : {}),
       });
     }
     // Keep the ones on TV first when a league lists a lot (college).
@@ -166,6 +199,141 @@ async function fetchLeague(l: { id: string; label: string; path: string }, date:
   }
 }
 
+const text = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+const stateOf = (st: Any): string => String(st?.type?.state ?? '');
+
+/** Where an event is, as providers may name it: the circuit, course or venue
+ *  and its city (never the country alone: "USA" names half the line-up). */
+const placesOf = (...things: Any[]): string[] => {
+  const out = new Set<string>();
+  for (const t of things) {
+    if (!t) continue;
+    for (const v of [t.fullName, t.name, t.shortName, t.address?.city]) {
+      const s = text(v);
+      if (s && s.length <= 60) out.add(s);
+    }
+  }
+  return [...out].slice(0, 6);
+};
+
+/** A race weekend's session by its type: Race, Qualifying, Sprint (and its
+ *  qualifying), Practice; '' when ESPN doesn't say. */
+const sessionOf = (c: Any): string => {
+  const t = `${text(c?.type?.abbreviation)} ${text(c?.type?.text)} ${text(c?.type?.name)}`.toLowerCase().trim();
+  if (!t) return '';
+  if (/sprint/.test(t) && /qual|shootout/.test(t)) return 'Sprint Qualifying';
+  if (/\bss\b/.test(t)) return 'Sprint Qualifying';
+  if (/sprint|\bsr\b/.test(t)) return 'Sprint';
+  if (/qual|\bq\d?\b/.test(t)) return 'Qualifying';
+  if (/practice|\bfp\d|\bp\d\b|warm/.test(t)) return 'Practice';
+  if (/race|\br\b/.test(t)) return 'Race';
+  return '';
+};
+
+/** A league of events: its current events (no date), each session, round or
+ *  day still to come or under way. */
+async function fetchEvents(l: { id: string; label: string; path: string; kind: Kind }): Promise<Game[]> {
+  try {
+    const data = await fetchScoreboard(l);
+    if (!data) return [];
+    const out: Game[] = [];
+    for (const e of data?.events ?? []) {
+      const name = text(e.shortName) || text(e.name);
+      if (!name) continue;
+      const comps: Any[] = e.competitions ?? [];
+      const base = { league: l.id, leagueLabel: l.label, home: null, away: null, event: name };
+      if (l.kind === 'racing') {
+        const places = placesOf(e.circuit, e.venue, comps[0]?.venue, comps[0]?.circuit);
+        for (const c of comps) {
+          const state = stateOf(c.status);
+          const session = sessionOf(c);
+          if ((state !== 'pre' && state !== 'in') || session === 'Practice') continue;
+          const tv = broadcastsOf(c);
+          out.push({
+            ...base,
+            id: `${l.id}:${e.id}:${c.id ?? session}`,
+            name: session ? `${name} · ${session}` : name,
+            start: String(c.date ?? e.date ?? ''),
+            state: state as 'pre' | 'in',
+            detail: String(c.status?.type?.shortDetail ?? ''),
+            ...(tv.networks.length || tv.locals.length ? tv : broadcastsOf(e)),
+            ...(session ? { session } : {}),
+            places,
+          });
+        }
+        if (!comps.length) {
+          const state = stateOf(e.status);
+          if (state === 'pre' || state === 'in') {
+            out.push({ ...base, id: `${l.id}:${e.id}`, name, start: String(e.date ?? ''), state, detail: String(e.status?.type?.shortDetail ?? ''), ...broadcastsOf(e), places });
+          }
+        }
+        continue;
+      }
+      if (l.kind === 'golf') {
+        const c = comps[0];
+        const st = c?.status ?? e.status;
+        const state = stateOf(st);
+        if (state !== 'pre' && state !== 'in') continue;
+        const tv = broadcastsOf(c);
+        out.push({
+          ...base,
+          id: `${l.id}:${e.id}`,
+          name,
+          start: String(c?.date ?? e.date ?? ''),
+          state: state as 'pre' | 'in',
+          detail: String(st?.type?.shortDetail ?? ''),
+          ...(tv.networks.length || tv.locals.length ? tv : broadcastsOf(e)),
+          places: placesOf(c?.venue, e.venue, ...(e.courses ?? [])),
+        });
+        continue;
+      }
+      // Tennis: a tournament is a day of matches. Listed while it has one
+      // under way or still to come, with every match's TV.
+      const matches: Any[] = [...comps, ...(e.groupings ?? []).flatMap((g: Any) => g?.competitions ?? [])];
+      const live = matches.filter((m) => stateOf(m.status) === 'in');
+      const next = matches
+        .filter((m) => stateOf(m.status) === 'pre')
+        .map((m) => Date.parse(String(m.date ?? '')))
+        .filter((t) => Number.isFinite(t))
+        .sort((a, b) => a - b)[0];
+      if (!live.length && next == null) continue;
+      const networks = new Set<string>();
+      for (const m of [...live, ...matches.filter((x) => stateOf(x.status) === 'pre')]) for (const n of broadcastsOf(m).networks) networks.add(n);
+      const firstLive = live.map((m) => Date.parse(String(m.date ?? ''))).filter((t) => Number.isFinite(t)).sort((a, b) => a - b)[0];
+      out.push({
+        ...base,
+        id: `${l.id}:${e.id}`,
+        name,
+        start: new Date(live.length ? (firstLive ?? Date.now()) : next).toISOString(),
+        state: live.length ? 'in' : 'pre',
+        detail: live.length ? `${live.length} match${live.length === 1 ? '' : 'es'} on` : '',
+        networks: [...networks].slice(0, 6),
+        locals: [],
+        places: placesOf(e.venue, comps[0]?.venue),
+      });
+    }
+    return out.slice(0, MAX_PER_LEAGUE);
+  } catch (e) {
+    console.error(`[game-day] ${l.id} current: ${(e as Error).message}`);
+    return [];
+  }
+}
+
+/** Runs jobs a few at a time: two dozen scoreboards at once is a burst ESPN
+ *  may turn away. */
+async function inTurn<T>(jobs: Array<() => Promise<T>>, width = MAX_PARALLEL): Promise<T[]> {
+  const out: T[] = new Array(jobs.length);
+  let next = 0;
+  const lane = async () => {
+    while (next < jobs.length) {
+      const i = next++;
+      out[i] = await jobs[i]();
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(width, jobs.length) }, lane));
+  return out;
+}
+
 async function build(): Promise<Game[]> {
   const now = new Date();
   const day = 24 * 60 * 60 * 1000;
@@ -174,10 +342,13 @@ async function build(): Promise<Game[]> {
   // still be on: yesterday's list too, keeping only what is live.
   const etHour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false }).format(now)) % 24;
   const yesterday = etHour < 5 ? ymd(new Date(now.getTime() - day)) : null;
-  const lists = await Promise.all(LEAGUES.flatMap((l) => [
-    ...dates.map((d) => fetchLeague(l, d)),
-    ...(yesterday ? [fetchLeague(l, yesterday).then((gs) => gs.filter((g) => g.state === 'in'))] : []),
-  ]));
+  const lists = await inTurn(LEAGUES.flatMap((l): Array<() => Promise<Game[]>> => (
+    l.kind === 'racing' || l.kind === 'golf' || l.kind === 'tennis'
+      ? [() => fetchEvents(l)]
+      : [
+        ...dates.map((d) => () => fetchLeague(l, d)),
+        ...(yesterday ? [() => fetchLeague(l, yesterday).then((gs) => gs.filter((g) => g.state === 'in'))] : []),
+      ])));
   const seen = new Set<string>();
   const until = now.getTime() + 30 * 60 * 60 * 1000;
   const games = lists.flat().filter((g) => {
