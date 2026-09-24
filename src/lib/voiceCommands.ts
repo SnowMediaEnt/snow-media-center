@@ -166,9 +166,12 @@ export function nameScore(spoken: string, candidate: string): number {
 const MIN_CHANNEL_SCORE = 50;
 /** A country some providers put before the name with just a space ("USA
  *  ESPN", "UK SKY ONE"), and picture details cleanChannelName keeps. A name is
- *  also scored without them. */
+ *  also scored without them, and without "the" and "channel", which the
+ *  parser takes off what was said ("put on the Weather Channel" → "the
+ *  weather", "Disney Channel" → "disney"). */
 const COUNTRY_WORD = /^(?:us|usa|uk|ca|can|au|nz|ie)\s+(?=\S)/;
 const PICTURE_WORDS = /\b(?:\d{3,4}p|\d{2}\s?fps|alt|multi)\b/g;
+const NAME_WORDS = /^the\s+(?=\S)|^channel\s+(?=\S)|(\S)\s+channel$/g;
 
 /**
  * The channel a spoken name means, or null when none clearly does: nothing
@@ -182,7 +185,7 @@ export function bestChannel<T extends { name: string; stream_id: number }>(spoke
   const byName = new Map<string, { ch: T; score: number; fav: boolean }>();
   for (const ch of channels) {
     const name = cleanChannelName(ch.name);
-    const bare = name.replace(COUNTRY_WORD, '').replace(PICTURE_WORDS, ' ').replace(/\s+/g, ' ').trim();
+    const bare = name.replace(COUNTRY_WORD, '').replace(PICTURE_WORDS, ' ').replace(/\s+/g, ' ').trim().replace(NAME_WORDS, '$1');
     const score = Math.max(nameScore(spoken, name), bare === name ? 0 : nameScore(spoken, bare));
     if (score < MIN_CHANNEL_SCORE) continue;
     const fav = !!favourites?.has(ch.stream_id);

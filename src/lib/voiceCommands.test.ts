@@ -121,6 +121,26 @@ describe('matching', () => {
     expect(channelForName('usa', [lineA, lineB])).toBeNull();
   });
 
+  it('finds a "… Channel" said the way the parser hands it over', () => {
+    const line = [
+      { name: 'US| THE WEATHER CHANNEL HD', stream_id: 1 },
+      { name: 'US| DISNEY CHANNEL', stream_id: 2 },
+      { name: 'US| DISNEY JUNIOR', stream_id: 3 },
+      { name: 'US| DISNEY XD', stream_id: 4 },
+      { name: 'UK: CHANNEL 5', stream_id: 5 },
+      { name: 'US| NBC 5 CHICAGO', stream_id: 6 },
+    ];
+    const play = (said: string) => {
+      const a = parseVoiceCommand(said);
+      return a.kind === 'channel' ? channelForName(a.name, [line])?.stream_id ?? null : null;
+    };
+    expect(play('put on the Weather Channel')).toBe(1);
+    expect(play('put on Disney Channel')).toBe(2);
+    expect(play('watch the Disney Channel')).toBe(2);
+    expect(play('put on Disney Junior')).toBe(3);
+    expect(play('put on channel 5')).toBe(5);
+  });
+
   it('finds installed apps and close titles', () => {
     const apps = [{ appName: 'YouTube', packageName: 'yt' }, { appName: 'YouTube Kids', packageName: 'ytk' }, { appName: 'Downloader', packageName: 'dl' }];
     expect(bestApp('youtube', apps)?.packageName).toBe('yt');

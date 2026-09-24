@@ -107,6 +107,9 @@ describe('VoiceCommandHost and the remote', () => {
     const t = press({ key: 't', keyCode: 84 }, input);
     expect(t.defaultPrevented).toBe(false);
     expect(overlay()).toBeNull();
+    // Nor '*', which some browsers send as 170 (BrowserSearch's code).
+    expect(press({ key: '*', keyCode: 170 }, input).defaultPrevented).toBe(false);
+    expect(overlay()).toBeNull();
     input.remove();
 
     const search = press({ key: 'BrowserSearch', keyCode: 170 });
@@ -206,6 +209,19 @@ describe('VoiceCommandHost and the phone remote', () => {
     await act(async () => { vi.advanceTimersByTime(3100); });
     await fromPhone('open support');
     expect(navigate.mock.calls).toEqual([['settings'], ['support']]);
+  });
+
+  it('waits for a command still running, but not for good', async () => {
+    invoke.mockImplementationOnce(() => new Promise(() => {}));
+    const navigate = vi.fn();
+    render(<Host navigate={navigate} />);
+    await fromPhone('what is on tonight');
+    await act(async () => { vi.advanceTimersByTime(3100); });
+    await fromPhone('open support');
+    expect(navigate).not.toHaveBeenCalled();
+    await act(async () => { vi.advanceTimersByTime(30000); });
+    await fromPhone('open support');
+    expect(navigate.mock.calls).toEqual([['support']]);
   });
 
   it('never spends Premium gems or makes a background on its own', async () => {

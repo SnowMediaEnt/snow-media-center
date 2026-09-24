@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { takeIntent, INTENT_KEYS } from '@/lib/appActions';
+import { takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { KIDS_IMAGE_TITLE, kidsImageNotice } from '@/lib/kidsAiNotice';
 
@@ -893,13 +893,22 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
    */
   // The assistant's "make me a wallpaper of …": fill the prompt, then generate.
   // Asked for from the phone remote it is only filled in: Generate costs Snow
-  // Gems, so it is pressed here, on the TV.
+  // Gems, so it is pressed here, on the TV. Asked for while this is already
+  // on screen, it is taken at once (the screen-intent event), not left to
+  // generate on the next visit.
   const autoPromptRef = useRef<string | null>(null);
+  const [autoTick, setAutoTick] = useState(0);
   useEffect(() => {
-    const p = takeIntent(INTENT_KEYS.wallpaper);
-    if (p) { autoPromptRef.current = p; setGeneratePrompt(p); return; }
-    const draft = takeIntent(INTENT_KEYS.wallpaperDraft);
-    if (draft) setGeneratePrompt(draft);
+    const take = () => {
+      const p = takeIntent(INTENT_KEYS.wallpaper);
+      if (p) { autoPromptRef.current = p; setGeneratePrompt(p); setAutoTick((n) => n + 1); return; }
+      const draft = takeIntent(INTENT_KEYS.wallpaperDraft);
+      if (draft) setGeneratePrompt(draft);
+    };
+    take();
+    const on = (e: Event) => { if ((e as CustomEvent<string>).detail === 'settings') take(); };
+    window.addEventListener(SCREEN_INTENT_EVENT, on);
+    return () => window.removeEventListener(SCREEN_INTENT_EVENT, on);
   }, []);
   useEffect(() => {
     if (!autoPromptRef.current || generatePrompt !== autoPromptRef.current) return;
@@ -907,7 +916,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     const t = setTimeout(() => { void handleGenerateImage(); }, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generatePrompt]);
+  }, [generatePrompt, autoTick]);
 
   const handleCompare = async () => {
     const prompt = generatePrompt.trim();

@@ -89,9 +89,14 @@ const fetchLiveCategories = DEMO ? demoGetLiveCategories : getLiveCategories;
 const fetchLiveStreams = DEMO ? demoGetLiveStreams : getLiveStreams;
 const fetchShortEpg = DEMO ? demoGetShortEpg : getShortEpg;
 
-/** A channel asked for by voice that no channel clearly is. */
-const sayChannelNotFound = (said: string) => {
-  try { toast({ title: `Couldn't find “${said}”`, description: 'Say the channel’s full name, or look for it with Search.' }); } catch { /* ignore */ }
+/** A channel asked for by voice that no channel clearly is (or, `loading`,
+ *  whose lists had not come in yet). */
+const sayChannelNotFound = (said: string, loading = false) => {
+  try {
+    toast(loading
+      ? { title: 'Still loading your channels', description: `Say “${said}” again in a moment.` }
+      : { title: `Couldn't find “${said}”`, description: 'Say the channel’s full name, or look for it with Search.' });
+  } catch { /* ignore */ }
 };
 
 
@@ -792,12 +797,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // channel it clearly means (channelForName; a favourite settles a tie). The
   // screen is left alone until then. If none does, or the lists have not
   // come in within a few seconds, nothing plays — the first name in a list
-  // is only a guess — and the viewer is told.
+  // is only a guess — and the viewer is told which.
   useEffect(() => {
     if (!pendingPlay) return;
     const giveUp = setTimeout(() => {
       setPendingPlay(null);
-      sayChannelNotFound(pendingPlay);
+      sayChannelNotFound(pendingPlay, allLoadingRef.current.size > 0);
     }, 12000);
     return () => clearTimeout(giveUp);
   }, [pendingPlay]);

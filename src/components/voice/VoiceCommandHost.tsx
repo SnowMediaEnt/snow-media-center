@@ -36,9 +36,10 @@ import { REMOTE_VOICE_EVENT } from '@/lib/phoneRemote';
 
 // The remote's Search key reaches the page as the 'search' media key
 // (MainActivity takes KEYCODE_SEARCH). As a key it is a keyboard's named
-// Search key: Android's code for it, 84, is the letter T in a keydown.
+// Search key: Android's code for it, 84, is the letter T in a keydown, and
+// no typed character counts ('*' is 170 in some browsers).
 const SEARCH_KEYS = new Set(['BrowserSearch', 'Search', 'LaunchAssistant']);
-const isSearchKey = (e: KeyboardEvent) => SEARCH_KEYS.has(e.key) || e.keyCode === 170;
+const isSearchKey = (e: KeyboardEvent) => SEARCH_KEYS.has(e.key) || (e.keyCode === 170 && (e.key || '').length !== 1);
 const isBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || e.keyCode === 4 || e.keyCode === 27;
 const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23;
 const isArrow = (e: KeyboardEvent) => e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown';
@@ -51,8 +52,10 @@ const otherPopupOpen = () => { try { return !!document.querySelector(OTHER_POPUP
 
 /** Commands from the phone remote: one at a time, at most one this often.
  *  Each can cost Snow Gems (the assistant), and whoever holds the pairing
- *  could send them in a loop. */
+ *  could send them in a loop. One whose answer never comes stops blocking
+ *  the next after PHONE_STUCK_MS. */
 const PHONE_GAP_MS = 3000;
+const PHONE_STUCK_MS = 30000;
 
 type Phase =
   | { kind: 'listening' }
@@ -281,15 +284,16 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
       const heard = String((e as CustomEvent<string>).detail || '').trim();
       if (!heard || !canOpen()) return;
       const now = Date.now();
-      if (phoneBusy.current || now - phoneLast.current < PHONE_GAP_MS) return;
+      if (now - phoneLast.current < (phoneBusy.current ? PHONE_STUCK_MS : PHONE_GAP_MS)) return;
       phoneBusy.current = true;
       phoneLast.current = now;
+      const mine = now;
       if (closeTimer.current) { window.clearTimeout(closeTimer.current); closeTimer.current = null; }
       reqRef.current += 1;
       setFromPhone(true);
       setFocus('close');
       setOpen(true);
-      void actRef.current(heard).catch(() => undefined).then(() => { phoneBusy.current = false; });
+      void actRef.current(heard).catch(() => undefined).then(() => { if (phoneLast.current === mine) phoneBusy.current = false; });
     };
     window.addEventListener(REMOTE_VOICE_EVENT, on);
     return () => window.removeEventListener(REMOTE_VOICE_EVENT, on);
@@ -376,7 +380,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
         setFocus((f) => (f === 'mic' ? 'close' : 'mic'));
         return;
       }
-      if (isSearchKey(e)) { e.preventDefault(); start(); return; }
+      if (isSearchKey(e)) { e.preventDefault(); if (!e.repeat) start(); return; }
       if (isOk(e)) {
         e.preventDefault();
         if (e.repeat) return;
