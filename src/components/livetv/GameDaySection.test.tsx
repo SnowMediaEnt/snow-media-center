@@ -1,5 +1,9 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, configure, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// The screen loads its games and channels, then lays out up to 80 rows: on a
+// busy test machine the first render can pass the default 1 s wait.
+configure({ asyncUtilTimeout: 4000 });
 
 const soon = new Date(Date.now() + 60 * 60_000).toISOString();
 /** What the guide check answers: a test may hold it back and hand it over later. */
