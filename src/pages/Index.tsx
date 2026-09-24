@@ -884,8 +884,9 @@ const Index = () => {
     try { trackEvent('giveaway_badge_click', 'giveaway'); } catch { void 0; }
     navigateToRef.current('giveaway');
   }, []);
-  // Giveaway promo popup "View Giveaway" → Giveaway section
-  const onOpenGiveawayFromPopup = useCallback(() => navigateToRef.current('giveaway'), []);
+  // Giveaway promo popup "View Giveaway" → Giveaway section (never for a
+  // Kids profile, which does not get the popup either).
+  const onOpenGiveawayFromPopup = useCallback(() => { if (!kidsRef.current) navigateToRef.current('giveaway'); }, []);
 
   // PinnedAppsPopup callbacks — stable so its memo can skip re-renders.
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
@@ -1400,8 +1401,11 @@ const Index = () => {
         </div>
       )}
 
-      {/* A title this box requested from Plex search has arrived. */}
-      {currentView === 'home' && <RequestReadyDialog onWatch={openPlexFromReady} />}
+      {/* A title this box requested from Plex search has arrived. Requests are
+          the box's, not the profile's: a Kids profile never sees the poster
+          and title, and the notice waits for a grown-up (and for the profile
+          screens to close) instead of being used up. */}
+      {currentView === 'home' && !kids && !profileGateOpen && <RequestReadyDialog onWatch={openPlexFromReady} />}
 
       <PlayerNudgeDialog
         appName={nudgeApp?.name ?? null}
@@ -1461,8 +1465,9 @@ const Index = () => {
       )}
 
       {/* Giveaway winners announced — queues behind other boot popups via its
-          own modal-presence polling. */}
-      {overlaysReady && currentView === 'home' && !welcomeOpen && !preEventOpen && winnersGiveaway && (
+          own modal-presence polling. Not on a Kids profile (the Giveaway is
+          grown-up only), so the announcement waits for a grown-up. */}
+      {overlaysReady && currentView === 'home' && !kids && !welcomeOpen && !preEventOpen && winnersGiveaway && (
         <Suspense fallback={null}>
           <GiveawayWinnersPopup giveaway={winnersGiveaway} onDismiss={dismissWinners} />
         </Suspense>
@@ -1495,8 +1500,10 @@ const Index = () => {
 
       {/* First-open giveaway promo — once per device per giveaway. Sequenced
           behind WelcomePopup / MediaBarPrompt / app alerts via its own
-          modal-presence polling; never in demo mode (giveawayOn gate). */}
-      {overlaysReady && currentView === 'home' && giveawayOn && (
+          modal-presence polling; never in demo mode (giveawayOn gate), and
+          never on a Kids profile: it would open the grown-up Giveaway and mark
+          the promo seen for the whole box. */}
+      {overlaysReady && currentView === 'home' && giveawayOn && !kids && (
         <Suspense fallback={null}>
           <GiveawayPromoPopup onViewGiveaway={onOpenGiveawayFromPopup} />
         </Suspense>
