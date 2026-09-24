@@ -151,6 +151,52 @@ describe('a Kids profile never falls to a grown-up one by itself', () => {
     expect(p.pickProfile('main')).toBe('reload');
     expect(k.kidsLevel()).toBeNull();
   });
+
+  it("signed out on a Kids profile: one of the box's own Kids profiles is no way round that account's PIN", async () => {
+    h.session = { user: { id: 'u1' } };
+    localStorage.setItem(TOKEN, JSON.stringify({ user: { id: 'u1' } }));
+    const { p, k } = await fresh();
+    localStorage.setItem('smc-profiles-v1:u1', JSON.stringify([
+      profile('main', { position: 0, pinHash: p.hashPin('main', '1111', 'u1') }), profile('mia', { kidsLevel: 'little' }),
+    ]));
+    localStorage.setItem('smc-last-profile:u1', 'mia');
+    // Made on the box before it was signed in: a Kids profile and "Me", no PINs.
+    localStorage.setItem('smc-profiles-v1:device', JSON.stringify([profile('main', { position: 0 }), profile('leo', { kidsLevel: 'teen' })]));
+    await p.initProfiles();
+    localStorage.removeItem(TOKEN); h.session = null;
+    h.authCb?.('SIGNED_OUT', null);
+    expect(p.kidsHoldNeedsGrownUp()).toBe(true);
+    // Leo is another Kids profile: fine, and the limits are his.
+    p.pickProfile('leo');
+    expect(k.kidsLevel()).toBe('teen');
+    // On to the box's "Me" still takes the signed-out account's grown-up.
+    expect(p.kidsHoldNeedsGrownUp()).toBe(true);
+    p.bootProfilesSync();
+    expect(p.kidsHoldNeedsGrownUp()).toBe(true);
+    expect(p.checkGrownUpPin('1111')).toBe(true);
+    p.pickProfile('main');
+    expect(k.kidsLevel()).toBeNull();
+    expect(p.kidsHoldNeedsGrownUp()).toBe(false);
+  });
+
+  it("offline at start: the account's list is pulled once its session comes through", async () => {
+    localStorage.setItem(TOKEN, JSON.stringify({ user: { id: 'u1' } }));
+    const { v, p } = await fresh();
+    await p.initProfiles();
+    await flush();
+    expect(h.selects).toBe(0);
+    h.rows = [{ user_id: 'u1', id: 'leo', name: 'Leo', avatar: 'green', kids_level: 'kids', pin_hash: null, position: 1, updated_at: new Date(6000).toISOString() }];
+    h.session = { user: { id: 'u1' } };
+    h.authCb?.('TOKEN_REFRESHED', h.session);
+    expect(v.viewerAccountConfirmed()).toBe(true);
+    await flush();
+    expect(h.selects).toBe(1);
+    expect(p.loadProfiles().map((x) => x.id)).toEqual(['main', 'leo']);
+    // Once: later refreshes don't pull again.
+    h.authCb?.('TOKEN_REFRESHED', h.session);
+    await flush();
+    expect(h.selects).toBe(1);
+  });
 });
 
 describe('the viewer key', () => {

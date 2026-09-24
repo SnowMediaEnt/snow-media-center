@@ -102,8 +102,14 @@ export function resolveViewer(): Promise<string> {
         // that failed on the network, and the stored session stands.
         const live = session?.user?.id ?? null;
         const next = live ?? (event === 'SIGNED_OUT' ? null : storedAccountId());
+        const was = confirmed;
         confirmed = live != null;
-        if (next === account) return;
+        if (next === account) {
+          // The remembered session came through: listeners that waited for
+          // it (a pull skipped while offline) hear the same key again.
+          if (account != null && confirmed && !was) notify();
+          return;
+        }
         account = next;
         notify();
       });
@@ -113,7 +119,8 @@ export function resolveViewer(): Promise<string> {
   return resolved;
 }
 
-/** Called with the new key whenever the viewer changes. Returns an unsubscribe. */
+/** Called with the new key whenever the viewer changes (and once more when a
+ *  remembered session is confirmed). Returns an unsubscribe. */
 export function onViewerChange(cb: (v: string) => void): () => void {
   listeners.add(cb);
   return () => listeners.delete(cb);

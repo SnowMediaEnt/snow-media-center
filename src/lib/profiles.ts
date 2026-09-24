@@ -184,8 +184,10 @@ export const grownUpsWithPin = (): Profile[] => grownUpCandidates().map((c) => c
 export function kidsHoldNeedsGrownUp(): boolean {
   const hold = loadHold();
   if (!hold || hold.acc === accountKey()) return false;
-  return loadProfiles(hold.acc).some((p) => !p.kidsLevel && !!p.pinHash);
+  return hasGrownUpPin(hold.acc);
 }
+
+const hasGrownUpPin = (acc: string): boolean => loadProfiles(acc).some((p) => !p.kidsLevel && !!p.pinHash);
 
 /** Whether PINs can be offered: they need an account to reset through. */
 export const pinsAvailable = (): boolean => viewerAccountId() != null;
@@ -240,6 +242,9 @@ const saveDeleted = (acc: string, ids: string[]) => {
 };
 
 let pulling: Promise<void> | null = null;
+// A pull skipped for a session not refreshed yet: it runs when that comes
+// through (see initProfiles).
+let pullWaiting = false;
 
 /** Bring the box's list up to date with the account's. */
 export function pullProfiles(): Promise<void> {
@@ -252,7 +257,8 @@ async function doPull(): Promise<void> {
   const userId = viewerAccountId();
   // A session not refreshed yet (offline at start) reads as nobody: an empty
   // list that must not be taken for the account's.
-  if (!userId || !viewerAccountConfirmed()) return;
+  if (!userId || !viewerAccountConfirmed()) { pullWaiting = !!userId; return; }
+  pullWaiting = false;
   const startedAt = Date.now();
   try {
     const { data, error } = await db.from('viewer_profiles').select('*').eq('user_id', userId);
@@ -478,7 +484,14 @@ const loadHold = (): KidsHold | null => {
   } catch { /* none */ }
   return null;
 };
-const saveHold = (level: KidsLevel, acc: string = accountKey()) => { ls.set(KIDS_HOLD_KEY, JSON.stringify({ level, acc })); };
+// A hold from another account whose grown-ups have PINs stays theirs when the
+// box moves to another Kids profile: going on from one of this box's Kids
+// profiles to its grown-up one still takes one of their PINs.
+const saveHold = (level: KidsLevel, acc: string = accountKey()) => {
+  const prev = loadHold();
+  const owner = prev && prev.acc !== acc && hasGrownUpPin(prev.acc) ? prev.acc : acc;
+  ls.set(KIDS_HOLD_KEY, JSON.stringify({ level, acc: owner }));
+};
 const clearHold = () => ls.del(KIDS_HOLD_KEY);
 
 /** The app shows a profile's setup as it was at start: after a switch it
@@ -555,7 +568,11 @@ export function initProfiles(): Promise<{ needsPick: boolean }> {
     // limits stay (the hold) until someone picks.
     onViewerChange(() => {
       const nowAcc = viewerAccountId();
-      if (nowAcc === lastAccount) return;
+      if (nowAcc === lastAccount) {
+        // The same account, its session through at last (back online).
+        if (pullWaiting && viewerAccountConfirmed()) void pullProfiles();
+        return;
+      }
       lastAccount = nowAcc;
       if (applyProfile(ls.get(LAST_PREFIX + accountKey()) || MAIN_PROFILE)) restartOnHome();
       void pullProfiles();
@@ -634,5 +651,5 @@ export function bringBoxProfiles(): number {
 
 /** Tests only. */
 export function __resetProfilesForTests(): void {
-  init = null; pulling = null; currentId = MAIN_PROFILE; lastAccount = undefined; setKidsLevel(null);
+  init = null; pulling = null; pullWaiting = false; currentId = MAIN_PROFILE; lastAccount = undefined; setKidsLevel(null);
 }

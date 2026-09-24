@@ -70,17 +70,19 @@ const ProfilesIntroPopup = ({ onSetUp }: { onSetUp: () => void }) => {
     if (!open) return;
     // A notice (broadcast alert, pre-event steps) that came up over this one
     // is on top: its OK and Back are its own.
+    // Its Back counts as this press's, so the hardware event for the same
+    // press (after the key has closed the notice) doesn't close this too.
     const noticeUp = () => !!document.querySelector('[data-notice-layer]');
     const back = () => {
-      if (noticeUp()) return;
       const now = Date.now();
+      if (noticeUp()) { lastBack.current = now; return; }
       if (now - lastBack.current < 350) return;
       lastBack.current = now;
       (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = now;
       close(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (noticeUp()) return;
+      if (noticeUp()) { if (isBack(e)) lastBack.current = Date.now(); return; }
       e.stopImmediatePropagation();
       if (isBack(e)) { e.preventDefault(); back(); return; }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {

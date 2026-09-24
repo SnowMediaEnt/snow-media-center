@@ -466,6 +466,9 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
   // The subtitle is a warning (a wrong PIN): above the pad, where a 540-line
   // screen still shows it.
   let alert = false;
+  // Most boxes are 540 or 720 lines tall: no room there for a picture over the
+  // PIN pad, nor for buttons under it — they go beside the pad.
+  const roomy = window.innerHeight >= 800;
 
   if (screen.kind === 'pick' || screen.kind === 'manage') {
     const managing = screen.kind === 'manage';
@@ -654,17 +657,15 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
     // Its account signed out, so no "Forgot PIN?" here: signing in to it
     // again brings back its profiles, and the reset with them.
     const showSignIn = screen.purpose === 'grownup' && !!onSignIn && kidsHoldNeedsGrownUp();
-    // A 540-line screen has no room for the picture as well as the pad.
-    const roomy = window.innerHeight >= 640;
     body = (
-      <div className="flex flex-col items-center">
+      <div className={roomy ? 'flex flex-col items-center' : 'flex items-center justify-center'}>
         {p && roomy && <div className="mb-6"><Avatar p={p} size={80} /></div>}
         <PinPad {...fp} length={4} value={digits} onDigit={typeDigit} onDelete={() => setDigits((d) => d.slice(0, -1))} onSubmit={() => { if (digits.length === 4) submitPin(digits); }} />
-        <div className="flex mt-6">
+        <div className={roomy ? 'flex mt-6' : 'flex flex-col ml-10'}>
           {showForgot && p && pinsAvailable() && (
-            <Btn id="forgot" {...fp} className="mr-3" onPress={() => push({ kind: 'forgot', profileId: p.id, then: screen.purpose === 'unlock' ? screen.then : 'pick' }, 'pad-1')}>Forgot PIN?</Btn>
+            <Btn id="forgot" {...fp} className={roomy ? 'mr-3' : 'mb-3'} onPress={() => push({ kind: 'forgot', profileId: p.id, then: screen.purpose === 'unlock' ? screen.then : 'pick' }, 'pad-1')}>Forgot PIN?</Btn>
           )}
-          {showSignIn && <Btn id="signin" {...fp} className="mr-3" onPress={() => onSignIn?.()}>Forgot it? Sign in again</Btn>}
+          {showSignIn && <Btn id="signin" {...fp} className={roomy ? 'mr-3' : 'mb-3'} onPress={() => onSignIn?.()}>Forgot it? Sign in again</Btn>}
           <Btn id="pin-back" {...fp} onPress={() => handlersRef.current.back()}>Back</Btn>
         </div>
       </div>
@@ -675,15 +676,15 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
     body = (
       <div className="flex flex-col items-center max-w-xl mx-auto text-center">
         <p className={`mb-6 text-lg ${forgot?.state === 'failed' ? 'text-amber-300' : 'text-white/80'}`}>{forgot?.text ?? ''}</p>
-        {forgot?.state === 'sent' && (
-          <>
-            {/* Above the pad, where a 540-line screen still shows it. */}
-            {message && <p className="text-amber-300 mb-4 text-lg">{message}</p>}
+        {/* Above the pad, where a 540-line screen still shows it. */}
+        {forgot?.state === 'sent' && message && <p className="text-amber-300 mb-4 text-lg">{message}</p>}
+        <div className={roomy || forgot?.state !== 'sent' ? 'flex flex-col items-center' : 'flex items-center justify-center'}>
+          {forgot?.state === 'sent' && (
             <PinPad {...fp} length={6} value={digits} onDigit={typeDigit} onDelete={() => setDigits((d) => d.slice(0, -1))} onSubmit={() => { /* the sixth digit checks it */ }} />
-          </>
-        )}
-        <div className="flex mt-6">
-          <Btn id="forgot-back" {...fp} onPress={() => handlersRef.current.back()}>Back</Btn>
+          )}
+          <div className={roomy || forgot?.state !== 'sent' ? 'flex mt-6' : 'flex ml-10'}>
+            <Btn id="forgot-back" {...fp} onPress={() => handlersRef.current.back()}>Back</Btn>
+          </div>
         </div>
       </div>
     );
