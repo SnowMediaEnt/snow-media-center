@@ -165,9 +165,22 @@ export function handLiveDeeplink(d: LiveDeeplink): void {
   try { window.dispatchEvent(new CustomEvent('smc:live-deeplink')); } catch { /* ignore */ }
 }
 
+/** Hand Live TV a category to open (Game Day's "Browse MLB in Live TV"). */
+export function handLiveCategory(d: { host: string; username: string; categoryId: string }): void {
+  try { sessionStorage.setItem('smc-live-deeplink', JSON.stringify({ ...d, openCategory: true })); } catch { /* ignore */ }
+  try { window.dispatchEvent(new CustomEvent('smc:live-deeplink')); } catch { /* ignore */ }
+}
+
 /** Play exactly this channel, from anywhere in the app. */
 export function playLiveChannel(d: LiveDeeplink, navigate: Navigate): void {
   toPlayer({ section: 'live', deeplink: d }, navigate);
+}
+
+/** Open Game Day with one game's channel list (a kickoff reminder whose
+ *  game had no channel when it was set). */
+export function openGameDayGame(gameId: string, navigate: Navigate): void {
+  try { sessionStorage.setItem('smc-gameday-open', gameId); } catch { /* ignore */ }
+  toPlayer({ section: 'gameday' }, navigate);
 }
 export const PLAYER_INTENT_EVENT = 'smc:player-intent';
 

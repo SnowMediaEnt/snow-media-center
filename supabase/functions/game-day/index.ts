@@ -6,11 +6,13 @@
 //
 //   POST {} (or {op:'list'})   anyone (verify_jwt=false)
 //   → { ok, games: Game[], at }
-//   POST {op:'check'}          each league's event count today, or 'failed'
+//   POST {op:'check'}          games per league in the last build (from the
+//                              cache: it never calls ESPN itself)
 //
 // A game: league, teams (names, short names, logos sized for a TV row),
-// start time, state (pre | in), the live detail ("Q3 5:32") and score, and
-// the TV networks carrying it nationally. Finished games are left out.
+// start time, state (pre | in), the live detail ("Q3 5:32") and score, the TV
+// networks carrying it nationally, and the local / regional ones (RSNs) with
+// the team whose market they serve. Finished games are left out.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -48,6 +50,7 @@ interface Team { name: string; short: string; abbr: string; location: string; lo
 interface Game {
   id: string; league: string; leagueLabel: string; name: string; start: string;
   state: 'pre' | 'in'; detail: string; home: Team | null; away: Team | null; networks: string[];
+  locals: Array<{ name: string; market: 'home' | 'away' }>;
 }
 
 let cache: { at: number; games: Game[] } | null = null;
@@ -81,21 +84,30 @@ const team = (c: Any): Team | null => {
   };
 };
 
-const networksOf = (comp: Any): string[] => {
-  const out = new Set<string>();
+/** The TV showing a game: national networks, and local / regional ones by
+ *  the team market they serve. */
+const broadcastsOf = (comp: Any): { networks: string[]; locals: Array<{ name: string; market: 'home' | 'away' }> } => {
+  const national = new Set<string>();
+  const locals = new Map<string, 'home' | 'away'>();
+  const put = (name: unknown, market: string) => {
+    if (!name) return;
+    const n = String(name);
+    if (market === 'home' || market === 'away') { if (!locals.has(n)) locals.set(n, market); }
+    else if (!market || market === 'national') national.add(n);
+  };
   for (const b of comp?.broadcasts ?? []) {
-    if (b?.market && String(b.market).toLowerCase() !== 'national') continue;
-    for (const n of b?.names ?? []) if (n) out.add(String(n));
+    const market = String(b?.market ?? 'national').toLowerCase();
+    for (const n of b?.names ?? []) put(n, market);
   }
   for (const g of comp?.geoBroadcasts ?? []) {
-    const market = String(g?.market?.type ?? '').toLowerCase();
     const kind = String(g?.type?.shortName ?? '').toLowerCase();
-    if (market && market !== 'national') continue;
     if (kind && kind !== 'tv') continue;
-    const n = g?.media?.shortName;
-    if (n) out.add(String(n));
+    put(g?.media?.shortName, String(g?.market?.type ?? '').toLowerCase());
   }
-  return [...out].slice(0, 6);
+  return {
+    networks: [...national].slice(0, 6),
+    locals: [...locals].filter(([n]) => !national.has(n)).slice(0, 6).map(([name, market]) => ({ name, market })),
+  };
 };
 
 /** One league's scoreboard for a day, from ESPN's main host or, failing
@@ -142,7 +154,7 @@ async function fetchLeague(l: { id: string; label: string; path: string }, date:
         detail: String(e?.status?.type?.shortDetail ?? ''),
         home: isCard ? null : home,
         away: isCard ? null : away,
-        networks: networksOf(comp),
+        ...broadcastsOf(comp),
       });
     }
     // Keep the ones on TV first when a league lists a lot (college).
@@ -156,8 +168,16 @@ async function fetchLeague(l: { id: string; label: string; path: string }, date:
 
 async function build(): Promise<Game[]> {
   const now = new Date();
-  const dates = [ymd(now), ymd(new Date(now.getTime() + 24 * 60 * 60 * 1000))];
-  const lists = await Promise.all(LEAGUES.flatMap((l) => dates.map((d) => fetchLeague(l, d))));
+  const day = 24 * 60 * 60 * 1000;
+  const dates = [ymd(now), ymd(new Date(now.getTime() + day))];
+  // Until 5 AM Eastern, yesterday's late games (West Coast night games) may
+  // still be on: yesterday's list too, keeping only what is live.
+  const etHour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false }).format(now)) % 24;
+  const yesterday = etHour < 5 ? ymd(new Date(now.getTime() - day)) : null;
+  const lists = await Promise.all(LEAGUES.flatMap((l) => [
+    ...dates.map((d) => fetchLeague(l, d)),
+    ...(yesterday ? [fetchLeague(l, yesterday).then((gs) => gs.filter((g) => g.state === 'in'))] : []),
+  ]));
   const seen = new Set<string>();
   const until = now.getTime() + 30 * 60 * 60 * 1000;
   const games = lists.flat().filter((g) => {
@@ -175,15 +195,13 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   let op = '';
   try { op = String((await req.clone().json())?.op ?? ''); } catch { /* no body */ }
-  // {op:'check'}: how many games each league returned just now (for testing).
+  // {op:'check'}: games per league in the last build. From the cache only:
+  // anyone can call this, and it must never become a way to hammer ESPN.
   if (op === 'check') {
-    const date = ymd(new Date());
-    const counts: Record<string, number | string> = {};
-    await Promise.all(LEAGUES.map(async (l) => {
-      const data = await fetchScoreboard(l, date);
-      counts[l.id] = data ? (data.events?.length ?? 0) : 'failed';
-    }));
-    return json({ ok: true, date, counts });
+    const counts: Record<string, number> = {};
+    for (const l of LEAGUES) counts[l.id] = 0;
+    for (const g of cache?.games ?? []) counts[g.league] = (counts[g.league] ?? 0) + 1;
+    return json({ ok: true, at: cache ? new Date(cache.at).toISOString() : null, counts });
   }
   try {
     if (!cache || Date.now() - cache.at > CACHE_MS) {

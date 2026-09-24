@@ -69,6 +69,7 @@ import { bestChannel } from '@/lib/voiceCommands';
 import { isChannelDown, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
 import { recordChannelWatch } from '@/lib/watchHistory';
+import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { onMediaKey } from '@/lib/mediaKeys';
 import {
   demoGetLiveCategories,
@@ -1190,6 +1191,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // reminder): play it as soon as its line is known. The payload is consumed
   // once; a line no longer signed in here is simply ignored and the section
   // opens as usual. 'smc:live-deeplink' asks again while Live TV is open.
+  // Game Day can also hand over a category ({openCategory}): it opens once
+  // the line's categories are listed. A Kids profile plays only a channel
+  // its own line-up has, whoever set the reminder that asked.
   const playChannelRef = useRef(playChannel);
   useEffect(() => { playChannelRef.current = playChannel; }, [playChannel]);
   const [deeplinkTick, setDeeplinkTick] = useState(0);
@@ -1203,23 +1207,39 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     let raw: string | null = null;
     try { raw = sessionStorage.getItem('smc-live-deeplink'); } catch { return; }
     if (!raw) return;
-    let target: { host?: string; username?: string; streamId?: number; name?: string; icon?: string; categoryId?: string; num?: number } | null = null;
+    let target: { host?: string; username?: string; streamId?: number; name?: string; icon?: string; categoryId?: string; num?: number; openCategory?: boolean } | null = null;
     try { target = JSON.parse(raw); } catch { target = null; }
-    if (!target?.host || !target.username || !target.streamId) {
-      try { sessionStorage.removeItem('smc-live-deeplink'); } catch { /* ignore */ }
-      return;
-    }
+    const drop = () => { try { sessionStorage.removeItem('smc-live-deeplink'); } catch { /* ignore */ } };
+    if (!target?.host || !target.username || !(target.streamId || (target.openCategory && target.categoryId))) { drop(); return; }
     const line = lines.find((l) => lineKey(l) === lineKey({ host: target!.host!, username: target!.username! }));
     if (!line) {
       // The saved accounts may not have loaded yet; try again when they do.
-      if (lines.length > 1 || linesSettledRef.current) { try { sessionStorage.removeItem('smc-live-deeplink'); } catch { /* ignore */ } }
+      if (lines.length > 1 || linesSettledRef.current) drop();
       return;
     }
-    try { sessionStorage.removeItem('smc-live-deeplink'); } catch { /* ignore */ }
-    const stream: XtreamLiveStream = { stream_id: target.streamId, name: target.name ?? 'Channel', stream_icon: target.icon, category_id: target.categoryId, num: target.num };
+    if (target.openCategory) {
+      const k = lineKey(line);
+      const idx = visibleCategories.findIndex((c) => c.lineKey === k && c.catId === String(target!.categoryId));
+      if (idx < 0) {
+        // Not listed (yet): wait for this line's categories, then give up.
+        if (categoriesByLine.has(k)) drop();
+        return;
+      }
+      drop();
+      userMovedRef.current = true;
+      setCategoryIdx(idx);
+      setChannelIdx(0);
+      setPane('channels');
+      return;
+    }
+    drop();
+    const stream: XtreamLiveStream = { stream_id: target.streamId!, name: target.name ?? 'Channel', stream_icon: target.icon, category_id: target.categoryId, num: target.num };
     streamLineRef.current.set(stream, line);
-    playChannelRef.current(stream);
-  }, [lines, deeplinkTick]);
+    if (!kidsLevel()) { playChannelRef.current(stream); return; }
+    void getLiveCategories(line)
+      .then((cats) => { if (kidsAllowsChannel(stream, new Set(cats.map((c) => String(c.category_id))))) playChannelRef.current(stream); })
+      .catch(() => undefined);
+  }, [lines, deeplinkTick, visibleCategories, categoriesByLine]);
 
   // How long one channel is actually watched, and on which service. Starts
   // when a channel goes live and closes when it stops, changes or the viewer

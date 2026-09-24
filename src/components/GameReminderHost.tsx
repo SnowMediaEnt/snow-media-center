@@ -1,29 +1,39 @@
 // Kickoff popups for Game Day's "Remind me" (lib/gameReminders). Checks every
 // twenty seconds while the app is open; a game starting now (or started in
 // the last half hour, if the app was just opened) pops up on the TV with
-// Watch (straight to its channel) and Dismiss. Shows over anything, playback
-// included — that's the point of a reminder — one at a time.
+// Watch (straight to its channel, or to the game's channel list in Game Day)
+// and Dismiss. Shows over anything, playback included — that's the point of
+// a reminder — one at a time. Never on a Little or Kids profile, and never
+// over "Who's watching?": it waits (within the half hour) for a grown-up.
+//
+// Its remote listener is added once, when the app starts, so it runs before
+// every screen's own (the Player, Game Day, the Guide register theirs later)
+// and can keep the keys to itself while it is up.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Trophy } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { playChannel, playLiveChannel, type Navigate } from '@/lib/appActions';
+import { openGameDayGame, playLiveChannel, type Navigate } from '@/lib/appActions';
 import { dueReminders, markFired, type GameReminder } from '@/lib/gameReminders';
+import { kidsLevel } from '@/lib/kidsFilter';
 
 const CHECK_MS = 20_000;
 const isBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || e.keyCode === 4 || e.keyCode === 27;
-const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23 || e.keyCode === 66;
+const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23;
 
-const GameReminderHost = ({ navigate }: { navigate: Navigate }) => {
+const GameReminderHost = ({ navigate, blocked = false }: { navigate: Navigate; /** "Who's watching?" is up. */ blocked?: boolean }) => {
   const [current, setCurrent] = useState<GameReminder | null>(null);
   const [focus, setFocus] = useState<0 | 1>(0);
   const focusRef = useRef(focus); focusRef.current = focus;
   const currentRef = useRef(current); currentRef.current = current;
   const navigateRef = useRef(navigate); navigateRef.current = navigate;
+  const blockedRef = useRef(blocked); blockedRef.current = blocked;
 
   useEffect(() => {
     const check = () => {
-      if (currentRef.current) return;
+      if (currentRef.current || blockedRef.current) return;
+      const kl = kidsLevel();
+      if (kl === 'little' || kl === 'kids') return;
       const due = dueReminders()[0];
       if (!due) return;
       markFired(due.id);
@@ -40,13 +50,15 @@ const GameReminderHost = ({ navigate }: { navigate: Navigate }) => {
     setCurrent(null);
     if (!watch || !r) return;
     if (r.channel) playLiveChannel(r.channel, navigateRef.current);
-    else if (r.networks[0]) playChannel(r.networks[0], navigateRef.current);
+    // No channel was known when it was set: the game's list in Game Day
+    // (never a guess by network name).
+    else openGameDayGame(r.id, navigateRef.current);
   }, []);
 
   const lastBack = useRef(0);
   useEffect(() => {
-    if (!current) return;
     const back = () => {
+      if (!currentRef.current) return;
       const now = Date.now();
       if (now - lastBack.current < 350) return;
       lastBack.current = now;
@@ -54,19 +66,20 @@ const GameReminderHost = ({ navigate }: { navigate: Navigate }) => {
       close(false);
     };
     const onKey = (e: KeyboardEvent) => {
+      if (!currentRef.current) return;
       e.stopImmediatePropagation();
       if (isBack(e)) { e.preventDefault(); back(); return; }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault(); setFocus((f) => (f === 0 ? 1 : 0)); return;
       }
-      if (isOk(e)) { e.preventDefault(); close(focusRef.current === 0); }
+      if (isOk(e)) { e.preventDefault(); if (!e.repeat) close(focusRef.current === 0); }
     };
     window.addEventListener('keydown', onKey, true);
     let handle: { remove: () => void } | null = null;
     let cancelled = false;
     void CapApp.addListener('backButton', back).then((h) => { if (cancelled) h.remove(); else handle = h; }).catch(() => { /* web */ });
     return () => { window.removeEventListener('keydown', onKey, true); cancelled = true; handle?.remove(); };
-  }, [current, close]);
+  }, [close]);
 
   if (!current) return null;
   const where = current.channel?.name ?? (current.networks.length ? current.networks.join(', ') : null);

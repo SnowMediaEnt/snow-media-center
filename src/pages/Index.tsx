@@ -1435,7 +1435,7 @@ const Index = () => {
       <PhoneTypingHint />
 
       {/* Game Day kickoff reminders ("Remind me"), over anything. */}
-      <GameReminderHost navigate={stableNavigateTo} />
+      <GameReminderHost navigate={stableNavigateTo} blocked={profileGateOpen} />
 
       {/* Voice commands: the mic button, the remote's Search key. */}
       <VoiceCommandHost navigate={stableNavigateTo} blocked={profileGateOpen} />
