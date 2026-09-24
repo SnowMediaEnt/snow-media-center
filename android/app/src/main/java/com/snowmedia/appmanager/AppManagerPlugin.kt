@@ -692,12 +692,27 @@ class AppManagerPlugin : Plugin() {
     call.resolve()
   }
 
+  /** Lets the screen sleep again once the phone has been idle a while. */
+  private val releasePhoneKeepAwake = Runnable {
+    try { bridge?.webView?.keepScreenOn = false } catch (_: Exception) {}
+  }
+
   /**
    * Phone remote (src/lib/phoneRemote.ts): press a remote key as if it came
    * from the box's own remote. It goes through the activity like a real key,
    * so D-pad presses reach the page as ordinary keydowns, OK clicks what is
    * focused, Back reaches the app's back handling and the media keys reach
    * MainActivity's forwarding. Only the keys a remote has are accepted.
+   *
+   * Only while Snow Media Center is the window on screen: with another app
+   * in front, a key sent to this (stopped) activity would act on a page
+   * nobody sees, and Back would finish it. Such a key resolves with
+   * delivered=false (not a rejection, which would make the page press it
+   * itself). A key injected here never reaches the system's input pipeline,
+   * so it doesn't count as "someone is using the TV": the WebView keeps the
+   * screen on (a view flag, separate from the player's window flag) until
+   * ten minutes after the phone's last key, so the screensaver doesn't start
+   * while someone browses with the phone.
    */
   @PluginMethod
   fun injectKey(call: PluginCall) {
@@ -714,10 +729,19 @@ class AppManagerPlugin : Plugin() {
     val act = activity ?: run { call.reject("no activity"); return }
     act.runOnUiThread {
       try {
+        if (!act.hasWindowFocus()) {
+          call.resolve(JSObject().put("delivered", false))
+          return@runOnUiThread
+        }
         val now = android.os.SystemClock.uptimeMillis()
         act.dispatchKeyEvent(android.view.KeyEvent(now, now, android.view.KeyEvent.ACTION_DOWN, code, 0))
         act.dispatchKeyEvent(android.view.KeyEvent(now, android.os.SystemClock.uptimeMillis(), android.view.KeyEvent.ACTION_UP, code, 0))
-        call.resolve()
+        try {
+          bridge?.webView?.keepScreenOn = true
+          mainHandler.removeCallbacks(releasePhoneKeepAwake)
+          mainHandler.postDelayed(releasePhoneKeepAwake, 10 * 60_000L)
+        } catch (_: Exception) {}
+        call.resolve(JSObject().put("delivered", true))
       } catch (e: Exception) {
         call.reject(e.message ?: "inject failed")
       }
@@ -1046,14 +1070,24 @@ class AppManagerPlugin : Plugin() {
     }
   }
 
+  /**
+   * The package name goes into a `su -c` command line, so it must be a real
+   * package name (letters, digits, underscores, dots, nothing a shell reads
+   * as syntax) of an app that is installed.
+   */
+  private fun isSafeInstalledPackage(pkg: String): Boolean {
+    if (!Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$").matches(pkg)) return false
+    return try { context.packageManager.getPackageInfo(pkg, 0); true } catch (_: Exception) { false }
+  }
+
   private fun tryRootUninstall(pkg: String): Boolean {
-    if (pkg.isBlank()) return false
+    if (!isSafeInstalledPackage(pkg)) return false
     // pm uninstall works on all rooted Android versions
     return runAsRoot("pm uninstall $pkg") || runAsRoot("cmd package uninstall $pkg")
   }
 
   private fun tryRootClearCache(pkg: String): Boolean {
-    if (pkg.isBlank()) return false
+    if (!isSafeInstalledPackage(pkg)) return false
     // `pm trim-caches` only trims when storage is low, so use the per-package
     // cache directories directly. We deliberately do NOT touch /data/data/<pkg>
     // beyond cache/ and code_cache/ — that would wipe user data.
@@ -1081,6 +1115,7 @@ class AppManagerPlugin : Plugin() {
   }
 
   override fun handleOnDestroy() {
+    mainHandler.removeCallbacks(releasePhoneKeepAwake)
     CacheClearService.progressListener = null
     CacheClearService.doneListener = null
     super.handleOnDestroy()
