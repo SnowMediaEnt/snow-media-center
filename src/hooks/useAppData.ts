@@ -171,7 +171,7 @@ export const useAppData = () => {
     const timestamp = Date.now();
     const url = `${REMOTE_APPS_URL}?k=${REMOTE_APPS_KEY}&ts=${timestamp}`;
     
-    console.log(`[AppData] Fetching remote apps (native: ${isNative}) from: ${url}`);
+    console.log(`[AppData] Fetching remote apps (native: ${isNative}) from: ${REMOTE_APPS_URL}`);
     
     try {
       const response = await robustFetch(url, {
