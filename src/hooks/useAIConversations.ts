@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getDeviceId } from '@/lib/analytics';
+import { kidsLevel } from '@/lib/kidsFilter';
 
 export interface AIConversation {
   id: string;
@@ -33,8 +34,10 @@ export const useAIConversations = () => {
       .eq('id', conversationId);
   };
 
-  // Fetch all user's AI conversations
+  // Fetch all user's AI conversations. The saved chats are the account's, so
+  // the grown-ups': a Kids profile gets none.
   const fetchConversations = async () => {
+    if (kidsLevel()) { setConversations([]); return; }
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -59,6 +62,7 @@ export const useAIConversations = () => {
 
   // Fetch messages for a specific conversation
   const fetchConversationMessages = async (conversationId: string) => {
+    if (kidsLevel()) return [];
     try {
       const { data, error } = await supabase
         .from('ai_messages')
@@ -281,6 +285,7 @@ export const useAIConversations = () => {
     void fetchConversations();
     let lastUid: string | null | undefined;
     const silentRefetch = async () => {
+      if (kidsLevel()) return;
       const { data, error } = await supabase
         .from('ai_conversations')
         .select('*')

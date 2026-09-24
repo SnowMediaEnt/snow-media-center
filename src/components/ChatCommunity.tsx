@@ -505,6 +505,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   }, [activeTab, aiChat.length, aiLoading]);
 
   const handleOpenSavedAIConversation = async (conversationId: string) => {
+    // The account's saved chats are the grown-ups'.
+    if (kidsLevel()) return;
     setActiveAIConversationId(conversationId);
     const conversationMessages = await fetchConversationMessages(conversationId);
     setAiChat(conversationMessages.map((message) => ({
@@ -811,8 +813,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         message: userMessage,
         userId: user?.id,
         // Anon: don't persist; signed-in: persist conversations as before.
-        conversationId: user ? activeAIConversationId : null,
-        saveConversation: !!user,
+        // A Kids profile's chats aren't saved: the saved list is the
+        // account's, which the grown-ups see.
+        conversationId: user && !kidsLevel() ? activeAIConversationId : null,
+        saveConversation: !!user && !kidsLevel(),
         currentVersion,
         device_id: getDeviceId(),
         // A Kids profile: the server keeps every answer to its age.
