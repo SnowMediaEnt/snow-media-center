@@ -27,6 +27,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PlexPosterTile from './PlexPosterTile';
+import { focusBackdrop } from '@/lib/plexBackdrop';
 import { isDemo } from '@/lib/demoMode';
 import { continueWatching, mergeContinue, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import {
@@ -633,6 +634,13 @@ const PlexLibraryRows = memo(({
 
   // Mirrors the handler: the bar holds focus while there is nothing else.
   const barHasFocus = zone === 'bar' || (!filtering && rows.length === 0);
+
+  // The art behind the rails follows the highlighted title (PlexBackdrop:
+  // this only restarts its timer).
+  const focusedItem = !isActive || barHasFocus ? null
+    : filtering ? results?.items[gridCursor] ?? null
+      : rows[row]?.items[col] ?? null;
+  useEffect(() => { focusBackdrop(focusedItem); }, [focusedItem]);
 
   return (
     <div>

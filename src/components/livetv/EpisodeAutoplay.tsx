@@ -59,19 +59,32 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
   const onInfoRef = useRef(onInfo); useEffect(() => { onInfoRef.current = onInfo; }, [onInfo]);
 
   // What this episode is and what follows it. A new title starts clean.
+  // What is playing is also handed up (onInfo): PlexSection passes it to
+  // PlexProgressReporter, which saves nothing until it knows — without it no
+  // resume point was ever saved and Continue Watching stayed empty.
   useEffect(() => {
     setInfo(null); setNext(null); setPos(null); setDismissed(false); setCountdown(null);
+    onInfoRef.current?.(null);
     startedRef.current = false;
     if (!ratingKey || !base) return;
     let gone = false;
-    void (async () => {
+    let retry = 0;
+    const load = async (attempt: number) => {
       const i = await getPlexPlayInfo(base, token, ratingKey).catch(() => null);
-      if (gone || !i) return;
+      if (gone) return;
+      if (!i) {
+        // The server is busy starting the stream: ask once more a little
+        // later, or this title's progress would not be saved at all.
+        if (attempt === 0) retry = window.setTimeout(() => { void load(1); }, 5000);
+        return;
+      }
       setInfo(i);
+      onInfoRef.current?.(i);
       const n = await getNextPlexEpisode(base, token, i).catch(() => null);
       if (!gone) setNext(n);
-    })();
-    return () => { gone = true; };
+    };
+    void load(0);
+    return () => { gone = true; window.clearTimeout(retry); };
   }, [base, token, ratingKey]);
 
   const intro = useMemo(() => info?.markers.find((m) => m.type === 'intro') ?? null, [info]);

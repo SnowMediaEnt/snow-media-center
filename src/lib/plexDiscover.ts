@@ -165,3 +165,91 @@ export const decadeTitle = (d: number) => (d >= 2000 ? `${d}s Movies` : `'${Stri
 export const decadeRow = (base: string, token: string, libraries: PlexLibrary[], decade: number) =>
   fetchAcross(base, token, libraries.filter((l) => l.type === 'movie'), () =>
     `type=1&year>=${decade}&year<=${decade + 9}&sort=random`);
+
+// ── Streaming services ──────────────────────────────────────────────────
+// A row per service (Netflix, Hulu …): the server's films whose studio and
+// series whose network is that service, together. Plex keeps a series'
+// network in its own `network` field on current servers and in `studio` on
+// older ones (and older agents); films carry `studio`. Each library's list
+// of values is read once (kept twenty minutes, see getPlexFilterValues), the
+// service's names and aliases are picked out of it, and the row asks for all
+// of them at once (a comma is Plex's "any of"). Loaded one row at a time, as
+// the viewer nears them (see DiscoverPanel).
+
+export interface StreamingService { id: string; title: string; match: RegExp }
+/** In row order. `match` runs against a studio or network name. */
+export const STREAMING_SERVICES: StreamingService[] = [
+  { id: 'netflix', title: 'Netflix', match: /^netflix\b/i },
+  { id: 'hulu', title: 'Hulu', match: /^hulu\b/i },
+  { id: 'peacock', title: 'Peacock', match: /^(peacock|nbc)\b/i },
+  { id: 'max', title: 'Max', match: /^(hbo\b|max$|max originals?\b)/i },
+  { id: 'prime', title: 'Prime Video', match: /^(amazon\b|prime video\b)/i },
+  { id: 'disney', title: 'Disney+', match: /^disney(\+|\s*plus\b)/i },
+  { id: 'apple', title: 'Apple TV+', match: /^apple\s*(tv\b|original films\b|studios\b)/i },
+  { id: 'paramount', title: 'Paramount+', match: /^paramount(\+|\s*plus\b)/i },
+];
+
+/** The service a studio or network name belongs to, or null. */
+export function serviceOf(name: string): StreamingService | null {
+  const n = name.trim();
+  if (!n) return null;
+  return STREAMING_SERVICES.find((s) => s.match.test(n)) ?? null;
+}
+
+/** For one library: the filter field and the values that are this service. */
+export interface ServiceFilter { field: 'network' | 'studio'; keys: string[] }
+/** service id -> library key -> filter. Only services with a value somewhere. */
+export type ServiceMap = Map<string, Map<string, ServiceFilter>>;
+
+/** Group one library's studio/network values by service. Values with a comma
+ *  in them are skipped: a comma separates values in the query. */
+export function groupServiceValues(values: Array<{ key: string; title: string }>): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const v of values) {
+    const s = serviceOf(v.title);
+    if (!s || !v.key || v.key.includes(',')) continue;
+    const list = out.get(s.id) ?? [];
+    if (!list.includes(v.key)) list.push(v.key);
+    out.set(s.id, list);
+  }
+  return out;
+}
+
+/** Which services this server has, and how to ask each library for them.
+ *  Films: studio. Series: network, else studio (an older server has no
+ *  network field and answers with nothing or an error). Two libraries at a
+ *  time. */
+export async function pickServices(base: string, token: string, libraries: PlexLibrary[]): Promise<ServiceMap> {
+  const libs = sections(libraries);
+  const map: ServiceMap = new Map();
+  let next = 0;
+  const worker = async () => {
+    while (next < libs.length) {
+      const l = libs[next++];
+      let field: ServiceFilter['field'] = l.type === 'show' ? 'network' : 'studio';
+      let values = await getPlexFilterValues(base, token, `/library/sections/${l.key}/${field}`).catch(() => []);
+      if (!values.length && l.type === 'show') {
+        field = 'studio';
+        values = await getPlexFilterValues(base, token, `/library/sections/${l.key}/studio`).catch(() => []);
+      }
+      for (const [id, keys] of groupServiceValues(values)) {
+        const per = map.get(id) ?? new Map<string, ServiceFilter>();
+        per.set(l.key, { field, keys });
+        map.set(id, per);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(ACROSS_PARALLEL, libs.length) }, worker));
+  return map;
+}
+
+/** The query for one library of a service row, or null when that library
+ *  has nothing from it. */
+export function serviceQuery(l: PlexLibrary, f: ServiceFilter | undefined): string | null {
+  if (!f?.keys.length) return null;
+  return `type=${typeNum(l)}&${f.field}=${f.keys.map(encodeURIComponent).join(',')}&sort=random`;
+}
+
+/** One service's row: its films and series from every library, interleaved. */
+export const serviceRow = (base: string, token: string, libraries: PlexLibrary[], per: Map<string, ServiceFilter>) =>
+  fetchAcross(base, token, sections(libraries), (l) => serviceQuery(l, per.get(l.key)));

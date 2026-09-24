@@ -266,3 +266,37 @@
   background-image: none;
 }
 .native-low-memory .plex-progress { box-shadow: none; }
+
+/* ── Backdrop: the highlighted title's art behind the rails ──────────── */
+/* PlexBackdrop. Fixed behind the menu and the rails, in its own layer
+   (translateZ) so rails scrolling over it never re-raster the art; the scrim
+   is painted once on top of it. The art is a 960×540 photo transcode (640×360
+   on a low-memory box) stretched to cover. Only opacity ever animates (the
+   cross-fade on strong boxes); no filter, no blur. */
+.plex-backdrop {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+.plex-backdrop-img {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 20%;
+}
+/* Dark from the left (where the menu and the rails' headings are) and from
+   the foot, lighter top-right where the art is seen, as in the Plex app. The
+   posters and white headings stay readable over the brightest art. */
+.plex-backdrop-scrim {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image:
+    linear-gradient(to right, rgba(6, 10, 20, 0.92) 0%, rgba(6, 10, 20, 0.74) 38%, rgba(6, 10, 20, 0.5) 100%),
+    linear-gradient(to top, rgba(6, 10, 20, 0.9) 0%, rgba(6, 10, 20, 0.35) 55%, rgba(6, 10, 20, 0.2) 100%);
+}

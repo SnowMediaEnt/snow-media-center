@@ -62,8 +62,11 @@ import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type PlayerPrompt, type SubtitleSearchContext } from './PlexPlayerOverlay';
 import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
 import PlexProgressReporter from './PlexProgressReporter';
+import PlexBackdrop from './PlexBackdrop';
+import { focusBackdrop } from '@/lib/plexBackdrop';
 import { continueWatching, initPlexProgress, mergeContinue, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { upNextEpisodes } from '@/lib/plexUpNext';
+import { fetchFeedItems, othersWatchingKeys, OTHERS_TTL_MS, OTHERS_WATCHING_TITLE } from '@/lib/plexOthersWatching';
 import { myList, pullFavoritesFromCloud, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
@@ -72,7 +75,7 @@ import { setPlexKeyOwner, isPlexKeyOwner } from './plexKeyOwner';
 import { recordPlexWatch } from '@/lib/watchHistory';
 import {
   becauseYouWatched, hiddenGems, surpriseMe, rediscover, pickGenres, genreRow,
-  DECADES, decadeTitle, decadeRow, type DiscoverRow,
+  DECADES, decadeTitle, decadeRow, pickServices, serviceRow, STREAMING_SERVICES, type DiscoverRow, type ServiceMap,
 } from '@/lib/plexDiscover';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
@@ -129,6 +132,8 @@ const HOME_AIRED_QUERY = `type=4&sort=episode.originallyAvailableAt:desc&episode
 const HOME_RELEASED_KEY = 'smc:home/released';
 const HOME_POPULAR_KEY = 'smc:home/popular';
 const HOME_NEW_EPISODES_KEY = 'smc:home/new-episodes';
+// What others are watching (loadOthersWatching).
+const HOME_OTHERS_KEY = 'smc:home/others';
 // Recently Added: one server-wide list, folded (getPlexRecentlyAdded).
 const HOME_ADDED_KEY = 'smc:home/added';
 // Each library's own newest additions (loadAdded), merged into the above.
@@ -273,6 +278,35 @@ async function loadPopular(base: string, token: string, libraries: PlexLibrary[]
   return gone() ? null : merged;
 }
 
+/** Home's "What others are watching": the titles Snow Media viewers played
+ *  most this week (plexOthersWatching: one call, kept half an hour), read
+ *  from this server in one request — which also confirms they are here and
+ *  brings their certificates for the Kids and adult filters. Only on the
+ *  server the feed describes (`machineId`); the feed's order is kept. */
+async function loadOthersWatching(base: string, token: string, machineId: string | undefined, libraries: PlexLibrary[], gone: () => boolean): Promise<PlexItem[] | null> {
+  const key = homeKey(HOME_OTHERS_KEY);
+  const cached = getCachedHubWithin(base, key, OTHERS_TTL_MS);
+  if (cached) return cached;
+  if (!machineId || !libraries.length) return null;
+  const visible = new Set(libraries.map((l) => String(l.key)));
+  const epoch = getHubEpoch();
+  const merged = await shareStitch(`${base}|${key}`, async () => {
+    const keys = othersWatchingKeys(await fetchFeedItems(), machineId, visible, LOW_MEMORY ? 12 : 24);
+    if (!keys.length) return null;
+    const items = await getPlexHub(base, token, `/library/metadata/${keys.join(',')}`).catch(() => null);
+    if (!items) return null;
+    const order = new Map(keys.map((k, i) => [k, i]));
+    const m = items
+      .filter((it) => order.has(it.ratingKey) && (!it.librarySectionID || visible.has(String(it.librarySectionID))))
+      .sort((a, b) => (order.get(a.ratingKey) ?? 0) - (order.get(b.ratingKey) ?? 0));
+    // Cached empty too: the feed named nothing this server has, and asking
+    // again within the half hour would get the same answer.
+    setCachedHub(base, key, m, epoch);
+    return m;
+  });
+  return gone() ? null : merged;
+}
+
 /** Home's New Episodes: the newest episode of each series that aired one in
  *  the last three months, across the TV libraries. Loaded once Home is up
  *  and drawn last, so its arrival moves nothing the viewer is looking at. */
@@ -403,6 +437,9 @@ interface RailBrowserProps {
   rows: DiscoverRow[];
   onPlay: (it: PlexItem) => void;
   onExitToTabs: () => void;
+  /** Told where the highlight is after it moves (rail index, and the title
+   *  under it). Must be cheap: it runs once per move. */
+  onFocusChange?: (row: number, item: PlexItem | null) => void;
 }
 // Tile geometry for the rail window: w-[104px] tiles, gap-3 (12px).
 const RAIL_TILE_PX = 116;
@@ -428,9 +465,16 @@ const RAIL_ROWS_SPAN = (() => {
 // The rail box as drawn: 8 + 156 poster + 8 + two 16 px caption lines + 8.
 const RAIL_H_FALLBACK = 212;
 
-const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs }: RailBrowserProps) => {
+const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, onFocusChange }: RailBrowserProps) => {
   const [row, setRow] = useState(0);
   const [col, setCol] = useState(0);
+  const onFocusChangeRef = useRef(onFocusChange); onFocusChangeRef.current = onFocusChange;
+  const focusedItem = rows[row]?.items[col] ?? null;
+  useEffect(() => {
+    onFocusChangeRef.current?.(row, isActive ? focusedItem : null);
+    // The art behind the rails: only restarts its timer (PlexBackdrop).
+    focusBackdrop(isActive ? focusedItem : null);
+  }, [row, focusedItem, isActive]);
 
   // The highlight follows its rail, not its index. After playback Continue
   // Watching can appear (or vanish) above the rail the viewer was on, and a
@@ -640,12 +684,15 @@ interface HomePanelProps {
   /** Home's play-count rail: "Popular on Snow Media" on the shared account,
    *  where the plays are everyone's; "Most Watched" on a viewer's own. */
   popularTitle?: string;
+  /** The server's machineIdentifier: "What others are watching" is only for
+   *  the server the shared feed describes. */
+  clientIdentifier?: string;
 }
 /** Home asks again this often while Plex stays open… */
 const HOME_REFRESH_MS = 3 * 60 * 60 * 1000;
 /** …and when the viewer comes back to Home or the app after this long. */
 const HOME_RETURN_MS = 30 * 60 * 1000;
-const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs, watchNonce = 0, serverResume = false, popularTitle = 'Most Watched' }: HomePanelProps) => {
+const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs, watchNonce = 0, serverResume = false, popularTitle = 'Most Watched', clientIdentifier }: HomePanelProps) => {
   const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const recentPath = homeKey(HOME_ADDED_KEY);
   // Seeded from the cache however old it is: rails already in memory are
@@ -658,6 +705,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
   const [released, setReleased] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_RELEASED_KEY)) ?? []);
   const [popular, setPopular] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_POPULAR_KEY)) ?? []);
   const [newEpisodes, setNewEpisodes] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_NEW_EPISODES_KEY)) ?? []);
+  const [others, setOthers] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_OTHERS_KEY)) ?? []);
   const [loading, setLoading] = useState(!(getCachedHubStale(base, onDeckPath) || getCachedHubStale(base, recentPath)));
   // Home keeps itself current while Plex stays open: every few hours, and
   // when the viewer comes back to Home or to the app after a while away, the
@@ -799,6 +847,9 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
       const rel = await loadReleased(base, token, libraries, gone);
       if (cancelled) return;
       if (rel) setReleased(rel);
+      const oth = DEMO ? null : await loadOthersWatching(base, token, clientIdentifier, libraries, gone);
+      if (cancelled) return;
+      if (oth) setOthers(oth);
       const pop = await loadPopular(base, token, libraries, gone);
       if (cancelled) return;
       if (pop) setPopular(pop);
@@ -810,7 +861,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     // libKeysSig stands in for `libraries`: the array identity changes on every
     // parent render, the section keys do not.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, token, libKeysSig, refreshTick]);
+  }, [base, token, libKeysSig, refreshTick, clientIdentifier]);
 
   const rows = useMemo<DiscoverRow[]>(() => {
     // Filtered here, after the cache, so a rail cached before a library was
@@ -823,6 +874,9 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const mine = familyOnly(listItems, adultKeys, true);
     if (mine.length > 0) r.push({ id: 'mylist', title: 'My List', items: mine.slice(0, RAIL_CAP) });
     r.push({ id: 'added', title: 'Recently Added', items: familyOnly(newestAdded([recent, addedLibs], RAIL_CAP * 2), adultKeys).slice(0, RAIL_CAP) });
+    // Other Snow Media viewers, this week (see loadOthersWatching).
+    const oth = familyOnly(others, adultKeys);
+    if (oth.length > 0) r.push({ id: 'others', title: OTHERS_WATCHING_TITLE, items: oth });
     const rel = familyOnly(released, adultKeys);
     if (rel.length > 0) r.push({ id: 'released', title: 'Recently Released', items: rel });
     // Most played on this server (see loadPopular); says so on the tin.
@@ -832,7 +886,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const eps = familyOnly(newEpisodes, adultKeys);
     if (eps.length > 0) r.push({ id: 'episodes', title: 'New Episodes', items: eps });
     return r;
-  }, [onDeck, ownContinue, upNext, listItems, recent, addedLibs, released, popular, newEpisodes, adultKeys, serverResume, popularTitle]);
+  }, [onDeck, ownContinue, upNext, listItems, recent, addedLibs, released, others, popular, newEpisodes, adultKeys, serverResume, popularTitle]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;
@@ -855,6 +909,20 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
     () => rawRows.map((r) => ({ ...r, items: familyOnly(r.items, adultKeys) })).filter((r) => r.items.length > 0),
     [rawRows, adultKeys]);
   const [loading, setLoading] = useState(rows.length === 0);
+  // The rows before the streaming services are all in (fresh or cached);
+  // the services then load one at a time as the highlight nears the end.
+  const [baseDone, setBaseDone] = useState(() => rawRows.length > 0);
+  const rawRowsRef = useRef(rawRows); rawRowsRef.current = rawRows;
+  const rowsLenRef = useRef(rows.length); rowsLenRef.current = rows.length;
+  const focusRowRef = useRef(0);
+  const [near, setNear] = useState(false);
+  const nearRef = useRef(false);
+  // Only a change of `near` re-renders the panel, not every move.
+  const handleFocus = useCallback((ri: number) => {
+    focusRowRef.current = ri;
+    const n = ri >= rowsLenRef.current - SERVICE_NEAR_ROWS;
+    if (n !== nearRef.current) { nearRef.current = n; setNear(n); }
+  }, []);
 
   // Entering Discover starts a pending load at once instead of waiting out
   // the dwell below.
@@ -866,7 +934,8 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
   useEffect(() => {
     if (DEMO || !libraries.length) { setLoading(false); return; }
     const cached = getCachedDiscover(base);
-    if (cached.length) { setRows(cached); setLoading(false); return; }
+    if (cached.length) { setRows(cached); setLoading(false); setBaseDone(true); return; }
+    setBaseDone(false);
     let cancelled = false;
     const acc: DiscoverRow[] = [];
     // Every row is cached the moment it lands, whether or not the viewer is
@@ -925,6 +994,7 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
       // Row order is what the cache replays, so remember it too. Written only
       // once every row is in: a partial order would replay as "done".
       setCachedHub(base, `${DISCOVER_KEY}order`, acc.map((r) => ({ ratingKey: r.id, title: r.title, type: 'row' })));
+      setBaseDone(true);
     };
     // The side menu mounts this panel as the cursor passes over it. Wait
     // until the cursor rests here, or the viewer comes in, before asking the
@@ -938,12 +1008,67 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base, token, libKeysSig]);
 
+  // Streaming services (Netflix, Hulu …), last, one row at a time while the
+  // highlight is within a few rails of the end: the viewer who never scrolls
+  // that far costs the server nothing, and one who does finds each row there
+  // by the time they reach it. Which services the server has is read once
+  // (each library's studio / network list); a row already loaded, or found
+  // empty, within the half hour is taken from the cache.
+  const servicesRef = useRef<{ sig: string; map: Promise<ServiceMap> } | null>(null);
+  const serviceBusyRef = useRef(false);
+  const [serviceTick, setServiceTick] = useState(0);
+  useEffect(() => {
+    if (DEMO || !baseDone || !near || serviceBusyRef.current || !libraries.length) return;
+    if (focusRowRef.current < rowsLenRef.current - SERVICE_NEAR_ROWS) { nearRef.current = false; setNear(false); return; }
+    const have = new Set(rawRowsRef.current.map((r) => r.id));
+    const sig = `${base}|${libKeysSig}`;
+    if (servicesRef.current?.sig !== sig) servicesRef.current = { sig, map: pickServices(base, token, libraries).catch(() => new Map()) };
+    const mapP = servicesRef.current.map;
+    let cancelled = false;
+    serviceBusyRef.current = true;
+    const epoch = getHubEpoch();
+    let tried = false;
+    void (async () => {
+      try {
+        const map = await mapP;
+        const next = STREAMING_SERVICES.find((sv) => {
+          const id = `service:${sv.id}`;
+          if (!map.has(sv.id) || have.has(id)) return false;
+          // Cached empty: already found to have nothing here.
+          const hit = getCachedHubWithin(base, `${DISCOVER_KEY}${id}`, DISCOVER_TTL_MS);
+          return !hit || hit.length > 0;
+        });
+        if (!next) return;
+        tried = true;
+        const id = `service:${next.id}`;
+        const hit = getCachedHubWithin(base, `${DISCOVER_KEY}${id}`, DISCOVER_TTL_MS);
+        const items = hit ?? await serviceRow(base, token, libraries, map.get(next.id)!).catch(() => null);
+        // Cached empty as well, so a service with nothing this profile may
+        // see is not asked for again on every visit.
+        if (!hit && items) setCachedHub(base, `${DISCOVER_KEY}${id}`, items, epoch);
+        if (cancelled || !items?.length) return;
+        const added = [...rawRowsRef.current, { id, title: next.title, items }];
+        setRows(added);
+        setCachedHub(base, `${DISCOVER_KEY}order`, added.map((r) => ({ ratingKey: r.id, title: r.title, type: 'row' })), epoch);
+      } finally {
+        serviceBusyRef.current = false;
+        // Then the next one, if the highlight is still near (a service with
+        // nothing adds no row that would re-run this). None left: stop.
+        if (tried) setServiceTick((t) => t + 1);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseDone, near, serviceTick, base, token, libKeysSig]);
+
   if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Finding things to watch…</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing to discover yet — this server has no libraries to browse.</div>;
 
-  return <RailBrowser isActive={isActive} base={base} token={token} rows={rows} onPlay={onPlay} onExitToTabs={onExitToTabs} />;
+  return <RailBrowser isActive={isActive} base={base} token={token} rows={rows} onPlay={onPlay} onExitToTabs={onExitToTabs} onFocusChange={handleFocus} />;
 });
 DiscoverPanel.displayName = 'DiscoverPanel';
+/** Streaming-service rows load while the highlight is this close to the end. */
+const SERVICE_NEAR_ROWS = 3;
 
 // ─── SEASONAL PANEL (Halloween …) ─────────────────────────────────────────
 // A holiday collection: a hand-picked list looked up on this server (see
@@ -3827,6 +3952,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // or the player is up the menu is not on screen at all, so this is only
   // about the browse view.
   const menuCollapsed = zone !== 'tabs';
+  const railsPage = !!currentTab && (currentTab.type === 'home' || currentTab.type === 'discover' || currentTab.type === 'seasonal'
+    || ((currentTab.type === 'movie' || currentTab.type === 'show') && !!currentTab.libKey && currentMode(currentTab.libKey) === 'rows'));
   const menuIcon = (t: Tab) =>
     t.type === 'home' ? HomeIcon : t.type === 'discover' ? Compass : t.type === 'search' ? SearchIcon : t.type === 'seasonal' ? Ghost : t.type === 'manage' ? SettingsIcon
     : t.type === 'request' ? MessageSquare : t.type === 'show' ? Tv : Film;
@@ -3836,7 +3963,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         position (the rails' and the content column's), and the viewer came
         back to rails scrolled to their start. Hidden this way it paints
         nothing, so the video under the WebView shows through as before. */}
-    <div className="flex-1 min-h-0 flex overflow-hidden bg-black/30 text-white" style={fullscreen ? { visibility: 'hidden' } : undefined}>
+    <div className="relative flex-1 min-h-0 flex overflow-hidden bg-black/30 text-white" style={fullscreen ? { visibility: 'hidden' } : undefined}>
+      {/* The highlighted title's art behind the rails (PlexBackdrop). Only on
+          the pages that have rails; the menu and the content paint over it.
+          Gone while a film plays (its image and layer freed for the player),
+          and on a low-memory box while a title page covers it. */}
+      {conn && railsPage && !fullscreen && !(LOW_MEMORY && detailItem) && <PlexBackdrop base={conn.base} token={conn.token} />}
       {/* SIDE MENU: Home / Discover / Search, the libraries, then Request / Settings.
           It snaps between widths rather than animating: a width transition
           re-laid-out every rail and poster in the content column on each of
@@ -3846,7 +3978,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           again with the highlight on the open entry (exitToMenu). */}
       <div
         onClick={() => { if (menuCollapsed) exitToMenu(); }}
-        className={`flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col pb-2 overflow-y-auto overflow-x-hidden ${menuCollapsed ? 'w-14 cursor-pointer' : 'w-56'}`}
+        className={`relative flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col pb-2 overflow-y-auto overflow-x-hidden ${menuCollapsed ? 'w-14 cursor-pointer' : 'w-56'}`}
         // Plex fills the screen with no header above it, so the top of this
         // column is the top of the panel — and a TV's overscan takes the
         // first 2–4% of that. The server line was the thing being cut off.
@@ -3889,7 +4021,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         {!menuCollapsed && <div className="mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">▶ into rows · Hold OK hide a library · Back exit</div>}
       </div>
 
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <div className="relative flex-1 min-w-0 flex flex-col overflow-hidden">
         <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4" style={{ paddingTop: '3.5vh' }}>
         {deepLinked && detailItem ? null : voiceWait && zone === 'tabs' && currentTab?.type === 'home' ? (
           // A voice command's title is being looked up. Home is not loaded
@@ -3912,6 +4044,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             // Plays on the provider's server under the shared account are
             // every Snow Media viewer's.
             popularTitle={!ownPlexAccount && isProviderServer(conn.name) ? 'Popular on Snow Media' : 'Most Watched'}
+            clientIdentifier={conn.clientIdentifier}
           />
         ) : currentTab?.type === 'discover' && conn ? (
           <DiscoverPanel
