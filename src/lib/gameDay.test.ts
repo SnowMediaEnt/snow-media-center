@@ -235,6 +235,16 @@ describe('gameDay', () => {
       expect(by).toEqual({ 300: 'game', 301: 'game', 305: 'league', 306: 'network' });
     });
 
+    it("a title sponsor's name never picks another race", async () => {
+      const { channelsForGame } = await import('./gameDay');
+      const baku = f1({ id: 'f1:2:q', name: 'Qatar Airways Azerbaijan GP · Qualifying', event: 'Qatar Airways Azerbaijan GP', session: 'Qualifying', places: ['Baku City Circuit', 'Baku'] });
+      expect(ids(channelsForGame(baku, [
+        chans(350, 'F1: Azerbaijan Grand Prix Qualifying', 'US| RACING'),
+        chans(351, 'F1: Baku', 'US| RACING'),
+        chans(352, 'F1: Qatar Grand Prix', 'US| RACING'),
+      ]))).toEqual([350, 351]);
+    });
+
     it('NASCAR by its track, golf and tennis by their tournament', async () => {
       const { channelsForGame } = await import('./gameDay');
       const nascar = game({ id: 'nascar:1', league: 'nascar', name: 'Hollywood Casino 400 · Race', event: 'Hollywood Casino 400', session: 'Race', places: ['Kansas Speedway', 'Kansas City'] });

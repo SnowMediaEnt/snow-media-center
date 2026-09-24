@@ -34,6 +34,10 @@ const BOARDS: Record<string, unknown> = {
   },
   'tennis/atp': {
     events: [{
+      // A small tournament of the week: left out.
+      id: 't0', name: 'Chengdu Open', date: iso(NOW - 48 * H),
+      groupings: [{ competitions: [{ id: 'm0', date: iso(NOW - H), status: { type: { state: 'in' } } }] }],
+    }, {
       id: 't1', name: 'Laver Cup', date: iso(NOW - 48 * H),
       groupings: [{
         competitions: [
@@ -94,6 +98,7 @@ describe('game-day', () => {
     expect(by['pga:g1']).toMatchObject({ name: 'TOUR Championship', state: 'in', detail: 'Round 4 - In Progress', networks: ['Golf Channel', 'NBC'] });
     expect(by['pga:g1'].places).toEqual(expect.arrayContaining(['East Lake Golf Club', 'Atlanta']));
     expect(by['atp:t1']).toMatchObject({ name: 'Laver Cup', state: 'in', detail: '1 match on', networks: ['Tennis Channel'], start: iso(NOW - H) });
+    expect(by['atp:t0']).toBeUndefined();
     expect(by['laliga:s1']).toMatchObject({ league: 'laliga', leagueLabel: 'La Liga', name: 'Real Madrid @ Barcelona' });
     // Live first.
     expect((out.games ?? []).slice(0, 2).map((g) => g.state)).toEqual(['in', 'in']);
@@ -108,6 +113,8 @@ describe('game-day', () => {
     const liga = asked.filter((u) => u.includes('/sports/soccer/esp.1/scoreboard'));
     expect(liga.length).toBeGreaterThanOrEqual(2);
     expect(liga.every((u) => u.includes('dates='))).toBe(true);
+    // The host that answers the function's servers is asked first.
+    expect(asked.every((u) => u.startsWith('https://site.web.api.espn.com/'))).toBe(true);
   });
 
   it('counts every league in its check', async () => {

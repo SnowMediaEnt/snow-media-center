@@ -385,7 +385,11 @@ const EVENT_GENERIC = new Set([
   'autodromo', 'circuit', 'national', 'nazionale', 'park', 'country', 'stadium', 'arena', 'center', 'centre', 'street',
   'city', 'united', 'states', 'north', 'south', 'east', 'west', 'lake', 'beach', 'saint', 'santa', 'grande', 'royal',
   'cup', 'series', 'league', 'motorsports', 'international', 'course', 'links', 'resort', 'hills', 'springs', 'valley',
+  'pres', 'presents', 'powered', 'sponsored',
 ]);
+/** Title sponsors in race names ("Qatar Airways Azerbaijan GP"): the same
+ *  sponsor names several races, so its words never name one. */
+const EVENT_SPONSORS = /\b(qatar airways|singapore airlines|etihad airways|gulf air|emirates|heineken|aramco|pirelli|lenovo|msc cruises|aws|crypto ?com|rolex|louis vuitton|moet (?:&|and)? ?chandon|liqui moly|tag heuer|stc|salesforce|mastercard|dhl)\b/g;
 
 /** An event's words: phrases one whole piece of which names it ("us open",
  *  "italian gp", "ufc 320", "kansas speedway"), single words that do alone
@@ -401,8 +405,9 @@ const cardWords = (g: Game): Card => {
     return { phrases: num ? spaced([num]) : [], words: [], pair: fighters.length === 2 ? spaced(fighters) : [] };
   }
   const places = (g.places ?? []).map((p) => normalizeSpeech(String(p ?? ''))).filter(Boolean);
-  const phrases = [name, ...places].filter((p) => p.length >= 5 && (p.includes(' ') || !EVENT_GENERIC.has(p)));
-  const words = [name, ...places]
+  const bare = name.replace(EVENT_SPONSORS, ' ').replace(/\s+/g, ' ').trim();
+  const phrases = [name, bare, ...places].filter((p) => p.length >= 5 && (p.includes(' ') || !EVENT_GENERIC.has(p)));
+  const words = [bare, ...places]
     .flatMap((p) => p.split(' '))
     .filter((w) => w.length >= 4 && !/^\d+$/.test(w) && !EVENT_GENERIC.has(w));
   return { phrases: spaced([...new Set(phrases)]), words: spaced([...new Set(words)]), pair: [] };

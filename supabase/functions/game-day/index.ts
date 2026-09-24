@@ -67,11 +67,17 @@ const ESPN_HEADERS = {
   Accept: 'application/json, text/plain, */*',
   'Accept-Language': 'en-US,en;q=0.9',
 };
-const ESPN_HOSTS = ['https://site.api.espn.com', 'https://site.web.api.espn.com'];
+// site.api.espn.com turns the function's servers away (HTTP 403 on every
+// call); site.web.api.espn.com answers them. The other one stays as a
+// fallback.
+const ESPN_HOSTS = ['https://site.web.api.espn.com', 'https://site.api.espn.com'];
 /** College scoreboards list dozens of small games; keep the televised ones. */
 const MAX_PER_LEAGUE = 40;
 /** ESPN requests in flight at once, per build. */
 const MAX_PARALLEL = 8;
+/** Tennis lists every tournament of the week, most of them small: the big
+ *  ones only (the Slams, the 1000s, the finals and the team cups). */
+const BIG_TENNIS = /(australian open|roland garros|french open|wimbledon|us open|indian wells|bnp paribas open|miami open|monte.?carlo|madrid|internazionali|italian open|rome|canadian open|national bank open|omnium banque nationale|rogers cup|cincinnati|western & southern|shanghai|rolex paris|paris masters|china open|wuhan|dubai duty free|qatar totalenergies|guadalajara|atp finals|wta finals|nitto|next gen|laver cup|davis cup|billie jean king cup|united cup|olympic)/i;
 
 interface Team { name: string; short: string; abbr: string; location: string; logo: string | null; score: string | null }
 interface Game {
@@ -288,7 +294,8 @@ async function fetchEvents(l: { id: string; label: string; path: string; kind: K
         continue;
       }
       // Tennis: a tournament is a day of matches. Listed while it has one
-      // under way or still to come, with every match's TV.
+      // under way or still to come, with every match's TV; the big ones only.
+      if (!BIG_TENNIS.test(name) && !BIG_TENNIS.test(text(e.name))) continue;
       const matches: Any[] = [...comps, ...(e.groupings ?? []).flatMap((g: Any) => g?.competitions ?? [])];
       const live = matches.filter((m) => stateOf(m.status) === 'in');
       const next = matches
