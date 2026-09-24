@@ -55,7 +55,7 @@ describe('parseVoiceCommand', () => {
 
   it.each([
     'open', 'open up', 'show', 'show me', 'find', 'find me', 'pull up', 'bring up', 'put on', 'turn on', 'start',
-    'launch', 'run', 'go to', 'take me to', 'switch to', 'get me', 'queue up',
+    'start watching', 'start playing', 'launch', 'run', 'go to', 'take me to', 'switch to', 'get me', 'queue up',
   ])('"%s Toy Story 5 in Plex" is the Plex title, as "play" asks for it — not an app', (verb) => {
     const a = parseVoiceCommand(`${verb} Toy Story 5 in Plex`);
     expect(a).toEqual(parseVoiceCommand('play Toy Story 5 in Plex'));
