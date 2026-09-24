@@ -38,6 +38,7 @@ import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
 import PlayerModeChooser from './livetv/PlayerModeChooser';
 import ExpirationNoticeDialog from './livetv/ExpirationNoticeDialog';
 import PlexBlockedScreen from './livetv/PlexBlockedScreen';
+import KidsAskGrownUp from './livetv/KidsAskGrownUp';
 
 import LiveSection from './livetv/LiveSection';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
@@ -182,6 +183,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => {
     if (!credsLoaded || !creds) return;
     if (playerDays === null) return;
+    // Renewing is a grown-up's job (the notice offers a Renew QR and the
+    // store): not on a Kids profile, which leaves today's notice for theirs.
+    if (kidsLevel()) return;
     const today = new Date();
     const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     let kind: 'warn' | 'expired' | null = null;
@@ -925,6 +929,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     );
   }
 
+  // A Kids profile never gets the form: it signs a line in, and its Get
+  // started buys one. Who to ask instead; Back leaves, as the form's Cancel
+  // would (the shell's Back above answers it too).
+  if (showCredsForm && kidsLevel()) {
+    return <KidsAskGrownUp onBack={leaveMode} />;
+  }
+
   if (showCredsForm) {
     return (
       <div className="min-h-screen text-white bg-black/70">
@@ -939,7 +950,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               setCreds(c);
               setAccountFormOpen(false);
             }}
-            onNeedProfile={() => { if (!isClaimDismissed()) setClaimOpen(true); }}
+            onNeedProfile={() => { if (!isClaimDismissed() && !kidsLevel()) setClaimOpen(true); }}
             onCancel={creds ? () => setAccountFormOpen(false) : leaveMode}
           />
         </Suspense>
@@ -1202,7 +1213,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <LayoutTrialPrompt layout={layoutTrial.next} onKeep={keepLayout} onChange={changeLayout} />
         </Suspense>
       )}
-      {claimOpen && playerAccount && !isClaimDone(playerAccount) && (
+      {/* Setting up a Snow Media account is a grown-up's, never a Kids profile's. */}
+      {claimOpen && playerAccount && !isClaimDone(playerAccount) && !kidsLevel() && (
         <Suspense fallback={null}>
           <ClaimAccountCard
             open={true}

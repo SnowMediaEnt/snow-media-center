@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
+import { kidsLevel } from '@/lib/kidsFilter';
 import RenewQR from './RenewQR';
 
 interface Props {
@@ -16,7 +17,9 @@ interface Props {
 
 const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDismiss }: Props) => {
   const DEMO = isDemo();
-  const showRenew = !DEMO && !!username;
+  // Renewing is a grown-up's: never a Renew QR on a Kids profile (the Player
+  // does not raise this notice on one either).
+  const showRenew = !DEMO && !!username && !kidsLevel();
   const BTN_COUNT = showRenew ? 2 : 1; // [Renew now?, OK, got it]
   const [view, setView] = useState<'notice' | 'qr'>('notice');
   const [focusIdx, setFocusIdx] = useState(0);

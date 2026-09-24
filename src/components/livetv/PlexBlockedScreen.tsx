@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
+import { kidsLevel } from '@/lib/kidsFilter';
 import RenewQR from './RenewQR';
 
 interface Props {
@@ -18,13 +19,15 @@ interface Props {
  * <BackupsSection/>) whenever the local Xtream PlayerAccount is EXPIRED.
  * Explicit "renew" messaging with a "Renew now" QR; Back / Enter / OK return
  * to the previous view via `onBack` (the QR view's Back returns here first).
+ * A Kids profile is only told to ask a grown-up: no renewal, no QR.
  */
 const PlexBlockedScreen = memo(({ serverLabel, onBack, feature = 'Plex' }: Props) => {
   const { account, days } = usePlayerAccount();
   const DEMO = isDemo();
   const username = account?.username || null;
   const label = account?.serverLabel || serverLabel;
-  const showRenew = !DEMO && !!username;
+  const kids = !!kidsLevel();
+  const showRenew = !DEMO && !!username && !kids;
   const BTN_COUNT = showRenew ? 2 : 1; // [Renew now?, OK]
   const [view, setView] = useState<'notice' | 'qr'>('notice');
   const [focusIdx, setFocusIdx] = useState(0);
@@ -82,13 +85,26 @@ const PlexBlockedScreen = memo(({ serverLabel, onBack, feature = 'Plex' }: Props
         <div className="w-16 h-16 mx-auto rounded-2xl bg-red-500/20 flex items-center justify-center mb-4">
           <ShieldAlert className="w-9 h-9 text-red-300" />
         </div>
-        <h2 className="text-2xl font-quicksand font-bold mb-3">
-          ⛔ {feature} access paused
-        </h2>
-        <p className="text-brand-ice/90 font-nunito text-base leading-relaxed mb-6">
-          Your <span className="font-semibold text-white">{serverLabel}</span> subscription has expired.
-          Renew with Snow Media to restore {feature} access.
-        </p>
+        {kids ? (
+          <>
+            <h2 className="text-2xl font-quicksand font-bold mb-3">
+              {feature} is taking a break
+            </h2>
+            <p className="text-brand-ice/90 font-nunito text-base leading-relaxed mb-6">
+              Ask a grown-up to get {feature} going again on this TV.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2 className="text-2xl font-quicksand font-bold mb-3">
+              ⛔ {feature} access paused
+            </h2>
+            <p className="text-brand-ice/90 font-nunito text-base leading-relaxed mb-6">
+              Your <span className="font-semibold text-white">{serverLabel}</span> subscription has expired.
+              Renew with Snow Media to restore {feature} access.
+            </p>
+          </>
+        )}
         <div className="flex justify-center gap-3">
           {showRenew && (
             <Button

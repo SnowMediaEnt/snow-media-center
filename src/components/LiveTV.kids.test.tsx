@@ -3,17 +3,23 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { setKidsLevel } from '@/lib/kidsFilter';
 import { INTENT_KEYS } from '@/lib/appActions';
 
-// A box signed in to a line. The sections themselves are stand-ins: this is
-// about which ones the Player shell lets a profile reach.
+// A box signed in to a line (unless a test takes it away). The sections
+// themselves are stand-ins: this is about which ones the Player shell lets a
+// profile reach.
+const box = vi.hoisted(() => ({
+  line: true,
+  account: null as null | { username: string; serverLabel: string },
+  days: null as number | null,
+}));
 vi.mock('@/lib/xtream', async (orig) => ({
   ...(await orig<typeof import('@/lib/xtream')>()),
-  loadCreds: async () => ({ host: 'http://h.test', username: 'u', password: 'p', serverLabel: 'Dreamstreams' }),
+  loadCreds: async () => (box.line ? { host: 'http://h.test', username: 'u', password: 'p', serverLabel: 'Dreamstreams' } : null),
   bumpXtreamRefresh: vi.fn(),
   clearLiveCatalogue: vi.fn(),
 }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: null, loading: false }) }));
 vi.mock('@/hooks/usePlayerServerAlert', () => ({ usePlayerServerAlert: () => ({ alert: null, dismiss: vi.fn(), appLabel: null }) }));
-vi.mock('@/hooks/usePlayerAccount', () => ({ usePlayerAccount: () => ({ account: null, days: null }) }));
+vi.mock('@/hooks/usePlayerAccount', () => ({ usePlayerAccount: () => ({ account: box.account, days: box.days }) }));
 vi.mock('@/hooks/useVersion', () => ({ useVersion: () => ({ version: '1.7.8' }) }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn(), trackAlertShown: vi.fn(), startTimer: vi.fn(), stopTimer: vi.fn(), hasSessionFlag: () => false }));
 vi.mock('@/lib/plex', () => ({ clearPlexToken: vi.fn() }));
@@ -38,9 +44,24 @@ vi.mock('./livetv/LiveSection', async () => {
   return { default: LiveSectionStub };
 });
 vi.mock('./livetv/BackupsSection', () => ({ default: () => <div>backups-section</div> }));
+// Plex signed out on a box with no line: its "Sign into Live TV" (OK here).
+vi.mock('./livetv/PlexSection', async () => {
+  const { useEffect } = await import('react');
+  const PlexSectionStub = ({ onNeedLiveTV }: { onNeedLiveTV?: () => void }) => {
+    useEffect(() => {
+      const h = (e: KeyboardEvent) => { if (e.key === 'Enter') onNeedLiveTV?.(); };
+      window.addEventListener('keydown', h);
+      return () => window.removeEventListener('keydown', h);
+    }, [onNeedLiveTV]);
+    return <div>plex-section</div>;
+  };
+  return { default: PlexSectionStub };
+});
 vi.mock('./livetv/SettingsHub', () => ({ default: () => <div>settings-hub</div> }));
 vi.mock('./livetv/PlayerServerAlertDialog', () => ({ default: () => null }));
-vi.mock('./livetv/ExpirationNoticeDialog', () => ({ default: () => null }));
+vi.mock('./livetv/ExpirationNoticeDialog', () => ({ default: () => <div>expiry-notice</div> }));
+// The sign-in form, whose Get started sells a line.
+vi.mock('./livetv/CredentialsForm', () => ({ default: () => <div>credentials-form</div> }));
 
 import LiveTV from './LiveTV';
 
@@ -55,7 +76,10 @@ const openLiveTv = async () => {
 };
 const sidebar = () => Array.from(document.querySelectorAll('[data-player-chrome] > [data-focused]')).map((n) => n.getAttribute('title') || n.textContent);
 
-beforeEach(() => { sessionStorage.clear(); localStorage.clear(); });
+beforeEach(() => {
+  sessionStorage.clear(); localStorage.clear();
+  box.line = true; box.account = null; box.days = null;
+});
 afterEach(() => { setKidsLevel(null); });
 
 describe('the Player on a Kids profile', () => {
@@ -99,6 +123,87 @@ describe('the Player on a Kids profile', () => {
     expect(screen.queryByText('backups-section')).toBeNull();
     expect(screen.queryByText('settings-hub')).toBeNull();
     expect(screen.getByText('live-section')).toBeTruthy();
+  });
+});
+
+describe('Live TV on a Kids profile with no line on the box', () => {
+  it('asks for a grown-up instead of showing the sign-in form, and Back leaves', async () => {
+    setKidsLevel('kids');
+    box.line = false;
+    const onBack = vi.fn();
+    render(<LiveTV onBack={onBack} />);
+    await settle();
+    key('Enter'); // mode chooser: Live TV
+    await settle();
+    await settle();
+    expect(screen.getByText('Ask a grown-up to sign in to Live TV')).toBeTruthy();
+    expect(screen.queryByText('credentials-form')).toBeNull();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.queryByText(/Get started|Sign in to Player|Buy|Subscribe/i)).toBeNull();
+    // Back: the mode chooser, once — not out of the Player as well.
+    key('Escape');
+    await settle();
+    expect(screen.queryByText('Ask a grown-up to sign in to Live TV')).toBeNull();
+    expect(screen.getByText('Live channels & guide')).toBeTruthy();
+    expect(onBack).not.toHaveBeenCalled();
+    // OK on its one button leaves the same way.
+    key('Enter');
+    await settle();
+    await settle();
+    expect(screen.getByText('Ask a grown-up to sign in to Live TV')).toBeTruthy();
+    key('Enter');
+    await settle();
+    expect(screen.getByText('Live channels & guide')).toBeTruthy();
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('Plex sending the viewer to sign in to Live TV lands on the same screen', async () => {
+    setKidsLevel('little');
+    box.line = false;
+    render(<LiveTV onBack={vi.fn()} />);
+    await settle();
+    key('ArrowRight'); // mode chooser: Plex
+    key('Enter');
+    await settle();
+    await settle();
+    expect(screen.getByText('plex-section')).toBeTruthy();
+    key('Enter'); // Plex: "Sign into Live TV"
+    await settle();
+    await settle();
+    expect(screen.getByText('Ask a grown-up to sign in to Live TV')).toBeTruthy();
+    expect(screen.queryByText('credentials-form')).toBeNull();
+  });
+
+  it('a grown-up profile still gets the sign-in form', async () => {
+    box.line = false;
+    render(<LiveTV onBack={vi.fn()} />);
+    await settle();
+    key('Enter');
+    await settle();
+    await settle();
+    expect(screen.getByText('credentials-form')).toBeTruthy();
+    expect(screen.queryByText('Ask a grown-up to sign in to Live TV')).toBeNull();
+  });
+});
+
+describe('the expiry notice (it offers a Renew QR)', () => {
+  it('is not raised on a Kids profile', async () => {
+    setKidsLevel('teen');
+    box.account = { username: 'u', serverLabel: 'Dreamstreams' };
+    box.days = 3;
+    await openLiveTv();
+    await settle();
+    expect(screen.queryByText('expiry-notice')).toBeNull();
+    // Nor held back for this profile's next visit: the grown-up gets today's.
+    expect(Object.keys(localStorage).filter((k) => k.startsWith('snow-player-exp-notice'))).toEqual([]);
+  });
+
+  it('is raised on a grown-up profile', async () => {
+    box.account = { username: 'u', serverLabel: 'Dreamstreams' };
+    box.days = 3;
+    await openLiveTv();
+    await settle();
+    expect(screen.getByText('expiry-notice')).toBeTruthy();
   });
 });
 
