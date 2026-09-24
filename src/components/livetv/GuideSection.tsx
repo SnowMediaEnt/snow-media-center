@@ -30,6 +30,7 @@ import { useNativePlayer } from '@/hooks/useNativePlayer';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import SnowLoader from '@/components/SnowLoader';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { voiceOwnsBack } from '@/lib/voiceUi';
 import {
   demoGetLiveCategories,
   demoGetLiveStreams,
@@ -498,6 +499,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     (async () => {
       try {
         const h = await CapApp.addListener('backButton', () => {
+          // The voice overlay's Back (it is up, or this press closed it).
+          if (voiceOwnsBack()) return;
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
           if (!freshBack()) return;
           if (fullscreenRef.current) { setFullscreen(false); return; }

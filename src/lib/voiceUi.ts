@@ -27,3 +27,20 @@ if (typeof window !== 'undefined') {
     window.addEventListener('keyup', run, true);
   } catch { /* ignore */ }
 }
+
+// Hardware Back reaches every Capacitor backButton listener, in separate
+// turns. The Player's Escape is the overlay's to take (above); a screen
+// whose own listener acts on Back directly (the Guide) asks here first:
+// while the overlay is up, or just closed by this same press, the press was
+// the overlay's.
+let voiceUp = false;
+let voiceBackAt = 0;
+
+/** VoiceCommandHost: whether the overlay is up, and when Back closed it. */
+export function noteVoiceOverlay(up: boolean, backAt?: number): void {
+  voiceUp = up;
+  if (backAt) voiceBackAt = backAt;
+}
+
+/** A hardware Back now is the voice overlay's, not the screen's. */
+export const voiceOwnsBack = (): boolean => voiceUp || Date.now() - voiceBackAt < 350;

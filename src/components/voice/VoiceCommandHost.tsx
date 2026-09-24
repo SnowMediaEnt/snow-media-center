@@ -30,7 +30,7 @@ import { getPreferredTier, setPreferredTier } from '@/lib/aiTiers';
 import { KIDS_AI_SHORT } from '@/lib/kidsAiNotice';
 import { openProfiles } from '@/lib/profilesUi';
 import { parseVoiceCommand, type VoiceAction } from '@/lib/voiceCommands';
-import { OPEN_VOICE_EVENT, setVoiceKeyHandler } from '@/lib/voiceUi';
+import { OPEN_VOICE_EVENT, noteVoiceOverlay, setVoiceKeyHandler } from '@/lib/voiceUi';
 import { MEDIA_KEY_EVENT } from '@/lib/mediaKeys';
 import { REMOTE_VOICE_EVENT } from '@/lib/phoneRemote';
 
@@ -345,8 +345,11 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
     if (now - lastBack.current < 350) return;
     lastBack.current = now;
     (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = now;
+    noteVoiceOverlay(false, now);
     close();
   }, [close]);
+  useEffect(() => { noteVoiceOverlay(open); }, [open]);
+  useEffect(() => () => noteVoiceOverlay(false), []);
   useEffect(() => {
     const taken = new Map<string, number>();
     const id = (e: KeyboardEvent) => `${e.key}|${e.keyCode}`;

@@ -2,7 +2,7 @@ import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Imported first, as Home does: the overlay's key listener comes before the Player's.
 import Host from './VoiceCommandHost';
-import { openVoice } from '@/lib/voiceUi';
+import { openVoice, voiceOwnsBack } from '@/lib/voiceUi';
 
 vi.mock('@/components/VoiceInput', () => ({ default: () => <button type="button">Voice</button> }));
 vi.mock('@/integrations/supabase/client', () => ({
@@ -49,6 +49,30 @@ describe('hardware Back while the overlay is up over the Player', () => {
     await new Promise((r) => setTimeout(r, 400));
     await hardwareBack();
     expect(player).toEqual(['Escape']);
+  });
+
+  it.each([
+    ['before', true],
+    ['after', false],
+  ])('a screen that acts on Back itself (the Guide) leaves it to the overlay, listening %s it', async (_, guideFirst) => {
+    const guide: string[] = [];
+    // GuideSection's backButton listener: asks voiceOwnsBack() first.
+    const guideBack = () => { if (!voiceOwnsBack()) guide.push('back'); };
+    render(<Host navigate={vi.fn()} />);
+    await act(async () => { await Promise.resolve(); });
+    backs.unshift(playerBack);
+    // First of all (the overlay is still up), or last (this press closed it).
+    if (guideFirst) backs.unshift(guideBack); else backs.push(guideBack);
+    await act(async () => { openVoice(); });
+
+    await hardwareBack();
+    expect(overlay()).toBeNull();
+    expect(guide).toEqual([]);
+    expect(player).toEqual([]);
+
+    await new Promise((r) => setTimeout(r, 400));
+    await hardwareBack();
+    expect(guide).toEqual(['back']);
   });
 
   it('holding the Search key does not restart listening on every repeat', async () => {
