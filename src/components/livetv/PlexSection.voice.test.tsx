@@ -258,14 +258,18 @@ describe('PlexSection — Search on a Kids profile', () => {
   });
 
   it('a grown-up profile still gets the Request row and the suggestions', async () => {
+    // A popular search shows only once it finds a title on this server
+    // (plexSearches.popularOnThisServer): Deadpool is here, Saw is not.
+    h.search.mockImplementation((_b: string, _t: string, q: string) => h.later(5, /deadpool/i.test(q) ? [it_('dp', 'Deadpool', { year: 2016 })] : []));
     sessionStorage.setItem(VOICE_KEY, JSON.stringify({ query: 'chucky', open: false, at: Date.now() }));
     await renderPlex();
     expect(await screen.findByText(/isn’t on Plex yet/, undefined, { timeout: 3000 })).toBeTruthy();
     expect(h.overseerrSearch).toHaveBeenCalledWith('chucky');
     const box = screen.getByPlaceholderText('Search movies & shows…') as HTMLInputElement;
     fireEvent.change(box, { target: { value: '' } });
-    expect(await screen.findByText('Popular searches')).toBeTruthy();
+    expect(await screen.findByText('Popular searches', undefined, { timeout: 3000 })).toBeTruthy();
     expect(screen.getByText('Recent on this box')).toBeTruthy();
+    expect(screen.queryByText('Saw')).toBeNull();
   });
 });
 
