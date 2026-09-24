@@ -3,6 +3,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { Resend } from 'npm:resend@4.0.0';
+import { hashClientIpKey } from './clientIp.ts';
 
 export const ADMIN_OWNER_EMAIL = 'Joshua.perez@snowmediaent.com';
 
@@ -151,6 +152,9 @@ export async function storeGeneratedImage(params: {
 
 
 
+/** How long an automatic (token spike) pause lasts. */
+export const AUTO_PAUSE_MS = 30 * 60_000;
+
 /**
  * After logging a request, check if platform-wide tokens in last hour
  * exceed the threshold. If so, auto-pause and email the admin.
@@ -168,12 +172,17 @@ export async function enforceThreshold(): Promise<boolean> {
     state.token_threshold_per_hour
   ).toLocaleString()}).`;
 
+  // An auto-pause lifts on its own (checkPause and reserve_free_ai both
+  // honour paused_until). Without an end, anyone able to push the hourly
+  // total over the line could keep AI off for every customer until an admin
+  // noticed. If the spike goes on, the next request pauses it again.
   await admin
     .from('ai_safety_state')
     .update({
       paused: true,
       pause_reason: reason,
       paused_at: new Date().toISOString(),
+      paused_until: new Date(Date.now() + AUTO_PAUSE_MS).toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('id', 1);
@@ -188,7 +197,7 @@ export async function enforceThreshold(): Promise<boolean> {
         to: [state.notify_email],
         subject: '⚠️ Snow Media AI auto-paused (token spike)',
         html: `<p>${reason}</p>
-<p>The AI chat and image generation are paused for all users until you resume them from the admin panel.</p>
+<p>The AI chat and image generation are paused for all users for ${AUTO_PAUSE_MS / 60_000} minutes, or until you resume them from the admin panel. If the spike is still going on then, they pause again.</p>
 <p>Open the admin panel → AI tab to review the usage log and resume.</p>`,
       });
     }
@@ -310,27 +319,14 @@ export function isAuthError(caller: Caller): boolean {
 }
 
 /**
- * Hash the client IP (first hop in x-forwarded-for, falling back to
- * cf-connecting-ip / x-real-ip). Returns a hex SHA-256 string, or null
- * if no IP could be determined.
+ * Hash the client IP: cf-connecting-ip when it holds a caller's address,
+ * else the first x-forwarded-for hop / x-real-ip as before (see
+ * _shared/clientIp.ts for why the caller-chosen first hop is no longer
+ * trusted first). Returns a hex SHA-256 string, or null if no IP could be
+ * determined.
  */
 export async function hashClientIp(req: Request): Promise<string | null> {
-  const xff = req.headers.get('x-forwarded-for');
-  const cf = req.headers.get('cf-connecting-ip');
-  const real = req.headers.get('x-real-ip');
-  let ip: string | null = null;
-  if (xff) ip = xff.split(',')[0]?.trim() || null;
-  if (!ip && cf) ip = cf.trim();
-  if (!ip && real) ip = real.trim();
-  if (!ip) return null;
-  try {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip));
-    return Array.from(new Uint8Array(buf))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-  } catch {
-    return null;
-  }
+  return await hashClientIpKey(req.headers);
 }
 
 export interface ReserveResult {
@@ -406,6 +402,54 @@ export async function settleFree(params: {
     }
   } catch (e) {
     console.error('[ai-guard][ACCOUNTING] settleFree threw:', e, params);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Signed-in callers: an hourly allowance per account.
+//
+// The free tier costs a signed-in caller nothing on the server (the app takes
+// its 0.01 gems itself, and a script simply doesn't), so without this one
+// free account could send requests without end and push the platform-wide
+// hourly token total over the auto-pause line for everyone. Counted in
+// ai_user_hourly through service-role-only functions (migration
+// 20260930062000). Fails open: a counter that can't be reached never blocks
+// a customer.
+// ---------------------------------------------------------------------------
+
+export const USER_CALLS_PER_HOUR = 60;
+export const USER_TOKENS_PER_HOUR = 600_000;
+
+/** Counts one call; false when the account has used up this hour. */
+export async function takeUserHourly(userId: string): Promise<boolean> {
+  try {
+    const { data, error } = await getAdminClient().rpc('ai_user_hourly_take', {
+      p_user_id: userId,
+      p_max_calls: USER_CALLS_PER_HOUR,
+      p_max_tokens: USER_TOKENS_PER_HOUR,
+    });
+    if (error) {
+      console.error('[ai-guard] ai_user_hourly_take error:', error.message);
+      return true;
+    }
+    return (data as { allowed?: boolean } | null)?.allowed !== false;
+  } catch (e) {
+    console.error('[ai-guard] takeUserHourly threw:', e instanceof Error ? e.message : String(e));
+    return true;
+  }
+}
+
+/** Adds what a call actually used to the account's hour. */
+export async function addUserHourlyTokens(userId: string, tokens: number): Promise<void> {
+  if (!(tokens > 0)) return;
+  try {
+    const { error } = await getAdminClient().rpc('ai_user_hourly_add', {
+      p_user_id: userId,
+      p_tokens: Math.round(tokens),
+    });
+    if (error) console.error('[ai-guard] ai_user_hourly_add error:', error.message);
+  } catch (e) {
+    console.error('[ai-guard] addUserHourlyTokens threw:', e instanceof Error ? e.message : String(e));
   }
 }
 

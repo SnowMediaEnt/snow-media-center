@@ -21,14 +21,52 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
-// Same as _shared/ai-guard.ts hashClientIp, kept inline so this file can be
-// pasted into the dashboard editor as a single unit.
+// The caller's IP, by the same rule as _shared/clientIp.ts, kept inline so
+// this file can be pasted into the dashboard editor as a single unit:
+// cf-connecting-ip first (Cloudflare sets it; the first x-forwarded-for entry
+// is whatever the caller sent), unless it is a private or Cloudflare address;
+// an IPv6 /64 counts as one caller. The old order is the fallback.
+const INTERNAL_V4 = [[0, 0, 0, 0, 8], [10, 0, 0, 0, 8], [100, 64, 0, 0, 10], [127, 0, 0, 0, 8], [169, 254, 0, 0, 16], [172, 16, 0, 0, 12], [192, 168, 0, 0, 16]];
+const CLOUDFLARE_V4 = [
+  [173, 245, 48, 0, 20], [103, 21, 244, 0, 22], [103, 22, 200, 0, 22], [103, 31, 4, 0, 22], [141, 101, 64, 0, 18],
+  [108, 162, 192, 0, 18], [190, 93, 240, 0, 20], [188, 114, 96, 0, 20], [197, 234, 240, 0, 22], [198, 41, 128, 0, 17],
+  [162, 158, 0, 0, 15], [104, 16, 0, 0, 13], [104, 24, 0, 0, 14], [172, 64, 0, 0, 13], [131, 0, 72, 0, 22],
+];
+const CLOUDFLARE_V6 = ['2400:cb00:', '2606:4700:', '2803:f800:', '2405:b500:', '2405:8100:', '2c0f:f248:'];
+
+function callerAddress(raw: string | null): string | null {
+  const ip = (raw ?? '').trim().toLowerCase();
+  if (!ip) return null;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  if (v4) {
+    const n = v4.slice(1).map(Number);
+    if (n.some((x) => x > 255)) return null;
+    const num = ((n[0] << 24) >>> 0) + (n[1] << 16) + (n[2] << 8) + n[3];
+    const inRange = ([a, b, c, d, bits]: number[]) => {
+      const base = ((a << 24) >>> 0) + (b << 16) + (c << 8) + d;
+      const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+      return ((num & mask) >>> 0) === ((base & mask) >>> 0);
+    };
+    return INTERNAL_V4.some(inRange) || CLOUDFLARE_V4.some(inRange) ? null : n.join('.');
+  }
+  if (!ip.includes(':') || !/^[0-9a-f:]+$/.test(ip)) return null;
+  if (ip === '::' || ip === '::1' || /^f[cd]/.test(ip) || /^fe[89ab]/.test(ip)) return null;
+  if (CLOUDFLARE_V6.some((p) => ip.startsWith(p)) || /^2a06:98c[0-7]:/.test(ip)) return null;
+  // A household's IPv6 devices share a /64: key on it.
+  const [head, tail = ''] = ip.split('::');
+  const h = head ? head.split(':') : [];
+  const t = tail ? tail.split(':') : [];
+  const groups = ip.includes('::') ? [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t] : h;
+  if (groups.length !== 8) return null;
+  return `${groups.slice(0, 4).map((g) => parseInt(g, 16).toString(16)).join(':')}::/64`;
+}
+
 async function hashClientIp(req: Request): Promise<string | null> {
   const xff = req.headers.get('x-forwarded-for');
   const cf = req.headers.get('cf-connecting-ip');
   const real = req.headers.get('x-real-ip');
-  let ip: string | null = null;
-  if (xff) ip = xff.split(',')[0]?.trim() || null;
+  let ip: string | null = callerAddress(cf);
+  if (!ip && xff) ip = xff.split(',')[0]?.trim() || null;
   if (!ip && cf) ip = cf.trim();
   if (!ip && real) ip = real.trim();
   if (!ip) return null;

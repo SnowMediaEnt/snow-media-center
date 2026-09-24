@@ -22,6 +22,9 @@ const POLL_MS = 2 * 60_000;
 const SIGNAL_EVERY_MS = 10 * 60_000;
 /** A viewer's own report or clear: only a double press is dropped. */
 const MANUAL_EVERY_MS = 5_000;
+/** The server never sends more; a longer list is a flood, not an outage,
+ *  and is ignored (the last good list stays). */
+export const MAX_DOWN_CHANNELS = 500;
 export const CHANNEL_STATUS_EVENT = 'smc-channel-status:changed';
 
 export const channelStatusKey = (host: string, streamId: number): string => `${normalizeHost(host)}|${streamId}`;
@@ -42,7 +45,7 @@ async function refresh(hosts: string[], force = false): Promise<void> {
       const { data, error } = await supabase.functions.invoke('channel-status', { body: { op: 'list', hosts } });
       if (error) return;
       const r = data as { ok?: boolean; down?: unknown } | null;
-      if (!r?.ok || !Array.isArray(r.down)) return;
+      if (!r?.ok || !Array.isArray(r.down) || r.down.length > MAX_DOWN_CHANNELS) return;
       const next = new Set(r.down.map(String));
       hostsKey = key; fetchedAt = Date.now();
       const same = next.size === down.size && [...next].every((k) => down.has(k));

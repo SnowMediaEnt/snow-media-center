@@ -2,20 +2,70 @@
 // leads not signed into a Snow Media account) into public.player_signins via
 // a SECURITY DEFINER function.
 //
+// Nothing is written until the line has signed in to its panel FROM HERE.
+// The capture feeds the CRM: capture_player_signin links the line to a
+// customer and link_player_signin_to_crm copies its password, expiry and
+// status into that customer's customer_services row (a later expiry can also
+// earn a giveaway entry). It used to take all of that from the request, so
+// anyone who knew a line's username (for VibezTV that is the customer's
+// email) could overwrite that customer's stored password, push their expiry
+// forward, or invent customers. Now a password is required, the line is
+// checked against the allowlisted panel the way player-login checks it, and
+// expiry, status, connections and trial come from the panel's answer, never
+// from the request. A capture the panel does not accept writes nothing.
+//
 // verify_jwt = false (see supabase/config.toml). We NEVER 500 on normal cases;
 // soft failures return HTTP 200 with { ok:false, reason }.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
-// Same as _shared/ai-guard.ts hashClientIp, kept inline so this file can be
-// pasted into the dashboard editor as a single unit.
+// The caller's IP, by the same rule as _shared/clientIp.ts, kept inline so
+// this file can be pasted into the dashboard editor as a single unit:
+// cf-connecting-ip first (Cloudflare sets it; the first x-forwarded-for entry
+// is whatever the caller sent), unless it is a private or Cloudflare address;
+// an IPv6 /64 counts as one caller. The old order is the fallback.
+const INTERNAL_V4 = [[0, 0, 0, 0, 8], [10, 0, 0, 0, 8], [100, 64, 0, 0, 10], [127, 0, 0, 0, 8], [169, 254, 0, 0, 16], [172, 16, 0, 0, 12], [192, 168, 0, 0, 16]];
+const CLOUDFLARE_V4 = [
+  [173, 245, 48, 0, 20], [103, 21, 244, 0, 22], [103, 22, 200, 0, 22], [103, 31, 4, 0, 22], [141, 101, 64, 0, 18],
+  [108, 162, 192, 0, 18], [190, 93, 240, 0, 20], [188, 114, 96, 0, 20], [197, 234, 240, 0, 22], [198, 41, 128, 0, 17],
+  [162, 158, 0, 0, 15], [104, 16, 0, 0, 13], [104, 24, 0, 0, 14], [172, 64, 0, 0, 13], [131, 0, 72, 0, 22],
+];
+const CLOUDFLARE_V6 = ['2400:cb00:', '2606:4700:', '2803:f800:', '2405:b500:', '2405:8100:', '2c0f:f248:'];
+
+function callerAddress(raw: string | null): string | null {
+  const ip = (raw ?? '').trim().toLowerCase();
+  if (!ip) return null;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  if (v4) {
+    const n = v4.slice(1).map(Number);
+    if (n.some((x) => x > 255)) return null;
+    const num = ((n[0] << 24) >>> 0) + (n[1] << 16) + (n[2] << 8) + n[3];
+    const inRange = ([a, b, c, d, bits]: number[]) => {
+      const base = ((a << 24) >>> 0) + (b << 16) + (c << 8) + d;
+      const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+      return ((num & mask) >>> 0) === ((base & mask) >>> 0);
+    };
+    return INTERNAL_V4.some(inRange) || CLOUDFLARE_V4.some(inRange) ? null : n.join('.');
+  }
+  if (!ip.includes(':') || !/^[0-9a-f:]+$/.test(ip)) return null;
+  if (ip === '::' || ip === '::1' || /^f[cd]/.test(ip) || /^fe[89ab]/.test(ip)) return null;
+  if (CLOUDFLARE_V6.some((p) => ip.startsWith(p)) || /^2a06:98c[0-7]:/.test(ip)) return null;
+  // A household's IPv6 devices share a /64: key on it.
+  const [head, tail = ''] = ip.split('::');
+  const h = head ? head.split(':') : [];
+  const t = tail ? tail.split(':') : [];
+  const groups = ip.includes('::') ? [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t] : h;
+  if (groups.length !== 8) return null;
+  return `${groups.slice(0, 4).map((g) => parseInt(g, 16).toString(16)).join(':')}::/64`;
+}
+
 async function hashClientIp(req: Request): Promise<string | null> {
   const xff = req.headers.get('x-forwarded-for');
   const cf = req.headers.get('cf-connecting-ip');
   const real = req.headers.get('x-real-ip');
-  let ip: string | null = null;
-  if (xff) ip = xff.split(',')[0]?.trim() || null;
+  let ip: string | null = callerAddress(cf);
+  if (!ip && xff) ip = xff.split(',')[0]?.trim() || null;
   if (!ip && cf) ip = cf.trim();
   if (!ip && real) ip = real.trim();
   if (!ip) return null;
@@ -37,6 +87,11 @@ const LABEL_BY_HOST: Record<string, string> = {
 const MAX_BODY_BYTES = 4096;
 const THROTTLE_WINDOW_MS = 5 * 60 * 1000;
 const THROTTLE_MAX = 30;
+// Each capture now asks the panel, so a line is also limited on its own:
+// this endpoint must not become a way to try passwords against a panel.
+// A household's boxes reconcile a line a few times an hour at most.
+const THROTTLE_MAX_PER_LINE = 8;
+const REQUEST_TIMEOUT_MS = 12_000;
 
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
 
@@ -62,6 +117,96 @@ const normalizeHost = (raw: unknown): string | null => {
   if (h === 'dstreams.xyz') h = 'dstreams.xyz:8080';
   return h;
 };
+
+// ── panel verification (mirrors player-login; kept inline so this file can
+// be pasted into the dashboard as a single unit) ───────────────────────────
+
+// Ports a panel is commonly served over TLS on.
+const TLS_PORTS = new Set(['443', '2053', '2083', '2087', '2096', '8443']);
+
+/** Base URLs to try for a panel, best first (see player-login). */
+function panelBases(rawHost: string): string[] {
+  const trimmed = rawHost.trim().replace(/\/+$/, '');
+  const m = /^(https?):\/\/(.+)$/i.exec(trimmed);
+  const bare = (m ? m[2] : trimmed).replace(/\/+$/, '');
+  const port = /:(\d+)$/.exec(bare)?.[1];
+  const first = m ? m[1].toLowerCase() : (port ? (TLS_PORTS.has(port) ? 'https' : 'http') : 'https');
+  const second = first === 'https' ? 'http' : 'https';
+  return [`${first}://${bare}`, `${second}://${bare}`];
+}
+
+// cPanel-style ports serve the panel's login page, not its player API: try
+// the streaming ports on the same hostname too.
+const PANEL_ONLY_PORTS = new Set(['2082', '2083', '2086', '2087']);
+const STREAM_FALLBACKS: Array<[string, string]> = [
+  ['http', '8080'], ['https', '2096'], ['http', '8000'], ['http', '25461'],
+];
+
+/** Every base worth trying for this host, best first, de-duplicated. */
+function candidateBases(rawHost: string): string[] {
+  const out: string[] = [];
+  const push = (b: string) => { if (!out.includes(b)) out.push(b); };
+  for (const b of panelBases(rawHost)) push(b);
+  const bare = rawHost.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  const name = bare.replace(/:\d+$/, '');
+  const port = /:(\d+)$/.exec(bare)?.[1] ?? '';
+  if (name && (!port || PANEL_ONLY_PORTS.has(port))) {
+    for (const [scheme, p] of STREAM_FALLBACKS) push(`${scheme}://${name}:${p}`);
+  }
+  return out;
+}
+
+/** Every attempt gets its own timeout; this caps the search as a whole. */
+const TOTAL_BUDGET_MS = 20000;
+
+// Agents a panel's gateway lets through; decided from the BODY, since a
+// gateway's HTML 401 is not a wrong password (see player-login).
+const PANEL_AGENTS = [
+  'Dalvik/2.1.0 (Linux; U; Android 9; AFTMM Build/PS7233)',
+  'Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/70.0.3538.110 Mobile Safari/537.36',
+  'VLC/3.0.20 LibVLC/3.0.20',
+  'okhttp/4.12.0',
+];
+
+// An expired or disabled line still answers auth 1 with its status, which
+// is exactly what the capture records (a renewal shows up this way).
+async function verifyLine(host: string, username: string, password: string): Promise<
+  { kind: 'ok'; userInfo: Record<string, unknown> } | { kind: 'auth_failed' } | { kind: 'unreachable' }
+> {
+  const query =
+    `/player_api.php?username=` +
+    encodeURIComponent(username) + `&password=` + encodeURIComponent(password);
+  const deadline = Date.now() + TOTAL_BUDGET_MS;
+  for (const base of candidateBases(host)) {
+    for (const ua of PANEL_AGENTS) {
+      if (Date.now() > deadline) break;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+      let text: string;
+      try {
+        const res = await fetch(base + query, {
+          signal: ctrl.signal,
+          headers: { 'User-Agent': ua, Accept: 'application/json' },
+        });
+        text = (await res.text()).trim();
+      } catch {
+        continue;
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!text.startsWith('{')) continue;
+      let data: unknown;
+      try { data = JSON.parse(text); } catch { continue; }
+      const ui = (data as { user_info?: Record<string, unknown> })?.user_info;
+      if (!ui || typeof ui !== 'object') continue;
+      const auth = ui.auth;
+      const authed = auth === 1 || auth === '1' || auth === true;
+      return authed ? { kind: 'ok', userInfo: ui } : { kind: 'auth_failed' };
+    }
+  }
+  console.warn('[capture-player-signin] no JSON from any base or agent — wrong host, or a gateway block?');
+  return { kind: 'unreachable' };
+}
 
 // ── line → customer ────────────────────────────────────────────────────────
 // The hub stores a customer's line in customer_services as panel_host +
@@ -143,6 +288,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 async function throttle(
   admin: ReturnType<typeof createClient>,
   ipHash: string | null,
+  max = THROTTLE_MAX,
 ): Promise<{ allowed: boolean }> {
   if (!ipHash) return { allowed: true };
   try {
@@ -170,7 +316,7 @@ async function throttle(
       .from('player_signin_throttle')
       .update({ count: nextCount })
       .eq('ip_hash', ipHash);
-    return { allowed: nextCount <= THROTTLE_MAX };
+    return { allowed: nextCount <= max };
   } catch (e) {
     console.warn('[capture-player-signin] throttle fail-open:', e);
     return { allowed: true };
@@ -238,24 +384,42 @@ Deno.serve(async (req) => {
     }
     const serverLabel = LABEL_BY_HOST[host] ?? null;
 
-    // d. Validate/clamp text + primitive fields.
-    const rawUsername = typeof body.username === 'string' ? body.username.trim().toLowerCase() : '';
-    const username = clampText(rawUsername, 256);
-    if (!username) {
+    // d. Validate/clamp text + primitive fields. The username is stored
+    //    lowercased (as always) but checked with the panel as it was typed.
+    const typedUsername = clampText(typeof body.username === 'string' ? body.username.trim() : '', 256);
+    const username = typedUsername ? typedUsername.toLowerCase() : null;
+    if (!typedUsername || !username) {
       return jsonResponse({ ok: false, reason: 'bad_username' });
     }
     const password = clampText(body.password, 512);
-    const status = clampText(body.status, 256);
+    if (!password) {
+      return jsonResponse({ ok: false, reason: 'not_verified' });
+    }
     const deviceId = clampText(body.device_id, 256);
-    const maxConnections = parseIntClamp(body.max_connections, 0, 99);
-    const isTrial = toBool(body.is_trial);
-    const expirationDate = parseExpirationDate(body.exp_date);
     const reasonRaw = typeof body.reason === 'string' ? body.reason : 'signin';
     const reason = reasonRaw === 'reconcile' ? 'reconcile' : 'signin';
     // Optional tenant tag — RPC validates it against tenants.code and rejects
     // the SMC/canvas/ask reserved codes. Anything invalid becomes null server-side.
     const tenantCodeRaw = clampText(body.tenant_code, 64);
     const tenantCode = tenantCodeRaw ? tenantCodeRaw.trim().toLowerCase() : null;
+
+    // e. The line must sign in to its panel from here before anything is
+    //    written. Limited per line first, so this cannot be used to try
+    //    passwords. What the capture records about the line comes from the
+    //    panel's answer; the request's exp_date/status/etc. are ignored.
+    const lineAllowed = await throttle(admin, `capture-line:${host}:${username}`, THROTTLE_MAX_PER_LINE);
+    if (!lineAllowed.allowed) {
+      return jsonResponse({ ok: false, reason: 'rate_limited' });
+    }
+    const verdict = await verifyLine(host, typedUsername, password);
+    if (verdict.kind !== 'ok') {
+      return jsonResponse({ ok: false, reason: 'not_verified' });
+    }
+    const info = verdict.userInfo;
+    const status = clampText(typeof info.status === 'string' ? info.status : null, 256);
+    const maxConnections = parseIntClamp(info.max_connections, 0, 99);
+    const isTrial = toBool(info.is_trial);
+    const expirationDate = parseExpirationDate(info.exp_date);
 
     // f. matched_customer_id. A website session names the customer outright.
     //    Without one, the line itself does: the hub records every customer's
