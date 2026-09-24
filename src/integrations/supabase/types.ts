@@ -1346,8 +1346,10 @@ export type Database = {
           device_hash: string
           host: string
           id: number
+          ip_hash: string | null
           kind: string
           stream_id: number
+          trusted: boolean
         }
         Insert: {
           channel_name?: string | null
@@ -1355,8 +1357,10 @@ export type Database = {
           device_hash: string
           host: string
           id?: number
+          ip_hash?: string | null
           kind: string
           stream_id: number
+          trusted?: boolean
         }
         Update: {
           channel_name?: string | null
@@ -1364,8 +1368,10 @@ export type Database = {
           device_hash?: string
           host?: string
           id?: number
+          ip_hash?: string | null
           kind?: string
           stream_id?: number
+          trusted?: boolean
         }
         Relationships: []
       }
@@ -5037,6 +5043,20 @@ export type Database = {
           since: string
           source: string
           stream_id: number
+        }[]
+      }
+      channel_signal_summary: {
+        Args: { p_since: string }
+        Returns: {
+          channel_name: string
+          cleared: number
+          failures: number
+          host: string
+          ignored: number
+          last_at: string
+          reports: number
+          stream_id: number
+          working: number
         }[]
       }
       check_free_ai: {
