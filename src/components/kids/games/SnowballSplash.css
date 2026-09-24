@@ -2,5 +2,21 @@
 @media(min-width:2560px) and (min-height:1400px){.ks-snow{padding:44px 60px;border-radius:38px}.ks-snow-top{font-size:28px}.ks-snow-question h2{font-size:76px}.ks-snow-example{font-size:52px}.ks-snow-board{width:min(1500px,90%);gap:40px 60px}.ks-snow-target{min-height:180px}.ks-snow-answer{font-size:86px}.ks-snow-feedback{font-size:34px}.ks-snow-help{font-size:25px}.ks-snow-finish h2{font-size:72px}.ks-snow-finish p,.ks-snow-finish button{font-size:36px}}
 .ks-snow-color-clue{display:inline-block;width:38px;height:38px;margin-top:9px;border:4px solid white;border-radius:50%;box-shadow:0 3px 12px #154f7780}
 .ks-snow-target.is-color .ks-snow-answer{display:inline-block;padding:3px 13px;border-radius:13px;background:#ffffffea;color:#17374f;font-size:clamp(17px,2.1vw,27px);text-transform:uppercase;letter-spacing:.04em}
+
+@supports not (width: min(710px, 92%)) {
+  .ks-snow-question h2 { font-size: 34px; }
+  .ks-snow-board { width: 92%; max-width: 710px; }
+  .ks-snow-target { height: 110px; }
+  .ks-snow-target-ring { top: 10px; right: 10px; bottom: 10px; left: 10px; }
+  .ks-snow-answer { font-size: 38px; }
+  .ks-snow-target.is-color .ks-snow-answer { font-size: 23px; }
+  .ks-snow-target.is-splashed .ks-snow-splash { top: -35px; right: -35px; bottom: -35px; left: -35px; }
+  .ks-snow-help > * + * { margin-left: 26px; }
+  @media(max-height:620px) { .ks-snow-target { height: 70px; } }
+  @media(min-width:2560px) and (min-height:1400px) {
+    .ks-snow-board { max-width: 1500px; }
+    .ks-snow-target { height: 200px; }
+  }
+}
 .ks-snow-target.is-color{box-shadow:0 9px 0 #4a7795,0 15px 20px #1f689521}
 @media(min-width:2560px) and (min-height:1400px){.ks-snow-color-clue{width:70px;height:70px;border-width:7px}.ks-snow-target.is-color .ks-snow-answer{font-size:50px;padding:7px 24px}}

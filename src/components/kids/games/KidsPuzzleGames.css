@@ -23,3 +23,23 @@
 .kp-card.is-open > span:first-child { font-size: clamp(80px, 11vh, 140px); line-height: 1; filter: drop-shadow(0 10px 14px #16466a25); }
 @media(max-height:720px){.kp-card.is-open > span:first-child { font-size: clamp(55px, 10vh, 90px); }}
 @media(min-width:2560px) and (min-height:1400px){.kp-card.is-open > span:first-child { font-size: clamp(150px, 11vh, 250px); }}
+
+/* WebView 66 ignores min(), clamp(), aspect-ratio and inset. */
+@supports not (width: min(100%, 320px)) {
+  .kp-path .kp-layout { width: 100%; max-width: 1500px; gap: 38px; }
+  .kp-path .kp-ice-board { width: 65vh; max-width: 100%; max-height: 720px; height: 65vh; }
+  .kp-match .kp-cards { width: 100%; max-width: 1250px; max-height: 68vh; }
+  .kp-card.is-open > span:first-child { font-size: 110px; }
+  .kp-finish { top: 0; right: 0; bottom: 0; left: 0; }
+  .kp-sequence > * + *, .kp-stars > * + * { margin-left: 10px; }
+  @media(max-height:720px) {
+    .kp-path .kp-ice-board { width: 60vh; height: 60vh; max-height: 450px; }
+    .kp-card.is-open > span:first-child { font-size: 75px; }
+  }
+  @media(min-width:2560px) and (min-height:1400px) {
+    .kp-path .kp-layout { max-width: 2650px; }
+    .kp-path .kp-ice-board { width: 68vh; height: 68vh; max-height: 1280px; }
+    .kp-match .kp-cards { max-width: 2400px; }
+    .kp-card.is-open > span:first-child { font-size: 200px; }
+  }
+}

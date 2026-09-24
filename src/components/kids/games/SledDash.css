@@ -2,5 +2,23 @@
 @media(min-width:2560px) and (min-height:1400px){.ks-sled{padding:44px 60px;border-radius:38px}.ks-sled-top{font-size:28px}.ks-sled-prompt h2{font-size:76px}.ks-sled-prompt>div{font-size:52px}.ks-sled-trail{width:min(1500px,90%)}.ks-sled-gate{height:160px}.ks-sled-gate>span{font-size:84px}.ks-sled-gate>i{height:160px}.ks-sled-rider{width:180px;height:180px}.ks-sled-footer p{font-size:34px}.ks-sled-footer>div{font-size:25px}.ks-sled-finish h2{font-size:72px}.ks-sled-finish p,.ks-sled-finish button{font-size:36px}}
 .ks-sled-prompt>div{font-size:clamp(38px,5vw,64px);line-height:1.1}
 .ks-sled-gate>span{display:grid;place-items:center;min-height:64px;padding:3px 8px;font-size:clamp(24px,3vw,38px);white-space:nowrap}
+
+@supports not (width: min(740px, 95%)) {
+  .ks-sled-prompt h2 { font-size: 34px; }
+  .ks-sled-prompt > div { font-size: 46px; }
+  .ks-sled-trail { width: 95%; max-width: 740px; }
+  .ks-sled-gate > span { font-size: 32px; }
+  .ks-sled-landscape { top: 12%; right: 0; bottom: 24%; left: 0; }
+  .ks-sled-landscape i:after, .ks-sled-tracks { top: 0; right: 0; bottom: 0; left: 0; }
+  .ks-sled-top > span:first-child > * + *, .ks-sled-footer > div > * + * { margin-left: 8px; }
+  @media(max-height:620px) {
+    .ks-sled-trail { max-width: 590px; }
+    .ks-sled-gate > span { font-size: 28px; }
+  }
+  @media(min-width:2560px) and (min-height:1400px) {
+    .ks-sled-trail { max-width: 1500px; }
+    .ks-sled-gate > span { font-size: 84px; }
+  }
+}
 @media(max-height:620px){.ks-sled-prompt>div{font-size:36px}.ks-sled-gate>span{min-height:50px;font-size:28px}}
 @media(min-width:2560px) and (min-height:1400px){.ks-sled-prompt>div{font-size:90px}.ks-sled-gate>span{min-height:110px;font-size:68px}}
