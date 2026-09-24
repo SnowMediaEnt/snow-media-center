@@ -1,11 +1,17 @@
-// Server-side ticket notifier — invoked by an AFTER INSERT trigger on
-// public.support_tickets via pg_net (mirrors the app_alerts → telegram-notify
-// pattern). verify_jwt = false; guarded like telegram-notify (pg_net posts an
-// anon Bearer token; direct callers get 401 from the platform if they omit it).
+// Server-side ticket notifier — invoked by AFTER INSERT triggers through
+// pg_net: notify_ticket_on_first_message (support_messages) and
+// notify_on_remote_support_request (remote_support_requests).
+//
+// verify_jwt = false, so the platform checks nothing; the anon Bearer the
+// triggers send is public. The triggers also send x-internal-secret =
+// INTERNAL_FN_SECRET (migration 20260930070000), and anything without it gets
+// 401 — otherwise anyone could post fake tickets to Discord, the admin inbox
+// and every admin's phone.
 //
 // Posts ONE Discord message and ONE Resend email per ticket insert. Both
 // channels are attempted independently; failures never 500.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { internalSecretOk } from '../_shared/requestGuard.ts';
 
 interface Payload {
   ticket_id?: string;
@@ -21,6 +27,12 @@ const esc = (s: unknown): string =>
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (!internalSecretOk(req.headers.get('x-internal-secret'), Deno.env.get('INTERNAL_FN_SECRET'))) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
   const jsonOk = (extra: Record<string, unknown> = {}) =>
     new Response(JSON.stringify({ ok: true, ...extra }), {
@@ -72,7 +84,9 @@ Deno.serve(async (req) => {
         const res = await fetch(hook, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content }),
+          // The subject and email are the customer's words: never let them
+          // ping @everyone or a role.
+          body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
         });
         discord_status = res.status;
         console.log(`[notify-ticket] discord status: ${res.status}`);

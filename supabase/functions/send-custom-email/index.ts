@@ -1,5 +1,19 @@
+// Email through the shared Resend account.
+//
+// Staff (has_role admin) can send anything: { to, subject, html, fromName } or
+// a template { to, type, data }. Everyone else is a customer telling support
+// about a ticket, so for them:
+//   - the recipient must be a support inbox: support@snowmediaent.com (or
+//     SUPPORT_EMAIL) or a tenant's configured support_email;
+//   - the sender name belongs to that inbox, whatever fromName says;
+//   - the body is plain text ({ subject, message }, or the text of the html
+//     older apps send), escaped here and signed with the verified account;
+//   - templates are refused, and sends are limited per account and in total.
+// Without this any signed-up account could send any HTML, under any sender
+// name, to any address, and use up the Resend quota PIN resets depend on.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { Resend } from 'npm:resend@4.0.0';
+import { escapeHtml, htmlToText, throttle, type ThrottleDb } from '../_shared/requestGuard.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,6 +21,61 @@ const corsHeaders = {
 }
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
+
+// The address the apps write to is always allowed; SUPPORT_EMAIL, if set,
+// is where a message with no `to` goes, and is allowed too.
+const SNOW_SUPPORT = 'support@snowmediaent.com';
+const SUPPORT_EMAIL = (Deno.env.get('SUPPORT_EMAIL') || SNOW_SUPPORT).trim().toLowerCase();
+const CUSTOMER_PER_HOUR = 10;
+const CUSTOMERS_ALL_PER_HOUR = 150;
+const HOUR_MS = 60 * 60 * 1000;
+
+const reply = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+// The slice of the service-role client supportInboxSender uses, typed by
+// shape (see player-favorites for why not ReturnType<typeof createClient>).
+interface InboxDb {
+  from: (table: 'tenant_settings' | 'tenant_branding') => {
+    select: (cols: string) => {
+      ilike: (col: string, v: string) => {
+        limit: (n: number) => PromiseLike<{ data: Array<{ support_email: string | null; tenant_id: string }> | null }>;
+      };
+      eq: (col: string, v: string) => {
+        maybeSingle: () => PromiseLike<{ data: { app_display_name: string | null } | null }>;
+      };
+    };
+  };
+}
+
+/** A display name only: letters, digits and a little punctuation. */
+const cleanName = (v: unknown): string =>
+  String(v ?? '').replace(/[^\p{L}\p{N} .'&-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 50);
+
+/**
+ * The sender name for a customer's mail to `to` when it is a support inbox:
+ * Snow Media's own, or one a tenant has set up (named after that tenant's
+ * app, as the Canvas app names it). Null for any other address. The caller's
+ * fromName is never used: the name comes from the inbox, not the customer.
+ */
+async function supportInboxSender(admin: InboxDb, to: string): Promise<string | null> {
+  if (to === SUPPORT_EMAIL || to === SNOW_SUPPORT) return 'Snow Media Support System';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return null;
+  const { data } = await admin
+    .from('tenant_settings')
+    .select('support_email, tenant_id')
+    .ilike('support_email', to.replace(/[\\%_]/g, (c) => `\\${c}`))
+    .limit(5);
+  const tenant = (data ?? []).find((r) => (r.support_email ?? '').trim().toLowerCase() === to);
+  if (!tenant) return null;
+  const { data: brand } = await admin
+    .from('tenant_branding')
+    .select('app_display_name')
+    .eq('tenant_id', tenant.tenant_id)
+    .maybeSingle();
+  const name = cleanName(brand?.app_display_name);
+  return name ? `${name} Support` : 'App Support';
+}
 
 interface TemplateEmailData {
   to: string
@@ -158,7 +227,6 @@ Deno.serve(async (req) => {
     }
 
     const userId = user.id;
-    console.log('Authenticated user:', userId);
 
     // Check if Resend API key is configured
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
@@ -170,21 +238,47 @@ Deno.serve(async (req) => {
       );
     }
 
-    const body = await req.json();
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      { auth: { persistSession: false, autoRefreshToken: false } }
+    );
+    const { data: isStaff } = await admin.rpc('has_role', { _user_id: userId, _role: 'admin' });
+
+    const body = await req.json().catch(() => ({}));
     
     let emailSubject: string;
     let emailHtml: string;
     let emailTo: string;
     let fromName: string = 'Snow Media Center';
     
-    // Check if this is a custom email or template-based email
-    if (body.subject && body.html) {
+    if (isStaff !== true) {
+      // A customer: only to a support inbox, only text, only so often.
+      if (body.type) return reply({ error: 'Template emails are sent by Snow Media only.' }, 403);
+      emailTo = (typeof body.to === 'string' ? body.to.trim().toLowerCase() : '') || SUPPORT_EMAIL;
+      const inboxSender = await supportInboxSender(admin as unknown as InboxDb, emailTo);
+      if (!inboxSender) return reply({ error: 'Messages can only go to a support inbox.' }, 403);
+      emailSubject = String(body.subject ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+      const text = (typeof body.message === 'string' ? body.message : htmlToText(String(body.html ?? ''))).trim().slice(0, 5000);
+      if (!emailSubject || !text) return reply({ error: 'subject and message required' }, 400);
+      const db = admin as unknown as ThrottleDb;
+      if (!(await throttle(db, `sce:${userId}`, CUSTOMER_PER_HOUR, HOUR_MS))
+          || !(await throttle(db, 'sce:all', CUSTOMERS_ALL_PER_HOUR, HOUR_MS))) {
+        return reply({ error: 'rate_limited' }, 429);
+      }
+      fromName = inboxSender;
+      emailHtml = `
+        <p style="margin:0 0 12px;color:#666;font-size:12px;">Sent from the app by the signed-in account <strong>${escapeHtml(user.email || userId)}</strong>.</p>
+        <div style="padding:12px;background:#f5f5f5;border-radius:6px;white-space:pre-wrap;">${escapeHtml(text)}</div>
+      `;
+      console.log('Sending customer email to a support inbox');
+    } else if (body.subject && body.html) {
       // Custom email with subject and HTML directly provided
       emailTo = body.to;
       emailSubject = body.subject;
       emailHtml = body.html;
       fromName = body.fromName || 'Snow Media Center';
-      console.log('Sending custom email to:', emailTo);
+      console.log('Sending custom email');
     } else if (body.type && body.data) {
       // Template-based email
       const template = getEmailTemplate(body.type, body.data);
@@ -197,7 +291,7 @@ Deno.serve(async (req) => {
       emailTo = body.to;
       emailSubject = template.subject;
       emailHtml = template.html;
-      console.log('Sending template email:', body.type, 'to:', emailTo);
+      console.log('Sending template email:', body.type);
     } else {
       return new Response(
         JSON.stringify({ error: 'Invalid email request. Provide either {to, subject, html} or {to, type, data}' }),
@@ -206,9 +300,6 @@ Deno.serve(async (req) => {
     }
     
     console.log('Sending email via Resend...');
-    console.log('From:', `${fromName} <onboarding@resend.dev>`);
-    console.log('To:', emailTo);
-    console.log('Subject:', emailSubject);
     
     // Send email using Resend
     const { data: emailData, error: emailError } = await resend.emails.send({

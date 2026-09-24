@@ -42,7 +42,7 @@ import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
 import { titleMatches } from '@/lib/voiceCommands';
-import { commitSearch, fallbackSuggestions, fetchPopularSearches, loadRecentSearches } from '@/lib/plexSearches';
+import { commitSearch, fallbackSuggestions, fetchPopularSearches, loadRecentSearches, popularOnThisServer } from '@/lib/plexSearches';
 import { rankSuggestions, searchLooksThin, searchVariants } from '@/lib/plexFuzzy';
 import {
   demoGetLibraries, demoGetLibraryItems, demoGetHub, demoSearchPlex,
@@ -957,6 +957,15 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
     });
     return () => { cancelled = true; };
   }, [base]);
+  // Popular searches are whatever boxes report, and anyone can report
+  // anything, so a popular search is shown only once a search for it finds a
+  // title on this server (its poster lookup below). Two rows' worth are
+  // looked up so one row can still fill.
+  const popularLabels = useMemo(() => {
+    const seen = new Set<string>();
+    return popular.filter((l) => { const k = l.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, COLS * 2);
+  }, [popular]);
+  const [chipArtTick, setChipArtTick] = useState(0);
   const chips = useMemo<SearchChip[]>(() => {
     // With something typed, the only chips are "Did you mean"; the popular
     // and recent rows belong to the empty box.
@@ -966,33 +975,43 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
     // One row of posters per group, so Up/Down move between the rows.
     const seen = new Set<string>();
     const out: SearchChip[] = [];
+    // _chipArt lives outside React; chipArtTick is what re-runs this as posters land.
+    void chipArtTick;
+    const found = (label: string) => { const art = _chipArt.get(chipArtKey(base, label)); return art === undefined ? undefined : !!art; };
+    for (const label of popularOnThisServer(popularLabels, found, COLS)) { seen.add(label.toLowerCase()); out.push({ label, group: 'popular' }); }
     let n = 0;
-    for (const label of popular) { const k = label.toLowerCase(); if (n < COLS && !seen.has(k)) { seen.add(k); out.push({ label, group: 'popular' }); n++; } }
-    n = 0;
     for (const label of recent) { const k = label.toLowerCase(); if (n < COLS && !seen.has(k)) { seen.add(k); out.push({ label, group: 'recent' }); n++; } }
     return out;
-  }, [popular, recent, didYouMean, query, adultKeys]);
+  }, [popularLabels, recent, didYouMean, query, adultKeys, base, chipArtTick]);
   const showChips = chips.length > 0;
 
-  // Posters for the suggestion rows, two searches at a time.
-  const [chipArtTick, setChipArtTick] = useState(0);
+  // Posters for the suggestion rows, two searches at a time. Keyed on what
+  // the empty box could show, not on `chips`: that changes as each poster
+  // lands, and re-running then would search again for the ones in flight.
+  const artLabels = useMemo(() => (query.trim() ? [] : [...popularLabels, ...recent]), [query, popularLabels, recent]);
   useEffect(() => {
-    const todo = chips.filter((c) => !c.item && !_chipArt.has(chipArtKey(base, c.label)));
+    const keys = new Set<string>();
+    const todo = artLabels.filter((l) => {
+      const k = chipArtKey(base, l);
+      if (keys.has(k) || _chipArt.has(k)) return false;
+      keys.add(k);
+      return true;
+    });
     if (!todo.length) return;
     let cancelled = false;
-    void mapLimit(todo, HOME_PARALLEL, async (c) => {
+    void mapLimit(todo, HOME_PARALLEL, async (label) => {
       if (cancelled) return;
       let hit: PlexItem | null = null;
       try {
-        const r = familyOnly(await searchPlex(base, token, c.label), searchCtxRef.current.adultKeys);
+        const r = familyOnly(await searchPlex(base, token, label), searchCtxRef.current.adultKeys);
         hit = r.find((it) => !!it.thumb) ?? null;
       } catch { hit = null; }
-      _chipArt.set(chipArtKey(base, c.label), hit);
+      _chipArt.set(chipArtKey(base, label), hit);
       if (!cancelled) setChipArtTick((t) => t + 1);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chips, base]);
+  }, [artLabels, base]);
 
   // A search the viewer meant — they went down into the results or opened
   // one — is what "Popular searches" counts and what this box remembers.
@@ -1055,7 +1074,19 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   useEffect(() => { if (isActive && zone === 'input') inputRef.current?.focus(); }, [isActive, zone]);
   // Typing again leaves the chips behind; clearing the box brings them back.
   useEffect(() => { if (zone === 'chips' && !showChips) setZone('input'); }, [zone, showChips]);
-  useEffect(() => { setChipIdx((i) => Math.min(i, Math.max(0, chips.length - 1))); }, [chips.length]);
+  // Popular posters arrive after the rows are up, which moves the recent
+  // row along: keep the highlight on the chip it was on (before paint, so it
+  // never flickers onto a neighbour).
+  const prevChipsRef = useRef(chips);
+  useLayoutEffect(() => {
+    const prev = prevChipsRef.current;
+    prevChipsRef.current = chips;
+    setChipIdx((i) => {
+      const was = prev[i];
+      const j = was ? chips.findIndex((c) => c.group === was.group && c.label === was.label) : -1;
+      return j >= 0 ? j : Math.min(i, Math.max(0, chips.length - 1));
+    });
+  }, [chips]);
 
   const zoneRef = useRef(zone); useEffect(() => { zoneRef.current = zone; }, [zone]);
   const cursorRef = useRef(cursor); useEffect(() => { cursorRef.current = cursor; }, [cursor]);

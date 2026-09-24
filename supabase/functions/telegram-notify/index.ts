@@ -1,6 +1,13 @@
 // Fire-and-forget Telegram notifier for app_alerts lifecycle events.
 // Called by Postgres AFTER INSERT/UPDATE/DELETE triggers via pg_net. verify_jwt is off.
+//
+// Only server-to-server callers get through: they send x-internal-secret =
+// INTERNAL_FN_SECRET (the triggers read it from private.fn_secret, migration
+// 20260930070000). Without it anyone could post "outage" alerts, links
+// included, through the real bot. Other edge functions that call this one
+// (notify-admin in the admin app) must send the header too.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { internalSecretOk } from '../_shared/requestGuard.ts';
 
 const esc = (s: unknown): string =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -52,6 +59,12 @@ const formatResolved = (r: AlertRow): string => {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (!internalSecretOk(req.headers.get('x-internal-secret'), Deno.env.get('INTERNAL_FN_SECRET'))) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
   const okJson = (extra: Record<string, unknown> = {}) =>
     new Response(JSON.stringify({ ok: true, ...extra }), {

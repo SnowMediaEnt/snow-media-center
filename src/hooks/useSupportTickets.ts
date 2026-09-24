@@ -294,28 +294,15 @@ export const useSupportTickets = (user: User | null) => {
     }
   };
 
-  // Send email notification
+  // Send email notification. Plain text: send-custom-email escapes it and
+  // adds the signed-in account itself, and only a support inbox is allowed.
   const sendSupportEmail = async (ticketId: string, subject: string, message: string) => {
     try {
-      
       await supabase.functions.invoke('send-custom-email', {
         body: {
           to: 'support@snowmediaent.com',
           subject: `[Ticket #${ticketId.slice(-8)}] ${subject}`,
-          html: `
-            <h3>New Support Message</h3>
-            <p><strong>From:</strong> ${user?.email}</p>
-            <p><strong>Ticket ID:</strong> ${ticketId}</p>
-            <p><strong>Subject:</strong> ${subject}</p>
-            <div style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px;">
-              <p><strong>Message:</strong></p>
-              <p>${message.replace(/\n/g, '<br>')}</p>
-            </div>
-            <p style="margin-top: 20px; font-size: 12px; color: #666;">
-              Ticket ID: ${ticketId}<br>
-              User: ${user?.email}
-            </p>
-          `,
+          message: `New support message\nTicket ID: ${ticketId}\nSubject: ${subject}\n\n${message}`,
           fromName: 'Snow Media Support System'
         }
       });
