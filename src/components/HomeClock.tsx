@@ -11,7 +11,8 @@ interface HomeClockProps {
 /**
  * Isolated clock component — re-renders every second WITHOUT
  * re-rendering the rest of the home tree. Shaves significant work
- * on low-power STB/FireTV devices.
+ * on low-power STB/FireTV devices. Home's top row (HomeTopBar in
+ * Index.tsx) places it, between the renewal banner and the header.
  */
 const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
   const [now, setNow] = useState(() => new Date());
@@ -25,14 +26,8 @@ const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
 
   return (
     <div
-      className="absolute z-20"
       data-home-clock
-      style={{
-        top: 'max(env(safe-area-inset-top, 0px), clamp(0.5rem, 1.5vh, 1rem))',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        maxWidth: 'min(80vw, 32rem)',
-      }}
+      style={{ maxWidth: 'min(80vw, 32rem)' }}
     >
       <div className="bg-black/80 rounded-full border border-white/20 shadow-lg flex items-center gap-3 px-4 py-2 sm:gap-4 sm:px-5 md:gap-5 md:px-6 md:py-2.5 whitespace-nowrap overflow-hidden">
         <div
