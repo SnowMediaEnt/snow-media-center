@@ -190,7 +190,16 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
       const direction = visualArrowDir(event);
       if (!direction) return;
       const active = document.activeElement;
-      if (active === gameNameRef.current && (direction === 'left' || direction === 'right')) return;
+      if (active === gameNameRef.current) {
+        // Let Left (and Right within the text) edit the caret. At the end of
+        // the name, Right follows the visible row directly to Save.
+        if (direction === 'left') return;
+        if (direction === 'right') {
+          const input = gameNameRef.current;
+          if (input && input.selectionStart !== null &&
+              (input.selectionStart !== input.selectionEnd || input.selectionEnd < input.value.length)) return;
+        }
+      }
       event.preventDefault();
       event.stopPropagation();
       if (!user) {
