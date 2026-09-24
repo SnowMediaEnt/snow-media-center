@@ -73,9 +73,22 @@ const PLAYER_SCREENS: ReadonlySet<Screen | 'profiles'> = new Set<Screen | 'profi
 
 const TITLE_HINT = /^(?:the\s+)?(?:movie|film|show|series|tv show|episode of)\s+/;
 
+/** "<verb> <title> in Plex" asked any other way than "play" or "watch":
+ *  "open", "show me", "find", "pull up", "put on", "start" … Group 1 is
+ *  what follows the verb, group 2 the title alone. Plex on its own ("open
+ *  Plex") names no title and is left to the screen words; "search for … in
+ *  Plex" is Search. */
+const PLEX_TITLE_ASK = /^(?:open(?:\s+up)?|launch|start|run|go\s+to|take\s+me\s+to|bring\s+up|show(?:\s+me)?|pull\s+up|put\s+on|turn\s+on|switch\s+to|find(?:\s+me)?|get\s+me|queue(?:\s+up)?)\s+((.+?)\s+(?:on|in|from)\s+(?:the\s+)?plex(?:\s+(?:app|server|library))?)$/;
+
 export function parseVoiceCommand(raw: string): VoiceAction {
-  const said = normalizeSpeech(raw).replace(POLITE, '').replace(TRAILING, '').trim();
-  if (!said) return { kind: 'ai', text: raw };
+  const heard = normalizeSpeech(raw).replace(POLITE, '').replace(TRAILING, '').trim();
+  if (!heard) return { kind: 'ai', text: raw };
+  // A title in Plex, however it was asked for, is the one "play" asks for:
+  // "open Toy Story 5 in Plex" was read as an app of that name. Subtitles
+  // and the like are settings, the assistant's.
+  const inPlex = PLEX_TITLE_ASK.exec(heard);
+  if (inPlex && SETTING_WORDS.test(inPlex[2])) return { kind: 'ai', text: raw };
+  const said = inPlex ? `play ${inPlex[1]}` : heard;
 
   // "go home", "home", "back to home"
   if (/^(?:go\s+)?(?:back\s+)?(?:to\s+)?(?:the\s+)?home(?:\s+screen)?$/.test(said)) return { kind: 'screen', screen: 'home' };

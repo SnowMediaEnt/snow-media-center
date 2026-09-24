@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bestApp, bestChannel, channelForName, cleanChannelName, parseVoiceCommand, titleMatches } from './voiceCommands';
+import { plexVoiceSearchTexts } from './plexVoice';
 
 describe('parseVoiceCommand', () => {
   it.each([
@@ -51,6 +52,41 @@ describe('parseVoiceCommand', () => {
       expect(parseVoiceCommand(`watch ${title}`)).toEqual({ kind: 'watch', query: title.toLowerCase() });
     },
   );
+
+  it.each([
+    'open', 'open up', 'show', 'show me', 'find', 'find me', 'pull up', 'bring up', 'put on', 'turn on', 'start',
+    'launch', 'run', 'go to', 'take me to', 'switch to', 'get me', 'queue up',
+  ])('"%s Toy Story 5 in Plex" is the Plex title, as "play" asks for it — not an app', (verb) => {
+    const a = parseVoiceCommand(`${verb} Toy Story 5 in Plex`);
+    expect(a).toEqual(parseVoiceCommand('play Toy Story 5 in Plex'));
+    expect(a).toEqual({ kind: 'watch', query: 'toy story 5 in plex' });
+    // Looked for on the server without the words that say where.
+    expect(plexVoiceSearchTexts(a.kind === 'watch' ? a.query : '')).toEqual(['toy story 5']);
+  });
+
+  it.each([
+    ['open The Office on Plex', { kind: 'watch', query: 'the office on plex' }],
+    ['can you pull up Dune on the Plex app please', { kind: 'watch', query: 'dune on the plex app' }],
+    ['Hey Snow, show me Bluey in Plex', { kind: 'watch', query: 'bluey in plex' }],
+    ['open Coming In Hot in Plex', { kind: 'watch', query: 'coming in hot in plex' }],
+    ['open the movie Inception in Plex', { kind: 'plex', query: 'inception in plex', open: true }],
+    ['find toy story five from Plex', { kind: 'watch', query: 'toy story five from plex' }],
+  ])('"%s" goes to the Plex title', (said, want) => {
+    expect(parseVoiceCommand(said)).toEqual(want);
+  });
+
+  it('keeps Plex itself, the Play Store, apps and Search where they were', () => {
+    expect(parseVoiceCommand('open Plex')).toEqual({ kind: 'screen', screen: 'plex' });
+    expect(parseVoiceCommand('open up Plex')).toEqual({ kind: 'screen', screen: 'plex' });
+    expect(parseVoiceCommand('switch to Plex')).toEqual({ kind: 'screen', screen: 'plex' });
+    expect(parseVoiceCommand('open the Play Store')).toEqual({ kind: 'app', name: 'play store' });
+    expect(parseVoiceCommand('open the Plex app')).toEqual({ kind: 'app', name: 'plex' });
+    expect(parseVoiceCommand('open YouTube')).toEqual({ kind: 'app', name: 'youtube' });
+    expect(parseVoiceCommand('search for Batman in Plex')).toEqual({ kind: 'plex', query: 'batman', open: false });
+    expect(parseVoiceCommand('install Plex')).toEqual({ kind: 'install', name: 'plex' });
+    // A setting said with "in Plex" is still the assistant's.
+    expect(parseVoiceCommand('turn on subtitles in Plex').kind).toBe('ai');
+  });
 
   it('still knows channels and events when they are the whole phrase', () => {
     expect(parseVoiceCommand('watch Fox Sports 1')).toEqual({ kind: 'channel', name: 'fox sports 1' });
