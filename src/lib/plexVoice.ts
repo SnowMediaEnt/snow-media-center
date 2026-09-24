@@ -57,12 +57,21 @@ const WORD_NUM: Record<string, string> = {
   one: '1', two: '2', three: '3', four: '4', five: '5', six: '6', seven: '7', eight: '8', nine: '9', ten: '10',
   eleven: '11', twelve: '12',
 };
+const NUM_WORD = /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/gi;
+const digits = (s: string): string => s.replace(NUM_WORD, (w) => WORD_NUM[w.toLowerCase()]);
+
+/** Every search to send: the words, and when a number was said as a word
+ *  ("toy story five") the same with the digit too — Plex's search does not
+ *  take one for the other, and a sequel's title has the digit. */
+export function plexVoiceSearchTexts(q: string): string[] {
+  const t = plexVoiceSearchText(q);
+  const d = digits(t);
+  return d === t ? [t] : [t, d];
+}
+
 /** One spelling for a title: no leading "the", numbers as digits ("toy story
  *  five" and "Toy Story 5" are the same film to a viewer). */
-const canon = (s: string): string =>
-  normalizeTitle(s)
-    .replace(/^the /, '')
-    .replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/g, (w) => WORD_NUM[w]);
+const canon = (s: string): string => digits(normalizeTitle(s).replace(/^the /, ''));
 const squash = (s: string) => s.replace(/ /g, '');
 
 /**

@@ -96,7 +96,12 @@ vi.mock('@/lib/plexProvider', async (orig) => ({
   isOwnPlexAccount: async () => false,
 }));
 vi.mock('./PlexImage', () => ({ default: () => null }));
-vi.mock('./PlexDetail', () => ({ default: ({ item }: { item: PlexItem }) => <div>DETAIL:{item.title}</div> }));
+// Like the real page, it takes its title once, when it mounts (its own stack).
+vi.mock('./PlexDetail', async () => {
+  const React = await import('react');
+  const PlexDetail = ({ item }: { item: PlexItem }) => { const [first] = React.useState(item); return <div>DETAIL:{first.title}</div>; };
+  return { default: PlexDetail };
+});
 vi.mock('./EpisodeAutoplay', () => ({ default: () => null }));
 vi.mock('./PlexProgressReporter', () => ({ default: () => null }));
 vi.mock('./PlexPlayerOverlay', () => ({ default: () => null }));
@@ -170,6 +175,38 @@ describe('PlexSection — a title asked for by voice', () => {
     expect(screen.queryByText(/^DETAIL:/)).toBeNull();
   });
 
+  it('"play toy story 5 in plex" opens Toy Story 5 when the server has it, the library list landing first', async () => {
+    sessionStorage.setItem(VOICE_KEY, JSON.stringify({ query: 'toy story 5 in plex', open: true, at: Date.now() }));
+    h.libs.mockImplementation(() => h.later(5, LIBS));
+    h.search.mockImplementation(() => h.later(60, [
+      it_('t1', 'Toy Story', { year: 1995 }), it_('t4', 'Toy Story 4', { year: 2019 }), it_('t5', 'Toy Story 5', { year: 2026 }),
+    ]));
+    await renderPlex();
+    expect(await screen.findByText('DETAIL:Toy Story 5', undefined, { timeout: 3000 })).toBeTruthy();
+    expect(h.search).toHaveBeenCalledTimes(1);
+    expect(h.search).toHaveBeenCalledWith('https://plex.test', 'tok', 'toy story 5');
+  });
+
+  it('"toy story five" is looked for as "toy story 5" too', async () => {
+    sessionStorage.setItem(VOICE_KEY, JSON.stringify({ query: 'toy story five', open: true, at: Date.now() }));
+    h.search.mockImplementation((_b: string, _t: string, q: string) =>
+      h.later(10, q === 'toy story 5' ? [it_('t5', 'Toy Story 5', { year: 2026 })] : []));
+    await renderPlex();
+    expect(await screen.findByText('DETAIL:Toy Story 5', undefined, { timeout: 3000 })).toBeTruthy();
+    expect(h.search).toHaveBeenCalledWith('https://plex.test', 'tok', 'toy story five');
+  });
+
+  it('a title asked for while another title\'s page is up replaces that page', async () => {
+    sessionStorage.setItem(VOICE_KEY, JSON.stringify({ query: 'Bluey', open: true, at: Date.now() }));
+    h.search.mockImplementation(() => h.later(10, [it_('b1', 'Bluey', { type: 'show' })]));
+    await renderPlex();
+    await screen.findByText('DETAIL:Bluey', undefined, { timeout: 3000 });
+    h.search.mockImplementation(() => h.later(10, [it_('d1', 'Dune', { year: 2021 })]));
+    act(() => { window.dispatchEvent(new CustomEvent('smc:plex-voice', { detail: { query: 'Dune', open: true, at: Date.now() } })); });
+    expect(await screen.findByText('DETAIL:Dune', undefined, { timeout: 3000 })).toBeTruthy();
+    expect(screen.queryByText('DETAIL:Bluey')).toBeNull();
+  });
+
   it('opens the page when Plex is already open (the event)', async () => {
     await renderPlex();
     await screen.findByText('Recently Added', undefined, { timeout: 3000 });
@@ -233,6 +270,28 @@ describe('PlexSection — Search on a Kids profile', () => {
 });
 
 describe('PlexSection — Home', () => {
+  it('Popular deals films and series out in turn, though a series\' plays are its episodes\' added up', async () => {
+    h.row.mockImplementation((_b: string, _t: string, _section: string, query: string) => {
+      if (query.startsWith('type=1&sort=viewCount')) return h.later(5, [it_('f1', 'Film A', { viewCount: 50 }), it_('f2', 'Film B', { viewCount: 40 })]);
+      if (query.startsWith('type=2&sort=viewCount')) {
+        return h.later(5, [
+          it_('s1', 'Series A', { type: 'show', viewCount: 900 }), it_('s2', 'Series B', { type: 'show', viewCount: 700 }),
+          it_('s3', 'Series C', { type: 'show', viewCount: 500 }),
+        ]);
+      }
+      return h.later(5, []);
+    });
+    await renderPlex();
+    await screen.findByText('Popular on Snow Media', undefined, { timeout: 3000 });
+    const row = document.querySelector('[data-plex-row="popular"]')!.textContent!;
+    const at = (t: string) => row.indexOf(t);
+    for (const t of ['Series A', 'Film A', 'Series B', 'Film B', 'Series C']) expect(at(t)).toBeGreaterThanOrEqual(0);
+    expect(at('Series A')).toBeLessThan(at('Film A'));
+    expect(at('Film A')).toBeLessThan(at('Series B'));
+    expect(at('Series B')).toBeLessThan(at('Film B'));
+    expect(at('Film B')).toBeLessThan(at('Series C'));
+  });
+
   it('blends films and series, adds Popular on Snow Media and New Episodes, and the D-pad reaches them', async () => {
     h.added.mockImplementation(() => h.later(5, [it_('a1', 'New Film', { year: 2026 }), it_('a2', 'New Series', { type: 'show' })]));
     h.row.mockImplementation((_b: string, _t: string, section: string, query: string) => {

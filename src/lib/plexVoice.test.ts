@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { PlexItem } from '@/lib/plex';
-import { peekPlexVoice, pickPlexVoiceMatch, plexVoiceQuery, plexVoiceSearchText, PLEX_VOICE_KEY, PLEX_VOICE_TTL_MS } from './plexVoice';
+import { peekPlexVoice, pickPlexVoiceMatch, plexVoiceQuery, plexVoiceSearchText, plexVoiceSearchTexts, PLEX_VOICE_KEY, PLEX_VOICE_TTL_MS } from './plexVoice';
+import { parseVoiceCommand } from './voiceCommands';
 
 const item = (ratingKey: string, title: string, year?: number, type = 'movie'): PlexItem => ({ ratingKey, title, year, type });
 
@@ -11,6 +12,18 @@ describe('plexVoiceQuery', () => {
     expect(plexVoiceQuery('Dune from Plex.')).toBe('Dune');
     expect(plexVoiceQuery('plex')).toBe('plex');
     expect(plexVoiceQuery('Inside Out 2')).toBe('Inside Out 2');
+  });
+
+  it('"play toy story 5 in plex" is a Plex title, looked for as "toy story 5"', () => {
+    const a = parseVoiceCommand('Play Toy Story 5 in Plex');
+    expect(a).toEqual({ kind: 'watch', query: 'toy story 5 in plex' });
+    expect(plexVoiceSearchTexts(a.kind === 'watch' ? a.query : '')).toEqual(['toy story 5']);
+  });
+
+  it('looks for a number said as a word as a digit too', () => {
+    expect(plexVoiceSearchTexts('toy story five in plex')).toEqual(['toy story five', 'toy story 5']);
+    expect(plexVoiceSearchTexts('Ocean\'s Eleven')).toEqual(['Ocean\'s Eleven', 'Ocean\'s 11']);
+    expect(plexVoiceSearchTexts('someone great')).toEqual(['someone great']);
   });
 
   it('searches without a year said after the title', () => {

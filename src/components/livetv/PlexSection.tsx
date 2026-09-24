@@ -42,7 +42,7 @@ import {
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
-import { peekPlexVoice, pickPlexVoiceMatch, plexVoiceQuery, plexVoiceSearchText, PLEX_VOICE_EVENT, PLEX_VOICE_KEY, type PlexVoiceIntent } from '@/lib/plexVoice';
+import { peekPlexVoice, pickPlexVoiceMatch, plexVoiceQuery, plexVoiceSearchTexts, PLEX_VOICE_EVENT, PLEX_VOICE_KEY, type PlexVoiceIntent } from '@/lib/plexVoice';
 import { commitSearch, fallbackSuggestions, fetchPopularSearches, loadRecentSearches } from '@/lib/plexSearches';
 import { rankSuggestions, searchLooksThin, searchVariants } from '@/lib/plexFuzzy';
 import {
@@ -210,7 +210,7 @@ async function loadReleased(base: string, token: string, libraries: PlexLibrary[
 }
 
 /** Home's Popular rail: the films and series played most on this server,
- *  together, most plays first — on the shared account that is everyone's
+ *  together (see rankRail) — on the shared account that is everyone's
  *  plays, "Popular on Snow Media". The rated fallback is for a server nobody
  *  has played anything on yet. Shorter on a low-memory box, whose settle
  *  screen does not wait for it (see LOW_MEMORY). */
@@ -258,21 +258,28 @@ async function loadNewEpisodes(base: string, token: string, libraries: PlexLibra
   return gone() ? null : merged;
 }
 
-/** Per-section lists as one rail, highest `score` first. The lists are dealt
- *  out in turn before ranking, so a film library and a TV library alternate
- *  where scores tie — and throughout, if a list came back without scores
- *  (then the server's own order within each list stands). */
+/** Per-section lists as one rail of films and series together: each kind
+ *  ranked by `score` on its own, then the two dealt out in turn, the kind
+ *  with the higher top score first. One ranking across both put every series
+ *  ahead of every film — a series' play count is all its episodes' plays
+ *  added up. A kind that came back without scores keeps the server's order
+ *  (its sections dealt out in turn). */
 function rankRail(lists: Array<PlexItem[] | null>, score: (it: PlexItem) => number | undefined): PlexItem[] {
-  const mixed: PlexItem[] = [];
+  const dealt: PlexItem[] = [];
   const longest = Math.max(0, ...lists.map((l) => l?.length ?? 0));
-  for (let i = 0; i < longest; i++) for (const l of lists) { const it = l?.[i]; if (it) mixed.push(it); }
-  const scored = mixed.every((it) => typeof score(it) === 'number');
-  const ranked = !scored ? mixed : mixed
+  for (let i = 0; i < longest; i++) for (const l of lists) { const it = l?.[i]; if (it) dealt.push(it); }
+  const rank = (items: PlexItem[]): PlexItem[] => (!items.every((it) => typeof score(it) === 'number') ? items : items
     .map((it, i) => ({ it, i, s: score(it) as number }))
     // The index breaks ties: Array#sort is not stable on an old WebView.
     .sort((a, b) => b.s - a.s || a.i - b.i)
-    .map(({ it }) => it);
-  return mergeRail([ranked]);
+    .map(({ it }) => it));
+  const shows = rank(dealt.filter((it) => it.type === 'show'));
+  const films = rank(dealt.filter((it) => it.type !== 'show'));
+  const top = (l: PlexItem[]) => (l.length ? score(l[0]) ?? -1 : -1);
+  const [a, b] = top(shows) > top(films) ? [shows, films] : [films, shows];
+  const mixed: PlexItem[] = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) { if (a[i]) mixed.push(a[i]); if (b[i]) mixed.push(b[i]); }
+  return mergeRail([mixed]);
 }
 
 /** Episodes, newest first, one per series (its newest). */
@@ -2568,7 +2575,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const libsIn = libs
       ? Promise.race([libs.catch(() => null), new Promise<null>((r) => { window.setTimeout(() => r(null), 2500); })])
       : Promise.resolve(null);
-    void Promise.all([searchPlex(conn.base, conn.token, plexVoiceSearchText(v.query)), libsIn])
+    // "toy story five" is looked for as "toy story 5" as well.
+    const texts = plexVoiceSearchTexts(v.query);
+    const found = texts.length === 1
+      ? searchPlex(conn.base, conn.token, texts[0])
+      : Promise.all(texts.map((t) => searchPlex(conn.base, conn.token, t).catch(() => [] as PlexItem[])))
+        .then((lists) => ([] as PlexItem[]).concat(...lists));
+    void Promise.all([found, libsIn])
       .then(([results, list]) => {
         if (cancelled || handled) return;
         window.clearTimeout(cap);
