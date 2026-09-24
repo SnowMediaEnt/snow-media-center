@@ -150,8 +150,9 @@ export interface PlayerIntent {
   report?: ReportIntent;
   /** Live TV: play the channel with this name. */
   play?: string;
-  /** Plex: open this title (open) or search for it. */
-  plex?: { query: string; open: boolean };
+  /** Plex: open this title (open) or search for it. `at`: when it was asked
+   *  for, so a request Plex never picked up does not fire on a later visit. */
+  plex?: { query: string; open: boolean; at?: number };
   /** Live TV: play exactly this channel (Game Day, a kickoff reminder). */
   deeplink?: LiveDeeplink;
 }
@@ -198,7 +199,7 @@ export function playChannel(name: string, navigate: Navigate): void {
 
 /** Plex: open a title by name (or search for it when there is no clear match). */
 export function openPlexTitle(query: string, open: boolean, navigate: Navigate): void {
-  toPlayer({ section: 'movies', plex: { query, open } }, navigate);
+  toPlayer({ section: 'movies', plex: { query, open, at: Date.now() } }, navigate);
   try { trackEvent('voice_plex', 'ai', { open }); } catch { void 0; }
 }
 

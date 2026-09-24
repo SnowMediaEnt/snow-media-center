@@ -41,7 +41,7 @@ import {
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
-import { titleMatches } from '@/lib/voiceCommands';
+import { peekPlexVoice, pickPlexVoiceMatch, plexVoiceQuery, plexVoiceSearchText, PLEX_VOICE_EVENT, PLEX_VOICE_KEY, type PlexVoiceIntent } from '@/lib/plexVoice';
 import { commitSearch, fallbackSuggestions, fetchPopularSearches, loadRecentSearches } from '@/lib/plexSearches';
 import { rankSuggestions, searchLooksThin, searchVariants } from '@/lib/plexFuzzy';
 import {
@@ -84,6 +84,8 @@ import { pauseLoading, resumeLoading, waitForResume } from '@/lib/loadGate';
 const DEMO = isDemo();
 /** How long a server-side convert may take to start before falling back. */
 const TRANSCODE_START_GRACE_MS = 30000;
+/** How long a voice command's title is looked for before Search opens. */
+const VOICE_WAIT_MS = 12000;
 const getPlexLibraries = DEMO ? demoGetLibraries : _getPlexLibraries;
 const getPlexLibraryItems = DEMO ? demoGetLibraryItems : _getPlexLibraryItems;
 const getPlexHub = DEMO ? demoGetHub : _getPlexHub;
@@ -1736,28 +1738,33 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   );
 
   // A voice command's "watch The Office" / "search for Batman" (see
-  // appActions.openPlexTitle): read once here, or taken from the event when
-  // Plex is already open.
-  const voiceRef = useRef<{ query: string; open: boolean } | null>(
-    (() => {
-      try {
-        const raw = sessionStorage.getItem('smc-plex-voice');
-        if (!raw) return null;
-        sessionStorage.removeItem('smc-plex-voice');
-        return JSON.parse(raw);
-      } catch { return null; }
-    })(),
-  );
+  // appActions.openPlexTitle and plexVoice.ts): taken from sessionStorage when
+  // Plex opens for it, or from the event when Plex is already open.
+  // Looked at in a state initializer and cleared once mounted. It used to be
+  // read and cleared during render, and a first render React throws away
+  // (Plex arrives lazily, and an interrupted render starts over) took it with
+  // it: the render that stayed found nothing, and Plex opened on Home.
+  const [voiceAtMount] = useState(() => peekPlexVoice());
+  const voiceRef = useRef<PlexVoiceIntent | null>(voiceAtMount?.intent ?? null);
+  useEffect(() => {
+    // Only the copy read above: a newer one belongs to the event below.
+    try { if (voiceAtMount && sessionStorage.getItem(PLEX_VOICE_KEY) === voiceAtMount.raw) sessionStorage.removeItem(PLEX_VOICE_KEY); } catch { /* ignore */ }
+  }, [voiceAtMount]);
   const [voiceTick, setVoiceTick] = useState(0);
-  const [voiceSearch, setVoiceSearch] = useState<string | null>(null);
+  // Search opened by a command: the words to type, and a count, so the same
+  // words said again open a fresh search box.
+  const [voiceSearch, setVoiceSearch] = useState<{ q: string; n: number } | null>(null);
+  // The title a command asked for is being looked up: said in place of Home,
+  // which is not loaded behind it (see the voice effect).
+  const [voiceWait, setVoiceWait] = useState<string | null>(() => (voiceAtMount?.intent.open ? plexVoiceQuery(voiceAtMount.intent.query) : null));
   useEffect(() => {
     const on = (e: Event) => {
-      try { sessionStorage.removeItem('smc-plex-voice'); } catch { /* ignore */ }
-      const d = (e as CustomEvent<{ query: string; open: boolean }>).detail;
-      if (d?.query) { voiceRef.current = d; setVoiceTick((t) => t + 1); }
+      try { sessionStorage.removeItem(PLEX_VOICE_KEY); } catch { /* ignore */ }
+      const d = (e as CustomEvent<PlexVoiceIntent>).detail;
+      if (d?.query) { voiceRef.current = { query: d.query, open: !!d.open, at: d.at }; setVoiceTick((t) => t + 1); }
     };
-    window.addEventListener('smc:plex-voice', on);
-    return () => window.removeEventListener('smc:plex-voice', on);
+    window.addEventListener(PLEX_VOICE_EVENT, on);
+    return () => window.removeEventListener(PLEX_VOICE_EVENT, on);
   }, []);
 
   const [libraries, setLibraries] = useState<PlexLibrary[]>([]);
@@ -2424,31 +2431,65 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     detailRef.current = item;
     setDetailItem(item);
   }, []);
-  // The voice command: a title whose name matches what was said opens its
-  // page; otherwise (or for "search for …") Search opens with it typed.
+  // The voice command: the title it names opens its page; with no clear
+  // match (or for "search for …") Search opens with the words typed.
+  //
+  // Keyed on the command and the connection only. It also re-ran when the
+  // library list landed (the tab count changed), which cancelled the search
+  // in flight — and the command had already been cleared, so nothing ran
+  // again and Plex sat on Home. The command is now cleared only once it has
+  // been acted on, so a run cut short (a reconnect, a new address for the
+  // same server) searches again; the tabs are read through tabsRef.
+  const adultKeysRef = useRef(adultKeys); adultKeysRef.current = adultKeys;
   useEffect(() => {
     const v = voiceRef.current;
     if (!v || status !== 'ready' || !conn) return;
-    voiceRef.current = null;
     let cancelled = false;
+    let handled = false;
+    const words = plexVoiceQuery(v.query);
+    const finish = () => {
+      handled = true;
+      if (voiceRef.current === v) voiceRef.current = null;
+      setVoiceWait(null);
+    };
+    // Plex's own player is up: the viewer has asked for something else.
+    if (fullscreenRef.current) exitFullscreen();
     const goSearch = () => {
-      if (cancelled) return;
-      setVoiceSearch(v.query);
-      const i = tabs.findIndex((t) => t.type === 'search');
-      if (i >= 0) { setLibIdx(i); setMenuKey(tabs[i].key); }
+      if (cancelled || handled) return;
+      finish();
+      if (detailRef.current) closeDetail();
+      setVoiceSearch((s) => ({ q: words, n: (s?.n ?? 0) + 1 }));
+      const i = tabsRef.current.findIndex((t) => t.type === 'search');
+      if (i >= 0) { cancelPendingTab(); setLibIdx(i); setMenuKey(tabsRef.current[i].key); }
       setZone('grid');
     };
-    if (!v.open) { goSearch(); return; }
-    searchPlex(conn.base, conn.token, v.query)
-      .then((results) => {
-        if (cancelled) return;
-        const hit = familyOnly(results, adultKeys).find((r) => titleMatches(v.query, r.title));
-        if (hit) { setDeepLinked(true); openDetail(hit); } else goSearch();
+    if (!v.open) { goSearch(); return () => { cancelled = true; }; }
+    setVoiceWait(words);
+    // A server this slow gets Search, which asks again, not a longer wait.
+    const cap = window.setTimeout(goSearch, VOICE_WAIT_MS);
+    // Titles from an adult library are ruled out by its key; the library list
+    // is normally in by now, and otherwise on its way (the library effect's
+    // own request), so wait a little for it rather than decide without it.
+    const libs = libsPromiseRef.current;
+    const libsIn = libs
+      ? Promise.race([libs.catch(() => null), new Promise<null>((r) => { window.setTimeout(() => r(null), 2500); })])
+      : Promise.resolve(null);
+    void Promise.all([searchPlex(conn.base, conn.token, plexVoiceSearchText(v.query)), libsIn])
+      .then(([results, list]) => {
+        if (cancelled || handled) return;
+        window.clearTimeout(cap);
+        const keys = new Set(adultKeysRef.current);
+        for (const l of list ?? []) if (isAdultLabel(l.title)) keys.add(String(l.key));
+        const hit = pickPlexVoiceMatch(words, familyOnly(results, keys));
+        if (!hit) { goSearch(); return; }
+        finish();
+        setDeepLinked(true);
+        openDetail(hit);
       })
       .catch(goSearch);
-    return () => { cancelled = true; };
+    return () => { cancelled = true; window.clearTimeout(cap); };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when Plex is ready or a new command arrives
-  }, [status, conn, voiceTick, tabs.length]);
+  }, [status, conn, voiceTick]);
 
   const closeDetail = useCallback(() => {
     setPlexKeyOwner('browse');
@@ -3440,7 +3481,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4" style={{ paddingTop: '3.5vh' }}>
-        {deepLinked && detailItem ? null : currentTab?.type === 'home' && conn ? (
+        {deepLinked && detailItem ? null : voiceWait && zone === 'tabs' && currentTab?.type === 'home' ? (
+          // A voice command's title is being looked up. Home is not loaded
+          // behind it (its hubs would compete with the search); entering the
+          // content before it lands shows Home as usual.
+          <div className="h-full flex items-center justify-center text-brand-ice/80 font-nunito text-base">
+            <Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Finding “{voiceWait}” on Plex…
+          </div>
+        ) : currentTab?.type === 'home' && conn ? (
           <HomePanel
             isActive={isActive && zone === 'grid' && !detailItem && !fullscreen}
             base={conn.base}
@@ -3475,7 +3523,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             onExitToTabs={exitToMenu}
           />
         ) : currentTab?.type === 'search' && conn ? (
-          <SearchPanel key={voiceSearch ?? 'search'} initialQuery={voiceSearch ?? undefined} isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} base={conn.base} token={conn.token} adultKeys={adultKeys} onPlay={openDetail} onExitToTabs={exitToMenu} />
+          <SearchPanel key={voiceSearch ? `voice:${voiceSearch.n}` : 'search'} initialQuery={voiceSearch?.q} isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} base={conn.base} token={conn.token} adultKeys={adultKeys} onPlay={openDetail} onExitToTabs={exitToMenu} />
 
         ) : currentTab?.type === 'request' ? (
           <OverseerrRequestPanel isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} onExitToTabs={exitToMenu} />
@@ -3545,6 +3593,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
       {detailItem && conn && (
         <PlexDetail
+          // A voice command can open a title while another one's page is up;
+          // the page takes its title once, when it mounts.
+          key={detailItem.ratingKey}
           isActive={isActive && !fullscreen}
           base={conn.base}
           token={conn.token}
