@@ -3,11 +3,13 @@
 // score, and two buttons: Watch and Remind me (a popup on the TV at kickoff,
 // see GameReminderHost). A channel other boxes see as down gets ⚠️.
 //
-// Watch opens the game's channels: the event channel, the national and local
-// networks, the teams' and the league's channels (lib/gameDay), with the
-// league's own channels checked against their guide as the list opens, and
-// the league's categories to browse in Live TV. Nothing is ever guessed by
-// name: a game on a streaming service only (MLB.tv, ESPN+ …) says so.
+// Watch opens the game's channels: the event channels named for it, the
+// national and local networks, the teams' and the league's channels
+// (lib/gameDay), with the networks' and locals' guide checked as the list
+// opens, and the league's categories to browse in Live TV. Nothing is ever
+// guessed: a game on a streaming service only (MLB.tv, ESPN+ …) says so. The
+// channel names are read again every ten minutes while this is on screen:
+// providers rename their event channels for each day's games.
 //
 // Remote: Up/Down move through the games (Up from the first reaches the
 // league filters), Left/Right move between Watch and Remind me (Left from
@@ -19,12 +21,13 @@ import { useToast } from '@/hooks/use-toast';
 import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
 import { isChannelDown, useDownChannels } from '@/lib/channelStatus';
 import {
-  LINK_LABELS, channelsForGame, fetchGames, isStreamingOnly, kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, scanEventChannels,
-  type Game, type GameChannel, type SportsChannel,
+  CHANNELS_TTL_MS, LINK_LABELS, channelsForGame, checkGuides, fetchGames, isStreamingOnly, kickoffLabel, kickoffParts, leagueCategories,
+  loadSportsChannels, type Game, type GameChannel, type SportsChannel,
 } from '@/lib/gameDay';
 import { GAME_REMINDERS_EVENT, hasReminder, toggleReminder } from '@/lib/gameReminders';
 import { buildLines } from '@/lib/liveLines';
 import { loadSavedAccounts, type XtreamCreds } from '@/lib/xtream';
+import { setPausableInterval } from '@/utils/pausableInterval';
 
 interface Props {
   creds: XtreamCreds;
@@ -47,7 +50,9 @@ type PickItem =
   | { kind: 'link'; link: GameChannel; down: boolean }
   | { kind: 'browse'; line: XtreamCreds; categoryId: string; name: string };
 
-interface Picker { gameId: string; focus: number; scanning: boolean; extra: GameChannel[] }
+/** `moved`: the viewer has moved in the list, so what the guide adds does
+ *  not take the focus away. */
+interface Picker { gameId: string; focus: number; moved: boolean; scanning: boolean; extra: GameChannel[] }
 
 const TeamCell = ({ name, logo, score, live }: { name: string; logo: string | null; score: string | null; live: boolean }) => (
   <div className="flex items-center min-w-0">
@@ -72,6 +77,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
   const [action, setAction] = useState<0 | 1>(0);
   const [picker, setPicker] = useState<Picker | null>(null);
   const [, setReminderTick] = useState(0);
+  const [channelsTick, setChannelsTick] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const pickRef = useRef<HTMLDivElement>(null);
 
@@ -94,14 +100,21 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     return () => { alive = false; window.clearInterval(id); };
   }, [isActive]);
 
-  // This box's sports and network channels.
+  // This box's sports and network channels, read again every ten minutes
+  // while on screen (a list that has not aged comes straight back).
   const linesKey = lines.map((l) => `${l.host}|${l.username}`).join(',');
   useEffect(() => {
+    if (!isActive) return;
+    return setPausableInterval(() => setChannelsTick((t) => t + 1), CHANNELS_TTL_MS);
+  }, [isActive]);
+  useEffect(() => {
     let alive = true;
-    void loadSportsChannels(lines).then((c) => { if (alive) setChannels(c); }).catch(() => { if (alive) setChannels([]); });
+    void loadSportsChannels(lines)
+      .then((c) => { if (alive) setChannels(c); })
+      .catch(() => { if (alive) setChannels((old) => old ?? []); });
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the lines themselves
-  }, [linesKey]);
+  }, [linesKey, channelsTick]);
 
   useEffect(() => {
     const on = () => setReminderTick((t) => t + 1);
@@ -123,7 +136,11 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     return list.map((g) => {
       const found = channels ? channelsForGame(g, channels) : [];
       const pick = found.find((c) => !isDown(c)) ?? found[0] ?? null;
-      return { game: g, found, channel: pick, channelDown: !!pick && isDown(pick), more: Math.max(0, found.length - 1) };
+      // Worked out here, not on every key press: a formatter per row per
+      // press is slow on an old box.
+      const when = kickoffParts(g.start);
+      const tv = g.networks.filter((n) => !isStreamingOnly(n));
+      return { game: g, found, channel: pick, channelDown: !!pick && isDown(pick), more: Math.max(0, found.length - 1), when, tv };
     });
   }, [games, league, channels, isDown]);
 
@@ -156,13 +173,14 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     if (!r) return;
     const gameId = r.game.id;
     const first = r.found.findIndex((c) => !isDown(c));
-    setPicker({ gameId, focus: Math.max(0, first), scanning: !!channels, extra: [] });
+    setPicker({ gameId, focus: Math.max(0, first), moved: false, scanning: !!channels, extra: [] });
     if (!channels) return;
-    // The league's numbered channels ("MLB 05"), by what their guide says is on.
-    void scanEventChannels(r.game, channels)
-      .then((extra) => setPicker((p) => (p && p.gameId === gameId ? { ...p, extra, scanning: false, focus: extra.length ? 0 : p.focus } : p)))
+    // What the networks' and locals' guide says (and, when no channel is
+    // named for the game, the league's numbered channels' guide).
+    void checkGuides(r.game, channels, r.found, games ?? [])
+      .then((extra) => setPicker((p) => (p && p.gameId === gameId ? { ...p, extra, scanning: false, focus: extra.length && !p.moved ? 0 : p.focus } : p)))
       .catch(() => setPicker((p) => (p && p.gameId === gameId ? { ...p, scanning: false } : p)));
-  }, [rows, channels, isDown]);
+  }, [rows, channels, isDown, games]);
 
   const closePicker = useCallback(() => setPicker(null), []);
 
@@ -251,8 +269,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
       if (ok && e.repeat) return;
       if (st.picker) {
         const n = st.pickItems.length;
-        if (e.key === 'ArrowUp') setPicker((p) => (p ? { ...p, focus: Math.max(0, p.focus - 1) } : p));
-        else if (e.key === 'ArrowDown') setPicker((p) => (p ? { ...p, focus: Math.min(Math.max(0, n - 1), p.focus + 1) } : p));
+        if (e.key === 'ArrowUp') setPicker((p) => (p ? { ...p, moved: true, focus: Math.max(0, p.focus - 1) } : p));
+        else if (e.key === 'ArrowDown') setPicker((p) => (p ? { ...p, moved: true, focus: Math.min(Math.max(0, n - 1), p.focus + 1) } : p));
         else if (e.key === 'ArrowLeft') closePicker();
         else if (ok) { if (n) activate(st.pickItems[Math.min(st.picker.focus, n - 1)]); else closePicker(); }
         return;
@@ -325,7 +343,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
           const live = g.state === 'in';
           const reminded = hasReminder(g.id);
           const remindable = canRemind(g);
-          const tv = g.networks.filter((n) => !isStreamingOnly(n));
+          const { tv, when } = r;
           return (
             <div
               key={g.id}
@@ -335,11 +353,11 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
             >
               <div className="w-28 shrink-0 mr-3">
                 <div className="text-xs font-bold uppercase tracking-wide text-brand-ice/70 truncate">
-                  {g.leagueLabel}{!live && kickoffParts(g.start).day ? ` · ${kickoffParts(g.start).day}` : ''}
+                  {g.leagueLabel}{!live && when.day ? ` · ${when.day}` : ''}
                 </div>
                 {live
                   ? <div className="text-sm font-bold text-red-400 truncate">● LIVE {g.detail}</div>
-                  : <div className="text-sm text-white/80 truncate">{kickoffParts(g.start).time}</div>}
+                  : <div className="text-sm text-white/80 truncate">{when.time}</div>}
               </div>
               <div className="flex-1 min-w-0 mr-3">
                 {g.away && g.home ? (
@@ -431,7 +449,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
               );
             })}
             {picker.scanning && (
-              <div className="flex items-center text-white/60 text-sm px-2 py-2"><Loader2 className="w-4 h-4 animate-spin mr-2" /> Checking the {pickerRow.game.leagueLabel} channels' guide…</div>
+              <div className="flex items-center text-white/60 text-sm px-2 py-2"><Loader2 className="w-4 h-4 animate-spin mr-2" /> Checking the guide…</div>
             )}
             {!picker.scanning && pickItems.length === 0 && (
               <div className="text-white/70 px-2 py-4">

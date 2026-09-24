@@ -19,7 +19,7 @@ vi.mock('@/lib/gameDay', async (orig) => {
       real.sportsChannel(line as never, { stream_id: 7, name: 'US| FOX 5 New York' } as never, 'US| LOCALS')!,
       real.sportsChannel(line as never, { stream_id: 3, name: 'USA | A&E' } as never, 'USA')!,
     ],
-    scanEventChannels: async () => [],
+    checkGuides: async () => [],
   };
 });
 vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/xtream')>()), loadSavedAccounts: async () => [] }));

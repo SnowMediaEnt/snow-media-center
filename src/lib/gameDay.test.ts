@@ -1,28 +1,43 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke: vi.fn() } } }));
-const epg: Record<number, string> = {};
+/** Each channel's guide: listings as the panel gives them (text not encoded here). */
+const epg: Record<number, Array<{ title: string; description?: string; start: number; end: number }>> = {};
 vi.mock('@/lib/xtream', () => ({
   getLiveCategories: vi.fn(), getLiveStreams: vi.fn(),
-  getShortEpg: async (_l: unknown, id: number) => ({ epg_listings: epg[id] ? [{ title: epg[id] }] : [] }),
-  pickNowNext: (l: Array<{ title: string }>) => ({ now: l[0] }),
+  getShortEpg: vi.fn(async (_l: unknown, id: number) => ({
+    epg_listings: (epg[id] ?? []).map((e) => ({ title: e.title, description: e.description ?? '', start: String(e.start), end: String(e.end) })),
+  })),
+  decodeEpgText: (s?: string) => s ?? '',
+  parseEpgTime: (s?: string) => Number(s ?? 0),
 }));
 
 import type { Game, GameTeam, SportsChannel } from './gameDay';
+import * as xtream from '@/lib/xtream';
 
 const line = { host: 'http://dstreams.xyz:8080', username: 'u', password: 'p' } as never;
-const team = (short: string, location: string, name: string): GameTeam => ({ short, location, name, abbr: '', logo: null, score: null });
+const team = (short: string, location: string, name: string, abbr = ''): GameTeam => ({ short, location, name, abbr, logo: null, score: null });
 const game = (over: Partial<Game>): Game => ({
   id: 'g', league: 'nfl', leagueLabel: 'NFL', name: '', start: '', state: 'pre', detail: '', home: null, away: null, networks: [], ...over,
 });
+const YANKEES = team('Yankees', 'New York', 'New York Yankees', 'NYY');
+const RED_SOX = team('Red Sox', 'Boston', 'Boston Red Sox', 'BOS');
+const mlb = (over: Partial<Game> = {}): Game => game({ id: 'mlb:1', league: 'mlb', leagueLabel: 'MLB', name: 'Yankees @ Red Sox', home: RED_SOX, away: YANKEES, ...over });
 
 let chans: (id: number, name: string, cat?: string) => SportsChannel;
 beforeEach(async () => {
   const m = await import('./gameDay');
   m.__resetGameDayForTests();
-  chans = (id, name, cat = '') => m.sportsChannel(line, { stream_id: id, name } as never, cat)!;
+  chans = (id, name, cat = '') => m.sportsChannel(line, { stream_id: id, name, category_id: cat ? cat.length : undefined } as never, cat)!;
   for (const k of Object.keys(epg)) delete epg[Number(k)];
+  vi.mocked(xtream.getShortEpg).mockClear();
 });
+afterEach(() => {
+  vi.useRealTimers();
+  document.documentElement.classList.remove('native-low-memory');
+});
+
+const ids = (l: Array<{ stream: { stream_id: number } }>) => l.map((c) => c.stream.stream_id);
 
 describe('gameDay', () => {
   it('puts the event channel first, then the networks, and ignores the city on its own', async () => {
@@ -37,14 +52,14 @@ describe('gameDay', () => {
       chans(6, 'US| FOX 5 New York', 'US| LOCALS'),
     ];
     const got = channelsForGame(g, list);
-    const ids = got.map((c) => c.stream.stream_id);
-    expect(ids[0]).toBe(2);
+    const order = ids(got);
+    expect(order[0]).toBe(2);
     expect(got[0].via).toBe('game');
-    expect(ids).toEqual(expect.arrayContaining([3, 1, 6]));
-    expect(ids).not.toContain(4);
-    expect(ids).not.toContain(5);
+    expect(order).toEqual(expect.arrayContaining([3, 1, 6]));
+    expect(order).not.toContain(4);
+    expect(order).not.toContain(5);
     // The teams' own city's FOX station comes before another city's.
-    expect(ids.indexOf(1)).toBeLessThan(ids.indexOf(6));
+    expect(order.indexOf(1)).toBeLessThan(order.indexOf(6));
   });
 
   it('finds ESPN wherever it sits, never a guess, and MLB.tv is not a channel', async () => {
@@ -56,7 +71,7 @@ describe('gameDay', () => {
     });
     const list = [chans(10, 'USA | A&E', 'USA'), chans(11, 'USA | ESPN HD', 'USA')];
     const got = channelsForGame(g, list);
-    expect(got.map((c) => c.stream.stream_id)).toEqual([11]);
+    expect(ids(got)).toEqual([11]);
     expect(got[0].via).toBe('network');
     // Only MLB.tv: nothing, rather than the first channel of the list.
     expect(channelsForGame({ ...g, networks: ['MLB.tv'] }, list)).toEqual([]);
@@ -64,11 +79,7 @@ describe('gameDay', () => {
 
   it('lists the league and team channels, and the local and regional networks', async () => {
     const { channelsForGame } = await import('./gameDay');
-    const g = game({
-      league: 'mlb', leagueLabel: 'MLB',
-      home: team('Yankees', 'New York', 'New York Yankees'), away: team('Red Sox', 'Boston', 'Boston Red Sox'),
-      networks: [], locals: [{ name: 'YES', market: 'home' }, { name: 'NESN', market: 'away' }],
-    });
+    const g = mlb({ networks: [], locals: [{ name: 'YES', market: 'away' }, { name: 'NESN', market: 'home' }] });
     const list = [
       chans(20, 'MLB Zone', 'MLB ZONE'),
       chans(21, 'MLB: New York Yankees', 'MLB TEAMS'),
@@ -76,10 +87,12 @@ describe('gameDay', () => {
       chans(23, 'US| YES Network', 'US| SPORTS'),
       chans(24, 'US| NESN HD', 'US| SPORTS'),
       chans(25, 'NHL: New York Rangers', 'NHL TEAMS'),
+      // A regional network named with its team is still the regional network.
+      chans(26, 'US| NESN (Red Sox)', 'US| SPORTS'),
     ];
     const got = channelsForGame(g, list);
     const by = Object.fromEntries(got.map((c) => [c.stream.stream_id, c.via]));
-    expect(by).toMatchObject({ 20: 'league', 21: 'team', 22: 'team', 23: 'local', 24: 'local' });
+    expect(by).toMatchObject({ 20: 'league', 21: 'team', 22: 'team', 23: 'local', 24: 'local', 26: 'local' });
     // Another league's New York team is not this game's.
     expect(by[25]).toBeUndefined();
   });
@@ -93,7 +106,7 @@ describe('gameDay', () => {
     });
     const list = [chans(50, 'US| NBC Sports Philadelphia HD', 'US| SPORTS'), chans(51, 'US| NBC Sports Boston', 'US| SPORTS'), chans(52, 'US| MASN HD', 'US| SPORTS'), chans(54, 'US| MASN 2', 'US| SPORTS'), chans(53, 'US| NBC', 'US| LOCALS')];
     const got = channelsForGame(g, list);
-    expect(got.map((c) => c.stream.stream_id)).toEqual([50, 52]);
+    expect(ids(got)).toEqual([50, 52]);
     expect(got.every((c) => c.via === 'local')).toBe(true);
   });
 
@@ -105,28 +118,202 @@ describe('gameDay', () => {
       networks: ['ESPN'],
     });
     const list = [chans(30, 'US| FanDuel Sports Florida', 'US| SPORTS'), chans(31, 'US| ESPN FHD', 'US| SPORTS'), chans(32, 'CFB 04: Tennessee vs Florida', 'NCAAF')];
-    const ids = channelsForGame(g, list).map((c) => c.stream.stream_id);
-    expect(ids).toEqual([32, 31]);
+    expect(ids(channelsForGame(g, list))).toEqual([32, 31]);
   });
 
-  it("reads a numbered league channel's guide to find the game", async () => {
-    const { scanEventChannels } = await import('./gameDay');
-    const g = game({ id: 'mlb:1', league: 'mlb', home: team('Orioles', 'Baltimore', 'Baltimore Orioles'), away: team('Blue Jays', 'Toronto', 'Toronto Blue Jays') });
-    epg[40] = 'Toronto Blue Jays at Baltimore Orioles';
-    epg[41] = 'Mets at Braves';
-    const got = await scanEventChannels(g, [chans(40, 'MLB 01', 'MLB EXTRA INNINGS'), chans(41, 'MLB 02', 'MLB EXTRA INNINGS')]);
-    expect(got.map((c) => c.stream.stream_id)).toEqual([40]);
-    expect(got[0].note).toMatch(/Blue Jays/);
+  describe("event channels: the day's name has the game", () => {
+    it('a PPV or event channel shows a baseball game too', async () => {
+      const { channelsForGame } = await import('./gameDay');
+      const got = channelsForGame(mlb(), [
+        chans(60, 'PPV 12: Yankees vs Red Sox', 'PPV'),
+        chans(61, 'EVENT 03: New York Yankees @ Boston Red Sox', 'US| LIVE EVENTS'),
+        chans(62, 'PPV 14: Canelo vs Crawford', 'PPV'),
+      ]);
+      expect(ids(got)).toEqual([60, 61]);
+      expect(got.every((c) => c.via === 'game' && c.score === 100)).toBe(true);
+    });
+
+    it('reads what is in brackets, and "West" is part of a name there', async () => {
+      const { channelsForGame } = await import('./gameDay');
+      expect(ids(channelsForGame(mlb(), [chans(63, 'MLB 07 [Yankees vs Red Sox]', 'MLB ZONE'), chans(64, 'MLB 08 (Mets vs Braves)', 'MLB ZONE')]))).toEqual([63]);
+      const epl = game({ league: 'epl', leagueLabel: 'Premier League', home: team('West Ham', 'West Ham United', 'West Ham United'), away: team('Chelsea', 'Chelsea', 'Chelsea') });
+      expect(ids(channelsForGame(epl, [chans(65, 'EPL 05: West Ham vs Chelsea', 'UK| EPL')]))).toEqual([65]);
+    });
+
+    it("short codes and nicknames count on the league's own channels only", async () => {
+      const { channelsForGame } = await import('./gameDay');
+      expect(ids(channelsForGame(mlb(), [
+        chans(70, 'MLB 07: NYY @ BOS 7:05PM', 'MLB ZONE'),
+        // No league: "NYY @ BOS" could be anything there.
+        chans(71, 'EVENT 03: NYY @ BOS', 'SPORTS EVENTS'),
+        // Another league's Boston.
+        chans(72, 'NHL 03: BOS vs TOR', 'NHL'),
+      ]))).toEqual([70]);
+      const nba = game({ league: 'nba', leagueLabel: 'NBA', home: team('Celtics', 'Boston', 'Boston Celtics', 'BOS'), away: team('76ers', 'Philadelphia', 'Philadelphia 76ers', 'PHI') });
+      expect(ids(channelsForGame(nba, [chans(73, 'NBA 03: Sixers vs Celtics', 'NBA LEAGUE PASS')]))).toEqual([73]);
+    });
+
+    it("the cities alone do on a channel of the league; a city both teams share doesn't", async () => {
+      const { channelsForGame } = await import('./gameDay');
+      const got = channelsForGame(mlb(), [chans(80, 'MLB 07: New York vs Boston', 'MLB ZONE'), chans(81, 'US| New York vs Boston', 'US| SPORTS')]);
+      expect(got.map((c) => [c.stream.stream_id, c.score])).toEqual([[80, 90]]);
+      const subway = mlb({ home: team('Mets', 'New York', 'New York Mets', 'NYM') });
+      const by = Object.fromEntries(channelsForGame(subway, [chans(82, 'MLB Teams: New York Yankees', 'MLB TEAMS'), chans(83, 'MLB 04: Yankees vs Mets', 'MLB ZONE')]).map((c) => [c.stream.stream_id, c.via]));
+      expect(by).toEqual({ 82: 'team', 83: 'game' });
+    });
+
+    it("a name for another day is not today's game; today's, either way round, is", async () => {
+      const { channelsForGame } = await import('./gameDay');
+      // 7:05 PM Eastern on Sep 24: a UK line-up writes the 25th.
+      const g = mlb({ start: '2026-09-24T23:05:00Z' });
+      const got = channelsForGame(g, [
+        chans(90, 'MLB 07: Yankees vs Red Sox 09/23', 'MLB ZONE'),
+        chans(91, 'MLB 08: Yankees vs Red Sox 09/24', 'MLB ZONE'),
+        chans(92, 'MLB 09: Yankees vs Red Sox 24/09', 'MLB ZONE'),
+        chans(93, 'MLB 10: Yankees v Red Sox 25/09 00:05 UK', 'MLB ZONE'),
+        chans(94, 'MLB 11: Yankees vs Red Sox Sep 23', 'MLB ZONE'),
+        chans(95, 'MLB 12: Yankees vs Red Sox 24/7', 'MLB ZONE'),
+      ]);
+      expect(ids(got).sort()).toEqual([91, 92, 93, 95]);
+      expect(got.every((c) => c.via === 'game')).toBe(true);
+    });
+
+    it('the kickoff time in the name picks the right game of a doubleheader', async () => {
+      const { channelsForGame } = await import('./gameDay');
+      const list = [chans(100, 'MLB 07: Yankees vs Red Sox 1:05 PM ET', 'MLB ZONE'), chans(101, 'MLB 08: Yankees vs Red Sox (6:35PM ET)', 'MLB ZONE')];
+      const first = channelsForGame(mlb({ id: 'mlb:dh1', start: '2026-09-24T17:05:00Z' }), list);
+      const second = channelsForGame(mlb({ id: 'mlb:dh2', start: '2026-09-24T22:35:00Z' }), list);
+      expect(first.map((c) => [c.stream.stream_id, c.score])).toEqual([[100, 100], [101, 88]]);
+      expect(second.map((c) => [c.stream.stream_id, c.score])).toEqual([[101, 100], [100, 88]]);
+    });
+
+    it('a fight card by its number or its headliners, wherever the PPV channel sits', async () => {
+      const { channelsForGame, leagueCategories } = await import('./gameDay');
+      const card = game({ id: 'ufc:1', league: 'ufc', leagueLabel: 'UFC', name: 'UFC 320: Ankalaev vs. Pereira 2', networks: ['ESPN+ PPV'] });
+      const list = [
+        chans(110, 'PPV 01: UFC 320 Main Card', 'PPV EVENTS'),
+        chans(111, 'PPV 02: Pereira vs Ankalaev', 'PPV EVENTS'),
+        chans(112, 'PPV 03: Canelo vs Crawford', 'PPV EVENTS'),
+      ];
+      expect(ids(channelsForGame(card, list))).toEqual([110, 111]);
+      expect(leagueCategories(card, list).map((c) => c.name)).toEqual(['PPV EVENTS']);
+    });
+
+    it('"Football" is soccer for a soccer game unless it names the NFL', async () => {
+      const { channelsForGame } = await import('./gameDay');
+      const epl = game({ league: 'epl', leagueLabel: 'Premier League', home: team('Arsenal', 'Arsenal', 'Arsenal'), away: team('Chelsea', 'Chelsea', 'Chelsea') });
+      expect(ids(channelsForGame(epl, [chans(120, 'Football 05: Arsenal vs Chelsea', 'UK| FOOTBALL'), chans(121, 'NFL 05: Arsenal vs Chelsea', 'US| NFL')]))).toEqual([120]);
+    });
   });
 
-  it('weighs categories: leagues and sports first, networks and US next, the rest never', async () => {
+  it('reads dates and times written in a channel name', async () => {
+    const { nameDates, nameTimes } = await import('./gameDay');
+    expect(nameDates('MLB 07: Yankees vs Red Sox 09/24')).toEqual([924]);
+    expect(nameDates('Yankees vs Red Sox 2026-09-24')).toEqual([924]);
+    expect(nameDates('Thu 25th Sep')).toEqual([925]);
+    expect(nameDates('Yankees vs Red Sox 24/7')).toEqual([]);
+    expect(nameDates('Mets vs Marlins 7:10 PM')).toEqual([]);
+    expect(nameTimes('Yankees vs Red Sox 7:05 PM ET')).toEqual([{ mins: [1145], zone: 'America/New_York' }]);
+    expect(nameTimes('Yankees vs Red Sox 19:05')).toEqual([{ mins: [1145], zone: undefined }]);
+    expect(nameTimes('Yankees vs Red Sox 7pm')).toEqual([{ mins: [1140], zone: undefined }]);
+    expect(nameTimes('MLB 07: Yankees vs Red Sox')).toEqual([]);
+  });
+
+  describe('checkGuides', () => {
+    const now = Date.parse('2026-09-24T22:00:00Z');
+    const kick = now + 60 * 60_000;
+    const on = (title: string, description = '') => [{ title, description, start: kick - 5 * 60_000, end: kick + 3 * 60 * 60_000 }];
+    const rays = game({ id: 'mlb:2', league: 'mlb', name: 'Rays @ Orioles', home: team('Orioles', 'Baltimore', 'Baltimore Orioles'), away: team('Rays', 'Tampa Bay', 'Tampa Bay Rays') });
+    const channels = () => [
+      chans(1, 'US| FOX 5 New York', 'US| LOCALS'),
+      chans(2, 'US| FOX 25 Boston', 'US| LOCALS'),
+      chans(3, 'US| YES Network', 'US| SPORTS'),
+      chans(4, 'US| WPIX 11 New York', 'US| LOCALS'),
+      chans(5, 'MLB 07', 'MLB ZONE'),
+    ];
+
+    it("confirms the networks with the game at kickoff, flags one with another game, and finds the city's local that has it", async () => {
+      const { channelsForGame, checkGuides } = await import('./gameDay');
+      const g = mlb({ start: new Date(kick).toISOString(), networks: ['FOX'], locals: [{ name: 'YES', market: 'away' }] });
+      const list = [...channels(), chans(6, 'MLB 08: Yankees vs Red Sox', 'MLB ZONE')];
+      epg[1] = on('MLB Baseball', 'New York Yankees at Boston Red Sox. From Fenway Park.');
+      epg[2] = on('MLB Baseball', 'Tampa Bay Rays at Baltimore Orioles.');
+      epg[4] = on('Yankees at Red Sox');
+      epg[5] = on('Yankees at Red Sox');
+      const found = channelsForGame(g, list);
+      const got = await checkGuides(g, list, found, [g, rays], now);
+      const by = Object.fromEntries(got.map((c) => [c.stream.stream_id, c]));
+      expect(by[1]).toMatchObject({ score: 95, via: 'network' });
+      expect(by[1].note).toBe('Guide: MLB Baseball — New York Yankees at Boston Red Sox. From Fenway Park.');
+      expect(by[2]).toMatchObject({ score: 20, via: 'network', note: 'Guide: another game — Rays @ Orioles' });
+      expect(by[4]).toMatchObject({ score: 95, via: 'local', note: 'Guide: Yankees at Red Sox' });
+      // No guide for YES: it stays as it was. A channel is named for the game,
+      // so the numbered channels' guide is not asked.
+      expect(by[3]).toBeUndefined();
+      expect(by[5]).toBeUndefined();
+      expect(vi.mocked(xtream.getShortEpg).mock.calls.map((c) => c[1])).not.toContain(5);
+    });
+
+    it("reads the numbered league channels' guide when no channel is named for the game", async () => {
+      const { channelsForGame, checkGuides } = await import('./gameDay');
+      const g = mlb({ start: new Date(kick).toISOString() });
+      epg[5] = on('New York Yankees at Boston Red Sox');
+      const list = channels();
+      const got = await checkGuides(g, list, channelsForGame(g, list), [g], now);
+      expect(got.map((c) => [c.stream.stream_id, c.via, c.score])).toEqual([[5, 'game', 95]]);
+    });
+
+    it('does not look for a game further off than the guide reaches', async () => {
+      const { checkGuides } = await import('./gameDay');
+      const g = mlb({ start: new Date(now + 20 * 60 * 60_000).toISOString() });
+      expect(await checkGuides(g, channels(), [], [g], now)).toEqual([]);
+      expect(xtream.getShortEpg).not.toHaveBeenCalled();
+    });
+  });
+
+  it('weighs categories: leagues first, then sports and events, networks and US next, the rest never', async () => {
     const { categoryWeight } = await import('./gameDay');
-    expect(categoryWeight('US| NFL SUNDAY TICKET')).toBe(2);
-    expect(categoryWeight('MLB TEAMS')).toBe(2);
+    expect(categoryWeight('US| NFL SUNDAY TICKET')).toBe(3);
+    expect(categoryWeight('MLB TEAMS')).toBe(3);
     expect(categoryWeight('PPV EVENTS')).toBe(2);
+    expect(categoryWeight('US| SPORTS')).toBe(2);
     expect(categoryWeight('US| LOCALS')).toBe(1);
     expect(categoryWeight('USA')).toBe(1);
     expect(categoryWeight('US| KIDS')).toBe(0);
+  });
+
+  it('asks for channel lists at most ten minutes old, and again after that', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const { CHANNELS_TTL_MS, loadSportsChannels } = await import('./gameDay');
+    vi.mocked(xtream.getLiveCategories).mockResolvedValue([{ category_id: '1', category_name: 'MLB ZONE' }] as never);
+    const streams = vi.mocked(xtream.getLiveStreams);
+    streams.mockReset();
+    streams.mockResolvedValueOnce([{ stream_id: 1, name: 'MLB 07: Mets vs Braves', category_id: '1' }] as never);
+    streams.mockResolvedValueOnce([{ stream_id: 1, name: 'MLB 07: Yankees vs Red Sox', category_id: '1' }] as never);
+    expect((await loadSportsChannels([line])).map((c) => c.stream.name)).toEqual(['MLB 07: Mets vs Braves']);
+    expect(streams).toHaveBeenLastCalledWith(line, undefined, { maxAgeMs: CHANNELS_TTL_MS });
+    vi.setSystemTime(Date.now() + 5 * 60_000);
+    await loadSportsChannels([line]);
+    expect(streams).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.now() + 6 * 60_000);
+    expect((await loadSportsChannels([line])).map((c) => c.stream.name)).toEqual(['MLB 07: Yankees vs Red Sox']);
+    expect(streams).toHaveBeenCalledTimes(2);
+  });
+
+  it("on a box short of memory reads the leagues' categories first", async () => {
+    document.documentElement.classList.add('native-low-memory');
+    const { loadSportsChannels } = await import('./gameDay');
+    const cats = [
+      ...Array.from({ length: 30 }, (_, i) => ({ category_id: `s${i}`, category_name: `US| SPORTS ${i}` })),
+      { category_id: 'mlb', category_name: 'MLB ZONE' },
+    ];
+    vi.mocked(xtream.getLiveCategories).mockResolvedValue(cats as never);
+    const streams = vi.mocked(xtream.getLiveStreams);
+    streams.mockReset();
+    streams.mockResolvedValue([] as never);
+    await loadSportsChannels([line]);
+    expect(streams.mock.calls[0][1]).toBe('mlb');
+    expect(streams).toHaveBeenCalledTimes(24);
   });
 
   it('labels kickoff times for today and tomorrow', async () => {

@@ -669,26 +669,28 @@ export async function authenticateRouted(
 // keep every list ever opened — most of the catalogue — for the whole visit.
 // The sections hold their own reference to the list on screen, so dropping
 // one here only means a later revisit asks the panel again.
-const _liveCatalogue = new Map<string, Promise<unknown>>();
+const _liveCatalogue = new Map<string, { p: Promise<unknown>; at: number }>();
 const liveCatalogueMax = (): number => {
   try { return document.documentElement.classList.contains('native-low-memory') ? 8 : 24; } catch { return 24; }
 };
-const memoLive = <T,>(url: string, fetcher: () => Promise<T>): Promise<T> => {
-  let p = _liveCatalogue.get(url) as Promise<T> | undefined;
-  if (p) {
+// `maxAgeMs`: a kept list older than that is fetched again (Game Day wants
+// today's event channel names; everyone else keeps a list for the visit).
+const memoLive = <T,>(url: string, fetcher: () => Promise<T>, maxAgeMs?: number): Promise<T> => {
+  const kept = _liveCatalogue.get(url);
+  if (kept && (maxAgeMs == null || Date.now() - kept.at < maxAgeMs)) {
     _liveCatalogue.delete(url);
-    _liveCatalogue.set(url, p);
-    return p;
+    _liveCatalogue.set(url, kept);
+    return kept.p as Promise<T>;
   }
-  const mine = fetcher().catch((e) => {
-    if (_liveCatalogue.get(url) === mine) _liveCatalogue.delete(url);
+  const mine: Promise<T> = fetcher().catch((e) => {
+    if (_liveCatalogue.get(url)?.p === mine) _liveCatalogue.delete(url);
     throw e;
   });
-  p = mine;
-  _liveCatalogue.set(url, p);
+  _liveCatalogue.delete(url);
+  _liveCatalogue.set(url, { p: mine, at: Date.now() });
   const max = liveCatalogueMax();
   while (_liveCatalogue.size > max) _liveCatalogue.delete(_liveCatalogue.keys().next().value as string);
-  return p;
+  return mine;
 };
 /** Forget one kept live list (a favourite heal wants a genuinely fresh copy). */
 export function forgetLiveStreams(c: XtreamCreds, categoryId?: string): void {
@@ -720,12 +722,12 @@ export async function getLiveCategories(c: XtreamCreds): Promise<XtreamCategory[
   return kidsCategories(await rawLiveCategories(c));
 }
 
-export async function getLiveStreams(c: XtreamCreds, categoryId?: string): Promise<XtreamLiveStream[]> {
+export async function getLiveStreams(c: XtreamCreds, categoryId?: string, opts?: { maxAgeMs?: number }): Promise<XtreamLiveStream[]> {
   if (isDemo()) return kidsStreams(await demoGetLiveStreams(categoryId), () => rawLiveCategories(c));
   const params: Record<string, string | number> = { action: 'get_live_streams' };
   if (categoryId) params.category_id = categoryId;
   const url = buildBase(c, params);
-  return kidsStreams(await memoLive(url, () => httpGetJson<XtreamLiveStream[]>(url)), () => rawLiveCategories(c));
+  return kidsStreams(await memoLive(url, () => httpGetJson<XtreamLiveStream[]>(url), opts?.maxAgeMs), () => rawLiveCategories(c));
 }
 
 /**
