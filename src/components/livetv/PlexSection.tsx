@@ -887,8 +887,10 @@ SearchTile.displayName = 'SearchTile';
 // Cover art for a suggested search ("Popular", "Recent"): the top movie or
 // show that search finds on this server. Remembered for the session, so the
 // row paints at once the next time the box opens.
+// Kept per Kids level as well: a poster found on a grown-up profile is not
+// one a Kids profile may see.
 const _chipArt = new Map<string, PlexItem | null>();
-const chipArtKey = (base: string, label: string) => `${base}|${label.toLowerCase()}`;
+const chipArtKey = (base: string, label: string) => `${base}|${kidsLevel() ?? ''}|${label.toLowerCase()}`;
 
 /** A suggestion as a poster: the title's art, the search underneath. */
 const ChipTile = memo(({ chip, art, base, token, focused, onPick }: {
@@ -941,12 +943,15 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
 
   // Suggestions: the fleet's popular searches (or, until there are enough,
   // the server's most-played titles), then this box's own recent ones.
+  // Neither on a Kids profile: the popular list is whatever grown-ups across
+  // the fleet searched for, and the recent one is the whole box's.
   const [popular, setPopular] = useState<string[]>([]);
-  const [recent, setRecent] = useState<string[]>(() => loadRecentSearches());
+  const [recent, setRecent] = useState<string[]>(() => (kidsLevel() ? [] : loadRecentSearches()));
   // "Did you mean": the closest titles when the search comes back thin
   // (see plexFuzzy.ts) — a dropped apostrophe or colon, a letter off.
   const [didYouMean, setDidYouMean] = useState<PlexItem[]>([]);
   useEffect(() => {
+    if (kidsLevel()) return;
     let cancelled = false;
     void fetchPopularSearches().then((list) => {
       if (cancelled) return;
@@ -1002,7 +1007,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
     if (!t || committedRef.current === t) return;
     committedRef.current = t;
     commitSearch(t);
-    setRecent(loadRecentSearches());
+    if (!kidsLevel()) setRecent(loadRecentSearches());
   }, []);
 
   // Debounced search: 400ms + stale-seq guard so only the latest keystroke wins.
@@ -1029,12 +1034,18 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         if (mySeq !== seqRef.current) return;
         setResults(r); setCursor(0); setLoading(false);
         const family = familyOnly(r, searchCtxRef.current.adultKeys);
-        // Alongside: what could be requested for this search.
-        void overseerrSearch(q).then((found) => {
-          if (mySeq !== seqRef.current) return;
-          setReqItems(missingFromPlex(found, family, COLS));
-          setReqCursor(0);
-        });
+        // Alongside: what could be requested for this search. Not on a Kids
+        // profile: Overseerr's answer is every film and series of that name,
+        // unrated, with its poster and synopsis — and a Kids profile does not
+        // request titles (the Request tab is gone for it too).
+        if (kidsLevel()) setReqItems([]);
+        else {
+          void overseerrSearch(q).then((found) => {
+            if (mySeq !== seqRef.current) return;
+            setReqItems(missingFromPlex(found, family, COLS));
+            setReqCursor(0);
+          });
+        }
         if (!searchLooksThin(q, family)) { setDidYouMean([]); return; }
         // Thin answer. Search for the pieces of what was typed and score
         // everything that comes back against it.
@@ -1074,6 +1085,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   useEffect(() => { if (zone === 'request' && reqItems.length === 0) setZone(results.length ? 'grid' : 'input'); }, [zone, reqItems.length, results.length]);
   // Already on its way: say so instead of asking again.
   const askRequest = useCallback((it: OverseerrItem) => {
+    if (kidsLevel()) return;
     if (reqSentRef.current[it.id] || it.status === 2 || it.status === 3) {
       toast({ title: 'Already requested', description: `${it.title} is already on its way to Plex.` });
       return;
@@ -1083,7 +1095,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   }, []);
   const askRequestRef = useRef(askRequest);
   const sendRequest = useCallback(async (it: OverseerrItem) => {
-    if (requestingRef.current) return;
+    if (requestingRef.current || kidsLevel()) return;
     setRequesting(true);
     const res = await overseerrRequest(it);
     setRequesting(false);
