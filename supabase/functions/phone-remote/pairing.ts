@@ -110,16 +110,20 @@ const bucket = (ip: Ip): string => {
   return `${g.join(':')}::/64`;
 };
 
-/** The key the per-address limits count by ('unknown' when there is none). */
-export function clientIpKey(headers: Headers_): string {
+/**
+ * The key the per-address limits count by ('unknown' when there is none),
+ * and which header it came from (for a log line; never the address itself).
+ */
+export function clientIp(headers: Headers_): { key: string; from: 'cf-connecting-ip' | 'x-forwarded-for' | 'x-real-ip' | 'none' } {
   const cf = parseIp(headers.get('cf-connecting-ip'));
-  if (cf && isCaller(cf)) return bucket(cf);
+  if (cf && isCaller(cf)) return { key: bucket(cf), from: 'cf-connecting-ip' };
   const hops = (headers.get('x-forwarded-for') ?? '').split(',').map((s) => parseIp(s)).filter((p): p is Ip => !!p);
-  for (let i = hops.length - 1; i >= 0; i--) if (isCaller(hops[i])) return bucket(hops[i]);
+  for (let i = hops.length - 1; i >= 0; i--) if (isCaller(hops[i])) return { key: bucket(hops[i]), from: 'x-forwarded-for' };
   const real = parseIp(headers.get('x-real-ip'));
-  if (real && isCaller(real)) return bucket(real);
-  return 'unknown';
+  if (real && isCaller(real)) return { key: bucket(real), from: 'x-real-ip' };
+  return { key: 'unknown', from: 'none' };
 }
+export const clientIpKey = (headers: Headers_): string => clientIp(headers).key;
 
 // ── what the TV shows about the phone ──────────────────────────────────────
 // Worked out here from the browser's User-Agent, one of a few fixed phrases,

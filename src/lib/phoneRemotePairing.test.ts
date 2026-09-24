@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CODE_ALPHABET, clientIpKey, newCode, normalizeCode, phoneKind } from '../../supabase/functions/phone-remote/pairing';
+import { CODE_ALPHABET, clientIp, clientIpKey, newCode, normalizeCode, phoneKind } from '../../supabase/functions/phone-remote/pairing';
 
 const headers = (h: Record<string, string>) => ({ get: (n: string) => h[n.toLowerCase()] ?? null });
 
@@ -40,6 +40,13 @@ describe('the caller address the join limit counts', () => {
     expect(clientIpKey(headers({ 'x-forwarded-for': '81.2.69.160, 172.70.1.1' }))).toBe('81.2.69.160'); // a Cloudflare hop
     expect(clientIpKey(headers({ 'cf-connecting-ip': '10.1.2.3', 'x-forwarded-for': '81.2.69.160' }))).toBe('81.2.69.160');
     expect(clientIpKey(headers({}))).toBe('unknown');
+  });
+
+  it('says which header the address came from (for the log), never the address', () => {
+    expect(clientIp(headers({ 'cf-connecting-ip': '81.2.69.160' })).from).toBe('cf-connecting-ip');
+    expect(clientIp(headers({ 'x-forwarded-for': '203.0.113.7, 81.2.69.160' })).from).toBe('x-forwarded-for');
+    expect(clientIp(headers({ 'x-real-ip': '81.2.69.160' })).from).toBe('x-real-ip');
+    expect(clientIp(headers({ 'x-forwarded-for': '10.0.0.4' }))).toEqual({ key: 'unknown', from: 'none' });
   });
 
   it('counts an IPv6 /64 as one caller', () => {

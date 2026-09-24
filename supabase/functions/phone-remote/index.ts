@@ -28,7 +28,7 @@
 // Box and phone then talk directly over the Realtime broadcast channel
 // "smc-remote:<secret>"; nothing they say passes through here.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { clientIpKey, newCode, normalizeCode, phoneKind } from './pairing.ts';
+import { clientIp, newCode, normalizeCode, phoneKind } from './pairing.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -56,6 +56,12 @@ const hex = (bytes: Uint8Array) => Array.from(bytes).map((b) => b.toString(16).p
 const sha256 = async (s: string) => hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))));
 const randomHex = (n: number) => { const a = new Uint8Array(n); crypto.getRandomValues(a); return hex(a); };
 const isSecret = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
+/**
+ * Once per instance, which header gave the caller's address (never the
+ * address). 'none' means those callers share one count, so pairing would
+ * soon be refused for all of them: the platform isn't sending the address.
+ */
+const ipSourcesLogged = new Set<string>();
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
@@ -71,7 +77,13 @@ Deno.serve(async (req) => {
 
   /** Counts one try; 'ok', 'too_many' or 'busy'. */
   const gate = async (kind: 'join' | 'pair', ipMax: number, ipWindowS: number, allMax: number, allWindowS: number) => {
-    const ipHash = await sha256(`smc-remote-ip:${clientIpKey(req.headers)}`);
+    const ip = clientIp(req.headers);
+    if (!ipSourcesLogged.has(ip.from)) {
+      ipSourcesLogged.add(ip.from);
+      if (ip.from === 'none') console.warn('[phone-remote] no caller address in the request headers');
+      else console.log('[phone-remote] caller address from', ip.from);
+    }
+    const ipHash = await sha256(`smc-remote-ip:${ip.key}`);
     const { data, error } = await db.rpc('remote_gate', {
       p_kind: kind, p_ip_hash: ipHash, p_ip_max: ipMax, p_ip_window_s: ipWindowS, p_all_max: allMax, p_all_window_s: allWindowS,
     });
