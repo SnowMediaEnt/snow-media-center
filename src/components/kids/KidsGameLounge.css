@@ -113,7 +113,8 @@
   .kids-lounge__brand > * + * { margin-left: 18px; }
   .kids-lounge__tools > * + * { margin-left: 12px; }
   .kids-lounge__back > svg, .kids-lounge__star > svg,
-  .kids-lounge__ribbon > svg, .kids-lounge__card-play > span { margin-right: 8px; }
+  .kids-lounge__ribbon > svg { margin-right: 8px; }
+  .kids-lounge__card-play > span { margin-left: 8px; }
 
   @media (max-height: 700px) {
     .kids-lounge { padding: 12px 32px; }
