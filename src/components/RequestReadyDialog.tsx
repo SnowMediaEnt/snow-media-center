@@ -3,7 +3,7 @@
 // to the front — at most every ten minutes, only while this box has requests
 // on their way. Never over playback. The native alert
 // job covers the app-closed case with a system notification.
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { PartyPopper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -15,6 +15,11 @@ const RECHECK_MS = 10 * 60_000;
 // Module-level: the dialog is mounted with the home screen and remounts each
 // time the viewer comes back to it.
 let lastCheckAt = 0;
+// Arrived titles not shown yet. The check marks what it returns as notified on
+// the server, so a result that lands after the dialog went away (the viewer
+// left home, the profile screens opened, a Kids profile took over), or one
+// still on screen when it did, waits here for the next mount.
+let unshown: ReadyRequest[] = [];
 
 interface Props { onWatch: () => void }
 
@@ -23,18 +28,33 @@ const RequestReadyDialog = ({ onWatch }: Props) => {
   const [focus, setFocus] = useState<'watch' | 'ok'>('watch');
   const watchRef = useRef<HTMLButtonElement>(null);
   const okRef = useRef<HTMLButtonElement>(null);
+  // What is on screen, for the unmount below. Cleared at once on an answer:
+  // "Watch in Plex" unmounts the dialog in the same render.
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
+  const dismiss = useCallback(() => { readyRef.current = []; setReady([]); }, []);
 
   useEffect(() => {
     let alive = true;
+    if (unshown.length) { const held = unshown; unshown = []; setReady(held); }
     const run = () => {
       if (!hasPendingRequests() || Date.now() - lastCheckAt < RECHECK_MS) return;
       lastCheckAt = Date.now();
-      void checkRequests().then((list) => { if (alive && list.length) setReady((r) => [...r, ...list]); });
+      void checkRequests().then((list) => {
+        if (!list.length) return;
+        if (alive) setReady((r) => [...r, ...list]);
+        else unshown = [...unshown, ...list];
+      });
     };
     const cancel = runAfter(8000, run);
     const onVis = () => { if (document.visibilityState === 'visible') run(); };
     document.addEventListener('visibilitychange', onVis);
-    return () => { alive = false; cancel(); document.removeEventListener('visibilitychange', onVis); };
+    return () => {
+      alive = false;
+      cancel();
+      document.removeEventListener('visibilitychange', onVis);
+      if (readyRef.current.length) unshown = [...readyRef.current, ...unshown];
+    };
   }, []);
 
   const open = ready.length > 0;
@@ -51,17 +71,17 @@ const RequestReadyDialog = ({ onWatch }: Props) => {
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
       if (!isBack && !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', ' '].includes(e.key)) return;
       e.preventDefault(); e.stopPropagation();
-      if (isBack) { setReady([]); return; }
+      if (isBack) { dismiss(); return; }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { setFocus('watch'); watchRef.current?.focus(); }
       else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { setFocus('ok'); okRef.current?.focus(); }
       else if (!e.repeat) {
-        setReady([]);
+        dismiss();
         if (focus === 'watch') onWatch();
       }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [open, focus, onWatch]);
+  }, [open, focus, onWatch, dismiss]);
 
   if (!open) return null;
   const first = ready[0];
@@ -70,7 +90,7 @@ const RequestReadyDialog = ({ onWatch }: Props) => {
   const ring = (f: 'watch' | 'ok') => (focus === f ? 'ring-4 ring-brand-ice scale-105' : '');
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) setReady([]); }}>
+    <Dialog open onOpenChange={(o) => { if (!o) dismiss(); }}>
       <DialogContent className="max-w-lg bg-slate-900 border-slate-700 text-white ring-2 ring-brand-gold/40 p-7">
         <div className="flex items-start">
           {first?.posterUrl && (
@@ -85,10 +105,10 @@ const RequestReadyDialog = ({ onWatch }: Props) => {
           </DialogHeader>
         </div>
         <div className="grid grid-cols-2 gap-3 mt-2">
-          <Button ref={watchRef} variant="gold" onClick={() => { setReady([]); onWatch(); }} onFocus={() => setFocus('watch')} className={`h-12 text-base font-semibold ${ring('watch')}`}>
+          <Button ref={watchRef} variant="gold" onClick={() => { dismiss(); onWatch(); }} onFocus={() => setFocus('watch')} className={`h-12 text-base font-semibold ${ring('watch')}`}>
             Watch in Plex
           </Button>
-          <Button ref={okRef} variant="outline" onClick={() => setReady([])} onFocus={() => setFocus('ok')} className={`h-12 text-base bg-slate-800 border-slate-600 text-white hover:bg-slate-700 ${ring('ok')}`}>
+          <Button ref={okRef} variant="outline" onClick={dismiss} onFocus={() => setFocus('ok')} className={`h-12 text-base bg-slate-800 border-slate-600 text-white hover:bg-slate-700 ${ring('ok')}`}>
             OK
           </Button>
         </div>

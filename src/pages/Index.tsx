@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
+import { memo, useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, lazy, Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,10 +42,11 @@ import { homeCardIds, profileGameView, type HomeCardId } from '@/lib/kidsGameNav
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors } from '@/lib/profiles';
 import ProfileGate from '@/components/profiles/ProfileGate';
-import VoiceCommandHost from '@/components/voice/VoiceCommandHost';
+import LazyVoiceCommandHost from '@/components/voice/LazyVoiceCommandHost';
 import GameReminderHost from '@/components/GameReminderHost';
 import PhoneTypingHint from '@/components/remote/PhoneTypingHint';
-import { REMOTE_HOME_EVENT, startPhoneRemote } from '@/lib/phoneRemote';
+import { startPhoneRemote } from '@/lib/phoneRemote';
+import { useRemoteHome } from '@/hooks/useRemoteHome';
 import { openVoice } from '@/lib/voiceUi';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
@@ -198,8 +199,16 @@ type ScreenTier = 'xl' | 'lg' | 'md';
 
 const getScreenTier = (h: number): ScreenTier => (h >= 2160 ? 'xl' : h >= 1440 ? 'lg' : 'md');
 
+/** How much of the header's text fits beside the clock: 0 all of it, 1 not
+ *  the Giveaway / Admin labels (nor the profile's name), 2 icons only and a
+ *  Kids name cut shorter. Measured by HomeTopBar. */
+type HeaderFit = 0 | 1 | 2;
+
 interface HomeHeaderProps {
   tier: ScreenTier;
+  fit: HeaderFit;
+  /** A short screen (540–640 px tall): lower buttons, clear of the ticker. */
+  short: boolean;
   isAdmin: boolean;
   hasUser: boolean;
   isAdminFocused: boolean;
@@ -218,7 +227,8 @@ interface HomeHeaderProps {
   isGiveawayFocused?: boolean;
   giveawayLabel?: string;
   onOpenGiveaway?: () => void;
-  /** Who is watching, when there is more than one profile (or a Kids one). */
+  /** Who is watching: a grown-up's profile button (also the way to add
+   *  profiles), or a Kids profile's account button. */
   profileBadge?: { name: string; avatar: string; kids: boolean } | null;
   isVoiceFocused?: boolean;
   onOpenVoice?: () => void;
@@ -239,7 +249,7 @@ const ProfileDot = ({ name, avatar, size }: { name: string; avatar: string; size
 
 const HomeHeader = memo((props: HomeHeaderProps) => {
   const {
-    tier, isAdmin, hasUser,
+    tier, fit, short, isAdmin, hasUser,
     isAdminFocused, isAuthFocused, isSettingsFocused,
     adminLabel, dashboardLabel, signInLabel, settingsLabel,
     onOpenAdmin, onOpenUser, onOpenAuth, onOpenSettings,
@@ -248,22 +258,20 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
   } = props;
   const dotSize = tier === 'xl' ? 28 : tier === 'lg' ? 24 : 20;
 
-  const btnClass = tier === 'xl' ? 'rounded-xl h-14 text-xl px-6' : tier === 'lg' ? 'rounded-xl h-12 text-xl px-4' : 'rounded-xl h-12';
+  const btnClass = tier === 'xl' ? 'rounded-xl h-14 text-xl px-6' : tier === 'lg' ? 'rounded-xl h-12 text-xl px-4' : short ? 'rounded-xl h-10' : 'rounded-xl h-12';
   const iconClass = tier === 'xl' ? 'w-6 h-6' : tier === 'lg' ? 'w-5 h-5' : 'w-4 h-4';
   const btnSize = tier === 'md' ? 'sm' : 'default';
-  const inset = tier === 'xl' ? '2rem' : tier === 'lg' ? '1.5rem' : '1rem';
   const gap = tier === 'xl' ? '1rem' : tier === 'lg' ? '0.75rem' : '0.5rem';
+  // Labels give way, least used first, when the row would reach the clock
+  // (the button keeps it as its aria-label).
+  const extrasLabelled = fit === 0;
+  const labelled = fit < 2;
 
   return (
     <div
-      className="absolute z-20 flex flex-nowrap items-center justify-end whitespace-nowrap"
+      className="flex flex-nowrap items-center justify-end whitespace-nowrap pointer-events-auto"
       data-home-header
-      style={{
-        top: `max(env(safe-area-inset-top, 0px), ${inset})`,
-        right: `max(env(safe-area-inset-right, 0px), ${inset})`,
-        gap,
-        maxWidth: 'min(50vw, 32rem)',
-      }}
+      style={{ gap }}
     >
 
       {showGiveawayBadge && (
@@ -272,11 +280,12 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
           variant="gold"
           size={btnSize}
           tabIndex={0}
+          aria-label={extrasLabelled ? undefined : giveawayLabel}
           data-focused={isGiveawayFocused ? 'true' : 'false'}
           className={`tv-focusable home-focus-surface ${btnClass}`}
         >
-          <Gift className={`mr-2 ${iconClass}`} />
-          {giveawayLabel}
+          <Gift className={`${extrasLabelled ? 'mr-2 ' : ''}${iconClass}`} />
+          {extrasLabelled && giveawayLabel}
         </Button>
       )}
       {isAdmin && (
@@ -285,11 +294,12 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
           variant="purple"
           size={btnSize}
           tabIndex={0}
+          aria-label={extrasLabelled ? undefined : adminLabel}
           data-focused={isAdminFocused ? 'true' : 'false'}
           className={`tv-focusable home-focus-surface ${btnClass}`}
         >
-          <Shield className={`mr-2 ${iconClass}`} />
-          {adminLabel}
+          <Shield className={`${extrasLabelled ? 'mr-2 ' : ''}${iconClass}`} />
+          {extrasLabelled && adminLabel}
         </Button>
       )}
       {profileBadge && !profileBadge.kids && (
@@ -304,7 +314,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
         >
           <ProfileDot name={profileBadge.name} avatar={profileBadge.avatar} size={dotSize} />
           {/* The header is full on small screens: just the colour square there. */}
-          {tier !== 'md' && <span className="ml-2 text-gray-800 max-w-[8rem] truncate">{profileBadge.name}</span>}
+          {tier !== 'md' && extrasLabelled && <span className="ml-2 text-gray-800 max-w-[8rem] truncate">{profileBadge.name}</span>}
         </Button>
       )}
       {profileBadge?.kids ? (
@@ -317,7 +327,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
           className={`tv-focusable home-focus-surface ${btnClass}`}
         >
           <ProfileDot name={profileBadge.name} avatar={profileBadge.avatar} size={dotSize} />
-          <span className="ml-2 text-gray-800 max-w-[9rem] truncate">{profileBadge.name}</span>
+          <span className={`ml-2 text-gray-800 truncate ${labelled ? 'max-w-[9rem]' : 'max-w-[6rem]'}`}>{profileBadge.name}</span>
         </Button>
       ) : hasUser ? (
         <Button
@@ -325,11 +335,12 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
           variant="white"
           size={btnSize}
           tabIndex={0}
+          aria-label={labelled ? undefined : dashboardLabel}
           data-focused={isAuthFocused ? 'true' : 'false'}
           className={`tv-focusable home-focus-surface ${btnClass}`}
         >
-          <User className={`mr-2 text-gray-800 ${iconClass}`} />
-          <span className="text-gray-800">{dashboardLabel}</span>
+          <User className={`${labelled ? 'mr-2 ' : ''}text-gray-800 ${iconClass}`} />
+          {labelled && <span className="text-gray-800">{dashboardLabel}</span>}
         </Button>
       ) : (
         <Button
@@ -337,11 +348,12 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
           variant="gold"
           size={btnSize}
           tabIndex={0}
+          aria-label={labelled ? undefined : signInLabel}
           data-focused={isAuthFocused ? 'true' : 'false'}
           className={`tv-focusable home-focus-surface ${btnClass}`}
         >
-          <LogIn className={`mr-2 text-gray-400 ${iconClass}`} />
-          <span style={{ color: '#333333' }}>{signInLabel}</span>
+          <LogIn className={`${labelled ? 'mr-2 text-gray-400' : 'text-gray-800'} ${iconClass}`} />
+          {labelled && <span style={{ color: '#333333' }}>{signInLabel}</span>}
         </Button>
       )}
       <Button
@@ -349,11 +361,12 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
         variant="gold"
         size={btnSize}
         tabIndex={0}
+        aria-label={labelled ? undefined : settingsLabel}
         data-focused={isSettingsFocused ? 'true' : 'false'}
         className={`tv-focusable home-focus-surface ${btnClass}`}
       >
-        <SettingsIcon className={`mr-2 ${iconClass}`} />
-        {settingsLabel}
+        <SettingsIcon className={`${labelled ? 'mr-2 ' : ''}${iconClass}`} />
+        {labelled && settingsLabel}
       </Button>
       <Button
         onClick={onOpenVoice}
@@ -370,6 +383,96 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
   );
 });
 HomeHeader.displayName = 'HomeHeader';
+
+// Room the header keeps from the clock beyond its padding: the clock's
+// seconds change its width by a few pixels.
+const FIT_SLACK = 12;
+
+/**
+ * Home's top row, inside the 5% overscan margin a TV may crop: the renewal
+ * banner (right of the corner logo), the clock in the middle and the header's
+ * buttons on the right. One flex row, so none of them can run under another:
+ * a header too wide for its half pushes the clock aside instead of sliding
+ * beneath it (placed separately, the clock covered the Giveaway and profile
+ * buttons at 960x540). Before that, the header drops labels, least used
+ * first. A new `shape` (screen size, buttons, names) measures again from
+ * full labels, as do the clock growing (an update's triangle) and the fonts
+ * arriving.
+ */
+const HomeTopBar = ({ shape, banner, clock, header }: {
+  shape: string;
+  banner: ReactNode;
+  clock: ReactNode;
+  header: (fit: HeaderFit) => ReactNode;
+}) => {
+  const barRef = useRef<HTMLDivElement>(null);
+  const clockRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
+  const [clockW, setClockW] = useState(0);
+  const [fontsIn, setFontsIn] = useState(false);
+  const key = `${shape}|${clockW}|${fontsIn}`;
+  const [fit, setFit] = useState<{ key: string; level: HeaderFit }>({ key, level: 0 });
+  const level: HeaderFit = fit.key === key ? fit.level : 0;
+
+  // Before paint: one label step at a time until the header fits its half.
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    const clockEl = clockRef.current;
+    const right = rightRef.current;
+    const hdr = right?.firstElementChild as HTMLElement | null | undefined;
+    if (!bar || !clockEl || !right || !hdr) return;
+    const half = (bar.clientWidth - clockEl.offsetWidth) / 2;
+    const pad = parseFloat(getComputedStyle(right).paddingLeft) || 0;
+    const next: HeaderFit = level < 2 && hdr.offsetWidth + pad + FIT_SLACK > half ? ((level + 1) as HeaderFit) : level;
+    if (fit.key !== key || fit.level !== next) setFit({ key, level: next });
+  }, [key, level, fit]);
+
+  useEffect(() => {
+    const el = clockRef.current;
+    if (!el) return;
+    let last = el.offsetWidth;
+    const measure = () => {
+      const w = el.offsetWidth;
+      if (Math.abs(w - last) < FIT_SLACK) return;
+      last = w;
+      setClockW(w);
+    };
+    let ro: ResizeObserver | undefined;
+    try { ro = new ResizeObserver(measure); ro.observe(el); } catch { /* no ResizeObserver: size and fonts still count */ }
+    let alive = true;
+    try { void document.fonts?.ready.then(() => { if (alive) { setFontsIn(true); measure(); } }); } catch { /* ignore */ }
+    return () => { alive = false; ro?.disconnect(); };
+  }, []);
+
+  return (
+    <div
+      ref={barRef}
+      className="absolute z-20 flex flex-nowrap items-center pointer-events-none"
+      data-home-topbar
+      style={{
+        top: 'max(env(safe-area-inset-top, 0px), 5vh)',
+        left: 'max(env(safe-area-inset-left, 0px), 5vw)',
+        right: 'max(env(safe-area-inset-right, 0px), 5vw)',
+      }}
+    >
+      {/* The two sides share what the clock leaves equally, so it stays
+          centred; their inner padding matches, the logo's room is inside. */}
+      <div className="min-w-0 overflow-hidden py-3 -my-3" style={{ flex: '1 1 0px', paddingRight: '0.75rem' }}>
+        <div
+          className="flex items-center"
+          data-home-banner
+          style={{ paddingLeft: 'calc(clamp(0.5rem, 1.5vw, 1rem) + clamp(72px, 11vh, 140px) + 0.75rem - 5vw)', maxWidth: '26rem' }}
+        >
+          {banner}
+        </div>
+      </div>
+      <div ref={clockRef} className="flex-shrink-0 pointer-events-auto">{clock}</div>
+      <div ref={rightRef} className="flex justify-end" style={{ flex: '1 1 0px', paddingLeft: '0.75rem' }}>
+        {header(level)}
+      </div>
+    </div>
+  );
+};
 
 const WatermarkTitle = memo(({ tagline, mediaBarEnabled }: { tagline: string; mediaBarEnabled: boolean }) => (
   <div className="relative z-10 flex-shrink min-h-0 flex items-center justify-center">
@@ -513,6 +616,7 @@ const Index = () => {
     return (saved as 'grid' | 'row') || 'row'; // Default to row layout
   });
   const [screenHeight, setScreenHeight] = useState(window.innerHeight);
+  const [screenWidth, setScreenWidth] = useState(window.innerWidth);
   const { t } = useTranslation();
   const { user } = useAuth();
   const { isAdmin: isAdminRole } = useAdminRole();
@@ -718,6 +822,7 @@ const Index = () => {
       if (frame) return;
       frame = window.requestAnimationFrame(() => {
         setScreenHeight(window.innerHeight);
+        setScreenWidth(window.innerWidth);
         frame = 0;
       });
     };
@@ -868,13 +973,10 @@ const Index = () => {
 
   const onOpenProfilesPick = useCallback(() => openProfiles('pick'), []);
   // Phone remote: listen for a paired phone once the home screen has settled;
-  // its Home button comes back here.
+  // its Home button comes back here, never over an open dialog and through a
+  // casino game's Back guard (see useRemoteHome).
   useEffect(() => runWhenIdle(() => { try { startPhoneRemote(); } catch { /* offline */ } }, 2500), []);
-  useEffect(() => {
-    const goHome = () => navigateToRef.current('home');
-    window.addEventListener(REMOTE_HOME_EVENT, goHome);
-    return () => window.removeEventListener(REMOTE_HOME_EVENT, goHome);
-  }, []);
+  useRemoteHome(currentView, stableNavigateTo);
   const onOpenSettingsProfiles = useCallback(() => navigateToRef.current('settings'), []);
   const onOpenSettings = useCallback(() => navigateToRef.current('settings'), []);
   const onOpenDashboardFromBanner = useCallback(() => navigateToRef.current('user'), []);
@@ -884,8 +986,9 @@ const Index = () => {
     try { trackEvent('giveaway_badge_click', 'giveaway'); } catch { void 0; }
     navigateToRef.current('giveaway');
   }, []);
-  // Giveaway promo popup "View Giveaway" → Giveaway section
-  const onOpenGiveawayFromPopup = useCallback(() => navigateToRef.current('giveaway'), []);
+  // Giveaway promo popup "View Giveaway" → Giveaway section (never for a
+  // Kids profile, which does not get the popup either).
+  const onOpenGiveawayFromPopup = useCallback(() => { if (!kidsRef.current) navigateToRef.current('giveaway'); }, []);
 
   // PinnedAppsPopup callbacks — stable so its memo can skip re-renders.
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
@@ -929,6 +1032,15 @@ const Index = () => {
 
   // Screen-height derived classes computed once per tier change, not per render.
   const screenTier = useMemo(() => getScreenTier(screenHeight), [screenHeight]);
+  const shortScreen = screenTier === 'md' && screenHeight < 700;
+  // Room above the title: as before (2.5rem–5rem, 5vh between), and at least
+  // enough that the ticker running through the title stays below the top row
+  // (at 5vh, its buttons 40–56 px tall; the ticker sits well over 22 px into
+  // the title). Plain px: Chrome 66 has no clamp() and dropped it to 0.
+  const titleSpacer = useMemo(() => {
+    const rowBottom = screenHeight * 0.05 + (screenTier === 'xl' ? 56 : shortScreen ? 40 : 48);
+    return Math.round(Math.max(Math.min(80, Math.max(40, screenHeight * 0.05)), rowBottom - 22));
+  }, [screenHeight, screenTier, shortScreen]);
 
   // Stable per-index activation callbacks — referentially constant for the
   // life of the component so HomeActionCard's React.memo can skip re-renders
@@ -1207,6 +1319,12 @@ const Index = () => {
   const dashboardLabel = t('common.dashboard');
   const signInLabel = t('common.signIn');
   const settingsLabel = t('common.settings');
+  const giveawayLabel = t('home.giveaway.title');
+  // What decides the header's width: the top row measures again when it changes.
+  const headerShape = [
+    screenWidth, screenHeight, giveawayBadgeOn, isAdmin, !!user, kids, profile.name, version,
+    giveawayLabel, adminLabel, dashboardLabel, signInLabel, settingsLabel,
+  ].join('|');
 
   return (
     <div className="min-h-screen">
@@ -1225,50 +1343,46 @@ const Index = () => {
         <div className="h-screen w-screen overflow-hidden text-white relative flex flex-col">
           {/* Background is provided by App.tsx (single static gradient on all devices). */}
 
-          {/* User/Auth Controls — safe-area-aware so X96 / T95 / FireTV overscan
-              doesn't crop the buttons or overlap them with the clock. */}
-          <HomeHeader
-            tier={screenTier}
-            isAdmin={isAdmin}
-            hasUser={!!user}
-            isAdminFocused={focusedButton === -3}
-            isAuthFocused={focusedButton === -2}
-            isSettingsFocused={focusedButton === -1}
-            adminLabel={adminLabel}
-            dashboardLabel={dashboardLabel}
-            signInLabel={signInLabel}
-            settingsLabel={settingsLabel}
-            onOpenAdmin={onOpenAdmin}
-            onOpenUser={onOpenUser}
-            onOpenAuth={onOpenAuth}
-            onOpenSettings={onOpenSettings}
-            showGiveawayBadge={giveawayBadgeOn}
-            isGiveawayFocused={focusedButton === -4}
-            giveawayLabel={t('home.giveaway.title')}
-            onOpenGiveaway={onOpenGiveaway}
-            profileBadge={{ name: profile.name, avatar: profile.avatar, kids }}
-            isProfileFocused={focusedButton === -7}
-            onOpenProfiles={onOpenProfilesPick}
-            isVoiceFocused={focusedButton === -6}
-            onOpenVoice={openVoice}
+          {/* The top row: renewal banner, clock, and the User/Auth controls —
+              inside the overscan margin so X96 / T95 / FireTV overscan doesn't
+              crop the buttons, and one row so nothing overlaps the clock. */}
+          <HomeTopBar
+            shape={headerShape}
+            banner={<ServiceExpirationBanner onOpenDashboard={onOpenDashboardFromBanner} />}
+            clock={<HomeClock version={version} onUpdateClick={onClockUpdate} />}
+            header={(fit) => (
+              <HomeHeader
+                tier={screenTier}
+                fit={fit}
+                short={shortScreen}
+                isAdmin={isAdmin}
+                hasUser={!!user}
+                isAdminFocused={focusedButton === -3}
+                isAuthFocused={focusedButton === -2}
+                isSettingsFocused={focusedButton === -1}
+                adminLabel={adminLabel}
+                dashboardLabel={dashboardLabel}
+                signInLabel={signInLabel}
+                settingsLabel={settingsLabel}
+                onOpenAdmin={onOpenAdmin}
+                onOpenUser={onOpenUser}
+                onOpenAuth={onOpenAuth}
+                onOpenSettings={onOpenSettings}
+                showGiveawayBadge={giveawayBadgeOn}
+                isGiveawayFocused={focusedButton === -4}
+                giveawayLabel={giveawayLabel}
+                onOpenGiveaway={onOpenGiveaway}
+                profileBadge={{ name: profile.name, avatar: profile.avatar, kids }}
+                isProfileFocused={focusedButton === -7}
+                onOpenProfiles={onOpenProfilesPick}
+                isVoiceFocused={focusedButton === -6}
+                onOpenVoice={openVoice}
+              />
+            )}
           />
 
-          {/* Expiration banner — top-left, absolute, never displaces the header row */}
-          <div
-            className="absolute z-20 pointer-events-none flex items-center"
-            data-home-banner
-            style={{
-              top: `max(env(safe-area-inset-top, 0px), ${screenTier === 'xl' ? '2rem' : screenTier === 'lg' ? '1.5rem' : '1rem'})`,
-              left: `calc(max(env(safe-area-inset-left, 0px), ${screenTier === 'xl' ? '2rem' : screenTier === 'lg' ? '1.5rem' : '1rem'}) + clamp(72px, 11vh, 140px) + 0.75rem)`,
-              right: 'calc(50vw + 7rem)',
-              maxWidth: 'min(30vw, 22rem)',
-            }}
-          >
-            <ServiceExpirationBanner onOpenDashboard={onOpenDashboardFromBanner} />
-          </div>
-
           {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
-          <div className="flex-shrink-0" style={{ height: 'clamp(2.5rem, 5vh, 5rem)' }}></div>
+          <div className="flex-shrink-0" style={{ height: titleSpacer }}></div>
 
           {/* Header - tight container around title. When the content menu is ON,
               the thin RSS ticker overlays through the middle of the title.
@@ -1303,9 +1417,6 @@ const Index = () => {
               />
             </div>
           )}
-
-          {/* Date/Time Display - isolated to avoid re-rendering the whole home tree every second */}
-          <HomeClock version={version} onUpdateClick={onClockUpdate} />
 
           {/* Bottom region — MediaBar (if enabled) sits directly above the cards,
               so the empty space falls between the title and the bar instead of
@@ -1400,8 +1511,11 @@ const Index = () => {
         </div>
       )}
 
-      {/* A title this box requested from Plex search has arrived. */}
-      {currentView === 'home' && <RequestReadyDialog onWatch={openPlexFromReady} />}
+      {/* A title this box requested from Plex search has arrived. Requests are
+          the box's, not the profile's: a Kids profile never sees the poster
+          and title, and the notice waits for a grown-up (and for the profile
+          screens to close) instead of being used up. */}
+      {currentView === 'home' && !kids && !profileGateOpen && <RequestReadyDialog onWatch={openPlexFromReady} />}
 
       <PlayerNudgeDialog
         appName={nudgeApp?.name ?? null}
@@ -1437,8 +1551,9 @@ const Index = () => {
       {/* Game Day kickoff reminders ("Remind me"), over anything. */}
       <GameReminderHost navigate={stableNavigateTo} blocked={profileGateOpen} />
 
-      {/* Voice commands: the mic button, the remote's Search key. */}
-      <VoiceCommandHost navigate={stableNavigateTo} blocked={profileGateOpen} />
+      {/* Voice commands: the mic button, the remote's Search key. Loaded the
+          first time one of them is used, not with Home. */}
+      <LazyVoiceCommandHost navigate={stableNavigateTo} blocked={profileGateOpen} />
 
       {/* First-launch welcome + per-version "What's New" popup — mounted only
           after first-frame idle so its effect chain doesn't pile onto boot. */}
@@ -1461,8 +1576,9 @@ const Index = () => {
       )}
 
       {/* Giveaway winners announced — queues behind other boot popups via its
-          own modal-presence polling. */}
-      {overlaysReady && currentView === 'home' && !welcomeOpen && !preEventOpen && winnersGiveaway && (
+          own modal-presence polling. Not on a Kids profile (the Giveaway is
+          grown-up only), so the announcement waits for a grown-up. */}
+      {overlaysReady && currentView === 'home' && !kids && !welcomeOpen && !preEventOpen && winnersGiveaway && (
         <Suspense fallback={null}>
           <GiveawayWinnersPopup giveaway={winnersGiveaway} onDismiss={dismissWinners} />
         </Suspense>
@@ -1495,18 +1611,23 @@ const Index = () => {
 
       {/* First-open giveaway promo — once per device per giveaway. Sequenced
           behind WelcomePopup / MediaBarPrompt / app alerts via its own
-          modal-presence polling; never in demo mode (giveawayOn gate). */}
-      {overlaysReady && currentView === 'home' && giveawayOn && (
+          modal-presence polling; never in demo mode (giveawayOn gate), and
+          never on a Kids profile: it would open the grown-up Giveaway and mark
+          the promo seen for the whole box. */}
+      {overlaysReady && currentView === 'home' && giveawayOn && !kids && (
         <Suspense fallback={null}>
           <GiveawayPromoPopup onViewGiveaway={onOpenGiveawayFromPopup} />
         </Suspense>
       )}
 
       {/* Background auto-update check (native only). On by default; users can
-          disable via localStorage key smc-auto-update-enabled = "false". */}
-      {overlaysReady && (
+          disable via localStorage key smc-auto-update-enabled = "false".
+          Unlike the popups above it stays mounted while the profile screens
+          are up — unmounting it mid-download lost its prompt and started a
+          second download of the same APK — and waits through `paused`. */}
+      {deferredOverlaysReady && (
         <Suspense fallback={null}>
-          <AutoUpdatePrompt paused={currentView !== 'home'} />
+          <AutoUpdatePrompt paused={currentView !== 'home' || profileGateOpen} />
         </Suspense>
       )}
 

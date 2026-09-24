@@ -760,25 +760,26 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
   height: 6rem !important;
 }
 
-/* The header row (Dashboard / Settings / Sign In), the clock and the
-   expiration banner are placed with `max(env(safe-area-inset-*), …)`.
-   `max()` is Chrome 79: on Chrome 66 the whole declaration is dropped, the
-   box gets `top:auto; right:auto`, and it lands wherever it would have
-   flowed — which on the X96 was the top-LEFT, over the logo. Plain offsets
-   here; the safe-area inset is 0 on every box that gets this class. */
-html.legacy-webview [data-home-header] {
-  top: 1rem !important;
-  right: 1rem !important;
-  max-width: 50vw !important;
+/* Home's top row (the expiration banner, the clock, and the header's
+   Dashboard / Settings / Sign In buttons) is placed inside the 5% overscan
+   margin with `max(env(safe-area-inset-*), 5vh / 5vw)`. `max()` is Chrome
+   79: on Chrome 66 the whole declaration is dropped, the box gets `top:auto;
+   right:auto`, and it lands wherever it would have flowed — which on the X96
+   was the top-LEFT, over the logo. Plain offsets here; the safe-area inset
+   is 0 on every box that gets this class. */
+html.legacy-webview [data-home-topbar] {
+  top: 5vh !important;
+  left: 5vw !important;
+  right: 5vw !important;
 }
+/* The clock's text sizes are clamp(): dropped, they grew to the body's 16px. */
 html.legacy-webview [data-home-clock] {
-  top: 0.75rem !important;
+  font-size: 0.75rem;
   max-width: 80vw !important;
 }
+/* The banner starts right of the logo (its legacy box above: left 0.75rem, 6rem square). */
 html.legacy-webview [data-home-banner] {
-  top: 1rem !important;
-  left: 8rem !important;
-  max-width: 22rem !important;
+  padding-left: calc(7.5rem - 5vw) !important;
 }
 
 /* D-pad focus highlight inside any modal dialog (AlertDialog / Dialog). */

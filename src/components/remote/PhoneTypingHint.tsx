@@ -4,11 +4,13 @@
 // already connected, a note that its keyboard is ready. Turned off under
 // Settings → Phone Remote. Also hosts "Allow this phone?", which a phone
 // that entered a code (here or in Settings) raises.
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Smartphone } from 'lucide-react';
-import PairingQR from '@/components/remote/PairingQR';
 import PhoneRequestPrompt from '@/components/remote/PhoneRequestPrompt';
 import { PHONE_REMOTE_EVENT, connectedPhones, typingHintEnabled } from '@/lib/phoneRemote';
+
+// The QR code (and the qrcode library) loads only when this card first shows.
+const PairingQR = lazy(() => import('@/components/remote/PairingQR'));
 
 const isTextField = (el: Element | null): boolean => {
   if (el instanceof HTMLTextAreaElement) return !el.readOnly;
@@ -59,7 +61,7 @@ const PhoneTypingHint = () => {
           </div>
           {connected
             ? <p className="text-sm text-white/70 max-w-[16rem]">Type on the phone remote and it appears here.</p>
-            : <PairingQR size={qrSize()} compact />}
+            : <Suspense fallback={null}><PairingQR size={qrSize()} compact /></Suspense>}
         </div>
       )}
     </>
