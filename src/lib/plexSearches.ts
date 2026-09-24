@@ -81,6 +81,24 @@ export async function fetchPopularSearches(limit = POPULAR_MAX): Promise<string[
   return list;
 }
 
+/** The popular searches to show, in order, at most `max`. The list is built
+ *  from what boxes report, and anyone can report anything, so only searches
+ *  that find a title on this server count: `found` is true when one did,
+ *  false when nothing matched, undefined while the search is still running
+ *  (not shown yet either, so made-up text never flashes up). */
+export const popularOnThisServer = (
+  labels: string[],
+  found: (label: string) => boolean | undefined,
+  max: number,
+): string[] => {
+  const out: string[] = [];
+  for (const label of labels) {
+    if (out.length >= max) break;
+    if (found(label) === true) out.push(label);
+  }
+  return out;
+};
+
 /** Until the fleet has searched enough, the server's most-played titles
  *  stand in, so the row is never empty on a fresh install. */
 export const fallbackSuggestions = (titles: Array<string | undefined>, limit = 12): string[] => {

@@ -5,7 +5,7 @@ vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
 import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
-import { commitSearch, fallbackSuggestions, fetchPopularSearches, forgetRecentSearches, loadRecentSearches, rememberSearch } from './plexSearches';
+import { commitSearch, fallbackSuggestions, fetchPopularSearches, forgetRecentSearches, loadRecentSearches, popularOnThisServer, rememberSearch } from './plexSearches';
 
 const rpc = supabase.rpc as unknown as ReturnType<typeof vi.fn>;
 
@@ -50,5 +50,23 @@ describe('fetchPopularSearches', () => {
 describe('fallbackSuggestions', () => {
   it('dedupes titles and drops adult ones', () => {
     expect(fallbackSuggestions(['Inception', 'inception', undefined, 'Playboy TV', 'Dune'], 3)).toEqual(['Inception', 'Dune']);
+  });
+});
+
+describe('popularOnThisServer', () => {
+  it('shows only searches that found a title here, in order, up to the row', () => {
+    const found: Record<string, boolean | undefined> = {
+      batman: true,
+      'call 555 123 4567 for free tv': false, // reported by a script, matches nothing
+      dune: undefined,                        // still looking
+      'the office': true,
+      inception: true,
+    };
+    const shown = popularOnThisServer(Object.keys(found), (l) => found[l], 2);
+    expect(shown).toEqual(['batman', 'the office']);
+    expect(popularOnThisServer(Object.keys(found), (l) => found[l], 6)).toEqual(['batman', 'the office', 'inception']);
+  });
+  it('shows nothing while every lookup is still running', () => {
+    expect(popularOnThisServer(['batman', 'dune'], () => undefined, 6)).toEqual([]);
   });
 });
