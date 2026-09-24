@@ -5,10 +5,11 @@
 // and share the same Back stack as show → seasons → episodes.
 // Fire-TV D-pad only. All Plex HTTP via plex.ts.
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Play, RotateCw, List, Plus, Check } from 'lucide-react';
+import { Loader2, Play, RotateCw, List, Plus, Check, Gauge } from 'lucide-react';
 import { getPlexMetadata as _getPlexMetadata, getPlexSeasons as _getPlexSeasons,
-  getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, resolutionLabel,
-  type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson } from '@/lib/plex';
+  getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, resolutionLabel, findPlexCopies,
+  type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson, type PlexVersion } from '@/lib/plex';
+import { cachedPlexSpeed, defaultVersion, is4k, measurePlexSpeed, sortVersions, speedVerdict, speedWarning, startVersion, versionName } from '@/lib/plexVersions';
 import { isDemo } from '@/lib/demoMode';
 import { demoGetMetadata, demoGetSeasons, demoGetEpisodes, demoGetActorItems } from '@/lib/plexDemo';
 import PlexImage from './PlexImage';
@@ -25,10 +26,11 @@ interface Props {
   token: string;
   item: PlexItem;
   /** partKey: the file this page already knows about, so Play need not ask
-   *  the server for the same metadata again. */
-  onPlay: (item: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext, partKey?: string) => void;
-  /** Play a specific episode (shows). */
-  onPlayEpisode: (ep: PlexEpisode, ctx?: SubtitleSearchContext) => void;
+   *  the server for the same metadata again. `src`: the version to play (a 4K
+   *  or a 1080p file) and every version the title has. */
+  onPlay: (item: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext, partKey?: string, src?: { version?: PlexVersion | null; versions?: PlexVersion[] }) => void;
+  /** Play a specific episode (shows), optionally one of its versions. */
+  onPlayEpisode: (ep: PlexEpisode, ctx?: SubtitleSearchContext, version?: PlexVersion | null) => void;
   onBack: () => void;
   /** Bumped when the player closes. The page stays mounted under the player
    *  now, so its Resume point is refreshed on this instead of on a remount. */
@@ -38,7 +40,7 @@ interface Props {
 }
 
 type Step = 'detail' | 'seasons' | 'episodes' | 'actorGrid';
-type DetailZone = 'buttons' | 'cast';
+type DetailZone = 'buttons' | 'versions' | 'cast';
 
 // Demo mode reads everything from the pre-built, scrubbed catalog instead of
 // a live PMS. Always false on native.
@@ -84,7 +86,9 @@ ResBadge.displayName = 'ResBadge';
  *  re-attach every row's scroll callback, which on a hundred-episode season
  *  is a lot of work per press on an old box. */
 // `progressTick` only makes a row redraw when this viewer's progress changes.
-const EpisodeRow = memo(({ ep, base, token, focused }: { ep: PlexEpisode; base: string; token: string; focused: boolean; progressTick: number }) => {
+// `chips`: the episode's versions as "4K|1080p*" (* = the one OK plays);
+// `note`: the speed check's word on 4K, on the focused row.
+const EpisodeRow = memo(({ ep, base, token, focused, chips, note }: { ep: PlexEpisode; base: string; token: string; focused: boolean; progressTick: number; chips?: string; note?: string }) => {
   const ref = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => { if (focused) ref.current?.scrollIntoView({ block: 'nearest' }); }, [focused]);
   // This viewer's own progress (plexProgress), same rule as the resume.
@@ -120,6 +124,20 @@ const EpisodeRow = memo(({ ep, base, token, focused }: { ep: PlexEpisode; base: 
             : watched ? ' · ✓ Watched' : ''}
         </div>
         {ep.summary && <div className="text-xs text-brand-ice/70 font-nunito line-clamp-2 mt-1">{ep.summary}</div>}
+        {chips && (
+          <div className="flex flex-wrap items-center gap-1 mt-1">
+            {chips.split('|').map((c) => {
+              const on = c.endsWith('*');
+              const label = on ? c.slice(0, -1) : c;
+              return (
+                <span key={c} className={`text-plex-micro font-bold px-2 py-0.5 rounded-plex-xs border ${on ? 'border-brand-gold text-brand-gold' : 'border-white/20 text-white/70'}`}>
+                  {on ? '✓ ' : ''}{label}
+                </span>
+              );
+            })}
+            {note && <span className="text-plex-micro text-brand-ice/80 font-nunito ml-1">{note}</span>}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -172,6 +190,25 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   // page is already fighting a heap spike from getPlexMetadata's JSON parse.
   const [castReady, setCastReady] = useState(false);
 
+  // Versions (a 4K and a 1080p file of this title — two Media of one item,
+  // or copies in other libraries) and which one Play starts. Nothing is
+  // chosen until the viewer picks: the default is the version the clicked
+  // poster showed, except that 4K on a connection clearly too slow for it
+  // starts the 1080p one (the speed check below).
+  const [copies, setCopies] = useState<PlexVersion[]>([]);
+  const [chosenId, setChosenId] = useState<string | null>(null);
+  const [verIdx, setVerIdx] = useState(0);
+  // Episodes: the version label picked with ◀ ▶ in the list (null = each
+  // episode's own first), and whether the viewer picked it.
+  const [epPref, setEpPref] = useState<string | null>(null);
+  // The speed to the server, for 4K. Measured only when a 4K version is
+  // chosen or focused, kept for five minutes (plexVersions).
+  const [speedKbps, setSpeedKbps] = useState<number | null>(() => cachedPlexSpeed(base));
+  const [speedChecking, setSpeedChecking] = useState(false);
+  const speedPromiseRef = useRef<Promise<number | null> | null>(null);
+  const speedTriedAtRef = useRef(0);
+  const [startWait, setStartWait] = useState(false);
+
   // Reset all state when the top-of-stack item changes. getPlexMetadata is
   // deferred via runWhenIdle so its JSON parse can't block the first D-pad
   // press after openDetail (the page renders instantly from `current`).
@@ -197,6 +234,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     seasonsForRef.current = null; episodesForRef.current = null;
     seasonsSeqRef.current += 1; episodesSeqRef.current += 1;
     setSeasonsLoading(false); setEpisodesLoading(false);
+    setCopies([]); setChosenId(null); setVerIdx(0); setEpPref(null);
     const known = metaMemoRef.current.get(current.ratingKey);
     if (known) {
       setMeta(known); setMetaLoading(false); setCastReady(true);
@@ -269,13 +307,94 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const canResume = ownResume != null;
   const resumeSec = ownResume ?? 0;
 
+  // ── versions ──────────────────────────────────────────────────────────
+  const ownVersions = meta && meta.ratingKey === current.ratingKey ? meta.versions : undefined;
+  const versions = useMemo(
+    () => (isShow ? [] : sortVersions([...(ownVersions ?? []), ...copies])),
+    [isShow, ownVersions, copies],
+  );
+  const multi = versions.length > 1;
+  const baseChoice = useMemo(
+    () => (chosenId ? versions.find((v) => v.id === chosenId) ?? null : null) ?? defaultVersion(versions, current),
+    [chosenId, versions, current],
+  );
+  const effective = useMemo(
+    () => startVersion(versions, baseChoice, chosenId != null, speedKbps),
+    [versions, baseChoice, chosenId, speedKbps],
+  );
+  const fellBack = !!(effective && baseChoice && effective.id !== baseChoice.id);
+
+  // The same title in other libraries (a "4K Movies" section): once the
+  // metadata is in, off the first paint.
+  useEffect(() => {
+    if (DEMO || !meta || meta.ratingKey !== current.ratingKey || !meta.guid) return;
+    if (meta.type !== 'movie' && meta.type !== 'episode') return;
+    let cancelled = false;
+    const rk = current.ratingKey;
+    const cancelIdle = runWhenIdle(() => {
+      const { base, token } = connRef.current;
+      void findPlexCopies(base, token, meta.guid, meta.type, rk).then((c) => {
+        if (!cancelled && c.length) setCopies(c);
+      });
+    }, 300);
+    return () => { cancelled = true; cancelIdle(); };
+  }, [meta, current.ratingKey]);
+
+  // Measure the speed to the server for a 4K version (its own file, a few
+  // seconds): one at a time, reused for five minutes, and not retried for a
+  // minute after it could not tell.
+  const checkSpeed = useCallback((v: PlexVersion | null | undefined) => {
+    if (DEMO || !v || !is4k(v) || !v.partKey) return;
+    const { base, token } = connRef.current;
+    const cached = cachedPlexSpeed(base);
+    if (cached != null) { setSpeedKbps(cached); return; }
+    if (speedPromiseRef.current || Date.now() - speedTriedAtRef.current < 60_000) return;
+    speedTriedAtRef.current = Date.now();
+    setSpeedChecking(true);
+    const pr = measurePlexSpeed(base, token, v.partKey);
+    speedPromiseRef.current = pr;
+    void pr.then((k) => { if (k != null) setSpeedKbps(k); })
+      .finally(() => { speedPromiseRef.current = null; setSpeedChecking(false); });
+  }, []);
+  // A 4K default (or a 4K version under the highlight) gets checked.
+  const focusedVersion = zone === 'versions' ? versions[verIdx] : undefined;
+  useEffect(() => {
+    if (step !== 'detail' || !multi) return;
+    if (is4k(baseChoice)) checkSpeed(baseChoice);
+    else if (is4k(focusedVersion)) checkSpeed(focusedVersion);
+  }, [step, multi, baseChoice, focusedVersion, checkSpeed]);
+
+  // Episodes: which version OK plays for an episode.
+  const epChoice = useCallback((ep: PlexEpisode): { base: PlexVersion | null; play: PlexVersion | null } => {
+    const vs = ep.versions ?? [];
+    if (vs.length < 2) return { base: vs[0] ?? null, play: vs[0] ?? null };
+    const picked = epPref ? vs.find((v) => v.label === epPref) ?? null : null;
+    const b = picked ?? vs.find((v) => v.mediaIndex === 0) ?? vs[0];
+    return { base: b, play: startVersion(vs, b, picked != null, speedKbps) };
+  }, [epPref, speedKbps]);
+  const focusedEp = step === 'episodes' ? episodes[epIdx] : undefined;
+  const focusedEpBase = focusedEp ? epChoice(focusedEp).base : null;
+  useEffect(() => {
+    if (focusedEp && (focusedEp.versions?.length ?? 0) > 1 && is4k(focusedEpBase)) checkSpeed(focusedEpBase);
+  }, [focusedEp, focusedEpBase, checkSpeed]);
+  const anyEpVersions = useMemo(() => episodes.some((e) => (e.versions?.length ?? 0) > 1), [episodes]);
+
+  /** What the speed check says about `v` (4K only), for a button or a row. */
+  const speedNote = (v: PlexVersion | null | undefined): string => {
+    if (!v || !is4k(v)) return '';
+    const verdict = speedVerdict(v, speedKbps);
+    if (verdict?.tooSlow) return speedWarning(v, verdict);
+    if (verdict) return 'your speed is fine for it';
+    return speedChecking ? 'checking your speed…' : '';
+  };
+
   // My List is for movies and shows (an episode's show is what gets saved).
   const canList = !isEpisode && !isDemo();
   const listed = canList && isFavorite(current.ratingKey);
   const detailButtons: Array<{ id: string; label: string }> = useMemo(() => {
     const b: Array<{ id: string; label: string }> = [];
     if (isShow) b.push({ id: 'browse', label: 'Browse Episodes' });
-    else b.push({ id: 'play', label: 'Play' });
+    else b.push({ id: 'play', label: startWait ? 'Checking speed…' : multi && effective ? `Play ${versionName(effective, versions)}` : 'Play' });
     if (canResume) {
       const h = Math.floor(resumeSec / 3600);
       const m = Math.floor((resumeSec % 3600) / 60);
@@ -283,7 +402,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     }
     if (canList) b.push({ id: 'mylist', label: listed ? 'In My List' : 'My List' });
     return b;
-  }, [isShow, canResume, resumeSec, canList, listed]);
+  }, [isShow, canResume, resumeSec, canList, listed, startWait, multi, effective, versions]);
 
   useEffect(() => { if (btn >= detailButtons.length) setBtn(0); }, [detailButtons.length, btn]);
 
@@ -341,17 +460,34 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     }
   }, [base, token, meta]);
 
-  const playCurrent = useCallback((resume?: number) => {
+  const startBusyRef = useRef(false);
+  const playCurrent = useCallback(async (resume?: number) => {
+    if (startBusyRef.current) return;
     const ctx: SubtitleSearchContext = { title: meta?.title || current.title, year: meta?.year };
+    const partKey = meta && meta.ratingKey === current.ratingKey ? meta.partKey : undefined;
+    let version = effective;
+    // A 4K default whose speed check is still running: wait for it (a few
+    // seconds at most) rather than start 4K on a line that can't carry it.
+    if (multi && chosenId == null && is4k(baseChoice) && speedPromiseRef.current) {
+      startBusyRef.current = true;
+      setStartWait(true);
+      const kbps = await Promise.race([
+        speedPromiseRef.current,
+        new Promise<null>((r) => { window.setTimeout(() => r(null), 3500); }),
+      ]);
+      startBusyRef.current = false;
+      setStartWait(false);
+      if (currentRef.current.ratingKey !== current.ratingKey) return;
+      version = startVersion(versions, baseChoice, false, kbps ?? speedKbps);
+    }
     // Its Resume point is about to change: never reuse this metadata again.
     metaMemoRef.current.delete(current.ratingKey);
-    const partKey = meta && meta.ratingKey === current.ratingKey ? meta.partKey : undefined;
-    onPlay(current, resume, ctx, partKey);
-  }, [meta, current, onPlay]);
+    onPlay(current, resume, ctx, partKey, versions.length ? { version, versions } : undefined);
+  }, [meta, current, onPlay, effective, multi, chosenId, baseChoice, versions, speedKbps]);
 
   const activateDetail = useCallback((id: string) => {
-    if (id === 'play') playCurrent(undefined);
-    else if (id === 'resume') playCurrent(resumeSec);
+    if (id === 'play') void playCurrent(undefined);
+    else if (id === 'resume') void playCurrent(resumeSec);
     else if (id === 'browse') { setStep('seasons'); void loadSeasons(); }
     else if (id === 'mylist') {
       const c = currentRef.current;
@@ -384,6 +520,10 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const castIdxRef = useRef(castIdx); useEffect(() => { castIdxRef.current = castIdx; }, [castIdx]);
   const btnsRef = useRef(detailButtons); useEffect(() => { btnsRef.current = detailButtons; }, [detailButtons]);
   const castRef = useRef(cast); useEffect(() => { castRef.current = cast; }, [cast]);
+  const versionsRef = useRef(versions); useEffect(() => { versionsRef.current = versions; }, [versions]);
+  const verIdxRef = useRef(verIdx); useEffect(() => { verIdxRef.current = verIdx; }, [verIdx]);
+  const effectiveRef = useRef(effective); useEffect(() => { effectiveRef.current = effective; }, [effective]);
+  const epChoiceRef = useRef(epChoice); useEffect(() => { epChoiceRef.current = epChoice; }, [epChoice]);
   const seasonsRef = useRef(seasons); useEffect(() => { seasonsRef.current = seasons; }, [seasons]);
   const seasonIdxRef = useRef(seasonIdx); useEffect(() => { seasonIdxRef.current = seasonIdx; }, [seasonIdx]);
   const episodesRef = useRef(episodes); useEffect(() => { episodesRef.current = episodes; }, [episodes]);
@@ -433,16 +573,37 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
           if (e.key === 'ArrowLeft') { if (b > 0) setBtn(b - 1); }
           else if (e.key === 'ArrowRight') { if (b < bs.length - 1) setBtn(b + 1); }
           else if (e.key === 'ArrowDown') {
-            if (castRef.current.length > 0) { setZone('cast'); setCastIdx(0); }
+            const vs = versionsRef.current;
+            if (vs.length > 1) {
+              const at = vs.findIndex((v) => v.id === effectiveRef.current?.id);
+              setZone('versions'); setVerIdx(at >= 0 ? at : 0);
+            } else if (castRef.current.length > 0) { setZone('cast'); setCastIdx(0); }
           }
           else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const def = bs[b]; if (def) activateRef.current(def.id); }
+          return;
+        }
+        if (z === 'versions') {
+          // The version chips: ◀ ▶ to move, OK picks one and goes back up
+          // to Play, which now starts it.
+          const vs = versionsRef.current;
+          const vi = verIdxRef.current;
+          if (vs.length < 2) { setZone('buttons'); return; }
+          if (e.key === 'ArrowLeft') { if (vi > 0) setVerIdx(vi - 1); }
+          else if (e.key === 'ArrowRight') { if (vi < vs.length - 1) setVerIdx(vi + 1); }
+          else if (e.key === 'ArrowUp') { setZone('buttons'); }
+          else if (e.key === 'ArrowDown') { if (castRef.current.length > 0) { setZone('cast'); setCastIdx(0); } }
+          else if (e.key === 'Enter' || e.key === ' ') {
+            if (e.repeat) return;
+            const v = vs[vi];
+            if (v) { setChosenId(v.id); setZone('buttons'); setBtn(0); }
+          }
           return;
         }
         // cast zone
         const list = castRef.current;
         const c = castIdxRef.current;
         if (list.length === 0) { setZone('buttons'); return; }
-        if (e.key === 'ArrowUp') { setZone('buttons'); }
+        if (e.key === 'ArrowUp') { setZone(versionsRef.current.length > 1 ? 'versions' : 'buttons'); }
         else if (e.key === 'ArrowLeft') { if (c > 0) setCastIdx(c - 1); }
         else if (e.key === 'ArrowRight') { if (c < list.length - 1) setCastIdx(c + 1); }
         else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const p = list[c]; if (p) void openActorRef.current(p); }
@@ -466,6 +627,16 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
         if (eps.length === 0) return;
         if (e.key === 'ArrowUp') { if (ei === 0) setStep('seasons'); else setEpIdx(ei - 1); }
         else if (e.key === 'ArrowDown') { if (ei < eps.length - 1) setEpIdx(ei + 1); }
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          // ◀ ▶: another version of the episode (4K / 1080p); the choice
+          // carries over to the other episodes that have it.
+          const vs = eps[ei]?.versions ?? [];
+          if (vs.length < 2) return;
+          const cur = epChoiceRef.current(eps[ei]).play;
+          const at = Math.max(0, vs.findIndex((v) => v.id === cur?.id));
+          const next = vs[e.key === 'ArrowRight' ? Math.min(vs.length - 1, at + 1) : Math.max(0, at - 1)];
+          if (next) setEpPref(next.label);
+        }
         else if (e.key === 'Enter' || e.key === ' ') {
           if (e.repeat) return; // a held OK must not act twice
           const ep = eps[ei];
@@ -477,7 +648,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               season: sea?.index,
               episode: ep.index,
             };
-            onPlayEpisodeRef.current(ep, ctx);
+            onPlayEpisodeRef.current(ep, ctx, (ep.versions?.length ?? 0) > 1 ? epChoiceRef.current(ep).play : undefined);
           }
         }
         return;
@@ -597,7 +768,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                   <button
                     type="button"
                     data-focused={isActive && zone === 'buttons' && btn === detailButtons.length ? 'true' : 'false'}
-                    onClick={() => playCurrent(undefined)}
+                    onClick={() => { void playCurrent(undefined); }}
                     className="tv-ring tv-ring-contrast inline-flex items-center gap-2 h-10 px-4 rounded-lg font-quicksand font-semibold text-sm border border-transparent bg-brand-gold text-brand-navy">
                     <Play className="w-4 h-4 fill-current" /> Play
                   </button>
@@ -606,6 +777,38 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                   <div className="h-10 w-28 rounded-lg bg-white/10 animate-pulse" />
                 )}
               </div>
+
+              {/* Versions: ▼ from the buttons, ◀ ▶, OK picks (Play starts it). */}
+              {multi && (
+                <div className="mt-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-plex-cap text-brand-ice/70 font-nunito mr-1">Version</span>
+                    {versions.map((v, i) => {
+                      const focused = isActive && zone === 'versions' && verIdx === i;
+                      const on = effective?.id === v.id;
+                      const note = speedNote(v);
+                      return (
+                        <button
+                          key={v.id}
+                          type="button"
+                          data-focused={focused ? 'true' : 'false'}
+                          onClick={() => { setZone('versions'); setVerIdx(i); setChosenId(v.id); }}
+                          className={`tv-ring tv-ring-contrast inline-flex items-center gap-2 h-9 px-3 rounded-lg font-quicksand font-semibold text-sm border ${focused ? 'bg-brand-gold text-brand-navy border-transparent scale-105 z-10' : on ? 'bg-white/15 text-white border-brand-gold' : 'bg-white/5 text-white/80 border-white/15'}`}>
+                          {on && <Check className="w-4 h-4" />}
+                          <span>{versionName(v, versions)}</span>
+                          {v.bitrateKbps ? <span className="text-plex-micro opacity-70">{Math.round(v.bitrateKbps / 100) / 10} Mb/s</span> : null}
+                          {note && is4k(v) && <span className="text-plex-micro opacity-80 inline-flex items-center gap-1"><Gauge className="w-3 h-3" />{note}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {fellBack && baseChoice && (
+                    <p className="text-plex-cap text-brand-ice/80 font-nunito mt-2">
+                      {speedNote(baseChoice)} — starting in {effective ? versionName(effective, versions) : 'a lighter version'}. Pick {versionName(baseChoice, versions)} to play it anyway.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Cast row — horizontal, D-pad scrollable, focus zone 'cast'. */}
               <div className="mt-6">
@@ -688,12 +891,25 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               <div className="text-brand-ice/70 font-nunito">No episodes.</div>
             ) : (
               <div className="flex flex-col gap-2 px-1 py-1">
-                {episodes.map((ep, i) => (
-                  <EpisodeRow key={ep.ratingKey} ep={ep} base={base} token={token} focused={isActive && epIdx === i} progressTick={progressTick} />
-                ))}
+                {episodes.map((ep, i) => {
+                  const vs = ep.versions ?? [];
+                  let chips: string | undefined;
+                  let note: string | undefined;
+                  if (vs.length > 1) {
+                    const { base: b, play } = epChoice(ep);
+                    chips = vs.map((v) => `${versionName(v, vs)}${v.id === play?.id ? '*' : ''}`).join('|');
+                    if (epIdx === i) {
+                      const n = speedNote(b);
+                      note = n && b && play && b.id !== play.id ? `${n} — playing ${versionName(play, vs)}` : n || undefined;
+                    }
+                  }
+                  return (
+                    <EpisodeRow key={ep.ratingKey} ep={ep} base={base} token={token} focused={isActive && epIdx === i} progressTick={progressTick} chips={chips} note={note} />
+                  );
+                })}
               </div>
             )}
-            <p className="text-xs text-brand-ice/70 mt-4">▲ ▼ pick · OK to play · Back to seasons</p>
+            <p className="text-xs text-brand-ice/70 mt-4">▲ ▼ pick{anyEpVersions ? ' · ◀ ▶ version' : ''} · OK to play · Back to seasons</p>
           </div>
         )}
 

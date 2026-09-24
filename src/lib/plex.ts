@@ -544,16 +544,95 @@ export function plexImageUrl(base: string, path: string | undefined, token: stri
 }
 
 
-/** Resolve the direct-play part for a movie (its original file on the server). */
-export async function getPlexPart(base: string, token: string, ratingKey: string): Promise<{ partKey?: string; container?: string; audioCodec?: string; bitrateKbps?: number }> {
-  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<{ Media?: Array<{ audioCodec?: string; bitrate?: number; Part?: Array<{ key?: string; container?: string }> }> }> } }>(
+/** Resolve the direct-play part for a movie (its original file on the server).
+ *  `mediaIndex` picks one of several versions (Media entries: a 4K and a
+ *  1080p file of the same film); `versions` lists them all. */
+export async function getPlexPart(base: string, token: string, ratingKey: string, mediaIndex = 0): Promise<{ partKey?: string; container?: string; audioCodec?: string; bitrateKbps?: number; versions: PlexVersion[] }> {
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
     'GET', `${base}/library/metadata/${ratingKey}`, token,
   );
-  const media0 = data?.MediaContainer?.Metadata?.[0]?.Media?.[0];
-  const part = media0?.Part?.[0];
+  const m = data?.MediaContainer?.Metadata?.[0] ?? {};
+  const mediaArr = Array.isArray(m.Media) ? (m.Media as Array<{ audioCodec?: string; bitrate?: number; Part?: Array<{ key?: string; container?: string }> }>) : [];
+  const media = mediaArr[mediaIndex] ?? mediaArr[0];
+  const part = media?.Part?.[0];
   // Media.bitrate is the whole file's average, in kbps.
-  const kbps = Number(media0?.bitrate);
-  return { partKey: part?.key, container: part?.container, audioCodec: media0?.audioCodec, bitrateKbps: kbps > 0 ? kbps : undefined };
+  const kbps = Number(media?.bitrate);
+  return {
+    partKey: part?.key, container: part?.container, audioCodec: media?.audioCodec, bitrateKbps: kbps > 0 ? kbps : undefined,
+    versions: mediaVersions(m, String(m.ratingKey ?? ratingKey)),
+  };
+}
+
+/** One playable version of a title: a Media entry (Plex keeps a 4K and a
+ *  1080p file of the same film as two Media of one item), or the same title
+ *  kept in another library (a separate "4K Movies" section). */
+export interface PlexVersion {
+  /** `${ratingKey}:${mediaIndex}` — unique across copies. */
+  id: string;
+  /** The item the file belongs to (differs from the title's own for a copy
+   *  in another library). */
+  ratingKey: string;
+  /** Position in that item's Media array (the transcoder's mediaIndex). */
+  mediaIndex: number;
+  /** Media[i].Part[0].key: the file to direct-play. */
+  partKey?: string;
+  /** Plex's videoResolution: '4k', '1080', '720', 'sd' … */
+  videoResolution?: string;
+  /** '4K', '1080p' … */
+  label: string;
+  /** The file's average bitrate, kbps. */
+  bitrateKbps?: number;
+  height?: number;
+  videoCodec?: string;
+}
+
+/** Every Media entry of a metadata payload as a version, in Plex's order. */
+export function mediaVersions(m: Record<string, unknown>, ratingKey: string): PlexVersion[] {
+  const arr = Array.isArray(m.Media) ? (m.Media as Array<Record<string, unknown>>) : [];
+  return arr.map((md, i) => {
+    const parts = Array.isArray(md.Part) ? (md.Part as Array<Record<string, unknown>>) : [];
+    const kbps = Number(md.bitrate);
+    const h = Number(md.height);
+    const res = md.videoResolution != null ? String(md.videoResolution) : undefined;
+    let label = resolutionLabel(res);
+    if ((!label || label === 'SD') && h >= 1800) label = '4K';
+    return {
+      id: `${ratingKey}:${i}`,
+      ratingKey,
+      mediaIndex: i,
+      partKey: parts[0]?.key ? String(parts[0].key) : undefined,
+      videoResolution: res,
+      label,
+      bitrateKbps: kbps > 0 ? kbps : undefined,
+      height: h > 0 ? h : undefined,
+      videoCodec: md.videoCodec ? String(md.videoCodec) : undefined,
+    };
+  });
+}
+
+/**
+ * The same title kept in other libraries (a "4K Movies" section next to
+ * "Movies"): items sharing its Plex guid, as versions. Capped to a dozen
+ * items so a server that ignores the guid filter can never send back a whole
+ * library; anything whose guid does not match is dropped. Never throws.
+ */
+export async function findPlexCopies(base: string, token: string, guid: string | undefined, type: string, exceptRatingKey: string): Promise<PlexVersion[]> {
+  if (!guid || !/^(plex|com\.plexapp)/i.test(guid)) return [];
+  const t = type === 'episode' ? PLEX_TYPE.episode : type === 'movie' ? PLEX_TYPE.movie : 0;
+  if (!t) return [];
+  try {
+    const url = `${base}/library/all?type=${t}&guid=${encodeURIComponent(guid)}&X-Plex-Container-Start=0&X-Plex-Container-Size=12&${RAIL_FIELDS}`;
+    const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', url, token, RAIL_TIMEOUT_MS);
+    const out: PlexVersion[] = [];
+    for (const m of data?.MediaContainer?.Metadata ?? []) {
+      const rk = String(m.ratingKey ?? '');
+      if (!rk || rk === exceptRatingKey || String(m.guid ?? '') !== guid) continue;
+      out.push(...mediaVersions(m, rk));
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 export function plexDirectUrl(base: string, partKey: string, token: string): string {
@@ -578,7 +657,7 @@ export function plexTranscodeUrl(
   base: string,
   ratingKey: string,
   token: string,
-  opts?: { maxVideoBitrateKbps?: number; videoResolution?: string },
+  opts?: { maxVideoBitrateKbps?: number; videoResolution?: string; mediaIndex?: number },
 ): string {
   const path = encodeURIComponent(`/library/metadata/${ratingKey}`);
   const cid = encodeURIComponent(getPlexClientId());
@@ -593,7 +672,7 @@ export function plexTranscodeUrl(
     + `?path=${path}&protocol=hls&fastSeek=1&directPlay=0&directStream=1`
     + `&audioCodec=aac&maxAudioChannels=6`
     + `&session=${session}&X-Plex-Session-Identifier=${session}&videoQuality=100&autoAdjustQuality=0`
-    + `&mediaIndex=0&partIndex=0&X-Plex-Client-Identifier=${cid}&X-Plex-Token=${encodeURIComponent(token)}`;
+    + `&mediaIndex=${opts?.mediaIndex && opts.mediaIndex > 0 ? Math.floor(opts.mediaIndex) : 0}&partIndex=0&X-Plex-Client-Identifier=${cid}&X-Plex-Token=${encodeURIComponent(token)}`;
   if (opts?.maxVideoBitrateKbps) url += `&maxVideoBitrate=${opts.maxVideoBitrateKbps}`;
   if (opts?.videoResolution) url += `&videoResolution=${encodeURIComponent(opts.videoResolution)}`;
   return url;
@@ -1273,6 +1352,10 @@ export interface PlexMetadata {
   /** The file to play (Media[0].Part[0].key). Play uses it instead of asking
    *  the server for the same metadata again. */
   partKey?: string;
+  /** Every version of the file (a 4K and a 1080p Media), in Plex's order. */
+  versions?: PlexVersion[];
+  /** plex://movie/… — finds the same title in other libraries. */
+  guid?: string;
 }
 
 export async function getPlexMetadata(base: string, token: string, ratingKey: string): Promise<PlexMetadata> {
@@ -1315,6 +1398,8 @@ export async function getPlexMetadata(base: string, token: string, ratingKey: st
     media,
     librarySectionID: m.librarySectionID != null ? String(m.librarySectionID) : undefined,
     partKey: firstPartKey(m),
+    versions: mediaVersions(m, String(m.ratingKey ?? ratingKey)),
+    guid: typeof m.guid === 'string' ? m.guid : undefined,
   };
 }
 
@@ -1358,6 +1443,8 @@ export interface PlexEpisode {
   summary?: string;
   /** See PlexMetadata.partKey. */
   partKey?: string;
+  /** See PlexMetadata.versions. */
+  versions?: PlexVersion[];
 }
 export async function getPlexEpisodes(base: string, token: string, seasonKey: string): Promise<PlexEpisode[]> {
   const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
@@ -1372,6 +1459,7 @@ export async function getPlexEpisodes(base: string, token: string, seasonKey: st
     duration: e.duration as number | undefined,
     summary: e.summary as string | undefined,
     partKey: firstPartKey(e),
+    versions: mediaVersions(e, String(e.ratingKey ?? '')),
   }));
 }
 
