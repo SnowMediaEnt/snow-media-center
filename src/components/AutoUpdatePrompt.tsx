@@ -9,7 +9,7 @@ import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { useVersion } from '@/hooks/useVersion';
 import { setPausableInterval } from '@/utils/pausableInterval';
-import { runWhenIdle } from '@/utils/idle';
+import { runAfter, runWhenIdle } from '@/utils/idle';
 import {
   prepareSmcUpdate,
   installPreparedUpdate,
@@ -48,9 +48,12 @@ const isVersionNewer = (a: string, b: string): boolean => {
  * Auto-update is ON by default. Users can disable it via Settings → Updates
  * (key: smc-auto-update-enabled = "false").
  */
-/** `paused`: true while the viewer is off the home screen. The check, and
- *  the silent APK download it can start, wait for home — a 40 MB download
- *  used to begin four seconds into a Plex session, under the rails. */
+/** `paused`: true while the viewer is off the home screen or the profile
+ *  screens are up. The check, and the silent APK download it can start, wait
+ *  for home — a 40 MB download used to begin four seconds into a Plex
+ *  session, under the rails. A download that finishes while paused holds its
+ *  prompt until home is back: the dialog owns every key, so it must not open
+ *  over the Player, a game or the profile screens. */
 const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
   const { version: currentVersion, versionCode: currentVersionCode, isLoading } = useVersion();
   const [info, setInfo] = useState<UpdateInfo | null>(null);
@@ -65,12 +68,26 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
   const pausedRef = useRef(paused);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
   const skippedRef = useRef(false);
+  // A prepared update whose prompt is waiting for home.
+  const heldRef = useRef(false);
   const checkRef = useRef<(() => Promise<void>) | null>(null);
   // Back on home after a check was skipped: run it once the screen settles.
+  // A held prompt opens a moment later, so the OK that closed the screen
+  // before it can't land on "Update now".
   useEffect(() => {
-    if (paused || !skippedRef.current) return;
-    skippedRef.current = false;
-    return runWhenIdle(() => { void checkRef.current?.(); }, 4000);
+    if (paused) return;
+    const cancels: Array<() => void> = [];
+    if (skippedRef.current) {
+      cancels.push(runWhenIdle(() => { skippedRef.current = false; void checkRef.current?.(); }, 4000));
+    }
+    if (heldRef.current) {
+      cancels.push(runAfter(1000, () => {
+        if (pausedRef.current) return;
+        heldRef.current = false;
+        setOpen(true);
+      }));
+    }
+    return () => cancels.forEach((cancel) => cancel());
   }, [paused]);
 
   useEffect(() => {
@@ -101,7 +118,8 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
         handledRef.current = key;
         setPrepared(result);
         setInfo(data);
-        setOpen(true);
+        if (pausedRef.current) heldRef.current = true;
+        else setOpen(true);
       } catch (err) {
         console.warn('[AutoUpdatePrompt] background prep failed', err);
       } finally {

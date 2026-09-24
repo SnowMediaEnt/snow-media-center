@@ -1510,10 +1510,13 @@ const Index = () => {
       )}
 
       {/* Background auto-update check (native only). On by default; users can
-          disable via localStorage key smc-auto-update-enabled = "false". */}
-      {overlaysReady && (
+          disable via localStorage key smc-auto-update-enabled = "false".
+          Unlike the popups above it stays mounted while the profile screens
+          are up — unmounting it mid-download lost its prompt and started a
+          second download of the same APK — and waits through `paused`. */}
+      {deferredOverlaysReady && (
         <Suspense fallback={null}>
-          <AutoUpdatePrompt paused={currentView !== 'home'} />
+          <AutoUpdatePrompt paused={currentView !== 'home' || profileGateOpen} />
         </Suspense>
       )}
 
