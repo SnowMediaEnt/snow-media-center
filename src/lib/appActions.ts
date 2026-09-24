@@ -73,7 +73,7 @@ export const SCREEN_LABELS: Record<Screen, string> = {
 /** Screens a Kids profile does not open, by voice or through the assistant.
  *  (Settings is open to it: a Kids profile gets a short, safe Settings.) */
 export const KIDS_BLOCKED_SCREENS: ReadonlySet<Screen> = new Set<Screen>([
-  'game_lounge', 'snow_gems', 'giveaway', 'dashboard',
+  'game_lounge', 'snow_gems', 'giveaway', 'dashboard', 'backups',
   'player_settings', 'player_appearance', 'main_apps', 'tickets', 'device_cleaner',
 ]);
 

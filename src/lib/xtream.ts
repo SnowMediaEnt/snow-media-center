@@ -772,8 +772,30 @@ export function buildNativeLiveUrl(c: XtreamCreds, streamId: number): string {
 
 // --- Movies (VOD) -----------------------------------------------------------
 
+// The movie and series category lists, kept a few minutes. A Kids profile
+// checks every movie or series list against them (kidsStreams), so each
+// category, "All Movies" or search opened used to download the whole
+// category list again — the one the sidebar had just fetched. Keyed by the
+// full URL, so "Update Channels" (a new refresh nonce) still means a fresh
+// list. Separate from the live catalogue: that one is small, LRU and cleared
+// when Live TV is left. A failed request is not kept.
+const CATEGORY_LIST_TTL_MS = 5 * 60 * 1000;
+const _categoryLists = new Map<string, { at: number; p: Promise<XtreamCategory[]> }>();
+const memoCategoryList = (url: string): Promise<XtreamCategory[]> => {
+  const now = Date.now();
+  const kept = _categoryLists.get(url);
+  if (kept && now - kept.at < CATEGORY_LIST_TTL_MS) return kept.p;
+  for (const [k, v] of _categoryLists) if (now - v.at >= CATEGORY_LIST_TTL_MS) _categoryLists.delete(k);
+  const p = httpGetJson<XtreamCategory[]>(url).catch((e) => {
+    if (_categoryLists.get(url)?.p === p) _categoryLists.delete(url);
+    throw e;
+  });
+  _categoryLists.set(url, { at: now, p });
+  return p;
+};
+
 const rawVodCategories = (c: XtreamCreds): Promise<XtreamCategory[]> =>
-  isDemo() ? demoGetVodCategories() : httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_vod_categories' }));
+  isDemo() ? demoGetVodCategories() : memoCategoryList(buildBase(c, { action: 'get_vod_categories' }));
 
 export async function getVodCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
   return kidsCategories(await rawVodCategories(c));
@@ -799,7 +821,7 @@ export function buildMovieUrl(c: XtreamCreds, streamId: number, ext = 'mp4'): st
 // --- Series -----------------------------------------------------------------
 
 const rawSeriesCategories = (c: XtreamCreds): Promise<XtreamCategory[]> =>
-  isDemo() ? demoGetSeriesCategories() : httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_series_categories' }));
+  isDemo() ? demoGetSeriesCategories() : memoCategoryList(buildBase(c, { action: 'get_series_categories' }));
 
 export async function getSeriesCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
   return kidsCategories(await rawSeriesCategories(c));

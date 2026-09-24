@@ -618,8 +618,10 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           appStatuses={new Map()}
           onLaunch={launchApp}
           onDownload={downloadApp}
-          onOpenAppSettings={openAppSettings}
-          onNavigateToChat={() => { setTab('help'); setHelpView('tickets'); }}
+          // A Kids profile gets no Android App Info (Uninstall, Clear storage)
+          // and no tickets; the guide hides those steps for it too.
+          onOpenAppSettings={kids ? undefined : openAppSettings}
+          onNavigateToChat={kids ? undefined : () => { setTab('help'); setHelpView('tickets'); }}
 
         />
       )}

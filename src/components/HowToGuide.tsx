@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { ArrowLeft, ArrowRight, X, ChevronRight, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { TUTORIAL_CHAPTERS, type TutorialChapter } from '@/data/tutorialContent';
+import { TUTORIAL_CHAPTERS, type TutorialChapter, type TutorialDeepLink } from '@/data/tutorialContent';
 import { trackEvent } from '@/lib/analytics';
+import { kidsLevel } from '@/lib/kidsFilter';
+import { kidsBlockedView } from '@/lib/kidsGameNavigation';
 import TutorialArt from '@/components/TutorialArt';
 
 
@@ -12,6 +14,14 @@ interface HowToGuideProps {
 }
 
 type View = 'chapters' | 'slides';
+
+/** Support tools a Kids profile's Support does not have (Support.tsx). */
+const KIDS_CLOSED_EVENTS = new Set(['support:open-tickets', 'support:open-cleaner', 'support:open-posts']);
+
+/** A "Take me there" a Kids profile may follow. The chapters stay readable;
+ *  only the jump to Main Apps, the Dashboard, tickets and the like is gone. */
+const kidsMayFollow = (dl: TutorialDeepLink): boolean =>
+  dl.kind === 'view' ? !kidsBlockedView(dl.view) : !KIDS_CLOSED_EVENTS.has(dl.event);
 
 const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
   const [view, setView] = useState<View>('chapters');
@@ -28,7 +38,8 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
   const slide = chapter?.slides[slideIdx];
   const slidesLen = chapter?.slides.length ?? 0;
   const isLast = slidesLen > 0 && slideIdx === slidesLen - 1;
-  const hasDeepLink = !!slide?.deepLink;
+  const deepLink = slide?.deepLink && (!kidsLevel() || kidsMayFollow(slide.deepLink)) ? slide.deepLink : undefined;
+  const hasDeepLink = !!deepLink;
 
   // Analytics
   useEffect(() => {
@@ -71,7 +82,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
   }, [slideIdx, backToChapters]);
 
   const handleDeepLink = useCallback(() => {
-    const dl = slide?.deepLink;
+    const dl = deepLink;
     if (!dl) return;
     onClose();
     setTimeout(() => {
@@ -81,7 +92,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
         try { window.dispatchEvent(new CustomEvent(dl.event)); } catch { void 0; }
       }
     }, 0);
-  }, [slide, onClose, onNavigate]);
+  }, [deepLink, onClose, onNavigate]);
 
   // Reset footer focus to Next when slide changes
   useEffect(() => {
@@ -346,7 +357,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                     className="bg-emerald-700/60 border-emerald-400/70 text-white"
                   >
                     <ExternalLink className="w-5 h-5 mr-2" />
-                    {slide.deepLink!.label}
+                    {deepLink!.label}
                   </Button>
                 )}
                 <Button

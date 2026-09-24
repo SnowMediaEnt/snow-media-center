@@ -34,6 +34,7 @@ import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 
 import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
+import { kidsLevel } from '@/lib/kidsFilter';
 import { MessageSquare } from 'lucide-react';
 
 interface BufferingGuideProps {
@@ -75,6 +76,15 @@ const HINTS: Record<StepKey, string> = {
   step3: 'Aim for 15 Mbps or more on this device.',
   step4: 'Install, sign in, Quick Connect, then test again.',
   summary: 'Send these results to support if it is still buffering.',
+};
+
+// A Kids profile's guide: the fixes that need the box's settings, a new app
+// or a ticket are a grown-up's job, so those steps say so instead.
+const KIDS_HINTS: Partial<Record<StepKey, string>> = {
+  step1: 'Only one channel or title? Tell a grown-up which one.',
+  step2: 'Ask a grown-up to clear the app\'s cache.',
+  step4: 'Ask a grown-up to set up a VPN.',
+  summary: 'Still buffering? Show this to a grown-up.',
 };
 
 // Short names for the step tracker across the top.
@@ -139,6 +149,9 @@ const BufferingGuide = ({
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  // Kids profile: no tickets, no Android App Info, and no installing or
+  // opening other apps (Main Apps and the Device Cleaner are hidden too).
+  const kids = !!kidsLevel();
   const { createTicket } = useSupportTickets(user);
   const [submittingTicket, setSubmittingTicket] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
@@ -492,7 +505,10 @@ const BufferingGuide = ({
       const contentFocusables = focusables.filter((el) => contentRef.current?.contains(el));
       // Prefer an explicit step-entry anchor if provided (e.g. ReportChannelStep input)
       const anchor = contentFocusables.find((el) => el.getAttribute('data-guide-entry') === 'true');
-      const target = anchor || contentFocusables[0] || focusables[0];
+      // Nothing to press in the step (a Kids profile's VPN step is only a
+      // note): Next, not the header Close, so OK carries on, not out.
+      const next = focusables.find((el) => el.getAttribute('data-guide-nav') === 'next');
+      const target = anchor || contentFocusables[0] || next || focusables[0];
       if (target) {
         target.focus({ preventScroll: true });
         lastFocusedRef.current = target;
@@ -641,7 +657,7 @@ const BufferingGuide = ({
       case 'step1': return state.step1Choice === 'all_buffer';
       case 'step2': return state.didRestartAndCache === false; // true short-circuits to summary
       case 'step3': return typeof state.speedMbps === 'number' && state.speedMbps >= 15;
-      case 'step4': return state.vpnTest === 'still_buffering';
+      case 'step4': return kids || state.vpnTest === 'still_buffering';
       default: return false;
     }
   })();
@@ -870,6 +886,7 @@ const BufferingGuide = ({
   const supportScript = useMemo(() => buildSupportScript(state, diagnosis), [state, diagnosis]);
 
   const submitAsTicket = async (overrideSubject?: string, overrideBody?: string) => {
+    if (kids) return;
 
     console.log('[BufferingGuide] Submit ticket clicked', { hasUser: !!user });
     if (!user) {
@@ -927,6 +944,7 @@ const BufferingGuide = ({
   };
 
   const submitChannelReport = async () => {
+    if (kids) return;
     const report = buildChannelReport();
     if (!report) return;
     if (!user) {
@@ -1046,7 +1064,26 @@ const BufferingGuide = ({
             />
           )}
 
-          {step === 'step1' && state.step1Choice === 'one_only' && (
+          {step === 'step1' && state.step1Choice === 'one_only' && kids && (
+            <StepPanel
+              icon={<AlertTriangle className="!w-7 !h-7" />}
+              title="Tell a grown-up"
+              lead="When only one channel or show fails, it gets fixed at the source. Tell a grown-up which one — they can report it from their profile."
+            >
+              <ActionButton
+                onClick={() => {
+                  setState((s) => ({ ...s, step1Choice: null }));
+                  contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                tone="secondary"
+                icon={<ArrowLeft />}
+              >
+                Change answer
+              </ActionButton>
+            </StepPanel>
+          )}
+
+          {step === 'step1' && state.step1Choice === 'one_only' && !kids && (
             <ReportChannelStep
               title={reportTitle}
               device={reportDevice}
@@ -1067,6 +1104,7 @@ const BufferingGuide = ({
 
           {step === 'step2' && (
             <Step2
+              kids={kids}
               value={state.didRestartAndCache}
               appLabel={state.appType ? APP_LABELS[state.appType] : 'your app'}
               chosenApp={chosenApp}
@@ -1140,6 +1178,7 @@ const BufferingGuide = ({
 
           {step === 'step4' && (
             <Step4
+              kids={kids}
               vpnSpeedOk={state.vpnSpeedOk}
               vpnTest={state.vpnTest}
               ipvanishApp={ipvanishApp}
@@ -1192,6 +1231,7 @@ const BufferingGuide = ({
 
           {step === 'summary' && (
             <Summary
+              kids={kids}
               diagnosis={diagnosis}
               recap={buildRecap(state)}
               resolved={state.didRestartAndCache === true || state.vpnTest === 'fixed'}
@@ -1229,7 +1269,7 @@ const BufferingGuide = ({
           </div>
 
           <p className="flex-1 min-w-0 px-4 text-center text-sm sm:text-base text-cyan-100/80 select-none pointer-events-none">
-            {HINTS[step]}
+            {(kids && KIDS_HINTS[step]) || HINTS[step]}
           </p>
 
           <div className="w-[150px] flex-shrink-0 flex justify-end">
@@ -1642,6 +1682,7 @@ const NumberedSteps = ({ items }: { items: React.ReactNode[] }) => (
 );
 
 const Step2 = ({
+  kids,
   value,
   appLabel,
   chosenApp,
@@ -1649,6 +1690,7 @@ const Step2 = ({
   onOpenSettings,
   onSelect,
 }: {
+  kids: boolean;
   value: YesNo;
   appLabel: string;
   chosenApp: AppData | undefined;
@@ -1663,17 +1705,25 @@ const Step2 = ({
   >
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
       <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 space-y-4">
-        <ActionButton onClick={onOpenSettings} icon={<SettingsIcon />} className="w-full">
-          Open {appLabel} settings
-        </ActionButton>
-        <NumberedSteps
-          items={[
-            <>Choose <strong className="text-white">Force Stop</strong></>,
-            <>Go to <strong className="text-white">Storage → Clear Cache</strong> (not Clear Data)</>,
-            <>Press <strong className="text-white">Back</strong> on your remote to come here</>,
-          ]}
-        />
-        {chosenApp && !chosenAppInstalled && (
+        {kids ? (
+          <Note>
+            Ask a grown-up to do this part. In the box's settings for {appLabel}: <strong>Force Stop</strong>, then <strong>Storage → Clear Cache</strong>.
+          </Note>
+        ) : (
+          <>
+            <ActionButton onClick={onOpenSettings} icon={<SettingsIcon />} className="w-full">
+              Open {appLabel} settings
+            </ActionButton>
+            <NumberedSteps
+              items={[
+                <>Choose <strong className="text-white">Force Stop</strong></>,
+                <>Go to <strong className="text-white">Storage → Clear Cache</strong> (not Clear Data)</>,
+                <>Press <strong className="text-white">Back</strong> on your remote to come here</>,
+              ]}
+            />
+          </>
+        )}
+        {!kids && chosenApp && !chosenAppInstalled && (
           <Note tone="warn">{appLabel} doesn't look installed on this device. Install it from Main Apps first.</Note>
         )}
       </div>
@@ -1786,6 +1836,7 @@ const Step3 = ({
 };
 
 const Step4 = ({
+  kids,
   vpnSpeedOk,
   vpnTest,
   ipvanishApp,
@@ -1803,6 +1854,7 @@ const Step4 = ({
   vpnChoice,
   onChooseVpn,
 }: {
+  kids: boolean;
   vpnSpeedOk: YesNo;
   vpnTest: VpnTest;
   ipvanishApp: AppData;
@@ -1830,34 +1882,43 @@ const Step4 = ({
       title="Try a VPN"
       lead="Internet providers often slow streaming down, especially in the evening. A VPN hides your streaming from them, and is the most common fix."
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <ChoiceButton
-          dataVpnChoice="ipvanish"
-          active={activeChoice === 'ipvanish'}
-          onClick={() => onChooseVpn('ipvanish')}
-          icon={<img src={VPN_INFO.ipvanish.icon} alt="" className="w-8 h-8 rounded-lg" />}
-          sub={ipvanishInstalled ? 'Installed' : 'Not installed'}
-        >
-          IPVanish
-        </ChoiceButton>
-        <ChoiceButton
-          dataVpnChoice="surfshark"
-          active={activeChoice === 'surfshark'}
-          onClick={() => onChooseVpn('surfshark')}
-          icon={<img src={VPN_INFO.surfshark.icon} alt="" className="w-8 h-8 rounded-lg" />}
-          sub={surfsharkInstalled ? 'Installed' : 'Not installed'}
-        >
-          Surfshark
-        </ChoiceButton>
-      </div>
+      {kids ? (
+        // No installing, opening or signing up for a VPN on a Kids profile.
+        <Note>
+          A VPN is a grown-up's job. Ask one to set it up and turn it on, then come back and try your stream again.
+        </Note>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <ChoiceButton
+              dataVpnChoice="ipvanish"
+              active={activeChoice === 'ipvanish'}
+              onClick={() => onChooseVpn('ipvanish')}
+              icon={<img src={VPN_INFO.ipvanish.icon} alt="" className="w-8 h-8 rounded-lg" />}
+              sub={ipvanishInstalled ? 'Installed' : 'Not installed'}
+            >
+              IPVanish
+            </ChoiceButton>
+            <ChoiceButton
+              dataVpnChoice="surfshark"
+              active={activeChoice === 'surfshark'}
+              onClick={() => onChooseVpn('surfshark')}
+              icon={<img src={VPN_INFO.surfshark.icon} alt="" className="w-8 h-8 rounded-lg" />}
+              sub={surfsharkInstalled ? 'Installed' : 'Not installed'}
+            >
+              Surfshark
+            </ChoiceButton>
+          </div>
 
-      <VpnSection
-        choice={activeChoice}
-        vpnApp={activeApp}
-        vpnInstalled={activeInstalled}
-        onDownloadVpn={() => onDownloadVpn(activeChoice)}
-        onLaunchVpn={() => onLaunchVpn(activeChoice)}
-      />
+          <VpnSection
+            choice={activeChoice}
+            vpnApp={activeApp}
+            vpnInstalled={activeInstalled}
+            onDownloadVpn={() => onDownloadVpn(activeChoice)}
+            onLaunchVpn={() => onLaunchVpn(activeChoice)}
+          />
+        </>
+      )}
 
       {anyInstalled && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 space-y-5">
@@ -1885,7 +1946,7 @@ const Step4 = ({
 
           <div className="space-y-3">
             <Question>2. Try your stream{chosenAppLabel ? ` in ${chosenAppLabel}` : ''}</Question>
-            {chosenAppAvailable && (
+            {chosenAppAvailable && !kids && (
               <ActionButton onClick={onTestStreamingApp} tone="secondary" icon={<Play />} className="w-full">
                 Open {chosenAppLabel}
               </ActionButton>
@@ -1976,6 +2037,7 @@ const QrBlock = ({ value }: { value: string }) => {
 };
 
 const Summary = ({
+  kids,
   diagnosis,
   recap,
   resolved,
@@ -1987,6 +2049,7 @@ const Summary = ({
   submittingTicket,
   onRestart,
 }: {
+  kids: boolean;
   diagnosis: { title: string; bullets: string[] };
   recap: { label: string; value: string }[];
   resolved: boolean;
@@ -2019,21 +2082,29 @@ const Summary = ({
       </div>
     </div>
 
+    {/* A Kids profile does not open other apps or send tickets: a grown-up
+        sends the results from their own profile. */}
+    {kids && !resolved && (
+      <Note>Still buffering? Show this screen to a grown-up. They can send it to support from their profile.</Note>
+    )}
+
     {/* Actions sit above the recap so they are on screen without scrolling. */}
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-      {chosenApp && chosenAppInstalled && chosenAppLabel && (
+      {!kids && chosenApp && chosenAppInstalled && chosenAppLabel && (
         <ActionButton onClick={onLaunchApp} data-summary-order="1" tone="go" icon={<Play />}>
           Open {chosenAppLabel}
         </ActionButton>
       )}
-      <ActionButton
-        onClick={onSubmitTicket}
-        disabled={submittingTicket}
-        data-summary-order="2"
-        icon={<MessageSquare />}
-      >
-        {submittingTicket ? 'Sending…' : 'Send to support'}
-      </ActionButton>
+      {!kids && (
+        <ActionButton
+          onClick={onSubmitTicket}
+          disabled={submittingTicket}
+          data-summary-order="2"
+          icon={<MessageSquare />}
+        >
+          {submittingTicket ? 'Sending…' : 'Send to support'}
+        </ActionButton>
+      )}
       <ActionButton onClick={onRestart} data-summary-order="3" tone="secondary" icon={<RotateCw />}>
         Start over
       </ActionButton>
