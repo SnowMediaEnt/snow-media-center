@@ -53,20 +53,21 @@
 .kids-world__cell--cabin > span { background: #ffdfb5; color: #b35b3f; box-shadow: 0 9px 0 #c88466; }
 .kids-world__cell--star > span { background: #fff1ae; color: #ba7a13; box-shadow: 0 0 27px #fff6ac; }
 .kids-world__cell--empty svg { opacity: .37; }
+.kids-world__completed { color: #fff0a2; font-weight: 950; }
 .kids-beat__stage { position: relative; display: grid; place-items: center; align-content: center; gap: clamp(8px, 1.5vh, 18px); min-height: 0; overflow: hidden; border: 2px solid rgba(197, 243, 255, .4); border-radius: 26px; background: radial-gradient(circle at center, #255aa3 0%, #1b3a73 48%, #122a60 100%); }
 .kids-beat__storm { position: absolute; inset: 0; display: flex; justify-content: space-around; align-items: center; opacity: .08; pointer-events: none; }
 .kids-beat__storm svg { width: 19%; height: 50%; animation: kids-snow-float 4s ease-in-out infinite alternate; }
 @keyframes kids-snow-float { to { transform: translateY(14px) rotate(18deg); } }
-.kids-beat__pad { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: clamp(6px, 1vh, 12px); width: min(52vh, 450px, 60vw); aspect-ratio: 1; outline: none; }
+.kids-beat__pad { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: clamp(8px, 1.2vh, 16px); width: min(56vh, 640px, 60vw); max-width: 100%; aspect-ratio: 1; outline: none; }
 .kids-beat__pad button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 3px solid rgba(209, 249, 255, .72); border-radius: 26px; background: linear-gradient(155deg, #268cc4, #2859a3); color: white; box-shadow: 0 8px 0 #0d276e, inset 0 1px 22px rgba(255,255,255,.15); }
 .kids-beat__pad button[data-direction="up"] { background: linear-gradient(155deg, #267fbc, #164879); color: #d1f7ff; }
 .kids-beat__pad button[data-direction="right"] { background: linear-gradient(155deg, #56b6d0, #2a779e); color: #fff; }
 .kids-beat__pad button[data-direction="down"] { background: linear-gradient(155deg, #f47e79, #b9415f); color: #fff7bd; }
 .kids-beat__pad button[data-direction="left"] { background: linear-gradient(155deg, #b687d2, #6750a0); color: #ffe8a4; }
-.kids-beat__pad button span { color: #fff; font-size: clamp(.68rem, 1vw, .95rem); font-weight: 950; letter-spacing: .06em; text-shadow: 0 1px 3px #092441; }
+.kids-beat__pad button span { color: #fff; font-size: clamp(.85rem, 1.35vw, 1.2rem); font-weight: 950; letter-spacing: .06em; text-shadow: 0 1px 3px #092441; }
 .kids-beat__pad button:disabled { opacity: 1; }
 .kids-beat__pad button[data-lit="true"] { background: linear-gradient(145deg, #fff4ae, #ffb575); color: #25386f; box-shadow: 0 0 40px #ffea87, 0 8px 0 #a97a4e; transform: scale(1.08); }
-.kids-beat__pad button svg:first-child { width: clamp(26px, 5vh, 53px); height: clamp(26px, 5vh, 53px); }
+.kids-beat__pad button svg:first-child { width: clamp(36px, 6vh, 76px); height: clamp(36px, 6vh, 76px); }
 .kids-beat__pad button[data-direction="right"] svg:first-child { fill: #fff; stroke: #b9e7f7; stroke-width: 2.5; filter: drop-shadow(0 3px 3px #2d607d); }
 .kids-beat__pad button[data-direction="up"] { grid-area: 1 / 2; }
 .kids-beat__pad button[data-direction="right"] { grid-area: 2 / 3; }
@@ -79,13 +80,13 @@
 .kids-beat__progress { display: flex; gap: 12px; }
 .kids-beat__progress span { width: 17px; height: 17px; border-radius: 50%; border: 2px solid #abe5fd; background: rgba(255,255,255,.2); }
 .kids-beat__progress span[data-active="true"] { background: #ffe394; box-shadow: 0 0 16px #ffe394; }
-@media (max-height: 700px) {
+@media (max-height: 800px) {
   .kids-creative { gap: 7px; padding: 11px; border-radius: 18px; }
   .kids-creative__instruction { min-height: 56px; padding: 6px 12px; }
   .kids-creative__instruction-icon { width: 40px; height: 40px; }
   .kids-creative__footer { min-height: 50px; }
   .kids-creative__controls button { min-height: 42px; }
-  .kids-beat__pad { width: min(40vh, 330px, 55vw); }
+  .kids-beat__pad { width: min(45vh, 390px, 58vw); }
 }
 @media (max-width: 900px) {
   .kids-creative__header { grid-template-columns: 110px 1fr 110px; }
@@ -106,7 +107,7 @@
   .kids-creative__controls button { min-height: 86px; font-size: 1.7rem; }
   .kids-world__grid { width: min(100%, 1900px); gap: 25px; padding: 30px; }
   .kids-world__cell > span { width: 170px; }.kids-world__moon { width: 90px; height: 90px; }
-  .kids-beat__pad { width: min(58vh, 850px, 60vw); }.kids-beat__pad button svg:first-child { width: 90px; height: 90px; }
+  .kids-beat__pad { width: min(62vh, 1150px, 62vw); }.kids-beat__pad button svg:first-child { width: 130px; height: 130px; }
   .kids-beat__pad button span { font-size: 1.7rem; }
   .kids-beat__progress span { width: 28px; height: 28px; }
 }
@@ -123,7 +124,7 @@
   .kids-world__grid { width: 100%; max-width: 1020px; gap: 10px; padding: 18px; }
   .kids-world__cell > span { width: 70px; height: 70px; }
   .kids-beat__stage { gap: 12px; }
-  .kids-beat__pad { width: 400px; height: 400px; max-width: 55vh; max-height: 55vh; gap: 9px; }
+  .kids-beat__pad { width: 620px; height: 620px; max-width: 62vh; max-height: 62vh; gap: 12px; }
   .kids-beat__pad button span { font-size: .8rem; }
   .kids-beat__pad button svg:first-child { width: 42px; height: 42px; }
 
@@ -132,14 +133,14 @@
   .kids-creative__instruction > * + *, .kids-creative__controls > * + * { margin-left: 15px; }
   .kids-beat__progress > * + *, .kids-world__requirements > * + * { margin-left: 8px; }
 
-  @media (max-height: 700px) {
+  @media (max-height: 800px) {
     .kids-creative { gap: 7px; padding: 11px; }
-    .kids-beat__pad { width: 300px; height: 300px; max-width: 45vh; max-height: 45vh; }
+    .kids-beat__pad { width: 360px; height: 360px; max-width: 45vh; max-height: 45vh; }
   }
   @media (min-width: 2560px) and (min-height: 1400px) {
     .kids-creative { gap: 28px; padding: 42px; }
     .kids-world__grid { max-width: 1900px; gap: 25px; padding: 30px; }
     .kids-world__cell > span { width: 170px; height: 170px; }
-    .kids-beat__pad { width: 800px; height: 800px; max-width: 58vh; max-height: 58vh; }
+    .kids-beat__pad { width: 1100px; height: 1100px; max-width: 62vh; max-height: 62vh; }
   }
 }

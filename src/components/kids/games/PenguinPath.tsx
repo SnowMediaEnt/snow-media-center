@@ -43,7 +43,7 @@ export default function PenguinPath({ tier, progress, onComplete, onBack, soundO
       setMessage(`First find ${numbers[collected]}. You can walk past this fish.`);
     }
     if (next === 24 && collected === 5 && !done.current) {
-      done.current = true; setFinished(true); cue('win');
+      done.current = true; setFinished(true); cue('kidsCelebrate');
       onComplete({ score: Math.max(100, 500 - Math.max(0, moves + 1 - 20) * 5), stars: 3, level: level + 1 });
     } else if (next === 24 && collected < 5) setMessage(`The flag is waiting. Find ${numbers[collected]} next!`);
   };

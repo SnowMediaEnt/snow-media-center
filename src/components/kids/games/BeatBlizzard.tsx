@@ -90,7 +90,7 @@ export default function BeatBlizzard({ tier, progress, onComplete, onBack, sound
     completedRef.current = true;
     setPhase('finished'); setMessage('You played through the blizzard!');
     const stars = mistakes === 0 ? 3 : mistakes <= 2 ? 2 : 1;
-    if (soundOn) play('win', { volume: 0.6 });
+    if (soundOn) play('kidsCelebrate', { volume: 0.6 });
     onComplete({ score: Math.max(100, 300 + level * 40 - mistakes * 35), stars, level: level + 1 });
   };
 

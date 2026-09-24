@@ -41,7 +41,7 @@ export default function SnowballSplash({ tier, progress, onComplete, onBack, sou
         setDone(true);
         const stars = misses === 0 ? 3 : misses <= 4 ? 2 : 1;
         onComplete({ score: Math.max(80, nextScore - misses * 15), stars, level: level + 1 });
-        if (soundOn) audio.play('win', { volume: 0.55 });
+        if (soundOn) audio.play('kidsCelebrate', { volume: 0.55 });
       } else {
         setRound((n) => n + 1);
         setMessage('Find your next target!');

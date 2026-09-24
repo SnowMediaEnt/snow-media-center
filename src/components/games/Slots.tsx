@@ -14,6 +14,7 @@ import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { firstUsable, moveInRows, rehome, type FocusDir, type FocusRows } from './shared/focusRows';
 import { useGameAudio } from './shared/gameAudio';
+import { slotSoundForOutcome } from './shared/slotsAudio';
 import { TV_BETS, readSavedBet, saveSelectedBet } from './shared/gameBets';
 import {
   CYCLE_CELLS, MIN_TRAVEL_CELLS, REELS, RENDER_CELLS, ROWS,
@@ -442,15 +443,13 @@ const Slots = ({ onBack }: SlotsProps) => {
       collectorFxTimerRef.current = life.timeout(() => setCollectorFx(null), reducedRef.current ? 700 : 1800);
     }
 
-    if (collectorTriggers.length > 0 || settled.triggeredFreeSpins > 0) {
-      playSound('bonus');
-    } else if (settled.totalPayout > 0) {
-      playSound('win');
-    } else if (collectorHits.length > 0) {
-      playSound('collectorFeed', { volume: 0.76 });
-    } else if (collectorHits.length === 0) {
-      playSound('lose', { volume: 0.55 });
-    }
+    playSound(slotSoundForOutcome({
+      payout: settled.totalPayout,
+      bet: settled.bet,
+      freeSpins: settled.triggeredFreeSpins,
+      collectorHits: collectorHits.length,
+      triggeredCollectors: collectorTriggers,
+    }), { volume: settled.totalPayout > 0 ? 0.85 : 0.58 });
 
     if (settled.totalPayout > 0 || settled.triggeredFreeSpins > 0) {
       const token = calloutTokenRef.current + 1;
@@ -562,6 +561,7 @@ const Slots = ({ onBack }: SlotsProps) => {
     collectorStateEpochRef.current += 1;
     setWinningCells(Array.from({ length: REELS }, () => Array(ROWS).fill(false)));
     setSpinning(true);
+    playSound('slotSpin', { volume: 0.5 });
 
     // Motion starts on this press, before any network work, and keeps looping
     // seamlessly for as long as the ack takes.
@@ -637,7 +637,7 @@ const Slots = ({ onBack }: SlotsProps) => {
       setErrorMsg(t('games.slots.errorSpinFailed'));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spinning, user, canBet, bet, inFreeSpins, balance, collectors, life, stopMotion, ensureLoop, promote]);
+  }, [spinning, user, canBet, bet, inFreeSpins, balance, collectors, life, stopMotion, ensureLoop, promote, playSound]);
 
   // A spin in flight or still stopping owns Back: no committed wager is dropped.
   const motionActive = () => modeRef.current.some((mode) => mode !== 'idle');

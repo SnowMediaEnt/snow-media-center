@@ -161,7 +161,7 @@ describe('game audio engine', () => {
   it('supports every cue and builds the shared noise buffer only once', async () => {
     await unlockGameAudioFromGesture(trustedGesture);
     const cues: GameAudioCue[] = [
-      'select', 'card', 'reelStop', 'collectorFeed', 'win', 'lose', 'bonus',
+      'select', 'card', 'reelStop', 'slotSpin', 'slotSmallWin', 'slotBigWin', 'slotJackpot', 'collectorFeed', 'win', 'lose', 'bonus', 'kidsCelebrate',
       'plinkoPeg', 'plinkoLand', 'diceRoll', 'diceLand',
       'triviaCorrect', 'triviaWrong',
     ];

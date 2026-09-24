@@ -26,6 +26,7 @@ export default function BuildSnowWorld({ tier, progress, onComplete, onBack, sou
   const [done, setDone] = useState(false);
   const [message, setMessage] = useState('Use the arrows to move, then OK to decorate.');
   const finishedAt = useRef(0);
+  const completedRef = useRef(false);
   const cellsRef = useRef<Array<HTMLButtonElement | null>>([]);
   const finishRef = useRef<HTMLButtonElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
@@ -82,16 +83,18 @@ export default function BuildSnowWorld({ tier, progress, onComplete, onBack, sou
   };
 
   const finish = () => {
-    if (!ready || done) return;
+    if (!ready || completedRef.current) return;
+    completedRef.current = true;
     finishedAt.current = Date.now();
     setDone(true);
     setMessage('Your snow world is glowing!');
-    if (soundOn) play('win', { volume: 0.55 });
+    if (soundOn) play('kidsCelebrate', { volume: 0.55 });
     onComplete({ score: goal.pieces.length * 150, stars: 3, level: level + 1 });
   };
 
   const next = () => {
     if (Date.now() - finishedAt.current < 500) return;
+    completedRef.current = false;
     setCells(Array(15).fill('empty')); setCursor(7); setDone(false);
     setLevel(level + 1); setMessage('A new snowy scene is ready!');
     if (soundOn) play('select');
@@ -119,7 +122,7 @@ export default function BuildSnowWorld({ tier, progress, onComplete, onBack, sou
       </div>
     </div>
     <div className="kids-creative__footer">
-      <div className="kids-creative__hint"><Volume2 /> {message}</div>
+      <div className={`kids-creative__hint${done ? ' kids-world__completed' : ''}`} role="status">{done ? <Star fill="currentColor" /> : <Volume2 />}{done ? 'World complete! Three stars saved.' : message}</div>
       <div className="kids-creative__controls"><span>← ↑ ↓ → move · OK changes a spot</span>
         {done ? <button ref={finishRef} type="button" onClick={next}><RotateCcw /> New world</button> : <button ref={finishRef} type="button" disabled={!ready} onClick={finish}><Star /> Finish world</button>}
       </div>

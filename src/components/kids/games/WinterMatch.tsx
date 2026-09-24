@@ -60,7 +60,7 @@ export default function WinterMatch({ tier, progress, onComplete, onBack, soundO
       timer.current = setTimeout(() => {
         setOpen([]); locked.current = false;
         if (nextMatched.length === cards.length / 2) {
-          setFinished(true); cue('win');
+          setFinished(true); cue('kidsCelebrate');
           const stars = turns + 1 <= cards.length ? 3 : turns + 1 <= cards.length * 2 ? 2 : 1;
           onComplete({ score: Math.max(100, cards.length * 100 - (turns + 1) * 20), stars, level: level + 1 });
         }

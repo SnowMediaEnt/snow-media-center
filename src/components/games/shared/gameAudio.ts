@@ -7,6 +7,10 @@ export type GameAudioCue =
   | 'select'
   | 'card'
   | 'reelStop'
+  | 'slotSpin'
+  | 'slotSmallWin'
+  | 'slotBigWin'
+  | 'slotJackpot'
   | 'collectorFeed'
   | 'win'
   | 'lose'
@@ -16,7 +20,8 @@ export type GameAudioCue =
   | 'diceRoll'
   | 'diceLand'
   | 'triviaCorrect'
-  | 'triviaWrong';
+  | 'triviaWrong'
+  | 'kidsCelebrate';
 
 export interface GameAudioOptions {
   /** Per-cue trim. Values above one are intentionally clamped. */
@@ -348,6 +353,29 @@ function buildCue(voice: ActiveVoice, cue: GameAudioCue, volume: number): void {
     case 'reelStop':
       addTone(voice, { type: 'triangle', duration: 0.085, gain: 0.12, frequencies: [[0, 190], [0.08, 118]] }, volume);
       break;
+    case 'slotSpin':
+      [0, 0.085, 0.17].forEach((delay, index) => {
+        addTone(voice, { type: 'triangle', duration: 0.065, gain: 0.07, delay, frequencies: [[0, 270 + index * 58], [0.06, 170 + index * 42]] }, volume);
+      });
+      break;
+    case 'slotSmallWin':
+      [523, 659, 784, 1047].forEach((frequency, index) => {
+        addTone(voice, { type: 'sine', duration: 0.18, gain: 0.12, delay: index * 0.11, frequencies: [[0, frequency], [0.16, frequency * 1.03]] }, volume);
+      });
+      break;
+    case 'slotBigWin':
+      [523, 659, 784, 1047, 784, 1047, 1319, 1568].forEach((frequency, index) => {
+        addTone(voice, { type: 'sine', duration: 0.2, gain: 0.13, delay: index * 0.12, frequencies: [[0, frequency], [0.18, frequency * 1.02]] }, volume);
+      });
+      addTone(voice, { type: 'triangle', duration: 0.95, gain: 0.065, frequencies: [[0, 130], [0.85, 196]] }, volume);
+      break;
+    case 'slotJackpot':
+      [523, 659, 784, 1047, 1175, 1319, 1568, 1319, 1760, 2093].forEach((frequency, index) => {
+        addTone(voice, { type: 'sine', duration: 0.23, gain: 0.14, delay: index * 0.13, frequencies: [[0, frequency], [0.2, frequency * 1.02]] }, volume);
+      });
+      addTone(voice, { type: 'triangle', duration: 1.4, gain: 0.075, frequencies: [[0, 130], [0.7, 196], [1.35, 262]] }, volume);
+      addNoise(voice, { duration: 0.16, gain: 0.045, delay: 1.28 }, volume);
+      break;
     case 'collectorFeed':
       addTone(voice, { type: 'sine', duration: 0.3, gain: 0.11, frequencies: [[0, 392], [0.12, 587], [0.28, 880]] }, volume);
       addNoise(voice, { duration: 0.09, gain: 0.022, delay: 0.16 }, volume);
@@ -380,6 +408,11 @@ function buildCue(voice: ActiveVoice, cue: GameAudioCue, volume: number): void {
       break;
     case 'triviaWrong':
       addTone(voice, { type: 'triangle', duration: 0.26, gain: 0.1, frequencies: [[0, 247], [0.25, 165]] }, volume);
+      break;
+    case 'kidsCelebrate':
+      [523, 659, 784, 1047].forEach((frequency, index) => {
+        addTone(voice, { type: 'sine', duration: 0.2, gain: 0.1, delay: index * 0.13, frequencies: [[0, frequency], [0.17, frequency * 1.04]] }, volume);
+      });
       break;
   }
 }

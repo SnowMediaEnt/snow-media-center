@@ -16,9 +16,10 @@ describe('creative kids games', () => {
     const cabin = screen.getByRole('gridcell', { name: /Spot 2:/ });
     fireEvent.click(cabin); fireEvent.click(cabin);
     expect(finish.disabled).toBe(false);
-    fireEvent.click(finish); fireEvent.click(finish);
+    fireEvent.click(finish);
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith({ score: 300, stars: 3, level: 2 });
+    expect(screen.getByRole('status').textContent).toContain('World complete! Three stars saved.');
     expect(screen.getByRole('button', { name: 'New world' })).toBeTruthy();
   });
 
