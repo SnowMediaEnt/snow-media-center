@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useDashboardSize, saveDashboardSize } from '@/lib/dashboardSize';
 import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
-import { peekIntent, clearIntent, INTENT_KEYS } from '@/lib/appActions';
+import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo } from '@/lib/demoMode';
 import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone } from 'lucide-react';
@@ -170,6 +170,21 @@ const Settings = ({ onBack }: SettingsProps) => {
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
   useEffect(() => { clearIntent(INTENT_KEYS.settings); }, []);
+  // The same asked for while Settings is already open (a voice command, the
+  // assistant): navigating here changed nothing, so switch tabs now rather
+  // than on the next visit. The highlight goes to that tab.
+  useEffect(() => {
+    const on = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== 'settings') return;
+      const want = takeIntent(INTENT_KEYS.settings);
+      const open = kids ? ['media', 'ui', 'profiles', 'remote'] : ['media', 'ui', 'profiles', 'remote', 'updates', 'alerts', 'ai'];
+      if (!want || !open.includes(want) || want === activeTab) return;
+      setActiveTab(want);
+      setFocusedElement(`tab-${want}` as SettingsFocus);
+    };
+    window.addEventListener(SCREEN_INTENT_EVENT, on);
+    return () => window.removeEventListener(SCREEN_INTENT_EVENT, on);
+  }, [kids, activeTab]);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
