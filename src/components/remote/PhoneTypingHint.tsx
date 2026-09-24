@@ -2,10 +2,12 @@
 // the top corner (clear of the TV keyboard) offers the phone remote — the
 // pairing QR and code, or, with a phone already connected, a note that its
 // keyboard is ready. Turned off under Settings → Phone Remote.
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Smartphone } from 'lucide-react';
-import PairingQR from '@/components/remote/PairingQR';
 import { PHONE_REMOTE_EVENT, connectedPhones, typingHintEnabled } from '@/lib/phoneRemote';
+
+// The QR (and the qrcode library) only when a text box has focus, not with Home.
+const PairingQR = lazy(() => import('@/components/remote/PairingQR'));
 
 const isTextField = (el: Element | null): boolean => {
   if (el instanceof HTMLTextAreaElement) return !el.readOnly;
@@ -46,7 +48,7 @@ const PhoneTypingHint = () => {
       </div>
       {connected
         ? <p className="text-sm text-white/70 max-w-[16rem]">Type on the phone remote and it appears here.</p>
-        : <PairingQR size={96} compact />}
+        : <Suspense fallback={null}><PairingQR size={96} compact /></Suspense>}
     </div>
   );
 };

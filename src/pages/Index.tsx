@@ -42,7 +42,7 @@ import { homeCardIds, profileGameView, type HomeCardId } from '@/lib/kidsGameNav
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors } from '@/lib/profiles';
 import ProfileGate from '@/components/profiles/ProfileGate';
-import VoiceCommandHost from '@/components/voice/VoiceCommandHost';
+import LazyVoiceCommandHost from '@/components/voice/LazyVoiceCommandHost';
 import GameReminderHost from '@/components/GameReminderHost';
 import PhoneTypingHint from '@/components/remote/PhoneTypingHint';
 import { startPhoneRemote } from '@/lib/phoneRemote';
@@ -1439,8 +1439,9 @@ const Index = () => {
       {/* Game Day kickoff reminders ("Remind me"), over anything. */}
       <GameReminderHost navigate={stableNavigateTo} blocked={profileGateOpen} />
 
-      {/* Voice commands: the mic button, the remote's Search key. */}
-      <VoiceCommandHost navigate={stableNavigateTo} blocked={profileGateOpen} />
+      {/* Voice commands: the mic button, the remote's Search key. Loaded the
+          first time one of them is used, not with Home. */}
+      <LazyVoiceCommandHost navigate={stableNavigateTo} blocked={profileGateOpen} />
 
       {/* First-launch welcome + per-version "What's New" popup — mounted only
           after first-frame idle so its effect chain doesn't pile onto boot. */}
