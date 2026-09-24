@@ -89,7 +89,7 @@ const ReportChannelDialog = memo(({
 
   const [step, setStep] = useState<Step>(initialChoice === 'Other' ? 'other' : initialChoice ? 'reasons' : 'menu');
   // Focus index:
-  //   menu:   0 = Report, 1 = Fav toggle, 2 = Cancel
+  //   menu:   the row in menuItems, top to bottom
   //   reasons: 0..3 = CHOICES, 4 = Cancel
   //   other:  0 = textarea, 1 = Submit, 2 = Cancel
   const [focusIdx, setFocusIdx] = useState(initialChoice && initialChoice !== 'Other' ? Math.max(0, CHOICES.indexOf(initialChoice)) : initialChoice === 'Other' ? 1 : 0);
@@ -125,17 +125,22 @@ const ReportChannelDialog = memo(({
   );
 
   // The Channel Options rows. "It's working now" leads when the channel
-  // shows ⚠️: anyone watching it can clear it for everyone.
-  const menuItems: Array<{ label: string; icon: typeof Flag; run: () => void }> = [
-    ...(isDown && onClearDown ? [{
+  // showed ⚠️ as the dialog opened: anyone watching it can clear it for
+  // everyone. Taken once: the live flag changes under the open dialog (a
+  // refresh, a box that played it fine), and a row appearing or vanishing
+  // would move the highlight onto a different row than the viewer picked.
+  const [downAtOpen] = useState(isDown);
+  const menuItems: Array<{ id: string; label: string; icon: typeof Flag; run: () => void }> = [
+    ...(downAtOpen && onClearDown ? [{
+      id: 'clear',
       label: "It's working now — remove ⚠️",
       icon: CheckCircle2,
       run: () => { onClearDown(); toast({ title: 'Thanks!', description: 'The warning is gone for everyone.' }); onClose(); },
     }] : []),
-    { label: 'Report Channel', icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } },
-    { label: isFavorite ? 'Remove from Favorites' : 'Add to Favorites', icon: isFavorite ? StarOff : Star, run: () => { onToggleFavorite?.(); onClose(); } },
-    ...(canRefresh ? [{ label: refreshing ? 'Refreshing…' : 'Refresh channel link', icon: RefreshCw, run: () => { void refreshNow(); } }] : []),
-    { label: 'Cancel', icon: X, run: onClose },
+    { id: 'report', label: 'Report Channel', icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } },
+    { id: 'fav', label: isFavorite ? 'Remove from Favorites' : 'Add to Favorites', icon: isFavorite ? StarOff : Star, run: () => { onToggleFavorite?.(); onClose(); } },
+    ...(canRefresh ? [{ id: 'refresh', label: refreshing ? 'Refreshing…' : 'Refresh channel link', icon: RefreshCw, run: () => { void refreshNow(); } }] : []),
+    { id: 'cancel', label: 'Cancel', icon: X, run: onClose },
   ];
   const menuItemsRef = useRef(menuItems);
   menuItemsRef.current = menuItems;
@@ -219,8 +224,9 @@ const ReportChannelDialog = memo(({
           return;
         }
         if (step === 'reasons' && !submitting) {
+          // Back to the row this came from.
           setStep('menu');
-          setFocusIdx(0);
+          setFocusIdx(Math.max(0, menuItemsRef.current.findIndex((m) => m.id === 'report')));
           return;
         }
         onClose();
@@ -380,7 +386,7 @@ const ReportChannelDialog = memo(({
               const isCancel = i === all.length - 1;
               return (
                 <button
-                  key={item.label}
+                  key={item.id}
                   type="button"
                   data-focused={focused ? 'true' : 'false'}
                   onMouseEnter={() => setFocusIdx(i)}
