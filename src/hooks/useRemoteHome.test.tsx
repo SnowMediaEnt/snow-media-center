@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useCallback, useRef, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -19,6 +19,12 @@ const Table = ({ busy, onBack }: { busy: boolean; onBack: () => void }) => {
   return <div>{note}</div>;
 };
 
+/** The Kids lounge: it owns Back too, but has no wager to protect. */
+const KidsLounge = ({ onBack }: { onBack: () => void }) => {
+  useGameBack({ onExit: onBack });
+  return null;
+};
+
 /** Index's navigation, in small: a stack, Back pops, navigate pushes. */
 const App = ({ start, busy = false }: { start: string[]; busy?: boolean }) => {
   const [stack, setStack] = useState(start);
@@ -30,7 +36,9 @@ const App = ({ start, busy = false }: { start: string[]; busy?: boolean }) => {
   return (
     <>
       <div data-testid="view">{view}</div>
+      <div data-testid="path">{stack.join('>')}</div>
       {view.startsWith('game-') && <Table busy={busy} onBack={goBack} />}
+      {view === 'kids-games' && <KidsLounge onBack={goBack} />}
     </>
   );
 };
@@ -77,5 +85,18 @@ describe("the phone remote's Home", () => {
     render(<App start={['home', 'games', 'game-blackjack']} />);
     await phoneHome();
     expect(view()).toBe('home');
+  });
+
+  it('from the Kids lounge (it owns Back, but holds no wager) goes straight home', async () => {
+    render(<App start={['home', 'settings', 'kids-games']} />);
+    await phoneHome();
+    // Not by way of Back (that would have popped the lounge first).
+    expect(screen.getByTestId('path').textContent).toBe('home>settings>kids-games>home');
+  });
+
+  it("the remote's OK (Enter, keyCode 13) is not Home: a table stays put", async () => {
+    render(<App start={['home', 'games', 'game-blackjack']} />);
+    await act(async () => { fireEvent.keyDown(window, { key: 'Enter', keyCode: 13 }); });
+    expect(view()).toBe('game-blackjack');
   });
 });
