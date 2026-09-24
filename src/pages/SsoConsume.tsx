@@ -7,6 +7,7 @@ import { Loader2, CheckCircle, XCircle, KeyRound, ShieldAlert } from 'lucide-rea
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { readSignInLink, signInLinkEmail, type SignInLink } from '@/lib/ssoLink';
+import { waitForStorageReady } from '@/utils/storage';
 
 const isBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || e.key === 'BrowserBack' || e.keyCode === 4 || e.keyCode === 27;
 const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13;
@@ -62,7 +63,9 @@ const SsoConsume = () => {
     let alive = true;
     void (async () => {
       const [now, email] = await Promise.all([
-        supabase.auth.getSession().then(
+        // After the saved session is restored (a link can open the app cold),
+        // so "This box is signed in as …" is not missed.
+        waitForStorageReady().then(() => supabase.auth.getSession()).then(
           ({ data }) => (data.session ? { email: data.session.user?.email ?? null } : null),
           () => null,
         ),
