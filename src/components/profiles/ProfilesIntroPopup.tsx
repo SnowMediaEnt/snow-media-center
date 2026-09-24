@@ -1,8 +1,9 @@
 // One popup, once per box, that tells people profiles exist. The app no
 // longer opens on "Who's watching?" for a box with just one profile — it opens
 // straight to Home, and this waits its turn behind the start-up popups (What's
-// New, the content bar offer, alerts: it opens only when no other dialog is
-// on screen) and a few seconds of settling.
+// New, the content bar offer, alerts and notices: it opens only when no other
+// dialog is on screen), a few seconds of settling, and the viewer leaving the
+// content bar (whose keys would still move and open tiles under it).
 //
 // "Set up profiles" goes to Settings → Profiles; "Maybe later" (or Back)
 // closes it for good. Not shown on a Kids profile, or once a box has more
@@ -43,7 +44,8 @@ const ProfilesIntroPopup = ({ onSetUp }: { onSetUp: () => void }) => {
       if (activeProfile().kidsLevel) return false;
       if (Date.now() - mountedAt.current < MIN_DELAY_MS) return false;
       try { if (!localStorage.getItem(WELCOME_KEY)) return false; } catch { return true; }
-      if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][data-state="open"], [role="dialog"][data-state="open"]')) return false;
+      if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][data-state="open"], [role="dialog"][data-state="open"], [data-notice-layer]')) return false;
+      if (document.querySelector('[data-media-bar] [data-focused="true"]')) return false;
       setOpen(true);
       try { trackEvent('profiles_intro_shown', 'profiles'); } catch { void 0; }
       return true;
@@ -66,7 +68,11 @@ const ProfilesIntroPopup = ({ onSetUp }: { onSetUp: () => void }) => {
   const lastBack = useRef(0);
   useEffect(() => {
     if (!open) return;
+    // A notice (broadcast alert, pre-event steps) that came up over this one
+    // is on top: its OK and Back are its own.
+    const noticeUp = () => !!document.querySelector('[data-notice-layer]');
     const back = () => {
+      if (noticeUp()) return;
       const now = Date.now();
       if (now - lastBack.current < 350) return;
       lastBack.current = now;
@@ -74,6 +80,7 @@ const ProfilesIntroPopup = ({ onSetUp }: { onSetUp: () => void }) => {
       close(false);
     };
     const onKey = (e: KeyboardEvent) => {
+      if (noticeUp()) return;
       e.stopImmediatePropagation();
       if (isBack(e)) { e.preventDefault(); back(); return; }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
