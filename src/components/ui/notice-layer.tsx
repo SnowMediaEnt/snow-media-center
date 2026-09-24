@@ -58,9 +58,12 @@ const NoticeLayer = ({ open, labelledBy, children, onDismiss }: NoticeLayerProps
         className="absolute left-0 right-0 top-0 bottom-0 bg-black/80 pointer-events-none"
         aria-hidden="true"
       />
+      {/* data-notice-layer: popups that wait their turn (the profiles intro)
+          look for it, since this is not aria-modal. */}
       <div
         role="dialog"
         aria-labelledby={labelledBy}
+        data-notice-layer="open"
         className="pointer-events-auto relative w-full max-w-lg"
       >
         {children}

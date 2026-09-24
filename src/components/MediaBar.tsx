@@ -446,7 +446,9 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!activeRef.current) return;
+      // A dialog over Home (a popup that opened while the bar had focus) owns
+      // the keys, as it does for Index's own handler.
+      if (!activeRef.current || document.querySelector('[aria-modal="true"]')) return;
       const focusIdx = focusIdxRef.current;
       const pageIdx = pageIdxRef.current;
       const items = itemsRef.current;
