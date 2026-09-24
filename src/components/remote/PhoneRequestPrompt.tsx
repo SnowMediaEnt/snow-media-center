@@ -1,7 +1,9 @@
 // "Allow this phone?": a phone entered this TV's pairing code, and it gets
 // the TV only if the TV's own remote says so. Allow is focused (the person
 // who just scanned presses OK); Back or "Don't allow" turns it away. A
-// request the TV doesn't answer runs out after two minutes.
+// request the TV doesn't answer runs out after two minutes. OK counts only
+// once the question has been up a moment, so a press meant for the TV
+// keyboard (the question can pop up mid-typing) never allows a phone.
 //
 // Mounted once, when the app starts (with the typing card), so its key
 // listener runs before every screen's own and keeps the keys while it is up.
@@ -14,6 +16,10 @@ import { PHONE_REMOTE_EVENT, answerPhoneRequest, pendingPhoneRequest, type Phone
 const isBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || e.keyCode === 4 || e.keyCode === 27;
 const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23;
 const isTextField = (el: Element | null): el is HTMLElement => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+/** OK before the question has been up this long is not an answer. */
+const ARM_MS = 800;
+/** A second Back this soon after one that answered is the same press. */
+const BACK_ONCE_MS = 350;
 
 const PhoneRequestPrompt = () => {
   const [request, setRequest] = useState<PhoneRequest | null>(() => pendingPhoneRequest());
@@ -23,6 +29,9 @@ const PhoneRequestPrompt = () => {
   const focusRef = useRef(focus); focusRef.current = focus;
   /** The text box that had focus when the question came up. */
   const typingIn = useRef<HTMLElement | null>(null);
+  /** When the question on screen came up (set as it renders, so no key can come first). */
+  const shown = useRef<{ rid: string; at: number } | null>(null);
+  if (request && shown.current?.rid !== request.rid) shown.current = { rid: request.rid, at: Date.now() };
 
   useEffect(() => {
     const check = () => setRequest((cur) => {
@@ -37,12 +46,18 @@ const PhoneRequestPrompt = () => {
 
   // A new question: Allow first. If the TV's keyboard is up for a text box,
   // close it (by leaving the box) so the remote's keys reach the question.
+  // No question any more (answered, or it ran out): back to that text box.
   useEffect(() => {
-    if (!request) return;
-    setFocus(0);
-    setNote(null);
-    const el = document.activeElement;
-    if (isTextField(el)) { typingIn.current = el; el.blur(); }
+    if (request) {
+      setFocus(0);
+      setNote(null);
+      const el = document.activeElement;
+      if (isTextField(el)) { typingIn.current = el; el.blur(); }
+      return;
+    }
+    const back = typingIn.current;
+    typingIn.current = null;
+    if (back && back.isConnected) window.setTimeout(() => { try { back.focus({ preventScroll: true }); } catch { /* gone */ } }, 0);
   }, [request]);
 
   useEffect(() => {
@@ -54,11 +69,10 @@ const PhoneRequestPrompt = () => {
   const answer = useCallback((allow: boolean) => {
     const r = requestRef.current;
     if (!r) return;
+    // Answered now, not at the next render: a key arriving in between is
+    // not for this question.
+    requestRef.current = null;
     setRequest(null);
-    const back = typingIn.current;
-    typingIn.current = null;
-    // Back to the text box the viewer was in.
-    if (back && back.isConnected) window.setTimeout(() => { try { back.focus({ preventScroll: true }); } catch { /* gone */ } }, 0);
     void answerPhoneRequest(r.rid, allow).then((ok) => {
       if (!ok) setNote("Couldn't reach Snow Media Center's server. Try pairing again from the phone.");
       else if (allow) setNote('Phone allowed. It can control this TV now.');
@@ -70,20 +84,26 @@ const PhoneRequestPrompt = () => {
     const back = () => {
       if (!requestRef.current) return;
       const now = Date.now();
-      if (now - lastBack.current < 350) return;
+      if (now - lastBack.current < BACK_ONCE_MS) return;
       lastBack.current = now;
       (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = now;
       answer(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (!requestRef.current) return;
+      if (!requestRef.current) {
+        // The same Back, passed on as an Escape keydown by a screen that
+        // owns the hardware Back (Live TV): it already closed the question.
+        if (isBack(e) && Date.now() - lastBack.current < BACK_ONCE_MS) { e.stopImmediatePropagation(); e.preventDefault(); }
+        return;
+      }
       e.stopImmediatePropagation();
       if (isBack(e)) { e.preventDefault(); back(); return; }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault(); setFocus((f) => (f === 0 ? 1 : 0)); return;
       }
-      // A held OK from before the question came up is not an answer.
-      if (isOk(e)) { e.preventDefault(); if (!e.repeat) answer(focusRef.current === 0); }
+      // A held OK, or one pressed as the question came up (meant for the TV
+      // keyboard), is not an answer.
+      if (isOk(e)) { e.preventDefault(); if (!e.repeat && Date.now() - (shown.current?.at ?? 0) >= ARM_MS) answer(focusRef.current === 0); }
     };
     window.addEventListener('keydown', onKey, true);
     let handle: { remove: () => void } | null = null;
