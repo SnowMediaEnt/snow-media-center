@@ -179,9 +179,20 @@ export function prepareLocalForLine(
   if (isDemo()) return null;
   const key = favKey(creds);
   const meta = loadMeta();
-  if (!meta || meta.line === key) return null;
+  if (meta?.line === key) return null;
 
-  stashFor(meta.line, { favorites: [...current.values()], version: meta.version, dirty: meta.dirty });
+  if (meta) {
+    stashFor(meta.line, { favorites: [...current.values()], version: meta.version, dirty: meta.dirty });
+  } else {
+    // No meta: an install from before sync. Its list is the line's main
+    // profile's (reconcile unions it with the cloud once, as a dirty stash
+    // does). Another profile, a Kids one above all, parks it there and starts
+    // from its own list.
+    const main = lineKey(creds);
+    if (key === main || current.size === 0) return null;
+    const prev = restoreFor(main);
+    stashFor(main, { favorites: [...union(prev?.favorites ?? [], [...current.values()]).values()], version: prev?.version ?? null, dirty: true });
+  }
   const restored = restoreFor(key);
   saveMeta({
     line: key,
@@ -189,7 +200,13 @@ export function prepareLocalForLine(
     dirty: restored?.dirty ?? false,
     changedAt: 0,
   });
-  return toMap(restored?.favorites ?? []);
+  // The local store is the active line's list, so the incoming list replaces
+  // the outgoing one (stashed above). Left in place, the outgoing list was
+  // read back as this line's — every new profile showed the grown-up's
+  // favourites and pushed them to the cloud as its own.
+  const next = toMap(restored?.favorites ?? []);
+  saveFavoritesData(next);
+  return next;
 }
 
 // ── wire ───────────────────────────────────────────────────────────────────

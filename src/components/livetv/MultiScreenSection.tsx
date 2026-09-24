@@ -11,7 +11,6 @@ import {
   getLiveCategories,
   getLiveStreams,
   getShortEpg,
-  loadFavoritesData,
   pickNowNext,
   XTREAM_REFRESH_EVENT,
   type EpgNowNext,
@@ -20,6 +19,8 @@ import {
   type XtreamLiveStream,
 } from '@/lib/xtream';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
+import { loadFavoritesForLine } from '@/lib/favoritesSync';
+import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import {
   useMultiScreenPlayers,
@@ -203,7 +204,11 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
   const loadChannelsFor = useCallback(async (catId: string) => {
     latestCatRef.current = catId;
     if (catId === '__favs__') {
-      const favs = Array.from(loadFavoritesData().values()).map(f => ({
+      // This line's (and this profile's) list, wherever it lives — not the
+      // local store, which is the last line Live TV opened. A Kids profile
+      // keeps only channels in the categories it may open (listed above).
+      const allowed = kidsLevel() ? new Set(categoriesRef.current.map((c) => String(c.id))) : null;
+      const favs = Array.from(loadFavoritesForLine(creds).values()).filter((f) => !allowed || kidsAllowsChannel(f, allowed)).map(f => ({
         stream_id: f.stream_id,
         name: f.name,
         num: f.num,
