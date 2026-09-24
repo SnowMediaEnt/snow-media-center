@@ -507,7 +507,10 @@ const BufferingGuide = ({
       const contentFocusables = focusables.filter((el) => contentRef.current?.contains(el));
       // Prefer an explicit step-entry anchor if provided (e.g. ReportChannelStep input)
       const anchor = contentFocusables.find((el) => el.getAttribute('data-guide-entry') === 'true');
-      const target = anchor || contentFocusables[0] || focusables[0];
+      // Nothing to press in the step (a Kids profile's VPN step is only a
+      // note): Next, not the header Close, so OK carries on, not out.
+      const next = focusables.find((el) => el.getAttribute('data-guide-nav') === 'next');
+      const target = anchor || contentFocusables[0] || next || focusables[0];
       if (target) {
         target.focus({ preventScroll: true });
         lastFocusedRef.current = target;

@@ -252,9 +252,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [searchQuery]);
 
   // Favourites, one list per line. The active line's list is the local store;
-  // every other line's lives in its stash (favoritesSync routes both).
+  // every other line's lives in its stash (favoritesSync routes both). Read
+  // through the router from the first frame: on a profile's first visit the
+  // local store is still the last profile's list until the effect below
+  // switches it, and a Kids profile must not flash the grown-up's channels.
   const [favsByLine, setFavsByLine] = useState<Map<string, Map<number, FavChannel>>>(
-    () => new Map([[activeKey, loadFavoritesData()]]),
+    () => new Map([[activeKey, loadFavoritesForLine(creds)]]),
   );
   const favoritesOf = useCallback((line: XtreamCreds) => favsByLine.get(lineKey(line)) ?? EMPTY_FAVS, [favsByLine]);
   const isFav = useCallback((st: XtreamLiveStream | FavChannel | null | undefined) => !!st && favoritesOf(lineFor(st)).has(st.stream_id), [favoritesOf, lineFor]);

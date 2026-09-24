@@ -57,7 +57,8 @@ describe('favourites on a new profile', () => {
     expect(names(await openLiveTv())).toEqual(['HBO', 'XXX Adult 1']);
 
     setViewerProfile('kid1');
-    // Multi-Screen reads this before Live TV has run for the profile.
+    // Multi-Screen, and Live TV's first frame, read this before Live TV has
+    // switched the local store to the profile.
     expect(names(loadFavoritesForLine(creds))).toEqual([]);
     expect(names(await openLiveTv())).toEqual([]);
     expect(names(loadFavoritesData())).toEqual([]);

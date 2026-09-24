@@ -3,17 +3,18 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { setKidsLevel } from '@/lib/kidsFilter';
 
 // Signed in, with a VPN installed: every grown-up action would be live.
-const { createTicket, openAppSettings, launch } = vi.hoisted(() => ({
+const { createTicket, openAppSettings, launch, vpn } = vi.hoisted(() => ({
   createTicket: vi.fn(async () => undefined),
   openAppSettings: vi.fn(async () => undefined),
   launch: vi.fn(async () => undefined),
+  vpn: { installed: true },
 }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
 vi.mock('@/hooks/useSupportTickets', () => ({ useSupportTickets: () => ({ createTicket }) }));
 vi.mock('@/hooks/useDeviceInstalledApps', () => ({
   useDeviceInstalledApps: () => ({
-    isPackageInstalled: () => true, isAppNameInstalled: () => true, resolvePackageName: () => null, refresh: () => undefined,
+    isPackageInstalled: () => vpn.installed, isAppNameInstalled: () => vpn.installed, resolvePackageName: () => null, refresh: () => undefined,
   }),
 }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
@@ -41,11 +42,13 @@ const renderGuide = () => {
   return { ...props, unmount };
 };
 
+const realRect = Element.prototype.getBoundingClientRect;
 beforeEach(() => {
   vi.clearAllMocks();
+  vpn.installed = true;
   Element.prototype.scrollTo = vi.fn() as unknown as typeof Element.prototype.scrollTo;
 });
-afterEach(() => { setKidsLevel(null); });
+afterEach(() => { setKidsLevel(null); Element.prototype.getBoundingClientRect = realRect; });
 
 describe('Buffering Guide on a Kids profile', () => {
   it('has no VPN to install or open, and its results cannot become a ticket', () => {
@@ -63,6 +66,23 @@ describe('Buffering Guide on a Kids profile', () => {
     expect(createTicket).not.toHaveBeenCalled();
     expect(props.onNavigateToChat).not.toHaveBeenCalled();
     expect(launch).not.toHaveBeenCalled();
+  });
+
+  it('with no VPN on the box, the VPN step lands on Next, so OK carries on instead of closing the guide', async () => {
+    setKidsLevel('kids');
+    vpn.installed = false;
+    // The guide only moves focus to what is on screen (jsdom lays nothing out).
+    Element.prototype.getBoundingClientRect = function () {
+      return { width: 10, height: 10, top: 0, left: 0, right: 10, bottom: 10, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    };
+    Element.prototype.scrollIntoView = vi.fn();
+    const props = renderGuide();
+    ok(/Go to the VPN step/);
+    await act(async () => { await new Promise((r) => setTimeout(r, 120)); });
+    expect(document.activeElement?.getAttribute('data-guide-nav')).toBe('next');
+    act(() => { fireEvent.keyDown(window, { key: 'Enter', keyCode: 13 }); });
+    expect(props.onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(/Show this screen to a grown-up/)).toBeTruthy();
   });
 
   it('asks a grown-up to clear the cache instead of opening Android App Info', () => {
