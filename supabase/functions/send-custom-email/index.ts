@@ -3,8 +3,9 @@
 // Staff (has_role admin) can send anything: { to, subject, html, fromName } or
 // a template { to, type, data }. Everyone else is a customer telling support
 // about a ticket, so for them:
-//   - the recipient must be a support inbox: SUPPORT_EMAIL (default
-//     support@snowmediaent.com) or a tenant's configured support_email;
+//   - the recipient must be a support inbox: support@snowmediaent.com (or
+//     SUPPORT_EMAIL) or a tenant's configured support_email;
+//   - the sender name belongs to that inbox, whatever fromName says;
 //   - the body is plain text ({ subject, message }, or the text of the html
 //     older apps send), escaped here and signed with the verified account;
 //   - templates are refused, and sends are limited per account and in total.
@@ -21,7 +22,10 @@ const corsHeaders = {
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
 
-const SUPPORT_EMAIL = (Deno.env.get('SUPPORT_EMAIL') || 'support@snowmediaent.com').trim().toLowerCase();
+// The address the apps write to is always allowed; SUPPORT_EMAIL, if set,
+// is where a message with no `to` goes, and is allowed too.
+const SNOW_SUPPORT = 'support@snowmediaent.com';
+const SUPPORT_EMAIL = (Deno.env.get('SUPPORT_EMAIL') || SNOW_SUPPORT).trim().toLowerCase();
 const CUSTOMER_PER_HOUR = 10;
 const CUSTOMERS_ALL_PER_HOUR = 150;
 const HOUR_MS = 60 * 60 * 1000;
@@ -29,35 +33,49 @@ const HOUR_MS = 60 * 60 * 1000;
 const reply = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-// The slice of the service-role client isSupportInbox uses, typed by shape
-// (see player-favorites for why not ReturnType<typeof createClient>).
+// The slice of the service-role client supportInboxSender uses, typed by
+// shape (see player-favorites for why not ReturnType<typeof createClient>).
 interface InboxDb {
-  from: (table: 'tenant_settings') => {
+  from: (table: 'tenant_settings' | 'tenant_branding') => {
     select: (cols: string) => {
       ilike: (col: string, v: string) => {
-        limit: (n: number) => PromiseLike<{ data: Array<{ support_email: string | null }> | null }>;
+        limit: (n: number) => PromiseLike<{ data: Array<{ support_email: string | null; tenant_id: string }> | null }>;
+      };
+      eq: (col: string, v: string) => {
+        maybeSingle: () => PromiseLike<{ data: { app_display_name: string | null } | null }>;
       };
     };
   };
 }
 
-/** Snow Media's inbox, or the support address a tenant has set up. */
-async function isSupportInbox(admin: InboxDb, to: string): Promise<boolean> {
-  if (to === SUPPORT_EMAIL) return true;
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return false;
+/** A display name only: letters, digits and a little punctuation. */
+const cleanName = (v: unknown): string =>
+  String(v ?? '').replace(/[^\p{L}\p{N} .'&-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 50);
+
+/**
+ * The sender name for a customer's mail to `to` when it is a support inbox:
+ * Snow Media's own, or one a tenant has set up (named after that tenant's
+ * app, as the Canvas app names it). Null for any other address. The caller's
+ * fromName is never used: the name comes from the inbox, not the customer.
+ */
+async function supportInboxSender(admin: InboxDb, to: string): Promise<string | null> {
+  if (to === SUPPORT_EMAIL || to === SNOW_SUPPORT) return 'Snow Media Support System';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return null;
   const { data } = await admin
     .from('tenant_settings')
-    .select('support_email')
+    .select('support_email, tenant_id')
     .ilike('support_email', to.replace(/[\\%_]/g, (c) => `\\${c}`))
     .limit(5);
-  return (data ?? []).some((r) => (r.support_email ?? '').trim().toLowerCase() === to);
+  const tenant = (data ?? []).find((r) => (r.support_email ?? '').trim().toLowerCase() === to);
+  if (!tenant) return null;
+  const { data: brand } = await admin
+    .from('tenant_branding')
+    .select('app_display_name')
+    .eq('tenant_id', tenant.tenant_id)
+    .maybeSingle();
+  const name = cleanName(brand?.app_display_name);
+  return name ? `${name} Support` : 'App Support';
 }
-
-/** A display name only: letters, digits and a little punctuation. */
-const senderName = (v: unknown): string => {
-  const n = String(v ?? '').replace(/[^\p{L}\p{N} .'&-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 60);
-  return n || 'Snow Media Center';
-};
 
 interface TemplateEmailData {
   to: string
@@ -238,9 +256,8 @@ Deno.serve(async (req) => {
       // A customer: only to a support inbox, only text, only so often.
       if (body.type) return reply({ error: 'Template emails are sent by Snow Media only.' }, 403);
       emailTo = (typeof body.to === 'string' ? body.to.trim().toLowerCase() : '') || SUPPORT_EMAIL;
-      if (!(await isSupportInbox(admin as unknown as InboxDb, emailTo))) {
-        return reply({ error: 'Messages can only go to a support inbox.' }, 403);
-      }
+      const inboxSender = await supportInboxSender(admin as unknown as InboxDb, emailTo);
+      if (!inboxSender) return reply({ error: 'Messages can only go to a support inbox.' }, 403);
       emailSubject = String(body.subject ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
       const text = (typeof body.message === 'string' ? body.message : htmlToText(String(body.html ?? ''))).trim().slice(0, 5000);
       if (!emailSubject || !text) return reply({ error: 'subject and message required' }, 400);
@@ -249,7 +266,7 @@ Deno.serve(async (req) => {
           || !(await throttle(db, 'sce:all', CUSTOMERS_ALL_PER_HOUR, HOUR_MS))) {
         return reply({ error: 'rate_limited' }, 429);
       }
-      fromName = senderName(body.fromName);
+      fromName = inboxSender;
       emailHtml = `
         <p style="margin:0 0 12px;color:#666;font-size:12px;">Sent from the app by the signed-in account <strong>${escapeHtml(user.email || userId)}</strong>.</p>
         <div style="padding:12px;background:#f5f5f5;border-radius:6px;white-space:pre-wrap;">${escapeHtml(text)}</div>
