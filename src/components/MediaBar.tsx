@@ -21,6 +21,7 @@ import { buildViewerBar, type BarChannel } from '@/lib/contentBar';
 import { WATCH_HISTORY_EVENT } from '@/lib/watchHistory';
 import { isAdultTitle } from '@/lib/adultContent';
 import { kidsLevel } from '@/lib/kidsFilter';
+import { handPlexDeeplink } from '@/lib/plexDeeplink';
 
 type MediaItem = {
   id: string;
@@ -283,16 +284,16 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
     // Plex browser via a deep-link. The old code fell through to the plex://
     // Android intent for shows + episodes, which surfaces "not available"
     // when the target lives in a shared library.
+    // Stamped: a link Plex never opens (the line has expired) is not replayed
+    // on a later visit (plexDeeplink.ts).
     if (item.ratingKey && onOpenPlayer) {
-      try {
-        sessionStorage.setItem('smc-plex-deeplink', JSON.stringify({
-          ratingKey: String(item.ratingKey),
-          title: item.title,
-          librarySectionID: item.librarySectionID ?? null,
-          kind: item.kind,
-          machineIdentifier: item.machineIdentifier ?? null,
-        }));
-      } catch { /* ignore */ }
+      handPlexDeeplink({
+        ratingKey: String(item.ratingKey),
+        title: item.title,
+        librarySectionID: item.librarySectionID ?? null,
+        kind: item.kind,
+        machineIdentifier: item.machineIdentifier ?? null,
+      });
       onOpenPlayer();
       return;
     }

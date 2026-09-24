@@ -43,6 +43,7 @@ import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
 import { peekPlexVoice, pickPlexVoiceMatch, plexVoiceQuery, plexVoiceSearchTexts, PLEX_VOICE_EVENT, PLEX_VOICE_KEY, type PlexVoiceIntent } from '@/lib/plexVoice';
+import { clearPlexDeeplink, handPlexDeeplink, peekPlexDeeplink, type PlexDeeplink } from '@/lib/plexDeeplink';
 import { commitSearch, fallbackSuggestions, fetchPopularSearches, loadRecentSearches, popularOnThisServer } from '@/lib/plexSearches';
 import { rankSuggestions, searchLooksThin, searchVariants } from '@/lib/plexFuzzy';
 import {
@@ -1857,16 +1858,17 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     clearJustLinked, startLink, cancelLink, signOut, retryConnect, linkWithProvider, reportAuthFailure,
   } = usePlexAuth();
 
-  const deeplinkRef = useRef<{ ratingKey: string; title?: string; librarySectionID?: string | number | null; kind?: string; machineIdentifier?: string | null } | null>(
-    (() => {
-      try {
-        const raw = sessionStorage.getItem('smc-plex-deeplink');
-        if (!raw) return null;
-        sessionStorage.removeItem('smc-plex-deeplink');
-        return JSON.parse(raw);
-      } catch { return null; }
-    })(),
-  );
+  // A title to open straight onto (the content bar's tile, or Support handing
+  // the viewer back; see plexDeeplink.ts). Looked at in a state initializer
+  // and cleared from storage once mounted, like the voice command below: it
+  // was read and cleared during render, every render, so a first render React
+  // threw away took it with it and Plex opened on Home.
+  const [deeplinkAtMount] = useState(() => peekPlexDeeplink());
+  const deeplinkRef = useRef<PlexDeeplink | null>(deeplinkAtMount?.link ?? null);
+  useEffect(() => {
+    // Only the copy read above.
+    if (deeplinkAtMount) clearPlexDeeplink(deeplinkAtMount.raw);
+  }, [deeplinkAtMount]);
 
   // A voice command's "watch The Office" / "search for Batman" (see
   // appActions.openPlexTitle and plexVoice.ts): taken from sessionStorage when
@@ -2280,11 +2282,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   // ── Deep-link: ONE effect that opens the detail overlay directly. Works
   //    even when the target library is hidden/reordered or hasn't loaded.
+  //    Keyed on the connection only, and the link is let go only once it has
+  //    been acted on (like the voice command's): it used to be dropped before
+  //    a title on another server had been looked up, so a run cut short (a
+  //    reconnect, a new address for the same server) left nothing to open and
+  //    Plex sat on Home.
   useEffect(() => {
     let cancelled = false;
     const dl = deeplinkRef.current;
     if (!dl || status !== 'ready' || !conn) return;
-    deeplinkRef.current = null;
+    const finish = () => { if (deeplinkRef.current === dl) deeplinkRef.current = null; };
 
     const kind = dl.kind;
     const type = kind === 'episode' || kind === 'show' ? kind : 'movie';
@@ -2299,7 +2306,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
     if (dl.machineIdentifier && conn.clientIdentifier && dl.machineIdentifier !== conn.clientIdentifier) {
       const title = dl.title || '';
-      if (!title) { toast({ title: 'This title lives on a different Plex server' }); return; }
+      if (!title) { finish(); toast({ title: 'This title lives on a different Plex server' }); return; }
       searchPlex(conn.base, conn.token, title)
         .then((results) => {
           // An orphaned continuation must never touch the key-owner token, the
@@ -2307,15 +2314,17 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           // (a no-op), so a late pauseLoading() here would silently park every
           // library pager on the next visit.
           if (cancelled) return;
+          finish();
           const norm = (s: string) => s.trim().toLowerCase();
           const match = results.find((r) => norm(r.title) === norm(title)) || results[0];
           if (match) { setDeepLinked(true); openDetail(match); }
           else toast({ title: 'This title lives on a different Plex server' });
         })
-        .catch(() => { if (cancelled) return; toast({ title: 'This title lives on a different Plex server' }); });
+        .catch(() => { if (cancelled) return; finish(); toast({ title: 'This title lives on a different Plex server' }); });
       return () => { cancelled = true; };
     }
 
+    finish();
     setDeepLinked(true);
     openDetail({ ratingKey: String(dl.ratingKey), title: dl.title ?? '', type });
     return () => { cancelled = true; };
@@ -3148,12 +3157,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       const p = playingRef.current;
       if (p) {
         sessionStorage.setItem('smc-guide-origin', 'plex-movie');
-        sessionStorage.setItem('smc-plex-deeplink', JSON.stringify({
+        handPlexDeeplink({
           ratingKey: p.ratingKey,
           title: p.title,
           librarySectionID: (p as unknown as { librarySectionID?: string | number | null }).librarySectionID ?? null,
           kind: p.type ?? 'movie',
-        }));
+        });
       }
     } catch { /* ignore */ }
   }, []);

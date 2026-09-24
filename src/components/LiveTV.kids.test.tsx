@@ -208,6 +208,21 @@ describe('the expiry notice (it offers a Renew QR)', () => {
 });
 
 describe('the Player on a grown-up profile', () => {
+  it('opens Plex for a title tapped on the content bar, but not for a link Plex never picked up', async () => {
+    const link = (at: number) => JSON.stringify({ ratingKey: 'd1', title: 'Dune', kind: 'movie', at });
+    sessionStorage.setItem('smc-plex-deeplink', link(Date.now() - 10 * 60 * 1000));
+    const stale = render(<LiveTV onBack={vi.fn()} />);
+    await settle();
+    expect(screen.queryByText('plex-section')).toBeNull();
+    expect(screen.getByText('Live channels & guide')).toBeTruthy();
+    stale.unmount();
+    sessionStorage.setItem('smc-plex-deeplink', link(Date.now()));
+    render(<LiveTV onBack={vi.fn()} />);
+    await settle();
+    await settle();
+    expect(screen.getByText('plex-section')).toBeTruthy();
+  });
+
   it('keeps Backups and the header Settings', async () => {
     await openLiveTv();
     expect(sidebar()).toContain('Backups');

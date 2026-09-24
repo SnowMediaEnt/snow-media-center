@@ -33,6 +33,7 @@ import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { useVersion } from '@/hooks/useVersion';
 import { clearPlexToken } from '@/lib/plex';
 import { isClaimDismissed, isClaimDone, markClaimDismissed } from '@/lib/accountClaim';
+import { peekPlexDeeplink } from '@/lib/plexDeeplink';
 import { trackEvent, trackAlertShown, startTimer, stopTimer, hasSessionFlag } from '@/lib/analytics';
 import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
 import PlayerModeChooser from './livetv/PlayerModeChooser';
@@ -490,10 +491,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
 
   // Content-Bar deep-link: land straight in Movies & Series (PlexSection
-  // consumes the payload itself — do not remove it here).
+  // consumes the payload itself — do not remove it here). Only a fresh one:
+  // a link Plex never picked up does not open Plex on a later visit.
   useEffect(() => {
     try {
-      if (sessionStorage.getItem('smc-plex-deeplink')) enterMode('movies');
+      if (peekPlexDeeplink()) enterMode('movies');
       // A channel from the content bar: LiveSection plays it on mount.
       else if (sessionStorage.getItem('smc-live-deeplink')) enterMode('live');
     } catch { /* ignore */ }

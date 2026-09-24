@@ -1,5 +1,7 @@
 // PlexSection end to end with the network mocked: a voice command's title,
-// Search on a Kids profile, and Home's rails under the D-pad.
+// the content bar's link to a title, Search on a Kids profile, and Home's
+// rails under the D-pad.
+import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlexItem, PlexLibrary } from '@/lib/plex';
@@ -15,6 +17,8 @@ const h = vi.hoisted(() => {
   return {
     later, auth, conn,
     setAuth: null as null | ((a: typeof auth) => void),
+    /** What Plex's sign-in says first, when not already connected. */
+    first: null as null | typeof auth,
     libs: vi.fn(), search: vi.fn(), hub: vi.fn(), added: vi.fn(), row: vi.fn(),
     overseerrSearch: vi.fn(), overseerrRequest: vi.fn(), popularSearches: vi.fn(), recentSearches: vi.fn(),
   };
@@ -48,7 +52,7 @@ vi.mock('@/hooks/usePlexAuth', async () => {
   const React = await import('react');
   return {
     usePlexAuth: () => {
-      const [a, set] = React.useState(h.auth);
+      const [a, set] = React.useState(h.first ?? h.auth);
       h.setAuth = set;
       return a;
     },
@@ -113,6 +117,7 @@ class NoResize { observe() { /* test */ } unobserve() { /* test */ } disconnect(
 const LIBS: PlexLibrary[] = [{ key: '1', title: 'Movies', type: 'movie' }, { key: '2', title: 'TV Shows', type: 'show' }];
 const it_ = (ratingKey: string, title: string, extra: Partial<PlexItem> = {}): PlexItem => ({ ratingKey, title, type: 'movie', thumb: `/${ratingKey}`, ...extra });
 const VOICE_KEY = 'smc-plex-voice';
+const LINK_KEY = 'smc-plex-deeplink';
 
 // Sent where the remote's key would land: the focused element (Search's box
 // takes its keys that way), else the page.
@@ -126,6 +131,7 @@ beforeEach(async () => {
   sessionStorage.clear();
   localStorage.clear();
   vi.clearAllMocks();
+  h.first = null;
   (await import('@/lib/plex')).clearPlexCaches();
   (await import('./plexKeyOwner')).setPlexKeyOwner('browse');
   h.libs.mockImplementation(() => h.later(5, LIBS));
@@ -220,6 +226,46 @@ describe('PlexSection — a title asked for by voice', () => {
     await renderPlex();
     await screen.findByText('Recently Added', undefined, { timeout: 3000 });
     expect(h.search).not.toHaveBeenCalled();
+  });
+});
+
+describe('PlexSection — a title tapped on the content bar', () => {
+  it('opens its page though the first render is thrown away (StrictMode renders twice)', async () => {
+    sessionStorage.setItem(LINK_KEY, JSON.stringify({ ratingKey: 'd1', title: 'Dune', kind: 'movie', librarySectionID: '1', machineIdentifier: 'srv', at: Date.now() }));
+    const { default: PlexSection } = await import('./PlexSection');
+    render(<StrictMode><PlexSection isActive onExitLeft={() => undefined} onExitUp={() => undefined} /></StrictMode>);
+    expect(await screen.findByText('DETAIL:Dune', undefined, { timeout: 3000 })).toBeTruthy();
+    // Home is not loaded behind it, and the link is used up.
+    expect(h.added).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(LINK_KEY)).toBeNull();
+  });
+
+  it('opens it when Plex connects after it has opened', async () => {
+    h.first = { ...h.auth, status: 'connecting', conn: null as unknown as typeof h.conn };
+    sessionStorage.setItem(LINK_KEY, JSON.stringify({ ratingKey: 's1', title: 'Severance', kind: 'show', at: Date.now() }));
+    await renderPlex();
+    await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+    expect(screen.queryByText(/^DETAIL:/)).toBeNull();
+    act(() => { h.setAuth?.(h.auth); });
+    expect(await screen.findByText('DETAIL:Severance', undefined, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it('a title on another server still opens when the server gets a new address mid-search', async () => {
+    sessionStorage.setItem(LINK_KEY, JSON.stringify({ ratingKey: 'x9', title: 'Bluey', kind: 'show', machineIdentifier: 'friends-server', at: Date.now() }));
+    h.libs.mockImplementation(() => h.later(10, LIBS));
+    h.search.mockImplementation(() => h.later(80, [it_('b1', 'Bluey', { type: 'show' })]));
+    await renderPlex();
+    await waitFor(() => expect(h.search).toHaveBeenCalledTimes(1));
+    act(() => { h.setAuth?.({ ...h.auth, conn: { ...h.conn, base: 'https://relay.plex.test' } }); });
+    expect(await screen.findByText('DETAIL:Bluey', undefined, { timeout: 3000 })).toBeTruthy();
+    expect(h.search).toHaveBeenLastCalledWith('https://relay.plex.test', 'tok', 'Bluey');
+  });
+
+  it('ignores a stored link Plex never picked up', async () => {
+    sessionStorage.setItem(LINK_KEY, JSON.stringify({ ratingKey: 'd1', title: 'Dune', kind: 'movie', at: Date.now() - 10 * 60 * 1000 }));
+    await renderPlex();
+    await screen.findByText('Recently Added', undefined, { timeout: 3000 });
+    expect(screen.queryByText(/^DETAIL:/)).toBeNull();
   });
 });
 
