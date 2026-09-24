@@ -120,9 +120,11 @@ describe('phoneRemote (the box)', () => {
     const keys: string[] = [];
     window.addEventListener('keydown', (e) => keys.push(e.key));
     const vis = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    const focus = vi.spyOn(document, 'hasFocus').mockReturnValue(false);
     m.__phoneRemoteForTests.onPhoneMessage({ t: 'key', k: 'back', id: 'p1' });
     m.__phoneRemoteForTests.onPhoneMessage({ t: 'home', id: 'p1' });
     vis.mockRestore();
+    focus.mockRestore();
     expect(keys).toEqual([]);
     expect(boxSent().filter((p) => p.t === 'away')).toHaveLength(1); // at most one every few seconds
   });

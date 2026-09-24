@@ -132,8 +132,12 @@ function syntheticKey(k: { key: string; keyCode: number }): void {
   if (k.key === 'Enter' && !handled && target !== document.body && target.matches('button, a, [role="button"], [tabindex]')) target.click();
 }
 
-/** Snow Media Center isn't what the TV shows (another app is in front). */
-const offScreen = (): boolean => { try { return document.visibilityState === 'hidden'; } catch { return false; } };
+/**
+ * Snow Media Center isn't what the TV shows (another app is in front). Both
+ * signals must agree, so a WebView that misreports one never locks the
+ * phone out while the app is on screen.
+ */
+const offScreen = (): boolean => { try { return document.visibilityState === 'hidden' && !document.hasFocus(); } catch { return false; } };
 
 let lastAway = 0;
 /** Tell the phones their presses aren't reaching anything they can see. */
