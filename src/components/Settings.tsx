@@ -408,7 +408,10 @@ const Settings = ({ onBack }: SettingsProps) => {
           break;
         case 'ArrowDown':
           if (focusedElement === 'back') {
-            setFocusedElement('tab-media');
+            // The tab that is showing (Settings may open on Profiles or
+            // Phone Remote), so a second Down reaches its content.
+            const showing = `tab-${activeTab}` as SettingsFocus;
+            setFocusedElement(tabs.includes(showing) ? showing : 'tab-media');
           } else if (focusedElement === 'tab-media' && activeTab === 'media') {
             setMediaManagerActive(true);
           } else if (focusedElement === 'tab-ui' && activeTab === 'ui') {
