@@ -689,6 +689,15 @@ export function getPlayerSpeedKbps(): number | null {
   return best > 0 ? best : null;
 }
 
+/**
+ * The player's own download-rate reports of the last 3 minutes (oldest
+ * first, a copy): what automatic quality reads the steady speed from.
+ */
+export function getPlayerRates(): Array<{ t: number; kbps: number }> {
+  if (!state.active) return [];
+  return state.playerRates.map((r) => ({ t: r.t, kbps: r.kbps }));
+}
+
 /** hls.bandwidthEstimate (bits per second). */
 export function recordEngineEstimate(bps: number): void {
   if (!state.active) return;

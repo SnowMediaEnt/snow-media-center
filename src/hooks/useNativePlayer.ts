@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onMediaKey } from '@/lib/mediaKeys';
 import { SnowPlayer, type SnowSubtitle } from '@/capacitor/SnowPlayer';
+import { markSeek } from '@/lib/playerSeek';
 import { createNativeVideoController, type NativeControllerHandle } from '@/lib/nativeVideoController';
 import type { VideoController } from '@/components/livetv/VideoPlayer';
 import { enterQuiet, exitQuiet } from '@/utils/quietMode';
@@ -271,6 +272,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         await SnowPlayer.load({ url, live, isLive: live, subtitles });
         if (cancelled || myNonce !== nonceRef.current) return;
         if (startPosition && startPosition > 0) {
+          markSeek();
           try { await SnowPlayer.seekTo({ position: startPosition }); } catch { /* ignore */ }
         }
         if (cancelled || myNonce !== nonceRef.current) return;
@@ -398,6 +400,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   }, [active]);
 
   const seekTo = useCallback(async (seconds: number) => {
+    markSeek();
     try { await SnowPlayer.seekTo({ position: Math.max(0, seconds) }); } catch { /* ignore */ }
   }, []);
   const getPosition = useCallback(async () => {
@@ -424,6 +427,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
             const p = await SnowPlayer.getPosition();
             const to = k === 'ff' ? p.position + 30 : p.position - 10;
             const max = p.duration > 0 ? Math.max(0, p.duration - 1) : Number.MAX_SAFE_INTEGER;
+            markSeek();
             await SnowPlayer.seekTo({ position: Math.min(max, Math.max(0, to)) });
           } catch { /* ignore */ }
         })();

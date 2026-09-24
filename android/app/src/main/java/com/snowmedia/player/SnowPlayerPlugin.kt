@@ -93,8 +93,9 @@ class SnowPlayerPlugin : Plugin() {
         var reconnectRunnable: Runnable? = null
         var positionTickRunnable: Runnable? = null
         // VOD only: while we hold playback with playWhenReady=false until the
-        // decoder has ≥10s buffered (or 12s wall-clock elapse). Prevents the
-        // initial "playing → immediate rebuffer" flash on slow Plex servers.
+        // player has PREBUFFER_TARGET_MS buffered (or PREBUFFER_MAX_WAIT_MS
+        // wall-clock elapse). Prevents the initial "playing → immediate
+        // rebuffer" flash on slow Plex servers.
         var preBufferRunnable: Runnable? = null
         // Rect requested BEFORE the surface existed (or before load()). load()
         // applies this after ensureSurface. Null = "no explicit rect yet".
@@ -128,6 +129,13 @@ class SnowPlayerPlugin : Plugin() {
         private const val FIRST_FRAME_TIMEOUT_MS = 8000L
         private const val POSITION_TICK_MS = 5000L
         private const val BANDWIDTH_TICK_MS = 3000L
+        // VOD start: up to 10 s spent on nothing but filling the buffer, so a
+        // film starts with ~25 s in hand instead of the 2.5 s the player
+        // needs to begin (which the first dip in the server's speed empties).
+        // A fast connection gets there in a second or two and starts at once.
+        private const val PREBUFFER_TARGET_MS = 25000L
+        private const val PREBUFFER_MAX_WAIT_MS = 10000L
+        private const val PREBUFFER_TICK_MS = 500L
     }
 
     private fun screenIdOf(call: PluginCall): String = call.getString("screenId") ?: MAIN
@@ -246,30 +254,53 @@ class SnowPlayerPlugin : Plugin() {
         mainHandler.postDelayed(r, FIRST_FRAME_TIMEOUT_MS)
     }
 
-    /** VOD pre-buffer: hold playWhenReady=false for up to 12s or until the
-     *  player has buffered ≥10s ahead of the current position. Live streams
-     *  keep the legacy behavior (start immediately). */
-    private fun schedulePreBuffer(s: PlayerSlot) {
+    /** VOD pre-buffer: hold playWhenReady=false until the player has
+     *  PREBUFFER_TARGET_MS buffered ahead, PREBUFFER_MAX_WAIT_MS have passed,
+     *  or the player has stopped loading (the buffer is as full as its limits
+     *  allow — a 4K remux fills the byte cap well before 25 s — or the file
+     *  is shorter). Live streams keep the legacy behavior (start at once).
+     *  The main slot reports progress as 'preBuffer' events every tick, so
+     *  the WebView can show "Getting ready…" instead of a still frame. */
+    private fun schedulePreBuffer(s: PlayerSlot, screenId: String) {
         s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
         val startedAt = SystemClock.elapsedRealtime()
+        val url = s.currentUrl
         val r = object : Runnable {
             override fun run() {
                 val p = s.player ?: return
-                if (s.currentUrl == null) return
-                val bufMs = p.bufferedPosition - p.currentPosition
+                if (s.currentUrl == null || s.currentUrl != url) return
+                val bufMs = (p.bufferedPosition - p.currentPosition).coerceAtLeast(0L)
                 val elapsed = SystemClock.elapsedRealtime() - startedAt
-                val readyEnough = p.playbackState == Player.STATE_READY && bufMs >= 4000L
-                if (bufMs >= 10000L || elapsed >= 12000L || readyEnough) {
+                val state = p.playbackState
+                // Stopped loading with a decent buffer: the byte budget is
+                // spent (or the file ends). Not below 10 s — a converting
+                // server between segments also reads as "not loading", and
+                // that is exactly when the extra wait helps.
+                val full = state == Player.STATE_READY && !p.isLoading && bufMs >= 10000L
+                val done = bufMs >= PREBUFFER_TARGET_MS || elapsed >= PREBUFFER_MAX_WAIT_MS ||
+                    full || state == Player.STATE_ENDED
+                if (screenId == MAIN) {
+                    notifyListeners(
+                        "preBuffer",
+                        JSObject().put("screenId", screenId)
+                            .put("bufferedMs", bufMs)
+                            .put("targetMs", PREBUFFER_TARGET_MS)
+                            .put("elapsedMs", elapsed)
+                            .put("maxWaitMs", PREBUFFER_MAX_WAIT_MS)
+                            .put("done", done),
+                    )
+                }
+                if (done) {
                     s.holding = false
                     p.playWhenReady = true
                     s.preBufferRunnable = null
                     return
                 }
-                mainHandler.postDelayed(this, 500L)
+                mainHandler.postDelayed(this, PREBUFFER_TICK_MS)
             }
         }
         s.preBufferRunnable = r
-        mainHandler.postDelayed(r, 500L)
+        mainHandler.postDelayed(r, PREBUFFER_TICK_MS)
     }
 
 
@@ -448,9 +479,10 @@ class SnowPlayerPlugin : Plugin() {
             )
         // Trimmed buffers for non-main slots so up to 4 concurrent players fit
         // in Fire TV memory — capped in bytes too, or a 15 Mb/s tile could
-        // hold ~30 MB. "main" keeps the library default (up to ~138 MB of
-        // buffer) except on 2 GB-class boxes, where that memory is what gets
-        // the WebView killed; there it is capped at 80 MB (see below).
+        // hold ~30 MB. "main" keeps the library's byte budget (up to ~138 MB
+        // of buffer) but reads further ahead (below), except on 2 GB-class
+        // boxes, where that memory is what gets the WebView killed; there it
+        // is capped at 80 MB (see below).
         val lowRam = isLowRamBox(act)
         if (screenId != MAIN) {
             val loadControl = DefaultLoadControl.Builder()
@@ -470,6 +502,17 @@ class SnowPlayerPlugin : Plugin() {
                 .setBufferDurationsMs(20000, 60000, 2500, 5000)
                 .setTargetBufferBytes(80 * 1024 * 1024)
                 .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+            builder.setLoadControl(loadControl)
+        } else {
+            // Boxes with memory to spare: keep downloading up to two minutes
+            // ahead (the library stops at 50 s), topping up whenever it falls
+            // under one. A 6-10 Mb/s episode then rides out a minute-long dip
+            // in the server's or the ISP's speed. Size still wins over time
+            // (the library's own ~138 MB budget), so a 4K remux holds what it
+            // did before and never more.
+            val loadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(60000, 120000, 2500, 5000)
                 .build()
             builder.setLoadControl(loadControl)
         }
@@ -642,12 +685,12 @@ class SnowPlayerPlugin : Plugin() {
             if (live) {
                 p.playWhenReady = true
             } else {
-                // VOD: pre-buffer ≥10s (or 12s wall-clock) before starting so
-                // slow Plex servers don't cause the "playing → immediate
-                // rebuffer" flash and the JS overlay's slow-load watchdog.
+                // VOD: pre-buffer up to 25 s (at most 10 s wall-clock) before
+                // starting so slow Plex servers don't cause the "playing →
+                // immediate rebuffer" flash (see schedulePreBuffer).
                 s.holding = true
                 p.playWhenReady = false
-                schedulePreBuffer(s)
+                schedulePreBuffer(s, screenId)
             }
             scheduleWatchdog(s, screenId)
             schedulePositionTick(s)

@@ -77,7 +77,15 @@ import {
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import { autoDropPreset, explainPlexStall } from '@/lib/plexStallVerdict';
-import { getSnapshot as getDiagSnapshot, type DiagSnapshot } from '@/lib/bufferDiagnostics';
+import { getPlayerRates, getSnapshot as getDiagSnapshot, type DiagSnapshot } from '@/lib/bufferDiagnostics';
+import {
+  AutoQuality, buildQualityLadder, ladderIndex, markManualQuality, stallBudgetKbps, steadyKbps,
+  DROP_WINDOW_MS, RAISE_SUSTAIN_MS, SEEK_GRACE_MS, SPEED_HEADROOM, type AutoMove, type QualityStep,
+} from '@/lib/plexAutoQuality';
+import { lastSeekAt } from '@/lib/playerSeek';
+import { measurePlexSpeed, transcodeSource, type PlexVersion } from '@/lib/plexVersions';
+import { clearPreBuffer, isPreBuffering, usePreBufferActive } from '@/lib/preBuffer';
+import PreBufferIndicator from './PreBufferIndicator';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { pauseLoading, resumeLoading, waitForResume } from '@/lib/loadGate';
 
@@ -2052,6 +2060,40 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [extraSubs, setExtraSubs] = useState<SnowSubtitle[] | undefined>(undefined);
   const [qualityKey, setQualityKey] = useState<string>('original');
   useEffect(() => { void loadPlexQuality().then(setQualityKey); }, []);
+  const qualityKeyRef = useRef(qualityKey); qualityKeyRef.current = qualityKey;
+  const fileKbpsRef = useRef(fileKbps); fileKbpsRef.current = fileKbps;
+  // The file being played: one of the title's versions (a 4K and a 1080p
+  // Media, or a copy of the title in another library). Quality changes, the
+  // audio fallbacks and automatic quality all work from it. The refs move
+  // with the state at once, so a URL built in the same tick sees the change.
+  const [playVersions, setPlayVersions] = useState<PlexVersion[]>([]);
+  const [playVersion, setPlayVersion] = useState<PlexVersion | null>(null);
+  const playVersionsRef = useRef<PlexVersion[]>([]);
+  const playVersionRef = useRef<PlexVersion | null>(null);
+  const setSource = useCallback((v: PlexVersion | null, all?: PlexVersion[]) => {
+    playVersionRef.current = v;
+    setPlayVersion(v);
+    if (all) { playVersionsRef.current = all; setPlayVersions(all); }
+  }, []);
+  // The version the viewer started with: automatic quality never goes above it.
+  const ceilingVersionIdRef = useRef<string | null>(null);
+  // Audio (or the codec) forced a conversion: never go back to the file as-is.
+  const forcedTranscodeRef = useRef(false);
+  // Bumped by every start, so a replay of the same title starts afresh.
+  const [playSeq, setPlaySeq] = useState(0);
+  // Converting the file being played (optionally capped): from the lightest
+  // version that still carries the cap — a 1080p file for 1080p · 8 Mbps,
+  // not the 4K one.
+  const sourceTranscodeUrl = useCallback((c: { base: string; token: string }, fallbackKey: string, opts?: { maxVideoBitrateKbps?: number; videoResolution?: string }): string => {
+    const src = transcodeSource(playVersionsRef.current, playVersionRef.current, opts?.maxVideoBitrateKbps);
+    return plexTranscodeUrl(c.base, src?.ratingKey ?? fallbackKey, c.token, { ...opts, mediaIndex: src?.mediaIndex ?? 0 });
+  }, []);
+  // The file being played, as it is; null when the server has no part for it.
+  const sourceDirectUrl = useCallback(async (c: { base: string; token: string }, fallbackKey: string): Promise<string | null> => {
+    const v = playVersionRef.current;
+    const partKey = v?.partKey ?? (await getPlexPart(c.base, c.token, v?.ratingKey ?? fallbackKey, v?.mediaIndex ?? 0)).partKey;
+    return partKey ? plexDirectUrl(c.base, partKey, c.token) : null;
+  }, []);
   // Is this box on the viewer's own Plex account (not the shared provider
   // account)? Then its progress is also reported to Plex and the server's
   // Continue Watching / resume points are theirs too. Unknown = shared.
@@ -2752,7 +2794,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // play/quality/audio action opens a short explainer instead.
   const [demoNotice, setDemoNotice] = useState(false);
 
-  const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string, knownPartKey?: string) => {
+  const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string, knownPartKey?: string, src?: { version?: PlexVersion | null; versions?: PlexVersion[] }) => {
     if (DEMO) { setDemoNotice(true); return; }
     if (!conn) return;
     // Reset one-shot rescue guards so replaying the same title after backing
@@ -2765,17 +2807,38 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // Reset quality state so the overlay's Quality menu reflects reality.
     setQualityKey('original');
     setUseTranscode(false);
-    setFileKbps(undefined);
-    // What the file needs, for the buffering card. Off the start path.
-    void getPlexPart(conn.base, conn.token, ratingKey)
-      .then((p) => setFileKbps((cur) => (playingKeyRef.current === ratingKey ? p.bitrateKbps : cur)))
+    forcedTranscodeRef.current = false;
+    // Automatic quality starts over with every start (a replay too).
+    setPlaySeq((n) => n + 1);
+    // Which file: the version picked on the title page, else the item's
+    // first (what Plex itself plays). A copy in another library streams from
+    // its own item; `ratingKey` stays the title's, for progress and resume.
+    const known = src?.versions ?? [];
+    const ver = src?.version ?? known.find((v) => v.ratingKey === ratingKey && v.mediaIndex === 0) ?? known[0] ?? null;
+    setSource(ver, known.length ? known : (ver ? [ver] : []));
+    ceilingVersionIdRef.current = ver?.id ?? null;
+    const srcKey = ver?.ratingKey ?? ratingKey;
+    const mediaIndex = ver?.mediaIndex ?? 0;
+    setFileKbps(ver?.bitrateKbps);
+    // What the file needs, for the buffering card, and every version of it
+    // for the Quality menu. Off the start path.
+    void getPlexPart(conn.base, conn.token, srcKey, mediaIndex)
+      .then((p) => {
+        if (playingKeyRef.current !== ratingKey) return;
+        setFileKbps((cur) => p.bitrateKbps ?? cur);
+        if (!known.length && p.versions.length) {
+          const mine = p.versions[mediaIndex] ?? p.versions[0];
+          setSource(playVersionRef.current ?? mine, p.versions);
+          if (!ceilingVersionIdRef.current) ceilingVersionIdRef.current = mine.id;
+        }
+      })
       .catch(() => { /* card just won't show it */ });
     // Flip fullscreen ON *before* any await so the loading UI paints
     // immediately — otherwise the user stares at the grid for the ~1-3s
     // getPlexPart round-trip and mashes OK, queueing up phantom presses.
     setPlaying({ ratingKey, title, type: 'movie', thumb: '' });
     setPlayingTitle(title);
-    setPlayingResLabel(resLabel ?? '');
+    setPlayingResLabel(ver?.label || resLabel || '');
     setStartPos(resumeSec && resumeSec > 0 ? resumeSec : undefined);
     setSubCtx(ctx ?? { title });
     setExtraSubs(undefined);
@@ -2785,17 +2848,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       // The detail page and the episode list already have the file's part key
       // from their own metadata; asking the server again only delayed the
       // start by a round trip.
-      const partKey = knownPartKey ?? (await getPlexPart(conn.base, conn.token, ratingKey)).partKey;
+      const partKey = ver ? (ver.partKey ?? (await getPlexPart(conn.base, conn.token, srcKey, mediaIndex)).partKey)
+        : (knownPartKey ?? (await getPlexPart(conn.base, conn.token, ratingKey)).partKey);
       // Always direct-play the original. If a title's audio genuinely can't be
       // decoded, the onTracksChanged zero-audio safety net reloads it as a
       // transcode automatically — no pre-emptive transcode.
-      const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, ratingKey, conn.token);
+      const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, srcKey, conn.token, { mediaIndex });
       setStreamUrl(url);
     } catch {
-      setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token));
+      setStreamUrl(plexTranscodeUrl(conn.base, srcKey, conn.token, { mediaIndex }));
       setUseTranscode(true);
     }
-  }, [conn]);
+  }, [conn, setSource]);
 
 
   // Which path the stream takes (LAN / direct / Plex relay, http vs https).
@@ -2808,19 +2872,19 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const explainStall = useCallback((snap: DiagSnapshot) => explainPlexStall(snap, {
     fileKbps, targetKbps: qualityCapKbps, transcoding: useTranscode, route: conn?.route,
   }), [fileKbps, qualityCapKbps, useTranscode, conn?.route]);
-  const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext, partKey?: string) => {
+  const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext, partKey?: string, src?: { version?: PlexVersion | null; versions?: PlexVersion[] }) => {
     // ratingKey feeds the content bar's "Popular this week" (media-bar-feed).
     try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie', ratingKey: it.ratingKey, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     if (!DEMO) recordPlexWatch(it);
-    void playRatingKey(it.ratingKey, it.title, resumeSec, ctx, resolutionLabel(it.videoResolution), partKey);
+    void playRatingKey(it.ratingKey, it.title, resumeSec, ctx, resolutionLabel(it.videoResolution), partKey, src);
   }, [playRatingKey, conn]);
-  const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext) => {
+  const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext, version?: PlexVersion | null) => {
     // The SHOW is what to come back to and what "more like this" keys off.
     const show = detailRef.current;
     try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', ratingKey: ep.ratingKey, showKey: show?.ratingKey, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     if (!DEMO && show) recordPlexWatch({ ...show, type: 'show', grandparentTitle: undefined }, undefined);
     // Pick up where this viewer stopped (their own progress, see plexProgress).
-    void playRatingKey(ep.ratingKey, ep.title, resumeSeconds(ep.ratingKey), ctx, '', ep.partKey);
+    void playRatingKey(ep.ratingKey, ep.title, resumeSeconds(ep.ratingKey), ctx, '', ep.partKey, { version, versions: ep.versions });
   }, [playRatingKey, conn]);
 
   // Skip Intro / Up Next (EpisodeAutoplay). The next episode starts in place,
@@ -2838,7 +2902,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     }
     const ctx: SubtitleSearchContext = { title: ep.title, grandparentTitle: info.showTitle, season: ep.seasonIndex, episode: ep.index };
     setPlayerPrompt(null);
-    void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '', ep.partKey);
+    // The same version as the episode before (the 1080p one stays 1080p).
+    const want = playVersionRef.current?.label;
+    const version = want ? ep.versions?.find((v) => v.label === want) : undefined;
+    void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '', ep.partKey, { version, versions: ep.versions });
   }, [playRatingKey, conn]);
 
   // (plex_error tracked below, once `native` is declared.)
@@ -2857,36 +2924,54 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // as external-subtitle loading so the native player fully re-inits.
   const changeQuality = useCallback((presetKey: string, resumeSec: number) => {
     if (DEMO) { setDemoNotice(true); return; }
-    void savePlexQuality(presetKey);
-    setQualityKey(presetKey);
+    // 'original@<versionId>': another version of the title, played as it is.
+    let key = presetKey;
+    let ver = playVersionRef.current;
+    if (key.startsWith('original@')) {
+      const id = key.slice('original@'.length);
+      ver = playVersionsRef.current.find((v) => v.id === id) ?? ver;
+      key = 'original';
+    }
+    void savePlexQuality(key);
+    setQualityKey(key);
+    qualityKeyRef.current = key;
     if (!conn || !playing) return;
-    const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === presetKey);
+    if (ver && ver !== playVersionRef.current) {
+      setSource(ver);
+      setFileKbps(ver.bitrateKbps);
+      setPlayingResLabel(ver.label);
+    }
+    const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === key);
     const goingTranscode = !!(preset && preset.key !== 'original' && (preset.maxVideoBitrateKbps || preset.videoResolution));
     setUseTranscode(goingTranscode);
     setStartPos(resumeSec > 0 ? resumeSec : undefined);
     if (goingTranscode && preset) {
-      const url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token, {
+      const url = sourceTranscodeUrl(conn, playing.ratingKey, {
         maxVideoBitrateKbps: preset.maxVideoBitrateKbps,
         videoResolution: preset.videoResolution,
       });
       setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
       return;
     }
-    // Original — direct play via existing getPlexPart path.
+    // Original — the chosen version's file, played as it is.
     void (async () => {
       let url = '';
       try {
-        const { partKey } = await getPlexPart(conn.base, conn.token, playing.ratingKey);
-        url = partKey
-          ? plexDirectUrl(conn.base, partKey, conn.token)
-          : plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+        url = (await sourceDirectUrl(conn, playing.ratingKey)) ?? sourceTranscodeUrl(conn, playing.ratingKey);
       } catch {
-        url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+        url = sourceTranscodeUrl(conn, playing.ratingKey);
         setUseTranscode(true);
       }
       setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
     })();
-  }, [conn, playing]);
+  }, [conn, playing, setSource, sourceTranscodeUrl, sourceDirectUrl]);
+  const changeQualityRef = useRef(changeQuality); changeQualityRef.current = changeQuality;
+  // Picked in the player's Quality menu: the viewer's choice wins, and
+  // automatic quality leaves them alone for the rest of the session.
+  const changeQualityByViewer = useCallback((presetKey: string, resumeSec: number) => {
+    markManualQuality();
+    changeQuality(presetKey, resumeSec);
+  }, [changeQuality]);
 
   // Manual audio rescue: user pressed "Fix audio" in the Audio menu. Reload
   // the currently-playing item as an audio-only transcode (AAC) — video
@@ -2896,15 +2981,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (!conn || !playing || useTranscode) return;
     try { trackEvent('plex_fix_audio', 'player', { ratingKey: playing.ratingKey }); } catch { /* ignore */ }
     setUseTranscode(true);
+    forcedTranscodeRef.current = true;
     setStartPos(resumeSec > 0 ? resumeSec : undefined);
-    const url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+    const url = sourceTranscodeUrl(conn, playing.ratingKey);
     setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
-  }, [conn, playing, useTranscode]);
+  }, [conn, playing, useTranscode, sourceTranscodeUrl]);
 
 
 
 
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!streamUrl;
+  // The native player holding a film's start to fill its buffer.
+  const preBufferActive = usePreBufferActive();
   // Safety net: DIRECT playback of an unknown-codec file where ExoPlayer
   // silently deselects the audio → zero audio tracks after load. Reload as
   // Plex transcode. Guarded per (ratingKey, direct/transcode) so it fires
@@ -2938,11 +3026,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         } catch { /* ignore */ }
         setStartPos(resume);
         setUseTranscode(true);
-        const url = plexTranscodeUrl(conn.base, key, conn.token);
+        forcedTranscodeRef.current = true;
+        const url = sourceTranscodeUrl(conn, key);
         setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
       })();
     } catch { /* ignore */ }
-  }, [nativeActive, useTranscode, playing, conn, toast]);
+  }, [nativeActive, useTranscode, playing, conn, toast, sourceTranscodeUrl]);
   const slowLoadTimerRef = useRef<number | null>(null);
   const stillLoadingRef = useRef(true);
   const clearSlowLoadTimer = useCallback(() => {
@@ -2959,6 +3048,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       stillLoadingRef.current = false;
       clearSlowLoadTimer();
       setSlowLoadRef.current(false);
+      clearPreBuffer();
     }
   }, [clearSlowLoadTimer]);
   // Forward-referenced from armSlowLoadTimer (declared below) so app-resume
@@ -3019,9 +3109,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       } catch { /* ignore */ }
       setStartPos(resume);
       setUseTranscode(true);
-      setStreamUrl(plexTranscodeUrl(conn.base, playing.ratingKey, conn.token));
+      forcedTranscodeRef.current = true;
+      setStreamUrl(sourceTranscodeUrl(conn, playing.ratingKey));
     })();
-  }, [native.error, nativeActive, useTranscode, playing, conn, native]);
+  }, [native.error, nativeActive, useTranscode, playing, conn, native, sourceTranscodeUrl]);
 
   // Same fallback for SILENT audio: a Dolby/DTS-only file on a device with no
   // matching decoder raises no error at all — ExoPlayer just deselects the
@@ -3038,9 +3129,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       } catch { /* ignore */ }
       setStartPos(resume);
       setUseTranscode(true);
-      setStreamUrl(plexTranscodeUrl(conn.base, playing.ratingKey, conn.token));
+      forcedTranscodeRef.current = true;
+      setStreamUrl(sourceTranscodeUrl(conn, playing.ratingKey));
     })();
-  }, [native.audioWarning, native.error, nativeActive, useTranscode, playing, conn, native]);
+  }, [native.audioWarning, native.error, nativeActive, useTranscode, playing, conn, native, sourceTranscodeUrl]);
 
   // Slow-load watchdog: if the native player hasn't emitted 'ready' within
   // 8s of the fullscreen flipping on, expose a Retry button so the user can
@@ -3063,13 +3155,21 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // plays: on a 4K or HEVC file, or a remote server, that routinely takes
     // longer than 8 s. Giving up at 8 s is what made every "1080p · 8 Mbps"
     // pick bounce straight back to Original.
-    slowLoadTimerRef.current = window.setTimeout(() => {
-      if (stillLoadingRef.current) setSlowLoad(true);
+    // The native player may be holding the start on purpose to fill its
+    // buffer (up to 10 s, see preBuffer.ts): that is not the server being
+    // slow, so look again once the hold is over.
+    const fire = () => {
       slowLoadTimerRef.current = null;
-    }, useTranscodeRef.current ? TRANSCODE_START_GRACE_MS : 8000) as unknown as number;
+      if (!stillLoadingRef.current) return;
+      if (isPreBuffering()) { slowLoadTimerRef.current = window.setTimeout(fire, 2000) as unknown as number; return; }
+      setSlowLoad(true);
+    };
+    slowLoadTimerRef.current = window.setTimeout(fire, useTranscodeRef.current ? TRANSCODE_START_GRACE_MS : 8000) as unknown as number;
   }, [clearSlowLoadTimer]);
   useEffect(() => { armSlowLoadTimerRef.current = armSlowLoadTimer; }, [armSlowLoadTimer]);
   useEffect(() => {
+    // A new stream: the last one's start-up hold (if any) is over.
+    clearPreBuffer();
     if (!fullscreen) { clearSlowLoadTimer(); stillLoadingRef.current = false; setSlowLoad(false); return; }
     armSlowLoadTimer();
     return () => { clearSlowLoadTimer(); };
@@ -3124,10 +3224,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       let url = '';
       let fellBack = false;
       try {
-        const { partKey } = await getPlexPart(conn.base, conn.token, key);
-        url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, key, conn.token);
+        const direct = await sourceDirectUrl(conn, key);
+        url = direct ?? sourceTranscodeUrl(conn, key);
       } catch {
-        url = plexTranscodeUrl(conn.base, key, conn.token);
+        url = sourceTranscodeUrl(conn, key);
         fellBack = true;
       }
       if (cancelled) return;
@@ -3140,40 +3240,121 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       try { toast({ title: "The Plex server couldn't convert this in time", description: 'Playing original quality instead.' }); } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
-  }, [slowLoad, useTranscode, playing, conn, native, startPos, toast]);
+  }, [slowLoad, useTranscode, playing, conn, native, startPos, toast, sourceDirectUrl, sourceTranscodeUrl]);
 
   // Reset the auto-revert guard when a new title starts.
   useEffect(() => { autoRevertRef.current = null; }, [playing?.ratingKey]);
 
-  // Automatic quality, like the Plex app's. Playback starts at Original; if
-  // the file keeps buffering because it is bigger than what arrives (a 1080p
-  // remux runs 25-40 Mb/s), drop once to the quality the connection carries
-  // and say so. A stall still going after 6 s, or a second stall, counts; the
-  // first load does not. Once per title, and never while already converting.
-  const autoDropRef = useRef<{ key: string | null; stalls: number; done: boolean }>({ key: null, stalls: 0, done: false });
-  useEffect(() => { autoDropRef.current = { key: playing?.ratingKey ?? null, stalls: 0, done: false }; }, [playing?.ratingKey]);
+  // Automatic quality, like the Plex app's (rules in plexAutoQuality.ts).
+  // Playback starts at the version chosen on the title page, as it is.
+  // Down: three stalls within five minutes (the first load and seeks never
+  // count) drop it to what the steady speed carries; a file plainly bigger
+  // than what arrives drops sooner (a stall past 6 s, or a second one). Up:
+  // speed comfortably above the next step for a minute and a half, no stall,
+  // one step at a time, never above where it started. Nothing at all once
+  // the viewer has picked a quality themselves this session.
+  const autoQRef = useRef<{ key: string | null; aq: AutoQuality; slowFileDone: boolean; probeAt: number; probeKbps: number | null }>(
+    { key: null, aq: new AutoQuality(0), slowFileDone: false, probeAt: 0, probeKbps: null },
+  );
   useEffect(() => {
-    if (!(nativeActive && native.buffering && !useTranscode && playing && conn)) return;
+    autoQRef.current = { key: playing?.ratingKey ?? null, aq: new AutoQuality(Date.now()), slowFileDone: false, probeAt: 0, probeKbps: null };
+  }, [playing?.ratingKey, playSeq]);
+  const bufferingRef = useRef(false); bufferingRef.current = native.buffering;
+  // The ladder as it stands now (versions and the file's bitrate arrive
+  // after the start), where playback is on it, and the highest it may go.
+  const autoLadder = useCallback((): { ladder: QualityStep[]; index: number; ceiling: number } => {
+    let ladder = buildQualityLadder(playVersionsRef.current, fileKbpsRef.current);
+    const curId = playVersionRef.current?.id;
+    if (forcedTranscodeRef.current) {
+      // Audio (or the codec) can't be played as it is here: no file as-is
+      // to step to. The one being converted stays as the top rung.
+      const originals = ladder.filter((st) => st.presetKey === 'original');
+      ladder = ladder.filter((st) => st.presetKey !== 'original' || (originals.length < 2 || st.versionId === curId));
+    }
+    const index = ladderIndex(ladder, qualityKeyRef.current, curId);
+    let ceiling = Math.max(0, ladderIndex(ladder, 'original', ceilingVersionIdRef.current ?? undefined));
+    if (forcedTranscodeRef.current) {
+      // …and never raised back to (it would drop the sound again).
+      const firstConverted = ladder.findIndex((st) => st.presetKey !== 'original');
+      ceiling = firstConverted < 0 ? ladder.length : Math.max(ceiling, firstConverted);
+    }
+    return { ladder, index, ceiling };
+  }, []);
+  const nativeGetPosition = native.getPosition;
+  const applyAutoMove = useCallback(async (move: AutoMove) => {
+    const st = autoQRef.current;
+    let resume = 0;
+    try { const p = await nativeGetPosition(); resume = p.position; } catch { /* from the start */ }
+    if (autoQRef.current !== st || st.key !== playingKeyRef.current) return;
+    st.aq.applied(move, Date.now());
+    const name = move.step.presetKey === 'original' ? (move.step.label.replace(' (original)', '') || 'original quality') : move.step.label;
+    const shown = name === 'Original' ? 'original quality' : name;
+    try { trackEvent('plex_auto_quality', 'player', { preset: move.step.presetKey, direction: move.direction, reason: move.reason, fileKbps: fileKbpsRef.current ?? 0 }); } catch { /* ignore */ }
+    changeQualityRef.current(move.step.key, Math.floor(resume));
+    try {
+      toast(move.direction === 'down'
+        ? { title: `Lowered to ${shown} for your speed`, description: 'It goes back up by itself when the speed does. Change it any time under Quality.' }
+        : { title: `Back to ${shown}`, description: 'Your speed picked up.' });
+    } catch { /* ignore */ }
+  }, [nativeGetPosition]);
+  const steadyNow = (windowMs: number): number | null => steadyKbps(getPlayerRates(), Date.now(), windowMs);
+  const steadyRef = useRef(steadyNow); steadyRef.current = steadyNow;
+  useEffect(() => {
+    if (!(nativeActive && native.buffering)) return;
     if (stillLoadingRef.current) return;
-    const st = autoDropRef.current;
-    if (st.done || st.key !== playing.ratingKey) return;
-    st.stalls += 1;
+    const st = autoQRef.current;
+    if (!st.key || st.key !== playingKeyRef.current) return;
+    const at = Date.now();
+    const seek = at - lastSeekAt() < SEEK_GRACE_MS;
+    const { ladder, index } = autoLadder();
+    const move = st.aq.onStall(at, lastSeekAt(), ladder, index, steadyRef.current(DROP_WINDOW_MS) ?? stallBudgetKbps(getDiagSnapshot()));
+    if (move) { void applyAutoMove(move); return; }
+    // The file played as-is is plainly bigger than what arrives (a remux on
+    // a connection that can't carry it): no need to sit through a third stall.
+    if (seek || useTranscodeRef.current || st.slowFileDone) return;
     let cancelled = false;
-    const drop = async () => {
-      if (cancelled || st.done) return;
-      const preset = autoDropPreset(fileKbps, getDiagSnapshot());
-      if (!preset) return;
-      st.done = true;
-      let resume = 0;
-      try { const p = await native.getPosition(); resume = p.position; } catch { /* from the start */ }
-      if (cancelled) return;
-      try { trackEvent('plex_auto_quality', 'player', { preset: preset.key, fileKbps: fileKbps ?? 0 }); } catch { /* ignore */ }
-      changeQuality(preset.key, resume);
-      try { toast({ title: `Switched to ${preset.label} to stop the buffering`, description: 'Change it any time under Quality.' }); } catch { /* ignore */ }
-    };
-    const timer = window.setTimeout(() => { void drop(); }, st.stalls >= 2 ? 0 : 6000);
+    const timer = window.setTimeout(() => {
+      if (cancelled || st.slowFileDone || autoQRef.current !== st) return;
+      const snap = getDiagSnapshot();
+      if (!autoDropPreset(fileKbpsRef.current, snap)) return;
+      const now = autoLadder();
+      const m = st.aq.onSlowFile(now.ladder, now.index, steadyRef.current(DROP_WINDOW_MS) ?? stallBudgetKbps(snap));
+      if (!m) return;
+      st.slowFileDone = true;
+      void applyAutoMove(m);
+    }, st.aq.stallCount(at) >= 2 ? 0 : 6000);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [native.buffering, nativeActive, useTranscode, playing, conn, fileKbps, native, changeQuality]);
+  }, [native.buffering, nativeActive, autoLadder, applyAutoMove]);
+  // The way back up, checked every 15 s while playing smoothly. When the
+  // player's own downloads can't show the speed (a converted stream arrives
+  // only as fast as the server converts it), a short read of the file itself
+  // measures the line to the server — at most every 2 minutes.
+  useEffect(() => {
+    if (!(nativeActive && playing && conn)) return;
+    const id = window.setInterval(() => {
+      const st = autoQRef.current;
+      if (stillLoadingRef.current || bufferingRef.current || !st.key || st.key !== playingKeyRef.current) return;
+      const now = Date.now();
+      const { ladder, index, ceiling } = autoLadder();
+      const probe = st.probeKbps != null && now - st.probeAt < 60_000 ? st.probeKbps : null;
+      const player = steadyRef.current(RAISE_SUSTAIN_MS);
+      const speed = Math.max(player ?? 0, probe ?? 0) || null;
+      const move = st.aq.maybeRaise(now, ladder, index, ceiling, speed);
+      if (move) { void applyAutoMove(move); return; }
+      // Worth a measurement? Only when a raise is otherwise due and the
+      // player's numbers fall short of the step above.
+      const up = Math.ceil(index) - 1;
+      const need = up >= ceiling && up >= 0 ? ladder[up]?.kbps : undefined;
+      if (!need || !st.aq.raiseWindowOpen(now) || (speed ?? 0) >= need * SPEED_HEADROOM || now - st.probeAt < 120_000) return;
+      const part = playVersionRef.current?.partKey ?? playVersionsRef.current.find((v) => v.partKey)?.partKey;
+      if (!part) return;
+      st.probeAt = now;
+      void measurePlexSpeed(conn.base, conn.token, part, { fresh: true }).then((k) => {
+        if (autoQRef.current === st) { st.probeKbps = k; st.probeAt = Date.now(); }
+      });
+    }, 15_000);
+    return () => window.clearInterval(id);
+  }, [nativeActive, playing, conn, autoLadder, applyAutoMove]);
 
   // Network-class failure while playing: retry by itself the moment the device
   // reports connectivity again, instead of parking on "Playback Error" until
@@ -3533,13 +3714,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <VideoPlayer src={streamUrl} volume={volume} className="w-full h-full" />
           </Suspense>
         )}
-        {NATIVE_PLAYBACK && !native.error && !slowLoad && (!streamUrl || !nativeActive || native.buffering) && (
+        {NATIVE_PLAYBACK && !native.error && !slowLoad && !(preBufferActive && nativeActive) && (!streamUrl || !nativeActive || native.buffering) && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-full max-w-md">
               <SnowLoader size="lg" label={streamUrl && nativeActive ? 'Buffering…' : 'Loading…'} />
             </div>
           </div>
         )}
+        {NATIVE_PLAYBACK && !native.error && !slowLoad && nativeActive && preBufferActive && <PreBufferIndicator />}
         {NATIVE_PLAYBACK && !native.error && slowLoad && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-6 text-center">
             <div className="w-full max-w-md mb-3">
@@ -3552,7 +3734,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                 // No stream URL resolved yet — native.retry() would be a no-op.
                 // Re-invoke the current item's play path from scratch.
                 armSlowLoadTimer();
-                void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel);
+                void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel, undefined, { version: playVersionRef.current, versions: playVersionsRef.current });
               } else {
                 armSlowLoadTimer();
                 native.retry();
@@ -3599,7 +3781,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             subtitleContext={subCtx}
             onLoadExternalSubtitle={handleLoadExternalSubtitle}
             qualityKey={qualityKey}
-            onChangeQuality={changeQuality}
+            onChangeQuality={changeQualityByViewer}
+            versions={playVersions}
+            versionId={playVersion?.id}
             onOpenBufferingGuide={overlayOpenGuide}
             onOpenSupport={overlayOpenSupport}
             volume={volume}

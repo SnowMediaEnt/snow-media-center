@@ -97,7 +97,7 @@ export interface SnowPlayerPlugin {
   /** Whether this device can software-decode Dolby/DTS. Use for diagnostics. */
   getDecoderInfo(): Promise<SnowDecoderInfo>;
   addListener(
-    event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth',
+    event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth' | 'preBuffer',
     cb: (data: {
       screenId?: string; state?: string; playing?: boolean; code?: string; message?: string;
       /** playerState: paused on purpose (viewer or system). `playing` also
@@ -108,6 +108,10 @@ export interface SnowPlayerPlugin {
       /** bandwidth (main slot, every 3 s while data flows): how fast the
        *  player's own downloads are arriving, kbps. */
       kbps?: number;
+      /** preBuffer (main slot, every 500 ms while a film's start is held to
+       *  fill the buffer): video buffered ahead / the target, time held / the
+       *  limit, all ms; `done` on the last one. */
+      bufferedMs?: number; targetMs?: number; elapsedMs?: number; maxWaitMs?: number; done?: boolean;
     }) => void,
   ): Promise<PluginListenerHandle>;
 }

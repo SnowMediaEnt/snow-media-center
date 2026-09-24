@@ -3,12 +3,13 @@
 // when visible; hides on Back. When hidden, this component renders nothing —
 // PlexSection's own Back handler exits playback. Native-only (uses SnowPlayer
 // position/tracks).
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, Maximize, LifeBuoy, Volume2, VolumeX } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@/lib/opensubtitles';
-import { PLEX_QUALITY_PRESETS } from '@/lib/plex';
+import { PLEX_QUALITY_PRESETS, type PlexVersion } from '@/lib/plex';
+import { versionName } from '@/lib/plexVersions';
 import { formatMbps, getPlayerSpeedKbps } from '@/lib/bufferDiagnostics';
 import { SCREEN_FORMATS, type ScreenFormat } from '@/capacitor/SnowPlayer';
 import { useScreenFormat } from '@/hooks/useScreenFormat';
@@ -64,8 +65,14 @@ interface Props {
   onLoadExternalSubtitle?: (sub: SnowSubtitle, resumeSec: number) => void;
   /** Currently active quality preset key (see PLEX_QUALITY_PRESETS). */
   qualityKey: string;
-  /** Called when the user picks a new quality preset. */
+  /** Called when the user picks a new quality preset ('original@<id>' for
+   *  another version of the title played as it is). */
   onChangeQuality: (presetKey: string, resumeSec: number) => void;
+  /** The title's versions (a 4K and a 1080p file). With two or more, the
+   *  menu offers each as it is in place of the one "Original". */
+  versions?: PlexVersion[];
+  /** The version being played (or converted from). */
+  versionId?: string;
   /** Called when the user opens the Buffering help shortcut. Parent is expected
    *  to tear down playback and route to Support → Buffering Guide. */
   onOpenBufferingGuide?: () => void;
@@ -98,7 +105,19 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused }: Props) => {
+  // The Quality menu: every version as it is (when there are several), then
+  // the converted presets. `selected` is the entry now in effect.
+  const qualityList = useMemo((): Array<{ key: string; label: string }> => {
+    if (!versions || versions.length < 2) return PLEX_QUALITY_PRESETS.map((p) => ({ key: p.key, label: p.label }));
+    const files = versions.map((v) => ({
+      key: `original@${v.id}`,
+      label: `${versionName(v, versions)} · original${v.bitrateKbps ? ` (${formatMbps(v.bitrateKbps)})` : ''}`,
+    }));
+    return [...files, ...PLEX_QUALITY_PRESETS.filter((p) => p.key !== 'original').map((p) => ({ key: p.key, label: p.label }))];
+  }, [versions]);
+  const selectedQuality = qualityKey === 'original' && versions && versions.length > 1
+    ? `original@${versionId ?? versions[0].id}` : qualityKey;
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
   const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'format' | 'volume' | 'help'>('none');
@@ -240,9 +259,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
   const openQuality = useCallback(() => {
     setMenu('quality');
-    const idx = PLEX_QUALITY_PRESETS.findIndex((p) => p.key === qualityKey);
+    const idx = qualityList.findIndex((p) => p.key === selectedQuality);
     setMenuIdx(idx >= 0 ? idx : 0);
-  }, [qualityKey]);
+  }, [qualityList, selectedQuality]);
 
   // Screen format. 'fit' is the default because the picture is drawn into a
   // full-screen surface — without a correction every video is stretched to the
@@ -287,7 +306,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const openOsdlRef = useRef(openOsdl); useEffect(() => { openOsdlRef.current = openOsdl; }, [openOsdl]);
   const openSubsRef = useRef(openSubs); useEffect(() => { openSubsRef.current = openSubs; }, [openSubs]);
   const pickOsdlRef = useRef(pickOsdl); useEffect(() => { pickOsdlRef.current = pickOsdl; }, [pickOsdl]);
-  const qualityKeyRef = useRef(qualityKey); useEffect(() => { qualityKeyRef.current = qualityKey; }, [qualityKey]);
+  const qualityKeyRef = useRef(selectedQuality); useEffect(() => { qualityKeyRef.current = selectedQuality; }, [selectedQuality]);
+  const qualityListRef = useRef(qualityList); useEffect(() => { qualityListRef.current = qualityList; }, [qualityList]);
   const screenFormatRef = useRef(screen.format); useEffect(() => { screenFormatRef.current = screen.format; }, [screen.format]);
   const setScreenFormatRef = useRef(screen.setFormat); useEffect(() => { setScreenFormatRef.current = screen.setFormat; }, [screen.setFormat]);
   const openFormatRef = useRef(openFormat); useEffect(() => { openFormatRef.current = openFormat; }, [openFormat]);
@@ -424,7 +444,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         return;
       }
       if (menuRef.current === 'quality') {
-        const list = PLEX_QUALITY_PRESETS;
+        const list = qualityListRef.current;
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
@@ -434,7 +454,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             void (async () => {
               const pos = await getPositionRef.current();
               onChangeQualityRef.current(p.key, Math.floor(pos.position));
-              try { toastRef.current({ title: `Switching to ${p.label}…` }); } catch { /* ignore */ }
+              try { toastRef.current({ title: `Switching to ${p.label.replace(' · original', '')}…` }); } catch { /* ignore */ }
             })();
           }
           setMenu('none');
@@ -713,11 +733,14 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           {yourKbps != null && (
             <p className="px-2 pb-1 text-xs text-brand-ice/70 font-nunito tabular-nums">Your speed: <span className="text-white/90">{formatMbps(yourKbps)}</span></p>
           )}
-          <div className="space-y-1">
-            {PLEX_QUALITY_PRESETS.map((p, i) => (
+          {/* Scrolls when a title's versions make the list taller than the
+              room above the bar on a 540 px-tall TV viewport. */}
+          <div className="space-y-1 overflow-y-auto p-1 -m-1" style={{ maxHeight: '56vh' }}>
+            {qualityList.map((p, i) => (
               <div key={p.key} data-focused={menuIdx === i ? 'true' : 'false'}
+                ref={menuIdx === i ? (el) => { if (el) el.scrollIntoView({ block: 'nearest' }); } : undefined}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
-                <span className="truncate">{p.label}</span>{p.key === qualityKey && <span className="text-brand-gold text-xs">●</span>}
+                <span className="truncate">{p.label}</span>{p.key === selectedQuality && <span className="text-brand-gold text-xs">●</span>}
               </div>
             ))}
           </div>
