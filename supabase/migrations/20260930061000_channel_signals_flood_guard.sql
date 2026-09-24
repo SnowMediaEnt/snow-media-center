@@ -12,9 +12,9 @@
 --     an hour, next to the per-device 10 and 40;
 --   * marks a signal trusted only when it comes from a box the service has
 --     seen before: one that signed a verified line in on that host
---     (player_signins.device_id) or that has been sending analytics for an
---     hour or more (analytics_sessions). Other signals are kept (the Hub
---     shows them as ignored) but never change what boxes see.
+--     (player_signins.device_id) or that has been sending analytics for
+--     half an hour or more (analytics_sessions). Other signals are kept (the
+--     Hub shows them as ignored) but never change what boxes see.
 -- Here: the two columns, channel_down_list counting trusted signals only and
 -- returning at most 500 channels, and channel_signal_summary for the Hub's
 -- list (per-channel counts in SQL instead of the newest 2000 raw rows, which
@@ -77,7 +77,10 @@ grant execute on function public.channel_down_list(text[]) to service_role;
 
 -- The Hub's Down Channels list: per channel, how many boxes reported it,
 -- failed on it, played it and cleared it since p_since (trusted signals), and
--- how many signals were ignored. The 1000 most recently mentioned channels.
+-- how many signals were ignored. At most 1000 channels: those with a trusted
+-- signal first, so a flood of untrusted ones cannot push them off, then the
+-- most recently mentioned. The name comes from a trusted signal when there
+-- is one, so an untrusted one cannot rename a real channel on the page.
 create or replace function public.channel_signal_summary(p_since timestamptz)
 returns table (
   host text, stream_id integer, channel_name text,
@@ -85,17 +88,18 @@ returns table (
   last_at timestamptz
 )
 language sql stable security definer set search_path = public as $$
-  select s.host, s.stream_id, max(s.channel_name),
+  select s.host, s.stream_id,
+         coalesce(max(s.channel_name) filter (where s.trusted), max(s.channel_name)),
          count(distinct s.device_hash) filter (where s.trusted and s.kind = 'down'),
          count(distinct s.device_hash) filter (where s.trusted and s.kind = 'fail'),
          count(distinct s.device_hash) filter (where s.trusted and s.kind = 'ok'),
          count(distinct s.device_hash) filter (where s.trusted and s.kind = 'clear'),
          count(*) filter (where not s.trusted),
-         max(s.created_at)
+         coalesce(max(s.created_at) filter (where s.trusted), max(s.created_at))
   from public.channel_signals s
   where s.created_at >= p_since
   group by s.host, s.stream_id
-  order by max(s.created_at) desc
+  order by bool_or(s.trusted) desc, max(s.created_at) desc
   limit 1000;
 $$;
 revoke all on function public.channel_signal_summary(timestamptz) from public, anon, authenticated;
