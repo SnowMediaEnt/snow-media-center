@@ -84,6 +84,19 @@ describe('gameDay', () => {
     expect(by[25]).toBeUndefined();
   });
 
+  it("matches ESPN's short regional names and skips team apps", async () => {
+    const { channelsForGame } = await import('./gameDay');
+    const g = game({
+      league: 'mlb', leagueLabel: 'MLB',
+      home: team('Phillies', 'Philadelphia', 'Philadelphia Phillies'), away: team('Brewers', 'Milwaukee', 'Milwaukee Brewers'),
+      networks: ['MLB.TV'], locals: [{ name: 'Brewers.TV', market: 'away' }, { name: 'NBC Sports Phil', market: 'home' }, { name: 'MASN', market: 'home' }],
+    });
+    const list = [chans(50, 'US| NBC Sports Philadelphia HD', 'US| SPORTS'), chans(51, 'US| NBC Sports Boston', 'US| SPORTS'), chans(52, 'US| MASN HD', 'US| SPORTS'), chans(54, 'US| MASN 2', 'US| SPORTS'), chans(53, 'US| NBC', 'US| LOCALS')];
+    const got = channelsForGame(g, list);
+    expect(got.map((c) => c.stream.stream_id)).toEqual([50, 52]);
+    expect(got.every((c) => c.via === 'local')).toBe(true);
+  });
+
   it('a college team named after a place never picks a regional network on its own', async () => {
     const { channelsForGame } = await import('./gameDay');
     const g = game({

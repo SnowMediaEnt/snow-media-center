@@ -196,7 +196,7 @@ const NETWORK_ALIASES: Record<string, string[]> = {
   sportsnet: ['sportsnet'], tsn: ['tsn'],
 };
 /** Streaming-only services no line carries as a channel. */
-const STREAMING_ONLY = /(espn\+|\bpeacock\b|prime video|\bprime\b|paramount\+|apple tv|\bmax\b|netflix|youtube|dazn app|nfl\+|mlb\.?tv|nba league pass|nhl\.?tv|nhl power play|mls season pass|espn app|\bstreaming\b)/i;
+const STREAMING_ONLY = /(espn\+|\bpeacock\b|prime video|\bprime\b|paramount\+|apple tv|\bmax\b|netflix|youtube|dazn app|nfl\+|mlb\.?tv|nba league pass|nhl\.?tv|nhl power play|mls season pass|espn app|\bstreaming\b|\b\w+\.tv\b)/i;
 
 export const isStreamingOnly = (network: string): boolean => STREAMING_ONLY.test(network);
 
@@ -233,12 +233,29 @@ const mentions = (channel: string, words: string[]): boolean =>
  *  "FOX" is not "FOX Sports 1" or "FOX News". */
 const OTHER_NETWORK = new Set(['sports', 'sport', 'news', 'business', 'deportes', 'soccer', 'life', 'kids', 'family', 'movies', 'classics', 'weather', 'nation', 'reelz', 'xtra', 'plus', 'u', 'soul', 'nuestra']);
 
+/** How many of a channel's first words an alias covers, when each alias word
+ *  is that word or (from three letters) the start of it: ESPN writes "NBC
+ *  Sports Phil" for "NBC Sports Philadelphia". 0 when it doesn't. */
+const aliasWords = (alias: string, channel: string): number => {
+  const a = alias.split(' '), c = channel.split(' ');
+  if (a.length > c.length) return 0;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] === c[i]) continue;
+    if (a[i].length >= 3 && i === a.length - 1 && i > 0 && c[i].startsWith(a[i])) continue;
+    return 0;
+  }
+  return a.length;
+};
+
 /** How well a channel name is a network: 90 exactly, 75 a feed of it
  *  ("FOX 32 Chicago", "ESPN HD"), 0 otherwise. */
 const networkScore = (alias: string, channel: string): number => {
   if (channel === alias) return 90;
-  if (!channel.startsWith(`${alias} `)) return 0;
-  const rest = channel.slice(alias.length + 1).split(' ');
+  const n = aliasWords(alias, channel);
+  if (!n) return 0;
+  const words = channel.split(' ');
+  if (n === words.length) return 90;
+  const rest = words.slice(n);
   // "ESPN 2" is ESPN2; "FOX 5 New York" is a FOX station.
   if (rest.length === 1 && /^\d$/.test(rest[0])) return 0;
   return OTHER_NETWORK.has(rest[0]) ? 0 : 75;
