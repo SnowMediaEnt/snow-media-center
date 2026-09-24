@@ -720,6 +720,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_user_hourly: {
+        Row: {
+          calls: number
+          hour_bucket: string
+          tokens: number
+          user_id: string
+        }
+        Insert: {
+          calls?: number
+          hour_bucket: string
+          tokens?: number
+          user_id: string
+        }
+        Update: {
+          calls?: number
+          hour_bucket?: string
+          tokens?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       analytics_crashes: {
         Row: {
           app_version: string | null
@@ -4971,6 +4992,14 @@ export type Database = {
         Returns: Json
       }
       ai_tokens_last_hour: { Args: never; Returns: number }
+      ai_user_hourly_add: {
+        Args: { p_tokens: number; p_user_id: string }
+        Returns: undefined
+      }
+      ai_user_hourly_take: {
+        Args: { p_max_calls: number; p_max_tokens: number; p_user_id: string }
+        Returns: Json
+      }
       analytics_active_users: {
         Args: { p_period?: string }
         Returns: {
