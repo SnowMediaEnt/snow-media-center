@@ -23,7 +23,13 @@
 -- The bodies are the latest ones in this repo (20260716184655,
 -- 20260804162806, 20260702195532, 20260703003456) plus the header. If a live
 -- body has been changed by hand since, compare with
--- pg_get_functiondef('public.<name>()'::regprocedure) before applying.
+-- pg_get_functiondef('public.<name>()'::regprocedure) before applying. And
+-- check nothing else in the database posts to either function (anything this
+-- lists besides the four below would need the header too):
+--   select proname from pg_proc
+--    where prosrc ~ '(notify-ticket|telegram-notify)' order by 1;
+-- Outside the database, the admin app's notify-admin also calls
+-- telegram-notify and must send x-internal-secret before these deploy.
 
 CREATE OR REPLACE FUNCTION public.notify_ticket_on_first_message()
 RETURNS trigger
