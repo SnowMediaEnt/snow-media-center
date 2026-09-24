@@ -318,7 +318,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       // The line's movies, with Plex pinned first for everything else.
       { id: 'vod',   label: 'VOD',     icon: Film },
       { id: 'multi', label: 'Multi-Screen', icon: Grid2X2 },
-      { id: 'backups', label: 'Backups', icon: LifeBuoy },
+      // Admin-published PPV and movie feeds carry no rating: never on a Kids
+      // profile, whatever its age.
+      ...(kidsLevel() ? [] : [{ id: 'backups' as SectionId, label: 'Backups', icon: LifeBuoy }]),
     ];
     if (mode === 'movies') return [
       { id: 'plex', label: 'Plex', icon: Film },
@@ -362,6 +364,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const plexFromVodRef = useRef(false);
   const enterMode = useCallback((m: 'live' | 'movies' | 'backups') => {
     plexFromVodRef.current = false;
+    // Backups are not on a Kids profile (see sections); Live TV instead.
+    if (m === 'backups' && kidsLevel()) m = 'live';
     if (m !== 'movies' && !autoRefreshedRef.current) {
       autoRefreshedRef.current = true;
       bumpXtreamRefresh();
@@ -421,7 +425,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (intent.play) hand('smc-live-play', 'smc:live-play', intent.play);
     if (intent.plex) hand('smc-plex-voice', 'smc:plex-voice', intent.plex);
     if (intent.deeplink) handLiveDeeplink(intent.deeplink);
-    if (intent.settings) { setSettingsInitialView(intent.settings === 'appearance' ? 'appearance' : undefined); setSettingsOpen(true); }
+    // Player Settings (sign-out, the line's password, billing) is a grown-up's.
+    if (intent.settings && !kidsLevel()) { setSettingsInitialView(intent.settings === 'appearance' ? 'appearance' : undefined); setSettingsOpen(true); }
   }, [enterMode]);
   const applyIntentRef = useRef(applyIntent);
   applyIntentRef.current = applyIntent;
@@ -596,7 +601,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const showCredsForm = !DEMO && mode === 'live' && (!creds || accountFormOpen);
   // Demo: the settings hub exposes sign-out / change-credentials / switch-account,
   // none of which apply to a fixed demo account — never mount it.
-  const showSettings = !DEMO && !!creds && settingsOpen && !accountFormOpen;
+  const showSettings = !DEMO && !kidsLevel() && !!creds && settingsOpen && !accountFormOpen;
 
   const onSwitchAccount = useCallback((c: XtreamCreds) => {
     if (DEMO) return; // demo account is fixed
@@ -619,8 +624,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => { headerIdxRef.current = headerIdx; }, [headerIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
 
-  // [Back, Update, Settings] — Settings is hidden in demo, so 2 there.
-  const HEADER_COUNT = DEMO ? 2 : 3;
+  // [Back, Update, Settings] — Settings is hidden in demo and on a Kids
+  // profile (it holds sign-out, the line's password and billing), so 2 there.
+  const HEADER_COUNT = DEMO || kidsLevel() ? 2 : 3;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -706,7 +712,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           const idx = headerIdxRef.current;
           if (idx === 0) leaveMode();
           else if (idx === 1) refreshChannels();
-          else if (idx === 2 && !DEMO) setSettingsOpen(true);
+          else if (idx === 2 && !DEMO && !kidsLevel()) setSettingsOpen(true);
         }
         return;
       }
@@ -1021,7 +1027,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           </Button>
           {/* Demo: no settings entry point — the demo account is fixed and
               the hub only exposes credential management. */}
-          {!DEMO && (
+          {!DEMO && !kidsLevel() && (
             <Button
               variant="gold"
               size="sm"

@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { Tv, Film, LifeBuoy } from 'lucide-react';
+import { kidsLevel } from '@/lib/kidsFilter';
 
 interface Props {
   onPick: (mode: 'live' | 'movies' | 'backups') => void;
@@ -13,6 +14,8 @@ const CARDS = [
 ];
 
 const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
+  // Backups (unrated PPV and movie feeds) are not on a Kids profile.
+  const [cards] = useState(() => (kidsLevel() ? CARDS.filter((c) => c.id !== 'backups') : CARDS));
   const [idx, setIdx] = useState(0);
   const idxRef = useRef(idx);
   useEffect(() => { idxRef.current = idx; }, [idx]);
@@ -29,12 +32,12 @@ const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
       const ae = document.activeElement as HTMLElement | null;
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
       if (e.key === 'ArrowLeft') setIdx((i) => Math.max(0, i - 1));
-      else if (e.key === 'ArrowRight') setIdx((i) => Math.min(CARDS.length - 1, i + 1));
-      else if (e.key === 'Enter' || e.key === ' ') onPick(CARDS[idxRef.current].id);
+      else if (e.key === 'ArrowRight') setIdx((i) => Math.min(cards.length - 1, i + 1));
+      else if (e.key === 'Enter' || e.key === ' ') onPick(cards[idxRef.current].id);
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onPick, onBack]);
+  }, [onPick, onBack, cards]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center text-white p-8 bg-black/70">
@@ -42,8 +45,8 @@ const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
         <Tv className="w-8 h-8 text-brand-gold" />
         <h1 className="text-3xl font-quicksand font-bold">Player</h1>
       </div>
-      <div className="grid grid-cols-3 gap-6 w-full max-w-4xl">
-        {CARDS.map((c, i) => {
+      <div className={`grid ${cards.length === 2 ? 'grid-cols-2 max-w-3xl' : 'grid-cols-3 max-w-4xl'} gap-6 w-full`}>
+        {cards.map((c, i) => {
           const Icon = c.icon;
           const focused = idx === i;
           return (
