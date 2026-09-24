@@ -1,5 +1,6 @@
 package com.snowmedia
 
+import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -38,6 +39,14 @@ class MainActivity : BridgeActivity() {
             }
         })
         super.onCreate(savedInstanceState)
+        // The page goes see-through wherever a video plays behind it (the
+        // Live TV preview, full screen). Under a see-through page the WebView
+        // paints its own white until the first player is made
+        // (SnowPlayerPlugin.ensureSurface): a white flash the first time Live
+        // TV opened. Clear from the start, over the black window, as it is
+        // anyway once a player has been used.
+        bridge?.webView?.setBackgroundColor(Color.TRANSPARENT)
+        window.decorView.setBackgroundColor(Color.BLACK)
     }
 
     // The remote's media buttons never reach the page: Android's WebView keeps

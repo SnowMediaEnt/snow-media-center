@@ -7,9 +7,12 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
-    <!-- Full Screen Splash Theme -->
+    <!-- Full Screen Splash Theme. The window background is the splash picture
+         itself (drawable/splash_window), so it is on screen from the first
+         frame: with a plain colour here, a slow box showed blue for a second
+         or two while SplashActivity loaded the picture. -->
     <style name="SplashTheme" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:windowBackground">@drawable/splash_window</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowNoTitle">true</item>
     </style>

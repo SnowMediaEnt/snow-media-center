@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Android 12+ puts its own launch screen (the app icon on a colour) in
+         front of the first activity: the same navy as the splash, then the
+         splash picture (values/styles.xml) as soon as SplashActivity draws. -->
+    <style name="SplashTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_window</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
     <!-- Android 12+ (API 31+) Splash Screen Theme -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <!-- Background color for the splash screen -->

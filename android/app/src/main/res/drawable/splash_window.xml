@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The splash as the launch window's own background. The system draws it the
+     moment the app is opened, before any of the app has run, so the first
+     thing on screen is the splash, not a plain blue frame while the splash
+     picture loads. A small 16:9 picture (drawable-nodpi: never enlarged for
+     the screen's density), filling the window as the splash layout's
+     centerCrop does on a TV. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item>
+        <bitmap
+            android:filter="true"
+            android:gravity="fill"
+            android:src="@drawable/splash_screen" />
+    </item>
+</layer-list>
