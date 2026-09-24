@@ -12,15 +12,32 @@ import {
   hashClientIp,
   reserveFree,
   settleFree,
+  takeUserHourly,
+  addUserHourlyTokens,
   gpt54NanoCostUsd,
   gpt54NanoReserveEstimateUsd,
 } from '../_shared/ai-guard.ts';
-import { chargePremium, loadTier, readTier, readUseTrial, type PremiumCharge } from '../_shared/ai-tiers.ts';
+import { chargePremium, loadTier, readTier, readUseTrial, type PremiumCharge, type Tier } from '../_shared/ai-tiers.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// A message longer than this is refused before anything is spent. The whole
+// message goes to the model (and, for time-sensitive questions, to
+// Perplexity), so without a cap a handful of huge messages was enough to
+// push the hourly token total over the auto-pause line. Long enough for a
+// pasted error or support question.
+const MAX_MESSAGE_CHARS = 4000;
+
+// Time-sensitive questions get live web results from Perplexity first.
+const LIVE_TRIGGERS = /\b(ppv|pay[- ]?per[- ]?view|tonight|today|tomorrow|this week|this weekend|upcoming|schedule|live|stream(ing)?\s+(now|tonight|today)|score|fight card|main event|kickoff|tip[- ]?off|game time|when (is|does)|what time|airs?\s+(on|tonight|today)|epg|channel\s+\d+|nfl|nba|mlb|nhl|ufc|wwe|aew|boxing|formula\s*1|f1|premier league|champions league|world cup)\b/i;
+// What one Perplexity 'sonar' answer costs, rounded up (request fee plus
+// tokens), so the free (anonymous) budget pays for it like the model call.
+const PERPLEXITY_COST_USD = 0.01;
+
+const HOURLY_LIMIT_MESSAGE = "You've asked Snow AI a lot in the last hour. Please try again in a little while.";
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -34,6 +51,9 @@ serve(async (req) => {
   let anonEstCostUsd = 0;
   let anonDeviceIdForSettle: string | null = null;
   let anonIpHashForSettle: string | null = null;
+  // Hoisted so the outer catch can give Premium gems back when anything
+  // after the charge fails.
+  let premium: PremiumCharge | null = null;
 
   try {
     // Resolve caller: authed (Bearer JWT) OR anonymous (device_id in body).
@@ -52,6 +72,35 @@ serve(async (req) => {
       );
     }
 
+    const rawMessage = (body as { message?: unknown }).message;
+    if (rawMessage !== undefined && rawMessage !== null && typeof rawMessage !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'bad_message', message: 'Message must be text.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+    if (typeof rawMessage === 'string' && rawMessage.length > MAX_MESSAGE_CHARS) {
+      return new Response(
+        JSON.stringify({ error: 'message_too_long', message: `Please keep your message under ${MAX_MESSAGE_CHARS} characters.` }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Which level of AI. Free is what it always was. Premium is the top
+    // model, paid in Snow Gems here on the server before the model is asked;
+    // use_trial asks for the account's one free premium sample. A Kids
+    // profile is always Free: Snow Gems are off-limits to children
+    // (kidsSafe.ts), and the Premium choice is kept per box, not per profile.
+    const tier: Tier = kidsLevel ? 'free' : readTier(body);
+
+    // Premium needs an account. Refused before the free budget is touched,
+    // so a signed-out 'premium' request cannot use up a free slot.
+    if (!caller.authed && tier === 'premium') {
+      return new Response(JSON.stringify({
+        error: 'premium_requires_signin', needed: null, balance: null, message: 'Sign in to use Premium AI.',
+      }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     const ipHash = await hashClientIp(req);
 
     // Anonymous branch: atomically reserve spend BEFORE any paid call.
@@ -62,10 +111,9 @@ serve(async (req) => {
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
-      const bodyMessage = typeof (body as { message?: unknown }).message === 'string'
-        ? ((body as { message?: string }).message as string)
-        : '';
-      anonEstCostUsd = gpt54NanoReserveEstimateUsd(bodyMessage.length);
+      const bodyMessage = typeof rawMessage === 'string' ? rawMessage : '';
+      anonEstCostUsd = gpt54NanoReserveEstimateUsd(bodyMessage.length)
+        + (!kidsLevel && LIVE_TRIGGERS.test(bodyMessage) ? PERPLEXITY_COST_USD : 0);
       const gate = await reserveFree({
         deviceId: caller.deviceId,
         ipHash,
@@ -126,11 +174,27 @@ serve(async (req) => {
             error_message: pause.reason || 'paused',
           });
         } catch (_) { /* swallow */ }
+        if (anonReserved && !anonReservationSettled) {
+          await settleFree({
+            deviceId: anonDeviceIdForSettle, ipHash: anonIpHashForSettle, feature: 'chat',
+            estCostUsd: anonEstCostUsd, estImages: 0, actualCostUsd: 0, actualImages: 0, succeeded: false,
+          });
+          anonReservationSettled = true;
+        }
         return new Response(
           JSON.stringify({ error: 'AI temporarily paused', message: pause.reason }),
           { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+    }
+
+    // Signed in: an hourly allowance per account (the owner has none). The
+    // app shows `reason` as it is to a signed-in caller.
+    if (userId && !isOwnerEmail(userEmail) && !(await takeUserHourly(userId))) {
+      return new Response(
+        JSON.stringify({ blocked: true, reason: HOURLY_LIMIT_MESSAGE }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
 
     const {
@@ -168,11 +232,8 @@ serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Which level of AI. Free is what it always was. Premium is the top
-    // model, paid in Snow Gems here on the server before the model is asked;
-    // use_trial asks for the account's one free premium sample.
-    const tier = readTier(body);
-    let premium: PremiumCharge | null = null;
+    // Premium: the gems (or the free sample) are settled before the model is
+    // asked, and given back by the catch below if anything after this fails.
     if (tier === 'premium') {
       const settled = await chargePremium({
         feature: 'chat',
@@ -367,8 +428,9 @@ serve(async (req) => {
     // Triggers on PPV / sports / live / upcoming / schedule / "tonight" / "this week" etc.
     let liveContext = '';
     let liveCitations: string[] = [];
-    const liveTriggers = /\b(ppv|pay[- ]?per[- ]?view|tonight|today|tomorrow|this week|this weekend|upcoming|schedule|live|stream(ing)?\s+(now|tonight|today)|score|fight card|main event|kickoff|tip[- ]?off|game time|when (is|does)|what time|airs?\s+(on|tonight|today)|epg|channel\s+\d+|nfl|nba|mlb|nhl|ufc|wwe|aew|boxing|formula\s*1|f1|premier league|champions league|world cup)\b/i;
-    if (!kidsLevel && liveTriggers.test(message)) {
+    // Charged to the free (anonymous) budget with the model call.
+    let perplexityUsed = false;
+    if (!kidsLevel && LIVE_TRIGGERS.test(message)) {
       const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
       if (PERPLEXITY_API_KEY) {
         try {
@@ -390,6 +452,7 @@ serve(async (req) => {
             }),
           });
           if (pplxRes.ok) {
+            perplexityUsed = true;
             const pplx = await pplxRes.json();
             liveContext = pplx?.choices?.[0]?.message?.content ?? '';
             liveCitations = pplx?.citations ?? [];
@@ -746,12 +809,10 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
     if (!response.ok) {
       const errorData = await response.text();
       console.error('OpenAI API error:', errorData);
+      // The catch below gives Premium gems back.
       throw new Error('Failed to get AI response');
     }
 
-    if (!response.ok && premium) {
-      await premium.refund();
-    }
     const data = await response.json();
     console.log('AI Response for user', userId, ':', data.usage);
 
@@ -865,7 +926,11 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
       if (functionCall && assistantContent === KIDS_REFUSAL) functionCall = null;
     }
 
-    const anonCostUsd = caller.authed ? 0 : gpt54NanoCostUsd(promptTokens, completionTokens);
+    const anonCostUsd = caller.authed
+      ? 0
+      : gpt54NanoCostUsd(promptTokens, completionTokens) + (perplexityUsed ? PERPLEXITY_COST_USD : 0);
+    // The account's hourly allowance counts what this call really used.
+    if (userId && !isOwnerEmail(userEmail)) await addUserHourlyTokens(userId, totalTokens);
     try {
       await logUsage({
         user_id: userId,
@@ -935,6 +1000,10 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
 
   } catch (error) {
     console.error('Error in snow-media-ai function:', error);
+    // Nothing reached the customer: Premium gems (or the free sample) go back.
+    if (premium) {
+      try { await premium.refund(); } catch { /* logged inside */ }
+    }
     // Release the anon reservation if we hadn't settled it on success.
     if (anonReserved && !anonReservationSettled) {
       await settleFree({

@@ -26,7 +26,7 @@ export interface PremiumCharge {
   charged: number;
   /** True when this call consumed the account's free sample. */
   trialUsed: boolean;
-  /** Puts the gems back. Safe to call once, after a failed model call. */
+  /** Puts the gems (or the free sample) back after a failed call. Runs once. */
   refund: () => Promise<void>;
 }
 
@@ -79,10 +79,21 @@ export async function chargePremium(params: {
 
   if (useTrial) {
     // One per account per feature. The insert is the lock: a second caller
-    // hits the primary key and pays like everyone else.
+    // hits the primary key and pays like everyone else. A sample that never
+    // reached the customer is handed back by deleting the row again.
     const { error } = await admin.from('ai_premium_trials').insert({ user_id: userId, feature });
     if (!error) {
-      return { ok: true, charge: { model: row.model, charged: 0, trialUsed: true, refund: noop } };
+      let returned = false;
+      const giveBack = async () => {
+        if (returned) return;
+        returned = true;
+        try {
+          await admin.from('ai_premium_trials').delete().eq('user_id', userId).eq('feature', feature);
+        } catch (e) {
+          console.error('[ai-tiers] trial give-back failed:', e instanceof Error ? e.message : String(e));
+        }
+      };
+      return { ok: true, charge: { model: row.model, charged: 0, trialUsed: true, refund: giveBack } };
     }
   }
 
