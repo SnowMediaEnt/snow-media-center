@@ -81,8 +81,9 @@ export interface SnowPlayerPlugin {
   seekTo(opts: { position: number; screenId?: string }): Promise<void>;
   /** Poll current playhead + duration (seconds). duration = 0 when unknown/live. */
   getPosition(opts?: SnowScreenOpts): Promise<{ position: number; duration: number; playing: boolean }>;
-  /** Position/size the native video surface in DEVICE px (CSS rect * devicePixelRatio). w/h<=0 = fullscreen. */
-  setRect(opts: { x: number; y: number; width: number; height: number; cssW?: number; cssH?: number; fullscreen?: boolean; screenId?: string }): Promise<void>;
+  /** Position/size the native video surface in DEVICE px (CSS rect * devicePixelRatio). w/h<=0 = fullscreen.
+   *  `blank`: a new stream is about to load here — black out the current picture now; it stays black until the next load's first frame. */
+  setRect(opts: { x: number; y: number; width: number; height: number; cssW?: number; cssH?: number; fullscreen?: boolean; screenId?: string; blank?: boolean }): Promise<void>;
   setVolume(opts: { volume: number; screenId?: string }): Promise<void>;
   /** Screen format — see SCREEN_FORMATS. Native only; a no-op on web. */
   setResizeMode(opts: { mode: ScreenFormat; screenId?: string }): Promise<{ mode: string }>;

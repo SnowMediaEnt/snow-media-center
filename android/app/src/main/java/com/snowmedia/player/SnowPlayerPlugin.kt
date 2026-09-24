@@ -63,6 +63,14 @@ class SnowPlayerPlugin : Plugin() {
         var player: ExoPlayer? = null
         var trackSelector: DefaultTrackSelector? = null
         var textureView: TextureView? = null
+        // Opaque black view between the picture and the subtitles. A
+        // TextureView keeps showing the last frame it was given — through
+        // stop(), setMediaItem() and the container going GONE and back — so
+        // without this every channel change, and Live TV → Plex, opened on a
+        // frozen frame of the previous stream until the new one drew. Closed
+        // on every load, opened on that load's first rendered frame (the
+        // same thing PlayerView's exo_shutter does).
+        var shutterView: View? = null
         var subtitleView: SubtitleView? = null
         var container: FrameLayout? = null
         var volume: Float = 1f
@@ -256,6 +264,12 @@ class SnowPlayerPlugin : Plugin() {
         val fl = FrameLayout(act)
         fl.setBackgroundColor(Color.BLACK)
         fl.addView(tv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
+        // Above the picture, below the subtitles. Starts closed: nothing has
+        // been drawn yet.
+        val shutter = View(act)
+        shutter.setBackgroundColor(Color.BLACK)
+        fl.addView(shutter, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        s.shutterView = shutter
         val sv = SubtitleView(act)
         sv.setUserDefaultStyle()
         sv.setUserDefaultTextSize()
@@ -295,6 +309,7 @@ class SnowPlayerPlugin : Plugin() {
         s.container?.let { c -> (c.parent as? ViewGroup)?.removeView(c) }
         s.container = null
         s.textureView = null
+        s.shutterView = null
         s.subtitleView = null
         s.videoW = 0
         s.videoH = 0
@@ -418,6 +433,9 @@ class SnowPlayerPlugin : Plugin() {
                 notifyListeners("playerState", JSObject().put("screenId", screenId).put("playing", isPlaying))
             }
             override fun onRenderedFirstFrame() {
+                // The new stream has drawn: uncover it. Only here — never on
+                // load or a state change — so no earlier frame can show.
+                if (s.currentUrl != null) s.shutterView?.visibility = View.INVISIBLE
                 s.firstFrameSeen = true
                 s.reconnectAttempts = 0
                 s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
@@ -531,6 +549,10 @@ class SnowPlayerPlugin : Plugin() {
             s.lastPositionMs = 0L
             s.reconnectAttempts = 0
             s.firstFrameSeen = false
+            // Black until this stream's first frame; the TextureView still
+            // holds the previous one. No stop()/re-create needed: covering it
+            // costs nothing, so zapping is exactly as fast as before.
+            s.shutterView?.visibility = View.VISIBLE
             p.setMediaItem(buildMediaItem(url, subs))
             p.prepare()
             if (live) {
@@ -598,6 +620,9 @@ class SnowPlayerPlugin : Plugin() {
         s.player?.stop()
         s.player?.clearMediaItems()
         s.subtitleView?.setCues(emptyList())
+        // GONE keeps the TextureView and its last frame; the next load makes
+        // the container VISIBLE again, so cover that frame now.
+        s.shutterView?.visibility = View.VISIBLE
         s.container?.visibility = View.GONE
         s.pendingRect = null
     }
@@ -660,9 +685,15 @@ class SnowPlayerPlugin : Plugin() {
         val fs = call.getBoolean("fullscreen", false) ?: false
         val cssW = call.getInt("cssW") ?: 0
         val cssH = call.getInt("cssH") ?: 0
+        // A new stream is about to load into this rect: cover the old picture
+        // now rather than in load(), one bridge round trip later — by then
+        // this or the next setRect may already have moved it (preview box to
+        // fullscreen on a different channel) and flashed it at the new size.
+        val blank = call.getBoolean("blank", false) ?: false
         val s = slot(call)
         val screenId = screenIdOf(call)
         activity?.runOnUiThread {
+            if (blank) s.shutterView?.visibility = View.VISIBLE
             // Guard: only an explicit fullscreen=true request may size to
             // MATCH_PARENT. Degenerate zero/negative multiview rects are
             // dropped so they can NEVER accidentally cover other tiles.
