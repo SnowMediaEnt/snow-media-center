@@ -92,6 +92,10 @@ serve(async (req) => {
           posterUrl: x.posterPath ? `https://image.tmdb.org/t/p/w342${x.posterPath}` : null,
           overview: String(x.overview || '').slice(0, 320),
           status: x.mediaInfo?.status ?? 0, // 0/1 none, 2 pending, 3 processing, 4 partial, 5 available
+          // The Plex item Overseerr matched it to: the app opens it from there
+          // when Plex's own search does not bring it back.
+          ratingKey: x.mediaInfo?.ratingKey != null ? String(x.mediaInfo.ratingKey)
+            : x.mediaInfo?.ratingKey4k != null ? String(x.mediaInfo.ratingKey4k) : null,
         }));
       return json({ results });
     }

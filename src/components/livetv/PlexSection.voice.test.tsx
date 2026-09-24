@@ -19,7 +19,7 @@ const h = vi.hoisted(() => {
     setAuth: null as null | ((a: typeof auth) => void),
     /** What Plex's sign-in says first, when not already connected. */
     first: null as null | typeof auth,
-    libs: vi.fn(), search: vi.fn(), hub: vi.fn(), added: vi.fn(), row: vi.fn(),
+    libs: vi.fn(), search: vi.fn(), byKey: vi.fn(), hub: vi.fn(), added: vi.fn(), row: vi.fn(),
     overseerrSearch: vi.fn(), overseerrRequest: vi.fn(), popularSearches: vi.fn(), recentSearches: vi.fn(),
   };
 });
@@ -69,6 +69,7 @@ vi.mock('@/lib/plex', async (orig) => ({
   ...(await orig<typeof import('@/lib/plex')>()),
   getPlexLibraries: h.libs,
   searchPlex: h.search,
+  getPlexItemByKey: h.byKey,
   getPlexHub: h.hub,
   getPlexRecentlyAdded: h.added,
   getPlexSectionRow: h.row,
@@ -316,6 +317,28 @@ describe('PlexSection — Search on a Kids profile', () => {
     expect(await screen.findByText('Popular searches', undefined, { timeout: 3000 })).toBeTruthy();
     expect(screen.getByText('Recent on this box')).toBeTruthy();
     expect(screen.queryByText('Saw')).toBeNull();
+  });
+
+  it('a title Overseerr has on Plex under another name opens from Plex; one the server lacks is shown, not hidden', async () => {
+    h.search.mockImplementation(() => h.later(5, []));
+    h.overseerrSearch.mockImplementation(async () => [
+      { id: 7, mediaType: 'tv', title: 'The Prisoner of Beauty', year: '2025', status: 5, posterUrl: null, ratingKey: 'pb' },
+      { id: 8, mediaType: 'tv', title: 'Beauty Gone', year: '2024', status: 5, posterUrl: null, ratingKey: null },
+      { id: 9, mediaType: 'movie', title: 'Beauty Anew', year: '2026', status: 1, posterUrl: null },
+    ]);
+    h.byKey.mockImplementation(async (_b: string, _t: string, rk: string) =>
+      (rk === 'pb' ? { item: it_('pb', 'Prisoner of Beauty', { type: 'show', year: 2025 }), guids: ['tmdb://7'] } : null));
+    sessionStorage.setItem(VOICE_KEY, JSON.stringify({ query: 'prisoner of beauty', open: false, at: Date.now() }));
+    await renderPlex();
+    // Found through Overseerr's link, and it opens like any result.
+    expect(await screen.findByText(/^Prisoner of Beauty/, undefined, { timeout: 3000 })).toBeTruthy();
+    expect(h.byKey).toHaveBeenCalledWith('https://plex.test', 'tok', 'pb');
+    // Not on this server: in the row, marked, never offered as a request.
+    expect(await screen.findByText('Being added')).toBeTruthy();
+    expect(screen.getByText('+ Request')).toBeTruthy();
+    key('ArrowDown', 40);
+    key('Enter', 13);
+    expect(await screen.findByText('DETAIL:Prisoner of Beauty')).toBeTruthy();
   });
 });
 

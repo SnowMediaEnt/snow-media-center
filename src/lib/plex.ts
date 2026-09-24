@@ -1290,6 +1290,26 @@ export async function searchPlex(base: string, token: string, query: string): Pr
   return out;
 }
 
+/** One movie or show by its key, with the ids Plex matched it to
+ *  ("tmdb://…"); null when this server has nothing under that key. */
+export async function getPlexItemByKey(base: string, token: string, ratingKey: string): Promise<{ item: PlexItem; guids: string[] } | null> {
+  try {
+    const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
+      'GET', `${base}/library/metadata/${encodeURIComponent(ratingKey)}?includeGuids=1&excludeElements=Director,Writer,Role,Producer,Country,Collection,Label,Chapter,Marker`,
+      token, RAIL_TIMEOUT_MS,
+    );
+    const m = data?.MediaContainer?.Metadata?.[0];
+    if (!m) return null;
+    const item = mapMetadata([m])[0];
+    if (!item || (item.type !== 'movie' && item.type !== 'show')) return null;
+    const guids = (Array.isArray(m.Guid) ? (m.Guid as Array<Record<string, unknown>>) : [])
+      .map((g) => String(g.id ?? '')).filter(Boolean);
+    return { item, guids };
+  } catch {
+    return null;
+  }
+}
+
 // ── hidden library persistence ────────────────────────────────────────────
 
 const PLEX_HIDDEN_KEY = 'snow-plex-hidden-libs-v1';

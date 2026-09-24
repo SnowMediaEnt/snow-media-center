@@ -31,6 +31,7 @@ import {
   getPlexSectionRow,
   newestAdded,
   searchPlex as _searchPlex,
+  getPlexItemByKey,
   getPlexPart,
   plexDirectUrl, plexTranscodeUrl, loadHiddenPlexLibs, saveHiddenPlexLibs,
   getCachedLibrary, setCachedLibrary, isLibraryCacheFresh,
@@ -53,7 +54,7 @@ import {
 } from '@/lib/plexDemo';
 import PlexAuthScreen from './PlexAuthScreen';
 import OverseerrRequestPanel from './OverseerrRequestPanel';
-import { overseerrRequest, overseerrSearch, missingFromPlex, type OverseerrItem } from '@/lib/overseerr';
+import { overseerrRequest, overseerrSearch, missingFromPlex, onPlexUnseen, isSameTitle, type OverseerrItem } from '@/lib/overseerr';
 import { tmdbSized } from '@/lib/tmdbImage';
 import PlexImage from './PlexImage';
 import PlexLibraryRows from './PlexLibraryRows';
@@ -1373,9 +1374,25 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         // request titles (the Request tab is gone for it too).
         if (kidsLevel()) setReqItems([]);
         else {
-          void overseerrSearch(q).then((found) => {
+          void overseerrSearch(q).then(async (found) => {
             if (mySeq !== seqRef.current) return;
-            setReqItems(missingFromPlex(found, family, COLS));
+            // Overseerr says these are on Plex, but Plex's search did not
+            // bring them back (another name, still scanning in): open them
+            // from the Plex item Overseerr matched them to. One this server
+            // does not have is shown in the row below, marked, so a title is
+            // never simply missing.
+            const unseen = DEMO ? [] : onPlexUnseen(found, family, COLS);
+            const hits = await Promise.all(unseen.map(async (it) => {
+              if (!it.ratingKey) return null;
+              const got = await getPlexItemByKey(ctx.base, ctx.token, it.ratingKey);
+              return got && isSameTitle(it, { title: got.item.title, guids: got.guids }) ? got.item : null;
+            }));
+            if (mySeq !== seqRef.current) return;
+            const extra = hits.filter((x): x is PlexItem => !!x && !r.some((y) => y.ratingKey === x.ratingKey));
+            if (extra.length) setResults((prev) => [...prev, ...extra.filter((x) => !prev.some((y) => y.ratingKey === x.ratingKey))]);
+            const lost = new Set(unseen.filter((_, i) => !hits[i]));
+            const req = new Set(missingFromPlex(found, family, COLS));
+            setReqItems(found.filter((it) => req.has(it) || lost.has(it)).slice(0, COLS));
             setReqCursor(0);
           });
         }
@@ -1431,6 +1448,10 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   // Already on its way: say so instead of asking again.
   const askRequest = useCallback((it: OverseerrItem) => {
     if (kidsLevel()) return;
+    if (it.status === 5) {
+      toast({ title: 'Not showing on Plex yet', description: `${it.title} is listed as on Plex, but this server isn't showing it. It may still be being added — check back soon.` });
+      return;
+    }
     if (reqSentRef.current[it.id] || it.status === 2 || it.status === 3) {
       toast({ title: 'Already requested', description: `${it.title} is already on its way to Plex.` });
       return;
@@ -1670,7 +1691,12 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       )}
       {reqItems.length > 0 && (
         <div>
-          {results.length === 0 && !loading ? (
+          {reqItems.every((it) => it.status === 5) ? (
+            <>
+              <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-1">Listed on Plex, not showing yet</div>
+              <div className="text-sm text-brand-ice/50 font-nunito mb-2">These are being added to Plex. Check back soon.</div>
+            </>
+          ) : results.length === 0 && !loading ? (
             <>
               <div className="text-xl font-quicksand font-bold text-white mb-1">“{query.trim()}” isn’t on Plex yet</div>
               <div className="text-base text-brand-ice/70 font-nunito mb-3">Pick it below and press OK to request it — we will add it to Plex for you and let you know when it’s ready.</div>
@@ -1742,7 +1768,7 @@ SearchPanel.displayName = 'SearchPanel';
 const RequestTile = memo(({ item: it, sent, focused, onPick }: {
   item: OverseerrItem; sent?: 'requested' | 'already'; focused: boolean; onPick: () => void;
 }) => {
-  const state = sent ? 'Requested' : it.status === 4 ? 'Partly on Plex' : it.status >= 2 ? 'Requested' : null;
+  const state = sent ? 'Requested' : it.status === 5 ? 'Being added' : it.status === 4 ? 'Partly on Plex' : it.status >= 2 ? 'Requested' : null;
   return (
     <div
       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
