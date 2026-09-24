@@ -892,10 +892,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
    * used). Nothing is saved until the viewer keeps one.
    */
   // The assistant's "make me a wallpaper of …": fill the prompt, then generate.
+  // Asked for from the phone remote it is only filled in: Generate costs Snow
+  // Gems, so it is pressed here, on the TV.
   const autoPromptRef = useRef<string | null>(null);
   useEffect(() => {
     const p = takeIntent(INTENT_KEYS.wallpaper);
-    if (p) { autoPromptRef.current = p; setGeneratePrompt(p); }
+    if (p) { autoPromptRef.current = p; setGeneratePrompt(p); return; }
+    const draft = takeIntent(INTENT_KEYS.wallpaperDraft);
+    if (draft) setGeneratePrompt(draft);
   }, []);
   useEffect(() => {
     if (!autoPromptRef.current || generatePrompt !== autoPromptRef.current) return;

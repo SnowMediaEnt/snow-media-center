@@ -35,6 +35,10 @@ interface VoiceInputProps {
   onTranscription: (text: string, controls: VoiceLifecycleControls) => void | Promise<void>;
   onRecordingStart?: () => void;
   onVoiceStateChange?: (state: VoiceState) => void;
+  /** Why listening stopped, for a caller that shows it itself (the voice
+   *  command overlay, which covers the corner the toast would appear in).
+   *  When set, that toast is not shown. */
+  onVoiceError?: (title: string, description?: string) => void;
   onRestoreFocus?: () => void;
   disabled?: boolean;
   className?: string;
@@ -72,6 +76,7 @@ export const VoiceInput = ({
   onTranscription,
   onRecordingStart,
   onVoiceStateChange,
+  onVoiceError,
   onRestoreFocus,
   disabled = false,
   className = '',
@@ -111,6 +116,17 @@ export const VoiceInput = ({
 
   const logVoiceError = (code: string, message: string, source: VoiceErrorSource, error?: unknown) => {
     console.error(`VOICE_ERROR: ${code}/${message}/${source}`, error ?? '');
+  };
+
+  // The voice command overlay has no text box to type in; the phone remote's
+  // Voice button works there.
+  const fireTvNoMic = onVoiceError
+    ? 'Fire TV remotes don\'t expose the mic to apps — use the Voice button on the phone remote.'
+    : 'Fire TV remotes don\'t expose the mic to apps — please type your message.';
+
+  const failToast = (title: string, description: string) => {
+    if (onVoiceError) onVoiceError(title, description);
+    else toast({ title, description, variant: 'destructive' });
   };
 
   const clearRecordingTimeout = () => {
@@ -177,45 +193,22 @@ export const VoiceInput = ({
       if (isNativePlatform()) {
         try {
           await AppManager.openAppSettings({ packageName: 'com.snowmedia' });
+          onVoiceError?.('Microphone permission needed', 'Turn on Microphone for Snow Media Center, then try again.');
         } catch (settingsError) {
           console.warn('openAppSettings failed', settingsError);
-          toast({
-            title: 'Microphone permission needed',
-            description: 'Open Settings → Apps → Snow Media Center → Permissions and enable Microphone.',
-            variant: 'destructive',
-          });
+          failToast('Microphone permission needed', 'Open Settings → Apps → Snow Media Center → Permissions and enable Microphone.');
         }
       } else {
-        toast({
-          title: 'Microphone permission needed',
-          description: 'Allow microphone access in your browser, then try Voice again.',
-          variant: 'destructive',
-        });
+        failToast('Microphone permission needed', 'Allow microphone access in your browser, then try Voice again.');
       }
     } else if (code === 'NO_MICROPHONE_HARDWARE') {
-      toast({
-        title: 'No microphone available',
-        description: 'This device does not expose a microphone to apps.',
-        variant: 'destructive',
-      });
+      failToast('No microphone available', 'This device does not expose a microphone to apps.');
     } else if (code === 'VOICE_RECOGNIZER_BUSY') {
-      toast({
-        title: 'Voice is busy',
-        description: 'Voice input was reset. Try again.',
-        variant: 'destructive',
-      });
+      failToast('Voice is busy', 'Voice input was reset. Try again.');
     } else if (code === 'EMPTY_SPEECH') {
-      toast({
-        title: 'No speech heard',
-        description: 'I didn’t catch that, try again.',
-        variant: 'destructive',
-      });
+      failToast('No speech heard', 'I didn’t catch that, try again.');
     } else {
-      toast({
-        title: 'Voice input failed',
-        description: message || 'Could not start listening on this device. Try again.',
-        variant: 'destructive',
-      });
+      failToast('Voice input failed', message || 'Could not start listening on this device. Try again.');
     }
 
     cleanupAudioSession();
@@ -250,11 +243,7 @@ export const VoiceInput = ({
       // remote mic isn't accessible to MediaRecorder so we land here.
       if (audioBlob.size < MIN_AUDIO_BYTES) {
         if (isFireTV()) {
-          toast({
-            title: "Voice isn't available on this device",
-            description: 'Fire TV remotes don\'t expose the mic to apps — please type your message.',
-            variant: 'destructive',
-          });
+          failToast("Voice isn't available on this device", fireTvNoMic);
           cleanupAudioSession();
           finishAfterErrorOrCancel('error');
           return;
@@ -267,11 +256,7 @@ export const VoiceInput = ({
       // would otherwise see "edge function returned a non-2xx status code".
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        toast({
-          title: 'Sign in to use voice',
-          description: 'Voice input is a signed-in feature. Please sign in and try again.',
-          variant: 'destructive',
-        });
+        failToast('Sign in to use voice', 'Voice input is a signed-in feature. Please sign in and try again.');
         cleanupAudioSession();
         finishAfterErrorOrCancel('error');
         return;
@@ -296,11 +281,7 @@ export const VoiceInput = ({
       if (error) {
         // Translate the cryptic non-2xx into something actionable.
         if (isFireTV()) {
-          toast({
-            title: "Voice isn't available on this device",
-            description: 'Fire TV remotes don\'t expose the mic to apps — please type your message.',
-            variant: 'destructive',
-          });
+          failToast("Voice isn't available on this device", fireTvNoMic);
           cleanupAudioSession();
           finishAfterErrorOrCancel('error');
           return;
@@ -358,11 +339,7 @@ export const VoiceInput = ({
       // clear message instead of the cryptic "non-2xx" later.
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        toast({
-          title: 'Sign in to use voice',
-          description: 'Voice input is a signed-in feature. Please sign in and try again.',
-          variant: 'destructive',
-        });
+        failToast('Sign in to use voice', 'Voice input is a signed-in feature. Please sign in and try again.');
         cleanupAudioSession();
         finishAfterErrorOrCancel('error');
         return;

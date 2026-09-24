@@ -13,7 +13,8 @@ export type VoiceAction =
   | { kind: 'profiles' }
   | { kind: 'channel'; name: string }
   | { kind: 'plex'; query: string; open: boolean }
-  /** "watch X": a Plex title if the server has one by that name, else a channel. */
+  /** "watch X": the Plex title by that name (or Plex Search with it typed).
+   *  A channel is only what CHANNEL_HINT names; others need "put on X". */
   | { kind: 'watch'; query: string }
   | { kind: 'app'; name: string }
   | { kind: 'install'; name: string }
@@ -35,7 +36,7 @@ const SCREEN_WORDS: Array<[string, Screen | 'profiles']> = [
   ['phone remote', 'phone_remote'], ['pair my phone', 'phone_remote'], ['pair phone', 'phone_remote'],
   ['game day', 'game_day'], ['gameday', 'game_day'], ['todays games', 'game_day'], ['games today', 'game_day'],
   ['tv guide', 'guide'], ['live tv', 'live_tv'], ['live television', 'live_tv'], ['the guide', 'guide'], ['guide', 'guide'],
-  ['main apps', 'main_apps'], ['app store', 'main_apps'], ['apps', 'main_apps'],
+  ['main apps', 'main_apps'], ['app store', 'main_apps'], ['apps', 'main_apps'], ['store', 'store'], ['snow store', 'store'],
   ['game lounge', 'game_lounge'], ['games', 'game_lounge'], ['snow gems', 'snow_gems'], ['gems', 'snow_gems'],
   ['ai chat', 'ai_chat'], ['assistant', 'ai_chat'], ['tickets', 'tickets'], ['ticket', 'tickets'], ['posts', 'posts'],
   ['cleaner', 'device_cleaner'], ['support', 'support'], ['help', 'support'], ['backups', 'backups'], ['backup', 'backups'],
@@ -52,10 +53,23 @@ const screenFor = (words: string): Screen | 'profiles' | null => {
   return null;
 };
 
-/** Channel names people say that are never titles. */
-const CHANNEL_HINT = /\b(?:espn\d?|cnn|msnbc|fox(?: news| sports\s*\d?)?|fs1|fs2|nbc|abc|cbs|pbs|hbo|showtime|starz|cinemax|tnt|tbs|usa network|amc|fx|fxx|bravo|hgtv|tlc|nick(?:elodeon)?|cartoon network|disney channel|discovery|history channel|nfl network|nba tv|mlb network|nhl network|golf channel|bet|mtv|vh1|cmt|comedy central|weather channel|local|news)\b/;
+/** Channel names people say that are never titles — said on their own ("CNN",
+ *  "the news", "Fox Sports 1"), not inside a longer name ("Fantastic Mr Fox",
+ *  "News of the World", "A Discovery of Witches"). */
+const CHANNEL_HINT = /^(?:the\s+)?(?:espn\d?|cnn|msnbc|fox|fs1|fs2|nbc|abc|cbs|pbs|hbo|showtime|starz|cinemax|tnt|tbs|usa network|amc|fx|fxx|bravo|hgtv|tlc|nick(?:elodeon)?|cartoon network|disney channel|discovery|history channel|nfl network|nba tv|mlb network|nhl network|golf channel|bet|mtv|vh1|cmt|comedy central|weather channel|local|news)(?:\s+(?:\d+|news|sports|jr|hd|east|west|channel))*$/;
 
-const EVENT_HINT = /\b(?:game|games|match|fight|fights|ppv|pay per view|live|sports|race|playoffs?|super bowl|world series|tonight)\b/;
+/** A game or a fight rather than a title: "the Lakers game", "the UFC fight",
+ *  "the game tonight", "the Super Bowl" — not "Squid Game", "Game of
+ *  Thrones" or "The Hunger Games". Which channel has it is the assistant's
+ *  to answer. */
+const EVENT_HINT = /\bthe\s+(?:[a-z0-9&]+\s+){0,3}(?:game|match|fight|race|finals)\b|\b(?:tonight|ppv|pay per view|super bowl|world series|playoffs?|live sports)\b|^(?:live\s+)?sports$/;
+
+/** Settings said after "turn on": the assistant's (set_preference), never a
+ *  channel search. */
+const SETTING_WORDS = /^(?:the\s+)?(?:subtitles?|captions?|closed captions?|cc|notifications?|post notifications?|content bar|volume|sound)$/;
+
+/** The Player's own screens: "watch live tv", "watch game day". */
+const PLAYER_SCREENS: ReadonlySet<Screen | 'profiles'> = new Set<Screen | 'profiles'>(['player', 'live_tv', 'guide', 'game_day', 'multi_screen', 'plex']);
 
 const TITLE_HINT = /^(?:the\s+)?(?:movie|film|show|series|tv show|episode of)\s+/;
 
@@ -87,9 +101,15 @@ export function parseVoiceCommand(raw: string): VoiceAction {
     return { kind: 'app', name: target.replace(/^(?:the\s+)?(.+?)(?:\s+app)?$/, '$1') };
   }
 
-  // put on / turn on / tune to / switch to  → a channel
+  // put on / turn on / tune to / switch to  → a channel, unless it names a
+  // screen ("switch to Plex"), a profile or a setting ("turn on subtitles")
   if ((m = /^(?:put\s+on|turn\s+on|tune\s+(?:in\s+)?to|switch\s+to|change\s+to|flip\s+to|change\s+(?:the\s+)?channel\s+to)\s+(?:channel\s+)?(.+?)(?:\s+channel)?$/.exec(said))) {
-    return { kind: 'channel', name: m[1] };
+    const name = m[1];
+    const screen = screenFor(name);
+    if (screen === 'profiles' || /\bprofiles?\b/.test(name)) return { kind: 'profiles' };
+    if (screen) return { kind: 'screen', screen };
+    if (SETTING_WORDS.test(name) || EVENT_HINT.test(name)) return { kind: 'ai', text: raw };
+    return { kind: 'channel', name };
   }
 
   // watch / play
@@ -97,7 +117,9 @@ export function parseVoiceCommand(raw: string): VoiceAction {
     const what = m[1];
     if (TITLE_HINT.test(what)) return { kind: 'plex', query: what.replace(TITLE_HINT, ''), open: true };
     if ((m = /^(?:channel\s+)?(.+?)\s+channel$|^channel\s+(.+)$/.exec(what))) return { kind: 'channel', name: (m[1] ?? m[2]).trim() };
-    if (CHANNEL_HINT.test(what) && what.split(' ').length <= 4) return { kind: 'channel', name: what };
+    if (CHANNEL_HINT.test(what)) return { kind: 'channel', name: what };
+    const screen = screenFor(what);
+    if (screen && PLAYER_SCREENS.has(screen)) return { kind: 'screen', screen: screen as Screen };
     // "watch the Lakers game", "the UFC fight": which category carries it is
     // the assistant's to answer.
     if (EVENT_HINT.test(what)) return { kind: 'ai', text: raw };
@@ -140,16 +162,54 @@ export function nameScore(spoken: string, candidate: string): number {
   return 0;
 }
 
-/** The best channel for a spoken name, favourites winning ties. */
+/** Below this a name only turns up inside another ("espn" in "watchespn"). */
+const MIN_CHANNEL_SCORE = 50;
+/** A country some providers put before the name with just a space ("USA
+ *  ESPN", "UK SKY ONE"), and picture details cleanChannelName keeps. A name is
+ *  also scored without them. */
+const COUNTRY_WORD = /^(?:us|usa|uk|ca|can|au|nz|ie)\s+(?=\S)/;
+const PICTURE_WORDS = /\b(?:\d{3,4}p|\d{2}\s?fps|alt|multi)\b/g;
+
+/**
+ * The channel a spoken name means, or null when none clearly does: nothing
+ * scores well enough, or only part of a name was said and more than one
+ * channel fits it ("usa": USA A&E, USA Network…; "fox": FOX News, FOX Sports
+ * 1). Then nothing plays — the first of a list is only a guess — unless just
+ * one of them is a favourite. The same channel in several qualities or on
+ * several lines counts once, the first (or a favourite) standing for it.
+ */
 export function bestChannel<T extends { name: string; stream_id: number }>(spoken: string, channels: T[], favourites?: Set<number>): T | null {
-  let best: { ch: T; score: number } | null = null;
+  const byName = new Map<string, { ch: T; score: number; fav: boolean }>();
   for (const ch of channels) {
-    let score = nameScore(spoken, cleanChannelName(ch.name));
-    if (score === 0) continue;
-    if (favourites?.has(ch.stream_id)) score += 5;
-    if (!best || score > best.score) best = { ch, score };
+    const name = cleanChannelName(ch.name);
+    const bare = name.replace(COUNTRY_WORD, '').replace(PICTURE_WORDS, ' ').replace(/\s+/g, ' ').trim();
+    const score = Math.max(nameScore(spoken, name), bare === name ? 0 : nameScore(spoken, bare));
+    if (score < MIN_CHANNEL_SCORE) continue;
+    const fav = !!favourites?.has(ch.stream_id);
+    const had = byName.get(bare);
+    if (!had || score > had.score || (score === had.score && fav && !had.fav)) byName.set(bare, { ch, score, fav });
   }
-  return best && best.score >= 40 ? best.ch : null;
+  const fits = [...byName.values()];
+  const exact = fits.find((c) => c.score === 100 && c.fav) ?? fits.find((c) => c.score === 100);
+  if (exact) return exact.ch;
+  const favs = fits.filter((c) => c.fav);
+  const pool = favs.length ? favs : fits;
+  return pool.length === 1 ? pool[0].ch : null;
+}
+
+/** The channel a name asked for by voice means, from every line's full list,
+ *  or null (see bestChannel). Providers name channels "US| ESPN FHD": the
+ *  name's first word picks the candidates, the whole name ranks them ("the"
+ *  is part of none: "the weather channel"). */
+export function channelForName<T extends { name: string; stream_id: number }>(spoken: string, lists: Iterable<T[]>, favourites?: Set<number>): T | null {
+  const want = spoken.trim().replace(/^the\s+/i, '') || spoken.trim();
+  const first = squash((want.split(/\s+/)[0] || want).toLowerCase());
+  if (!first) return null;
+  const candidates: T[] = [];
+  for (const list of lists) {
+    for (const ch of list) if (squash(String(ch.name ?? '').toLowerCase()).includes(first)) candidates.push(ch);
+  }
+  return bestChannel(want, candidates, favourites);
 }
 
 /** The installed app a spoken name means. */

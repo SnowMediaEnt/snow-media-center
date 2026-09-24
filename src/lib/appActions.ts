@@ -5,7 +5,10 @@
 // a screen, flips a preference, or leaves an "intent" in sessionStorage that
 // the destination screen consumes when it mounts — the same way the Player
 // already consumes 'smc-live-deeplink'. Nothing here needs the screen to be
-// open already, and every intent is read once and cleared.
+// open already, and every intent is read once and cleared. A screen that is
+// open already is told by an event (PLAYER_INTENT_EVENT, SCREEN_INTENT_EVENT):
+// navigating to the view on show does nothing, and the intent would otherwise
+// wait for the next visit.
 import { saveLiveLayout, type LiveLayout } from '@/lib/liveLayout';
 import { saveDashboardSize, type DashboardSize } from '@/lib/dashboardSize';
 import { saveMailNotify } from '@/lib/snowMail';
@@ -18,7 +21,7 @@ export type Navigate = (section: string) => void;
 export type Screen =
   | 'home' | 'player' | 'live_tv' | 'guide' | 'game_day' | 'multi_screen' | 'plex' | 'backups' | 'player_appearance' | 'player_settings'
   | 'main_apps' | 'support' | 'posts' | 'tickets' | 'device_cleaner' | 'buffering_guide' | 'how_to' | 'support_videos' | 'speed_test' | 'ai_chat'
-  | 'dashboard' | 'snow_gems' | 'game_lounge' | 'giveaway' | 'settings' | 'settings_ui' | 'wallpaper' | 'phone_remote';
+  | 'dashboard' | 'snow_gems' | 'game_lounge' | 'giveaway' | 'settings' | 'settings_ui' | 'wallpaper' | 'phone_remote' | 'store';
 
 export type PreferenceKey = 'live_layout' | 'dashboard_size' | 'post_notifications' | 'content_bar';
 
@@ -30,6 +33,7 @@ export const INTENT_KEYS = {
   settings: 'smc-settings-tab',     // 'media' | 'ui' | 'profiles' | 'updates' | 'alerts' | 'ai'
   installApp: 'smc-install-app',    // app name
   wallpaper: 'smc-wallpaper-prompt', // prompt text
+  wallpaperDraft: 'smc-wallpaper-draft', // prompt text, filled in but not generated
 } as const;
 
 const put = (key: string, value: unknown) => {
@@ -67,7 +71,7 @@ export const SCREEN_LABELS: Record<Screen, string> = {
   main_apps: 'Main Apps', support: 'Support', posts: 'Posts from Snow Media', tickets: 'Submit a Ticket', device_cleaner: 'Device Cleaner',
   buffering_guide: 'the Buffering Guide', how_to: 'How to use SMC', support_videos: 'Support Videos', speed_test: 'Speed Test', ai_chat: 'AI Chat',
   dashboard: 'your Dashboard', snow_gems: 'Snow Gems', game_lounge: 'the Game Lounge', giveaway: 'the Giveaway', settings: 'Settings',
-  settings_ui: 'Settings → UI', wallpaper: 'the wallpaper maker', phone_remote: 'Settings → Phone Remote',
+  settings_ui: 'Settings → UI', wallpaper: 'the wallpaper maker', phone_remote: 'Settings → Phone Remote', store: 'the Store',
 };
 
 /** Screens a Kids profile does not open, by voice or through the assistant.
@@ -75,42 +79,54 @@ export const SCREEN_LABELS: Record<Screen, string> = {
 export const KIDS_BLOCKED_SCREENS: ReadonlySet<Screen> = new Set<Screen>([
   'game_lounge', 'snow_gems', 'giveaway', 'dashboard',
   'player_settings', 'player_appearance', 'main_apps', 'tickets', 'device_cleaner',
+  'store',
 ]);
 
 export function openScreen(screen: Screen, navigate: Navigate): string {
   switch (screen) {
     case 'home': navigate('home'); break;
     case 'player': navigate('livetv'); break;
-    case 'live_tv': put(INTENT_KEYS.player, { section: 'live' }); navigate('livetv'); break;
-    case 'guide': put(INTENT_KEYS.player, { section: 'guide' }); navigate('livetv'); break;
+    case 'live_tv': toPlayer({ section: 'live' }, navigate); break;
+    case 'guide': toPlayer({ section: 'guide' }, navigate); break;
     case 'game_day': toPlayer({ section: 'gameday' }, navigate); break;
-    case 'multi_screen': put(INTENT_KEYS.player, { section: 'multi' }); navigate('livetv'); break;
-    case 'plex': put(INTENT_KEYS.player, { section: 'movies' }); navigate('livetv'); break;
-    case 'backups': put(INTENT_KEYS.player, { section: 'backups' }); navigate('livetv'); break;
-    case 'player_settings': put(INTENT_KEYS.player, { section: 'live', settings: 'hub' }); navigate('livetv'); break;
-    case 'player_appearance': put(INTENT_KEYS.player, { section: 'live', settings: 'appearance' }); navigate('livetv'); break;
+    case 'multi_screen': toPlayer({ section: 'multi' }, navigate); break;
+    case 'plex': toPlayer({ section: 'movies' }, navigate); break;
+    case 'backups': toPlayer({ section: 'backups' }, navigate); break;
+    case 'player_settings': toPlayer({ section: 'live', settings: 'hub' }, navigate); break;
+    case 'player_appearance': toPlayer({ section: 'live', settings: 'appearance' }, navigate); break;
     case 'main_apps': navigate('apps'); break;
     case 'support': navigate('support'); break;
-    case 'posts': put(INTENT_KEYS.support, 'posts'); navigate('support'); break;
-    case 'tickets': put(INTENT_KEYS.support, 'tickets'); navigate('support'); break;
-    case 'device_cleaner': put(INTENT_KEYS.support, 'cleaner'); navigate('support'); break;
-    case 'buffering_guide': put('smc-open-buffering-guide', '1'); navigate('support'); break;
-    case 'how_to': put('smc-open-howto', '1'); navigate('support'); break;
-    case 'support_videos': put(INTENT_KEYS.support, 'videos'); navigate('support'); break;
-    case 'speed_test': put(INTENT_KEYS.support, 'speedtest'); navigate('support'); break;
-    case 'ai_chat': put(INTENT_KEYS.support, 'ai'); navigate('support'); break;
+    case 'posts': toScreen('support', INTENT_KEYS.support, 'posts', navigate); break;
+    case 'tickets': toScreen('support', INTENT_KEYS.support, 'tickets', navigate); break;
+    case 'device_cleaner': toScreen('support', INTENT_KEYS.support, 'cleaner', navigate); break;
+    case 'buffering_guide': toScreen('support', 'smc-open-buffering-guide', '1', navigate); break;
+    case 'how_to': toScreen('support', 'smc-open-howto', '1', navigate); break;
+    case 'support_videos': toScreen('support', INTENT_KEYS.support, 'videos', navigate); break;
+    case 'speed_test': toScreen('support', INTENT_KEYS.support, 'speedtest', navigate); break;
+    case 'ai_chat': toScreen('support', INTENT_KEYS.support, 'ai', navigate); break;
     case 'dashboard': navigate('user'); break;
     case 'snow_gems': navigate('credits'); break;
     case 'game_lounge': navigate('games'); break;
     case 'giveaway': navigate('giveaway'); break;
     case 'settings': navigate('settings'); break;
-    case 'settings_ui': put(INTENT_KEYS.settings, 'ui'); navigate('settings'); break;
-    case 'wallpaper': put(INTENT_KEYS.settings, 'media'); navigate('settings'); break;
-    case 'phone_remote': put(INTENT_KEYS.settings, 'remote'); navigate('settings'); break;
+    case 'settings_ui': toScreen('settings', INTENT_KEYS.settings, 'ui', navigate); break;
+    case 'wallpaper': toScreen('settings', INTENT_KEYS.settings, 'media', navigate); break;
+    case 'phone_remote': toScreen('settings', INTENT_KEYS.settings, 'remote', navigate); break;
+    case 'store': navigate('store'); break;
   }
   try { trackEvent('ai_open_screen', 'ai', { screen }); } catch { void 0; }
   return SCREEN_LABELS[screen] ?? screen;
 }
+
+/** Support or Settings, already on screen, takes its intent now (the
+ *  event's detail is the view). */
+export const SCREEN_INTENT_EVENT = 'smc:screen-intent';
+
+const toScreen = (view: string, key: string, value: string, navigate: Navigate) => {
+  put(key, value);
+  try { window.dispatchEvent(new CustomEvent<string>(SCREEN_INTENT_EVENT, { detail: view })); } catch { /* ignore */ }
+  navigate(view);
+};
 
 /** Flip a setting. Returns a sentence for the toast, or null if unknown. */
 export function setPreference(key: PreferenceKey, value: string): string | null {
@@ -237,10 +253,11 @@ export function installApp(appName: string, navigate: Navigate): void {
   try { trackEvent('ai_install_app', 'ai', { app: appName }); } catch { void 0; }
 }
 
-/** Settings → Media: fill the prompt and generate a wallpaper. */
-export function generateWallpaper(prompt: string, navigate: Navigate): void {
-  put(INTENT_KEYS.wallpaper, prompt);
-  put(INTENT_KEYS.settings, 'media');
-  navigate('settings');
-  try { trackEvent('ai_generate_wallpaper', 'ai'); } catch { void 0; }
+/** Settings → Media: fill the prompt and generate a wallpaper. `generate`
+ *  false only fills it in: Generate (which costs Snow Gems) is pressed on
+ *  the TV. */
+export function generateWallpaper(prompt: string, navigate: Navigate, generate = true): void {
+  put(generate ? INTENT_KEYS.wallpaper : INTENT_KEYS.wallpaperDraft, prompt);
+  toScreen('settings', INTENT_KEYS.settings, 'media', navigate);
+  try { trackEvent('ai_generate_wallpaper', 'ai', { generate }); } catch { void 0; }
 }

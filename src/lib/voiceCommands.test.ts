@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bestApp, bestChannel, cleanChannelName, parseVoiceCommand, titleMatches } from './voiceCommands';
+import { bestApp, bestChannel, channelForName, cleanChannelName, parseVoiceCommand, titleMatches } from './voiceCommands';
 
 describe('parseVoiceCommand', () => {
   it.each([
@@ -26,6 +26,40 @@ describe('parseVoiceCommand', () => {
     expect(parseVoiceCommand('why is my box so slow').kind).toBe('ai');
     expect(parseVoiceCommand('watch the Lakers game').kind).toBe('ai');
   });
+
+  it.each([
+    ['switch to Plex', { kind: 'screen', screen: 'plex' }],
+    ['switch to the guide', { kind: 'screen', screen: 'guide' }],
+    ['change to live TV', { kind: 'screen', screen: 'live_tv' }],
+    ['switch to Game Day', { kind: 'screen', screen: 'game_day' }],
+    ['switch to the kids profile', { kind: 'profiles' }],
+    ['open the store', { kind: 'screen', screen: 'store' }],
+    ['open the Play Store', { kind: 'app', name: 'play store' }],
+  ])('"%s" names a screen, not a channel', (said, want) => {
+    expect(parseVoiceCommand(said)).toEqual(want);
+  });
+
+  it('sends settings and games said after "turn on" / "put on" to the assistant', () => {
+    expect(parseVoiceCommand('turn on subtitles').kind).toBe('ai');
+    expect(parseVoiceCommand('turn on closed captions').kind).toBe('ai');
+    expect(parseVoiceCommand('put on the Lakers game').kind).toBe('ai');
+  });
+
+  it.each(['Fantastic Mr Fox', 'News of the World', 'A Discovery of Witches', 'Game of Thrones', 'Squid Game', 'The Hunger Games'])(
+    '"watch %s" is a title, not a channel or an event',
+    (title) => {
+      expect(parseVoiceCommand(`watch ${title}`)).toEqual({ kind: 'watch', query: title.toLowerCase() });
+    },
+  );
+
+  it('still knows channels and events when they are the whole phrase', () => {
+    expect(parseVoiceCommand('watch Fox Sports 1')).toEqual({ kind: 'channel', name: 'fox sports 1' });
+    expect(parseVoiceCommand('watch the news')).toEqual({ kind: 'channel', name: 'the news' });
+    expect(parseVoiceCommand('watch ESPN 2')).toEqual({ kind: 'channel', name: 'espn 2' });
+    expect(parseVoiceCommand('watch the UFC fight').kind).toBe('ai');
+    expect(parseVoiceCommand('watch the game tonight').kind).toBe('ai');
+    expect(parseVoiceCommand('watch live TV')).toEqual({ kind: 'screen', screen: 'live_tv' });
+  });
 });
 
 describe('matching', () => {
@@ -45,6 +79,46 @@ describe('matching', () => {
     expect(bestChannel('espn', chans, new Set([4]))?.stream_id).toBe(4);
     expect(bestChannel('espn two', chans)?.stream_id).toBe(2);
     expect(bestChannel('bravo', chans)).toBeNull();
+  });
+
+  it('plays nothing on a guess', () => {
+    const usa = [
+      { name: 'USA A&E', stream_id: 1 },
+      { name: 'USA ABC', stream_id: 2 },
+      { name: 'USA NETWORK HD', stream_id: 3 },
+      { name: 'USA ESPN', stream_id: 4 },
+      { name: 'USA ESPN 2', stream_id: 5 },
+    ];
+    // Only part of a name, and several channels have it.
+    expect(bestChannel('usa', usa)).toBeNull();
+    expect(bestChannel('fox', [{ name: 'FOX NEWS', stream_id: 6 }, { name: 'FOX SPORTS 1', stream_id: 7 }])).toBeNull();
+    // Only somewhere inside a longer name.
+    expect(bestChannel('espn', [{ name: 'WatchESPN Events', stream_id: 8 }])).toBeNull();
+    // A name no channel has.
+    expect(bestChannel('hallmark', usa)).toBeNull();
+    // What was said, with the provider's country in front.
+    expect(bestChannel('espn', usa)?.stream_id).toBe(4);
+    expect(bestChannel('a&e', usa)?.stream_id).toBe(1);
+    expect(bestChannel('usa network', usa)?.stream_id).toBe(3);
+  });
+
+  it('lets a favourite, or the only channel that fits, settle a partial name', () => {
+    const fox = [{ name: 'FOX NEWS', stream_id: 6 }, { name: 'FOX SPORTS 1', stream_id: 7 }];
+    expect(bestChannel('fox', fox, new Set([7]))?.stream_id).toBe(7);
+    expect(bestChannel('cnn', [{ name: 'CNN INTERNATIONAL', stream_id: 9 }])?.stream_id).toBe(9);
+    // The same channel twice (two qualities) is still one channel.
+    expect(bestChannel('cnn', [{ name: 'CNN INTERNATIONAL 1080p', stream_id: 9 }, { name: 'CNN INTERNATIONAL HD', stream_id: 10 }])?.stream_id).toBe(9);
+  });
+
+  it('looks a spoken name up across every line', () => {
+    const lineA = [{ name: 'USA A&E', stream_id: 1 }, { name: 'USA ABC', stream_id: 2 }];
+    const lineB = [{ name: 'US| ESPN2 HD', stream_id: 3 }, { name: 'The Weather Channel', stream_id: 4 }];
+    expect(channelForName('espn two', [lineA, lineB])?.stream_id).toBe(3);
+    expect(channelForName('ESPN2', [lineA, lineB])?.stream_id).toBe(3);
+    expect(channelForName('the weather channel', [lineA, lineB])?.stream_id).toBe(4);
+    // Not there: nothing, never the first channel of a list.
+    expect(channelForName('usa network', [lineA, lineB])).toBeNull();
+    expect(channelForName('usa', [lineA, lineB])).toBeNull();
   });
 
   it('finds installed apps and close titles', () => {

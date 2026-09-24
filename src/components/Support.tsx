@@ -30,7 +30,7 @@ import { hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 import { useUnreadTickets } from '@/hooks/useUnreadTickets';
 import { useSnowMail } from '@/hooks/useSnowMail';
-import { peekIntent, clearIntent, INTENT_KEYS } from '@/lib/appActions';
+import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
@@ -108,6 +108,29 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     } catch { /* ignore */ }
     return false;
   });
+  // The same asked for while Support is already open (a voice command, the
+  // assistant): navigating here changed nothing, so act on it now rather
+  // than on the next visit.
+  useEffect(() => {
+    const on = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== 'support') return;
+      const l = takeIntent(INTENT_KEYS.support);
+      const flag = (key: string) => takeIntent(key) === '1';
+      const guide = flag('smc-open-buffering-guide');
+      const howTo = flag('smc-open-howto');
+      if (kids && (l === 'tickets' || l === 'cleaner' || l === 'posts')) return;
+      if (l === 'posts') { setChildFocusActive(false); setTab('mail'); return; }
+      if (l === 'ai') { setTab('ai'); return; }
+      if (!l && !guide && !howTo) return;
+      setTab('help');
+      setHelpView(l === 'tickets' ? 'tickets' : l === 'cleaner' ? 'cleaner' : l === 'videos' ? 'videos' : 'menu');
+      if (l === 'speedtest') setShowSpeedTest(true);
+      if (guide) setShowGuide(true);
+      if (howTo) setShowHowTo(true);
+    };
+    window.addEventListener(SCREEN_INTENT_EVENT, on);
+    return () => window.removeEventListener(SCREEN_INTENT_EVENT, on);
+  }, [kids]);
   // Origin of the guide open — 'plex-movie' means close should return to Plex.
   const [guideOrigin, setGuideOrigin] = useState<string | null>(() => {
     try { return sessionStorage.getItem('smc-guide-origin'); } catch { return null; }

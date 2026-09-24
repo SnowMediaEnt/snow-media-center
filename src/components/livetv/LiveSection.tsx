@@ -65,7 +65,8 @@ import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
-import { bestChannel } from '@/lib/voiceCommands';
+import { channelForName } from '@/lib/voiceCommands';
+import { toast } from '@/hooks/use-toast';
 import { isChannelDown, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
 import { recordChannelWatch } from '@/lib/watchHistory';
@@ -87,6 +88,11 @@ const DEMO = isDemo();
 const fetchLiveCategories = DEMO ? demoGetLiveCategories : getLiveCategories;
 const fetchLiveStreams = DEMO ? demoGetLiveStreams : getLiveStreams;
 const fetchShortEpg = DEMO ? demoGetShortEpg : getShortEpg;
+
+/** A channel asked for by voice that no channel clearly is. */
+const sayChannelNotFound = (said: string) => {
+  try { toast({ title: `Couldn't find “${said}”`, description: 'Say the channel’s full name, or look for it with Search.' }); } catch { /* ignore */ }
+};
 
 
 interface Props {
@@ -641,8 +647,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // the old answer and ask again under the new nonce.
   }, [catFetchKey, openedNow, refreshTick, noteCountsFor, tagLine, healFavorites]);
 
+  // A channel asked for by name (a voice command, the assistant): see below.
+  const [pendingPlay, setPendingPlay] = useState<string | null>(() => peekIntent<string>('smc-live-play', true));
+  useEffect(() => { clearIntent('smc-live-play'); }, []);
+
   // Full-catalog channel lists, one per line, fetched lazily ONLY when search
-  // is opened. Search runs across every line.
+  // is opened (or a channel is asked for by name). Search runs across every line.
   const [allByLine, setAllByLine] = useState<Map<string, XtreamLiveStream[]>>(new Map());
   const [allChannelsLoading, setAllChannelsLoading] = useState(false);
   // Lines whose full list is on its way, kept in a ref: gating on the state
@@ -650,7 +660,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // just started, so search never got its results.
   const allLoadingRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!searchOpen) return;
+    if (!searchOpen && !pendingPlay) return;
     const missing = lines.filter((l) => !allByLine.has(lineKey(l)) && !allLoadingRef.current.has(lineKey(l)));
     if (!missing.length) return;
     for (const l of missing) allLoadingRef.current.add(lineKey(l));
@@ -671,7 +681,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         for (const l of missing) allLoadingRef.current.delete(lineKey(l));
         if (allLoadingRef.current.size === 0) setAllChannelsLoading(false);
       });
-  }, [searchOpen, lines, allByLine, noteCountsFor, tagLine, healFavorites]);
+  }, [searchOpen, pendingPlay, lines, allByLine, noteCountsFor, tagLine, healFavorites]);
 
   // The number next to "All channels" is the size of the whole service, and
   // the panel has no count call — so the line-up is measured once a week, on
@@ -778,42 +788,29 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return () => { window.removeEventListener('smc:live-report', onReport); window.removeEventListener('smc:live-play', onPlay); };
   }, []);
 
-  // "Put on ESPN": search every line for the name and play the best match
-  // (favourites win a tie). Nothing close within a few seconds: the search
-  // stays open with the name typed, for the viewer to pick from.
-  const [pendingPlay, setPendingPlay] = useState<string | null>(() => peekIntent<string>('smc-live-play', true));
-  useEffect(() => { clearIntent('smc-live-play'); }, []);
-  const pendingPlaySearchRef = useRef<string | null>(null);
+  // "Put on ESPN": look the name up in every line's full list and play the
+  // channel it clearly means (channelForName; a favourite settles a tie). The
+  // screen is left alone until then. If none does, or the lists have not
+  // come in within a few seconds, nothing plays — the first name in a list
+  // is only a guess — and the viewer is told.
   useEffect(() => {
-    if (!pendingPlay || lines.length === 0) return;
-    setFullscreen(false);
-    setSearchOpen(true);
-    // Providers name channels "US| ESPN FHD": search on the spoken name's
-    // first word, then rank the list by the whole name.
-    const first = pendingPlay.trim().split(/\s+/)[0] || pendingPlay;
-    pendingPlaySearchRef.current = first;
-    setSearchQuery(first);
+    if (!pendingPlay) return;
     const giveUp = setTimeout(() => {
       setPendingPlay(null);
-      setSearchQuery(pendingPlay);
+      sayChannelNotFound(pendingPlay);
     }, 12000);
     return () => clearTimeout(giveUp);
-  }, [pendingPlay, lines.length]);
+  }, [pendingPlay]);
   useEffect(() => {
-    if (!pendingPlay || !searchOpen || searchQ !== pendingPlaySearchRef.current || visibleChannels.length === 0) return;
+    if (!pendingPlay || lines.length === 0 || !lines.every((l) => allByLine.has(lineKey(l)))) return;
     const favIds = new Set<number>();
     for (const m of favsByLine.values()) for (const id of m.keys()) favIds.add(id);
-    const hit = bestChannel(pendingPlay, visibleChannels, favIds);
+    const hit = channelForName(pendingPlay, lines.map((l) => allByLine.get(lineKey(l)) || []), favIds);
     const said = pendingPlay;
     setPendingPlay(null);
-    if (hit) {
-      setSearchOpen(false);
-      setSearchQuery('');
-      playChannelRef.current(hit);
-    } else {
-      setSearchQuery(said);
-    }
-  }, [pendingPlay, searchOpen, searchQ, visibleChannels, favsByLine]);
+    if (hit) playChannelRef.current(hit);
+    else sayChannelNotFound(said);
+  }, [pendingPlay, lines, allByLine, favsByLine]);
   // Safety clamp: never let channelIdx point past the current list.
   useEffect(() => {
     if (channelIdx >= visibleChannels.length) setChannelIdx(0);
