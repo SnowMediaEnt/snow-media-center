@@ -174,6 +174,7 @@ export function continueWatching(limit = 30, sectionId?: string): PlexItem[] {
       grandparentTitle: p.kind === 'episode' ? p.showTitle : undefined,
       parentIndex: p.season,
       index: p.index,
+      lastViewedAt: p.t,
     });
   }
   return out;
@@ -219,8 +220,10 @@ export function __resetPlexProgressForTests(v = 'device'): void {
 }
 
 /** On the viewer's own Plex account the server's Continue Watching is theirs
- *  too (the Plex apps on their other devices): this box's first, then the
- *  server's titles it does not already have — one episode per show. */
+ *  too (the Plex apps on their other devices): this box's, plus the server's
+ *  titles it does not already have — one episode per show (this box's own
+ *  wins a show) — most recently watched first. A server title with no time
+ *  (an On Deck "next episode") follows the ones that have one. */
 export function mergeContinue(own: PlexItem[], server: PlexItem[]): PlexItem[] {
   const keys = new Set(own.map((i) => i.ratingKey));
   const shows = new Set(own.filter((i) => i.type === 'episode' && i.grandparentTitle).map((i) => i.grandparentTitle!.toLowerCase()));
@@ -233,5 +236,9 @@ export function mergeContinue(own: PlexItem[], server: PlexItem[]): PlexItem[] {
     }
     return true;
   });
-  return [...own, ...extra];
+  return [...own, ...extra]
+    .map((it, i) => ({ it, i }))
+    // The index breaks ties: Array#sort is not stable on an old WebView.
+    .sort((a, b) => (b.it.lastViewedAt ?? -1) - (a.it.lastViewedAt ?? -1) || a.i - b.i)
+    .map(({ it }) => it);
 }

@@ -82,4 +82,40 @@ describe('mergeContinue', () => {
     ];
     expect(m.mergeContinue(own, server).map((i) => i.ratingKey)).toEqual(['e2', 'm1', 'x1', 'm9']);
   });
+
+  it('puts the most recently watched first, films and episodes together', async () => {
+    const m = await import('./plexProgress');
+    const own = [
+      { ratingKey: 'm1', title: 'Film', type: 'movie', lastViewedAt: 3000 },
+      { ratingKey: 'e2', title: 'Ep 2', type: 'episode', grandparentTitle: 'Show', lastViewedAt: 1000 },
+    ];
+    const server = [
+      { ratingKey: 'x1', title: 'Other', type: 'episode', grandparentTitle: 'Other Show', lastViewedAt: 5000 },
+      { ratingKey: 'up', title: 'Next', type: 'episode', grandparentTitle: 'Third Show' },
+      { ratingKey: 'm9', title: 'New', type: 'movie', lastViewedAt: 2000 },
+    ];
+    expect(m.mergeContinue(own, server).map((i) => i.ratingKey)).toEqual(['x1', 'm1', 'm9', 'e2', 'up']);
+  });
+});
+
+describe('continueWatching', () => {
+  it('is one row of films and episodes, newest first, one episode per show, each episode under its show', async () => {
+    const m = await import('./plexProgress');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(1_000_000);
+      m.saveProgress({ ratingKey: 'e1', kind: 'episode', title: 'Pilot', at: 600, dur: 1800, showKey: 'sh', showTitle: 'Bluey', season: 1, index: 1 });
+      await tick();
+      vi.setSystemTime(2_000_000);
+      m.saveProgress({ ratingKey: 'm1', kind: 'movie', title: 'Film', at: 1200, dur: 6000 });
+      await tick();
+      vi.setSystemTime(3_000_000);
+      m.saveProgress({ ratingKey: 'e2', kind: 'episode', title: 'Second', at: 600, dur: 1800, showKey: 'sh', showTitle: 'Bluey', season: 1, index: 2 });
+      await tick();
+    } finally { vi.useRealTimers(); }
+    const row = m.continueWatching();
+    expect(row.map((i) => i.ratingKey)).toEqual(['e2', 'm1']);
+    expect(row[0]).toMatchObject({ type: 'episode', grandparentTitle: 'Bluey', thumb: '/library/metadata/sh/thumb' });
+    expect(row.map((i) => i.lastViewedAt)).toEqual([3_000_000, 2_000_000]);
+  });
 });

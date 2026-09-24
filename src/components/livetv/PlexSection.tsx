@@ -26,6 +26,7 @@ import {
   getPlexLibraries as _getPlexLibraries,
   getPlexLibraryItems as _getPlexLibraryItems,
   getPlexHub as _getPlexHub,
+  getPlexRecentlyAdded,
   getPlexSectionRow,
   searchPlex as _searchPlex,
   getPlexPart,
@@ -41,7 +42,7 @@ import {
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
-import { titleMatches } from '@/lib/voiceCommands';
+import { peekPlexVoice, pickPlexVoiceMatch, plexVoiceQuery, plexVoiceSearchTexts, PLEX_VOICE_EVENT, PLEX_VOICE_KEY, type PlexVoiceIntent } from '@/lib/plexVoice';
 import { commitSearch, fallbackSuggestions, fetchPopularSearches, loadRecentSearches, popularOnThisServer } from '@/lib/plexSearches';
 import { rankSuggestions, searchLooksThin, searchVariants } from '@/lib/plexFuzzy';
 import {
@@ -84,6 +85,8 @@ import { pauseLoading, resumeLoading, waitForResume } from '@/lib/loadGate';
 const DEMO = isDemo();
 /** How long a server-side convert may take to start before falling back. */
 const TRANSCODE_START_GRACE_MS = 30000;
+/** How long a voice command's title is looked for before Search opens. */
+const VOICE_WAIT_MS = 12000;
 const getPlexLibraries = DEMO ? demoGetLibraries : _getPlexLibraries;
 const getPlexLibraryItems = DEMO ? demoGetLibraryItems : _getPlexLibraryItems;
 const getPlexHub = DEMO ? demoGetHub : _getPlexHub;
@@ -106,19 +109,35 @@ const homeWatchedQuery = (t: number) => `type=${t}&sort=viewCount:desc&viewCount
 /** Fallback for a server with no watch history yet, so Popular is never an
  *  empty rail on a fresh install. */
 const homeRatedQuery = (t: number) => `type=${t}&sort=audienceRating:desc&audienceRating${PLEX_AFTER}=7`;
+/** New Episodes: the TV library's own Recently Aired query (see
+ *  plexLibraryRows.ts for why the `episode.` prefix is mandatory). */
+const HOME_AIRED_QUERY = `type=4&sort=episode.originallyAvailableAt:desc&episode.originallyAvailableAt${PLEX_AFTER}=-3mon`;
 // Synthetic cache keys: getCachedHub is keyed by path, and these rails are
 // stitched from several section queries rather than one hub path.
 const HOME_RELEASED_KEY = 'smc:home/released';
 const HOME_POPULAR_KEY = 'smc:home/popular';
+const HOME_NEW_EPISODES_KEY = 'smc:home/new-episodes';
+// Recently Added: one server-wide list, folded (getPlexRecentlyAdded).
+const HOME_ADDED_KEY = 'smc:home/added';
+/** These rails are fetched for the profile in use — with a Kids profile's
+ *  certificates (getPlexSectionRow, kidsOnly) — so each Kids level keeps its
+ *  own copy: a grown-up's would be filtered down to little, and a child's is
+ *  not the whole server. */
+const homeKey = (key: string): string => { const l = kidsLevel(); return l ? `${key}:kids-${l}` : key; };
+/** Plays change by the day, not by the minute: Popular is kept half an
+ *  hour, so the play-count sort (the slowest of Home's queries) runs that
+ *  much less often. */
+const POPULAR_TTL_MS = 30 * 60 * 1000;
 // A hundred titles deep on Recently Added and Recently Released, so a busy
 // server's last few weeks are all there; the rails only render the tiles
 // near the highlight (RailBrowser), so the depth costs nothing on screen.
 const HOME_RAIL_CAP = 100;
 
 // A box the app already knows is short of memory (main.tsx: 1–2 GB, or a
-// Fire TV) gets half-length rails and no Most Watched: that rail asks the
-// server to sort every library by play count, the slowest of Home's queries,
-// and on such a box the Plex screen is where the renderer runs out of room.
+// Fire TV) gets half-length rails, and Popular and New Episodes shorter
+// still and only once Home is up: Popular asks the server to sort every
+// library by play count, the slowest of Home's queries, and on such a box
+// the Plex screen is where the renderer runs out of room.
 const LOW_MEMORY = typeof document !== 'undefined' && document.documentElement.classList.contains('native-low-memory');
 const RAIL_CAP = LOW_MEMORY ? 40 : HOME_RAIL_CAP;
 /** How many per-library queries Home has in flight at once. All at once was
@@ -172,50 +191,120 @@ function shareStitch(key: string, load: () => Promise<PlexItem[] | null>): Promi
 }
 
 async function loadReleased(base: string, token: string, libraries: PlexLibrary[], gone: () => boolean): Promise<PlexItem[] | null> {
-  const cached = getCachedHub(base, HOME_RELEASED_KEY);
+  const key = homeKey(HOME_RELEASED_KEY);
+  const cached = getCachedHub(base, key);
   if (cached) return cached;
   const movieKeys = libraries.filter((l) => l.type === 'movie').map((l) => l.key);
   if (!movieKeys.length) return null;
   const epoch = getHubEpoch();
-  const merged = await shareStitch(`${base}|released|${movieKeys.join(',')}`, async () => {
+  const merged = await shareStitch(`${base}|${key}|${movieKeys.join(',')}`, async () => {
     const lists = await mapLimit(movieKeys, HOME_PARALLEL, (k) =>
       getPlexSectionRow(base, token, k, HOME_RELEASED_QUERY, 50).catch(() => null));
     // Each section came back server-sorted; merging needs one more pass so a
     // two-library server does not show all of one then all of the other.
     const m = mergeRail(lists).sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
-    if (m.length) setCachedHub(base, HOME_RELEASED_KEY, m, epoch);
+    if (m.length) setCachedHub(base, key, m, epoch);
     return m.length ? m : null;
   });
   return gone() ? null : merged;
 }
 
-/** Home's Most Watched rail, with the rated fallback for a server nobody has
- *  played anything on yet. Skipped on a low-memory box (see LOW_MEMORY). */
+/** Home's Popular rail: the films and series played most on this server,
+ *  together (see rankRail) — on the shared account that is everyone's
+ *  plays, "Popular on Snow Media". The rated fallback is for a server nobody
+ *  has played anything on yet. Shorter on a low-memory box, whose settle
+ *  screen does not wait for it (see LOW_MEMORY). */
 async function loadPopular(base: string, token: string, libraries: PlexLibrary[], gone: () => boolean): Promise<PlexItem[] | null> {
-  const cached = getCachedHub(base, HOME_POPULAR_KEY);
+  const key = homeKey(HOME_POPULAR_KEY);
+  const cached = getCachedHubWithin(base, key, POPULAR_TTL_MS);
   if (cached) return cached;
-  if (LOW_MEMORY) return null;
   const allKeys = libraries
     .filter((l) => l.type === 'movie' || l.type === 'show')
     .map((l) => ({ key: l.key, t: l.type === 'movie' ? 1 : 2 }));
   if (!allKeys.length) return null;
   const epoch = getHubEpoch();
-  const merged = await shareStitch(`${base}|popular|${allKeys.map((k) => k.key).join(',')}`, async () => {
+  const merged = await shareStitch(`${base}|${key}|${allKeys.map((k) => k.key).join(',')}`, async () => {
     const watched = await mapLimit(allKeys, HOME_PARALLEL, (s) =>
-      getPlexSectionRow(base, token, s.key, homeWatchedQuery(s.t), 30).catch(() => null));
-    let m = mergeRail(watched);
+      getPlexSectionRow(base, token, s.key, homeWatchedQuery(s.t), LOW_MEMORY ? 12 : 30).catch(() => null));
+    let m = rankRail(watched, (it) => it.viewCount);
     if (!m.length) {
       const rated = await mapLimit(allKeys, HOME_PARALLEL, (s) =>
-        getPlexSectionRow(base, token, s.key, homeRatedQuery(s.t), 20).catch(() => null));
-      // No local re-sort: rating is not on PlexItem, and each section already
-      // came back rating-sorted from the server.
-      m = mergeRail(rated);
+        getPlexSectionRow(base, token, s.key, homeRatedQuery(s.t), LOW_MEMORY ? 10 : 20).catch(() => null));
+      m = rankRail(rated, (it) => it.rating);
     }
-    if (m.length) setCachedHub(base, HOME_POPULAR_KEY, m, epoch);
+    if (m.length) setCachedHub(base, key, m, epoch);
     return m.length ? m : null;
   });
   return gone() ? null : merged;
 }
+
+/** Home's New Episodes: the newest episode of each series that aired one in
+ *  the last three months, across the TV libraries. Loaded once Home is up
+ *  and drawn last, so its arrival moves nothing the viewer is looking at. */
+async function loadNewEpisodes(base: string, token: string, libraries: PlexLibrary[], gone: () => boolean): Promise<PlexItem[] | null> {
+  const key = homeKey(HOME_NEW_EPISODES_KEY);
+  const cached = getCachedHub(base, key);
+  if (cached) return cached;
+  const showKeys = libraries.filter((l) => l.type === 'show').map((l) => l.key);
+  if (!showKeys.length) return null;
+  const epoch = getHubEpoch();
+  const merged = await shareStitch(`${base}|${key}|${showKeys.join(',')}`, async () => {
+    const lists = await mapLimit(showKeys, HOME_PARALLEL, (k) =>
+      getPlexSectionRow(base, token, k, HOME_AIRED_QUERY, LOW_MEMORY ? 40 : 100).catch(() => null));
+    const m = newestPerShow(lists);
+    if (m.length) setCachedHub(base, key, m, epoch);
+    return m.length ? m : null;
+  });
+  return gone() ? null : merged;
+}
+
+/** Per-section lists as one rail of films and series together: each kind
+ *  ranked by `score` on its own, then the two dealt out in turn, the kind
+ *  with the higher top score first. One ranking across both put every series
+ *  ahead of every film — a series' play count is all its episodes' plays
+ *  added up. A kind that came back without scores keeps the server's order
+ *  (its sections dealt out in turn). */
+function rankRail(lists: Array<PlexItem[] | null>, score: (it: PlexItem) => number | undefined): PlexItem[] {
+  const dealt: PlexItem[] = [];
+  const longest = Math.max(0, ...lists.map((l) => l?.length ?? 0));
+  for (let i = 0; i < longest; i++) for (const l of lists) { const it = l?.[i]; if (it) dealt.push(it); }
+  const rank = (items: PlexItem[]): PlexItem[] => (!items.every((it) => typeof score(it) === 'number') ? items : items
+    .map((it, i) => ({ it, i, s: score(it) as number }))
+    // The index breaks ties: Array#sort is not stable on an old WebView.
+    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .map(({ it }) => it));
+  const shows = rank(dealt.filter((it) => it.type === 'show'));
+  const films = rank(dealt.filter((it) => it.type !== 'show'));
+  const top = (l: PlexItem[]) => (l.length ? score(l[0]) ?? -1 : -1);
+  const [a, b] = top(shows) > top(films) ? [shows, films] : [films, shows];
+  const mixed: PlexItem[] = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) { if (a[i]) mixed.push(a[i]); if (b[i]) mixed.push(b[i]); }
+  return mergeRail([mixed]);
+}
+
+/** Episodes, newest first, one per series (its newest). */
+function newestPerShow(lists: Array<PlexItem[] | null>): PlexItem[] {
+  const shows = new Set<string>();
+  const mixed: PlexItem[] = [];
+  const longest = Math.max(0, ...lists.map((l) => l?.length ?? 0));
+  for (let i = 0; i < longest; i++) {
+    for (const l of lists) {
+      const it = l?.[i];
+      if (!it) continue;
+      const show = (it.grandparentTitle || it.title).toLowerCase();
+      if (shows.has(show)) continue;
+      shows.add(show);
+      mixed.push(it);
+    }
+  }
+  return mergeRail([mixed]);
+}
+
+/** Home's Recently Added (films and series together, see
+ *  getPlexRecentlyAdded). The demo's catalog answers the hub path. */
+const getHomeAdded = (base: string, token: string): Promise<PlexItem[]> => (DEMO
+  ? demoGetHub(base, token, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=100')
+  : getPlexRecentlyAdded(base, token, LOW_MEMORY ? 60 : 100));
 
 /** Merge per-section results, drop duplicates, cap. */
 const mergeRail = (lists: Array<PlexItem[] | null>): PlexItem[] => {
@@ -512,17 +601,21 @@ interface HomePanelProps {
   /** The box is on the viewer's own Plex account: the server's Continue
    *  Watching is theirs too and joins the app's own. */
   serverResume?: boolean;
+  /** Home's play-count rail: "Popular on Snow Media" on the shared account,
+   *  where the plays are everyone's; "Most Watched" on a viewer's own. */
+  popularTitle?: string;
 }
-const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs, watchNonce = 0, serverResume = false }: HomePanelProps) => {
+const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs, watchNonce = 0, serverResume = false, popularTitle = 'Most Watched' }: HomePanelProps) => {
   const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
-  const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=100';
+  const recentPath = homeKey(HOME_ADDED_KEY);
   // Seeded from the cache however old it is: rails already in memory are
   // shown at once and refreshed behind the viewer, instead of a spinner and
   // a full reload every time Home is revisited after five minutes.
   const [onDeck, setOnDeck] = useState<PlexItem[]>(() => getCachedHubStale(base, onDeckPath) ?? []);
   const [recent, setRecent] = useState<PlexItem[]>(() => getCachedHubStale(base, recentPath) ?? []);
-  const [released, setReleased] = useState<PlexItem[]>(() => getCachedHubStale(base, HOME_RELEASED_KEY) ?? []);
-  const [popular, setPopular] = useState<PlexItem[]>(() => getCachedHubStale(base, HOME_POPULAR_KEY) ?? []);
+  const [released, setReleased] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_RELEASED_KEY)) ?? []);
+  const [popular, setPopular] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_POPULAR_KEY)) ?? []);
+  const [newEpisodes, setNewEpisodes] = useState<PlexItem[]>(() => getCachedHubStale(base, homeKey(HOME_NEW_EPISODES_KEY)) ?? []);
   const [loading, setLoading] = useState(!(getCachedHubStale(base, onDeckPath) || getCachedHubStale(base, recentPath)));
   // Continue Watching: this viewer's own (plexProgress), kept current as
   // progress is saved. The server's On Deck is only asked for in the demo.
@@ -564,7 +657,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
       cachedOd ? Promise.resolve(cachedOd)
         : (DEMO || serverResume) ? getPlexHub(base, token, onDeckPath).catch(() => null)
           : Promise.resolve([] as PlexItem[]),
-      cachedRa ? Promise.resolve(cachedRa) : getPlexHub(base, token, recentPath).catch(() => null),
+      cachedRa ? Promise.resolve(cachedRa) : getHomeAdded(base, token).catch(() => null),
     ]).then(([od, ra]) => {
       // Cache first, even if the viewer already moved on: the answer is paid
       // for, and the next visit should not ask again.
@@ -582,7 +675,7 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
       }
     });
     return () => { cancelled = true; if (retry) window.clearTimeout(retry); };
-  }, [base, token, hubRetry, serverResume]);
+  }, [base, token, hubRetry, serverResume, recentPath]);
 
   // After playback, Continue Watching changes: refetch just that rail, in the
   // background, keeping the rails on screen while it loads.
@@ -601,18 +694,21 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchNonce]);
 
-  // Released and Popular. Neither exists as a server-wide hub, so each is
-  // stitched from the per-section query the library rows already use. Runs
-  // after the two hubs above — Home is usable without these, and on a stick
-  // the first screen should not fan out more requests than it has to.
+  // Released, Popular and New Episodes. None exists as a server-wide hub, so
+  // each is stitched from the per-section query the library rows already
+  // use. Runs after the two hubs above — Home is usable without these, and
+  // on a stick the first screen should not fan out more requests than it has
+  // to.
   const libKeysSig = libraries.map((l) => `${l.type}:${l.key}`).join(',');
   useEffect(() => {
     if (DEMO || !libraries.length) return;
     let cancelled = false;
     const gone = () => cancelled;
-    // Normally both are already in the cache: the settle screen on connect
-    // loads them before Home is revealed, so nothing lands mid-navigation.
-    // This is the path for a cache that lapsed while Plex stayed open.
+    // Normally Released and Popular are already in the cache: the settle
+    // screen on connect loads them before Home is revealed, so nothing lands
+    // mid-navigation. This is the path for a cache that lapsed while Plex
+    // stayed open, for Popular on a low-memory box, and for New Episodes,
+    // the last rail, which never holds up the settle screen.
     void (async () => {
       const rel = await loadReleased(base, token, libraries, gone);
       if (cancelled) return;
@@ -620,6 +716,9 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
       const pop = await loadPopular(base, token, libraries, gone);
       if (cancelled) return;
       if (pop) setPopular(pop);
+      const eps = await loadNewEpisodes(base, token, libraries, gone);
+      if (cancelled) return;
+      if (eps) setNewEpisodes(eps);
     })();
     return () => { cancelled = true; };
     // libKeysSig stands in for `libraries`: the array identity changes on every
@@ -640,11 +739,14 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     r.push({ id: 'added', title: 'Recently Added', items: familyOnly(recent, adultKeys).slice(0, RAIL_CAP) });
     const rel = familyOnly(released, adultKeys);
     if (rel.length > 0) r.push({ id: 'released', title: 'Recently Released', items: rel });
-    // Most played on this server (see homeWatchedQuery); says so on the tin.
+    // Most played on this server (see loadPopular); says so on the tin.
     const pop = familyOnly(popular, adultKeys);
-    if (pop.length > 0) r.push({ id: 'popular', title: 'Most Watched', items: pop });
+    if (pop.length > 0) r.push({ id: 'popular', title: popularTitle, items: pop });
+    // Last: it lands after Home is up (see loadNewEpisodes).
+    const eps = familyOnly(newEpisodes, adultKeys);
+    if (eps.length > 0) r.push({ id: 'episodes', title: 'New Episodes', items: eps });
     return r;
-  }, [onDeck, ownContinue, listItems, recent, released, popular, adultKeys, serverResume]);
+  }, [onDeck, ownContinue, listItems, recent, released, popular, newEpisodes, adultKeys, serverResume, popularTitle]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;
@@ -887,8 +989,10 @@ SearchTile.displayName = 'SearchTile';
 // Cover art for a suggested search ("Popular", "Recent"): the top movie or
 // show that search finds on this server. Remembered for the session, so the
 // row paints at once the next time the box opens.
+// Kept per Kids level as well: a poster found on a grown-up profile is not
+// one a Kids profile may see.
 const _chipArt = new Map<string, PlexItem | null>();
-const chipArtKey = (base: string, label: string) => `${base}|${label.toLowerCase()}`;
+const chipArtKey = (base: string, label: string) => `${base}|${kidsLevel() ?? ''}|${label.toLowerCase()}`;
 
 /** A suggestion as a poster: the title's art, the search underneath. */
 const ChipTile = memo(({ chip, art, base, token, focused, onPick }: {
@@ -941,18 +1045,21 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
 
   // Suggestions: the fleet's popular searches (or, until there are enough,
   // the server's most-played titles), then this box's own recent ones.
+  // Neither on a Kids profile: the popular list is whatever grown-ups across
+  // the fleet searched for, and the recent one is the whole box's.
   const [popular, setPopular] = useState<string[]>([]);
-  const [recent, setRecent] = useState<string[]>(() => loadRecentSearches());
+  const [recent, setRecent] = useState<string[]>(() => (kidsLevel() ? [] : loadRecentSearches()));
   // "Did you mean": the closest titles when the search comes back thin
   // (see plexFuzzy.ts) — a dropped apostrophe or colon, a letter off.
   const [didYouMean, setDidYouMean] = useState<PlexItem[]>([]);
   useEffect(() => {
+    if (kidsLevel()) return;
     let cancelled = false;
     void fetchPopularSearches().then((list) => {
       if (cancelled) return;
       if (list.length) { setPopular(list); return; }
-      const mostWatched = getCachedHub(base, HOME_POPULAR_KEY) ?? [];
-      const recentlyAdded = getCachedHub(base, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=100') ?? [];
+      const mostWatched = getCachedHubStale(base, homeKey(HOME_POPULAR_KEY)) ?? [];
+      const recentlyAdded = getCachedHub(base, homeKey(HOME_ADDED_KEY)) ?? [];
       setPopular(fallbackSuggestions([...mostWatched, ...recentlyAdded].map((it) => it.title)));
     });
     return () => { cancelled = true; };
@@ -1021,7 +1128,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
     if (!t || committedRef.current === t) return;
     committedRef.current = t;
     commitSearch(t);
-    setRecent(loadRecentSearches());
+    if (!kidsLevel()) setRecent(loadRecentSearches());
   }, []);
 
   // Debounced search: 400ms + stale-seq guard so only the latest keystroke wins.
@@ -1048,12 +1155,18 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         if (mySeq !== seqRef.current) return;
         setResults(r); setCursor(0); setLoading(false);
         const family = familyOnly(r, searchCtxRef.current.adultKeys);
-        // Alongside: what could be requested for this search.
-        void overseerrSearch(q).then((found) => {
-          if (mySeq !== seqRef.current) return;
-          setReqItems(missingFromPlex(found, family, COLS));
-          setReqCursor(0);
-        });
+        // Alongside: what could be requested for this search. Not on a Kids
+        // profile: Overseerr's answer is every film and series of that name,
+        // unrated, with its poster and synopsis — and a Kids profile does not
+        // request titles (the Request tab is gone for it too).
+        if (kidsLevel()) setReqItems([]);
+        else {
+          void overseerrSearch(q).then((found) => {
+            if (mySeq !== seqRef.current) return;
+            setReqItems(missingFromPlex(found, family, COLS));
+            setReqCursor(0);
+          });
+        }
         if (!searchLooksThin(q, family)) { setDidYouMean([]); return; }
         // Thin answer. Search for the pieces of what was typed and score
         // everything that comes back against it.
@@ -1105,6 +1218,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   useEffect(() => { if (zone === 'request' && reqItems.length === 0) setZone(results.length ? 'grid' : 'input'); }, [zone, reqItems.length, results.length]);
   // Already on its way: say so instead of asking again.
   const askRequest = useCallback((it: OverseerrItem) => {
+    if (kidsLevel()) return;
     if (reqSentRef.current[it.id] || it.status === 2 || it.status === 3) {
       toast({ title: 'Already requested', description: `${it.title} is already on its way to Plex.` });
       return;
@@ -1114,7 +1228,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   }, []);
   const askRequestRef = useRef(askRequest);
   const sendRequest = useCallback(async (it: OverseerrItem) => {
-    if (requestingRef.current) return;
+    if (requestingRef.current || kidsLevel()) return;
     setRequesting(true);
     const res = await overseerrRequest(it);
     setRequesting(false);
@@ -1755,28 +1869,33 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   );
 
   // A voice command's "watch The Office" / "search for Batman" (see
-  // appActions.openPlexTitle): read once here, or taken from the event when
-  // Plex is already open.
-  const voiceRef = useRef<{ query: string; open: boolean } | null>(
-    (() => {
-      try {
-        const raw = sessionStorage.getItem('smc-plex-voice');
-        if (!raw) return null;
-        sessionStorage.removeItem('smc-plex-voice');
-        return JSON.parse(raw);
-      } catch { return null; }
-    })(),
-  );
+  // appActions.openPlexTitle and plexVoice.ts): taken from sessionStorage when
+  // Plex opens for it, or from the event when Plex is already open.
+  // Looked at in a state initializer and cleared once mounted. It used to be
+  // read and cleared during render, and a first render React throws away
+  // (Plex arrives lazily, and an interrupted render starts over) took it with
+  // it: the render that stayed found nothing, and Plex opened on Home.
+  const [voiceAtMount] = useState(() => peekPlexVoice());
+  const voiceRef = useRef<PlexVoiceIntent | null>(voiceAtMount?.intent ?? null);
+  useEffect(() => {
+    // Only the copy read above: a newer one belongs to the event below.
+    try { if (voiceAtMount && sessionStorage.getItem(PLEX_VOICE_KEY) === voiceAtMount.raw) sessionStorage.removeItem(PLEX_VOICE_KEY); } catch { /* ignore */ }
+  }, [voiceAtMount]);
   const [voiceTick, setVoiceTick] = useState(0);
-  const [voiceSearch, setVoiceSearch] = useState<string | null>(null);
+  // Search opened by a command: the words to type, and a count, so the same
+  // words said again open a fresh search box.
+  const [voiceSearch, setVoiceSearch] = useState<{ q: string; n: number } | null>(null);
+  // The title a command asked for is being looked up: said in place of Home,
+  // which is not loaded behind it (see the voice effect).
+  const [voiceWait, setVoiceWait] = useState<string | null>(() => (voiceAtMount?.intent.open ? plexVoiceQuery(voiceAtMount.intent.query) : null));
   useEffect(() => {
     const on = (e: Event) => {
-      try { sessionStorage.removeItem('smc-plex-voice'); } catch { /* ignore */ }
-      const d = (e as CustomEvent<{ query: string; open: boolean }>).detail;
-      if (d?.query) { voiceRef.current = d; setVoiceTick((t) => t + 1); }
+      try { sessionStorage.removeItem(PLEX_VOICE_KEY); } catch { /* ignore */ }
+      const d = (e as CustomEvent<PlexVoiceIntent>).detail;
+      if (d?.query) { voiceRef.current = { query: d.query, open: !!d.open, at: d.at }; setVoiceTick((t) => t + 1); }
     };
-    window.addEventListener('smc:plex-voice', on);
-    return () => window.removeEventListener('smc:plex-voice', on);
+    window.addEventListener(PLEX_VOICE_EVENT, on);
+    return () => window.removeEventListener(PLEX_VOICE_EVENT, on);
   }, []);
 
   const [libraries, setLibraries] = useState<PlexLibrary[]>([]);
@@ -1909,7 +2028,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const base = conn.base;
     const token = conn.token;
     const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
-    const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=100';
+    const recentPath = homeKey(HOME_ADDED_KEY);
     // The settle screen. Everything Home is about to show is loaded HERE,
     // behind the loader, so that once Home appears nothing else lands: no
     // rail arriving mid-scroll and re-laying the list, no dozen requests and
@@ -1929,7 +2048,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       // rail, surviving even a full remount, until the TTL expired.
       const [od, ra] = await Promise.all([
         (getCachedHub(base, onDeckPath) ? Promise.resolve(getCachedHub(base, onDeckPath) as PlexItem[]) : getPlexHub(base, token, onDeckPath).catch(() => null)),
-        (getCachedHub(base, recentPath) ? Promise.resolve(getCachedHub(base, recentPath) as PlexItem[]) : getPlexHub(base, token, recentPath).catch(() => null)),
+        (getCachedHub(base, recentPath) ? Promise.resolve(getCachedHub(base, recentPath) as PlexItem[]) : getHomeAdded(base, token).catch(() => null)),
       ]);
       if (cancelled) return;
       if (od) setCachedHub(base, onDeckPath, od);
@@ -1947,7 +2066,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       const forHome = libs.filter((l) => hiddenKeys.indexOf(l.key) < 0 && !isAdultLabel(l.title));
       const rel = forHome.length ? await loadReleased(base, token, forHome, gone) : null;
       if (cancelled) return;
-      const pop = forHome.length ? await loadPopular(base, token, forHome, gone) : null;
+      // Not on a low-memory box: Home loads it once it is up (LOW_MEMORY).
+      const pop = forHome.length && !LOW_MEMORY ? await loadPopular(base, token, forHome, gone) : null;
       if (cancelled) return;
       // 4. The posters on the first screen: the opening tiles of each rail,
       //    at the size the tiles draw them, so Home paints from the browser
@@ -2443,31 +2563,71 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     detailRef.current = item;
     setDetailItem(item);
   }, []);
-  // The voice command: a title whose name matches what was said opens its
-  // page; otherwise (or for "search for …") Search opens with it typed.
+  // The voice command: the title it names opens its page; with no clear
+  // match (or for "search for …") Search opens with the words typed.
+  //
+  // Keyed on the command and the connection only. It also re-ran when the
+  // library list landed (the tab count changed), which cancelled the search
+  // in flight — and the command had already been cleared, so nothing ran
+  // again and Plex sat on Home. The command is now cleared only once it has
+  // been acted on, so a run cut short (a reconnect, a new address for the
+  // same server) searches again; the tabs are read through tabsRef.
+  const adultKeysRef = useRef(adultKeys); adultKeysRef.current = adultKeys;
   useEffect(() => {
     const v = voiceRef.current;
     if (!v || status !== 'ready' || !conn) return;
-    voiceRef.current = null;
     let cancelled = false;
+    let handled = false;
+    const words = plexVoiceQuery(v.query);
+    const finish = () => {
+      handled = true;
+      if (voiceRef.current === v) voiceRef.current = null;
+      setVoiceWait(null);
+    };
+    // Plex's own player is up: the viewer has asked for something else.
+    if (fullscreenRef.current) exitFullscreen();
     const goSearch = () => {
-      if (cancelled) return;
-      setVoiceSearch(v.query);
-      const i = tabs.findIndex((t) => t.type === 'search');
-      if (i >= 0) { setLibIdx(i); setMenuKey(tabs[i].key); }
+      if (cancelled || handled) return;
+      finish();
+      if (detailRef.current) closeDetail();
+      setVoiceSearch((s) => ({ q: words, n: (s?.n ?? 0) + 1 }));
+      const i = tabsRef.current.findIndex((t) => t.type === 'search');
+      if (i >= 0) { cancelPendingTab(); setLibIdx(i); setMenuKey(tabsRef.current[i].key); }
       setZone('grid');
     };
-    if (!v.open) { goSearch(); return; }
-    searchPlex(conn.base, conn.token, v.query)
-      .then((results) => {
-        if (cancelled) return;
-        const hit = familyOnly(results, adultKeys).find((r) => titleMatches(v.query, r.title));
-        if (hit) { setDeepLinked(true); openDetail(hit); } else goSearch();
+    if (!v.open) { goSearch(); return () => { cancelled = true; }; }
+    setVoiceWait(words);
+    // A server this slow gets Search, which asks again, not a longer wait.
+    const cap = window.setTimeout(goSearch, VOICE_WAIT_MS);
+    // Titles from an adult library are ruled out by its key; the library list
+    // is normally in by now, and otherwise on its way (the library effect's
+    // own request), so wait a little for it rather than decide without it.
+    const libs = libsPromiseRef.current;
+    const libsIn = libs
+      ? Promise.race([libs.catch(() => null), new Promise<null>((r) => { window.setTimeout(() => r(null), 2500); })])
+      : Promise.resolve(null);
+    // "toy story five" is looked for as "toy story 5" as well.
+    const texts = plexVoiceSearchTexts(v.query);
+    const found = texts.length === 1
+      ? searchPlex(conn.base, conn.token, texts[0])
+      : Promise.all(texts.map((t) => searchPlex(conn.base, conn.token, t).catch(() => [] as PlexItem[])))
+        .then((lists) => ([] as PlexItem[]).concat(...lists));
+    void Promise.all([found, libsIn])
+      .then(([results, list]) => {
+        if (cancelled || handled) return;
+        window.clearTimeout(cap);
+        const keys = new Set(adultKeysRef.current);
+        for (const l of list ?? []) if (isAdultLabel(l.title)) keys.add(String(l.key));
+        const hit = pickPlexVoiceMatch(words, familyOnly(results, keys));
+        if (!hit) { goSearch(); return; }
+        finish();
+        setDeepLinked(true);
+        openDetail(hit);
       })
       .catch(goSearch);
-    return () => { cancelled = true; };
+    return () => { cancelled = true; window.clearTimeout(cap); };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when Plex is ready or a new command arrives
-  }, [status, conn, voiceTick, tabs.length]);
+  }, [status, conn, voiceTick]);
 
   const closeDetail = useCallback(() => {
     setPlexKeyOwner('browse');
@@ -3459,7 +3619,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4" style={{ paddingTop: '3.5vh' }}>
-        {deepLinked && detailItem ? null : currentTab?.type === 'home' && conn ? (
+        {deepLinked && detailItem ? null : voiceWait && zone === 'tabs' && currentTab?.type === 'home' ? (
+          // A voice command's title is being looked up. Home is not loaded
+          // behind it (its hubs would compete with the search); entering the
+          // content before it lands shows Home as usual.
+          <div className="h-full flex items-center justify-center text-brand-ice/80 font-nunito text-base">
+            <Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Finding “{voiceWait}” on Plex…
+          </div>
+        ) : currentTab?.type === 'home' && conn ? (
           <HomePanel
             isActive={isActive && zone === 'grid' && !detailItem && !fullscreen}
             base={conn.base}
@@ -3470,6 +3637,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             onExitToTabs={exitToMenu}
             watchNonce={watchNonce}
             serverResume={ownPlexAccount}
+            // Plays on the provider's server under the shared account are
+            // every Snow Media viewer's.
+            popularTitle={!ownPlexAccount && isProviderServer(conn.name) ? 'Popular on Snow Media' : 'Most Watched'}
           />
         ) : currentTab?.type === 'discover' && conn ? (
           <DiscoverPanel
@@ -3494,7 +3664,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             onExitToTabs={exitToMenu}
           />
         ) : currentTab?.type === 'search' && conn ? (
-          <SearchPanel key={voiceSearch ?? 'search'} initialQuery={voiceSearch ?? undefined} isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} base={conn.base} token={conn.token} adultKeys={adultKeys} onPlay={openDetail} onExitToTabs={exitToMenu} />
+          <SearchPanel key={voiceSearch ? `voice:${voiceSearch.n}` : 'search'} initialQuery={voiceSearch?.q} isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} base={conn.base} token={conn.token} adultKeys={adultKeys} onPlay={openDetail} onExitToTabs={exitToMenu} />
 
         ) : currentTab?.type === 'request' ? (
           <OverseerrRequestPanel isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} onExitToTabs={exitToMenu} />
@@ -3564,6 +3734,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
       {detailItem && conn && (
         <PlexDetail
+          // A voice command can open a title while another one's page is up;
+          // the page takes its title once, when it mounts.
+          key={detailItem.ratingKey}
           isActive={isActive && !fullscreen}
           base={conn.base}
           token={conn.token}

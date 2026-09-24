@@ -457,6 +457,10 @@ export interface PlexItem {
   /** "PG-13", "TV-MA" … */
   contentRating?: string;
   genres?: string[];
+  /** Plays on this server's account, where a list sends it (Home's Popular). */
+  viewCount?: number;
+  /** When it was last played, ms since epoch (Continue Watching's order). */
+  lastViewedAt?: number;
 }
 
 /** Rating, certificate and genres as Plex sends them on LIST payloads, so
@@ -851,6 +855,9 @@ function mapMetadata(items: Array<Record<string, unknown>>): PlexItem[] {
     grandparentTitle: m.grandparentTitle as string | undefined,
     parentIndex: typeof m.parentIndex === 'number' ? m.parentIndex : undefined,
     index: typeof m.index === 'number' ? m.index : undefined,
+    viewCount: typeof m.viewCount === 'number' ? m.viewCount : undefined,
+    // Plex sends seconds.
+    lastViewedAt: typeof m.lastViewedAt === 'number' ? m.lastViewedAt * 1000 : undefined,
   })));
 }
 
@@ -893,6 +900,55 @@ export async function getPlexHub(base: string, token: string, path: string): Pro
   const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', `${base}${path}${sep}${RAIL_FIELDS}`, token, RAIL_TIMEOUT_MS);
   const items = data?.MediaContainer?.Metadata || [];
   return mapMetadata(items).filter((it) => it.type === 'movie' || it.type === 'show' || it.type === 'episode');
+}
+
+/**
+ * Home's Recently Added: movies and shows together, newest first, as the
+ * server lists them. The server names a TV addition by its season (or by a
+ * lone episode), and those were dropped, which left the rail all films. Each
+ * is folded into its show instead, once, where its newest addition sits. The
+ * show inherits no certificate from a season, so a Kids profile sees it only
+ * when an episode carried one it allows (kidsOnly, in mapMetadata).
+ */
+export async function getPlexRecentlyAdded(base: string, token: string, size = 100): Promise<PlexItem[]> {
+  const url = `${base}/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=${size}&${RAIL_FIELDS}`;
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', url, token, RAIL_TIMEOUT_MS);
+  return foldRecentlyAdded(data?.MediaContainer?.Metadata || []);
+}
+
+/** The folding half of getPlexRecentlyAdded (exported for tests). */
+export function foldRecentlyAdded(list: Array<Record<string, unknown>>): PlexItem[] {
+  const asShow = (m: Record<string, unknown>): Record<string, unknown> | null => {
+    if (m.type === 'season') {
+      if (m.parentRatingKey == null) return null;
+      return {
+        ratingKey: m.parentRatingKey, type: 'show', title: m.parentTitle,
+        thumb: m.parentThumb || m.thumb, art: m.art, year: m.parentYear,
+        librarySectionID: m.librarySectionID,
+      };
+    }
+    if (m.type === 'episode') {
+      if (m.grandparentRatingKey == null) return null;
+      return {
+        ratingKey: m.grandparentRatingKey, type: 'show', title: m.grandparentTitle,
+        thumb: m.grandparentThumb || m.parentThumb || m.thumb, art: m.grandparentArt || m.art,
+        // An episode normally carries its show's certificate.
+        contentRating: m.contentRating,
+        librarySectionID: m.librarySectionID,
+      };
+    }
+    return m;
+  };
+  const seen = new Set<string>();
+  const out: PlexItem[] = [];
+  const folded = list.map(asShow).filter((m): m is Record<string, unknown> => !!m);
+  for (const it of mapMetadata(folded)) {
+    if (it.type !== 'movie' && it.type !== 'show') continue;
+    if (!it.ratingKey || !it.title || seen.has(it.ratingKey)) continue;
+    seen.add(it.ratingKey);
+    out.push(it);
+  }
+  return out;
 }
 
 // ── library rows + facets ─────────────────────────────────────────────────
