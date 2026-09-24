@@ -19,19 +19,99 @@ export function internalSecretOk(provided: string | null | undefined, expected: 
   return diff === 0;
 }
 
+// ── The caller's address ────────────────────────────────────────────────────
+// Only an address someone could be calling from counts: a private, loopback,
+// carrier-NAT or Cloudflare address is a hop inside the platform, and keying
+// a limit on one would put every viewer in one bucket, turning a per-IP limit
+// into a global one.
+
+/** 16 bytes (IPv4 as ::ffff:a.b.c.d), or null if it is not an address. */
+function ipBytes(raw: string): number[] | null {
+  const s = raw.trim().replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s);
+  if (v4) {
+    const b = v4.slice(1).map(Number);
+    return b.every((n) => n <= 255) ? [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, ...b] : null;
+  }
+  if (!s.includes(':')) return null;
+  let text = s;
+  const tail = /^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/.exec(text); // ::ffff:1.2.3.4
+  if (tail) {
+    const b = ipBytes(tail[2]);
+    if (!b) return null;
+    text = `${tail[1]}${((b[12] << 8) | b[13]).toString(16)}:${((b[14] << 8) | b[15]).toString(16)}`;
+  }
+  const halves = text.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const rest = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const fill = 8 - head.length - rest.length;
+  if (halves.length === 2 ? fill < 1 : fill !== 0) return null;
+  const groups = [...head, ...Array<string>(Math.max(0, fill)).fill('0'), ...rest];
+  if (!groups.every((g) => /^[0-9a-f]{1,4}$/i.test(g))) return null;
+  return groups.flatMap((g) => { const n = parseInt(g, 16); return [n >> 8, n & 0xff]; });
+}
+
+const isV4 = (b: number[]) => b.slice(0, 10).every((x) => x === 0) && b[10] === 0xff && b[11] === 0xff;
+
+/** CIDR list as [bytes, prefix bits], IPv4 ones in their ::ffff: form. */
+const nets = (list: string[]) => list.map((c) => {
+  const [a, bits] = c.split('/');
+  return [ipBytes(a)!, Number(bits) + (a.includes(':') ? 0 : 96)] as const;
+});
+const inNet = (b: number[], [base, bits]: readonly [number[], number]) => {
+  for (let i = 0; bits > 0; i++, bits -= 8) {
+    const mask = bits >= 8 ? 0xff : (0xff << (8 - bits)) & 0xff;
+    if ((b[i] & mask) !== (base[i] & mask)) return false;
+  }
+  return true;
+};
+const NOT_A_CALLER = nets([
+  // unspecified, private, carrier NAT, loopback, link-local
+  '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16', '172.16.0.0/12', '192.168.0.0/16',
+  '::/127', 'fc00::/7', 'fe80::/10',
+  // Cloudflare (cloudflare.com/ips)
+  '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '141.101.64.0/18', '108.162.192.0/18',
+  '190.93.240.0/20', '188.114.96.0/20', '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+  '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+  '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32', '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+]);
+
+/** The bucket for a caller address (IPv4 as is, IPv6 by its /64: one
+ *  machine can pick any address inside it), or null for anything else. */
+function callerBucket(raw: string | null | undefined): string | null {
+  const b = raw ? ipBytes(raw) : null;
+  if (!b || NOT_A_CALLER.some((n) => inNet(b, n))) return null;
+  if (isV4(b)) return b.slice(12).join('.');
+  const g: string[] = [];
+  for (let i = 0; i < 8; i += 2) g.push(((b[i] << 8) | b[i + 1]).toString(16));
+  return `${g.join(':')}::/64`;
+}
+
+function pickClientIp(headers: Headers): { ip: string | null; from: string } {
+  const cf = callerBucket(headers.get('cf-connecting-ip'));
+  if (cf) return { ip: cf, from: 'cf-connecting-ip' };
+  const hops = (headers.get('x-forwarded-for') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  for (let i = hops.length - 1; i >= 0; i--) {
+    const ip = callerBucket(hops[i]);
+    if (ip) return { ip, from: `x-forwarded-for hop ${i + 1} of ${hops.length}` };
+  }
+  const real = callerBucket(headers.get('x-real-ip'));
+  return real ? { ip: real, from: 'x-real-ip' } : { ip: null, from: 'none (not limited)' };
+}
+
 /**
- * The caller's IP. Cloudflare sets cf-connecting-ip itself, so it comes
- * first. Failing that, the LAST x-forwarded-for entry: the edge appends the
- * address it saw, and anything before it is whatever the caller sent. The
- * other copies of this (ai-guard hashClientIp and friends) take the first
- * entry, which the caller chooses.
+ * The caller's IP, as the key for per-IP limits. Cloudflare sets
+ * cf-connecting-ip itself, so it comes first. Failing that, x-forwarded-for
+ * read from the right: each proxy appends the address it saw, so the last
+ * caller address in it is the nearest one the platform saw, and anything
+ * before it is whatever the caller sent. (The older copies of this, ai-guard
+ * hashClientIp and friends, take the first entry, which the caller chooses.)
+ * Null when there is no caller address at all: the throttle then lets the
+ * call through rather than lump everyone together.
  */
 export function clientIp(headers: Headers): string | null {
-  const cf = headers.get('cf-connecting-ip')?.trim();
-  if (cf) return cf;
-  const hops = (headers.get('x-forwarded-for') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (hops.length) return hops[hops.length - 1];
-  return headers.get('x-real-ip')?.trim() || null;
+  return pickClientIp(headers).ip;
 }
 
 /** sha256 hex of the IP, so the throttle table never holds an address. */
@@ -46,13 +126,14 @@ export async function hashIp(ip: string | null): Promise<string | null> {
 }
 
 let ipHeadersLogged = false;
-/** Once per instance: which address headers arrive (never their values), so
- *  the owner can see from the logs which one the per-IP limits use. */
+/** Once per instance: which address headers arrive and which one the per-IP
+ *  limits used (never the addresses themselves), so the owner can check it
+ *  in the logs. */
 export function logIpHeadersOnce(tag: string, headers: Headers): void {
   if (ipHeadersLogged) return;
   ipHeadersLogged = true;
   const hops = (headers.get('x-forwarded-for') ?? '').split(',').filter((s) => s.trim()).length;
-  console.log(`[${tag}] ip headers: cf-connecting-ip=${headers.has('cf-connecting-ip') ? 'yes' : 'no'} x-forwarded-for=${hops} hop(s) x-real-ip=${headers.has('x-real-ip') ? 'yes' : 'no'}`);
+  console.log(`[${tag}] ip headers: cf-connecting-ip=${headers.has('cf-connecting-ip') ? 'yes' : 'no'} x-forwarded-for=${hops} hop(s) x-real-ip=${headers.has('x-real-ip') ? 'yes' : 'no'}; limits use: ${pickClientIp(headers).from}`);
 }
 
 // The slice of a service-role client the throttle uses, typed by shape (see

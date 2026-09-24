@@ -27,6 +27,25 @@ describe('clientIp', () => {
     expect(clientIp(new Headers({ 'x-real-ip': '192.0.2.1' }))).toBe('192.0.2.1');
     expect(clientIp(new Headers())).toBeNull();
   });
+  it('skips platform hops (private, carrier NAT, Cloudflare) instead of lumping every caller together', () => {
+    // A gateway that appended its own private address after the caller's.
+    expect(clientIp(new Headers({ 'x-forwarded-for': '1.2.3.4, 203.0.113.9, 10.0.3.7' }))).toBe('203.0.113.9');
+    // cf-connecting-ip holding a Cloudflare or private address is not the caller.
+    expect(clientIp(new Headers({ 'cf-connecting-ip': '172.70.1.2', 'x-forwarded-for': '198.51.100.7, 162.158.4.4' }))).toBe('198.51.100.7');
+    expect(clientIp(new Headers({ 'cf-connecting-ip': '127.0.0.1', 'x-forwarded-for': '100.64.0.9' }))).toBeNull();
+    expect(clientIp(new Headers({ 'x-forwarded-for': 'unknown, not-an-ip' }))).toBeNull();
+    // IPv4 written as IPv6 is still IPv4.
+    expect(clientIp(new Headers({ 'cf-connecting-ip': '::ffff:198.51.100.7' }))).toBe('198.51.100.7');
+    expect(clientIp(new Headers({ 'cf-connecting-ip': '::ffff:192.168.1.5', 'x-real-ip': '192.0.2.1' }))).toBe('192.0.2.1');
+  });
+  it('counts IPv6 by its /64, so one machine cannot rotate through its own block', () => {
+    const a = clientIp(new Headers({ 'cf-connecting-ip': '2001:db8:1234:5678::1' }));
+    const b = clientIp(new Headers({ 'cf-connecting-ip': '2001:0db8:1234:5678:ffff:eeee:dddd:cccc' }));
+    expect(a).toBe('2001:db8:1234:5678::/64');
+    expect(b).toBe(a);
+    expect(clientIp(new Headers({ 'cf-connecting-ip': '2001:db8:1234:5679::1' }))).not.toBe(a);
+    expect(clientIp(new Headers({ 'cf-connecting-ip': 'fe80::1', 'x-forwarded-for': '2606:4700::1111' }))).toBeNull();
+  });
 });
 
 describe('hashIp', () => {
