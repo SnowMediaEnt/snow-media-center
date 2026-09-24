@@ -5,7 +5,8 @@
      token (whose Keystore key could not follow it to another device
      anyway). allowBackup="false" in the manifest covers Google backup and
      adb backup; this file covers the transfer Android 12+ still allows
-     without it. -->
+     without it. No device_* domains: the build's lint rejects them, and
+     the app keeps nothing in device-protected storage. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="root" path="." />
@@ -13,10 +14,6 @@
         <exclude domain="database" path="." />
         <exclude domain="sharedpref" path="." />
         <exclude domain="external" path="." />
-        <exclude domain="device_root" path="." />
-        <exclude domain="device_file" path="." />
-        <exclude domain="device_database" path="." />
-        <exclude domain="device_sharedpref" path="." />
     </cloud-backup>
     <device-transfer>
         <exclude domain="root" path="." />
@@ -24,9 +21,5 @@
         <exclude domain="database" path="." />
         <exclude domain="sharedpref" path="." />
         <exclude domain="external" path="." />
-        <exclude domain="device_root" path="." />
-        <exclude domain="device_file" path="." />
-        <exclude domain="device_database" path="." />
-        <exclude domain="device_sharedpref" path="." />
     </device-transfer>
 </data-extraction-rules>
