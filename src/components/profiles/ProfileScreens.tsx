@@ -562,20 +562,35 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
           </div>
         </div>
 
-        <div className="text-white/70 text-sm mb-2">Colour</div>
+        <div className="text-white/70 text-sm mb-2">Color</div>
         <div className="flex flex-wrap mb-6">
-          {AVATARS.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              data-pf={`c-${a.id}`}
-              data-focused={focus === `c-${a.id}` ? 'true' : 'false'}
-              onClick={() => { setFocus(`c-${a.id}`); setDraft((d) => ({ ...d, avatar: a.id })); }}
-              aria-label={a.id}
-              className="mr-3 mb-2 rounded-full outline-none"
-              style={{ width: 48, height: 48, backgroundColor: a.bg, boxShadow: `${draft.avatar === a.id ? '0 0 0 3px #fff' : 'none'}${focus === `c-${a.id}` ? `, 0 0 0 7px ${a.ring}` : ''}` }}
-            />
-          ))}
+          {AVATARS.map((a) => {
+            const id = `c-${a.id}`;
+            const picked = draft.avatar === a.id;
+            const focused = focus === id;
+            // The picked color: a white ring. The one the remote is on: a
+            // bigger ring in its own light shade, and a little larger. (The
+            // two were joined as "none, 0 0 0 7px …" for a color not picked,
+            // which is not a valid shadow: the remote's place never showed.)
+            const rings = [picked ? '0 0 0 3px #fff' : '', focused ? `0 0 0 ${picked ? 7 : 5}px ${a.ring}` : ''].filter(Boolean);
+            return (
+              <button
+                key={a.id}
+                type="button"
+                data-pf={id}
+                data-focused={focused ? 'true' : 'false'}
+                onClick={() => { setFocus(id); setDraft((d) => ({ ...d, avatar: a.id })); }}
+                aria-label={a.id}
+                aria-pressed={picked}
+                className="mr-4 mb-3 rounded-full outline-none"
+                style={{
+                  width: 48, height: 48, backgroundColor: a.bg,
+                  boxShadow: rings.length ? rings.join(', ') : 'none',
+                  transform: focused ? 'scale(1.15)' : 'none',
+                }}
+              />
+            );
+          })}
         </div>
 
         {!isMain && (

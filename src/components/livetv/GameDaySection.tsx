@@ -38,8 +38,9 @@ interface Props {
   isActive: boolean;
   onExitLeft: () => void;
   onExitUp?: () => void;
-  /** Show Live TV (a channel or a category has been handed over). */
-  onWatch: () => void;
+  /** Show Live TV (a channel or a category has been handed over), for this
+   *  game: Back from there comes back to its list. */
+  onWatch: (gameId?: string) => void;
 }
 
 /** Set by a kickoff reminder's Watch when it had no channel: open this game's list. */
@@ -230,6 +231,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
 
   const activate = useCallback((item: PickItem | undefined) => {
     if (!item) return;
+    const gameId = stateRef.current.picker?.gameId;
     setPicker(null);
     if (item.kind === 'link') {
       const { line, stream } = item.link;
@@ -241,7 +243,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     } else {
       handLiveCategory({ host: item.line.host, username: item.line.username, categoryId: item.categoryId });
     }
-    onWatch();
+    onWatch(gameId);
   }, [onWatch]);
 
   // A kickoff reminder with no channel asked for this game's list.

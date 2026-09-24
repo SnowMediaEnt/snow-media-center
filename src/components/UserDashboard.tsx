@@ -167,6 +167,13 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
       
       switch (event.key) {
         case 'ArrowLeft':
+          // My Devices & Services / Danger Zone sit to the right of Player
+          // Account / Billing: Left goes across, not the long way round.
+          if (focusedElement === EDIT_IDX || focusedElement === DELETE_IDX) {
+            const left = [playerActionAvailable ? CLAIM_IDX : -1, billingOn ? BILLING_IDX : -1].filter((i) => i >= 0);
+            if (left.length) setFocusedElement(focusedElement === DELETE_IDX ? left[left.length - 1] : left[0]);
+            break;
+          }
           if (focusedElement === 1) setFocusedElement(0); // signout -> back
           else if (focusedElement === 3) setFocusedElement(2); // community -> purchase
           else if (focusedElement === 4) setFocusedElement(3); // games -> community
@@ -174,6 +181,13 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (focusedElement > TAB_BASE && focusedElement <= TAB_BASE + 1) setFocusedElement(focusedElement - 1); // tabs
           break;
         case 'ArrowRight':
+          // Player Account / Billing → My Devices & Services / Danger Zone,
+          // the column beside them.
+          if (focusedElement === CLAIM_IDX || (billingOn && focusedElement === BILLING_IDX)) {
+            const lower = billingOn && focusedElement === BILLING_IDX && playerActionAvailable;
+            setFocusedElement(lower ? DELETE_IDX : EDIT_IDX);
+            break;
+          }
           if (focusedElement === 0) setFocusedElement(1); // back -> signout
           else if (focusedElement === 2) setFocusedElement(3); // purchase -> community
           else if (focusedElement === 3) setFocusedElement(4); // community -> games
@@ -197,7 +211,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           } else if (billingOn && focusedElement === BILLING_IDX) {
             setFocusedElement(playerActionAvailable ? CLAIM_IDX : TAB_BASE); // billing -> player action / overview tab
           } else if (focusedElement === EDIT_IDX) {
-            setFocusedElement(billingOn ? BILLING_IDX : playerActionAvailable ? CLAIM_IDX : TAB_BASE); // edit -> billing / player action / overview tab
+            // Compact grid: it heads its own column, so Up is the tabs. Large
+            // layout: the sections run down the page, Billing above it.
+            setFocusedElement(!large ? TAB_BASE : billingOn ? BILLING_IDX : playerActionAvailable ? CLAIM_IDX : TAB_BASE);
           } else if (focusedElement === DELETE_IDX) {
             setFocusedElement(EDIT_IDX); // delete -> edit
           }
@@ -251,7 +267,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames, onGiveaway, giveawayOn, TAB_BASE, CLAIM_IDX, BILLING_IDX, EDIT_IDX, DELETE_IDX, claimAvailable, claimOpen, billingOn, billingOpen, playerActionAvailable, guestMode, guestPlayerSlot, playerAccount, navigate]);
+  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames, onGiveaway, giveawayOn, TAB_BASE, CLAIM_IDX, BILLING_IDX, EDIT_IDX, DELETE_IDX, claimAvailable, claimOpen, billingOn, billingOpen, playerActionAvailable, guestMode, guestPlayerSlot, playerAccount, navigate, large]);
 
   // When the active tab changes (after initial mount), scroll the tab strip
   // into view. Skipping the first run keeps the dashboard scrolled to the top

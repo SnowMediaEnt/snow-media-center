@@ -107,6 +107,9 @@ interface Props {
   onExitUp?: () => void;
   onBack: () => void;
   onNavigate?: (view: string) => void;
+  /** Back from where another screen sent the viewer (Game Day's Watch):
+   *  true when it took them back there, so Live TV does nothing more. */
+  onBackToCaller?: () => boolean;
 }
 
 
@@ -173,7 +176,11 @@ const favToStream = (f: FavChannel): XtreamLiveStream => ({
   epg_channel_id: f.epg_channel_id,
 });
 
-const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack, onNavigate }: Props) => {
+const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack, onNavigate, onBackToCaller }: Props) => {
+  // One screen back at a time: from a channel Game Day started, Back returns
+  // to that game's list, not to Live TV's categories.
+  const backToCallerRef = useRef(onBackToCaller);
+  backToCallerRef.current = onBackToCaller;
   // ── every signed-in line, in one pane ──────────────────────────────────
   // The active line (`creds`) drives Movies, Series and the account screen;
   // here it is simply first. Every other saved account follows as its own
@@ -1577,6 +1584,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           if (barVisibleRef.current) { hideBarNow(); return; }
           setFullscreen(false);
+          backToCallerRef.current?.();
           return;
         }
 
@@ -1674,6 +1682,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // listener (useNavigation) doesn't ALSO pop the navigation stack and
         // exit the Player on Android/Fire TV.
         (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+        if (backToCallerRef.current?.()) return;
         if (paneRef.current === 'channels') {
           setPane('categories');
         } else {
@@ -1826,9 +1835,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (fullscreenRef.current) {
             if (barVisibleRef.current) hideBarNow();
-            else { setFullscreen(false); }
+            else { setFullscreen(false); backToCallerRef.current?.(); }
             return;
           }
+          if (backToCallerRef.current?.()) return;
           if (paneRef.current === 'channels') { setPane('categories'); return; }
           onExitLeft();
         });

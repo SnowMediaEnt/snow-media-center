@@ -75,6 +75,32 @@ describe('ProfileScreens', () => {
     rect.mockRestore();
   });
 
+  it('the remote moves along the colors, shows where it is, and OK picks one', async () => {
+    // jsdom has no layout: the name box on top, the colors in a row under it,
+    // everything else further down.
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const id = this.dataset.pf ?? '';
+      const colors = Array.from(document.querySelectorAll('[data-pf^="c-"]'));
+      const others = Array.from(document.querySelectorAll('[data-pf]:not([data-pf^="c-"]):not([data-pf="name"])'));
+      const [x, y] = id === 'name' ? [0, 0] : id.startsWith('c-') ? [colors.indexOf(this) * 60, 200] : [others.indexOf(this) * 200, 400];
+      return { left: x, top: y, width: 48, height: 48, right: x + 48, bottom: y + 48, x, y, toJSON() {} } as DOMRect;
+    });
+    const { default: Screens } = await import('./ProfileScreens');
+    render(<Screens mode="pick" onClose={() => {}} />);
+    fireEvent.click(screen.getByText('Add profile'));
+    expect(screen.getByText('Color')).toBeTruthy();
+    const color = (id: string) => document.querySelector<HTMLElement>(`[data-pf="c-${id}"]`)!;
+    await key('ArrowDown');
+    await key('ArrowRight');
+    await key('ArrowRight');
+    // On purple, not picked: the remote's ring shows (a valid shadow).
+    expect(color('purple').dataset.focused).toBe('true');
+    expect(color('purple').style.boxShadow).toMatch(/^0(px)? 0(px)? 0(px)? 5px/);
+    await ok();
+    expect(color('purple').getAttribute('aria-pressed')).toBe('true');
+    rect.mockRestore();
+  });
+
   it('Backspace and space in the name box type; they do not leave it', async () => {
     const { default: Screens } = await import('./ProfileScreens');
     render(<Screens mode="pick" onClose={() => {}} />);

@@ -59,7 +59,8 @@ describe('GameDaySection', () => {
     expect(onWatch).not.toHaveBeenCalled();
     await key('ArrowDown');
     await key('Enter');
-    expect(onWatch).toHaveBeenCalled();
+    // Handed over with the game, so Back from the channel comes back to its list.
+    expect(onWatch).toHaveBeenCalledWith('nfl:1');
     expect(JSON.parse(sessionStorage.getItem('smc-live-deeplink') || '{}')).toMatchObject({ streamId: 7, username: 'u' });
     // Back on the games: Remind me.
     await key('ArrowRight');

@@ -307,7 +307,25 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   const onExitLeft = useCallback(() => setPane('sections'), []);
   // Game Day's Watch: the channel has been handed to Live TV; show it.
-  const onGameDayWatch = useCallback(() => { setSection('live'); setPane('content'); }, []);
+  // Watch in Game Day: remember the game, so the first Back from the channel
+  // (or the category it opened) goes back to that game's list — one screen
+  // at a time — then Game Day, then the menu.
+  const gameDayReturnRef = useRef<string | null>(null);
+  const onGameDayWatch = useCallback((gameId?: string) => {
+    gameDayReturnRef.current = gameId ?? null;
+    setSection('live'); setPane('content');
+  }, []);
+  const backToGameDay = useCallback((): boolean => {
+    const id = gameDayReturnRef.current;
+    if (!id) return false;
+    gameDayReturnRef.current = null;
+    // GameDaySection's GAMEDAY_OPEN_KEY (not imported: that screen loads on demand).
+    try { sessionStorage.setItem('smc-gameday-open', id); } catch { /* no storage: Game Day's list, not the game's */ }
+    setSection('gameday'); setPane('content');
+    return true;
+  }, []);
+  // Anywhere else first (the side menu, another section): Back is Live TV's own.
+  useEffect(() => { if (section !== 'live') gameDayReturnRef.current = null; }, [section]);
   const onExitUp = useCallback(() => {
     headerReturnPaneRef.current = 'content';
     setPane('header');
@@ -1095,6 +1113,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onExitUp={onExitUp}
             onBack={onBack}
             onNavigate={navigateViaRef}
+            onBackToCaller={backToGameDay}
           />
         )}
 
