@@ -23,6 +23,7 @@
 //   audience?:   { mode: 'all' } | { mode: 'targeted', emails: string[] }
 // }
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { sanitizeMailHtml } from '../_shared/mailHtml.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,6 +48,12 @@ async function fingerprint(value: string): Promise<string> {
 const str = (v: unknown, max: number): string | undefined =>
   typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined;
 
+const html = (v: unknown, max: number): string | undefined => {
+  const raw = str(v, max);
+  const clean = raw ? sanitizeMailHtml(raw).trim() : '';
+  return clean || undefined;
+};
+
 const httpsUrl = (v: unknown): string | undefined => {
   const s = str(v, 2000);
   return s && /^https?:\/\//i.test(s) ? s : undefined;
@@ -62,8 +69,11 @@ function cleanBlocks(raw: unknown): Record<string, unknown>[] {
     const type = typeof r.type === 'string' ? r.type : '';
     if (!BLOCK_TYPES.has(type)) continue;
     const block: Record<string, unknown> = { id: str(r.id, 40) ?? crypto.randomUUID().slice(0, 8), type };
-    if (type === 'heading' || type === 'paragraph' || type === 'html') block.text = str(r.text, 20000);
-    if (type === 'paragraph') block.html = str(r.html, 40000);
+    if (type === 'heading' || type === 'paragraph') block.text = str(r.text, 20000);
+    // The two fields a box renders as html: rebuilt from an allow-list here,
+    // so no app version is ever handed markup it could mis-read.
+    if (type === 'html') block.text = html(r.text, 20000);
+    if (type === 'paragraph') block.html = html(r.html, 40000);
     if (type === 'image') block.url = httpsUrl(r.url);
     if (type === 'button') { block.url = httpsUrl(r.url); block.label = str(r.label, 120); }
     if (type === 'video') { block.videoUrl = httpsUrl(r.videoUrl); block.thumbnailUrl = httpsUrl(r.thumbnailUrl); block.label = str(r.label, 120); }
