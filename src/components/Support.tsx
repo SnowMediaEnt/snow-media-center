@@ -31,7 +31,7 @@ import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 import { useUnreadTickets } from '@/hooks/useUnreadTickets';
 import { useSnowMail } from '@/hooks/useSnowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
-import { renewPlexDeeplink } from '@/lib/plexDeeplink';
+import { peekPlexDeeplink, renewPlexDeeplink } from '@/lib/plexDeeplink';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
@@ -139,12 +139,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   // Opened from a film in Plex: the film's link (plexDeeplink.ts) waits for
   // the way back, and a link is only good for a couple of minutes. Counted
   // from when the viewer leaves, not from when they came in, so a long read
-  // of the guide still lands back on the film.
-  useEffect(() => {
-    const fromPlex = guideOrigin === 'plex-movie';
-    return () => { if (fromPlex) renewPlexDeeplink(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the origin Support opened with
-  }, []);
+  // of the guide still lands back on the film. Only a link that was fresh as
+  // Support opened: an origin an earlier visit left behind must not bring a
+  // film from long ago back to life.
+  const [plexReturn] = useState(() => guideOrigin === 'plex-movie' && !!peekPlexDeeplink());
+  useEffect(() => () => { if (plexReturn) renewPlexDeeplink(); }, [plexReturn]);
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const [helpCols, setHelpCols] = useState<number>(() => {
     try { return window.matchMedia(HELP_TWO_COL).matches ? 2 : 1; } catch { return 2; }
@@ -643,8 +642,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             if (origin === 'plex-movie') {
               // PlexSection will consume 'smc-plex-deeplink' on mount and open
               // the movie's detail page — user presses Play to resume. Handed
-              // back fresh (see the unmount above).
-              renewPlexDeeplink();
+              // back fresh (see plexReturn above).
+              if (plexReturn) renewPlexDeeplink();
               onNavigate?.('livetv');
             }
           }}
