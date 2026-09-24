@@ -378,7 +378,7 @@ const ResChip = memo(({ label }: { label: string }) => {
   if (!label) return null;
   const gold = label === '4K';
   return (
-    <span className={`absolute top-2 right-2 text-xs font-bold px-2 py-1 rounded-lg bg-black/70 ${gold ? 'text-brand-gold' : 'text-white/80'}`}>
+    <span className={`plex-badge font-nunito ${gold ? 'text-brand-gold' : 'text-white/80'}`}>
       {label}
     </span>
   );
@@ -417,7 +417,8 @@ const RAIL_ROWS_SPAN = (() => {
   const h = (typeof window !== 'undefined' && window.innerHeight) || 720;
   return Math.max(2, Math.ceil(h / 220));
 })();
-const RAIL_H_FALLBACK = 204;
+// The rail box as drawn: 8 + 156 poster + 8 + two 16 px caption lines + 8.
+const RAIL_H_FALLBACK = 212;
 
 const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs }: RailBrowserProps) => {
   const [row, setRow] = useState(0);
@@ -552,10 +553,10 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs }:
   }, [isActive]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div>
       {rows.map((r, ri) => (
-        <div key={r.id} data-plex-row={r.id} ref={(el) => { railBoxRefs.current[r.id] = el; }}>
-          <div className="text-base font-quicksand font-semibold text-white/90 mb-2">{r.title}</div>
+        <div key={r.id} data-plex-row={r.id} className="plex-rail" ref={(el) => { railBoxRefs.current[r.id] = el; }}>
+          <div className="plex-rail-head font-quicksand">{r.title}</div>
           {(ri < row - RAIL_ROWS_SPAN || ri > row + RAIL_ROWS_SPAN) ? (
             <div aria-hidden="true" style={{ height: railHRef.current || RAIL_H_FALLBACK }} />
           ) : (
@@ -1038,7 +1039,8 @@ type SearchPanelProps = Omit<HomePanelProps, 'libraries'> & { initialQuery?: str
 interface SearchChip { label: string; group: 'didyoumean' | 'popular' | 'recent'; item?: PlexItem }
 
 /** One search result. Memoised: the grid re-rendered every result on every
- *  cursor move and keystroke. Same look as before (rounded-2xl, title only). */
+ *  cursor move and keystroke. The same poster frame as every other Plex tile
+ *  (plex-art), title only. */
 const SearchTile = memo(({ item: it, base, token, focused, onSelect }: {
   item: PlexItem; base: string; token: string; focused: boolean; onSelect: (it: PlexItem) => void;
 }) => {
@@ -1047,17 +1049,17 @@ const SearchTile = memo(({ item: it, base, token, focused, onSelect }: {
     <div
       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
       onClick={() => onSelect(it)}
-      className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${focused ? 'scale-105 z-10' : ''}`}
-      data-focused={focused ? 'true' : 'false'}>
+      className="plex-tile plex-tile--fill cursor-pointer">
       {/* padding-bottom, not aspect-ratio: see PlexPosterTile. */}
-      <div className="relative h-0" style={{ paddingBottom: '150%' }}>
+      <div data-focused={focused ? 'true' : 'false'} className="plex-art tv-ring h-0" style={{ paddingBottom: '150%' }}>
         {/* eager + focusExempt: at most a few rows of results, and they are
             the thing on screen. The viewport gate and focus-mode parking
             could leave them on the grey placeholder. */}
         <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} eager focusExempt className="absolute inset-0 w-full h-full object-cover" />
+        <span className="plex-sheen" aria-hidden="true" />
         <ResChip label={label} />
       </div>
-      <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
+      <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
     </div>
   );
 });
@@ -1080,9 +1082,8 @@ const ChipTile = memo(({ chip, art, base, token, focused, onPick }: {
     <div
       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
       onClick={() => onPick(chip)}
-      className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${focused ? 'scale-105 z-10' : ''}`}
-      data-focused={focused ? 'true' : 'false'}>
-      <div className="relative h-0" style={{ paddingBottom: '150%' }}>
+      className="plex-tile plex-tile--fill cursor-pointer">
+      <div data-focused={focused ? 'true' : 'false'} className="plex-art tv-ring h-0" style={{ paddingBottom: '150%' }}>
         {it?.thumb ? (
           <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} eager focusExempt className="absolute inset-0 w-full h-full object-cover" />
         ) : (
@@ -1090,8 +1091,9 @@ const ChipTile = memo(({ chip, art, base, token, focused, onPick }: {
             <span className="text-lg font-quicksand font-bold text-white/85 leading-snug">{chip.label}</span>
           </div>
         )}
+        <span className="plex-sheen" aria-hidden="true" />
       </div>
-      <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{chip.label}</div>
+      <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{chip.label}</div>
     </div>
   );
 });
@@ -1478,8 +1480,8 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
     onPlayRef.current(it);
   }, [commit]);
   return (
-    <div className="flex flex-col gap-4">
-      <div data-focused={isActive && zone === 'input' ? 'true' : 'false'} className="tv-ring flex items-center gap-2 px-4 py-3 rounded-xl bg-black/40 border border-white/10">
+    <div>
+      <div data-focused={isActive && zone === 'input' ? 'true' : 'false'} className="tv-ring mb-4 flex items-center gap-2 px-4 py-3 rounded-plex-md bg-black/40 border border-white/10">
         <SearchIcon className="w-4 h-4 text-brand-ice/60" />
         <input
           ref={inputRef}
@@ -1492,16 +1494,16 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         {loading && <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />}
       </div>
       {showChips && (
-        <div className="flex flex-col gap-5 py-2">
+        <div className="mb-4 py-2">
           {(['didyoumean', 'popular', 'recent'] as const).map((group) => {
             const mine = chips.map((c, i) => ({ c, i })).filter(({ c }) => c.group === group);
             if (!mine.length) return null;
             return (
-              <div key={group}>
+              <div key={group} className="plex-rail">
                 <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-2">
                   {group === 'didyoumean' ? 'Did you mean' : group === 'popular' ? 'Popular searches' : 'Recent on this box'}
                 </div>
-                <div className="grid grid-cols-6 gap-3" data-art-tick={chipArtTick}>
+                <div className="grid grid-cols-6 gap-x-3 gap-y-5" data-art-tick={chipArtTick}>
                   {mine.map(({ c, i }) => (
                     <ChipTile
                       key={`${group}:${c.label}`}
@@ -1522,7 +1524,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       {results.length === 0 ? (
         showChips || reqItems.length ? null : <div className="text-brand-ice/70 font-nunito text-sm text-center py-6">{query.trim() ? (loading ? 'Searching…' : 'No results.') : 'Type to search Plex.'}</div>
       ) : (
-        <div className="grid grid-cols-6 gap-3">
+        <div className="mb-4 grid grid-cols-6 gap-x-3 gap-y-5">
           {Array.from({ length: rows * COLS }).map((_, idx) => {
             const it = results[idx];
             if (!it) return <div key={idx} />;
@@ -1546,7 +1548,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
               <div className="text-sm text-brand-ice/50 font-nunito mb-2">Press OK on a title and we will add it to Plex for you, and let you know when it’s ready.</div>
             </>
           )}
-          <div className="grid grid-cols-6 gap-3">
+          <div className="grid grid-cols-6 gap-x-3 gap-y-5">
             {reqItems.map((it, i) => (
               <RequestTile
                 key={`${it.mediaType}:${it.id}`}
@@ -1612,18 +1614,18 @@ const RequestTile = memo(({ item: it, sent, focused, onPick }: {
     <div
       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
       onClick={onPick}
-      className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-dashed border-brand-gold/40 ${focused ? 'scale-105 z-10' : ''}`}
-      data-focused={focused ? 'true' : 'false'}>
-      <div className="relative h-0" style={{ paddingBottom: '150%' }}>
+      className="plex-tile plex-tile--fill cursor-pointer">
+      <div data-focused={focused ? 'true' : 'false'} className="plex-art plex-art--request tv-ring h-0" style={{ paddingBottom: '150%' }}>
         {it.posterUrl
           ? <img src={tmdbSized(it.posterUrl, 'w185')} alt="" decoding="async" className="absolute inset-0 w-full h-full object-cover opacity-80" />
           : <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-navy/70 to-black/80 p-3 text-center"><span className="text-base font-quicksand font-bold text-white/85">{it.title}</span></div>}
-        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/75 text-[11px] font-nunito font-semibold text-white/90">{it.mediaType === 'tv' ? 'Show' : 'Movie'}</span>
-        <span className={`absolute bottom-2 left-2 right-2 px-2 py-1 rounded-lg text-center text-xs font-nunito font-bold ${state ? 'bg-emerald-600/85 text-white' : 'bg-brand-gold/90 text-slate-900'}`}>
+        <span className="plex-sheen" aria-hidden="true" />
+        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-plex-xs bg-black/75 text-plex-micro font-nunito font-semibold text-white/90">{it.mediaType === 'tv' ? 'Show' : 'Movie'}</span>
+        <span className={`absolute bottom-2 left-2 right-2 px-2 py-1 rounded-plex-xs text-center text-xs font-nunito font-bold ${state ? 'bg-emerald-600/85 text-white' : 'bg-brand-gold/90 text-slate-900'}`}>
           {state ?? '+ Request'}
         </span>
       </div>
-      <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>
+      <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>
         {it.title}{it.year ? ` (${it.year})` : ''}
       </div>
     </div>

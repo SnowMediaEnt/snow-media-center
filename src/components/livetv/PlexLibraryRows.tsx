@@ -635,10 +635,10 @@ const PlexLibraryRows = memo(({
   const barHasFocus = zone === 'bar' || (!filtering && rows.length === 0);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div>
       {/* CHIP BAR. gap-2 deliberately — it is in the html.no-flex-gap
           emulation allowlist; gap-5/6/8 are not and collapse on Chromium 66. */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="plex-bar flex flex-wrap items-center gap-2">
         {chips.map((chip, i) => {
           const focused = isActive && barHasFocus && i === chipIdx && !menu;
           const open = menu?.chip === chip.id;
@@ -670,7 +670,7 @@ const PlexLibraryRows = memo(({
           fixed 5-item pickers would run off the bottom of the screen with no
           way to see what is selected. */}
       {menu && (
-        <div className="rounded-2xl bg-black/90 border border-white/15 p-2 max-h-[60vh] overflow-y-auto">
+        <div className="plex-rail rounded-plex-lg bg-black/90 border border-white/15 p-2 max-h-[60vh] overflow-y-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">
               {chips.find((c) => c.id === menu.chip)?.label ?? 'Choose'}
@@ -691,7 +691,7 @@ const PlexLibraryRows = memo(({
                     ref={(el) => { if (f && el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }}
                     onClick={() => applyMenuChoice(menu.chip, opt)}
                     data-focused={f ? 'true' : 'false'}
-                    className={`tv-ring px-3 py-2 rounded-xl font-nunito text-sm cursor-pointer ${
+                    className={`tv-ring px-3 py-2 rounded-plex-sm font-nunito text-sm cursor-pointer ${
                       f ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'
                     }`}
                   >
@@ -730,7 +730,7 @@ const PlexLibraryRows = memo(({
               Nothing matches that. Press Up and change a filter, or pick Clear.
             </div>
           ) : (
-            <div className="grid grid-cols-7 gap-3">
+            <div className="grid grid-cols-7 gap-x-3 gap-y-5">
               {(results?.items ?? []).map((it, i) => (
                 <PlexPosterTile
                   // Index-suffixed: a server sort with ties is not stable
@@ -750,7 +750,7 @@ const PlexLibraryRows = memo(({
       ) : (
       <>
       {rows.length === 0 && (
-        <div className="text-brand-ice/70 font-nunito text-sm px-2">
+        <div className="plex-rail text-brand-ice/70 font-nunito text-sm px-2">
           {allSettled
             ? `Nothing to show in ${libTitle} yet. Use Sort above to browse everything.`
             : `Loading ${libTitle}…`}
@@ -764,16 +764,16 @@ const PlexLibraryRows = memo(({
         // scroll position stay stable, but drop the posters.
         if (ri < mountFrom || ri > mountTo) {
           return (
-            <div key={r.spec.id} data-plex-row={r.spec.id}>
-              <div className="text-base font-quicksand font-semibold text-white/90 mb-2">{r.spec.title}</div>
-              <div className="h-[204px]" aria-hidden="true" />
+            <div key={r.spec.id} data-plex-row={r.spec.id} className="plex-rail">
+              <div className="plex-rail-head font-quicksand">{r.spec.title}</div>
+              <div className="h-[212px]" aria-hidden="true" />
             </div>
           );
         }
 
         return (
-          <div key={r.spec.id} data-plex-row={r.spec.id}>
-            <div className="text-base font-quicksand font-semibold text-white/90 mb-2">{r.spec.title}</div>
+          <div key={r.spec.id} data-plex-row={r.spec.id} className="plex-rail">
+            <div className="plex-rail-head font-quicksand">{r.spec.title}</div>
             <div className="flex gap-3 overflow-x-auto py-2 px-2 -mx-2">
               {r.items.slice(0, railCount(ri)).map((it, ci) => (
                 <PlexPosterTile

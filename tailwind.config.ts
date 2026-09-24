@@ -87,7 +87,20 @@ export default {
 			borderRadius: {
 				lg: 'var(--radius)',
 				md: 'calc(var(--radius) - 2px)',
-				sm: 'calc(var(--radius) - 4px)'
+				sm: 'calc(var(--radius) - 4px)',
+				// Plex design scale — values live in src/styles/plex.css.
+				'plex-xs': 'var(--plex-r-xs)',
+				'plex-sm': 'var(--plex-r-sm)',
+				'plex-md': 'var(--plex-r-md)',
+				'plex-lg': 'var(--plex-r-lg)',
+				'plex-xl': 'var(--plex-r-xl)'
+			},
+			fontSize: {
+				'plex-micro': ['var(--plex-fs-micro)', { lineHeight: '1rem' }],
+				'plex-cap': ['var(--plex-fs-cap)', { lineHeight: '1rem' }],
+				'plex-body': ['var(--plex-fs-body)', { lineHeight: '1.5rem' }],
+				'plex-section': ['var(--plex-fs-section)', { lineHeight: '1.75rem' }],
+				'plex-title': ['var(--plex-fs-title)', { lineHeight: '2rem' }]
 			},
 			keyframes: {
 				'accordion-down': {

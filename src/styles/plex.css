@@ -1,0 +1,268 @@
+/* ============================================================
+   PLEX DESIGN SCALE — the one place the Plex browser's spacing, curves,
+   type and depth are defined. Tailwind aliases in tailwind.config.ts
+   (rounded-plex-*, text-plex-*) point at these variables; nothing else
+   should hard-code a Plex radius or size.
+
+   SPACING: 4 px base — 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48.
+     Tiles sit 12 apart in a rail and across a grid row; grid rows sit 20
+     apart. A rail heading is 12 from its posters (4 below the heading +
+     the rail's 8 px focus headroom); one rail is 20 from the next —
+     12 × φ (1.618) ≈ 20, so a heading always reads as belonging to the row
+     under it. A caption sits 8 under a rail poster, 12 under a grid one.
+   RADIUS: 4 · 8 · 12 · 16 · 24 · pill. Concentric: an element inset in a
+     rounded box takes the box's radius minus the inset — a badge 8 px in
+     from a 12 px poster corner is 4; a thumbnail 8 px inside a 16 px card
+     is 8.
+   TYPE: major third (×1.25) on 16 px —
+     12.8 caption/metadata · 16 body/rail heading · 20 section · 25 title,
+     plus an 11 px micro size for the chips on the art (Apple's caption 2).
+     Controls (menu, filter chips, buttons) keep their 14 px.
+   DEPTH: posters are lit from above — a hairline edge, a faint top-down
+     sheen, and a small contact shadow. Only the ONE focused tile gets the
+     lift (scale + gold ring + a deeper shadow under its foot).
+
+   PERFORMANCE RULES (1–2 GB sticks, Chromium 66):
+     - no filter / backdrop-filter / blur on anything tiled;
+     - transitions on transform only (tv-ring's 150 ms scale); shadows switch,
+       they never animate;
+     - the unfocused shadow is small and static; the sheen and hairline are
+       one plain <span> per tile, painted once;
+     - no `inherit`, no `~` and no universal `* + *` selectors on anything
+       tiled, and nothing that gains or loses a paint layer on focus (a
+       caption that turns position:relative / transformed when its poster
+       is focused) — each measured below, each made a rail scroll restyle
+       or re-raster far more than it needed to;
+     - html.native-low-memory drops the shadow, the sheen and the hairline
+       (the whole span) and keeps the radius, the resting tone, the lift and
+       the gold focus border (index.css).
+   Every value here must parse on Chromium 66: no clamp()/min()/max(), no
+   aspect-ratio, no `inset` shorthand, no flex `gap` beyond gap-1..4.
+   ============================================================ */
+:root {
+  --plex-s-1: 4px;
+  --plex-s-2: 8px;
+  --plex-s-3: 12px;
+  --plex-s-4: 16px;
+  --plex-s-5: 20px;
+  --plex-s-6: 24px;
+  --plex-s-8: 32px;
+  --plex-s-12: 48px;
+
+  /* tile ↔ tile. The markup spells it gap-3 / gap-x-3: html.no-flex-gap's
+     margin emulation keys on that exact Tailwind class. */
+  --plex-gutter: var(--plex-s-3);
+  --plex-rail-gap: var(--plex-s-3);    /* rail block ↔ rail block (+ the rail's 8 px padding = 20) */
+  --plex-head-gap: var(--plex-s-1);    /* heading ↔ rail box (+ 8 px padding = 12) */
+
+  --plex-r-xs: 4px;
+  --plex-r-sm: 8px;
+  --plex-r-md: 12px;
+  --plex-r-lg: 16px;
+  --plex-r-xl: 24px;
+  --plex-r-pill: 9999px;
+
+  --plex-fs-micro: 0.6875rem;  /* 11   */
+  --plex-fs-cap: 0.8rem;       /* 12.8 */
+  --plex-fs-body: 1rem;        /* 16   */
+  --plex-fs-section: 1.25rem;  /* 20   */
+  --plex-fs-title: 1.5625rem;  /* 25   */
+
+  /* Artwork resting tone: what a poster box shows before its image lands. */
+  --plex-art-tone: #13203a;
+  --plex-art-tone-hi: #1c2e4d;
+  --plex-art-tone-lo: #0b1322;
+}
+
+/* ── Poster / thumbnail frame ─────────────────────────────────────────── */
+/* Geometry (the padding-bottom 2:3 / fixed 16:9 box) stays in the markup;
+   this is only the surface. */
+.plex-art {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--plex-r-md);
+  /* A flat fill: it sits under a loaded poster, where a gradient would be
+     shaded for nothing. The loading placeholder (.plex-ph) carries the
+     gradient. */
+  background-color: var(--plex-art-tone);
+  /* Small, static contact shadow. Never transitioned. */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+}
+.plex-art--sm,
+.plex-art--sm .plex-sheen { border-radius: var(--plex-r-sm); }
+.plex-art--round,
+.plex-art--round .plex-sheen { border-radius: 9999px; }
+/* The single big poster on the title page: one element, so a longer shadow. */
+.plex-art--hero {
+  box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.75), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+/* Hairline edge + a top-lit sheen over the image: a real <span class=
+   "plex-sheen"> drawn after the <img>, so the chips and bars after it sit on
+   top by DOM order with no z-index.
+   The gradient stops sit on the golden section (38.2 % / 61.8 %): light fades
+   out across the top two fifths, the middle of the art is untouched, the foot
+   darkens a little so the resolution chip and progress bar sit on something. */
+.plex-sheen {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  /* The frame's radius, spelled out — NOT `inherit`. Measured: with
+     `border-radius: inherit` here, style-recalc time for a 66-press rail
+     scroll at 4× CPU throttle went from ≈320 ms to ≈680 ms (the span then
+     restyles with its parent, and the parent restyles on every frame of the
+     focus scale transition). */
+  border-radius: var(--plex-r-md);
+  pointer-events: none;
+  /* A hairline all round, a touch brighter along the top edge — light from
+     above. Zero-blur inset shadows. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background-image: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0) 38.2%,
+    rgba(0, 0, 0, 0) 61.8%,
+    rgba(0, 0, 0, 0.22) 100%);
+}
+/* The focused tile: lifted, ringed, lit. Specificity (0,3,0) beats
+   .tv-ring[data-focused] (0,2,0); the native-low-memory ring rules are
+   !important and still win on the boxes that need them.
+   No z-index: the lift (at most ≈ 6 px a side) plus the 3 px ring stays
+   inside the 12 px gutter and the shadow does not reach past the poster's
+   sides, so there is nothing of a neighbour's to paint over — and measured,
+   toggling z-index on the focused poster cost ≈ 30 % more raster tasks
+   over a rail scroll. */
+.plex-art.tv-ring[data-focused="true"] {
+  -webkit-transform: scale(1.06);
+  transform: scale(1.06);
+  /* No outward glow: the rail scroller clips 8 px above the poster and a
+     glow was cut off there in a hard line. The lift shadow is pulled in
+     (negative spread) so it pools under the poster's foot and fades out
+     inside the caption gap instead of dimming the caption. */
+  box-shadow:
+    0 0 0 3px hsl(var(--brand-gold)),
+    0 8px 16px -8px rgba(0, 0, 0, 0.85);
+}
+/* The lift is a constant few pixels, not a constant ratio: a grid or Search
+   tile is two to three times a rail tile's height, so it scales less (and
+   its caption sits 12 px down, not 8) — its ring still clears the caption.
+   Rail tile: 156 px × 3 % = 4.7 px + 3 px ring < 8 px gap.
+   Grid tile at 1080p (≈ 360–430 px): × 2 % = 7–8.6 px + 3 px < 12 px gap.
+   (Moving the caption with the lift instead — a transform or position
+   toggled on the focused caption — was measured: gaining and dropping that
+   paint layer on every press cost ≈ 40 % more raster over a rail scroll.) */
+.plex-tile--fill .plex-art.tv-ring[data-focused="true"] {
+  -webkit-transform: scale(1.04);
+  transform: scale(1.04);
+}
+.plex-art[data-focused="true"] .plex-sheen {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  background-image: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0) 38.2%,
+    rgba(0, 0, 0, 0) 61.8%,
+    rgba(0, 0, 0, 0.18) 100%);
+}
+/* A title Overseerr could fetch (Search → "Request it"): a dashed gold edge
+   instead of the hairline, so it never reads as something already on Plex. */
+.plex-art--request .plex-sheen {
+  box-shadow: none;
+  border: 1px dashed hsl(var(--brand-gold) / 0.5);
+}
+
+/* Resolution chip: 8 px in from a 12 px corner → 4 px radius. */
+.plex-badge {
+  position: absolute;
+  top: var(--plex-s-2);
+  right: var(--plex-s-2);
+  padding: 2px 6px;
+  border-radius: var(--plex-r-xs);
+  background-color: rgba(0, 0, 0, 0.72);
+  font-size: var(--plex-fs-micro);
+  line-height: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+/* Resume bar: an inset pill, 8 px from the poster's edges. */
+.plex-progress {
+  position: absolute;
+  left: var(--plex-s-2);
+  right: var(--plex-s-2);
+  bottom: var(--plex-s-2);
+  height: 4px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background-color: rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.plex-progress > div {
+  height: 100%;
+  border-radius: 9999px;
+  background-color: hsl(var(--brand-gold));
+}
+
+/* Caption under a poster: title, then a quieter second line. */
+.plex-cap {
+  margin-top: var(--plex-s-2);
+  padding: 0 2px;
+  font-size: var(--plex-fs-cap);
+  line-height: 1rem;
+}
+
+.plex-sub {
+  padding: 0 2px;
+  font-size: var(--plex-fs-cap);
+  line-height: 1rem;
+}
+.plex-tile--fill .plex-cap { margin-top: var(--plex-s-3); }
+
+/* Loading / missing art: the resting tone, not flat grey. */
+.plex-ph {
+  background-color: var(--plex-art-tone);
+  background-image: linear-gradient(160deg, var(--plex-art-tone-hi) 0%, var(--plex-art-tone-lo) 100%);
+}
+
+/* ── Rails ───────────────────────────────────────────────────────────── */
+/* Margins, not flex gap: flex-col gap-4/6 collapse to 0 on Chromium < 84
+   (only gap-1..4 in rows are emulated, see html.no-flex-gap). And a margin
+   on each block, not `.x > * + *`: a universal sibling selector is tried
+   against every element in the app and marks parents for sibling restyles.
+   Measured, `.x > * + *` plus a `~` caption rule put fifteen restyles of
+   100–200 elements into a 66-press rail scroll; without them, none. */
+.plex-rail { margin-bottom: var(--plex-rail-gap); }
+.plex-rail-head {
+  margin-bottom: var(--plex-head-gap);
+  font-size: var(--plex-fs-body);
+  line-height: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  color: rgba(255, 255, 255, 0.92);
+}
+/* The filter chip bar: 20 from the first rail heading, like rail to rail. */
+.plex-bar { margin-bottom: var(--plex-s-5); }
+
+/* ── Low-memory boxes: keep the shape, drop the paint ────────────────── */
+.native-low-memory .plex-art,
+.native-low-memory .plex-art--hero {
+  box-shadow: none;
+}
+.native-low-memory .plex-ph {
+  background-image: none;
+}
+/* Measured at 4× CPU throttle, 66 presses along the rails: the sheen span
+   added ≈170 ms of raster on this path, the hairline alone ≈150 ms. On the
+   boxes that get this class, neither is worth it. */
+.native-low-memory .plex-sheen {
+  display: none;
+}
+/* …except the dashed "not on Plex yet" edge of a Request tile, which is
+   information, not decoration (a handful of tiles, only in Search). */
+.native-low-memory .plex-art--request .plex-sheen {
+  display: block;
+  background-image: none;
+}
+.native-low-memory .plex-progress { box-shadow: none; }

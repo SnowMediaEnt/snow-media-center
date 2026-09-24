@@ -330,8 +330,10 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
 
   if (!path || err || !src) {
     return (
-      <div ref={wrapRef} className={`bg-black/40 flex items-center justify-center ${className || ''}`}>
-        <Tv className="w-8 h-8 text-brand-ice/40" />
+      // The artwork's resting tone (plex.css), not flat grey: a poster that is
+      // still on its way reads as a frame waiting for art.
+      <div ref={wrapRef} className={`plex-ph flex items-center justify-center ${className || ''}`}>
+        <Tv className="w-8 h-8 text-brand-ice/30" />
       </div>
     );
   }

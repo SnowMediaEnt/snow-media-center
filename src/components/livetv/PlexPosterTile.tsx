@@ -37,16 +37,19 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
     <div
       ref={(el) => { if (scrollIntoView && focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
       onClick={onSelect ? () => onSelect(item) : onClick}
-      data-focused={focused ? 'true' : 'false'}
-      className={`plex-tile cursor-pointer ${width === 'rail' ? 'flex-shrink-0 w-[104px]' : 'w-full'}`}
+      className={`plex-tile cursor-pointer ${width === 'rail' ? 'flex-shrink-0 w-[104px]' : 'plex-tile--fill w-full'}`}
     >
       {/* The 2:3 box is drawn with padding-bottom, not aspect-ratio: `aspect-ratio`
           is Chrome 88, and on the Chromium 66 WebView of the older boxes a box
           sized only by it is 0 px tall until its image lands — so every poster
           arrival grew a tile and re-laid the whole rail column, forty times over
-          the first ten seconds. Padding sizes the box before any image exists. */}
+          the first ten seconds. Padding sizes the box before any image exists.
+          The focus marker sits on the ART, not the tile: the lift, ring and
+          shadow belong to the poster (plex.css), and a data-focused tile picked
+          up the global square safety-net ring around poster and caption both. */}
       <div
-        className={`tv-ring relative h-0 rounded-lg overflow-hidden bg-black/40 border border-white/10 ${focused ? 'scale-[1.05] z-10' : ''}`}
+        data-focused={focused ? 'true' : 'false'}
+        className="plex-art tv-ring h-0"
         style={{ paddingBottom: '150%' }}
       >
         {/* Grid tiles are drawn about twice as wide as rail tiles; asking for
@@ -55,23 +58,24 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
         <PlexImage base={base} path={item.thumb} token={token}
           w={width === 'fill' ? POSTER_GRID_W : POSTER_TILE_W} h={width === 'fill' ? POSTER_GRID_H : POSTER_TILE_H}
           eager={eager} className="absolute inset-0 w-full h-full object-cover" />
+        <span className="plex-sheen" aria-hidden="true" />
         {label ? (
-          <div className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/75 text-xs font-bold font-nunito ${label === '4K' ? 'text-brand-gold' : 'text-white/85'}`}>
+          <div className={`plex-badge font-nunito ${label === '4K' ? 'text-brand-gold' : 'text-white/85'}`}>
             {label}
           </div>
         ) : null}
         {progress != null && (
           // Inline width, no CSS features — this has to paint on a Chromium 66 WebView.
-          <div className="absolute left-0 right-0 bottom-0 h-[3px] bg-black/60">
-            <div className="h-full bg-brand-gold" style={{ width: `${Math.round(progress * 100)}%` }} />
+          <div className="plex-progress">
+            <div style={{ width: `${Math.round(progress * 100)}%` }} />
           </div>
         )}
       </div>
-      <div className={`mt-1.5 px-0.5 text-xs font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>
+      <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>
         {cap.line1}
       </div>
       {cap.line2 ? (
-        <div className="px-0.5 text-xs font-nunito text-brand-ice/70 truncate">{cap.line2}</div>
+        <div className="plex-sub font-nunito text-brand-ice/60 truncate">{cap.line2}</div>
       ) : null}
     </div>
   );

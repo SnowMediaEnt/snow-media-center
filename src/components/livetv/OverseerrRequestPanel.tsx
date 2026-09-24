@@ -184,30 +184,30 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
             <p className="text-xs text-brand-ice/60 mt-4">Press OK on the search box to type · results show below</p>
           </div>
         )}
-        <div className="grid grid-cols-6 gap-4 p-2">
+        <div className="grid grid-cols-6 gap-x-3 gap-y-5 p-2">
           {results.map((it, idx) => {
             const focused = isActive && zone === 'results' && cursor === idx;
             const badge = statusBadge(it.status);
             return (
+              // The same poster frame as the rest of Plex (plex.css): the art
+              // carries the focus lift and ring, the caption sits under it.
               <div key={`${it.mediaType}-${it.id}`}
                 ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
-                data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setCursor(idx); activate(it); }}
-                className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 transition-transform duration-150 ease-out ${focused ? 'scale-105 z-10' : ''}`}>
+                className="plex-tile plex-tile--fill cursor-pointer">
                 {/* padding-bottom, not aspect-ratio (Chrome 88): on the older
                     boxes each card grew as its poster landed and re-laid the grid. */}
-                <div className="relative h-0 bg-black/40" style={{ paddingBottom: '150%' }}>
+                <div data-focused={focused ? 'true' : 'false'} className="plex-art tv-ring h-0" style={{ paddingBottom: '150%' }}>
                   {it.posterUrl
                     ? <img src={it.posterUrl} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
-                    : <div className="absolute inset-0 flex items-center justify-center">{it.mediaType === 'tv' ? <Tv className="w-8 h-8 text-brand-ice/40" /> : <Film className="w-8 h-8 text-brand-ice/40" />}</div>}
+                    : <div className="plex-ph absolute inset-0 flex items-center justify-center">{it.mediaType === 'tv' ? <Tv className="w-8 h-8 text-brand-ice/30" /> : <Film className="w-8 h-8 text-brand-ice/30" />}</div>}
+                  <span className="plex-sheen" aria-hidden="true" />
+                  {badge && (
+                    <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-plex-xs text-plex-micro font-nunito font-bold ${badge.cls}`}>{badge.label}</span>
+                  )}
                 </div>
-                {badge && (
-                  <span className={`absolute top-2 right-2 px-2 py-1 rounded-lg text-xs font-nunito font-bold ${badge.cls}`}>{badge.label}</span>
-                )}
-                <div className="px-3 py-2">
-                  <div className="text-sm font-nunito font-semibold text-white/90 truncate">{it.title}</div>
-                  <div className="text-xs font-nunito text-brand-ice/70">{it.year || ''} · {it.mediaType === 'tv' ? 'Show' : 'Movie'}</div>
-                </div>
+                <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
+                <div className="plex-sub font-nunito text-brand-ice/60">{it.year || ''} · {it.mediaType === 'tv' ? 'Show' : 'Movie'}</div>
               </div>
             );
           })}
