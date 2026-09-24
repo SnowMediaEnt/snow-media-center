@@ -49,6 +49,7 @@ import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Slot-based native video plugin. Keeps a map of PlayerSlot keyed by screenId
@@ -99,6 +100,16 @@ class SnowPlayerPlugin : Plugin() {
         // applies this after ensureSurface. Null = "no explicit rect yet".
         // IntArray of size 5: [x, y, w, h, fullscreenFlag(0/1)].
         var pendingRect: IntArray? = null
+        // True while schedulePreBuffer holds a VOD start at playWhenReady=false.
+        // That is not the viewer pausing, so it is never reported as a pause.
+        var holding: Boolean = false
+        var reportedPaused: Boolean = false
+        // Bytes the player's own HTTP sources have received (added on loader
+        // threads), turned into Mb/s by the 'bandwidth' tick. Counting what
+        // the player downloads anyway costs no extra network.
+        val netBytes = AtomicLong(0L)
+        var bandwidthRunnable: Runnable? = null
+        var lastKbps: Long = -1L
     }
 
     private val slots = HashMap<String, PlayerSlot>()
@@ -116,6 +127,7 @@ class SnowPlayerPlugin : Plugin() {
         private const val RECONNECT_DELAY_MS = 500L
         private const val FIRST_FRAME_TIMEOUT_MS = 8000L
         private const val POSITION_TICK_MS = 5000L
+        private const val BANDWIDTH_TICK_MS = 3000L
     }
 
     private fun screenIdOf(call: PluginCall): String = call.getString("screenId") ?: MAIN
@@ -139,6 +151,70 @@ class SnowPlayerPlugin : Plugin() {
         s.positionTickRunnable = null
         s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
         s.preBufferRunnable = null
+        s.holding = false
+        s.bandwidthRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.bandwidthRunnable = null
+    }
+
+    /**
+     * Main slot: every 3 s, how fast the player's downloads are arriving
+     * (network bytes over the window, kbps) as a 'bandwidth' event, so the
+     * buffering card can show the speed right now next to what the video
+     * needs. The bandwidth meter's own estimate is no use here: it starts from
+     * a guess by network type and only updates when a transfer ends, which a
+     * file played as-is (one long transfer) hardly ever does. Once nothing
+     * flows (paused, buffer full) it reports the 0 once and then stays quiet.
+     */
+    private fun scheduleBandwidthTick(s: PlayerSlot, screenId: String) {
+        s.bandwidthRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.bandwidthRunnable = null
+        if (screenId != MAIN) return
+        s.lastKbps = -1L
+        var lastBytes = s.netBytes.get()
+        var lastAt = SystemClock.elapsedRealtime()
+        val r = object : Runnable {
+            override fun run() {
+                if (s.currentUrl == null) return
+                val now = SystemClock.elapsedRealtime()
+                val bytes = s.netBytes.get()
+                val ms = now - lastAt
+                if (ms > 0) {
+                    val kbps = (bytes - lastBytes) * 8L / ms
+                    if (kbps > 0L || s.lastKbps != 0L) {
+                        notifyListeners("bandwidth", JSObject().put("screenId", screenId).put("kbps", kbps))
+                    }
+                    s.lastKbps = kbps
+                }
+                lastBytes = bytes
+                lastAt = now
+                mainHandler.postDelayed(this, BANDWIDTH_TICK_MS)
+            }
+        }
+        s.bandwidthRunnable = r
+        mainHandler.postDelayed(r, BANDWIDTH_TICK_MS)
+    }
+
+    /**
+     * 'paused': playback is stopped on purpose — the viewer, or the system
+     * (headphones out). Not a stall: 'playing' (isPlaying) also drops on every
+     * rebuffer, so the control bar can't tell a pause from it. Not the VOD
+     * pre-buffer hold either. Sent only when it changes.
+     */
+    private fun reportPaused(s: PlayerSlot, screenId: String) {
+        val p = s.player ?: return
+        val paused = !p.playWhenReady && !s.holding
+        if (paused == s.reportedPaused) return
+        s.reportedPaused = paused
+        notifyListeners("playerState", JSObject().put("screenId", screenId).put("paused", paused))
+    }
+
+    /** A play or pause during the VOD pre-buffer hold ends it: the viewer's
+     *  choice wins over the timer, which would otherwise start a paused film. */
+    private fun releaseHold(s: PlayerSlot) {
+        if (!s.holding) return
+        s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.preBufferRunnable = null
+        s.holding = false
     }
 
     private fun schedulePositionTick(s: PlayerSlot) {
@@ -184,6 +260,7 @@ class SnowPlayerPlugin : Plugin() {
                 val elapsed = SystemClock.elapsedRealtime() - startedAt
                 val readyEnough = p.playbackState == Player.STATE_READY && bufMs >= 4000L
                 if (bufMs >= 10000L || elapsed >= 12000L || readyEnough) {
+                    s.holding = false
                     p.playWhenReady = true
                     s.preBufferRunnable = null
                     return
@@ -328,10 +405,12 @@ class SnowPlayerPlugin : Plugin() {
         val renderersFactory = DefaultRenderersFactory(act)
             .setEnableDecoderFallback(true)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        val meter = ByteMeter(s.netBytes)
         val httpFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(8000)
             .setReadTimeoutMs(8000)
+            .setTransferListener(meter)
         // A Plex server converting a video answers its playlist and first
         // segments only once the transcoder has something: on a 4K file or a
         // remote server that is often past 8 s, and the 8 s timeout turned
@@ -340,6 +419,7 @@ class SnowPlayerPlugin : Plugin() {
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(8000)
             .setReadTimeoutMs(30000)
+            .setTransferListener(meter)
         val dataSourceFactory = DefaultDataSource.Factory(act, TranscodeAwareFactory(httpFactory, transcodeFactory))
         // Closed captions on raw MPEG-TS live streams.
         //
@@ -431,6 +511,9 @@ class SnowPlayerPlugin : Plugin() {
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 notifyListeners("playerState", JSObject().put("screenId", screenId).put("playing", isPlaying))
+            }
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                reportPaused(s, screenId)
             }
             override fun onRenderedFirstFrame() {
                 // The new stream has drawn: uncover it. Only here — never on
@@ -543,6 +626,7 @@ class SnowPlayerPlugin : Plugin() {
             }
             val p = s.player ?: run { call.reject("player init failed"); return@runOnUiThread }
             cancelTimers(s)
+            s.reportedPaused = false
             s.currentUrl = url
             s.currentSubtitles = subs
             s.isLive = live
@@ -561,20 +645,32 @@ class SnowPlayerPlugin : Plugin() {
                 // VOD: pre-buffer ≥10s (or 12s wall-clock) before starting so
                 // slow Plex servers don't cause the "playing → immediate
                 // rebuffer" flash and the JS overlay's slow-load watchdog.
+                s.holding = true
                 p.playWhenReady = false
                 schedulePreBuffer(s)
             }
             scheduleWatchdog(s, screenId)
             schedulePositionTick(s)
+            scheduleBandwidthTick(s, screenId)
             call.resolve()
         }
     }
 
     @PluginMethod
-    fun play(call: PluginCall) { val s = slot(call); activity?.runOnUiThread { s.player?.play(); call.resolve() } }
+    fun play(call: PluginCall) {
+        val s = slot(call)
+        val screenId = screenIdOf(call)
+        activity?.runOnUiThread { releaseHold(s); s.player?.play(); reportPaused(s, screenId); call.resolve() }
+    }
 
     @PluginMethod
-    fun pause(call: PluginCall) { val s = slot(call); activity?.runOnUiThread { s.player?.pause(); call.resolve() } }
+    fun pause(call: PluginCall) {
+        val s = slot(call)
+        val screenId = screenIdOf(call)
+        // During the hold playWhenReady is already false, so no listener
+        // event follows — reportPaused says it.
+        activity?.runOnUiThread { releaseHold(s); s.player?.pause(); reportPaused(s, screenId); call.resolve() }
+    }
 
     @PluginMethod
     fun seekTo(call: PluginCall) {
@@ -968,6 +1064,16 @@ class SnowPlayerPlugin : Plugin() {
         }
         super.handleOnDestroy()
     }
+}
+
+/** Counts the bytes the player's HTTP sources receive (loader threads). */
+private class ByteMeter(private val total: AtomicLong) : TransferListener {
+    override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
+    override fun onTransferStart(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
+    override fun onBytesTransferred(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean, bytesTransferred: Int) {
+        if (isNetwork) total.addAndGet(bytesTransferred.toLong())
+    }
+    override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
 }
 
 /** Plex transcode requests (playlist and segments) get the patient source. */

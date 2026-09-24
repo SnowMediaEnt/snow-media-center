@@ -97,11 +97,17 @@ export interface SnowPlayerPlugin {
   /** Whether this device can software-decode Dolby/DTS. Use for diagnostics. */
   getDecoderInfo(): Promise<SnowDecoderInfo>;
   addListener(
-    event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported',
+    event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth',
     cb: (data: {
       screenId?: string; state?: string; playing?: boolean; code?: string; message?: string;
+      /** playerState: paused on purpose (viewer or system). `playing` also
+       *  drops on every stall; this does not. Older builds never send it. */
+      paused?: boolean;
       /** audioUnsupported: the codecs present that this device cannot decode. */
       codecs?: string; ffmpegAvailable?: boolean;
+      /** bandwidth (main slot, every 3 s while data flows): how fast the
+       *  player's own downloads are arriving, kbps. */
+      kbps?: number;
     }) => void,
   ): Promise<PluginListenerHandle>;
 }

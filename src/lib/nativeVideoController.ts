@@ -8,17 +8,27 @@ import type { VideoController, VideoTrackInfo } from '@/components/livetv/VideoP
 interface Callbacks {
   onTracksChanged?: () => void;
   onPlayStateChange?: (paused: boolean) => void;
+  /** Paused on purpose (not a stall): set the moment play/pause is asked
+   *  for here, then confirmed by the plugin's `paused` (which also covers a
+   *  pause from outside the app). */
+  onPausedChange?: (paused: boolean) => void;
 }
 
 export interface NativeControllerHandle {
   controller: VideoController;
   prime: () => Promise<void>;
+  /** A new stream starts playing: forget the last one's pause, quietly. */
+  resetPaused: () => void;
   dispose: () => void;
 }
 
 export function createNativeVideoController(cb: Callbacks = {}): NativeControllerHandle {
   const state = {
     paused: false,
+    // What the viewer asked for. `paused` above follows `playing`, which
+    // is also false during every stall — Play/Pause pressed mid-stall used
+    // to resume instead of pausing.
+    wantPaused: false,
     audioIdMap: [] as string[],   // index → "group:track"
     subIdMap: [] as string[],
     audioTracks: [] as VideoTrackInfo[],
@@ -56,16 +66,22 @@ export function createNativeVideoController(cb: Callbacks = {}): NativeControlle
         state.paused = !data.playing;
         cb.onPlayStateChange?.(state.paused);
       }
+      if (typeof data.paused === 'boolean') setWantPaused(data.paused);
     }).catch(() => null),
   ]);
 
+  function setWantPaused(p: boolean) {
+    if (state.wantPaused === p) return;
+    state.wantPaused = p;
+    cb.onPausedChange?.(p);
+  }
+  const doPlay = () => { void SnowPlayer.play().catch(() => { /* ignore */ }); state.paused = false; setWantPaused(false); };
+  const doPause = () => { void SnowPlayer.pause().catch(() => { /* ignore */ }); state.paused = true; setWantPaused(true); };
+
   const controller: VideoController = {
-    play: () => { void SnowPlayer.play().catch(() => { /* ignore */ }); state.paused = false; },
-    pause: () => { void SnowPlayer.pause().catch(() => { /* ignore */ }); state.paused = true; },
-    togglePlay: () => {
-      if (state.paused) { void SnowPlayer.play().catch(() => { /* ignore */ }); state.paused = false; }
-      else { void SnowPlayer.pause().catch(() => { /* ignore */ }); state.paused = true; }
-    },
+    play: doPlay,
+    pause: doPause,
+    togglePlay: () => { if (state.wantPaused) doPlay(); else doPause(); },
     seek: () => { /* live — no-op */ },
     isPaused: () => state.paused,
     isSeekable: () => false,
@@ -86,5 +102,7 @@ export function createNativeVideoController(cb: Callbacks = {}): NativeControlle
     void listenersP.then((hs) => hs.forEach((h) => { try { h?.remove?.(); } catch { /* ignore */ } }));
   };
 
-  return { controller, prime, dispose };
+  const resetPaused = () => { state.wantPaused = false; };
+
+  return { controller, prime, resetPaused, dispose };
 }

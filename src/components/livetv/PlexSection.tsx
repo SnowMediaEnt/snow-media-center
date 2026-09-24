@@ -3604,6 +3604,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             onChangeVolume={changeVolume}
             onFixAudio={fixAudioTranscode}
             prompt={playerPrompt}
+            paused={native.paused}
           />
         )}
         {conn && !DEMO && (

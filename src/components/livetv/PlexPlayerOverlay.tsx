@@ -1,13 +1,15 @@
-// Plex VOD playback overlay. Shown for 5s on any key while fullscreen. Owns
-// its own keydown listener (capture=true) when visible; hides on Back. When
-// hidden, this component renders nothing — PlexSection's own Back handler
-// exits playback. Native-only (uses SnowPlayer position/tracks).
+// Plex VOD playback overlay. Shown for 5s on any key while fullscreen, and for
+// as long as playback is paused. Owns its own keydown listener (capture=true)
+// when visible; hides on Back. When hidden, this component renders nothing —
+// PlexSection's own Back handler exits playback. Native-only (uses SnowPlayer
+// position/tracks).
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, Maximize, LifeBuoy, Volume2, VolumeX } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@/lib/opensubtitles';
 import { PLEX_QUALITY_PRESETS } from '@/lib/plex';
+import { formatMbps, getPlayerSpeedKbps } from '@/lib/bufferDiagnostics';
 import { SCREEN_FORMATS, type ScreenFormat } from '@/capacitor/SnowPlayer';
 import { useScreenFormat } from '@/hooks/useScreenFormat';
 // The module-level toast, not the hook: the hook subscribes its caller to
@@ -81,6 +83,9 @@ interface Props {
   onFixAudio?: (resumeSec: number) => void;
   /** Skip Intro / Up Next, drawn over the picture (see PlayerPrompt). */
   prompt?: PlayerPrompt | null;
+  /** Paused on purpose (useNativePlayer's `paused`, not a stall). The bar
+   *  comes up on a pause however it was made and stays until playing again. */
+  paused?: boolean;
 }
 
 
@@ -93,14 +98,15 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
   const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'format' | 'volume' | 'help'>('none');
   const [menuIdx, setMenuIdx] = useState(0);
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
-  const [paused, setPaused] = useState(false);
+  // From the position poll: also true mid-stall, so the `paused` prop wins.
+  const [pollPaused, setPollPaused] = useState(false);
   // Preview position while on the scrub row (null = not scrubbing).
   const [scrubPos, setScrubPos] = useState<number | null>(null);
   const scrubRepeatRef = useRef<{ at: number; count: number }>({ at: 0, count: 0 });
@@ -116,9 +122,15 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const hideTimerRef = useRef<number | null>(null);
   const pollTimerRef = useRef<number | null>(null);
 
+  // Read by armHide, so set in render: the pause effect below must see it.
+  const pausedRef = useRef(!!paused);
+  pausedRef.current = !!paused;
+
   const clearHide = () => { if (hideTimerRef.current) { window.clearTimeout(hideTimerRef.current); hideTimerRef.current = null; } };
   const armHide = useCallback(() => {
     clearHide();
+    // No auto-hide while paused; playing again re-arms it.
+    if (pausedRef.current) return;
     hideTimerRef.current = window.setTimeout(() => { setVisible(false); setMenu('none'); setScrubPos(null); }, 5000);
   }, []);
 
@@ -137,7 +149,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     const tick = async () => {
       const p = await getPosition();
       if (cancelled) return;
-      setPos(p.position); setDur(p.duration); setPaused(!p.playing);
+      setPos(p.position); setDur(p.duration); setPollPaused(!p.playing);
     };
     void tick();
     pollTimerRef.current = window.setInterval(() => void tick(), 1000);
@@ -288,6 +300,19 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const onOpenSupportRef = useRef(onOpenSupport); useEffect(() => { onOpenSupportRef.current = onOpenSupport; }, [onOpenSupport]);
   const onFixAudioRef = useRef(onFixAudio); useEffect(() => { onFixAudioRef.current = onFixAudio; }, [onFixAudio]);
   const promptRef = useRef(prompt); useEffect(() => { promptRef.current = prompt; }, [prompt]);
+
+  // A pause — the remote's Play/Pause, OK on ▶❚❚, the phone remote, anything
+  // — brings the bar up on Play (so OK resumes) and holds it there. Playing
+  // again hides it after the usual 5 s. Back while paused still hides it.
+  useEffect(() => {
+    if (!active) return;
+    if (paused) {
+      clearHide();
+      if (!visibleRef.current) { setRow('play'); setScrubPos(null); setVisible(true); }
+    } else if (visibleRef.current) {
+      armHide();
+    }
+  }, [active, paused, armHide]);
 
   useEffect(() => {
     if (!active) return;
@@ -514,6 +539,10 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const pct = dur > 0 ? Math.min(100, Math.max(0, (shownPos / dur) * 100)) : 0;
   const scrubDelta = scrubbing && scrubPos != null ? Math.round(scrubPos - pos) : 0;
   const volPct = Math.round(Math.min(1, Math.max(0, volume)) * 100);
+  // "Your speed" in the quality menu: the fastest the player's downloads
+  // have come in lately, next to the presets' Mb/s. Read on render (the
+  // position poll re-renders every second); nothing is measured for it.
+  const yourKbps = menu === 'quality' ? getPlayerSpeedKbps() : null;
   const btnBase = 'flex items-center justify-center rounded-full transition-transform duration-150';
   // Control-bar row whose popup menu is open. That button drops its focused
   // look (and data-focused) for an "open" outline so the eye moves to the menu.
@@ -575,7 +604,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <div className="mt-4 flex items-center justify-center gap-3">
             <button type="button" data-focused={row === 'seek-10' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek-10')}`} aria-label="Back 10 seconds"><Rewind className="w-6 h-6" /></button>
             <button type="button" data-focused={row === 'play' ? 'true' : 'false'} className={`${btnBase} w-16 h-16 ${focusVis('play')}`} aria-label="Play/Pause">
-              {paused ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />}
+              {(paused ?? pollPaused) ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />}
             </button>
             <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label="Forward 30 seconds"><FastForward className="w-6 h-6" /></button>
             <button type="button" data-focused={btnFocused('audio')} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label="Audio"><AudioLines className="w-6 h-6" /></button>
@@ -681,6 +710,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Quality</p>
             <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
           </div>
+          {yourKbps != null && (
+            <p className="px-2 pb-1 text-xs text-brand-ice/70 font-nunito tabular-nums">Your speed: <span className="text-white/90">{formatMbps(yourKbps)}</span></p>
+          )}
           <div className="space-y-1">
             {PLEX_QUALITY_PRESETS.map((p, i) => (
               <div key={p.key} data-focused={menuIdx === i ? 'true' : 'false'}

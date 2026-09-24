@@ -54,7 +54,9 @@ export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): Cla
   if (snap.verdict === 'internet' && !snap.online) return null;
   const need = ctx.transcoding ? (ctx.targetKbps ?? ctx.fileKbps) : ctx.fileKbps;
   const net = snap.probeKbps;
-  const got = snap.hostKbps ?? snap.streamKbps;
+  // Failing the probes' numbers, what the player itself is receiving (a 0
+  // says nothing about the server: it may be between connections).
+  const got = snap.hostKbps ?? snap.streamKbps ?? (snap.nowKbps ? snap.nowKbps : null);
   const needs = need ? ` This video needs about ${formatMbps(need)}.` : '';
 
   if (ctx.route === 'relay') {

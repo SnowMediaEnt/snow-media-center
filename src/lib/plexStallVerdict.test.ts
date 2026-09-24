@@ -4,7 +4,7 @@ import { autoDropPreset, explainPlexStall, presetFor } from './plexStallVerdict'
 
 const snap = (o: Partial<DiagSnapshot>): DiagSnapshot => ({
   verdict: 'unknown', headline: 'Buffering…', detail: '', streamKbps: null, streamEarlyKbps: null,
-  probeKbps: null, probeMs: null, hostKbps: null, hostMs: null, bufferingForMs: 3000, online: true, updatedAt: 0, ...o,
+  probeKbps: null, probeMs: null, probeFailed: false, nowKbps: null, hostKbps: null, hostMs: null, bufferingForMs: 3000, online: true, updatedAt: 0, ...o,
 });
 
 describe('explainPlexStall', () => {
@@ -20,6 +20,13 @@ describe('explainPlexStall', () => {
     const r = explainPlexStall(snap({ probeKbps: 200000, hostKbps: 6000 }), { transcoding: false, fileKbps: 30000, route: 'direct' });
     expect(r?.verdict).toBe('server');
     expect(r?.headline).toMatch(/send/);
+  });
+  it('with no probe of the stream (Fire TV), goes by what the player receives', () => {
+    const r = explainPlexStall(snap({ probeKbps: 200000, nowKbps: 6000 }), { transcoding: false, fileKbps: 30000, route: 'direct' });
+    expect(r?.verdict).toBe('server');
+    expect(r?.detail).toMatch(/6\.0 Mb\/s/);
+    // Nothing arriving says nothing about the server.
+    expect(explainPlexStall(snap({ probeKbps: 200000, nowKbps: 0 }), { transcoding: false, fileKbps: 30000, route: 'direct' })?.headline).not.toMatch(/server/);
   });
   it('leaves ISP throttling alone', () => {
     expect(explainPlexStall(snap({ verdict: 'throttling', probeKbps: 90000, streamKbps: 2000 }), { transcoding: false, fileKbps: 8000 })).toBeNull();
