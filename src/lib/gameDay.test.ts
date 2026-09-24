@@ -122,15 +122,17 @@ describe('gameDay', () => {
   });
 
   describe("event channels: the day's name has the game", () => {
-    it('a PPV or event channel shows a baseball game too', async () => {
+    it("PPV never has a league's game; an events category can, and a league's own PPV is the league's", async () => {
       const { channelsForGame } = await import('./gameDay');
       const got = channelsForGame(mlb(), [
         chans(60, 'PPV 12: Yankees vs Red Sox', 'PPV'),
         chans(61, 'EVENT 03: New York Yankees @ Boston Red Sox', 'US| LIVE EVENTS'),
-        chans(62, 'PPV 14: Canelo vs Crawford', 'PPV'),
+        chans(62, 'PPV EVENT 04: Yankees vs Red Sox', 'PAY-PER-VIEW 2'),
       ]);
-      expect(ids(got)).toEqual([60, 61]);
-      expect(got.every((c) => c.via === 'game' && c.score === 100)).toBe(true);
+      expect(ids(got)).toEqual([61]);
+      expect(got[0]).toMatchObject({ via: 'game', score: 100 });
+      const nhl = game({ league: 'nhl', leagueLabel: 'NHL', home: team('Bruins', 'Boston', 'Boston Bruins', 'BOS'), away: team('Rangers', 'New York', 'New York Rangers', 'NYR') });
+      expect(ids(channelsForGame(nhl, [chans(63, 'NHL PPV 03: Rangers vs Bruins', 'NHL PPV')]))).toEqual([63]);
     });
 
     it('reads what is in brackets, and "West" is part of a name there', async () => {
@@ -256,6 +258,53 @@ describe('gameDay', () => {
     });
   });
 
+  describe("PPV events, from the channels' own names", () => {
+    // Friday Sep 18, 2026, 4 PM Eastern.
+    const now = Date.parse('2026-09-18T20:00:00Z');
+
+    it('reads the event and when it starts', async () => {
+      const { ppvEvent } = await import('./gameDay');
+      expect(ppvEvent('PPV EVENT 02: STSS Fonda 200 at Fonda (9.18 6:00 PM ET)', now)).toEqual({ title: 'STSS Fonda 200 at Fonda', start: Date.parse('2026-09-18T22:00:00Z') });
+      expect(ppvEvent('PPV EVENT 01: PDRA Brian Olson Memorial World Finals (9.18 8:55 AM ET)', now)).toEqual({ title: 'PDRA Brian Olson Memorial World Finals', start: Date.parse('2026-09-18T12:55:00Z') });
+      expect(ppvEvent('PPV EVENT 13: RAF 13 Covington vs. Muhammad (9.18 9:00 PM ET)', now)?.title).toBe('RAF 13 Covington vs. Muhammad');
+      expect(ppvEvent('US| PPV 3 - Canelo vs Crawford 9/13 8:00 PM ET', now)).toEqual({ title: 'Canelo vs Crawford', start: Date.parse('2026-09-14T00:00:00Z') });
+      // A time alone is today's.
+      expect(ppvEvent('PAY-PER-VIEW 7: Cotton Pickin 100 Prelim Night @ 7:30 PM', now)).toEqual({ title: 'Cotton Pickin 100 Prelim Night', start: Date.parse('2026-09-18T23:30:00Z') });
+      expect(ppvEvent('PPV EVENT 15', now)).toBeNull();
+      expect(ppvEvent('PPV EVENT 16: No Event', now)).toBeNull();
+      expect(ppvEvent('PPV EVENT 17: Rolling Loud Festival', now)).toEqual({ title: 'Rolling Loud Festival', start: null });
+    });
+
+    it("lists today's and tonight's once per event, not old ones or a card the scoreboard has", async () => {
+      const { channelKey, isPpvFight, ppvGames, sportsChannel } = await import('./gameDay');
+      const other = { host: 'http://other.xyz', username: 'u', password: 'p' } as never;
+      const list = [
+        chans(400, 'PPV EVENT 02: STSS Fonda 200 at Fonda (9.18 6:00 PM ET)', 'PAY-PER-VIEW 2'),
+        chans(401, 'PPV EVENT 13: RAF 13 Covington vs. Muhammad (9.18 9:00 PM ET)', 'PAY-PER-VIEW 2'),
+        chans(402, 'PPV EVENT 01: Last Week Finals (9.11 8:00 PM ET)', 'PAY-PER-VIEW 1'),
+        chans(403, 'PPV EVENT 09: UFC 320 Ankalaev vs Pereira (9.18 10:00 PM ET)', 'PAY-PER-VIEW 3'),
+        chans(404, 'PPV EVENT 05', 'PAY-PER-VIEW 1'),
+        chans(405, 'MLB 07: Yankees vs Red Sox (9.18 7:05 PM ET)', 'MLB ZONE'),
+        sportsChannel(other, { stream_id: 406, name: 'PPV 2: STSS Fonda 200 at Fonda (9.18 6:00 PM ET)' } as never, 'PPV')!,
+      ];
+      const got = ppvGames(list, new Set([channelKey(list[3])]), now);
+      expect(got.map((p) => [p.game.name, ids(p.links)])).toEqual([
+        ['STSS Fonda 200 at Fonda', [400, 406]],
+        ['RAF 13 Covington vs. Muhammad', [401]],
+      ]);
+      expect(got.map((p) => isPpvFight(p.game))).toEqual([false, true]);
+      expect(got[0].game).toMatchObject({ league: 'ppv', leagueLabel: 'PPV', state: 'pre', start: '2026-09-18T22:00:00.000Z' });
+    });
+
+    it('a UFC card the scoreboard has keeps its PPV channel; the list leaves it out', async () => {
+      const { cardChannels, channelsForGame } = await import('./gameDay');
+      const card = game({ id: 'ufc:1', league: 'ufc', leagueLabel: 'UFC', name: 'UFC 320: Ankalaev vs. Pereira 2', start: new Date(now + 6 * 60 * 60_000).toISOString() });
+      const list = [chans(410, 'PPV EVENT 09: UFC 320 Ankalaev vs Pereira (9.18 10:00 PM ET)', 'PAY-PER-VIEW 3')];
+      expect(ids(channelsForGame(card, list))).toEqual([410]);
+      expect([...cardChannels([card], list)]).toHaveLength(1);
+    });
+  });
+
   it('reads dates and times written in a channel name', async () => {
     const { nameDates, nameTimes } = await import('./gameDay');
     expect(nameDates('MLB 07: Yankees vs Red Sox 09/24')).toEqual([924]);
@@ -263,6 +312,9 @@ describe('gameDay', () => {
     expect(nameDates('Thu 25th Sep')).toEqual([925]);
     expect(nameDates('Yankees vs Red Sox 24/7')).toEqual([]);
     expect(nameDates('Mets vs Marlins 7:10 PM')).toEqual([]);
+    expect(nameDates('PPV EVENT 02: STSS Fonda 200 at Fonda (9.18 6:00 PM ET)')).toEqual([918]);
+    expect(nameDates('Bears vs Packers Dolby 5.1')).toEqual([]);
+    expect(nameDates('Fight Night 7.05pm')).toEqual([]);
     expect(nameTimes('Yankees vs Red Sox 7:05 PM ET')).toEqual([{ mins: [1145], zone: 'America/New_York' }]);
     expect(nameTimes('Yankees vs Red Sox 19:05')).toEqual([{ mins: [1145], zone: undefined }]);
     expect(nameTimes('Yankees vs Red Sox 7pm')).toEqual([{ mins: [1140], zone: undefined }]);

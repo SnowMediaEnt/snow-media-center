@@ -25,6 +25,10 @@
 // Every sport the game-day function lists works the same way: the team
 // sports, fight cards, and events without teams (races, golf and tennis
 // tournaments), found by their name or their circuit, course or venue.
+// PPV channels carry fights, festivals and small races, never a league's
+// games: they are only ever a fight card's. What is on them comes from their
+// own names ("PPV EVENT 02: STSS Fonda 200 at Fonda (9.18 6:00 PM ET)"), as
+// Game Day's PPV list (ppvGames).
 // Streaming-only services (MLB.tv, ESPN+, Peacock …) are never links: no line
 // carries them as a channel.
 import { supabase } from '@/integrations/supabase/client';
@@ -149,8 +153,10 @@ export function leaguesIn(text: string): string[] {
 const SPORT = /\b(sports?|espn|ppv|pay per view|events?|live events?|game ?day|zone|dazn|fubo|bein|tsn|sky sports|golf|tennis|racing|f1|nascar|wrestling|wwe|aew)\b/;
 const NETWORK = /\b(networks?|locals?|regionals?|rsn|abc|cbs|nbc|fox|tnt|tbs|usa|us|united states|america|american|entertainment)\b/;
 const NOT_SPORTS = /\b(kids?|children|cartoons?|music|radio|religious|faith|adult|xxx|movies?|cinema|vod|series)\b/;
-/** PPV and event categories: any league's games, and the fight cards'. */
+/** PPV and event categories: fight cards and events. */
 const EVENTS = /\b(ppv|pay per view|events?)\b/;
+/** Pay-per-view: fights, festivals and small races, never a league's games. */
+const PPV = /\b(ppv|pay ?per ?view)\b/;
 
 const normalise = (s: string): string => normalizeSpeech(String(s ?? '').replace(/[|:_/-]+/g, ' '));
 
@@ -428,8 +434,9 @@ const MONTHS: Record<string, number> = {
 const MONTH = `(${Object.keys(MONTHS).join('|')})`;
 
 /** The dates written in a channel name, as month × 100 + day. Numbers alone
- *  are read both ways round: providers write 09/24 and 24/09. Never "24/7",
- *  and never two single digits ("1/2"): too likely something else. */
+ *  are read both ways round: providers write 09/24, 24/09 and 9.24. Never
+ *  "24/7", a time ("7.05pm"), or two single digits ("1/2", "5.1"): too
+ *  likely something else. */
 export function nameDates(raw: string): number[] {
   const s = ` ${String(raw ?? '').toLowerCase()} `;
   const out: number[] = [];
@@ -443,6 +450,12 @@ export function nameDates(raw: string): number[] {
     if ((a === 24 && b === 7) || (x[2].length === 1 && x[3].length === 1 && !x[4])) continue;
     put(a, b);
     put(b, a);
+  }
+  const dots = /(^|[^\d.])(\d{1,2})\.(\d{1,2})(?![\d.]|\s*[ap]\.?m\b)/g;
+  while ((x = dots.exec(s))) {
+    if (x[2].length === 1 && x[3].length === 1) continue;
+    put(Number(x[2]), Number(x[3]));
+    put(Number(x[3]), Number(x[2]));
   }
   const monthDay = new RegExp(`\\b${MONTH}\\.?\\s*(\\d{1,2})(?:st|nd|rd|th)?(?![\\d:])`, 'g');
   while ((x = monthDay.exec(s))) put(MONTHS[x[1]], Number(x[2]));
@@ -615,6 +628,10 @@ export function channelsForGame(game: Game, channels: SportsChannel[], limit = 1
   let leagueLinks = 0;
   for (const c of channels) {
     const inLeague = c.leagues.includes(game.league);
+    // PPV carries fights, festivals and small races, never a league's games
+    // or the scoreboards' races and tournaments: only a fight card is ever on
+    // one. A league's own PPV category ("NHL PPV") is that league's.
+    if (!inLeague && game.league !== 'ufc' && PPV.test(`${c.cat} ${c.full}`)) continue;
     const other = !inLeague && otherLeague(c, game.league);
     if (!other) {
       const s = eventScore(c, game, w, inLeague);
@@ -661,12 +678,13 @@ export function channelsForGame(game: Game, channels: SportsChannel[], limit = 1
 }
 
 /** The categories of the game's league on this box (for a fight card, the
- *  PPV and event ones too), for "Browse in Live TV". */
-export function leagueCategories(game: Game, channels: SportsChannel[], limit = 3): Array<{ line: XtreamCreds; categoryId: string; name: string }> {
+ *  PPV and event ones too), for "Browse in Live TV". For a PPV event, the
+ *  categories of its own channels (`only`: their link keys). */
+export function leagueCategories(game: Game, channels: SportsChannel[], limit = 3, only?: Set<string>): Array<{ line: XtreamCreds; categoryId: string; name: string }> {
   const out: Array<{ line: XtreamCreds; categoryId: string; name: string }> = [];
   const seen = new Set<string>();
   for (const c of channels) {
-    if (!leaguesIn(c.cat).includes(game.league) && !(game.league === 'ufc' && EVENTS.test(c.cat))) continue;
+    if (only ? !only.has(linkKey(c)) : !leaguesIn(c.cat).includes(game.league) && !(game.league === 'ufc' && EVENTS.test(c.cat))) continue;
     const id = String(c.stream.category_id ?? '');
     const k = `${c.line.host}|${c.line.username}|${id}`;
     if (!id || seen.has(k)) continue;
@@ -676,6 +694,128 @@ export function leagueCategories(game: Game, channels: SportsChannel[], limit = 
   }
   return out;
 }
+
+// ── PPV, from the channels' own names ──────────────────────────────────────
+
+const HOUR = 60 * 60_000;
+/** A PPV event is listed until this long after its start. */
+const PPV_LASTS_MS = 5 * HOUR;
+
+const wallFormats = new Map<string, Intl.DateTimeFormat | null>();
+/** A zone's calendar and clock at an instant (null: zone unknown here). */
+const wallParts = (at: number, zone: string): { y: number; mo: number; d: number; mins: number } | null => {
+  let f = wallFormats.get(zone);
+  if (f === undefined) {
+    try {
+      f = new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: false });
+    } catch { f = null; }
+    wallFormats.set(zone, f);
+  }
+  if (!f) return null;
+  const p: Record<string, number> = {};
+  for (const x of f.formatToParts(new Date(at))) if (x.type !== 'literal') p[x.type] = Number(x.value);
+  return { y: p.year, mo: p.month, d: p.day, mins: ((p.hour ?? 0) % 24) * 60 + (p.minute ?? 0) };
+};
+/** The instant a zone's clock shows a date and time. */
+const zonedAt = (y: number, mo: number, d: number, mins: number, zone: string): number | null => {
+  const want = Date.UTC(y, mo - 1, d, Math.floor(mins / 60), mins % 60);
+  let t = want;
+  for (let i = 0; i < 3; i++) {
+    const w = wallParts(t, zone);
+    if (!w) return null;
+    const diff = Date.UTC(w.y, w.mo - 1, w.d, Math.floor(w.mins / 60), w.mins % 60) - want;
+    if (!diff) return t;
+    t -= diff;
+  }
+  return t;
+};
+
+/** "PPV EVENT 01: ", "PAY-PER-VIEW 3 - ", "UFC EVENT 05 | " before the title. */
+const PPV_LABEL = /^(?:(?:ppv|pay[- ]?per[- ]?view|special|events?|ufc|boxing|live|main|fight|card|channel|ch)\s*)+#?\s*\d{1,3}\s*[:|\u2013\u2014-]\s*/i;
+const NO_EVENT = /^(no events?|no games?|off ?air|offline|tba|tbd|coming soon|events?|ppv|n\/?a|none|closed|to be announced)$/i;
+/** A name that is only its label ("PPV EVENT 15"): nothing on. */
+const LABEL_ONLY = /^(?:(?:ppv|pay[- ]?per[- ]?view|special|events?|ufc|boxing|live|main|fight|card|channel|ch)\s*)+#?\s*\d{0,3}$/i;
+const TIME_TAIL = `\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)\\s*(?:${Object.keys(ZONES).join('|')})?`;
+
+/** The event in a PPV channel's name, and when it starts: "PPV EVENT 02: STSS
+ *  Fonda 200 at Fonda (9.18 6:00 PM ET)" → "STSS Fonda 200 at Fonda", Sep 18
+ *  at 6 PM Eastern. A time with no zone is Eastern, a time with no date
+ *  today's. null for a channel with nothing on ("PPV 05", "No Event"); start
+ *  null when the name gives no time. */
+export function ppvEvent(raw: string, now = Date.now()): { title: string; start: number | null } | null {
+  let s = String(raw ?? '').trim().replace(/^[a-z]{2,3}\s*[|:]\s*/i, '');
+  s = s.replace(PPV_LABEL, '');
+  // The schedule at the end: "(9.18 6:00 PM ET)" (or cut short: "(9.18"),
+  // "- 9/18 6:00 PM ET", "@ 7:00 PM".
+  s = s.replace(/\s*[([][^)\]]*\d[^)\]]*[)\]]?\s*$/, '');
+  s = s.replace(new RegExp(`\\s*(?:[-|@\\u2013\\u2014]\\s*)?\\d{1,2}[./]\\d{1,2}(?:[./]\\d{2,4})?(?:\\s+${TIME_TAIL})?\\s*$`, 'i'), '');
+  s = s.replace(new RegExp(`\\s*(?:[-|@\\u2013\\u2014]\\s*)?${TIME_TAIL}\\s*$`, 'i'), '');
+  const title = s.replace(/\s+/g, ' ').replace(/[\s:|\u2013\u2014-]+$/, '').trim();
+  if (title.length < 3 || NO_EVENT.test(title) || LABEL_ONLY.test(title)) return null;
+
+  const time = nameTimes(raw)[0];
+  if (!time) return { title, start: null };
+  const zone = time.zone ?? 'America/New_York';
+  const today = wallParts(now, zone);
+  if (!today) return { title, start: null };
+  const days = nameDates(raw);
+  const cands: number[] = [];
+  const dates: Array<[number, number, number]> = days.length
+    ? days.flatMap((md) => [today.y - 1, today.y, today.y + 1].map((y): [number, number, number] => [y, Math.floor(md / 100), md % 100]))
+    : [[today.y, today.mo, today.d]];
+  for (const [y, mo, d] of dates) for (const m of time.mins) {
+    const t = zonedAt(y, mo, d, m, zone);
+    if (t != null) cands.push(t);
+  }
+  if (!cands.length) return { title, start: null };
+  // The reading nearest now: "7:00" is the evening's when that is closer.
+  cands.sort((a, b) => Math.abs(a - now) - Math.abs(b - now));
+  return { title, start: cands[0] };
+}
+
+/** A PPV fight ("Covington vs. Muhammad"): listed with the day's games. */
+export const isPpvFight = (g: Game): boolean => g.league === 'ppv' && /\bvs?\.?\s/i.test(g.name);
+
+/** Today's PPV events on this box, from its PPV channels' names: the fights,
+ *  festivals and small races no scoreboard lists. One entry per event (the
+ *  same event on two lines is one, with both channels); from its start until
+ *  five hours after, or up to 30 hours ahead. `taken`: channels a listed game
+ *  already has (a UFC card's). */
+export function ppvGames(channels: SportsChannel[], taken: Set<string> = new Set(), now = Date.now()): Array<{ game: Game; links: GameChannel[] }> {
+  const byEvent = new Map<string, { game: Game; links: GameChannel[] }>();
+  for (const c of channels) {
+    if (!PPV.test(`${c.cat} ${c.full}`) || taken.has(linkKey(c))) continue;
+    const ev = ppvEvent(String(c.stream?.name ?? ''), now);
+    if (!ev || ev.start == null) continue;
+    if (now - ev.start > PPV_LASTS_MS || ev.start - now > 30 * HOUR) continue;
+    const link: GameChannel = { line: c.line, stream: c.stream, score: 100, via: 'game' };
+    const k = `${normalizeSpeech(ev.title)}|${ev.start}`;
+    const hit = byEvent.get(k);
+    if (hit) { hit.links.push(link); continue; }
+    byEvent.set(k, {
+      game: {
+        id: `ppv:${linkKey(c)}`, league: 'ppv', leagueLabel: 'PPV', name: ev.title, event: ev.title,
+        start: new Date(ev.start).toISOString(), state: ev.start <= now ? 'in' : 'pre', detail: '',
+        home: null, away: null, networks: [],
+      },
+      links: [link],
+    });
+  }
+  return [...byEvent.values()].sort((a, b) => Date.parse(a.game.start) - Date.parse(b.game.start));
+}
+
+/** The channels a scoreboard's fight cards have by name (so the PPV list
+ *  does not show them a second time). */
+export function cardChannels(games: Game[], channels: SportsChannel[]): Set<string> {
+  const out = new Set<string>();
+  for (const g of games) {
+    if (g.league !== 'ufc') continue;
+    for (const l of channelsForGame(g, channels)) if (l.via === 'game') out.add(linkKey(l));
+  }
+  return out;
+}
+
+export const channelKey = linkKey;
 
 // ── the guide ──────────────────────────────────────────────────────────────
 

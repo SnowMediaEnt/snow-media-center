@@ -11,6 +11,10 @@
 // channel names are read again every ten minutes while this is on screen:
 // providers rename their event channels for each day's games.
 //
+// PPV: the fights, festivals and small races on the box's PPV channels, read
+// from their names (no scoreboard lists them), under their own PPV filter;
+// the fights show with the day's games too.
+//
 // Remote: Up/Down move through the games (Up from the first reaches the
 // league filters), Left/Right move between Watch and Remind me (Left from
 // Watch goes back to the side menu), OK presses, Back goes to the side menu.
@@ -21,8 +25,8 @@ import { useToast } from '@/hooks/use-toast';
 import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
 import { isChannelDown, useDownChannels } from '@/lib/channelStatus';
 import {
-  CHANNELS_TTL_MS, LINK_LABELS, channelsForGame, checkGuides, fetchGames, isStreamingOnly, kickoffLabel, kickoffParts, leagueCategories,
-  loadSportsChannels, type Game, type GameChannel, type SportsChannel,
+  CHANNELS_TTL_MS, LINK_LABELS, cardChannels, channelKey, channelsForGame, checkGuides, fetchGames, isPpvFight, isStreamingOnly,
+  kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, ppvGames, type Game, type GameChannel, type SportsChannel,
 } from '@/lib/gameDay';
 import { GAME_REMINDERS_EVENT, hasReminder, toggleReminder } from '@/lib/gameReminders';
 import { buildLines } from '@/lib/liveLines';
@@ -129,16 +133,27 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
   const down = useDownChannels(lines, isActive);
   const isDown = useCallback((c: GameChannel) => isChannelDown(down, c.line.host, c.stream.stream_id), [down]);
 
+  // Today's PPV events, from the box's PPV channels' own names (a UFC card
+  // the scoreboard has is shown once, as its game).
+  const ppv = useMemo(() => (channels ? ppvGames(channels, cardChannels(games ?? [], channels)) : []), [games, channels]);
+  const ppvLinks = useMemo(() => new Map(ppv.map((p) => [p.game.id, p.links])), [ppv]);
+  const allGames = useMemo(() => [...(games ?? []), ...ppv.map((p) => p.game)]
+    // Live first, then by start.
+    .sort((a, b) => (a.state === 'in' ? 0 : 1) - (b.state === 'in' ? 0 : 1) || (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0)), [games, ppv]);
+
   const leagues = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const g of games ?? []) if (!seen.has(g.league)) seen.set(g.league, g.leagueLabel);
-    return [{ id: 'all', label: 'All' }, ...[...seen].map(([id, label]) => ({ id, label }))];
-  }, [games]);
+    for (const g of allGames) if (g.league !== 'ppv' && !seen.has(g.league)) seen.set(g.league, g.leagueLabel);
+    return [{ id: 'all', label: 'All' }, ...(ppv.length ? [{ id: 'ppv', label: 'PPV' }] : []), ...[...seen].map(([id, label]) => ({ id, label }))];
+  }, [allGames, ppv.length]);
 
   const rows = useMemo(() => {
-    const list = (games ?? []).filter((g) => league === 'all' || g.league === league).slice(0, lowMemory() ? 40 : 80);
+    // "All": every game, and of PPV the fights; the rest of PPV under PPV.
+    const list = allGames
+      .filter((g) => (league === 'all' ? g.league !== 'ppv' || isPpvFight(g) : g.league === league))
+      .slice(0, lowMemory() ? 40 : 80);
     return list.map((g) => {
-      const found = channels ? channelsForGame(g, channels) : [];
+      const found = g.league === 'ppv' ? (ppvLinks.get(g.id) ?? []) : channels ? channelsForGame(g, channels) : [];
       const pick = found.find((c) => !isDown(c)) ?? found[0] ?? null;
       // Worked out here, not on every key press: a formatter per row per
       // press is slow on an old box.
@@ -146,7 +161,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
       const tv = g.networks.filter((n) => !isStreamingOnly(n));
       return { game: g, found, channel: pick, channelDown: !!pick && isDown(pick), more: Math.max(0, found.length - 1), when, tv };
     });
-  }, [games, league, channels, isDown]);
+  }, [allGames, league, channels, isDown, ppvLinks]);
 
   // A focus that fell off the list (games arrived, a league filter) comes back.
   useEffect(() => {
@@ -168,7 +183,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     // Best first, a channel reported down after the working ones of its kind.
     links.sort((a, b) => b.score - a.score || Number(isDown(a)) - Number(isDown(b)));
     const items: PickItem[] = links.map((link) => ({ kind: 'link', link, down: isDown(link) }));
-    for (const c of channels ? leagueCategories(pickerRow.game, channels, 2) : []) items.push({ kind: 'browse', ...c });
+    const own = pickerRow.game.league === 'ppv' ? new Set(pickerRow.found.map(channelKey)) : undefined;
+    for (const c of channels ? leagueCategories(pickerRow.game, channels, 2, own) : []) items.push({ kind: 'browse', ...c });
     return items;
   }, [picker, pickerRow, channels, isDown]);
 
@@ -177,8 +193,10 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     if (!r) return;
     const gameId = r.game.id;
     const first = r.found.findIndex((c) => !isDown(c));
-    setPicker({ gameId, focus: Math.max(0, first), moved: false, scanning: !!channels, extra: [] });
-    if (!channels) return;
+    // A PPV event is its channel's name: no guide to ask.
+    const guided = r.game.league !== 'ppv';
+    setPicker({ gameId, focus: Math.max(0, first), moved: false, scanning: !!channels && guided, extra: [] });
+    if (!channels || !guided) return;
     // What the networks' and locals' guide says (and, when no channel is
     // named for the game, the league's numbered channels' guide).
     // The list fills in as the answers come (a few lookups at a time).
@@ -232,12 +250,17 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     let want: string | null = null;
     try { want = sessionStorage.getItem(GAMEDAY_OPEN_KEY); } catch { want = null; }
     if (!want) return;
-    try { sessionStorage.removeItem(GAMEDAY_OPEN_KEY); } catch { /* ignore */ }
     const i = rows.findIndex((r) => r.game.id === want);
+    // A PPV event that isn't a fight is under the PPV filter: go there first.
+    if (i < 0 && want.startsWith('ppv:') && league !== 'ppv' && ppvLinks.has(want)) {
+      setLeague('ppv'); setChipIdx(Math.max(0, leagues.findIndex((l) => l.id === 'ppv')));
+      return;
+    }
+    try { sessionStorage.removeItem(GAMEDAY_OPEN_KEY); } catch { /* ignore */ }
     if (i < 0) return;
     setZone('rows'); setRowIdx(i); setAction(0);
     openPicker(i);
-  }, [isActive, rows, channels, openPicker]);
+  }, [isActive, rows, channels, openPicker, league, leagues, ppvLinks]);
 
   const remind = useCallback((i: number) => {
     const r = rows[i];

@@ -5,6 +5,13 @@ const soon = new Date(Date.now() + 60 * 60_000).toISOString();
 /** What the guide check answers: a test may hold it back and hand it over later. */
 const guide = vi.hoisted(() => ({ answer: null as null | (() => Promise<unknown[]>) }));
 const line = { host: 'http://h', username: 'u', password: 'p' };
+/** "9.24 7:30 PM ET": a time `hours` from now, as the provider writes it. */
+const eastern = vi.hoisted(() => (hours: number) => {
+  const p: Record<string, string> = {};
+  for (const x of new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+    .formatToParts(new Date(Date.now() + hours * 60 * 60_000))) p[x.type] = x.value;
+  return `${p.month}.${p.day} ${p.hour}:${p.minute} ${String(p.dayPeriod).toUpperCase()} ET`;
+});
 const team = (short: string, location: string) => ({ short, name: `${location} ${short}`, location, abbr: '', logo: null, score: null });
 vi.mock('@/lib/gameDay', async (orig) => {
   const real = await orig<typeof import('@/lib/gameDay')>();
@@ -20,6 +27,9 @@ vi.mock('@/lib/gameDay', async (orig) => {
       real.sportsChannel(line as never, { stream_id: 9, name: 'NFL 01: Bears vs Packers' } as never, 'NFL')!,
       real.sportsChannel(line as never, { stream_id: 7, name: 'US| FOX 5 New York' } as never, 'US| LOCALS')!,
       real.sportsChannel(line as never, { stream_id: 3, name: 'USA | A&E' } as never, 'USA')!,
+      // The provider's PPV names: the event, then its date and time Eastern.
+      real.sportsChannel(line as never, { stream_id: 21, name: `PPV EVENT 02: Dirt Track 100 at Fonda (${eastern(3)})`, category_id: 50 } as never, 'PAY-PER-VIEW 2')!,
+      real.sportsChannel(line as never, { stream_id: 22, name: `PPV EVENT 13: Big Fight vs. Other Guy (${eastern(4)})`, category_id: 50 } as never, 'PAY-PER-VIEW 2')!,
     ],
     checkGuides: () => (guide.answer ? guide.answer() : Promise.resolve([])),
   };
@@ -70,6 +80,22 @@ describe('GameDaySection', () => {
     expect(real.LINK_LABELS.network).toBe('National TV');
     await key('Enter');
     expect(JSON.parse(sessionStorage.getItem('smc-live-deeplink') || '{}')).toMatchObject({ streamId: 7 });
+  });
+
+  it("PPV events come from the PPV channels' names: fights with the games, the rest under PPV", async () => {
+    const { default: GameDay } = await import('./GameDaySection');
+    const onWatch = vi.fn();
+    render(<GameDay creds={line as never} isActive onExitLeft={() => {}} onWatch={onWatch} />);
+    expect(await screen.findByText('Big Fight vs. Other Guy')).toBeTruthy();
+    expect(screen.queryByText('Dirt Track 100 at Fonda')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'PPV' }));
+    expect(await screen.findByText('Dirt Track 100 at Fonda')).toBeTruthy();
+    // Its list: the channel itself, and its category to browse.
+    fireEvent.click(screen.getAllByRole('button', { name: /Watch/ })[0]);
+    expect(await screen.findByText('Browse PAY PER VIEW 2 in Live TV')).toBeTruthy();
+    await key('Enter');
+    expect(onWatch).toHaveBeenCalled();
+    expect(JSON.parse(sessionStorage.getItem('smc-live-deeplink') || '{}')).toMatchObject({ streamId: 21 });
   });
 
   it('a game only on a streaming service says so and plays nothing', async () => {
