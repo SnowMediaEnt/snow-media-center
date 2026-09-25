@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Coins, Loader2, LogIn, Save, Trophy, UserRound, Volume2, VolumeX, X } from 'lucide-react';
+import { Coins, Loader2, LogIn, Music2, Save, Trophy, UserRound, Volume2, VolumeX, X } from 'lucide-react';
 import smcLogo from '@/assets/slots/smc.png';
 import { Button } from '@/components/ui/button';
 import { useGameSocket } from '@/hooks/useGameSocket';
@@ -13,6 +13,7 @@ import { activateFocused, useTvActivate } from '@/components/games/shared/tvActi
 import { isGlobalModalOpen, visualArrowDir } from '@/components/games/shared/gameInput';
 import type { GameAccent } from '@/components/games/shared/gameTypes';
 import { useGameAudio } from '@/components/games/shared/gameAudio';
+import { GameMusicSettings } from '@/components/games/shared/GameMusicSettings';
 import { gameSocket } from '@/lib/gameSocket';
 import { isBackKey } from '@/components/games/shared/gameBack';
 import '@/styles/games-lobby.css';
@@ -44,7 +45,9 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
   const leaderboardIndex = GAMES.length + 1;
   const fxIndex = GAMES.length + 2;
   const soundIndex = GAMES.length + 3;
-  const [focusIndex, setFocusIndex] = useState(Number.isInteger(initial) && initial >= 0 && initial <= soundIndex ? initial : 1);
+  const musicIndex = GAMES.length + 4;
+  const [focusIndex, setFocusIndex] = useState(Number.isInteger(initial) && initial >= 0 && initial <= musicIndex ? initial : 1);
+  const [musicOpen, setMusicOpen] = useState(false);
   const [loungeOpen, setLoungeOpen] = useState(false);
   const [loungeLoading, setLoungeLoading] = useState(false);
   const [loungeError, setLoungeError] = useState<string | null>(null);
@@ -155,6 +158,10 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
         if (direction === 'up') next = GAMES.length - 1;
       } else if (focusIndex === soundIndex) {
         if (direction === 'left') next = fxIndex;
+        if (direction === 'right') next = musicIndex;
+        if (direction === 'up') next = GAMES.length;
+      } else if (focusIndex === musicIndex) {
+        if (direction === 'left') next = soundIndex;
         if (direction === 'up') next = GAMES.length;
       } else {
         const tileIndex = focusIndex - 1;
@@ -172,7 +179,7 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [focusAt, focusIndex, fxIndex, leaderboardIndex, play, soundIndex]);
+  }, [focusAt, focusIndex, fxIndex, leaderboardIndex, musicIndex, play, soundIndex]);
 
   useEffect(() => {
     if (!loungeOpen) return;
@@ -266,8 +273,11 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
             {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
             {muted ? 'Sound Off' : 'Sound On'}
           </Button>
+          <Button type="button" variant="navy" size="sm" data-game-focus={musicIndex} data-tv-focused={focusIndex === musicIndex ? 'true' : 'false'} onFocus={() => setFocusIndex(musicIndex)} onClick={() => setMusicOpen(true)} aria-label="Game music and volume"><Music2 aria-hidden="true" />Music</Button>
         </div>
       </footer>
+
+      {musicOpen && <GameMusicSettings onClose={() => { setMusicOpen(false); requestAnimationFrame(() => focusAt(musicIndex)); }} />}
 
       {loungeOpen && (
         <div className="snow-lounge-overlay" role="dialog" aria-modal="true" aria-label="Game Lounge leaderboard">

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Crosshair, Footprints, Music2, Puzzle, Shapes, Snowflake, Star, Trees, Volume2, VolumeX, Wind } from 'lucide-react';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
 import { useGameAudio } from '@/components/games/shared/gameAudio';
+import { GameMusicSettings } from '@/components/games/shared/GameMusicSettings';
 import { useGameBack } from '@/components/games/shared/gameBack';
 import smcLogo from '@/assets/slots/smc.png';
 import { emptyProgress, KIDS_GAME_IDS, type KidsGameId } from './progress';
@@ -32,17 +33,19 @@ export default function KidsGameLounge({ onBack }: Props) {
   const { book, complete } = useKidsProgress(profile.id);
   const { muted, toggleMuted, play } = useGameAudio();
   const [selected, setSelected] = useState<KidsGameId | null>(null);
+  const [musicOpen, setMusicOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
   const cards = useRef<Array<HTMLButtonElement | null>>([]);
   const backRef = useRef<HTMLButtonElement>(null);
   const soundRef = useRef<HTMLButtonElement>(null);
+  const musicRef = useRef<HTMLButtonElement>(null);
 
   const returnToLounge = useCallback(() => { setSelected(null); setFocusIndex(0); }, []);
   useGameBack({ onExit: selected ? returnToLounge : onBack });
 
   useEffect(() => {
     if (selected) return;
-    const target = focusIndex === 6 ? backRef.current : focusIndex === 7 ? soundRef.current : cards.current[focusIndex];
+    const target = focusIndex === 6 ? backRef.current : focusIndex === 7 ? soundRef.current : focusIndex === 8 ? musicRef.current : cards.current[focusIndex];
     target?.focus({ preventScroll: true });
   }, [focusIndex, selected]);
 
@@ -69,7 +72,8 @@ export default function KidsGameLounge({ onBack }: Props) {
     event.preventDefault(); event.stopPropagation();
     setFocusIndex(current => {
       if (current === 6) return key === 'ArrowRight' ? 7 : key === 'ArrowDown' ? 0 : 6;
-      if (current === 7) return key === 'ArrowLeft' ? 6 : key === 'ArrowDown' ? 2 : 7;
+      if (current === 7) return key === 'ArrowLeft' ? 6 : key === 'ArrowRight' ? 8 : key === 'ArrowDown' ? 2 : 7;
+      if (current === 8) return key === 'ArrowLeft' ? 7 : key === 'ArrowDown' ? 2 : 8;
       const row = Math.floor(current / 3), col = current % 3;
       if (key === 'ArrowLeft') return col === 0 ? current : current - 1;
       if (key === 'ArrowRight') return col === 2 ? current : current + 1;
@@ -105,6 +109,7 @@ export default function KidsGameLounge({ onBack }: Props) {
         <div className="kids-lounge__brand"><span className="kids-lounge__brand-icon"><img src={smcLogo} alt="" /></span><span><small>SNOW MEDIA · {ageLabel}</small><h1>Kids Game Lounge</h1><p>Play, learn & explore</p></span></div>
         <div className="kids-lounge__tools"><span className="kids-lounge__star"><Star fill="currentColor" /> {totalStars} stars</span>
           <button ref={soundRef} type="button" className="kids-lounge__sound" data-kids-focused={focusIndex === 7} onFocus={() => setFocusIndex(7)} onClick={event => toggleMuted(event.nativeEvent)} aria-label={muted ? 'Turn sound on' : 'Turn sound off'}>{muted ? <VolumeX /> : <Volume2 />}</button>
+          <button ref={musicRef} type="button" className="kids-lounge__sound" data-kids-focused={focusIndex === 8} onFocus={() => setFocusIndex(8)} onClick={() => setMusicOpen(true)} aria-label="Game music and volume"><Music2 /></button>
         </div>
       </header>
       <div className="kids-lounge__ribbon"><Shapes /><span>Pick an adventure, {profile.name}!</span><span>ARROWS TO MOVE · OK TO PLAY</span></div>
@@ -123,5 +128,6 @@ export default function KidsGameLounge({ onBack }: Props) {
       </div>
       <footer className="kids-lounge__footer"><span>Every adventure earns stars. Keep trying and have fun!</span><span>Saved for {profile.name}'s profile</span></footer>
     </div>
+    {musicOpen && <GameMusicSettings onClose={() => { setMusicOpen(false); setFocusIndex(8); requestAnimationFrame(() => musicRef.current?.focus()); }} />}
   </main>;
 }
