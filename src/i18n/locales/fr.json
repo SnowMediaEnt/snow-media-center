@@ -25,6 +25,14 @@
     "player": {
       "title": "Lecteur",
       "description": "TV en direct, films et séries"
+    },
+    "liveTv": {
+      "title": "TV en direct",
+      "description": "Chaînes, guide et Game Day"
+    },
+    "plex": {
+      "title": "Plex",
+      "description": "Films et séries"
     }
   },
   "settings": {

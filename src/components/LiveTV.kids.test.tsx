@@ -235,3 +235,33 @@ describe('the Player on a grown-up profile', () => {
     expect(screen.getByText('settings-hub')).toBeTruthy();
   });
 });
+
+describe('Live TV and Plex opened from their own Home cards', () => {
+  it('Back from Live TV goes home, not to the Player chooser', async () => {
+    sessionStorage.setItem(INTENT_KEYS.player, JSON.stringify({ section: 'live', home: true }));
+    const onBack = vi.fn();
+    render(<LiveTV onBack={onBack} />);
+    await settle(); await settle();
+    expect(screen.getByText('live-section')).toBeTruthy();
+    key('ArrowLeft'); // Live TV hands the remote to the sidebar
+    await settle();
+    key('Escape');
+    await settle();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Live channels & guide')).toBeNull();
+  });
+
+  it('opened any other way, Back from Live TV still shows the chooser, which no longer offers Backups', async () => {
+    const onBack = vi.fn();
+    await (async () => { render(<LiveTV onBack={onBack} />); await settle(); })();
+    expect(screen.queryByText('Backups')).toBeNull();
+    key('Enter'); // chooser: Live TV
+    await settle();
+    key('ArrowLeft');
+    await settle();
+    key('Escape');
+    await settle();
+    expect(onBack).not.toHaveBeenCalled();
+    expect(screen.getByText('Live channels & guide')).toBeTruthy();
+  });
+});

@@ -25,6 +25,14 @@
     "player": {
       "title": "Player",
       "description": "Live-TV, Filme und Serien"
+    },
+    "liveTv": {
+      "title": "Live-TV",
+      "description": "Sender, Guide & Game Day"
+    },
+    "plex": {
+      "title": "Plex",
+      "description": "Filme & Serien"
     }
   },
   "settings": {

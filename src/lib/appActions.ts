@@ -161,6 +161,9 @@ export function setPreference(key: PreferenceKey, value: string): string | null 
  *  PLAYER_INTENT_EVENT carries the same thing, and the Player clears the
  *  stored copy when it acts on the event). */
 export interface PlayerIntent {
+  /** Opened from its own Home card: Back from it goes home, not to the
+   *  Player's chooser. */
+  home?: boolean;
   section?: 'live' | 'guide' | 'multi' | 'movies' | 'backups' | 'gameday';
   settings?: 'appearance' | 'hub';
   report?: ReportIntent;
@@ -206,6 +209,11 @@ const toPlayer = (intent: PlayerIntent, navigate: Navigate) => {
   try { window.dispatchEvent(new CustomEvent<PlayerIntent>(PLAYER_INTENT_EVENT, { detail: intent })); } catch { /* ignore */ }
   navigate('livetv');
 };
+
+/** Home's Live TV and Plex cards: straight into that part of the Player. */
+export function openPlayerSection(section: 'live' | 'movies', navigate: Navigate): void {
+  toPlayer({ section, home: true }, navigate);
+}
 
 /** Live TV: find the channel and play it. */
 export function playChannel(name: string, navigate: Navigate): void {

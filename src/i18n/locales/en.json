@@ -29,6 +29,14 @@
     "giveaway": {
       "title": "Giveaway",
       "description": "Enter to Win Prizes"
+    },
+    "liveTv": {
+      "title": "Live TV",
+      "description": "Channels, Guide & Game Day"
+    },
+    "plex": {
+      "title": "Plex",
+      "description": "Movies & Shows"
     }
   },
   "settings": {

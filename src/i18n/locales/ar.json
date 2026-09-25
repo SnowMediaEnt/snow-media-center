@@ -25,6 +25,14 @@
     "player": {
       "title": "المشغل",
       "description": "البث المباشر والأفلام والمسلسلات"
+    },
+    "liveTv": {
+      "title": "البث المباشر",
+      "description": "القنوات والدليل ويوم المباراة"
+    },
+    "plex": {
+      "title": "Plex",
+      "description": "أفلام ومسلسلات"
     }
   },
   "settings": {

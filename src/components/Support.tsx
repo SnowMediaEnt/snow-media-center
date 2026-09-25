@@ -14,6 +14,7 @@ import {
   GraduationCap,
   MonitorSmartphone,
   Sparkles,
+  Smartphone,
 } from 'lucide-react';
 import SpeedTest from '@/components/SpeedTest';
 import BufferingGuide from '@/components/BufferingGuide';
@@ -61,13 +62,14 @@ const HELP_IDS = [
   'help-tickets',
   'help-remote',
   'help-cleaner',
+  'help-apps',
 ] as const;
 
 /** A Kids profile's Support: no tickets, paid Remote Access, Device Cleaner
  *  (it removes apps) or Posts (grown-up news). How to use, Speedtest, the
  *  Buffering Guide, Support Videos and AI Chat (kept to the profile's age by
  *  the server) stay. */
-const KIDS_HIDDEN = new Set<string>(['help-tickets', 'help-remote', 'help-cleaner']);
+const KIDS_HIDDEN = new Set<string>(['help-tickets', 'help-remote', 'help-cleaner', 'help-apps']);
 
 /** Matches the `md:` breakpoint the card grid switches columns at. */
 const HELP_TWO_COL = '(min-width: 768px)';
@@ -605,6 +607,23 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 <span className="text-xl font-semibold truncate">Device Cleaner</span>
                 <span className="col-start-2 text-sm text-sky-100/90 font-normal truncate">
                   Free up space and memory
+                </span>
+              </Button>
+              )}
+              {/* Main Apps moved here from the Home screen. */}
+              {!kids && (
+              <Button
+                onClick={() => onNavigate?.('apps')}
+                variant="outline"
+                size="lg"
+                tabIndex={0}
+                data-support-tv-focus-id="help-apps"
+                className="bg-indigo-700/60 border-indigo-400/70 text-white hover:bg-indigo-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
+              >
+                <Smartphone className="w-7 h-7 row-span-2 self-center justify-self-center" />
+                <span className="text-xl font-semibold truncate">Main Apps</span>
+                <span className="col-start-2 text-sm text-indigo-100/90 font-normal truncate">
+                  Download apps and streaming tools
                 </span>
               </Button>
               )}

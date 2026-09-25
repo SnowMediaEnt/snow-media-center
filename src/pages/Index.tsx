@@ -2,7 +2,7 @@ import { memo, useState, useEffect, useLayoutEffect, useMemo, useCallback, useRe
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv, Gift, Mic, Gamepad2 } from 'lucide-react';
+import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv, Film, Gift, Mic, Gamepad2 } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 // MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
 const MediaBar = lazy(() => import('@/components/MediaBar'));
@@ -15,7 +15,7 @@ import PlayerNudgeDialog from '@/components/PlayerNudgeDialog';
 import RequestReadyDialog from '@/components/RequestReadyDialog';
 import { playerNudgeOff } from '@/lib/playerNudge';
 import { retiredAppFor } from '@/lib/retiredApps';
-import { openScreen } from '@/lib/appActions';
+import { openPlayerSection, openScreen } from '@/lib/appActions';
 import ServiceExpirationBanner from '@/components/ServiceExpirationBanner';
 
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
@@ -107,7 +107,7 @@ const RouteFallback = () => (
   </div>
 );
 
-const HOME_CARD_VIEW: Record<HomeCardId, string> = { player: 'livetv', apps: 'apps', support: 'support', store: 'store', 'kids-games': 'kids-games' };
+const HOME_CARD_VIEW: Record<HomeCardId, string> = { livetv: 'livetv', plex: 'livetv', apps: 'apps', support: 'support', store: 'store', 'kids-games': 'kids-games' };
 
 const HomeActionCard = memo(({
   button,
@@ -1066,7 +1066,12 @@ const Index = () => {
   const appsCardIdxRef = useRef(appsCardIdx);
   useEffect(() => { appsCardIdxRef.current = appsCardIdx; }, [appsCardIdx]);
   const activateByIndex = useMemo(
-    () => cardIds.map((id) => () => navigateToRef.current(HOME_CARD_VIEW[id])),
+    // Live TV and Plex go straight into their part of the Player (Back from
+    // there comes home), not to the Player's chooser.
+    () => cardIds.map((id) => () => {
+      if (id === 'livetv' || id === 'plex') openPlayerSection(id === 'plex' ? 'movies' : 'live', navigateToRef.current);
+      else navigateToRef.current(HOME_CARD_VIEW[id]);
+    }),
     [cardIds],
   );
   const activateByIndexRef = useRef(activateByIndex);
@@ -1311,7 +1316,8 @@ const Index = () => {
 
   const buttons = useMemo(() => {
     const byId: Record<HomeCardId, { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = {
-      player: { icon: Tv, title: t('home.player.title'), description: t('home.player.description'), variant: 'navy' },
+      livetv: { icon: Tv, title: t('home.liveTv.title'), description: t('home.liveTv.description'), variant: 'navy' },
+      plex: { icon: Film, title: t('home.plex.title'), description: t('home.plex.description'), variant: 'blue' },
       apps: { icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
       support: { icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
       store: { icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' },

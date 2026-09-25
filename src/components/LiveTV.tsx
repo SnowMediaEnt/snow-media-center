@@ -385,6 +385,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // Plex opened from the VOD list: leaving Plex returns there, not to the
   // mode chooser.
   const plexFromVodRef = useRef(false);
+  // Opened from its own Home card (Live TV or Plex): leaving it goes home.
+  const fromHomeCardRef = useRef(false);
+  const onBackRef = useRef(onBack);
+  onBackRef.current = onBack;
   const enterMode = useCallback((m: 'live' | 'movies' | 'backups') => {
     plexFromVodRef.current = false;
     // Backups are not on a Kids profile (see sections); Live TV instead.
@@ -419,6 +423,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       setPane('content');
       return;
     }
+    if (fromHomeCardRef.current) {
+      fromHomeCardRef.current = false;
+      onBackRef.current();
+      return;
+    }
     setMode('choose');
     setSectionIdx(0);
     setPane('sections');
@@ -434,6 +443,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // are already on screen).
   const applyIntent = useCallback((intent: PlayerIntent) => {
     const sec = intent.section ?? 'live';
+    fromHomeCardRef.current = !!intent.home;
     if (sec === 'movies') { enterMode('movies'); if (intent.plex) setPane('content'); }
     else if (sec === 'backups') enterMode('backups');
     else {

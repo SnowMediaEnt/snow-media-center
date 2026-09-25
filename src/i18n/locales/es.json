@@ -25,6 +25,14 @@
     "player": {
       "title": "Reproductor",
       "description": "TV en vivo, películas y series"
+    },
+    "liveTv": {
+      "title": "TV en vivo",
+      "description": "Canales, guía y Game Day"
+    },
+    "plex": {
+      "title": "Plex",
+      "description": "Películas y series"
     }
   },
   "settings": {

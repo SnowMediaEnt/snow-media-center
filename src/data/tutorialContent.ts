@@ -21,7 +21,6 @@ import {
   Settings,
   Smartphone,
   Download,
-  Pin,
   LifeBuoy,
   Gauge,
   CircleDot,
@@ -72,7 +71,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     color: 'bg-cyan-700/60 border-cyan-400/70 text-cyan-100',
     slides: [
       { icon: Gamepad2, title: 'Move with the arrows. OK picks. Back goes back.', line2: "That's 90% of everything — you can't break anything.", art: { screen: 'remote', highlight: 'dpad' } },
-      { icon: Home, title: 'This is your Home screen.', line2: 'Big cards: Player, Main Apps, Support and the Store.', art: { screen: 'home' } },
+      { icon: Home, title: 'This is your Home screen.', line2: 'Big cards: Live TV, Plex, Support and the Store.', art: { screen: 'home' } },
       { icon: Film, title: 'The bar up top is yours.', line2: 'What you were watching, your live channels with what\'s on now, and picks based on what you watch. OK jumps straight in.', art: { screen: 'home', highlight: 'contentbar' } },
       { icon: Newspaper, title: 'The scrolling line at the very top is news from us.', line2: 'Deals, updates and heads-ups show there.', art: { screen: 'home', highlight: 'ticker' } },
       { icon: Cog, title: 'My Account and Settings live in the top-right corner.', art: { screen: 'home', highlight: 'header' } },
@@ -87,7 +86,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     slides: [
       {
         icon: Tv,
-        title: 'Open Player, then Live TV.',
+        title: 'Open Live TV from the Home screen.',
         line2: 'Sign in with the details your seller gave you. Every account you add shows in one list.',
         deepLink: { kind: 'view', view: 'livetv', label: 'Take me there' },
         art: { screen: 'home', highlight: 'player-card' },
@@ -109,7 +108,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     slides: [
       {
         icon: Clapperboard,
-        title: 'Open Player, then Plex (Movies & Series).',
+        title: 'Open Plex from the Home screen.',
         deepLink: { kind: 'view', view: 'livetv', label: 'Take me there' },
         art: { screen: 'chooser', highlight: 'movies-card' },
       },
@@ -131,11 +130,11 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
       {
         icon: Smartphone,
         title: 'Main Apps has every extra app you might need — all in one safe place.',
+        line2: 'Find it in Support → Main Apps.',
         deepLink: { kind: 'view', view: 'apps', label: 'Take me there' },
         art: { screen: 'apps', highlight: 'grid' },
       },
       { icon: Download, title: 'Press OK on an app, then Download to install it.', line2: "Already installed? It just says Open.", art: { screen: 'apps', highlight: 'popup' } },
-      { icon: Pin, title: "Pin your favorites and they'll show right on your Home screen.", art: { screen: 'apps', highlight: 'pin' } },
     ],
   },
   {

@@ -1,6 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { Tv, Film, LifeBuoy } from 'lucide-react';
-import { kidsLevel } from '@/lib/kidsFilter';
+import { Tv, Film } from 'lucide-react';
 
 interface Props {
   onPick: (mode: 'live' | 'movies' | 'backups') => void;
@@ -10,12 +9,11 @@ interface Props {
 const CARDS = [
   { id: 'live' as const,   label: 'Live TV',        desc: 'Live channels & guide', icon: Tv },
   { id: 'movies' as const, label: 'Plex',           desc: 'Movies & Series',       icon: Film },
-  { id: 'backups' as const, label: 'Backups',       desc: 'For Live TV members',    icon: LifeBuoy },
 ];
 
 const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
-  // Backups (unrated PPV and movie feeds) are not on a Kids profile.
-  const [cards] = useState(() => (kidsLevel() ? CARDS.filter((c) => c.id !== 'backups') : CARDS));
+  // Backups is no longer offered here (it stays a section inside Live TV).
+  const cards = CARDS;
   const [idx, setIdx] = useState(0);
   const idxRef = useRef(idx);
   useEffect(() => { idxRef.current = idx; }, [idx]);

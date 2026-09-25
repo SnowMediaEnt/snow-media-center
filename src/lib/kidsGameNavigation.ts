@@ -1,6 +1,8 @@
 import type { KidsLevel } from '@/lib/kidsFilter';
 
-export type HomeCardId = 'player' | 'apps' | 'support' | 'store' | 'kids-games';
+// 'apps' (Main Apps) is no longer a Home card — it lives in Support — but the
+// id stays for the pinned-apps popup code that keys off it.
+export type HomeCardId = 'livetv' | 'plex' | 'apps' | 'support' | 'store' | 'kids-games';
 
 /** Grown-up screens a Kids profile never opens, whoever asks: a How-to link,
  *  the assistant, a phone remote or a restored view. Main Apps, the Store,
@@ -24,7 +26,9 @@ export function profileGameView(view: string, level: KidsLevel | null): string {
   return view;
 }
 
+/** Home's cards, left to right. Live TV and Plex each have their own card at
+ *  the front (straight in, no Player chooser); Main Apps is in Support. */
 export function homeCardIds(playerEnabled: boolean, level: KidsLevel | null): HomeCardId[] {
-  const cards: HomeCardId[] = playerEnabled ? ['player'] : [];
-  return level ? [...cards, 'kids-games', 'support'] : [...cards, 'apps', 'support', 'store'];
+  const cards: HomeCardId[] = playerEnabled ? ['livetv', 'plex'] : [];
+  return level ? [...cards, 'kids-games', 'support'] : [...cards, 'support', 'store'];
 }
