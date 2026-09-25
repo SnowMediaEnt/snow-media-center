@@ -338,7 +338,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       // Today's big games and the channel each is on. Not on a Kids profile
       // (its channels are the kids ones); a Teens profile has it.
       ...(kidsLevel() === 'little' || kidsLevel() === 'kids' ? [] : [{ id: 'gameday' as SectionId, label: 'Game Day', icon: Trophy }]),
-      // The line's movies, with Plex pinned first for everything else.
+      // The line's movies. Plex has its own Home card, so it is not in here.
       { id: 'vod',   label: 'VOD',     icon: Film },
       { id: 'multi', label: 'Multi-Screen', icon: Grid2X2 },
       // Admin-published PPV and movie feeds carry no rating: never on a Kids
@@ -382,15 +382,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // the full line-up was downloaded and counted on every open. Bumping here,
   // while nothing is listening yet, makes the first request the fresh one.
   const autoRefreshedRef = useRef(false);
-  // Plex opened from the VOD list: leaving Plex returns there, not to the
-  // mode chooser.
-  const plexFromVodRef = useRef(false);
   // Opened from its own Home card (Live TV or Plex): leaving it goes home.
   const fromHomeCardRef = useRef(false);
   const onBackRef = useRef(onBack);
   onBackRef.current = onBack;
   const enterMode = useCallback((m: 'live' | 'movies' | 'backups') => {
-    plexFromVodRef.current = false;
     // Backups are not on a Kids profile (see sections); Live TV instead.
     if (m === 'backups' && kidsLevel()) m = 'live';
     if (m !== 'movies' && !autoRefreshedRef.current) {
@@ -416,13 +412,6 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, []);
   enterModeRef.current = enterMode;
   const leaveMode = useCallback(() => {
-    if (modeRef.current === 'movies' && plexFromVodRef.current) {
-      plexFromVodRef.current = false;
-      setMode('live');
-      setSection('vod');
-      setPane('content');
-      return;
-    }
     if (fromHomeCardRef.current) {
       fromHomeCardRef.current = false;
       onBackRef.current();
@@ -432,10 +421,6 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setSectionIdx(0);
     setPane('sections');
   }, []);
-  const openPlexFromVod = useCallback(() => {
-    enterMode('movies');
-    plexFromVodRef.current = true;
-  }, [enterMode]);
 
   // What the assistant or a voice command asked for. The channel to play or
   // report and the Plex title are handed on through sessionStorage (read by
@@ -1188,7 +1173,6 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               isActive={pane === 'content' && !claimOpen}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
-              onOpenPlex={openPlexFromVod}
             />
           </Suspense>
         )}
