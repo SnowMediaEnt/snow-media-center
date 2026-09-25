@@ -265,3 +265,23 @@ describe('Live TV and Plex opened from their own Home cards', () => {
     expect(screen.getByText('Live channels & guide')).toBeTruthy();
   });
 });
+
+describe('Home cards with no line saved on the box yet', () => {
+  it('Live TV goes straight to signing in, not to the Player chooser', async () => {
+    box.line = false;
+    sessionStorage.setItem(INTENT_KEYS.player, JSON.stringify({ section: 'live', home: true }));
+    render(<LiveTV onBack={vi.fn()} />);
+    await settle(); await settle();
+    expect(screen.queryByText('Live channels & guide')).toBeNull();
+    expect(screen.queryByText(/Signing you in|credentials-form/)).toBeTruthy();
+  });
+
+  it('Plex goes straight to Plex', async () => {
+    box.line = false;
+    sessionStorage.setItem(INTENT_KEYS.player, JSON.stringify({ section: 'movies', home: true }));
+    render(<LiveTV onBack={vi.fn()} />);
+    await settle(); await settle();
+    expect(screen.queryByText('Live channels & guide')).toBeNull();
+    expect(screen.getByText('plex-section')).toBeTruthy();
+  });
+});

@@ -469,7 +469,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     // The assistant's "open Live TV / the Guide / Plex / Appearance", or a
     // channel to report: read once, act once the Player knows its sign-in.
     const intent = takeIntent<PlayerIntent>(INTENT_KEYS.player, true);
-    if (intent && creds) applyIntentRef.current(intent);
+    // Home's Live TV and Plex cards go straight in even before a line is
+    // signed in: the Player often signs itself in a moment later (with the
+    // Snow Media account), and until then Live TV shows "Signing you in…" or
+    // the sign-in form, and Plex has its own. Dropping the intent here left
+    // those cards on the chooser. Other intents (play a channel, report one)
+    // still need a line first.
+    if (intent && (creds || intent.home)) applyIntentRef.current(intent);
     if (!DEMO) {
       try {
         trackEvent('player_open', 'player', {
