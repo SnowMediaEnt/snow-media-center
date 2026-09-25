@@ -14,6 +14,7 @@
 // otherwise every five.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getNextPlexEpisode, getPlexPlayInfo, type PlexEpisode, type PlexPlayInfo } from '@/lib/plex';
+import { noteProgressDiag } from '@/lib/plexProgress';
 import type { PlayerPrompt } from './PlexPlayerOverlay';
 
 export type NextEpisode = PlexEpisode & { seasonIndex?: number };
@@ -76,6 +77,7 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
       const i = await getPlexPlayInfo(base, token, ratingKey).catch(() => null);
       if (gone) return;
       if (!i) {
+        noteProgressDiag({ infoMissAt: Date.now() });
         // The server is busy starting the stream, and the stream itself fills
         // the link for its first half-minute (over a relay especially): keep
         // asking, less often, for as long as the title is up. Two tries in

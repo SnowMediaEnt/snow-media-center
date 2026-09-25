@@ -66,7 +66,7 @@ import PlexProgressReporter from './PlexProgressReporter';
 import PlexBackdrop from './PlexBackdrop';
 import { focusBackdrop } from '@/lib/plexBackdrop';
 import { revealPlexRail } from '@/lib/plexReveal';
-import { continueWatching, initPlexProgress, mergeContinue, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
+import { continueWatching, initPlexProgress, mergeContinue, progressCount, progressDiag, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { upNextEpisodes } from '@/lib/plexUpNext';
 import { fetchFeedItems, othersWatchingKeys, OTHERS_TTL_MS, OTHERS_WATCHING_TITLE } from '@/lib/plexOthersWatching';
 import { myList, pullFavoritesFromCloud, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
@@ -1974,6 +1974,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
           })}
         </>
       )}
+      <ContinueWatchingCheck />
       {(() => {
         const signOutIdx = libraries.length;
         const focused = isActive && cursor === signOutIdx;
@@ -2002,6 +2003,37 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
   );
 });
 ManagePanel.displayName = 'ManagePanel';
+
+/** "Continue Watching check": what this box last saved for the viewer, so a
+ *  photo of Plex Settings shows where Continue Watching stops. Display only. */
+const clock = (s?: number): string => {
+  if (s == null || !Number.isFinite(s)) return '?';
+  const t = Math.max(0, Math.floor(s));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
+};
+const ago = (ms?: number): string => {
+  if (!ms) return '';
+  const min = Math.round((Date.now() - ms) / 60000);
+  return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} days ago`;
+};
+const ContinueWatchingCheck = () => {
+  const d = progressDiag();
+  const saved = progressCount();
+  const shown = continueWatching().length;
+  return (
+    <div className="mt-3 px-4 py-3 rounded-xl border border-white/10 bg-black/30 font-nunito text-xs text-brand-ice/75 space-y-0.5">
+      <div className="font-quicksand text-sm text-white/85">Continue Watching check</div>
+      <div>{saved} title{saved === 1 ? '' : 's'} with a saved place on this profile · {shown} in Continue Watching</div>
+      <div>
+        {d.savedAt
+          ? `Last saved ${ago(d.savedAt)}: "${d.title ?? '?'}" at ${clock(d.at)} of ${clock(d.dur)}${d.done ? ' (counted as watched)' : ''}`
+          : 'Nothing saved yet on this box.'}
+      </div>
+      {d.infoMissAt ? <div>Couldn't read what was playing {ago(d.infoMissAt)}.</div> : null}
+    </div>
+  );
+};
 
 // ─── POST-LINK CONFIRMATION CARD ───────────────────────────────────────────
 interface JustLinkedCardProps {

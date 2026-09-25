@@ -48,4 +48,14 @@ describe('PlexProgressReporter', () => {
     expect(saves).toEqual([{ key: '11', at: 700, final: false }]);
     expect(lastDur).toBe(5400);
   });
+
+  it('trusts the server\'s running time over a converted stream\'s, which only reaches just past the playhead', async () => {
+    const { default: Reporter } = await import('./PlexProgressReporter');
+    // 25 minutes into a 1 h 52 min film; the transcode's playlist so far ends 20 s ahead.
+    const growing = async () => ({ position: 1500, duration: 1520, playing: true });
+    render(<Reporter active ratingKey="11" info={{ ...info('11'), duration: 6720 }} getPosition={growing} />);
+    await flush();
+    expect(saves).toEqual([{ key: '11', at: 1500, final: false }]);
+    expect(lastDur).toBe(6720);
+  });
 });

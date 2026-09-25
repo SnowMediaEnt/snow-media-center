@@ -52,9 +52,12 @@ const PlexProgressReporter = memo(({ active, ratingKey, info, getPosition, serve
     const beat = async () => {
       try {
         const p = await getPositionRef.current();
-        // The player does not always know the running time (a stream still
-        // opening, a transcode's growing playlist); the server does.
-        const dur = p.duration > 0 ? p.duration : (info.duration ?? 0);
+        // The server's running time first. The player does not always know it:
+        // a stream still opening says 0, and a converted (transcoded) stream
+        // may only know the part converted so far, just ahead of the
+        // playhead, which made every such title count as watched to the end
+        // and left Continue Watching.
+        const dur = info.duration && info.duration > 0 ? info.duration : p.duration;
         if (!alive || !(dur > 0) || !(p.position > 0)) return;
         lastRef.current = snapshot(info, p.position, dur);
         saveProgress(lastRef.current);

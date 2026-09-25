@@ -125,7 +125,28 @@ export function saveProgress(p: Omit<PlexProgress, 't' | 'done'> & { done?: bool
     const entry: PlexProgress = { ...map[p.ratingKey], ...p, at: Math.max(0, p.at), done, t: Date.now() };
     save({ ...map, [p.ratingKey]: entry });
     toCloud(entry, final);
+    noteProgressDiag({ savedAt: entry.t, title: entry.title, at: entry.at, dur: entry.dur, done });
   });
+}
+
+// ── "Continue Watching check" (Plex Settings) ─────────────────────────────
+// What the box last saved, and when it last could not tell what was playing,
+// so a photo of Plex Settings says where Continue Watching stops. Per box.
+const DIAG_KEY = 'smc-plex-progress-diag';
+export interface ProgressDiag {
+  savedAt?: number; title?: string; at?: number; dur?: number; done?: boolean;
+  /** The last time "what is playing" could not be read from the server. */
+  infoMissAt?: number;
+}
+export function progressDiag(): ProgressDiag {
+  try { return (JSON.parse(localStorage.getItem(DIAG_KEY) || 'null') as ProgressDiag | null) ?? {}; } catch { return {}; }
+}
+export function noteProgressDiag(patch: ProgressDiag): void {
+  try { localStorage.setItem(DIAG_KEY, JSON.stringify({ ...progressDiag(), ...patch })); } catch { /* ignore */ }
+}
+/** How many titles this viewer has a saved place in. */
+export function progressCount(): number {
+  return Object.keys(load()).length;
 }
 
 export function getProgress(ratingKey: string): PlexProgress | null {

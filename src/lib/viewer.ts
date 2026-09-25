@@ -91,7 +91,14 @@ export function scopeToProfile<Q extends { like: (c: string, v: string) => Q; no
 export function resolveViewer(): Promise<string> {
   resolved ??= (async () => {
     try {
-      const { data } = await supabase.auth.getSession();
+      // getSession can wait on a token refresh over the network with no time
+      // limit. Everything that saves per viewer (Plex progress, My List)
+      // waits for this, so a refresh that never answered meant nothing was
+      // saved for the whole session. After 5 s the stored session stands.
+      const { data } = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<never>((_, reject) => { window.setTimeout(() => reject(new Error('getSession timed out')), 5000); }),
+      ]);
       const live = data.session?.user?.id ?? null;
       account = live ?? storedAccountId();
       confirmed = live != null;
