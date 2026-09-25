@@ -315,6 +315,16 @@ class GameSocketManager {
     return res;
   }
 
+  async startPlinko(payload: { bet: number; risk: string; board: 'tower' | 'wide'; dropLane: number; clientCommit: string }): Promise<any> {
+    const res = await this.emitWithAck('plinko_start', payload);
+    if (res?.ok && !res?.resumed) this.noteWager('plinko', res.bet, { mode: `${res.risk}-${res.board}` });
+    return res;
+  }
+
+  async finishPlinko(roundId: number, slot: number, clientSeed: string): Promise<any> {
+    return this.emitWithAck('plinko_finish', { roundId, slot, clientSeed });
+  }
+
   async getLoungeState(): Promise<any> { return this.emitWithAck('lounge_state', undefined, 10000); }
   async setGameName(gameName: string): Promise<any> {
     return this.emitWithAck('lounge_set_name', { gameName }, 10000);

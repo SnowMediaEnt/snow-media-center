@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Plinko, { buildPlinkoMotion, PLINKO_PEGS, PLINKO_RISK_MODES } from './Plinko';
 import { plinkoSlotFromPath, reflectPlinkoPath, widePlinkoMultipliers, widePlinkoProbabilities } from './plinkoBoards';
+import { createPlinkoPuck, stepPlinkoPuck, simulatePlinko, physicsMultipliers, physicsProbabilities } from './plinkoPhysics.js';
 
 const press = (key: string, keyCode?: number) => {
   fireEvent.keyDown(window, { key, keyCode, bubbles: true, cancelable: true });
@@ -51,18 +52,35 @@ describe('Snow Plinko TV game', () => {
     }
   });
 
-  it('keeps every score-only board consistently player-friendly', () => {
-    const combinations = [1, 10, 45, 120, 210, 252, 210, 120, 45, 10, 1];
-
-    for (const mode of PLINKO_RISK_MODES) {
-      const expectedMultiplier = mode.multipliers.reduce(
-        (sum, multiplier, index) => sum + multiplier * combinations[index],
-        0,
-      ) / 1024;
-
-      expect(expectedMultiplier).toBeGreaterThanOrEqual(1.04);
-      expect(expectedMultiplier).toBeLessThanOrEqual(1.06);
+  it('normalizes every physics paytable against actual sampled landing probabilities', () => {
+    for (const board of ['tower', 'wide'] as const) {
+      for (let lane = 0; lane <= 10; lane += 1) {
+        const probabilities = physicsProbabilities(board === 'tower' ? 5 : lane);
+        expect(probabilities.reduce((sum, p) => sum + p, 0)).toBeCloseTo(1, 8);
+        for (const mode of PLINKO_RISK_MODES) {
+          const multipliers = physicsMultipliers(board, mode.id, lane);
+          const expected = multipliers.reduce((sum, value, index) => sum + value * probabilities[index], 0);
+          expect(expected).toBeGreaterThanOrEqual(1.04);
+          expect(expected).toBeLessThanOrEqual(1.06);
+        }
+      }
     }
+  });
+
+  it('lets actual collisions, not a preselected slot, determine varied landings', () => {
+    const buckets = new Set<number>();
+    for (let seed = 1; seed <= 256; seed += 1) {
+      const landing = simulatePlinko(seed * 7919, 5);
+      expect(landing).toEqual(simulatePlinko(seed * 7919, 5));
+      expect(landing.collisions).toBeGreaterThan(2);
+      expect(landing.x).toBeGreaterThanOrEqual(3.5);
+      expect(landing.x).toBeLessThanOrEqual(96.5);
+      buckets.add(landing.slot);
+    }
+    expect(buckets.size).toBeGreaterThan(6);
+    const puck = createPlinkoPuck(12345, 5);
+    while (!puck.done) stepPlinkoPuck(puck);
+    expect(puck.slot).toBe(simulatePlinko(12345, 5).slot);
   });
 
   it('keeps movable wide drops inside the rails and matches the visible paytable', () => {
@@ -88,24 +106,20 @@ describe('Snow Plinko TV game', () => {
     }
   });
 
-  it('lets a remote select wide mode and move the dropper before playing', async () => {
+  it('sweeps the wide dropper automatically and lets OK choose the timing', async () => {
     render(<Plinko onBack={() => {}} />);
     const wide = screen.getByRole('button', { name: 'Wide' });
     fireEvent.click(wide);
     expect(wide.getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByText('DROP 6/11')).toBeTruthy();
-    wide.focus();
-    press('ArrowRight');
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Move dropper left' }));
-    press('ArrowRight');
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Move dropper right' }));
-    press('Enter');
-    expect(screen.getByText('DROP 7/11')).toBeTruthy();
-    press('ArrowDown');
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Chill/ }));
-    expect(document.querySelector('.snow-plinko-gate')?.getAttribute('style')).toContain('58.636');
-    fireEvent.click(screen.getByRole('button', { name: 'Tower' }));
+    expect(screen.queryByRole('button', { name: 'Move dropper left' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Move dropper right' })).toBeNull();
+    expect(screen.getByText(/PRESS OK TO RELEASE/)).toBeTruthy();
+    const gate = document.querySelector<HTMLElement>('.snow-plinko-gate')!;
+    const first = gate.style.left;
+    await waitFor(() => expect(gate.style.left).not.toBe(first), { timeout: 1200 });
+    expect(Number.parseFloat(gate.style.left)).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Tower' }));
+    expect(screen.queryByText(/PRESS OK TO RELEASE/)).toBeNull();
   });
 
   it('is explicitly free play and starts no idle animation loop', () => {

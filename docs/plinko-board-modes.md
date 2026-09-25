@@ -1,21 +1,30 @@
-# Plinko board contract
+# Plinko physics contract
 
-The SMC game server lives at `/opt/smc-game-server` on the Snow Media VPS. Its
-`src/games/arcade.js` Plinko handler was updated alongside this client change.
-The pre-change file is backed up at
-`backups/arcade-before-plinko-boards-20260925.js`; the server-side regression
-test is `src/games/arcade.test.js`.
+The current client uses `src/components/games/plinkoPhysics.js` for fixed-step
+puck/peg/wall collisions. Deploy that **same file byte-for-byte** to
+`/opt/smc-game-server/src/games/plinkoPhysics.js`; compare SHA-256 hashes. The
+VPS game server also has `plinkoPhysicsRounds.js` and `plinko_start` /
+`plinko_finish` socket handlers. Older `arcade_play` clients are still supported.
 
-- `board: "tower"` (or omitted by an older app) keeps the original centered
-  10-decision path, eleven buckets, and risk multipliers.
-- `board: "wide"` requires an integer `dropLane` from 0 through 10. The server
-  commits the random decisions, reflects any move that would cross a side rail,
-  and returns the actual ten-step `path`, `slot`, `multiplier`, and `payout`.
-- The wide paytable changes with drop lane. Both client and server compute the
-  exact ten-step landing distribution and normalize the displayed multipliers
-  to about 105% expected Snow Coin return at every lane. Moving toward a rail
-  makes nearby edge hits more likely, but reduces their displayed multiplier.
+- Tower launches from the center. Wide sweeps its gate automatically from left
+  rail to right rail and back; pressing OK captures the nearest of eleven
+  launch lanes. The puck's seeded launch, peg impacts, and wall rebounds produce
+  its final `x` and bucket. No path or bucket is chosen before the drop.
+- Before a coin drop, the client stores a 256-bit secret locally and sends only
+  its SHA-256 commitment. The server stores its own seed and *atomically* debits
+  the bet in a pending round (`20260925220000_plinko_physics_rounds.sql`). The
+  server cannot derive the puck's physics seed from the client commitment.
+- After landing, the client submits its bucket and reveals its secret. The
+  server verifies the commitment, derives the same physics seed, re-simulates
+  the puck, and credits the matching payout exactly once. A reconnect resumes
+  the existing pending drop and never receives a fresh seed for free.
+- The displayed paytable is normalized against 10,000 deterministic physics
+  samples per launch lane to target roughly 105% Snow Coin return. Tower uses
+  the center distribution; Wide normalizes separately for each lane. These are
+  sampled estimates, not a guarantee on a short session.
 
-The server must be deployed before a client that sends `board: "wide"`; old
-clients remain compatible. If the paytable or path math changes, update both
-`src/components/games/plinkoBoards.ts` here and the VPS handler and test.
+The Supabase functions are service-role-only and the existing `game_rounds`
+table remains readable only by its owner. A player who loses the locally saved
+client secret, such as by switching devices mid-drop, cannot complete that
+pending drop; support must review the ledger/round before any adjustment. Snow
+Coins are free entertainment credits with no cash value.
