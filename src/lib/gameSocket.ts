@@ -307,7 +307,7 @@ class GameSocketManager {
   }
 
   async playArcade(payload: {
-    game: 'plinko' | 'dice' | 'trivia'; bet: number; risk?: string; dice?: number[];
+    game: 'plinko' | 'dice' | 'trivia'; bet: number; risk?: string; board?: 'tower' | 'wide'; dropLane?: number; dice?: number[];
     correct?: number; total?: number; score?: number; difficulty?: string; mode?: string; clientSeed?: string;
   }): Promise<any> {
     const res = await this.emitWithAck('arcade_play', payload);

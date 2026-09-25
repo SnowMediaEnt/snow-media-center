@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- pure motion math is exported for deterministic tests. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Coins, Gauge, Minus, Plus, RotateCcw, Snowflake, Sparkles, Target, Trophy, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Coins, Gauge, Minus, Plus, RotateCcw, Snowflake, Sparkles, Target, Trophy, Zap } from 'lucide-react';
 import { BackButton } from '@/components/ui/BackButton';
 import { Button } from '@/components/ui/button';
 import { GameFxCanvas } from './shared/GameFxCanvas';
@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { gameSocket } from '@/lib/gameSocket';
 import { readSavedBet, saveSelectedBet } from './shared/gameBets';
+import { PLINKO_CENTER_LANE, PLINKO_ROWS, PLINKO_SLOTS, plinkoSlotCenter, plinkoSlotFromPath, reflectPlinkoPath, widePlinkoMultipliers, type PlinkoBoard } from './plinkoBoards';
 import '@/styles/games-plinko.css';
 
 interface PlinkoProps {
@@ -23,11 +24,11 @@ interface PlinkoProps {
 }
 
 type Risk = 'chill' | 'classic' | 'wild';
-type FocusId = 'back' | 'fx' | Risk | 'betDown' | 'betUp' | 'drop' | 'reset';
+type FocusId = 'back' | 'fx' | 'tower' | 'wide' | 'laneLeft' | 'laneRight' | Risk | 'betDown' | 'betUp' | 'drop' | 'reset';
 
-const ROWS = 10;
+const ROWS = PLINKO_ROWS;
 const STARTING_POINTS = 100;
-const SLOT_COUNT = ROWS + 1;
+const SLOT_COUNT = PLINKO_SLOTS;
 const PLAYFIELD_LEFT = 2.5;
 const PLAYFIELD_WIDTH = 95;
 const STEP_X = PLAYFIELD_WIDTH / SLOT_COUNT;
@@ -82,7 +83,7 @@ export const PLINKO_RISK_MODES: Array<{
 
 const formatMultiplier = (value: number) => `${Number.isInteger(value) ? value : value.toFixed(1)}×`;
 
-const slotCenter = (slot: number) => PLAYFIELD_LEFT + (slot + .5) * STEP_X;
+const slotCenter = plinkoSlotCenter;
 
 /** Alternating full-width rows leave the puck room to pass between pegs. */
 export const PLINKO_PEGS = Array.from({ length: ROWS }, (_, row) => {
@@ -102,7 +103,7 @@ export const PLINKO_PEGS = Array.from({ length: ROWS }, (_, row) => {
  * upward recoil and a sideways deflection on a full-width staggered peg grid.
  * Visual seed changes only the bounce energy, never the landing bucket.
  */
-export const buildPlinkoMotion = (path: readonly boolean[], visualSeed = 0): PlinkoMotion => {
+export const buildPlinkoMotion = (path: readonly boolean[], visualSeed = 0, startLane = PLINKO_CENTER_LANE): PlinkoMotion => {
   let noiseState = (visualSeed || 0x9e3779b9) >>> 0;
   const noise = () => {
     noiseState ^= noiseState << 13;
@@ -114,19 +115,19 @@ export const buildPlinkoMotion = (path: readonly boolean[], visualSeed = 0): Pli
   const landingWeight = .85;
   const totalWeight = rowWeights.reduce((total, weight) => total + weight, landingWeight);
   const points: PlinkoMotionPoint[] = [{
-    x: 50,
+    x: slotCenter(startLane),
     y: 5,
     rotation: 0,
     scale: 1,
     offset: 0,
     easing: 'gravity',
   }];
-  let rights = 0;
+  let halfLane = startLane * 2;
   let elapsed = 0;
 
   path.forEach((right, row) => {
     const weight = rowWeights[row];
-    const pegX = 50 + (rights - row / 2) * STEP_X;
+    const pegX = slotCenter(startLane) + (halfLane - startLane * 2) * STEP_X / 2;
     const pegY = PEG_START_Y + row * PEG_STEP_Y;
     const energy = noise();
     elapsed += weight * .54;
@@ -151,10 +152,10 @@ export const buildPlinkoMotion = (path: readonly boolean[], visualSeed = 0): Pli
       easing: 'rebound',
     });
 
-    if (right) rights += 1;
+    halfLane += direction;
     elapsed += weight * .30;
     points.push({
-      x: 50 + (rights - (row + 1) / 2) * STEP_X,
+      x: slotCenter(startLane) + (halfLane - startLane * 2) * STEP_X / 2,
       y: pegY + 1.05,
       rotation: direction * 9,
       scale: 1,
@@ -163,8 +164,9 @@ export const buildPlinkoMotion = (path: readonly boolean[], visualSeed = 0): Pli
     });
   });
 
+  const finalSlot = plinkoSlotFromPath(path, startLane);
   points.push({
-    x: slotCenter(rights),
+    x: slotCenter(finalSlot),
     y: 89,
     rotation: 0,
     scale: 1,
@@ -172,15 +174,16 @@ export const buildPlinkoMotion = (path: readonly boolean[], visualSeed = 0): Pli
     easing: 'gravity',
   });
 
-  return { points, finalSlot: rights };
+  return { points, finalSlot };
 };
 
 const motionTransform = (
   point: Pick<PlinkoMotionPoint, 'x' | 'y' | 'rotation' | 'scale'>,
   width: number,
   height: number,
+  originX = 50,
 ) => {
-  const x = ((point.x - 50) / 100) * width;
+  const x = ((point.x - originX) / 100) * width;
   const y = ((point.y - 5) / 100) * height;
   return `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) rotate(${point.rotation}deg) scale(${point.scale})`;
 };
@@ -214,6 +217,8 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   useTvActivate(activateFocused);
 
   const [risk, setRisk] = useState<Risk>('classic');
+  const [boardMode, setBoardMode] = useState<PlinkoBoard>('tower');
+  const [dropLane, setDropLane] = useState(PLINKO_CENTER_LANE);
   const [dropping, setDropping] = useState(false);
   const [puckVisible, setPuckVisible] = useState(false);
   const [landing, setLanding] = useState<number | null>(null);
@@ -232,6 +237,10 @@ const Plinko = ({ onBack }: PlinkoProps) => {
 
   const backRef = useRef<HTMLButtonElement>(null);
   const fxRef = useRef<HTMLButtonElement>(null);
+  const towerRef = useRef<HTMLButtonElement>(null);
+  const wideRef = useRef<HTMLButtonElement>(null);
+  const laneLeftRef = useRef<HTMLButtonElement>(null);
+  const laneRightRef = useRef<HTMLButtonElement>(null);
   const chillRef = useRef<HTMLButtonElement>(null);
   const classicRef = useRef<HTMLButtonElement>(null);
   const wildRef = useRef<HTMLButtonElement>(null);
@@ -245,19 +254,25 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const dropEpoch = useRef(0);
 
   const activeMode = PLINKO_RISK_MODES.find((mode) => mode.id === risk) ?? PLINKO_RISK_MODES[1];
+  const multipliers = boardMode === 'wide' ? widePlinkoMultipliers(risk, dropLane) : activeMode.multipliers;
   const betIndex = Math.max(0, ARCADE_BETS.indexOf(bet));
   const canAfford = !user || (balance !== null && balance >= bet);
   const canReset = !dropping && (score > 0 || drops > 0);
   const focusRows = useMemo<FocusRows>(() => [
     ['back', 'fx'],
+    ...(!dropping ? [['tower', 'wide', ...(boardMode === 'wide' ? ['laneLeft', 'laneRight'] : [])]] : []),
     ...(dropping ? [] : [['chill'], ['classic'], ['wild']]),
     ...(!dropping && user ? [['betDown', 'betUp']] : []),
     ['drop', ...(canReset ? ['reset'] : [])],
-  ], [dropping, canReset, user]);
+  ], [boardMode, dropping, canReset, user]);
 
   const refFor = useCallback((id: FocusId): HTMLButtonElement | null => {
     if (id === 'back') return backRef.current;
     if (id === 'fx') return fxRef.current;
+    if (id === 'tower') return towerRef.current;
+    if (id === 'wide') return wideRef.current;
+    if (id === 'laneLeft') return laneLeftRef.current;
+    if (id === 'laneRight') return laneRightRef.current;
     if (id === 'chill') return chillRef.current;
     if (id === 'classic') return classicRef.current;
     if (id === 'wild') return wildRef.current;
@@ -301,9 +316,8 @@ const Plinko = ({ onBack }: PlinkoProps) => {
 
   useEffect(() => saveSelectedBet(BET_STORAGE_KEY, bet), [bet]);
 
-  const finishDrop = useCallback((slot: number, mode: typeof PLINKO_RISK_MODES[number], epoch: number, coinAward: number | null = null) => {
+  const finishDrop = useCallback((slot: number, multiplier: number, epoch: number, coinAward: number | null = null) => {
     if (!life.isMounted() || epoch !== dropEpoch.current) return;
-    const multiplier = mode.multipliers[slot];
     const award = Math.round(STARTING_POINTS * multiplier);
     setLanding(slot);
     setLastAward(award);
@@ -352,7 +366,9 @@ const Plinko = ({ onBack }: PlinkoProps) => {
       if (reduced && index % 2 !== 0) return;
       life.timeout(() => play('plinkoPeg', { volume: reduced ? .35 : .55 }), Math.max(0, point.offset * duration));
     });
-    puckElement.style.transform = motionTransform(source[0], width, height);
+    const originX = motion.points[0].x;
+    puckElement.style.left = `${originX}%`;
+    puckElement.style.transform = motionTransform(source[0], width, height, originX);
 
     // One transform-only frame loop is predictable on old Fire TV WebViews.
     // It avoids their short transition segments being coalesced into a drop
@@ -380,7 +396,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
         y: from.y + (to.y - from.y) * vertical,
         rotation: from.rotation + (to.rotation - from.rotation) * sideways,
         scale: from.scale + (to.scale - from.scale) * sideways,
-      }, width, height);
+      }, width, height, originX);
       if (progress < 1) motionFrame.current = life.raf(tick);
       else motionFrame.current = null;
     };
@@ -389,7 +405,9 @@ const Plinko = ({ onBack }: PlinkoProps) => {
 
   const dropPuck = useCallback(async () => {
     if (dropping || !canAfford) return;
-    const mode = activeMode;
+    const selectedBoard = boardMode;
+    const selectedLane = selectedBoard === 'wide' ? dropLane : PLINKO_CENTER_LANE;
+    const selectedMultipliers = multipliers;
     const epoch = ++dropEpoch.current;
     const duration = reducedFx ? REDUCED_DROP_MS : FULL_DROP_MS;
 
@@ -402,10 +420,12 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     setPuckVisible(true);
     let path: boolean[];
     let coinAward: number | null = null;
+    let multiplier: number;
     if (user) {
       try {
         const response = await gameSocket.playArcade({
-          game: 'plinko', bet, risk: mode.id,
+          game: 'plinko', bet, risk: activeMode.id,
+          board: selectedBoard, dropLane: selectedLane,
           clientSeed: crypto.getRandomValues(new Uint32Array(2)).join('-'),
         });
         if (!response?.ok || !Array.isArray(response.path)) {
@@ -416,6 +436,13 @@ const Plinko = ({ onBack }: PlinkoProps) => {
         }
         path = response.path.map(Boolean).slice(0, ROWS);
         coinAward = Number(response.payout) || 0;
+        multiplier = Number(response.multiplier);
+        if (path.length !== ROWS || !Number.isInteger(response.slot) || plinkoSlotFromPath(path, selectedLane) !== response.slot || !Number.isFinite(multiplier)) {
+          setDropping(false);
+          setPuckVisible(false);
+          setBackNote('The Plinko result could not be shown. Your Snow Coin balance was updated by the server.');
+          return;
+        }
       } catch {
         setDropping(false);
         setPuckVisible(false);
@@ -424,12 +451,14 @@ const Plinko = ({ onBack }: PlinkoProps) => {
       }
     } else {
       const word = randomWord();
-      path = Array.from({ length: ROWS }, (_, index) => ((word >>> index) & 1) === 1);
+      const decisions = Array.from({ length: ROWS }, (_, index) => ((word >>> index) & 1) === 1);
+      path = selectedBoard === 'wide' ? reflectPlinkoPath(decisions, selectedLane) : decisions;
+      multiplier = selectedMultipliers[plinkoSlotFromPath(path, selectedLane)];
     }
-    const motion = buildPlinkoMotion(path, randomWord());
+    const motion = buildPlinkoMotion(path, randomWord(), selectedLane);
     playMotion(motion, duration, reducedFx);
-    life.timeout(() => finishDrop(motion.finalSlot, mode, epoch, coinAward), duration);
-  }, [activeMode, bet, canAfford, dropping, finishDrop, life, playMotion, reducedFx, user]);
+    life.timeout(() => finishDrop(motion.finalSlot, multiplier, epoch, coinAward), duration);
+  }, [activeMode, bet, boardMode, canAfford, dropLane, dropping, finishDrop, life, multipliers, playMotion, reducedFx, user]);
 
   const resetSession = useCallback(() => {
     if (dropping) return;
@@ -449,7 +478,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   }, [dropping, life]);
 
   return (
-    <GameShell accent="ice" className={`snow-plinko${dropping ? ' is-dropping' : ''}${impact ? ' is-impact' : ''}`}>
+    <GameShell accent="ice" className={`snow-plinko snow-plinko--${boardMode}${dropping ? ' is-dropping' : ''}${impact ? ' is-impact' : ''}`}>
       <header className="snow-plinko-topbar">
         <BackButton
           ref={backRef}
@@ -497,17 +526,35 @@ const Plinko = ({ onBack }: PlinkoProps) => {
 
       <section className="snow-plinko-stage" aria-label="Snow Plinko game board">
         <div className="snow-plinko-machine">
-          <div className="snow-plinko-marquee" aria-hidden="true">
-            <span><Snowflake /></span>
+          <div className="snow-plinko-marquee">
+            <span aria-hidden="true"><Snowflake /></span>
             <div><strong>Snow Plinko</strong><small>Drop · bounce · score</small></div>
-            <i /><i /><i /><i /><i />
+            <div className="snow-plinko-board-picker" role="group" aria-label="Board shape">
+              {(['tower', 'wide'] as const).map((board) => <Button
+                key={board}
+                ref={board === 'tower' ? towerRef : wideRef}
+                type="button"
+                variant="navy"
+                size="sm"
+                aria-pressed={boardMode === board}
+                aria-disabled={dropping ? 'true' : undefined}
+                data-tv-focused={focus === board ? 'true' : 'false'}
+                onFocus={() => setFocus(board)}
+                onClick={() => { if (!dropping) { setBoardMode(board); setLanding(null); setLastAward(null); } }}
+              >{board === 'tower' ? 'Tower' : 'Wide'}</Button>)}
+            </div>
+            {boardMode === 'wide' && <div className="snow-plinko-aim" role="group" aria-label="Move dropper">
+              <Button ref={laneLeftRef} type="button" variant="navy" size="icon" aria-label="Move dropper left" aria-disabled={dropping || dropLane === 0 ? 'true' : undefined} data-tv-focused={focus === 'laneLeft' ? 'true' : 'false'} onFocus={() => setFocus('laneLeft')} onClick={() => { if (!dropping) { setDropLane((lane) => Math.max(0, lane - 1)); setLanding(null); setLastAward(null); } }}><ChevronLeft /></Button>
+              <span aria-live="polite">DROP {dropLane + 1}/{SLOT_COUNT}</span>
+              <Button ref={laneRightRef} type="button" variant="navy" size="icon" aria-label="Move dropper right" aria-disabled={dropping || dropLane === SLOT_COUNT - 1 ? 'true' : undefined} data-tv-focused={focus === 'laneRight' ? 'true' : 'false'} onFocus={() => setFocus('laneRight')} onClick={() => { if (!dropping) { setDropLane((lane) => Math.min(SLOT_COUNT - 1, lane + 1)); setLanding(null); setLastAward(null); } }}><ChevronRight /></Button>
+            </div>}
           </div>
 
           <div ref={boardRef} className="snow-plinko-board">
             <div className="snow-plinko-board__aurora" aria-hidden="true" />
             <div className="snow-plinko-wall snow-plinko-wall--left" aria-hidden="true" />
             <div className="snow-plinko-wall snow-plinko-wall--right" aria-hidden="true" />
-            <div className="snow-plinko-gate" aria-hidden="true"><span /><Snowflake /><span /></div>
+            <div className="snow-plinko-gate" style={{ left: `${slotCenter(boardMode === 'wide' ? dropLane : PLINKO_CENTER_LANE)}%` }} aria-hidden="true"><span /><Snowflake /><span /></div>
             <div className="snow-plinko-pegs" aria-hidden="true">
               {PLINKO_PEGS.map((peg) => (
                 <span key={peg.key} style={{ left: `${peg.x}%`, top: `${peg.y}%` }} />
@@ -516,6 +563,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
             <div
               ref={puckRef}
               className="snow-plinko-puck"
+              style={{ left: `${slotCenter(boardMode === 'wide' ? dropLane : PLINKO_CENTER_LANE)}%` }}
               data-visible={puckVisible ? 'true' : 'false'}
               data-motion={reducedFx ? 'reduced' : 'bouncy'}
               aria-hidden="true"
@@ -523,8 +571,8 @@ const Plinko = ({ onBack }: PlinkoProps) => {
               <Snowflake />
             </div>
 
-            <div className="snow-plinko-buckets" aria-label={`${activeMode.label} score multipliers`}>
-              {activeMode.multipliers.map((multiplier, index) => (
+            <div className="snow-plinko-buckets" aria-label={`${activeMode.label} ${boardMode} multipliers for drop ${dropLane + 1}`}>
+              {multipliers.map((multiplier, index) => (
                 <div
                   key={`${risk}-${index}`}
                   className={`snow-plinko-bucket${landing === index ? ' is-winner' : ''}${multiplier >= 4 ? ' is-hot' : ''}`}
@@ -567,7 +615,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
                   className={`snow-plinko-mode snow-plinko-mode--${mode.id}${risk === mode.id ? ' is-active' : ''}`}
                 >
                   <span><b>{mode.label}</b><small>{mode.note}</small></span>
-                  <em>{formatMultiplier(Math.max(...mode.multipliers))}</em>
+                  <em>{formatMultiplier(Math.max(...(boardMode === 'wide' ? widePlinkoMultipliers(mode.id, dropLane) : mode.multipliers)))}</em>
                 </Button>
               );
             })}
@@ -591,13 +639,13 @@ const Plinko = ({ onBack }: PlinkoProps) => {
 
           <div
             className="snow-plinko-board-high"
-            aria-label={`Board high score ${Math.round(STARTING_POINTS * Math.max(...activeMode.multipliers)).toLocaleString()} points`}
+            aria-label={`Board high score ${Math.round(STARTING_POINTS * Math.max(...multipliers)).toLocaleString()} points`}
           >
             <span aria-hidden="true"><Target /></span>
             <div>
               <small>Board high score</small>
-              <strong>+{Math.round(STARTING_POINTS * Math.max(...activeMode.multipliers)).toLocaleString()}</strong>
-              <em>Find the glowing edge lanes</em>
+              <strong>+{Math.round(STARTING_POINTS * Math.max(...multipliers)).toLocaleString()}</strong>
+              <em>{boardMode === 'wide' ? 'Move the dropper to change the board odds' : 'Find the glowing edge lanes'}</em>
             </div>
           </div>
 
