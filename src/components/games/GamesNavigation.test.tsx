@@ -173,6 +173,13 @@ describe('Games hub D-pad navigation', () => {
     act(() => slider.focus());
     fireEvent.keyDown(slider, { key: 'ArrowRight' });
     expect(slider.value).toBe('35');
+    const nextSong = screen.getByRole('button', { name: 'Next song' });
+    const done = screen.getByRole('button', { name: 'Done' });
+    act(() => nextSong.focus());
+    fireEvent.keyDown(nextSong, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(done);
+    fireEvent.keyDown(done, { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(nextSong);
   });
 
   it('moves Right from the end of a game name to Save without blocking caret editing', async () => {
