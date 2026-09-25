@@ -1495,17 +1495,21 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         style={{ position: 'fixed', top: 0, left: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none', outline: 'none' }}
       />
       <div className={embedded ? '' : 'max-w-6xl mx-auto pb-16'}>
-        {/* Back always renders — including embedded inside Support */}
-        <div className={BACK_ROW}>
-          <BackButton
-            onClick={() => {
-              stopVoicePlayback(true);
-              onBack();
-            }}
-            label="Back to Home"
-            focused={isFocused('back')}
-          />
-        </div>
+        {/* Inside Support the page's own Back sits right above, and this one
+            was never in the embedded D-pad order (header is [] there): it
+            only showed a second "Back to Home" and pushed the chat down. */}
+        {!embedded && (
+          <div className={BACK_ROW}>
+            <BackButton
+              onClick={() => {
+                stopVoicePlayback(true);
+                onBack();
+              }}
+              label="Back to Home"
+              focused={isFocused('back')}
+            />
+          </div>
+        )}
         {!embedded && (
           <>
             {/* Header */}
@@ -1911,8 +1915,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
         {/* AI Tab Content */}
         {activeTab === 'ai' && (
-          <Card className="bg-gradient-to-br from-purple-900/30 to-slate-900 border-purple-700 p-6">
-            <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+          <Card className={`bg-gradient-to-br from-purple-900/30 to-slate-900 border-purple-700 ${embedded ? 'p-5' : 'p-6'}`}>
+            <div className={`flex items-center justify-between ${embedded ? 'mb-2' : 'mb-4'} gap-3 flex-wrap`}>
               <h3 className="text-2xl font-bold text-white">Snow Media AI Assistant</h3>
               <div className="flex items-center gap-3">
                 <button
@@ -1938,11 +1942,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               </div>
             </div>
             
-            <p className="text-purple-200 mb-6">
+            <p className={`text-purple-200 ${embedded ? 'mb-3' : 'mb-6'}`}>
               Ask me about snow media, streaming apps, or get help with your SMC app.
               <br />
-              <span className="block text-sm font-semibold text-brand-gold drop-shadow-[0_0_6px_rgba(255,200,80,0.5)]">Text chat: 0.01 Snow Gems per message</span>
-              <span className="block text-sm font-semibold text-brand-ice drop-shadow-[0_0_6px_rgba(160,220,255,0.5)]">Voice reply: 0.04 Snow Gems per voice message · multilingual (32+ languages)</span>
+              {/* Side by side: one line of the TV's 540 instead of two. */}
+              <span className="inline-block mr-4 text-sm font-semibold text-brand-gold drop-shadow-[0_0_6px_rgba(255,200,80,0.5)]">Text chat: 0.01 Snow Gems per message</span>
+              <span className="inline-block text-sm font-semibold text-brand-ice drop-shadow-[0_0_6px_rgba(160,220,255,0.5)]">Voice reply: 0.04 Snow Gems per voice message · multilingual (32+ languages)</span>
             </p>
             
             {/* A Kids profile: say plainly what this AI will and won't do. */}
@@ -1960,7 +1965,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             <div
               ref={aiChatContainerRef}
               data-focus-id="message-scroll"
-              className={`bg-slate-800 rounded-lg p-4 mb-4 max-h-80 overflow-y-auto transition-colors duration-200 ${isFocused('message-scroll') ? 'border-l-4 border-brand-ice' : 'border-l-4 border-transparent'}`}
+              className={`bg-slate-800 rounded-lg p-4 mb-4 ${embedded ? 'max-h-[30vh]' : 'max-h-80'} overflow-y-auto transition-colors duration-200 ${isFocused('message-scroll') ? 'border-l-4 border-brand-ice' : 'border-l-4 border-transparent'}`}
             >
               {isFocused('message-scroll') && aiChat.length > 0 && (
                 <div className="text-center text-xs text-brand-ice mb-2 animate-pulse">
@@ -1968,8 +1973,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 </div>
               )}
               {aiChat.length === 0 ? (
-                <div className="text-center text-slate-400 py-8">
-                  <Brain className="w-12 h-12 mx-auto mb-4 text-purple-400" />
+                <div className={`text-center text-slate-400 ${embedded ? 'py-3' : 'py-8'}`}>
+                  <Brain className={`${embedded ? 'w-10 h-10 mb-2' : 'w-12 h-12 mb-4'} mx-auto text-purple-400`} />
                   <p>Start a conversation with Snow Media AI!</p>
                   <p className="text-sm mt-2">{kidsLevel() ? 'Try asking: "Find me a cartoon to watch"' : 'Try asking: "Help me install an app"'}</p>
                 </div>
