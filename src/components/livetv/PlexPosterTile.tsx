@@ -9,6 +9,7 @@ import { POSTER_TILE_H, POSTER_TILE_W, resolutionLabel, type PlexItem } from '@/
 const POSTER_GRID_W = 280;
 const POSTER_GRID_H = 420;
 import { tileCaption, resumeFraction } from '@/lib/plexLibraryRows';
+import { revealPlexTile } from '@/lib/plexReveal';
 
 interface Props {
   item: PlexItem;
@@ -35,7 +36,9 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
   const progress = resumeFraction(item);
   return (
     <div
-      ref={(el) => { if (scrollIntoView && focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
+      // Not the browser's scrollIntoView: it also scrolled the boxes around
+      // the Plex screen, which then sat partly above the TV (plexReveal.ts).
+      ref={(el) => { if (scrollIntoView && focused && el) revealPlexTile(el); }}
       onClick={onSelect ? () => onSelect(item) : onClick}
       className={`plex-tile cursor-pointer ${width === 'rail' ? 'flex-shrink-0 w-[104px]' : 'plex-tile--fill w-full'}`}
     >

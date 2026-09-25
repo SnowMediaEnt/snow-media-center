@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { revealInScroller, revealPlexRail } from './plexReveal';
+import { revealInScroller, revealPlexRail, revealPlexTile, unshiftAround } from './plexReveal';
 
 // A 540-px-tall scroller at the top of the screen with the Plex page's
 // padding: 3.5vh (19 px at 540) on top for the TV's overscan, 16 below.
@@ -75,5 +75,31 @@ describe('revealPlexRail', () => {
     revealPlexRail(loose);
     expect(loose.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
     expect(() => revealPlexRail(null)).not.toThrow();
+  });
+});
+
+describe('the screen around the Plex scroller stays put', () => {
+  it('puts back boxes around the scroller that something scrolled (overflow:hidden still scrolls)', () => {
+    const outer = document.createElement('div');
+    const mid = document.createElement('div');
+    const scroller = document.createElement('div');
+    outer.appendChild(mid); mid.appendChild(scroller); document.body.appendChild(outer);
+    outer.scrollTop = 30; mid.scrollTop = 40; mid.scrollLeft = 5; scroller.scrollTop = 200;
+    unshiftAround(scroller);
+    expect([outer.scrollTop, mid.scrollTop, mid.scrollLeft]).toEqual([0, 0, 0]);
+    // The scroller itself keeps its place.
+    expect(scroller.scrollTop).toBe(200);
+    outer.remove();
+  });
+
+  it('a focused poster inside Plex never uses the browser\'s scrollIntoView (it scrolled the boxes around the screen)', () => {
+    const { scroller, rail } = page(0);
+    const tile = document.createElement('div');
+    tile.scrollIntoView = vi.fn();
+    tile.getBoundingClientRect = rail.getBoundingClientRect;
+    rail.appendChild(tile);
+    revealPlexTile(tile);
+    expect(tile.scrollIntoView).not.toHaveBeenCalled();
+    scroller.remove();
   });
 });

@@ -21,6 +21,8 @@ export const PLEX_SCROLLER_ATTR = 'data-plex-scroller';
  *  inside its padding box. Only as far as needed; a box taller than the view
  *  gets its top shown. */
 export function revealInScroller(el: HTMLElement, scroller: HTMLElement, margin = 0): void {
+  // Measured against the screen, so the screen must be where it belongs first.
+  unshiftAround(scroller);
   let padT = 0;
   let padB = 0;
   try {
@@ -36,6 +38,49 @@ export function revealInScroller(el: HTMLElement, scroller: HTMLElement, margin 
   if (b.top < viewTop) delta = b.top - viewTop;
   else if (b.bottom > viewBottom) delta = Math.min(b.bottom - viewBottom, b.top - viewTop);
   if (delta !== 0) scroller.scrollTop += delta;
+}
+
+/** Put back anything around the Plex scroller that has been scrolled.
+ *
+ * The Plex screen is laid out to fit the TV: nothing around its scroller is
+ * meant to scroll. But overflow:hidden only hides the scrollbars — the
+ * browser's own scrollIntoView (and focus()) still scroll those boxes, and at
+ * the last row, with the Plex scroller already at its end, a poster's
+ * scrollIntoView scrolled the whole screen up instead. That stuck: the
+ * Player's header, the top of the menu and every rail heading on the way
+ * back up sat above the TV, and the reveal below, measuring inside a
+ * scroller that was itself partly off screen, saw nothing wrong. */
+export function unshiftAround(scroller: HTMLElement): void {
+  for (let el = scroller.parentElement; el; el = el.parentElement) {
+    if (el.scrollTop) el.scrollTop = 0;
+    if (el.scrollLeft) el.scrollLeft = 0;
+  }
+  const doc = typeof document !== 'undefined' ? document.scrollingElement : null;
+  if (doc && doc.scrollTop) doc.scrollTop = 0;
+}
+
+/** A focused poster into view without the browser's scrollIntoView (see
+ *  unshiftAround): its rail scrolls sideways just enough, and the Plex
+ *  scroller up or down with room for the poster's lift and ring. Outside the
+ *  Plex scroller (a panel rendered on its own) the browser's own. */
+export function revealPlexTile(el: HTMLElement): void {
+  const scroller = el.closest ? (el.closest(`[${PLEX_SCROLLER_ATTR}]`) as HTMLElement | null) : null;
+  if (!scroller) {
+    if (el.scrollIntoView) el.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+    return;
+  }
+  const rail = el.parentElement;
+  if (rail && rail.scrollWidth > rail.clientWidth) {
+    const r = rail.getBoundingClientRect();
+    const b = el.getBoundingClientRect();
+    // 8 px of room each side for the focused poster's lift and ring (the
+    // rail's own px-2), so the first poster scrolls all the way back.
+    const left = r.left + rail.clientLeft + 8;
+    const right = r.left + rail.clientLeft + rail.clientWidth - 8;
+    if (b.left < left) rail.scrollLeft += b.left - left;
+    else if (b.right > right) rail.scrollLeft += Math.min(b.right - right, b.left - left);
+  }
+  revealInScroller(el, scroller, 8);
 }
 
 /** revealInScroller in the Plex page's scroller; the browser's own

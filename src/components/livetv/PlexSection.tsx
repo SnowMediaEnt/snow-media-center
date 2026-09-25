@@ -65,7 +65,7 @@ import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
 import PlexProgressReporter from './PlexProgressReporter';
 import PlexBackdrop from './PlexBackdrop';
 import { focusBackdrop } from '@/lib/plexBackdrop';
-import { revealPlexRail } from '@/lib/plexReveal';
+import { revealPlexRail, unshiftAround } from '@/lib/plexReveal';
 import { continueWatching, initPlexProgress, mergeContinue, progressCount, progressDiag, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { upNextEpisodes } from '@/lib/plexUpNext';
 import { fetchFeedItems, othersWatchingKeys, OTHERS_TTL_MS, OTHERS_WATCHING_TITLE } from '@/lib/plexOthersWatching';
@@ -2825,6 +2825,19 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     setRowH((prev) => (prev !== next ? next : prev));
   }, []);
 
+  // Nothing around the Plex scroller may scroll (see unshiftAround): anything
+  // that scrolls it anyway (a focus(), a scrollIntoView in another panel) is
+  // put straight back, so the screen never stays shifted up off the TV.
+  useEffect(() => {
+    const onScroll = (e: Event) => {
+      const scroller = scrollRef.current;
+      const t = e.target;
+      if (!scroller || !isActive) return;
+      if (t === document || (t instanceof Element && t !== scroller && t.contains(scroller))) unshiftAround(scroller);
+    };
+    document.addEventListener('scroll', onScroll, true);
+    return () => document.removeEventListener('scroll', onScroll, true);
+  }, [isActive]);
   const attachScroll = useCallback((el: HTMLDivElement | null) => {
     scrollRef.current = el;
     rowObserverRef.current?.disconnect();

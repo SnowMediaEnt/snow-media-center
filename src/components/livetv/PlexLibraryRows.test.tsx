@@ -18,7 +18,7 @@ vi.mock('@/integrations/supabase/client', () => ({
     from: () => ({ upsert: () => Promise.resolve({ error: null }) }),
   },
 }));
-vi.mock('@/lib/plexReveal', () => ({ revealPlexRail: h.reveal }));
+vi.mock('@/lib/plexReveal', () => ({ revealPlexRail: h.reveal, revealPlexTile: () => undefined }));
 vi.mock('@/lib/plexUpNext', () => ({ upNextEpisodes: h.upNext }));
 vi.mock('@/lib/plexBackdrop', () => ({ focusBackdrop: () => undefined }));
 vi.mock('./PlexImage', () => ({ default: () => null }));
