@@ -16,6 +16,10 @@ import { formatMbps, useBufferDiagnostics, type ClassifyResult, type DiagSnapsho
  *   verdict change, not the per-second counter.
  * - "Now" (how fast the stream is arriving) always sits next to "Needs";
  *   a number not measured yet reads "Checking…", never a bare dash.
+ * - The internet number is a quick 256 KB check (it reads low on a fast
+ *   line); a player whose verdict weighs it against better evidence (Plex)
+ *   labels it as one, and blanks it once that verdict says the connection
+ *   dropped (the number is from before). Live TV's card is left as it was.
  */
 
 interface BufferingDiagnosticsProps {
@@ -35,10 +39,18 @@ interface BufferingDiagnosticsProps {
   /** One extra muted line under the verdict, e.g. "Route: Plex Relay". */
   footnote?: string;
   /** A player that knows more about what it plays (Plex: the file's bitrate,
-   *  the route) can replace the general verdict. null keeps it. */
-  explain?: (snap: DiagSnapshot) => ClassifyResult | null;
+   *  the route) can replace the general verdict. null keeps it. `autoSaid`:
+   *  its advice already says what automatic quality will do. `dropped`: the
+   *  connection dropped, so the last internet number is not shown as now. */
+  explain?: (snap: DiagSnapshot) => (ClassifyResult & { autoSaid?: boolean; dropped?: boolean }) | null;
+  /** One line on what automatic quality will do ("Auto quality: will lower
+   *  to …"), read at each render so it follows the speed. Left out when the
+   *  verdict's advice already says it. */
+  autoNote?: (snap: DiagSnapshot) => string | null;
   /** What the video needs, kbps, shown next to the measured speeds. */
   needKbps?: number;
+  /** Label the internet number "(quick check)". */
+  quickCheckLabel?: boolean;
   className?: string;
 }
 
@@ -57,7 +69,7 @@ const VERDICT_COLOR: Record<Verdict, string> = {
   ok: 'text-emerald-300',
 };
 
-const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-right', showHelpHint = false, footnote, explain, needKbps, className }: BufferingDiagnosticsProps) => {
+const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-right', showHelpHint = false, footnote, explain, autoNote, needKbps, quickCheckLabel = false, className }: BufferingDiagnosticsProps) => {
   const snap = useBufferDiagnostics();
   const buffering = bufferingProp ?? snap.bufferingForMs > 0;
   // 'hidden' → (stall ≥ 2 s) → 'active' → (recovered) → 'recovered' (2.5 s) → 'hidden'
@@ -107,7 +119,11 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
   const general = snap.verdict === 'ok'
     ? { ...snap, verdict: 'unknown' as const, headline: 'Buffering…', detail: 'Measuring your connection…' }
     : snap;
-  const shown = explain?.(general) ?? general;
+  const told = explain?.(general);
+  const shown = told ?? general;
+  const auto = told?.autoSaid ? null : autoNote?.(general) ?? null;
+  // Dropped: the last check is from before, so it reads as a failed one.
+  const netKbps = told?.dropped ? null : snap.probeKbps;
 
   return (
     <div
@@ -134,11 +150,14 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
               )}
             </span>
             {needKbps != null && <span className="mr-3 whitespace-nowrap">Needs {formatMbps(needKbps)}</span>}
-            <span className="whitespace-nowrap">Internet {speed(snap.probeKbps, snap.probeFailed)}</span>
+            <span className="whitespace-nowrap">Internet {speed(netKbps, snap.probeFailed || !!told?.dropped)}{quickCheckLabel && netKbps != null && <span className="text-brand-ice/60"> (quick check)</span>}</span>
           </p>
           <p aria-live="polite" className={`mt-2 text-sm font-semibold leading-snug ${VERDICT_COLOR[shown.verdict]}`}>{shown.headline}</p>
           {shown.detail && (
             <p className="mt-1 text-xs text-brand-ice/70 leading-snug">{shown.detail}</p>
+          )}
+          {auto && (
+            <p className="mt-1 text-xs text-brand-ice/80 leading-snug">{auto}</p>
           )}
           {footnote && (
             <p className="mt-1 text-xs text-brand-ice/60 leading-snug">{footnote}</p>

@@ -7,6 +7,9 @@ import android.content.Context
 import android.graphics.Color
 import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
+import android.net.wifi.WifiManager
+import android.os.Build
+import android.os.Debug
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -21,9 +24,11 @@ import android.widget.FrameLayout
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaLibraryInfo
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.VideoSize
@@ -33,15 +38,20 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.TransferListener
 // Direct reference so the build FAILS if the FFmpeg decoder dependency ever
 // drops out, instead of silently regressing to "video plays, no sound".
 import androidx.media3.decoder.ffmpeg.FfmpegLibrary
+import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.LoadControl
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.exoplayer.upstream.DefaultAllocator
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
@@ -52,7 +62,10 @@ import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.snowmedia.BuildConfig
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
+import org.json.JSONObject
 
 /**
  * Slot-based native video plugin. Keeps a map of PlayerSlot keyed by screenId
@@ -118,10 +131,48 @@ class SnowPlayerPlugin : Plugin() {
         val netBytes = AtomicLong(0L)
         var bandwidthRunnable: Runnable? = null
         var lastKbps: Long = -1L
+        // What getStats reports. The speeds are the bandwidth tick's samples
+        // since this load, counting only the windows in which data arrived
+        // (a pause or a full buffer is not the server being slow).
+        var kbpsMin: Long = -1L
+        var kbpsMax: Long = -1L
+        var kbpsSum: Long = 0L
+        var kbpsSamples: Int = 0
+        // Restarts of this title (the URL they belong to): a retry loads it
+        // again but keeps its history; a stop ends it (clearStats).
+        // lastError is the code name of the last error that made the player
+        // restart or stop, set before its playerError goes out.
+        var statsUrl: String? = null
+        var restarts: Int = 0
+        var lastRestartReason: String? = null
+        var lastError: String? = null
+        // Frames of this load: the decoder sessions that have ended, plus
+        // the running one's own counters (see the analytics listener).
+        var framesRendered: Long = 0L
+        var framesDropped: Long = 0L
+        var videoCounters: DecoderCounters? = null
+        var framesSeen: Boolean = false
+        // The decoders in use. Kept from one load to the next while the
+        // player plays on: it keeps a hardware decoder for the next stream
+        // when it can, and reports only when it lets one go. A stop releases
+        // them, and clears these with the rest.
+        var videoDecoderName: String? = null
+        var audioDecoderName: String? = null
+        var loadProfile: String? = null
+        // The formats last described, so a panel asking every second gets
+        // the same text back instead of it being built again each time.
+        var videoFormatOf: Format? = null
+        var videoFormatText: String? = null
+        var audioFormatOf: Format? = null
+        var audioFormatText: String? = null
     }
 
     private val slots = HashMap<String, PlayerSlot>()
     private val mainHandler = Handler(Looper.getMainLooper())
+    // The main player's own Wi-Fi lock (see holdWifi). Created on first use.
+    private var wifiLock: WifiManager.WifiLock? = null
+    // Scratch for isCurrentItem (main thread only, like every player call).
+    private val itemWindow = Timeline.Window()
 
     companion object {
         private const val MAIN = "main"
@@ -138,6 +189,19 @@ class SnowPlayerPlugin : Plugin() {
         const val FORMAT_WIDE = "wide"
         val FORMATS = listOf(FORMAT_FIT, FORMAT_FILL, FORMAT_ZOOM, FORMAT_WIDE)
         private const val MAX_RECONNECTS = 20
+        // A film or episode gives up sooner. Each of these follows the
+        // player's own seven tries at the connection (retry count 6 below,
+        // waiting 15 s between them in all): against a Plex server that
+        // doesn't answer at all (15 s per try to connect) that is about two
+        // minutes; against one that turns the file down (an HTTP error, a
+        // closed port) about 15 s. 20 in a row spun for over 40 minutes
+        // before anything was said. With 3 the plugin gives up after the
+        // fourth failure: about 8 minutes of a dead server, about a minute of
+        // a refusal. The WebView then makes one fresh start, which takes as
+        // long again, and shows the error: about 16 minutes after the server
+        // went silent (5 took about 24), about 2 after a refusal. A picture
+        // in between starts the count over.
+        private const val MAX_VOD_RECONNECTS = 3
         private const val RECONNECT_DELAY_MS = 500L
         private const val FIRST_FRAME_TIMEOUT_MS = 8000L
         private const val POSITION_TICK_MS = 5000L
@@ -149,6 +213,7 @@ class SnowPlayerPlugin : Plugin() {
         private const val PREBUFFER_TARGET_MS = 25000L
         private const val PREBUFFER_MAX_WAIT_MS = 10000L
         private const val PREBUFFER_TICK_MS = 500L
+        private const val MIB = 1024L * 1024L
     }
 
     private fun screenIdOf(call: PluginCall): String = call.getString("screenId") ?: MAIN
@@ -185,6 +250,8 @@ class SnowPlayerPlugin : Plugin() {
      * a guess by network type and only updates when a transfer ends, which a
      * file played as-is (one long transfer) hardly ever does. Once nothing
      * flows (paused, buffer full) it reports the 0 once and then stays quiet.
+     * Each window with data in it also goes into this stream's slowest,
+     * fastest and average speed for getStats.
      */
     private fun scheduleBandwidthTick(s: PlayerSlot, screenId: String) {
         s.bandwidthRunnable?.let { mainHandler.removeCallbacks(it) }
@@ -205,6 +272,12 @@ class SnowPlayerPlugin : Plugin() {
                         notifyListeners("bandwidth", JSObject().put("screenId", screenId).put("kbps", kbps))
                     }
                     s.lastKbps = kbps
+                    if (kbps > 0L) {
+                        if (s.kbpsMin < 0L || kbps < s.kbpsMin) s.kbpsMin = kbps
+                        if (kbps > s.kbpsMax) s.kbpsMax = kbps
+                        s.kbpsSum += kbps
+                        s.kbpsSamples++
+                    }
                 }
                 lastBytes = bytes
                 lastAt = now
@@ -227,6 +300,71 @@ class SnowPlayerPlugin : Plugin() {
         if (paused == s.reportedPaused) return
         s.reportedPaused = paused
         notifyListeners("playerState", JSObject().put("screenId", screenId).put("paused", paused))
+    }
+
+    /** A new load: this stream's speeds and frames start over. Its restarts
+     *  and last error belong to the title, so loading the same one again (a
+     *  retry, the WebView's fresh start after RECONNECT_EXHAUSTED) keeps
+     *  them; another title clears them, and a stop everything (clearStats). */
+    private fun resetStats(s: PlayerSlot, url: String) {
+        s.kbpsMin = -1L
+        s.kbpsMax = -1L
+        s.kbpsSum = 0L
+        s.kbpsSamples = 0
+        s.framesRendered = 0L
+        s.framesDropped = 0L
+        s.videoCounters = null
+        s.framesSeen = false
+        if (url != s.statsUrl) {
+            s.statsUrl = url
+            s.restarts = 0
+            s.lastRestartReason = null
+            s.lastError = null
+        }
+    }
+
+    /** A stop: nothing of the stream that was playing is left to report. Its
+     *  speeds, frames, restarts and last error go, and so do its decoders and
+     *  formats, which the next stream would otherwise show until its own
+     *  arrive. The next load starts from nothing, the same title included. */
+    private fun clearStats(s: PlayerSlot) {
+        s.lastKbps = -1L
+        s.kbpsMin = -1L
+        s.kbpsMax = -1L
+        s.kbpsSum = 0L
+        s.kbpsSamples = 0
+        s.framesRendered = 0L
+        s.framesDropped = 0L
+        s.videoCounters = null
+        s.framesSeen = false
+        s.statsUrl = null
+        s.restarts = 0
+        s.lastRestartReason = null
+        s.lastError = null
+        s.videoDecoderName = null
+        s.audioDecoderName = null
+        s.videoFormatOf = null
+        s.videoFormatText = null
+        s.audioFormatOf = null
+        s.audioFormatText = null
+    }
+
+    /**
+     * Whether an analytics callback is about the item the player holds now.
+     * They reach this thread after the fact, so a stream's last ones (its
+     * decoder let go, or even set up) can arrive once the next one has been
+     * loaded or the player stopped, and would put that stream's decoder or
+     * frames on the new one's stats. Every load (setMediaItem) is a playlist
+     * entry with a uid of its own, and each callback carries the entry it was
+     * raised for next to the player's current one. Nothing loaded: false.
+     */
+    private fun isCurrentItem(t: AnalyticsListener.EventTime): Boolean {
+        val its = t.timeline
+        val now = t.currentTimeline
+        if (its.isEmpty || now.isEmpty) return false
+        if (t.windowIndex !in 0 until its.windowCount || t.currentWindowIndex !in 0 until now.windowCount) return false
+        val uid = its.getWindow(t.windowIndex, itemWindow).uid
+        return uid == now.getWindow(t.currentWindowIndex, itemWindow).uid
     }
 
     /** A play or pause during the VOD pre-buffer hold ends it: the viewer's
@@ -254,14 +392,24 @@ class SnowPlayerPlugin : Plugin() {
         mainHandler.postDelayed(r, POSITION_TICK_MS)
     }
 
+    /** No picture within 8 s → reconnect. Not for a Plex film or episode:
+     *  one that is slow to start is left to PlexSection's own watchdog (8 s
+     *  for a file played as it is, 30 s for a conversion, then it offers what
+     *  to do). Here it threw away whatever had loaded and started again from
+     *  nothing, up to 20 times — a slow remote server never got to begin.
+     *  Live channels and Backups films have no watchdog of their own in the
+     *  WebView, so they keep this one. */
     private fun scheduleWatchdog(s: PlayerSlot, screenId: String) {
         s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.watchdogRunnable = null
+        val url = s.currentUrl ?: return
+        if (!s.isLive && isPlexStream(Uri.parse(url))) return
         val r = Runnable {
             // A radio channel never renders a video frame. It used to be torn
             // down and reconnected every 8 s (≈120 times) while playing fine.
             val p = s.player
             val audioOnly = p != null && p.isPlaying && !p.currentTracks.containsType(C.TRACK_TYPE_VIDEO)
-            if (s.currentUrl != null && !s.firstFrameSeen && !audioOnly) reconnect(s, screenId)
+            if (s.currentUrl != null && !s.firstFrameSeen && !audioOnly) reconnect(s, screenId, "no picture in 8 s")
         }
         s.watchdogRunnable = r
         mainHandler.postDelayed(r, FIRST_FRAME_TIMEOUT_MS)
@@ -343,9 +491,11 @@ class SnowPlayerPlugin : Plugin() {
         return builder.build()
     }
 
-    private fun reconnect(s: PlayerSlot, screenId: String) {
+    /** `reason` is what the stats panel shows as the last restart. */
+    private fun reconnect(s: PlayerSlot, screenId: String, reason: String) {
         val url = s.currentUrl ?: return
         if (s.reconnectAttempts >= MAX_RECONNECTS) {
+            releaseWifiIfStopped(s)
             notifyListeners(
                 "playerError",
                 JSObject().put("screenId", screenId)
@@ -355,21 +505,96 @@ class SnowPlayerPlugin : Plugin() {
             return
         }
         s.reconnectAttempts++
+        s.restarts++
+        s.lastRestartReason = reason
         notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", "buffering"))
         s.reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
-        val resumeAt = if (!s.isLive) s.lastPositionMs else 0L
         val r = Runnable {
             val p = s.player ?: return@Runnable
             if (s.currentUrl == null) return@Runnable
             s.firstFrameSeen = false
-            p.setMediaItem(buildMediaItem(url, s.currentSubtitles))
-            p.prepare()
-            if (resumeAt > 0) p.seekTo(resumeAt)
-            p.playWhenReady = true
-            scheduleWatchdog(s, screenId)
+            if (s.isLive) {
+                p.setMediaItem(buildMediaItem(url, s.currentSubtitles))
+                p.prepare()
+                p.playWhenReady = true
+                scheduleWatchdog(s, screenId)
+            } else {
+                resumeVod(s, screenId, p, url)
+                scheduleWatchdog(s, screenId) // not for Plex (see there)
+            }
         }
         s.reconnectRunnable = r
         mainHandler.postDelayed(r, RECONNECT_DELAY_MS)
+    }
+
+    /**
+     * A film or episode whose connection failed carries on from the same
+     * place. After a fatal error the player is idle but still holds the item,
+     * its length and the position, so prepare() just opens a new connection
+     * there. This used to load the item again from scratch at whatever the
+     * 5-second tick had last seen, and force it to play: a paused film
+     * started by itself, and a start still filling its buffer began at once.
+     * The viewer's play or pause now stands, and a start-up hold that was
+     * running starts over on the new connection.
+     */
+    private fun resumeVod(s: PlayerSlot, screenId: String, p: ExoPlayer, url: String) {
+        val pos = p.currentPosition
+        val resumeAt = if (pos > 0) pos else s.lastPositionMs
+        if (resumeAt > 0) s.lastPositionMs = resumeAt
+        val hold = s.holding
+        s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.preBufferRunnable = null
+        if (p.playbackState == Player.STATE_IDLE && p.currentMediaItem != null) {
+            if (pos <= 0 && resumeAt > 0) p.seekTo(resumeAt)
+        } else {
+            // Not the usual failed, idle player: load the item afresh, still
+            // at the viewer's place.
+            p.setMediaItem(buildMediaItem(url, s.currentSubtitles), resumeAt)
+        }
+        p.prepare()
+        if (hold) {
+            p.playWhenReady = false
+            schedulePreBuffer(s, screenId)
+        }
+    }
+
+    /**
+     * What a film that has given up (RECONNECT_EXHAUSTED) tells the viewer,
+     * by how the server failed. One that stopped answering is worth another
+     * try; one that turned the file down (with its HTTP status when there is
+     * one) will most likely do it again, and it used to be reported as
+     * "stopped responding" too. Anything else in the player's own words.
+     * Never a URL: of an HTTP error only the status is used, and a message
+     * with an address in it gives way to a plain one.
+     */
+    private fun exhaustedMessage(error: PlaybackException, url: String): String {
+        val server = if (isPlexStream(Uri.parse(url))) "The Plex server" else "The server"
+        return when (error.errorCode) {
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            -> "The server stopped responding. Try again."
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
+                val status = httpStatusOf(error)
+                if (status != null) "$server refused this file (HTTP $status)." else "$server refused this file."
+            }
+            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND,
+            PlaybackException.ERROR_CODE_IO_NO_PERMISSION,
+            -> "$server refused this file."
+            else -> error.message?.takeIf { it.isNotBlank() && !it.contains("://") } ?: "Playback error"
+        }
+    }
+
+    /** The HTTP status behind ERROR_CODE_IO_BAD_HTTP_STATUS: the data
+     *  source's own exception, somewhere down the cause chain. */
+    private fun httpStatusOf(error: PlaybackException): Int? {
+        var t: Throwable? = error.cause
+        var depth = 0
+        while (t != null && depth++ < 8) {
+            if (t is HttpDataSource.InvalidResponseCodeException) return t.responseCode.takeIf { it > 0 }
+            t = t.cause
+        }
+        return null
     }
 
     private fun ensureSurface(s: PlayerSlot): Boolean {
@@ -420,6 +645,55 @@ class SnowPlayerPlugin : Plugin() {
         }
     }
 
+    /**
+     * A film or episode on the main player keeps the Wi-Fi radio at full
+     * speed for as long as it is loaded: playing, paused, and while its start
+     * is held to fill the buffer. Media3's own lock (setWakeMode in
+     * buildPlayer) is held only while the player is set to play, so during
+     * that start-up hold and every pause — both times when the buffer is
+     * still being filled — the radio could drop into power saving.
+     * Low-latency mode on Android 10 and later (it works only with the app in
+     * front and the screen on, which is always the case while watching),
+     * high-performance before that. A box with no Wi-Fi (Ethernet only)
+     * simply has nothing to lock. Live TV — channels and the Live TV / Guide
+     * preview boxes — never takes it and plays on Media3's lock alone, as it
+     * always has. Let go on stop, when a channel loads, and when a film
+     * stops on an error the plugin won't retry (releaseWifiIfStopped).
+     */
+    private fun holdWifi() {
+        try {
+            val lock = wifiLock ?: run {
+                val wm = activity?.applicationContext?.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return
+                @Suppress("DEPRECATION")
+                val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                    else WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                wm.createWifiLock(mode, "SnowMediaCenter:player").also {
+                    it.setReferenceCounted(false)
+                    wifiLock = it
+                }
+            }
+            if (!lock.isHeld) lock.acquire()
+        } catch (e: Throwable) {
+            Log.w(TAG, "No Wi-Fi lock for playback", e)
+        }
+    }
+
+    private fun releaseWifi() {
+        try {
+            wifiLock?.let { if (it.isHeld) it.release() }
+        } catch (_: Throwable) { /* never held */ }
+    }
+
+    /** A film on the main player that has stopped on an error the plugin
+     *  won't retry lets the radio go, once nothing is loading any more: the
+     *  error panel can sit there for as long as the viewer leaves it. The
+     *  WebView's retry is a load(), which takes the lock again. Live TV never
+     *  holds it, so this leaves a channel alone. */
+    private fun releaseWifiIfStopped(s: PlayerSlot) {
+        if (slots[MAIN] !== s || s.isLive || s.player?.isLoading == true) return
+        releaseWifi()
+    }
+
     /** Multi-Screen tiles: stop() only stopped the media, so after one visit
      *  up to four players (threads, views, last-frame buffers) stayed alive
      *  for the rest of the session. load() rebuilds all of this on demand. */
@@ -451,21 +725,31 @@ class SnowPlayerPlugin : Plugin() {
             .setEnableDecoderFallback(true)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
         val meter = ByteMeter(s.netBytes)
+        // Live TV and everything else: quick 8 s timeouts, and no user agent
+        // of our own (some IPTV panels turn away agents they don't know).
         val httpFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(8000)
             .setReadTimeoutMs(8000)
             .setTransferListener(meter)
-        // A Plex server converting a video answers its playlist and first
-        // segments only once the transcoder has something: on a 4K file or a
-        // remote server that is often past 8 s, and the 8 s timeout turned
-        // every quality change into a failure. Live TV keeps its quick 8 s.
-        val transcodeFactory = DefaultHttpDataSource.Factory()
+        // Plex — a file played as it is, or a conversion — is patient. A
+        // remote or shared server often goes quiet for more than 8 s: reading
+        // from cloud storage, waking a drive, or converting, where the playlist
+        // and first segments come only once the transcoder has them. At 8 s
+        // the read was dropped and the file opened again, which costs more
+        // than the pause did; up to 30 s the buffer simply rides it out. It
+        // also says who is asking, like any Plex player, instead of the bare
+        // "Dalvik/2.1.0" Android sends by default.
+        val plexFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(8000)
+            .setConnectTimeoutMs(15000)
             .setReadTimeoutMs(30000)
+            .setUserAgent(
+                "SnowMediaCenter/${BuildConfig.VERSION_NAME} (Linux; Android ${Build.VERSION.RELEASE}) " +
+                    "ExoPlayerLib/${MediaLibraryInfo.VERSION}",
+            )
             .setTransferListener(meter)
-        val dataSourceFactory = DefaultDataSource.Factory(act, TranscodeAwareFactory(httpFactory, transcodeFactory))
+        val dataSourceFactory = DefaultDataSource.Factory(act, PlexAwareFactory(httpFactory, plexFactory))
         // Closed captions on raw MPEG-TS live streams.
         //
         // By default Media3 only creates a caption track when the PMT carries an
@@ -493,10 +777,35 @@ class SnowPlayerPlugin : Plugin() {
             )
         // Trimmed buffers for non-main slots so up to 4 concurrent players fit
         // in Fire TV memory — capped in bytes too, or a 15 Mb/s tile could
-        // hold ~30 MB. "main" keeps the library's byte budget (up to ~138 MB
-        // of buffer) but reads further ahead (below), except on 2 GB-class
-        // boxes, where that memory is what gets the WebView killed; there it
-        // is capped at 80 MB (see below).
+        // hold ~30 MB.
+        //
+        // "main" keeps its buffer topped up instead of filling it and then
+        // waiting. It used to read up to a high mark (60 s, or two minutes)
+        // and then stop until the buffer had fallen to a low one (20 s, or
+        // one minute). For those 40-60 s the server's connection sat open
+        // and unread, and a remote or shared Plex server (cloud storage
+        // behind it, a reverse proxy, a router's NAT) drops or goes cold on a
+        // connection left like that. The refill then needed a new connection,
+        // a new request and a seek on the server, just when only 20 s were
+        // left: the film started fine and then buffered, while the Plex app
+        // on the same box played it through. With the low mark equal to the
+        // high one (Media3's own default is 50 s and 50 s) the player reads a
+        // little every second or so, as fast as the video plays, and the
+        // connection never goes quiet.
+        //
+        // Size before time, as Media3 does by default and nearly every app
+        // ships: the byte budget, not the time, caps the memory the buffer
+        // holds (2 GB boxes keep a short floor under it, below). What size
+        // first can't do is save a badly interleaved file that spends the
+        // whole budget on one track before the other arrives; with 128 MB
+        // and more that takes picture and sound stored over 100 MB apart in
+        // the file, where real files keep them within a second or two of
+        // each other.
+        //
+        // Live TV plays through this player too. A live stream can't be read
+        // past its live edge, so it never reaches either mark and loads
+        // non-stop exactly as it did; the start (2.5 s buffered) and the
+        // restart after a stall (5 s) are unchanged.
         val lowRam = isLowRamBox(act)
         if (screenId != MAIN) {
             val loadControl = DefaultLoadControl.Builder()
@@ -505,30 +814,39 @@ class SnowPlayerPlugin : Plugin() {
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
             builder.setLoadControl(loadControl)
+            s.loadProfile = if (lowRam) "tile · 15 s / 6 MB" else "tile · 15 s / 10 MB"
         } else if (lowRam) {
-            // Up to a minute ahead, about 80 MB. A 1080p film (8-12 Mb/s)
-            // now gets the full minute (it had 15-30 s, so any dip in the
-            // server's or the Wi-Fi's speed became a spinner); a 30 Mb/s
-            // remux stops near its 20 s minimum. Time before size, so a badly
-            // interleaved file can always fill its minimum instead of
-            // stalling with the byte budget spent on one track.
-            val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(20000, 60000, 2500, 5000)
-                .setTargetBufferBytes(80 * 1024 * 1024)
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build()
-            builder.setLoadControl(loadControl)
+            // 2 GB-class boxes, where memory is what gets the WebView
+            // killed: 50 s ahead within 128 MB, and never less than 20 s. A
+            // 1080p film at 8-20 Mb/s keeps its full 50 s (50-125 MB), a
+            // 30 Mb/s remux about 35 s. A 4K remux at 60-80 Mb/s would stop
+            // at 13-18 s on the bytes alone, which one slow spell of the
+            // server's empties; the floor carries it on to 20 s (150-200 MB),
+            // what the old time-first profile held for it, and tops it up
+            // there as it plays. Only a file above about 54 Mb/s goes past
+            // 128 MB, and only as far as its 20 s.
+            builder.setLoadControl(
+                FlooredLoadControl(
+                    minBufferMs = 50000,
+                    maxBufferMs = 50000,
+                    bufferForPlaybackMs = 2500,
+                    bufferForPlaybackAfterRebufferMs = 5000,
+                    targetBufferBytes = 128 * 1024 * 1024,
+                    floorMs = 20000,
+                ),
+            )
+            s.loadProfile = "steady · 50 s / 128 MB, 20 s floor"
         } else {
-            // Boxes with memory to spare: keep downloading up to two minutes
-            // ahead (the library stops at 50 s), topping up whenever it falls
-            // under one. A 6-10 Mb/s episode then rides out a minute-long dip
-            // in the server's or the ISP's speed. Size still wins over time
-            // (the library's own ~138 MB budget), so a 4K remux holds what it
-            // did before and never more.
+            // Boxes with memory to spare: up to two minutes ahead within the
+            // library's own byte budget (about 144 MB for a picture and a
+            // sound track), the same ceiling as before. A 1080p film at
+            // 8-20 Mb/s holds one to two minutes; a 4K remux what it did
+            // before and never more (14-19 s at 60-80 Mb/s).
             val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(60000, 120000, 2500, 5000)
+                .setBufferDurationsMs(120000, 120000, 2500, 5000)
                 .build()
             builder.setLoadControl(loadControl)
+            s.loadProfile = "steady · 120 s / 144 MB"
         }
         val p = builder.build()
         // Keep the Wi-Fi radio at full speed while playing. Without a Wi-Fi
@@ -537,6 +855,8 @@ class SnowPlayerPlugin : Plugin() {
         // 1080p film buffers on a connection that plays it fine in the Plex
         // app, which (like every streaming app) holds this lock. A VPN can't
         // help with that. Held only while playing; released on pause/stop.
+        // A film or episode on the main player also holds its own for the
+        // whole stream (holdWifi); Live TV has this one only.
         p.setWakeMode(C.WAKE_MODE_NETWORK)
         p.setVideoTextureView(s.textureView)
         // Our own audio session, so the volume boost (past 100%) has a session
@@ -556,7 +876,7 @@ class SnowPlayerPlugin : Plugin() {
 
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED && s.currentUrl != null) {
-                    if (s.isLive) { reconnect(s, screenId); return }
+                    if (s.isLive) { reconnect(s, screenId, "live stream ended"); return }
                     notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", "ended"))
                     return
                 }
@@ -586,6 +906,11 @@ class SnowPlayerPlugin : Plugin() {
             }
             override fun onPlayerError(error: PlaybackException) {
                 val code = error.errorCode
+                // First, before any playerError goes out: a handler reads it
+                // back with getStats (PlexSection tells a server that turned
+                // the file down, ERROR_CODE_IO_BAD_HTTP_STATUS, from one that
+                // is gone).
+                s.lastError = error.errorCodeName
                 val isAudioTrack = code == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
                     code == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
                 val isDecoder = code == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
@@ -598,14 +923,42 @@ class SnowPlayerPlugin : Plugin() {
                     fmt?.sampleMimeType?.startsWith("audio/") == true
                 }
                 if (isAudioTrack || isAudioDecoder) {
+                    releaseWifiIfStopped(s)
                     notifyListeners(
                         "playerError",
                         JSObject().put("screenId", screenId).put("code", "AUDIO_DECODE").put("message", error.message ?: "Audio decoder failed"),
                     )
                     return
                 }
-                if (s.currentUrl != null && s.reconnectAttempts < MAX_RECONNECTS) {
-                    reconnect(s, screenId)
+                // A film or episode stops after MAX_VOD_RECONNECTS in a row.
+                // When the server is what failed (ERROR_CODE_IO_*) it says
+                // so as RECONNECT_EXHAUSTED, like a live channel that keeps
+                // dropping: the WebView then makes one fresh start and shows
+                // the error, in words that say how the server failed
+                // (exhaustedMessage). Any other error keeps its own name,
+                // which is what sends PlexSection to a server conversion
+                // instead.
+                val vodSpent = !s.isLive && s.reconnectAttempts >= MAX_VOD_RECONNECTS
+                if (s.currentUrl != null && !vodSpent && s.reconnectAttempts < MAX_RECONNECTS) {
+                    val reason = when (code) {
+                        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+                        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                        -> "server stopped responding"
+                        else -> "stream error " + error.errorCodeName.removePrefix("ERROR_CODE_")
+                    }
+                    reconnect(s, screenId, reason)
+                    return
+                }
+                // Not retried here: the player has stopped.
+                releaseWifiIfStopped(s)
+                val url = s.currentUrl
+                if (url != null && vodSpent && error.errorCodeName.startsWith("ERROR_CODE_IO_")) {
+                    notifyListeners(
+                        "playerError",
+                        JSObject().put("screenId", screenId)
+                            .put("code", "RECONNECT_EXHAUSTED")
+                            .put("message", exhaustedMessage(error, url)),
+                    )
                     return
                 }
                 notifyListeners("playerError", JSObject().put("screenId", screenId).put("code", error.errorCodeName).put("message", error.message ?: "Playback error"))
@@ -638,6 +991,47 @@ class SnowPlayerPlugin : Plugin() {
                 s.subtitleView?.setCues(cueGroup.cues)
             }
         })
+        // For getStats: which decoders are in use, and this load's frames.
+        // Called on this thread, like the listener above; it only keeps
+        // what the player hands it, and only for the item loaded now (see
+        // isCurrentItem): a stream that has been replaced or stopped leaves
+        // the new one's stats alone.
+        p.addAnalyticsListener(object : AnalyticsListener {
+            override fun onVideoDecoderInitialized(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String,
+                initializedTimestampMs: Long,
+                initializationDurationMs: Long,
+            ) { if (isCurrentItem(eventTime)) s.videoDecoderName = decoderName }
+            override fun onVideoDecoderReleased(eventTime: AnalyticsListener.EventTime, decoderName: String) {
+                if (isCurrentItem(eventTime)) s.videoDecoderName = null
+            }
+            override fun onAudioDecoderInitialized(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String,
+                initializedTimestampMs: Long,
+                initializationDurationMs: Long,
+            ) { if (isCurrentItem(eventTime)) s.audioDecoderName = decoderName }
+            override fun onAudioDecoderReleased(eventTime: AnalyticsListener.EventTime, decoderName: String) {
+                if (isCurrentItem(eventTime)) s.audioDecoderName = null
+            }
+            // Each (re)start of the picture gets fresh counters. A session
+            // that ends is added to this load's totals — only the one this
+            // load started: the last stream's arrives here after load() or
+            // a stop has cleared videoCounters, and is left out.
+            override fun onVideoEnabled(eventTime: AnalyticsListener.EventTime, decoderCounters: DecoderCounters) {
+                if (!isCurrentItem(eventTime)) return
+                s.videoCounters = decoderCounters
+                s.framesSeen = true
+            }
+            override fun onVideoDisabled(eventTime: AnalyticsListener.EventTime, decoderCounters: DecoderCounters) {
+                if (s.videoCounters !== decoderCounters) return
+                decoderCounters.ensureUpdated()
+                s.framesRendered += decoderCounters.renderedOutputBufferCount
+                s.framesDropped += decoderCounters.droppedBufferCount
+                s.videoCounters = null
+            }
+        })
         s.player = p
         applyBoost(s)
     }
@@ -648,6 +1042,9 @@ class SnowPlayerPlugin : Plugin() {
         if (url.isNullOrBlank()) { call.reject("url required"); return }
         val live = call.getBoolean("live", true) ?: true
         val subs = call.getArray("subtitles", null)
+        // Seconds; a film resumed part-way. Absent or 0: the player's own start.
+        val startSec = call.getDouble("startPosition")
+        val startMs = if (startSec != null && startSec > 0.0) (startSec * 1000.0).toLong() else 0L
         val screenId = screenIdOf(call)
         val s = slotFor(screenId)
         activity?.runOnUiThread {
@@ -691,14 +1088,26 @@ class SnowPlayerPlugin : Plugin() {
             s.currentUrl = url
             s.currentSubtitles = subs
             s.isLive = live
-            s.lastPositionMs = 0L
+            s.lastPositionMs = startMs
             s.reconnectAttempts = 0
             s.firstFrameSeen = false
+            resetStats(s, url)
+            // A film or episode holds the Wi-Fi lock (see holdWifi); a
+            // channel or preview box plays as it always has, without it, and
+            // lets go of one a film left.
+            if (screenId == MAIN) {
+                if (live) releaseWifi() else holdWifi()
+            }
             // Black until this stream's first frame; the TextureView still
             // holds the previous one. No stop()/re-create needed: covering it
             // costs nothing, so zapping is exactly as fast as before.
             s.shutterView?.visibility = View.VISIBLE
-            p.setMediaItem(buildMediaItem(url, subs))
+            // Straight to the resume point. Preparing at 0 and seeking once
+            // load() had answered opened the file at its start first, then
+            // again at the right place. Without one the player picks its own
+            // start: 0 for a file, the live edge for a channel.
+            val item = buildMediaItem(url, subs)
+            if (startMs > 0) p.setMediaItem(item, startMs) else p.setMediaItem(item)
             p.prepare()
             if (live) {
                 p.playWhenReady = true
@@ -710,7 +1119,7 @@ class SnowPlayerPlugin : Plugin() {
                 p.playWhenReady = false
                 schedulePreBuffer(s, screenId)
             }
-            scheduleWatchdog(s, screenId)
+            scheduleWatchdog(s, screenId) // not for a Plex film (see scheduleWatchdog)
             schedulePositionTick(s)
             scheduleBandwidthTick(s, screenId)
             call.resolve()
@@ -767,8 +1176,162 @@ class SnowPlayerPlugin : Plugin() {
         }
     }
 
+    /**
+     * The stats panel: what the player is doing right now, for one slot (main
+     * unless screenId says otherwise). Everything is already at hand — the
+     * player's own getters, the bandwidth tick's samples, the decoder names
+     * the analytics listener kept — so a read costs the answer and nothing
+     * more. Codec names, numbers and error code names only, never a URL or a
+     * token. A slot with no player answers with zeros and nulls.
+     */
+    @PluginMethod
+    fun getStats(call: PluginCall) {
+        val screenId = screenIdOf(call)
+        val act = activity ?: run { call.resolve(statsOf(null)); return }
+        act.runOnUiThread { call.resolve(statsOf(slots[screenId])) }
+    }
+
+    private fun statsOf(s: PlayerSlot?): JSObject {
+        val p = s?.player
+        val o = JSObject()
+        o.put(
+            "state",
+            when (p?.playbackState) {
+                Player.STATE_BUFFERING -> "buffering"
+                Player.STATE_READY -> "ready"
+                Player.STATE_ENDED -> "ended"
+                else -> "idle"
+            },
+        )
+        o.put("playing", p?.isPlaying == true)
+        val pos = p?.currentPosition?.coerceAtLeast(0L) ?: 0L
+        val dur = p?.duration ?: C.TIME_UNSET
+        o.put("positionSec", pos / 1000.0)
+        o.put("durationSec", if (dur == C.TIME_UNSET || dur < 0L) 0.0 else dur / 1000.0)
+        o.put("bufferedAheadSec", if (p == null) 0.0 else (p.bufferedPosition - pos).coerceAtLeast(0L) / 1000.0)
+        // Speeds: the bandwidth tick's (main slot only), since this load.
+        o.put("nowKbps", s?.lastKbps?.takeIf { it >= 0L } ?: JSONObject.NULL)
+        if (s != null && s.kbpsSamples > 0) {
+            o.put("avgKbps", s.kbpsSum / s.kbpsSamples)
+            o.put("minKbps", s.kbpsMin)
+            o.put("maxKbps", s.kbpsMax)
+        } else {
+            o.put("avgKbps", JSONObject.NULL)
+            o.put("minKbps", JSONObject.NULL)
+            o.put("maxKbps", JSONObject.NULL)
+        }
+        val vf = p?.videoFormat
+        val af = p?.audioFormat
+        o.put("videoDecoder", decoderLabel(s?.videoDecoderName, vf) ?: JSONObject.NULL)
+        if (s != null && vf != null) {
+            if (vf !== s.videoFormatOf) { s.videoFormatOf = vf; s.videoFormatText = describeVideo(vf) }
+            o.put("videoFormat", s.videoFormatText ?: JSONObject.NULL)
+        } else {
+            o.put("videoFormat", JSONObject.NULL)
+        }
+        if (s != null && s.framesSeen) {
+            val c = s.videoCounters
+            c?.ensureUpdated()
+            o.put("renderedFrames", s.framesRendered + (c?.renderedOutputBufferCount ?: 0))
+            o.put("droppedFrames", s.framesDropped + (c?.droppedBufferCount ?: 0))
+        } else {
+            o.put("renderedFrames", JSONObject.NULL)
+            o.put("droppedFrames", JSONObject.NULL)
+        }
+        o.put("audioDecoder", decoderLabel(s?.audioDecoderName, af) ?: JSONObject.NULL)
+        if (s != null && af != null) {
+            if (af !== s.audioFormatOf) { s.audioFormatOf = af; s.audioFormatText = describeAudio(af) }
+            o.put("audioFormat", s.audioFormatText ?: JSONObject.NULL)
+        } else {
+            o.put("audioFormat", JSONObject.NULL)
+        }
+        o.put("restarts", s?.restarts ?: 0)
+        o.put("lastRestartReason", s?.lastRestartReason ?: JSONObject.NULL)
+        o.put("lastError", s?.lastError ?: JSONObject.NULL)
+        o.put("loadProfile", s?.loadProfile ?: JSONObject.NULL)
+        val rt = Runtime.getRuntime()
+        o.put("javaHeapMb", (rt.totalMemory() - rt.freeMemory()) / MIB)
+        o.put("nativeHeapMb", Debug.getNativeHeapAllocatedSize() / MIB)
+        return o
+    }
+
+    /** What decodes a track: the decoder's own name ("c2.amlogic.hevc.decoder"),
+     *  "FFmpeg (software)" for our FFmpeg extension, or "Passthrough" for
+     *  Dolby or DTS sent on to the TV or receiver as it is, which no decoder
+     *  here touches. Null when no track of that kind is playing. */
+    private fun decoderLabel(name: String?, format: Format?): String? {
+        if (format == null) return null
+        if (name != null) return if (name.startsWith("ffmpeg", ignoreCase = true)) "FFmpeg (software)" else name
+        return if (isBitstreamAudio(format.sampleMimeType)) "Passthrough" else null
+    }
+
+    private fun isBitstreamAudio(mime: String?): Boolean = when (mime) {
+        MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC, MimeTypes.AUDIO_AC4,
+        MimeTypes.AUDIO_TRUEHD, MimeTypes.AUDIO_DTS, MimeTypes.AUDIO_DTS_HD, MimeTypes.AUDIO_DTS_EXPRESS,
+        MimeTypes.AUDIO_DTS_X,
+        -> true
+        else -> false
+    }
+
+    /** "HEVC 1920x804 23.98fps 21.6 Mb/s", leaving out what the stream doesn't
+     *  say: a file played as it is rarely carries its bit rate, a conversion
+     *  does. */
+    private fun describeVideo(f: Format): String {
+        val sb = StringBuilder(codecName(f.sampleMimeType))
+        if (f.width > 0 && f.height > 0) sb.append(' ').append(f.width).append('x').append(f.height)
+        if (f.frameRate > 0f) {
+            val whole = Math.round(f.frameRate)
+            sb.append(' ')
+            if (Math.abs(f.frameRate - whole) < 0.01f) sb.append(whole) else sb.append(String.format(Locale.US, "%.2f", f.frameRate))
+            sb.append("fps")
+        }
+        if (f.bitrate > 0) sb.append(' ').append(String.format(Locale.US, "%.1f Mb/s", f.bitrate / 1_000_000.0))
+        return sb.toString()
+    }
+
+    /** "EAC3 8ch 48.0kHz". */
+    private fun describeAudio(f: Format): String {
+        val sb = StringBuilder(codecName(f.sampleMimeType))
+        if (f.channelCount > 0) sb.append(' ').append(f.channelCount).append("ch")
+        if (f.sampleRate > 0) sb.append(' ').append(String.format(Locale.US, "%.1fkHz", f.sampleRate / 1000.0))
+        return sb.toString()
+    }
+
+    /** A codec's short name from its MIME type; the subtype for anything else. */
+    private fun codecName(mime: String?): String = when (mime) {
+        MimeTypes.VIDEO_H265 -> "HEVC"
+        MimeTypes.VIDEO_H264 -> "H.264"
+        MimeTypes.VIDEO_AV1 -> "AV1"
+        MimeTypes.VIDEO_VP9 -> "VP9"
+        MimeTypes.VIDEO_VP8 -> "VP8"
+        MimeTypes.VIDEO_MPEG2 -> "MPEG-2"
+        MimeTypes.VIDEO_MP4V -> "MPEG-4"
+        MimeTypes.VIDEO_VC1 -> "VC-1"
+        MimeTypes.VIDEO_DOLBY_VISION -> "Dolby Vision"
+        MimeTypes.AUDIO_AC3 -> "AC3"
+        MimeTypes.AUDIO_E_AC3 -> "EAC3"
+        MimeTypes.AUDIO_E_AC3_JOC -> "EAC3 Atmos"
+        MimeTypes.AUDIO_AC4 -> "AC4"
+        MimeTypes.AUDIO_TRUEHD -> "TrueHD"
+        MimeTypes.AUDIO_DTS -> "DTS"
+        MimeTypes.AUDIO_DTS_HD -> "DTS-HD"
+        MimeTypes.AUDIO_DTS_EXPRESS -> "DTS Express"
+        MimeTypes.AUDIO_DTS_X -> "DTS:X"
+        MimeTypes.AUDIO_AAC -> "AAC"
+        MimeTypes.AUDIO_MPEG -> "MP3"
+        MimeTypes.AUDIO_MPEG_L2 -> "MP2"
+        MimeTypes.AUDIO_OPUS -> "Opus"
+        MimeTypes.AUDIO_VORBIS -> "Vorbis"
+        MimeTypes.AUDIO_FLAC -> "FLAC"
+        MimeTypes.AUDIO_ALAC -> "ALAC"
+        MimeTypes.AUDIO_RAW -> "PCM"
+        else -> mime?.substringAfter('/')?.uppercase(Locale.US) ?: "?"
+    }
+
     private fun stopSlot(s: PlayerSlot) {
+        if (slots[MAIN] === s) releaseWifi()
         s.currentUrl = null
+        clearStats(s)
         s.currentSubtitles = null
         s.lastPositionMs = 0L
         cancelTimers(s)
@@ -1151,8 +1714,45 @@ class SnowPlayerPlugin : Plugin() {
                 s.player = null
             }
             slots.clear()
+            releaseWifi()
+            wifiLock = null
         }
         super.handleOnDestroy()
+    }
+}
+
+/**
+ * Size first, as DefaultLoadControl is, over a time floor: while less than
+ * floorMs of media is buffered it keeps loading whatever the byte budget
+ * says. A high bit-rate file then still gets its floor when the budget alone
+ * would stop it short. Above the floor the parent decides, and it is always
+ * asked, so it keeps its own record of whether each player is loading.
+ * ExoPlayer calls shouldContinueLoading(Parameters) (Media3 1.5.0); the
+ * older overloads are never reached.
+ */
+private class FlooredLoadControl(
+    minBufferMs: Int,
+    maxBufferMs: Int,
+    bufferForPlaybackMs: Int,
+    bufferForPlaybackAfterRebufferMs: Int,
+    targetBufferBytes: Int,
+    floorMs: Int,
+) : DefaultLoadControl(
+    DefaultAllocator(/* trimOnReset= */ true, C.DEFAULT_BUFFER_SEGMENT_SIZE),
+    minBufferMs,
+    maxBufferMs,
+    bufferForPlaybackMs,
+    bufferForPlaybackAfterRebufferMs,
+    targetBufferBytes,
+    /* prioritizeTimeOverSizeThresholds= */ false,
+    DefaultLoadControl.DEFAULT_BACK_BUFFER_DURATION_MS,
+    DefaultLoadControl.DEFAULT_RETAIN_BACK_BUFFER_FROM_KEYFRAME,
+) {
+    private val floorUs = floorMs * 1000L
+
+    override fun shouldContinueLoading(parameters: LoadControl.Parameters): Boolean {
+        val bySize = super.shouldContinueLoading(parameters)
+        return bySize || parameters.bufferedDurationUs < floorUs
     }
 }
 
@@ -1166,29 +1766,39 @@ private class ByteMeter(private val total: AtomicLong) : TransferListener {
     override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
 }
 
-/** Plex transcode requests (playlist and segments) get the patient source. */
-private class TranscodeAwareFactory(
-    private val normal: DataSource.Factory,
-    private val transcode: DataSource.Factory,
-) : DataSource.Factory {
-    override fun createDataSource(): DataSource =
-        TranscodeAwareDataSource(normal.createDataSource(), transcode.createDataSource())
+/**
+ * A Plex stream: a file played as it is ({base}/library/parts/{id}/{ts}/file.ext)
+ * or a conversion (/video/:/transcode/universal/, playlist and segments).
+ * Matched anywhere in the path so a server behind a reverse proxy with a
+ * path prefix still counts.
+ */
+private fun isPlexStream(uri: Uri): Boolean {
+    val path = uri.path ?: return false
+    return path.contains("/library/parts/") || path.contains("/transcode/universal/")
 }
 
-private class TranscodeAwareDataSource(
+/** Plex streams get the patient source; everything else (Live TV) the quick one. */
+private class PlexAwareFactory(
+    private val normal: DataSource.Factory,
+    private val plex: DataSource.Factory,
+) : DataSource.Factory {
+    override fun createDataSource(): DataSource =
+        PlexAwareDataSource(normal.createDataSource(), plex.createDataSource())
+}
+
+private class PlexAwareDataSource(
     private val normal: DataSource,
-    private val transcode: DataSource,
+    private val plex: DataSource,
 ) : DataSource {
     private var current: DataSource? = null
 
     override fun addTransferListener(transferListener: TransferListener) {
         normal.addTransferListener(transferListener)
-        transcode.addTransferListener(transferListener)
+        plex.addTransferListener(transferListener)
     }
 
     override fun open(dataSpec: DataSpec): Long {
-        val path = dataSpec.uri.path ?: ""
-        val src = if (path.contains("/transcode/universal/")) transcode else normal
+        val src = if (isPlexStream(dataSpec.uri)) plex else normal
         current = src
         return src.open(dataSpec)
     }

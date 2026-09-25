@@ -23,7 +23,7 @@ With a VPN on, SMC doesn't load Plex at all; the Plex app still plays.
   buffers by RAM class, Media3 Wi-Fi lock. Result: still stalls every ~15 s; quality drops but still stalls.
   The card's "server can't send fast enough" verdict was wrong (the Plex app gets 84 Mb/s from it).
 
-## In the next test build (rung 2 work, not yet on a device)
+## In test build 39 (rung 2 work, not yet on a device)
 - Native player (SnowPlayerPlugin.kt): no 8 s first-frame restarts for Plex; 30 s read / 15 s connect timeouts
   for Plex URLs; continuous top-up instead of fill-then-idle bursts; a failed film reconnects at the current
   position (not from scratch); start position given to load(); Wi-Fi lock held for the whole film; a dead

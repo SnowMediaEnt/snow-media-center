@@ -35,6 +35,9 @@ export const snapAllTVScrollToTop = (extraElements: Array<HTMLElement | null | u
   };
 
   const snap = () => {
+    // The later passes run on timers: the page may be gone by then (a test
+    // torn down, a WebView being destroyed).
+    if (typeof document === 'undefined' || !document.body) return;
     snapWindow();
     const elements = new Set<Element | HTMLElement | null | undefined>([
       document.scrollingElement,

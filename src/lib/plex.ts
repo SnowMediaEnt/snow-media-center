@@ -170,6 +170,9 @@ export async function clearPlexToken(): Promise<void> {
 
 export interface PlexConnection {
   uri: string; local: boolean; relay: boolean; protocol: string; address: string; port: number;
+  /** plex.tv's IPv6 flag. Optional: server lists and records made before
+   *  IPv6 paths were asked for have none. */
+  ipv6?: boolean;
 }
 export interface PlexServer {
   name: string; clientIdentifier: string; accessToken?: string; owned: boolean; connections: PlexConnection[];
@@ -190,7 +193,11 @@ export async function getPlexServers(token: string, opts?: { fresh?: boolean }):
   return list;
 }
 async function fetchPlexServers(token: string): Promise<PlexServer[]> {
-  const data = await plexReq<Array<Record<string, unknown>>>('GET', 'https://plex.tv/api/v2/resources?includeHttps=1&includeRelay=1', token);
+  // includeIPv6: without it plex.tv leaves out every IPv6 path. A server on
+  // a line with no forwardable IPv4 port (carrier-grade NAT, DS-Lite) can
+  // still be reachable straight over IPv6; without that path the box had
+  // nothing direct to try and fell back to the speed-capped Plex Relay.
+  const data = await plexReq<Array<Record<string, unknown>>>('GET', 'https://plex.tv/api/v2/resources?includeHttps=1&includeRelay=1&includeIPv6=1', token);
   return (data || [])
     .filter((d) => String(d.provides || '').includes('server'))
     .map((d) => ({
@@ -205,6 +212,7 @@ async function fetchPlexServers(token: string): Promise<PlexServer[]> {
         protocol: String(c.protocol || 'https'),
         address: String(c.address || ''),
         port: Number(c.port || 0),
+        ipv6: !!c.IPv6 || isIpv6Literal(String(c.address || '')),
       })),
     }));
 }
@@ -217,141 +225,318 @@ function isDeadIp(addr: string): boolean {
   if (/^172\.(1[6-9]|2[0-9]|3[01])\./.test(addr)) return true;   // docker-internal
   if (/^169\.254\./.test(addr)) return true;                     // link-local
   if (/^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./.test(addr)) return true; // CGNAT
+  // IPv6 link-local (fe80::/10) only works with the network interface named
+  // after it, which a URL cannot carry.
+  if (/^fe[89ab][0-9a-f]:/i.test(addr)) return true;
   return false;
 }
 
-/** Probe ALL of a server's connections in parallel (LAN, remote, relay, plus
- *  plain http://ip:port fallbacks) and return the best reachable base URL.
- *  Priority: local non-relay > remote non-relay > relay. Chrome-66-safe
- *  (no Promise.any/allSettled). */
+/** An IPv6 literal, bare or in URL brackets. No IPv4 address or host name has
+ *  a colon in it. */
+function isIpv6Literal(addr: string): boolean {
+  return /^\[?[0-9a-f]*:[0-9a-f:.]*(%[^\]]*)?\]?$/i.test(addr);
+}
+
+const unbracket = (addr: string): string => addr.replace(/^\[/, '').replace(/\]$/, '');
+
+/** host:port for a URL. An IPv6 literal has to sit in brackets:
+ *  http://2001:db8::5:32400 is not a URL, http://[2001:db8::5]:32400 is. */
+function urlHostPort(address: string, port: number): string {
+  const a = unbracket(address);
+  return isIpv6Literal(a) ? `[${a}]:${port}` : `${a}:${port}`;
+}
+
+const isHttpsUrl = (u: string): boolean => u.slice(0, 6).toLowerCase() === 'https:';
+const normBase = (u: string): string => u.replace(/\/+$/, '').toLowerCase();
+
+/** What a base URL points at, read off the URL alone. A plex.direct name
+ *  carries the server's IP in its first label: 1-2-3-4.<hash>.plex.direct for
+ *  IPv4, and the IPv6 address with each ':' written as '-' for IPv6. */
+interface PlexBaseInfo {
+  https: boolean;
+  host: string;
+  kind: 'plex.direct' | 'ip' | 'custom';
+  /** The IP the host stands for when the URL says; '' for a custom name. */
+  ip: string;
+  ipv6: boolean;
+}
+function plexBaseInfo(base: string): PlexBaseInfo {
+  const m = /^([a-z][a-z0-9+.-]*):\/\/([^/?#]*)/i.exec(base || '');
+  const https = !!m && m[1].toLowerCase() === 'https';
+  let auth = m ? m[2] : '';
+  auth = auth.slice(auth.lastIndexOf('@') + 1);
+  let host: string;
+  if (auth.charAt(0) === '[') {
+    const end = auth.indexOf(']');
+    host = auth.slice(1, end < 0 ? auth.length : end);
+  } else {
+    host = auth.split(':')[0];
+  }
+  host = host.toLowerCase();
+  if (isIpv6Literal(host)) return { https, host, kind: 'ip', ip: host, ipv6: true };
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return { https, host, kind: 'ip', ip: host, ipv6: false };
+  if (/\.plex\.direct$/.test(host)) {
+    const label = host.split('.')[0];
+    if (/^\d{1,3}(-\d{1,3}){3}$/.test(label)) {
+      return { https, host, kind: 'plex.direct', ip: label.replace(/-/g, '.'), ipv6: false };
+    }
+    if (/^[0-9a-f-]+$/.test(label) && label.split('-').length > 2) {
+      return { https, host, kind: 'plex.direct', ip: label.replace(/-/g, ':'), ipv6: true };
+    }
+    return { https, host, kind: 'plex.direct', ip: '', ipv6: false };
+  }
+  return { https, host, kind: 'custom', ip: '', ipv6: false };
+}
+
 export type PlexRoute = 'lan' | 'direct' | 'relay';
 
-/** Human label for the Help menu / buffering card, e.g. "Direct · https". */
+/** Which route a listed connection is. plex.tv marks an address local when the
+ *  server has it on one of its own network interfaces. Over IPv4 that is
+ *  normally a private address, reachable only from the server's own network.
+ *  Over IPv6 it is usually the server's global address, which answers from
+ *  anywhere: a hosted server has no other. So a local IPv6 path counts as the
+ *  home network only when it is unique-local (fc00::/7); a link-local one
+ *  (fe80::) is never probed at all (see isDeadIp). */
+function plexConnRoute(c: PlexConnection): PlexRoute {
+  if (c.relay) return 'relay';
+  if (!c.local) return 'direct';
+  const addr = unbracket(c.address || '');
+  const u = plexBaseInfo(c.uri || '');
+  const v6 = isIpv6Literal(addr) ? addr : u.ipv6 ? u.ip : '';
+  if (!v6 && !c.ipv6) return 'lan';
+  return /^f[cd][0-9a-f]{2}:/i.test(v6) ? 'lan' : 'direct';
+}
+
+// Which path to prefer. The route decides first: this home network, then
+// straight to the server over the internet, and Plex's relay only when nothing
+// direct answers — Plex caps the relay at a couple of Mbit/s, which no 1080p
+// or 4K file fits through. Within a route: https on plex.direct (the server's
+// own certificate, straight to its IP), then any other https address (a custom
+// URL, often a reverse proxy in front of the server), then plain http; IPv4
+// ahead of IPv6 in each.
+const TIER_LAN = 0;
+const TIER_DIRECT = 1;
+const TIER_RELAY = 2;
+const tierOfRoute = (route?: PlexRoute | null): number =>
+  (route === 'lan' ? TIER_LAN : route === 'relay' ? TIER_RELAY : TIER_DIRECT);
+const routeOfTier = (tier: number): PlexRoute =>
+  (tier === TIER_LAN ? 'lan' : tier === TIER_RELAY ? 'relay' : 'direct');
+/** Lower is better. */
+function plexRank(url: string, tier: number, ipv6?: boolean): number {
+  const h = plexBaseInfo(url);
+  const kind = !h.https ? 2 : h.kind === 'plex.direct' ? 0 : 1;
+  return tier * 100 + kind * 10 + (ipv6 || h.ipv6 ? 1 : 0);
+}
+
+/** Human label for the Help menu / buffering card, e.g.
+ *  "Direct to server · plex.direct · https". It names the kind of address, and
+ *  a custom one by its host name alone: nothing past the host is ever shown. */
 export function plexRouteLabel(route: PlexRoute | undefined, base: string): string {
-  const secure = base.slice(0, 6).toLowerCase() === 'https:';
-  const proto = secure ? 'https' : 'http (unencrypted)';
-  if (route === 'lan') return `Home network · ${proto}`;
-  if (route === 'direct') return `Direct to server · ${proto}`;
   if (route === 'relay') return 'Plex Relay (speed-capped by Plex)';
-  return `Unknown route · ${proto}`;
+  const h = plexBaseInfo(base);
+  const where = route === 'lan' ? 'Home network' : route === 'direct' ? 'Direct to server' : 'Unknown route';
+  const host = h.kind === 'plex.direct' ? 'plex.direct'
+    : h.kind === 'ip' ? 'IP'
+      : h.host ? `custom address (${h.host})` : '';
+  const parts = [where, host, h.https ? 'https' : 'http (unencrypted)', h.ipv6 ? 'IPv6' : ''];
+  return parts.filter(Boolean).join(' · ');
 }
 
 // Set by PlexSection while a stream is on screen. Background probes read it and
 // stand down: nothing the app does in the background is worth competing with
-// playback for a Fire TV's small socket pool.
+// playback for a Fire TV's small socket pool. Listeners hear every change, so
+// the relay escape can look for a direct path as soon as a title ends rather
+// than at its next backoff step, which can be ten minutes away.
 let _playbackActive = false;
-export function setPlexPlaybackActive(v: boolean) { _playbackActive = v; }
+const _playbackListeners = new Set<(active: boolean) => void>();
+export function setPlexPlaybackActive(v: boolean) {
+  if (_playbackActive === v) return;
+  _playbackActive = v;
+  _playbackListeners.forEach((fn) => { try { fn(v); } catch { /* the listener's problem, not playback's */ } });
+}
 export function isPlexPlaybackActive(): boolean { return _playbackActive; }
+export function onPlexPlaybackActiveChange(fn: (active: boolean) => void): () => void {
+  _playbackListeners.add(fn);
+  return () => { _playbackListeners.delete(fn); };
+}
 
 /** Route of a base URL we already trust, read straight off the server's own
  *  connection list — no probing, no network. Lets a record saved before routes
  *  were tracked learn its route without a round-trip, so the background upgrade
- *  stops re-running on every single launch. */
+ *  stops re-running on every single launch. Read off the probe's own candidate
+ *  list, so an address listed twice (remote, then local) gets the route a
+ *  fresh probe would give it, and one the probe never tries gets none. */
 export function plexRouteOf(server: PlexServer, base: string): PlexRoute | null {
-  const norm = (u: string) => u.replace(/\/+$/, '').toLowerCase();
-  const want = norm(base);
-  for (const c of server.connections) {
-    if (norm(c.uri) !== want) continue;
-    return c.relay ? 'relay' : c.local ? 'lan' : 'direct';
-  }
-  return null;
+  const c = plexCandidateAt(plexCandidates(server, PLEX_PROBE_TIMEOUT_MS), base);
+  return c ? routeOfTier(c.tier) : null;
 }
+
+/** Could a server offer something better than `base`? False only for the best
+ *  kind of address a route can have (https on plex.direct over IPv4), so a box
+ *  that is already on one is not re-probed at every Plex open. */
+export function plexRouteImprovable(route: PlexRoute | undefined, base: string): boolean {
+  if (route === 'relay') return true;
+  const h = plexBaseInfo(base);
+  return !h.https || h.kind !== 'plex.direct' || h.ipv6;
+}
+
+interface PlexCandidate { url: string; rank: number; tier: number; timeoutMs: number; }
+
+/** Every address worth probing for `server`: each connection plex.tv lists,
+ *  plus a plain http://address:port twin of each direct one (for a server with
+ *  secure connections off, or a router that blocks plex.direct names). */
+function plexCandidates(
+  server: PlexServer,
+  timeoutMs: number,
+  opts?: { httpsOnly?: boolean; noRelay?: boolean },
+): PlexCandidate[] {
+  const byUrl: Record<string, PlexCandidate> = {};
+  const list: PlexCandidate[] = [];
+  const add = (url: string, tier: number, ipv6: boolean) => {
+    if (!url) return;
+    if (opts?.httpsOnly && !isHttpsUrl(url)) return;
+    const rank = plexRank(url, tier, ipv6);
+    // Local candidates get an even shorter probe window — a live LAN PMS
+    // answers /identity in <300ms; anything slower is the docker/CGNAT tarpit.
+    const t = tier === TIER_LAN ? Math.min(2500, timeoutMs) : timeoutMs;
+    const had = byUrl[url];
+    if (had) {
+      // Listed twice (once as LAN, once as remote, say): keep the better rank,
+      // and the longer budget. The remote listing says the address may be
+      // reached across the internet, which the short LAN window is too tight
+      // for.
+      if (rank < had.rank) { had.rank = rank; had.tier = tier; }
+      had.timeoutMs = Math.max(had.timeoutMs, t);
+      return;
+    }
+    byUrl[url] = { url, rank, tier, timeoutMs: t };
+    list.push(byUrl[url]);
+  };
+  for (const c of server.connections) {
+    if (opts?.noRelay && c.relay) continue;
+    const tier = tierOfRoute(plexConnRoute(c));
+    const ipv6 = !!c.ipv6;
+    // Skip dead IP families in a plex.direct name and in the raw address
+    // field (the http twin below). A plex.direct name is an address the server
+    // found on its own interfaces, where docker and CGNAT ones are dead ends.
+    // Any other URI is a custom access URL somebody typed in because it works
+    // for them, a Tailscale 100.x or a VPN's 172.16 address included, so it
+    // is always tried.
+    const u = plexBaseInfo(c.uri || '');
+    if (!(u.kind === 'plex.direct' && u.ip && isDeadIp(u.ip))) add(c.uri, tier, ipv6);
+    const addr = unbracket(c.address || '');
+    if (!c.relay && addr && c.port && !isDeadIp(addr)) add(`http://${urlHostPort(addr, c.port)}`, tier, ipv6);
+  }
+  return list;
+}
+
+/** The candidate `base` is, best-ranked when it is spelt more than one way
+ *  (case, a trailing slash), or null when the probe never tries it. */
+function plexCandidateAt(list: PlexCandidate[], base: string): PlexCandidate | null {
+  const want = normBase(base);
+  let found: PlexCandidate | null = null;
+  for (const c of list) {
+    if (normBase(c.url) === want && (!found || c.rank < found.rank)) found = c;
+  }
+  return found;
+}
+
+/** Probe candidates in parallel and settle on the best one that answers. An
+ *  answer is held until nothing still running could beat it: a relay answer
+ *  waits for every direct path to fail, and http://ip:port waits for the https
+ *  addresses. Each candidate gets its full budget plus a second's grace, since
+ *  a native request can overrun its timeout (connect and read are timed
+ *  separately, DNS not at all). Chrome-66-safe (no Promise.any/allSettled). */
+function racePlexCandidates(
+  server: PlexServer,
+  candidates: PlexCandidate[],
+): Promise<{ base: string; route: PlexRoute } | null> {
+  if (candidates.length === 0) return Promise.resolve(null);
+  return new Promise<{ base: string; route: PlexRoute } | null>((resolve) => {
+    let best: PlexCandidate | null = null;
+    let settled = false;
+    const running = candidates.map(() => true);
+    const timers: number[] = [];
+    const check = () => {
+      if (settled) return;
+      for (let i = 0; i < candidates.length; i++) {
+        if (running[i] && (!best || candidates[i].rank < best.rank)) return;
+      }
+      settled = true;
+      timers.forEach((t) => window.clearTimeout(t));
+      resolve(best ? { base: best.url, route: routeOfTier(best.tier) } : null);
+    };
+    candidates.forEach((cand, i) => {
+      const stop = () => { running[i] = false; check(); };
+      timers.push(window.setTimeout(stop, cand.timeoutMs + 1000));
+      // The token only goes where it travels encrypted. /identity answers
+      // without one, and the machineIdentifier check below is what proves this
+      // server answered; sent over plain http it would reach every address on
+      // the list in the clear, other people's LAN addresses included. Relay
+      // addresses are all https.
+      const token = isHttpsUrl(cand.url) ? server.accessToken : undefined;
+      plexReq<{ MediaContainer?: { machineIdentifier?: string } }>('GET', `${cand.url}/identity`, token, cand.timeoutMs)
+        .then((data) => {
+          // Some OTHER Plex server answering at this address (a home server on
+          // the private IP a remote server lists as its LAN address) is not a
+          // path to this one.
+          const id = data?.MediaContainer?.machineIdentifier;
+          if (id && server.clientIdentifier && id !== server.clientIdentifier) return;
+          if (!best || cand.rank < best.rank) best = cand;
+        })
+        .catch(() => { /* unreachable candidate */ })
+        .then(stop);
+    });
+  });
+}
+
+/** How long one candidate gets to answer /identity. Six seconds, not three and
+ *  a half: a remote server on a slow uplink, a cloud host waking its storage,
+ *  or a first TLS handshake to the other side of the world can take four or
+ *  five, and missing the window handed the box to the relay or to plain http. */
+export const PLEX_PROBE_TIMEOUT_MS = 6000;
 
 export async function pickPlexConnection(
   server: PlexServer,
-  timeoutMs = 3500,
+  timeoutMs = PLEX_PROBE_TIMEOUT_MS,
   opts?: { httpsOnly?: boolean; noRelay?: boolean },
 ): Promise<string | null> {
   const r = await pickPlexConnectionDetailed(server, timeoutMs, opts);
   return r ? r.base : null;
 }
 
-/** Same probe as pickPlexConnection, but also says WHICH kind of path won so
- *  the app can tell a relay-capped stream from a genuinely slow one, and keep
- *  looking for a direct path while stuck on the relay. */
+/** Probe ALL of a server's connections in parallel (LAN, remote, relay, plus
+ *  plain http://ip:port twins) and return the best reachable base URL (see the
+ *  ranking above), saying WHICH kind of path won so the app can tell a
+ *  relay-capped stream from a genuinely slow one. `noRelay` leaves the relay
+ *  out; without it the relay still only wins when no direct path answers. */
 export async function pickPlexConnectionDetailed(
   server: PlexServer,
-  timeoutMs = 3500,
+  timeoutMs = PLEX_PROBE_TIMEOUT_MS,
   opts?: { httpsOnly?: boolean; noRelay?: boolean },
 ): Promise<{ base: string; route: PlexRoute } | null> {
-  const httpsOnly = !!opts?.httpsOnly;
-  const noRelay = !!opts?.noRelay;
-  interface Candidate { url: string; priority: number; timeoutMs: number; }
-  const seen: Record<string, boolean> = {};
-  const candidates: Candidate[] = [];
-  const isHttps = (u: string) => u.slice(0, 6).toLowerCase() === 'https:';
-  const push = (url: string | undefined, priority: number) => {
-    if (!url || seen[url]) return;
-    if (httpsOnly && !isHttps(url)) return;
-    seen[url] = true;
-    // Local candidates get an even shorter probe window — a live LAN PMS
-    // answers /identity in <300ms; anything slower is the docker/CGNAT tarpit.
-    const t = priority === 1 ? Math.min(2500, timeoutMs) : timeoutMs;
-    candidates.push({ url, priority, timeoutMs: t });
-  };
-  for (const c of server.connections) {
-    if (noRelay && c.relay) continue;
-    const prio = c.relay ? 3 : c.local ? 1 : 2;
-    // Skip dead IP families both in the plex.direct dashed-IP hostname AND
-    // the raw address field.
-    const hostMatch = /^https?:\/\/(\d+)-(\d+)-(\d+)-(\d+)\./i.exec(c.uri || '');
-    const dashedIp = hostMatch ? `${hostMatch[1]}.${hostMatch[2]}.${hostMatch[3]}.${hostMatch[4]}` : '';
-    if (dashedIp && isDeadIp(dashedIp)) { /* skip */ } else { push(c.uri, prio); }
-    if (!httpsOnly && !c.relay && c.address && c.port && !isDeadIp(c.address)) {
-      push(`http://${c.address}:${c.port}`, prio);
-    }
-  }
-  if (candidates.length === 0) return null;
-  const routeOf = (c: Candidate): PlexRoute => (c.priority === 1 ? 'lan' : c.priority === 2 ? 'direct' : 'relay');
+  return racePlexCandidates(server, plexCandidates(server, timeoutMs, opts));
+}
 
-  return new Promise<{ base: string; route: PlexRoute } | null>((resolve) => {
-    let pending = candidates.length;
-    let best: Candidate | null = null;
-    let settled = false;
-    interface Pend { priority: number; }
-    const pendList: Pend[] = candidates.map((c) => ({ priority: c.priority }));
-    const cannotBeat = (): boolean => {
-      if (!best) return false;
-      for (const p of pendList) {
-        if (p.priority < best.priority) return false;
-        if (p.priority === best.priority && !isHttps(best.url)) return false; // could still upgrade http→https at same tier
-      }
-      return true;
-    };
-    const maybeFinish = (force = false) => {
-      if (settled) return;
-      if (pending === 0 || force) {
-        settled = true;
-        resolve(best ? { base: best.url, route: routeOf(best) } : null);
-        return;
-      }
-      if (best && cannotBeat()) {
-        settled = true;
-        resolve({ base: best.url, route: routeOf(best) });
-      }
-    };
-    const maxT = Math.max(...candidates.map((c) => c.timeoutMs));
-    const timer = window.setTimeout(() => maybeFinish(true), maxT + 1000);
-    candidates.forEach((cand, idx) => {
-      plexReq('GET', `${cand.url}/identity`, server.accessToken, cand.timeoutMs)
-        .then(() => {
-          if (
-            !best
-            || cand.priority < best.priority
-            || (cand.priority === best.priority && !isHttps(best.url) && isHttps(cand.url))
-          ) {
-            best = cand;
-          }
-        })
-        .catch(() => { /* unreachable candidate */ })
-        .then(() => {
-          pending -= 1;
-          pendList[idx].priority = 999; // mark settled
-          if (pending === 0) window.clearTimeout(timer);
-          maybeFinish();
-        });
-    });
-  });
+/** A reachable path to `server` that ranks strictly above `current`, or null —
+ *  at once, with no network, when the server lists nothing better. Off the
+ *  relay any direct path counts, http included (see the relay escape in
+ *  usePlexAuth for why that is safe on the device). Otherwise it stays on the
+ *  same route (a remote server's LAN addresses are on someone else's network)
+ *  and never steps down from https to http. */
+export function pickBetterPlexConnection(
+  server: PlexServer,
+  current: { base: string; route?: PlexRoute },
+  timeoutMs = PLEX_PROBE_TIMEOUT_MS,
+): Promise<{ base: string; route: PlexRoute } | null> {
+  const all = plexCandidates(server, timeoutMs);
+  const known = plexCandidateAt(all, current.base);
+  const tier = known ? known.tier : tierOfRoute(current.route);
+  const rank = known ? known.rank : plexRank(current.base, tier);
+  const fromHttps = isHttpsUrl(current.base);
+  const better = all.filter((c) => c.tier !== TIER_RELAY && c.rank < rank
+    && (tier === TIER_RELAY || (c.tier === tier && (!fromHttps || isHttpsUrl(c.url)))));
+  return racePlexCandidates(server, better);
 }
 
 /** Returns the PMS machineIdentifier at `base`, or null if it did not report
@@ -635,8 +820,27 @@ export async function findPlexCopies(base: string, token: string, guid: string |
   }
 }
 
+// Who is asking, as query parameters: the same client id, product, version,
+// platform and device plexHeaders sends on every API call. A stream request
+// comes from the player, which sends none of those headers, so without them
+// the server could tell which account asked (the token) but not which player
+// or app. Plex's own players name themselves on stream URLs the same way.
+// Direct play only: the transcode URL keeps the client id alone, because the
+// server picks its conversion profile by platform and product, and naming
+// them there could change what it converts to.
+const PLEX_CLIENT_PARAMS = [
+  'X-Plex-Client-Identifier', 'X-Plex-Product', 'X-Plex-Version',
+  'X-Plex-Platform', 'X-Plex-Device', 'X-Plex-Device-Name',
+];
+function plexClientQuery(): string {
+  const h = plexHeaders();
+  return PLEX_CLIENT_PARAMS.map((k) => `${k}=${encodeURIComponent(h[k])}`).join('&');
+}
+
+/** The file itself, played as it is. The token stays the first parameter,
+ *  where it has always been; who is asking follows it. */
 export function plexDirectUrl(base: string, partKey: string, token: string): string {
-  return `${base}${partKey}?X-Plex-Token=${encodeURIComponent(token)}`;
+  return `${base}${partKey}?X-Plex-Token=${encodeURIComponent(token)}&${plexClientQuery()}`;
 }
 
 /** Codecs the Media3 decoder + Fire TV audio path can direct-play reliably.

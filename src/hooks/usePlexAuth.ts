@@ -4,10 +4,11 @@ import {
   loadPlexToken, savePlexToken, clearPlexToken,
   getPlexServers, pickPlexConnectionDetailed, loadPlexServer, savePlexServer,
   getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches, rekeyPlexCaches, plexRouteOf,
-  isPlexPlaybackActive, type PlexRoute,
+  isPlexPlaybackActive, onPlexPlaybackActiveChange, pickBetterPlexConnection, plexRouteImprovable,
+  PLEX_PROBE_TIMEOUT_MS, type PlexRoute,
 } from '@/lib/plex';
 import { clearPlexImageCache, rekeyPlexImageCache } from '@/components/livetv/PlexImage';
-import { runWhenIdle } from '@/utils/idle';
+import { runAfter } from '@/utils/idle';
 import { isDemo } from '@/lib/demoMode';
 import { demoConn } from '@/lib/plexDemo';
 import { loadCreds } from '@/lib/xtream';
@@ -52,10 +53,25 @@ type DiscoverOutcome = 'ok' | 'failed' | 'auth';
 // so per-mount state meant every open of Plex on an http or relay box asked
 // plex.tv for the server list and probed every connection again, and the
 // relay escape's backoff restarted at its first, shortest step.
+// Only for learning the route of a record saved before routes were kept: a
+// base that is no longer on the server's list never learns one.
 const UPGRADE_EVERY_MS = 30 * 60 * 1000;
 const _lastUpgradeAt = new Map<string, number>();
 const RELAY_FIRST_DELAY_MS = 45_000;
 const _relayDelay = new Map<string, number>();
+// When each server was last probed for a better path, by any caller (first
+// connect, the re-test at a Plex open, the relay escape). A Plex open or a
+// title ending right after a probe that found nothing does not repeat it.
+const REPROBE_FLOOR_MS = 30_000;
+const _lastProbeAt = new Map<string, number>();
+// Servers with a better-path probe in flight: one at a time per server.
+const _probing = new Set<string>();
+// When the relay escape first looks after a Plex open: past PlexSection's
+// settle screen, which gives up waiting at 9 s, so the probe's fan-out never
+// competes with the first screen's own requests.
+const RELAY_OPEN_DELAY_MS = 10_000;
+// And after a title ends: the screen it returns to is already loaded.
+const RELAY_SETTLE_MS = 3000;
 
 export function usePlexAuth() {
   const demo = isDemo();
@@ -126,11 +142,13 @@ export function usePlexAuth() {
           if (connBaseRef.current && connBaseRef.current !== cached.base) bumpPlexImageEpoch();
           connBaseRef.current = cached.base;
           setConn(cached); setStatus('ready');
-          // Background upgrade of a cached connection — no UX change:
-          //  • http:// base → migrate to a reachable https:// mirror so posters
-          //    stop being blocked by the WebView on https origins.
+          // Background re-test of a cached connection — no UX change:
+          //  • a base short of the best kind of address (plain http, a custom
+          //    address, IPv6) → look for a better one on the same route, at
+          //    every Plex open. A probe that once missed its window (a slow
+          //    https answer, say) must not pin the box to a worse path for good.
           //  • unknown route (saved before routes were tracked) → learn it.
-          //  • relay → look for a direct path (Plex caps relay speed hard).
+          //  • relay → the relay escape below, which also runs at every open.
           //
           // THREE RULES, each of which cost us an outage or nearly did:
           //  1. NEVER call setConn for a route-only change. A new `conn`
@@ -140,18 +158,20 @@ export function usePlexAuth() {
           //     Plex sits on "Loading your library…" forever. The base and
           //     token are identical here; only a label changed. Persist it and
           //     let the next launch read it.
-          //  2. NEVER downgrade the scheme. A relay-cached https base probed
-          //     with httpsOnly:false can resolve to a plain http LAN candidate,
-          //     which the web build then blocks as mixed content — killing
-          //     every Plex call. Only accept an equal-or-better scheme.
+          //  2. NEVER downgrade the scheme of a direct base. An https base
+          //     walked back to a plain http candidate is blocked by the web
+          //     build as mixed content — killing every Plex call.
+          //     pickBetterPlexConnection enforces this; only leaving the relay
+          //     may land on http (the relay escape below says why).
           //  3. Run it at IDLE, not on the critical path. This probe fans out
           //     across every candidate connection in parallel; on a Fire TV the
           //     socket pool is small and the first-screen fetches lose.
           const upgradeKey = cached.clientIdentifier || cached.base;
-          const lastUpgrade = _lastUpgradeAt.get(upgradeKey) ?? 0;
-          if ((cached.base.startsWith('http://') || !cached.route || cached.route === 'relay')
-            && Date.now() - lastUpgrade > UPGRADE_EVERY_MS) {
-            const cachedIsHttps = cached.base.slice(0, 6).toLowerCase() === 'https:';
+          const now = Date.now();
+          const learnRoute = !cached.route && now - (_lastUpgradeAt.get(upgradeKey) ?? 0) > UPGRADE_EVERY_MS;
+          const retest = cached.route !== 'relay' && plexRouteImprovable(cached.route, cached.base)
+            && now - (_lastProbeAt.get(upgradeKey) ?? 0) > REPROBE_FLOOR_MS;
+          if (learnRoute || retest) {
             // A record saved before clientIdentifier was stored has no identity
             // on it. Fall back to the machineIdentifier /identity just returned,
             // so the lookup below can still pin itself to THIS server. Without
@@ -161,7 +181,10 @@ export function usePlexAuth() {
             const knownId = cached.clientIdentifier || machineId || null;
             const session = sessionRef.current;
             cancelUpgradeRef.current?.();
-            cancelUpgradeRef.current = runWhenIdle(() => {
+            // After the Plex screen's settle (9 s cap), like the relay escape:
+            // run while it loads, a better address arriving mid-settle swapped
+            // the connection under it and Home showed before its rails.
+            cancelUpgradeRef.current = runAfter(RELAY_OPEN_DELAY_MS, () => {
               void (async () => {
                 try {
                   const servers = await getPlexServers(accountToken);
@@ -170,25 +193,31 @@ export function usePlexAuth() {
                   // Stamp the identity we learned so the mismatch guard above
                   // goes live for this record from the next launch onward.
                   const stamp = cached.clientIdentifier ? {} : { clientIdentifier: knownId as string };
-                  // Rule 2: an upgrade only ever probes https candidates. That
-                  // is the entire point when the cache is http://, and an https
-                  // cache must never be walked back to http.
-                  const better = await pickPlexConnectionDetailed(s, 3500, { httpsOnly: true, noRelay: true });
+                  // The route of the base we are ALREADY on, read off the
+                  // server's own connection list: no network.
+                  const route = cached.route ?? plexRouteOf(s, cached.base) ?? undefined;
+                  let better: { base: string; route: PlexRoute } | null = null;
+                  // Nothing is probed while a title plays: the next open retries.
+                  if (plexRouteImprovable(route, cached.base) && !isPlexPlaybackActive() && !_probing.has(upgradeKey)
+                    && Date.now() - (_lastProbeAt.get(upgradeKey) ?? 0) > REPROBE_FLOOR_MS) {
+                    _probing.add(upgradeKey);
+                    try {
+                      better = await pickBetterPlexConnection(s, { base: cached.base, route }, PLEX_PROBE_TIMEOUT_MS);
+                    } finally {
+                      _probing.delete(upgradeKey);
+                      _lastProbeAt.set(upgradeKey, Date.now());
+                    }
+                  }
                   if (sessionRef.current !== session) return;
-                  // Throttled from here: the probe reached an answer. A throw or
+                  // Throttled from here: the lookup reached an answer. A throw or
                   // a cancelled attempt leaves it unset, so the next open retries.
                   _lastUpgradeAt.set(upgradeKey, Date.now());
-                  const wantHttps = !cachedIsHttps;
-                  const improves = !!better && better.base !== cached.base
-                    && ((wantHttps && better.base.startsWith('https://'))
-                      || (cached.route === 'relay' && better.route !== 'relay'));
-                  if (!improves) {
-                    // Rule 1: no setConn. Learn the route of the base we are
-                    // ALREADY on — read off the server's own connection list,
-                    // not from the probe, which may have picked a different
-                    // base — so this block stops re-running on every launch.
-                    const route = plexRouteOf(s, cached.base)
-                      ?? (better && better.base === cached.base ? better.route : cached.route);
+                  // A title that started while the probe ran keeps its base:
+                  // moving it mid-film would need the stream URL rebuilt. The
+                  // next open looks again.
+                  if (!better || isPlexPlaybackActive()) {
+                    // Rule 1: no setConn. Persist what we learned so this
+                    // block stops re-running on every launch.
                     if (route !== cached.route || !cached.clientIdentifier) {
                       await savePlexServer({ ...cached, ...stamp, route });
                     }
@@ -196,7 +225,7 @@ export function usePlexAuth() {
                   }
                   const upgraded: typeof cached = {
                     ...cached, ...stamp,
-                    base: better!.base, route: better!.route,
+                    base: better.base, route: better.route,
                     token: s.accessToken || accountToken, name: s.name,
                     clientIdentifier: s.clientIdentifier, owned: !!s.owned,
                   };
@@ -214,7 +243,7 @@ export function usePlexAuth() {
                   setConn(upgraded);
                 } catch { /* ignore — cached connection keeps working */ }
               })();
-            }, 8000);
+            });
           }
           return 'ok';
         } catch { /* stale cache — rediscover */ }
@@ -226,13 +255,22 @@ export function usePlexAuth() {
         return 'failed';
       }
       // Try EVERY server (owned first, then shared) — accounts often carry
-      // old/dead registrations; the reachable one may be a shared server.
+      // old/dead registrations; the reachable one may be a shared server. All
+      // are probed at once and the first in that order that answered wins:
+      // one at a time, each dead registration ahead of the live server cost
+      // its whole probe budget first. Each probe takes a direct path over the
+      // relay whenever one answers within the budget.
       const ordered = [...servers].sort((a, b) => Number(b.owned) - Number(a.owned));
-      for (const s of ordered) {
-        const picked = await pickPlexConnectionDetailed(s);
+      const picks = ordered.map((s) => pickPlexConnectionDetailed(s, PLEX_PROBE_TIMEOUT_MS).catch(() => null));
+      for (let i = 0; i < ordered.length; i++) {
+        const s = ordered[i];
+        const picked = await picks[i];
         if (picked) {
           const base = picked.base;
           const c: PlexConn = { base, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier, owned: !!s.owned, route: picked.route };
+          // Every path was just tried: the relay escape need not repeat it
+          // straight away.
+          _lastProbeAt.set(s.clientIdentifier || base, Date.now());
           await savePlexServer(c);
           if (connBaseRef.current && connBaseRef.current !== base) bumpPlexImageEpoch();
           connBaseRef.current = base;
@@ -274,6 +312,7 @@ export function usePlexAuth() {
     clearPlexImageCache();
     _lastUpgradeAt.clear();
     _relayDelay.clear();
+    _lastProbeAt.clear();
     authRepairTokenRef.current = null;
     bumpPlexImageEpoch(); // invalidate any queued/in-flight poster URLs
     connBaseRef.current = null;
@@ -437,8 +476,9 @@ export function usePlexAuth() {
   // Relay escape: Plex Relay is hard-capped (a couple of Mbit/s), which is
   // exactly the "everything is 2–3× faster on a VPN" symptom — the VPN lets a
   // direct path through where the ISP/CGNAT blocks it. While stuck on the
-  // relay, re-probe for a direct path every 45 s and switch as soon as one
-  // answers. Stops on its own once the route is direct or LAN.
+  // relay, re-probe for a direct path and switch as soon as one answers: ten
+  // seconds into every Plex open, a few seconds after every title ends, and on
+  // a backoff in between. Stops on its own once the route is direct or LAN.
   useEffect(() => {
     if (demo || !conn || conn.route !== 'relay' || !accountToken) return;
     let stopped = false;
@@ -449,11 +489,12 @@ export function usePlexAuth() {
     // Returns false when nothing was tried, so a skipped tick does not count
     // toward the backoff below.
     const attempt = async (): Promise<boolean> => {
-      if (stopped || discoveringRef.current) return false;
+      if (stopped || discoveringRef.current || _probing.has(relayKey)) return false;
       // Never probe while a stream is on screen. This fans out across every
       // candidate connection at once, and the relay the user is stuck on is
       // already speed-capped — the probe would compete with their playback.
       if (isPlexPlaybackActive()) return false;
+      _probing.add(relayKey);
       try {
         const servers = await getPlexServers(accountToken);
         const s = servers.find((x) => x.clientIdentifier === conn.clientIdentifier) ?? null;
@@ -465,9 +506,14 @@ export function usePlexAuth() {
         // escape exists to solve. The mixed-content worry does not apply on
         // the device: native calls go through CapacitorHttp, not the WebView,
         // capacitor.config.ts sets allowMixedContent, and PlexImage has a
-        // data-URI fallback for an http base.
-        const better = await pickPlexConnectionDetailed(s, 3500, { noRelay: true });
+        // data-URI fallback for an http base. Any direct path ranks above the
+        // relay, https ones first.
+        const better = await pickBetterPlexConnection(s, { base: conn.base, route: 'relay' }, PLEX_PROBE_TIMEOUT_MS);
         if (!better || stopped || sessionRef.current !== session) return true;
+        // A title started while the probe ran. Moving the base under it would
+        // need its stream URL rebuilt; the playback-end hook below brings the
+        // escape straight back once it ends.
+        if (isPlexPlaybackActive()) return true;
         const upgraded: PlexConn = { ...conn, base: better.base, route: better.route, token: s.accessToken || conn.token };
         // Re-check BEFORE the write, not just after it: the hook may have torn
         // down, or the user may have signed out, while the probe was running.
@@ -480,21 +526,37 @@ export function usePlexAuth() {
         _relayDelay.delete(relayKey); // escaped: a later relay stretch starts fresh
         connBaseRef.current = upgraded.base;
         setConn(upgraded);
-      } catch { /* still on the relay — try again next tick */ }
+      } catch { /* still on the relay — try again next tick */ } finally {
+        _probing.delete(relayKey);
+        _lastProbeAt.set(relayKey, Date.now());
+      }
       return true;
+    };
+    const schedule = (ms: number) => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(tick, ms);
     };
     // Back off after each real attempt (45 s → 90 s → … → 10 min). A box behind
     // CGNAT may never get a direct path, and a fixed 45 s interval would probe
     // every connection on the account for the whole session, forever.
     const tick = () => {
+      timer = null;
       void attempt().then((tried) => {
         if (stopped) return;
         if (tried) { delay = Math.min(delay * 2, 600_000); _relayDelay.set(relayKey, delay); }
-        timer = window.setTimeout(tick, delay);
+        schedule(delay);
       });
     };
-    timer = window.setTimeout(tick, delay);
-    return () => { stopped = true; if (timer) window.clearTimeout(timer); };
+    // The prompt tries: `wait` from now, or later when a probe of this server
+    // ran within the last REPROBE_FLOOR_MS (discover() just tried every path).
+    const soon = (wait: number) => Math.max(wait, REPROBE_FLOOR_MS - (Date.now() - (_lastProbeAt.get(relayKey) ?? 0)));
+    // Every Plex open, not only after the backoff: the viewer may have fixed
+    // port forwarding, or come home to the server's own network, since.
+    schedule(soon(RELAY_OPEN_DELAY_MS));
+    // A skipped tick while a title played would otherwise wait out the whole
+    // backoff step once it ended.
+    const off = onPlexPlaybackActiveChange((active) => { if (!active && !stopped) schedule(soon(RELAY_SETTLE_MS)); });
+    return () => { stopped = true; off(); if (timer) window.clearTimeout(timer); };
   }, [conn, accountToken, demo]);
 
   const startLink = useCallback(async () => {

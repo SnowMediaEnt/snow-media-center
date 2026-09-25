@@ -14,7 +14,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 vi.mock('@capacitor/preferences', () => ({ Preferences: { get: () => Promise.reject(new Error('web')), set: () => Promise.reject(new Error('web')), remove: () => Promise.reject(new Error('web')) } }));
 vi.mock('@/lib/demoMode', () => ({ isDemo: () => false }));
 vi.mock('@/lib/plexDemo', () => ({ demoConn: { base: '', token: '', name: '' } }));
-vi.mock('@/utils/idle', () => ({ runWhenIdle: () => () => { /* never runs in tests */ } }));
+vi.mock('@/utils/idle', () => ({ runWhenIdle: () => () => { /* never runs in tests */ }, runAfter: () => () => { /* never runs in tests */ } }));
 
 const loadCreds = vi.fn();
 const loadPlayerAccount = vi.fn();
@@ -42,6 +42,10 @@ vi.mock('@/lib/plex', () => ({
   clearPlexCaches: () => { /* noop */ },
   plexRouteOf: () => 'direct',
   isPlexPlaybackActive: () => false,
+  onPlexPlaybackActiveChange: () => () => { /* noop */ },
+  pickBetterPlexConnection: async () => null,
+  plexRouteImprovable: () => false,
+  PLEX_PROBE_TIMEOUT_MS: 6000,
 }));
 
 import { usePlexAuth } from '@/hooks/usePlexAuth';

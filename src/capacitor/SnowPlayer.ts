@@ -41,11 +41,79 @@ export interface SnowPlayerLoadOpts {
   live?: boolean;
   isLive?: boolean; // legacy alias
   subtitles?: SnowSubtitle[];
+  /** Where to start, in seconds (a film resumed part-way). The player opens
+   *  the file right there instead of at 0 followed by a seekTo. Omit or 0 →
+   *  the player's own start (the beginning, or a channel's live edge). */
+  startPosition?: number;
   /** Optional multi-screen slot id. Omit → "main". */
   screenId?: string;
 }
 
 export interface SnowScreenOpts { screenId?: string }
+
+/**
+ * What the player is doing right now, for the stats panel (getStats). Read on
+ * demand; the plugin answers from what it already holds. Codec names, numbers
+ * and error code names only — never a URL or a token. The speeds and frames
+ * are this load's; the restarts and last error are this title's, so a retry
+ * of the same one keeps them. A stop clears everything, decoders and formats
+ * included, and a stream that has been replaced never reports into the next.
+ */
+export interface PlayerStats {
+  state: 'idle' | 'buffering' | 'ready' | 'ended';
+  playing: boolean;
+  positionSec: number;
+  durationSec: number;
+  bufferedAheadSec: number;
+  /** The player's own download speed, kbps, from its 3-second samples (main
+   *  slot only). `now` is the last sample, 0 included; min / max / average
+   *  count only the samples in which data arrived, since a pause or a full
+   *  buffer is not the server being slow. Null before the first sample. */
+  nowKbps: number | null;
+  avgKbps: number | null;
+  minKbps: number | null;
+  maxKbps: number | null;
+  /** The decoder's own name, or "FFmpeg (software)". */
+  videoDecoder: string | null;
+  /** e.g. "HEVC 1920x804 23.98fps 21.6 Mb/s"; parts the stream doesn't state
+   *  are left out (a file played as it is rarely states its bit rate). */
+  videoFormat: string | null;
+  renderedFrames: number | null;
+  droppedFrames: number | null;
+  /** The decoder's own name, "FFmpeg (software)", or "Passthrough" (Dolby or
+   *  DTS sent on to the TV or receiver as it is). */
+  audioDecoder: string | null;
+  /** e.g. "EAC3 8ch 48.0kHz" */
+  audioFormat: string | null;
+  /** Times the plugin restarted this stream by itself, and why the last time:
+   *  "no picture in 8 s", "stream error <CODE>", "server stopped responding",
+   *  "live stream ended". */
+  restarts: number;
+  lastRestartReason: string | null;
+  /** The code name of the last error that made the player restart or stop
+   *  (e.g. "ERROR_CODE_IO_BAD_HTTP_STATUS"). Set before that error's
+   *  playerError is sent, so a playerError handler can read it here: behind
+   *  a RECONNECT_EXHAUSTED, ERROR_CODE_IO_BAD_HTTP_STATUS is a server that
+   *  refused the file, not one that stopped answering. */
+  lastError: string | null;
+  /** How far ahead the player reads, e.g. "steady · 50 s / 128 MB, 20 s floor". */
+  loadProfile: string | null;
+  javaHeapMb: number | null;
+  nativeHeapMb: number | null;
+}
+
+/** Stats with nothing playing: what the web build answers, and a stand-in
+ *  for an older app whose plugin has no getStats yet. */
+export function emptyPlayerStats(): PlayerStats {
+  return {
+    state: 'idle', playing: false, positionSec: 0, durationSec: 0, bufferedAheadSec: 0,
+    nowKbps: null, avgKbps: null, minKbps: null, maxKbps: null,
+    videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null,
+    audioDecoder: null, audioFormat: null,
+    restarts: 0, lastRestartReason: null, lastError: null, loadProfile: null,
+    javaHeapMb: null, nativeHeapMb: null,
+  };
+}
 
 
 /**
@@ -96,10 +164,20 @@ export interface SnowPlayerPlugin {
   setSubtitleTrack(opts: { id: string; screenId?: string }): Promise<void>;
   /** Whether this device can software-decode Dolby/DTS. Use for diagnostics. */
   getDecoderInfo(): Promise<SnowDecoderInfo>;
+  /** The stats panel's figures for a slot (main by default); see PlayerStats.
+   *  An app built before this existed rejects the call. */
+  getStats(opts?: SnowScreenOpts): Promise<PlayerStats>;
   addListener(
     event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth' | 'preBuffer',
     cb: (data: {
-      screenId?: string; state?: string; playing?: boolean; code?: string; message?: string;
+      screenId?: string; state?: string; playing?: boolean;
+      /** playerError: the player's own ERROR_CODE_* name, AUDIO_DECODE, or
+       *  RECONNECT_EXHAUSTED once the plugin has given up (a channel after
+       *  20 restarts in a row, a film or episode after 3). A film's message
+       *  then says how its server failed: "The server stopped responding.
+       *  Try again." or "The Plex server refused this file (HTTP 404)."
+       *  Never a URL. */
+      code?: string; message?: string;
       /** playerState: paused on purpose (viewer or system). `playing` also
        *  drops on every stall; this does not. Older builds never send it. */
       paused?: boolean;
@@ -136,6 +214,7 @@ const webFallback: SnowPlayerPlugin = {
   async getDecoderInfo() {
     return { ffmpegAvailable: false, ffmpegVersion: '', abis: [], device: 'web', sdk: 0 };
   },
+  async getStats() { return emptyPlayerStats(); },
   async addListener() { return { remove: async () => {} } as PluginListenerHandle; },
 };
 

@@ -22,7 +22,8 @@ interface UseNativePlayerArgs {
   live?: boolean;
   /** Sidecar subtitles passed at load. */
   subtitles?: SnowSubtitle[];
-  /** Seconds to resume at after load. */
+  /** Seconds to start at (a resumed film). Goes with load(); a retry or a
+   *  return to the app picks up where the viewer is instead. */
   startPosition?: number;
   maxRetries?: number;
   onTracksChanged?: () => void;
@@ -80,6 +81,16 @@ async function applyRect(r: NativeRect, blank = false): Promise<void> {
   });
 }
 
+/** The main player's position in seconds; 0 when unknown. The plugin call is
+ *  made at once (before the first await), so it reaches the player ahead of
+ *  any call made after this one — a stop() right behind it included. */
+async function positionNow(): Promise<number> {
+  try {
+    const p = await SnowPlayer.getPosition();
+    return p.position > 0 ? p.position : 0;
+  } catch { return 0; }
+}
+
 export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true }: UseNativePlayerArgs): NativePlayerState {
   const [buffering, setBuffering] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -106,6 +117,16 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   const rectRef = useRef(rect);
   const backgroundRef = useRef(background);
   backgroundRef.current = background;
+  const liveRef = useRef(live);
+  liveRef.current = live;
+  // The next load is a reload of the stream being watched (a retry, or the
+  // app coming back), not a new one. A film then picks up where the viewer
+  // is: it used to start again from `startPosition` — the very beginning of
+  // a film that was not resumed.
+  const reloadRef = useRef(false);
+  // Where a film was when the app went to the background: the player is
+  // stopped then, so the reload can't ask it any more.
+  const hiddenAtRef = useRef<Promise<number> | null>(null);
 
   const markStreaming = (on: boolean) => {
     // A preview never claims the screen: the flag would stop the updater,
@@ -137,6 +158,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     retriesRef.current = 0;
     exhaustRetriedRef.current = false;
     setError(null);
+    reloadRef.current = true;
     setRetryNonce((n) => n + 1);
     window.setTimeout(() => { retryBusyRef.current = false; }, 800);
   }, []);
@@ -208,9 +230,11 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           // AUDIO_DECODE is a codec-init failure — auto-retrying the same URL
           // won't fix it. Surface immediately so the caller (PlexSection) can
           // fall back to a server-side transcode.
-          // RECONNECT_EXHAUSTED means the native side already tried 20 times,
-          // and every load() here restarts that count — so one fresh start,
-          // not maxRetries × 20 more connections to a dead stream.
+          // RECONNECT_EXHAUSTED means the native side already tried (20 times
+          // for a channel, 3 for a film whose server stopped answering or
+          // refused it), and every load() here restarts that count — so one
+          // fresh start, not maxRetries × that many more connections to a
+          // dead stream.
           // Counted per outage: playback resuming clears it.
           if (code === 'AUDIO_DECODE' || retriesRef.current >= maxRetries
             || (code === 'RECONNECT_EXHAUSTED' && exhaustRetriedRef.current)) {
@@ -221,7 +245,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           if (code === 'RECONNECT_EXHAUSTED') exhaustRetriedRef.current = true;
           const delay = Math.min(8000, 500 * 2 ** retriesRef.current);
           clearRetryTimer();
-          retryTimerRef.current = window.setTimeout(() => { setRetryNonce((n) => n + 1); }, delay) as unknown as number;
+          retryTimerRef.current = window.setTimeout(() => { reloadRef.current = true; setRetryNonce((n) => n + 1); }, delay) as unknown as number;
         }));
       } catch { /* ignore */ }
     })();
@@ -240,6 +264,9 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   useEffect(() => {
     retriesRef.current = 0;
     exhaustRetriedRef.current = false;
+    // A new stream starts at its own startPosition, never at the last one's place.
+    reloadRef.current = false;
+    hiddenAtRef.current = null;
     // Codec support is per-stream — don't carry a warning to the next channel.
     setAudioWarning(null);
   }, [active, url]);
@@ -249,6 +276,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     if (!active || !url) return;
     const myNonce = ++nonceRef.current;
     let cancelled = false;
+    const reload = reloadRef.current;
+    reloadRef.current = false;
     setBuffering(true);
     // A new stream (or a reload) starts playing.
     setPaused(false);
@@ -262,6 +291,14 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
 
     (async () => {
       try {
+        let start = startPosition && startPosition > 0 ? startPosition : 0;
+        if (reload && !live) {
+          // After an error the player still holds the film and its place;
+          // after the app was away it was stopped, so use what was read then.
+          const at = await (hiddenAtRef.current ?? positionNow());
+          if (cancelled || myNonce !== nonceRef.current) return;
+          if (at > 0) start = at;
+        }
         const r = rectRef.current;
         // `blank`: whatever is on screen is the stream being replaced (last
         // channel, the film before). The plugin covers it with black as this
@@ -270,12 +307,15 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         if (r === undefined) await SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0, fullscreen: true, blank: true });
         else if (r) await applyRect(r, true);
         if (cancelled || myNonce !== nonceRef.current) return;
-        await SnowPlayer.load({ url, live, isLive: live, subtitles });
-        if (cancelled || myNonce !== nonceRef.current) return;
-        if (startPosition && startPosition > 0) {
-          markSeek();
-          try { await SnowPlayer.seekTo({ position: startPosition }); } catch { /* ignore */ }
-        }
+        // Used up only by a load that actually goes out; a reload overtaken
+        // by another one leaves it for that one.
+        hiddenAtRef.current = null;
+        // The start goes with the load, so the player opens the file right
+        // there. It used to prepare at 0 and seek once load() had answered:
+        // the file was opened twice, the first time at the wrong place.
+        // Still a jump as far as automatic quality is concerned (playerSeek).
+        if (start > 0) markSeek();
+        await SnowPlayer.load({ url, live, isLive: live, subtitles, ...(start > 0 ? { startPosition: start } : {}) });
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.setVolume({ volume: Math.min(MAX_VOLUME, Math.max(0, volume)) });
         if (cancelled || myNonce !== nonceRef.current) return;
@@ -373,11 +413,14 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     const onHidden = () => {
       if (hidden) return;
       hidden = true;
+      // A film's place, read before the stop below clears it.
+      if (!liveRef.current) hiddenAtRef.current = positionNow();
       void SnowPlayer.stop().catch(() => { /* ignore */ }); markStreaming(false); quietOff(); try { diagEnd(); } catch { /* ignore */ }
     };
     const onVisible = () => {
       if (!hidden) return;
       hidden = false;
+      reloadRef.current = true;
       try { cbReloadRef.current?.(); } catch { /* ignore */ } setRetryNonce((n) => n + 1);
     };
     const onVis = () => { if (document.hidden) onHidden(); else onVisible(); };

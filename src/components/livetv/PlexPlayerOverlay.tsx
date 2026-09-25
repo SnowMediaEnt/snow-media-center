@@ -1,8 +1,9 @@
 // Plex VOD playback overlay. Shown for 5s on any key while fullscreen, and for
 // as long as playback is paused. Owns its own keydown listener (capture=true)
-// when visible; hides on Back. When hidden, this component renders nothing —
-// PlexSection's own Back handler exits playback. Native-only (uses SnowPlayer
-// position/tracks).
+// when visible; hides on Back. When hidden, this component renders nothing but
+// the Skip Intro / Up Next prompt and, when the viewer opened it from Help,
+// the playback stats panel — PlexSection's own Back handler exits playback.
+// Native-only (uses SnowPlayer position/tracks).
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, Maximize, LifeBuoy, Volume2, VolumeX } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
@@ -17,6 +18,7 @@ import { useScreenFormat } from '@/hooks/useScreenFormat';
 // every toast state change, which only <Toaster> needs.
 import { toast } from '@/hooks/use-toast';
 import { stepVolume, volumeBar } from '@/utils/volume';
+import PlayerStatsPanel from './PlayerStatsPanel';
 
 // 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
 // move a preview marker (accelerating on repeated presses), OK jumps there.
@@ -26,6 +28,9 @@ const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', '
 // apart) bump one level — 10 s taps, then 30 s, 1 min, 2 min, 5 min holds.
 const SCRUB_STEPS = [10, 30, 60, 120, 300];
 const SCRUB_REPEAT_MS = 700;
+// The Help menu. "Playback stats" turns the stats panel on and off.
+const HELP_ITEMS = ['Fix buffering — step-by-step guide', 'More help & support', 'Playback stats'];
+const HELP_STATS = 2;
 
 export interface SubtitleSearchContext {
   title: string;
@@ -94,6 +99,12 @@ interface Props {
   /** Paused on purpose (useNativePlayer's `paused`, not a stall). The bar
    *  comes up on a pause however it was made and stays until playing again. */
   paused?: boolean;
+  /** For the playback stats panel (Help → Playback stats): what the server
+   *  does with the file ("Direct play of the original file", "Converting to
+   *  720p · 4 Mbps"), the server's name and what the video needs, kbps. */
+  statsSession?: string;
+  serverName?: string;
+  needKbps?: number;
 }
 
 
@@ -106,7 +117,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused, statsSession, serverName, needKbps }: Props) => {
   // The Quality menu: every version as it is (when there are several), then
   // the converted presets. `selected` is the entry now in effect.
   const qualityList = useMemo((): Array<{ key: string; label: string }> => {
@@ -123,6 +134,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const [row, setRow] = useState<Row>('play');
   const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'format' | 'volume' | 'help'>('none');
   const [menuIdx, setMenuIdx] = useState(0);
+  // The playback stats panel. Stays up while the bar hides; Back closes it
+  // before anything else it would do (a popup menu open over it aside).
+  const [statsOpen, setStatsOpen] = useState(false);
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
   // From the position poll: also true mid-stall, so the `paused` prop wins.
@@ -296,6 +310,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const visibleRef = useRef(visible); useEffect(() => { visibleRef.current = visible; }, [visible]);
   const menuRef = useRef(menu); useEffect(() => { menuRef.current = menu; }, [menu]);
   const menuIdxRef = useRef(menuIdx); useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
+  const statsOpenRef = useRef(statsOpen); useEffect(() => { statsOpenRef.current = statsOpen; }, [statsOpen]);
   const subsRef = useRef(subs); useEffect(() => { subsRef.current = subs; }, [subs]);
   const audsRef = useRef(auds); useEffect(() => { audsRef.current = auds; }, [auds]);
   const osdlResultsRef = useRef(osdlResults); useEffect(() => { osdlResultsRef.current = osdlResults; }, [osdlResults]);
@@ -357,6 +372,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         if (menuRef.current !== 'none') {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           setMenu('none'); armHideRef.current(); return;
+        }
+        if (statsOpenRef.current) {
+          e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+          statsOpenRef.current = false;
+          setStatsOpen(false);
+          if (visibleRef.current) armHideRef.current();
+          return;
         }
         if (visibleRef.current) {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
@@ -477,10 +499,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       if (menuRef.current === 'help') {
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
-        else if (e.key === 'ArrowDown') setMenuIdx(Math.min(1, i + 1));
+        else if (e.key === 'ArrowDown') setMenuIdx(Math.min(HELP_ITEMS.length - 1, i + 1));
         else if (isOk) {
           setMenu('none');
-          if (i === 0) onOpenBufferingGuideRef.current?.();
+          if (i === HELP_STATS) {
+            // OK turns it on and off; a held OK must not flicker it.
+            if (!e.repeat) { statsOpenRef.current = !statsOpenRef.current; setStatsOpen(statsOpenRef.current); }
+          } else if (i === 0) onOpenBufferingGuideRef.current?.();
           else onOpenSupportRef.current?.();
         }
         return;
@@ -553,7 +578,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     </div>
   ) : null;
 
-  if (!visible) return promptEl;
+  // Mounted only while open (and the player is up): closed, it neither
+  // polls the player nor draws anything.
+  const statsEl = active && statsOpen ? (
+    <PlayerStatsPanel session={statsSession ?? ''} serverName={serverName} routeLabel={routeLabel} needKbps={needKbps} />
+  ) : null;
+
+  if (!visible) return statsEl ? <>{promptEl}{statsEl}</> : promptEl;
 
   const scrubbing = row === 'scrub';
   const shownPos = scrubbing && scrubPos != null ? scrubPos : pos;
@@ -592,6 +623,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   return (
     <>
       {promptEl}
+      {statsEl}
       <div className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-16 pb-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
         <div className="max-w-6xl mx-auto pointer-events-auto">
           <p className="text-xl font-quicksand font-bold text-white truncate mb-2">
@@ -655,7 +687,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             {row === 'scrub'
               ? '◀ ▶ move · keep pressing for bigger jumps · OK jump there · ▼ controls'
               : row === 'buffering'
-                ? 'Help — OK for support options'
+                ? 'Help — OK for support and playback stats'
                 : row === 'volume'
                   ? 'Volume — OK opens the slider'
                   : '▲ seek bar · ◀ ▶ select · OK activate · Back hides'}
@@ -815,10 +847,11 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <p className="px-2 pb-2 text-xs text-brand-ice/70 font-nunito">Connection: <span className="text-white/90">{routeLabel}</span></p>
           )}
           <div className="space-y-1">
-            {['Fix buffering — step-by-step guide', 'More help & support'].map((label, i) => (
+            {HELP_ITEMS.map((label, i) => (
               <div key={label} data-focused={menuIdx === i ? 'true' : 'false'}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
                 <span className="truncate">{label}</span>
+                {i === HELP_STATS && statsOpen && <span className="text-brand-gold text-xs">●</span>}
               </div>
             ))}
           </div>
