@@ -42,6 +42,18 @@ afterEach(() => {
 });
 
 describe('streamed game music', () => {
+  it('starts enabled for a new listener but keeps a saved Off choice', async () => {
+    window.localStorage.removeItem(GAME_MUSIC_STORAGE_KEY);
+    vi.resetModules();
+    const firstVisit = await import('./gameMusic');
+    expect(firstVisit.getGameMusicPreference()).toEqual({ enabled: true, volume: 30 });
+
+    window.localStorage.setItem(GAME_MUSIC_STORAGE_KEY, JSON.stringify({ enabled: false, volume: 10 }));
+    vi.resetModules();
+    const returningVisit = await import('./gameMusic');
+    expect(returningVisit.getGameMusicPreference()).toEqual({ enabled: false, volume: 10 });
+  });
+
   it('finds new MP3s without a hardcoded playlist and loads only the current song', async () => {
     vi.stubGlobal('Audio', MockAudio);
     let names = ['A.mp3', 'B.mp3', 'cover.png'];

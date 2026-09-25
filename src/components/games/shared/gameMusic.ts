@@ -17,15 +17,15 @@ function clampVolume(value: number): number {
 }
 
 function readPreference(): MusicPreference {
-  if (typeof window === 'undefined') return { enabled: false, volume: 30 };
+  if (typeof window === 'undefined') return { enabled: true, volume: 30 };
   try {
     const saved = JSON.parse(window.localStorage.getItem(GAME_MUSIC_STORAGE_KEY) ?? 'null');
     return {
-      enabled: saved?.enabled === true,
+      enabled: typeof saved?.enabled === 'boolean' ? saved.enabled : true,
       volume: clampVolume(typeof saved?.volume === 'number' ? saved.volume : 30),
     };
   } catch {
-    return { enabled: false, volume: 30 };
+    return { enabled: true, volume: 30 };
   }
 }
 

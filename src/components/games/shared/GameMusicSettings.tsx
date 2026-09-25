@@ -45,6 +45,8 @@ export function GameMusicSettings({ onClose }: Props) {
     if (direction === 'up') controls.current[Math.max(0, index - 1)]?.focus();
     if (direction === 'right' && index === 0) controls.current[1]?.focus();
     if (direction === 'left' && index === 2) controls.current[1]?.focus();
+    if (direction === 'right' && index === 2) controls.current[3]?.focus();
+    if (direction === 'left' && index === 3) controls.current[2]?.focus();
   };
 
   return <div className="game-music-overlay" role="presentation">
