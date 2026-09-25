@@ -36,6 +36,9 @@ interface Props {
 }
 
 const UP_NEXT_SECONDS = 10;
+/** When what is playing could not be read, ask again after these; the last
+ *  repeats for as long as the title stays up. */
+const INFO_RETRY_MS = [5_000, 15_000, 30_000, 60_000];
 /** Without a credits marker, Up Next shows this long before the end. */
 const NO_CREDITS_LEAD = 20;
 
@@ -73,9 +76,12 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
       const i = await getPlexPlayInfo(base, token, ratingKey).catch(() => null);
       if (gone) return;
       if (!i) {
-        // The server is busy starting the stream: ask once more a little
-        // later, or this title's progress would not be saved at all.
-        if (attempt === 0) retry = window.setTimeout(() => { void load(1); }, 5000);
+        // The server is busy starting the stream, and the stream itself fills
+        // the link for its first half-minute (over a relay especially): keep
+        // asking, less often, for as long as the title is up. Two tries in
+        // the first 25 s were not enough there, and a title that was never
+        // named was never saved — no resume point, no Continue Watching.
+        retry = window.setTimeout(() => { void load(attempt + 1); }, INFO_RETRY_MS[Math.min(attempt, INFO_RETRY_MS.length - 1)]);
         return;
       }
       setInfo(i);

@@ -25,11 +25,13 @@
 //     ends with every rail mounted at once: ~100 poster GETs and 7 composited
 //     scroll layers on a 1GB stick.
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import PlexPosterTile from './PlexPosterTile';
 import { focusBackdrop } from '@/lib/plexBackdrop';
+import { revealPlexRail } from '@/lib/plexReveal';
 import { isDemo } from '@/lib/demoMode';
 import { continueWatching, mergeContinue, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
+import { upNextEpisodes } from '@/lib/plexUpNext';
 import {
   getPlexSectionOnDeck, getPlexSectionRow, getCachedHub, getCachedHubStale, getHubEpoch, setCachedHub,
   getPlexSectionMeta, getPlexFilterValues, getPlexLibraryQuery,
@@ -252,7 +254,13 @@ const PlexLibraryRows = memo(({
         ? (isDemo() ? await getPlexSectionOnDeck(base, token, libKey)
           // On the viewer's own Plex account the server's is theirs too.
           : serverResume ? mergeContinue(continueWatching(30, libKey), await getPlexSectionOnDeck(base, token, libKey).catch(() => []))
-            : continueWatching(30, libKey))
+            // A TV library also gets the next episode of each of its shows
+            // whose latest episode was finished, as Home does: without it a
+            // show watched to the end of an episode left this row empty.
+            : sectionType === 'show'
+              ? mergeContinue(continueWatching(30, libKey), (await upNextEpisodes(base, token).catch(() => [] as PlexItem[]))
+                .filter((it) => String(it.librarySectionID ?? '') === String(libKey)))
+              : continueWatching(30, libKey))
         : await getPlexSectionRow(base, token, libKey, spec.query || '', rowDepth(spec.id));
       // An empty-but-successful response is a real answer: the row is hidden.
       // That is the documented behaviour for every guarded row (the date and
@@ -268,7 +276,7 @@ const PlexLibraryRows = memo(({
     } finally {
       setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
     }
-  }, [base, token, libKey, serverResume]);
+  }, [base, token, libKey, serverResume, sectionType]);
 
   // Wave 1 — prefetched on isCurrent, NOT isActive (see the header). Behind
   // the same 400ms dwell the old grid used: the panel mounts as soon as its
@@ -642,8 +650,31 @@ const PlexLibraryRows = memo(({
       : rows[row]?.items[col] ?? null;
   useEffect(() => { focusBackdrop(focusedItem); }, [focusedItem]);
 
+  // Vertical scroll. The focused tile's own scrollIntoView brings only the
+  // TILE to the edge of the page: pressing Up left the rail's heading and
+  // the top of the lifted, ringed poster above the screen (and the edge is
+  // the scroller's, under the TV's overscan). Show the whole rail box
+  // instead — heading, posters, the 8 px above them where the lift and ring
+  // are drawn — inside the page's padding; the chip bar likewise; in the
+  // filtered grid, the tile with room for its lift and ring. A layout
+  // effect: it runs after the tile's own scroll in the same commit, so the
+  // corrected position is the first one painted.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const revealRowId = rows[row]?.spec.id;
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!isActive || !root || menu) return;
+    if (barHasFocus) { revealPlexRail(root.querySelector('.plex-bar') as HTMLElement | null); return; }
+    if (filtering) {
+      const art = root.querySelector('.plex-art[data-focused="true"]') as HTMLElement | null;
+      revealPlexRail(art ? (art.parentElement as HTMLElement | null) : null, 12);
+      return;
+    }
+    if (revealRowId) revealPlexRail(root.querySelector(`[data-plex-row="${revealRowId}"]`) as HTMLElement | null);
+  }, [isActive, barHasFocus, filtering, revealRowId, row, gridCursor, menu]);
+
   return (
-    <div>
+    <div ref={rootRef}>
       {/* CHIP BAR. gap-2 deliberately — it is in the html.no-flex-gap
           emulation allowlist; gap-5/6/8 are not and collapse on Chromium 66. */}
       <div className="plex-bar flex flex-wrap items-center gap-2">

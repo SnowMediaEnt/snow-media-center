@@ -65,6 +65,7 @@ import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
 import PlexProgressReporter from './PlexProgressReporter';
 import PlexBackdrop from './PlexBackdrop';
 import { focusBackdrop } from '@/lib/plexBackdrop';
+import { revealPlexRail } from '@/lib/plexReveal';
 import { continueWatching, initPlexProgress, mergeContinue, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { upNextEpisodes } from '@/lib/plexUpNext';
 import { fetchFeedItems, othersWatchingKeys, OTHERS_TTL_MS, OTHERS_WATCHING_TITLE } from '@/lib/plexOthersWatching';
@@ -567,12 +568,16 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
   // to a rail left its heading above the top of the screen (the first rail's
   // name stayed hidden until the screen was reopened). Bring the whole rail,
   // heading included, into view after the tile has placed itself.
+  // scrollIntoView itself left the rail's top under the TV's overscan (the
+  // scroller's top padding counts as on screen to it): revealPlexRail keeps
+  // the heading, the posters and the focused one's lift and ring inside the
+  // padding. A layout effect, after the tile's own scroll in the same commit,
+  // so the corrected position is the first one painted.
   const railBoxRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isActive) return;
     const id = rows[row]?.id;
-    const box = id ? railBoxRefs.current[id] : null;
-    if (box) box.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    revealPlexRail(id ? railBoxRefs.current[id] : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row, isActive]);
 
@@ -2752,6 +2757,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [rowH, setRowH] = useState<number>(ROW_H_ESTIMATE);
   const rowHRef = useRef(rowH); useEffect(() => { rowHRef.current = rowH; }, [rowH]);
+  // The scroller's top + bottom padding (the TV overscan margin, pb-4). The
+  // virtualizer places rows from the top of the CONTENT (below the top
+  // padding) but measures the view as the whole box, so a row scrolled to
+  // from above ended that far below the visible bottom; see scrollPaddingEnd.
+  const gridPadRef = useRef(0);
   const rowObserverRef = useRef<ResizeObserver | null>(null);
 
   // Only the A-Z grid uses rowH. The observer below sits on the shared
@@ -2771,6 +2781,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const cs = getComputedStyle(el);
     const padL = parseFloat(cs.paddingLeft) || 0;
     const padR = parseFloat(cs.paddingRight) || 0;
+    gridPadRef.current = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
     const gap = 12; // gap-3, between columns
     const inner = Math.max(0, el.clientWidth - padL - padR);
     if (inner <= 0) return;   // not laid out yet; the observer will fire again
@@ -2809,6 +2820,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // every vertical move, for a grid that was not on screen.
     enabled: isGridTab,
     useFlushSync: false,
+    // Moving Down, 'auto' aligns the row's end to the view's end plus this:
+    // the row's bottom then sits above the bottom padding instead of under
+    // it (by the top padding, which offsets every row). Moving Up needs no
+    // start padding: a row aligned to scrollTop = its start already sits
+    // just below the top padding.
+    scrollPaddingEnd: gridPadRef.current,
   });
   useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line */ }, [rowH]);
 
@@ -4048,7 +4065,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       </div>
 
       <div className="relative flex-1 min-w-0 flex flex-col overflow-hidden">
-        <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4" style={{ paddingTop: '3.5vh' }}>
+        <div ref={attachScroll} data-plex-scroller="" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4" style={{ paddingTop: '3.5vh' }}>
         {deepLinked && detailItem ? null : voiceWait && zone === 'tabs' && currentTab?.type === 'home' ? (
           // A voice command's title is being looked up. Home is not loaded
           // behind it (its hubs would compete with the search); entering the

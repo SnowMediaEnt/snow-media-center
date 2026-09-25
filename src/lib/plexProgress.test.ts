@@ -150,4 +150,39 @@ describe('plexProgress: Continue Watching stays current', () => {
     const got = m.finishedShows(8, new Date(2026, 0, 2).getTime());
     expect(got.map((s) => [s.showKey, s.season, s.index])).toEqual([['A', 1, 3]]);
   });
+
+  it('the next episode opened and left inside a minute does not take the show off Continue Watching', async () => {
+    const m = await import('./plexProgress');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      // Show A: E3 stopped part-way, then E4 opened and left at 0:40.
+      vi.setSystemTime(new Date(2026, 0, 1, 10));
+      m.saveProgress({ ratingKey: 'a3', kind: 'episode', title: 'A3', at: 900, dur: 1800, showKey: 'A', showTitle: 'Show A', season: 1, index: 3 });
+      await tick();
+      vi.setSystemTime(new Date(2026, 0, 1, 11));
+      m.saveProgress({ ratingKey: 'a4', kind: 'episode', title: 'A4', at: 40, dur: 1800, showKey: 'A', showTitle: 'Show A', season: 1, index: 4 });
+      await tick();
+      // Show B: E1 watched to the end, autoplay started E2, Back at 0:20.
+      vi.setSystemTime(new Date(2026, 0, 1, 12));
+      m.saveProgress({ ratingKey: 'b1', kind: 'episode', title: 'B1', at: 1790, dur: 1800, showKey: 'B', showTitle: 'Show B', season: 1, index: 1 });
+      await tick();
+      vi.setSystemTime(new Date(2026, 0, 1, 12, 30));
+      m.saveProgress({ ratingKey: 'b2', kind: 'episode', title: 'B2', at: 20, dur: 1800, showKey: 'B', showTitle: 'Show B', season: 1, index: 2 });
+      await tick();
+    } finally { vi.useRealTimers(); }
+    const now = new Date(2026, 0, 2).getTime();
+    // A resumes where it was stopped part-way …
+    expect(m.continueWatching(30, undefined, now).map((i) => i.ratingKey)).toEqual(['a3']);
+    // … and B still counts as finished up to E1, so its next episode is found.
+    expect(m.finishedShows(8, now).map((s) => [s.showKey, s.season, s.index])).toEqual([['B', 1, 1]]);
+  });
+
+  it('a library matches its titles however the section id was stored', async () => {
+    const m = await import('./plexProgress');
+    localStorage.setItem('snow-plex-progress:device', JSON.stringify({
+      m1: { ratingKey: 'm1', kind: 'movie', title: 'Film', at: 1200, dur: 6000, t: Date.now(), done: false, librarySectionID: 4 },
+    }));
+    m.__resetPlexProgressForTests('device');
+    expect(m.continueWatching(30, '4').map((i) => i.ratingKey)).toEqual(['m1']);
+  });
 });

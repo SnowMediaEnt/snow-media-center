@@ -1531,7 +1531,7 @@ export interface PlexPlayInfo {
 
 /** Details and markers for a movie or an episode; null for anything else. */
 export async function getPlexPlayInfo(base: string, token: string, ratingKey: string): Promise<PlexPlayInfo | null> {
-  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
+  const data = await plexReq<{ MediaContainer?: { librarySectionID?: unknown; Metadata?: Array<Record<string, unknown>> } }>(
     // Not RAIL_FIELDS: that trim excludes Marker, the one element wanted here.
     'GET', `${base}/library/metadata/${ratingKey}?includeMarkers=1&includeGuids=0&excludeElements=Director,Writer,Role,Producer,Country,Collection,Label,Guid,Chapter,Genre`, token, RAIL_TIMEOUT_MS,
   );
@@ -1550,7 +1550,10 @@ export async function getPlexPlayInfo(base: string, token: string, ratingKey: st
     ratingKey: String(m.ratingKey ?? ratingKey),
     kind: m.type === 'episode' ? 'episode' : 'movie',
     title: String(m.title ?? ''),
-    librarySectionID: str(m.librarySectionID),
+    // Some servers put the section only on the container. Without it the
+    // title is saved with no library and never shows in its library's
+    // Continue Watching (continueWatching(…, sectionId)).
+    librarySectionID: str(m.librarySectionID) ?? str(data?.MediaContainer?.librarySectionID),
     index: num(m.index),
     seasonIndex: num(m.parentIndex),
     seasonKey: str(m.parentRatingKey),

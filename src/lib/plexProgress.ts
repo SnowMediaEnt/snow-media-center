@@ -153,6 +153,9 @@ export function isWatched(ratingKey: string): boolean {
   return !!getProgress(ratingKey)?.done;
 }
 
+/** Opened and left inside the first minute, not watched. */
+const barelyStarted = (p: PlexProgress): boolean => !p.done && p.at < EDGE_S;
+
 /** Continue Watching: titles stopped part-way, newest first, one episode per
  *  show (the latest), as tiles. Episodes show their show's poster. */
 export function continueWatching(limit = 30, sectionId?: string, now = Date.now()): PlexItem[] {
@@ -162,7 +165,12 @@ export function continueWatching(limit = 30, sectionId?: string, now = Date.now(
   for (const p of list) {
     if (out.length >= limit) break;
     if (now - p.t > CONTINUE_MAX_AGE_MS) break;
-    if (sectionId && p.librarySectionID !== sectionId) continue;
+    if (sectionId && String(p.librarySectionID ?? '') !== String(sectionId)) continue;
+    // Barely started: not a place to resume, and not where the viewer is in
+    // the show either — the next episode that autoplay started and Back ended
+    // inside a minute must not take the show's one place from the episode
+    // they are part-way through.
+    if (barelyStarted(p)) continue;
     if (p.kind === 'episode' && p.showKey) {
       if (seenShows.has(p.showKey)) continue;
       seenShows.add(p.showKey);
@@ -197,6 +205,9 @@ export function finishedShows(limit = 8, now = Date.now()): FinishedShow[] {
   const out: FinishedShow[] = [];
   for (const p of Object.values(load()).sort((a, b) => b.t - a.t)) {
     if (out.length >= limit || now - p.t > CONTINUE_MAX_AGE_MS) break;
+    // The next episode opened and left inside a minute: the finished one
+    // before it still says where the show is (see continueWatching).
+    if (barelyStarted(p)) continue;
     if (p.kind !== 'episode' || !p.showKey || seen.has(p.showKey)) continue;
     seen.add(p.showKey);
     if (!p.done || p.season == null || p.index == null) continue;

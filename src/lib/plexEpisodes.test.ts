@@ -40,6 +40,12 @@ describe('episode markers and next episode', () => {
     expect(await getNextPlexEpisode('http://pms', 't', info!)).toBeNull();
   });
 
+  it('takes the library from the container when the title does not carry it', async () => {
+    answers['/library/metadata/6'] = { MediaContainer: { librarySectionID: 7, Metadata: [{ ratingKey: '6', type: 'movie', title: 'Film' }] } };
+    const { getPlexPlayInfo } = await import('./plex');
+    expect((await getPlexPlayInfo('http://pms', 't', '6'))?.librarySectionID).toBe('7');
+  });
+
   it('finds the next episode, then the next season, then nothing', async () => {
     answers['/library/metadata/10/children'] = meta([
       { ratingKey: '12', type: 'episode', title: 'Two', index: 2 },

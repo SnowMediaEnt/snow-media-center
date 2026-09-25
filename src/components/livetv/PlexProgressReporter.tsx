@@ -52,11 +52,14 @@ const PlexProgressReporter = memo(({ active, ratingKey, info, getPosition, serve
     const beat = async () => {
       try {
         const p = await getPositionRef.current();
-        if (!alive || !(p.duration > 0) || !(p.position > 0)) return;
-        lastRef.current = snapshot(info, p.position, p.duration);
+        // The player does not always know the running time (a stream still
+        // opening, a transcode's growing playlist); the server does.
+        const dur = p.duration > 0 ? p.duration : (info.duration ?? 0);
+        if (!alive || !(dur > 0) || !(p.position > 0)) return;
+        lastRef.current = snapshot(info, p.position, dur);
         saveProgress(lastRef.current);
         const srv = serverRef.current;
-        if (srv) void reportPlexTimeline(srv.base, srv.token, info.ratingKey, p.playing ? 'playing' : 'paused', p.position, p.duration);
+        if (srv) void reportPlexTimeline(srv.base, srv.token, info.ratingKey, p.playing ? 'playing' : 'paused', p.position, dur);
       } catch { /* next beat */ }
     };
     const id = window.setInterval(() => { void beat(); }, EVERY_MS);
