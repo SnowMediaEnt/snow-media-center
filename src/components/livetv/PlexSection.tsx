@@ -782,7 +782,10 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     let retry: number | null = null;
     const cachedOd = getCachedHub(base, onDeckPath);
     const cachedRa = getCachedHub(base, recentPath);
-    if (cachedOd && cachedRa) { setLoading(false); return; }
+    // On the shared account On Deck is not asked for, so Recently Added alone
+    // is enough to be a hit.
+    const wantOd = DEMO || serverResume;
+    if ((cachedOd || !wantOd) && cachedRa) { setLoading(false); return; }
     // Only a spinner when there is nothing at all to show meanwhile.
     if (!getCachedHubStale(base, onDeckPath) && !getCachedHubStale(base, recentPath)) setLoading(true);
     const epoch = getHubEpoch();
@@ -790,16 +793,22 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     // getCachedHub returns the stored array, and [] is truthy, so a cached
     // failure reads as a cache HIT and blocks every later refetch — Home stays
     // an empty rail across remounts until the TTL runs out.
+    // Not asked for (shared account) is null too: this first runs before the
+    // box knows it is on the viewer's own account, and an empty On Deck cached
+    // then was a hit when it found out, so the server's Continue Watching
+    // stayed away for five minutes.
     Promise.all([
       cachedOd ? Promise.resolve(cachedOd)
-        : (DEMO || serverResume) ? getPlexHub(base, token, onDeckPath).catch(() => null)
-          : Promise.resolve([] as PlexItem[]),
+        : wantOd ? getPlexHub(base, token, onDeckPath).catch(() => null)
+          : Promise.resolve(null),
       cachedRa ? Promise.resolve(cachedRa) : getHomeAdded(base, token).catch(() => null),
     ]).then(([od, ra]) => {
       // Cache first, even if the viewer already moved on: the answer is paid
       // for, and the next visit should not ask again.
-      if (od) setCachedHub(base, onDeckPath, od, epoch);
-      if (ra) setCachedHub(base, recentPath, ra, epoch);
+      // Only what was fetched now: re-stamping a cached copy kept it fresh
+      // forever for a viewer who returns to Home often.
+      if (od && od !== cachedOd) setCachedHub(base, onDeckPath, od, epoch);
+      if (ra && ra !== cachedRa) setCachedHub(base, recentPath, ra, epoch);
       if (cancelled) return;
       if (od) setOnDeck(od);
       if (ra) setRecent(ra);
@@ -875,7 +884,13 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const r: DiscoverRow[] = [];
     // This viewer's own (plexProgress). The server's On Deck belongs to the
     // shared provider account, so it was everyone's viewing mixed together.
-    const cont = familyOnly(DEMO ? onDeck : serverResume ? mergeContinue(ownContinue, onDeck) : mergeContinue(ownContinue, upNext), adultKeys, !DEMO && !serverResume);
+    // On the viewer's own account it joins in, filtered on its own: a Kids
+    // profile checks the server's titles, but its own list carries no
+    // certificate and was reached through the filter, so it keeps it — the
+    // whole merged list was checked, and a Kids profile's own titles vanished.
+    const cont = DEMO ? familyOnly(onDeck, adultKeys)
+      : serverResume ? mergeContinue(familyOnly(ownContinue, adultKeys, true), familyOnly(onDeck, adultKeys))
+        : familyOnly(mergeContinue(ownContinue, upNext), adultKeys, true);
     if (cont.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: cont.slice(0, RAIL_CAP) });
     const mine = familyOnly(listItems, adultKeys, true);
     if (mine.length > 0) r.push({ id: 'mylist', title: 'My List', items: mine.slice(0, RAIL_CAP) });
@@ -2017,10 +2032,17 @@ const ago = (ms?: number): string => {
   const min = Math.round((Date.now() - ms) / 60000);
   return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} days ago`;
 };
+const SKIP_WHY: Record<string, string> = {
+  inactive: 'not playing yet',
+  'no-duration': 'no running time',
+  'no-position': 'no position',
+};
+const yesNo = (v?: boolean) => (v ? 'yes' : 'no');
 const ContinueWatchingCheck = () => {
   const d = progressDiag();
   const saved = progressCount();
   const shown = continueWatching().length;
+  const skip = d.beatSkip ? ` but saved nothing: ${SKIP_WHY[d.beatSkip] ?? d.beatSkip}` : '';
   return (
     <div className="mt-3 px-4 py-3 rounded-xl border border-white/10 bg-black/30 font-nunito text-xs text-brand-ice/75 space-y-0.5">
       <div className="font-quicksand text-sm text-white/85">Continue Watching check</div>
@@ -2031,6 +2053,18 @@ const ContinueWatchingCheck = () => {
           : 'Nothing saved yet on this box.'}
       </div>
       {d.infoMissAt ? <div>Couldn't read what was playing {ago(d.infoMissAt)}.</div> : null}
+      {d.beatAt ? (
+        <div>
+          {d.beatPos != null
+            ? `Player last reported ${clock(d.beatPos)} of ${clock(d.beatDur)}, ${ago(d.beatAt)}${skip}`
+            : `Player last checked ${ago(d.beatAt)}${skip}`}
+        </div>
+      ) : null}
+      {d.closedAt ? <div>Last closed {ago(d.closedAt)} — title known: {yesNo(d.closedKnown)}, playing: {yesNo(d.closedActive)}</div> : null}
+      {d.storageErrorAt ? <div>Couldn't save on this box {ago(d.storageErrorAt)}: its storage is full or unavailable.</div> : null}
+      {d.cloudErrorAt || d.cloudError
+        ? <div>{`Couldn't copy to your account${d.cloudErrorAt ? ` ${ago(d.cloudErrorAt)}` : ''}${d.cloudError ? `: ${d.cloudError}` : '.'}`}</div>
+        : null}
     </div>
   );
 };
@@ -2124,6 +2158,24 @@ const JustLinkedCard = memo(({ conn, accountToken, onContinue, onSignOut }: Just
   );
 });
 JustLinkedCard.displayName = 'JustLinkedCard';
+
+/** Plex lists give running times in milliseconds; the player works in seconds. */
+const secs = (ms?: number): number | undefined => (ms && ms > 0 ? ms / 1000 : undefined);
+/** What Play already knows about a title from its page or its rail tile (see
+ *  playSeed in PlexSection). Only movies and episodes, as with the server's
+ *  answer: nothing else is saved. */
+const seedFromItem = (it: PlexItem): PlexPlayInfo | null => {
+  if (it.type !== 'movie' && it.type !== 'episode') return null;
+  const ep = it.type === 'episode';
+  return {
+    ratingKey: it.ratingKey, kind: ep ? 'episode' : 'movie', title: it.title,
+    librarySectionID: it.librarySectionID, duration: secs(it.duration),
+    showTitle: ep ? it.grandparentTitle : undefined,
+    seasonIndex: ep ? it.parentIndex : undefined,
+    index: ep ? it.index : undefined,
+    markers: [],
+  };
+};
 
 // ─── MAIN ──────────────────────────────────────────────────────────────────
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport, onNeedLiveTV, onFullscreenChange }: Props) => {
@@ -3085,10 +3137,19 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const explainStall = useCallback((snap: DiagSnapshot) => explainPlexStall(snap, {
     fileKbps, targetKbps: qualityCapKbps, transcoding: useTranscode, route: conn?.route,
   }), [fileKbps, qualityCapKbps, useTranscode, conn?.route]);
+  // What is playing, as far as Play already knew it: the title's page, the
+  // episode list, Up Next. PlexProgressReporter saves from this until
+  // EpisodeAutoplay's fuller answer from the server arrives (playInfo below).
+  // It used to wait for that answer alone, and on a box where the request
+  // kept failing nothing was ever saved: no resume point, no Continue
+  // Watching. It names its title, so it only counts while that title plays;
+  // a retry of the same title keeps it.
+  const [playSeed, setPlaySeed] = useState<PlexPlayInfo | null>(null);
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext, partKey?: string, src?: { version?: PlexVersion | null; versions?: PlexVersion[] }) => {
     // ratingKey feeds the content bar's "Popular this week" (media-bar-feed).
     try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie', ratingKey: it.ratingKey, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     if (!DEMO) recordPlexWatch(it);
+    setPlaySeed(seedFromItem(it));
     void playRatingKey(it.ratingKey, it.title, resumeSec, ctx, resolutionLabel(it.videoResolution), partKey, src);
   }, [playRatingKey, conn]);
   const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext, version?: PlexVersion | null) => {
@@ -3096,6 +3157,17 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const show = detailRef.current;
     try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', ratingKey: ep.ratingKey, showKey: show?.ratingKey, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     if (!DEMO && show) recordPlexWatch({ ...show, type: 'show', grandparentTitle: undefined }, undefined);
+    // The list is this show's, unless the viewer went on from its page to
+    // another show (an actor's), which the list names.
+    const sameShow = !!show && show.type === 'show' && !(ctx?.grandparentTitle && show.title && ctx.grandparentTitle !== show.title);
+    setPlaySeed({
+      ratingKey: ep.ratingKey, kind: 'episode', title: ep.title,
+      librarySectionID: sameShow ? show.librarySectionID : undefined, duration: secs(ep.duration),
+      showKey: sameShow ? show.ratingKey : undefined,
+      showTitle: ctx?.grandparentTitle || (sameShow ? show.title : undefined),
+      seasonIndex: ctx?.season, index: ep.index,
+      markers: [],
+    });
     // Pick up where this viewer stopped (their own progress, see plexProgress).
     void playRatingKey(ep.ratingKey, ep.title, resumeSeconds(ep.ratingKey), ctx, '', ep.partKey, { version, versions: ep.versions });
   }, [playRatingKey, conn]);
@@ -3118,6 +3190,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // The same version as the episode before (the 1080p one stays 1080p).
     const want = playVersionRef.current?.label;
     const version = want ? ep.versions?.find((v) => v.label === want) : undefined;
+    // The same show as the episode before.
+    setPlaySeed({
+      ratingKey: ep.ratingKey, kind: 'episode', title: ep.title,
+      librarySectionID: info.librarySectionID, duration: secs(ep.duration),
+      showKey: info.showKey, showTitle: info.showTitle, showThumb: info.showThumb,
+      seasonIndex: ep.seasonIndex, index: ep.index,
+      markers: [],
+    });
     void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '', ep.partKey, { version, versions: ep.versions });
   }, [playRatingKey, conn]);
 
@@ -3912,6 +3992,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }
 
 
+  // What PlexProgressReporter saves under: the server's answer once it is in
+  // (every field), until then what Play knew (playSeed).
+  const reporterInfo = playInfo && playInfo.ratingKey === playing?.ratingKey ? playInfo
+    : playSeed && playSeed.ratingKey === playing?.ratingKey ? playSeed : null;
+
   // ── render: fullscreen ──────────────────────────────────────────────
   // The player is a layer over the browse view, not a replacement for it.
   // Returning only the player used to unmount the detail page and every
@@ -4010,7 +4095,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           <PlexProgressReporter
             active={nativeActive && !slowLoad}
             ratingKey={fullscreen ? playing?.ratingKey ?? null : null}
-            info={playInfo}
+            info={reporterInfo}
             getPosition={native.getPosition}
             server={ownPlexAccount ? { base: conn.base, token: conn.token } : null}
           />

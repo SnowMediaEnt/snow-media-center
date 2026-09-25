@@ -228,6 +228,12 @@ const PlexLibraryRows = memo(({
   // so it can retry, but it still counts as settled for the empty state —
   // otherwise one failed request would show "Loading…" forever.
   const [settled, setSettled] = useState<Record<string, true>>({});
+  // Each row's requests, numbered. Continue Watching is asked again whenever
+  // the player closes and whenever progress is saved, and the server's half
+  // of it can take far longer than the save after it — so an answer is used
+  // only if no newer request for its row has started since. Otherwise a slow
+  // earlier answer lands last and puts back the list from before.
+  const rowGenRef = useRef<Record<string, number>>({});
 
   const fetchRow = useCallback(async (spec: LibraryRowSpec) => {
     if (fetchedRef.current.has(spec.id)) return;
@@ -246,33 +252,63 @@ const PlexLibraryRows = memo(({
       setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
       return;
     }
+    const gen = (rowGenRef.current[spec.id] ?? 0) + 1;
+    rowGenRef.current[spec.id] = gen;
     try {
       // Continue Watching is this viewer's own (plexProgress); the server's On
       // Deck belongs to the Plex account every box shares. The demo keeps the
       // server's canned one.
+      if (spec.kind === 'onDeck' && !isDemo()) {
+        // The row, painted and cached as it stands. An emptied Continue
+        // Watching is cached as empty, or the old list would be painted from
+        // the cache on every later visit.
+        const put = (items: PlexItem[]) => {
+          setLoaded((prev) => ({ ...prev, [spec.id]: items }));
+          setCachedHub(base, path, items, epoch);
+        };
+        // The viewer's own progress is read from this box and goes on screen
+        // at once. It used to wait for the server's half as well, which is a
+        // request per show on a 20 s timeout in a TV library: on a slow box
+        // the row stayed missing for as long as that took, and for good when
+        // a request never came back.
+        const own = continueWatching(30, libKey);
+        // On the viewer's own Plex account the server's is theirs too. A TV
+        // library also gets the next episode of each of its shows whose
+        // latest episode was finished, as Home does: without it a show
+        // watched to the end of an episode left this row empty.
+        const extraPath = serverResume ? `${path}#server` : sectionType === 'show' ? `${path}#upnext` : null;
+        // The server's half from last time is kept beside the row and folded
+        // in meanwhile, so asking again does not blank those titles until the
+        // new answer lands — nor the whole row, when they are all it has,
+        // which would also throw the highlight off it.
+        const before = extraPath ? getCachedHubStale(base, extraPath) : null;
+        put(before && before.length ? mergeContinue(own, before) : own);
+        setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
+        if (!extraPath) return;
+        const extra = serverResume
+          ? await getPlexSectionOnDeck(base, token, libKey).catch(() => [] as PlexItem[])
+          : (await upNextEpisodes(base, token).catch(() => [] as PlexItem[]))
+            .filter((it) => String(it.librarySectionID ?? '') === String(libKey));
+        if (rowGenRef.current[spec.id] !== gen) return; // a newer request owns the row
+        setCachedHub(base, extraPath, extra, epoch);
+        put(mergeContinue(own, extra));
+        return;
+      }
       const items = spec.kind === 'onDeck'
-        ? (isDemo() ? await getPlexSectionOnDeck(base, token, libKey)
-          // On the viewer's own Plex account the server's is theirs too.
-          : serverResume ? mergeContinue(continueWatching(30, libKey), await getPlexSectionOnDeck(base, token, libKey).catch(() => []))
-            // A TV library also gets the next episode of each of its shows
-            // whose latest episode was finished, as Home does: without it a
-            // show watched to the end of an episode left this row empty.
-            : sectionType === 'show'
-              ? mergeContinue(continueWatching(30, libKey), (await upNextEpisodes(base, token).catch(() => [] as PlexItem[]))
-                .filter((it) => String(it.librarySectionID ?? '') === String(libKey)))
-              : continueWatching(30, libKey))
+        ? await getPlexSectionOnDeck(base, token, libKey)
         : await getPlexSectionRow(base, token, libKey, spec.query || '', rowDepth(spec.id));
+      if (rowGenRef.current[spec.id] !== gen) return;
       // An empty-but-successful response is a real answer: the row is hidden.
       // That is the documented behaviour for every guarded row (the date and
       // rating bounds can legitimately match nothing).
       setLoaded((prev) => ({ ...prev, [spec.id]: items }));
-      // An emptied Continue Watching is cached as empty, or the old list
-      // would be painted from the cache on every later visit.
       if (items.length || spec.kind === 'onDeck') setCachedHub(base, path, items, epoch);
     } catch {
       // Leave it absent — the row simply does not appear. A failed row must
-      // never block the others.
-      fetchedRef.current.delete(spec.id);
+      // never block the others. Not when a newer request is out: that one
+      // still holds the row's place, and clearing it would let a second copy
+      // start alongside.
+      if (rowGenRef.current[spec.id] === gen) fetchedRef.current.delete(spec.id);
     } finally {
       setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
     }

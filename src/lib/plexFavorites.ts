@@ -7,7 +7,7 @@
 // here since the last pull is kept even if the account has not got it yet.
 import { supabase } from '@/integrations/supabase/client';
 import type { PlexItem } from '@/lib/plex';
-import { cloudItemKey, fromCloudItemKey, onViewerChange, resolveViewer, scopeToProfile, viewerAccountConfirmed, viewerAccountId, viewerKey, __setViewerForTests } from '@/lib/viewer';
+import { cloudItemKey, deviceKeyToCarry, fromCloudItemKey, onViewerChange, resolveViewer, scopeToProfile, viewerAccountConfirmed, viewerAccountId, viewerKey, __setViewerForTests } from '@/lib/viewer';
 
 export interface PlexFavorite {
   ratingKey: string;
@@ -24,13 +24,12 @@ export const FAVORITE_KIND = 'plex_fav';
 const PREFIX = 'snow-plex-favorites:';
 const MAX = 300;
 
-let memo: { viewer: string; map: Record<string, PlexFavorite>; pulledAt: number } | null = null;
+type Memo = { viewer: string; map: Record<string, PlexFavorite>; pulledAt: number };
+let memo: Memo | null = null;
 
 const storeKey = (v: string) => PREFIX + v;
 
-const load = () => {
-  const viewer = viewerKey();
-  if (memo && memo.viewer === viewer) return memo;
+const read = (viewer: string): Memo => {
   let map: Record<string, PlexFavorite> = {};
   let pulledAt = 0;
   try {
@@ -38,7 +37,13 @@ const load = () => {
     if (parsed?.map && typeof parsed.map === 'object') map = parsed.map;
     pulledAt = Number(parsed?.pulledAt) || 0;
   } catch { /* start empty */ }
-  memo = { viewer, map, pulledAt };
+  return { viewer, map, pulledAt };
+};
+
+const load = () => {
+  const viewer = viewerKey();
+  if (memo && memo.viewer === viewer) return memo;
+  memo = read(viewer);
   return memo;
 };
 
@@ -51,17 +56,72 @@ const emit = () => {
   }, 0);
 };
 
-const save = (map: Record<string, PlexFavorite>, pulledAt?: number) => {
+/** False when storage would not take it (the list then lasts only until
+ *  the app closes). */
+const save = (map: Record<string, PlexFavorite>, pulledAt?: number): boolean => {
   const cur = load();
   const list = Object.values(map).sort((a, b) => b.t - a.t).slice(0, MAX);
   const trimmed: Record<string, PlexFavorite> = {};
   for (const f of list) trimmed[f.ratingKey] = f;
   memo = { viewer: cur.viewer, map: trimmed, pulledAt: pulledAt ?? cur.pulledAt };
-  try { localStorage.setItem(storeKey(cur.viewer), JSON.stringify({ map: trimmed, pulledAt: memo.pulledAt })); } catch { /* full */ }
+  let ok = true;
+  try { localStorage.setItem(storeKey(cur.viewer), JSON.stringify({ map: trimmed, pulledAt: memo.pulledAt })); } catch { ok = false; /* full */ }
   emit();
+  return ok;
 };
 
-onViewerChange(() => { memo = null; emit(); });
+const toRow = (userId: string, fav: PlexFavorite) => ({
+  user_id: userId, kind: FAVORITE_KIND, item_key: cloudItemKey(fav.ratingKey), title: fav.title,
+  subtitle: fav.year ? String(fav.year) : null, poster: null,
+  payload: JSON.parse(JSON.stringify(fav)), watched_at: new Date(fav.t).toISOString(), count: 1,
+});
+
+// The account copy of a list that came over from the box. A pull waits for
+// it: read before those titles are on the account, it would take them for
+// ones removed on another box and drop them.
+let carrying: Promise<void> = Promise.resolve();
+
+// Signing in moves the viewer from the box ('device') to the account — and
+// Live TV signs the box in to the account linked to its line by itself — so
+// what was saved to My List before was left under the box's key. It comes
+// over to the account's list (the newer wins per title), and leaves the box
+// once the account has it too: the account is the truth at the next pull.
+// Only from the box: going from one account to another keeps each one's
+// own. Run again it brings only what is still left, so it is safe on every
+// change of viewer.
+const carryDeviceOver = (was: Memo | null): void => {
+  const from = deviceKeyToCarry();
+  const userId = viewerAccountId();
+  if (!from || !userId) return;
+  // The memo is what the box last saved, even what storage had no room for.
+  const box = (was && was.viewer === from ? was : read(from)).map;
+  const keys = Object.keys(box);
+  if (!keys.length) return;
+  const to = viewerKey();
+  const map = { ...load().map };
+  const came: PlexFavorite[] = [];
+  for (const k of keys) {
+    const f = box[k];
+    if (!f?.ratingKey) continue;
+    // The same time: brought over by an earlier run whose account copy has
+    // not come through yet, so it is sent again.
+    if (!map[k] || map[k].t <= f.t) { map[k] = f; came.push(f); }
+  }
+  if (!save(map)) return;
+  const done = () => { try { localStorage.removeItem(storeKey(from)); } catch { /* ignore */ } };
+  if (!came.length) { done(); return; }
+  carrying = (async () => {
+    try {
+      const { error } = await supabase.from('watch_history')
+        .upsert(came.map((f) => toRow(userId, f)), { onConflict: 'user_id,kind,item_key' });
+      // Refused or offline: the box's copy stays, and the next change of
+      // viewer or pull brings it again.
+      if (!error && viewerKey() === to) done();
+    } catch { /* offline: as above */ }
+  })();
+};
+
+onViewerChange(() => { const was = memo; memo = null; carryDeviceOver(was); emit(); });
 
 export function isFavorite(ratingKey: string): boolean {
   return !!load().map[ratingKey];
@@ -93,11 +153,7 @@ export function toggleFavorite(item: Pick<PlexItem, 'ratingKey' | 'title' | 'typ
     void (async () => {
       try {
         if (fav) {
-          await supabase.from('watch_history').upsert({
-            user_id: userId, kind: FAVORITE_KIND, item_key: itemKey, title: fav.title,
-            subtitle: fav.year ? String(fav.year) : null, poster: null,
-            payload: JSON.parse(JSON.stringify(fav)), watched_at: new Date(fav.t).toISOString(), count: 1,
-          }, { onConflict: 'user_id,kind,item_key' });
+          await supabase.from('watch_history').upsert(toRow(userId, fav), { onConflict: 'user_id,kind,item_key' });
         } else {
           await supabase.from('watch_history').delete()
             .eq('user_id', userId).eq('kind', FAVORITE_KIND).eq('item_key', itemKey);
@@ -125,11 +181,15 @@ export function myList(): PlexItem[] {
 /** Bring the box up to date with the account. Call when Plex opens. */
 export async function pullFavoritesFromCloud(): Promise<void> {
   await resolveViewer();
+  // Signed in before this start (no change of viewer to hear), perhaps by a
+  // version of the app that left the box's list behind: it comes over now.
+  carryDeviceOver(memo);
   const userId = viewerAccountId();
   // A session not refreshed yet reads as nobody: no rows, which would drop
   // the whole list here.
   if (!userId || !viewerAccountConfirmed()) return;
   const viewer = viewerKey();
+  await carrying;
   try {
     const { data, error } = await scopeToProfile(supabase
       .from('watch_history')

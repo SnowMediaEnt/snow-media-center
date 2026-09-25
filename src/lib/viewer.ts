@@ -20,8 +20,11 @@ let profile = MAIN_PROFILE;
 let resolved: Promise<string> | null = null;
 const listeners = new Set<(v: string) => void>();
 
+/** The box itself, nobody signed in. */
+const DEVICE = 'device';
+
 const key = (): string => {
-  const base = account ?? 'device';
+  const base = account ?? DEVICE;
   return profile === MAIN_PROFILE ? base : `${base}:p:${profile}`;
 };
 
@@ -38,6 +41,14 @@ export const viewerIsAccount = (): boolean => account != null;
 
 /** The signed-in account id, or null. */
 export const viewerAccountId = (): string | null => account;
+
+/** The box's own viewer key whose Plex resume points and My List now belong
+ *  to the signed-in account (they were saved before it signed in), or null
+ *  when nobody is signed in. Only the main profile's: a profile made on the
+ *  box (device:p:…) comes over with its keys when someone brings it to the
+ *  account (bringBoxProfiles, profiles.ts), and until then it is the box's. */
+export const deviceKeyToCarry = (): string | null =>
+  account != null && profile === MAIN_PROFILE ? DEVICE : null;
 
 /** True when the account's session is live, so reads from it are the
  *  account's rows. False while it is only remembered (see storedAccountId):
@@ -138,7 +149,7 @@ export function onViewerChange(cb: (v: string) => void): () => void {
 export function __setViewerForTests(v: string): void {
   const m = /^(.*):p:([a-z0-9]+)$/.exec(v);
   const acc = m ? m[1] : v;
-  account = acc === 'device' ? null : acc;
+  account = acc === DEVICE ? null : acc;
   confirmed = account != null;
   profile = m ? m[2] : MAIN_PROFILE;
   resolved = Promise.resolve(key());
