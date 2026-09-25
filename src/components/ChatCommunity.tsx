@@ -1915,41 +1915,50 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
         {/* AI Tab Content */}
         {activeTab === 'ai' && (
-          <Card className={`bg-gradient-to-br from-purple-900/30 to-slate-900 border-purple-700 ${embedded ? 'p-5' : 'p-6'}`}>
-            <div className={`flex items-center justify-between ${embedded ? 'mb-2' : 'mb-4'} gap-3 flex-wrap`}>
-              <h3 className="text-2xl font-bold text-white">Snow Media AI Assistant</h3>
-              <div className="flex items-center gap-3">
+          <Card className={`bg-slate-950/90 border-purple-500/40 text-white shadow-xl ${embedded ? 'p-5' : 'p-6'}`}>
+            {/* A solid dark card. It was a 30% purple gradient over the Card's
+                light default, which read as washed-out lavender on the TV with
+                the purple and gold text on it hard to make out. */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center min-w-0 mr-3">
+                <span className="w-11 h-11 rounded-full bg-purple-600 inline-flex items-center justify-center mr-3 shrink-0">
+                  <Brain className="w-6 h-6 text-white" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-xl font-bold text-white leading-tight">Snow Media AI Assistant</h3>
+                  <p className="text-sm text-white/70 truncate">Ask about Snow Media, streaming apps, or help with your SMC app.</p>
+                </div>
+              </div>
+              <div className="flex items-center shrink-0">
                 <button
                   type="button"
                   onClick={() => setVoiceRepliesEnabled(v => !v)}
                   aria-pressed={voiceRepliesEnabled}
                   aria-label={voiceRepliesEnabled ? 'Disable voice replies' : 'Enable voice replies'}
                   title={voiceRepliesEnabled ? 'Voice replies: ON — tap to disable' : 'Voice replies: OFF — tap to enable'}
-                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold border transition-colors ${
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border transition-colors ${
                     voiceRepliesEnabled
                       ? 'bg-brand-ice/15 border-brand-ice/40 text-brand-ice'
                       : 'bg-slate-800 border-slate-600 text-slate-300'
                   }`}
                 >
-                  {voiceRepliesEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                  {voiceRepliesEnabled ? <Volume2 className="w-3.5 h-3.5 mr-1" /> : <VolumeX className="w-3.5 h-3.5 mr-1" />}
                   Voice {voiceRepliesEnabled ? 'ON' : 'OFF'}
                 </button>
                 {user && profile && (
-                  <div className="text-purple-200 text-sm">
-                    Balance: {profile.credits.toFixed(2)} Snow Gems
-                  </div>
+                  <span className="ml-2 rounded-full bg-white/10 border border-white/15 px-3 py-1 text-xs font-semibold text-white/90">
+                    {profile.credits.toFixed(2)} Snow Gems
+                  </span>
                 )}
               </div>
             </div>
-            
-            <p className={`text-purple-200 ${embedded ? 'mb-3' : 'mb-6'}`}>
-              Ask me about snow media, streaming apps, or get help with your SMC app.
-              <br />
-              {/* Side by side: one line of the TV's 540 instead of two. */}
-              <span className="inline-block mr-4 text-sm font-semibold text-brand-gold drop-shadow-[0_0_6px_rgba(255,200,80,0.5)]">Text chat: 0.01 Snow Gems per message</span>
-              <span className="inline-block text-sm font-semibold text-brand-ice drop-shadow-[0_0_6px_rgba(160,220,255,0.5)]">Voice reply: 0.04 Snow Gems per voice message · multilingual (32+ languages)</span>
-            </p>
-            
+
+            <div className={`flex flex-wrap items-center text-xs font-semibold ${embedded ? 'mb-3' : 'mb-5'}`}>
+              <span className="mr-2 mb-1 rounded-full bg-brand-gold/15 border border-brand-gold/40 px-2.5 py-0.5 text-brand-gold">Text chat · 0.01 Snow Gems a message</span>
+              <span className="mr-2 mb-1 rounded-full bg-brand-ice/10 border border-brand-ice/35 px-2.5 py-0.5 text-brand-ice">Voice reply · 0.04 Snow Gems</span>
+              <span className="mb-1 rounded-full bg-white/10 border border-white/15 px-2.5 py-0.5 text-white/75">32+ languages</span>
+            </div>
+
             {/* A Kids profile: say plainly what this AI will and won't do. */}
             {kidsLevel() && (
               <div className="mb-4 rounded-lg border border-emerald-400/60 bg-emerald-900/40 p-3 flex items-start">
@@ -1965,7 +1974,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             <div
               ref={aiChatContainerRef}
               data-focus-id="message-scroll"
-              className={`bg-slate-800 rounded-lg p-4 mb-4 ${embedded ? 'max-h-[30vh]' : 'max-h-80'} overflow-y-auto transition-colors duration-200 ${isFocused('message-scroll') ? 'border-l-4 border-brand-ice' : 'border-l-4 border-transparent'}`}
+              className={`bg-black/30 border border-white/10 rounded-xl p-4 mb-4 ${embedded ? 'max-h-[30vh]' : 'max-h-80'} overflow-y-auto transition-colors duration-200 ${isFocused('message-scroll') ? 'border-l-4 border-l-brand-ice' : ''}`}
             >
               {isFocused('message-scroll') && aiChat.length > 0 && (
                 <div className="text-center text-xs text-brand-ice mb-2 animate-pulse">
@@ -1973,22 +1982,24 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 </div>
               )}
               {aiChat.length === 0 ? (
-                <div className={`text-center text-slate-400 ${embedded ? 'py-3' : 'py-8'}`}>
+                <div className={`text-center text-white/60 ${embedded ? 'py-3' : 'py-8'}`}>
                   <Brain className={`${embedded ? 'w-10 h-10 mb-2' : 'w-12 h-12 mb-4'} mx-auto text-purple-400`} />
-                  <p>Start a conversation with Snow Media AI!</p>
-                  <p className="text-sm mt-2">{kidsLevel() ? 'Try asking: "Find me a cartoon to watch"' : 'Try asking: "Help me install an app"'}</p>
+                  <p className="text-white/85 font-semibold">Start a conversation with Snow Media AI</p>
+                  <p className="text-sm mt-1">{kidsLevel() ? 'Try asking: "Find me a cartoon to watch"' : 'Try asking: "Help me install an app"'}</p>
                 </div>
               ) : (
                 aiChat.map((msg, index) => (
-                  <div key={index} className="mb-4 last:mb-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={`font-semibold ${
-                        msg.role === 'user' ? 'text-blue-400' : 'text-purple-400'
-                      }`}>
+                  // Bubbles: yours on the right, the assistant's on the left.
+                  <div key={index} className={`mb-3 last:mb-0 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`rounded-2xl px-4 py-2.5 ${msg.premiumContent ? 'w-full' : 'max-w-[85%]'} ${
+                    msg.role === 'user' ? 'bg-blue-600/80 rounded-br-md' : 'bg-white/10 border border-white/10 rounded-bl-md'
+                  }`}>
+                    <div className="flex items-center justify-between mb-1 text-xs">
+                      <span className={`font-semibold mr-4 ${msg.role === 'user' ? 'text-blue-100' : 'text-purple-300'}`}>
                         {msg.role === 'user' ? 'You' : 'Snow Media AI'}
                       </span>
-                      <span className="text-slate-400 text-sm">
-                        {msg.timestamp.toLocaleTimeString()}
+                      <span className="text-white/50">
+                        {msg.timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                       </span>
                     </div>
                     {msg.role === 'ai' && msg.premiumContent ? (
@@ -2023,6 +2034,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                       </button>
                     )}
                   </div>
+                  </div>
                 ))
               )}
               
@@ -2042,7 +2054,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 placeholder="Ask Snow Media AI anything..."
                 enterKeyHint="done"
                 data-focus-id="ai-input"
-                className={`bg-slate-800 border-slate-600 text-white text-lg py-3 flex-1 transition-all duration-200 rounded-md ${isFocused('ai-input') ? 'ring-4 ring-brand-ice' : ''}`}
+                className={`bg-black/40 border-white/20 text-white text-lg py-3 flex-1 transition-all duration-200 rounded-lg placeholder:text-white/45 ${isFocused('ai-input') ? 'ring-4 ring-brand-ice' : ''}`}
                 disabled={aiLoading}
                 onKeyPress={(e) => {
                   if (e.key === 'Enter' && !aiLoading) {

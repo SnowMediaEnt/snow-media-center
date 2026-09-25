@@ -57,8 +57,28 @@ const store = (s: Stored | null) => {
 
 export const typingHintEnabled = (): boolean => { try { return localStorage.getItem(HINT_KEY) !== '0'; } catch { return true; } };
 export const setTypingHintEnabled = (on: boolean): void => {
-  try { localStorage.setItem(HINT_KEY, on ? '1' : '0'); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(HINT_KEY, on ? '1' : '0');
+    // Turned back on in Settings: it gets its few showings again.
+    if (on) localStorage.removeItem(HINT_SHOWN_KEY);
+  } catch { /* ignore */ }
   emit();
+};
+
+// The "Type on your phone" card showed every time a text box had focus. It
+// now shows a few times, then turns itself off (Settings → Phone Remote turns
+// it back on). The keyboard is open while it shows, so the remote cannot reach
+// a button on it; counting is what makes "not every time" work from the couch.
+const HINT_SHOWN_KEY = 'smc-phone-remote-typing-hint-shown';
+export const TYPING_HINT_SHOWINGS = 3;
+export const typingHintShown = (): number => {
+  try { return Math.max(0, Number(localStorage.getItem(HINT_SHOWN_KEY)) || 0); } catch { return 0; }
+};
+/** One more showing; returns how many there have been. */
+export const countTypingHint = (): number => {
+  const n = typingHintShown() + 1;
+  try { localStorage.setItem(HINT_SHOWN_KEY, String(n)); } catch { /* ignore */ }
+  return n;
 };
 
 let channel: RealtimeChannel | null = null;
