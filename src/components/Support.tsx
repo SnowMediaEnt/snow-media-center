@@ -32,7 +32,7 @@ import { useUnreadTickets } from '@/hooks/useUnreadTickets';
 import { useSnowMail } from '@/hooks/useSnowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { peekPlexDeeplink, renewPlexDeeplink } from '@/lib/plexDeeplink';
-import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { BackButton, HEADER_ROW } from '@/components/ui/BackButton';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
@@ -433,27 +433,28 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   return (
     <div ref={supportFocus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
       <div ref={supportTopRef} aria-hidden="true" className="h-0 w-full" />
-      <div className={BACK_ROW}>
-        <BackButton
-          onClick={onBack}
-          label="Back to Home"
-          focusId="support-back"
-          focused={supportFocus.currentFocusId === 'support-back'}
-          data-support-tv-focus-id="support-back"
-        />
+      <div className={HEADER_ROW}>
+        <div className="justify-self-start">
+          <BackButton
+            onClick={onBack}
+            label="Back to Home"
+            focusId="support-back"
+            focused={supportFocus.currentFocusId === 'support-back'}
+            data-support-tv-focus-id="support-back"
+          />
+        </div>
+        <div className="text-center px-4 min-w-0">
+          <h1 className="text-3xl font-bold text-white leading-tight">Support</h1>
+          <p className="text-base text-blue-200">
+            Get help, chat with AI, or catch up on posts from Snow Media
+          </p>
+        </div>
+        <div />
       </div>
       <div className="max-w-6xl mx-auto pb-28" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)' }}>
-        <div className="flex flex-col items-center mb-6">
-          <div className="text-center mt-4">
-            <h1 className="text-4xl font-bold text-white mb-2">Support</h1>
-            <p className="text-xl text-blue-200">
-              Get help, chat with AI, or catch up on posts from Snow Media
-            </p>
-          </div>
-        </div>
 
         <Tabs value={tab} onValueChange={(v) => { setChildFocusActive(false); setTab(v as Tab); }} className="w-full">
-          <TabsList className={`grid w-full ${kids ? 'grid-cols-2' : 'grid-cols-3'} mb-16 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch`}>
+          <TabsList className={`grid w-full ${kids ? 'grid-cols-2' : 'grid-cols-3'} mb-4 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-12 items-stretch`}>
             <TabsTrigger
               value="help"
               data-support-tv-focus-id="tab-help"
@@ -492,17 +493,17 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           <TabsContent value="help" className="mt-0">
             {/* Was a single 672px column inside a 1152px page, so most of a TV
                 screen sat empty and the list scrolled twice as far as it needed
-                to. Two columns at the page width instead. The cards are h-20
+                to. Two columns at the page width instead. The cards are h-[4.5rem]
                 with a grid-cols-[2.5rem_1fr_auto] interior, so they take the
                 narrower column without reflowing. */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Button
                 onClick={() => setShowHowTo(true)}
                 variant="outline"
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-howto"
-                className="bg-emerald-700/60 border-emerald-400/70 text-white hover:bg-emerald-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
+                className="bg-emerald-700/60 border-emerald-400/70 text-white hover:bg-emerald-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <GraduationCap className="w-7 h-7 row-span-2 self-center justify-self-center" />
                 <span className="text-xl font-semibold truncate">How to use SMC</span>
@@ -516,7 +517,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-speedtest"
-                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
+                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <Gauge className="w-7 h-7 row-span-2 self-center justify-self-center" />
                 <span className="text-xl font-semibold truncate">Speedtest</span>
@@ -530,7 +531,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-guide"
-                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
+                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <LifeBuoy className="w-7 h-7 row-span-2 self-center justify-self-center" />
                 <span className="text-xl font-semibold truncate">Buffering Guide</span>
@@ -544,7 +545,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-videos"
-                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
+                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <Video className="w-7 h-7 row-span-2 self-center justify-self-center" />
                 <span className="text-xl font-semibold truncate">Support Videos</span>
@@ -559,7 +560,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-tickets"
-                className="relative bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
+                className="relative bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <MessageCircle className="w-7 h-7 row-span-2 self-center justify-self-center" />
                 <span className="text-xl font-semibold truncate flex items-center gap-3">
@@ -582,7 +583,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-remote"
-                className="bg-rose-700/60 border-rose-400/70 text-white hover:bg-rose-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
+                className="bg-rose-700/60 border-rose-400/70 text-white hover:bg-rose-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <MonitorSmartphone className="w-7 h-7 row-span-2 self-center justify-self-center" />
                 <span className="text-xl font-semibold truncate">Remote Access</span>
@@ -598,7 +599,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-cleaner"
-                className="bg-sky-700/60 border-sky-400/70 text-white hover:bg-sky-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
+                className="bg-sky-700/60 border-sky-400/70 text-white hover:bg-sky-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <Sparkles className="w-7 h-7 row-span-2 self-center justify-self-center" />
                 <span className="text-xl font-semibold truncate">Device Cleaner</span>

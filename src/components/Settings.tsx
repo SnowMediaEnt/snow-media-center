@@ -28,7 +28,7 @@ import { useDeviceAlerts } from '@/hooks/useDeviceAlerts';
 import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useToast } from '@/hooks/use-toast';
 import { SUPPORTED_LANGUAGES, LANG_STORAGE_KEY } from '@/i18n';
-import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { BackButton, HEADER_ROW } from '@/components/ui/BackButton';
 
 interface SettingsProps {
   onBack: () => void;
@@ -222,8 +222,10 @@ const Settings = ({ onBack }: SettingsProps) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
           event.preventDefault(); event.stopPropagation();
         }
-        if (event.key === 'ArrowDown' && focusedElement === 'remote-hint') setFocusedElement('remote-unpair');
-        else if (event.key === 'ArrowUp') setFocusedElement(focusedElement === 'remote-unpair' ? 'remote-hint' : 'tab-remote');
+        // The switch and the Unpair button share a row (Unpair on the right).
+        if ((event.key === 'ArrowRight' || event.key === 'ArrowDown') && focusedElement === 'remote-hint') setFocusedElement('remote-unpair');
+        else if (event.key === 'ArrowLeft' && focusedElement === 'remote-unpair') setFocusedElement('remote-hint');
+        else if (event.key === 'ArrowUp') setFocusedElement('tab-remote');
         else if (event.key === 'Enter' || event.key === ' ') {
           if (focusedElement === 'remote-hint') setTypingHintEnabled(!typingHintEnabled());
           else { void unpairAllPhones(); toast({ title: 'Phones unpaired', description: 'Pair again with the new code.' }); }
@@ -542,22 +544,23 @@ const Settings = ({ onBack }: SettingsProps) => {
   return (
     <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
       <div id="settings-top" className="scroll-mt-4" />
-      <div className={BACK_ROW}>
-        <BackButton
-          {...settingsFocusAttrs('back')}
-          onFocus={() => setFocusedElement('back')}
-          onClick={onBack}
-          label={t('common.backToHome')}
-          focused={focusedElement === 'back'}
-        />
-      </div>
-      <div className="max-w-4xl mx-auto pb-16">
-        <div className="flex flex-col items-center mb-8">
-          <div className="text-center mt-4">
-            <h1 className="text-4xl font-bold text-white mb-2">{t('settings.title')}</h1>
-            <p className="text-xl text-blue-200">{t('settings.subtitle')}</p>
-          </div>
+      <div className={HEADER_ROW}>
+        <div className="justify-self-start">
+          <BackButton
+            {...settingsFocusAttrs('back')}
+            onFocus={() => setFocusedElement('back')}
+            onClick={onBack}
+            label={t('common.backToHome')}
+            focused={focusedElement === 'back'}
+          />
         </div>
+        <div className="text-center px-4 min-w-0">
+          <h1 className="text-3xl font-bold text-white leading-tight">{t('settings.title')}</h1>
+          <p className="text-base text-blue-200">{t('settings.subtitle')}</p>
+        </div>
+        <div />
+      </div>
+      <div className="max-w-6xl mx-auto pb-16">
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className={`grid w-full ${tabColsClass} bg-slate-800/50 border-slate-600`}>
@@ -632,7 +635,7 @@ const Settings = ({ onBack }: SettingsProps) => {
             )}
           </TabsList>
 
-          <TabsContent value="media" className="mt-6">
+          <TabsContent value="media" className="mt-4">
             <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6">
               <h2 className="text-2xl font-bold text-white mb-6">{t('settings.mediaManagerHeading')}</h2>
               <MediaManager
@@ -643,7 +646,7 @@ const Settings = ({ onBack }: SettingsProps) => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="ui" className="mt-6 space-y-4">
+          <TabsContent value="ui" className="mt-4 space-y-4">
             {!kids && <PlayerAccountCard />}
             <Card
               {...settingsFocusAttrs('ui-profiles')}
@@ -903,56 +906,58 @@ const Settings = ({ onBack }: SettingsProps) => {
             )}
           </TabsContent>
 
-          <TabsContent value="remote" className="mt-6">
-            <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+          <TabsContent value="remote" className="mt-4">
+            <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-5">
               <div className="flex flex-wrap items-start">
-                <div className="mr-8 mb-4">
+                <div className="mr-6 mb-3">
                   {/* Smaller on short layouts (960x540) so the code under it is on screen. */}
                   {activeTab === 'remote' && <PairingQR size={window.innerHeight < 640 ? 150 : 220} />}
                 </div>
                 <div className="flex-1 min-w-[16rem]">
-                  <h3 className="text-2xl font-bold text-white mb-2">Use your phone as a remote</h3>
-                  <ol className="text-white/80 space-y-1 mb-4 list-decimal pl-5">
+                  <h3 className="text-xl font-bold text-white mb-1">Use your phone as a remote</h3>
+                  <ol className="text-white/80 space-y-0.5 mb-2 list-decimal pl-5">
                     <li>Scan the QR code with your phone's camera, or go to <span className="font-semibold text-white">snowmediaent.com/remote</span></li>
                     <li>Enter the code shown here, then choose Allow on the TV</li>
                     <li>Move, select, go back, play/pause, type and talk — right from your phone</li>
                   </ol>
-                  <p className="text-sm text-white/60 mb-4">
+                  <p className="text-sm text-white/60 mb-3">
                     {remotePhones > 0 ? `📱 ${remotePhones} phone${remotePhones === 1 ? '' : 's'} connected now.` : remotePaired ? 'A phone is paired — open snowmediaent.com/remote on it to use it.' : 'No phone paired yet.'}
                     {' '}Paired phones stay paired; each code works once.
                   </p>
-                  <Card
-                    {...settingsFocusAttrs('remote-hint')}
-                    tabIndex={0}
-                    role="button"
-                    aria-pressed={remoteHint}
-                    onFocus={() => setFocusedElement('remote-hint')}
-                    onClick={() => setTypingHintEnabled(!remoteHint)}
-                    className={`tv-ring bg-slate-800/80 border-slate-600 p-4 mb-3 transition-all duration-150 ${focusRing('remote-hint')}`}
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <div className="font-semibold text-white">Show the QR code when typing</div>
-                        <div className="text-sm text-white/70">A small card offers your phone's keyboard whenever a text box is open on the TV.</div>
-                      </div>
-                      <Switch checked={remoteHint} onCheckedChange={(v) => setTypingHintEnabled(!!v)} aria-label="Show the QR code when typing" />
-                    </div>
-                  </Card>
-                  <Button
-                    {...settingsFocusAttrs('remote-unpair')}
-                    variant="outline"
-                    onFocus={() => setFocusedElement('remote-unpair')}
-                    onClick={() => { void unpairAllPhones(); toast({ title: 'Phones unpaired', description: 'Pair again with the new code.' }); }}
-                    className={`tv-ring ${focusRing('remote-unpair')}`}
-                  >
-                    Unpair all phones
-                  </Button>
                 </div>
+              </div>
+              <div className="flex items-center mt-1">
+                <Card
+                  {...settingsFocusAttrs('remote-hint')}
+                  tabIndex={0}
+                  role="button"
+                  aria-pressed={remoteHint}
+                  onFocus={() => setFocusedElement('remote-hint')}
+                  onClick={() => setTypingHintEnabled(!remoteHint)}
+                  className={`tv-ring flex-1 min-w-0 mr-3 bg-slate-800/80 border-slate-600 px-4 py-3 transition-all duration-150 ${focusRing('remote-hint')}`}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="font-semibold text-white">Show the QR code when typing</div>
+                      <div className="text-sm text-white/70">A small card offers your phone's keyboard whenever a text box is open on the TV.</div>
+                    </div>
+                    <Switch checked={remoteHint} onCheckedChange={(v) => setTypingHintEnabled(!!v)} aria-label="Show the QR code when typing" />
+                  </div>
+                </Card>
+                <Button
+                  {...settingsFocusAttrs('remote-unpair')}
+                  variant="outline"
+                  onFocus={() => setFocusedElement('remote-unpair')}
+                  onClick={() => { void unpairAllPhones(); toast({ title: 'Phones unpaired', description: 'Pair again with the new code.' }); }}
+                  className={`tv-ring shrink-0 ${focusRing('remote-unpair')}`}
+                >
+                  Unpair all phones
+                </Button>
               </div>
             </Card>
           </TabsContent>
 
-          <TabsContent value="profiles" className="mt-6 space-y-4">
+          <TabsContent value="profiles" className="mt-4 space-y-4">
             <div className="flex flex-wrap items-center mb-2">
               {profilesList.map((p) => (
                 <div key={p.id} className="flex items-center mr-5 mb-2">
@@ -994,7 +999,7 @@ const Settings = ({ onBack }: SettingsProps) => {
           </TabsContent>
 
           {showUpdates && (
-          <TabsContent value="updates" className="mt-6 space-y-4">
+          <TabsContent value="updates" className="mt-4 space-y-4">
             <Card
               {...settingsFocusAttrs('updates-content')}
               className={`tv-ring bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6 transition-all duration-150 ${focusRing('updates-content')}`}
@@ -1007,14 +1012,14 @@ const Settings = ({ onBack }: SettingsProps) => {
           )}
 
           {isAdmin && (
-            <TabsContent value="alerts" className="mt-6">
+            <TabsContent value="alerts" className="mt-4">
               <Card {...settingsFocusAttrs('alerts-content')} className={`tv-ring bg-gradient-to-br from-yellow-700 to-yellow-900 border-yellow-600 p-6 transition-all duration-150 ${focusRing('alerts-content')}`}>
                 <AppAlertsManager />
               </Card>
             </TabsContent>
           )}
           {isAdmin && (
-            <TabsContent value="ai" className="mt-6">
+            <TabsContent value="ai" className="mt-4">
               <div {...settingsFocusAttrs('ai-content')} className={`tv-ring transition-all duration-150 ${focusRing('ai-content')}`}>
                 <AdminAIPanel />
               </div>

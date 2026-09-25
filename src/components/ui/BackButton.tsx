@@ -52,3 +52,10 @@ export const BackButton = forwardRef<HTMLButtonElement, BackButtonProps>(
 BackButton.displayName = 'BackButton';
 
 export const BACK_ROW = 'flex items-center w-full justify-start mb-6';
+
+/** A titled screen's top row: Back on the left, the title and its one line
+ *  centred beside it. The title used to sit on rows of its own under Back,
+ *  which on a 960x540 TV layout took a third of the screen before any of the
+ *  page showed. Back goes in the first cell, the title in the second, the
+ *  third is empty so the title stays centred. */
+export const HEADER_ROW = 'grid grid-cols-[1fr_auto_1fr] items-center w-full mb-4';
