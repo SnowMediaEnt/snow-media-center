@@ -1,5 +1,7 @@
 // Classic cable-style EPG grid. Windowed & virtualized:
 //   • categories → getLiveCategories (like LiveSection)
+//   • Favorites → the line's saved favourites (favoritesSync), first in the
+//     bar as in LiveSection's list; read from the box, no provider call
 //   • channels for selected category → getLiveStreams(categoryId)
 //   • EPG → getShortEpg per-channel, concurrency-capped, only for the
 //     currently-rendered virtual rows (never all channels at once).
@@ -7,7 +9,7 @@
 // xmltv.php (freezes the WebView).
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
-import { Loader2, Tv, AlertTriangle, RotateCw } from 'lucide-react';
+import { Loader2, Tv, AlertTriangle, RotateCw, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   getLiveCategories,
@@ -19,11 +21,14 @@ import {
   loadVolume,
   saveVolume,
   XTREAM_REFRESH_EVENT,
+  type FavChannel,
   type XtreamCreds,
   type XtreamCategory,
   type XtreamLiveStream,
   type XtreamEpgEntry,
 } from '@/lib/xtream';
+import { loadFavoritesForLine } from '@/lib/favoritesSync';
+import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
@@ -83,6 +88,24 @@ const formatSlot = (ms: number) => SLOT_FMT.format(ms);
 // Programme guides kept for this visit; the oldest go first past this.
 const EPG_CACHE_MAX = 300;
 
+// The Favorites chip, always first in the bar — where LiveSection's list puts
+// Favorites. Its rows come from the saved list, not from a category download.
+const FAV_CHIP: XtreamCategory = { category_id: '__favorites__', category_name: 'Favorites' };
+
+// A saved favourite as a grid row: every field the rows, playback and the
+// EPG read (the same mapping as LiveSection's favToStream).
+const favToStream = (f: FavChannel): XtreamLiveStream => ({
+  stream_id: f.stream_id,
+  name: f.name,
+  num: f.num,
+  stream_icon: f.stream_icon,
+  category_id: f.category_id,
+  epg_channel_id: f.epg_channel_id,
+});
+// Re-reading an unchanged list must not hand the grid new rows.
+const sameFavs = (a: Map<number, FavChannel>, b: Map<number, FavChannel>) =>
+  a.size === b.size && JSON.stringify([...a.values()]) === JSON.stringify([...b.values()]);
+
 const decodePrograms = (entries: XtreamEpgEntry[]): DecodedProgram[] =>
   entries
     .map(e => ({
@@ -96,8 +119,9 @@ const decodePrograms = (entries: XtreamEpgEntry[]): DecodedProgram[] =>
 const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: _onNavigate }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  // Index into the bar: 0 is Favorites, then the categories.
   const [categoryIdx, setCategoryIdx] = useState(0);
-  const [channels, setChannels] = useState<XtreamLiveStream[]>([]);
+  const [streams, setStreams] = useState<XtreamLiveStream[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
   const [rowIdx, setRowIdx] = useState(0);
   const [focusZone, setFocusZone] = useState<'category' | 'grid'>('grid');
@@ -135,7 +159,11 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     return () => window.removeEventListener(XTREAM_REFRESH_EVENT, onRefresh);
   }, []);
 
-  // Load categories
+  // Load categories. The Guide opens where Live TV's list opens: Favorites is
+  // first in the bar, but the first real category is the one shown once the
+  // categories are in (Favorites only when there are none), unless the viewer
+  // has already moved along the bar.
+  const userMovedRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     setCategoriesLoading(true);
@@ -144,21 +172,56 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         const cats = await fetchLiveCategories(creds).catch(() => [] as XtreamCategory[]);
         if (cancelled) return;
         setCategories(cats);
+        if (!userMovedRef.current) setCategoryIdx(cats.length ? 1 : 0);
       } finally {
         if (!cancelled) setCategoriesLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, [creds, refreshTick]);
+  // Nothing is listed under Favorites before the categories are in: the
+  // Guide is about to move to the first of them, and a Kids profile's
+  // favourites are checked against them.
+  const catsReady = !categoriesLoading || categories.length > 0;
 
-  const currentCategory = categories[categoryIdx];
+  // Favorites: the line's saved list (this profile's own on any profile but
+  // the main one), in its saved order, as Live TV's list shows it. Read from
+  // the box: no provider call, and Live TV's list keeps it in step with the
+  // cloud. Nothing announces a change, so it is read again when the Guide
+  // gets the remote back and on "Update Channels".
+  const [favs, setFavs] = useState<Map<number, FavChannel>>(() => loadFavoritesForLine(creds));
+  useEffect(() => {
+    const next = loadFavoritesForLine(creds);
+    setFavs((prev) => (sameFavs(prev, next) ? prev : next));
+  }, [creds, isActive, refreshTick]);
+  // A Kids profile keeps only favourites in the categories it may open (the
+  // list above is already the profile's), the same check Multi-Screen makes.
+  const favRows = useMemo<XtreamLiveStream[]>(() => {
+    if (!catsReady || favs.size === 0) return [];
+    const allowed = kidsLevel() ? new Set(categories.map((c) => String(c.category_id))) : null;
+    const out: XtreamLiveStream[] = [];
+    for (const f of favs.values()) if (!allowed || kidsAllowsChannel(f, allowed)) out.push(favToStream(f));
+    return out;
+  }, [favs, categories, catsReady]);
+
+  const chips = useMemo(() => [FAV_CHIP, ...categories], [categories]);
+  const currentChip = catsReady ? chips[categoryIdx] : undefined;
+  const onFavorites = currentChip === FAV_CHIP;
+  const currentCategory = onFavorites ? undefined : currentChip;
 
   // Load channels for selected category. A short settle first: moving ◀▶
   // through the category bar used to download (and keep) the list of every
   // category passed on the way.
   const firstCategoryRef = useRef(true);
   useEffect(() => {
-    if (!currentCategory) { setChannels([]); return; }
+    if (!currentCategory) {
+      // Favorites (or nothing yet): nothing to download, and the last
+      // category's list is not kept behind it.
+      setStreams([]);
+      setChannelsLoading(false);
+      setRowIdx(0);
+      return;
+    }
     let cancelled = false;
     setChannelsLoading(true);
     setRowIdx(0);
@@ -166,12 +229,16 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     firstCategoryRef.current = false;
     const t = window.setTimeout(() => {
       fetchLiveStreams(creds, String(currentCategory.category_id))
-        .then(list => { if (!cancelled) setChannels(list || []); })
-        .catch(() => { if (!cancelled) setChannels([]); })
+        .then(list => { if (!cancelled) setStreams(list || []); })
+        .catch(() => { if (!cancelled) setStreams([]); })
         .finally(() => { if (!cancelled) setChannelsLoading(false); });
     }, delay);
     return () => { cancelled = true; window.clearTimeout(t); };
   }, [creds, currentCategory, refreshTick]);
+
+  // The rows in the grid: the favourites, or the category's channels.
+  const channels = onFavorites ? favRows : streams;
+  const listLoading = !onFavorites && channelsLoading;
 
   // Clamp row
   useEffect(() => {
@@ -248,7 +315,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     }
     epgQueueRef.current = keep;
     visible.forEach(enqueueEpg);
-  }, [virtualItems, channels, enqueueEpg, fullscreen]);
+  }, [virtualItems, channels, enqueueEpg, fullscreen, refreshTick]);
 
   // Keep the focused category in view — once per move, and only this bar's
   // own scroll. The old inline ref ran scrollIntoView on every render (each
@@ -373,7 +440,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const fullscreenRef = useRef(fullscreen);
   const windowStartRef = useRef(windowStart);
   const channelsRef = useRef(channels);
-  const categoriesRef = useRef(categories);
+  const chipsRef = useRef(chips);
   const nativeErrorRef = useRef<{ code?: string; message: string } | null>(null);
   const nativeRetryRef = useRef<() => void>(() => {});
   useEffect(() => { focusZoneRef.current = focusZone; }, [focusZone]);
@@ -382,7 +449,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
   useEffect(() => { windowStartRef.current = windowStart; }, [windowStart]);
   useEffect(() => { channelsRef.current = channels; }, [channels]);
-  useEffect(() => { categoriesRef.current = categories; }, [categories]);
+  useEffect(() => { chipsRef.current = chips; }, [chips]);
   useEffect(() => { nativeErrorRef.current = native.error; }, [native.error]);
   useEffect(() => { nativeRetryRef.current = native.retry; }, [native.retry]);
 
@@ -453,11 +520,14 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
 
         if (focusZoneRef.current === 'category') {
-          const cats = categoriesRef.current;
+          const cats = chipsRef.current;
           if (e.key === 'ArrowLeft') {
             if (categoryIdxRef.current === 0) { onExitLeft(); return; }
+            userMovedRef.current = true;
             setCategoryIdx(i => Math.max(0, i - 1));
           } else if (e.key === 'ArrowRight') {
+            if (categoryIdxRef.current >= cats.length - 1) return;
+            userMovedRef.current = true;
             setCategoryIdx(i => Math.min(cats.length - 1, i + 1));
           } else if (e.key === 'ArrowUp') {
             onExitUp?.();
@@ -593,32 +663,36 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     <div data-native-clear className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden bg-black/30">
       {/* Category selector row */}
       <div className={`flex-shrink-0 border-b border-white/10 bg-black/40 px-3 py-2 ${focusZone === 'category' && isActive ? 'bg-white/5' : ''}`}>
-        {categoriesLoading && categories.length === 0 ? (
+        {!catsReady ? (
           <div className="flex items-center gap-2 text-brand-ice/70 font-nunito text-sm px-2 py-1">
             <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
           </div>
-        ) : categories.length === 0 ? (
-          <div className="text-brand-ice/70 font-nunito text-sm px-2 py-1">No categories.</div>
         ) : (
           <div ref={catBarRef} className="flex items-center gap-2 overflow-x-auto overflow-y-hidden whitespace-nowrap py-1 px-2 -mx-2">
-            {categories.map((c, i) => {
+            {chips.map((c, i) => {
               const isFocused = isActive && focusZone === 'category' && categoryIdx === i;
               const isSelected = categoryIdx === i;
+              const isFav = c === FAV_CHIP;
               return (
                 <button
                   key={c.category_id}
                   data-cat-i={i}
                   data-focused={isFocused ? 'true' : 'false'}
-                  onClick={() => { setCategoryIdx(i); setFocusZone('grid'); }}
+                  onClick={() => { userMovedRef.current = true; setCategoryIdx(i); setFocusZone('grid'); }}
                   className={`
                     tv-ring flex-shrink-0 px-3 py-2 rounded-lg border text-sm font-nunito transition-transform duration-150
+                    ${isFav ? 'flex items-center' : ''}
                     ${isFocused ? 'bg-brand-gold/25 border-transparent text-white scale-105 z-10' : isSelected ? 'bg-white/10 border-brand-gold/30 text-white' : 'border-transparent text-brand-ice hover:bg-white/5'}
                   `}
                 >
+                  {isFav && <Star className="w-4 h-4 mr-1.5 text-brand-gold flex-shrink-0" />}
                   {c.category_name}
                 </button>
               );
             })}
+            {categories.length === 0 && (
+              <span className="flex-shrink-0 text-brand-ice/70 font-nunito text-sm px-2">No categories.</span>
+            )}
           </div>
         )}
       </div>
@@ -702,13 +776,13 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         ref={scrollParentRef}
         className={`flex-1 min-h-0 px-3 overflow-y-auto overflow-x-hidden ${focusZone === 'grid' && isActive ? 'bg-white/[0.02]' : ''}`}
       >
-        {channelsLoading && channels.length === 0 ? (
+        {listLoading && channels.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm gap-2">
             <Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading channels…
           </div>
         ) : channels.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">
-            No channels in this category.
+            {onFavorites ? 'No favorites yet. In Live TV, press F on a channel to add it.' : 'No channels in this category.'}
           </div>
         ) : (
           <div style={{ height: totalRowsSize, position: 'relative', width: '100%' }}>

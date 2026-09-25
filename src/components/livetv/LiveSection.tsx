@@ -416,7 +416,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         p = entry.p;
       }
       void p.then((next) => {
-        if (cancelled || !next) return;
+        if (!next) return;
+        // Left Live TV before the account answered (into the Guide, say): the
+        // account's list is still kept on the box. The pull has already marked
+        // the box in step with the account, so dropping it here lost it for
+        // good, and the next change would overwrite the other box's.
+        if (cancelled) { saveFavoritesForLine(line, next); return; }
         adoptFavoritesFor(line, next);
       }, () => { /* offline: local favourites stand */ });
     }
