@@ -11,6 +11,14 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.7.9': [
+    '🎬 Plex plays smoothly at full quality, like the Plex app, and Resume picks up right where you left off',
+    '🏠 Live TV and Plex have their own cards on the Home menu; Main Apps is now in Support',
+    '⭐ The TV Guide shows your Favorites first',
+    '🔊 Volume goes up to 150% for quiet movies',
+    '📊 Plex player: Playback stats (player menu) shows your speed and buffer',
+    '📍 Continue Watching keeps your place, even after signing in',
+  ],
   '1.7.8': [
     '📱 Phone remote: Settings → Phone Remote, scan the QR (or go to snowmediaent.com/remote) — move, select, type and talk from your phone',
     '🏈 Game Day in the Player: today\'s big games with live scores and the channel each is on — Watch, or Remind me at kickoff',

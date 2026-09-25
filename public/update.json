@@ -1,9 +1,9 @@
 {
-  "version": "1.7.8",
-  "versionCode": 38,
+  "version": "1.7.9",
+  "versionCode": 41,
   "releaseDate": "2026-09-25",
   "size": "",
-  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.8.apk",
-  "changelog": "On 1.6.6 and it says \"App not installed\"? Uninstall SMC once, then reinstall with Downloader code 9073972.\n\nWHAT'S NEW\n• Profiles for everyone, with Kids profiles and PINs\n• Game Lounge, plus a Kids Game Lounge\n• Faster Plex: 4K/1080p choice, auto quality, Continue Watching fixed\n• Request movies and shows from Plex search\n• Phone remote: snowmediaent.com/remote\n• Voice commands\n• Game Day for every pro sport, plus Pay-Per-View\n• Cleaner Settings and Support, and many fixes",
-  "releaseNotes": "Still on 1.6.6 and the update says \"App not installed\"? Uninstall Snow Media Center once, then reinstall it with Downloader code 9073972. Version 1.7.8 adds profiles for everyone in the house with Kids profiles and PINs, the Game Lounge, a faster Plex with 4K/1080p choice, automatic quality and a working Continue Watching, new Plex rows by streaming service, requests right inside Plex search, a phone remote (snowmediaent.com/remote), voice commands, and Game Day across every pro sport with Pay-Per-View events. Installs normally over 1.7.6 and 1.7.7."
+  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.9.apk",
+  "changelog": "WHAT'S NEW\n• Plex plays smoothly, like the Plex app, including Resume\n• Live TV and Plex right on the Home menu; Main Apps moved to Support\n• Favorites in the TV Guide\n• Volume up to 150%\n• Playback stats in the Plex player\n• Many fixes",
+  "releaseNotes": "Version 1.7.9: Plex now streams smoothly at full quality, like the Plex app, and Resume picks up without buffering. Live TV and Plex have their own cards on the Home menu (Main Apps is now in Support), the TV Guide has your Favorites first, volume goes up to 150%, and the Plex player has a Playback stats screen. Plus Continue Watching and many other fixes."
 }
