@@ -475,6 +475,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
       }
     }
     if (epoch !== dropEpoch.current || !life.isMounted()) return;
+    if (gateRef.current) gateRef.current.style.left = `${slotCenter(selectedLane)}%`;
     setPuckVisible(true);
     const payoutTable = physicsMultipliers(selectedBoard, selectedRisk, selectedLane);
     playPhysics(seed, selectedLane, (slot) => {
