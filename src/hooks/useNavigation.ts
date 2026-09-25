@@ -70,6 +70,14 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
       // Dedupe: laggy STB remotes sometimes deliver double-Enter which would
       // otherwise push the same view twice and force an extra Back to escape.
       if (view === prev.currentView) return prev;
+      // A screen already on the way back is returned to, not stacked again:
+      // Support's "Back to Player" on [home, livetv, support] is
+      // [home, livetv], so Back from the Player then goes Home, not to
+      // Support and a second Player. Home is always just [home].
+      const at = prev.navigationStack.indexOf(view);
+      if (at >= 0) {
+        return { currentView: view, navigationStack: prev.navigationStack.slice(0, at + 1) };
+      }
       return {
         currentView: view,
         navigationStack: [...prev.navigationStack, view]

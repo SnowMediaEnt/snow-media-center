@@ -38,7 +38,9 @@ import {
 
 export type TutorialDeepLink =
   | { kind: 'view'; view: string; label: string }
-  | { kind: 'event'; event: string; label: string };
+  | { kind: 'event'; event: string; label: string }
+  /** Straight into Live TV or Plex, as Home's cards open them. */
+  | { kind: 'player'; section: 'live' | 'movies'; label: string };
 
 export interface TutorialArt {
   screen: string;
@@ -88,7 +90,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
         icon: Tv,
         title: 'Open Live TV from the Home screen.',
         line2: 'Sign in with the details your seller gave you. Every account you add shows in one list.',
-        deepLink: { kind: 'view', view: 'livetv', label: 'Take me there' },
+        deepLink: { kind: 'player', section: 'live', label: 'Take me there' },
         art: { screen: 'home', highlight: 'player-card' },
       },
       { icon: LayoutGrid, title: 'Pick your look: Classic, Compact or Vibez.', line2: 'Live TV asks the first time. Change it any time under Player Settings → Appearance.', art: { screen: 'livetv', highlight: 'list' } },
@@ -109,7 +111,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
       {
         icon: Clapperboard,
         title: 'Open Plex from the Home screen.',
-        deepLink: { kind: 'view', view: 'livetv', label: 'Take me there' },
+        deepLink: { kind: 'player', section: 'movies', label: 'Take me there' },
         art: { screen: 'chooser', highlight: 'movies-card' },
       },
       { icon: KeyRound, title: 'Signed into Live TV? Plex connects by itself — no code to send.', line2: "Not signed in yet? Press Connect with Live TV. You don't need your own Plex account.", art: { screen: 'plex-code', highlight: 'code' } },

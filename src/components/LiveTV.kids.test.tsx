@@ -140,21 +140,14 @@ describe('Live TV on a Kids profile with no line on the box', () => {
     expect(screen.queryByText('credentials-form')).toBeNull();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByText(/Get started|Sign in to Player|Buy|Subscribe/i)).toBeNull();
-    // Back: the mode chooser, once — not out of the Player as well.
+    // Back: out of the Player (Home), once.
     key('Escape');
     await settle();
-    expect(screen.queryByText('Ask a grown-up to sign in to Live TV')).toBeNull();
-    expect(screen.getByText('Live channels & guide')).toBeTruthy();
-    expect(onBack).not.toHaveBeenCalled();
+    expect(onBack).toHaveBeenCalledTimes(1);
     // OK on its one button leaves the same way.
     key('Enter');
     await settle();
-    await settle();
-    expect(screen.getByText('Ask a grown-up to sign in to Live TV')).toBeTruthy();
-    key('Enter');
-    await settle();
-    expect(screen.getByText('Live channels & guide')).toBeTruthy();
-    expect(onBack).not.toHaveBeenCalled();
+    expect(onBack).toHaveBeenCalledTimes(2);
   });
 
   it('Plex sending the viewer to sign in to Live TV lands on the same screen', async () => {
@@ -251,7 +244,7 @@ describe('Live TV and Plex opened from their own Home cards', () => {
     expect(screen.queryByText('Live channels & guide')).toBeNull();
   });
 
-  it('opened any other way, Back from Live TV still shows the chooser, which no longer offers Backups', async () => {
+  it('opened any other way, Back from Live TV goes Home (the chooser, which no longer offers Backups, is not a stop on the way out)', async () => {
     const onBack = vi.fn();
     await (async () => { render(<LiveTV onBack={onBack} />); await settle(); })();
     expect(screen.queryByText('Backups')).toBeNull();
@@ -261,8 +254,7 @@ describe('Live TV and Plex opened from their own Home cards', () => {
     await settle();
     key('Escape');
     await settle();
-    expect(onBack).not.toHaveBeenCalled();
-    expect(screen.getByText('Live channels & guide')).toBeTruthy();
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 });
 

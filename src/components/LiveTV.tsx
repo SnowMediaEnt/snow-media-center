@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, handLiveDeeplink, type PlayerIntent } from '@/lib/appActions';
+import { peekIntent, takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, handLiveDeeplink, type PlayerIntent } from '@/lib/appActions';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy, Trophy } from 'lucide-react';
@@ -33,7 +33,7 @@ import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { useVersion } from '@/hooks/useVersion';
 import { clearPlexToken } from '@/lib/plex';
 import { isClaimDismissed, isClaimDone, markClaimDismissed } from '@/lib/accountClaim';
-import { peekPlexDeeplink } from '@/lib/plexDeeplink';
+import { clearPlexDeeplink, peekPlexDeeplink } from '@/lib/plexDeeplink';
 import { trackEvent, trackAlertShown, startTimer, stopTimer, hasSessionFlag } from '@/lib/analytics';
 import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
 import PlayerModeChooser from './livetv/PlayerModeChooser';
@@ -48,6 +48,19 @@ const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const PlexSection = lazy(() => import('./livetv/PlexSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
+
+/** The Player section last opened this session, so a Player opened with
+ *  nothing asked for goes back there instead of to the old chooser. */
+const LAST_MODE_KEY = 'smc-player-last-mode';
+const rememberPlayerMode = (m: 'live' | 'movies'): void => {
+  try { sessionStorage.setItem(LAST_MODE_KEY, m); } catch { /* ignore */ }
+};
+const lastPlayerMode = (): 'live' | 'movies' | null => {
+  try {
+    const v = sessionStorage.getItem(LAST_MODE_KEY);
+    return v === 'live' || v === 'movies' ? v : null;
+  } catch { return null; }
+};
 const ClaimAccountCard = lazy(() => import('./livetv/ClaimAccountCard'));
 const LayoutTrialPrompt = lazy(() => import('./livetv/LayoutTrialPrompt'));
 const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
@@ -90,6 +103,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   const [section, setSection] = useState<SectionId>('live');
   const [mode, setMode] = useState<'choose' | 'live' | 'movies'>('choose');
+  // Opened with somewhere to go (Home's Live TV / Plex card, the assistant):
+  // the chooser must not be drawn while that is read. It is acted on in an
+  // effect after the first render with the sign-in known, and that render
+  // painted the chooser for a frame — a flash of the old Player screen when
+  // Live TV or Plex was opened quickly. Until then the loading spinner stays.
+  const [intentPending, setIntentPending] = useState(() => !!peekIntent(INTENT_KEYS.player));
+  // Whether this render is only a loading spinner (for Back, see the keys).
+  const spinnerShownRef = useRef(true);
   const modeRef = useRef(mode);
   useEffect(() => { modeRef.current = mode; }, [mode]);
   const [sectionIdx, setSectionIdx] = useState(0);
@@ -150,7 +171,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const expNoticeOpenRef = useRef(false);
 
   // ── Expiration awareness (in-Player dialog + Plex block) ──────────────
-  const { account: playerAccount, days: playerDays } = usePlayerAccount();
+  const { account: playerAccount, days: playerDays, loading: playerAccountLoading } = usePlayerAccount();
   const { version: appVersion } = useVersion();
   const acctServerLabel = playerAccount?.serverLabel || serverLabel || 'your';
   const plexBlocked =
@@ -382,8 +403,6 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // the full line-up was downloaded and counted on every open. Bumping here,
   // while nothing is listening yet, makes the first request the fresh one.
   const autoRefreshedRef = useRef(false);
-  // Opened from its own Home card (Live TV or Plex): leaving it goes home.
-  const fromHomeCardRef = useRef(false);
   const onBackRef = useRef(onBack);
   onBackRef.current = onBack;
   const enterMode = useCallback((m: 'live' | 'movies' | 'backups') => {
@@ -397,12 +416,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       // Backups lands in the normal Live shell with the Backups section
       // selected — no new top-level mode.
       setMode('live');
+      rememberPlayerMode('live');
       setSection('backups');
       setPane('content');
       if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: 'backups', service: serverLabelRef.current }); } catch { /* ignore */ } }
       return;
     }
     setMode(m);
+    rememberPlayerMode(m);
     setSection(m === 'live' ? 'live' : 'plex');
     setSectionIdx(0);
     // Live TV opens with the highlight already on its categories, not on
@@ -411,15 +432,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: m, service: serverLabelRef.current }); } catch { /* ignore */ } }
   }, []);
   enterModeRef.current = enterMode;
+  // Leaving Live TV or Plex goes back to where the Player was opened from
+  // (Home). Live TV and Plex have their own Home cards now, so the old
+  // Live TV / Plex chooser is not a stop on the way out: it came up after a
+  // voice command, a kickoff reminder's Watch, a content-bar tile or a trip to
+  // Support, however the section was entered.
   const leaveMode = useCallback(() => {
-    if (fromHomeCardRef.current) {
-      fromHomeCardRef.current = false;
-      onBackRef.current();
-      return;
-    }
-    setMode('choose');
-    setSectionIdx(0);
-    setPane('sections');
+    onBackRef.current();
   }, []);
 
   // What the assistant or a voice command asked for. The channel to play or
@@ -427,8 +446,17 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // LiveSection / PlexSection when they mount) and an event (for when they
   // are already on screen).
   const applyIntent = useCallback((intent: PlayerIntent) => {
-    const sec = intent.section ?? 'live';
-    fromHomeCardRef.current = !!intent.home;
+    let sec = intent.section ?? 'live';
+    // Game Day is not on a Little or Kids profile (see sections): Live TV
+    // instead, rather than drawing it for a render before falling back.
+    if (sec === 'gameday' && (kidsLevel() === 'little' || kidsLevel() === 'kids')) sec = 'live';
+    // A content-bar link left over from earlier (a Plex title or a channel
+    // that was never opened) must not win over, or later hijack, the section
+    // asked for now.
+    try {
+      if (sec === 'movies') sessionStorage.removeItem('smc-live-deeplink');
+      else clearPlexDeeplink();
+    } catch { /* ignore */ }
     if (sec === 'movies') { enterMode('movies'); if (intent.plex) setPane('content'); }
     else if (sec === 'backups') enterMode('backups');
     else {
@@ -475,7 +503,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     // the sign-in form, and Plex has its own. Dropping the intent here left
     // those cards on the chooser. Other intents (play a channel, report one)
     // still need a line first.
-    if (intent && (creds || intent.home)) applyIntentRef.current(intent);
+    // Opening a section needs no line: Plex has its own sign-in, and Live TV
+    // shows "Signing you in…" or the form until one is there. Only hand-offs
+    // that act on a line (play or report a channel, a deeplink, Player
+    // Settings) wait for one.
+    const needsLine = !!(intent && (intent.play || intent.report || intent.deeplink || intent.settings));
+    if (intent && (creds || intent.home || !needsLine)) applyIntentRef.current(intent);
+    // Read (and acted on, or not): the chooser may show now if nothing moved on.
+    setIntentPending(false);
     if (!DEMO) {
       try {
         trackEvent('player_open', 'player', {
@@ -512,11 +547,20 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // Content-Bar deep-link: land straight in Movies & Series (PlexSection
   // consumes the payload itself — do not remove it here). Only a fresh one:
   // a link Plex never picked up does not open Plex on a later visit.
+  // Opened with nothing asked for (Back from Support or the Buffering Guide,
+  // a How-to link, a phone remote's Home and Back): the section they were
+  // last in this session, not the old chooser. A Home card or assistant
+  // intent decides instead (the playerOpen effect).
   useEffect(() => {
     try {
+      if (peekIntent(INTENT_KEYS.player)) return;
       if (peekPlexDeeplink()) enterMode('movies');
       // A channel from the content bar: LiveSection plays it on mount.
       else if (sessionStorage.getItem('smc-live-deeplink')) enterMode('live');
+      else {
+        const last = lastPlayerMode();
+        if (last) enterMode(last);
+      }
     } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -655,6 +699,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // A loading spinner is all there is: Back leaves the Player (nothing
+      // else on screen would take it).
+      if (spinnerShownRef.current && (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace')) {
+        e.preventDefault(); e.stopPropagation();
+        onBackRef.current();
+        return;
+      }
       // AccountInfoScreen owns the keyboard while open.
       if (settingsOpen && creds && !accountFormOpen) return;
       // Demo: movies mode also runs the three-pane shell, so it needs this nav.
@@ -873,7 +924,20 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     onNavigateRef.current?.('support');
   }, []);
 
+  spinnerShownRef.current = !credsLoaded || intentPending || (mode === 'movies' && !DEMO && playerAccountLoading);
   if (!credsLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white">
+        <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
+      </div>
+    );
+  }
+
+  // A stored deeplink may have moved the mode at mount; a Home card or the
+  // assistant still decides where to go, so nothing is drawn until that is
+  // read. Plex also waits for the line's account (an expired one shows the
+  // blocked screen, not Plex for a frame).
+  if (intentPending || (mode === 'movies' && !DEMO && playerAccountLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white">
         <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />

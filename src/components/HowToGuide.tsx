@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { ArrowLeft, ArrowRight, X, ChevronRight, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { openPlayerSection } from '@/lib/appActions';
 import { TUTORIAL_CHAPTERS, type TutorialChapter, type TutorialDeepLink } from '@/data/tutorialContent';
 import { trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
@@ -21,7 +22,9 @@ const KIDS_CLOSED_EVENTS = new Set(['support:open-tickets', 'support:open-cleane
 /** A "Take me there" a Kids profile may follow. The chapters stay readable;
  *  only the jump to Main Apps, the Dashboard, tickets and the like is gone. */
 const kidsMayFollow = (dl: TutorialDeepLink): boolean =>
-  dl.kind === 'view' ? !kidsBlockedView(dl.view) : !KIDS_CLOSED_EVENTS.has(dl.event);
+  dl.kind === 'view' ? !kidsBlockedView(dl.view)
+  : dl.kind === 'player' ? !kidsBlockedView('livetv')
+  : !KIDS_CLOSED_EVENTS.has(dl.event);
 
 const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
   const [view, setView] = useState<View>('chapters');
@@ -88,6 +91,8 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
     setTimeout(() => {
       if (dl.kind === 'view') {
         onNavigate?.(dl.view);
+      } else if (dl.kind === 'player') {
+        if (onNavigate) openPlayerSection(dl.section, onNavigate);
       } else if (dl.kind === 'event') {
         try { window.dispatchEvent(new CustomEvent(dl.event)); } catch { void 0; }
       }
