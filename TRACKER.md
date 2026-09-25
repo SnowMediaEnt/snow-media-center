@@ -5,7 +5,7 @@ Status: building · ready to test · still broken · done.
 
 | # | Item | Type | Status | Rung |
 |---|------|------|--------|------|
-| 1 | Plex buffers at 1080p/4K (Plex app fine on same box) — see bugs/plex-buffering.md | bug | still broken (early stalls; one full stop after ~1 min) | 3 |
+| 1 | Plex buffers at 1080p/4K (Plex app fine on same box) — see bugs/plex-buffering.md | bug | ready to test (build 40) | 3 |
 | 2 | Plex "Playback stats" panel (like the Plex app's stats) | feature | ready to test (build 39) | |
 | 3 | Live TV Guide: Favorites first in the category row | feature | ready to test | |
 | 4 | Back from Live TV / Plex goes Home; no flash of the old Player chooser | bug | ready to test | direct |

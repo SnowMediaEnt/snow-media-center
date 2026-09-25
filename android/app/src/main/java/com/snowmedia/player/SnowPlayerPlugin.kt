@@ -206,12 +206,14 @@ class SnowPlayerPlugin : Plugin() {
         private const val FIRST_FRAME_TIMEOUT_MS = 8000L
         private const val POSITION_TICK_MS = 5000L
         private const val BANDWIDTH_TICK_MS = 3000L
-        // VOD start: up to 10 s spent on nothing but filling the buffer, so a
-        // film starts with ~25 s in hand instead of the 2.5 s the player
-        // needs to begin (which the first dip in the server's speed empties).
-        // A fast connection gets there in a second or two and starts at once.
-        private const val PREBUFFER_TARGET_MS = 25000L
-        private const val PREBUFFER_MAX_WAIT_MS = 10000L
+        // VOD start: time spent on nothing but filling the buffer, so a film
+        // starts with ~25 s in hand instead of the 2.5 s the player needs to
+        // begin (which the first dip in the server's speed empties). A fast
+        // connection gets there in a second or two and starts at once. How
+        // long at most: PreBufferRule (a start part-way into a file counts
+        // its 10 s from the first video at the resume point).
+        private const val PREBUFFER_TARGET_MS = PreBufferRule.TARGET_MS
+        private const val PREBUFFER_MAX_WAIT_MS = PreBufferRule.MAX_WAIT_MS
         private const val PREBUFFER_TICK_MS = 500L
         private const val MIB = 1024L * 1024L
     }
@@ -416,37 +418,44 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     /** VOD pre-buffer: hold playWhenReady=false until the player has
-     *  PREBUFFER_TARGET_MS buffered ahead, PREBUFFER_MAX_WAIT_MS have passed,
-     *  or the player has stopped loading (the buffer is as full as its limits
-     *  allow — a 4K remux fills the byte cap well before 25 s — or the file
-     *  is shorter). Live streams keep the legacy behavior (start at once).
-     *  The main slot reports progress as 'preBuffer' events every tick, so
-     *  the WebView can show "Getting ready…" instead of a still frame. */
-    private fun schedulePreBuffer(s: PlayerSlot, screenId: String) {
+     *  PREBUFFER_TARGET_MS buffered ahead, has stopped loading (the buffer is
+     *  as full as its limits allow — a 4K remux fills the byte cap well
+     *  before 25 s — or the file is shorter), or has had its time to fill
+     *  (PreBufferRule: 10 s from load() for a start from 0:00; for a start
+     *  part-way into the file, `midFile`, 10 s from the first video at the
+     *  resume point, 30 s in all at most). Live streams keep the legacy
+     *  behavior (start at once). The main slot reports progress as
+     *  'preBuffer' events every tick, so the WebView can show "Getting
+     *  ready…" instead of a still frame. */
+    private fun schedulePreBuffer(s: PlayerSlot, screenId: String, midFile: Boolean) {
         s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
         val startedAt = SystemClock.elapsedRealtime()
         val url = s.currentUrl
+        var flowAt = 0L
         val r = object : Runnable {
             override fun run() {
                 val p = s.player ?: return
                 if (s.currentUrl == null || s.currentUrl != url) return
                 val bufMs = (p.bufferedPosition - p.currentPosition).coerceAtLeast(0L)
-                val elapsed = SystemClock.elapsedRealtime() - startedAt
+                val now = SystemClock.elapsedRealtime()
+                val elapsed = now - startedAt
                 val state = p.playbackState
-                // Stopped loading with a decent buffer: the byte budget is
-                // spent (or the file ends). Not below 10 s — a converting
-                // server between segments also reads as "not loading", and
-                // that is exactly when the extra wait helps.
-                val full = state == Player.STATE_READY && !p.isLoading && bufMs >= 10000L
-                val done = bufMs >= PREBUFFER_TARGET_MS || elapsed >= PREBUFFER_MAX_WAIT_MS ||
-                    full || state == Player.STATE_ENDED
+                val ready = state == Player.STATE_READY
+                flowAt = PreBufferRule.flowStart(flowAt, now, midFile, bufMs, ready)
+                val done = PreBufferRule.isDone(
+                    midFile, elapsed, flowAt, now, bufMs, ready,
+                    loading = p.isLoading, ended = state == Player.STATE_ENDED,
+                )
                 if (screenId == MAIN) {
+                    // The indicator's clock: the filling time, which for a
+                    // start part-way in begins once video arrives there.
+                    val shownElapsed = if (!midFile) elapsed else if (flowAt > 0L) now - flowAt else 0L
                     notifyListeners(
                         "preBuffer",
                         JSObject().put("screenId", screenId)
                             .put("bufferedMs", bufMs)
                             .put("targetMs", PREBUFFER_TARGET_MS)
-                            .put("elapsedMs", elapsed)
+                            .put("elapsedMs", shownElapsed)
                             .put("maxWaitMs", PREBUFFER_MAX_WAIT_MS)
                             .put("done", done),
                     )
@@ -554,7 +563,7 @@ class SnowPlayerPlugin : Plugin() {
         p.prepare()
         if (hold) {
             p.playWhenReady = false
-            schedulePreBuffer(s, screenId)
+            schedulePreBuffer(s, screenId, midFile = resumeAt > 0)
         }
     }
 
@@ -749,7 +758,21 @@ class SnowPlayerPlugin : Plugin() {
                     "ExoPlayerLib/${MediaLibraryInfo.VERSION}",
             )
             .setTransferListener(meter)
-        val dataSourceFactory = DefaultDataSource.Factory(act, PlexAwareFactory(httpFactory, plexFactory))
+        // A conversion (playlist and segments) is as patient, but goes out
+        // with Android's own user agent, as it did up to build 38, when the
+        // owner's server still started conversions for SMC. Build 39 sent
+        // the agent above on these too, and on the owner's TV no conversion
+        // has started since (a quality change, the automatic drop). Of what
+        // the player itself sends for a conversion, the agent is all that
+        // changed, and a Plex server can pick how it converts by who asks,
+        // so the conversions get back the agent they worked with. The file
+        // played as it is keeps SMC's own, with which it plays well.
+        val transcodeFactory = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(30000)
+            .setTransferListener(meter)
+        val dataSourceFactory = DefaultDataSource.Factory(act, PlexAwareFactory(httpFactory, plexFactory, transcodeFactory))
         // Closed captions on raw MPEG-TS live streams.
         //
         // By default Media3 only creates a caption track when the PMT carries an
@@ -1117,7 +1140,7 @@ class SnowPlayerPlugin : Plugin() {
                 // immediate rebuffer" flash (see schedulePreBuffer).
                 s.holding = true
                 p.playWhenReady = false
-                schedulePreBuffer(s, screenId)
+                schedulePreBuffer(s, screenId, midFile = startMs > 0)
             }
             scheduleWatchdog(s, screenId) // not for a Plex film (see scheduleWatchdog)
             schedulePositionTick(s)
@@ -1777,28 +1800,41 @@ private fun isPlexStream(uri: Uri): Boolean {
     return path.contains("/library/parts/") || path.contains("/transcode/universal/")
 }
 
-/** Plex streams get the patient source; everything else (Live TV) the quick one. */
+/** A Plex conversion: its playlist and segments. */
+private fun isPlexTranscode(uri: Uri): Boolean = uri.path?.contains("/transcode/universal/") == true
+
+/** Plex streams get the patient sources (a file played as it is, and a
+ *  conversion, each with its own user agent); everything else (Live TV) the
+ *  quick one. */
 private class PlexAwareFactory(
     private val normal: DataSource.Factory,
     private val plex: DataSource.Factory,
+    private val transcode: DataSource.Factory,
 ) : DataSource.Factory {
     override fun createDataSource(): DataSource =
-        PlexAwareDataSource(normal.createDataSource(), plex.createDataSource())
+        PlexAwareDataSource(normal.createDataSource(), plex.createDataSource(), transcode.createDataSource())
 }
 
 private class PlexAwareDataSource(
     private val normal: DataSource,
     private val plex: DataSource,
+    private val transcode: DataSource,
 ) : DataSource {
     private var current: DataSource? = null
 
     override fun addTransferListener(transferListener: TransferListener) {
         normal.addTransferListener(transferListener)
         plex.addTransferListener(transferListener)
+        transcode.addTransferListener(transferListener)
     }
 
     override fun open(dataSpec: DataSpec): Long {
-        val src = if (isPlexStream(dataSpec.uri)) plex else normal
+        val uri = dataSpec.uri
+        val src = when {
+            isPlexTranscode(uri) -> transcode
+            isPlexStream(uri) -> plex
+            else -> normal
+        }
         current = src
         return src.open(dataSpec)
     }

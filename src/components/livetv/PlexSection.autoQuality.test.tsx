@@ -14,6 +14,7 @@ import type { PlexItem, PlexLibrary } from '@/lib/plex';
 import { beginStream, endStream, recordPlayerRate, setBuffering as diagSetBuffering } from '@/lib/bufferDiagnostics';
 import { emptyPlayerStats } from '@/capacitor/SnowPlayer';
 import { AutoQuality } from '@/lib/plexAutoQuality';
+import { markPlaybackStart } from '@/lib/playerSeek';
 
 type NativeState = {
   error: { code?: string; message: string } | null; buffering: boolean; paused: boolean; audioWarning: null; controller: null;
@@ -193,6 +194,7 @@ beforeEach(async () => {
   (await import('./plexKeyOwner')).setPlexKeyOwner('browse');
   (await import('@/lib/plexProgress')).__resetPlexProgressForTests('device');
   (await import('@/lib/plexVersions'))._resetPlexSpeedCache();
+  markPlaybackStart(0);
 });
 afterEach(() => {
   act(() => { endStream(); });
@@ -575,5 +577,68 @@ describe('raising the quality back up: no reads of the file over the relay', () 
     await wait(5 * 60_000);
     expect(cap(lastUrl())).toBe('2000');
     expect(speedReads()).toEqual([]);
+  });
+});
+
+describe('a resume (build 39 on the owner\'s TV): the start is not a reason to leave the file', () => {
+  const report = async (kbps: number, after = 3_000) => { await wait(after); act(() => { recordPlayerRate(kbps); }); };
+  const stallBoth = () => { setBuffering(true); act(() => { diagSetBuffering(true); }); };
+  /** Resumed at 20:00: the native player marks when it began to play. */
+  async function resumedDune() {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); markPlaybackStart(); });
+  }
+
+  it('stalls in the first half minute after it begins to play never lower it', async () => {
+    await resumedDune();
+    await stall(); await stall(); await stall();
+    await wait(1_000);
+    expect(h.urls.filter(isTranscode)).toHaveLength(0);
+    expect(toastTitles().filter((t) => t.startsWith('Lowered'))).toHaveLength(0);
+  });
+
+  it("nor does the server's slow first seconds there, proof or not", async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); });
+    for (let i = 0; i < 10; i += 1) await report(4000);
+    // The viewer skips ahead; it plays on from there, and stalls at once.
+    act(() => { markPlaybackStart(); });
+    stallBoth();
+    await report(6000, 1_000);
+    await report(6000);
+    await wait(6_000);
+    expect(toastTitles().filter((t) => t.startsWith('Lowered'))).toHaveLength(0);
+    await wait(1_000);
+    expect(h.urls.filter(isTranscode)).toHaveLength(0);
+    expect(screen.queryByText(/in a few seconds/)).toBeNull();
+  });
+
+  it('after that, repeated stalls still lower it as before', async () => {
+    await resumedDune();
+    await wait(31_000);
+    await stall(); await stall(); await stall();
+    await waitFor(() => expect(isTranscode(lastUrl())).toBe(true));
+  });
+
+  it('with the internet check far above what the file needs, stalls alone keep the file, and the card says so', async () => {
+    // The internet check (a download from Cloudflare) reads fast.
+    h.fetch.mockImplementation(async (u: unknown) => (String(u).includes('speed.cloudflare.com')
+      ? new Response(new Uint8Array(1 << 20), { status: 200 })
+      : new Response('', { status: 200 })));
+    await resumedDune();
+    await wait(31_000);
+    stallBoth();
+    await wait(3_000);
+    await waitFor(() => expect(screen.getByText(/keeps the original/)).toBeTruthy());
+    act(() => { diagSetBuffering(false); });
+    setBuffering(false);
+    await stall(); await stall(); await stall();
+    await wait(1_000);
+    expect(h.urls.filter(isTranscode)).toHaveLength(0);
+    expect(toastTitles().filter((t) => t.startsWith('Lowered'))).toHaveLength(0);
   });
 });

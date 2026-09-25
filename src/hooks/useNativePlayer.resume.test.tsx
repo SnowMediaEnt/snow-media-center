@@ -45,8 +45,9 @@ vi.mock('@/lib/bufferDiagnostics', () => ({ beginStream: () => {}, endStream: ()
 vi.mock('@capacitor/app', () => ({ App: { addListener: async () => ({ remove: () => {} }) } }));
 
 import { useNativePlayer } from './useNativePlayer';
-import { lastSeekAt, markSeek } from '@/lib/playerSeek';
+import { lastPlaybackStartAt, lastSeekAt, markPlaybackStart, markSeek } from '@/lib/playerSeek';
 import plugin from '../../android/app/src/main/java/com/snowmedia/player/SnowPlayerPlugin.kt?raw';
+import rule from '../../android/app/src/main/java/com/snowmedia/player/PreBufferRule.kt?raw';
 
 const FILM = 'https://srv.plex.direct:32400/library/parts/42/1700000000/file.mkv';
 const CHANNEL = 'http://iptv.example/live/1.ts';
@@ -70,6 +71,7 @@ beforeEach(() => {
   player.position = 0;
   hidden = false;
   markSeek(0);
+  markPlaybackStart(0);
   Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
 });
 afterEach(() => {
@@ -213,17 +215,27 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(plugin.match(/setPrioritizeTimeOverSizeThresholds\(true\)/g)).toHaveLength(1);
   });
 
-  it('Plex files and conversions get the patient source with a user agent; Live TV keeps 8 s and no agent', () => {
+  it("Plex files and conversions get the patient sources; files say who asks, conversions keep Android's own agent (as up to build 38); Live TV keeps 8 s and no agent", () => {
     expect(plugin).toMatch(/fun isPlexStream\(uri: Uri\)[\s\S]*"\/library\/parts\/"[\s\S]*"\/transcode\/universal\/"/);
-    const plex = plugin.slice(plugin.indexOf('val plexFactory'), plugin.indexOf('val dataSourceFactory'));
+    const plex = plugin.slice(plugin.indexOf('val plexFactory'), plugin.indexOf('val transcodeFactory'));
     expect(plex).toContain('.setReadTimeoutMs(30000)');
     expect(plex).toContain('.setConnectTimeoutMs(15000)');
     expect(plex).toMatch(/\.setUserAgent\(\s*"SnowMediaCenter\/\$\{BuildConfig\.VERSION_NAME\} \(Linux; Android \$\{Build\.VERSION\.RELEASE\}\) " \+\s*"ExoPlayerLib\/\$\{MediaLibraryInfo\.VERSION\}"/);
+    // Conversions: as patient, and no agent of ours (build 38 and before,
+    // when the owner's server still started them).
+    const transcode = plugin.slice(plugin.indexOf('val transcodeFactory'), plugin.indexOf('val dataSourceFactory'));
+    expect(transcode).toContain('.setReadTimeoutMs(30000)');
+    expect(transcode).toContain('.setConnectTimeoutMs(15000)');
+    expect(transcode).not.toContain('setUserAgent');
     const http = plugin.slice(plugin.indexOf('val httpFactory'), plugin.indexOf('val plexFactory'));
     expect(http).toContain('.setReadTimeoutMs(8000)');
     expect(http).not.toContain('setUserAgent');
     expect(plugin.match(/setUserAgent\(/g)).toHaveLength(1);
-    expect(plugin).toContain('PlexAwareFactory(httpFactory, plexFactory)');
+    expect(plugin).toContain('PlexAwareFactory(httpFactory, plexFactory, transcodeFactory)');
+    // A conversion's playlist and segments go to the conversion source first.
+    const open = plugin.slice(plugin.indexOf('override fun open(dataSpec: DataSpec): Long {'));
+    expect(open).toMatch(/isPlexTranscode\(uri\) -> transcode\s*isPlexStream\(uri\) -> plex\s*else -> normal/);
+    expect(plugin).toContain('private fun isPlexTranscode(uri: Uri): Boolean = uri.path?.contains("/transcode/universal/") == true');
   });
 
   it('the first-frame watchdog skips Plex films only; channels and Backups films keep it', () => {
@@ -305,7 +317,8 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(vod).toContain('p.prepare()');
     expect(vod).not.toContain('playWhenReady = true');
     expect(vod).not.toContain('scheduleWatchdog');
-    expect(vod).toMatch(/if \(hold\) \{\s*p\.playWhenReady = false\s*schedulePreBuffer\(s, screenId\)/);
+    // Part-way into the film: the hold's time counts from the first video there.
+    expect(vod).toMatch(/if \(hold\) \{\s*p\.playWhenReady = false\s*schedulePreBuffer\(s, screenId, midFile = resumeAt > 0\)/);
   });
 
   it('a film or episode on the main player holds its own Wi-Fi lock; Live TV never does', () => {
@@ -338,5 +351,68 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(err.slice(0, reconnectAt).match(/releaseWifiIfStopped/g)).toHaveLength(1);
     // The plugin's own give-up (a channel's 20, or a Backups film's watchdog).
     expect(body('private fun reconnect(')).toMatch(/if \(s\.reconnectAttempts >= MAX_RECONNECTS\) \{\s*releaseWifiIfStopped\(s\)\s*notifyListeners\(/);
+  });
+});
+
+describe('useNativePlayer — when playback began (automatic quality leaves its first half minute alone)', () => {
+  it('a resumed film: marked when it first plays, not when a stall ends', async () => {
+    mount({ url: FILM, live: false, startPosition: 1800 });
+    await waitFor(() => expect(loads()).toHaveLength(1));
+    await waitFor(() => expect(listeners.get('playerState')?.length).toBeGreaterThan(0));
+    expect(lastPlaybackStartAt()).toBe(0);
+    fire('playerState', { screenId: 'main', playing: true });
+    const began = lastPlaybackStartAt();
+    expect(began).toBeGreaterThan(0);
+    // A stall and playing on: the same start.
+    fire('playerState', { screenId: 'main', state: 'buffering' });
+    fire('playerState', { screenId: 'main', playing: false });
+    await act(async () => { await new Promise((r) => setTimeout(r, 5)); });
+    fire('playerState', { screenId: 'main', playing: true });
+    expect(lastPlaybackStartAt()).toBe(began);
+  });
+
+  it('a film from the top too, and again when it plays on after a seek', async () => {
+    const h = mount({ url: FILM, live: false });
+    await waitFor(() => expect(loads()).toHaveLength(1));
+    await waitFor(() => expect(listeners.get('playerState')?.length).toBeGreaterThan(0));
+    fire('playerState', { screenId: 'main', playing: true });
+    const began = lastPlaybackStartAt();
+    expect(began).toBeGreaterThan(0);
+    await act(async () => { await new Promise((r) => setTimeout(r, 5)); });
+    await act(async () => { await h.result.current.seekTo(3000); });
+    fire('playerState', { screenId: 'main', playing: true });
+    expect(lastPlaybackStartAt()).toBeGreaterThan(began);
+  });
+
+  it('Live TV never marks one', async () => {
+    mount({ url: CHANNEL });
+    await waitFor(() => expect(loads()).toHaveLength(1));
+    await waitFor(() => expect(listeners.get('playerState')?.length).toBeGreaterThan(0));
+    fire('playerState', { screenId: 'main', playing: true });
+    expect(lastPlaybackStartAt()).toBe(0);
+  });
+});
+
+describe('SnowPlayerPlugin.kt — the start-up hold of a film started part-way (PreBufferRule.kt)', () => {
+  const body = (sig: string) => { const at = plugin.indexOf(sig); return plugin.slice(at, plugin.indexOf('\n    }\n', at)); };
+  it('load() and a reconnect tell the hold whether the start is part-way into the file', () => {
+    expect(body('fun load(call: PluginCall)')).toContain('schedulePreBuffer(s, screenId, midFile = startMs > 0)');
+    expect(body('private fun resumeVod(')).toContain('schedulePreBuffer(s, screenId, midFile = resumeAt > 0)');
+  });
+  it('the hold decides by PreBufferRule, every tick, from the player\'s own numbers', () => {
+    const hold = plugin.slice(plugin.indexOf('private fun schedulePreBuffer('), plugin.indexOf('private fun buildMediaItem('));
+    expect(hold).toContain('flowAt = PreBufferRule.flowStart(flowAt, now, midFile, bufMs, ready)');
+    expect(hold).toMatch(/PreBufferRule\.isDone\(\s*midFile, elapsed, flowAt, now, bufMs, ready,\s*loading = p\.isLoading, ended = state == Player\.STATE_ENDED,\s*\)/);
+    expect(plugin).toContain('private const val PREBUFFER_TARGET_MS = PreBufferRule.TARGET_MS');
+    expect(plugin).toContain('private const val PREBUFFER_MAX_WAIT_MS = PreBufferRule.MAX_WAIT_MS');
+  });
+  it('a start from 0:00 keeps 10 s from load(); a start part-way gets 10 s from the first video there, 30 s at most', () => {
+    expect(rule).toContain('const val TARGET_MS = 25000L');
+    expect(rule).toContain('const val MAX_WAIT_MS = 10000L');
+    expect(rule).toContain('const val MID_FILE_CAP_MS = 30000L');
+    expect(rule).toContain('if (!midFile) return sinceLoadMs >= MAX_WAIT_MS');
+    expect(rule).toContain('if (sinceLoadMs >= MID_FILE_CAP_MS) return true');
+    expect(rule).toContain('return flowAt > 0L && now - flowAt >= MAX_WAIT_MS');
+    expect(rule).toContain('return if (bufferedMs > 0L || ready) now else 0L');
   });
 });

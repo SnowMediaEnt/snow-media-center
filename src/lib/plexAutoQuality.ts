@@ -36,6 +36,23 @@ export const STALL_WINDOW_MS = 5 * 60_000;
 export const STALLS_TO_STEP = 3;
 /** A stall starting this soon after a seek is the seek, not the connection. */
 export const SEEK_GRACE_MS = 5_000;
+/**
+ * A stall this soon after playback began (a start, a resume, a quality
+ * change, a reload, or playing on after a seek) is the start, not the
+ * connection: the server is only getting going at that place in the file.
+ * On the owner's TV a resumed film stalled at 0:02 and 0:16 and then played
+ * smoothly with 30 s and more in hand; counted as stalls, those sent it to a
+ * conversion. Measured from when it began to play (useNativePlayer), not
+ * from the jump: the start-up hold alone can outlast a seek's 5 s.
+ */
+export const START_GRACE_MS = 30_000;
+/**
+ * The internet check at this many times what the file needs: the line is
+ * plainly fast enough, so stalls alone (a server that pauses, a slow start
+ * at a resume point) never leave the file for a conversion. Only proof that
+ * the server itself can't send the file fast enough does (onSlowFile).
+ */
+export const INTERNET_CLEAR_FACTOR = 2;
 /** A step must fit the speed this many times over. */
 export const SPEED_HEADROOM = 1.3;
 /** The steady speed a drop is sized to: the last minute. */
@@ -243,22 +260,33 @@ export function stallBudgetKbps(snap: Pick<DiagSnapshot, 'hostKbps' | 'streamKbp
 }
 
 /**
+ * Whether a stall at `at` belongs to a jump rather than the connection:
+ * within SEEK_GRACE_MS of the jump itself (`lastSeekAt`), or within
+ * START_GRACE_MS of playback beginning after it (`lastStartAt`).
+ */
+export function inJumpGrace(at: number, lastSeekAt = 0, lastStartAt = 0, seekGraceMs = SEEK_GRACE_MS): boolean {
+  if (lastSeekAt > 0 && at - lastSeekAt >= 0 && at - lastSeekAt < seekGraceMs) return true;
+  return lastStartAt > 0 && at - lastStartAt >= 0 && at - lastStartAt < START_GRACE_MS;
+}
+
+/**
  * Counts stalls — buffering after playback has started — over a sliding
- * window. The first load is never fed in; a stall right after a seek is
- * ignored (the player always refills after a jump).
+ * window. The first load is never fed in; a stall right after a seek, or in
+ * the first half minute after playback began, is ignored (see inJumpGrace).
  */
 export class StallCounter {
   private times: number[] = [];
   constructor(private windowMs = STALL_WINDOW_MS, private needed = STALLS_TO_STEP, private seekGraceMs = SEEK_GRACE_MS) {}
 
-  /** True when a stall at `at` is the seek at `lastSeekAt` refilling. */
-  isSeek(at: number, lastSeekAt = 0): boolean {
-    return lastSeekAt > 0 && at - lastSeekAt >= 0 && at - lastSeekAt < this.seekGraceMs;
+  /** True when a stall at `at` is a jump refilling: the seek at
+   *  `lastSeekAt`, or the start of playback at `lastStartAt`. */
+  isSeek(at: number, lastSeekAt = 0, lastStartAt = 0): boolean {
+    return inJumpGrace(at, lastSeekAt, lastStartAt, this.seekGraceMs);
   }
 
   /** Records a stall that started at `at`; true when that makes enough. */
-  record(at: number, lastSeekAt = 0): boolean {
-    if (this.isSeek(at, lastSeekAt)) return false;
+  record(at: number, lastSeekAt = 0, lastStartAt = 0): boolean {
+    if (this.isSeek(at, lastSeekAt, lastStartAt)) return false;
     this.times = this.times.filter((t) => at - t < this.windowMs);
     this.times.push(at);
     return this.times.length >= this.needed;
@@ -274,6 +302,28 @@ export class StallCounter {
 export type AutoReason = 'stalls' | 'undo-raise' | 'slow-file' | 'slow-start' | 'speed';
 export type AutoMove = { step: QualityStep; direction: 'down' | 'up'; reason: AutoReason };
 
+/** What a stall is judged with, besides its time. */
+export interface StallContext {
+  /** When playback last began (START_GRACE_MS), 0 if unknown. */
+  lastStartAt?: number;
+  /** The general internet check, kbps (INTERNET_CLEAR_FACTOR). */
+  internetKbps?: number | null;
+  /** On the Plex Relay: the internet check says nothing about the relay. */
+  relay?: boolean;
+}
+
+/**
+ * The internet check is plainly fast enough for the file played as it is at
+ * `index` (INTERNET_CLEAR_FACTOR times its bitrate), off the relay. Then a
+ * drop to a conversion `target` needs proof about the server, not stalls.
+ */
+export function lineClearForFile(ladder: QualityStep[], index: number, target: QualityStep | null, ctx: StallContext = {}): boolean {
+  if (ctx.relay || !target || target.presetKey === 'original') return false;
+  const cur = Number.isInteger(index) ? ladder[index] : undefined;
+  if (!cur || cur.presetKey !== 'original' || !cur.kbps) return false;
+  return !!ctx.internetKbps && ctx.internetKbps >= cur.kbps * INTERNET_CLEAR_FACTOR;
+}
+
 /** What automatic quality would do next from where playback is, for the
  *  buffering card. */
 export interface AutoPreview {
@@ -281,6 +331,8 @@ export interface AutoPreview {
   next: QualityStep | null;
   /** The viewer's own pick for this title (a preset key), if any. */
   manualKey: string | null;
+  /** Stalls alone won't leave the file: the internet is fast enough. */
+  keepsFile?: boolean;
 }
 
 /**
@@ -293,6 +345,7 @@ export interface AutoPreview {
  * under a pick off the ladder) when the speed allows.
  */
 export function autoQualityNote(ladder: QualityStep[], index: number, preview: AutoPreview): string {
+  if (preview.keepsFile) return 'Auto quality: keeps the original — your internet is fast enough for it';
   if (preview.next) return `Auto quality: will lower to ${stepName(preview.next)} if it keeps stalling`;
   const pick = preview.manualKey;
   if (!pick) return 'Auto quality: already at its lowest step';
@@ -371,8 +424,9 @@ export class AutoQuality {
    * that fits `sizeKbps` once stalls have repeated (3 within 5 minutes).
    * `sizeKbps` only sizes the drop (see dropSizeKbps); it never makes one.
    */
-  onStall(at: number, lastSeekAt: number, ladder: QualityStep[], index: number, sizeKbps: number | null): AutoMove | null {
-    if (this.stalls.isSeek(at, lastSeekAt)) return null;
+  onStall(at: number, lastSeekAt: number, ladder: QualityStep[], index: number, sizeKbps: number | null, ctx: StallContext = {}): AutoMove | null {
+    const lastStartAt = ctx.lastStartAt ?? 0;
+    if (this.stalls.isSeek(at, lastSeekAt, lastStartAt)) return null;
     this.lastStallAt = at;
     if (this.raisedAt && at - this.raisedAt < RAISE_PROBATION_MS) {
       const back = index >= 0 ? ladder[Math.floor(index) + 1] : undefined;
@@ -381,8 +435,10 @@ export class AutoQuality {
       this.backoffMs = Math.min(RAISE_BACKOFF_MAX_MS, this.backoffMs * 2);
       if (back) return { step: back, direction: 'down', reason: 'undo-raise' };
     }
-    if (!this.stalls.record(at, lastSeekAt)) return null;
-    return this.drop(ladder, index, sizeKbps, 'stalls');
+    if (!this.stalls.record(at, lastSeekAt, lastStartAt)) return null;
+    const move = this.drop(ladder, index, sizeKbps, 'stalls');
+    if (move && lineClearForFile(ladder, index, move.step, ctx)) return null;
+    return move;
   }
 
   /**
@@ -433,8 +489,10 @@ export class AutoQuality {
   }
 
   /** What a drop from `index` would go to now, and the viewer's pick. */
-  preview(ladder: QualityStep[], index: number, speedKbps: number | null): AutoPreview {
-    return { next: dropTarget(ladder, index, speedKbps), manualKey: this.manual };
+  preview(ladder: QualityStep[], index: number, speedKbps: number | null, ctx: StallContext = {}): AutoPreview {
+    const next = dropTarget(ladder, index, speedKbps);
+    if (lineClearForFile(ladder, index, next, ctx)) return { next: null, manualKey: this.manual, keepsFile: true };
+    return { next, manualKey: this.manual };
   }
 
   /**

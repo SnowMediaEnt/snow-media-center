@@ -171,6 +171,7 @@ describe('Plex player: pausing shows the control bar and keeps it up', () => {
     expect(plugin).toMatch(/override fun onPlayWhenReadyChanged\([^)]*\) \{\s*reportPaused\(s, screenId\)/);
     expect(body('fun pause(call: PluginCall)')).toMatch(/releaseHold\(s\); s\.player\?\.pause\(\); reportPaused\(s, screenId\)/);
     expect(body('private fun scheduleBandwidthTick(')).toContain('if (screenId != MAIN) return');
-    expect(plugin.match(/\.setTransferListener\(meter\)/g)).toHaveLength(2);
+    // Live TV's source, the Plex file's and the Plex conversion's: every HTTP source counts its bytes.
+    expect(plugin.match(/\.setTransferListener\(meter\)/g)).toHaveLength(3);
   });
 });

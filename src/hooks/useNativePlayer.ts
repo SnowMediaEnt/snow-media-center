@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onMediaKey } from '@/lib/mediaKeys';
 import { SnowPlayer, type SnowSubtitle } from '@/capacitor/SnowPlayer';
-import { markSeek } from '@/lib/playerSeek';
+import { markPlaybackStart, markSeek } from '@/lib/playerSeek';
 import { createNativeVideoController, type NativeControllerHandle } from '@/lib/nativeVideoController';
 import type { VideoController } from '@/components/livetv/VideoPlayer';
 import { enterQuiet, exitQuiet } from '@/utils/quietMode';
@@ -127,6 +127,12 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // Where a film was when the app went to the background: the player is
   // stopped then, so the reload can't ask it any more.
   const hiddenAtRef = useRef<Promise<number> | null>(null);
+  // A film's next 'playing' is it beginning to play: after a load (a start,
+  // a resume, a quality change, a reload) or a seek, not after a stall.
+  // Automatic quality leaves the first half minute after it alone
+  // (markPlaybackStart): the server is only getting going at that place.
+  const startPendingRef = useRef(false);
+  const jumped = () => { if (!liveRef.current) startPendingRef.current = true; };
 
   const markStreaming = (on: boolean) => {
     // A preview never claims the screen: the flag would stop the updater,
@@ -216,6 +222,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           else if (data.state === 'ready') { setBuffering(false); try { diagBuffering(false); } catch { /* ignore */ } }
           else if (data.state === 'ended') { markStreaming(false); quietOff(); try { diagEnd(); } catch { /* ignore */ } cbEndedRef.current?.(); }
           // Playing is authoritative — clear the spinner immediately.
+          if (data.playing === true && startPendingRef.current) { startPendingRef.current = false; markPlaybackStart(); }
           if (data.playing === true) { exhaustRetriedRef.current = false; setBuffering(false); quietOn(); try { diagBuffering(false); } catch { /* ignore */ } }
           if (typeof data.playing === 'boolean') markStreaming(data.playing);
         }));
@@ -315,6 +322,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         // the file was opened twice, the first time at the wrong place.
         // Still a jump as far as automatic quality is concerned (playerSeek).
         if (start > 0) markSeek();
+        jumped();
         await SnowPlayer.load({ url, live, isLive: live, subtitles, ...(start > 0 ? { startPosition: start } : {}) });
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.setVolume({ volume: Math.min(MAX_VOLUME, Math.max(0, volume)) });
@@ -445,6 +453,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
 
   const seekTo = useCallback(async (seconds: number) => {
     markSeek();
+    jumped();
     try { await SnowPlayer.seekTo({ position: Math.max(0, seconds) }); } catch { /* ignore */ }
   }, []);
   const getPosition = useCallback(async () => {
@@ -472,6 +481,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
             const to = k === 'ff' ? p.position + 30 : p.position - 10;
             const max = p.duration > 0 ? Math.max(0, p.duration - 1) : Number.MAX_SAFE_INTEGER;
             markSeek();
+            jumped();
             await SnowPlayer.seekTo({ position: Math.min(max, Math.max(0, to)) });
           } catch { /* ignore */ }
         })();
