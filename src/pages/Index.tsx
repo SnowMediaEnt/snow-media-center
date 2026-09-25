@@ -39,6 +39,7 @@ import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
 import { homeCardIds, profileGameView, type HomeCardId } from '@/lib/kidsGameNavigation';
+import { setGameMusicMode } from '@/components/games/shared/gameMusic';
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors } from '@/lib/profiles';
 import ProfileGate from '@/components/profiles/ProfileGate';
@@ -665,6 +666,11 @@ const Index = () => {
   const { currentView: requestedView, navigateTo: navigateToView, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
   // Resolve before rendering so a restored adult game never mounts for a child.
   const currentView = profileGameView(requestedView, profile.kidsLevel);
+  const musicMode = currentView === 'kids-games' ? 'kids' : currentView === 'games' || currentView.startsWith('game-') ? 'adult' : null;
+  useEffect(() => {
+    setGameMusicMode(musicMode);
+    return () => setGameMusicMode(null);
+  }, [musicMode]);
   const navigateTo = useCallback((view: string) => {
     navigateToView(profileGameView(view, profile.kidsLevel));
   }, [navigateToView, profile.kidsLevel]);

@@ -446,6 +446,12 @@
   min-width: 138px;
 }
 
+@media (max-width: 1300px) {
+  .snow-games-lobby .snow-lobby__footer { grid-template-columns: auto minmax(0, 1fr); gap: 12px; }
+  .snow-games-lobby .snow-lobby__footer > div:first-child { display: none; }
+  .snow-games-lobby .snow-lobby__settings > button { min-width: 105px; }
+}
+
 html[data-game-fx="reduced"] .snow-games-lobby .snow-lobby-tile,
 html[data-game-fx="reduced"] .snow-games-lobby .snow-game-art,
 .native-low-memory .snow-games-lobby .snow-lobby-tile,
