@@ -71,6 +71,32 @@ if (!billingAppKey) {
     logger.warn("\n#  SMC_BILLING_APP_KEY is not set in android/local.properties — billing account features will be disabled in this build.\n")
 }
 
+// TAMPER CHECK (com.snowmedia.security.TamperGuard).
+// A release build refuses to run when it is not signed with our release
+// certificate: taking the APK apart, changing anything (the web app inside
+// it included) and putting it back together means signing it with some other
+// key. The check needs the certificate's SHA-256 fingerprint, which is public
+// (anyone can read it off the APK) — not a secret, not a key. It is read from
+// the release keystore at build time; SMC_SIGNING_SHA256 in local.properties
+// (comma-separated for more than one) overrides it. With neither, the check is
+// off for that build (e.g. a checkout with no keystore, signed with the debug key).
+def signingSha256 = (localProps['SMC_SIGNING_SHA256'] ?: project.findProperty('SMC_SIGNING_SHA256') ?: System.getenv('SMC_SIGNING_SHA256') ?: '').toString()
+if (!signingSha256 && hasReleaseKeystore) {
+    def ksFile = project.file(keystoreProps['storeFile'])
+    def cert = null
+    for (type in ['PKCS12', 'JKS']) {
+        try {
+            def ks = java.security.KeyStore.getInstance(type)
+            ksFile.withInputStream { ks.load(it, keystoreProps['storePassword'].toString().toCharArray()) }
+            cert = ks.getCertificate(keystoreProps['keyAlias'].toString())
+            if (cert) break
+        } catch (ignored) { /* try the other keystore type */ }
+    }
+    if (cert) signingSha256 = java.security.MessageDigest.getInstance('SHA-256').digest(cert.encoded).encodeHex().toString()
+    else logger.warn("\n#  Could not read the release certificate from the keystore — the tamper check is OFF in this build.\n")
+}
+signingSha256 = signingSha256.split(',').collect { it.replaceAll('[^0-9A-Fa-f]', '').toLowerCase() }.findAll { it.length() == 64 }.join(',')
+
 
 android {
     namespace "com.snowmedia"
@@ -85,6 +111,8 @@ android {
         // Never hardcode the key in Kotlin; see the block above.
         buildConfigField "String", "SMC_BILLING_APP_KEY", "\"${billingAppKey}\""
         buildConfigField "String", "SMC_BILLING_BASE_URL", "\"${billingBaseUrl}\""
+        // The release certificate's fingerprint(s) for TamperGuard (see above).
+        buildConfigField "String", "SMC_SIGNING_SHA256", "\"${signingSha256}\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         
