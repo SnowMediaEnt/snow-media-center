@@ -26,6 +26,11 @@ With a VPN on, SMC doesn't load Plex at all; the Plex app still plays.
 ## Build 39 (rung 2) — device result: better, not fixed
 Still stalls right at the start (around 0:02 and 0:16), recovers to 30+ s buffered, then plays smoothly
 for the rest. The mid-film stalls every ~15 s are gone. Early start-up is what's left.
+Second test (build 39): played about a minute, then stopped with the card saying "Waiting for the Plex server
+to answer" (no data arriving at all), and did not recover on its own.
+New in build 39 that could matter: 30 s read timeout (a dead connection is noticed after 30 s, not 8 s);
+direct-play URLs now carry X-Plex-Client-Identifier/Product/Platform (the server sees an identified client
+but SMC sends no /:/timeline for the shared account); continuous top-up load control.
 
 ### What build 39 changed
 - Native player (SnowPlayerPlugin.kt): no 8 s first-frame restarts for Plex; 30 s read / 15 s connect timeouts
