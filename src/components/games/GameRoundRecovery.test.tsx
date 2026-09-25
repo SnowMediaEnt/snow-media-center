@@ -82,6 +82,9 @@ describe('terminal round reconciliation', () => {
     fireEvent.click(splitButton);
     await screen.findByText('Hand 1 · 10 coins');
     expect(screen.getByText('Hand 2 · 10 coins')).toBeTruthy();
+    expect(screen.getByLabelText('Hand 1 total 18')).toBeTruthy();
+    expect(screen.getByLabelText('Hand 2 total 17')).toBeTruthy();
+    expect(screen.queryByText('games.blackjack.you')).toBeNull();
     expect(split).toHaveBeenCalledTimes(1);
   });
 

@@ -228,7 +228,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     if (!table) return;
     const fit = () => {
       const seats = Array.from(table.querySelectorAll<HTMLElement>('.snow-bj-seat'));
-      const available = Math.min(...seats.map(seat => seat.clientHeight - (seat.querySelector<HTMLElement>('.snow-bj-seat__heading')?.offsetHeight ?? 28)));
+      const available = Math.min(...seats.map(seat => seat.clientHeight - (seat.querySelector<HTMLElement>('.snow-bj-seat__heading')?.offsetHeight ?? 0)));
       if (!Number.isFinite(available) || available <= 0) return;
       const height = Math.max(32, Math.floor(available - (table.querySelector('.snow-bj-split-hands') ? 65 : 16)));
       table.style.setProperty('--fitted-card-height', `${height}px`);
@@ -724,27 +724,30 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
               )}
             </div>
 
-            <div className="snow-bj-zone snow-bj-zone--player">
+            <div className={`snow-bj-zone snow-bj-zone--player${splitHands?.length ? ' is-split' : ''}`}>
               <div className="snow-bj-zone__equipment snow-bj-zone__equipment--player" aria-hidden="true">
                 <span className="snow-bj-seat-marker">◆</span>
               </div>
               <div className="snow-bj-seat">
-                <div className="snow-bj-seat__heading">
+                {!splitHands?.length && <div className="snow-bj-seat__heading">
                   <span className="snow-bj-seat__label"><i aria-hidden="true" />{t('games.blackjack.you')}</span>
                   {phase !== 'bet' && (
                     <span className={`snow-bj-total${shownPlayerTotal > 21 ? ' is-bust' : ''}`}>
                       {doubleCardRevealed ? shownPlayerTotal : `${shownPlayerTotal}+?`}
                     </span>
                   )}
-                </div>
+                </div>}
                 <div className="snow-bj-hand-well">
                   {phase === 'bet'
                     ? <><EmptyHand /><p className="snow-bj-hint">{t('games.blackjack.cardsAppearHere')}</p></>
                     : splitHands && splitHands.length > 0 ? <div className="snow-bj-split-hands">
-                      {splitHands.map((hand, index) => <div key={index} className={phase === 'playing' && activeHand === index ? 'is-active' : ''}>
-                        <strong>Hand {index + 1} · {hand.bet} coins{phase === 'settled' && revealComplete ? ` · ${hand.outcome}` : ''}</strong>
+                      {splitHands.map((hand, index) => <div key={index} className={`snow-bj-split-hand${phase === 'playing' && activeHand === index ? ' is-active' : ''}`}>
+                        <div className="snow-bj-split-hand__header">
+                          <strong>Hand {index + 1} · {hand.bet} coins</strong>
+                          <output className={`snow-bj-total${computeBjTotal(hand.cards) > 21 ? ' is-bust' : ''}`} aria-label={`Hand ${index + 1} total ${computeBjTotal(hand.cards)}`}>{computeBjTotal(hand.cards)}</output>
+                        </div>
                         <Hand cards={hand.cards} compact />
-                        <span>{computeBjTotal(hand.cards)}</span>
+                        {phase === 'settled' && revealComplete && hand.outcome && <span className="snow-bj-split-hand__outcome">{hand.outcome}</span>}
                       </div>)}
                     </div> : <Hand
                       cards={playerHand}

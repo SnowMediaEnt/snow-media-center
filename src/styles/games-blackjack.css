@@ -1041,7 +1041,69 @@
 .snow-bj-side-options > button { flex: 1 1 0; min-width: 0; font-size: 14px; }
 .snow-bj-side-options > small { flex: 0 0 100%; color: #c6eaf2; font-size: 12px; line-height: 1.3; }
 .snow-bj-side-results { margin: 0 0 8px; color: #c6eaf2; font-size: 12px; }
-.snow-bj-split-hands { display: flex; gap: 20px; width: 100%; justify-content: center; }
-.snow-bj-split-hands > div { min-width: 0; padding: 8px; border: 2px solid transparent; border-radius: 12px; text-align: center; }
-.snow-bj-split-hands > .is-active { border-color: #7ceeff; background: rgba(0, 194, 230, .12); }
-.snow-bj-split-hands strong { display: block; margin-bottom: 6px; font-size: 13px; }
+.snow-blackjack .snow-bj-zone--player.is-split .snow-bj-hand-well {
+  justify-content: flex-start;
+  padding-top: 12px;
+}
+
+.snow-bj-split-hands {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  width: min(100%, 720px);
+  margin: 0 auto;
+  align-items: start;
+}
+
+.snow-bj-split-hand {
+  min-width: 0;
+  padding: 7px 10px 5px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.snow-bj-split-hand.is-active { border-color: #7ceeff; background: rgba(0, 194, 230, .12); }
+
+.snow-bj-split-hand__header {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.snow-bj-split-hand__header strong {
+  min-width: 0;
+  color: hsl(190 88% 91%);
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.snow-bj-split-hand__header .snow-bj-total { flex: 0 0 auto; }
+.snow-bj-split-hand .snow-hand { min-height: 0; max-width: 100%; }
+.snow-bj-split-hand__outcome { display: block; margin-top: 4px; color: hsl(45 92% 82%); font-size: 12px; font-weight: 800; }
+
+@media (max-height: 760px) {
+  .snow-blackjack .snow-bj-zone--player.is-split .snow-bj-hand-well { padding-top: 8px; }
+  .snow-bj-split-hands { gap: 10px; }
+  .snow-bj-split-hand { padding: 4px 5px 2px; }
+  .snow-bj-split-hand__header { min-height: 26px; gap: 5px; margin-bottom: 3px; }
+  .snow-bj-split-hand__header strong { font-size: 11px; }
+  .snow-bj-split-hand__header .snow-bj-total { min-width: 34px; padding: 2px 6px; font-size: 14px; }
+}
+
+@media (min-height: 1000px) {
+  .snow-bj-split-hand__header { min-height: 42px; }
+  .snow-bj-split-hand__header strong { font-size: 17px; }
+  .snow-bj-split-hand__header .snow-bj-total { font-size: 22px; }
+}
+
+@media (min-width: 2500px) and (min-height: 1400px) {
+  .snow-bj-split-hands { width: min(100%, 1180px); gap: 32px; }
+  .snow-bj-split-hand { padding: 12px 18px 8px; }
+  .snow-bj-split-hand__header { min-height: 64px; gap: 18px; margin-bottom: 10px; }
+  .snow-bj-split-hand__header strong { font-size: 28px; }
+  .snow-bj-split-hand__header .snow-bj-total { font-size: 34px; }
+}
