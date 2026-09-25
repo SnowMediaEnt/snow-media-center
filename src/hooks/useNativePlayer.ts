@@ -12,6 +12,7 @@ import { createNativeVideoController, type NativeControllerHandle } from '@/lib/
 import type { VideoController } from '@/components/livetv/VideoPlayer';
 import { enterQuiet, exitQuiet } from '@/utils/quietMode';
 import { beginStream as diagBegin, endStream as diagEnd, setBuffering as diagBuffering, recordPlayerRate as diagPlayerRate } from '@/lib/bufferDiagnostics';
+import { MAX_VOLUME } from '@/utils/volume';
 
 interface UseNativePlayerArgs {
   active: boolean;
@@ -276,7 +277,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           try { await SnowPlayer.seekTo({ position: startPosition }); } catch { /* ignore */ }
         }
         if (cancelled || myNonce !== nonceRef.current) return;
-        await SnowPlayer.setVolume({ volume: Math.min(1, Math.max(0, volume)) });
+        await SnowPlayer.setVolume({ volume: Math.min(MAX_VOLUME, Math.max(0, volume)) });
         if (cancelled || myNonce !== nonceRef.current) return;
         await handleRef.current?.prime();
         // Every other await above is followed by this check; this one was
@@ -323,7 +324,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // Live volume sync.
   useEffect(() => {
     if (!active) return;
-    void SnowPlayer.setVolume({ volume: Math.min(1, Math.max(0, volume)) }).catch(() => { /* ignore */ });
+    void SnowPlayer.setVolume({ volume: Math.min(MAX_VOLUME, Math.max(0, volume)) }).catch(() => { /* ignore */ });
   }, [active, volume]);
 
   // Absolute stop on active flip / unmount.

@@ -3,12 +3,25 @@
 const KEY = 'snow-player-volume-v1';
 const LEGACY_KEY = 'snow-livetv-volume-v1';
 const DEFAULT_VOLUME = 0.9;
+/** Past 100% (up to 150%) the native player boosts the sound (Android's
+ *  LoudnessEnhancer, which limits so it does not clip), like VLC's. The web
+ *  player stops at 100%. */
+export const MAX_VOLUME = 1.5;
 
 const clamp = (v: number): number => {
   if (!Number.isFinite(v)) return DEFAULT_VOLUME;
   if (v < 0) return 0;
-  if (v > 1) return 1;
+  if (v > MAX_VOLUME) return MAX_VOLUME;
   return v;
+};
+
+/** One step up or down, kept within 0..MAX_VOLUME. */
+export const stepVolume = (v: number, delta: number): number => clamp(+(v + delta).toFixed(2));
+
+/** For a volume bar drawn over the whole 0..150% range. */
+export const volumeBar = (v: number): { pct: number; fill: number; boost: boolean } => {
+  const c = clamp(v);
+  return { pct: Math.round(c * 100), fill: (c / MAX_VOLUME) * 100, boost: c > 1.0001 };
 };
 
 export function loadPlayerVolume(): number {

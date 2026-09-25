@@ -16,6 +16,7 @@ import { useScreenFormat } from '@/hooks/useScreenFormat';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
 import { toast } from '@/hooks/use-toast';
+import { stepVolume, volumeBar } from '@/utils/volume';
 
 // 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
 // move a preview marker (accelerating on repeated presses), OK jumps there.
@@ -466,7 +467,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           const next = Math.max(0, +(volumeRef.current - 0.1).toFixed(2));
           onChangeVolumeRef.current(next);
         } else if (e.key === 'ArrowRight') {
-          const next = Math.min(1, +(volumeRef.current + 0.1).toFixed(2));
+          const next = stepVolume(volumeRef.current, 0.1);
           onChangeVolumeRef.current(next);
         } else if (isOk) {
           setMenu('none');
@@ -558,7 +559,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const shownPos = scrubbing && scrubPos != null ? scrubPos : pos;
   const pct = dur > 0 ? Math.min(100, Math.max(0, (shownPos / dur) * 100)) : 0;
   const scrubDelta = scrubbing && scrubPos != null ? Math.round(scrubPos - pos) : 0;
-  const volPct = Math.round(Math.min(1, Math.max(0, volume)) * 100);
+  const vol = volumeBar(volume);
+  const volPct = vol.pct;
   // "Your speed" in the quality menu: the fastest the player's downloads
   // have come in lately, next to the presets' Mb/s. Read on render (the
   // position poll re-renders every second); nothing is measured for it.
@@ -694,10 +696,12 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <span className="text-xs text-brand-ice/60 font-nunito">◀ ▶ · OK · Back</span>
           </div>
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="h-2 flex-1 rounded-full bg-white/15 overflow-hidden">
-              <div className="h-full bg-brand-gold transition-[width] duration-150 ease-out" style={{ width: `${volPct}%` }} />
+            {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
+            <div className="relative h-2 flex-1 rounded-full bg-white/15 overflow-hidden">
+              <div className={`h-full ${vol.boost ? 'bg-orange-400' : 'bg-brand-gold'} transition-[width] duration-150 ease-out`} style={{ width: `${vol.fill}%` }} />
+              <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
             </div>
-            <span className="text-sm font-quicksand font-bold text-brand-gold tabular-nums w-10 text-right">{volPct}%</span>
+            <span className={`text-sm font-quicksand font-bold tabular-nums text-right ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{volPct}%{vol.boost ? ' · Boost' : ''}</span>
           </div>
         </div>
       )}

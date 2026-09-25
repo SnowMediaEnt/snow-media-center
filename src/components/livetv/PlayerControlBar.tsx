@@ -4,6 +4,7 @@ import {
   Subtitles, AudioLines, Tv, Radio, Volume2, VolumeX,
 } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
+import { volumeBar } from '@/utils/volume';
 
 export type BarControlId = 'prev' | 'rew' | 'play' | 'fwd' | 'next' | 'cc' | 'audio' | 'vol';
 
@@ -72,7 +73,8 @@ const PlayerControlBar = memo(({
   const elapsed = total ? Math.max(0, Math.min(total, now - (nowStart || 0))) : 0;
   const progressPct = total ? (elapsed / total) * 100 : 0;
 
-  const volPct = Math.round(Math.min(1, Math.max(0, volume)) * 100);
+  const vol = volumeBar(volume);
+  const volPct = vol.pct;
   const volIcon = volPct === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />;
 
   if (!visible) return null;
@@ -282,10 +284,12 @@ const PlayerControlBar = memo(({
           <div className="px-2 pb-1">
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-brand-ice/70 font-nunito">Level</span>
-              <span className="text-sm font-quicksand font-bold text-brand-gold tabular-nums">{volPct}%</span>
+              <span className={`text-sm font-quicksand font-bold tabular-nums ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{volPct}%{vol.boost ? ' · Boost' : ''}</span>
             </div>
-            <div className="mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
-              <div className="h-full bg-brand-gold" style={{ width: `${volPct}%` }} />
+            {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
+            <div className="relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
+              <div className={`h-full ${vol.boost ? 'bg-orange-400' : 'bg-brand-gold'}`} style={{ width: `${vol.fill}%` }} />
+              <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
             </div>
           </div>
         </div>

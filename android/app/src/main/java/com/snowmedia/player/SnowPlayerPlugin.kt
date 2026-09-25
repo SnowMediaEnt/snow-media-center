@@ -5,10 +5,12 @@ package com.snowmedia.player
 import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Color
+import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.Gravity
 import android.graphics.Matrix
 import android.view.TextureView
@@ -26,6 +28,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
+import androidx.media3.common.util.Util
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
@@ -74,7 +77,11 @@ class SnowPlayerPlugin : Plugin() {
         var shutterView: View? = null
         var subtitleView: SubtitleView? = null
         var container: FrameLayout? = null
+        /** 0..MAX_VOLUME. Past 1 the player stays at full volume and `boost`
+         *  adds the rest. */
         var volume: Float = 1f
+        /** The volume boost past 100% on this player's audio session. */
+        var boost: LoudnessEnhancer? = null
         var currentUrl: String? = null
         var currentSubtitles: JSArray? = null
         var isLive: Boolean = true
@@ -118,6 +125,12 @@ class SnowPlayerPlugin : Plugin() {
 
     companion object {
         private const val MAIN = "main"
+        private const val TAG = "SnowPlayer"
+        /** Volume goes to 150%; the last 50% is a boost (see applyBoost). */
+        private const val MAX_VOLUME = 1.5f
+        /** Boost gain per 100% past full: +10 dB at 150%. LoudnessEnhancer
+         *  limits, so the louder parts stay clean instead of clipping. */
+        private const val BOOST_MB_PER_UNIT = 2000f
         // Screen format names, shared with the WebView (src/capacitor/SnowPlayer.ts).
         const val FORMAT_FIT = "fit"
         const val FORMAT_FILL = "fill"
@@ -411,6 +424,7 @@ class SnowPlayerPlugin : Plugin() {
      *  up to four players (threads, views, last-frame buffers) stayed alive
      *  for the rest of the session. load() rebuilds all of this on demand. */
     private fun releaseSlot(s: PlayerSlot) {
+        releaseBoost(s)
         s.player?.release()
         s.player = null
         s.trackSelector = null
@@ -525,7 +539,10 @@ class SnowPlayerPlugin : Plugin() {
         // help with that. Held only while playing; released on pause/stop.
         p.setWakeMode(C.WAKE_MODE_NETWORK)
         p.setVideoTextureView(s.textureView)
-        p.volume = s.volume
+        // Our own audio session, so the volume boost (past 100%) has a session
+        // to attach to before the first sound is played.
+        try { p.setAudioSessionId(Util.generateAudioSessionIdV21(act)) } catch (e: Exception) { Log.w(TAG, "No audio session for the volume boost", e) }
+        p.volume = s.volume.coerceAtMost(1f)
         p.addListener(object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 s.videoW = videoSize.width
@@ -622,6 +639,7 @@ class SnowPlayerPlugin : Plugin() {
             }
         })
         s.player = p
+        applyBoost(s)
     }
 
     @PluginMethod
@@ -796,8 +814,36 @@ class SnowPlayerPlugin : Plugin() {
     fun setVolume(call: PluginCall) {
         val v = call.getFloat("volume") ?: 1f
         val s = slot(call)
-        s.volume = v.coerceIn(0f, 1f)
-        activity?.runOnUiThread { s.player?.volume = s.volume; call.resolve() }
+        s.volume = v.coerceIn(0f, MAX_VOLUME)
+        activity?.runOnUiThread {
+            s.player?.volume = s.volume.coerceAtMost(1f)
+            applyBoost(s)
+            call.resolve()
+        }
+    }
+
+    /** Past 100%: Android's LoudnessEnhancer on this player's audio session,
+     *  like VLC's volume past 100%. Off at 100% and under. A box without the
+     *  effect simply stays at 100%. */
+    private fun applyBoost(s: PlayerSlot) {
+        val p = s.player ?: return
+        val gainMb = if (s.volume > 1f) ((s.volume - 1f) * BOOST_MB_PER_UNIT).toInt() else 0
+        if (gainMb <= 0) {
+            s.boost?.let { e -> try { e.enabled = false } catch (_: Exception) { /* released */ } }
+            return
+        }
+        try {
+            val e = s.boost ?: LoudnessEnhancer(p.audioSessionId).also { s.boost = it }
+            e.setTargetGain(gainMb)
+            e.enabled = true
+        } catch (e: Exception) {
+            Log.w(TAG, "Volume boost is not available on this box", e)
+        }
+    }
+
+    private fun releaseBoost(s: PlayerSlot) {
+        try { s.boost?.release() } catch (_: Exception) { /* already gone */ }
+        s.boost = null
     }
 
     @PluginMethod
@@ -1100,6 +1146,7 @@ class SnowPlayerPlugin : Plugin() {
             for (s in slots.values) {
                 cancelTimers(s)
                 s.currentUrl = null
+                releaseBoost(s)
                 s.player?.release()
                 s.player = null
             }

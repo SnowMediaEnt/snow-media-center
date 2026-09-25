@@ -50,7 +50,7 @@ import {
 import { runAfter } from '@/utils/idle';
 import { keepInView } from '@/utils/keepInView';
 import { isPlaybackQuiet } from '@/utils/quietMode';
-import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
+import { loadPlayerVolume, savePlayerVolume, stepVolume } from '@/utils/volume';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import ChannelRow from './ChannelRow';
@@ -1545,7 +1545,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               return;
             }
             if (e.key === 'ArrowRight') {
-              setVolume(v => Math.min(1, +(v + 0.1).toFixed(2)));
+              setVolume(v => stepVolume(v, 0.1));
               return;
             }
             return;
@@ -1600,7 +1600,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (e.key === 'ArrowUp')    { e.preventDefault(); changeChannelInFullscreen(-1); pokeBar(); setBarFocus('play'); return; }
           if (e.key === 'ArrowDown')  { e.preventDefault(); changeChannelInFullscreen(+1); pokeBar(); setBarFocus('play'); return; }
           if (e.key === 'ArrowLeft')  { e.preventDefault(); setVolume(v => Math.max(0, +(v - 0.05).toFixed(2))); pokeBar(); return; }
-          if (e.key === 'ArrowRight') { e.preventDefault(); setVolume(v => Math.min(1, +(v + 0.05).toFixed(2))); pokeBar(); return; }
+          if (e.key === 'ArrowRight') { e.preventDefault(); setVolume(v => stepVolume(v, 0.05)); pokeBar(); return; }
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             setBarFocus('play');

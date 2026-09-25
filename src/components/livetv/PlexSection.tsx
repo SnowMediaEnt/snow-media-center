@@ -72,7 +72,7 @@ import { fetchFeedItems, othersWatchingKeys, OTHERS_TTL_MS, OTHERS_WATCHING_TITL
 import { myList, pullFavoritesFromCloud, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
-import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
+import { loadPlayerVolume, MAX_VOLUME, savePlayerVolume } from '@/utils/volume';
 import { setPlexKeyOwner, isPlexKeyOwner } from './plexKeyOwner';
 import { recordPlexWatch } from '@/lib/watchHistory';
 import {
@@ -2202,7 +2202,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [fullscreen, setFullscreen] = useState(false);
   const [volume, setVolume] = useState<number>(() => loadPlayerVolume());
   const changeVolume = useCallback((v: number) => {
-    const clamped = Math.min(1, Math.max(0, v));
+    const clamped = Math.min(MAX_VOLUME, Math.max(0, v));
     setVolume(clamped);
     savePlayerVolume(clamped);
     // useNativePlayer applies `volume` to the native player whenever it is

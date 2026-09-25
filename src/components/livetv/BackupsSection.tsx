@@ -15,6 +15,7 @@ import { isDemo } from '@/lib/demoMode';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
+import { stepVolume } from '@/utils/volume';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -160,7 +161,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
           return;
         }
         if (e.key === 'ArrowLeft')  { e.preventDefault(); e.stopPropagation(); setVolume((v) => Math.max(0, +(v - 0.05).toFixed(2))); return; }
-        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); setVolume((v) => Math.min(1, +(v + 0.05).toFixed(2))); return; }
+        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); setVolume((v) => stepVolume(v, 0.05)); return; }
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault(); e.stopPropagation();
           const err = nativeErrorRef.current;
