@@ -24,12 +24,18 @@ class MockAudio {
   preload = '';
   volume = 1;
   paused = true;
+  ended = false;
+  loop = true;
+  listeners: Record<string, Array<() => void>> = {};
   play = vi.fn(async () => { this.paused = false; });
   pause = vi.fn(() => { this.paused = true; });
   load = vi.fn();
-  addEventListener = vi.fn();
+  addEventListener = vi.fn((type: string, callback: () => void) => {
+    (this.listeners[type] ??= []).push(callback);
+  });
   removeAttribute = vi.fn(() => { this.src = ''; });
   constructor() { MockAudio.instances.push(this); }
+  emit(type: string) { this.listeners[type]?.forEach(callback => callback()); }
 }
 
 afterEach(() => {
@@ -71,18 +77,38 @@ describe('streamed game music', () => {
     expect(audio.src).toContain('A.mp3');
     expect(audio.volume).toBe(0.25);
     expect(audio.preload).toBe('none');
+    expect(audio.loop).toBe(false);
 
     names = ['A.mp3', 'B.mp3', 'C.mp3'];
     await refreshGameMusicTracks('adult');
     expect(audio.src).toContain('A.mp3'); // refresh must not interrupt a song
     nextGameMusicTrack();
-    expect(audio.src).toContain('B.mp3');
+    const second = MockAudio.instances[1];
+    expect(audio.src).toBe('');
+    expect(second.src).toContain('B.mp3');
     nextGameMusicTrack();
-    expect(audio.src).toContain('C.mp3');
+    const third = MockAudio.instances[2];
+    expect(third.src).toContain('C.mp3');
+
+    // An older WebView may miss `ended` but still report ended on timeupdate.
+    third.ended = true;
+    third.emit('timeupdate');
+    const fourth = MockAudio.instances[3];
+    expect(fourth.src).toContain('A.mp3');
+    third.emit('ended'); // A late event from the old player must not skip a song.
+    expect(MockAudio.instances).toHaveLength(4);
+    fourth.ended = true;
+    fourth.emit('ended');
+    const fifth = MockAudio.instances[4];
+    expect(fifth.src).toContain('B.mp3');
+    fifth.ended = true;
+    fifth.emit('pause');
+    const sixth = MockAudio.instances[5];
+    expect(sixth.src).toContain('C.mp3');
     expect(mocks.list).toHaveBeenCalledWith('game-audio/adult', expect.any(Object));
 
     setGameMusicMode(null);
-    expect(audio.pause).toHaveBeenCalled();
-    expect(audio.src).toBe('');
+    expect(sixth.pause).toHaveBeenCalled();
+    expect(sixth.src).toBe('');
   });
 });

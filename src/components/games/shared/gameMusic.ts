@@ -67,12 +67,14 @@ export async function refreshGameMusicTracks(target: GameMusicMode): Promise<voi
 }
 
 function pauseAndUnload(): void {
-  if (!player) return;
-  player.pause();
-  player.removeAttribute('src');
+  const previous = player;
+  player = null;
   loadedPath = '';
+  if (!previous) return;
+  previous.pause();
+  previous.removeAttribute('src');
   // load() cancels an in-flight MP3 request on older Android WebViews.
-  try { player.load(); } catch { /* WebView may be closing */ }
+  try { previous.load(); } catch { /* WebView may be closing */ }
 }
 
 function playCurrent(): void {
@@ -80,14 +82,24 @@ function playCurrent(): void {
   const track = tracks[mode][indices[mode]];
   if (!track) return;
   const path = `game-audio/${mode}/${track}`;
-  if (!player) {
-    player = new Audio();
-    player.preload = 'none';
-    player.addEventListener('ended', () => { nextGameMusicTrack(); });
-  }
-  if (loadedPath !== path) {
-    player.src = publicUrl(path);
+  if (!player || loadedPath !== path) {
+    pauseAndUnload();
+    const current = new Audio();
+    player = current;
+    current.preload = 'none';
+    current.loop = false;
+    current.src = publicUrl(path);
     loadedPath = path;
+    let advanced = false;
+    const advance = () => {
+      if (player !== current || advanced) return;
+      advanced = true;
+      nextGameMusicTrack();
+    };
+    current.addEventListener('ended', advance);
+    // Some older WebViews can reach the end without dispatching `ended`.
+    current.addEventListener('timeupdate', () => { if (current.ended) advance(); });
+    current.addEventListener('pause', () => { if (current.ended) advance(); });
   }
   player.volume = preference.volume / 100;
   if (preference.volume === 0) {
