@@ -11,6 +11,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 
 import {
   GAME_MUSIC_STORAGE_KEY,
+  getGameMusicDiagnostics,
   nextGameMusicTrack,
   refreshGameMusicTracks,
   setGameMusicEnabled,
@@ -26,6 +27,9 @@ class MockAudio {
   paused = true;
   ended = false;
   loop = true;
+  currentTime = 5;
+  buffered = { length: 1, start: () => 0, end: () => 18 };
+  error: { code: number } | null = null;
   listeners: Record<string, Array<() => void>> = {};
   play = vi.fn(async () => { this.paused = false; });
   pause = vi.fn(() => { this.paused = true; });
@@ -76,7 +80,8 @@ describe('streamed game music', () => {
     const audio = MockAudio.instances[0];
     expect(audio.src).toContain('A.mp3');
     expect(audio.volume).toBe(0.25);
-    expect(audio.preload).toBe('none');
+    expect(audio.preload).toBe('auto');
+    expect(audio.load).toHaveBeenCalledTimes(1);
     expect(audio.loop).toBe(false);
 
     names = ['A.mp3', 'B.mp3', 'C.mp3'];
@@ -110,5 +115,36 @@ describe('streamed game music', () => {
     setGameMusicMode(null);
     expect(sixth.pause).toHaveBeenCalled();
     expect(sixth.src).toBe('');
+  });
+
+  it('reports genuine mid-song buffer waits without double-counting stalled events', async () => {
+    vi.stubGlobal('Audio', MockAudio);
+    mocks.list.mockResolvedValue({ data: [{ id: 'file-id', name: 'A.mp3' }], error: null });
+
+    setGameMusicEnabled(true);
+    setGameMusicMode('adult');
+    await refreshGameMusicTracks('adult');
+    const audio = MockAudio.instances[MockAudio.instances.length - 1];
+    expect(getGameMusicDiagnostics().bufferWaits).toBe(0);
+    audio.currentTime = 0;
+    audio.emit('waiting'); // Startup buffering is not an interruption.
+    expect(getGameMusicDiagnostics().bufferWaits).toBe(0);
+    audio.currentTime = 5;
+    audio.emit('timeupdate'); // Older WebViews may omit `playing`.
+    expect(getGameMusicDiagnostics().status).toBe('playing');
+    audio.emit('playing');
+    expect(getGameMusicDiagnostics()).toMatchObject({ status: 'playing', bufferedSeconds: 13 });
+    audio.emit('waiting');
+    audio.emit('stalled');
+    expect(getGameMusicDiagnostics()).toMatchObject({ status: 'buffering', bufferWaits: 1 });
+    audio.emit('playing');
+    audio.emit('stalled');
+    expect(getGameMusicDiagnostics().bufferWaits).toBe(2);
+    audio.error = { code: 3 };
+    audio.emit('error');
+    expect(getGameMusicDiagnostics()).toMatchObject({ status: 'error', errorCode: 3 });
+
+    setGameMusicMode(null);
+    expect(getGameMusicDiagnostics()).toMatchObject({ status: 'off', bufferWaits: 0 });
   });
 });

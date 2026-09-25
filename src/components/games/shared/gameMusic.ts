@@ -12,6 +12,13 @@ const listing: Partial<Record<GameMusicMode, Promise<void>>> = {};
 type MusicPreference = { enabled: boolean; volume: number };
 type Subscriber = (next: MusicPreference) => void;
 
+export type GameMusicDiagnostics = {
+  status: 'off' | 'loading' | 'playing' | 'buffering' | 'error';
+  bufferedSeconds: number;
+  bufferWaits: number;
+  errorCode: number | null;
+};
+
 function clampVolume(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 30;
 }
@@ -34,6 +41,10 @@ let mode: GameMusicMode | null = null;
 let player: HTMLAudioElement | null = null;
 let loadedPath = '';
 let visible = true;
+let buffering = false;
+let playbackStarted = false;
+let bufferWaits = 0;
+let errorCode: number | null = null;
 const indices: Record<GameMusicMode, number> = { adult: 0, kids: 0 };
 const subscribers = new Set<Subscriber>();
 
@@ -70,6 +81,9 @@ function pauseAndUnload(): void {
   const previous = player;
   player = null;
   loadedPath = '';
+  buffering = false;
+  playbackStarted = false;
+  errorCode = null;
   if (!previous) return;
   previous.pause();
   previous.removeAttribute('src');
@@ -86,10 +100,13 @@ function playCurrent(): void {
     pauseAndUnload();
     const current = new Audio();
     player = current;
-    current.preload = 'none';
+    // Warm only the current MP3. WebView may ignore this hint, so the UI also
+    // exposes actual buffered time and interruptions for device testing.
+    current.preload = 'auto';
     current.loop = false;
     current.src = publicUrl(path);
     loadedPath = path;
+    try { current.load(); } catch { /* Older WebViews can reject eager loading. */ }
     let advanced = false;
     const advance = () => {
       if (player !== current || advanced) return;
@@ -98,8 +115,35 @@ function playCurrent(): void {
     };
     current.addEventListener('ended', advance);
     // Some older WebViews can reach the end without dispatching `ended`.
-    current.addEventListener('timeupdate', () => { if (current.ended) advance(); });
+    current.addEventListener('timeupdate', () => {
+      if (current.ended) {
+        advance();
+      } else if (player === current && current.currentTime > 0 && !current.paused) {
+        // Older WebViews may advance time without dispatching `playing`.
+        playbackStarted = true;
+        buffering = false;
+      }
+    });
     current.addEventListener('pause', () => { if (current.ended) advance(); });
+    current.addEventListener('playing', () => {
+      if (player !== current) return;
+      playbackStarted = true;
+      buffering = false;
+      errorCode = null;
+    });
+    const onBuffering = () => {
+      if (player !== current || current.paused || current.ended || buffering) return;
+      buffering = true;
+      // Initial loading is expected; count only interruptions after playback.
+      if (playbackStarted) bufferWaits += 1;
+    };
+    current.addEventListener('waiting', onBuffering);
+    current.addEventListener('stalled', onBuffering);
+    current.addEventListener('error', () => {
+      if (player !== current) return;
+      errorCode = current.error?.code ?? 0;
+      buffering = false;
+    });
   }
   player.volume = preference.volume / 100;
   if (preference.volume === 0) {
@@ -118,7 +162,10 @@ function publish(): void {
 
 function onVisibility(): void {
   visible = typeof document !== 'undefined' && !document.hidden;
-  if (!visible) player?.pause();
+  if (!visible) {
+    buffering = false;
+    player?.pause();
+  }
   // Do not resume until a real input event after returning to the app.
 }
 
@@ -137,6 +184,7 @@ function onStorage(event: StorageEvent): void {
 export function setGameMusicMode(next: GameMusicMode | null): void {
   if (mode === next) return;
   pauseAndUnload();
+  bufferWaits = 0;
   mode = next;
   if (mode && typeof document !== 'undefined') {
     visible = !document.hidden;
@@ -157,6 +205,26 @@ export function setGameMusicMode(next: GameMusicMode | null): void {
 }
 
 export function getGameMusicPreference(): MusicPreference { return { ...preference }; }
+
+export function getGameMusicDiagnostics(): GameMusicDiagnostics {
+  let bufferedSeconds = 0;
+  if (player) {
+    try {
+      const time = player.currentTime;
+      for (let index = 0; index < player.buffered.length; index += 1) {
+        if (player.buffered.start(index) <= time && player.buffered.end(index) >= time) {
+          bufferedSeconds = Math.max(0, Math.floor(player.buffered.end(index) - time));
+          break;
+        }
+      }
+    } catch { /* A WebView may temporarily expose invalid ranges. */ }
+  }
+  const status = !mode || !preference.enabled || preference.volume === 0 ? 'off'
+    : errorCode !== null ? 'error'
+      : buffering ? 'buffering'
+        : playbackStarted && player && !player.paused ? 'playing' : 'loading';
+  return { status, bufferedSeconds, bufferWaits, errorCode };
+}
 
 export function setGameMusicEnabled(enabled: boolean): void {
   preference = { ...preference, enabled };

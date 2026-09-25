@@ -11,6 +11,7 @@
 .game-music-panel__volume strong { color: #ffe594; }
 .game-music-panel input[type="range"] { display: block; width: 100%; height: 34px; accent-color: #ffe594; cursor: pointer; }
 .game-music-panel small { display: block; color: #a9cadc; font-size: 13px; }
+.game-music-panel__diagnostics { margin-top: 8px; color: #a9cadc; font-size: 13px; line-height: 1.25; }
 .game-music-panel__actions { display: flex; justify-content: space-between; gap: 16px; margin-top: 26px; }
 .game-music-panel button:focus-visible, .game-music-panel input:focus-visible { outline: 4px solid #fff; outline-offset: 4px; box-shadow: 0 0 0 9px rgba(54, 208, 255, .5); }
 @media (max-height: 700px) { .game-music-panel { padding: 18px 24px; } .game-music-panel p { margin: 7px 0 12px; } .game-music-panel__volume { margin-top: 12px; } .game-music-panel__actions { margin-top: 14px; } }

@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Music2, SkipForward, Volume2, VolumeX, X } from 'lucide-react';
 import { App as CapApp } from '@capacitor/app';
 import { isBackKey } from './gameBack';
 import { visualArrowDir } from './gameInput';
-import { useGameMusic } from './gameMusic';
+import { getGameMusicDiagnostics, useGameMusic } from './gameMusic';
 import './gameMusicSettings.css';
 
 type Props = { onClose: () => void };
@@ -11,6 +11,14 @@ type Props = { onClose: () => void };
 export function GameMusicSettings({ onClose }: Props) {
   const { enabled, volume, setEnabled, setVolume, nextTrack } = useGameMusic();
   const controls = useRef<Array<HTMLElement | null>>([]);
+  const [diagnostics, setDiagnostics] = useState(getGameMusicDiagnostics);
+
+  useEffect(() => {
+    const update = () => setDiagnostics(getGameMusicDiagnostics());
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [enabled, volume]);
 
   useEffect(() => {
     controls.current[0]?.focus();
@@ -60,6 +68,10 @@ export function GameMusicSettings({ onClose }: Props) {
       <label className="game-music-panel__volume" htmlFor="game-music-volume"><span>Music volume</span><strong>{volume}%</strong></label>
       <input ref={element => { controls.current[1] = element; }} id="game-music-volume" type="range" min="0" max="100" step="5" value={volume} onChange={event => setVolume(Number(event.target.value))} aria-label="Music volume" aria-valuetext={`${volume} percent`} />
       <small>Use Left and Right on your remote to adjust.</small>
+      <div className="game-music-panel__diagnostics">
+        Stream: {diagnostics.status} · {diagnostics.bufferedSeconds}s buffered · {diagnostics.bufferWaits} interruptions
+        {diagnostics.errorCode !== null ? ` · error ${diagnostics.errorCode}` : ''}
+      </div>
       <div className="game-music-panel__actions">
         <button ref={element => { controls.current[2] = element; }} type="button" onClick={nextTrack}><SkipForward aria-hidden="true" /> Next song</button>
         <button ref={element => { controls.current[3] = element; }} type="button" onClick={onClose}>Done</button>
