@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mediaVersions, plexTranscodeUrl, type PlexVersion } from './plex';
 import {
   _resetPlexSpeedCache, _setPlexSpeed, cachedPlexSpeed, defaultVersion, fallbackVersion, measurePlexSpeed,
-  probeRate, sortVersions, speedVerdict, speedWarning, startVersion, transcodeSource, versionName,
+  probeRate, probeRateFromMarks, sortVersions, speedVerdict, speedWarning, startVersion, transcodeSource, versionName,
 } from './plexVersions';
 
 // A film kept as a 4K and a 1080p file (two Media of one item), the way the
@@ -49,7 +49,9 @@ describe('4K speed check', () => {
   it('says when the connection is clearly too slow for 4K', () => {
     const verdict = speedVerdict(v4k, 12000);
     expect(verdict?.tooSlow).toBe(true);
-    expect(speedWarning(v4k, verdict!)).toBe('4K needs ~60 Mb/s, you have ~12');
+    // The file's own rate and what was measured, not a "needs" figure that
+    // reads like a requirement of the TV (the owner's "50 Mbps for 4K").
+    expect(speedWarning(v4k, verdict!)).toBe('This 4K file averages ~48 Mb/s, more in busy scenes; this TV measured ~12 Mb/s from the Plex server');
     expect(speedVerdict(v4k, 90000)?.tooSlow).toBe(false);
     expect(speedVerdict(v4k, null)).toBeNull();
   });
@@ -100,6 +102,44 @@ describe('measuring the speed to the server', () => {
     // 150 KB in 3 s: slow, and that is what must not be missed.
     expect(probeRate(150_000, 0, 0, 3000)).toBe(400);
     expect(probeRate(0, 0, 0, 3000)).toBeNull();
+  });
+
+  it('reads a fast line past its ramp-up: what the second half of the read came in at', () => {
+    // A server across an ocean (120 ms round trip) over a 300 Mb/s line:
+    // TCP slow start doubles what arrives each round trip, from 64 KB up to
+    // the line's 4.5 MB per trip; the 16 MB read ends in its ninth.
+    const marks: Array<{ t: number; bytes: number }> = [];
+    let t = 0; let total = 0; let per = 32 * 1024;
+    while (total < 16 * 1024 * 1024) {
+      // Handed over in 64 KB pieces, spread over the round trip.
+      per = Math.min(per * 2, 4_500_000);
+      const pieces = Math.ceil(per / 65_536);
+      for (let i = 1; i <= pieces && total < 16 * 1024 * 1024; i += 1) {
+        total = Math.min(16 * 1024 * 1024, total + per / pieces);
+        marks.push({ t: t + (120 * i) / pieces, bytes: total });
+      }
+      t += 120;
+    }
+    t = marks[marks.length - 1].t;
+    const rate = probeRateFromMarks(marks, 0, t);
+    // 1.7.9 averaged everything after the first 256 KB, ramp included.
+    const first = marks.find((m) => m.bytes >= 256 * 1024)!;
+    const old = probeRate(total, total - first.bytes, t - first.t, t);
+    expect(old).toBeLessThan(200_000);
+    expect(rate).toBeGreaterThan(280_000);
+    expect(rate).toBeLessThanOrEqual(300_000);
+  });
+
+  it('a steady or slow line reads as before', () => {
+    // 20 Mb/s for 3 s, 64 KB every ~26 ms.
+    const marks: Array<{ t: number; bytes: number }> = [];
+    for (let i = 1; i * 26 <= 3000; i += 1) marks.push({ t: i * 26, bytes: i * 65_536 });
+    const last = marks[marks.length - 1];
+    expect(probeRateFromMarks(marks, 0, last.t)).toBeGreaterThan(19_000);
+    expect(probeRateFromMarks(marks, 0, last.t)).toBeLessThan(21_000);
+    // 150 KB in 3 s: slow, and that is what must not be missed.
+    expect(probeRateFromMarks([{ t: 1000, bytes: 100_000 }, { t: 2000, bytes: 150_000 }], 0, 3000)).toBe(400);
+    expect(probeRateFromMarks([], 0, 3000)).toBeNull();
   });
 
   it('keeps a measurement for a few minutes per server', () => {

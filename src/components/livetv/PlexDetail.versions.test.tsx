@@ -69,7 +69,7 @@ describe('versions on the title page', () => {
     _setPlexSpeed(BASE, 12000);
     const onPlay = renderDetail({ ratingKey: '101', title: 'The Film', type: 'movie', videoResolution: '4k' });
     await waitFor(() => expect(screen.getByText('Play 1080p')).toBeTruthy(), { timeout: 5000 });
-    expect(screen.getAllByText(/4K needs ~60 Mb\/s, you have ~12/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/This 4K file averages ~48 Mb\/s, more in busy scenes; this TV measured ~12 Mb\/s from the Plex server/).length).toBeGreaterThan(0);
     press('Enter');
     await waitFor(() => expect(onPlay).toHaveBeenCalledTimes(1), { timeout: 5000 });
     expect(onPlay.mock.calls[0][4].version.id).toBe('101:0');

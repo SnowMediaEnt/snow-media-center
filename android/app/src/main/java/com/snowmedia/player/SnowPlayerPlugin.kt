@@ -52,6 +52,8 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultAllocator
+import androidx.media3.exoplayer.source.TrackGroupArray
+import androidx.media3.exoplayer.trackselection.ExoTrackSelection
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
@@ -79,6 +81,9 @@ class SnowPlayerPlugin : Plugin() {
     private class PlayerSlot {
         var player: ExoPlayer? = null
         var trackSelector: DefaultTrackSelector? = null
+        // The main player's load control (a film's 4K budget, start and
+        // restart after a stall; see SteadyLoadControl). Null on tiles.
+        var loadControl: SteadyLoadControl? = null
         var textureView: TextureView? = null
         // Opaque black view between the picture and the subtitles. A
         // TextureView keeps showing the last frame it was given — through
@@ -113,7 +118,7 @@ class SnowPlayerPlugin : Plugin() {
         var reconnectRunnable: Runnable? = null
         var positionTickRunnable: Runnable? = null
         // VOD only: while we hold playback with playWhenReady=false until the
-        // player has PREBUFFER_TARGET_MS buffered (or PREBUFFER_MAX_WAIT_MS
+        // player has PREBUFFER_TARGET_MS buffered (or PreBufferRule's time limit
         // wall-clock elapse). Prevents the initial "playing → immediate
         // rebuffer" flash on slow Plex servers.
         var preBufferRunnable: Runnable? = null
@@ -213,7 +218,6 @@ class SnowPlayerPlugin : Plugin() {
         // long at most: PreBufferRule (a start part-way into a file counts
         // its 10 s from the first video at the resume point).
         private const val PREBUFFER_TARGET_MS = PreBufferRule.TARGET_MS
-        private const val PREBUFFER_MAX_WAIT_MS = PreBufferRule.MAX_WAIT_MS
         private const val PREBUFFER_TICK_MS = 500L
         private const val MIB = 1024L * 1024L
     }
@@ -423,7 +427,8 @@ class SnowPlayerPlugin : Plugin() {
      *  before 25 s — or the file is shorter), or has had its time to fill
      *  (PreBufferRule: 10 s from load() for a start from 0:00; for a start
      *  part-way into the file, `midFile`, 10 s from the first video at the
-     *  resume point, 30 s in all at most). Live streams keep the legacy
+     *  resume point, 30 s in all at most; a 4K film until it has 20 s, or
+     *  30 s of filling at most). Live streams keep the legacy
      *  behavior (start at once). The main slot reports progress as
      *  'preBuffer' events every tick, so the WebView can show "Getting
      *  ready…" instead of a still frame. */
@@ -442,9 +447,12 @@ class SnowPlayerPlugin : Plugin() {
                 val state = p.playbackState
                 val ready = state == Player.STATE_READY
                 flowAt = PreBufferRule.flowStart(flowAt, now, midFile, bufMs, ready)
+                // A 4K film (known once its tracks are selected) waits for a
+                // steady buffer (PreBufferRule.UHD_*).
+                val uhd = s.loadControl?.uhd == true
                 val done = PreBufferRule.isDone(
                     midFile, elapsed, flowAt, now, bufMs, ready,
-                    loading = p.isLoading, ended = state == Player.STATE_ENDED,
+                    loading = p.isLoading, ended = state == Player.STATE_ENDED, uhd = uhd,
                 )
                 if (screenId == MAIN) {
                     // The indicator's clock: the filling time, which for a
@@ -456,7 +464,7 @@ class SnowPlayerPlugin : Plugin() {
                             .put("bufferedMs", bufMs)
                             .put("targetMs", PREBUFFER_TARGET_MS)
                             .put("elapsedMs", shownElapsed)
-                            .put("maxWaitMs", PREBUFFER_MAX_WAIT_MS)
+                            .put("maxWaitMs", PreBufferRule.maxWaitMs(uhd))
                             .put("done", done),
                     )
                 }
@@ -643,6 +651,17 @@ class SnowPlayerPlugin : Plugin() {
         return true
     }
 
+    /** What the stats panel shows as "how far ahead the player reads": the
+     *  profile, and for a 4K film what it gets on top (its own byte budget
+     *  where the heap allows one, and the 10 s restart after a stall). */
+    private fun loadProfileOf(s: PlayerSlot): String? {
+        val base = s.loadProfile ?: return null
+        val lc = s.loadControl
+        if (lc == null || !lc.uhd) return base
+        val budget = if (lc.uhdBudgetBytes > 0 && lc.budgetBytes > 0) "${lc.budgetBytes / MIB} MB, " else ""
+        return "$base · 4K: ${budget}${UhdBuffer.REBUFFER_MS / 1000} s restart"
+    }
+
     private fun isLowRamBox(ctx: Context): Boolean {
         return try {
             val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
@@ -711,6 +730,7 @@ class SnowPlayerPlugin : Plugin() {
         s.player?.release()
         s.player = null
         s.trackSelector = null
+        s.loadControl = null
         s.container?.let { c -> (c.parent as? ViewGroup)?.removeView(c) }
         s.container = null
         s.textureView = null
@@ -847,28 +867,42 @@ class SnowPlayerPlugin : Plugin() {
             // server's empties; the floor carries it on to 20 s (150-200 MB),
             // what the old time-first profile held for it, and tops it up
             // there as it plays. Only a file above about 54 Mb/s goes past
-            // 128 MB, and only as far as its 20 s.
-            builder.setLoadControl(
-                FlooredLoadControl(
-                    minBufferMs = 50000,
-                    maxBufferMs = 50000,
-                    bufferForPlaybackMs = 2500,
-                    bufferForPlaybackAfterRebufferMs = 5000,
-                    targetBufferBytes = 128 * 1024 * 1024,
-                    floorMs = 20000,
-                ),
+            // 128 MB, and only as far as its 20 s. A 4K film keeps this
+            // budget here (memory first), and gets the 4K start and restart
+            // (SteadyLoadControl).
+            val lc = SteadyLoadControl(
+                minBufferMs = 50000,
+                maxBufferMs = 50000,
+                bufferForPlaybackMs = 2500,
+                bufferForPlaybackAfterRebufferMs = 5000,
+                targetBufferBytes = 128 * 1024 * 1024,
+                floorMs = 20000,
+                uhdBudgetBytes = 0,
             )
+            builder.setLoadControl(lc)
+            s.loadControl = lc
             s.loadProfile = "steady · 50 s / 128 MB, 20 s floor"
         } else {
             // Boxes with memory to spare: up to two minutes ahead within the
             // library's own byte budget (about 144 MB for a picture and a
             // sound track), the same ceiling as before. A 1080p film at
-            // 8-20 Mb/s holds one to two minutes; a 4K remux what it did
-            // before and never more (14-19 s at 60-80 Mb/s).
-            val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(120000, 120000, 2500, 5000)
-                .build()
-            builder.setLoadControl(loadControl)
+            // 8-20 Mb/s holds one to two minutes. A 4K film gets a budget of
+            // its own, sized to the heap (UhdBuffer: half of it, 256 MiB at
+            // most): 27-34 s of a 60-80 Mb/s remux on a 512 MiB heap instead
+            // of 14-19 s. Exactly what DefaultLoadControl.Builder built here
+            // before for anything that is not a 4K film.
+            val uhdBytes = UhdBuffer.budgetBytes(Runtime.getRuntime().maxMemory(), 0)
+            val lc = SteadyLoadControl(
+                minBufferMs = 120000,
+                maxBufferMs = 120000,
+                bufferForPlaybackMs = 2500,
+                bufferForPlaybackAfterRebufferMs = 5000,
+                targetBufferBytes = C.LENGTH_UNSET,
+                floorMs = 0,
+                uhdBudgetBytes = uhdBytes,
+            )
+            builder.setLoadControl(lc)
+            s.loadControl = lc
             s.loadProfile = "steady · 120 s / 144 MB"
         }
         val p = builder.build()
@@ -1130,12 +1164,16 @@ class SnowPlayerPlugin : Plugin() {
             // again at the right place. Without one the player picks its own
             // start: 0 for a file, the live edge for a channel.
             val item = buildMediaItem(url, subs)
+            // A film (not Live TV) on the main player may get the 4K budget,
+            // start and restart; told before prepare() selects its tracks.
+            s.loadControl?.beginStream(film = !live)
             if (startMs > 0) p.setMediaItem(item, startMs) else p.setMediaItem(item)
             p.prepare()
             if (live) {
                 p.playWhenReady = true
             } else {
-                // VOD: pre-buffer up to 25 s (at most 10 s wall-clock) before
+                // VOD: pre-buffer up to 25 s (at most 10 s wall-clock; a 4K
+                // film until 20 s, 30 s at most) before
                 // starting so slow Plex servers don't cause the "playing →
                 // immediate rebuffer" flash (see schedulePreBuffer).
                 s.holding = true
@@ -1271,7 +1309,7 @@ class SnowPlayerPlugin : Plugin() {
         o.put("restarts", s?.restarts ?: 0)
         o.put("lastRestartReason", s?.lastRestartReason ?: JSONObject.NULL)
         o.put("lastError", s?.lastError ?: JSONObject.NULL)
-        o.put("loadProfile", s?.loadProfile ?: JSONObject.NULL)
+        o.put("loadProfile", s?.let { loadProfileOf(it) } ?: JSONObject.NULL)
         val rt = Runtime.getRuntime()
         o.put("javaHeapMb", (rt.totalMemory() - rt.freeMemory()) / MIB)
         o.put("nativeHeapMb", Debug.getNativeHeapAllocatedSize() / MIB)
@@ -1745,21 +1783,32 @@ class SnowPlayerPlugin : Plugin() {
 }
 
 /**
- * Size first, as DefaultLoadControl is, over a time floor: while less than
- * floorMs of media is buffered it keeps loading whatever the byte budget
- * says. A high bit-rate file then still gets its floor when the budget alone
- * would stop it short. Above the floor the parent decides, and it is always
- * asked, so it keeps its own record of whether each player is loading.
- * ExoPlayer calls shouldContinueLoading(Parameters) (Media3 1.5.0); the
- * older overloads are never reached.
+ * The main player's load control. Size first, as DefaultLoadControl is, over
+ * a time floor: while less than floorMs of media is buffered it keeps
+ * loading whatever the byte budget says (2 GB boxes; 0 elsewhere). A high
+ * bit-rate file then still gets its floor when the budget alone would stop
+ * it short. Above the floor the parent decides, and it is always asked, so it
+ * keeps its own record of whether each player is loading. ExoPlayer calls
+ * shouldContinueLoading(Parameters) and onTracksSelected(Parameters, ...)
+ * (Media3 1.5.0); the older overloads are never reached.
+ *
+ * A 4K film (`vod`, set by load() before prepare(), and a 4K picture
+ * selected; see UhdBuffer) gets on top:
+ * - its own byte budget, `uhdBudgetBytes`, where the library's own budget is
+ *   in use (calculateTargetBufferBytes; 0 keeps the library's);
+ * - after a stall, 10 s buffered before it plays on instead of 5 s, or less
+ *   when the buffer can't take more (the budget spent).
+ * Anything else — 1080p, a conversion, Live TV — behaves exactly as the
+ * DefaultLoadControl (or the floored one) built here before.
  */
-private class FlooredLoadControl(
+private class SteadyLoadControl(
     minBufferMs: Int,
     maxBufferMs: Int,
     bufferForPlaybackMs: Int,
     bufferForPlaybackAfterRebufferMs: Int,
     targetBufferBytes: Int,
     floorMs: Int,
+    val uhdBudgetBytes: Int,
 ) : DefaultLoadControl(
     DefaultAllocator(/* trimOnReset= */ true, C.DEFAULT_BUFFER_SEGMENT_SIZE),
     minBufferMs,
@@ -1772,10 +1821,61 @@ private class FlooredLoadControl(
     DefaultLoadControl.DEFAULT_RETAIN_BACK_BUFFER_FROM_KEYFRAME,
 ) {
     private val floorUs = floorMs * 1000L
+    private val uhdRebufferUs = UhdBuffer.REBUFFER_MS * 1000L
+
+    /** A film on the main player (not Live TV). */
+    @Volatile private var vod: Boolean = false
+    /** A 4K film: set when its tracks are selected (playback thread), read
+     *  by the start-up hold and the stats (main thread). */
+    @Volatile var uhd: Boolean = false
+        private set
+
+    /** A new stream on the main player (load(), main thread, before
+     *  prepare()): a film or Live TV. Not 4K until its tracks say so. */
+    fun beginStream(film: Boolean) {
+        vod = film
+        uhd = false
+    }
+    /** The byte budget last worked out from the tracks (0: a fixed one). */
+    @Volatile var budgetBytes: Int = 0
+        private set
+    /** What shouldContinueLoading last answered. */
+    @Volatile private var loadingNow: Boolean = true
+
+    override fun onTracksSelected(
+        parameters: LoadControl.Parameters,
+        trackGroups: TrackGroupArray,
+        trackSelections: Array<ExoTrackSelection?>,
+    ) {
+        // Before the parent, which sizes the byte budget from it.
+        uhd = vod && trackSelections.any { sel ->
+            val f = sel?.selectedFormat
+            f != null && UhdBuffer.isUhd(f.width, f.height)
+        }
+        loadingNow = true
+        super.onTracksSelected(parameters, trackGroups, trackSelections)
+    }
+
+    override fun calculateTargetBufferBytes(trackSelectionArray: Array<ExoTrackSelection?>): Int {
+        val library = super.calculateTargetBufferBytes(trackSelectionArray)
+        val bytes = if (uhd && uhdBudgetBytes > library) uhdBudgetBytes else library
+        budgetBytes = bytes
+        return bytes
+    }
 
     override fun shouldContinueLoading(parameters: LoadControl.Parameters): Boolean {
         val bySize = super.shouldContinueLoading(parameters)
-        return bySize || parameters.bufferedDurationUs < floorUs
+        val go = bySize || parameters.bufferedDurationUs < floorUs
+        loadingNow = go
+        return go
+    }
+
+    override fun shouldStartPlayback(parameters: LoadControl.Parameters): Boolean {
+        if (!super.shouldStartPlayback(parameters)) return false
+        if (!uhd || !parameters.rebuffering) return true
+        // Never waits on a buffer that has stopped growing: the budget is
+        // spent (or the file ends, which the player starts on by itself).
+        return parameters.bufferedDurationUs >= uhdRebufferUs || !loadingNow
     }
 }
 

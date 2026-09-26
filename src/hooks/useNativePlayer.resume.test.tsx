@@ -48,6 +48,7 @@ import { useNativePlayer } from './useNativePlayer';
 import { lastPlaybackStartAt, lastSeekAt, markPlaybackStart, markSeek } from '@/lib/playerSeek';
 import plugin from '../../android/app/src/main/java/com/snowmedia/player/SnowPlayerPlugin.kt?raw';
 import rule from '../../android/app/src/main/java/com/snowmedia/player/PreBufferRule.kt?raw';
+import uhdRule from '../../android/app/src/main/java/com/snowmedia/player/UhdBuffer.kt?raw';
 
 const FILM = 'https://srv.plex.direct:32400/library/parts/42/1700000000/file.mkv';
 const CHANNEL = 'http://iptv.example/live/1.ts';
@@ -205,8 +206,12 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
   it('main slot tops its buffer up continuously (low mark = high mark), size before time', () => {
     // 2 GB boxes: 50 s within 128 MB, over a 20 s floor.
     const low = plugin.slice(plugin.indexOf('} else if (lowRam) {'), plugin.indexOf('} else {', plugin.indexOf('} else if (lowRam) {')));
-    expect(low).toMatch(/FlooredLoadControl\(\s*minBufferMs = 50000,\s*maxBufferMs = 50000,\s*bufferForPlaybackMs = 2500,\s*bufferForPlaybackAfterRebufferMs = 5000,\s*targetBufferBytes = 128 \* 1024 \* 1024,\s*floorMs = 20000,/);
-    expect(plugin).toContain('.setBufferDurationsMs(120000, 120000, 2500, 5000)');
+    expect(low).toMatch(/SteadyLoadControl\(\s*minBufferMs = 50000,\s*maxBufferMs = 50000,\s*bufferForPlaybackMs = 2500,\s*bufferForPlaybackAfterRebufferMs = 5000,\s*targetBufferBytes = 128 \* 1024 \* 1024,\s*floorMs = 20000,\s*uhdBudgetBytes = 0,/);
+    // Other boxes: what DefaultLoadControl.Builder().setBufferDurationsMs(120000, 120000, 2500, 5000)
+    // built (the library's own byte budget, C.LENGTH_UNSET), with no floor; a 4K film gets a budget of its own.
+    const normal = plugin.slice(plugin.indexOf('} else {', plugin.indexOf('} else if (lowRam) {')), plugin.indexOf('val p = builder.build()'));
+    expect(normal).toMatch(/SteadyLoadControl\(\s*minBufferMs = 120000,\s*maxBufferMs = 120000,\s*bufferForPlaybackMs = 2500,\s*bufferForPlaybackAfterRebufferMs = 5000,\s*targetBufferBytes = C\.LENGTH_UNSET,\s*floorMs = 0,\s*uhdBudgetBytes = uhdBytes,/);
+    expect(normal).toContain('val uhdBytes = UhdBuffer.budgetBytes(Runtime.getRuntime().maxMemory(), 0)');
     // The old fill-then-wait profiles are gone.
     expect(plugin).not.toContain('setBufferDurationsMs(20000, 60000');
     expect(plugin).not.toContain('setBufferDurationsMs(60000, 120000');
@@ -250,11 +255,29 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
   });
 
   it('the 20 s floor overrides the shouldContinueLoading Media3 1.5.0 calls, and always asks the parent', () => {
-    const cls = plugin.slice(plugin.indexOf('private class FlooredLoadControl('), plugin.indexOf('/** Counts the bytes'));
+    const cls = plugin.slice(plugin.indexOf('private class SteadyLoadControl('), plugin.indexOf('/** Counts the bytes'));
     expect(cls).toContain(') : DefaultLoadControl(');
+    expect(cls).toContain('DefaultAllocator(/* trimOnReset= */ true, C.DEFAULT_BUFFER_SEGMENT_SIZE)');
     expect(cls).toContain('/* prioritizeTimeOverSizeThresholds= */ false');
-    expect(cls).toMatch(/override fun shouldContinueLoading\(parameters: LoadControl\.Parameters\): Boolean \{\s*val bySize = super\.shouldContinueLoading\(parameters\)\s*return bySize \|\| parameters\.bufferedDurationUs < floorUs/);
+    expect(cls).toMatch(/override fun shouldContinueLoading\(parameters: LoadControl\.Parameters\): Boolean \{\s*val bySize = super\.shouldContinueLoading\(parameters\)\s*val go = bySize \|\| parameters\.bufferedDurationUs < floorUs/);
     expect(cls).toContain('private val floorUs = floorMs * 1000L');
+  });
+
+  it('a 4K film (bugs/plex-4k.md): its own byte budget, and 10 s before it plays on after a stall; 1080p and Live TV as before', () => {
+    const cls = plugin.slice(plugin.indexOf('private class SteadyLoadControl('), plugin.indexOf('/** Counts the bytes'));
+    // 4K only for a film, told by load() before prepare(); decided when its tracks are selected, before the parent sizes the budget.
+    expect(body('fun load(call: PluginCall)')).toMatch(/s\.loadControl\?\.beginStream\(film = !live\)[\s\S]*p\.prepare\(\)/);
+    expect(cls).toMatch(/fun beginStream\(film: Boolean\) \{\s*vod = film\s*uhd = false/);
+    expect(cls).toMatch(/uhd = vod && trackSelections\.any \{[\s\S]*UhdBuffer\.isUhd\(f\.width, f\.height\)[\s\S]*super\.onTracksSelected\(parameters, trackGroups, trackSelections\)/);
+    // The budget: the library's own unless 4K.
+    expect(cls).toMatch(/val library = super\.calculateTargetBufferBytes\(trackSelectionArray\)\s*val bytes = if \(uhd && uhdBudgetBytes > library\) uhdBudgetBytes else library/);
+    // After a stall: the parent first; a 4K film also waits for 10 s, or less when the buffer can't take more.
+    expect(cls).toMatch(/if \(!super\.shouldStartPlayback\(parameters\)\) return false\s*if \(!uhd \|\| !parameters\.rebuffering\) return true(?:\s*\/\/[^\n]*)*\s*return parameters\.bufferedDurationUs >= uhdRebufferUs \|\| !loadingNow/);
+    expect(uhdRule).toContain('const val REBUFFER_MS = 10000');
+    expect(uhdRule).toContain('const val MAX_BUDGET_BYTES = 256 * 1024 * 1024');
+    expect(uhdRule).toContain('fun isUhd(width: Int, height: Int): Boolean = height >= MIN_HEIGHT || width >= MIN_WIDTH');
+    // A released player lets its control go; tiles never have one.
+    expect(body('private fun releaseSlot(')).toContain('s.loadControl = null');
   });
 
   it('a film gives up after MAX_VOD_RECONNECTS: a failed server as RECONNECT_EXHAUSTED, anything else by its own name', () => {
@@ -402,9 +425,11 @@ describe('SnowPlayerPlugin.kt — the start-up hold of a film started part-way (
   it('the hold decides by PreBufferRule, every tick, from the player\'s own numbers', () => {
     const hold = plugin.slice(plugin.indexOf('private fun schedulePreBuffer('), plugin.indexOf('private fun buildMediaItem('));
     expect(hold).toContain('flowAt = PreBufferRule.flowStart(flowAt, now, midFile, bufMs, ready)');
-    expect(hold).toMatch(/PreBufferRule\.isDone\(\s*midFile, elapsed, flowAt, now, bufMs, ready,\s*loading = p\.isLoading, ended = state == Player\.STATE_ENDED,\s*\)/);
+    expect(hold).toMatch(/PreBufferRule\.isDone\(\s*midFile, elapsed, flowAt, now, bufMs, ready,\s*loading = p\.isLoading, ended = state == Player\.STATE_ENDED, uhd = uhd,\s*\)/);
+    // 4K: from the load control, and the indicator gets its longer limit.
+    expect(hold).toContain('val uhd = s.loadControl?.uhd == true');
+    expect(hold).toContain('.put("maxWaitMs", PreBufferRule.maxWaitMs(uhd))');
     expect(plugin).toContain('private const val PREBUFFER_TARGET_MS = PreBufferRule.TARGET_MS');
-    expect(plugin).toContain('private const val PREBUFFER_MAX_WAIT_MS = PreBufferRule.MAX_WAIT_MS');
   });
   it('a start from 0:00 keeps 10 s from load(); a start part-way gets 10 s from the first video there, 30 s at most', () => {
     expect(rule).toContain('const val TARGET_MS = 25000L');
@@ -414,5 +439,13 @@ describe('SnowPlayerPlugin.kt — the start-up hold of a film started part-way (
     expect(rule).toContain('if (sinceLoadMs >= MID_FILE_CAP_MS) return true');
     expect(rule).toContain('return flowAt > 0L && now - flowAt >= MAX_WAIT_MS');
     expect(rule).toContain('return if (bufferedMs > 0L || ready) now else 0L');
+  });
+  it('a 4K film waits for a steady buffer: after the same 10 s of filling, 20 s in hand, or 30 s of filling at most (45 s in all part-way)', () => {
+    expect(rule).toContain('const val UHD_START_MS = 20000L');
+    expect(rule).toContain('const val UHD_MAX_WAIT_MS = 30000L');
+    expect(rule).toContain('const val UHD_MID_FILE_CAP_MS = 45000L');
+    expect(rule).toMatch(/if \(uhd\) \{\s*val filling = if \(!midFile\) sinceLoadMs else if \(flowAt > 0L\) now - flowAt else 0L\s*if \(filling >= MAX_WAIT_MS && bufferedMs >= UHD_START_MS\) return true\s*if \(filling >= UHD_MAX_WAIT_MS\) return true\s*return midFile && sinceLoadMs >= UHD_MID_FILE_CAP_MS\s*\}/);
+    // The target and the "full" rule come first, for 4K too.
+    expect(rule.indexOf('if (ready && !loading && bufferedMs >= FULL_MIN_MS) return true')).toBeLessThan(rule.indexOf('if (uhd) {'));
   });
 });

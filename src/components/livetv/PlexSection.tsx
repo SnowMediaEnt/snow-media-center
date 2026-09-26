@@ -82,14 +82,14 @@ import {
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import { autoDropPreset, explainPlexStall } from '@/lib/plexStallVerdict';
-import { getPlayerRates, getSnapshot as getDiagSnapshot, type DiagSnapshot } from '@/lib/bufferDiagnostics';
+import { getPlayerRates, getPlayerSpeedKbps, getSnapshot as getDiagSnapshot, type DiagSnapshot } from '@/lib/bufferDiagnostics';
 import {
-  AutoQuality, autoQualityNote, buildQualityLadder, dropSizeKbps, floorPresetFor, inJumpGrace, ladderIndex, stallBudgetKbps, stallEvidence, steadyKbps, stepName,
+  AutoQuality, autoQualityNote, buildQualityLadder, dropSizeKbps, floorPresetFor, inJumpGrace, ladderIndex, lineClearFor, stallBudgetKbps, stallEvidence, steadyKbps, stepName,
   stopPlexTranscode, transcodeStopUrl,
   RAISE_SUSTAIN_MS, RATE_TICK_MS, RELAY_PRESET, SPEED_HEADROOM, type AutoMove, type QualityStep, type StallContext,
 } from '@/lib/plexAutoQuality';
 import { lastPlaybackStartAt, lastSeekAt } from '@/lib/playerSeek';
-import { cachedPlexSpeed, measurePlexSpeed, transcodeSource, type PlexVersion } from '@/lib/plexVersions';
+import { cachedPlexSpeed, is4k, measurePlexSpeed, transcodeSource, type PlexVersion } from '@/lib/plexVersions';
 import { clearPreBuffer, isPreBuffering, usePreBufferActive } from '@/lib/preBuffer';
 import PreBufferIndicator from './PreBufferIndicator';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
@@ -2345,8 +2345,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // effect (null once the viewer picks one), and `autoFromKbps` the bitrate
   // of what it moved from — a slow start of that conversion is automatic
   // quality's to sort out, never a reason to go back to Original.
-  const autoQRef = useRef<{ key: string | null; aq: AutoQuality; slowFileDone: boolean; probeAt: number; probeKbps: number | null; autoKey: string | null; autoFromKbps?: number }>(
-    { key: null, aq: new AutoQuality(0), slowFileDone: false, probeAt: 0, probeKbps: null, autoKey: null },
+  // `peakKbps`: the fastest the player has been sent this title (a 4K file:
+  // what proves the line carries it, see stallCtx).
+  const autoQRef = useRef<{ key: string | null; aq: AutoQuality; slowFileDone: boolean; probeAt: number; probeKbps: number | null; autoKey: string | null; autoFromKbps?: number; peakKbps: number }>(
+    { key: null, aq: new AutoQuality(0), slowFileDone: false, probeAt: 0, probeKbps: null, autoKey: null, peakKbps: 0 },
   );
   // Set by a start that is itself automatic (the Plex Relay starts at its
   // own quality); the title's automatic quality picks it up.
@@ -3662,7 +3664,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const autoKey = startAutoKeyRef.current;
     autoQRef.current = {
       key, aq: new AutoQuality(Date.now(), failed), slowFileDone: false, probeAt: 0, probeKbps: null,
-      autoKey, autoFromKbps: autoKey ? fileKbpsRef.current : undefined,
+      autoKey, autoFromKbps: autoKey ? fileKbpsRef.current : undefined, peakKbps: 0,
     };
   }, [playing?.ratingKey, playSeq]);
   const bufferingRef = useRef(false); bufferingRef.current = native.buffering;
@@ -3709,12 +3711,32 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // What a stall is judged with besides its time: when playback last began
   // (the first half minute after a start, a resume or a seek is the server
   // getting going there, not a stall), and the internet check (plainly fast
-  // enough for the file: stalls alone never leave it for a conversion).
-  const stallCtx = useCallback((): StallContext => ({
-    lastStartAt: lastPlaybackStartAt(),
-    internetKbps: getDiagSnapshot().probeKbps,
-    relay: connRef.current?.route === 'relay',
-  }), []);
+  // enough for the file: stalls alone never leave it for a conversion). A 4K
+  // file played as it is also counts what the player itself was sent by the
+  // server (its best window, kept for the title: while it fills its start it
+  // downloads flat out), which the quick internet check rarely shows for a
+  // 60-80 Mb/s file (bugs/plex-4k.md).
+  const notePeak = useCallback((): boolean => {
+    const uhd = !useTranscodeRef.current && is4k(playVersionRef.current);
+    if (uhd) {
+      const st = autoQRef.current;
+      st.peakKbps = Math.max(st.peakKbps, getPlayerSpeedKbps() ?? 0);
+    }
+    return uhd;
+  }, []);
+  const stallCtx = useCallback((): StallContext => {
+    const uhd = notePeak();
+    return {
+      lastStartAt: lastPlaybackStartAt(),
+      internetKbps: getDiagSnapshot().probeKbps,
+      relay: connRef.current?.route === 'relay',
+      uhd,
+      serverKbps: uhd ? autoQRef.current.peakKbps || null : null,
+    };
+  }, [notePeak]);
+  // A 4K file the line has been seen to carry twice over: a stall is one of
+  // the server's slow spells, not proof the file is too big for the line.
+  const slowFileRuledOut = useCallback((ctx: StallContext): boolean => !!ctx.uhd && lineClearFor(fileKbpsRef.current, ctx), []);
   // What the stream playing now needs: the cap it is converted to, else the
   // file's own bitrate.
   const needNow = (): number | undefined => PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKeyRef.current)?.maxVideoBitrateKbps ?? fileKbpsRef.current;
@@ -3778,7 +3800,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // included): the start, never evidence against the file.
     const seek = inJumpGrace(at, lastSeekAt(), lastPlaybackStartAt());
     const { ladder, index } = autoLadder();
-    const move = st.aq.onStall(at, lastSeekAt(), ladder, index, dropSpeed(at), stallCtx());
+    const ctx = stallCtx();
+    const move = st.aq.onStall(at, lastSeekAt(), ladder, index, dropSpeed(at), ctx);
     if (move) { void applyAutoMove(move); return; }
     // The file played as-is is plainly bigger than what the server sends (a
     // remux on a line that can't carry it): no need to sit through more
@@ -3787,11 +3810,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // from the steady rate before it (the video's own bitrate while the
     // buffer is topped up) nor a quick probe. A window with nothing in it is
     // the server pausing, not its speed: no early drop for this stall then.
-    if (seek || useTranscodeRef.current || st.slowFileDone) return;
+    // A 4K file waits for the player's own windows (a short read of the file
+    // under-reads a fast line), and is not judged at all on a line proven
+    // to carry it.
+    if (seek || useTranscodeRef.current || st.slowFileDone || slowFileRuledOut(ctx)) return;
     let timer = 0;
     const check = () => {
       if (st.slowFileDone || autoQRef.current !== st) return;
-      const ev = stallEvidence(getPlayerRates(), at, Date.now(), freshRead());
+      const ev = stallEvidence(getPlayerRates(), at, Date.now(), freshRead(), { needWindows: ctx.uhd });
       if (ev.paused) return;
       // Not two windows of the stall in yet: look again after the next.
       if (ev.kbps == null) { timer = window.setTimeout(check, RATE_TICK_MS); return; }
@@ -3804,7 +3830,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     };
     timer = window.setTimeout(check, SLOW_FILE_AFTER_MS);
     return () => { window.clearTimeout(timer); };
-  }, [native.buffering, nativeActive, autoLadder, applyAutoMove, dropSpeed, freshRead, stallCtx]);
+  }, [native.buffering, nativeActive, autoLadder, applyAutoMove, dropSpeed, freshRead, stallCtx, slowFileRuledOut]);
   // The way back up, checked every 15 s while playing smoothly. When the
   // player's own downloads can't show the speed (a converted stream arrives
   // only as fast as the server converts it), a short read of the file itself
@@ -3815,6 +3841,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (!(nativeActive && playing && conn)) return;
     const id = window.setInterval(() => {
       const st = autoQRef.current;
+      // The player's rates are kept for 3 minutes; the title's best is kept for good.
+      if (st.key && st.key === playingKeyRef.current) notePeak();
       if (stillLoadingRef.current || bufferingRef.current || !st.key || st.key !== playingKeyRef.current) return;
       const now = Date.now();
       const { ladder, index, ceiling } = autoLadder();
@@ -3837,7 +3865,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       });
     }, 15_000);
     return () => window.clearInterval(id);
-  }, [nativeActive, playing, conn, autoLadder, applyAutoMove]);
+  }, [nativeActive, playing, conn, autoLadder, applyAutoMove, notePeak]);
   // The buffering card: its verdict told what this video needs, the same
   // evidence of what the server sends that automatic quality goes by, and
   // what automatic quality will do (and when); and a line saying whether it
@@ -3852,19 +3880,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const explainStall = useCallback((snap: DiagSnapshot) => {
     const start = stallStartOf(snap);
     const next = autoPreview(start)?.next ?? null;
-    const ev = start != null ? stallEvidence(getPlayerRates(), start, Date.now(), freshRead()) : null;
+    const ctx = stallCtx();
+    const ev = start != null ? stallEvidence(getPlayerRates(), start, Date.now(), freshRead(), { needWindows: ctx.uhd }) : null;
     // The early drop of a file played as it is (the stall effect above) is
     // still to come in this stall and its proof is in: it lowers within
     // seconds, not on more stalls.
     const st = autoQRef.current;
     const soon = !!next && start != null && !!ev && !ev.paused && ev.kbps != null
       && !useTranscodeRef.current && !st.slowFileDone && !stillLoadingRef.current && !inJumpGrace(start, lastSeekAt(), lastPlaybackStartAt())
-      && !!autoDropPreset(fileKbpsRef.current, { serverKbps: ev.kbps });
+      && !slowFileRuledOut(ctx) && !!autoDropPreset(fileKbpsRef.current, { serverKbps: ev.kbps });
     return explainPlexStall(snap, {
       fileKbps, targetKbps: qualityCapKbps, transcoding: useTranscode, route: conn?.route,
       serverKbps: ev?.kbps ?? null, quietMs: ev?.quietMs ?? 0, autoNext: next ? stepName(next) : null, autoSoon: soon,
     });
-  }, [fileKbps, qualityCapKbps, useTranscode, conn?.route, autoPreview, freshRead]);
+  }, [fileKbps, qualityCapKbps, useTranscode, conn?.route, autoPreview, freshRead, stallCtx, slowFileRuledOut]);
   const autoNote = useCallback((snap: DiagSnapshot): string | null => {
     const p = autoPreview(stallStartOf(snap));
     return p ? autoQualityNote(p.ladder, p.index, p) : null;

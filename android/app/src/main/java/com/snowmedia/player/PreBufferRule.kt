@@ -35,6 +35,27 @@ internal object PreBufferRule {
      *  full as the player's limits allow. */
     const val FULL_MIN_MS = 10000L
 
+    // A 4K film (`uhd`: the picture selected is 4K, see UhdBuffer). A 1080p
+    // file reaches the 25 s target in a few seconds, so the 10 s limit never
+    // matters for it. A 4K remux carries three to four times the bytes per
+    // second: over a line that brings it at ~1.2x its own rate (the owner's
+    // TV: ~84 Mb/s on average for a 60-80 Mb/s file) 10 s of filling left it
+    // with under 10 s in hand, the first slow spell of the server emptied
+    // that, and it stalled right at the start. Like the Plex app, a 4K start
+    // waits for a steady buffer instead: after the same 10 s of filling it
+    // starts once it has UHD_START_MS, or when the byte budget is spent (the
+    // "full" rule above), or at the latest after UHD_MAX_WAIT_MS of filling.
+    /** A 4K start, after MAX_WAIT_MS of filling, begins with this much. */
+    const val UHD_START_MS = 20000L
+    /** A 4K start never fills for longer than this (from load() for a start
+     *  from 0:00, from the first video at the start position otherwise). */
+    const val UHD_MAX_WAIT_MS = 30000L
+    /** A 4K start part-way into a file never waits longer than this in all. */
+    const val UHD_MID_FILE_CAP_MS = 45000L
+
+    /** The time limit the hold reports to the "Getting ready…" indicator. */
+    fun maxWaitMs(uhd: Boolean): Long = if (uhd) UHD_MAX_WAIT_MS else MAX_WAIT_MS
+
     /**
      * When the filling time started (0: not yet). A start from 0:00 is
      * counted from load() by isDone and needs none. Part-way into a file:
@@ -59,6 +80,7 @@ internal object PreBufferRule {
         ready: Boolean,
         loading: Boolean,
         ended: Boolean,
+        uhd: Boolean = false,
     ): Boolean {
         if (ended || bufferedMs >= TARGET_MS) return true
         // Stopped loading with a decent buffer: the byte budget is spent (or
@@ -66,6 +88,12 @@ internal object PreBufferRule {
         // segments also reads as "not loading", and that is exactly when the
         // extra wait helps.
         if (ready && !loading && bufferedMs >= FULL_MIN_MS) return true
+        if (uhd) {
+            val filling = if (!midFile) sinceLoadMs else if (flowAt > 0L) now - flowAt else 0L
+            if (filling >= MAX_WAIT_MS && bufferedMs >= UHD_START_MS) return true
+            if (filling >= UHD_MAX_WAIT_MS) return true
+            return midFile && sinceLoadMs >= UHD_MID_FILE_CAP_MS
+        }
         if (!midFile) return sinceLoadMs >= MAX_WAIT_MS
         if (sinceLoadMs >= MID_FILE_CAP_MS) return true
         return flowAt > 0L && now - flowAt >= MAX_WAIT_MS

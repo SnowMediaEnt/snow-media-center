@@ -1,5 +1,6 @@
 // The native player's start-up hold for films and episodes: it spends up to
-// 10 s filling its buffer (aiming for 25 s of video) before it starts, and
+// 10 s filling its buffer (aiming for 25 s of video; a 4K film until it has
+// 20 s, 30 s at most, see PreBufferRule.kt) before it starts, and
 // reports how far along it is as 'preBuffer' events (SnowPlayerPlugin.kt,
 // schedulePreBuffer). This keeps that progress for the "Getting ready…"
 // indicator, and tells the slow-load watchdog that the player is busy on

@@ -642,3 +642,75 @@ describe('a resume (build 39 on the owner\'s TV): the start is not a reason to l
     expect(toastTitles().filter((t) => t.startsWith('Lowered'))).toHaveLength(0);
   });
 });
+
+describe('a 4K film (bugs/plex-4k.md): the start is not a reason to leave it, nor is a line the player has seen carry it', () => {
+  const report = async (kbps: number, after = 3_000) => { await wait(after); act(() => { recordPlayerRate(kbps); }); };
+  // A 4K (60 Mb/s) and a 1080p (10 Mb/s) file of the same film; it starts on the 4K one.
+  const FILES = [
+    { id: 'd1:0', ratingKey: 'd1', mediaIndex: 0, partKey: '/library/parts/40/file.mkv', label: '4K', videoResolution: '4k', height: 2160, bitrateKbps: 60000 },
+    { id: 'd1:1', ratingKey: 'd1', mediaIndex: 1, partKey: '/library/parts/41/file.mkv', label: '1080p', videoResolution: '1080', height: 1080, bitrateKbps: 10000 },
+  ];
+  const on1080 = () => h.urls.some((u) => u.includes('/library/parts/41/'));
+  /** Started from 0:00; while its start was held the player filled flat out at `fillKbps`. */
+  async function playing4k(fillKbps: number) {
+    h.part.mockImplementation(async () => ({ partKey: FILES[0].partKey, bitrateKbps: 60000, versions: FILES }));
+    await openDune();
+    await play('Dune');
+    act(() => { beginStream(lastUrl(), 'vod'); });
+    for (let i = 0; i < 4; i += 1) await report(fillKbps);
+    await started();
+    act(() => { markPlaybackStart(); });
+    // Then topping up at the file's own rate.
+    for (let i = 0; i < 11; i += 1) await report(60000);
+  }
+
+  it('the player was sent 200 Mb/s: three stalls after the first half minute keep the 4K file, and the card says so', async () => {
+    await playing4k(200000);
+    expect(h.urls[0]).toContain('/library/parts/40/');
+    setBuffering(true);
+    act(() => { diagSetBuffering(true); });
+    await wait(3_000);
+    await waitFor(() => expect(screen.getByText(/keeps the original/)).toBeTruthy());
+    act(() => { diagSetBuffering(false); });
+    setBuffering(false);
+    await stall(); await stall(); await stall();
+    await wait(10_000);
+    expect(on1080()).toBe(false);
+    expect(h.urls.filter(isTranscode)).toHaveLength(0);
+    expect(toastTitles().filter((t) => t.startsWith('Lowered'))).toHaveLength(0);
+  });
+
+  it('a slow spell of the server in a stall is no proof either, once the line is proven', async () => {
+    await playing4k(200000);
+    setBuffering(true);
+    await report(30000, 1_000);
+    await report(30000);
+    await report(30000);
+    await wait(3_000);
+    expect(on1080()).toBe(false);
+    expect(toastTitles().filter((t) => t.startsWith('Lowered'))).toHaveLength(0);
+  });
+
+  it('a line that never carried twice the file: stalls still lower it to the 1080p file, as in 1.7.9', async () => {
+    await playing4k(70000);
+    await stall(); await stall(); await stall();
+    await waitFor(() => expect(on1080()).toBe(true));
+    expect(toastTitles()).toContain('Lowered to 1080p for your speed');
+  });
+
+  it("the title page's short read is no proof on its own: one window of the stall must be backed by a second", async () => {
+    // The title page's check read 30 Mb/s (a short read, still ramping up).
+    (await import('@/lib/plexVersions'))._setPlexSpeed(h.conn.base, 30000);
+    await playing4k(70000);
+    setBuffering(true);
+    await report(40000, 1_000);
+    // 1.7.9 dropped here: that window and the read, both under the file's 60 Mb/s.
+    await wait(5_500);
+    expect(on1080()).toBe(false);
+    // The second window: the server refills flat out.
+    await report(150000, 0);
+    await wait(6_000);
+    expect(on1080()).toBe(false);
+    expect(toastTitles().filter((t) => t.startsWith('Lowered'))).toHaveLength(0);
+  });
+});

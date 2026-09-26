@@ -60,6 +60,8 @@ export function defaultVersion(versions: PlexVersion[], clicked: { ratingKey: st
 }
 
 export interface SpeedVerdict {
+  /** The file's own average bitrate, kbps. */
+  fileKbps: number;
   /** About what the version needs, kbps (its bitrate plus headroom). */
   needKbps: number;
   haveKbps: number;
@@ -73,12 +75,19 @@ export const SPEED_HEADROOM = 1.25;
 export function speedVerdict(v: PlexVersion | null | undefined, haveKbps: number | null | undefined): SpeedVerdict | null {
   if (!v?.bitrateKbps || !haveKbps || haveKbps <= 0) return null;
   const needKbps = Math.round(v.bitrateKbps * SPEED_HEADROOM);
-  return { needKbps, haveKbps, tooSlow: haveKbps < needKbps };
+  return { fileKbps: v.bitrateKbps, needKbps, haveKbps, tooSlow: haveKbps < needKbps };
 }
 
-/** "4K needs ~50 Mb/s, you have ~12" */
+/**
+ * "This 4K file averages ~48 Mb/s, more in busy scenes; this TV measured ~12
+ * Mb/s from the Plex server". The file's own rate and what was measured: it
+ * used to say "4K needs ~60 Mb/s, you have ~12", which read like a
+ * requirement of the TV rather than of this one file (the headroom on top of
+ * its average is what "more in busy scenes" stands for).
+ */
 export function speedWarning(v: PlexVersion, verdict: SpeedVerdict): string {
-  return `${v.label || 'This'} needs ~${mbps(verdict.needKbps)} Mb/s, you have ~${mbps(verdict.haveKbps)}`;
+  const what = v.label ? `This ${v.label} file` : 'This file';
+  return `${what} averages ~${mbps(verdict.fileKbps)} Mb/s, more in busy scenes; this TV measured ~${mbps(verdict.haveKbps)} Mb/s from the Plex server`;
 }
 const mbps = (kbps: number): string => (kbps >= 10000 ? String(Math.round(kbps / 1000)) : (Math.round(kbps / 100) / 10).toFixed(1).replace(/\.0$/, ''));
 
@@ -150,6 +159,32 @@ export function probeRate(bytes: number, countedBytes: number, countedMs: number
   return null;
 }
 
+/**
+ * The rate from a probe's arrivals (`marks`: when each piece came in, and the
+ * bytes in by then), from `startedAt` to `endedAt`. A fast line to a far
+ * server spends most of a short read ramping up: TCP doubles what it sends
+ * each round trip, so the read as a whole averaged well under what the line
+ * carries (on the owner's TV the check said "you have" far less than the 84
+ * Mb/s the Plex app averages, peaks ~300, from the same server). Past the
+ * ramp — the second half of the bytes, as each round trip brings about as
+ * much as all before it — is what the line carries; the better of that and
+ * probeRate's (a slow or steady line reads the same either way).
+ */
+export function probeRateFromMarks(marks: Array<{ t: number; bytes: number }>, startedAt: number, endedAt: number): number | null {
+  const total = marks.length ? marks[marks.length - 1].bytes : 0;
+  const first = marks.find((m) => m.bytes >= PROBE_SKIP_BYTES);
+  const base = probeRate(total, first ? total - first.bytes : 0, first ? endedAt - first.t : 0, endedAt - startedAt);
+  if (total < 2 * 1024 * 1024) return base;
+  const half = marks.find((m) => m.bytes >= total / 2);
+  if (!half) return base;
+  const tailBytes = total - half.bytes;
+  const tailMs = endedAt - half.t;
+  // Too little, or too short to time (pieces handed over in a batch).
+  if (tailBytes < 512 * 1024 || tailMs < 150) return base;
+  const tail = Math.round((tailBytes * 8) / tailMs);
+  return base == null ? tail : Math.max(base, tail);
+}
+
 const serverKey = (base: string): string => base.replace(/\/+$/, '');
 
 /** A recent measurement to this server, kbps, or null. */
@@ -183,8 +218,7 @@ export function measurePlexSpeed(base: string, token: string, partKey: string | 
     const stop = setTimeout(() => { try { ac?.abort(); } catch { /* ignore */ } }, PROBE_MAX_MS + 500);
     const started = Date.now();
     let bytes = 0;
-    let t0 = 0;
-    let counted = 0;
+    const marks: Array<{ t: number; bytes: number }> = [];
     try {
       const res = await fetch(plexDirectUrl(base, partKey, token), {
         headers: { Range: `bytes=0-${PROBE_MAX_BYTES - 1}` },
@@ -199,8 +233,7 @@ export function measurePlexSpeed(base: string, token: string, partKey: string | 
           if (done) break;
           const n = value ? value.byteLength : 0;
           bytes += n;
-          if (!t0 && bytes >= PROBE_SKIP_BYTES) t0 = Date.now();
-          else if (t0) counted += n;
+          marks.push({ t: Date.now(), bytes });
           if (bytes >= PROBE_MAX_BYTES || Date.now() - started >= PROBE_MAX_MS) break;
         }
       } catch { /* cut off by the timer: what arrived still counts */ }
@@ -213,7 +246,7 @@ export function measurePlexSpeed(base: string, token: string, partKey: string | 
       try { ac?.abort(); } catch { /* ignore */ }
       inflight.delete(key);
     }
-    const kbps = probeRate(bytes, counted, t0 ? Date.now() - t0 : 0, Date.now() - started);
+    const kbps = probeRateFromMarks(marks, started, Date.now());
     if (kbps != null) cache.set(key, { kbps, at: Date.now() });
     return kbps;
   })();

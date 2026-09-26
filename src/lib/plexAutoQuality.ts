@@ -227,7 +227,10 @@ export interface StallEvidence {
  * slow in every one. A window with nothing in it means the server paused
  * (nothing arrived, so nothing was measured), and pauses never count.
  */
-export function stallEvidence(rates: Array<{ t: number; kbps: number }>, stallStart: number, now: number, readKbps?: number | null): StallEvidence {
+export function stallEvidence(
+  rates: Array<{ t: number; kbps: number }>, stallStart: number, now: number, readKbps?: number | null,
+  opts: { needWindows?: boolean } = {},
+): StallEvidence {
   const upTo = rates.filter((r) => r.t <= now);
   const inside = upTo.filter((r) => r.t > stallStart);
   const last = upTo[upTo.length - 1];
@@ -241,7 +244,11 @@ export function stallEvidence(rates: Array<{ t: number; kbps: number }>, stallSt
   const paused = inside.some((r) => r.kbps <= 0) || quietMs >= RATE_TICK_MS;
   const data = inside.filter((r) => r.kbps > 0).map((r) => r.kbps);
   const read = readKbps && readKbps > 0 ? readKbps : null;
-  if (paused || (data.length < EVIDENCE_REPORTS && read == null)) return { kbps: null, quietMs, paused };
+  // `needWindows` (a 4K file): a read never stands in for the player's own
+  // windows. The title page's check is a short read, and on a fast line to
+  // a far server it under-reads (still ramping up); with one window of a
+  // stall it could send a 4K file the line carries to the 1080p one.
+  if (paused || (data.length < EVIDENCE_REPORTS && (read == null || opts.needWindows))) return { kbps: null, quietMs, paused };
   return { kbps: Math.max(...data, read ?? 0), quietMs, paused };
 }
 
@@ -310,18 +317,42 @@ export interface StallContext {
   internetKbps?: number | null;
   /** On the Plex Relay: the internet check says nothing about the relay. */
   relay?: boolean;
+  /** A 4K file played as it is (bugs/plex-4k.md). */
+  uhd?: boolean;
+  /** The fastest the player itself has been sent this title by the server,
+   *  kbps (its best 3 s window: while it fills its buffer it downloads flat
+   *  out). Counts for a 4K file only. */
+  serverKbps?: number | null;
 }
 
 /**
- * The internet check is plainly fast enough for the file played as it is at
- * `index` (INTERNET_CLEAR_FACTOR times its bitrate), off the relay. Then a
- * drop to a conversion `target` needs proof about the server, not stalls.
+ * The line is plainly fast enough for a file of `kbps` (INTERNET_CLEAR_FACTOR
+ * times its bitrate), off the relay: the internet check says so, or, for a
+ * 4K file, what the player itself was sent by the server. The internet check
+ * is a 256 KB download from Cloudflare that rarely reads the 120-160 Mb/s a
+ * 60-80 Mb/s file needs; the player's own windows while it fills its start
+ * are the server and the line as they are.
+ */
+export function lineClearFor(kbps: number | undefined, ctx: StallContext = {}): boolean {
+  if (ctx.relay || !kbps) return false;
+  const seen = Math.max(ctx.internetKbps ?? 0, ctx.uhd ? (ctx.serverKbps ?? 0) : 0);
+  return seen >= kbps * INTERNET_CLEAR_FACTOR;
+}
+
+/**
+ * The line is plainly fast enough for the file played as it is at `index`
+ * (lineClearFor). Then a drop to a conversion `target` needs proof about the
+ * server, not stalls. A lighter file as it is is still allowed (it starts at
+ * once), except from a 4K file: with the line proven, its stalls are the
+ * server's slow spells, which the buffer is there for, and the viewer picked
+ * 4K (the Plex app keeps playing it).
  */
 export function lineClearForFile(ladder: QualityStep[], index: number, target: QualityStep | null, ctx: StallContext = {}): boolean {
-  if (ctx.relay || !target || target.presetKey === 'original') return false;
+  if (ctx.relay || !target) return false;
+  if (target.presetKey === 'original' && !ctx.uhd) return false;
   const cur = Number.isInteger(index) ? ladder[index] : undefined;
   if (!cur || cur.presetKey !== 'original' || !cur.kbps) return false;
-  return !!ctx.internetKbps && ctx.internetKbps >= cur.kbps * INTERNET_CLEAR_FACTOR;
+  return lineClearFor(cur.kbps, ctx);
 }
 
 /** What automatic quality would do next from where playback is, for the
