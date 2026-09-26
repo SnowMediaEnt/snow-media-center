@@ -7,7 +7,7 @@ chip reads "Back to normal · 1.0 Mb/s". Appears "sometimes", new with the recen
 
 ## How the owner reproduces it
 Start a Plex title (likely 4K / the pre-buffer hold); the band shows during "Getting ready…".
-(To confirm: 4K only? does it vanish once playback starts?)
+Confirmed: it happened on a 1080p title (4K not tried yet), and the band STAYS after playback starts.
 
 ## Leads
 - Solid green = an undrawn/zeroed video frame region (YUV zeros) from the native player's TextureView

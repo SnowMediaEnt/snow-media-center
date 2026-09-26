@@ -19,5 +19,11 @@ Not yet known: whether a DNS change (1.1.1.1) alone fixes it; what Plex shows wi
 - Plex over a VPN: the server may refuse or throttle VPN addresses, the direct path may fail and leave
   only Plex's relay (capped ~1-2 Mb/s), or the VPN's DNS may not resolve *.plex.direct names.
 
+## Owner decision
+Fix it for a 1.8 release, tested on the device first. Channels themselves play without a VPN (content bar
+Live TV channels play fine); only the channel list doesn't appear.
+Plan (rung 2): when the box's direct player_api.php request is blocked, fetch the list JSON through a new
+Snow Media edge function (allowed provider hosts only, like player-login's ALLOWED_HOSTS); streams stay direct.
+
 ## Tried
 (nothing yet)
