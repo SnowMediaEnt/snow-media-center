@@ -14,6 +14,7 @@ import {
   buildNativeLiveUrl,
   countLiveStreams,
   pickNowNext,
+  listsViaSnowMedia,
   XTREAM_REFRESH_EVENT,
   type FavChannel,
   type XtreamCreds,
@@ -1931,7 +1932,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           </div>
         )}
         {NATIVE_PLAYBACK && !native.error && (
-          <BufferingDiagnostics buffering={native.buffering} className="mt-12" />
+          <BufferingDiagnostics
+            buffering={native.buffering}
+            className="mt-12"
+            footnote={!DEMO && listsViaSnowMedia(playingLine.host) ? 'Channel list: through Snow Media (your internet blocks the provider)' : undefined}
+          />
         )}
         {/* Audio present but undecodable on this device: video is fine, so don't
             block it — just say why there's no sound, and name the codec so

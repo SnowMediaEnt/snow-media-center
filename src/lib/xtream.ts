@@ -8,6 +8,9 @@
 // @/data/liveTvDemo and NO network request is ever made to a provider host.
 // isDemo() is always false on native, so these gates are dead code in the APK.
 import { isDemo } from '@/lib/demoMode';
+import { withListFallback, XtreamHttpError } from '@/lib/xtreamListProxy';
+
+export { listsViaSnowMedia } from '@/lib/xtreamListProxy';
 import { kidsAllowsCategory, kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import {
   demoGetLiveCategories,
@@ -484,10 +487,24 @@ export function saveVolume(v: number): void {
 
 // --- HTTP transport ---------------------------------------------------------
 
+// Every player_api.php read comes through here. Direct first, exactly as
+// always; on the box, a direct request that looks blocked by the ISP is
+// repeated through Snow Media's xtream-list-proxy (see xtreamListProxy.ts).
+// Streams never come through here: their URLs stay direct.
 async function httpGetJson<T>(url: string, timeoutMs = 20000): Promise<T> {
   // Demo mode must NEVER touch a provider host — callers are already routed to
   // the canned lineup, so reaching this in demo means a missed call site.
+  // (Nor Snow Media's list proxy: this throws before either is tried.)
   if (isDemo()) throw new Error('Xtream transport is disabled in demo mode');
+  let native = false;
+  try {
+    const { Capacitor } = await import('@capacitor/core');
+    native = Capacitor.isNativePlatform?.() === true;
+  } catch { /* not native: the web path below */ }
+  return withListFallback<T>(url, timeoutMs, native, () => directGetJson<T>(url, timeoutMs));
+}
+
+async function directGetJson<T>(url: string, timeoutMs: number): Promise<T> {
   // On a real device CapacitorHttp is the ONLY viable transport: provider hosts
   // send no CORS headers, so the WebView `fetch` fallback below can never
   // succeed there. Falling through to it turns a plain "HTTP 429" into a
@@ -508,7 +525,7 @@ async function httpGetJson<T>(url: string, timeoutMs = 20000): Promise<T> {
       if (res.status >= 200 && res.status < 300) {
         return (typeof res.data === 'string' ? JSON.parse(res.data) : res.data) as T;
       }
-      throw new Error(`HTTP ${res.status}`);
+      throw new XtreamHttpError(res.status);
     }
   } catch (e) {
     // Only a failure to LOAD the Capacitor module is a reason to try fetch;
@@ -519,7 +536,7 @@ async function httpGetJson<T>(url: string, timeoutMs = 20000): Promise<T> {
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const r = await fetch(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    if (!r.ok) throw new XtreamHttpError(r.status);
     return r.json() as Promise<T>;
   } finally {
     clearTimeout(t);

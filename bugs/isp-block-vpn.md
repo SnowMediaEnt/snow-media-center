@@ -27,3 +27,40 @@ Snow Media edge function (allowed provider hosts only, like player-login's ALLOW
 
 ## Tried
 (nothing yet)
+
+## Rung 2 (fixer-2): list reads through Snow Media when the direct path is blocked
+Status: built, NOT yet device-tested. **The edge function `xtream-list-proxy` must be deployed (via
+Lovable) before the device test**; until it is, the app behaves exactly as before (the fallback fails
+quietly and the original error stands).
+
+Root cause (as far as can be told off-device): the ISP filters the box's player_api.php requests to the
+panel, not the panel's hostname: live streams on the SAME host (`/live/<user>/<pass>/<id>.ts`) play without
+a VPN, so this is not a DNS block (so the DNS-over-HTTPS lead is unlikely to help). Most likely URL/DPI
+filtering of `player_api.php` (Dreamstreams is plain http on :8080).
+
+Design:
+- `supabase/functions/xtream-list-proxy/index.ts` (verify_jwt = false in supabase/config.toml, like
+  player-login, which the Player calls the same way and which works before any Snow Media sign-in).
+  POST `{ host, username, password, action?, params? }`. Relays only GET player_api.php reads to hosts in
+  player-login's ALLOWED_HOSTS (copied, with a test that fails if the two lists differ; player-login stays a
+  single pasteable file). Only SMC's read actions (account info with no action, get_live_categories,
+  get_live_streams, get_vod_categories, get_vod_streams, get_series_categories, get_series, get_series_info,
+  get_vod_info, get_short_epg), each with its own fixed params; values `[A-Za-z0-9_.-]{1,64}`. Redirects are
+  followed by hand, only to another allowed host. 40 s timeout, 48 MB cap, Dalvik user agent (what the app's
+  own HTTP sends). Panel 2xx JSON is returned unchanged with its status; any other panel status comes back as
+  HTTP 200 `{ ok:false, reason:'panel_status', status }` so a gateway error (e.g. not deployed) is never
+  mistaken for the panel's own 401/429; refusals are `{ ok:false, reason }` (host_not_allowed,
+  action_not_allowed, bad_params, not_json, too_large, panel_unreachable, panel_timeout, ...). Never logs
+  username, password or any panel URL. No secrets or env needed.
+- `src/lib/xtreamListProxy.ts` + `httpGetJson` in `src/lib/xtream.ts`: on the box (native only), the direct
+  CapacitorHttp request runs first, unchanged. If it fails in a blocked-looking way (no answer: network
+  error, timeout, reset, DNS/TLS failure; HTTP 403/451; a non-JSON 200) the same read is repeated through the
+  proxy. 401, 429 and other statuses are real answers and are not proxied. When the proxy delivers, the line
+  (panel host) is remembered as blocked for the session, and in localStorage for 30 min after last use, so
+  later reads go to the proxy first; if the proxy then fails, direct is tried and a direct success forgets
+  the block. Demo mode throws before either path; web browsers never use it. Streams are not proxied.
+- Live TV's buffering card shows "Channel list: through Snow Media (your internet blocks the provider)"
+  when the playing line's lists come that way.
+
+Risk to watch: all blocked-ISP boxes now reach the panel from Supabase's few egress addresses; if the panel
+rate-limits or blocks those, the proxy answers `panel_status` 429/403 and the list still fails.

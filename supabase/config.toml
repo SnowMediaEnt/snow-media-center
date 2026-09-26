@@ -52,6 +52,9 @@ verify_jwt = false
 [functions.player-login]
 verify_jwt = false
 
+[functions.xtream-list-proxy]
+verify_jwt = false
+
 [functions.capture-player-signin]
 verify_jwt = false
 
