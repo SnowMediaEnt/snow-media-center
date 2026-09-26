@@ -1,9 +1,9 @@
 {
-  "version": "1.7.9",
-  "versionCode": 41,
-  "releaseDate": "2026-09-25",
+  "version": "1.8.0",
+  "versionCode": 43,
+  "releaseDate": "2026-09-26",
   "size": "",
-  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.9.apk",
-  "changelog": "WHAT'S NEW\n• Plex plays smoothly, like the Plex app, including Resume\n• Live TV and Plex right on the Home menu; Main Apps moved to Support\n• Favorites in the TV Guide\n• Volume up to 150%\n• Playback stats in the Plex player\n• Many fixes",
-  "releaseNotes": "Version 1.7.9: Plex now streams smoothly at full quality, like the Plex app, and Resume picks up without buffering. Live TV and Plex have their own cards on the Home menu (Main Apps is now in Support), the TV Guide has your Favorites first, volume goes up to 150%, and the Plex player has a Playback stats screen. Plus Continue Watching and many other fixes."
+  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.8.0.apk",
+  "changelog": "WHAT'S NEW\n• Live TV channel lists load even where an internet provider blocks them, no VPN needed\n• 4K in Plex plays without dropping to 1080p\n• Guide Favorites tip fixed\n• Plus everything in 1.7.9: smooth Plex, Resume, Favorites in the Guide, volume to 150%",
+  "releaseNotes": "Version 1.8.0: Live TV channel lists now load even on internet providers that block them, so no VPN is needed. 4K movies in Plex wait for a proper head start and play without dropping to 1080p. Includes everything in 1.7.9: smooth Plex playback and Resume, Favorites in the TV Guide, volume up to 150% and Playback stats."
 }
