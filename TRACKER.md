@@ -14,6 +14,7 @@ Status: building · ready to test · still broken · done.
 | 7 | Volume past 100% (up to 150%) in the players | feature | ready to test | |
 | 8 | AI assistant never reads out usernames/passwords; knows Main Apps moved to Support | feature | ready to test | |
 | 9 | Plex 4K has trouble after 1.7.9 (1080p fine) — see bugs/plex-4k.md | bug | ready to test (1.7.9 build 42) | 2 |
+| 10 | Some ISPs block Live TV; with a VPN on, Plex stops working — see bugs/isp-block-vpn.md | bug | still broken (need device details) | 2 |
 
 ## Waiting on the owner
 - Migration 20260930070000 + notify-ticket/telegram-notify deploy: held until you decide.
