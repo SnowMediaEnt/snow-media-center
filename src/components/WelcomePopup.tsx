@@ -11,6 +11,11 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.8.0': [
+    '📺 Live TV channel lists load even where an internet provider blocks them — no VPN needed',
+    '🎬 4K in Plex waits for a proper head start, then plays without dropping to 1080p',
+    '⭐ Guide Favorites: hold OK on a channel in Live TV and choose Add to Favorites',
+  ],
   '1.7.9': [
     '🎬 Plex plays smoothly at full quality, like the Plex app, and Resume picks up right where you left off',
     '🏠 Live TV and Plex have their own cards on the Home menu; Main Apps is now in Support',
