@@ -102,7 +102,7 @@ describe('useNativePlayer — no frozen frame on a stream change', () => {
     for (const c of calls.filter((x) => x.fn === 'setRect')) expect(c.opts?.blank).toBeFalsy();
   });
 
-  it('plugin: shutter closes on load / stop / blank setRect and opens only on the first frame', () => {
+  it('plugin: shutter closes on load / stop / blank setRect and opens only once the first frame is drawn', () => {
     const body = (from: string) => plugin.slice(plugin.indexOf(from), plugin.indexOf('\n    }\n', plugin.indexOf(from)));
     const load = body('fun load(call: PluginCall)');
     expect(load.indexOf('shutterView?.visibility = View.VISIBLE')).toBeGreaterThan(-1);
@@ -111,6 +111,10 @@ describe('useNativePlayer — no frozen frame on a stream change', () => {
     expect(body('fun setRect(call: PluginCall)')).toMatch(/if \(blank\) s\.shutterView\?\.visibility = View\.VISIBLE/);
     const opens = plugin.split('shutterView?.visibility = View.INVISIBLE').length - 1;
     expect(opens).toBe(1);
-    expect(body('override fun onRenderedFirstFrame()')).toContain('shutterView?.visibility = View.INVISIBLE');
+    // One place opens it (openShutterIfReady: first frame drawn, start-up
+    // hold over; see useNativePlayer.greenBar.test.ts), reached from the
+    // first frame.
+    expect(body('private fun openShutterIfReady(')).toContain('shutterView?.visibility = View.INVISIBLE');
+    expect(body('override fun onRenderedFirstFrame()')).toContain('openShutterIfReady(s)');
   });
 });

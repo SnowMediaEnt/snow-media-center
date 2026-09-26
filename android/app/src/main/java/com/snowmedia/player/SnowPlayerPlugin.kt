@@ -15,7 +15,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.Gravity
-import android.graphics.Matrix
 import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
@@ -106,10 +105,9 @@ class SnowPlayerPlugin : Plugin() {
         var lastPositionMs: Long = 0L
         var reconnectAttempts: Int = 0
         var firstFrameSeen: Boolean = false
-        // Screen format. The picture is drawn into a MATCH_PARENT TextureView,
-        // which ExoPlayer stretches to fill — so WITHOUT a correction matrix
-        // every video is distorted unless it happens to match the panel. These
-        // three remember what to correct to, and applyFormat() does the work.
+        // Screen format. ExoPlayer stretches the picture to fill its
+        // TextureView, so the view is sized to the picture's shape. These
+        // three remember that shape, and applyFormat() does the work.
         var videoW: Int = 0
         var videoH: Int = 0
         var pixelRatio: Float = 1f
@@ -380,6 +378,16 @@ class SnowPlayerPlugin : Plugin() {
         s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
         s.preBufferRunnable = null
         s.holding = false
+        openShutterIfReady(s)
+    }
+
+    /** Uncover the picture: this stream has drawn its first frame and is not
+     *  in its start-up hold (VideoFit.shutterOpen). The hold draws the first
+     *  frame paused; "Getting ready…" stays over black until the film starts,
+     *  or the viewer plays or pauses. The only place the shutter opens. */
+    private fun openShutterIfReady(s: PlayerSlot) {
+        if (s.currentUrl == null || !VideoFit.shutterOpen(s.firstFrameSeen, s.holding)) return
+        s.shutterView?.visibility = View.INVISIBLE
     }
 
     private fun schedulePositionTick(s: PlayerSlot) {
@@ -471,6 +479,7 @@ class SnowPlayerPlugin : Plugin() {
                 if (done) {
                     s.holding = false
                     p.playWhenReady = true
+                    openShutterIfReady(s)
                     s.preBufferRunnable = null
                     return
                 }
@@ -626,7 +635,14 @@ class SnowPlayerPlugin : Plugin() {
         val tv = TextureView(act)
         val fl = FrameLayout(act)
         fl.setBackgroundColor(Color.BLACK)
+        // Sized to the picture and centred by applyFormat (VideoFit): the
+        // letterbox bars are this box's black, never unpainted picture view.
         fl.addView(tv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
+        // A new box size (fullscreen, a tile, the first layout) fits the
+        // picture again. Posted: this runs inside the layout pass.
+        fl.addOnLayoutChangeListener { v, l, t, r, b, ol, ot, or, ob ->
+            if (r - l != or - ol || b - t != ob - ot) v.post { applyFormat(s) }
+        }
         // Above the picture, below the subtitles. Starts closed: nothing has
         // been drawn yet.
         val shutter = View(act)
@@ -953,10 +969,11 @@ class SnowPlayerPlugin : Plugin() {
                 reportPaused(s, screenId)
             }
             override fun onRenderedFirstFrame() {
-                // The new stream has drawn: uncover it. Only here — never on
-                // load or a state change — so no earlier frame can show.
-                if (s.currentUrl != null) s.shutterView?.visibility = View.INVISIBLE
+                // The new stream has drawn: uncover it (once its start-up
+                // hold is over, see openShutterIfReady). Never on load or a
+                // state change, so no earlier frame can show.
                 s.firstFrameSeen = true
+                openShutterIfReady(s)
                 s.reconnectAttempts = 0
                 s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
                 s.watchdogRunnable = null
@@ -1668,11 +1685,11 @@ class SnowPlayerPlugin : Plugin() {
      * invisible state into something a customer can read out.
      */
     /**
-     * Screen format. ExoPlayer draws into a MATCH_PARENT TextureView and
-     * stretches the picture to fill it, so the view is ALWAYS the full screen
-     * and the correction is a transform on top: scale the drawn content back to
-     * the shape it should be. Nothing here resizes the view, which keeps the
-     * subtitle layer and the touch/rect handling untouched.
+     * Screen format. ExoPlayer stretches the picture to fill its TextureView,
+     * so applyFormat sizes that view to the shape the picture should have and
+     * centres it in the black box (VideoFit). Only the picture view changes
+     * size: the box, the subtitle layer and the touch/rect handling stay as
+     * they are.
      *
      *   fit     letterbox / pillarbox — whole picture, correct shape. Default.
      *   fill    stretch to the panel, shape ignored. The old behaviour.
@@ -1701,49 +1718,25 @@ class SnowPlayerPlugin : Plugin() {
         call.resolve(JSObject().put("mode", slot(call).format))
     }
 
-    /** Recompute and apply the correction matrix. Safe to call at any time. */
+    /** Size the picture view to the picture in its black box (VideoFit).
+     *  Safe to call at any time; the box's layout listener calls it again
+     *  whenever the box changes size. */
     private fun applyFormat(s: PlayerSlot) {
         val tv = s.textureView ?: return
-        val vw = tv.width
-        val vh = tv.height
-        // Before the first layout there is nothing to scale against; the
-        // listener and setRect both call this again once there is.
-        if (vw <= 0 || vh <= 0) return
-
-        if (s.format == FORMAT_FILL) {
-            // Identity — let it stretch, which is what "fill" means.
-            tv.setTransform(Matrix())
-            tv.invalidate()
-            return
-        }
-
-        // The picture's true shape. `wide` deliberately ignores what the stream
-        // says, which is the whole point of offering it.
-        val srcAspect = when {
-            s.format == FORMAT_WIDE -> 16f / 9f
-            s.videoW > 0 && s.videoH > 0 -> (s.videoW * s.pixelRatio) / s.videoH
-            else -> return   // nothing decoded yet
-        }
-        if (srcAspect <= 0f || !srcAspect.isFinite()) return
-
-        val viewAspect = vw.toFloat() / vh.toFloat()
-        // Fit shrinks the long axis to bring the shape back; zoom grows the
-        // short one until the frame is covered.
-        val scaleX: Float
-        val scaleY: Float
-        if (s.format == FORMAT_ZOOM) {
-            if (srcAspect > viewAspect) { scaleX = srcAspect / viewAspect; scaleY = 1f }
-            else { scaleX = 1f; scaleY = viewAspect / srcAspect }
-        } else {
-            if (srcAspect > viewAspect) { scaleX = 1f; scaleY = viewAspect / srcAspect }
-            else { scaleX = srcAspect / viewAspect; scaleY = 1f }
-        }
-
-        val m = Matrix()
-        // Pivot at the centre so the bars land evenly on both sides.
-        m.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
-        tv.setTransform(m)
-        tv.invalidate()
+        val box = s.container ?: return
+        // Before the first layout, or before anything is decoded, there is
+        // nothing to fit; the layout listener and onVideoSizeChanged come back.
+        val size = VideoFit.viewSize(s.format, box.width, box.height, s.videoW, s.videoH, s.pixelRatio) ?: return
+        // No matrix: the view itself has the picture's shape. A shrunken
+        // picture in a box-sized view left the bars unpainted (the band in
+        // bugs/plex-green-bar.md).
+        tv.setTransform(null)
+        val lp = tv.layoutParams as? FrameLayout.LayoutParams ?: FrameLayout.LayoutParams(size[0], size[1])
+        if (lp.width == size[0] && lp.height == size[1] && lp.gravity == Gravity.CENTER) return
+        lp.width = size[0]
+        lp.height = size[1]
+        lp.gravity = Gravity.CENTER
+        tv.layoutParams = lp
     }
 
     @PluginMethod
