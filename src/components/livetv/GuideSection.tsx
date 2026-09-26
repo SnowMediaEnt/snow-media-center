@@ -782,7 +782,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           </div>
         ) : channels.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">
-            {onFavorites ? 'No favorites yet. In Live TV, press F on a channel to add it.' : 'No channels in this category.'}
+            {onFavorites ? 'No favorites yet. In Live TV, hold OK on a channel and choose Add to Favorites.' : 'No channels in this category.'}
           </div>
         ) : (
           <div style={{ height: totalRowsSize, position: 'relative', width: '100%' }}>
