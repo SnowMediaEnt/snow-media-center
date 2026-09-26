@@ -5177,6 +5177,20 @@ export type Database = {
       }
       delete_tenant: { Args: { p_tenant_id: string }; Returns: Json }
       dispatch_accounts_expiring_digest: { Args: never; Returns: undefined }
+      finish_plinko_physics_round: {
+        Args: {
+          p_client_seed: string
+          p_collisions: number
+          p_multiplier: number
+          p_payout: number
+          p_round: number
+          p_slot: number
+          p_steps: number
+          p_user: string
+          p_x: number
+        }
+        Returns: Json
+      }
       free_ai_available: { Args: never; Returns: Json }
       get_claim_session: {
         Args: { p_token: string }
@@ -5475,6 +5489,19 @@ export type Database = {
           p_server_seed: string
           p_server_seed_hash: string
           p_update_collectors: boolean
+          p_user: string
+        }
+        Returns: Json
+      }
+      start_plinko_physics_round: {
+        Args: {
+          p_bet: number
+          p_board: string
+          p_client_commit: string
+          p_lane: number
+          p_risk: string
+          p_seed: string
+          p_seed_hash: string
           p_user: string
         }
         Returns: Json
