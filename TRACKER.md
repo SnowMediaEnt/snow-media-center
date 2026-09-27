@@ -17,6 +17,7 @@ Status: building · ready to test · still broken · done.
 | 10 | Some ISPs block Live TV lists (no VPN needed now) | bug | done (fixed at rung 2, 1.8.0) | 2 |
 | 11 | Guide Favorites hint said "press F" (remotes have no letters) — now "hold OK… Add to Favorites" | bug | ready to test | direct |
 | 12 | Green bar at the bottom during Plex "Getting ready…" — see bugs/plex-green-bar.md | bug | not seen on 1.8.0; fix on working branch, not in a build yet | 2 |
+| 13 | Show-password eye button on every password field (Live TV sign-in and everywhere) | feature | building | |
 
 ## Waiting on the owner
 - Migration 20260930070000 + notify-ticket/telegram-notify deploy: held until you decide.
