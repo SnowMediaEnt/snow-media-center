@@ -9,11 +9,9 @@ import { kidsLevel } from '@/lib/kidsFilter';
 import { toast } from '@/hooks/use-toast';
 import {
   loadCreds,
-  clearCreds,
   authenticateRouted,
   buildPlayerAccount,
   savePlayerAccount,
-  clearPlayerAccount,
   bumpXtreamRefresh,
   clearLiveCatalogue,
   daysUntilExp,
@@ -21,7 +19,8 @@ import {
   type XtreamCreds,
 } from '@/lib/xtream';
 import { saveLiveLayout, type LiveLayout } from '@/lib/liveLayout';
-import { autoSignInPlayer, clearPlayerSignedOut, markPlayerSignedOut } from '@/lib/playerAutoSignIn';
+import { autoSignInPlayer, clearPlayerSignedOut } from '@/lib/playerAutoSignIn';
+import { signOutPlayer } from '@/lib/playerSignOut';
 import { useAuth } from '@/hooks/useAuth';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
@@ -30,7 +29,6 @@ import { enterQuiet, exitQuiet, setQuietEverywhere } from '@/utils/quietMode';
 import { markReconciled, reconciledRecently, RECONCILE_EVERY_MS, RECONCILE_URGENT_MS } from '@/lib/panelReconcile';
 import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
-import { useVersion } from '@/hooks/useVersion';
 import { clearPlexToken } from '@/lib/plex';
 import { isClaimDismissed, isClaimDone, markClaimDismissed } from '@/lib/accountClaim';
 import { clearPlexDeeplink, peekPlexDeeplink } from '@/lib/plexDeeplink';
@@ -172,7 +170,6 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   // ── Expiration awareness (in-Player dialog + Plex block) ──────────────
   const { account: playerAccount, days: playerDays, loading: playerAccountLoading } = usePlayerAccount();
-  const { version: appVersion } = useVersion();
   const acctServerLabel = playerAccount?.serverLabel || serverLabel || 'your';
   const plexBlocked =
     playerAccount !== null && playerDays !== null && playerDays < 0;
@@ -577,10 +574,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const signOut = useCallback(async () => {
     // Demo: the demo account is pre-loaded — nothing to sign out of.
     if (DEMO) { demoAccountNote(); return; }
-    await clearCreds();
-    await clearPlayerAccount();
     // Signed out on purpose: the next open asks, instead of signing back in.
-    markPlayerSignedOut();
+    await signOutPlayer();
     setCreds(null);
     setAccountFormOpen(false);
     setSettingsOpen(false);
@@ -1076,7 +1071,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           zIndex: 50,
         }}
       >
-        v{appVersion}
+        Snow Media Ent.
       </div>
 
       {serverAlert && serverLabel && (

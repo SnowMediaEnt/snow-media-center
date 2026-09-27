@@ -16,8 +16,10 @@ Status: building · ready to test · still broken · done.
 | 9 | Plex 4K has trouble after 1.7.9 (1080p fine) | bug | done (fixed at rung 2, 1.8.0) | 2 |
 | 10 | Some ISPs block Live TV lists (no VPN needed now) | bug | done (fixed at rung 2, 1.8.0) | 2 |
 | 11 | Guide Favorites hint said "press F" (remotes have no letters) — now "hold OK… Add to Favorites" | bug | ready to test | direct |
-| 12 | Green bar at the bottom during Plex "Getting ready…" — see bugs/plex-green-bar.md | bug | not seen on 1.8.0; fix on working branch, not in a build yet | 2 |
-| 13 | Show-password eye button on every password field (Live TV sign-in and everywhere) | feature | building | |
+| 12 | Green bar at the bottom during Plex "Getting ready…" — see bugs/plex-green-bar.md | bug | ready to test (1.8.0 build 44) | 2 |
+| 13 | Show-password eye button on every password field (Live TV sign-in and everywhere) | feature | planned, waiting on owner's 4 answers | |
+| 14 | Player corner shows a faint "Snow Media Ent." instead of the version number | feature | ready to test (build 44) | |
+| 15 | Dashboard Sign Out signs out of both the Snow Media account and Live TV | feature | ready to test (build 44) | |
 
 ## Waiting on the owner
 - Migration 20260930070000 + notify-ticket/telegram-notify deploy: held until you decide.
