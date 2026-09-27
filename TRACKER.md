@@ -8,15 +8,15 @@ Status: building · ready to test · still broken · done.
 | 1 | Plex buffers at 1080p/4K (Plex app fine on same box) | bug | done (fixed at rung 3, 1.7.9) | 3 |
 | 2 | Plex "Playback stats" panel (like the Plex app's stats) | feature | ready to test (1.7.9) | |
 | 3 | Live TV Guide: Favorites first in the category row | feature | ready to test | |
-| 4 | Back from Live TV / Plex goes Home; no flash of the old Player chooser | bug | ready to test | direct |
+| 4 | Back from Live TV / Plex goes Home; no flash of the old Player chooser | bug | done | direct |
 | 5 | Continue Watching: extra hardening (saves without the server, survives sign-in, Up Next) | bug | ready to test | direct |
 | 6 | Favorites kept when leaving Live TV while they sync from the account | bug | ready to test | direct |
 | 7 | Volume past 100% (up to 150%) in the players | feature | ready to test | |
 | 8 | AI assistant never reads out usernames/passwords; knows Main Apps moved to Support | feature | ready to test | |
 | 9 | Plex 4K has trouble after 1.7.9 (1080p fine) | bug | done (fixed at rung 2, 1.8.0) | 2 |
-| 10 | Some ISPs block Live TV; with a VPN on, Plex stops working — see bugs/isp-block-vpn.md | bug | ready to test (1.8.0) | 2 |
+| 10 | Some ISPs block Live TV lists (no VPN needed now) | bug | done (fixed at rung 2, 1.8.0) | 2 |
 | 11 | Guide Favorites hint said "press F" (remotes have no letters) — now "hold OK… Add to Favorites" | bug | ready to test | direct |
-| 12 | Green bar at the bottom during Plex "Getting ready…" — see bugs/plex-green-bar.md | bug | fixed on branch, not in 1.8.0 build yet | 2 |
+| 12 | Green bar at the bottom during Plex "Getting ready…" — see bugs/plex-green-bar.md | bug | not seen on 1.8.0; fix on working branch, not in a build yet | 2 |
 
 ## Waiting on the owner
 - Migration 20260930070000 + notify-ticket/telegram-notify deploy: held until you decide.
