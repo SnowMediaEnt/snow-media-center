@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { useVersion } from '@/hooks/useVersion';
+import { recordingGuardNote } from '@/lib/recordSchedule';
 
 interface UpdateInfo {
   version: string;
@@ -38,6 +39,10 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  // A recording is running, or one starts within 30 minutes: installing ends the
+  // app's process and the recording with it. Said before anything is installed;
+  // "Later" is the default (TRACKER 25.15).
+  const [guard, setGuard] = useState<string | null>(null);
   const { toast } = useToast();
 
   const refreshInstalledVersion = useCallback(async () => {
@@ -144,8 +149,13 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
     return false;
   };
 
-  const downloadUpdate = async () => {
+  const downloadUpdate = async (confirmed = false) => {
     if (!updateInfo) return;
+    if (!confirmed && isNativePlatform()) {
+      const note = await recordingGuardNote();
+      if (note) { setGuard(note); setFocusedElement(2); return; }
+    }
+    setGuard(null);
 
     setIsDownloading(true);
     setDownloadProgress(0);
@@ -236,14 +246,18 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
       switch (event.key) {
         case 'ArrowLeft':
           if (focusedElement === 1 && updateAvailable) setFocusedElement(0);
+          else if (focusedElement === 3) setFocusedElement(2);
           break;
         case 'ArrowRight':
           if (focusedElement === 0 && updateAvailable) setFocusedElement(1);
+          else if (focusedElement === 2) setFocusedElement(3);
           break;
         case 'Enter':
         case ' ':
           if (focusedElement === 0) checkForUpdates();
           else if (focusedElement === 1 && updateAvailable) downloadUpdate();
+          else if (focusedElement === 2) setGuard(null);
+          else if (focusedElement === 3) downloadUpdate(true);
           break;
       }
     };
@@ -322,6 +336,41 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           </div>
         )}
         
+        {guard && (
+          <div data-app-updater-guard className="bg-amber-500/15 border border-amber-400/50 rounded-lg p-4">
+            <p className="text-amber-200 font-semibold">{guard}</p>
+            <p className="text-blue-100 text-sm mt-1">Choose Later to finish the recording first.</p>
+            <div className="flex gap-3 mt-3">
+              <Button
+                autoFocus
+                onClick={() => setGuard(null)}
+                onFocus={() => setFocusedElement(2)}
+                onBlur={() => setFocusedElement((prev) => (prev === 2 ? -1 : prev))}
+                variant="outline"
+                data-app-updater-btn="later"
+                data-focused={focusedElement === 2 ? 'true' : 'false'}
+                className={`tv-ring flex-1 bg-white/10 border-white/30 text-white hover:bg-white/20 transition-all duration-200 ${
+                  focusedElement === 2 ? 'scale-110 brightness-125 z-10' : ''
+                }`}
+              >
+                Later
+              </Button>
+              <Button
+                onClick={() => { void downloadUpdate(true); }}
+                onFocus={() => setFocusedElement(3)}
+                onBlur={() => setFocusedElement((prev) => (prev === 3 ? -1 : prev))}
+                data-app-updater-btn="anyway"
+                data-focused={focusedElement === 3 ? 'true' : 'false'}
+                className={`tv-ring flex-1 bg-green-600 hover:bg-green-700 text-white transition-all duration-200 ${
+                  focusedElement === 3 ? 'scale-110 brightness-125 z-10' : ''
+                }`}
+              >
+                Update anyway
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-3">
           {!updateAvailable && (
             <Button
@@ -344,7 +393,7 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           {updateAvailable && updateInfo && (
             <Button
               autoFocus
-              onClick={downloadUpdate}
+              onClick={() => { void downloadUpdate(); }}
               onFocus={() => setFocusedElement(1)}
               onBlur={() => setFocusedElement((prev) => (prev === 1 ? -1 : prev))}
               disabled={isDownloading}

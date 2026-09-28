@@ -888,9 +888,15 @@ export function parseEpgTime(s: string | undefined): number {
   return Number.isFinite(t) ? t : 0;
 }
 
+/**
+ * `start` / `end` are the listing read as the BOX's local time when it has no
+ * timestamps (see parseEpgTime). `startRaw` / `endRaw` are the listing's own
+ * text or UTC timestamp, for callers that need the true UTC moment
+ * (programmeTimeUtcMs in recordSchedule.ts, which knows the panel's offset).
+ */
 export interface EpgNowNext {
-  now?: { title: string; start: number; end: number; description?: string };
-  next?: { title: string; start: number; end: number; description?: string };
+  now?: { title: string; start: number; end: number; description?: string; startRaw?: string; endRaw?: string };
+  next?: { title: string; start: number; end: number; description?: string; startRaw?: string; endRaw?: string };
 }
 
 export function pickNowNext(entries: XtreamEpgEntry[]): EpgNowNext {
@@ -901,6 +907,8 @@ export function pickNowNext(entries: XtreamEpgEntry[]): EpgNowNext {
       description: decodeEpgText(e.description),
       start: parseEpgTime(e.start_timestamp || e.start),
       end: parseEpgTime(e.stop_timestamp || e.end),
+      startRaw: e.start_timestamp || e.start,
+      endRaw: e.stop_timestamp || e.end,
     }))
     .filter(e => e.end > 0 && e.start > 0)
     .sort((a, b) => a.start - b.start);

@@ -5,9 +5,11 @@
 // both the Snow Media account and the Player.
 //
 // The line's streams go with it: the rewind buffer (channel data on the box's
-// storage) is wiped, and every recording stops — a recording keeps a
-// connection to the line open, and its folder is the viewer's to keep. Both
-// are older-app safe: a build without the plugin must not block sign-out.
+// storage) is wiped, every recording stops — a recording keeps a connection
+// to the line open, and its folder is the viewer's to keep — and every
+// scheduled recording is cancelled (a schedule belongs to the line it was made
+// on, and would only fail at its start). All are older-app safe: a build
+// without the plugin must not block sign-out.
 import { clearCreds, clearPlayerAccount } from '@/lib/xtream';
 import { markPlayerSignedOut } from '@/lib/playerAutoSignIn';
 import { isDemo } from '@/lib/demoMode';
@@ -19,6 +21,7 @@ export async function signOutPlayer(): Promise<void> {
   if (isDemo()) return;
   try { await SnowPlayer.timeshiftWipe(); } catch { /* older app, or web */ }
   try { await SnowRecorder.stop(); } catch { /* older app, or web */ }
+  try { await SnowRecorder.cancelSchedule(); } catch { /* older app, or web */ }
   notifyRecordingsChanged();
   await clearCreds();
   await clearPlayerAccount();

@@ -1,5 +1,6 @@
-// Live TV › Settings › Rewind live TV (TRACKER 25): on/off, how far back
-// ("Max rewind"), and what the buffer uses on this box. The buffer only
+// Live TV › Settings › Rewind & recording (TRACKER 25): on/off, how far back
+// ("Max rewind"), what the buffer uses on this box, and how early a scheduled
+// recording starts and how late it ends ("Start early" / "End late"). The buffer only
 // exists while a channel plays full screen; it is wiped when the player is
 // left, so "now" is normally nothing and the useful figure is how much the
 // box would allow (Auto).
@@ -15,6 +16,7 @@ import { BackButton } from '@/components/ui/BackButton';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { bufferGate, rewindOffMessage } from '@/hooks/useLiveRewind';
+import { AFTER_CHOICES, BEFORE_CHOICES, loadPadding, savePadding, type RecordPadding } from '@/lib/recordSchedule';
 import { isDemo } from '@/lib/demoMode';
 import {
   HARD_CAP_BYTES, MAX_REWIND_CHOICES, formatBytes, loadRewindSettings, rewindBudgetBytes, saveRewindSettings,
@@ -23,14 +25,15 @@ import {
 
 interface Props { onBack: () => void }
 
-type Row = 'back' | 'enabled' | 'max';
-const ROWS: Row[] = ['back', 'enabled', 'max'];
+type Row = 'back' | 'enabled' | 'max' | 'before' | 'after';
+const ROWS: Row[] = ['back', 'enabled', 'max', 'before', 'after'];
 
 /** Said under the switch: what the buffer costs the line. */
 export const EXTRA_STREAM_LINE = 'Uses one extra stream on your line';
 
 const RewindSettingsScreen = memo(({ onBack }: Props) => {
   const [s, setS] = useState<RewindSettings>(loadRewindSettings);
+  const [pad, setPad] = useState<RecordPadding>(loadPadding);
   const [focus, setFocus] = useState<Row>('enabled');
   const [usage, setUsage] = useState<{ usedBytes: number; freeBytes: number; totalBytes: number } | null>(null);
   const { account } = usePlayerAccount();
@@ -45,13 +48,14 @@ const RewindSettingsScreen = memo(({ onBack }: Props) => {
   }, []);
 
   const update = (next: RewindSettings) => { setS(next); saveRewindSettings(next); };
-  const stateRef = useRef({ s, focus });
-  stateRef.current = { s, focus };
+  const updatePad = (next: RecordPadding) => { setPad(next); savePadding(next); };
+  const stateRef = useRef({ s, pad, focus });
+  stateRef.current = { s, pad, focus };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
-      const { s: cur, focus: f } = stateRef.current;
+      const { s: cur, pad: curPad, focus: f } = stateRef.current;
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
       const isOk = e.key === 'Enter' || e.key === ' ';
       if (!isBack && !isOk && !e.key.startsWith('Arrow')) return;
@@ -65,9 +69,18 @@ const RewindSettingsScreen = memo(({ onBack }: Props) => {
         if (isOk || e.key === 'ArrowLeft' || e.key === 'ArrowRight') update({ ...cur, enabled: !cur.enabled });
         return;
       }
+      const d = e.key === 'ArrowLeft' ? -1 : 1;
+      // Start early / End late: ◀▶ along the choices, OK the next one.
+      if (f === 'before' || f === 'after') {
+        const list = f === 'before' ? BEFORE_CHOICES : AFTER_CHOICES;
+        const cur2 = f === 'before' ? curPad.beforeMin : curPad.afterMin;
+        const at2 = Math.max(0, list.indexOf(cur2));
+        const to = list[isOk ? (at2 + 1) % list.length : Math.max(0, Math.min(list.length - 1, at2 + d))];
+        updatePad(f === 'before' ? { ...curPad, beforeMin: to } : { ...curPad, afterMin: to });
+        return;
+      }
       // Max rewind: ◀▶ along the choices, OK the next one.
       const at = MAX_REWIND_CHOICES.findIndex((c) => c.id === cur.maxRewind);
-      const d = e.key === 'ArrowLeft' ? -1 : 1;
       const n = MAX_REWIND_CHOICES.length;
       const next = isOk ? (at + 1) % n : Math.max(0, Math.min(n - 1, at + d));
       update({ ...cur, maxRewind: MAX_REWIND_CHOICES[next].id });
@@ -92,7 +105,7 @@ const RewindSettingsScreen = memo(({ onBack }: Props) => {
       <div className="flex items-center px-6 py-4 border-b border-white/10 bg-black/30">
         <BackButton onClick={onBack} label="Back" data-player-header-btn="" focused={focus === 'back'} />
         <History className="w-7 h-7 ml-3 mr-2 text-brand-gold" />
-        <h1 className="text-2xl font-quicksand font-bold">Rewind live TV</h1>
+        <h1 className="text-2xl font-quicksand font-bold">Rewind &amp; recording</h1>
       </div>
       <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
         <div className="w-full max-w-xl space-y-3">
@@ -135,6 +148,33 @@ const RewindSettingsScreen = memo(({ onBack }: Props) => {
               and never more than {formatBytes(HARD_CAP_BYTES)}.
             </p>
           </div>
+
+          {(['before', 'after'] as const).map((r) => {
+            const list = r === 'before' ? BEFORE_CHOICES : AFTER_CHOICES;
+            const value = r === 'before' ? pad.beforeMin : pad.afterMin;
+            return (
+              <div key={r} data-rewind-row={r} data-focused={focus === r ? 'true' : 'false'} className={row(r)}>
+                <p className="text-xl font-quicksand font-semibold">{r === 'before' ? 'Start early' : 'End late'}</p>
+                <div className="mt-2">
+                  {list.map((n) => (
+                    <span
+                      key={n}
+                      onClick={() => updatePad(r === 'before' ? { ...pad, beforeMin: n } : { ...pad, afterMin: n })}
+                      className={`inline-block mr-2 px-3 py-1 rounded-lg font-nunito text-base ${
+                        value === n ? (focus === r ? 'bg-brand-gold text-brand-navy font-bold' : 'bg-white/25 font-semibold') : 'text-brand-ice/80'}`}
+                    >
+                      {n} min
+                    </span>
+                  ))}
+                </div>
+                <p className="text-sm font-nunito text-white/70 mt-2">
+                  {r === 'before'
+                    ? 'A recording scheduled from the Guide starts this long before the programme.'
+                    : 'It keeps recording this long after the programme ends. A schedule keeps the times it was made with.'}
+                </p>
+              </div>
+            );
+          })}
 
           <div className="rounded-xl px-5 py-3 bg-black/30 border border-white/10">
             <p className="text-base font-quicksand font-semibold">On this box</p>

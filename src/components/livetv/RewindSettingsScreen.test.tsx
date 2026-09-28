@@ -1,7 +1,7 @@
 /**
- * Live TV › Settings › Rewind live TV (TRACKER 25): the switch and Max rewind
- * by remote, the "one extra stream" line, and the explanation on a plan that
- * allows one stream.
+ * Live TV › Settings › Rewind & recording (TRACKER 25): the switch and Max
+ * rewind by remote, the "one extra stream" line, the explanation on a plan
+ * that allows one stream, and Start early / End late for scheduled recordings.
  */
 import { act, fireEvent, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,11 +17,12 @@ vi.mock('@/lib/demoMode', () => ({ isDemo: () => h.demo }));
 
 import RewindSettingsScreen, { EXTRA_STREAM_LINE } from './RewindSettingsScreen';
 import { REWIND_SETTINGS_KEY, loadRewindSettings } from '@/lib/liveRewind';
+import { PADDING_KEY, loadPadding } from '@/lib/recordSchedule';
 
 const key = (k: string) => { act(() => { fireEvent.keyDown(window, { key: k }); }); };
 const settle = async () => { await act(async () => { await Promise.resolve(); }); };
 
-beforeEach(() => { localStorage.removeItem(REWIND_SETTINGS_KEY); h.plan = 2; h.demo = false; });
+beforeEach(() => { localStorage.removeItem(REWIND_SETTINGS_KEY); localStorage.removeItem(PADDING_KEY); h.plan = 2; h.demo = false; });
 
 describe('Rewind live TV settings', () => {
   it('says it uses one extra stream on the line', async () => {
@@ -60,5 +61,45 @@ describe('Rewind live TV settings', () => {
     expect(loadRewindSettings().maxRewind).toBe(30);
     key('Escape');
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('Start early / End late', () => {
+  const chips = (row: string) => Array.from(document.querySelectorAll(`[data-rewind-row="${row}"] span`)).map((n) => n.textContent);
+
+  it('the screen is "Rewind & recording", with the two rows and their choices', async () => {
+    render(<RewindSettingsScreen onBack={vi.fn()} />);
+    await settle();
+    expect(document.querySelector('h1')?.textContent).toBe('Rewind & recording');
+    expect(chips('before')).toEqual(['0 min', '2 min', '5 min', '10 min']);
+    expect(chips('after')).toEqual(['0 min', '5 min', '10 min', '15 min', '30 min']);
+    // The defaults: 2 minutes early, 5 late.
+    expect(loadPadding()).toEqual({ beforeMin: 2, afterMin: 5 });
+  });
+
+  it('◀▶ change them and the choice is kept', async () => {
+    render(<RewindSettingsScreen onBack={vi.fn()} />);
+    await settle();
+    key('ArrowDown'); key('ArrowDown'); // Max rewind, then Start early
+    expect(document.querySelector('[data-rewind-row="before"]')?.getAttribute('data-focused')).toBe('true');
+    key('ArrowRight'); key('ArrowRight');
+    expect(loadPadding().beforeMin).toBe(10);
+    key('ArrowRight'); // the last choice stays
+    expect(loadPadding().beforeMin).toBe(10);
+    key('ArrowLeft');
+    expect(loadPadding().beforeMin).toBe(5);
+    key('ArrowDown'); // End late
+    key('ArrowRight'); key('ArrowRight'); key('ArrowRight'); key('ArrowRight');
+    expect(loadPadding().afterMin).toBe(30);
+    expect(loadPadding()).toEqual({ beforeMin: 5, afterMin: 30 });
+  });
+
+  it('OK steps to the next choice and wraps round', async () => {
+    render(<RewindSettingsScreen onBack={vi.fn()} />);
+    await settle();
+    key('ArrowDown'); key('ArrowDown'); // Start early
+    key('Enter'); key('Enter'); key('Enter'); // 5, 10, back to 0
+    expect(loadPadding().beforeMin).toBe(0);
   });
 });

@@ -38,6 +38,14 @@
          and its own permission; both are normal permissions, granted at install. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Scheduled recordings start from an exact alarm (setAlarmClock), which is
+         also what lets the app start its recording service from the background
+         on Android 12+. Android 13+ grants USE_EXACT_ALARM at install (for
+         alarm-style apps; SMC is not on Google Play, revisit if it ever is).
+         Android 12 and 12L use SCHEDULE_EXACT_ALARM, which the viewer can
+         revoke: the Recordings screen then offers the settings page. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <!-- Required on Android 11+ (API 30) to enumerate every installed package -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
@@ -159,6 +167,30 @@
             android:name="com.snowmedia.dvr.RecordingService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- A scheduled recording's alarm. Not exported: only the alarm manager,
+             holding the app's own PendingIntent (schedule id only), reaches it. -->
+        <receiver
+            android:name="com.snowmedia.dvr.ScheduleAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Puts the scheduled recordings' alarms back after a reboot, an update,
+             a clock change or a change of the exact-alarm permission. Exported
+             for the system's own messages, like the alert poll's BootReceiver;
+             it does nothing for any other action. -->
+        <receiver
+            android:name="com.snowmedia.dvr.RecordRearmReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Re-arms the alert poll after a reboot. -->
         <receiver

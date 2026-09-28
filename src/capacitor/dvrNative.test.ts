@@ -19,6 +19,14 @@ import budget from '../../android/app/src/main/java/com/snowmedia/dvr/StorageBud
 import service from '../../android/app/src/main/java/com/snowmedia/dvr/RecordingService.kt?raw';
 import store from '../../android/app/src/main/java/com/snowmedia/dvr/RecordingStore.kt?raw';
 import recorder from '../../android/app/src/main/java/com/snowmedia/dvr/RecorderPlugin.kt?raw';
+import rules from '../../android/app/src/main/java/com/snowmedia/dvr/ScheduleRules.kt?raw';
+import lineCreds from '../../android/app/src/main/java/com/snowmedia/dvr/LineCreds.kt?raw';
+import scheduleStore from '../../android/app/src/main/java/com/snowmedia/dvr/ScheduleStore.kt?raw';
+import scheduler from '../../android/app/src/main/java/com/snowmedia/dvr/RecordScheduler.kt?raw';
+import alarmReceiver from '../../android/app/src/main/java/com/snowmedia/dvr/ScheduleAlarmReceiver.kt?raw';
+import rearmReceiver from '../../android/app/src/main/java/com/snowmedia/dvr/RecordRearmReceiver.kt?raw';
+import xtream from '../lib/xtream.ts?raw';
+import widget from '../../android/app/src/main/java/com/snowmedia/widget/SmcNewsWidget.kt?raw';
 import activity from '../../android/app/src/main/java/com/snowmedia/MainActivity.kt?raw';
 import manifest from '../../android/app/src/main/AndroidManifest.xml?raw';
 import iconXml from '../../android/app/src/main/res/drawable/ic_stat_snow.xml?raw';
@@ -34,6 +42,8 @@ const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*
 const dvr = [
   ['LiveSource', source], ['TimeshiftSession', session], ['TimeshiftManager', manager], ['TsSegmenter', segmenter],
   ['StorageBudget', budget], ['RecordingService', service], ['RecorderPlugin', recorder], ['RecordingStore', store],
+  ['LineCreds', lineCreds], ['ScheduleStore', scheduleStore], ['RecordScheduler', scheduler],
+  ['ScheduleAlarmReceiver', alarmReceiver], ['RecordRearmReceiver', rearmReceiver], ['ScheduleRules', rules],
 ] as const;
 
 describe('stream addresses and logins are never logged', () => {
@@ -184,11 +194,12 @@ describe('the login never leaves the recording thread', () => {
     expect(service).not.toMatch(/START_REDELIVER_INTENT|START_STICKY\b/);
   });
 
-  it('the address goes only in one in-app intent to the service, and only the plugin builds it', () => {
+  it('the address goes only in one in-app intent to the service each, built by the plugin (Record now) and by the alarm receiver (a scheduled start)', () => {
     expect(recorder.match(/putExtra\(RecordingService\.EXTRA_URL/g)).toHaveLength(1);
+    expect(alarmReceiver.match(/putExtra\(RecordingService\.EXTRA_URL/g)).toHaveLength(1);
     expect(service).not.toMatch(/putExtra\(EXTRA_URL/);
     for (const [name, src] of dvr) {
-      if (name === 'RecorderPlugin') continue;
+      if (name === 'RecorderPlugin' || name === 'ScheduleAlarmReceiver') continue;
       expect(src, name).not.toMatch(/setPackage|sendBroadcast|PendingIntent\.[a-zA-Z]+\([^)]*EXTRA_URL/);
     }
   });
@@ -249,12 +260,11 @@ describe("SMC's recorder rules", () => {
     expect(body(service, 'private fun startJob(intent: Intent)')).toContain('>= MAX_SIMULTANEOUS');
   });
 
-  it('a job can later carry a schedule id, a title and an absolute end (no scheduling yet)', () => {
+  it('a job can carry a schedule id, a title and an absolute end; the service itself sets no alarm', () => {
     expect(service).toContain('const val EXTRA_ENDS_AT = "endsAt"');
     expect(service).toContain('const val EXTRA_SCHEDULE_ID = "scheduleId"');
     expect(service).toContain('const val EXTRA_TITLE = "title"');
     expect(service).not.toMatch(/AlarmManager|BroadcastReceiver/);
-    expect(manifest).not.toMatch(/SCHEDULE_EXACT_ALARM|USE_EXACT_ALARM/);
   });
 });
 
@@ -266,5 +276,177 @@ describe('CH+ / CH- keys', () => {
     expect(activity).toContain("new CustomEvent('smc:mediakey'");
     // Fast-forward and Rewind still repeat when held (the skip queue adds them up).
     expect(activity).not.toMatch(/toggles = [^\n]*name == "(ff|rw)"/);
+  });
+});
+
+
+describe('scheduled recordings never keep or log a login', () => {
+  const sched = [
+    ['ScheduleRules', rules], ['ScheduleStore', scheduleStore], ['RecordScheduler', scheduler],
+    ['ScheduleAlarmReceiver', alarmReceiver], ['RecordRearmReceiver', rearmReceiver],
+  ] as const;
+
+  it.each(sched)('%s stores, logs and prints no address, user name or password', (_n, src) => {
+    for (const line of logLines(src)) {
+      expect(line).not.toMatch(/\burl\b|e\.message|\$e\b|, e\)|, t\)/);
+      expect(line).not.toMatch(/password|username|token|creds|login/i);
+    }
+    // No field of a schedule (or a JSON key it is stored under) is an address or a login.
+    expect(code(src)).not.toMatch(/put\("(url|username|password|pass|token)"|optString\("(url|username|password)"/);
+  });
+
+  it('the schedule record and the store hold ids, names, times, padding, drive and status only', () => {
+    const rec = code(body(rules, 'internal data class Sched('));
+    expect(rec).not.toMatch(/\burl\b|username|password|token/i);
+    expect(code(scheduleStore)).not.toMatch(/getSharedPreferences|SharedPreferences|\burl\b|username|password|token/i);
+    // The account is only a short hash, so a switched account is noticed without keeping the name.
+    expect(rec).toContain('val userTag: String');
+    expect(lineCreds).toContain('fun userTag(host: String, username: String): String');
+    expect(lineCreds).toContain('SHA-256');
+  });
+
+  it('the web list of schedules leaves out the line and the account hash', () => {
+    const js = body(scheduleStore, 'fun toJs(s: Sched): JSObject');
+    expect(js).not.toMatch(/"host"|"userTag"/);
+  });
+
+  it("only LineCreds reads the Player's login, and its result never leaves the process", () => {
+    for (const [name, src] of dvr) {
+      if (name === 'LineCreds') continue;
+      expect(code(src), name).not.toMatch(/CapacitorStorage|snow-livetv-creds|snow-player-account/);
+      if (name !== 'RecorderPlugin') expect(code(src), name).not.toMatch(/LineCreds\.read\(/);
+    }
+    // read() is used by the plugin only to check the line and hash the account when a schedule is made.
+    expect(recorder.match(/LineCreds\.read\(/g)).toHaveLength(1);
+    expect(lineCreds).toMatch(/class Login\(val host: String, val username: String, val password: String\)/);
+    // A class with a password in it must not print itself.
+    expect(code(lineCreds)).not.toMatch(/data class Login|override fun toString/);
+  });
+
+  it('the alarm PendingIntent carries only the schedule id', () => {
+    const fireIntent = body(scheduler, 'private fun fireIntent(ctx: Context, id: String): PendingIntent');
+    const extras = fireIntent.match(/putExtra\(/g) ?? [];
+    expect(extras).toHaveLength(1);
+    expect(fireIntent).toContain('.putExtra(EXTRA_SCHEDULE, id)');
+    expect(fireIntent).toContain('setData(Uri.parse("smc-schedule:$id"))');
+    expect(fireIntent).not.toMatch(/url|password|username|host|path|title|channel/i);
+    // Immutable, and aimed at our own receiver by class.
+    expect(fireIntent).toContain('Intent(ctx, ScheduleAlarmReceiver::class.java)');
+    expect(scheduler).toContain('PendingIntent.FLAG_IMMUTABLE');
+    // The only PendingIntents in the scheduler: the alarm, the show-app intent and the notification tap.
+    expect(code(scheduler)).not.toMatch(/EXTRA_URL|LineCreds/);
+  });
+
+  it('notifications name the channel and the programme only', () => {
+    expect(body(scheduler, 'fun label(s: Sched): String')).toContain('s.programmeTitle');
+    for (const fn of ['fun miss(', 'fun fail(', 'fun startedLate(']) {
+      const b = body(scheduler, fn);
+      expect(b).not.toMatch(/\burl\b|password|username|host|userTag/i);
+    }
+  });
+
+  it('the address is rebuilt at fire time from the saved login, and a missing or different login is a plain failure', () => {
+    const fire = body(alarmReceiver, 'private fun fire(ctx: Context, id: String)');
+    expect(fire).toContain('LineCreds.resolve(ctx, s.host, s.userTag, s.streamId)');
+    expect(fire).toContain('ScheduleReasons.NO_LOGIN');
+    expect(fire).toContain('ScheduleReasons.OTHER_LINE');
+    expect(fire).toContain('RecordingService.tryReserve(runId, cap)');
+    expect(fire).toContain('Fire.MISSED');
+    expect(fire).toContain('ScheduleReasons.BLOCKED');
+    expect(lineCreds).toContain('fun buildLiveTsUrl(host: String, username: String, password: String, streamId: Long): String');
+    expect(lineCreds).toContain('/live/${encodeUriComponent(username)}/${encodeUriComponent(password)}/$streamId.ts');
+  });
+
+  it('the alarm is setAlarmClock with an inexact fallback five minutes early', () => {
+    expect(scheduler).toContain('am.setAlarmClock(AlarmManager.AlarmClockInfo(');
+    expect(scheduler).toContain('am.canScheduleExactAlarms()');
+    expect(scheduler).toContain('const val INEXACT_LEAD_MS = 5L * 60_000L');
+    expect(scheduler).toContain('am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)');
+  });
+
+  it('the plugin offers schedule, cancelSchedule, listSchedules, exactAlarmStatus and openExactAlarmSettings, and re-arms when it loads', () => {
+    for (const m of ['fun schedule(call: PluginCall)', 'fun cancelSchedule(call: PluginCall)', 'fun listSchedules(call: PluginCall)',
+      'fun exactAlarmStatus(call: PluginCall)', 'fun openExactAlarmSettings(call: PluginCall)']) {
+      expect(recorder).toContain(`@PluginMethod\n    ${m}`);
+    }
+    expect(body(recorder, 'override fun load()')).toContain('RecordScheduler.rearm(context)');
+    expect(recorder).toContain('notifyListeners("recordingsChanged", JSObject())');
+  });
+
+  it('numbers are read as any JSON number: PluginCall.getLong only accepts a Long, and a stream id arrives as an Integer', () => {
+    const sch = body(recorder, 'fun schedule(call: PluginCall)');
+    expect(sch).not.toMatch(/call\.getLong\(|call\.getInt\(/);
+    for (const f of ['streamId', 'startUtcMs', 'endUtcMs']) expect(sch).toContain(`call.long("${f}")`);
+    for (const f of ['padBeforeMin', 'padAfterMin', 'maxConnections']) expect(sch).toContain(`call.int("${f}")`);
+    expect(recorder).toContain('private fun PluginCall.long(name: String): Long = (data.opt(name) as? Number)?.toLong() ?: 0L');
+  });
+
+  it('the service tells the schedule store how a recording ended and tells the web side', () => {
+    expect(body(service, 'private fun jobDone(job: Job)')).toContain('ScheduleStore.finishRecording(');
+    expect(body(service, 'private fun jobDone(job: Job)')).toContain('RecorderPlugin.emitChanged()');
+    expect(body(service, 'private fun startJob(intent: Intent)')).toContain('RecorderPlugin.emitChanged()');
+    expect(service).toContain('const val ACTION_EXTEND');
+  });
+});
+
+describe('the manifest declares the scheduler', () => {
+  it('exact-alarm permissions: USE_EXACT_ALARM, and SCHEDULE_EXACT_ALARM only up to Android 12L', () => {
+    expect(manifest).toContain('<uses-permission android:name="android.permission.USE_EXACT_ALARM" />');
+    expect(manifest).toMatch(/<uses-permission android:name="android\.permission\.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" \/>/);
+    expect(manifest).toContain('android.permission.RECEIVE_BOOT_COMPLETED');
+  });
+
+  it('the alarm receiver is not exported', () => {
+    expect(manifest).toMatch(/android:name="com\.snowmedia\.dvr\.ScheduleAlarmReceiver"\s*android:exported="false"/);
+    // It has no intent filter: only our own PendingIntent (explicit) reaches it.
+    const at = manifest.indexOf('com.snowmedia.dvr.ScheduleAlarmReceiver');
+    expect(manifest.slice(at, manifest.indexOf('/>', at))).not.toContain('intent-filter');
+  });
+
+  it('the re-arm receiver is exported for the system messages and listens for exactly the actions it handles', () => {
+    const at = manifest.indexOf('com.snowmedia.dvr.RecordRearmReceiver');
+    expect(at).toBeGreaterThan(0);
+    const block = manifest.slice(at, manifest.indexOf('</receiver>', at));
+    expect(block).toContain('android:exported="true"');
+    const declared = [...block.matchAll(/<action android:name="([^"]+)"/g)].map((m) => m[1]).sort();
+    expect(declared).toEqual([
+      'android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED',
+      'android.intent.action.BOOT_COMPLETED',
+      'android.intent.action.MY_PACKAGE_REPLACED',
+      'android.intent.action.QUICKBOOT_POWERON',
+      'android.intent.action.TIMEZONE_CHANGED',
+      'android.intent.action.TIME_SET',
+    ]);
+    // And the code answers to the same set, nothing more.
+    expect(rearmReceiver).toContain('if (action !in ACTIONS) return');
+    for (const a of ['Intent.ACTION_BOOT_COMPLETED', '"android.intent.action.QUICKBOOT_POWERON"', 'Intent.ACTION_MY_PACKAGE_REPLACED',
+      'Intent.ACTION_TIME_CHANGED', 'Intent.ACTION_TIMEZONE_CHANGED', 'AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED']) {
+      expect(rearmReceiver).toContain(a);
+    }
+  });
+
+  it('the re-arm receiver never starts a recording (a boot receiver may not start a foreground service on Android 15)', () => {
+    expect(code(rearmReceiver)).not.toMatch(/startForegroundService|startService|RecordingService/);
+  });
+});
+
+describe('the login key names native repeats are the ones xtream.ts saves under', () => {
+  it('snow-livetv-creds-v1 and snow-player-account-v1', () => {
+    const creds = /const CREDS_KEY = '([^']+)'/.exec(xtream)![1];
+    const account = /const PLAYER_ACCOUNT_KEY = '([^']+)'/.exec(xtream)![1];
+    expect(lineCreds).toContain(`const val KEY_CREDS = "${creds}"`);
+    expect(lineCreds).toContain(`const val KEY_ACCOUNT = "${account}"`);
+  });
+
+  it("Capacitor Preferences' Android file is CapacitorStorage (the widget reads the same one)", () => {
+    expect(lineCreds).toContain('const val CAP_STORE = "CapacitorStorage"');
+    expect(widget).toContain('private const val CAP_STORE = "CapacitorStorage"');
+  });
+
+  it('the login fields are read under the names xtream.ts writes', () => {
+    for (const f of ['host', 'username', 'password']) {
+      expect(lineCreds).toContain(`optString("${f}")`);
+      expect(xtream).toMatch(new RegExp(`\\b${f}: (?:string|c\\.)`));
+    }
   });
 });

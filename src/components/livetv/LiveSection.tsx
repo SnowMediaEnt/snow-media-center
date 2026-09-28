@@ -64,8 +64,9 @@ import type { VideoController } from './VideoPlayer';
 import { AlertTriangle, RotateCw } from 'lucide-react';
 import { hasNativePlayer, SnowPlayer } from '@/capacitor/SnowPlayer';
 import { SnowRecorder, RECORDINGS_CHANGED_EVENT, hasRecorder, notifyRecordingsChanged, type RecordingJob } from '@/capacitor/SnowRecorder';
+import { programmeTimeUtcMs } from '@/lib/recordSchedule';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
-import { useLiveRewind, rewindOffMessage, type RewindOffReason } from '@/hooks/useLiveRewind';
+import { useLiveRewind, rewindOffMessage, panelOffset, type RewindOffReason } from '@/hooks/useLiveRewind';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { usePlayerEngine } from '@/hooks/usePlayerEngine';
 import { recordEngineSample, sampleFromStats } from '@/lib/engineCompare';
@@ -494,14 +495,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const recFocusedRef = useRef(recFocused);
   recFocusedRef.current = recFocused;
   const [hasRecordings, setHasRecordings] = useState(false);
+  // Schedules (set for later, or missed) give the Recordings entry a reason to show before any file exists.
+  const [hasSchedules, setHasSchedules] = useState(false);
   const [recJobs, setRecJobs] = useState<RecordingJob[]>([]);
   // Re-reads what is recorded and what is recording. The one place a
   // "recordings changed" event lands: the screens fire it after a start, stop,
   // rename or delete (notifyRecordingsChanged), and the native side's own
-  // event (a scheduled start, a recording that ended) is to call it too.
+  // 'recordingsChanged' event (a scheduled start, a recording that ended)
+  // fires the same event (SnowRecorder.ts).
   const refreshRecordings = useCallback(() => {
     if (!recordOnRef.current) return;
     SnowRecorder.list().then((r) => setHasRecordings(r.recordings.length > 0)).catch(() => { /* older app */ });
+    SnowRecorder.listSchedules().then((r) => setHasSchedules(r.schedules.length > 0)).catch(() => { /* older app */ });
     SnowRecorder.active().then((r) => setRecJobs(r.jobs)).catch(() => { /* older app */ });
   }, []);
   useEffect(() => {
@@ -1072,6 +1077,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // EPG lazy fetch with concurrency cap
   const epgKey = useCallback((st: XtreamLiveStream) => `${lineKey(lineFor(st))}:${st.stream_id}`, [lineFor]);
   const epgFor = useCallback((st: XtreamLiveStream | null | undefined) => (st ? epgCacheRef.current.get(epgKey(st)) : undefined), [epgKey]);
+  // The programme on now, with its true end (the panel's clock is not always the box's), for the
+  // "This programme (until …)" chip. It may arrive after the dialog opens.
+  const [recordProgramme, setRecordProgramme] = useState<{ title: string; endMs: number } | null>(null);
+  useEffect(() => {
+    const nn = recordFor ? epgFor(recordFor.st)?.now : undefined;
+    if (!recordFor || !nn) { setRecordProgramme(null); return; }
+    let alive = true;
+    void panelOffset(recordFor.line)
+      .then((off) => {
+        if (alive) setRecordProgramme({ title: nn.title, endMs: programmeTimeUtcMs(nn.endRaw, off) ?? nn.end });
+      })
+      .catch(() => { if (alive) setRecordProgramme({ title: nn.title, endMs: nn.end }); });
+    return () => { alive = false; };
+  }, [recordFor, epgFor]);
   // The queue only ever holds rows on screen (plus the focused channel). It
   // used to keep every row ever scrolled past and drained it to the end —
   // through fullscreen playback and after Live TV had closed — with the rows
@@ -1616,7 +1635,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   playingLineRef.current = playingLine;
   const playingStreamRef = useRef<XtreamLiveStream | null>(null);
   // The Recordings entry under Search is on screen (once something is recorded).
-  const showRecEntry = recordOn && hasRecordings && !searchOpen;
+  const showRecEntry = recordOn && (hasRecordings || hasSchedules) && !searchOpen;
   const recEntryRef = useRef(showRecEntry);
   recEntryRef.current = showRecEntry;
   // It went away (the last recording deleted) while highlighted: hand the highlight back.
@@ -2122,6 +2141,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     <RecordDialog
       channelName={recordFor.st.name}
       maxConnections={planFor(recordFor.line)}
+      programme={recordProgramme}
       activeJob={jobFor(recordFor.st.name)}
       onStart={(choice) => { const t = recordFor; closeRecordDialog(); void startRecording(t, choice); }}
       onStop={(id) => {

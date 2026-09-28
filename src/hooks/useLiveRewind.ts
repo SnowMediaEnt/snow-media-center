@@ -117,7 +117,12 @@ export interface LiveRewind {
 
 /** Panel clock offsets, per server, for this run. */
 const offsetByHost = new Map<string, number>();
-async function panelOffset(line: XtreamCreds): Promise<number> {
+/**
+ * Minutes the panel's clock is ahead of UTC (cached per server for the run;
+ * the box's own offset when the panel doesn't say). Also used by scheduled
+ * recordings to turn a listing's panel-time text into a real moment.
+ */
+export async function panelOffset(line: XtreamCreds): Promise<number> {
   const known = offsetByHost.get(line.host);
   if (known != null) return known;
   let off: number | null = null;

@@ -57,7 +57,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     { id: 'switch',     label: 'Switch Account',    icon: Users },
     { id: 'categories', label: 'Hide Categories',   icon: ListFilter },
     { id: 'appearance', label: 'Appearance',        icon: Palette },
-    { id: 'rewind',     label: 'Rewind live TV',    icon: History },
+    { id: 'rewind',     label: 'Rewind & recording', icon: History },
     { id: 'playback',   label: 'Playback',          icon: Gauge },
     { id: 'signout',    label: 'Sign Out',          icon: LogOut },
   ], [billingOn]);

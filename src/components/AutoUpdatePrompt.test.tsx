@@ -8,6 +8,9 @@ vi.mock('@/utils/pausableInterval', () => ({ setPausableInterval: () => () => {}
 vi.mock('@/utils/network', () => ({
   robustFetch: async () => ({ text: async () => JSON.stringify({ version: '1.7.9', versionCode: 179, downloadUrl: 'https://example.test/smc.apk' }) }),
 }));
+// The recording guard (TRACKER 25.15): what the updater is told about running or imminent recordings.
+const guard = vi.hoisted(() => ({ note: null as string | null }));
+vi.mock('@/lib/recordSchedule', () => ({ recordingGuardNote: async () => guard.note }));
 let finishDownload: (() => void) | null = null;
 const prepareSmcUpdate = vi.fn(() => new Promise((resolve) => {
   finishDownload = () => resolve({ filePath: '/cache/apk/1.7.9.apk', apkVersionName: '1.7.9', apkVersionCode: 179, apkPackageName: 'com.snowmedia.center' });
@@ -29,6 +32,7 @@ beforeEach(() => {
   prepareSmcUpdate.mockClear();
   installPreparedUpdate.mockClear();
   finishDownload = null;
+  guard.note = null;
 });
 afterEach(() => { vi.useRealTimers(); });
 
@@ -81,5 +85,64 @@ describe('AutoUpdatePrompt', () => {
     await tick(5000);
     expect(prepareSmcUpdate).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/Update available/)).toBeNull();
+  });
+});
+
+describe('AutoUpdatePrompt with a recording at stake', () => {
+  async function openPrompt() {
+    render(<AutoUpdatePrompt paused={false} />);
+    await tick(5000);
+    await act(async () => { finishDownload?.(); await vi.advanceTimersByTimeAsync(0); });
+    await tick(900);
+  }
+  const buttons = () => Array.from(document.querySelectorAll<HTMLButtonElement>('[data-autoupdate-dialog] button:not([tabindex="-1"])'));
+  const byText = (t: string) => buttons().find((b) => b.textContent?.includes(t));
+
+  it('says a recording is running and updating will stop it; Later is the default, and OK on it installs nothing', async () => {
+    guard.note = 'A recording is running. Updating now will stop it.';
+    await openPrompt();
+    expect(document.querySelector('[data-autoupdate-guard]')?.textContent).toContain('A recording is running. Updating now will stop it.');
+    const later = byText('Later')!;
+    expect(later.getAttribute('data-autoupdate-primary')).toBe('true');
+    expect(document.activeElement).toBe(later);
+    expect(byText('Update anyway')?.getAttribute('data-autoupdate-primary')).toBeNull();
+    fireEvent.click(later);
+    await tick(0);
+    expect(installPreparedUpdate).not.toHaveBeenCalled();
+    expect(dialog()).toBeNull();
+  });
+
+  it('"Update anyway" still installs', async () => {
+    guard.note = 'A recording is scheduled to start soon. Updating now will stop it.';
+    await openPrompt();
+    expect(document.querySelector('[data-autoupdate-guard]')?.textContent).toContain('scheduled to start soon');
+    fireEvent.click(byText('Update anyway')!);
+    await tick(0);
+    expect(installPreparedUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('a recording that started while the prompt was up is caught when Update now is pressed', async () => {
+    await openPrompt();
+    expect(document.querySelector('[data-autoupdate-guard]')).toBeNull();
+    expect(byText('Update now')?.getAttribute('data-autoupdate-primary')).toBe('true');
+    guard.note = 'A recording is running. Updating now will stop it.';
+    fireEvent.click(byText('Update now')!);
+    await tick(0); // the check answers, the warning is drawn…
+    await tick(200); // …and the default moves to Later
+    expect(installPreparedUpdate).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-autoupdate-guard]')).not.toBeNull();
+    expect(document.activeElement).toBe(byText('Later'));
+    fireEvent.click(byText('Update anyway')!);
+    await tick(0);
+    expect(installPreparedUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('Back is Later: it closes the prompt and installs nothing', async () => {
+    guard.note = 'A recording is running. Updating now will stop it.';
+    await openPrompt();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await tick(0);
+    expect(dialog()).toBeNull();
+    expect(installPreparedUpdate).not.toHaveBeenCalled();
   });
 });

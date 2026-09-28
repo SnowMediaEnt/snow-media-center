@@ -45,8 +45,15 @@ import java.util.concurrent.ConcurrentHashMap
  * The stream address carries the line's username and password. It only
  * travels inside this app (the service is not exported), goes to the
  * recording thread and nowhere else: never logged, stored, put in a file
- * name or a PendingIntent. A job later started by a schedule carries only the
- * schedule's id and a title, never an address.
+ * name or a PendingIntent. A job started by a schedule (ScheduleAlarmReceiver
+ * rebuilds the address at that moment from the saved Player login) also
+ * carries the schedule's id and the programme title, which are all a
+ * notification or the index ever shows.
+ *
+ * Scheduled recordings: the job knows which schedules it carries (their
+ * `recordingId` is the job's id), tells the schedule store when it ends, and
+ * tells the web side (RecorderPlugin.emitChanged) whenever a recording starts
+ * or ends, so the screen and the Rewind gate hear about a scheduled start.
  */
 class RecordingService : Service() {
 
@@ -56,16 +63,22 @@ class RecordingService : Service() {
         /** The first part's file; the later parts are named from it. */
         val firstFile: File,
         val startedAt: Long,
-        /** Wall-clock end (absolute); 0 = until stopped. */
-        val endsAt: Long,
+        /** Wall-clock end (absolute); 0 = until stopped. A later programme on the same channel can push it out. */
+        @Volatile var endsAt: Long,
         /** Stop when the drive has less than this free. */
         val minFreeBytes: Long,
         /** Carry on in a new file at this size (a FAT32 stick holds less than 4 GB). */
         val partLimitBytes: Long,
-        /** Set by a scheduled recording (later); a manual one has neither. */
+        /** Set by a scheduled recording; a manual one has neither. */
         val scheduleId: String? = null,
-        val title: String? = null,
+        /** The programme title (or several, joined) of a scheduled recording. */
+        @Volatile var title: String? = null,
+        /** Which line and channel a scheduled recording is on, so the next programme of it can join this job. */
+        val lineKey: String? = null,
+        val streamId: Long = 0L,
     ) {
+        /** Stops the job at [endsAt]; replaced when the end moves. */
+        var stopTask: Runnable? = null
         /** The part being written, and its id in the recordings index (part 1's is [id]). */
         @Volatile var file: File = firstFile
         @Volatile var partId: String = id
@@ -101,6 +114,7 @@ class RecordingService : Service() {
                 val id = intent.getStringExtra(EXTRA_ID)
                 if (id == null) jobs.values.forEach { it.stop() } else jobFor(id)?.stop()
             }
+            ACTION_EXTEND -> extendJob(intent)
         }
         if (jobs.isEmpty()) finishIfIdle()
         return START_NOT_STICKY
@@ -110,10 +124,10 @@ class RecordingService : Service() {
         val id = intent.getStringExtra(EXTRA_ID) ?: return
         val url = intent.getStringExtra(EXTRA_URL)
         val path = intent.getStringExtra(EXTRA_PATH)
-        if (url == null || path == null) { release(id); return }
+        if (url == null || path == null) { release(id); failSchedules(id, ScheduleReasons.START_FAILED); return }
         val channel = intent.getStringExtra(EXTRA_CHANNEL) ?: "Channel"
         val now = System.currentTimeMillis()
-        // The end is a length from now, or (a scheduled start, later) a clock time.
+        // The end is a length from now, or (a scheduled start) a clock time.
         val durationMs = intent.getLongExtra(EXTRA_DURATION_MS, 0L)
         val endsAt = intent.getLongExtra(EXTRA_ENDS_AT, 0L).takeIf { it > now } ?: if (durationMs > 0) now + durationMs else 0L
         val removable = intent.getBooleanExtra(EXTRA_REMOVABLE, false)
@@ -123,19 +137,58 @@ class RecordingService : Service() {
             partLimitBytes = RecordingStore.partLimitBytes(removable),
             scheduleId = intent.getStringExtra(EXTRA_SCHEDULE_ID),
             title = intent.getStringExtra(EXTRA_TITLE),
+            lineKey = intent.getStringExtra(EXTRA_LINE_KEY),
+            streamId = intent.getLongExtra(EXTRA_STREAM_ID, 0L),
         )
         // The reservation turns into the job in one step, so two starts
         // arriving together can't both pass the cap.
-        synchronized(lock) {
+        val accepted = synchronized(lock) {
             pending.remove(id)
-            if (jobs.containsKey(id) || jobs.values.count { !it.stopped } >= MAX_SIMULTANEOUS) return
-            jobs[id] = job
+            if (jobs.containsKey(id) || jobs.values.count { !it.stopped } >= MAX_SIMULTANEOUS) false else { jobs[id] = job; true }
+        }
+        if (!accepted) {
+            failSchedules(id, ScheduleReasons.tooMany(activeCount().coerceAtLeast(1)))
+            return
         }
         RecordingStore.begin(applicationContext, id, job.file, channel, now, job.scheduleId, job.title)
         holdLocks()
         updateNotification()
-        if (job.endsAt > 0) handler.postDelayed({ job.stop() }, job.endsAt - now)
+        scheduleStop(job)
+        RecorderPlugin.emitChanged()
         Thread({ record(job, url) }, "smc-record").apply { isDaemon = true }.start()
+    }
+
+    /** Stop [job] at its end time (again, if the end moved). */
+    private fun scheduleStop(job: Job) {
+        job.stopTask?.let { handler.removeCallbacks(it) }
+        job.stopTask = null
+        if (job.endsAt <= 0) return
+        val task = Runnable { job.stop() }
+        job.stopTask = task
+        handler.postDelayed(task, (job.endsAt - System.currentTimeMillis()).coerceAtLeast(0L))
+    }
+
+    /**
+     * The next programme on the same channel starts as this one ends: keep
+     * the one connection and the one file, and run to the new end. Only ever
+     * later (a shorter end is ignored).
+     */
+    private fun extendJob(intent: Intent) {
+        val job = intent.getStringExtra(EXTRA_ID)?.let { jobFor(it) } ?: return
+        if (job.stopped) return
+        val to = intent.getLongExtra(EXTRA_ENDS_AT, 0L)
+        if (job.endsAt <= 0 || to <= job.endsAt) return
+        job.endsAt = to
+        intent.getStringExtra(EXTRA_TITLE)?.takeIf { it.isNotBlank() }?.let { job.title = it }
+        scheduleStop(job)
+        updateNotification()
+        RecorderPlugin.emitChanged()
+    }
+
+    /** A start that never became a job: the schedules waiting on it failed. */
+    private fun failSchedules(recordingId: String, reason: String) {
+        ScheduleStore.failRecording(applicationContext, recordingId, System.currentTimeMillis(), reason)
+        RecorderPlugin.emitChanged()
     }
 
     /** Recording thread. Reconnects on its own until the job ends. */
@@ -228,6 +281,8 @@ class RecordingService : Service() {
 
     private fun jobDone(job: Job) {
         jobs.remove(job.id)
+        if (job.scheduleId != null) ScheduleStore.finishRecording(applicationContext, job.id, System.currentTimeMillis(), job.endReason)
+        RecorderPlugin.emitChanged()
         job.endReason?.let { notifyEnded(job, it) }
         if (jobs.isEmpty()) finishIfIdle() else updateNotification()
     }
@@ -270,7 +325,8 @@ class RecordingService : Service() {
         val list = jobs.values.toList()
         val title = when (list.size) {
             0 -> "Recording"
-            1 -> "Recording ${list[0].channel}"
+            // A scheduled one names its programme too: "Recording The News (CNN)".
+            1 -> list[0].title?.takeIf { it.isNotBlank() }?.let { "Recording $it (${list[0].channel})" } ?: "Recording ${list[0].channel}"
             else -> "Recording ${list.size} channels"
         }
         // Every recording is one more stream on the line: said in the
@@ -351,19 +407,24 @@ class RecordingService : Service() {
         private const val TAG = "SmcRecord"
         const val ACTION_START = "com.snowmedia.dvr.RECORD_START"
         const val ACTION_STOP = "com.snowmedia.dvr.RECORD_STOP"
+        /** A scheduled programme joins the recording already running on its channel (EXTRA_ID, EXTRA_ENDS_AT, EXTRA_TITLE). */
+        const val ACTION_EXTEND = "com.snowmedia.dvr.RECORD_EXTEND"
         const val EXTRA_ID = "id"
         const val EXTRA_URL = "url"
         const val EXTRA_PATH = "path"
         const val EXTRA_CHANNEL = "channel"
         const val EXTRA_DURATION_MS = "durationMs"
-        /** Absolute end (wall clock, ms) instead of a length: for a scheduled recording, later. */
+        /** Absolute end (wall clock, ms) instead of a length: for a scheduled recording. */
         const val EXTRA_ENDS_AT = "endsAt"
         /** The drive is a USB stick / SD card (smaller free-space floor, parts at 3.9 GB). */
         const val EXTRA_REMOVABLE = "removable"
-        /** A scheduled recording's id and programme title (later); never an address. */
+        /** A scheduled recording's id and programme title; never an address. */
         const val EXTRA_SCHEDULE_ID = "scheduleId"
         const val EXTRA_TITLE = "title"
-        private const val CHANNEL_ID = "smc_recordings"
+        /** Which channel and line a scheduled recording is on (the line as host + account hash: no login). */
+        const val EXTRA_STREAM_ID = "streamId"
+        const val EXTRA_LINE_KEY = "lineKey"
+        const val CHANNEL_ID = "smc_recordings"
         private const val NOTIFICATION_ID = 7301
         /** Recordings running at once: each is one more stream on the viewer's line. */
         const val MAX_SIMULTANEOUS = 2
@@ -382,6 +443,9 @@ class RecordingService : Service() {
         internal fun jobFor(id: String): Job? = jobs[id] ?: jobs.values.firstOrNull { it.partId == id }
 
         fun isActive(id: String): Boolean = jobs.values.any { !it.stopped && it.partId == id }
+
+        /** Ids of recordings running or about to (accepted, job not registered yet): what a re-arm must leave alone. */
+        fun busyIds(): Set<String> = synchronized(lock) { jobs.keys.toSet() + pending.keys }
 
         /** Recordings running now (started, not stopped). */
         fun activeCount(): Int = jobs.values.count { !it.stopped }

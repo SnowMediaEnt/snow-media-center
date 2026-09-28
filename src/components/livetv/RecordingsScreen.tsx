@@ -3,6 +3,15 @@
 // OK on one: Play (the native player, from the file), Rename, Delete (asks to
 // confirm), or Stop while it is still recording.
 //
+// Scheduled recordings (25.13) sit above them:
+// - "Scheduled": programmes set from the Guide, soonest first; OK offers
+//   Cancel schedule (asks to confirm, like Delete) or Back. There is no edit:
+//   cancel and schedule again.
+// - "Missed / didn't start": the reason in plain words and Dismiss (the
+//   native side drops them after 7 days).
+// - A banner when the box refuses exact alarms ("This box may start scheduled
+//   recordings late. Open settings"); OK opens the system page.
+//
 // It takes over the Live TV section while open (LiveSection hands it the
 // remote), and plays full screen on the native player like a channel does:
 // the snowplayer-fullscreen class on <html> and a transparent background, so
@@ -16,11 +25,12 @@
 // Rename follows the app's keyboard rule (useTVFocus, 1.6.x path): the field
 // is only highlighted, OK asks for the keyboard (no autofocus), Enter saves.
 // Chrome 66: margins, no flex gap beyond gap-1..4, no inset.
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, Circle, Film, HardDrive, Pencil, Play, Square, Trash2, Usb, X } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ArrowLeft, Check, Circle, Clock, Film, HardDrive, Pencil, Play, Settings, Square, Trash2, Usb, X } from 'lucide-react';
 import {
-  SnowRecorder, RECORDINGS_CHANGED_EVENT, notifyRecordingsChanged, type RecordVolume, type RecordingItem,
+  SnowRecorder, RECORDINGS_CHANGED_EVENT, notifyRecordingsChanged, type RecordSchedule, type RecordVolume, type RecordingItem,
 } from '@/capacitor/SnowRecorder';
+import { clockLabel, paddedLabel, paddedWindow } from '@/lib/recordSchedule';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { cleanRename, formatDuration, isLowSpace, listWindow } from '@/lib/recording';
@@ -35,13 +45,35 @@ interface Props {
   active?: boolean;
 }
 
-type Action = 'play' | 'rename' | 'delete' | 'stop' | 'cancel';
+type Action = 'play' | 'rename' | 'delete' | 'stop' | 'cancel' | 'cancelSchedule' | 'dismiss';
 const ROWS_SHOWN = 5;
+
+/** What one line of the list is: the exact-alarm banner, a scheduled or missed programme, or a recording. */
+type ListRow =
+  | { kind: 'banner'; key: string }
+  | { kind: 'sched'; key: string; s: RecordSchedule }
+  | { kind: 'issue'; key: string; s: RecordSchedule }
+  | { kind: 'rec'; key: string; it: RecordingItem };
+type MenuTarget = { row: Exclude<ListRow, { kind: 'banner' }>; focus: number; confirm?: boolean };
+
+const safe = async <T,>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+  try { return await fn(); } catch { return fallback; }
+};
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
 const when = (ms: number) => {
   const d = new Date(ms);
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** "Today 20:00", "Tomorrow 20:00", "Sat 3 Oct 20:00". */
+const dayTime = (ms: number, now: number = Date.now()) => {
+  const d = new Date(ms);
+  const n = new Date(now);
+  const midnight = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((midnight(d) - midnight(n)) / 86_400_000);
+  const day = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : `${DAYS[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
+  return `${day} ${clockLabel(ms)}`;
 };
 
 const markBack = () => { (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now(); };
@@ -245,8 +277,11 @@ const RenameDialog = ({ item, onSave, onCancel }: { item: RecordingItem; onSave:
 const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
   const [items, setItems] = useState<RecordingItem[] | null>(null);
   const [volumes, setVolumes] = useState<RecordVolume[]>([]);
+  const [schedules, setSchedules] = useState<RecordSchedule[]>([]);
+  // The box refuses exact alarms: scheduled recordings may start late.
+  const [alarmsLate, setAlarmsLate] = useState(false);
   const [focus, setFocus] = useState(0);
-  const [menu, setMenu] = useState<{ item: RecordingItem; focus: number; confirm?: boolean } | null>(null);
+  const [menu, setMenu] = useState<MenuTarget | null>(null);
   const [renaming, setRenaming] = useState<RecordingItem | null>(null);
   const [playing, setPlaying] = useState<RecordingItem | null>(null);
 
@@ -258,6 +293,10 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
     } catch {
       setItems([]);
     }
+    // Older builds have no scheduler: nothing to show, and nothing breaks.
+    setSchedules((await safe(() => SnowRecorder.listSchedules(), { schedules: [] as RecordSchedule[] })).schedules);
+    const alarms = await safe(() => SnowRecorder.exactAlarmStatus(), { canExact: true, canOpenSettings: false });
+    setAlarmsLate(!alarms.canExact);
   }, []);
   useEffect(() => { void reload(); }, [reload]);
   // Where the native "recordings changed" event lands (see notifyRecordingsChanged).
@@ -274,10 +313,24 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
     return () => window.clearInterval(t);
   }, [anyRecording, playing, renaming, reload]);
 
-  const list = items ?? [];
-  const safeFocus = Math.min(focus, Math.max(0, list.length - 1));
-  const actionsFor = (it: RecordingItem): Action[] =>
-    it.recording ? ['play', 'stop', 'cancel'] : ['play', 'rename', 'delete', 'cancel'];
+  // Scheduled first (soonest), then the ones that did not happen, then the recordings.
+  const rows = useMemo<ListRow[]>(() => {
+    const out: ListRow[] = [];
+    const scheduled = schedules.filter((x) => x.status === 'scheduled').sort((a, b) => a.startUtcMs - b.startUtcMs);
+    const issues = schedules.filter((x) => x.status === 'missed' || x.status === 'failed').sort((a, b) => b.startUtcMs - a.startUtcMs);
+    if (alarmsLate && scheduled.length > 0) out.push({ kind: 'banner', key: 'banner' });
+    scheduled.forEach((x) => out.push({ kind: 'sched', key: `s:${x.id}`, s: x }));
+    issues.forEach((x) => out.push({ kind: 'issue', key: `i:${x.id}`, s: x }));
+    (items ?? []).forEach((it) => out.push({ kind: 'rec', key: `r:${it.path}`, it }));
+    return out;
+  }, [schedules, items, alarmsLate]);
+  const safeFocus = Math.min(focus, Math.max(0, rows.length - 1));
+
+  const actionsFor = (row: MenuTarget['row']): Action[] => {
+    if (row.kind === 'sched') return ['cancelSchedule', 'cancel'];
+    if (row.kind === 'issue') return ['dismiss', 'cancel'];
+    return row.it.recording ? ['play', 'stop', 'cancel'] : ['play', 'rename', 'delete', 'cancel'];
+  };
 
   const remove = useCallback(async (it: RecordingItem) => {
     setMenu(null);
@@ -290,8 +343,27 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
     notifyRecordingsChanged();
   }, []);
 
-  const doAction = useCallback(async (a: Action, it: RecordingItem) => {
+  /** Cancel a schedule that has not started, or dismiss a missed / failed one. */
+  const dropSchedule = useCallback(async (x: RecordSchedule) => {
+    setMenu(null);
+    try {
+      await SnowRecorder.cancelSchedule({ id: x.id });
+      toast({ title: x.status === 'scheduled' ? 'Schedule cancelled' : 'Dismissed', description: x.programmeTitle });
+    } catch (e) {
+      toast({ title: 'Could not cancel it', description: (e as Error)?.message ?? '', variant: 'destructive' });
+    }
+    notifyRecordingsChanged();
+  }, []);
+
+  const doAction = useCallback(async (a: Action, row: MenuTarget['row']) => {
     if (a === 'cancel') { setMenu(null); return; }
+    if (row.kind === 'sched' || row.kind === 'issue') {
+      // Cancelling a schedule asks first, starting on "Keep it"; dismissing does not.
+      if (a === 'cancelSchedule') setMenu({ row, focus: 1, confirm: true });
+      else if (a === 'dismiss') await dropSchedule(row.s);
+      return;
+    }
+    const it = row.it;
     if (a === 'play') { setMenu(null); setPlaying(it); return; }
     if (a === 'stop') {
       setMenu(null);
@@ -302,8 +374,8 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
     }
     if (a === 'rename') { setMenu(null); setRenaming(it); return; }
     // Delete asks first, and starts on "Keep it".
-    setMenu({ item: it, focus: 1, confirm: true });
-  }, []);
+    setMenu({ row, focus: 1, confirm: true });
+  }, [dropSchedule]);
 
   const saveRename = useCallback(async (it: RecordingItem, text: string) => {
     const name = cleanRename(text);
@@ -319,6 +391,12 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
   }, []);
   const cancelRename = useCallback(() => setRenaming(null), []);
 
+  const openAlarmSettings = useCallback(() => {
+    void SnowRecorder.openExactAlarmSettings().catch(() => {
+      toast({ title: 'Could not open settings', description: 'Allow "Alarms & reminders" for Snow Media Center in the box settings.', variant: 'destructive' });
+    });
+  }, []);
+
   // The OK that opened this screen is still down until its key comes up: skip it.
   const armedRef = useRef(false);
   useEffect(() => {
@@ -330,8 +408,8 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
   onCloseRef.current = onClose;
 
   // The list and its menus (the player and the rename box have their own keys).
-  const stateRef = useRef({ list, safeFocus, menu, doAction, remove });
-  stateRef.current = { list, safeFocus, menu, doAction, remove };
+  const stateRef = useRef({ rows, safeFocus, menu, doAction, remove, dropSchedule, openAlarmSettings });
+  stateRef.current = { rows, safeFocus, menu, doAction, remove, dropSchedule, openAlarmSettings };
   useEffect(() => {
     if (!active || playing || renaming) return;
     const onKey = (e: KeyboardEvent) => {
@@ -341,7 +419,7 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
       if (isBackKey(e)) {
         markBack();
         // The delete question goes back to the menu; the menu goes back to the list.
-        if (st.menu?.confirm) setMenu({ item: st.menu.item, focus: 0 });
+        if (st.menu?.confirm) setMenu({ row: st.menu.row, focus: 0 });
         else if (st.menu) setMenu(null);
         else onCloseRef.current();
         return;
@@ -353,23 +431,27 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
           if (e.key === 'ArrowDown') setMenu({ ...m, focus: 1 });
           else if (e.key === 'ArrowUp') setMenu({ ...m, focus: 0 });
           else if (isOkKey(e)) {
-            if (m.focus === 0) void st.remove(m.item);
-            else setMenu({ item: m.item, focus: 0 });
+            if (m.focus === 0) {
+              if (m.row.kind === 'rec') void st.remove(m.row.it);
+              else void st.dropSchedule(m.row.s);
+            } else setMenu({ row: m.row, focus: 0 });
           }
           return;
         }
-        const acts = actionsFor(m.item);
+        const acts = actionsFor(m.row);
         if (e.key === 'ArrowDown') setMenu({ ...m, focus: Math.min(acts.length - 1, m.focus + 1) });
         else if (e.key === 'ArrowUp') setMenu({ ...m, focus: Math.max(0, m.focus - 1) });
-        else if (isOkKey(e)) void st.doAction(acts[m.focus], m.item);
+        else if (isOkKey(e)) void st.doAction(acts[m.focus], m.row);
         return;
       }
-      if (e.key === 'ArrowDown') setFocus(Math.min(Math.max(0, st.list.length - 1), st.safeFocus + 1));
+      if (e.key === 'ArrowDown') setFocus(Math.min(Math.max(0, st.rows.length - 1), st.safeFocus + 1));
       else if (e.key === 'ArrowUp') setFocus(Math.max(0, st.safeFocus - 1));
       else if (e.key === 'ArrowLeft') onCloseRef.current();
       else if (isOkKey(e)) {
-        const it = st.list[st.safeFocus];
-        if (it) setMenu({ item: it, focus: 0 });
+        const row = st.rows[st.safeFocus];
+        if (!row) return;
+        if (row.kind === 'banner') st.openAlarmSettings();
+        else setMenu({ row, focus: 0 });
       }
     };
     window.addEventListener('keydown', onKey, true);
@@ -382,14 +464,16 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
   }, []);
   if (playing) return <RecordingPlayer item={playing} onClose={closePlayer} />;
 
-  const win = listWindow(list.length, safeFocus, ROWS_SHOWN);
+  const win = listWindow(rows.length, safeFocus, ROWS_SHOWN);
   const actionLabel = (a: Action): string => {
     switch (a) {
       case 'play': return 'Play';
       case 'rename': return 'Rename';
       case 'delete': return 'Delete';
       case 'stop': return 'Stop recording';
-      default: return 'Cancel';
+      case 'cancelSchedule': return 'Cancel schedule';
+      case 'dismiss': return 'Dismiss';
+      default: return a === 'cancel' && menu && menu.row.kind !== 'rec' ? 'Back' : 'Cancel';
     }
   };
   const actionIcon = (a: Action) => {
@@ -398,6 +482,8 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
       case 'play': return <Play className={cls} />;
       case 'rename': return <Pencil className={cls} />;
       case 'delete': return <Trash2 className={`${cls} text-red-400`} />;
+      case 'cancelSchedule': return <Trash2 className={`${cls} text-red-400`} />;
+      case 'dismiss': return <Check className={cls} />;
       case 'stop': return <Square className={`${cls} fill-current`} />;
       default: return <X className={cls} />;
     }
@@ -412,6 +498,21 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
       {icon}{label}
     </div>
   );
+
+  const driveOf = (id: string) => volumes.find((v) => v.id === id)?.label ?? (id === 'box' ? 'This box' : 'USB drive');
+  // Group headings only when there is more than one group; the first row on screen always says which it is in.
+  const groupOf = (r: ListRow | undefined): string | null =>
+    r?.kind === 'sched' ? 'Scheduled' : r?.kind === 'issue' ? "Missed / didn't start" : r?.kind === 'rec' ? 'Recordings' : null;
+  const manyGroups = new Set(rows.map(groupOf).filter(Boolean)).size > 1;
+  const headingAt = (i: number, firstShown: boolean): string | null => {
+    const g = groupOf(rows[i]);
+    if (!g || !manyGroups) return null;
+    if (firstShown) return g;
+    let k = i - 1;
+    while (k >= 0 && rows[k].kind === 'banner') k--;
+    return k >= 0 && groupOf(rows[k]) === g ? null : g;
+  };
+  const now = Date.now();
 
   return (
     <div data-recordings-screen className="flex-1 min-h-0 min-w-0 flex flex-col text-white p-5 bg-black/30 overflow-hidden">
@@ -429,43 +530,89 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
       </div>
 
       {items === null && <p className="text-lg font-nunito text-brand-ice/70">Loading…</p>}
-      {items && list.length === 0 && (
+      {items && rows.length === 0 && (
         <p className="text-lg font-nunito text-brand-ice/70">
-          No recordings yet. Hold OK on a channel (or use Record in the player) to record one.
+          No recordings yet. Hold OK on a channel (or use Record in the player) to record one, or hold OK on a channel in the Guide to schedule a programme.
         </p>
       )}
 
       <div className="flex-1 min-h-0">
         {win.start > 0 && <p className="text-center text-brand-ice/50 text-sm leading-none pb-1">▲</p>}
         <div className="space-y-2">
-          {list.slice(win.start, win.end).map((it, j) => {
+          {rows.slice(win.start, win.end).map((row, j) => {
             const i = win.start + j;
             const focused = i === safeFocus && !menu;
-            return (
-              <div
-                key={it.path}
-                data-recording-row={i}
-                data-focused={focused ? 'true' : 'false'}
-                className={`tv-ring flex items-center rounded-xl px-4 py-2 ${focused ? 'bg-brand-gold/25 z-10' : 'bg-white/5'}`}
-              >
-                {it.recording
-                  ? <Circle className="w-5 h-5 mr-3 fill-red-500 text-red-500 flex-shrink-0" />
-                  : <Film className="w-5 h-5 mr-3 text-brand-gold flex-shrink-0" />}
-                <div className="flex-1 min-w-0">
-                  <p className="text-lg font-nunito font-semibold truncate">{it.name}</p>
-                  <p className="text-sm font-nunito text-brand-ice/70 truncate">
-                    {it.recording ? 'Recording now · ' : ''}{when(it.startedAt)} · {it.volumeLabel}
-                  </p>
+            const head = headingAt(i, j === 0 || (j === 1 && rows[win.start].kind === 'banner'));
+            const box = `tv-ring flex items-center rounded-xl px-4 py-2 ${focused ? 'bg-brand-gold/25 z-10' : 'bg-white/5'}`;
+            let inner: JSX.Element;
+            if (row.kind === 'banner') {
+              inner = (
+                <div data-recording-row={i} data-recordings-banner data-focused={focused ? 'true' : 'false'} className={`${box} ${focused ? '' : 'bg-amber-500/15'}`}>
+                  <AlertTriangle className="w-5 h-5 mr-3 text-amber-300 flex-shrink-0" />
+                  <p className="flex-1 min-w-0 text-base font-nunito text-amber-200">This box may start scheduled recordings late.</p>
+                  <span className="ml-3 flex items-center text-base font-quicksand font-bold text-brand-gold flex-shrink-0">
+                    <Settings className="w-4 h-4 mr-1" /> Open settings
+                  </span>
                 </div>
-                <span className="ml-3 text-base font-nunito tabular-nums text-brand-ice/80 flex-shrink-0">
-                  {it.durationSec > 0 ? formatDuration(it.durationSec) : ''}
-                </span>
-                <span className="ml-4 text-base font-nunito tabular-nums text-brand-ice/60 flex-shrink-0">{formatBytes(it.bytes)}</span>
+              );
+            } else if (row.kind === 'sched') {
+              const x = row.s;
+              const w = paddedWindow(x);
+              inner = (
+                <div data-recording-row={i} data-scheduled-row={x.id} data-focused={focused ? 'true' : 'false'} className={box}>
+                  <Clock className="w-5 h-5 mr-3 text-brand-gold flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-lg font-nunito font-semibold truncate">{x.programmeTitle || x.channelName}</p>
+                    <p className="text-sm font-nunito text-brand-ice/70 truncate">
+                      {dayTime(x.startUtcMs, now)} · {x.channelName} · {driveOf(x.volumeId)}
+                    </p>
+                  </div>
+                  <span className="ml-3 text-base font-nunito tabular-nums text-brand-ice/80 flex-shrink-0">{paddedLabel(w.startMs, w.endMs)}</span>
+                </div>
+              );
+            } else if (row.kind === 'issue') {
+              const x = row.s;
+              inner = (
+                <div data-recording-row={i} data-issue-row={x.id} data-focused={focused ? 'true' : 'false'} className={box}>
+                  <AlertTriangle className="w-5 h-5 mr-3 text-amber-300 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-lg font-nunito font-semibold truncate">{x.programmeTitle || x.channelName} · {x.channelName}</p>
+                    <p className="text-sm font-nunito text-amber-200 truncate">
+                      {dayTime(x.startUtcMs, now)} · {x.reason || (x.status === 'missed' ? 'It was missed.' : 'It did not start.')}
+                    </p>
+                  </div>
+                  <span className="ml-3 text-base font-quicksand font-bold text-amber-300 flex-shrink-0">{x.status === 'missed' ? 'Missed' : "Didn't start"}</span>
+                </div>
+              );
+            } else {
+              const it = row.it;
+              inner = (
+                <div data-recording-row={i} data-focused={focused ? 'true' : 'false'} className={box}>
+                  {it.recording
+                    ? <Circle className="w-5 h-5 mr-3 fill-red-500 text-red-500 flex-shrink-0" />
+                    : <Film className="w-5 h-5 mr-3 text-brand-gold flex-shrink-0" />}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-lg font-nunito font-semibold truncate">{it.name}</p>
+                    <p className="text-sm font-nunito text-brand-ice/70 truncate">
+                      {it.recording ? 'Recording now · ' : ''}{when(it.startedAt)} · {it.volumeLabel}
+                    </p>
+                  </div>
+                  <span className="ml-3 text-base font-nunito tabular-nums text-brand-ice/80 flex-shrink-0">
+                    {it.durationSec > 0 ? formatDuration(it.durationSec) : ''}
+                  </span>
+                  <span className="ml-4 text-base font-nunito tabular-nums text-brand-ice/60 flex-shrink-0">{formatBytes(it.bytes)}</span>
+                </div>
+              );
+            }
+            return (
+              <div key={row.key}>
+                {head && <p data-recordings-heading className="text-xs uppercase tracking-wide font-quicksand font-bold text-brand-gold leading-none pb-1 pt-1">{head}</p>}
+                {inner}
               </div>
             );
           })}
         </div>
-        {win.end < list.length && <p className="text-center text-brand-ice/50 text-sm leading-none pt-1">▼</p>}
+        {win.end < rows.length && <p className="text-center text-brand-ice/50 text-sm leading-none pt-1">▼</p>}
       </div>
 
       <p className="mt-2 text-sm font-nunito text-brand-ice/60">▲▼ choose · OK options · Back or ◀ closes</p>
@@ -475,18 +622,22 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
           <div className="rounded-2xl bg-brand-navy/95 border border-brand-gold/40 shadow-[0_0_40px_rgba(245,200,80,0.25)] p-4" style={{ width: 480, maxWidth: '94%' }}>
             {menu.confirm ? (
               <>
-                <p className="mb-1 text-lg font-quicksand font-bold">Delete this recording?</p>
-                <p className="mb-3 text-base font-nunito text-brand-ice/80 truncate">{menu.item.name}</p>
+                <p className="mb-1 text-lg font-quicksand font-bold">{menu.row.kind === 'rec' ? 'Delete this recording?' : 'Cancel this scheduled recording?'}</p>
+                <p className="mb-3 text-base font-nunito text-brand-ice/80 truncate">
+                  {menu.row.kind === 'rec' ? menu.row.it.name : menu.row.s.programmeTitle || menu.row.s.channelName}
+                </p>
                 <div className="space-y-1">
-                  {menuRow('sure', menu.focus === 0, <Trash2 className="w-5 h-5 mr-3 flex-shrink-0 text-red-400" />, 'Delete it', true)}
-                  {menuRow('keep', menu.focus === 1, <X className="w-5 h-5 mr-3 flex-shrink-0" />, 'Keep it')}
+                  {menuRow('sure', menu.focus === 0, <Trash2 className="w-5 h-5 mr-3 flex-shrink-0 text-red-400" />, menu.row.kind === 'rec' ? 'Delete it' : 'Cancel it', true)}
+                  {menuRow('keep', menu.focus === 1, <X className="w-5 h-5 mr-3 flex-shrink-0" />, menu.row.kind === 'rec' ? 'Keep it' : 'Keep the schedule')}
                 </div>
               </>
             ) : (
               <>
-                <p className="mb-3 text-lg font-quicksand font-bold truncate">{menu.item.name}</p>
+                <p className="mb-3 text-lg font-quicksand font-bold truncate">
+                  {menu.row.kind === 'rec' ? menu.row.it.name : menu.row.s.programmeTitle || menu.row.s.channelName}
+                </p>
                 <div className="space-y-1">
-                  {actionsFor(menu.item).map((a, i) => menuRow(a, i === menu.focus, actionIcon(a), actionLabel(a)))}
+                  {actionsFor(menu.row).map((a, i) => menuRow(a, i === menu.focus, actionIcon(a), actionLabel(a)))}
                 </div>
               </>
             )}
