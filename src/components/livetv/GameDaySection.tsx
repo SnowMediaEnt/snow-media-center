@@ -26,7 +26,7 @@ import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
 import { isChannelDown, useDownChannels } from '@/lib/channelStatus';
 import {
   CHANNELS_TTL_MS, LINK_LABELS, cardChannels, channelKey, channelsForGame, checkGuides, fetchGames, isPpvFight, isStreamingOnly,
-  kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, ppvGames, type Game, type GameChannel, type SportsChannel,
+  kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames, type Game, type GameChannel, type SportsChannel,
 } from '@/lib/gameDay';
 import { GAME_REMINDERS_EVENT, hasReminder, toggleReminder } from '@/lib/gameReminders';
 import { buildLines } from '@/lib/liveLines';
@@ -173,21 +173,25 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
   const pickerRow = picker ? rows.find((r) => r.game.id === picker.gameId) ?? null : null;
   const pickItems = useMemo<PickItem[]>(() => {
     if (!picker || !pickerRow) return [];
-    const seen = new Set<string>();
-    const links: GameChannel[] = [];
-    for (const l of [...picker.extra, ...pickerRow.found]) {
-      const k = `${l.line.host}|${l.line.username}|${l.stream.stream_id}`;
-      if (seen.has(k)) continue;
-      seen.add(k);
-      links.push(l);
-    }
-    // Best first, a channel reported down after the working ones of its kind.
-    links.sort((a, b) => b.score - a.score || Number(isDown(a)) - Number(isDown(b)));
-    const items: PickItem[] = links.map((link) => ({ kind: 'link', link, down: isDown(link) }));
+    // Each channel once, best source first, always with its current name
+    // (never one a guide check cached before the last channel-list refresh).
+    const merged = mergeLinks([picker.extra, pickerRow.found], channels ?? []);
+    // Best first, a channel reported down after the working ones of its
+    // kind; zone channels (RedZone, "MLB Zone": every game of the league,
+    // never just this one) always after, in their own group — never mixed
+    // in with the team links.
+    const byScore = (a: GameChannel, b: GameChannel) => b.score - a.score || Number(isDown(a)) - Number(isDown(b));
+    const main = merged.filter((l) => l.via !== 'zone').sort(byScore);
+    const zone = merged.filter((l) => l.via === 'zone').sort(byScore);
+    const items: PickItem[] = [...main, ...zone].map((link) => ({ kind: 'link', link, down: isDown(link) }));
     const own = pickerRow.game.league === 'ppv' ? new Set(pickerRow.found.map(channelKey)) : undefined;
     for (const c of channels ? leagueCategories(pickerRow.game, channels, 2, own) : []) items.push({ kind: 'browse', ...c });
     return items;
   }, [picker, pickerRow, channels, isDown]);
+  const firstZoneIdx = useMemo(
+    () => pickItems.findIndex((it) => it.kind === 'link' && it.link.via === 'zone'),
+    [pickItems],
+  );
 
   const openPicker = useCallback((i: number) => {
     const r = rows[i];
@@ -485,18 +489,25 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
               }
               const { link } = item;
               return (
-                <button key={`l-${link.line.host}-${link.line.username}-${link.stream.stream_id}`} type="button" data-gd-pick={i} data-focused={focused ? 'true' : 'false'} className={base} onClick={() => activate(item)}>
-                  {item.down
-                    ? <AlertTriangle className="w-5 h-5 mr-3 shrink-0 text-amber-500" aria-label="Reported down right now" />
-                    : <Play className="w-5 h-5 mr-3 shrink-0" />}
-                  <span className="flex-1 min-w-0">
-                    <span className="block truncate font-semibold">{link.stream.name}</span>
-                    {link.note && <span className={`block truncate text-xs ${focused ? 'text-black/60' : 'text-white/50'}`}>{link.note}</span>}
-                  </span>
-                  <span className={`ml-3 shrink-0 text-xs font-bold uppercase tracking-wide ${focused ? 'text-black/60' : 'text-brand-ice/70'}`}>
-                    {LINK_LABELS[link.via]}{lines.length > 1 && link.line.serverLabel ? ` · ${link.line.serverLabel}` : ''}
-                  </span>
-                </button>
+                <div key={`l-${link.line.host}-${link.line.username}-${link.stream.stream_id}`}>
+                  {i === firstZoneIdx && (
+                    <div className="px-2 pt-1 pb-2 text-xs font-bold uppercase tracking-wide text-white/40">
+                      Zone channels — every game of the league, not just this one
+                    </div>
+                  )}
+                  <button type="button" data-gd-pick={i} data-focused={focused ? 'true' : 'false'} className={base} onClick={() => activate(item)}>
+                    {item.down
+                      ? <AlertTriangle className="w-5 h-5 mr-3 shrink-0 text-amber-500" aria-label="Reported down right now" />
+                      : <Play className="w-5 h-5 mr-3 shrink-0" />}
+                    <span className="flex-1 min-w-0">
+                      <span className="block truncate font-semibold">{link.stream.name}</span>
+                      {link.note && <span className={`block truncate text-xs ${focused ? 'text-black/60' : 'text-white/50'}`}>{link.note}</span>}
+                    </span>
+                    <span className={`ml-3 shrink-0 text-xs font-bold uppercase tracking-wide ${focused ? 'text-black/60' : 'text-brand-ice/70'}`}>
+                      {LINK_LABELS[link.via]}{lines.length > 1 && link.line.serverLabel ? ` · ${link.line.serverLabel}` : ''}
+                    </span>
+                  </button>
+                </div>
               );
             })}
             {picker.scanning && (
