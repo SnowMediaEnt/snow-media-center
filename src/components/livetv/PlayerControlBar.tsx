@@ -1,12 +1,12 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import {
   SkipBack, SkipForward, Play, Pause, Rewind, FastForward,
-  Subtitles, AudioLines, Tv, Radio, Volume2, VolumeX,
+  Subtitles, AudioLines, Tv, Radio, Volume2, VolumeX, Gauge,
 } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import { volumeBar } from '@/utils/volume';
 
-export type BarControlId = 'prev' | 'rew' | 'play' | 'fwd' | 'next' | 'cc' | 'audio' | 'vol';
+export type BarControlId = 'prev' | 'rew' | 'play' | 'fwd' | 'next' | 'cc' | 'audio' | 'vol' | 'stats';
 
 
 
@@ -36,6 +36,8 @@ interface Props {
   volMenuOpen: boolean;
   /** 0..1 */
   volume: number;
+  /** Stats panel showing (PlayerStatsPanel) — a plain toggle, no menu of its own. */
+  statsOn?: boolean;
 }
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
@@ -52,7 +54,7 @@ const PlayerControlBar = memo(({
   categoryName, channelLogo, channelNum, channelName,
   nowTitle, nowStart, nowEnd, nextTitle,
   subMenuOpen, audioMenuOpen, subMenuFocus, audioMenuFocus,
-  volMenuOpen, volume,
+  volMenuOpen, volume, statsOn = false,
 }: Props) => {
   // 1Hz clock + progress tick.
   const [now, setNow] = useState(() => Date.now());
@@ -88,6 +90,7 @@ const PlayerControlBar = memo(({
     { id: 'cc',    icon: <Subtitles className="w-6 h-6" />,   label: 'Subtitles', disabled: subs.length === 0 },
     { id: 'audio', icon: <AudioLines className="w-6 h-6" />,  label: 'Audio',     disabled: auds.length <= 1 },
     { id: 'vol',   icon: volIcon,                              label: 'Volume' },
+    { id: 'stats', icon: <Gauge className="w-6 h-6" />,        label: 'Stats' },
   ];
 
 
@@ -95,7 +98,7 @@ const PlayerControlBar = memo(({
     const focused = focus === c.id;
     // "Open" state: this button's popup menu is showing, so the eye should move
     // to the menu rows — the button drops to an outlined marker (no ring, no scale).
-    const open = (c.id === 'cc' && subMenuOpen) || (c.id === 'audio' && audioMenuOpen) || (c.id === 'vol' && volMenuOpen);
+    const open = (c.id === 'cc' && subMenuOpen) || (c.id === 'audio' && audioMenuOpen) || (c.id === 'vol' && volMenuOpen) || (c.id === 'stats' && statsOn);
     const base = 'tv-focusable home-focus-surface flex items-center justify-center rounded-full transition-transform duration-150';
     const size = c.id === 'play' ? 'w-16 h-16' : 'w-12 h-12';
     const visualState = open

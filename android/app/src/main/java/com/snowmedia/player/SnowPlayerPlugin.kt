@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Debug
 import android.os.Handler
 import android.os.Looper
+import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import android.view.Gravity
@@ -32,6 +33,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
+import androidx.media3.common.text.Cue
 import androidx.media3.common.util.Util
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
@@ -168,6 +170,22 @@ class SnowPlayerPlugin : Plugin() {
         var videoFormatText: String? = null
         var audioFormatOf: Format? = null
         var audioFormatText: String? = null
+        // Engine: "exo" (ExoPlayer, everything) or "mpv" (Live TV channels
+        // and the Live/Guide preview boxes only, owner test builds — see
+        // EngineChoice). `second` is the mpv engine once created for this
+        // process; the same object every time (MPVLib is a single instance
+        // for the whole app), left set even while this slot plays on exo.
+        var engine: String = EngineChoice.EXO
+        var second: SecondEngine? = null
+        // Time-to-first-picture and stalls since load(), for both engines
+        // (statsOf). Stalls count only after the first frame — the start-up
+        // wait is firstFrameMs, not a stall.
+        var loadStartWallMs: Long = 0L
+        var loadStartCpuMs: Long = 0L
+        var firstFrameMs: Long? = null
+        var stalls: Int = 0
+        var stallSec: Double = 0.0
+        var stallStartedAtMs: Long = 0L
     }
 
     private val slots = HashMap<String, PlayerSlot>()
@@ -176,6 +194,18 @@ class SnowPlayerPlugin : Plugin() {
     private var wifiLock: WifiManager.WifiLock? = null
     // Scratch for isCurrentItem (main thread only, like every player call).
     private val itemWindow = Timeline.Window()
+    // mpv, owner test builds only (see EngineChoice/BuildConfig.SMC_WITH_MPV).
+    // One instance for the whole app, created the first time any load() asks
+    // for it; `mpvInitFailed` marks it off for the rest of this process the
+    // first time creating or starting it throws (a missing native lib
+    // included) — never retried until the app restarts.
+    private var mpvEngine: SecondEngine? = null
+    private var mpvInitFailed = false
+    // Debug.getPss() is a process-wide, somewhat costly read; cached for 5 s
+    // (statsOf), same as a stats panel polling every second would otherwise
+    // pay for on every tick.
+    private var pssCacheMb: Long = -1L
+    private var pssCacheAtMs: Long = 0L
 
     companion object {
         private const val MAIN = "main"
@@ -218,6 +248,7 @@ class SnowPlayerPlugin : Plugin() {
         private const val PREBUFFER_TARGET_MS = PreBufferRule.TARGET_MS
         private const val PREBUFFER_TICK_MS = 500L
         private const val MIB = 1024L * 1024L
+        private const val PSS_CACHE_MS = 5000L
     }
 
     private fun screenIdOf(call: PluginCall): String = call.getString("screenId") ?: MAIN
@@ -319,6 +350,12 @@ class SnowPlayerPlugin : Plugin() {
         s.framesDropped = 0L
         s.videoCounters = null
         s.framesSeen = false
+        s.firstFrameMs = null
+        s.stalls = 0
+        s.stallSec = 0.0
+        s.stallStartedAtMs = 0L
+        s.loadStartWallMs = SystemClock.elapsedRealtime()
+        s.loadStartCpuMs = Process.getElapsedCpuTime()
         if (url != s.statsUrl) {
             s.statsUrl = url
             s.restarts = 0
@@ -351,6 +388,10 @@ class SnowPlayerPlugin : Plugin() {
         s.videoFormatText = null
         s.audioFormatOf = null
         s.audioFormatText = null
+        s.firstFrameMs = null
+        s.stalls = 0
+        s.stallSec = 0.0
+        s.stallStartedAtMs = 0L
     }
 
     /**
@@ -948,6 +989,14 @@ class SnowPlayerPlugin : Plugin() {
             }
 
             override fun onPlaybackStateChanged(state: Int) {
+                // Stalls/stallSec (statsOf), counted only after the first
+                // picture — the start-up wait is firstFrameMs, not a stall.
+                if (state == Player.STATE_BUFFERING && s.firstFrameSeen) {
+                    if (s.stallStartedAtMs == 0L) { s.stallStartedAtMs = SystemClock.elapsedRealtime(); s.stalls++ }
+                } else if (s.stallStartedAtMs != 0L) {
+                    s.stallSec += (SystemClock.elapsedRealtime() - s.stallStartedAtMs) / 1000.0
+                    s.stallStartedAtMs = 0L
+                }
                 if (state == Player.STATE_ENDED && s.currentUrl != null) {
                     if (s.isLive) { reconnect(s, screenId, "live stream ended"); return }
                     notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", "ended"))
@@ -969,6 +1018,8 @@ class SnowPlayerPlugin : Plugin() {
                 reportPaused(s, screenId)
             }
             override fun onRenderedFirstFrame() {
+                // Time to first picture since load() — for both engines (statsOf).
+                if (s.firstFrameMs == null) s.firstFrameMs = SystemClock.elapsedRealtime() - s.loadStartWallMs
                 // The new stream has drawn: uncover it (once its start-up
                 // hold is over, see openShutterIfReady). Never on load or a
                 // state change, so no earlier frame can show.
@@ -1121,8 +1172,61 @@ class SnowPlayerPlugin : Plugin() {
         val startMs = if (startSec != null && startSec > 0.0) (startSec * 1000.0).toLong() else 0L
         val screenId = screenIdOf(call)
         val s = slotFor(screenId)
+        // mpv (owner test builds only): "engine" defaults to exo, and is only
+        // ever actually mpv for the main slot playing a live channel — see
+        // EngineChoice. Read here (pure) so the UI-thread block below has it.
+        val requestedEngine = call.getString("engine") ?: EngineChoice.EXO
         activity?.runOnUiThread {
+            val availability = EngineChoice.Availability(
+                inBuild = BuildConfig.SMC_WITH_MPV,
+                androidOk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O,
+                initFailed = mpvInitFailed,
+            )
+            val choice = EngineChoice.choose(requestedEngine, screenId, live, availability)
+            var engine = choice.engine
+            var fallbackReason = choice.fallbackReason
+            if (engine == EngineChoice.MPV) {
+                val second = secondEngineFor(screenId)
+                if (second == null) {
+                    engine = EngineChoice.EXO
+                    fallbackReason = EngineChoice.INIT_FAILED
+                } else {
+                    s.second = second
+                }
+            }
+            if (fallbackReason != null) {
+                notifyListeners("engineFallback", JSObject().put("screenId", screenId).put("reason", fallbackReason))
+            }
+            // A change of engine tears the old one down first — its surface
+            // (a TextureView or mpv's SurfaceView) belongs to the engine that
+            // is leaving, not the one arriving.
+            if (engine != s.engine) {
+                if (s.engine == EngineChoice.MPV) s.second?.stop()
+                stopSlot(s)
+                releaseSlot(s)
+                s.engine = engine
+            }
             if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
+            if (engine == EngineChoice.MPV) {
+                val second = s.second ?: run { call.reject("mpv init failed"); return@runOnUiThread }
+                activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                s.container?.visibility = View.VISIBLE
+                second.attach(s.container!!)
+                cancelTimers(s)
+                s.reportedPaused = false
+                s.currentUrl = url
+                s.currentSubtitles = null
+                s.isLive = live
+                s.lastPositionMs = startMs
+                s.firstFrameSeen = false
+                resetStats(s, url)
+                s.shutterView?.visibility = View.VISIBLE
+                second.load(url, live)
+                second.setVolume(s.volume)
+                schedulePositionTick(s)
+                call.resolve()
+                return@runOnUiThread
+            }
             if (s.player == null) buildPlayer(s, screenId)
             activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             // Apply any pendingRect captured before the surface existed. A slot
@@ -1208,7 +1312,10 @@ class SnowPlayerPlugin : Plugin() {
     fun play(call: PluginCall) {
         val s = slot(call)
         val screenId = screenIdOf(call)
-        activity?.runOnUiThread { releaseHold(s); s.player?.play(); reportPaused(s, screenId); call.resolve() }
+        activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) { s.second?.play(); call.resolve(); return@runOnUiThread }
+            releaseHold(s); s.player?.play(); reportPaused(s, screenId); call.resolve()
+        }
     }
 
     @PluginMethod
@@ -1217,7 +1324,10 @@ class SnowPlayerPlugin : Plugin() {
         val screenId = screenIdOf(call)
         // During the hold playWhenReady is already false, so no listener
         // event follows — reportPaused says it.
-        activity?.runOnUiThread { releaseHold(s); s.player?.pause(); reportPaused(s, screenId); call.resolve() }
+        activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) { s.second?.pause(); call.resolve(); return@runOnUiThread }
+            releaseHold(s); s.player?.pause(); reportPaused(s, screenId); call.resolve()
+        }
     }
 
     @PluginMethod
@@ -1225,6 +1335,11 @@ class SnowPlayerPlugin : Plugin() {
         val pos = call.getDouble("position") ?: 0.0
         val s = slot(call)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) {
+                s.second?.seekTo(pos.coerceAtLeast(0.0))
+                call.resolve()
+                return@runOnUiThread
+            }
             val p = s.player
             if (p != null) {
                 val ms = (pos * 1000.0).toLong().coerceAtLeast(0L)
@@ -1239,6 +1354,11 @@ class SnowPlayerPlugin : Plugin() {
     fun getPosition(call: PluginCall) {
         val s = slot(call)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) {
+                val (pos, dur) = s.second?.position() ?: (0.0 to 0.0)
+                call.resolve(JSObject().put("position", pos).put("duration", dur).put("playing", !s.reportedPaused))
+                return@runOnUiThread
+            }
             val p = s.player
             val ret = JSObject()
             if (p == null) {
@@ -1270,6 +1390,16 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     private fun statsOf(s: PlayerSlot?): JSObject {
+        // mpv already builds this same shape (SecondEngine.stats) — only
+        // engine/cpuPct/pssMb, which know about neither engine specifically,
+        // are added here.
+        if (s != null && s.engine == EngineChoice.MPV && s.second != null) {
+            val o = s.second!!.stats()
+            o.put("engine", EngineChoice.MPV)
+            o.put("cpuPct", cpuPctSince(s)?.let { Math.round(it * 10.0) / 10.0 } ?: JSONObject.NULL)
+            o.put("pssMb", cachedPssMb())
+            return o
+        }
         val p = s?.player
         val o = JSObject()
         o.put(
@@ -1330,7 +1460,34 @@ class SnowPlayerPlugin : Plugin() {
         val rt = Runtime.getRuntime()
         o.put("javaHeapMb", (rt.totalMemory() - rt.freeMemory()) / MIB)
         o.put("nativeHeapMb", Debug.getNativeHeapAllocatedSize() / MIB)
+        o.put("engine", s?.engine ?: EngineChoice.EXO)
+        o.put("firstFrameMs", s?.firstFrameMs ?: JSONObject.NULL)
+        o.put("stalls", s?.stalls ?: 0)
+        o.put("stallSec", s?.let { Math.round(it.stallSec * 10.0) / 10.0 } ?: 0.0)
+        o.put("cpuPct", s?.let { cpuPctSince(it) }?.let { Math.round(it * 10.0) / 10.0 } ?: JSONObject.NULL)
+        o.put("pssMb", cachedPssMb())
         return o
+    }
+
+    /** CPU used by this whole process since load(), against wall time since
+     *  load() — the same figure for either engine (statsOf). Null before a
+     *  load() has run (loadStartWallMs still 0). */
+    private fun cpuPctSince(s: PlayerSlot): Double? {
+        if (s.loadStartWallMs <= 0L) return null
+        val wallMs = SystemClock.elapsedRealtime() - s.loadStartWallMs
+        if (wallMs <= 0L) return null
+        val cpuMs = Process.getElapsedCpuTime() - s.loadStartCpuMs
+        return cpuMs.toDouble() / wallMs.toDouble() * 100.0
+    }
+
+    /** Debug.getPss() is process-wide and not cheap; good for PSS_CACHE_MS. */
+    private fun cachedPssMb(): Long {
+        val now = SystemClock.elapsedRealtime()
+        if (pssCacheMb < 0L || now - pssCacheAtMs >= PSS_CACHE_MS) {
+            pssCacheMb = try { Debug.getPss() / MIB } catch (e: Throwable) { pssCacheMb }
+            pssCacheAtMs = now
+        }
+        return pssCacheMb
     }
 
     /** What decodes a track: the decoder's own name ("c2.amlogic.hevc.decoder"),
@@ -1415,6 +1572,7 @@ class SnowPlayerPlugin : Plugin() {
         cancelTimers(s)
         s.reconnectAttempts = 0
         s.firstFrameSeen = false
+        if (s.engine == EngineChoice.MPV) s.second?.stop()
         s.player?.stop()
         s.player?.clearMediaItems()
         s.subtitleView?.setCues(emptyList())
@@ -1457,6 +1615,7 @@ class SnowPlayerPlugin : Plugin() {
         val s = slot(call)
         s.volume = v.coerceIn(0f, MAX_VOLUME)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) { s.second?.setVolume(s.volume); call.resolve(); return@runOnUiThread }
             s.player?.volume = s.volume.coerceAtMost(1f)
             applyBoost(s)
             call.resolve()
@@ -1492,6 +1651,7 @@ class SnowPlayerPlugin : Plugin() {
         val enabled = call.getBoolean("enabled", true) ?: true
         val s = slot(call)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) { s.second?.setAudioEnabled(enabled); call.resolve(); return@runOnUiThread }
             val p = s.player
             if (p != null) {
                 p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
@@ -1607,6 +1767,12 @@ class SnowPlayerPlugin : Plugin() {
     private fun listTracks(call: PluginCall, type: Int) {
         val s = slot(call)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) {
+                val mpvOut = JSArray()
+                s.second?.tracks(type)?.forEach { mpvOut.put(it) }
+                call.resolve(JSObject().put("tracks", mpvOut))
+                return@runOnUiThread
+            }
             val out = JSArray()
             val p = s.player
             if (p != null) {
@@ -1658,6 +1824,11 @@ class SnowPlayerPlugin : Plugin() {
         val id = call.getString("id")
         val s = slot(call)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) {
+                if (id != null) s.second?.selectTrack(type, id)
+                call.resolve()
+                return@runOnUiThread
+            }
             val p = s.player
             if (p == null || id == null) { call.resolve(); return@runOnUiThread }
             if (id == "-1") {
@@ -1758,6 +1929,107 @@ class SnowPlayerPlugin : Plugin() {
     @PluginMethod fun getSubtitleTracks(call: PluginCall) = listTracks(call, C.TRACK_TYPE_TEXT)
     @PluginMethod fun setSubtitleTrack(call: PluginCall) = selectTrack(call, C.TRACK_TYPE_TEXT)
 
+    /** Whether mpv is offered on this box right now, and why not when it
+     *  isn't (PlaybackScreen's disabled reason) — the same three EngineChoice
+     *  reports for a real load(): not-in-build, android-too-old, init-failed. */
+    @PluginMethod
+    fun getEngines(call: PluginCall) {
+        val availability = EngineChoice.Availability(
+            inBuild = BuildConfig.SMC_WITH_MPV,
+            androidOk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O,
+            initFailed = mpvInitFailed,
+        )
+        val reason = when {
+            !availability.inBuild -> EngineChoice.NOT_IN_BUILD
+            !availability.androidOk -> EngineChoice.ANDROID_TOO_OLD
+            availability.initFailed -> EngineChoice.INIT_FAILED
+            else -> null
+        }
+        val mpv = JSObject().put("available", reason == null)
+        if (reason != null) mpv.put("reason", reason)
+        call.resolve(JSObject().put("mpv", mpv))
+    }
+
+    /**
+     * mpv, for the whole app (MPVLib's API is static — one instance total).
+     * Reached through Class.forName so a customer build (SMC_WITH_MPV off,
+     * MpvEngine's class not even in the APK) never links MPVLib, even from
+     * this line: a missing class just throws ClassNotFoundException, caught
+     * below like any other failure to start it. `mpvInitFailed` then marks
+     * mpv off for the rest of this process — never retried until a restart.
+     */
+    private fun secondEngineFor(screenId: String): SecondEngine? {
+        mpvEngine?.let { return it }
+        if (mpvInitFailed) return null
+        val act = activity ?: return null
+        return try {
+            val cls = Class.forName("com.snowmedia.player.mpv.MpvEngine")
+            val ctor = cls.getConstructor(Context::class.java, Handler::class.java, SecondEngine.Callbacks::class.java)
+            val engine = ctor.newInstance(act.applicationContext, mainHandler, mpvCallbacks(screenId)) as SecondEngine
+            mpvEngine = engine
+            engine
+        } catch (e: Throwable) {
+            Log.w(TAG, "mpv did not start; playing on ExoPlayer (${e.javaClass.simpleName})")
+            mpvInitFailed = true
+            null
+        }
+    }
+
+    /** Bridges mpv's events back into the SAME slot fields ExoPlayer's own
+     *  Player.Listener updates, so statsOf and the JS events work the same
+     *  for either engine. mpv only ever plays on `screenId` = "main"
+     *  (EngineChoice), but nothing here assumes that. */
+    private fun mpvCallbacks(screenId: String): SecondEngine.Callbacks = object : SecondEngine.Callbacks {
+        override fun onState(state: String) {
+            notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", state))
+        }
+        override fun onPlaying(playing: Boolean) {
+            notifyListeners("playerState", JSObject().put("screenId", screenId).put("playing", playing))
+        }
+        override fun onPaused(paused: Boolean) {
+            val s = slotFor(screenId)
+            if (paused == s.reportedPaused) return
+            s.reportedPaused = paused
+            notifyListeners("playerState", JSObject().put("screenId", screenId).put("paused", paused))
+        }
+        override fun onFirstFrame() {
+            val s = slotFor(screenId)
+            s.firstFrameSeen = true
+            openShutterIfReady(s)
+        }
+        override fun onError(code: String, message: String) {
+            slotFor(screenId).lastError = code
+            notifyListeners("playerError", JSObject().put("screenId", screenId).put("code", code).put("message", message))
+        }
+        override fun onTracksChanged() {
+            notifyListeners("tracksChanged", JSObject().put("screenId", screenId))
+        }
+        override fun onVideoSize(width: Int, height: Int, pixelRatio: Float) {
+            val s = slotFor(screenId)
+            s.videoW = width
+            s.videoH = height
+            s.pixelRatio = pixelRatio
+            applyFormat(s)
+        }
+        override fun onBandwidth(kbps: Long) {
+            if (screenId != MAIN) return
+            val s = slotFor(screenId)
+            s.lastKbps = kbps
+            if (kbps > 0L) {
+                if (s.kbpsMin < 0L || kbps < s.kbpsMin) s.kbpsMin = kbps
+                if (kbps > s.kbpsMax) s.kbpsMax = kbps
+                s.kbpsSum += kbps
+                s.kbpsSamples++
+            }
+            notifyListeners("bandwidth", JSObject().put("screenId", screenId).put("kbps", kbps))
+        }
+        override fun onSubtitleText(text: String) {
+            val s = slotFor(screenId)
+            if (text.isBlank()) s.subtitleView?.setCues(emptyList())
+            else s.subtitleView?.setCues(listOf(Cue.Builder().setText(text).build()))
+        }
+    }
+
     override fun handleOnDestroy() {
         activity?.runOnUiThread {
             for (s in slots.values) {
@@ -1770,6 +2042,8 @@ class SnowPlayerPlugin : Plugin() {
             slots.clear()
             releaseWifi()
             wifiLock = null
+            mpvEngine?.release()
+            mpvEngine = null
         }
         super.handleOnDestroy()
     }

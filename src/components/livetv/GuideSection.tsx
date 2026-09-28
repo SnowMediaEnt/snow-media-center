@@ -32,6 +32,8 @@ import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
+import { usePlayerEngine } from '@/hooks/usePlayerEngine';
+import { toast } from '@/hooks/use-toast';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import SnowLoader from '@/components/SnowLoader';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
@@ -413,13 +415,26 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     : nativePreviewActive && previewChannelId != null
       ? toTs(buildLiveStreamUrl(creds, previewChannelId))
       : null;
+  // Player engine (owner test builds only — PlaybackScreen). Same call
+  // covers fullscreen and the preview box above the grid.
+  const { engine: playerEngine } = usePlayerEngine();
   const native = useNativePlayer({
     active: nativeActive || nativePreviewActive,
     url: nativeUrl,
     volume,
+    engine: playerEngine,
     rect: nativeActive ? undefined : previewRect,
     background: nativeActive,
   });
+
+  // mpv couldn't start on this box: told once per fallback (see LiveSection).
+  const lastEngineNoticeRef = useRef<string | null>(null);
+  useEffect(() => {
+    const notice = native.engineNotice;
+    if (!notice || notice === lastEngineNoticeRef.current) return;
+    lastEngineNoticeRef.current = notice;
+    toast({ title: "MPV couldn't start on this box — using ExoPlayer" });
+  }, [native.engineNotice]);
   useEffect(() => {
     if (!nativeActive) return;
     document.documentElement.classList.add('snowplayer-fullscreen');

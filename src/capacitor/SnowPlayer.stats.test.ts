@@ -16,6 +16,7 @@ const KEYS: Array<keyof PlayerStats> = [
   'audioDecoder', 'audioFormat',
   'restarts', 'lastRestartReason', 'lastError', 'loadProfile',
   'javaHeapMb', 'nativeHeapMb',
+  'engine', 'firstFrameMs', 'stalls', 'stallSec', 'cpuPct', 'pssMb',
 ];
 
 const body = (from: string) => plugin.slice(plugin.indexOf(from), plugin.indexOf('\n    }\n', plugin.indexOf(from)));
@@ -31,6 +32,7 @@ describe('SnowPlayer.getStats — web / no native player', () => {
       audioDecoder: null, audioFormat: null,
       restarts: 0, lastRestartReason: null, lastError: null, loadProfile: null,
       javaHeapMb: null, nativeHeapMb: null,
+      engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
     });
   });
 
@@ -41,6 +43,50 @@ describe('SnowPlayer.getStats — web / no native player', () => {
     expect(a).not.toBe(b);
     a.restarts = 9;
     expect(emptyPlayerStats().restarts).toBe(0);
+  });
+});
+
+describe('SnowPlayer.getEngines — web / no native player', () => {
+  it('mpv is never available on the web, with a reason', async () => {
+    expect(await SnowPlayer.getEngines()).toEqual({ mpv: { available: false, reason: 'not-in-build' } });
+  });
+});
+
+describe('SnowPlayerPlugin.kt — mpv (owner test builds only)', () => {
+  it('getEngines reports availability and, when unavailable, why', () => {
+    const fn = body('fun getEngines(call: PluginCall)');
+    expect(plugin).toMatch(/@PluginMethod\s*fun getEngines\(call: PluginCall\)/);
+    expect(fn).toContain('inBuild = BuildConfig.SMC_WITH_MPV');
+    expect(fn).toContain('androidOk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O');
+    expect(fn).toContain('initFailed = mpvInitFailed');
+    expect(fn).toContain('EngineChoice.NOT_IN_BUILD');
+    expect(fn).toContain('EngineChoice.ANDROID_TOO_OLD');
+    expect(fn).toContain('EngineChoice.INIT_FAILED');
+  });
+
+  it('load() resolves the engine and falls back with an engineFallback event, never crossing screens or VOD', () => {
+    const load = body('fun load(call: PluginCall)');
+    expect(load).toContain('val choice = EngineChoice.choose(requestedEngine, screenId, live, availability)');
+    expect(load).toContain('notifyListeners("engineFallback", JSObject().put("screenId", screenId).put("reason", fallbackReason))');
+    // A change of engine tears the old one down before the new one's surface is built.
+    expect(load).toMatch(/if \(engine != s\.engine\) \{\s*if \(s\.engine == EngineChoice\.MPV\) s\.second\?\.stop\(\)\s*stopSlot\(s\)\s*releaseSlot\(s\)\s*s\.engine = engine\s*\}/);
+  });
+
+  it('mpv is reached through Class.forName, never a direct import, so a customer build never links MPVLib', () => {
+    expect(plugin).not.toMatch(/import\s+dev\.jdtech\.mpv/);
+    // Mentioned only in comments (why Class.forName is used); never called.
+    expect(plugin).not.toMatch(/MPVLib\./);
+    expect(plugin).toContain('Class.forName("com.snowmedia.player.mpv.MpvEngine")');
+    const fn = body('private fun secondEngineFor(');
+    expect(fn).toContain('} catch (e: Throwable) {');
+    expect(fn).toContain('mpvInitFailed = true');
+  });
+
+  it('statsOf reads mpv through the SecondEngine, adding only what neither engine knows about itself', () => {
+    const stats2 = body('private fun statsOf(');
+    expect(stats2).toContain('s.second!!.stats()');
+    expect(stats2).toContain('o.put("engine", EngineChoice.MPV)');
+    expect(stats2).toContain('o.put("engine", s?.engine ?: EngineChoice.EXO)');
   });
 });
 

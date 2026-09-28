@@ -47,6 +47,12 @@ export interface SnowPlayerLoadOpts {
   startPosition?: number;
   /** Optional multi-screen slot id. Omit → "main". */
   screenId?: string;
+  /** 'exo' (default) or 'mpv' — owner test builds only, and only ever
+   *  actually used for the main slot on a live channel (EngineChoice).
+   *  Anything else (a tile, Plex, VOD) silently plays on ExoPlayer even if
+   *  'mpv' is asked for, with no engineFallback — it was never offered
+   *  there. Ignored on web. */
+  engine?: 'exo' | 'mpv';
 }
 
 export interface SnowScreenOpts { screenId?: string }
@@ -96,10 +102,24 @@ export interface PlayerStats {
    *  a RECONNECT_EXHAUSTED, ERROR_CODE_IO_BAD_HTTP_STATUS is a server that
    *  refused the file, not one that stopped answering. */
   lastError: string | null;
-  /** How far ahead the player reads, e.g. "steady · 50 s / 128 MB, 20 s floor". */
+  /** How far ahead the player reads, e.g. "steady · 50 s / 128 MB, 20 s floor",
+   *  or for mpv "mpv · cache 32 MB · 10 s ahead". */
   loadProfile: string | null;
   javaHeapMb: number | null;
   nativeHeapMb: number | null;
+  /** Which engine actually played this stream. */
+  engine: 'exo' | 'mpv';
+  /** Time to first picture since load(), ms. Null before it has one. */
+  firstFrameMs: number | null;
+  /** Rebuffers since the first picture (not the start-up wait itself), and
+   *  the seconds spent in them. */
+  stalls: number;
+  stallSec: number;
+  /** CPU used by this whole process since load(), against wall time since
+   *  load() — not just this stream's own decoding. Null before a load(). */
+  cpuPct: number | null;
+  /** This process's PSS, cached for a few seconds. */
+  pssMb: number | null;
 }
 
 /** Stats with nothing playing: what the web build answers, and a stand-in
@@ -112,6 +132,7 @@ export function emptyPlayerStats(): PlayerStats {
     audioDecoder: null, audioFormat: null,
     restarts: 0, lastRestartReason: null, lastError: null, loadProfile: null,
     javaHeapMb: null, nativeHeapMb: null,
+    engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
   };
 }
 
@@ -167,8 +188,12 @@ export interface SnowPlayerPlugin {
   /** The stats panel's figures for a slot (main by default); see PlayerStats.
    *  An app built before this existed rejects the call. */
   getStats(opts?: SnowScreenOpts): Promise<PlayerStats>;
+  /** Whether mpv is offered on this box right now (owner test builds only),
+   *  and why not when it isn't. An app built before this existed rejects
+   *  the call — callers treat that the same as { available: false }. */
+  getEngines(): Promise<{ mpv: { available: boolean; reason?: string } }>;
   addListener(
-    event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth' | 'preBuffer',
+    event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth' | 'preBuffer' | 'engineFallback',
     cb: (data: {
       screenId?: string; state?: string; playing?: boolean;
       /** playerError: the player's own ERROR_CODE_* name, AUDIO_DECODE, or
@@ -190,6 +215,9 @@ export interface SnowPlayerPlugin {
        *  fill the buffer): video buffered ahead / the target, time held / the
        *  limit, all ms; `done` on the last one. */
       bufferedMs?: number; targetMs?: number; elapsedMs?: number; maxWaitMs?: number; done?: boolean;
+      /** engineFallback: mpv was asked for and could not be used —
+       *  'not-in-build' | 'android-too-old' | 'init-failed'. */
+      reason?: string;
     }) => void,
   ): Promise<PluginListenerHandle>;
 }
@@ -215,6 +243,8 @@ const webFallback: SnowPlayerPlugin = {
     return { ffmpegAvailable: false, ffmpegVersion: '', abis: [], device: 'web', sdk: 0 };
   },
   async getStats() { return emptyPlayerStats(); },
+  // Web never has mpv; the reason matches EngineChoice.NOT_IN_BUILD.
+  async getEngines() { return { mpv: { available: false, reason: 'not-in-build' } }; },
   async addListener() { return { remove: async () => {} } as PluginListenerHandle; },
 };
 

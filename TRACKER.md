@@ -20,7 +20,7 @@ Status: building · ready to test · still broken · done.
 | 13 | Show-password eye button on every password field (Live TV sign-in and everywhere) | feature | planned, waiting on owner's 4 answers | |
 | 14 | Player corner shows a faint "Snow Media Ent." instead of the version number | feature | ready to test (build 44) | |
 | 15 | Dashboard Sign Out signs out of both the Snow Media account and Live TV | feature | ready to test (build 44) | |
-| 16 | MPV player as a second Live TV player, switchable in Live TV settings (ExoPlayer stays) | feature | planning | |
+| 16 | MPV player as a second Live TV player, switchable in Live TV settings (ExoPlayer stays) | feature | ready to test (build 46; MPV test builds only, SMC_WITH_MPV=true) | |
 | 17 | Game Day: link name shows "A&E" though it plays the right channel — see bugs/game-day-links.md | bug | ready to test (fixed at rung 1) | 1 |
 | 18 | Game Day NFL: a game listed 4 links, 2 were NFL-zone channels — see bugs/game-day-links.md | bug | ready to test (fixed at rung 1) | 1 |
 

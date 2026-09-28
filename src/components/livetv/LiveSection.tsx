@@ -61,8 +61,11 @@ import SnowLoader from '@/components/SnowLoader';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import type { VideoController } from './VideoPlayer';
 import { AlertTriangle, RotateCw } from 'lucide-react';
-import { hasNativePlayer } from '@/capacitor/SnowPlayer';
+import { hasNativePlayer, SnowPlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
+import { usePlayerEngine } from '@/hooks/usePlayerEngine';
+import { recordEngineSample, sampleFromStats } from '@/lib/engineCompare';
+import PlayerStatsPanel from './PlayerStatsPanel';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
@@ -478,6 +481,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [volMenuOpen, setVolMenuOpen] = useState(false);
   const [subMenuFocus, setSubMenuFocus] = useState(-1); // -1 = Off
   const [audioMenuFocus, setAudioMenuFocus] = useState(0);
+  // Stats toggle (PlayerStatsPanel) — a plain on/off, no menu of its own.
+  const [statsShown, setStatsShown] = useState(false);
   // Slow-connection hint: set after ~25s of CONTINUOUS native buffering.
   const [slowConn, setSlowConn] = useState(false);
   const [tracksTick, setTracksTick] = useState(0);
@@ -503,6 +508,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setAudioMenuOpen(false);
     setVolMenuOpen(false);
   }, []);
+  // A fresh state next time fullscreen opens — the stats panel itself never
+  // renders once !fullscreen (below), so this only affects the toggle's
+  // remembered value.
+  useEffect(() => { if (!fullscreen) setStatsShown(false); }, [fullscreen]);
+
   // Reset bar state when entering fullscreen or switching channel.
   useEffect(() => {
     if (!fullscreen) return;
@@ -858,6 +868,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // the virtualized rows, so scrollTop math needs the wrapper's real offset.
   const channelListRef = useRef<HTMLDivElement | null>(null);
   const layout = useLiveLayout();
+  // Player engine (owner test builds only — PlaybackScreen). mpv only ever
+  // actually plays here: the main slot, live=true (EngineChoice); a preview
+  // box and fullscreen share the one useNativePlayer call below, so passing
+  // it through once covers both.
+  const { engine: playerEngine } = usePlayerEngine();
   // First time in Live TV on this box: pick a look before anything else.
   const [choosingLayout, setChoosingLayout] = useState(() => !DEMO && !hasLiveLayoutChoice());
   const choosingLayoutRef = useRef(choosingLayout);
@@ -1305,11 +1320,38 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     active: nativeActive || nativePreviewActive,
     url: nativeUrl,
     volume,
+    engine: playerEngine,
     rect: nativeActive ? undefined : previewRect,
     background: nativeActive,
     onTracksChanged: () => setTracksTick((t) => t + 1),
     onPlayStateChange: (p) => setIsPaused(p),
   });
+
+  // mpv couldn't start on this box: told once per fallback, not on every
+  // render (useNativePlayer clears engineNotice on the next load).
+  const lastEngineNoticeRef = useRef<string | null>(null);
+  useEffect(() => {
+    const notice = native.engineNotice;
+    if (!notice || notice === lastEngineNoticeRef.current) return;
+    lastEngineNoticeRef.current = notice;
+    toast({ title: "MPV couldn't start on this box — using ExoPlayer" });
+  }, [native.engineNotice]);
+
+  // Engine comparison (PlaybackScreen's Compare table): one getStats() read
+  // 60 s into a Live channel on the main player, and again when it stops.
+  useEffect(() => {
+    if (!nativeActive) return;
+    const startedAt = Date.now();
+    const t = window.setTimeout(() => {
+      void SnowPlayer.getStats().then((st) => recordEngineSample(sampleFromStats(st, 1))).catch(() => undefined);
+    }, 60_000);
+    return () => {
+      window.clearTimeout(t);
+      const minutes = (Date.now() - startedAt) / 60_000;
+      if (minutes <= 0) return;
+      void SnowPlayer.getStats().then((st) => recordEngineSample(sampleFromStats(st, minutes))).catch(() => undefined);
+    };
+  }, [nativeActive, playingChannelId]);
 
   // Slow-connection hint — arms a 25s timer while the native player is
   // CONTINUOUSLY buffering; "ready"/playing clears buffering and the hint.
@@ -1461,6 +1503,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const volMenuOpenRef = useRef(volMenuOpen);
   const subMenuFocusRef = useRef(subMenuFocus);
   const audioMenuFocusRef = useRef(audioMenuFocus);
+  const statsShownRef = useRef(statsShown);
+  useEffect(() => { statsShownRef.current = statsShown; }, [statsShown]);
 
   useEffect(() => { paneRef.current = pane; }, [pane]);
   useEffect(() => { categoryIdxRef.current = categoryIdx; }, [categoryIdx]);
@@ -1588,6 +1632,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // --- Back ---
         if (isBack) {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+          if (statsShownRef.current) { setStatsShown(false); return; }
           if (barVisibleRef.current) { hideBarNow(); return; }
           setFullscreen(false);
           backToCallerRef.current?.();
@@ -1624,7 +1669,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         const subs = ctrl?.getSubtitleTracks() ?? [];
         const auds = ctrl?.getAudioTracks() ?? [];
         const seekable = !!ctrl?.isSeekable();
-        const order: BarControlId[] = ['prev', 'rew', 'play', 'fwd', 'next', 'cc', 'audio', 'vol'];
+        const order: BarControlId[] = ['prev', 'rew', 'play', 'fwd', 'next', 'cc', 'audio', 'vol', 'stats'];
         const isDisabled = (id: BarControlId): boolean => {
           if (id === 'rew' || id === 'fwd') return !seekable;
           if (id === 'cc') return subs.length === 0;
@@ -1674,6 +1719,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             setVolMenuOpen(true);
             setSubMenuOpen(false);
             setAudioMenuOpen(false);
+          }
+          else if (id === 'stats') {
+            setStatsShown((v) => !v);
           }
           return;
         }
@@ -1971,10 +2019,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             </button>
           </div>
         )}
+        {NATIVE_PLAYBACK && statsShown && <PlayerStatsPanel />}
         <PlayerControlBar
           visible={barVisible}
           focus={barFocus}
           isPaused={isPaused}
+          statsOn={statsShown}
           controller={videoControllerRef.current}
           tracksTick={tracksTick}
           categoryName={currentCat?.name}

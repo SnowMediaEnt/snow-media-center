@@ -2,6 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- MPVLib's own manifest declares a higher minSdkVersion than this
+         app's — this app still supports its own minSdk, and only OFFERS mpv
+         playback at runtime on SDK 26+ (EngineChoice), so overriding the
+         merge check here is safe. Present only for a manual test build with
+         SMC_WITH_MPV=true; a customer build never pulls the library in. -->
+    <uses-sdk tools:overrideLibrary="dev.jdtech.mpv" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Wi-Fi lock while a video plays (player setWakeMode). -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />

@@ -94,7 +94,7 @@ describe('useNativePlayer — where a film starts and resumes', () => {
   it('no start position (Live TV, a film from the top): load() carries none', async () => {
     mount({ url: CHANNEL });
     await waitFor(() => expect(loads()).toHaveLength(1));
-    expect(loads()[0].opts).toEqual({ url: CHANNEL, live: true, isLive: true, subtitles: undefined });
+    expect(loads()[0].opts).toEqual({ url: CHANNEL, live: true, isLive: true, subtitles: undefined, engine: 'exo' });
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
     expect(calls.some((c) => c.fn === 'seekTo')).toBe(false);
     expect(asked()).toHaveLength(0);
@@ -156,7 +156,7 @@ describe('useNativePlayer — where a film starts and resumes', () => {
     await setHidden(true);
     await setHidden(false);
     await waitFor(() => expect(loads()).toHaveLength(3));
-    for (const l of loads()) expect(l.opts).toEqual({ url: CHANNEL, live: true, isLive: true, subtitles: undefined });
+    for (const l of loads()) expect(l.opts).toEqual({ url: CHANNEL, live: true, isLive: true, subtitles: undefined, engine: 'exo' });
     expect(asked()).toHaveLength(0);
   });
 

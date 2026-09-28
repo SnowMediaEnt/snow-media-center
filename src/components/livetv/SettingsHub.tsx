@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, KeyRound, Users, Palette, LogOut, Loader2, CreditCard, ListFilter } from 'lucide-react';
+import { ArrowLeft, Tv, KeyRound, Users, Palette, LogOut, Loader2, CreditCard, ListFilter, Gauge } from 'lucide-react';
 import type { XtreamCreds } from '@/lib/xtream';
 import type { LiveLayout } from '@/lib/liveLayout';
 import { useToast } from '@/hooks/use-toast';
@@ -14,6 +14,7 @@ const DEMO = isDemo();
 const AccountInfoScreen = lazy(() => import('./AccountInfoScreen'));
 const SwitchAccountScreen = lazy(() => import('./SwitchAccountScreen'));
 const AppearanceScreen = lazy(() => import('./AppearanceScreen'));
+const PlaybackScreen = lazy(() => import('./PlaybackScreen'));
 const HideCategoriesScreen = lazy(() => import('./HideCategoriesScreen'));
 // Billing account (plans, renew, trial) — behind the billing_account flag.
 const BillingAccountScreen = lazy(() => import('@/components/billing/BillingAccountScreen'));
@@ -29,8 +30,8 @@ interface Props {
   onTryLayout?: (prev: LiveLayout, next: LiveLayout) => void;
 }
 
-type View = 'menu' | 'billing' | 'account' | 'switch' | 'categories' | 'appearance';
-type MenuId = 'billing' | 'account' | 'switch' | 'categories' | 'appearance' | 'signout';
+type View = 'menu' | 'billing' | 'account' | 'switch' | 'categories' | 'appearance' | 'playback';
+type MenuId = 'billing' | 'account' | 'switch' | 'categories' | 'appearance' | 'playback' | 'signout';
 
 interface MenuItem { id: MenuId; label: string; icon: typeof Tv; }
 
@@ -55,6 +56,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     { id: 'switch',     label: 'Switch Account',    icon: Users },
     { id: 'categories', label: 'Hide Categories',   icon: ListFilter },
     { id: 'appearance', label: 'Appearance',        icon: Palette },
+    { id: 'playback',   label: 'Playback',          icon: Gauge },
     { id: 'signout',    label: 'Sign Out',          icon: LogOut },
   ], [billingOn]);
 
@@ -68,13 +70,15 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
 
   const activate = useCallback((id: MenuId) => {
     // Demo: Account Info / Switch Account / Sign Out are
-    // inert — the demo account is pre-loaded. Appearance stays fully functional.
-    if (DEMO && id !== 'appearance') { demoNote(); return; }
+    // inert — the demo account is pre-loaded. Appearance and Playback stay
+    // fully functional (Playback is a per-box setting; nothing to protect).
+    if (DEMO && id !== 'appearance' && id !== 'playback') { demoNote(); return; }
     if (id === 'billing') setView('billing');
     else if (id === 'account') setView('account');
     else if (id === 'switch') setView('switch');
     else if (id === 'categories') setView('categories');
     else if (id === 'appearance') setView('appearance');
+    else if (id === 'playback') setView('playback');
     else if (id === 'signout') onSignOut();
   }, [demoNote, onSignOut]);
 
@@ -151,6 +155,13 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     return (
       <Suspense fallback={fallback}>
         <AppearanceScreen onBack={() => setView('menu')} onTryLayout={onTryLayout} />
+      </Suspense>
+    );
+  }
+  if (view === 'playback') {
+    return (
+      <Suspense fallback={fallback}>
+        <PlaybackScreen onBack={() => setView('menu')} />
       </Suspense>
     );
   }
