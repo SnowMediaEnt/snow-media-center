@@ -1449,7 +1449,7 @@ const Index = () => {
               // the page runs out of height, and its `overflow:hidden` then
               // crops the tiles top and bottom. The decorative watermark above
               // yields instead.
-              <Suspense fallback={<div className="h-[180px] flex-shrink-0" />}>
+              <Suspense fallback={<div className="h-[240px] flex-shrink-0" />}>
                 <MediaBar
                   active={isInMediaBar}
                   onExitDown={onMediaBarExitDown}
