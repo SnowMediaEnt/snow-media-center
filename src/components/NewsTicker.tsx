@@ -49,6 +49,8 @@ const writeCachedNews = (items: string[]) => {
 
 interface NewsTickerProps {
   compact?: boolean;
+  /** With compact: a taller strip and bigger text (Home, under the title). */
+  medium?: boolean;
   /** Extra clear space at the LEFT edge, as a CSS length. The strip itself
    *  still runs edge to edge; only the text, the fade and the LIVE badge start
    *  after it. Used on Home to clear the corner logo, which used to sit on top
@@ -56,7 +58,7 @@ interface NewsTickerProps {
   leadIn?: string;
 }
 
-const NewsTicker = memo(({ compact = false, leadIn = '0px' }: NewsTickerProps) => {
+const NewsTicker = memo(({ compact = false, medium = false, leadIn = '0px' }: NewsTickerProps) => {
   const cached = useMemo(readCachedNews, []);
   const [newsItems, setNewsItems] = useState<string[]>(cached?.items ?? INITIAL_NEWS);
   const isNative = useMemo(() => isNativePlatform(), []);
@@ -159,8 +161,8 @@ const NewsTicker = memo(({ compact = false, leadIn = '0px' }: NewsTickerProps) =
   // identical to every other join (no fused/missing items at the seam).
   const tickerText = useMemo(() => `${newsItems.join('   •   ')}   •   `, [newsItems]);
 
-  const trackHeight = compact ? 'h-8' : 'h-[3.75rem] py-1';
-  const textSize = compact ? 'text-sm' : 'text-xl';
+  const trackHeight = compact ? (medium ? 'news-ticker-medium' : 'h-8') : 'h-[3.75rem] py-1';
+  const textSize = compact ? (medium ? 'text-base' : 'text-sm') : 'text-xl';
   const padLeft = `calc(${compact ? '80px' : '128px'} + ${leadIn})`;
   const maskStart = `calc(${compact ? '60px' : '110px'} + ${leadIn})`;
   const maskEnd = `calc(${compact ? '80px' : '128px'} + ${leadIn})`;

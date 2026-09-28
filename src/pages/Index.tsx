@@ -118,7 +118,7 @@ const HomeActionCard = memo(({
   boostSize = false,
   badgeCount = 0,
 }: {
-  button: { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'purple' | 'gold' | 'navy' };
+  button: { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'purple' | 'gold' | 'navy'; tag?: string };
   index: number;
   isFocused: boolean;
   layoutMode: 'grid' | 'row';
@@ -173,8 +173,11 @@ const HomeActionCard = memo(({
         }}>
           <ButtonIcon className="text-white drop-shadow-xl w-full h-full" />
         </div>
-        <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand min-h-[2.5em] flex items-center justify-center" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
+        <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand min-h-[2.5em] flex flex-col items-center justify-center" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
           {button.title}
+          {/* A small second line inside the title's own space, so this card
+              stays the same height as the others (Plex: "(VOD)"). */}
+          {button.tag && <span className="font-semibold text-white/80" style={{ fontSize: '0.55em', marginTop: '0.15em' }}>{button.tag}</span>}
         </h3>
 
         {layoutMode === 'grid' && (
@@ -451,7 +454,7 @@ const HomeTopBar = ({ shape, banner, clock, header }: {
       className="absolute z-20 flex flex-nowrap items-center pointer-events-none"
       data-home-topbar
       style={{
-        top: 'max(env(safe-area-inset-top, 0px), 5vh)',
+        top: 'max(env(safe-area-inset-top, 0px), 2.5vh)',
         left: 'max(env(safe-area-inset-left, 0px), 5vw)',
         right: 'max(env(safe-area-inset-right, 0px), 5vw)',
       }}
@@ -475,36 +478,18 @@ const HomeTopBar = ({ shape, banner, clock, header }: {
   );
 };
 
-const WatermarkTitle = memo(({ tagline, mediaBarEnabled }: { tagline: string; mediaBarEnabled: boolean }) => (
+const WatermarkTitle = memo(({ tagline }: { tagline: string }) => (
   <div className="relative z-10 flex-shrink min-h-0 flex items-center justify-center">
     <div className="text-center home-watermark">
-      <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.35 }}>
+      <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, min(8vw, 12vh), 10rem)', opacity: 0.95 }}>
         <span className="font-snow-media text-brand-ice">SNOW MEDIA</span>
         <span> </span>
         <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
       </h1>
-      <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.5 }}>
+      <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.85 }}>
         {tagline}
       </p>
     </div>
-    {mediaBarEnabled && (
-      // Full-bleed RSS strip, sitting below the header row so the account and
-      // settings buttons above do not crowd it. The old left inset cleared the
-      // corner logo, which at this vertical position it no longer touches —
-      // only the overscan margin is kept, inside the ticker, so the navy bar
-      // itself still reaches both screen edges.
-      <div
-        className="absolute z-20"
-        style={{
-          top: '46%',
-          transform: 'translateY(-50%)',
-          left: 0,
-          right: 0,
-        }}
-      >
-        <NewsTicker compact leadIn="max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))" />
-      </div>
-    )}
   </div>
 ));
 WatermarkTitle.displayName = 'WatermarkTitle';
@@ -1044,8 +1029,9 @@ const Index = () => {
   // (at 5vh, its buttons 40–56 px tall; the ticker sits well over 22 px into
   // the title). Plain px: Chrome 66 has no clamp() and dropped it to 0.
   const titleSpacer = useMemo(() => {
-    const rowBottom = screenHeight * 0.05 + (screenTier === 'xl' ? 56 : shortScreen ? 40 : 48);
-    return Math.round(Math.max(Math.min(80, Math.max(40, screenHeight * 0.05)), rowBottom - 22));
+    // The top row sits at 2.5vh; the title starts just below it, never under it.
+    const rowBottom = screenHeight * 0.025 + (screenTier === 'xl' ? 56 : shortScreen ? 40 : 48);
+    return Math.round(rowBottom + 2);
   }, [screenHeight, screenTier, shortScreen]);
 
   // Stable per-index activation callbacks — referentially constant for the
@@ -1315,9 +1301,9 @@ const Index = () => {
   }, []);
 
   const buttons = useMemo(() => {
-    const byId: Record<HomeCardId, { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = {
+    const byId: Record<HomeCardId, { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy'; tag?: string }> = {
       livetv: { icon: Tv, title: t('home.liveTv.title'), description: t('home.liveTv.description'), variant: 'navy' },
-      plex: { icon: Film, title: t('home.plex.title'), description: t('home.plex.description'), variant: 'blue' },
+      plex: { icon: Film, title: t('home.plex.title'), description: t('home.plex.description'), variant: 'blue', tag: '(VOD)' },
       apps: { icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
       support: { icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
       store: { icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' },
@@ -1396,15 +1382,15 @@ const Index = () => {
           {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
           <div className="flex-shrink-0" style={{ height: titleSpacer }}></div>
 
-          {/* Header - tight container around title. When the content menu is ON,
-              the thin RSS ticker overlays through the middle of the title.
-              When OFF, a thicker standalone RSS row sits below the title. */}
-          <WatermarkTitle tagline={tagline} mediaBarEnabled={mediaBarEnabled} />
-          {!mediaBarEnabled && (
-            <div className="relative z-10 flex-shrink-0 mt-2">
-              <NewsTicker />
-            </div>
-          )}
+          {/* The title in full, then the RSS strip under it (never across it).
+              With the content bar ON the strip is medium height; OFF, the
+              thicker one, as there is room. */}
+          <WatermarkTitle tagline={tagline} />
+          <div className="relative z-10 flex-shrink-0 mt-2">
+            {mediaBarEnabled
+              ? <NewsTicker compact medium leadIn="max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))" />
+              : <NewsTicker />}
+          </div>
 
           {/* SME logo top-left — secret 7-click easter egg */}
           <LogoButton

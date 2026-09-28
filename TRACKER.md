@@ -26,6 +26,8 @@ Status: building · ready to test · still broken · done.
 | 19 | MPV: black screen, "buffering", skips every half second; Compare memory shows 0 MB — see bugs/mpv-black-screen.md | bug | ready to test (build 47) | 2 |
 | 20 | Settings → UI: removed the Profiles card (Profiles has its own menu item and Settings tab) | feature | ready to test | |
 | 21 | Home content bar restyled like the clone's "Recommended" row (heading, bare posters, title under each, no band; arrows + page dots kept) | feature | ready to test | |
+| 22 | Home top: date/time/buttons higher, full-colour "Snow Media Center" title, taller RSS strip under the title (not across it) | feature | ready to test | |
+| 23 | Home: Plex card shows "(VOD)" under the name | feature | ready to test | |
 
 ## Waiting on the owner
 - Migration 20260930070000 + notify-ticket/telegram-notify deploy: held until you decide.
