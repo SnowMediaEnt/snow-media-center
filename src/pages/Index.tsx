@@ -129,7 +129,8 @@ const HomeActionCard = memo(({
   const ButtonIcon = button.icon;
   const cardStyle = layoutMode === 'grid'
     ? { width: boostSize ? 'clamp(190px, 21vw, 460px)' : 'clamp(150px, 16vw, 360px)', height: boostSize ? 'clamp(120px, 21vh, 300px)' : 'clamp(95px, 16vh, 230px)' }
-    : { width: boostSize ? 'clamp(190px, 21vw, 420px)' : 'clamp(150px, 16vw, 320px)', aspectRatio: '1 / 0.88' as const };
+    // Row: wide and short, so the content bar above is the centrepiece.
+    : { width: boostSize ? 'clamp(190px, 21vw, 420px)' : 'clamp(150px, 16vw, 320px)', aspectRatio: '1 / 0.66' as const };
 
   return (
     <Card
@@ -168,7 +169,7 @@ const HomeActionCard = memo(({
 
       <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
         <div className="flex-shrink-0 mb-2" style={{
-          width: layoutMode === 'grid' ? 'clamp(40px, 5vw, 84px)' : 'clamp(44px, 5.2vw, 84px)',
+          width: layoutMode === 'grid' ? 'clamp(40px, 5vw, 84px)' : 'clamp(32px, 3.4vw, 64px)',
           aspectRatio: '1 / 1'
         }}>
           <ButtonIcon className="text-white drop-shadow-xl w-full h-full" />
