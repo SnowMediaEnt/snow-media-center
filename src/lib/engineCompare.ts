@@ -19,10 +19,17 @@ export interface EngineSample {
   at: number;
 }
 
-const KEY_PREFIX = 'smc-engine-compare-v1-';
+// v2 (build 47): build 46's samples can't be trusted and are left behind —
+// its mpv reloaded every half second (no picture, stalls never counted) and
+// its memory reading was always 0 MB for both engines (bugs/mpv-black-screen.md).
+const KEY_PREFIX = 'smc-engine-compare-v2-';
 const MAX_SAMPLES = 30;
 
 const keyFor = (engine: EngineSample['engine']): string => `${KEY_PREFIX}${engine}`;
+
+/** A process never uses 0 MB: a reading of 0 or less is "not known", never
+ *  a number to average in. */
+const knownMb = (mb: number | null | undefined): number | null => (typeof mb === 'number' && mb > 0 ? mb : null);
 
 /** A PlayerStats read into a sample — LiveSection reads getStats() and hands
  *  the answer here rather than this file knowing how to ask for one. */
@@ -34,7 +41,7 @@ export function sampleFromStats(stats: PlayerStats, minutes: number): EngineSamp
     stallSec: stats.stallSec,
     minutes,
     cpuPct: stats.cpuPct,
-    pssMb: stats.pssMb,
+    pssMb: knownMb(stats.pssMb),
     at: Date.now(),
   };
 }
@@ -89,7 +96,7 @@ export function compareEngines(): EngineCompareRow[] {
     const hours = list.reduce((a, s) => a + s.minutes, 0) / 60;
     const firsts = list.map((s) => s.firstPictureMs).filter((n): n is number => n != null);
     const cpus = list.map((s) => s.cpuPct).filter((n): n is number => n != null);
-    const mems = list.map((s) => s.pssMb).filter((n): n is number => n != null);
+    const mems = list.map((s) => knownMb(s.pssMb)).filter((n): n is number => n != null);
     return {
       engine,
       samples: list.length,

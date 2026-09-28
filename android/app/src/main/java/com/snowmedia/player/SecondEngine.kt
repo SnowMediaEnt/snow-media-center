@@ -1,5 +1,6 @@
 package com.snowmedia.player
 
+import android.view.View
 import android.view.ViewGroup
 import com.getcapacitor.JSObject
 
@@ -19,6 +20,10 @@ internal interface SecondEngine {
     /** The slot's black container (below the shutter and the SubtitleView,
      *  which the plugin already owns): the engine adds its own surface. */
     fun attach(container: ViewGroup)
+    /** The view the picture is drawn in (a direct child of the container),
+     *  once attach() has made it: the plugin sizes it to the picture's shape
+     *  (applyFormat / VideoFit), as it does ExoPlayer's TextureView. */
+    fun videoView(): View?
     fun load(url: String, live: Boolean)
     fun play()
     fun pause()

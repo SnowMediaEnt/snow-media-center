@@ -11,6 +11,14 @@ describe('sampleFromStats', () => {
     expect(s).toMatchObject({ engine: 'mpv', firstPictureMs: 420, stalls: 2, stallSec: 3.5, minutes: 4.2, cpuPct: 12.5, pssMb: 88 });
     expect(typeof s.at).toBe('number');
   });
+
+  it('a memory reading of 0 (or less) is not known, never 0 MB', () => {
+    const base = { ...emptyPlayerStats(), engine: 'exo' as const };
+    expect(sampleFromStats({ ...base, pssMb: 0 }, 1).pssMb).toBeNull();
+    expect(sampleFromStats({ ...base, pssMb: -1 }, 1).pssMb).toBeNull();
+    expect(sampleFromStats({ ...base, pssMb: null }, 1).pssMb).toBeNull();
+    expect(sampleFromStats({ ...base, pssMb: 312 }, 1).pssMb).toBe(312);
+  });
 });
 
 describe('recordEngineSample / readEngineSamples', () => {
@@ -35,9 +43,9 @@ describe('recordEngineSample / readEngineSamples', () => {
   });
 
   it('a corrupted or non-array value reads back as empty, not a crash', () => {
-    localStorage.setItem('smc-engine-compare-v1-exo', 'not json');
+    localStorage.setItem('smc-engine-compare-v2-exo', 'not json');
     expect(readEngineSamples('exo')).toEqual([]);
-    localStorage.setItem('smc-engine-compare-v1-exo', '{"not":"an array"}');
+    localStorage.setItem('smc-engine-compare-v2-exo', '{"not":"an array"}');
     expect(readEngineSamples('exo')).toEqual([]);
   });
 });
@@ -77,5 +85,21 @@ describe('compareEngines', () => {
     expect(mpv.avgCpuPct).toBe(40);
     expect(mpv.avgMemoryMb).toBe(400);
     expect(mpv.medianFirstPictureMs).toBe(300);
+  });
+
+  it('a stored 0 MB memory reading is left out of the average, not averaged in', () => {
+    recordEngineSample({ engine: 'exo', firstPictureMs: 500, stalls: 0, stallSec: 0, minutes: 1, cpuPct: 50, pssMb: 0, at: 1 });
+    recordEngineSample({ engine: 'exo', firstPictureMs: 500, stalls: 0, stallSec: 0, minutes: 1, cpuPct: 50, pssMb: 300, at: 2 });
+    const [exo] = compareEngines();
+    expect(exo.avgMemoryMb).toBe(300);
+  });
+
+  it("build 46's v1 samples (mpv reloading in a loop, memory always 0) are not read", () => {
+    localStorage.setItem('smc-engine-compare-v1-mpv', JSON.stringify([
+      { engine: 'mpv', firstPictureMs: 4259, stalls: 0, stallSec: 0, minutes: 1, cpuPct: 64.5, pssMb: 0, at: 1 },
+    ]));
+    const [, mpv] = compareEngines();
+    expect(mpv.samples).toBe(0);
+    expect(mpv.medianFirstPictureMs).toBeNull();
   });
 });

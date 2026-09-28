@@ -68,8 +68,25 @@ describe('SnowPlayerPlugin.kt — mpv (owner test builds only)', () => {
     const load = body('fun load(call: PluginCall)');
     expect(load).toContain('val choice = EngineChoice.choose(requestedEngine, screenId, live, availability)');
     expect(load).toContain('notifyListeners("engineFallback", JSObject().put("screenId", screenId).put("reason", fallbackReason))');
-    // A change of engine tears the old one down before the new one's surface is built.
-    expect(load).toMatch(/if \(engine != s\.engine\) \{\s*if \(s\.engine == EngineChoice\.MPV\) s\.second\?\.stop\(\)\s*stopSlot\(s\)\s*releaseSlot\(s\)\s*s\.engine = engine\s*\}/);
+    // A change of engine tears the old one down before the new one's surface
+    // is built, keeping the rect the WebView just set (a preview box).
+    expect(load).toMatch(/if \(engine != s\.engine\) \{\s*if \(s\.engine == EngineChoice\.MPV\) s\.second\?\.stop\(\)[\s\S]*?val keepRect = s\.pendingRect\s*stopSlot\(s\)\s*releaseSlot\(s\)\s*s\.pendingRect = keepRect\s*s\.engine = engine\s*\}/);
+  });
+
+  it('mpv gets the same box as ExoPlayer: the pending rect, and its own view sized by applyFormat', () => {
+    const load = body('fun load(call: PluginCall)');
+    const mpv = load.slice(load.indexOf('if (engine == EngineChoice.MPV) {\n'));
+    expect(mpv.indexOf('applyPendingRect(s, screenId)')).toBeGreaterThan(-1);
+    expect(mpv.indexOf('applyPendingRect(s, screenId)')).toBeLessThan(mpv.indexOf('second.attach(s.container!!)'));
+    expect(mpv).toContain('s.textureView?.visibility = View.INVISIBLE');
+    expect(body('private fun applyFormat(')).toContain('if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.textureView');
+  });
+
+  it('memory: Debug.getPss() is in KB, so it is divided by 1024, not by MIB', () => {
+    const pss = body('private fun cachedPssMb(');
+    expect(pss).toContain('Debug.getPss() / KIB_PER_MIB');
+    expect(pss).not.toContain('Debug.getPss() / MIB');
+    expect(plugin).toContain('private const val KIB_PER_MIB = 1024L');
   });
 
   it('mpv is reached through Class.forName, never a direct import, so a customer build never links MPVLib', () => {

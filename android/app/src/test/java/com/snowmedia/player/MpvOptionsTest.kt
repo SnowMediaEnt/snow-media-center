@@ -16,6 +16,7 @@ class MpvOptionsTest {
     @Test fun `the fixed decode and cache options are all there`() {
         val o = MpvOptions.buildOptions("SMC/1.0", isLowRamBox = false)
         assertEquals("mediacodec_embed", opt(o, "vo"))
+        assertEquals(MpvOptions.VIDEO_OUTPUT, opt(o, "vo"))
         assertEquals("mediacodec", opt(o, "hwdec"))
         assertEquals("all", opt(o, "hwdec-codecs"))
         assertEquals("yes", opt(o, "idle"))
@@ -28,10 +29,21 @@ class MpvOptionsTest {
         assertEquals("no", opt(o, "cache-pause-initial"))
         assertEquals("2", opt(o, "cache-pause-wait"))
         assertEquals("15", opt(o, "network-timeout"))
+        assertEquals("1", opt(o, "demuxer-lavf-analyzeduration"))
         assertEquals(
             "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=4",
-            opt(o, "stream-lavf-o-append"),
+            opt(o, "stream-lavf-o"),
         )
+    }
+
+    @Test fun `no command-line-only suffixed keys - the client API does not know them`() {
+        // mpv_set_option only knows plain option names; "-append", "-add",
+        // "-set", "-remove", "-toggle", "-clr", "-pre" are command-line forms
+        // and fail as unknown options (build 46's stream-lavf-o-append).
+        val suffixes = listOf("-append", "-add", "-set", "-remove", "-toggle", "-clr", "-pre")
+        for ((k, _) in MpvOptions.buildOptions("ua", isLowRamBox = false)) {
+            assertFalse("$k is a command-line-only form", suffixes.any { k.endsWith(it) })
+        }
     }
 
     @Test fun `demuxer-max-bytes is 32 MiB, or 16 on a low-RAM box`() {

@@ -248,6 +248,7 @@ class SnowPlayerPlugin : Plugin() {
         private const val PREBUFFER_TARGET_MS = PreBufferRule.TARGET_MS
         private const val PREBUFFER_TICK_MS = 500L
         private const val MIB = 1024L * 1024L
+        private const val KIB_PER_MIB = 1024L
         private const val PSS_CACHE_MS = 5000L
     }
 
@@ -1161,6 +1162,41 @@ class SnowPlayerPlugin : Plugin() {
         applyBoost(s)
     }
 
+    /** Apply any pendingRect captured before the surface existed. A slot
+     *  that is about to stream is ALWAYS visible; without a pendingRect
+     *  yet, default the container to fullscreen so it composites (a
+     *  later setRect resizes it). Prior INVISIBLE default caused
+     *  "tile is black but audio plays" when a degenerate rect dropped.
+     *  Either engine's load() (see there). */
+    private fun applyPendingRect(s: PlayerSlot, screenId: String) {
+        val pending = s.pendingRect
+        s.container?.let { c ->
+            c.visibility = View.VISIBLE
+            if (pending != null) {
+                val fs = pending[4] == 1
+                val lp = c.layoutParams
+                if (fs) {
+                    lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                    lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                    c.x = 0f; c.y = 0f
+                } else {
+                    lp.width = pending[2]
+                    lp.height = pending[3]
+                    c.x = pending[0].toFloat()
+                    c.y = pending[1].toFloat()
+                }
+                c.layoutParams = lp
+                c.requestLayout()
+            } else if (screenId != MAIN) {
+                val lp = c.layoutParams
+                lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                c.layoutParams = lp
+                c.x = 0f; c.y = 0f
+            }
+        }
+    }
+
     @PluginMethod
     fun load(call: PluginCall) {
         val url = call.getString("url")
@@ -1202,16 +1238,25 @@ class SnowPlayerPlugin : Plugin() {
             // is leaving, not the one arriving.
             if (engine != s.engine) {
                 if (s.engine == EngineChoice.MPV) s.second?.stop()
+                // The rect the WebView just set (a preview box) is where the
+                // new engine's picture goes too; stopSlot would forget it and
+                // the rebuilt box would come up fullscreen.
+                val keepRect = s.pendingRect
                 stopSlot(s)
                 releaseSlot(s)
+                s.pendingRect = keepRect
                 s.engine = engine
             }
             if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
             if (engine == EngineChoice.MPV) {
                 val second = s.second ?: run { call.reject("mpv init failed"); return@runOnUiThread }
                 activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                s.container?.visibility = View.VISIBLE
+                applyPendingRect(s, screenId)
+                // mpv draws on its own SurfaceView (attach); ExoPlayer's
+                // TextureView has no player behind it while mpv owns the slot.
+                s.textureView?.visibility = View.INVISIBLE
                 second.attach(s.container!!)
+                applyFormat(s)
                 cancelTimers(s)
                 s.reportedPaused = false
                 s.currentUrl = url
@@ -1229,37 +1274,7 @@ class SnowPlayerPlugin : Plugin() {
             }
             if (s.player == null) buildPlayer(s, screenId)
             activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            // Apply any pendingRect captured before the surface existed. A slot
-            // that is about to stream is ALWAYS visible; without a pendingRect
-            // yet, default the container to fullscreen so it composites (a
-            // later setRect resizes it). Prior INVISIBLE default caused
-            // "tile is black but audio plays" when a degenerate rect dropped.
-            val pending = s.pendingRect
-            s.container?.let { c ->
-                c.visibility = View.VISIBLE
-                if (pending != null) {
-                    val fs = pending[4] == 1
-                    val lp = c.layoutParams
-                    if (fs) {
-                        lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-                        lp.height = ViewGroup.LayoutParams.MATCH_PARENT
-                        c.x = 0f; c.y = 0f
-                    } else {
-                        lp.width = pending[2]
-                        lp.height = pending[3]
-                        c.x = pending[0].toFloat()
-                        c.y = pending[1].toFloat()
-                    }
-                    c.layoutParams = lp
-                    c.requestLayout()
-                } else if (screenId != MAIN) {
-                    val lp = c.layoutParams
-                    lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-                    lp.height = ViewGroup.LayoutParams.MATCH_PARENT
-                    c.layoutParams = lp
-                    c.x = 0f; c.y = 0f
-                }
-            }
+            applyPendingRect(s, screenId)
             val p = s.player ?: run { call.reject("player init failed"); return@runOnUiThread }
             cancelTimers(s)
             s.reportedPaused = false
@@ -1480,11 +1495,13 @@ class SnowPlayerPlugin : Plugin() {
         return cpuMs.toDouble() / wallMs.toDouble() * 100.0
     }
 
-    /** Debug.getPss() is process-wide and not cheap; good for PSS_CACHE_MS. */
+    /** Debug.getPss() is process-wide and not cheap; good for PSS_CACHE_MS.
+     *  It answers in KILOBYTES (smaps' Pss), not bytes: divided by MIB (build
+     *  46) a 300 MB process read as 0 MB on both engines. */
     private fun cachedPssMb(): Long {
         val now = SystemClock.elapsedRealtime()
         if (pssCacheMb < 0L || now - pssCacheAtMs >= PSS_CACHE_MS) {
-            pssCacheMb = try { Debug.getPss() / MIB } catch (e: Throwable) { pssCacheMb }
+            pssCacheMb = try { Debug.getPss() / KIB_PER_MIB } catch (e: Throwable) { pssCacheMb }
             pssCacheAtMs = now
         }
         return pssCacheMb
@@ -1893,7 +1910,10 @@ class SnowPlayerPlugin : Plugin() {
      *  Safe to call at any time; the box's layout listener calls it again
      *  whenever the box changes size. */
     private fun applyFormat(s: PlayerSlot) {
-        val tv = s.textureView ?: return
+        // mpv draws on its own view, which its MediaCodec output fills
+        // edge to edge just as ExoPlayer fills the TextureView — so it is
+        // sized the same way.
+        val v: View = (if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.textureView) ?: return
         val box = s.container ?: return
         // Before the first layout, or before anything is decoded, there is
         // nothing to fit; the layout listener and onVideoSizeChanged come back.
@@ -1901,13 +1921,13 @@ class SnowPlayerPlugin : Plugin() {
         // No matrix: the view itself has the picture's shape. A shrunken
         // picture in a box-sized view left the bars unpainted (the band in
         // bugs/plex-green-bar.md).
-        tv.setTransform(null)
-        val lp = tv.layoutParams as? FrameLayout.LayoutParams ?: FrameLayout.LayoutParams(size[0], size[1])
+        (v as? TextureView)?.setTransform(null)
+        val lp = v.layoutParams as? FrameLayout.LayoutParams ?: FrameLayout.LayoutParams(size[0], size[1])
         if (lp.width == size[0] && lp.height == size[1] && lp.gravity == Gravity.CENTER) return
         lp.width = size[0]
         lp.height = size[1]
         lp.gravity = Gravity.CENTER
-        tv.layoutParams = lp
+        v.layoutParams = lp
     }
 
     @PluginMethod

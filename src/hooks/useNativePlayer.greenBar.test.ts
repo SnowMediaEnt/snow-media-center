@@ -30,7 +30,7 @@ describe('SnowPlayerPlugin.kt — letterbox bars are the box, not unpainted pict
     expect(f).toContain('VideoFit.viewSize(s.format, box.width, box.height, s.videoW, s.videoH, s.pixelRatio)');
     expect(f).not.toMatch(/setScale|setTransform\(m\)/);
     // Any matrix left from before goes: the view itself has the shape.
-    expect(f).toContain('tv.setTransform(null)');
+    expect(f).toContain('(v as? TextureView)?.setTransform(null)');
     expect(f).toMatch(/lp\.gravity = Gravity\.CENTER/);
     expect(plugin).not.toContain('import android.graphics.Matrix');
   });
