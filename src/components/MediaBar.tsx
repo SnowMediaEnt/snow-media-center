@@ -521,7 +521,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
           onClick={goPrev}
           disabled={isEmpty || totalPages <= 1}
           aria-label="Previous"
-          className="flex-shrink-0 flex items-center justify-center w-10 rounded-xl text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-0 transition-transform duration-150 ease-out hover:scale-110"
+          className="flex-shrink-0 flex items-center justify-center w-10 rounded-xl bg-black/40 hover:bg-black/70 text-white disabled:opacity-30 transition-transform duration-150 ease-out hover:scale-110"
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
@@ -586,11 +586,26 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
           onClick={goNext}
           disabled={isEmpty || totalPages <= 1}
           aria-label="Next"
-          className="flex-shrink-0 flex items-center justify-center w-10 rounded-xl text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-0 transition-transform duration-150 ease-out hover:scale-110"
+          className="flex-shrink-0 flex items-center justify-center w-10 rounded-xl bg-black/40 hover:bg-black/70 text-white disabled:opacity-30 transition-transform duration-150 ease-out hover:scale-110"
         >
           <ChevronRight className="w-6 h-6" />
         </button>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-1 pb-2">
+          <span className="text-xs text-white/50 mr-2">∞</span>
+          {Array.from({ length: Math.min(totalPages, 12) }).map((_, i) => (
+            <span
+              key={i}
+              className={`h-1 rounded-full transition-[width] duration-150 ease-out ${
+                i === pageIdx % 12 ? 'w-4 bg-primary' : 'w-1 bg-white/30'
+              }`}
+            />
+          ))}
+          <span className="text-xs text-brand-ice/70 ml-2">{pageIdx + 1}/{totalPages}</span>
+        </div>
+      )}
 
 
       <Dialog open={demoNotice} onOpenChange={(o) => { if (!o) setDemoNotice(false); }}>
