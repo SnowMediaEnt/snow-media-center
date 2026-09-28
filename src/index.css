@@ -1003,6 +1003,7 @@ html.no-flex-gap .flex.flex-col.gap-3 > * + * { margin-top: 0.75rem; }
 /* MediaBar poster sizing — height fallback then clamp() for modern WebViews.
    Never rely on aspect-ratio (Chrome 88+) to establish poster height. */
 .media-poster { height: 140px; height: clamp(110px, 28vh, 330px); }
+@media (min-height: 900px) { .media-poster { height: 31vh; max-height: 360px; } }
 /* Home RSS strip under the title (NewsTicker compact + medium). */
 .news-ticker-medium { height: 2.25rem; }
 @media (min-height: 900px) { .news-ticker-medium { height: 2.75rem; } }
@@ -1014,7 +1015,7 @@ html.no-flex-gap .flex.flex-col.gap-3 > * + * { margin-top: 0.75rem; }
   .media-poster { height: 118px; }
   [data-home-card] > .relative.z-10 { padding: 0.5rem; }
   [data-home-card] > .relative.z-10 > div:first-child { margin-bottom: 0.25rem; }
-  [data-media-bar] h2 { font-size: 1rem; }
+  [data-media-bar] h2 { font-size: 0.75rem; }
 }
 /* Tile caption: title + subtitle, each ONE line. Pinned so every tile in the
    grid is the same height and the bar's total height is deterministic.

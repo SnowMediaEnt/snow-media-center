@@ -1436,6 +1436,10 @@ const Index = () => {
               // the page runs out of height, and its `overflow:hidden` then
               // crops the tiles top and bottom. The decorative watermark above
               // yields instead.
+              // Centred in the space between the RSS strip and the cards, so the
+              // gap above the bar matches the gap below it (the top padding
+              // equals the column's gap under the bar).
+              <div className="flex-1 min-h-0 flex flex-col justify-center" data-media-bar-slot style={{ paddingTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
               <Suspense fallback={<div className="h-[240px] flex-shrink-0" />}>
                 <MediaBar
                   active={isInMediaBar}
@@ -1444,6 +1448,7 @@ const Index = () => {
                   onOpenPlayer={() => navigateTo('livetv')}
                 />
               </Suspense>
+              </div>
             )}
 
             {(() => {

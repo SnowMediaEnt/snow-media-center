@@ -514,7 +514,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
     >
       {/* Clean row: a plain heading over bare posters with the title under
           each, no band behind it (the look the owner picked from the clone). */}
-      <h2 className="text-white font-bold text-lg px-12 pt-1">Recommended</h2>
+      <h2 className="text-white/90 font-semibold text-sm tracking-wide px-12">Recommended</h2>
       <div className="flex items-stretch gap-2 pt-2 pb-2 px-1">
         <button
           type="button"
