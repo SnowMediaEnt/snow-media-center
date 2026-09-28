@@ -158,6 +158,25 @@ export const SCREEN_FORMATS: Array<{ id: ScreenFormat; label: string; hint: stri
 /** Where the choice is remembered, so it survives leaving the player. */
 export const SCREEN_FORMAT_KEY = 'smc-screen-format-v1';
 
+/**
+ * Rewind live TV's on-box buffer (TimeshiftManager in the plugin). "behind"
+ * is seconds behind live; 0 while the channel itself plays. ExoPlayer only:
+ * a channel on mpv never has a buffer (the state stays 'off').
+ */
+export interface TimeshiftStatus {
+  /** off: no buffer · starting: nothing captured yet · capturing · unavailable: see reason. */
+  state: 'off' | 'starting' | 'capturing' | 'unavailable';
+  /** live: the channel itself · buffer: the rewound copy. */
+  mode: 'live' | 'buffer';
+  /** How far back the buffer reaches from live, seconds. */
+  availableSec: number;
+  behindSec: number;
+  usedBytes: number;
+  /** Why rewind is unavailable, in the viewer's words. */
+  reason?: string;
+}
+
+export const timeshiftOff = (): TimeshiftStatus => ({ state: 'off', mode: 'live', availableSec: 0, behindSec: 0, usedBytes: 0 });
 
 export interface SnowPlayerPlugin {
   load(opts: SnowPlayerLoadOpts): Promise<void>;
@@ -192,6 +211,22 @@ export interface SnowPlayerPlugin {
    *  and why not when it isn't. An app built before this existed rejects
    *  the call — callers treat that the same as { available: false }. */
   getEngines(): Promise<{ mpv: { available: boolean; reason?: string } }>;
+  /** Rewind live TV: capture the full-screen channel `key` from `url` (same
+   *  address the player uses; never logged). The same key again is a no-op;
+   *  a new one keeps the last channel's buffer a few seconds. maxMinutes 0 =
+   *  Auto (disk budget only). Does nothing while the channel plays on mpv.
+   *  Older builds reject. */
+  timeshiftStart(opts: { url: string; key: string; maxMinutes: number; hardCapMb: number }): Promise<void>;
+  /** Stop capturing; graceMs keeps the buffer that long. Back to live first. */
+  timeshiftStop(opts?: { graceMs?: number }): Promise<void>;
+  /** Delete every rewind buffer now (leaving the player, sign-out). */
+  timeshiftWipe(): Promise<void>;
+  timeshiftStatus(): Promise<TimeshiftStatus>;
+  /** Back (negative) or forward by deltaSec. Forward past the end = live. */
+  timeshiftSeek(opts: { deltaSec: number }): Promise<TimeshiftStatus>;
+  timeshiftGoLive(): Promise<TimeshiftStatus>;
+  /** The buffer's disk use and the cache volume's free / total bytes. */
+  timeshiftUsage(): Promise<{ usedBytes: number; freeBytes: number; totalBytes: number }>;
   addListener(
     event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth' | 'preBuffer' | 'engineFallback',
     cb: (data: {
@@ -245,6 +280,13 @@ const webFallback: SnowPlayerPlugin = {
   async getStats() { return emptyPlayerStats(); },
   // Web never has mpv; the reason matches EngineChoice.NOT_IN_BUILD.
   async getEngines() { return { mpv: { available: false, reason: 'not-in-build' } }; },
+  async timeshiftStart() {},
+  async timeshiftStop() {},
+  async timeshiftWipe() {},
+  async timeshiftStatus() { return timeshiftOff(); },
+  async timeshiftSeek() { return timeshiftOff(); },
+  async timeshiftGoLive() { return timeshiftOff(); },
+  async timeshiftUsage() { return { usedBytes: 0, freeBytes: 0, totalBytes: 0 }; },
   async addListener() { return { remove: async () => {} } as PluginListenerHandle; },
 };
 

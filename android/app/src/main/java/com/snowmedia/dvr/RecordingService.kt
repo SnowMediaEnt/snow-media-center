@@ -1,0 +1,416 @@
+package com.snowmedia.dvr
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.net.wifi.WifiManager
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.os.PowerManager
+import android.os.SystemClock
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.snowmedia.MainActivity
+import com.snowmedia.R
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Records live channels in the background: a foreground service (its
+ * notification says what is recording and has a Stop button), so a recording
+ * carries on when the viewer leaves the player or the app. Each recording has
+ * its own connection to the channel (LiveSource, shared with Rewind live TV)
+ * and writes the MPEG-TS as it arrives, straight to its file. It ends at its
+ * set length, when stopped, or when the drive is nearly full.
+ *
+ * SMC rules on top of the plain recorder:
+ * - At most [MAX_SIMULTANEOUS] recordings at once (each is one more stream on
+ *   the viewer's line); [tryReserve] is the one place that decides.
+ * - Stops before the drive is full: 1 GB kept free on the box's own storage
+ *   (app updates and the WebView need it), 200 MB on a USB drive.
+ * - A USB stick may be FAT32, which cannot hold a file over 4 GB: on a
+ *   removable drive the recording carries on in "<name> (part 2).ts" at about
+ *   3.9 GB, and so on.
+ *
+ * The stream address carries the line's username and password. It only
+ * travels inside this app (the service is not exported), goes to the
+ * recording thread and nowhere else: never logged, stored, put in a file
+ * name or a PendingIntent. A job later started by a schedule carries only the
+ * schedule's id and a title, never an address.
+ */
+class RecordingService : Service() {
+
+    internal class Job(
+        val id: String,
+        val channel: String,
+        /** The first part's file; the later parts are named from it. */
+        val firstFile: File,
+        val startedAt: Long,
+        /** Wall-clock end (absolute); 0 = until stopped. */
+        val endsAt: Long,
+        /** Stop when the drive has less than this free. */
+        val minFreeBytes: Long,
+        /** Carry on in a new file at this size (a FAT32 stick holds less than 4 GB). */
+        val partLimitBytes: Long,
+        /** Set by a scheduled recording (later); a manual one has neither. */
+        val scheduleId: String? = null,
+        val title: String? = null,
+    ) {
+        /** The part being written, and its id in the recordings index (part 1's is [id]). */
+        @Volatile var file: File = firstFile
+        @Volatile var partId: String = id
+        @Volatile var part = 1
+        /** All parts together. */
+        @Volatile var bytes = 0L
+        @Volatile var stopped = false
+        @Volatile var source: LiveSource? = null
+        @Volatile var endReason: String? = null
+        fun stop(reason: String? = null) {
+            if (reason != null && endReason == null) endReason = reason
+            stopped = true
+            source?.cancel()
+        }
+    }
+
+    /** Writing the file failed (drive full or removed): not worth reconnecting for. */
+    private class DiskError : IOException("disk")
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Foreground at once, whatever the command: Android requires it
+        // within seconds of startForegroundService.
+        goForeground()
+        when (intent?.action) {
+            ACTION_START -> startJob(intent)
+            ACTION_STOP -> {
+                val id = intent.getStringExtra(EXTRA_ID)
+                if (id == null) jobs.values.forEach { it.stop() } else jobFor(id)?.stop()
+            }
+        }
+        if (jobs.isEmpty()) finishIfIdle()
+        return START_NOT_STICKY
+    }
+
+    private fun startJob(intent: Intent) {
+        val id = intent.getStringExtra(EXTRA_ID) ?: return
+        val url = intent.getStringExtra(EXTRA_URL)
+        val path = intent.getStringExtra(EXTRA_PATH)
+        if (url == null || path == null) { release(id); return }
+        val channel = intent.getStringExtra(EXTRA_CHANNEL) ?: "Channel"
+        val now = System.currentTimeMillis()
+        // The end is a length from now, or (a scheduled start, later) a clock time.
+        val durationMs = intent.getLongExtra(EXTRA_DURATION_MS, 0L)
+        val endsAt = intent.getLongExtra(EXTRA_ENDS_AT, 0L).takeIf { it > now } ?: if (durationMs > 0) now + durationMs else 0L
+        val removable = intent.getBooleanExtra(EXTRA_REMOVABLE, false)
+        val job = Job(
+            id, channel, File(path), now, endsAt,
+            minFreeBytes = RecordingStore.minFreeBytes(removable),
+            partLimitBytes = RecordingStore.partLimitBytes(removable),
+            scheduleId = intent.getStringExtra(EXTRA_SCHEDULE_ID),
+            title = intent.getStringExtra(EXTRA_TITLE),
+        )
+        // The reservation turns into the job in one step, so two starts
+        // arriving together can't both pass the cap.
+        synchronized(lock) {
+            pending.remove(id)
+            if (jobs.containsKey(id) || jobs.values.count { !it.stopped } >= MAX_SIMULTANEOUS) return
+            jobs[id] = job
+        }
+        RecordingStore.begin(applicationContext, id, job.file, channel, now, job.scheduleId, job.title)
+        holdLocks()
+        updateNotification()
+        if (job.endsAt > 0) handler.postDelayed({ job.stop() }, job.endsAt - now)
+        Thread({ record(job, url) }, "smc-record").apply { isDaemon = true }.start()
+    }
+
+    /** Recording thread. Reconnects on its own until the job ends. */
+    private fun record(job: Job, url: String) {
+        var out: BufferedOutputStream? = null
+        var partBytes = 0L
+        try {
+            job.file.parentFile?.mkdirs()
+            out = BufferedOutputStream(FileOutputStream(job.file, true), 128 * 1024)
+            var failures = 0
+            var sinceCheck = 0L
+            while (!job.stopped) {
+                val src = LiveSource(url)
+                job.source = src
+                if (job.stopped) break
+                val startedAt = SystemClock.elapsedRealtime()
+                try {
+                    src.pump { b, off, len ->
+                        try { out?.write(b, off, len) } catch (_: IOException) { throw DiskError() }
+                        job.bytes += len
+                        partBytes += len
+                        sinceCheck += len
+                        if (partBytes >= job.partLimitBytes) {
+                            out = nextPart(job, out)
+                            partBytes = 0L
+                        }
+                        if (sinceCheck > CHECK_EVERY_BYTES) {
+                            sinceCheck = 0L
+                            val free = StorageBudget.volumeOf(job.file.parentFile ?: job.file)?.first ?: Long.MAX_VALUE
+                            if (free < job.minFreeBytes) job.stop("The drive is full")
+                        }
+                        if (job.endsAt > 0 && System.currentTimeMillis() >= job.endsAt) job.stop()
+                    }
+                } catch (e: UnsupportedSourceException) {
+                    job.stop("This channel can't be recorded")
+                    break
+                } catch (e: DiskError) {
+                    job.stop(if (job.file.parentFile?.exists() == false) "The drive was removed" else "The recording could not be written")
+                    break
+                } catch (e: IOException) {
+                    // Never the message: it can carry the address.
+                    Log.w(TAG, "Recording connection dropped (${e.javaClass.simpleName})")
+                    if (!job.stopped && e !is HttpStatusException && job.file.parentFile?.exists() == false) {
+                        job.stop("The drive was removed")
+                        break
+                    }
+                }
+                if (job.stopped) break
+                failures = if (SystemClock.elapsedRealtime() - startedAt > 60_000L) 1 else failures + 1
+                val wait = minOf(10_000L, 2000L * failures)
+                var slept = 0L
+                while (!job.stopped && slept < wait) {
+                    try { Thread.sleep(250) } catch (_: InterruptedException) { break }
+                    slept += 250
+                }
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Recording stopped (${t.javaClass.simpleName})")
+            job.stop("The recording could not be written")
+        } finally {
+            try { out?.close() } catch (_: IOException) { /* the drive went away */ }
+            RecordingStore.finish(applicationContext, job.partId, System.currentTimeMillis())
+            handler.post { jobDone(job) }
+        }
+    }
+
+    /**
+     * The part being written is full: close it and carry on in the next one,
+     * "<first name> (part 2).ts" in the same folder. Each part is a recording
+     * of its own in the list. Cut where the chunk ended: a TS player finds
+     * the next packet start by itself, as it does after a reconnect.
+     */
+    private fun nextPart(job: Job, current: BufferedOutputStream?): BufferedOutputStream {
+        try { current?.close() } catch (_: IOException) { throw DiskError() }
+        val now = System.currentTimeMillis()
+        RecordingStore.finish(applicationContext, job.partId, now)
+        val n = job.part + 1
+        val next = RecordingStore.partFile(job.firstFile, n)
+        val stream = try {
+            BufferedOutputStream(FileOutputStream(next, true), 128 * 1024)
+        } catch (_: IOException) {
+            throw DiskError()
+        }
+        job.part = n
+        job.partId = "${job.id}-p$n"
+        job.file = next
+        RecordingStore.begin(applicationContext, job.partId, next, job.channel, now, job.scheduleId, job.title)
+        return stream
+    }
+
+    private fun jobDone(job: Job) {
+        jobs.remove(job.id)
+        job.endReason?.let { notifyEnded(job, it) }
+        if (jobs.isEmpty()) finishIfIdle() else updateNotification()
+    }
+
+    private fun finishIfIdle() {
+        releaseLocks()
+        stopForeground(STOP_FOREGROUND_REMOVE) // API 24+, the app's minimum
+        stopSelf()
+    }
+
+    override fun onDestroy() {
+        jobs.values.forEach { it.stop() }
+        releaseLocks()
+        super.onDestroy()
+    }
+
+    // ---- notification ----
+
+    private fun goForeground() {
+        val n = buildNotification()
+        // dataSync, matching the manifest's foregroundServiceType (Play
+        // checklist A15: a recording is a network download to storage;
+        // mediaProcessing needs API 35 and is for transcoding).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(NOTIFICATION_ID, n)
+        }
+    }
+
+    private fun updateNotification() {
+        try {
+            val mgr = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            mgr.notify(NOTIFICATION_ID, buildNotification())
+        } catch (_: Throwable) { /* notifications off: recording goes on */ }
+    }
+
+    private fun buildNotification(): Notification {
+        ensureChannel(this)
+        val list = jobs.values.toList()
+        val title = when (list.size) {
+            0 -> "Recording"
+            1 -> "Recording ${list[0].channel}"
+            else -> "Recording ${list.size} channels"
+        }
+        // Every recording is one more stream on the line: said in the
+        // notification too, so it is never a surprise.
+        val text = when (list.size) {
+            0 -> "Starting"
+            1 -> (if (list[0].endsAt > 0) "Until ${clock(list[0].endsAt)}" else "Until you stop it") + " \u00B7 uses 1 stream on your line"
+            else -> "Uses ${list.size} streams on your line"
+        }
+        val open = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            pendingFlags(),
+        )
+        val stop = PendingIntent.getService(
+            this, 1,
+            Intent(this, RecordingService::class.java).setAction(ACTION_STOP),
+            pendingFlags(),
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_snow)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentIntent(open)
+            .addAction(0, "Stop", stop)
+            .build()
+    }
+
+    private fun notifyEnded(job: Job, why: String) {
+        try {
+            val mgr = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val n = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_snow)
+                .setContentTitle("Recording of ${job.channel} stopped")
+                .setContentText(why)
+                .setAutoCancel(true)
+                .build()
+            mgr.notify(job.id.hashCode(), n)
+        } catch (_: Throwable) { /* notifications off */ }
+    }
+
+    private fun pendingFlags(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        else PendingIntent.FLAG_UPDATE_CURRENT
+
+    private fun clock(ms: Long): String =
+        java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(ms))
+
+    // ---- keep the box awake while recording ----
+
+    private fun holdLocks() {
+        try {
+            if (wakeLock == null) {
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SMC:record").apply { setReferenceCounted(false) }
+            }
+            wakeLock?.let { if (!it.isHeld) it.acquire(MAX_WAKE_MS) }
+            if (wifiLock == null) {
+                val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                @Suppress("DEPRECATION")
+                wifiLock = wm?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "SMC:record")?.apply { setReferenceCounted(false) }
+            }
+            wifiLock?.let { if (!it.isHeld) it.acquire() }
+        } catch (t: Throwable) {
+            Log.w(TAG, "No wake lock for recording (${t.javaClass.simpleName})")
+        }
+    }
+
+    private fun releaseLocks() {
+        try { wakeLock?.let { if (it.isHeld) it.release() } } catch (_: Throwable) { /* not held */ }
+        try { wifiLock?.let { if (it.isHeld) it.release() } } catch (_: Throwable) { /* not held */ }
+    }
+
+    companion object {
+        private const val TAG = "SmcRecord"
+        const val ACTION_START = "com.snowmedia.dvr.RECORD_START"
+        const val ACTION_STOP = "com.snowmedia.dvr.RECORD_STOP"
+        const val EXTRA_ID = "id"
+        const val EXTRA_URL = "url"
+        const val EXTRA_PATH = "path"
+        const val EXTRA_CHANNEL = "channel"
+        const val EXTRA_DURATION_MS = "durationMs"
+        /** Absolute end (wall clock, ms) instead of a length: for a scheduled recording, later. */
+        const val EXTRA_ENDS_AT = "endsAt"
+        /** The drive is a USB stick / SD card (smaller free-space floor, parts at 3.9 GB). */
+        const val EXTRA_REMOVABLE = "removable"
+        /** A scheduled recording's id and programme title (later); never an address. */
+        const val EXTRA_SCHEDULE_ID = "scheduleId"
+        const val EXTRA_TITLE = "title"
+        private const val CHANNEL_ID = "smc_recordings"
+        private const val NOTIFICATION_ID = 7301
+        /** Recordings running at once: each is one more stream on the viewer's line. */
+        const val MAX_SIMULTANEOUS = 2
+        /** A start that was accepted but whose job never appeared frees its place after this. */
+        private const val RESERVE_MS = 30_000L
+        private const val CHECK_EVERY_BYTES = 8L * 1024L * 1024L
+        /** The wake lock's own safety limit (a recording "until stopped" renews it on each start). */
+        private const val MAX_WAKE_MS = 12L * 60L * 60L * 1000L
+
+        internal val jobs = ConcurrentHashMap<String, Job>()
+        private val lock = Any()
+        /** Starts accepted by the plugin whose service has not registered the job yet: id -> when. */
+        private val pending = HashMap<String, Long>()
+
+        /** The job that owns [id]: its own id, or the id of the part it is writing. */
+        internal fun jobFor(id: String): Job? = jobs[id] ?: jobs.values.firstOrNull { it.partId == id }
+
+        fun isActive(id: String): Boolean = jobs.values.any { !it.stopped && it.partId == id }
+
+        /** Recordings running now (started, not stopped). */
+        fun activeCount(): Int = jobs.values.count { !it.stopped }
+
+        /**
+         * A place for a new recording, or false when [cap] are already
+         * running or about to (2 at most, less on a smaller plan). Call
+         * before starting the service; [release] if it could not start.
+         */
+        fun tryReserve(id: String, cap: Int = MAX_SIMULTANEOUS): Boolean = synchronized(lock) {
+            val now = SystemClock.elapsedRealtime()
+            pending.values.removeAll { now - it > RESERVE_MS }
+            if (activeCount() + pending.size >= cap.coerceIn(1, MAX_SIMULTANEOUS)) return false
+            pending[id] = now
+            true
+        }
+
+        fun release(id: String) = synchronized(lock) { pending.remove(id); Unit }
+
+        fun ensureChannel(ctx: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+            val mgr = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (mgr.getNotificationChannel(CHANNEL_ID) != null) return
+            mgr.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "Recordings", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "Shows while a channel is being recorded."
+                    setShowBadge(false)
+                },
+            )
+        }
+    }
+}

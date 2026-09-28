@@ -50,6 +50,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.LoadControl
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultAllocator
@@ -66,6 +67,11 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import com.snowmedia.BuildConfig
+import com.snowmedia.dvr.StorageBudget
+import com.snowmedia.dvr.TimeshiftLimits
+import com.snowmedia.dvr.TimeshiftManager
+import com.snowmedia.dvr.TimeshiftSession
+import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 import org.json.JSONObject
@@ -250,6 +256,17 @@ class SnowPlayerPlugin : Plugin() {
         private const val MIB = 1024L * 1024L
         private const val KIB_PER_MIB = 1024L
         private const val PSS_CACHE_MS = 5000L
+        // Rewind live TV (see tsSwitchToBuffer and friends).
+        private const val TS_TICK_MS = 1000L
+        /** Never closer than this to the end of the buffer: the next segment is still being written. */
+        private const val TS_HOLD_BACK_MS = 6000L
+        /** At the end of the buffer (within this) while playing: the capture has stalled. */
+        private const val TS_END_SLACK_MS = 1000L
+        private const val TS_MAX_LAG_MS = 30_000L
+        /** A live pause this long moves to the buffer (before the server drops the idle connection). */
+        private const val TS_PAUSE_TO_BUFFER_MS = 20_000L
+        private const val TS_RECOVER_GAP_MS = 10_000L
+        private const val TS_OLDEST_MARGIN_MS = 30_000L
     }
 
     private fun screenIdOf(call: PluginCall): String = call.getString("screenId") ?: MAIN
@@ -998,6 +1015,8 @@ class SnowPlayerPlugin : Plugin() {
                     s.stallSec += (SystemClock.elapsedRealtime() - s.stallStartedAtMs) / 1000.0
                     s.stallStartedAtMs = 0L
                 }
+                // Rewind live TV: the buffer ran out; back to the channel itself.
+                if (state == Player.STATE_ENDED && screenId == MAIN && tsBuffer) { tsGoLive(s); return }
                 if (state == Player.STATE_ENDED && s.currentUrl != null) {
                     if (s.isLive) { reconnect(s, screenId, "live stream ended"); return }
                     notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", "ended"))
@@ -1048,6 +1067,9 @@ class SnowPlayerPlugin : Plugin() {
                     val fmt = (error as? androidx.media3.exoplayer.ExoPlaybackException)?.rendererFormat
                     fmt?.sampleMimeType?.startsWith("audio/") == true
                 }
+                // Rewind live TV: an error while playing the local buffer is
+                // settled there (tsOnBufferError), never as a channel restart.
+                if (screenId == MAIN && tsBuffer) { tsOnBufferError(s, error); return }
                 if (isAudioTrack || isAudioDecoder) {
                     releaseWifiIfStopped(s)
                     notifyListeners(
@@ -1277,6 +1299,8 @@ class SnowPlayerPlugin : Plugin() {
             applyPendingRect(s, screenId)
             val p = s.player ?: run { call.reject("player init failed"); return@runOnUiThread }
             cancelTimers(s)
+            // A new stream on the main player is always the channel itself.
+            if (screenId == MAIN) tsReset()
             s.reportedPaused = false
             s.currentUrl = url
             s.currentSubtitles = subs
@@ -1329,7 +1353,9 @@ class SnowPlayerPlugin : Plugin() {
         val screenId = screenIdOf(call)
         activity?.runOnUiThread {
             if (s.engine == EngineChoice.MPV) { s.second?.play(); call.resolve(); return@runOnUiThread }
-            releaseHold(s); s.player?.play(); reportPaused(s, screenId); call.resolve()
+            // Rewind live TV: after a long pause the channel resumes from the
+            // buffer where it stopped (tsOnPlay); otherwise exactly as before.
+            releaseHold(s); if (!(screenId == MAIN && tsOnPlay(s))) s.player?.play(); reportPaused(s, screenId); call.resolve()
         }
     }
 
@@ -1341,7 +1367,10 @@ class SnowPlayerPlugin : Plugin() {
         // event follows — reportPaused says it.
         activity?.runOnUiThread {
             if (s.engine == EngineChoice.MPV) { s.second?.pause(); call.resolve(); return@runOnUiThread }
-            releaseHold(s); s.player?.pause(); reportPaused(s, screenId); call.resolve()
+            releaseHold(s); s.player?.pause(); reportPaused(s, screenId)
+            // Rewind live TV: a live channel with a buffer notes where it stopped.
+            if (screenId == MAIN) tsOnPause(s)
+            call.resolve()
         }
     }
 
@@ -1582,6 +1611,7 @@ class SnowPlayerPlugin : Plugin() {
 
     private fun stopSlot(s: PlayerSlot) {
         if (slots[MAIN] === s) releaseWifi()
+        if (slots[MAIN] === s) tsReset()
         s.currentUrl = null
         clearStats(s)
         s.currentSubtitles = null
@@ -2050,7 +2080,323 @@ class SnowPlayerPlugin : Plugin() {
         }
     }
 
+    // ---- Rewind live TV (timeshift) -----------------------------------------
+    // Idle unless the WebView calls timeshiftStart for a full-screen channel:
+    // with no buffer every hook above returns at once and playback is exactly
+    // as before. The channel keeps playing straight from the provider; a
+    // second connection (TimeshiftManager) writes it to cacheDir/timeshift as
+    // a local HLS playlist. A long pause, or a rewind, moves the main player
+    // onto that playlist at the right moment; Go live (or forward past its
+    // end) loads the channel itself again. Positions exchanged with the
+    // WebView are "seconds behind live".
+    //
+    // ExoPlayer only. A channel playing on mpv (the owner-test engine) never
+    // gets a buffer: timeshiftStart does nothing there, and the buffer is
+    // never played on mpv's slot. The hooks are all in the ExoPlayer paths.
+
+    private var tsManager: TimeshiftManager? = null
+    /** The main player is playing the rewind buffer, not the channel. */
+    private var tsBuffer = false
+    /** A live pause with a buffer running: when (elapsedRealtime), and how far behind the channel's edge the picture was. */
+    private var tsPausedAt = 0L
+    private var tsPauseLagMs = 0L
+    /** Last time an error in the buffer was recovered from, so a failing buffer can't loop. */
+    private var tsRecoveredAt = 0L
+    private val tsWindow = Timeline.Window()
+    private val tsPauseRunnable = Runnable { tsPausedTooLong() }
+    private val tsTickRunnable = object : Runnable {
+        override fun run() {
+            tsTick()
+            if (tsBuffer) mainHandler.postDelayed(this, TS_TICK_MS)
+        }
+    }
+
+    private fun tsManager(): TimeshiftManager? {
+        tsManager?.let { return it }
+        val root = context?.cacheDir?.let { File(it, "timeshift") } ?: return null
+        // Left-overs of a run that was killed before it could wipe.
+        TimeshiftManager.wipeFolder(root)
+        return TimeshiftManager(root).also { tsManager = it }
+    }
+
+    /** Back to plain live playback bookkeeping (a new stream, a stop). */
+    private fun tsReset() {
+        tsBuffer = false
+        tsClearPause()
+        mainHandler.removeCallbacks(tsTickRunnable)
+    }
+
+    private fun tsClearPause() {
+        tsPausedAt = 0L
+        tsPauseLagMs = 0L
+        mainHandler.removeCallbacks(tsPauseRunnable)
+    }
+
+    /** How far behind its newest data a live player shows the picture (what it has read but not played). */
+    private fun tsLiveLag(p: ExoPlayer): Long =
+        (p.bufferedPosition - p.currentPosition).coerceIn(0L, TS_MAX_LAG_MS)
+
+    /** How far behind live the main player is while it plays the buffer; null when unknown. */
+    private fun tsBehindMs(snap: TimeshiftSession.Snapshot): Long? {
+        val p = slots[MAIN]?.player ?: return null
+        var windowStartAbs = snap.epochMs + snap.startMs
+        val tl = p.currentTimeline
+        if (!tl.isEmpty) {
+            tl.getWindow(p.currentMediaItemIndex, tsWindow)
+            // The playlist's own dates (#EXT-X-PROGRAM-DATE-TIME), so a
+            // window that has slid on since it was loaded is still exact.
+            if (tsWindow.windowStartTimeMs != C.TIME_UNSET) windowStartAbs = tsWindow.windowStartTimeMs
+        }
+        val playheadAbs = windowStartAbs + p.currentPosition.coerceAtLeast(0L)
+        return (snap.epochMs + snap.liveMs - playheadAbs).coerceAtLeast(0L)
+    }
+
+    /** Move the main player onto the buffer, [behindMs] behind live (clamped to what is there). */
+    private fun tsSwitchToBuffer(s: PlayerSlot, behindMs: Long, play: Boolean): Boolean {
+        val sess = tsManager?.current ?: return false
+        val snap = sess.snapshot() ?: return false
+        val p = s.player ?: return false
+        val ctx = context ?: return false
+        if (s.currentUrl == null || !s.isLive || s.engine != EngineChoice.EXO) return false
+        val startAbs = snap.epochMs + snap.startMs
+        val lastAbs = snap.epochMs + snap.endMs - TS_HOLD_BACK_MS
+        if (lastAbs <= startAbs) return false
+        val target = (snap.epochMs + snap.liveMs - behindMs).coerceIn(startAbs, lastAbs)
+        tsClearPause()
+        // Nothing of the channel's own connection may fire into the buffer.
+        s.reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.reconnectRunnable = null
+        s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.watchdogRunnable = null
+        tsBuffer = true
+        val item = MediaItem.Builder()
+            .setUri(Uri.fromFile(sess.playlist))
+            .setMimeType(MimeTypes.APPLICATION_M3U8)
+            // Never speed up or slow down to chase a "live edge": the viewer chose this moment.
+            .setLiveConfiguration(
+                MediaItem.LiveConfiguration.Builder().setMinPlaybackSpeed(1f).setMaxPlaybackSpeed(1f).build(),
+            )
+            .build()
+        val source = HlsMediaSource.Factory(DefaultDataSource.Factory(ctx)).createMediaSource(item)
+        // A live-style stream for the load control (not a film's budget or start), told before prepare().
+        s.loadControl?.beginStream(film = false)
+        p.setMediaSource(source, target - startAbs)
+        p.prepare()
+        p.playWhenReady = play
+        mainHandler.removeCallbacks(tsTickRunnable)
+        mainHandler.postDelayed(tsTickRunnable, TS_TICK_MS)
+        return true
+    }
+
+    /** Load the channel itself again (Go live). */
+    private fun tsGoLive(s: PlayerSlot) {
+        tsReset()
+        val url = s.currentUrl ?: return
+        val p = s.player ?: return
+        s.firstFrameSeen = false
+        s.loadControl?.beginStream(film = false)
+        p.setMediaItem(buildMediaItem(url, s.currentSubtitles))
+        p.prepare()
+        p.playWhenReady = true
+        scheduleWatchdog(s, MAIN)
+    }
+
+    /** Rewind (negative) or forward (positive) by [deltaMs]. */
+    private fun tsSeekBy(s: PlayerSlot, deltaMs: Long) {
+        val p = s.player ?: return
+        if (!tsBuffer) {
+            if (deltaMs >= 0) return // already live
+            val behind = if (tsPausedAt > 0L) SystemClock.elapsedRealtime() - tsPausedAt + tsPauseLagMs else tsLiveLag(p)
+            tsSwitchToBuffer(s, behind - deltaMs, play = p.playWhenReady)
+            return
+        }
+        val snap = tsManager?.current?.snapshot() ?: run { tsGoLive(s); return }
+        val behind = tsBehindMs(snap) ?: return
+        // Forward past the end of the buffer: the channel itself.
+        if (deltaMs > 0 && behind - deltaMs < (snap.liveMs - snap.endMs) + TS_HOLD_BACK_MS) { tsGoLive(s); return }
+        val dur = p.duration
+        var pos = (p.currentPosition + deltaMs).coerceAtLeast(0L)
+        if (dur != C.TIME_UNSET && dur > TS_HOLD_BACK_MS) pos = minOf(pos, dur - TS_HOLD_BACK_MS)
+        p.seekTo(pos)
+    }
+
+    /** pause() on the main player: a live channel with a buffer notes where it stopped. */
+    private fun tsOnPause(s: PlayerSlot) {
+        if (tsBuffer || !s.isLive || s.currentUrl == null) return
+        if (tsManager?.current?.alive != true) return
+        val p = s.player ?: return
+        tsPausedAt = SystemClock.elapsedRealtime()
+        tsPauseLagMs = tsLiveLag(p)
+        mainHandler.removeCallbacks(tsPauseRunnable)
+        mainHandler.postDelayed(tsPauseRunnable, TS_PAUSE_TO_BUFFER_MS)
+    }
+
+    /**
+     * play() on the main player. A short pause resumes the channel as before
+     * (the player still holds it in memory). A long one has normally moved
+     * to the buffer already (tsPausedTooLong); if that could not happen then,
+     * it is tried now. True when the buffer took over.
+     */
+    private fun tsOnPlay(s: PlayerSlot): Boolean {
+        if (tsPausedAt == 0L || tsBuffer) { tsClearPause(); return false }
+        val behind = SystemClock.elapsedRealtime() - tsPausedAt + tsPauseLagMs
+        tsClearPause()
+        if (behind < TS_PAUSE_TO_BUFFER_MS) return false
+        return tsSwitchToBuffer(s, behind, play = true)
+    }
+
+    /**
+     * Paused on a live channel for a while: move to the buffer (still paused)
+     * before the channel's idle connection is dropped by the server, whose
+     * reconnect would jump to live and play by itself.
+     */
+    private fun tsPausedTooLong() {
+        val s = slots[MAIN] ?: return
+        if (tsPausedAt == 0L || tsBuffer) return
+        // Playing again by other means (a reconnect resumes by itself): no longer a pause.
+        if (s.player?.playWhenReady != false) { tsClearPause(); return }
+        val behind = SystemClock.elapsedRealtime() - tsPausedAt + tsPauseLagMs
+        if (!tsSwitchToBuffer(s, behind, play = false)) {
+            // Nothing captured yet: try again shortly.
+            mainHandler.postDelayed(tsPauseRunnable, TS_PAUSE_TO_BUFFER_MS)
+        }
+    }
+
+    /** An error while playing the buffer. */
+    private fun tsOnBufferError(s: PlayerSlot, error: PlaybackException) {
+        val now = SystemClock.elapsedRealtime()
+        val snap = tsManager?.current?.snapshot()
+        // The part being watched was dropped (the buffer is full and slides
+        // on): carry on from a little after the oldest part left, once.
+        if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW && snap != null &&
+            now - tsRecoveredAt > TS_RECOVER_GAP_MS) {
+            tsRecoveredAt = now
+            val play = s.player?.playWhenReady ?: true
+            if (tsSwitchToBuffer(s, snap.liveMs - snap.startMs - TS_OLDEST_MARGIN_MS, play)) return
+        }
+        Log.w(TAG, "Rewind buffer error ${error.errorCodeName}; back to live")
+        tsGoLive(s)
+    }
+
+    /** Every second while the buffer plays: caught up with its end (the capture stalled) means back to live. */
+    private fun tsTick() {
+        if (!tsBuffer) return
+        val s = slots[MAIN] ?: return
+        val snap = tsManager?.current?.snapshot() ?: run { tsGoLive(s); return }
+        val p = s.player ?: return
+        val behind = tsBehindMs(snap) ?: return
+        if (p.playWhenReady && behind <= (snap.liveMs - snap.endMs) + TS_END_SLACK_MS) tsGoLive(s)
+    }
+
+    private fun tsStatus(): JSObject {
+        val o = JSObject()
+        val sess = tsManager?.current
+        val snap = sess?.snapshot()
+        o.put("state", sess?.state ?: "off")
+        o.put("mode", if (tsBuffer) "buffer" else "live")
+        o.put("availableSec", if (snap == null) 0.0 else (snap.liveMs - snap.startMs) / 1000.0)
+        val behind = if (tsBuffer && snap != null) tsBehindMs(snap) ?: 0L else 0L
+        o.put("behindSec", behind / 1000.0)
+        o.put("usedBytes", tsManager?.usedBytes() ?: 0L)
+        sess?.reason?.let { o.put("reason", it) }
+        return o
+    }
+
+    /** Start (or keep) the rewind buffer of the channel [key] from [url]. Never logged: the URL carries the line. */
+    @PluginMethod
+    fun timeshiftStart(call: PluginCall) {
+        val url = call.getString("url")
+        val key = call.getString("key")
+        if (url.isNullOrBlank() || key.isNullOrBlank()) { call.reject("url and key required"); return }
+        val maxMinutes = (call.getInt("maxMinutes") ?: 0).coerceAtLeast(0)
+        val capMb = (call.getInt("hardCapMb") ?: 4096).coerceAtLeast(64)
+        activity?.runOnUiThread {
+            // The buffer is ExoPlayer only: a channel on mpv gets none (status stays "off").
+            if (slots[MAIN]?.engine == EngineChoice.MPV) { call.resolve(); return@runOnUiThread }
+            val m = tsManager() ?: run { call.reject("no storage"); return@runOnUiThread }
+            m.start(key, url, TimeshiftLimits(maxMinutes * 60_000L, capMb.toLong() * MIB))
+            call.resolve()
+        }
+    }
+
+    /** Stop capturing (graceMs > 0 keeps the buffer that long). The player goes back to live first. */
+    @PluginMethod
+    fun timeshiftStop(call: PluginCall) {
+        val grace = (call.getInt("graceMs") ?: 0).toLong().coerceAtLeast(0L)
+        activity?.runOnUiThread {
+            slots[MAIN]?.let { if (tsBuffer) tsGoLive(it) }
+            tsManager?.stop(grace)
+            call.resolve()
+        }
+    }
+
+    /** Delete every rewind buffer now (leaving the player, sign-out). Recordings are elsewhere and untouched. */
+    @PluginMethod
+    fun timeshiftWipe(call: PluginCall) {
+        activity?.runOnUiThread {
+            slots[MAIN]?.let { if (tsBuffer) tsGoLive(it) }
+            tsReset()
+            tsManager?.wipeAll()
+            call.resolve()
+        } ?: run {
+            // No activity (closing): still clear the disk.
+            context?.cacheDir?.let { TimeshiftManager.wipeFolder(File(it, "timeshift")) }
+            call.resolve()
+        }
+    }
+
+    @PluginMethod
+    fun timeshiftStatus(call: PluginCall) {
+        activity?.runOnUiThread { call.resolve(tsStatus()) }
+    }
+
+    /** Rewind / forward by deltaSec (negative = back). Answers with the new status. */
+    @PluginMethod
+    fun timeshiftSeek(call: PluginCall) {
+        val delta = ((call.getDouble("deltaSec") ?: 0.0) * 1000.0).toLong()
+        activity?.runOnUiThread {
+            slots[MAIN]?.let { s -> if (s.currentUrl != null) tsSeekBy(s, delta) }
+            call.resolve(tsStatus())
+        }
+    }
+
+    @PluginMethod
+    fun timeshiftGoLive(call: PluginCall) {
+        activity?.runOnUiThread {
+            slots[MAIN]?.let { if (tsBuffer) tsGoLive(it) }
+            call.resolve(tsStatus())
+        }
+    }
+
+    /** Disk figures for Settings: what the buffer holds now, and the free / total space it is judged against. */
+    @PluginMethod
+    fun timeshiftUsage(call: PluginCall) {
+        activity?.runOnUiThread {
+            val vol = context?.cacheDir?.let { StorageBudget.volumeOf(it) }
+            call.resolve(
+                JSObject()
+                    .put("usedBytes", tsManager?.usedBytes() ?: 0L)
+                    .put("freeBytes", vol?.first ?: 0L)
+                    .put("totalBytes", vol?.second ?: 0L),
+            )
+        }
+    }
+
+    /**
+     * Home, another app over this one, the box going to sleep: the rewind
+     * buffer is wiped (owner rule). Recordings run in their own service and
+     * files, and carry on.
+     */
+    override fun handleOnStop() {
+        tsReset()
+        tsManager?.wipeAll()
+        super.handleOnStop()
+    }
+
     override fun handleOnDestroy() {
+        // The app is closing: the rewind buffer goes with it.
+        tsReset()
+        tsManager?.wipeAll()
         activity?.runOnUiThread {
             for (s in slots.values) {
                 cancelTimers(s)

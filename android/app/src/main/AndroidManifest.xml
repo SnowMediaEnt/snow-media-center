@@ -33,6 +33,11 @@
          one-shot jobs and would otherwise stay dead after a reboot. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Recording live channels runs as a foreground service with a
+         notification (RecordingService). Android 14 needs the service's type
+         and its own permission; both are normal permissions, granted at install. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Required on Android 11+ (API 30) to enumerate every installed package -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
@@ -147,6 +152,13 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/cache_clear_accessibility_service" />
         </service>
+
+        <!-- Records live channels in the background (Live TV > hold OK > Record).
+             Not exported: only the app starts it. -->
+        <service
+            android:name="com.snowmedia.dvr.RecordingService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- Re-arms the alert poll after a reboot. -->
         <receiver
