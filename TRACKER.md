@@ -23,6 +23,8 @@ Status: building · ready to test · still broken · done.
 | 16 | MPV player as a second Live TV player, switchable in Live TV settings (ExoPlayer stays) | feature | ready to test (build 46; MPV test builds only, SMC_WITH_MPV=true) | |
 | 17 | Game Day: link name shows "A&E" though it plays the right channel — see bugs/game-day-links.md | bug | ready to test (fixed at rung 1) | 1 |
 | 18 | Game Day NFL: a game listed 4 links, 2 were NFL-zone channels — see bugs/game-day-links.md | bug | ready to test (fixed at rung 1) | 1 |
+| 19 | MPV: black screen, "buffering", skips every half second; Compare memory shows 0 MB — see bugs/mpv-black-screen.md | bug | building | 2 |
+| 20 | Settings → UI: removed the Profiles card (Profiles has its own menu item and Settings tab) | feature | ready to test | |
 
 ## Waiting on the owner
 - Migration 20260930070000 + notify-ticket/telegram-notify deploy: held until you decide.

@@ -54,15 +54,14 @@ describe('Settings on a Kids profile', () => {
     expect(screen.queryByText('app-updater')).toBeNull();
   });
 
-  it('UI has the profile switcher, the content bar and languages only', () => {
+  it('UI has the content bar and languages only (Profiles lives in its own tab and the menu)', () => {
     kidsLevel = 'kids';
     const { container } = render(<Settings onBack={vi.fn()} />);
     key('ArrowDown'); // back → media tab
     key('ArrowRight'); // → UI tab (opens it)
     const focusIds = [...container.querySelectorAll('[data-settings-focus^="ui-"]')].map((e) => e.getAttribute('data-settings-focus'));
-    expect(focusIds[0]).toBe('ui-profiles');
-    expect(focusIds[1]).toBe('ui-content-bar-toggle');
-    expect(focusIds.slice(2).every((id) => id?.startsWith('ui-language-'))).toBe(true);
+    expect(focusIds[0]).toBe('ui-content-bar-toggle');
+    expect(focusIds.slice(1).every((id) => id?.startsWith('ui-language-'))).toBe(true);
     expect(screen.queryByText('player-account')).toBeNull();
     expect(screen.queryByText('Large dashboard')).toBeNull();
     expect(screen.queryByText('Post notifications')).toBeNull();

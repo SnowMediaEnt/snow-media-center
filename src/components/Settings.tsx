@@ -44,7 +44,6 @@ type SettingsFocus =
   | 'tab-alerts'
   | 'tab-ai'
   | 'media-content'
-  | 'ui-profiles'
   | 'tab-profiles'
   | 'tab-remote'
   | 'remote-hint'
@@ -210,8 +209,8 @@ const Settings = ({ onBack }: SettingsProps) => {
 
       const getUiFocusOrder = (): SettingsFocus[] => {
         const order: SettingsFocus[] = kids
-          ? ['ui-profiles', 'ui-content-bar-toggle']
-          : ['ui-profiles', ...(aiTierShown ? ['ui-ai-tier' as SettingsFocus] : []), 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
+          ? ['ui-content-bar-toggle']
+          : [...(aiTierShown ? ['ui-ai-tier' as SettingsFocus] : []), 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
         if (!kids && deviceAlerts.supported) order.push('ui-device-alerts-toggle');
         if (isAdmin) order.push('ui-player-toggle');
         if (showLanguages) order.push(...SUPPORTED_LANGUAGES.map((lang) => `ui-language-${lang.code}` as SettingsFocus));
@@ -279,8 +278,7 @@ const Settings = ({ onBack }: SettingsProps) => {
           return;
         }
         if (event.key === 'Enter' || event.key === ' ') {
-          if (focusedElement === 'ui-profiles') openProfiles('pick');
-          else if (focusedElement === 'ui-ai-tier') toggleAiTier();
+          if (focusedElement === 'ui-ai-tier') toggleAiTier();
           else if (focusedElement === 'ui-content-bar-toggle') setMediaBarEnabledState(!mediaBarEnabled);
           else if (focusedElement === 'ui-dashboard-size-toggle') saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large');
           else if (focusedElement === 'ui-mail-notify-toggle') saveMailNotify(!mailNotify);
@@ -432,9 +430,10 @@ const Settings = ({ onBack }: SettingsProps) => {
           } else if (focusedElement === 'tab-media' && activeTab === 'media') {
             setMediaManagerActive(true);
           } else if (focusedElement === 'tab-ui' && activeTab === 'ui') {
-            setFocusedElement('ui-profiles');
+            const first = getUiFocusOrder()[0];
+            setFocusedElement(first);
             setTimeout(() => {
-              const card = document.querySelector('[data-settings-focus="ui-profiles"]') as HTMLElement | null;
+              const card = document.querySelector(`[data-settings-focus="${first}"]`) as HTMLElement | null;
               card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }, 30);
           } else if (focusedElement === 'tab-profiles' && activeTab === 'profiles') {
@@ -648,26 +647,6 @@ const Settings = ({ onBack }: SettingsProps) => {
 
           <TabsContent value="ui" className="mt-4 space-y-4">
             {!kids && <PlayerAccountCard />}
-            <Card
-              {...settingsFocusAttrs('ui-profiles')}
-              tabIndex={0}
-              role="button"
-              onFocus={() => setFocusedElement('ui-profiles')}
-              onClick={() => openProfiles('pick')}
-              className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-profiles')}`}
-            >
-              <div className="flex items-start gap-3">
-                <UsersRound className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                <div>
-                  <h3 className="text-lg font-bold text-white">Profiles</h3>
-                  <p className="text-sm text-white/70 mt-1">
-                    {kids
-                      ? "Switch who's watching. A grown-up's profile may ask for its PIN."
-                      : "Switch who's watching, or add profiles for everyone in the house — each with their own Continue Watching, My List, favourites and home screen. Kids profiles and PINs too."}
-                  </p>
-                </div>
-              </div>
-            </Card>
             {aiTierShown && (
               <Card
                 {...settingsFocusAttrs('ui-ai-tier')}
