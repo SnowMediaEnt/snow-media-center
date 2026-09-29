@@ -55,6 +55,7 @@
 import { useSyncExternalStore } from 'react';
 import { isNativePlatform } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
+import i18n from '@/i18n';
 
 export type Verdict = 'ok' | 'internet' | 'server' | 'throttling' | 'unknown';
 
@@ -62,6 +63,9 @@ export interface DiagSnapshot {
   verdict: Verdict;
   headline: string;
   detail: string;
+  /** The verdict is "the connection dropped" (headline and detail are text
+   *  for the viewer; this is what code reads instead of the words). */
+  dropped?: boolean;
   /** Recent stream throughput (median of the last samples), kbps. */
   streamKbps: number | null;
   /** Stream throughput during the first 30 s of the stream, kbps. */
@@ -101,6 +105,8 @@ export interface ClassifyResult {
   verdict: Verdict;
   headline: string;
   detail: string;
+  /** Set on the "connection dropped" verdict, so code need not read the words. */
+  dropped?: boolean;
 }
 
 // ── Tunables ────────────────────────────────────────────────────────────────
@@ -160,24 +166,26 @@ function median(values: number[]): number | null {
 export function classify(input: ClassifyInput): ClassifyResult {
   const { buffering, online, neutralFailStreak, probeKbps, hostMs, hostKbps, recentKbps, earlyKbps } = input;
 
-  if (!buffering) return { verdict: 'ok', headline: 'Playing normally', detail: '' };
+  if (!buffering) return { verdict: 'ok', headline: i18n.t('plex.diag.playingNormally'), detail: '' };
 
   // 1. Connection gone.
   if (online === false || neutralFailStreak >= 2) {
     return {
       verdict: 'internet',
-      headline: 'Your internet connection dropped',
-      detail: 'Check Wi-Fi or ethernet',
+      headline: i18n.t('plex.diag.droppedHeadline'),
+      detail: i18n.t('plex.diag.droppedDetail'),
+      dropped: true,
     };
   }
 
   // 2. Connection alive but slow.
   if (probeKbps != null && probeKbps < 4000) {
-    const streamPart = recentKbps != null ? ` · stream ${formatMbps(recentKbps)}` : '';
     return {
       verdict: 'internet',
-      headline: `Your internet is slow right now: ${formatMbps(probeKbps)}`,
-      detail: `General internet ${formatMbps(probeKbps)}${streamPart}. Try ethernet or move closer to the router`,
+      headline: i18n.t('plex.diag.slowHeadline', { speed: formatMbps(probeKbps) }),
+      detail: recentKbps != null
+        ? i18n.t('plex.diag.slowDetailStream', { internet: formatMbps(probeKbps), stream: formatMbps(recentKbps) })
+        : i18n.t('plex.diag.slowDetail', { internet: formatMbps(probeKbps) }),
     };
   }
 
@@ -189,8 +197,8 @@ export function classify(input: ClassifyInput): ClassifyResult {
   ) {
     return {
       verdict: 'throttling',
-      headline: 'Looks like your ISP is throttling video',
-      detail: `Speed started at ${formatMbps(earlyKbps)} and fell to ${formatMbps(recentKbps)} while general internet is fine (${formatMbps(probeKbps)}) — a VPN usually fixes this`,
+      headline: i18n.t('plex.diag.throttlingHeadline'),
+      detail: i18n.t('plex.diag.throttlingDetail', { early: formatMbps(earlyKbps), recent: formatMbps(recentKbps), internet: formatMbps(probeKbps) }),
     };
   }
 
@@ -201,27 +209,32 @@ export function classify(input: ClassifyInput): ClassifyResult {
     const streamNeverFast = recentKbps != null && recentKbps < 2500 && (earlyKbps == null || earlyKbps < 4000);
     if (hostSlow || hostThin || streamNeverFast) {
       const extras: string[] = [];
-      if (hostMs != null) extras.push(`server answered in ${Math.round(hostMs)} ms`);
-      if (hostKbps != null) extras.push(`source ${formatMbps(hostKbps)}`);
-      else if (recentKbps != null) extras.push(`stream ${formatMbps(recentKbps)}`);
-      const tail = extras.length ? ` (${extras.join(', ')})` : '';
+      if (hostMs != null) extras.push(i18n.t('plex.diag.extraServerMs', { ms: Math.round(hostMs) }));
+      if (hostKbps != null) extras.push(i18n.t('plex.diag.extraSource', { speed: formatMbps(hostKbps) }));
+      else if (recentKbps != null) extras.push(i18n.t('plex.diag.extraStream', { speed: formatMbps(recentKbps) }));
       return {
         verdict: 'server',
-        headline: 'The stream server is struggling',
-        detail: `Your connection is fine (${formatMbps(probeKbps)}); the source is slow to respond${tail}`,
+        headline: i18n.t('plex.diag.serverHeadline'),
+        detail: extras.length
+          ? i18n.t('plex.diag.serverDetailExtras', { internet: formatMbps(probeKbps), extras: extras.join(', ') })
+          : i18n.t('plex.diag.serverDetail', { internet: formatMbps(probeKbps) }),
       };
     }
   }
 
   // 5. Still buffering, nothing conclusive — show what we have.
   const bits: string[] = [];
-  if (recentKbps != null) bits.push(`Stream ${formatMbps(recentKbps)}${earlyKbps != null ? ` (was ${formatMbps(earlyKbps)})` : ''}`);
-  if (probeKbps != null) bits.push(`Internet ${formatMbps(probeKbps)}`);
-  if (hostMs != null) bits.push(`Server ${Math.round(hostMs)} ms`);
+  if (recentKbps != null) {
+    bits.push(earlyKbps != null
+      ? i18n.t('plex.diag.bitStreamWas', { speed: formatMbps(recentKbps), early: formatMbps(earlyKbps) })
+      : i18n.t('plex.diag.bitStream', { speed: formatMbps(recentKbps) }));
+  }
+  if (probeKbps != null) bits.push(i18n.t('plex.diag.bitInternet', { speed: formatMbps(probeKbps) }));
+  if (hostMs != null) bits.push(i18n.t('plex.diag.bitServer', { ms: Math.round(hostMs) }));
   return {
     verdict: 'unknown',
-    headline: 'Buffering…',
-    detail: bits.length ? bits.join(' · ') : 'Measuring your connection…',
+    headline: i18n.t('plex.buffering.headline'),
+    detail: bits.length ? bits.join(' · ') : i18n.t('plex.buffering.measuring'),
   };
 }
 
@@ -358,7 +371,7 @@ function recentKbps(at: number): number | null {
 
 // ── Snapshot (cached so useSyncExternalStore gets a stable reference) ───────
 const IDLE_SNAPSHOT: DiagSnapshot = {
-  verdict: 'ok', headline: 'Playing normally', detail: '',
+  verdict: 'ok', headline: '', detail: '', // never shown: the card is hidden while playing fine
   streamKbps: null, streamEarlyKbps: null, probeKbps: null, probeMs: null,
   probeFailed: false, nowKbps: null,
   hostKbps: null, hostMs: null, bufferingForMs: 0, online: true, updatedAt: 0,
@@ -390,6 +403,7 @@ function computeSnapshot(): DiagSnapshot {
     verdict: result.verdict,
     headline: result.headline,
     detail: result.detail,
+    dropped: result.dropped,
     streamKbps: recent,
     streamEarlyKbps: early,
     probeKbps: state.probeKbps,

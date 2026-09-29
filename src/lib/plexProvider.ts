@@ -8,6 +8,7 @@
 // remount or a second screen does not re-issue the same request — the
 // function mints nothing, but it does hit the panel and it is throttled.
 import { supabase } from '@/integrations/supabase/client';
+import i18n from '@/i18n';
 import { loadPlayerAccount, type XtreamCreds } from '@/lib/xtream';
 
 export interface ProviderPlexResult {
@@ -103,16 +104,23 @@ export function fetchProviderPlexToken(creds: XtreamCreds, opts?: { force?: bool
 export function providerLinkMessage(r: ProviderPlexResult): string | null {
   switch (r.reason) {
     case 'disabled': return null; // feature off — behave exactly as before
-    case 'auth_failed': return 'Your Live TV sign-in was rejected by the panel. Sign into Live TV again, then come back.';
-    case 'line_inactive': return `Your Live TV subscription is ${r.status || 'inactive'}. Renew it to keep Plex.`;
-    case 'panel_unreachable': return "Couldn't verify your Live TV account right now. Try again in a minute.";
-    case 'rate_limited': return 'Too many attempts. Try again in a few minutes.';
-    case 'network': return 'No connection to Snow Media. Check the internet and try again.';
-    case 'provider_misconfigured': return 'Plex is not set up correctly on the provider side yet. Ask your provider.';
-    case 'not_customer': return "This Live TV account isn't on file with your provider yet. Ask them to add it, then try again.";
-    case 'plex_disabled': return 'Plex has been turned off for this account. Ask your provider.';
-    default: return "Couldn't connect Plex through your Live TV account.";
+    case 'auth_failed': return i18n.t('plex.provider.authFailed');
+    case 'line_inactive': return inactiveLineMessage(r.status);
+    case 'panel_unreachable': return i18n.t('plex.provider.panelUnreachable');
+    case 'rate_limited': return i18n.t('plex.provider.rateLimited');
+    case 'network': return i18n.t('plex.provider.network');
+    case 'provider_misconfigured': return i18n.t('plex.provider.misconfigured');
+    case 'not_customer': return i18n.t('plex.provider.notCustomer');
+    case 'plex_disabled': return i18n.t('plex.provider.plexDisabled');
+    default: return i18n.t('plex.provider.default');
   }
+}
+
+/** "Your Live TV subscription is expired. Renew it to keep Plex." `status` is
+ *  the panel's word for it (expired, disabled, banned). */
+export function inactiveLineMessage(status?: string | null): string {
+  const known = status === 'expired' || status === 'disabled' || status === 'banned';
+  return i18n.t('plex.provider.inactive', { status: i18n.t(`plex.provider.status.${known ? status : 'inactive'}`) });
 }
 
 // ── line expiry ────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { RefreshCw, ShieldAlert } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
@@ -22,7 +23,9 @@ interface Props {
  * A Kids profile is only told to ask a grown-up: no renewal, no QR.
  */
 const PlexBlockedScreen = memo(({ serverLabel, onBack, feature = 'Plex' }: Props) => {
+  const { t } = useTranslation();
   const { account, days } = usePlayerAccount();
+  const which = feature === 'Backups' ? 'Backups' : 'Plex'; // picks the wording, not shown
   const DEMO = isDemo();
   const username = account?.username || null;
   const label = account?.serverLabel || serverLabel;
@@ -88,20 +91,19 @@ const PlexBlockedScreen = memo(({ serverLabel, onBack, feature = 'Plex' }: Props
         {kids ? (
           <>
             <h2 className="text-2xl font-quicksand font-bold mb-3">
-              {feature} is taking a break
+              {t(`plex.blocked.kidsTitle${which}`)}
             </h2>
             <p className="text-brand-ice/90 font-nunito text-base leading-relaxed mb-6">
-              Ask a grown-up to get {feature} going again on this TV.
+              {t(`plex.blocked.kidsBody${which}`)}
             </p>
           </>
         ) : (
           <>
             <h2 className="text-2xl font-quicksand font-bold mb-3">
-              ⛔ {feature} access paused
+              {t(`plex.blocked.pausedTitle${which}`)}
             </h2>
             <p className="text-brand-ice/90 font-nunito text-base leading-relaxed mb-6">
-              Your <span className="font-semibold text-white">{serverLabel}</span> subscription has expired.
-              Renew with Snow Media to restore {feature} access.
+              <Trans i18nKey={`plex.blocked.pausedBody${which}`} values={{ server: serverLabel }} components={{ 1: <span className="font-semibold text-white" /> }} />
             </p>
           </>
         )}
@@ -113,7 +115,7 @@ const PlexBlockedScreen = memo(({ serverLabel, onBack, feature = 'Plex' }: Props
               data-focused={focusIdx === 0 ? 'true' : 'false'}
               className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === 0 ? focusedCls : ''}`}
             >
-              <RefreshCw className="w-4 h-4 mr-2" /> Renew now
+              <RefreshCw className="w-4 h-4 mr-2 shrink-0" /> <span className="min-w-0 truncate">{t('plex.blocked.renewBtn')}</span>
             </Button>
           )}
           <Button
@@ -123,7 +125,7 @@ const PlexBlockedScreen = memo(({ serverLabel, onBack, feature = 'Plex' }: Props
             data-focused={focusIdx === BTN_COUNT - 1 ? 'true' : 'false'}
             className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${showRenew ? '' : 'tv-ring-contrast'} ${focusIdx === BTN_COUNT - 1 ? focusedCls : ''}`}
           >
-            OK
+            {t('common.ok')}
           </Button>
         </div>
       </div>

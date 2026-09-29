@@ -13,6 +13,7 @@
 // the whole Plex screen. Near the intro and the end it checks every second,
 // otherwise every five.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import i18n from '@/i18n';
 import { getNextPlexEpisode, getPlexPlayInfo, type PlexEpisode, type PlexPlayInfo } from '@/lib/plex';
 import { noteProgressDiag } from '@/lib/plexProgress';
 import type { PlayerPrompt } from './PlexPlayerOverlay';
@@ -44,7 +45,7 @@ const INFO_RETRY_MS = [5_000, 15_000, 30_000, 60_000];
 const NO_CREDITS_LEAD = 20;
 
 const episodeLabel = (ep: NextEpisode): string => {
-  const se = ep.seasonIndex != null && ep.index != null ? `S${ep.seasonIndex} · E${ep.index}  ` : '';
+  const se = ep.seasonIndex != null && ep.index != null ? `${i18n.t('plex.episode.code', { season: ep.seasonIndex, episode: ep.index })}  ` : '';
   return `${se}${ep.title}`.trim();
 };
 
@@ -167,7 +168,7 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
     if (inUpNext && next) {
       return {
         kind: 'next',
-        label: 'Play next episode',
+        label: i18n.t('plex.player.playNext'),
         detail: episodeLabel(next),
         countdown: countdown ?? undefined,
         onOk: go,
@@ -175,7 +176,7 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
       };
     }
     if (inIntro && intro) {
-      return { kind: 'skip', label: 'Skip Intro', onOk: () => { void seekToRef.current(intro.end); } };
+      return { kind: 'skip', label: i18n.t('plex.player.skipIntro'), onOk: () => { void seekToRef.current(intro.end); } };
     }
     return null;
   }, [inUpNext, next, countdown, go, inIntro, intro]);

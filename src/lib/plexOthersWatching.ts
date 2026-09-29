@@ -15,7 +15,8 @@
 // Nothing here throws.
 import { supabase } from '@/integrations/supabase/client';
 
-export const OTHERS_WATCHING_TITLE = 'What others are watching';
+/** The rail's heading, as a translation key (translated when drawn). */
+export const OTHERS_WATCHING_TITLE_KEY = 'plex.home.others';
 /** How long the feed's answer is kept on the box. */
 export const OTHERS_TTL_MS = 30 * 60 * 1000;
 const FEED_TIMEOUT_MS = 8000;

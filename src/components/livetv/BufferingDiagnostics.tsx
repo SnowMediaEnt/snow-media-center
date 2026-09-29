@@ -1,4 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { formatMbps, useBufferDiagnostics, type ClassifyResult, type DiagSnapshot, type Verdict } from '@/lib/bufferDiagnostics';
 
 /**
@@ -59,7 +61,7 @@ const LINGER_MS = 2500;
 
 /** A measured speed, or what is going on while there is none. */
 const speed = (kbps: number | null | undefined, failed = false): string =>
-  kbps != null ? formatMbps(kbps) : failed ? '—' : 'Checking…';
+  kbps != null ? formatMbps(kbps) : failed ? '—' : i18n.t('plex.buffering.checking');
 
 const VERDICT_COLOR: Record<Verdict, string> = {
   throttling: 'text-brand-gold',
@@ -70,6 +72,7 @@ const VERDICT_COLOR: Record<Verdict, string> = {
 };
 
 const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-right', showHelpHint = false, footnote, explain, autoNote, needKbps, quickCheckLabel = false, className }: BufferingDiagnosticsProps) => {
+  const { t } = useTranslation();
   const snap = useBufferDiagnostics();
   const buffering = bufferingProp ?? snap.bufferingForMs > 0;
   // 'hidden' → (stall ≥ 2 s) → 'active' → (recovered) → 'recovered' (2.5 s) → 'hidden'
@@ -117,7 +120,7 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
   // the prop without wiring setBuffering/beginStream): show a neutral verdict
   // rather than "Buffering · 7s" next to a green "Playing normally".
   const general = snap.verdict === 'ok'
-    ? { ...snap, verdict: 'unknown' as const, headline: 'Buffering…', detail: 'Measuring your connection…' }
+    ? { ...snap, verdict: 'unknown' as const, headline: t('plex.buffering.headline'), detail: t('plex.buffering.measuring') }
     : snap;
   const told = explain?.(general);
   const shown = told ?? general;
@@ -132,25 +135,25 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
       {phase === 'recovered' ? (
         <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
           <span className="inline-block w-[6px] h-[6px] rounded-full bg-emerald-300" aria-hidden="true" />
-          <span className="tabular-nums">Back to normal{recoveredKbps != null ? ` · ${formatMbps(recoveredKbps)}` : ''}</span>
+          <span className="tabular-nums">{t('plex.buffering.backToNormal')}{recoveredKbps != null ? ` · ${formatMbps(recoveredKbps)}` : ''}</span>
         </div>
       ) : (
         <>
           <div className="flex items-center gap-2 text-sm text-white/90">
             <span className="inline-block w-[6px] h-[6px] rounded-full bg-brand-gold" aria-hidden="true" />
-            <span className="tabular-nums">Buffering · {seconds}s</span>
+            <span className="tabular-nums">{t('plex.buffering.timer', { seconds })}</span>
           </div>
           {/* Inline, not flex: three numbers plus "Checking…" can outgrow the
               card, and inline spans wrap without a flex-gap fallback. */}
           <p className="mt-1 text-xs text-brand-ice/70 tabular-nums leading-snug">
             <span className="mr-3 whitespace-nowrap">
-              Now <span className="text-white/90">{speed(nowKbps)}</span>
+              {t('plex.buffering.now')} <span className="text-white/90">{speed(nowKbps)}</span>
               {snap.streamEarlyKbps != null && (
-                <span className="text-brand-ice/70"> was {(snap.streamEarlyKbps / 1000).toFixed(1)}</span>
+                <span className="text-brand-ice/70"> {t('plex.buffering.was', { value: (snap.streamEarlyKbps / 1000).toFixed(1) })}</span>
               )}
             </span>
-            {needKbps != null && <span className="mr-3 whitespace-nowrap">Needs {formatMbps(needKbps)}</span>}
-            <span className="whitespace-nowrap">Internet {speed(netKbps, snap.probeFailed || !!told?.dropped)}{quickCheckLabel && netKbps != null && <span className="text-brand-ice/60"> (quick check)</span>}</span>
+            {needKbps != null && <span className="mr-3 whitespace-nowrap">{t('plex.buffering.needs', { value: formatMbps(needKbps) })}</span>}
+            <span className="whitespace-nowrap">{t('plex.buffering.internet')} {speed(netKbps, snap.probeFailed || !!told?.dropped)}{quickCheckLabel && netKbps != null && <span className="text-brand-ice/60"> {t('plex.buffering.quickCheck')}</span>}</span>
           </p>
           <p aria-live="polite" className={`mt-2 text-sm font-semibold leading-snug ${VERDICT_COLOR[shown.verdict]}`}>{shown.headline}</p>
           {shown.detail && (
@@ -163,7 +166,7 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
             <p className="mt-1 text-xs text-brand-ice/60 leading-snug">{footnote}</p>
           )}
           {showHelpHint && (
-            <p className="mt-2 text-xs text-brand-ice/60">Press Help for tips</p>
+            <p className="mt-2 text-xs text-brand-ice/60">{t('plex.buffering.helpHint')}</p>
           )}
         </>
       )}

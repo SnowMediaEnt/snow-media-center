@@ -10,6 +10,7 @@
 // unrecognised query params, so a bad filter returns the whole library looking
 // like it worked.
 
+import i18n from '@/i18n';
 import type { PlexItem } from '@/lib/plex';
 
 export type PlexSectionType = 'movie' | 'show';
@@ -18,7 +19,8 @@ export interface LibraryRowSpec {
   /** Stable id. The focus cursor tracks THIS, not an array index — rows arrive
    *  asynchronously and an index cursor would drift under the user. */
   id: string;
-  title: string;
+  /** The row's heading, as a translation key (translated when drawn). */
+  titleKey: string;
   /** 'onDeck' uses the dedicated endpoint; 'query' uses /all with this query. */
   kind: 'onDeck' | 'query';
   query?: string;
@@ -39,13 +41,13 @@ const AFTER = '%3E%3E';
 export function libraryRowSpecs(type: PlexSectionType): LibraryRowSpec[] {
   const t = typeNum(type);
   const rows: LibraryRowSpec[] = [
-    { id: 'continue', title: 'Continue Watching', kind: 'onDeck', wave: 1 },
+    { id: 'continue', titleKey: 'plex.library.rows.continue', kind: 'onDeck', wave: 1 },
   ];
 
   if (type === 'movie') {
     rows.push({
       id: 'released',
-      title: 'Recently Released',
+      titleKey: 'plex.library.rows.released',
       kind: 'query',
       wave: 1,
       query: `type=1&sort=originallyAvailableAt:desc&originallyAvailableAt${AFTER}=-2y`,
@@ -58,7 +60,7 @@ export function libraryRowSpecs(type: PlexSectionType): LibraryRowSpec[] {
     // can never surface a new episode of a long-running show.
     rows.push({
       id: 'released',
-      title: 'Recently Aired',
+      titleKey: 'plex.library.rows.aired',
       kind: 'query',
       wave: 1,
       query: `type=4&sort=episode.originallyAvailableAt:desc&episode.originallyAvailableAt${AFTER}=-3mon`,
@@ -67,7 +69,7 @@ export function libraryRowSpecs(type: PlexSectionType): LibraryRowSpec[] {
 
   rows.push({
     id: 'added',
-    title: 'Recently Added',
+    titleKey: 'plex.library.rows.added',
     kind: 'query',
     wave: 1,
     // Deliberately NOT /library/sections/{k}/recentlyAdded: that endpoint does
@@ -79,7 +81,7 @@ export function libraryRowSpecs(type: PlexSectionType): LibraryRowSpec[] {
 
   rows.push({
     id: 'unwatched',
-    title: type === 'movie' ? "Haven't Watched" : "Haven't Finished",
+    titleKey: type === 'movie' ? 'plex.library.rows.unwatchedMovies' : 'plex.library.rows.unwatchedShows',
     kind: 'query',
     wave: 2,
     // `unwatched` does not exist for the show libtype — the show-level field is
@@ -93,7 +95,7 @@ export function libraryRowSpecs(type: PlexSectionType): LibraryRowSpec[] {
 
   rows.push({
     id: 'top',
-    title: 'Top Rated',
+    titleKey: 'plex.library.rows.top',
     kind: 'query',
     wave: 2,
     // The rating bound does the same null-exclusion job as the date bound
@@ -104,7 +106,7 @@ export function libraryRowSpecs(type: PlexSectionType): LibraryRowSpec[] {
   if (type === 'movie') {
     rows.push({
       id: 'again',
-      title: 'Watch It Again',
+      titleKey: 'plex.library.rows.again',
       kind: 'query',
       wave: 2,
       // Movie sections only — viewCount on a show container is not meaningful,
@@ -124,7 +126,7 @@ export function libraryRowSpecs(type: PlexSectionType): LibraryRowSpec[] {
 export function tileCaption(it: PlexItem): { line1: string; line2?: string } {
   if (it.type === 'episode') {
     const se = it.parentIndex != null && it.index != null
-      ? `S${it.parentIndex} E${it.index}`
+      ? i18n.t('plex.library.episodeCode', { season: it.parentIndex, episode: it.index })
       : undefined;
     return { line1: it.grandparentTitle || it.title, line2: se };
   }
