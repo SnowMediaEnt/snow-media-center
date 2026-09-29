@@ -16,15 +16,28 @@
 //            grown-up profile has one (the caller only opens it then)
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
+import { useTranslation } from 'react-i18next';
 import { Check, Delete, Lock, Pencil, Plus, UserRound } from 'lucide-react';
 import { KIDS_LEVELS, type KidsLevel } from '@/lib/kidsFilter';
 import {
   AVATARS, FORGOT_AFTER, MAX_PROFILES, PROFILES_EVENT, activeProfile, avatarColors, boxProfilesToBring, bringBoxProfiles,
   checkGrownUpPin, checkPin, createProfile, deleteProfile, getProfile, grownUpPadLockedFor, grownUpsWithPin,
-  kidsHoldNeedsGrownUp, lastPickedId, loadProfiles, pickProfile, pinFailures, pinLockedFor, pinsAvailable, pullProfiles,
+  kidsHoldNeedsGrownUp, lastPickedId, loadProfiles, pickProfile, pinFailures, pinLockedFor, pinsAvailable, profileName, pullProfiles,
   requestPinReset, setPin, updateProfile, verifyPinReset, type Profile,
 } from '@/lib/profiles';
 import { MAIN_PROFILE } from '@/lib/viewer';
+
+/** A line for the screen: a key of ours (and its numbers), translated when drawn so it
+ *  follows the language. Never the translated text itself. */
+type Msg = { key: string; params?: Record<string, unknown> };
+
+/** Kids-profile choices: the words for each are looked up when drawn. */
+const LEVEL_TEXT: Record<'off' | KidsLevel, { label: string; hint: string }> = {
+  off: { label: 'profiles.edit.levelOff', hint: 'profiles.edit.levelOffHint' },
+  little: { label: 'profiles.edit.levelLittle', hint: 'profiles.edit.levelLittleHint' },
+  kids: { label: 'profiles.edit.levelKids', hint: 'profiles.edit.levelKidsHint' },
+  teen: { label: 'profiles.edit.levelTeen', hint: 'profiles.edit.levelTeenHint' },
+};
 
 export type ProfileScreensMode = 'gate' | 'pick' | 'manage' | 'grownup';
 
@@ -93,7 +106,8 @@ function nearest(root: HTMLElement, fromId: string, dir: 'up' | 'down' | 'left' 
 
 // ── pieces ─────────────────────────────────────────────────────────────────
 
-const Avatar = memo(({ p, size = 112, focused = false }: { p: Pick<Profile, 'name' | 'avatar' | 'kidsLevel' | 'pinHash'>; size?: number; focused?: boolean }) => {
+const Avatar = memo(({ p, size = 112, focused = false }: { p: Pick<Profile, 'id' | 'name' | 'avatar' | 'kidsLevel' | 'pinHash'>; size?: number; focused?: boolean }) => {
+  const { t } = useTranslation();
   const c = avatarColors(p.avatar);
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -101,7 +115,7 @@ const Avatar = memo(({ p, size = 112, focused = false }: { p: Pick<Profile, 'nam
         className="w-full h-full rounded-2xl flex items-center justify-center font-bold text-white select-none"
         style={{ backgroundColor: c.bg, fontSize: size * 0.45, boxShadow: focused ? `0 0 0 4px ${c.ring}, 0 0 24px ${c.ring}` : 'none' }}
       >
-        {(p.name.trim()[0] || '?').toUpperCase()}
+        {(profileName(p).trim()[0] || '?').toUpperCase()}
       </div>
       {p.pinHash && (
         <div className="absolute -bottom-2 -right-2 rounded-full bg-black/80 p-1.5 border border-white/30">
@@ -109,7 +123,7 @@ const Avatar = memo(({ p, size = 112, focused = false }: { p: Pick<Profile, 'nam
         </div>
       )}
       {p.kidsLevel && (
-        <div className="absolute -top-2 -left-2 rounded-full bg-brand-gold px-2 py-0.5 text-xs font-bold text-black">KIDS</div>
+        <div className="absolute -top-2 -left-2 rounded-full bg-brand-gold px-2 py-0.5 text-xs font-bold text-black">{t('profiles.kidsChip')}</div>
       )}
     </div>
   );
@@ -142,9 +156,11 @@ interface PadProps extends FocusProps {
   onDelete: () => void;
   onSubmit: () => void;
 }
-const PinPad = ({ length, value, onDigit, onDelete, onSubmit, focus, setFocus }: PadProps) => (
+const PinPad = ({ length, value, onDigit, onDelete, onSubmit, focus, setFocus }: PadProps) => {
+  const { t } = useTranslation();
+  return (
   <div className="flex flex-col items-center">
-    <div className="flex mb-6" aria-label={`${value.length} of ${length} digits`}>
+    <div className="flex mb-6" aria-label={t('profiles.pad.digits', { filled: value.length, length })}>
       {Array.from({ length }, (_, i) => (
         <div key={i} className={`w-5 h-5 rounded-full border-2 border-white mx-2 ${i < value.length ? 'bg-white' : ''}`} />
       ))}
@@ -158,7 +174,7 @@ const PinPad = ({ length, value, onDigit, onDelete, onSubmit, focus, setFocus }:
             data-focused={focus === `pad-${k}` ? 'true' : 'false'}
             onClick={() => { setFocus(`pad-${k}`); if (k === 'del') onDelete(); else if (k === 'ok') onSubmit(); else onDigit(k); }}
             className={`tv-ring w-full h-16 rounded-xl text-2xl font-bold flex items-center justify-center ${focus === `pad-${k}` ? 'bg-white text-black' : 'bg-white/10 text-white'}`}
-            aria-label={k === 'del' ? 'Delete' : k === 'ok' ? 'Done' : k}
+            aria-label={k === 'del' ? t('common.delete') : k === 'ok' ? t('profiles.pad.done') : k}
           >
             {k === 'del' ? <Delete className="w-7 h-7" /> : k === 'ok' ? <Check className="w-7 h-7" /> : k}
           </button>
@@ -166,11 +182,13 @@ const PinPad = ({ length, value, onDigit, onDelete, onSubmit, focus, setFocus }:
       ))}
     </div>
   </div>
-);
+  );
+};
 
 // ── the overlay ────────────────────────────────────────────────────────────
 
 const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
+  const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
   const [profiles, setProfiles] = useState<Profile[]>(() => loadProfiles());
   const [stack, setStack] = useState<Screen[]>(() => [mode === 'grownup' ? { kind: 'pin', purpose: 'grownup', then: 'grownup' } : { kind: 'pick' }]);
@@ -183,7 +201,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
     digitsRef.current = v;
     setDigitsState(v);
   }, []);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<Msg | null>(null);
   // Profiles whose PIN was given while this is open: not asked twice.
   const unlocked = useRef(new Set<string>());
   // A grown-up's PIN was given while this is open (the grown-up pad, or a
@@ -216,7 +234,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
   const loadDraft = useCallback((id: string | null) => {
     const p = id ? getProfile(id) : null;
     const used = new Set(loadProfiles().map((x) => x.avatar));
-    setDraft(p ? { name: p.name, avatar: p.avatar, kidsLevel: p.kidsLevel }
+    setDraft(p ? { name: profileName(p), avatar: p.avatar, kidsLevel: p.kidsLevel }
       : { name: '', avatar: AVATARS.find((a) => !used.has(a.id))?.id ?? 'blue', kidsLevel: null });
   }, []);
 
@@ -272,7 +290,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
       const p = getProfile(screen.profileId);
       if (!p) { pop(); return; }
       const wait = pinLockedFor(p.id);
-      if (wait > 0) { setDigits(''); setMessage(`Too many tries — wait ${Math.ceil(wait / 1000)} seconds.`); return; }
+      if (wait > 0) { setDigits(''); setMessage({ key: 'profiles.pin.waitTooMany', params: { count: Math.ceil(wait / 1000) } }); return; }
       if (checkPin(p, value)) {
         unlocked.current.add(p.id);
         if (!p.kidsLevel) grownUpOk.current = true;
@@ -281,16 +299,16 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
       }
       setDigits('');
       const left = pinLockedFor(p.id);
-      setMessage(left > 0 ? `Wrong PIN. Too many tries — wait ${Math.ceil(left / 1000)} seconds.` : 'Wrong PIN. Try again.');
+      setMessage(left > 0 ? { key: 'profiles.pin.wrongWait', params: { count: Math.ceil(left / 1000) } } : { key: 'profiles.pin.wrong' });
       return;
     }
     if (screen.purpose === 'grownup') {
       const wait = grownUpPadLockedFor();
-      if (wait > 0) { setDigits(''); setMessage(`Too many tries — wait ${Math.ceil(wait / 1000)} seconds.`); return; }
+      if (wait > 0) { setDigits(''); setMessage({ key: 'profiles.pin.waitTooMany', params: { count: Math.ceil(wait / 1000) } }); return; }
       if (checkGrownUpPin(value)) { grownUpOk.current = true; finish(screen.then, screen.forId); return; }
       setDigits('');
       const left = grownUpPadLockedFor();
-      setMessage(left > 0 ? `That isn't a grown-up's PIN. Too many tries — wait ${Math.ceil(left / 1000)} seconds.` : 'That isn\'t a grown-up\'s PIN.');
+      setMessage(left > 0 ? { key: 'profiles.pin.notGrownUpWait', params: { count: Math.ceil(left / 1000) } } : { key: 'profiles.pin.notGrownUp' });
       return;
     }
     if (screen.purpose === 'new') {
@@ -300,7 +318,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
     if (screen.purpose === 'confirm') {
       if (value !== screen.first) {
         replace({ kind: 'pin', purpose: 'new', profileId: screen.profileId }, 'pad-1');
-        setMessage('Those didn\'t match. Enter the new PIN again.');
+        setMessage({ key: 'profiles.pin.mismatch' });
         return;
       }
       setPin(screen.profileId, value);
@@ -321,41 +339,44 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
   }, [screen, setDigits, submitPin]);
 
   // ── Forgot PIN ──
-  const [forgot, setForgot] = useState<{ state: 'sending' | 'sent' | 'failed'; text: string } | null>(null);
+  const [forgot, setForgot] = useState<{ state: 'sending' | 'sent' | 'failed'; msg: Msg } | null>(null);
   const forgotFor = screen.kind === 'forgot' ? screen.profileId : null;
   useEffect(() => {
     if (!forgotFor) { setForgot(null); return; }
     let alive = true;
-    setForgot({ state: 'sending', text: 'Sending a reset code…' });
+    setForgot({ state: 'sending', msg: { key: 'profiles.forgot.sending' } });
     void requestPinReset(forgotFor).then((r) => {
       if (!alive) return;
       if (!r.ok) {
         setForgot({
           state: 'failed',
-          text: r.reason === 'too_many' ? 'Too many reset requests. Try again in an hour, or contact Snow Media support.'
-            : r.reason === 'signed_out' ? 'Sign in to your Snow Media account on this box to reset the PIN.'
-              : r.reason === 'no_pin' ? 'This profile has no PIN any more — pick it again.'
-                : 'Couldn\'t reach Snow Media. Check the internet connection and try again.',
+          msg: { key: r.reason === 'too_many' ? 'profiles.forgot.tooManyRequests'
+            : r.reason === 'signed_out' ? 'profiles.forgot.signedOut'
+              : r.reason === 'no_pin' ? 'profiles.forgot.noPin'
+                : 'profiles.forgot.unreachable' },
         });
         return;
       }
-      const where = r.emailed && r.email ? `We emailed a 6-digit code to ${r.email}. Enter it below.` : 'We couldn\'t email a code to this account.';
-      const support = r.ticket ? ' Snow Media support has been told too — if the email doesn\'t come, they can reset it for you.' : '';
-      setForgot({ state: r.emailed ? 'sent' : 'failed', text: where + support });
+      const sent = !!(r.emailed && r.email);
+      const key = sent
+        ? (r.ticket ? 'profiles.forgot.emailedSupport' : 'profiles.forgot.emailed')
+        : (r.ticket ? 'profiles.forgot.notEmailedSupport' : 'profiles.forgot.notEmailed');
+      setForgot({ state: r.emailed ? 'sent' : 'failed', msg: { key, params: { email: r.email } } });
     });
     return () => { alive = false; };
   }, [forgotFor]);
 
   const submitCode = useCallback(async () => {
     if (screen.kind !== 'forgot' || digits.length !== 6) return;
-    setMessage('Checking…');
+    setMessage({ key: 'profiles.pin.checking' });
     const r = await verifyPinReset(screen.profileId, digits);
     if (r.ok) { unlocked.current.add(screen.profileId); finish(screen.then, screen.profileId); return; }
     setDigits('');
-    setMessage(r.reason === 'wrong_code' ? `That code isn't right.${typeof r.left === 'number' ? ` ${r.left} tries left.` : ''}`
-      : r.reason === 'expired' ? 'That code has expired. Go back and ask for a new one.'
-        : r.reason === 'too_many' ? 'Too many wrong codes. Go back and ask for a new one.'
-          : 'Couldn\'t reach Snow Media. Try again.');
+    setMessage(r.reason === 'wrong_code'
+      ? (typeof r.left === 'number' ? { key: 'profiles.forgot.wrongCodeLeft', params: { count: r.left } } : { key: 'profiles.forgot.wrongCode' })
+      : r.reason === 'expired' ? { key: 'profiles.forgot.expired' }
+        : r.reason === 'too_many' ? { key: 'profiles.forgot.tooManyCodes' }
+          : { key: 'profiles.forgot.unreachableShort' });
   }, [digits, finish, screen, setDigits]);
 
   // ── the editor's working copy ──
@@ -364,9 +385,9 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
   const saveEdit = useCallback(() => {
     if (!editing) return;
     const name = draft.name.trim();
-    if (!name) { setMessage('Give the profile a name.'); setFocus('name'); return; }
+    if (!name) { setMessage({ key: 'profiles.edit.giveName' }); setFocus('name'); return; }
     if (editing.id) updateProfile(editing.id, { name, avatar: draft.avatar, kidsLevel: editing.id === MAIN_PROFILE ? null : draft.kidsLevel });
-    else if (!createProfile({ name, avatar: draft.avatar, kidsLevel: draft.kidsLevel })) { setMessage(`Up to ${MAX_PROFILES} profiles.`); return; }
+    else if (!createProfile({ name, avatar: draft.avatar, kidsLevel: draft.kidsLevel })) { setMessage({ key: 'profiles.edit.maxProfiles', params: { max: MAX_PROFILES } }); return; }
     pop(`m-${editing.id ?? MAIN_PROFILE}`);
   }, [draft, editing, pop]);
 
@@ -472,12 +493,13 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
 
   if (screen.kind === 'pick' || screen.kind === 'manage') {
     const managing = screen.kind === 'manage';
-    title = managing ? 'Manage profiles' : 'Who\'s watching?';
+    const cancelable = mode === 'pick' || mode === 'manage' || kidsHoldNeedsGrownUp();
+    title = managing ? t('profiles.manage.title') : t('profiles.pick.title');
     const toBring = managing ? boxProfilesToBring() : [];
     // Just the main profile: say what adding one is for.
-    subtitle = managing ? 'Pick a profile to change it.'
+    subtitle = managing ? t('profiles.manage.subtitle')
       : profiles.length === 1
-        ? 'Everyone in the house can have their own profile — their own Continue Watching, My List, favourites and home screen. Kids profiles only show what\'s right for their age.'
+        ? t('profiles.pick.introSingle')
         : null;
     body = (
       <>
@@ -501,7 +523,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
                     </div>
                   )}
                 </div>
-                <div className={`mt-3 text-xl ${focus === id ? 'text-white font-bold' : 'text-white/70'}`}>{p.name}</div>
+                <div className={`mt-3 text-xl ${focus === id ? 'text-white font-bold' : 'text-white/70'}`}>{profileName(p)}</div>
               </button>
             );
           })}
@@ -519,21 +541,21 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
               >
                 <Plus className="w-12 h-12 text-white/80" />
               </div>
-              <div className={`mt-3 text-xl ${focus === 'add' ? 'text-white font-bold' : 'text-white/70'}`}>Add profile</div>
+              <div className={`mt-3 text-xl ${focus === 'add' ? 'text-white font-bold' : 'text-white/70'}`}>{t('profiles.manage.addProfile')}</div>
             </button>
           )}
         </div>
         <div className="flex flex-wrap justify-center mt-8">
           {managing
-            ? <Btn id="done" {...fp} onPress={() => pop(`p-${current.id}`)}>Done</Btn>
-            : <Btn id="manage" {...fp} onPress={openManage}><span className="inline-flex items-center"><Pencil className="w-5 h-5 mr-2" />Manage profiles</span></Btn>}
+            ? <Btn id="done" {...fp} onPress={() => pop(`p-${current.id}`)}>{t('profiles.manage.doneBtn')}</Btn>
+            : <Btn id="manage" {...fp} onPress={openManage}><span className="inline-flex items-center"><Pencil className="w-5 h-5 mr-2" />{t('profiles.manage.manageBtn')}</span></Btn>}
           {/* Made on this box before signing in: the account's list doesn't have them. */}
           {toBring.length > 0 && profiles.length < MAX_PROFILES && (
             <Btn id="bring" {...fp} className="ml-4" onPress={() => { const first = toBring[0].id; if (bringBoxProfiles() > 0) setFocus(`m-${first}`); }}>
-              Add {toBring.map((p) => p.name).join(', ')} from this box
+              {t('profiles.manage.bringBtn', { names: toBring.map((p) => profileName(p)).join(', ') })}
             </Btn>
           )}
-          {!managing && (mode === 'pick' || mode === 'manage' || kidsHoldNeedsGrownUp()) && <Btn id="cancel" {...fp} className="ml-4" onPress={onClose}>Cancel</Btn>}
+          {!managing && cancelable && <Btn id="cancel" {...fp} className="ml-4" onPress={onClose}>{t('common.cancel')}</Btn>}
         </div>
       </>
     );
@@ -541,13 +563,13 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
     const isNew = !screen.id;
     const p = screen.id ? getProfile(screen.id) : null;
     const isMain = screen.id === MAIN_PROFILE;
-    title = isNew ? 'Add a profile' : `Edit ${p?.name ?? 'profile'}`;
+    title = isNew ? t('profiles.edit.addTitle') : p?.name ? t('profiles.edit.editTitle', { name: profileName(p) }) : t('profiles.edit.editTitleUnnamed');
     body = (
       <div className="w-full max-w-2xl mx-auto">
         <div className="flex items-center mb-6">
-          <Avatar p={{ name: draft.name || '?', avatar: draft.avatar, kidsLevel: draft.kidsLevel, pinHash: p?.pinHash ?? null }} size={96} />
+          <Avatar p={{ id: p?.id ?? '', name: draft.name || '?', avatar: draft.avatar, kidsLevel: draft.kidsLevel, pinHash: p?.pinHash ?? null }} size={96} />
           <div className="ml-6 flex-1">
-            <label className="block text-white/70 text-sm mb-1" htmlFor="profile-name">Name</label>
+            <label className="block text-white/70 text-sm mb-1" htmlFor="profile-name">{t('profiles.edit.nameLabel')}</label>
             <input
               id="profile-name"
               data-pf="name"
@@ -556,13 +578,13 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
               maxLength={24}
               onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
               onFocus={() => setFocus('name')}
-              placeholder="Their name"
+              placeholder={t('profiles.edit.namePlaceholder')}
               className={`tv-ring w-full rounded-xl bg-white/10 px-4 py-3 text-2xl text-white outline-none ${focus === 'name' ? 'bg-white/20' : ''}`}
             />
           </div>
         </div>
 
-        <div className="text-white/70 text-sm mb-2">Color</div>
+        <div className="text-white/70 text-sm mb-2">{t('profiles.edit.colorLabel')}</div>
         <div className="flex flex-wrap mb-6">
           {AVATARS.map((a) => {
             const id = `c-${a.id}`;
@@ -580,7 +602,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
                 data-pf={id}
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setFocus(id); setDraft((d) => ({ ...d, avatar: a.id })); }}
-                aria-label={a.id}
+                aria-label={t(`profiles.colors.${a.id}`, { defaultValue: a.id })}
                 aria-pressed={picked}
                 className="mr-4 mb-3 rounded-full outline-none"
                 style={{
@@ -595,9 +617,9 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
 
         {!isMain && (
           <>
-            <div className="text-white/70 text-sm mb-2">Kids profile</div>
+            <div className="text-white/70 text-sm mb-2">{t('profiles.edit.kidsLabel')}</div>
             <div className="flex flex-wrap mb-2">
-              {[{ id: null as KidsLevel | null, label: 'Off', hint: 'Everything' }, ...KIDS_LEVELS].map((k) => {
+              {[{ id: null as KidsLevel | null }, ...KIDS_LEVELS].map((k) => {
                 const id = `k-${k.id ?? 'off'}`;
                 const on = draft.kidsLevel === k.id;
                 return (
@@ -609,40 +631,40 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
                     onClick={() => { setFocus(id); setDraft((d) => ({ ...d, kidsLevel: k.id })); }}
                     className={`tv-ring mr-3 mb-2 rounded-xl px-4 py-2 text-left ${on ? 'bg-brand-gold text-black' : focus === id ? 'bg-white text-black' : 'bg-white/10 text-white'}`}
                   >
-                    <div className="font-semibold">{k.label}</div>
-                    <div className="text-xs opacity-80">{k.hint}</div>
+                    <div className="font-semibold">{t(LEVEL_TEXT[k.id ?? 'off'].label)}</div>
+                    <div className="text-xs opacity-80">{t(LEVEL_TEXT[k.id ?? 'off'].hint)}</div>
                   </button>
                 );
               })}
             </div>
             <p className="text-white/60 text-sm mb-6">
-              Kids profiles see Plex titles up to that rating, age-appropriate Live TV channels, and their own Kids Game Lounge. The adult Game Lounge, Store, Main Apps, Settings, tickets, and Remote Access stay hidden. Their AI is G-rated and helps only with kids shows, movies, channels, and games.
+              {t('profiles.edit.kidsInfo')}
             </p>
           </>
         )}
 
         {!isNew && (
           <>
-            <div className="text-white/70 text-sm mb-2">PIN</div>
+            <div className="text-white/70 text-sm mb-2">{t('profiles.edit.pinLabel')}</div>
             <div className="flex flex-wrap items-center mb-6">
               {pinsAvailable() ? (
                 <>
                   <Btn id="pin" {...fp} className="mr-3" onPress={() => screen.id && push({ kind: 'pin', purpose: 'new', profileId: screen.id }, 'pad-1')}>
-                    <span className="inline-flex items-center"><Lock className="w-5 h-5 mr-2" />{p?.pinHash ? 'Change PIN' : 'Add a PIN'}</span>
+                    <span className="inline-flex items-center"><Lock className="w-5 h-5 mr-2" />{p?.pinHash ? t('profiles.edit.changePinBtn') : t('profiles.edit.addPinBtn')}</span>
                   </Btn>
-                  {p?.pinHash && <Btn id="pin-off" {...fp} onPress={() => { if (screen.id) setPin(screen.id, null); }}>Remove PIN</Btn>}
+                  {p?.pinHash && <Btn id="pin-off" {...fp} onPress={() => { if (screen.id) setPin(screen.id, null); }}>{t('profiles.edit.removePinBtn')}</Btn>}
                 </>
               ) : (
-                <p className="text-white/60">Sign in to your Snow Media account to add a PIN — that's how a forgotten one gets reset. Then Manage profiles brings this box's profiles to the account.</p>
+                <p className="text-white/60">{t('profiles.edit.signInForPin')}</p>
               )}
             </div>
           </>
         )}
 
-        {message && <p className="text-amber-300 mb-4">{message}</p>}
+        {message && <p className="text-amber-300 mb-4">{t(message.key, message.params)}</p>}
         <div className="flex flex-wrap">
-          <Btn id="save" {...fp} className="mr-3" onPress={saveEdit}>Save</Btn>
-          <Btn id="cancel-edit" {...fp} className="mr-3" onPress={() => pop()}>Cancel</Btn>
+          <Btn id="save" {...fp} className="mr-3" onPress={saveEdit}>{t('common.save')}</Btn>
+          <Btn id="cancel-edit" {...fp} className="mr-3" onPress={() => pop()}>{t('common.cancel')}</Btn>
           {!isNew && !isMain && (
             <Btn
               id="delete"
@@ -650,23 +672,24 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
               disabled={screen.id === current.id}
               onPress={() => { if (screen.id && screen.id !== current.id) { deleteProfile(screen.id); pop(`m-${MAIN_PROFILE}`); } }}
             >
-              Delete profile
+              {t('profiles.edit.deleteBtn')}
             </Btn>
           )}
         </div>
         {!isNew && !isMain && screen.id === current.id && (
-          <p className="text-white/50 text-sm mt-3">This is the profile in use — switch to another one to delete it.</p>
+          <p className="text-white/50 text-sm mt-3">{t('profiles.edit.inUseNote')}</p>
         )}
       </div>
     );
   } else if (screen.kind === 'pin') {
     const p = 'profileId' in screen ? getProfile(screen.profileId) : null;
-    title = screen.purpose === 'unlock' ? `Enter the PIN for ${p?.name ?? 'this profile'}`
-      : screen.purpose === 'grownup' ? 'Ask a grown-up'
-        : screen.purpose === 'new' ? `New PIN for ${p?.name ?? 'this profile'}`
-          : 'Enter the new PIN again';
-    subtitle = message ?? (screen.purpose === 'grownup' ? 'A grown-up\'s profile PIN opens this.'
-      : screen.purpose === 'new' ? 'Four numbers. Use the number keys on the remote, or the pad.' : null);
+    const who = p ? profileName(p) : t('profiles.pin.thisProfile');
+    title = screen.purpose === 'unlock' ? t('profiles.pin.unlockTitle', { name: who })
+      : screen.purpose === 'grownup' ? t('profiles.pin.grownupTitle')
+        : screen.purpose === 'new' ? t('profiles.pin.newTitle', { name: who })
+          : t('profiles.pin.confirmTitle');
+    subtitle = message ? t(message.key, message.params) : (screen.purpose === 'grownup' ? t('profiles.pin.grownupHint')
+      : screen.purpose === 'new' ? t('profiles.pin.newHint') : null);
     alert = !!message;
     const showForgot = screen.purpose === 'unlock' && p && pinFailures(p.id) >= FORGOT_AFTER;
     // Its account signed out, so no "Forgot PIN?" here: signing in to it
@@ -678,27 +701,28 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
         <PinPad {...fp} length={4} value={digits} onDigit={typeDigit} onDelete={() => setDigits((d) => d.slice(0, -1))} onSubmit={() => { if (digits.length === 4) submitPin(digits); }} />
         <div className={roomy ? 'flex mt-6' : 'flex flex-col ml-10'}>
           {showForgot && p && pinsAvailable() && (
-            <Btn id="forgot" {...fp} className={roomy ? 'mr-3' : 'mb-3'} onPress={() => push({ kind: 'forgot', profileId: p.id, then: screen.purpose === 'unlock' ? screen.then : 'pick' }, 'pad-1')}>Forgot PIN?</Btn>
+            <Btn id="forgot" {...fp} className={roomy ? 'mr-3' : 'mb-3'} onPress={() => push({ kind: 'forgot', profileId: p.id, then: screen.purpose === 'unlock' ? screen.then : 'pick' }, 'pad-1')}>{t('profiles.pin.forgotBtn')}</Btn>
           )}
-          {showSignIn && <Btn id="signin" {...fp} className={roomy ? 'mr-3' : 'mb-3'} onPress={() => onSignIn?.()}>Forgot it? Sign in again</Btn>}
-          <Btn id="pin-back" {...fp} onPress={() => handlersRef.current.back()}>Back</Btn>
+          {showSignIn && <Btn id="signin" {...fp} className={roomy ? 'mr-3' : 'mb-3'} onPress={() => onSignIn?.()}>{t('profiles.pin.signInAgainBtn')}</Btn>}
+          <Btn id="pin-back" {...fp} onPress={() => handlersRef.current.back()}>{t('common.back')}</Btn>
         </div>
       </div>
     );
   } else if (screen.kind === 'forgot') {
     const p = getProfile(screen.profileId);
-    title = `Reset the PIN for ${p?.name ?? 'this profile'}`;
+    const codeSent = forgot?.state === 'sent';
+    title = t('profiles.forgot.title', { name: p ? profileName(p) : t('profiles.pin.thisProfile') });
     body = (
       <div className="flex flex-col items-center max-w-xl mx-auto text-center">
-        <p className={`mb-6 text-lg ${forgot?.state === 'failed' ? 'text-amber-300' : 'text-white/80'}`}>{forgot?.text ?? ''}</p>
+        <p className={`mb-6 text-lg ${forgot?.state === 'failed' ? 'text-amber-300' : 'text-white/80'}`}>{forgot ? t(forgot.msg.key, forgot.msg.params) : ''}</p>
         {/* Above the pad, where a 540-line screen still shows it. */}
-        {forgot?.state === 'sent' && message && <p className="text-amber-300 mb-4 text-lg">{message}</p>}
+        {codeSent && message && <p className="text-amber-300 mb-4 text-lg">{t(message.key, message.params)}</p>}
         <div className={roomy || forgot?.state !== 'sent' ? 'flex flex-col items-center' : 'flex items-center justify-center'}>
-          {forgot?.state === 'sent' && (
+          {codeSent && (
             <PinPad {...fp} length={6} value={digits} onDigit={typeDigit} onDelete={() => setDigits((d) => d.slice(0, -1))} onSubmit={() => { /* the sixth digit checks it */ }} />
           )}
           <div className={roomy || forgot?.state !== 'sent' ? 'flex mt-6' : 'flex ml-10'}>
-            <Btn id="forgot-back" {...fp} onPress={() => handlersRef.current.back()}>Back</Btn>
+            <Btn id="forgot-back" {...fp} onPress={() => handlersRef.current.back()}>{t('common.back')}</Btn>
           </div>
         </div>
       </div>
@@ -727,7 +751,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
       <div className="min-h-full flex flex-col items-center justify-center px-8 py-10">
         <div className="flex items-center mb-2 text-white/60">
           <UserRound className="w-5 h-5 mr-2" />
-          <span className="text-sm uppercase tracking-widest">Profiles</span>
+          <span className="text-sm uppercase tracking-widest">{t('profiles.header')}</span>
         </div>
         <h1 className="text-4xl font-bold text-center mb-3">{title}</h1>
         {subtitle && <p className={`${alert ? 'text-amber-300' : 'text-white/70'} text-lg text-center max-w-2xl mb-6`}>{subtitle}</p>}

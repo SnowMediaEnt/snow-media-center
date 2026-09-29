@@ -61,7 +61,7 @@ describe('record lengths', () => {
     expect(formatDuration(3930)).toBe('1:05:30');
     expect(formatDuration(724)).toBe('12:04');
     expect(endsAtLabel(0)).toBeNull();
-    expect(endsAtLabel(90, new Date(2026, 8, 28, 20, 15))).toBe('21:45');
+    expect(endsAtLabel(90, new Date(2026, 8, 28, 20, 15))?.replace(/\s/g, ' ')).toBe('9:45 PM');
   });
 
   it('warns under 2 GB free', () => {

@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense, useCallback, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -75,6 +76,7 @@ const KIDS_HIDDEN = new Set<string>(['help-tickets', 'help-remote', 'help-cleane
 const HELP_TWO_COL = '(min-width: 768px)';
 
 const Support = ({ onBack, onNavigate }: SupportProps) => {
+  const { t } = useTranslation();
   const { unreadCount: unreadTicketCount } = useUnreadTickets();
   const { badgeCount: unreadMailCount } = useSnowMail();
   // Where to land: the assistant (or a How-to link) can ask for a tab or a
@@ -163,7 +165,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (!Capacitor.isNativePlatform()) {
-        toast({ title: 'Launch unavailable', description: 'App launching only works on Android.' });
+        toast({ title: t('support.toast.launchUnavailableTitle'), description: t('support.toast.launchUnavailableDesc') });
         return;
       }
       const { AppManager } = await import('@/capacitor/AppManager');
@@ -172,15 +174,15 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       await AppManager.launch({ packageName });
     } catch (err) {
       console.error('[Support] launch failed:', err);
-      toast({ title: 'Launch failed', description: `Could not launch ${app.name}.`, variant: 'destructive' });
+      toast({ title: t('support.toast.launchFailedTitle'), description: t('support.toast.launchFailedDesc', { name: app.name }), variant: 'destructive' });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const openAppSettings = useCallback(async (app: AppData) => {
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (!Capacitor.isNativePlatform()) {
-        toast({ title: 'App Info unavailable', description: 'Only works on Android devices.' });
+        toast({ title: t('support.toast.appInfoUnavailableTitle'), description: t('support.toast.appInfoUnavailableDesc') });
         return;
       }
       const { AppManager } = await import('@/capacitor/AppManager');
@@ -189,26 +191,26 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       // Phase 6A: use the cached installed-apps set — no per-click native isInstalled call.
       if (!isPackageInstalled(resolved)) {
         toast({
-          title: 'App not installed',
-          description: `${app.name} isn't installed on this device.`,
+          title: t('support.toast.notInstalledTitle'),
+          description: t('support.toast.notInstalledDesc', { name: app.name }),
           variant: 'destructive',
         });
         return;
       }
       await AppManager.openAppSettings({ packageName: resolved, appName: app.name });
       toast({
-        title: `Opening ${app.name}`,
-        description: "Tap 'Force Stop', then 'Storage' → 'Clear cache'. Press Back when done.",
+        title: t('support.toast.openingTitle', { name: app.name }),
+        description: t('support.toast.openingDesc'),
       });
     } catch (err) {
       console.error('[Support] openAppSettings failed:', err);
       toast({
-        title: 'Could not open App Info',
-        description: `Open Android Settings → Apps → ${app.name} manually.`,
+        title: t('support.toast.appInfoFailedTitle'),
+        description: t('support.toast.appInfoFailedDesc', { name: app.name }),
         variant: 'destructive',
       });
     }
-  }, [resolvePackageName, isPackageInstalled, toast]);
+  }, [resolvePackageName, isPackageInstalled, toast, t]);
 
   // Download in place (mirrors Main Apps) so the user stays inside the
   // Buffering Guide and doesn't lose their progress mid-flow.
@@ -439,16 +441,16 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         <div className="justify-self-start">
           <BackButton
             onClick={onBack}
-            label="Back to Home"
+            label={t('common.backToHome')}
             focusId="support-back"
             focused={supportFocus.currentFocusId === 'support-back'}
             data-support-tv-focus-id="support-back"
           />
         </div>
         <div className="text-center px-4 min-w-0">
-          <h1 className="text-3xl font-bold text-white leading-tight">Support</h1>
+          <h1 className="text-3xl font-bold text-white leading-tight">{t('support.header.title')}</h1>
           <p className="text-base text-blue-200">
-            Get help, chat with AI, or catch up on posts from Snow Media
+            {t('support.header.subtitle')}
           </p>
         </div>
         <div />
@@ -463,7 +465,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <HelpCircle className="w-5 h-5 mr-2" />
-              Help
+              {t('support.tabs.helpTab')}
             </TabsTrigger>
             <TabsTrigger
               value="ai"
@@ -471,7 +473,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <Brain className="w-5 h-5 mr-2" />
-              AI Chat
+              {t('support.tabs.aiTab')}
             </TabsTrigger>
             {!kids && (
             <TabsTrigger
@@ -480,7 +482,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <Newspaper className="w-5 h-5 mr-2" />
-              Posts
+              {t('support.tabs.postsTab')}
               {unreadMailCount > 0 && (
                 <span className="ml-3 min-w-[1.5rem] h-6 px-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold inline-flex items-center justify-center ring-2 ring-white/70">
                   {unreadMailCount > 9 ? '9+' : unreadMailCount}
@@ -508,9 +510,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 className="bg-emerald-700/60 border-emerald-400/70 text-white hover:bg-emerald-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <GraduationCap className="w-7 h-7 row-span-2 self-center justify-self-center" />
-                <span className="text-xl font-semibold truncate">How to use SMC</span>
+                <span className="text-xl font-semibold truncate">{t('support.cards.howTo.title')}</span>
                 <span className="col-start-2 text-sm text-emerald-100/90 font-normal truncate">
-                  A simple tour of every screen
+                  {t('support.cards.howTo.desc')}
                 </span>
               </Button>
               <Button
@@ -522,9 +524,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <Gauge className="w-7 h-7 row-span-2 self-center justify-self-center" />
-                <span className="text-xl font-semibold truncate">Speedtest</span>
+                <span className="text-xl font-semibold truncate">{t('support.cards.speedTest.title')}</span>
                 <span className="col-start-2 text-sm text-cyan-100/90 font-normal truncate">
-                  Test your internet speed
+                  {t('support.cards.speedTest.desc')}
                 </span>
               </Button>
               <Button
@@ -536,9 +538,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <LifeBuoy className="w-7 h-7 row-span-2 self-center justify-self-center" />
-                <span className="text-xl font-semibold truncate">Buffering Guide</span>
+                <span className="text-xl font-semibold truncate">{t('support.cards.guide.title')}</span>
                 <span className="col-start-2 text-sm text-purple-100/90 font-normal truncate">
-                  Step-by-step buffering fixes
+                  {t('support.cards.guide.desc')}
                 </span>
               </Button>
               <Button
@@ -550,9 +552,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <Video className="w-7 h-7 row-span-2 self-center justify-self-center" />
-                <span className="text-xl font-semibold truncate">Support Videos</span>
+                <span className="text-xl font-semibold truncate">{t('support.cards.videos.title')}</span>
                 <span className="col-start-2 text-sm text-blue-100/90 font-normal truncate">
-                  Tutorials and walkthroughs
+                  {t('support.cards.videos.desc')}
                 </span>
               </Button>
               {!kids && (
@@ -566,7 +568,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               >
                 <MessageCircle className="w-7 h-7 row-span-2 self-center justify-self-center" />
                 <span className="text-xl font-semibold truncate flex items-center gap-3">
-                  Submit a Ticket
+                  {t('support.cards.tickets.title')}
                   {unreadTicketCount > 0 && (
                     <span className="min-w-[1.75rem] h-7 px-2 rounded-full bg-destructive text-destructive-foreground text-sm font-bold inline-flex items-center justify-center ring-2 ring-white/70">
                       {unreadTicketCount > 9 ? '9+' : unreadTicketCount}
@@ -574,7 +576,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                   )}
                 </span>
                 <span className="col-start-2 text-sm text-orange-100/90 font-normal truncate">
-                  {unreadTicketCount > 0 ? 'New reply from Support' : 'Contact Snow Media Support'}
+                  {unreadTicketCount > 0 ? t('support.cards.tickets.descNew') : t('support.cards.tickets.desc')}
                 </span>
               </Button>
               )}
@@ -588,9 +590,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 className="bg-rose-700/60 border-rose-400/70 text-white hover:bg-rose-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <MonitorSmartphone className="w-7 h-7 row-span-2 self-center justify-self-center" />
-                <span className="text-xl font-semibold truncate">Remote Access</span>
+                <span className="text-xl font-semibold truncate">{t('support.cards.remote.title')}</span>
                 <span className="col-start-2 text-sm text-rose-100/90 font-normal truncate">
-                  A technician fixes your box live — $25
+                  {t('support.cards.remote.desc')}
                 </span>
               </Button>
               )}
@@ -604,9 +606,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 className="bg-sky-700/60 border-sky-400/70 text-white hover:bg-sky-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <Sparkles className="w-7 h-7 row-span-2 self-center justify-self-center" />
-                <span className="text-xl font-semibold truncate">Device Cleaner</span>
+                <span className="text-xl font-semibold truncate">{t('support.cards.cleaner.title')}</span>
                 <span className="col-start-2 text-sm text-sky-100/90 font-normal truncate">
-                  Free up space and memory
+                  {t('support.cards.cleaner.desc')}
                 </span>
               </Button>
               )}
@@ -621,9 +623,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 className="bg-indigo-700/60 border-indigo-400/70 text-white hover:bg-indigo-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <Smartphone className="w-7 h-7 row-span-2 self-center justify-self-center" />
-                <span className="text-xl font-semibold truncate">Main Apps</span>
+                <span className="text-xl font-semibold truncate">{t('support.cards.apps.title')}</span>
                 <span className="col-start-2 text-sm text-indigo-100/90 font-normal truncate">
-                  Download apps and streaming tools
+                  {t('support.cards.apps.desc')}
                 </span>
               </Button>
               )}

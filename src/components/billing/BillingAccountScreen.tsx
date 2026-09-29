@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +26,7 @@ import {
   applyServiceToPlayer, copyText, formatDate, formatMoney, connectionsLabel, hasCredentials, credentialsOf,
   isRenewable, isThisDevice, needsPayment, serviceStatusChip, toBillingError, billingErrorText,
 } from '@/lib/billing';
-import { BODY, BTN, BTN_GOLD, CARD, HEADER, INPUT, SCREEN, focusAttrs, scaleIf, useRateLimit, useBillingErrorHandler, useFocusRecovery } from './shared';
+import { BODY, BTN, BTN_GOLD, CARD, HEADER, INPUT, SCREEN, focusAttrs, payTitle, scaleIf, useRateLimit, useBillingErrorHandler, useFocusRecovery } from './shared';
 import { Spinner, RateLimitNote } from './SharedUi';
 import BillingAuthForm from './BillingAuthForm';
 import BuyPlanScreen from './BuyPlanScreen';
@@ -48,7 +49,6 @@ interface PayCtx {
   initialUrl: string | null;
   amount: number | null;
   currency: string;
-  title: string;
   kind: 'renew' | 'order';
   serviceId: number | null;
   planName: string | null;
@@ -64,6 +64,7 @@ const RESUME_POLL = 'resume-pending';
  * its own D-pad handling, so only one keyboard owner is mounted at a time.
  */
 const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: Props) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { account: playerAccount } = usePlayerAccount();
   const [view, setView] = useState<View>('loading');
@@ -139,7 +140,7 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
         const r = await SmcBilling.pollInvoice({ invoiceId: pend.invoice_id, pollId: RESUME_POLL });
         if (cancelled) return;
         if (r.outcome === 'paid') {
-          toast({ title: 'Payment received', description: `Invoice #${pend.invoice_id} is paid.` });
+          toast({ title: t('billing.account.paymentReceivedTitle'), description: t('billing.account.paymentReceivedDesc', { id: pend.invoice_id }) });
           setPending(null);
           void load();
         } else if (r.outcome === 'closed') {
@@ -152,7 +153,7 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
       mountedRef.current = false;
       void SmcBilling.cancelPoll({ pollId: RESUME_POLL });
     };
-  }, [load, toast]);
+  }, [load, toast, t]);
 
   // ── actions ────────────────────────────────────────────────────────────
 
@@ -161,7 +162,7 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
     setClient(null);
     setServices([]);
     setPending(null);
-    toast({ title: 'Signed out of billing' });
+    toast({ title: t('billing.account.signedOutTitle') });
     setView('auth');
   };
 
@@ -171,17 +172,17 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
     try {
       const r = await SmcBilling.renew({ serviceId: s.id });
       if (r.status === 'paid') {
-        toast({ title: 'Renewed', description: 'Your account credit covered this renewal.' });
+        toast({ title: t('billing.account.renewedTitle'), description: t('billing.account.renewedCreditDesc') });
         await load();
         return;
       }
       setPay({
         invoiceId: r.invoice_id, initialUrl: r.pay_url, amount: r.amount, currency: r.currency,
-        title: `Renew ${s.plan?.name || 'your plan'}`, kind: 'renew', serviceId: s.id, planName: s.plan?.name ?? null,
+        kind: 'renew', serviceId: s.id, planName: s.plan?.name ?? null,
       });
       setView('pay');
     } catch (e) {
-      const err = handleError(e, 'Could not renew');
+      const err = handleError(e, t('billing.account.renewFailedTitle'));
       if (err.code === 'not_renewable') setNotRenewable((prev) => new Set(prev).add(s.id));
     } finally {
       setBusyId(null);
@@ -197,7 +198,7 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
       if (pend && (!s || pend.service_id === s.id)) {
         setPay({
           invoiceId: pend.invoice_id, initialUrl: null, amount: s?.amount ?? null, currency: s?.currency ?? 'USD',
-          title: `${pend.kind === 'renew' ? 'Renew' : 'Pay for'} ${pend.plan_name || s?.plan?.name || 'your plan'}`, kind: pend.kind, serviceId: pend.service_id ?? s?.id ?? null, planName: pend.plan_name ?? s?.plan?.name ?? null,
+          kind: pend.kind, serviceId: pend.service_id ?? s?.id ?? null, planName: pend.plan_name ?? s?.plan?.name ?? null,
         });
         setView('pay');
         return;
@@ -206,17 +207,17 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
       // Orders are idempotent per plan: the unfinished one comes back with its invoice.
       const o = await SmcBilling.order({ planId: s.plan.id });
       if (o.invoice_id == null) {
-        toast({ title: 'Nothing to pay', description: 'This order has no open invoice. It will be activated shortly.' });
+        toast({ title: t('billing.account.nothingToPayTitle'), description: t('billing.account.nothingToPayDesc') });
         await load();
         return;
       }
       setPay({
         invoiceId: o.invoice_id, initialUrl: o.pay_url, amount: o.amount, currency: o.currency,
-        title: `Pay for ${s.plan.name}`, kind: 'order', serviceId: o.service_id, planName: s.plan.name,
+        kind: 'order', serviceId: o.service_id, planName: s.plan.name,
       });
       setView('pay');
     } catch (e) {
-      handleError(e, 'Could not open the payment');
+      handleError(e, t('billing.account.openPaymentFailedTitle'));
     } finally {
       setBusyId(null);
     }
@@ -229,8 +230,8 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
     setApplying(true);
     try {
       const r = await applyServiceToPlayer(c);
-      if (r.ok === false) { toast({ title: 'Could not sign the player in', description: r.error, variant: 'destructive' }); return; }
-      toast({ title: 'Player signed in', description: `Now watching as ${r.creds.username}.` });
+      if (r.ok === false) { toast({ title: t('billing.account.playerSignInFailedTitle'), description: r.error, variant: 'destructive' }); return; }
+      toast({ title: t('billing.account.playerSignedInTitle'), description: t('billing.account.nowWatching', { username: r.creds.username }) });
       onUseInPlayer?.(r.creds);
     } finally {
       setBusyId(null);
@@ -243,11 +244,11 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
     setBusyId('redeem');
     try {
       const r = await SmcBilling.redeem({ code: code.trim() });
-      toast({ title: r.ok ? 'Gift code applied' : 'Gift code', description: r.result?.message || 'Done.' });
+      toast({ title: r.ok ? t('billing.account.giftAppliedTitle') : t('billing.account.giftCodeTitle'), description: r.result?.message || t('billing.account.done') });
       await load();
       return true;
     } catch (e) {
-      handleError(e, 'Could not redeem the code');
+      handleError(e, t('billing.account.redeemFailedTitle'));
       return false;
     } finally {
       setBusyId(null);
@@ -264,11 +265,11 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
     } catch (e) {
       const err = toBillingError(e);
       if (err.code === 'provisioning_failed' && typeof err.details?.service_id === 'number') {
-        toast({ title: 'Trial created', description: billingErrorText(err) });
+        toast({ title: t('billing.account.trialCreatedTitle'), description: billingErrorText(err) });
         setProvisioningId(err.details.service_id as number);
         setView('provisioning');
       } else {
-        handleError(e, 'Could not start the trial');
+        handleError(e, t('billing.account.trialFailedTitle'));
         if (err.code === 'trial_already_used') void load();
       }
     } finally {
@@ -278,14 +279,14 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
 
   const onOrdered = (o: BillingOrderResult, plan: BillingPlan) => {
     if (o.invoice_id == null) {
-      toast({ title: 'Order placed', description: `${plan.name} has nothing to pay and will be activated shortly.` });
+      toast({ title: t('billing.account.orderPlacedTitle'), description: t('billing.account.orderPlacedDesc', { plan: plan.name }) });
       setProvisioningId(o.service_id);
       setView('provisioning');
       return;
     }
     setPay({
       invoiceId: o.invoice_id, initialUrl: o.pay_url, amount: o.amount, currency: o.currency,
-      title: `Pay for ${plan.name}`, kind: 'order', serviceId: o.service_id, planName: plan.name,
+      kind: 'order', serviceId: o.service_id, planName: plan.name,
     });
     setView('pay');
   };
@@ -300,7 +301,7 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
       setView('services');
       const list = await load();
       const svc = list.find((s) => s.id === ctx.serviceId);
-      toast({ title: 'Renewed', description: svc?.next_due ? `Renewed until ${formatDate(svc.next_due)}.` : 'Your renewal is paid.' });
+      toast({ title: t('billing.account.renewedTitle'), description: svc?.next_due ? t('billing.account.renewedUntil', { date: formatDate(svc.next_due) }) : t('billing.account.renewalPaid') });
       return;
     }
     setPay(null);
@@ -325,23 +326,23 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
         const r = await SmcBilling.pollServiceActive({ serviceId: provisioningId, pollId });
         if (cancelled) return;
         if (r.outcome === 'active' && r.service) { setReady(r.service); setView('ready'); return; }
-        if (r.outcome === 'terminal') toast({ title: 'Order not completed', description: 'This service was cancelled. Contact support if you were charged.', variant: 'destructive' });
-        else if (r.outcome === 'timeout') toast({ title: 'Still being set up', description: 'Your line is taking longer than usual. Check My Account again in a minute.' });
+        if (r.outcome === 'terminal') toast({ title: t('billing.account.orderNotCompletedTitle'), description: t('billing.account.orderNotCompletedDesc'), variant: 'destructive' });
+        else if (r.outcome === 'timeout') toast({ title: t('billing.account.stillSettingUpTitle'), description: t('billing.account.stillSettingUpDesc') });
         if (r.outcome !== 'cancelled') { setView('services'); void load(); }
       } catch (e) {
         if (cancelled) return;
-        handleError(e, 'Could not check the new service');
+        handleError(e, t('billing.account.checkServiceFailedTitle'));
         setView('services');
         void load();
       }
     })();
     return () => { cancelled = true; void SmcBilling.cancelPoll({ pollId }); };
-  }, [view, provisioningId, load, handleError, toast]);
+  }, [view, provisioningId, load, handleError, toast, t]);
 
   // ── views ──────────────────────────────────────────────────────────────
 
   if (view === 'loading') {
-    return <WaitScreen title="Loading your account…" onBack={onBack} />;
+    return <WaitScreen title={t('billing.account.loadingAccount')} onBack={onBack} />;
   }
   if (view === 'auth') {
     return (
@@ -363,7 +364,7 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
         initialUrl={pay.initialUrl}
         amount={pay.amount}
         currency={pay.currency}
-        title={pay.title}
+        title={payTitle(pay.kind, pay.planName)}
         onPaid={(inv) => { void onPaid(inv); }}
         onClose={closePay}
         onAuthLost={onAuthLost}
@@ -371,21 +372,21 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
     );
   }
   if (view === 'provisioning') {
-    return <WaitScreen title="Setting up your line…" detail="The panel is creating your login. This usually takes a few seconds." />;
+    return <WaitScreen title={t('billing.account.settingUpTitle')} detail={t('billing.account.settingUpDetail')} />;
   }
   if (view === 'ready' && ready) {
     return (
       <CredentialsSheet
-        title="Your line is ready"
-        subtitle={`${ready.plan?.name || 'Your plan'} · ${connectionsLabel(ready.connections)}`}
+        title={t('billing.account.lineReadyTitle')}
+        subtitle={`${ready.plan?.name || t('billing.pay.yourPlan')} · ${connectionsLabel(ready.connections)}`}
         service={ready}
         emailTo={client?.email ?? null}
-        primaryLabel="Use in player"
+        primaryLabel={t('billing.account.useInPlayerBtn')}
         onPrimary={() => { void applyToPlayer(ready); }}
-        secondaryLabel="Back to My Account"
+        secondaryLabel={t('billing.account.backToAccountBtn')}
         onSecondary={() => { setReady(null); setView('services'); void load(); }}
         busy={applying}
-        busyLabel="Signing the player in…"
+        busyLabel={t('billing.account.signingPlayerIn')}
       />
     );
   }
@@ -443,6 +444,7 @@ interface ServicesProps {
 }
 
 const ServicesView = memo((p: ServicesProps) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [code, setCode] = useState('');
   const [shown, setShown] = useState<Set<number>>(() => new Set());
@@ -453,11 +455,11 @@ const ServicesView = memo((p: ServicesProps) => {
   });
   useFocusRecovery(containerRef, currentFocusId, focusById, 'back');
 
-  const copy = async (label: string, value: string) => {
+  const copy = async (kind: 'user' | 'pass', value: string) => {
     const ok = await copyText(value);
     toast(ok
-      ? { title: 'Copied', description: `${label} copied to the clipboard.` }
-      : { title: 'Copy not available', description: 'Write it down from the screen instead.', variant: 'destructive' });
+      ? { title: t('billing.creds.copiedTitle'), description: t(kind === 'user' ? 'billing.creds.usernameCopied' : 'billing.creds.passwordCopied') }
+      : { title: t('billing.creds.copyUnavailableTitle'), description: t('billing.creds.copyUnavailableDesc'), variant: 'destructive' });
   };
 
   const submitRedeem = async (e?: React.FormEvent) => {
@@ -474,11 +476,11 @@ const ServicesView = memo((p: ServicesProps) => {
     <div ref={containerRef} className={SCREEN}>
       <div className={HEADER}>
         <div className="flex items-center gap-3 min-w-0">
-          <BackButton onClick={p.onBack} label="Back" data-player-header-btn="" focused={currentFocusId === 'back'} data-tv-focus-id="back" />
+          <BackButton onClick={p.onBack} label={t('common.back')} data-player-header-btn="" focused={currentFocusId === 'back'} data-tv-focus-id="back" />
           <div className="flex items-center gap-2 min-w-0">
             <CreditCard className="w-7 h-7 text-brand-gold shrink-0" />
             <div className="min-w-0">
-              <h1 className="text-2xl font-quicksand font-bold text-white leading-tight">My Account</h1>
+              <h1 className="text-2xl font-quicksand font-bold text-white leading-tight">{t('billing.account.title')}</h1>
               {p.email && <p className="text-xs text-brand-ice/70 font-nunito truncate">{p.email}</p>}
             </div>
           </div>
@@ -487,11 +489,11 @@ const ServicesView = memo((p: ServicesProps) => {
           <RateLimitNote secondsLeft={p.secondsLeft} />
           <Button variant="white" size="sm" onClick={p.onRefresh} disabled={anyBusy}
             className={`${BTN} ${scaleIf(currentFocusId, 'refresh')}`} {...focusAttrs(currentFocusId, 'refresh')}>
-            <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+            <RefreshCw className="w-4 h-4 mr-2" /> {t('billing.account.refreshBtn')}
           </Button>
           <Button variant="white" size="sm" onClick={p.onSignOut} disabled={anyBusy}
             className={`${BTN} ${scaleIf(currentFocusId, 'signout')}`} {...focusAttrs(currentFocusId, 'signout')}>
-            <LogOut className="w-4 h-4 mr-2" /> Sign out
+            <LogOut className="w-4 h-4 mr-2" /> {t('common.signOut')}
           </Button>
         </div>
       </div>
@@ -511,15 +513,17 @@ const ServicesView = memo((p: ServicesProps) => {
             <Card className={`${CARD} p-5 border-amber-400/40`}>
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
-                  <div className="text-lg font-quicksand font-semibold text-white">An invoice is waiting for payment</div>
+                  <div className="text-lg font-quicksand font-semibold text-white">{t('billing.account.invoiceWaiting')}</div>
                   <div className="text-brand-ice/80 font-nunito text-sm">
-                    {p.pending.plan_name ? `${p.pending.plan_name} · ` : ''}Invoice #{p.pending.invoice_id}
+                    {p.pending.plan_name
+                      ? t('billing.account.invoiceWithPlan', { plan: p.pending.plan_name, id: p.pending.invoice_id })
+                      : t('billing.account.invoiceOnly', { id: p.pending.invoice_id })}
                   </div>
                 </div>
                 <Button variant="gold" disabled={anyBusy || p.blocked} onClick={() => p.onFinishPayment(null)}
                   className={`${BTN_GOLD} ${scaleIf(currentFocusId, 'pending-pay')}`} {...focusAttrs(currentFocusId, 'pending-pay')}>
                   {p.busyId === 'trial' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
-                  Finish payment
+                  {t('billing.account.finishPaymentBtn')}
                 </Button>
               </div>
             </Card>
@@ -527,11 +531,11 @@ const ServicesView = memo((p: ServicesProps) => {
 
           {p.services.length === 0 && !p.loadError && (
             <Card className={`${CARD} p-6`}>
-              <h2 className="text-xl font-quicksand font-semibold text-white">No services yet</h2>
+              <h2 className="text-xl font-quicksand font-semibold text-white">{t('billing.account.noServices')}</h2>
               <p className="text-brand-ice/80 font-nunito mt-1">
                 {p.trialAvailable
-                  ? 'Start a free 24-hour trial, or buy a plan to get a Dreamstreams login.'
-                  : 'Buy a plan to get a Dreamstreams login for the Player.'}
+                  ? t('billing.account.noServicesTrial')
+                  : t('billing.account.noServicesBuy')}
               </p>
             </Card>
           )}
@@ -549,14 +553,14 @@ const ServicesView = memo((p: ServicesProps) => {
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-xl font-quicksand font-bold text-white">{s.plan?.name || 'Service'}</h2>
+                      <h2 className="text-xl font-quicksand font-bold text-white">{s.plan?.name || t('billing.account.serviceFallback')}</h2>
                       <Badge className={`border ${chip.className}`}>{chip.label}</Badge>
-                      {s.plan?.trial && <Badge className="border bg-sky-600/30 text-sky-100 border-sky-400/40">Trial</Badge>}
-                      {thisDevice && <Badge className="border bg-brand-gold/30 text-white border-brand-gold/60"><Tv className="w-3 h-3 mr-1" />This device</Badge>}
+                      {s.plan?.trial && <Badge className="border bg-sky-600/30 text-sky-100 border-sky-400/40">{t('billing.account.trialChip')}</Badge>}
+                      {thisDevice && <Badge className="border bg-brand-gold/30 text-white border-brand-gold/60"><Tv className="w-3 h-3 mr-1" />{t('billing.account.thisDeviceChip')}</Badge>}
                     </div>
                     <div className="flex items-center gap-4 flex-wrap text-sm text-brand-ice/80 font-nunito mt-2">
                       <span className="flex items-center gap-1"><Users className="w-4 h-4" />{connectionsLabel(s.connections)}</span>
-                      <span className="flex items-center gap-1"><Calendar className="w-4 h-4" />Expires {formatDate(s.expires_at)}</span>
+                      <span className="flex items-center gap-1"><Calendar className="w-4 h-4" />{t('billing.account.expiresOn', { date: formatDate(s.expires_at) })}</span>
                       {(s.amount ?? 0) > 0 && <span>{formatMoney(s.amount, s.currency)}{s.billing_cycle ? ` / ${s.billing_cycle}` : ''}</span>}
                     </div>
                   </div>
@@ -565,25 +569,25 @@ const ServicesView = memo((p: ServicesProps) => {
                       <Button variant="gold" disabled={anyBusy || p.blocked} onClick={() => p.onFinishPayment(s)}
                         className={`${BTN_GOLD} ${scaleIf(currentFocusId, `s-${s.id}-pay`)}`} {...focusAttrs(currentFocusId, `s-${s.id}-pay`)}>
                         {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
-                        Finish payment
+                        {t('billing.account.finishPaymentBtn')}
                       </Button>
                     ) : renewable ? (
                       <Button variant="gold" disabled={anyBusy || p.blocked} onClick={() => p.onRenew(s)}
                         className={`${BTN_GOLD} ${scaleIf(currentFocusId, `s-${s.id}-renew`)}`} {...focusAttrs(currentFocusId, `s-${s.id}-renew`)}>
                         {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                        Renew
+                        {t('billing.account.renewBtn')}
                       </Button>
                     ) : p.notRenewable.has(s.id) ? (
                       <Button variant="gold" disabled={anyBusy} onClick={p.onBuy}
                         className={`${BTN_GOLD} ${scaleIf(currentFocusId, `s-${s.id}-choose`)}`} {...focusAttrs(currentFocusId, `s-${s.id}-choose`)}>
-                        <ShoppingCart className="w-4 h-4 mr-2" /> Choose a plan
+                        <ShoppingCart className="w-4 h-4 mr-2" /> {t('billing.account.choosePlanBtn')}
                       </Button>
                     ) : null}
                     {creds && (
                       <Button variant="white" disabled={anyBusy} onClick={() => p.onUseInPlayer(s)}
                         className={`${BTN} ${scaleIf(currentFocusId, `s-${s.id}-use`)}`} {...focusAttrs(currentFocusId, `s-${s.id}-use`)}>
                         {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Tv className="w-4 h-4 mr-2" />}
-                        Use in player
+                        {t('billing.account.useInPlayerBtn')}
                       </Button>
                     )}
                   </div>
@@ -593,33 +597,33 @@ const ServicesView = memo((p: ServicesProps) => {
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="flex items-center gap-3 rounded-xl bg-black/30 border border-white/10 px-4 py-2">
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs uppercase tracking-wide text-white/60">Username</div>
+                        <div className="text-xs uppercase tracking-wide text-white/60">{t('billing.creds.username')}</div>
                         <div className="text-white font-mono break-all">{creds.username}</div>
                       </div>
-                      <Button variant="white" size="sm" onClick={() => { void copy('Username', creds.username); }}
+                      <Button variant="white" size="sm" onClick={() => { void copy('user', creds.username); }}
                         className={`${BTN} h-10 ${scaleIf(currentFocusId, `s-${s.id}-cu`)}`} {...focusAttrs(currentFocusId, `s-${s.id}-cu`)}>
                         <Copy className="w-4 h-4" />
                       </Button>
                     </div>
                     <div className="flex items-center gap-3 rounded-xl bg-black/30 border border-white/10 px-4 py-2">
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs uppercase tracking-wide text-white/60">Password</div>
+                        <div className="text-xs uppercase tracking-wide text-white/60">{t('billing.creds.password')}</div>
                         <div className="text-white font-mono break-all">{show ? creds.password : '•'.repeat(Math.max(8, creds.password.length))}</div>
                       </div>
                       <Button variant="white" size="sm" onClick={() => setShown((prev) => { const n = new Set(prev); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); return n; })}
                         className={`${BTN} h-10 ${scaleIf(currentFocusId, `s-${s.id}-show`)}`} {...focusAttrs(currentFocusId, `s-${s.id}-show`)}>
                         {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
-                      <Button variant="white" size="sm" onClick={() => { void copy('Password', creds.password); }}
+                      <Button variant="white" size="sm" onClick={() => { void copy('pass', creds.password); }}
                         className={`${BTN} h-10 ${scaleIf(currentFocusId, `s-${s.id}-cp`)}`} {...focusAttrs(currentFocusId, `s-${s.id}-cp`)}>
                         <Copy className="w-4 h-4" />
                       </Button>
                     </div>
-                    <div className="md:col-span-2 text-xs text-brand-ice/60 font-nunito">Server: {creds.host}</div>
+                    <div className="md:col-span-2 text-xs text-brand-ice/60 font-nunito">{t('billing.account.server', { host: creds.host })}</div>
                   </div>
                 ) : (
                   <p className="mt-3 text-sm text-brand-ice/70 font-nunito">
-                    {finish ? 'Login details appear here once the invoice is paid and the line is created.' : 'No login details for this service.'}
+                    {finish ? t('billing.account.loginAppearsHere') : t('billing.account.noLoginDetails')}
                   </p>
                 )}
               </Card>
@@ -630,30 +634,30 @@ const ServicesView = memo((p: ServicesProps) => {
             <div className="flex items-center gap-3 flex-wrap">
               <Button variant="gold" disabled={anyBusy || p.blocked} onClick={p.onBuy}
                 className={`${BTN_GOLD} ${scaleIf(currentFocusId, 'buy')}`} {...focusAttrs(currentFocusId, 'buy')}>
-                <ShoppingCart className="w-4 h-4 mr-2" /> Buy a plan
+                <ShoppingCart className="w-4 h-4 mr-2" /> {t('billing.account.buyPlanBtn')}
               </Button>
               {p.trialAvailable && p.services.length === 0 && (
                 <Button variant="white" disabled={anyBusy || p.blocked} onClick={p.onTrial}
                   className={`${BTN} ${scaleIf(currentFocusId, 'trial')}`} {...focusAttrs(currentFocusId, 'trial')}>
                   {p.busyId === 'trial' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                  Start free 24-hour trial
+                  {t('billing.account.startTrialBtn')}
                 </Button>
               )}
             </div>
             <form onSubmit={submitRedeem} className="mt-5">
-              <div className="text-sm uppercase tracking-wide text-white/60 mb-2 flex items-center gap-2"><Gift className="w-4 h-4" /> Redeem a gift code</div>
+              <div className="text-sm uppercase tracking-wide text-white/60 mb-2 flex items-center gap-2"><Gift className="w-4 h-4" /> {t('billing.account.redeemHeading')}</div>
               <div className="flex gap-3">
-                <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter your code" autoComplete="off" disabled={anyBusy}
+                <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t('billing.account.codePlaceholder')} autoComplete="off" disabled={anyBusy}
                   data-tv-allow-enter="true" className={`${INPUT} max-w-sm`} {...focusAttrs(currentFocusId, 'redeem-code')} />
                 <Button type="submit" variant="white" disabled={anyBusy || p.blocked || !code.trim()}
                   className={`${BTN} ${scaleIf(currentFocusId, 'redeem-go')}`} {...focusAttrs(currentFocusId, 'redeem-go')}>
                   {p.busyId === 'redeem' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                  Redeem
+                  {t('billing.account.redeemBtn')}
                 </Button>
               </div>
             </form>
           </Card>
-          {anyBusy && p.busyId !== 'redeem' && p.busyId !== 'trial' && <Spinner label="Working…" />}
+          {anyBusy && p.busyId !== 'redeem' && p.busyId !== 'trial' ? <Spinner label={t('billing.account.working')} /> : null}
         </div>
       </div>
     </div>

@@ -4,7 +4,8 @@
 // Appearance. Owns the remote while it is up (the Player shell honours the
 // same flag as the first-open chooser; the section is made inactive).
 import { useEffect, useState } from 'react';
-import { LIVE_LAYOUTS, type LiveLayout } from '@/lib/liveLayout';
+import { useTranslation } from 'react-i18next';
+import type { LiveLayout } from '@/lib/liveLayout';
 
 interface Props {
   layout: LiveLayout;
@@ -13,8 +14,9 @@ interface Props {
 }
 
 const LayoutTrialPrompt = ({ layout, onKeep, onChange }: Props) => {
+  const { t } = useTranslation();
   const [focus, setFocus] = useState<'keep' | 'change'>('keep');
-  const label = LIVE_LAYOUTS.find((l) => l.id === layout)?.label ?? 'this';
+  const name = t(`live.layouts.${layout}Label`);
 
   useEffect(() => {
     const w = window as unknown as { __liveLayoutChooserOpen?: boolean };
@@ -43,13 +45,13 @@ const LayoutTrialPrompt = ({ layout, onKeep, onChange }: Props) => {
     } ${id === 'keep' ? 'bg-brand-gold text-slate-900' : 'bg-slate-800 border border-slate-600 text-white'}`;
 
   return (
-    <div className="fixed inset-x-0 bottom-[6vh] z-[80] flex justify-center pointer-events-none" role="dialog" aria-label="Keep this layout?">
+    <div className="fixed inset-x-0 bottom-[6vh] z-[80] flex justify-center pointer-events-none" role="dialog" aria-label={t('live.layoutTrial.dialogLabel')}>
       <div className="pointer-events-auto rounded-3xl border border-brand-gold/40 bg-[#0b1220] shadow-2xl px-8 py-6 text-center max-w-xl">
-        <div className="text-2xl font-quicksand font-bold text-white">Keep the {label} layout?</div>
-        <div className="mt-1 text-base text-white/70 font-nunito">This is how Live TV will look. You can change it any time in Appearance.</div>
+        <div className="text-2xl font-quicksand font-bold text-white">{t('live.layoutTrial.title', { name })}</div>
+        <div className="mt-1 text-base text-white/70 font-nunito">{t('live.layoutTrial.body')}</div>
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <button type="button" className={btn('keep')} onClick={onKeep} onMouseEnter={() => setFocus('keep')}>Keep</button>
-          <button type="button" className={btn('change')} onClick={onChange} onMouseEnter={() => setFocus('change')}>Change</button>
+          <button type="button" className={btn('keep')} onClick={onKeep} onMouseEnter={() => setFocus('keep')}>{t('live.layoutTrial.keepBtn')}</button>
+          <button type="button" className={btn('change')} onClick={onChange} onMouseEnter={() => setFocus('change')}>{t('live.layoutTrial.changeBtn')}</button>
         </div>
       </div>
     </div>

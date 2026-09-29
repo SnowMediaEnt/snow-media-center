@@ -39,6 +39,48 @@ const PERPLEXITY_COST_USD = 0.01;
 
 const HOURLY_LIMIT_MESSAGE = "You've asked Snow AI a lot in the last hour. Please try again in a little while.";
 
+// The languages the app can be set to. The app sends its choice as body.language; an old app
+// build sends nothing, and then the reply language is guessed from the message as it always was.
+type AppLang = 'en' | 'es' | 'fr' | 'de' | 'ar';
+const APP_LANGS: readonly AppLang[] = ['en', 'es', 'fr', 'de', 'ar'];
+const LANG_NAMES: Record<AppLang, string> = {
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  ar: 'Arabic (Modern Standard Arabic)',
+};
+const readAppLang = (body: unknown): AppLang | null => {
+  const v = (body as { language?: unknown } | null)?.language;
+  return typeof v === 'string' && (APP_LANGS as readonly string[]).includes(v) ? (v as AppLang) : null;
+};
+
+// The sign-in refusals, in the app's language (English when the app sent none).
+const REFUSALS: Record<'sessionExpired' | 'premiumSignIn' | 'assistantSignIn', Record<AppLang, string>> = {
+  sessionExpired: {
+    en: 'Your session expired. Please sign in again.',
+    es: 'Tu sesión expiró. Inicia sesión de nuevo.',
+    fr: 'Votre session a expiré. Veuillez vous reconnecter.',
+    de: 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
+    ar: 'انتهت جلستك. يرجى تسجيل الدخول مرة أخرى.',
+  },
+  premiumSignIn: {
+    en: 'Sign in to use Premium AI.',
+    es: 'Inicia sesión para usar la IA Premium.',
+    fr: 'Connectez-vous pour utiliser l\'IA Premium.',
+    de: 'Melde dich an, um die Premium-KI zu nutzen.',
+    ar: 'سجّل الدخول لاستخدام الذكاء الاصطناعي المميز.',
+  },
+  assistantSignIn: {
+    en: 'Please sign in to use the AI assistant.',
+    es: 'Inicia sesión para usar el asistente de IA.',
+    fr: 'Veuillez vous connecter pour utiliser l\'assistant IA.',
+    de: 'Bitte melde dich an, um den KI-Assistenten zu nutzen.',
+    ar: 'يرجى تسجيل الدخول لاستخدام مساعد الذكاء الاصطناعي.',
+  },
+};
+const refusal = (key: keyof typeof REFUSALS, lang: AppLang | null): string => REFUSALS[key][lang ?? 'en'];
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -62,12 +104,13 @@ serve(async (req) => {
     // A Kids profile: a safeguarded assistant (see _shared/kidsSafe.ts) — no
     // account details, no live web results, only the safe app actions.
     const kidsLevel = kidsLevelOf(body);
+    const appLang = readAppLang(body);
 
     // Fail closed: a Bearer header that didn't validate is a real signed-in
     // user with a transient/expired token — never silently downgrade to free.
     if (isAuthError(caller)) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized', message: 'Your session expired. Please sign in again.' }),
+        JSON.stringify({ error: 'Unauthorized', message: refusal('sessionExpired', appLang) }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -97,7 +140,7 @@ serve(async (req) => {
     // so a signed-out 'premium' request cannot use up a free slot.
     if (!caller.authed && tier === 'premium') {
       return new Response(JSON.stringify({
-        error: 'premium_requires_signin', needed: null, balance: null, message: 'Sign in to use Premium AI.',
+        error: 'premium_requires_signin', needed: null, balance: null, message: refusal('premiumSignIn', appLang),
       }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -107,7 +150,7 @@ serve(async (req) => {
     if (!caller.authed) {
       if (!caller.deviceId) {
         return new Response(
-          JSON.stringify({ error: 'Unauthorized', message: 'Please sign in to use the AI assistant.' }),
+          JSON.stringify({ error: 'Unauthorized', message: refusal('assistantSignIn', appLang) }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
@@ -256,7 +299,7 @@ serve(async (req) => {
           message: settled.error === 'insufficient_gems'
             ? `Premium needs ${settled.needed} Snow Gems. Top up from the Dashboard.`
             : settled.error === 'premium_requires_signin'
-              ? 'Sign in to use Premium AI.'
+              ? refusal('premiumSignIn', appLang)
               : 'Premium AI is not available right now.',
         }), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
@@ -479,7 +522,7 @@ serve(async (req) => {
 
     // Server-side language detection — the model has shown bias toward Spanish
     // even with strong prompt rules, so we deterministically force the reply language.
-    const detectReplyLanguage = (text: string): 'English' | 'Spanish' => {
+    const detectReplyLanguage = (text: string): string => {
       const t = (text || '').toLowerCase();
       if (/[ñ¿¡]/.test(t)) return 'Spanish';
       if (/[áéíóúü]/.test(t)) return 'Spanish';
@@ -487,7 +530,9 @@ serve(async (req) => {
       if (esWords.test(t)) return 'Spanish';
       return 'English';
     };
-    const replyLanguage = detectReplyLanguage(message);
+    // The app's chosen language wins, even when the customer typed in another one. Without it
+    // (an old app build) the guess above applies.
+    const replyLanguage = appLang ? LANG_NAMES[appLang] : detectReplyLanguage(message);
 
     // A child never sees the account holder's plan, billing or update notes.
     if (kidsLevel) { userContext = ''; updateContext = ''; }

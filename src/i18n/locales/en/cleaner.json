@@ -1,0 +1,132 @@
+{
+  "cleaner": {
+    "title": "Device Cleaner",
+    "subtitle": "Frees space and memory on this box. Nothing you are signed into gets signed out.",
+    "backLabel": "Back to Support",
+    "checkAgainBtn": "Check again",
+    "notNative": "The cleaner only works inside the installed Snow Media Center app on your TV box.",
+    "storage": {
+      "title": "Storage",
+      "free": "{{size}} free",
+      "used": "{{used}} of {{total}} used",
+      "reading": "Reading…",
+      "nearlyFull": "This box is nearly full. That is what makes app updates fail with “App not installed” and streams stutter — clean it and try again."
+    },
+    "memory": {
+      "title": "Memory",
+      "low": "The box is short on memory right now.",
+      "hint": "Closing background apps frees more."
+    },
+    "phase": {
+      "junk": "Clearing leftover files…",
+      "memory": "Closing background apps…",
+      "caches": "Clearing app caches — {{done}} of {{total}}",
+      "working": "Working through {{app}} — Settings opens and closes by itself. Leave the remote alone.",
+      "settingsOpens": "Settings will open by itself. Leave the remote alone until it comes back."
+    },
+    "stopBtn": "Stop",
+    "done": "Done",
+    "all": {
+      "title": "Clean this box",
+      "desc": "Leftover files, background apps, then every app cache",
+      "descReach": "Leftover files, background apps, then every app cache — about {{size}} in reach"
+    },
+    "caches": {
+      "title": "Clear app caches",
+      "fireList": "Opens Fire TV’s app list",
+      "count_one": "{{count}} app",
+      "count_other": "{{count}} apps",
+      "countSize_one": "{{count}} app · {{size}}",
+      "countSize_other": "{{count}} apps · {{size}}"
+    },
+    "background": {
+      "title": "Close background apps",
+      "desc": "Frees memory for the player"
+    },
+    "junk": {
+      "title": "Remove leftover installers",
+      "count_one": "{{count}} file · {{size}}",
+      "count_other": "{{count}} files · {{size}}",
+      "none": "Nothing left behind"
+    },
+    "usage": {
+      "onTitle": "App usage is on",
+      "offTitle": "Show app sizes",
+      "onDesc": "Sizes and last-used dates are visible",
+      "offDesc": "Needed to find unused apps"
+    },
+    "lastClean": "Last clean: {{when}}",
+    "fire": {
+      "title": "Fire TV clears caches one app at a time",
+      "body": "Fire TV has no setting that lets another app empty caches for you, so the Cleaner takes you to Fire TV’s own page for each app instead. Pick an app below, choose <1>Clear cache</1> on the page that opens, then press Back to land straight back here. Leftover files and background apps are still cleared in one press.",
+      "openListBtn": "Open Fire TV’s app list",
+      "cacheSize": "{{size}} of cache",
+      "cacheHidden": "Cache size is hidden on Fire TV",
+      "clearCacheBtn": "Clear cache"
+    },
+    "gate": {
+      "title": "One switch to turn on",
+      "body": "Android will not let any app empty another app’s cache on its own. In the list that opens, find <1>Snow Media Cache Cleaner</1> and switch it on — then come back here and press Clean. It only ever taps “Clear cache”, never “Clear data”, and you can switch it off again whenever you like. Everything else on this screen works without it.",
+      "openBtn": "Open Accessibility Settings"
+    },
+    "unused": {
+      "title": "Apps nobody opens",
+      "needUsage": "Turn on app usage above and this box will list what has not been opened in {{days}} days, with what each one takes up.",
+      "none": "Everything installed here gets used. Nothing to remove.",
+      "more": "{{count}} more, smallest first — clean the big ones and check again."
+    },
+    "detailsBtn": "Details",
+    "removeBtn": "Remove",
+    "check": {
+      "title": "Worth a look",
+      "desc": "Apps that did not come from a store, and apps with no way to open them. Most are harmless — a sideload you asked for, or a helper another app installed. The ads and pop-ups people blame on their box are usually one of these.",
+      "none": "Nothing unexpected is installed.",
+      "sideloaded": "Installed from outside a store",
+      "noWay": "No way to open it",
+      "more": "{{count}} more not shown."
+    },
+    "age": {
+      "never": "never opened",
+      "today": "used today",
+      "yesterday": "used yesterday",
+      "days_one": "last used {{count}} day ago",
+      "days_other": "last used {{count}} days ago",
+      "months_one": "last used about {{count}} month ago",
+      "months_other": "last used about {{count}} months ago"
+    },
+    "lines": {
+      "fireCaches": "app caches: pick an app in the Fire TV list below to clear its cache",
+      "noCaches": "no app caches worth clearing",
+      "cachesDone": "caches cleared on {{done}} of {{total}} apps",
+      "cachesRoot_one": "caches cleared on {{count}} app",
+      "cachesRoot_other": "caches cleared on {{count}} apps",
+      "junkRemoved": "{{size}} of leftover files removed",
+      "memoryFreed": "{{size}} of memory freed",
+      "askedToStop_one": "{{count}} app asked to stop background work",
+      "askedToStop_other": "{{count}} apps asked to stop background work",
+      "noJunk": "no leftover files to remove",
+      "stopped": "stopped"
+    },
+    "toast": {
+      "fireCachesTitle": "Caches are one app at a time on Fire TV",
+      "fireCachesDesc": "Pick an app in the list further down and choose Clear cache on the page that opens.",
+      "turnOnTitle": "Turn on cache cleaning first",
+      "turnOnDesc": "Switch on Snow Media Cache Cleaner under Accessibility. The button at the bottom of this screen opens that list.",
+      "clearFailedTitle": "Could not clear caches",
+      "openListTitle": "Could not open the app list",
+      "openListDesc": "On the Fire TV home screen go to Settings → Applications → Manage Installed Applications, pick an app, then Clear cache.",
+      "backgroundFailedTitle": "Could not close background apps",
+      "removedTitle": "Removed",
+      "removedDesc": "{{name}} is gone.",
+      "keptTitle": "Kept",
+      "keptDesc": "{{name}} is still installed.",
+      "removeFailedTitle": "Could not remove it",
+      "appInfoFailedTitle": "Could not open App Info",
+      "byHandTitle": "Open it by hand",
+      "byHandDesc": "Android Settings → Accessibility → Snow Media Cache Cleaner.",
+      "noUsageTitle": "This box has no usage screen",
+      "noUsageDesc": "Cache clearing and background closing still work. Sizes and last-used dates will stay hidden.",
+      "usageFailedTitle": "Could not open that screen"
+    }
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "profiles": {
+    "header": "Profils",
+    "kidsChip": "ENFANTS",
+    "pad": {
+      "digits": "{{filled}} chiffres sur {{length}}",
+      "done": "Terminé"
+    },
+    "pick": {
+      "title": "Qui regarde ?",
+      "introSingle": "Chacun à la maison peut avoir son propre profil, avec ses listes Reprendre la lecture et Ma liste, ses favoris et son écran d'accueil. Les profils enfants n'affichent que ce qui convient à leur âge."
+    },
+    "manage": {
+      "title": "Gérer les profils",
+      "subtitle": "Choisissez un profil à modifier.",
+      "addProfile": "Ajouter un profil",
+      "doneBtn": "Terminé",
+      "manageBtn": "Gérer les profils",
+      "bringBtn": "Ajouter {{names}} depuis ce boîtier"
+    },
+    "edit": {
+      "addTitle": "Ajouter un profil",
+      "editTitle": "Modifier {{name}}",
+      "editTitleUnnamed": "Modifier le profil",
+      "nameLabel": "Nom",
+      "namePlaceholder": "Son nom",
+      "colorLabel": "Couleur",
+      "kidsLabel": "Profil enfant",
+      "levelOff": "Désactivé",
+      "levelOffHint": "Tout",
+      "levelLittle": "Tout-petits",
+      "levelLittleHint": "G et TV-Y / TV-G",
+      "levelKids": "Enfants",
+      "levelKidsHint": "Jusqu'à PG et TV-PG",
+      "levelTeen": "Ados",
+      "levelTeenHint": "Jusqu'à PG-13 et TV-14",
+      "kidsInfo": "Les profils enfants voient les titres Plex jusqu'à cette classification, des chaînes TV en direct adaptées à leur âge et leur propre Salon de jeux enfants. Le Salon de jeux pour adultes, la Boutique, les Applis principales, les Paramètres, les tickets et l'Accès à distance restent masqués. Leur IA est tout public et n'aide que pour les émissions, films, chaînes et jeux pour enfants.",
+      "pinLabel": "Code PIN",
+      "changePinBtn": "Changer le PIN",
+      "addPinBtn": "Ajouter un PIN",
+      "removePinBtn": "Retirer le PIN",
+      "signInForPin": "Connectez-vous à votre compte Snow Media pour ajouter un PIN : c'est ainsi qu'on réinitialise un PIN oublié. Gérer les profils transfère ensuite les profils de ce boîtier vers le compte.",
+      "deleteBtn": "Supprimer le profil",
+      "inUseNote": "C'est le profil en cours d'utilisation : passez à un autre pour le supprimer.",
+      "giveName": "Donnez un nom au profil.",
+      "maxProfiles": "{{max}} profils maximum."
+    },
+    "colors": {
+      "blue": "Bleu",
+      "gold": "Or",
+      "purple": "Violet",
+      "teal": "Sarcelle",
+      "red": "Rouge",
+      "green": "Vert",
+      "pink": "Rose",
+      "orange": "Orange"
+    },
+    "pin": {
+      "thisProfile": "ce profil",
+      "unlockTitle": "Saisissez le PIN de {{name}}",
+      "grownupTitle": "Demandez à un adulte",
+      "newTitle": "Nouveau PIN pour {{name}}",
+      "confirmTitle": "Saisissez à nouveau le nouveau PIN",
+      "grownupHint": "Le PIN du profil d'un adulte permet d'ouvrir ceci.",
+      "newHint": "Quatre chiffres. Utilisez les touches numériques de la télécommande, ou le pavé.",
+      "forgotBtn": "PIN oublié ?",
+      "signInAgainBtn": "Oublié ? Reconnectez-vous",
+      "waitTooMany_one": "Trop d'essais : patientez {{count}} seconde.",
+      "waitTooMany_many": "Trop d'essais : patientez {{count}} secondes.",
+      "waitTooMany_other": "Trop d'essais : patientez {{count}} secondes.",
+      "wrong": "PIN incorrect. Réessayez.",
+      "wrongWait_one": "PIN incorrect. Trop d'essais : patientez {{count}} seconde.",
+      "wrongWait_many": "PIN incorrect. Trop d'essais : patientez {{count}} secondes.",
+      "wrongWait_other": "PIN incorrect. Trop d'essais : patientez {{count}} secondes.",
+      "notGrownUp": "Ce n'est pas le PIN d'un adulte.",
+      "notGrownUpWait_one": "Ce n'est pas le PIN d'un adulte. Trop d'essais : patientez {{count}} seconde.",
+      "notGrownUpWait_many": "Ce n'est pas le PIN d'un adulte. Trop d'essais : patientez {{count}} secondes.",
+      "notGrownUpWait_other": "Ce n'est pas le PIN d'un adulte. Trop d'essais : patientez {{count}} secondes.",
+      "mismatch": "Les deux PIN ne correspondent pas. Saisissez à nouveau le nouveau PIN.",
+      "checking": "Vérification…"
+    },
+    "forgot": {
+      "title": "Réinitialiser le PIN de {{name}}",
+      "sending": "Envoi d'un code de réinitialisation…",
+      "tooManyRequests": "Trop de demandes de réinitialisation. Réessayez dans une heure, ou contactez l'assistance Snow Media.",
+      "signedOut": "Connectez-vous à votre compte Snow Media sur ce boîtier pour réinitialiser le PIN.",
+      "noPin": "Ce profil n'a plus de PIN : sélectionnez-le à nouveau.",
+      "unreachable": "Snow Media injoignable. Vérifiez la connexion Internet et réessayez.",
+      "emailed": "Nous avons envoyé un code à 6 chiffres à {{email}}. Saisissez-le ci-dessous.",
+      "emailedSupport": "Nous avons envoyé un code à 6 chiffres à {{email}}. Saisissez-le ci-dessous. L'assistance Snow Media a aussi été prévenue : si l'e-mail n'arrive pas, elle peut le réinitialiser pour vous.",
+      "notEmailed": "Nous n'avons pas pu envoyer de code par e-mail à ce compte.",
+      "notEmailedSupport": "Nous n'avons pas pu envoyer de code par e-mail à ce compte. L'assistance Snow Media a aussi été prévenue : si l'e-mail n'arrive pas, elle peut le réinitialiser pour vous.",
+      "wrongCode": "Ce code n'est pas le bon.",
+      "wrongCodeLeft_one": "Ce code n'est pas le bon. Il reste {{count}} essai.",
+      "wrongCodeLeft_many": "Ce code n'est pas le bon. Il reste {{count}} essais.",
+      "wrongCodeLeft_other": "Ce code n'est pas le bon. Il reste {{count}} essais.",
+      "expired": "Ce code a expiré. Revenez en arrière et demandez-en un nouveau.",
+      "tooManyCodes": "Trop de codes erronés. Revenez en arrière et demandez-en un nouveau.",
+      "unreachableShort": "Snow Media injoignable. Réessayez."
+    },
+    "intro": {
+      "dialogLabel": "Profils",
+      "title": "Nouveau : des profils pour tous",
+      "pointEveryone": "Chacun à la maison a sa propre configuration, avec ses listes Reprendre la lecture et Ma liste, ses favoris et son écran d'accueil.",
+      "pointKids": "Les profils enfants n'affichent que des films, émissions et chaînes pour enfants selon l'âge choisi, plus une section de jeux pour enfants (bientôt).",
+      "pointSafety": "La sécurité partout : films, émissions, chaînes TV en direct et IA restent adaptés à l'âge. Ajoutez un PIN à n'importe quel profil si vous le souhaitez.",
+      "hint": "Configurez-les à tout moment dans Paramètres → Profils, ou avec le bouton de profil en haut de l'Accueil.",
+      "setUpBtn": "Configurer les profils",
+      "laterBtn": "Plus tard"
+    },
+    "defaultName": "Moi"
+  }
+}

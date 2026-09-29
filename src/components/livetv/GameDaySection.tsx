@@ -30,8 +30,9 @@ import {
 } from '@/lib/gameDay';
 import { GAME_REMINDERS_EVENT, hasReminder, toggleReminder } from '@/lib/gameReminders';
 import { buildLines } from '@/lib/liveLines';
-import { loadSavedAccounts, type XtreamCreds } from '@/lib/xtream';
+import { loadSavedAccounts, serverDisplayName, type XtreamCreds } from '@/lib/xtream';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   creds: XtreamCreds;
@@ -74,6 +75,7 @@ const TeamCell = ({ name, logo, score, live }: { name: string; logo: string | nu
 );
 
 const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }: Props) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [lines, setLines] = useState<XtreamCreds[]>([creds]);
   const [games, setGames] = useState<Game[] | null>(null);
@@ -145,8 +147,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
   const leagues = useMemo(() => {
     const seen = new Map<string, string>();
     for (const g of allGames) if (g.league !== 'ppv' && !seen.has(g.league)) seen.set(g.league, g.leagueLabel);
-    return [{ id: 'all', label: 'All' }, ...(ppv.length ? [{ id: 'ppv', label: 'PPV' }] : []), ...[...seen].map(([id, label]) => ({ id, label }))];
-  }, [allGames, ppv.length]);
+    return [{ id: 'all', label: t('gameDay.allChip') }, ...(ppv.length ? [{ id: 'ppv', label: 'PPV' }] : []), ...[...seen].map(([id, label]) => ({ id, label }))];
+  }, [allGames, ppv.length, t]);
 
   const rows = useMemo(() => {
     // "All": every game, and of PPV the fights; the rest of PPV under PPV.
@@ -162,7 +164,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
       const tv = g.networks.filter((n) => !isStreamingOnly(n));
       return { game: g, found, channel: pick, channelDown: !!pick && isDown(pick), more: Math.max(0, found.length - 1), when, tv };
     });
-  }, [allGames, league, channels, isDown, ppvLinks]);
+    // t: the kickoff day and time are drawn in the app's language, so a language change recomputes them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allGames, league, channels, isDown, ppvLinks, t]);
 
   // A focus that fell off the list (games arrived, a league filter) comes back.
   useEffect(() => {
@@ -282,8 +286,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
         categoryId: r.channel.stream.category_id != null ? String(r.channel.stream.category_id) : undefined,
       } : undefined,
     });
-    toast({ title: on ? 'Reminder set' : 'Reminder removed', description: on ? `We'll pop up on the TV when ${r.game.name} starts.` : r.game.name });
-  }, [rows, toast]);
+    toast({ title: on ? t('gameDay.toast.setTitle') : t('gameDay.toast.removedTitle'), description: on ? t('gameDay.toast.setDesc', { name: r.game.name }) : r.game.name });
+  }, [rows, toast, t]);
 
   // Keep the focused game (and the focused channel in the list) on screen.
   useEffect(() => {
@@ -304,8 +308,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     const handler = (e: KeyboardEvent) => {
       // A popup over the Player (kickoff reminder, voice) has the remote.
       if (modalOpen()) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
       const st = stateRef.current;
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
       if (isBack) {
@@ -361,7 +365,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     <div className="relative flex-1 min-w-0 flex flex-col text-white px-4 py-3 overflow-hidden">
       <div className="flex items-center mb-3">
         <Trophy className="w-6 h-6 text-brand-gold mr-2" />
-        <h2 className="font-quicksand font-bold text-2xl mr-4">Game Day</h2>
+        <h2 className="font-quicksand font-bold text-2xl mr-4">{t('gameDay.title')}</h2>
         <div className="flex flex-wrap items-center">
           {leagues.map((l, i) => {
             const focused = isActive && zone === 'chips' && chipIdx === i && !picker;
@@ -382,13 +386,13 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
       </div>
 
       {games === null && !error && (
-        <div className="flex-1 flex items-center justify-center text-white/70"><Loader2 className="w-6 h-6 animate-spin mr-2" /> Getting today's games…</div>
+        <div className="flex-1 flex items-center justify-center text-white/70"><Loader2 className="w-6 h-6 animate-spin mr-2" /> {t('gameDay.loading')}</div>
       )}
       {error && games === null && (
-        <div className="flex-1 flex items-center justify-center text-white/70">Couldn't load the games. Check the internet connection and try again in a minute.</div>
+        <div className="flex-1 flex items-center justify-center text-white/70">{t('gameDay.loadError')}</div>
       )}
       {games && rows.length === 0 && (
-        <div className="flex-1 flex items-center justify-center text-white/70">No big games on right now — check back later.</div>
+        <div className="flex-1 flex items-center justify-center text-white/70">{t('gameDay.empty')}</div>
       )}
 
       <div ref={listRef} className="flex-1 overflow-y-auto pr-1">
@@ -411,7 +415,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
                   {g.leagueLabel}{!live && when.day ? ` · ${when.day}` : ''}
                 </div>
                 {live
-                  ? <div className="text-sm font-bold text-red-400 truncate">● LIVE {g.detail}</div>
+                  ? <div className="text-sm font-bold text-red-400 truncate">{t('gameDay.liveDot', { detail: g.detail })}</div>
                   : <div className="text-sm text-white/80 truncate">{when.time}</div>}
               </div>
               <div className="flex-1 min-w-0 mr-3">
@@ -426,16 +430,16 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
               </div>
               <div className="w-56 shrink-0 mr-3 min-w-0">
                 {channels === null ? (
-                  <span className="text-xs text-white/50">Finding your channels…</span>
+                  <span className="text-xs text-white/50">{t('gameDay.findingChannels')}</span>
                 ) : r.channel ? (
                   <div className="flex items-center min-w-0">
-                    {r.channelDown && <AlertTriangle className="w-4 h-4 text-amber-400 mr-1 shrink-0" aria-label="Reported down right now" />}
+                    {r.channelDown && <AlertTriangle className="w-4 h-4 text-amber-400 mr-1 shrink-0" aria-label={t('gameDay.reportedDown')} />}
                     <span className={`truncate text-sm ${r.channelDown ? 'text-amber-300' : 'text-white/90'}`}>{r.channel.stream.name}</span>
                     {r.more > 0 && <span className="ml-1 text-xs text-white/50 shrink-0">+{r.more}</span>}
                   </div>
                 ) : (
                   <span className="text-xs text-white/50 truncate block">
-                    {tv.length ? `${tv.join(', ')} — not in your channels` : g.networks.length ? `${g.networks.join(', ')} (streaming only)` : 'Not in your channels'}
+                    {tv.length ? t('gameDay.notInChannelsOn', { networks: tv.join(', ') }) : g.networks.length ? t('gameDay.streamingOnly', { networks: g.networks.join(', ') }) : t('gameDay.notInChannels')}
                   </span>
                 )}
               </div>
@@ -444,7 +448,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
                 onClick={() => { setRowIdx(i); setAction(0); openPicker(i); }}
                 className={`rounded-lg px-3 py-2 mr-2 text-sm font-semibold flex items-center ${focused && action === 0 ? 'bg-white text-black' : 'bg-white/10 text-white'}`}
               >
-                <Play className="w-4 h-4 mr-1" /> Watch
+                <Play className="w-4 h-4 mr-1 shrink-0" /> <span className="min-w-0 truncate">{t('gameDay.watchBtn')}</span>
               </button>
               {remindable ? (
                 <button
@@ -453,8 +457,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
                   aria-pressed={reminded}
                   className={`rounded-lg px-3 py-2 text-sm font-semibold flex items-center ${focused && action === 1 ? 'bg-white text-black' : reminded ? 'bg-brand-gold/30 text-brand-gold' : 'bg-white/10 text-white'}`}
                 >
-                  {reminded ? <BellRing className="w-4 h-4 mr-1" /> : <Bell className="w-4 h-4 mr-1" />}
-                  {reminded ? 'Reminder on' : 'Remind me'}
+                  {reminded ? <BellRing className="w-4 h-4 mr-1 shrink-0" /> : <Bell className="w-4 h-4 mr-1 shrink-0" />}
+                  <span className="min-w-0 truncate">{reminded ? t('gameDay.reminderOnBtn') : t('gameDay.remindBtn')}</span>
                 </button>
               ) : (
                 <span className="w-[7.5rem] shrink-0" />
@@ -469,11 +473,11 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
           <div className="flex items-center mb-1">
             <Trophy className="w-6 h-6 text-brand-gold mr-2 shrink-0" />
             <h3 className="font-quicksand font-bold text-2xl truncate">{pickerRow.game.name}</h3>
-            <button type="button" onClick={closePicker} aria-label="Close" className="ml-auto rounded-lg bg-white/10 p-2 shrink-0"><X className="w-5 h-5" /></button>
+            <button type="button" onClick={closePicker} aria-label={t('common.close')} className="ml-auto rounded-lg bg-white/10 p-2 shrink-0"><X className="w-5 h-5" /></button>
           </div>
           <p className="text-sm text-white/60 mb-3">
-            {pickerRow.game.leagueLabel} · {pickerRow.game.state === 'in' ? `LIVE ${pickerRow.game.detail}` : kickoffLabel(pickerRow.game.start)}
-            {pickerRow.game.networks.length > 0 && ` · TV: ${pickerRow.game.networks.join(', ')}`}
+            {pickerRow.game.leagueLabel} · {pickerRow.game.state === 'in' ? t('gameDay.liveDetail', { detail: pickerRow.game.detail }) : kickoffLabel(pickerRow.game.start)}
+            {pickerRow.game.networks.length > 0 && ` · ${t('gameDay.tvNetworks', { networks: pickerRow.game.networks.join(', ') })}`}
           </p>
           <div ref={pickRef} className="flex-1 overflow-y-auto pr-1">
             {pickItems.map((item, i) => {
@@ -483,7 +487,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
                 return (
                   <button key={`b-${item.line.host}-${item.categoryId}`} type="button" data-gd-pick={i} data-focused={focused ? 'true' : 'false'} className={base} onClick={() => activate(item)}>
                     <FolderOpen className="w-5 h-5 mr-3 shrink-0" />
-                    <span className="flex-1 min-w-0 truncate font-semibold">Browse {item.name} in Live TV</span>
+                    <span className="flex-1 min-w-0 truncate font-semibold">{t('gameDay.browse', { name: item.name })}</span>
                   </button>
                 );
               }
@@ -492,30 +496,30 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
                 <div key={`l-${link.line.host}-${link.line.username}-${link.stream.stream_id}`}>
                   {i === firstZoneIdx && (
                     <div className="px-2 pt-1 pb-2 text-xs font-bold uppercase tracking-wide text-white/40">
-                      Zone channels — every game of the league, not just this one
+                      {t('gameDay.zoneHeading')}
                     </div>
                   )}
                   <button type="button" data-gd-pick={i} data-focused={focused ? 'true' : 'false'} className={base} onClick={() => activate(item)}>
                     {item.down
-                      ? <AlertTriangle className="w-5 h-5 mr-3 shrink-0 text-amber-500" aria-label="Reported down right now" />
+                      ? <AlertTriangle className="w-5 h-5 mr-3 shrink-0 text-amber-500" aria-label={t('gameDay.reportedDown')} />
                       : <Play className="w-5 h-5 mr-3 shrink-0" />}
                     <span className="flex-1 min-w-0">
                       <span className="block truncate font-semibold">{link.stream.name}</span>
                       {link.note && <span className={`block truncate text-xs ${focused ? 'text-black/60' : 'text-white/50'}`}>{link.note}</span>}
                     </span>
                     <span className={`ml-3 shrink-0 text-xs font-bold uppercase tracking-wide ${focused ? 'text-black/60' : 'text-brand-ice/70'}`}>
-                      {LINK_LABELS[link.via]}{lines.length > 1 && link.line.serverLabel ? ` · ${link.line.serverLabel}` : ''}
+                      {t(`gameDay.link.${link.via}`, { defaultValue: LINK_LABELS[link.via] })}{lines.length > 1 && link.line.serverLabel ? ` · ${serverDisplayName(link.line.serverLabel)}` : ''}
                     </span>
                   </button>
                 </div>
               );
             })}
             {picker.scanning && (
-              <div className="flex items-center text-white/60 text-sm px-2 py-2"><Loader2 className="w-4 h-4 animate-spin mr-2" /> Checking the guide…</div>
+              <div className="flex items-center text-white/60 text-sm px-2 py-2"><Loader2 className="w-4 h-4 animate-spin mr-2" /> {t('gameDay.checkingGuide')}</div>
             )}
             {!picker.scanning && pickItems.length === 0 && (
               <div className="text-white/70 px-2 py-4">
-                Not in your channels right now{pickerRow.game.networks.length ? ` — it's on ${pickerRow.game.networks.join(', ')}` : ''}. Press Back to return to the games.
+                {pickerRow.game.networks.length ? t('gameDay.noneOn', { networks: pickerRow.game.networks.join(', ') }) : t('gameDay.none')}
               </div>
             )}
           </div>

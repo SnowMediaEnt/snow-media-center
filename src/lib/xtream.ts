@@ -7,6 +7,7 @@
 // Demo mode (website embed): every read is routed to the canned lineup in
 // @/data/liveTvDemo and NO network request is ever made to a provider host.
 // isDemo() is always false on native, so these gates are dead code in the APK.
+import i18n from '@/i18n';
 import { isDemo } from '@/lib/demoMode';
 import { withListFallback, XtreamHttpError } from '@/lib/xtreamListProxy';
 
@@ -37,6 +38,16 @@ export const SERVERS: XtreamServer[] = [
   { label: 'Dreamstreams', host: 'http://dstreams.xyz:8080' },
   { label: 'Vibez',    host: 'https://strmz.xyz' },
 ];
+
+/**
+ * A server label as the viewer reads it. The labels above are stored with every saved line,
+ * and matched by alerts and analytics, so they never change; only the brand spelling shown does.
+ */
+export const serverDisplayName = (label: string): string =>
+  label === 'Dreamstreams' ? 'DreamStreams'
+    // The website demo's line (data/liveTvDemo.ts), shown in the viewer's language.
+    : label === 'DEMO ACCOUNT' ? i18n.t('popups.demo.account')
+      : label;
 
 export interface XtreamCreds {
   host: string;
@@ -597,6 +608,8 @@ export interface AuthProbeResult {
   info?: any;
   userInfo?: XtreamUserInfo;
   error?: string;
+  /** Set when the panel said the username or password is wrong (the words in `error` follow the language, so callers test this). */
+  invalidLogin?: boolean;
   /**
    * The panel authenticated the account but its status is expired/disabled/
    * banned. Sign-in is still refused (ok:false + error), yet server/creds/
@@ -619,12 +632,10 @@ export async function authenticateRouted(
   const typed = username.trim();
   const lower = typed.toLowerCase();
   const first = await authenticateRoutedExact(lower, password, onProgress);
-  if (first.ok || first.authedButBlocked || lower === typed || first.error !== INVALID_LOGIN) return first;
+  if (first.ok || first.authedButBlocked || lower === typed || !first.invalidLogin) return first;
   const second = await authenticateRoutedExact(typed, password, onProgress);
   return second.ok || second.authedButBlocked ? second : first;
 }
-
-const INVALID_LOGIN = 'Invalid username or password.';
 
 async function authenticateRoutedExact(
   username: string,
@@ -633,10 +644,10 @@ async function authenticateRoutedExact(
 ): Promise<AuthProbeResult> {
   const u = username.trim();
   const p = password.trim();
-  if (!u || !p) return { ok: false, error: 'Missing username or password' };
+  if (!u || !p) return { ok: false, error: i18n.t('live.errors.missingLogin') };
   // Demo mode: credentials are never accepted or probed — the demo sign-in
   // surface is inert by design, so this is unreachable in practice.
-  if (isDemo()) return { ok: false, error: 'Sign-in is disabled in the demo.' };
+  if (isDemo()) return { ok: false, error: i18n.t('live.errors.demoSignIn') };
 
   const server = pickServerForUsername(u);
   onProgress?.(server);
@@ -662,7 +673,7 @@ async function authenticateRoutedExact(
     } catch (e2) {
       return {
         ok: false,
-        error: `Couldn't reach ${server.label}. If you're testing in a web browser this is expected — it works in the installed Android app.`,
+        error: i18n.t('live.errors.unreachable', { server: server.label }),
       };
     }
   }
@@ -685,10 +696,10 @@ async function authenticateRoutedExact(
       creds,
       info,
       userInfo: ui,
-      error: 'Your subscription is ' + status + '. Please renew to keep watching.',
+      error: i18n.t(status === 'expired' ? 'live.errors.subscriptionExpired' : status === 'banned' ? 'live.errors.subscriptionBanned' : 'live.errors.subscriptionDisabled'),
     };
   }
-  return { ok: false, error: INVALID_LOGIN };
+  return { ok: false, error: i18n.t('live.errors.invalidLogin'), invalidLogin: true };
 }
 
 // --- Live -------------------------------------------------------------------

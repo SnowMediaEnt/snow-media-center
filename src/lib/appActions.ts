@@ -14,6 +14,7 @@ import { saveDashboardSize, type DashboardSize } from '@/lib/dashboardSize';
 import { saveMailNotify } from '@/lib/snowMail';
 import { setMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { trackEvent } from '@/lib/analytics';
+import i18n from '@/i18n';
 
 export type Navigate = (section: string) => void;
 
@@ -65,14 +66,19 @@ export const takeIntent = <T = string>(key: string, json = false): T | null => {
   } catch { return null; }
 };
 
-export const SCREEN_LABELS: Record<Screen, string> = {
-  home: 'Home', player: 'the Player', live_tv: 'Live TV', guide: 'the Guide', game_day: 'Game Day', multi_screen: 'Multi-Screen', plex: 'Plex',
-  backups: 'Backups', player_appearance: 'Player Settings → Appearance', player_settings: 'Player Settings',
-  main_apps: 'Main Apps', support: 'Support', posts: 'Posts from Snow Media', tickets: 'Submit a Ticket', device_cleaner: 'Device Cleaner',
-  buffering_guide: 'the Buffering Guide', how_to: 'How to use SMC', support_videos: 'Support Videos', speed_test: 'Speed Test', ai_chat: 'AI Chat',
-  dashboard: 'your Dashboard', snow_gems: 'Snow Gems', game_lounge: 'the Game Lounge', giveaway: 'the Giveaway', settings: 'Settings',
-  settings_ui: 'Settings → UI', wallpaper: 'the wallpaper maker', phone_remote: 'Settings → Phone Remote', store: 'the Store',
+/** Where each screen's name lives in the translations (used as "Opening {{where}}…"). */
+const SCREEN_LABEL_KEYS: Record<Screen, string> = {
+  home: 'ai.screens.home', player: 'ai.screens.player', live_tv: 'ai.screens.liveTv', guide: 'ai.screens.guide', game_day: 'ai.screens.gameDay',
+  multi_screen: 'ai.screens.multiScreen', plex: 'ai.screens.plex', backups: 'ai.screens.backups', player_appearance: 'ai.screens.playerAppearance',
+  player_settings: 'ai.screens.playerSettings', main_apps: 'ai.screens.mainApps', support: 'ai.screens.support', posts: 'ai.screens.posts',
+  tickets: 'ai.screens.tickets', device_cleaner: 'ai.screens.deviceCleaner', buffering_guide: 'ai.screens.bufferingGuide', how_to: 'ai.screens.howTo',
+  support_videos: 'ai.screens.supportVideos', speed_test: 'ai.screens.speedTest', ai_chat: 'ai.screens.aiChat', dashboard: 'ai.screens.dashboard',
+  snow_gems: 'ai.screens.snowGems', game_lounge: 'ai.screens.gameLounge', giveaway: 'ai.screens.giveaway', settings: 'ai.screens.settings',
+  settings_ui: 'ai.screens.settingsUi', wallpaper: 'ai.screens.wallpaper', phone_remote: 'ai.screens.phoneRemote', store: 'ai.screens.store',
 };
+
+/** A screen's name in the app's language, at the moment it is spoken or shown. */
+export const screenLabel = (screen: Screen): string => (SCREEN_LABEL_KEYS[screen] ? i18n.t(SCREEN_LABEL_KEYS[screen]) : screen);
 
 /** Screens a Kids profile does not open, by voice or through the assistant.
  *  (Settings is open to it: a Kids profile gets a short, safe Settings.) */
@@ -115,7 +121,7 @@ export function openScreen(screen: Screen, navigate: Navigate): string {
     case 'store': navigate('store'); break;
   }
   try { trackEvent('ai_open_screen', 'ai', { screen }); } catch { void 0; }
-  return SCREEN_LABELS[screen] ?? screen;
+  return screenLabel(screen);
 }
 
 /** Support or Settings, already on screen, takes its intent now (the
@@ -136,22 +142,22 @@ export function setPreference(key: PreferenceKey, value: string): string | null 
       const layout = (['classic', 'compact', 'grid'] as LiveLayout[]).find((l) => l === v);
       if (!layout) return null;
       saveLiveLayout(layout);
-      return `Live TV is set to the ${layout[0].toUpperCase()}${layout.slice(1)} layout.`;
+      return i18n.t('ai.prefs.liveLayout', { layout: i18n.t(`live.layouts.${layout}Label`) });
     }
     case 'dashboard_size': {
       const size: DashboardSize = v === 'large' ? 'large' : 'compact';
       saveDashboardSize(size);
-      return size === 'large' ? 'The Dashboard is set to Large.' : 'The Dashboard is set to fit one screen.';
+      return size === 'large' ? i18n.t('ai.prefs.dashboardLarge') : i18n.t('ai.prefs.dashboardCompact');
     }
     case 'post_notifications': {
       const on = v === 'on' || v === 'true' || v === 'yes';
       saveMailNotify(on);
-      return on ? 'Post notifications are on.' : 'Post notifications are off. New posts still arrive under Support → Posts.';
+      return on ? i18n.t('ai.prefs.postsOn') : i18n.t('ai.prefs.postsOff');
     }
     case 'content_bar': {
       const on = v === 'on' || v === 'true' || v === 'yes';
       setMediaBarEnabled(on);
-      return on ? 'The content bar is back on the home screen.' : 'The content bar is hidden.';
+      return on ? i18n.t('ai.prefs.contentBarOn') : i18n.t('ai.prefs.contentBarOff');
     }
     default: return null;
   }
@@ -243,15 +249,15 @@ export async function openInstalledApp(name: string, navigate: Navigate): Promis
   const app = bestApp(name, await getInstalledAppsNow());
   if (!app) {
     installApp(name, navigate);
-    return `${name} isn't on this box — finding it in Main Apps.`;
+    return i18n.t('ai.apps.notInstalled', { name });
   }
   try {
     const { AppManager } = await import('@/capacitor/AppManager');
     await AppManager.launch({ packageName: app.packageName });
     try { trackEvent('voice_open_app', 'ai', { app: app.appName }); } catch { void 0; }
-    return `Opening ${app.appName}…`;
+    return i18n.t('ai.apps.opening', { name: app.appName });
   } catch {
-    return `${app.appName} didn't open. Try it from Main Apps.`;
+    return i18n.t('ai.apps.didntOpen', { name: app.appName });
   }
 }
 

@@ -38,6 +38,13 @@ function numberFormatter(lang: string, kind: string, options?: Intl.NumberFormat
   return f as Intl.NumberFormat;
 }
 
+/**
+ * Arabic dates and times ("1:30 ص") sit inside left-to-right screens. Without a bidi isolate the
+ * ص/م of one time pulls the digits around it, so "1:30 ص – 3:00 ص" comes out scrambled.
+ * First-strong isolate (FSI … PDI) keeps each value in one piece; other languages are untouched.
+ */
+const isolate = (lang: string, text: string): string => (lang === 'ar' && text ? `\u2068${text}\u2069` : text);
+
 const toDate = (value: Input): Date => (value instanceof Date ? value : new Date(value));
 const valid = (d: Date) => !Number.isNaN(d.getTime());
 const currentLang = (lang?: string): string => lang || getAppLanguage();
@@ -46,7 +53,8 @@ const currentLang = (lang?: string): string => lang || getAppLanguage();
 export function formatTime(value: Input, lang?: string): string {
   const d = toDate(value);
   if (!valid(d)) return '';
-  return dateFormatter(currentLang(lang), 'time', { hour: 'numeric', minute: '2-digit', hour12: true }).format(d);
+  const lng = currentLang(lang);
+  return isolate(lng, dateFormatter(lng, 'time', { hour: 'numeric', minute: '2-digit', hour12: true }).format(d));
 }
 
 export type DateStyle = 'short' | 'medium' | 'long';
@@ -59,16 +67,18 @@ export function formatDate(value: Input, style: DateStyle = 'medium', lang?: str
     style === 'short' ? { month: 'short', day: 'numeric' }
     : style === 'long' ? { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
     : { year: 'numeric', month: 'short', day: 'numeric' };
-  return dateFormatter(currentLang(lang), `date-${style}`, options).format(d);
+  const lng = currentLang(lang);
+  return isolate(lng, dateFormatter(lng, `date-${style}`, options).format(d));
 }
 
 /** "Sep 29, 2026, 10:30 PM" */
 export function formatDateTime(value: Input, lang?: string): string {
   const d = toDate(value);
   if (!valid(d)) return '';
-  return dateFormatter(currentLang(lang), 'datetime', {
+  const lng = currentLang(lang);
+  return isolate(lng, dateFormatter(lng, 'datetime', {
     year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
-  }).format(d);
+  }).format(d));
 }
 
 /** 1,234.5 (digits 0-9 in every language, grouping follows the language) */

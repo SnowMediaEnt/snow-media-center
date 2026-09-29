@@ -20,6 +20,7 @@ import {
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { trackEvent } from '@/lib/analytics';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   onBack: () => void;
@@ -28,6 +29,7 @@ interface Props {
 }
 
 const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<SavedAccount[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -72,8 +74,8 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
       const res = await authenticateRouted(acc.username, acc.password);
       if (!res.ok || !res.creds || !res.server) {
         toast({
-          title: 'Could not switch account',
-          description: res.error || 'Sign-in failed. The saved password may be out of date.',
+          title: t('liveAccount.switch.failedTitle'),
+          description: res.error || t('liveAccount.switch.failedDesc'),
           variant: 'destructive',
         });
         return;
@@ -100,12 +102,12 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
         output: res.creds.output,
         addedAt: Date.now(),
       });
-      toast({ title: 'Account switched', description: `Signed in as ${res.creds.username}.` });
+      toast({ title: t('liveAccount.switch.switchedTitle'), description: t('liveAccount.switch.switchedDesc', { username: res.creds.username }) });
       onPicked(res.creds);
     } catch (err) {
       toast({
-        title: 'Could not switch account',
-        description: (err as Error).message || 'Network error.',
+        title: t('liveAccount.switch.failedTitle'),
+        description: (err as Error).message || t('liveAccount.switch.networkError'),
         variant: 'destructive',
       });
     } finally {
@@ -142,7 +144,7 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onBack, onAddAccount]);
+  }, [onBack, onAddAccount, t]);
 
   const total = accounts.length + 2;
   const addIdx = total - 1;
@@ -152,13 +154,13 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
       <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
         <BackButton
           onClick={onBack}
-          label="Back"
+          label={t('common.back')}
           data-player-header-btn=""
           focused={focusIdx === 0}
         />
         <div className="flex items-center gap-2">
           <Users className="w-7 h-7 text-brand-gold" />
-          <h1 className="text-2xl font-quicksand font-bold text-white">Switch Account</h1>
+          <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.switch.title')}</h1>
         </div>
         {busy && <Loader2 className="w-5 h-5 animate-spin text-brand-gold ml-2" />}
       </div>
@@ -167,7 +169,7 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
         <div className="w-full max-w-xl space-y-3">
           {accounts.length === 0 && (
             <p className="text-white/70 text-sm text-center py-6">
-              No saved accounts yet. Add one below.
+              {t('liveAccount.switch.none')}
             </p>
           )}
           {accounts.map((a, i) => {
@@ -187,7 +189,7 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
                 <span className="flex-1 font-nunito truncate">{a.username}</span>
                 {active && (
                   <Badge className="bg-emerald-600/30 text-emerald-100 border border-emerald-400/40">
-                    Active
+                    {t('liveAccount.account.statusActive')}
                   </Badge>
                 )}
               </div>
@@ -200,7 +202,7 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
             className={`tv-ring flex items-center gap-3 rounded-xl px-4 py-3 bg-slate-900/40 border border-dashed border-white/20 cursor-pointer ${focusIdx === addIdx ? 'scale-[1.02] z-10' : ''}`}
           >
             <Plus className="w-5 h-5 text-brand-ice" />
-            <span className="font-nunito">Add another account</span>
+            <span className="font-nunito">{t('liveAccount.switch.addBtn')}</span>
           </div>
         </div>
       </div>

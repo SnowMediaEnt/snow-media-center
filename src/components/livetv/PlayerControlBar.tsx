@@ -4,6 +4,8 @@ import {
   Subtitles, AudioLines, Tv, Radio, Volume2, VolumeX, Gauge, Circle, History,
 } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
+import { useTranslation } from 'react-i18next';
+import { formatTime } from '@/i18n/format';
 import { volumeBar } from '@/utils/volume';
 import { availableLabel, behindLabel } from '@/lib/liveRewind';
 import { liveBarDisabled, liveBarLabel, type BarControlId } from './liveBar';
@@ -51,7 +53,6 @@ interface Props {
 }
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-const fmtClock = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 const fmtMs = (ms: number) => {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
   const m = Math.floor(totalSec / 60);
@@ -66,12 +67,15 @@ const PlayerControlBar = memo(({
   subMenuOpen, audioMenuOpen, subMenuFocus, audioMenuFocus,
   volMenuOpen, volume, statsOn = false, rewind = null, recording = false,
 }: Props) => {
+  // Also makes the bar redraw (button names come from liveBarLabel) when the language changes.
+  const { t } = useTranslation();
   // 1Hz clock + progress tick.
+
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!visible) return;
-    const t = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(t);
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
   }, [visible]);
 
   const subs: VideoTrackInfo[] = controller?.getSubtitleTracks() ?? [];
@@ -184,7 +188,7 @@ const PlayerControlBar = memo(({
       {/* Top-right: clock */}
       <div className="absolute top-4 right-6 z-10 pointer-events-none animate-fade-in">
         <span className="px-3 py-2 rounded-full bg-black/60 text-white font-quicksand font-bold text-base tabular-nums">
-          {fmtClock(new Date(now))}
+          {formatTime(now)}
         </span>
       </div>
 
@@ -211,12 +215,12 @@ const PlayerControlBar = memo(({
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-600 text-white text-xs font-bold tracking-wider">
-                  <Radio className="w-3 h-3" /> LIVE
+                  <Radio className="w-3 h-3" /> {t('live.bar.liveChip')}
                 </span>
               )}
               {recording && (
                 <span data-rec-badge className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-600/25 text-red-300 text-xs font-bold">
-                  <Circle className="w-3 h-3 fill-red-500 text-red-500" /> REC
+                  <Circle className="w-3 h-3 fill-red-500 text-red-500" /> {t('live.bar.recChip')}
                 </span>
               )}
             </div>
@@ -225,14 +229,14 @@ const PlayerControlBar = memo(({
                 {nowTitle}
                 {nowStart && nowEnd && (
                   <span className="text-brand-ice/70 ml-2 text-xs tabular-nums">
-                    {pad2(new Date(nowStart).getHours())}:{pad2(new Date(nowStart).getMinutes())} – {pad2(new Date(nowEnd).getHours())}:{pad2(new Date(nowEnd).getMinutes())}
+                    {formatTime(nowStart)} – {formatTime(nowEnd)}
                   </span>
                 )}
               </p>
             )}
             {nextTitle && (
               <p className="text-xs text-brand-ice/70 font-nunito truncate mt-1">
-                Next: {nextTitle}
+                {t('live.bar.next', { title: nextTitle })}
               </p>
             )}
           </div>
@@ -275,7 +279,7 @@ const PlayerControlBar = memo(({
 
         {/* Hint */}
         <p className="text-center text-xs text-brand-ice/60 font-nunito mt-2 pointer-events-none">
-          Left / Right: select · Enter: activate · Up / Down: change channel · Back: hide bar
+          {t('live.bar.hint')}
         </p>
       </div>
 
@@ -283,11 +287,11 @@ const PlayerControlBar = memo(({
       {subMenuOpen && (
         <div className="absolute right-8 bottom-32 z-20 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
-            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Subtitles</p>
-            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('live.bar.ccLabel')}</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.menuHint')}</span>
           </div>
           <div className="space-y-1">
-            {[{ id: -1, label: 'Off', active: subs.every(s => !s.active) } as { id: number; label: string; active: boolean }]
+            {[{ id: -1, label: t('live.bar.subsOff'), active: subs.every(s => !s.active) } as { id: number; label: string; active: boolean }]
               .concat(subs.map(s => ({ id: s.id, label: s.label, active: s.active })))
               .map((row, i) => {
                 const idx = i - 1; // -1 = Off (focus = -1), others = 0..n
@@ -313,8 +317,8 @@ const PlayerControlBar = memo(({
       {audioMenuOpen && (
         <div className="absolute right-8 bottom-32 z-20 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
-            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Audio</p>
-            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('live.bar.audioLabel')}</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.menuHint')}</span>
           </div>
           <div className="space-y-1">
             {auds.map((a, i) => {
@@ -342,14 +346,14 @@ const PlayerControlBar = memo(({
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               {volPct === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-              Volume
+              {t('live.bar.volLabel')}
             </p>
-            <span className="text-xs text-brand-ice/60 font-nunito">◀ ▶ · OK · Back</span>
+            <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.volHint')}</span>
           </div>
           <div className="px-2 pb-1">
             <div className="flex items-center justify-between mt-1">
-              <span className="text-xs text-brand-ice/70 font-nunito">Level</span>
-              <span className={`text-sm font-quicksand font-bold tabular-nums ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{volPct}%{vol.boost ? ' · Boost' : ''}</span>
+              <span className="text-xs text-brand-ice/70 font-nunito">{t('live.bar.level')}</span>
+              <span className={`text-sm font-quicksand font-bold tabular-nums ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost ? t('live.bar.levelBoost', { pct: volPct }) : `${volPct}%`}</span>
             </div>
             {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
             <div className="relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">

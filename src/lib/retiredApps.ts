@@ -1,6 +1,7 @@
 // Apps that used to be installed from Main Apps and now live inside the
 // Player. A download press on one of them gets a notice pointing to where
 // the service is now, instead of an APK nobody supports any more.
+import i18n from '@/i18n';
 import type { Screen } from '@/lib/appActions';
 
 export interface RetiredApp {
@@ -24,8 +25,10 @@ export const retiredAppFor = (name: string | null | undefined): RetiredApp | nul
   return null;
 };
 
+/** Where the service lives now, as the viewer sees it ("Live TV" is translated; "Plex" is a brand). */
+export const retiredWhereLabel = (info: RetiredApp): string =>
+  info.where === 'Live TV' ? i18n.t('apps.retired.whereLiveTv') : info.where;
+
 /** What the notice says. One sentence on the service, one on where to go. */
 export const retiredAppMessage = (appName: string, info: RetiredApp): string =>
-  `We no longer support the ${appName} app. ` +
-  `Everything is in the Player on the main page: Dreamstreams and VibezTV are in Live TV, and Plex is in Plex. ` +
-  `${appName} is under ${info.where}.`;
+  i18n.t('apps.retired.message', { app: appName, where: retiredWhereLabel(info) });

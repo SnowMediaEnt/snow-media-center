@@ -1,0 +1,148 @@
+{
+  "support": {
+    "header": {
+      "title": "الدعم",
+      "subtitle": "احصل على مساعدة أو تحدّث مع الذكاء الاصطناعي أو تابع منشورات Snow Media"
+    },
+    "tabs": {
+      "helpTab": "مساعدة",
+      "aiTab": "دردشة الذكاء",
+      "postsTab": "المنشورات"
+    },
+    "cards": {
+      "howTo": {
+        "title": "كيفية استخدام SMC",
+        "desc": "جولة بسيطة في كل شاشة"
+      },
+      "speedTest": {
+        "title": "اختبار السرعة",
+        "desc": "اختبر سرعة الإنترنت لديك"
+      },
+      "guide": {
+        "title": "دليل التقطّع",
+        "desc": "حلول التقطّع خطوة بخطوة"
+      },
+      "videos": {
+        "title": "فيديوهات الدعم",
+        "desc": "دروس وشروحات"
+      },
+      "tickets": {
+        "title": "إرسال تذكرة",
+        "descNew": "رد جديد من الدعم",
+        "desc": "تواصل مع دعم Snow Media"
+      },
+      "remote": {
+        "title": "الوصول عن بُعد",
+        "desc": "فنّي يصلح جهازك مباشرة — $25"
+      },
+      "cleaner": {
+        "title": "منظّف الجهاز",
+        "desc": "حرّر المساحة والذاكرة"
+      },
+      "apps": {
+        "title": "التطبيقات الرئيسية",
+        "desc": "نزّل التطبيقات وأدوات البث"
+      }
+    },
+    "toast": {
+      "launchUnavailableTitle": "التشغيل غير متاح",
+      "launchUnavailableDesc": "تشغيل التطبيقات يعمل على Android فقط.",
+      "launchFailedTitle": "فشل التشغيل",
+      "launchFailedDesc": "تعذّر تشغيل {{name}}.",
+      "appInfoUnavailableTitle": "معلومات التطبيق غير متاحة",
+      "appInfoUnavailableDesc": "يعمل على أجهزة Android فقط.",
+      "notInstalledTitle": "التطبيق غير مثبّت",
+      "notInstalledDesc": "{{name}} غير مثبّت على هذا الجهاز.",
+      "openingTitle": "جارٍ فتح {{name}}",
+      "openingDesc": "اضغط «إيقاف إجباري» ثم «التخزين» ← «مسح الذاكرة المؤقتة». اضغط رجوع عند الانتهاء.",
+      "appInfoFailedTitle": "تعذّر فتح معلومات التطبيق",
+      "appInfoFailedDesc": "افتح إعدادات Android ← التطبيقات ← {{name}} يدويًا."
+    },
+    "speedTest": {
+      "title": "اختبار سرعة الإنترنت",
+      "startBtn": "ابدأ",
+      "runAgainBtn": "أعد الاختبار",
+      "testingBtn": "جارٍ الاختبار…",
+      "phase": {
+        "idle": "جاهز",
+        "ping": "جارٍ قياس زمن الاستجابة…",
+        "download": "جارٍ اختبار سرعة التنزيل…",
+        "upload": "جارٍ اختبار سرعة الرفع…",
+        "done": "اكتمل الاختبار",
+        "error": "فشل الاختبار"
+      },
+      "download": "التنزيل",
+      "upload": "الرفع",
+      "mbps": "Mbps",
+      "ping": "زمن الاستجابة",
+      "jitter": "التذبذب",
+      "ms": "{{value}} ms",
+      "verdict": {
+        "title": "تقييم البث",
+        "excellent": "ممتاز — اتصالك ({{speed}} Mbps) يشغّل بث 4K دون تقطّع.",
+        "good": "جيد لبث HD. للحصول على 4K مستقر تحتاج إلى 25 Mbps على الأقل.",
+        "poor": "أقل من 15 Mbps الموصى بها لبث HD — توقّع تقطّعًا. جرّب اتصالًا سلكيًا أو اقترب من الراوتر أو تواصل مع مزوّد الإنترنت."
+      },
+      "failed": "فشل اختبار السرعة: {{error}}. تحقق من اتصالك بالإنترنت وحاول مرة أخرى.",
+      "powered": "مدعوم بشبكة اختبار السرعة العالمية من Cloudflare",
+      "errors": {
+        "pingFailed": "فشل قياس زمن الاستجابة",
+        "generic": "فشل اختبار السرعة"
+      }
+    },
+    "videos": {
+      "title": "فيديوهات الدعم",
+      "subtitle": "دروس وأدلة المساعدة من Vimeo",
+      "allTab": "الكل ({{count}})",
+      "servicesTab": "الخدمات ({{count}})",
+      "devicesTab": "الأجهزة ({{count}})",
+      "watchBtn": "شاهد الفيديو",
+      "loading": "جارٍ تحميل فيديوهات الدعم...",
+      "loadError": "خطأ في تحميل الفيديوهات: {{error}}",
+      "empty": "لا توجد فيديوهات. ارفع فيديوهات إلى حسابك على Vimeo لتظهر هنا.",
+      "emptyDevice": "لا توجد فيديوهات للأجهزة. ضع على فيديوهاتك الوسم: x96 أو FireTV أو Older",
+      "emptyService": "لا توجد فيديوهات للخدمات. ضع على فيديوهاتك الوسم: DreamStreams أو Vibez TV أو Plex أو Support",
+      "emptyAll": "لا توجد فيديوهات في حسابك على Vimeo.",
+      "closeHint": "اضغط ESC/رجوع للإغلاق | P/K للتشغيل/الإيقاف المؤقت",
+      "closeBtn": "✕ إغلاق",
+      "frameTitle": "فيديو الدعم",
+      "fetchFailed": "تعذّر تحميل الفيديوهات",
+      "timedOut": "استغرق التحميل وقتًا طويلًا. حاول مرة أخرى."
+    },
+    "mail": {
+      "heading": "منشورات من Snow Media Entertainment",
+      "notifOff": "الإشعارات متوقفة (الإعدادات ← الواجهة)",
+      "checking": "جارٍ البحث عن منشورات…",
+      "emptyTitle": "لا شيء هنا بعد",
+      "emptyDesc": "عندما تنشر Snow Media أخبارًا أو عروضًا أو فعاليات ستظهر هنا — مؤرَّخة ومعلَّمة حتى تفتحها.",
+      "newChip": "جديد",
+      "reader": {
+        "okToScan": "موافق للمسح",
+        "shopNow": "تسوّق الآن",
+        "empty": "لا يوجد محتوى لعرضه في هذا المنشور.",
+        "hintScroll": "تمرير",
+        "hintPick": "اختر رابطًا ({{current}} من {{total}})",
+        "hintScan": "موافق امسحه بهاتفك",
+        "hintClose": "رجوع إغلاق",
+        "makingCode": "جارٍ إنشاء الرمز…",
+        "scanTitle": "امسح الرمز بهاتفك",
+        "closeHint": "اضغط موافق أو رجوع للإغلاق"
+      },
+      "link": {
+        "open": "افتح الرابط",
+        "watch": "شاهد الفيديو",
+        "survey": "شارك في الاستبيان",
+        "shop": "تسوّق {{name}}",
+        "productFallback": "منتج"
+      },
+      "toast": {
+        "newPosts_zero": "لا منشورات جديدة من Snow Media",
+        "newPosts_one": "منشور جديد من Snow Media",
+        "newPosts_two": "منشوران جديدان من Snow Media",
+        "newPosts_few": "{{count}} منشورات جديدة من Snow Media",
+        "newPosts_many": "{{count}} منشورًا جديدًا من Snow Media",
+        "newPosts_other": "{{count}} منشور جديد من Snow Media"
+      }
+    }
+  }
+}

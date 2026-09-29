@@ -1,5 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
+import { formatTime } from '@/i18n/format';
 import { ChevronDown, ChevronRight, Film, Loader2, Search, Star, Tv } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
@@ -55,6 +58,7 @@ import { loadPlayerVolume, savePlayerVolume, stepVolume } from '@/utils/volume';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import ChannelRow from './ChannelRow';
+import { channelRowLabels } from './channelRowLabels';
 import PlayerControlBar from './PlayerControlBar';
 import { liveBarDisabled, liveBarOrder, moveBarFocus, type BarControlId } from './liveBar';
 import BufferingDiagnostics from './BufferingDiagnostics';
@@ -71,7 +75,7 @@ import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { usePlayerEngine } from '@/hooks/usePlayerEngine';
 import { recordEngineSample, sampleFromStats, shouldSampleEngines } from '@/lib/engineCompare';
 import PlayerStatsPanel from './PlayerStatsPanel';
-import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import { channelForName } from '@/lib/voiceCommands';
@@ -113,8 +117,8 @@ const fetchShortEpg = DEMO ? demoGetShortEpg : getShortEpg;
 const sayChannelNotFound = (said: string, loading = false) => {
   try {
     toast(loading
-      ? { title: 'Still loading your channels', description: `Say “${said}” again in a moment.` }
-      : { title: `Couldn't find “${said}”`, description: 'Say the channel’s full name, or look for it with Search.' });
+      ? { title: i18n.t('live.toast.stillLoadingTitle'), description: i18n.t('live.toast.stillLoadingDesc', { said }) }
+      : { title: i18n.t('live.toast.notFoundTitle', { said }), description: i18n.t('live.toast.notFoundDesc') });
   } catch { /* ignore */ }
 };
 
@@ -155,13 +159,8 @@ const _favPulls = new Map<string, { at: number; done: boolean; got: boolean; p: 
 const EPG_TTL_MS = 15 * 60_000;
 const PREVIEW_DEBOUNCE_MS = 700;
 
-const formatTime = (ms?: number) => {
-  if (!ms) return '';
-  const d = new Date(ms);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-};
-
-/** One row of the category pane: a service header, Favorites, All, or a category — always with the line it belongs to. */
+/** One row of the category pane: a service header, Favorites, All, or a category — always with the line it belongs to.
+ *  `name` of Favorites and All stays English: it goes to analytics and watch history. Screens show catLabel(). */
 interface CatEntry {
   id: string;
   name: string;
@@ -196,6 +195,12 @@ const favToStream = (f: FavChannel): XtreamLiveStream => ({
 });
 
 const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack, onNavigate, onBackToCaller }: Props) => {
+  const { t } = useTranslation();
+  // The channel rows' words, translated once here (one t() per row would be one per visible row).
+  const rowLabels = useMemo(() => channelRowLabels(t), [t]);
+  // What a category row shows: Favorites and All are ours to translate, the rest is the provider's name.
+  const catLabel = (c: { name: string; isFav?: boolean; isAll?: boolean }): string =>
+    c.isFav ? t('live.categories.favorites') : c.isAll ? t('live.categories.all') : c.name;
   // One screen back at a time: from a channel Game Day started, Back returns
   // to that game's list, not to Live TV's categories.
   const backToCallerRef = useRef(onBackToCaller);
@@ -1343,7 +1348,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       return;
     }
     drop();
-    const stream: XtreamLiveStream = { stream_id: target.streamId!, name: target.name ?? 'Channel', stream_icon: target.icon, category_id: target.categoryId, num: target.num };
+    const stream: XtreamLiveStream = { stream_id: target.streamId!, name: target.name ?? i18n.t('live.list.channelFallback'), stream_icon: target.icon, category_id: target.categoryId, num: target.num };
     streamLineRef.current.set(stream, line);
     if (!kidsLevel()) { playChannelRef.current(stream); return; }
     void getLiveCategories(line)
@@ -1458,8 +1463,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const notice = native.engineNotice;
     if (!notice || notice === lastEngineNoticeRef.current) return;
     lastEngineNoticeRef.current = notice;
-    toast({ title: "MPV couldn't start on this box — using ExoPlayer" });
-  }, [native.engineNotice]);
+    toast({ title: t('live.toast.mpvFallbackTitle') });
+  }, [native.engineNotice, t]);
 
   // Engine comparison (PlaybackScreen's Compare table): one getStats() read
   // 60 s into a Live channel on the main player, and again when it stops.
@@ -2133,15 +2138,22 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // At most two at once, fewer on a smaller plan (each is a stream).
         maxSimultaneous: Math.min(MAX_SIMULTANEOUS_RECORDINGS, plan && plan >= 1 ? plan : MAX_SIMULTANEOUS_RECORDINGS),
       });
-      const until = endsAtLabel(choice.durationMin);
-      toast({ title: `Recording ${st.name}`, description: `${until ? `Until ${until}` : 'Until you stop it'} · ${r.volumeLabel}. ${note}${paused ? ` ${REWIND_PAUSED_NOTE}` : ''}` });
+      const endsAt = endsAtLabel(choice.durationMin);
+      toast({
+        title: t('live.toast.recordingTitle', { name: st.name }),
+        description: t('live.toast.recordingDesc', {
+          until: endsAt ? t('live.toast.recordingUntil', { time: endsAt }) : t('live.toast.recordingUntilStopped'),
+          volume: r.volumeLabel,
+          note: `${note}${paused ? ` ${REWIND_PAUSED_NOTE}` : ''}`,
+        }),
+      });
     } catch (e) {
       const err = e as Error & { code?: string };
       const why = err?.message ?? '';
       // A full drive has nothing to do with the line; every other refusal
       // (the plan's limit, the provider saying no) carries the stream note.
       toast({
-        title: 'Recording did not start',
+        title: t('live.toast.recordingFailedTitle'),
         description: err?.code === 'NO_SPACE' ? why : `${why}${why ? ' ' : ''}${note}`,
         variant: 'destructive',
       });
@@ -2159,7 +2171,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       onStop={(id) => {
         closeRecordDialog();
         void SnowRecorder.stop({ id }).catch(() => { /* ignore */ }).then(() => {
-          toast({ title: 'Recording stopped', description: 'It is in Live TV › Recordings.' });
+          toast({ title: t('live.toast.recordingStoppedTitle'), description: t('live.toast.recordingStoppedDesc') });
           window.setTimeout(notifyRecordingsChanged, 1500);
         });
       }}
@@ -2215,7 +2227,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return (
       <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
         {!NATIVE_PLAYBACK && !DEMO && (
-          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
             <VideoPlayer
               src={streamUrl}
               volume={volume}
@@ -2249,21 +2261,23 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             </p>
             {playingNowNext?.now && (
               <p className="mt-2 text-brand-ice/80 font-nunito text-base drop-shadow">
-                Now: {playingNowNext.now.title}{playingNowNext.next ? ` · Next: ${playingNowNext.next.title}` : ''}
+                {playingNowNext.next
+                  ? t('live.list.nowNextLine', { title: playingNowNext.now.title, next: playingNowNext.next.title })
+                  : t('live.list.nowLine', { title: playingNowNext.now.title })}
               </p>
             )}
             <p className="mt-6 px-3 py-1 rounded-full bg-brand-gold/20 border border-brand-gold/40 text-brand-gold text-xs font-nunito font-semibold tracking-widest uppercase">
-              Demo mode — playback is disabled
+              {t('live.player.demoMode')}
             </p>
-            <p className="mt-2 text-brand-ice/70 font-nunito text-xs max-w-md">{DEMO_DIALOG_MSG}</p>
+            <p className="mt-2 text-brand-ice/70 font-nunito text-xs max-w-md">{demoDialogMsg()}</p>
           </div>
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none">
-            <div className="w-full max-w-md"><SnowLoader size="lg" label="Buffering…" /></div>
+            <div className="w-full max-w-md"><SnowLoader size="lg" label={t('live.player.buffering')} /></div>
             {slowConn && (
               <p className="max-w-md px-4 text-center text-sm font-nunito text-brand-ice/80">
-                Still loading — your connection looks slow. If channels keep buffering, a VPN often helps.
+                {t('live.player.slowConnection')}
               </p>
             )}
           </div>
@@ -2272,7 +2286,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           <BufferingDiagnostics
             buffering={native.buffering}
             className="mt-12"
-            footnote={!DEMO && listsViaSnowMedia(playingLine.host) ? 'Channel list: through Snow Media (your internet blocks the provider)' : undefined}
+            footnote={!DEMO && listsViaSnowMedia(playingLine.host) ? t('live.player.listViaSnowMedia') : undefined}
           />
         )}
         {/* Audio present but undecodable on this device: video is fine, so don't
@@ -2281,22 +2295,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         {NATIVE_PLAYBACK && native.audioWarning && !native.error && (
           <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 max-w-lg rounded-2xl bg-black/85 px-5 py-3 text-center">
             <p className="font-quicksand font-semibold text-brand-gold text-sm">
-              No sound on this channel
+              {t('live.player.noSoundTitle')}
             </p>
             <p className="mt-1 font-nunito text-xs text-brand-ice/80">
-              This channel's audio ({native.audioWarning.codecs}) can't be decoded on this device.
-              Report the channel in Support and we'll re-encode it.
+              {t('live.player.noSoundBody', { codecs: native.audioWarning.codecs })}
             </p>
-            <p className="mt-1 font-nunito text-xs text-brand-ice/70">
-              audio-decode: {native.audioWarning.codecs} · ffmpeg:{' '}
-              {native.audioWarning.ffmpegAvailable ? 'yes' : 'no'}
-            </p>
+            {/* i18n-ignore: a technical line for the support desk to read off the screen, so it stays English */}
+            <p className="mt-1 font-nunito text-xs text-brand-ice/70">{`audio-decode: ${native.audioWarning.codecs} · ffmpeg: ${native.audioWarning.ffmpegAvailable ? 'yes' : 'no'}`}</p>
           </div>
         )}
         {NATIVE_PLAYBACK && native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
             <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
-            <p className="text-xl font-quicksand font-semibold mb-1">Playback Error</p>
+            <p className="text-xl font-quicksand font-semibold mb-1">{t('live.player.playbackError')}</p>
             <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
             <button
               onClick={() => native.retry()}
@@ -2304,7 +2315,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               data-focused="true"
               className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold scale-105 z-10"
             >
-              <RotateCw className="w-4 h-4" /> Retry
+              <RotateCw className="w-4 h-4" /> {t('common.retry')}
             </button>
           </div>
         )}
@@ -2319,7 +2330,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           statsOn={statsShown}
           controller={videoControllerRef.current}
           tracksTick={tracksTick}
-          categoryName={currentCat?.name}
+          categoryName={currentCat ? catLabel(currentCat) : undefined}
           channelLogo={playingStream?.stream_icon}
           channelNum={playingStream?.num}
           channelName={playingStream?.name}
@@ -2337,7 +2348,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         {/* Volume hint while bar is hidden */}
         {!barVisible && volPillShown && (
           <div className="absolute bottom-4 right-6 px-3 py-2 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">
-            Vol {Math.round(volume * 100)}%
+            {t('live.player.volPill', { pct: Math.round(volume * 100) })}
           </div>
         )}
         {reportDialog}
@@ -2372,7 +2383,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${searchFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
         >
           <Search className="w-4 h-4" />
-          {searchOpen ? 'Close search' : 'Search channels'}
+          <span className="min-w-0 truncate">{searchOpen ? t('live.list.closeSearchBtn') : t('live.list.searchChannelsBtn')}</span>
         </button>
         {searchOpen && (
           <input
@@ -2385,7 +2396,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               else if (e.key === 'ArrowUp') { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
               else if (e.key === 'Escape')  { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
             }}
-            placeholder="Type to search…"
+            placeholder={t('live.list.searchPlaceholder')}
             className="w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-3 font-nunito text-base focus:outline-none focus:ring-2 focus:ring-brand-gold"
           />
         )}
@@ -2396,15 +2407,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${recFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
           >
             <Film className="w-4 h-4" />
-            Recordings
-            {recJobs.length > 0 && <span className="ml-auto w-2.5 h-2.5 rounded-full bg-red-500" aria-label="Recording now" />}
+            <span className="min-w-0 truncate">{t('live.list.recordingsBtn')}</span>
+            {recJobs.length > 0 && <span className="ml-auto w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" aria-label={t('live.list.recordingNow')} />}
           </button>
         )}
         {!searchOpen && (
           <>
             {categoriesLoading && categories.length === 0 && (
               <div className="px-3 py-2 text-brand-ice/70 font-nunito text-sm flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
+                <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> {t('live.list.loadingCategories')}
               </div>
             )}
             {visibleCategories.length > 0 && (
@@ -2465,7 +2476,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       <span className={c.isHeader
                         ? `font-quicksand font-bold uppercase tracking-wide text-sm truncate flex-1 ${isFocused ? 'text-white' : 'text-brand-gold'}`
                         : `font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : isMarked ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
-                        {c.name}
+                        {catLabel(c)}
                       </span>
                       {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                       {!isLoadingThis && !c.isHeader && c.count != null && c.count > 0 && (
@@ -2504,11 +2515,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-center px-6">
               {searchOpen
                 ? (searchQuery
-                    ? (allChannelsLoading ? 'Loading channel catalog…' : 'No channels match your search.')
-                    : (allChannelsLoading ? 'Loading channel catalog…' : 'Type above to search all channels.'))
+                    ? (allChannelsLoading ? t('live.list.loadingCatalog') : t('live.list.noMatch'))
+                    : (allChannelsLoading ? t('live.list.loadingCatalog') : t('live.list.typeToSearch')))
                 : currentCat?.isFav
-                  ? 'No favorites yet. Press F on a channel to add it.'
-                  : 'No channels in this category.'}
+                  ? t('live.list.noFavorites')
+                  : t('live.list.noChannelsInCategory')}
             </div>
       ) : (
         <div ref={channelListRef} style={{ height: totalSize, position: 'relative', width: '100%' }}>
@@ -2541,6 +2552,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       onSelect={onRowSelect}
                       onActivate={onRowActivate}
                       onLongPress={onRowLongPress}
+                      labels={rowLabels}
                     />
                   );
                 })}
@@ -2561,7 +2573,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         (native.buffering || native.error) && (
           <div className="w-full h-full flex items-center justify-center">
             {native.error
-              ? <span className="text-brand-ice/70 font-nunito text-sm text-center px-4">Can't preview this channel</span>
+              ? <span className="text-brand-ice/70 font-nunito text-sm text-center px-4">{t('live.list.cantPreview')}</span>
               : <div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div>}
           </div>
         )
@@ -2578,11 +2590,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           ) : (
             <Tv className="w-10 h-10 text-brand-ice/40" />
           )}
-          {focusedChannel ? 'Press OK to watch' : 'No channel selected'}
+          {focusedChannel ? t('live.list.pressOkWatch') : t('live.list.noChannelSelected')}
         </div>
       ) : (
         <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
-          {focusedChannel ? 'Preview loading…' : 'No channel selected'}
+          {focusedChannel ? t('live.list.previewLoading') : t('live.list.noChannelSelected')}
         </div>
       )}
     </>
@@ -2610,11 +2622,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                 <div className="text-xs font-quicksand font-semibold tracking-[0.12em] uppercase text-brand-gold truncate">{lineLabel(currentCat.line)}</div>
               )}
               <div className="text-sm font-quicksand font-semibold text-white truncate">
-                {searchOpen ? 'Search' : (currentCat?.name ?? 'Channels')}
+                {searchOpen ? t('live.categories.search') : (currentCat ? catLabel(currentCat) : t('live.categories.channels'))}
                 {!searchOpen && catCount ? <span className="text-brand-ice/60 font-nunito font-normal"> · {formatCount(catCount)}</span> : null}
               </div>
             </div>
-            <span className="text-xs font-nunito text-brand-ice/50 flex-shrink-0">categories</span>
+            <span className="text-xs font-nunito text-brand-ice/50 flex-shrink-0">{t('live.categories.tag')}</span>
           </div>
           {channelList}
         </div>
@@ -2638,14 +2650,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               <>
                 <p className="text-sm text-brand-ice/85 font-nunito truncate mt-0.5">
                   {focusedNowNext.now.title} · {formatTime(focusedNowNext.now.start)} – {formatTime(focusedNowNext.now.end)}
-                  {nowLeftMins != null ? ` · ${nowLeftMins} min left` : ''}
+                  {nowLeftMins != null ? ` · ${t('live.list.minLeft', { minutes: nowLeftMins })}` : ''}
                 </p>
                 <div className="mt-2 h-[3px] rounded-full bg-white/15 overflow-hidden">
                   <div className="h-full bg-brand-gold" style={{ width: `${Math.min(100, Math.max(0, ((Date.now() - focusedNowNext.now.start) / (focusedNowNext.now.end - focusedNowNext.now.start)) * 100))}%` }} />
                 </div>
               </>
             ) : (
-              <p className="text-sm text-brand-ice/70 font-nunito mt-0.5">No program info available</p>
+              <p className="text-sm text-brand-ice/70 font-nunito mt-0.5">{t('live.list.noProgramInfo')}</p>
             )}
           </div>
         )}
@@ -2655,14 +2667,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             <>
               <div className="flex gap-6">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-quicksand font-semibold tracking-[0.14em] uppercase text-brand-gold">Now</p>
+                  <p className="text-xs font-quicksand font-semibold tracking-[0.14em] uppercase text-brand-gold">{t('live.list.nowHeading')}</p>
                   <p className="text-sm font-nunito font-semibold text-white truncate mt-1">{focusedNowNext?.now?.title ?? '—'}</p>
                   {focusedNowNext?.now && (
                     <p className="text-xs font-nunito text-brand-ice/70 mt-0.5">{formatTime(focusedNowNext.now.start)} – {formatTime(focusedNowNext.now.end)}</p>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-quicksand font-semibold tracking-[0.14em] uppercase text-brand-ice/55">Next</p>
+                  <p className="text-xs font-quicksand font-semibold tracking-[0.14em] uppercase text-brand-ice/55">{t('live.list.nextHeading')}</p>
                   <p className="text-sm font-nunito font-semibold text-white/85 truncate mt-1">{focusedNowNext?.next?.title ?? '—'}</p>
                   {focusedNowNext?.next && (
                     <p className="text-xs font-nunito text-brand-ice/70 mt-0.5">{formatTime(focusedNowNext.next.start)} – {formatTime(focusedNowNext.next.end)}</p>
@@ -2675,12 +2687,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             </>
           ) : (
             <p className="text-sm text-brand-ice/70 font-nunito">
-              {channelsLoading ? 'Loading channels…' : 'No channel focused'}
+              {channelsLoading ? t('live.list.loadingChannels') : t('live.list.noChannelFocused')}
             </p>
           )}
         </div>
 
-          <p className="flex-shrink-0 text-xs font-nunito text-brand-ice/55">OK full screen · Hold OK options · ◀ categories</p>
+          <p className="flex-shrink-0 pr-24 text-xs font-nunito text-brand-ice/55">{t('live.list.hintCompact')}</p>
         </div>
       {reportDialog}
       {recordDialog}
@@ -2699,10 +2711,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               {grouped && currentCat?.line && (
                 <span className="text-xs font-quicksand font-semibold tracking-[0.12em] uppercase text-brand-gold">{lineLabel(currentCat.line)}</span>
               )}
-              <span className="text-base font-quicksand font-semibold text-white truncate">{searchOpen ? 'Search' : (currentCat?.name ?? 'Channels')}</span>
+              <span className="text-base font-quicksand font-semibold text-white truncate">{searchOpen ? t('live.categories.search') : (currentCat ? catLabel(currentCat) : t('live.categories.channels'))}</span>
               {!searchOpen && catCount ? <span className="text-sm text-brand-ice/60 font-nunito">{formatCount(catCount)}</span> : null}
             </div>
-            <span className="text-xs font-nunito text-brand-ice/50">OK play · Hold OK options · ◀ categories</span>
+            <span className="text-xs font-nunito text-brand-ice/50">{t('live.list.hintGrid')}</span>
           </div>
           {channelList}
         </div>
@@ -2732,25 +2744,25 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                 </div>
                 {focusedNowNext?.now ? (
                   <>
-                    <p className="text-brand-ice/90 font-nunito truncate mt-1">Now: {focusedNowNext.now.title}</p>
+                    <p className="text-brand-ice/90 font-nunito truncate mt-1">{t('live.list.nowLine', { title: focusedNowNext.now.title })}</p>
                     <p className="text-xs text-brand-ice/70 font-nunito mt-1">
                       {formatTime(focusedNowNext.now.start)} – {formatTime(focusedNowNext.now.end)}
-                      {nowLeftMins != null ? ` · ${nowLeftMins} min left` : ''}
+                      {nowLeftMins != null ? ` · ${t('live.list.minLeft', { minutes: nowLeftMins })}` : ''}
                     </p>
                   </>
                 ) : (
-                  <p className="text-brand-ice/70 font-nunito mt-1 text-sm">No program info available</p>
+                  <p className="text-brand-ice/70 font-nunito mt-1 text-sm">{t('live.list.noProgramInfo')}</p>
                 )}
                 {focusedNowNext?.next && (
                   <p className="text-sm text-brand-ice/70 font-nunito mt-2 truncate">
-                    Next: {focusedNowNext.next.title} · {formatTime(focusedNowNext.next.start)}
+                    {t('live.list.nextLine', { title: focusedNowNext.next.title, time: formatTime(focusedNowNext.next.start) })}
                   </p>
                 )}
-                <p className="text-xs text-brand-ice/60 font-nunito mt-4">OK full screen · Hold OK options · F favorite</p>
+                <p className="text-xs text-brand-ice/60 font-nunito mt-4">{t('live.list.hintClassic')}</p>
               </>
             ) : (
               <p className="text-brand-ice/70 font-nunito">
-                {channelsLoading ? 'Loading channels…' : 'No channel focused'}
+                {channelsLoading ? t('live.list.loadingChannels') : t('live.list.noChannelFocused')}
               </p>
             )}
           </div>

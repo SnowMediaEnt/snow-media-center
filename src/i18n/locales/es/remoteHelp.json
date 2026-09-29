@@ -1,0 +1,118 @@
+{
+  "remoteHelp": {
+    "title": "Acceso remoto",
+    "chip": {
+      "done": "Listo",
+      "notYet": "Aún no"
+    },
+    "header": {
+      "waived": "Pago exento: todo listo ✓",
+      "paid": "Pagado ✓ — pedido n.º {{number}}"
+    },
+    "blocked": {
+      "title": "El acceso remoto no está disponible en dispositivos Fire TV",
+      "body": "Fire OS bloquea las funciones de accesibilidad que un técnico necesita para controlar tu dispositivo. Aun así podemos ayudarte con un ticket de soporte.",
+      "ticketsBtn": "Abrir tickets de soporte"
+    },
+    "notNative": {
+      "paid": "✅ Tu sesión remota está pagada y lista. Estás viendo esto en un navegador web; la configuración del técnico se hace dentro de la app.",
+      "paidNext": "En el equipo que necesita ayuda, abre la <1>app Snow Media Center</1> (no un navegador) y ve a Soporte → Acceso remoto. Tu solicitud pagada continuará automáticamente; no tienes que volver a escribir nada.",
+      "unpaid": "Estás viendo esto en un navegador web. La configuración del técnico se hace dentro de la <1>app</1> Snow Media Center: en el equipo que necesita ayuda, abre la app y ve a Soporte → Acceso remoto."
+    },
+    "noauth": {
+      "body": "Inicia sesión en tu cuenta de Snow Media para solicitar una sesión de acceso remoto. Usa el botón Iniciar sesión de la pantalla de inicio y vuelve aquí."
+    },
+    "form": {
+      "subtitle": "Cuéntanos qué pasa: un técnico toma el control de tu equipo y lo arregla contigo. {{price}} por sesión.",
+      "issueLabel": "¿Qué está pasando?",
+      "issuePlaceholder": "p. ej., la TV en vivo se corta cada pocos minutos en todos los canales",
+      "needsLabel": "¿Qué necesitas que haga? <1>(opcional)</1>",
+      "needsPlaceholder": "p. ej., revisa mis ajustes y haz que la reproducción sea fluida",
+      "contactLabel": "La mejor forma de contactarte",
+      "contactPlaceholder": "Correo o número de teléfono",
+      "saving": "Guardando...",
+      "continueBtn": "Continuar al pago — {{price}}"
+    },
+    "pay": {
+      "title": "Paga tu sesión",
+      "subtitle": "Solicitud guardada. Paga desde tu teléfono; no hace falta escribir números de tarjeta con el control.",
+      "scan": "Escanea el código QR con tu teléfono para pagar {{price}}. Esta pantalla avanza sola en cuanto llega tu pago.",
+      "showQrBtn": "Mostrar código QR de pago",
+      "codeLabel": "¿Tienes un código de Snow Media?",
+      "codeHint": "Escríbelo aquí y se omite el paso de pago.",
+      "codePlaceholder": "Ingresa el código",
+      "checking": "Comprobando…",
+      "useCodeBtn": "Usar código",
+      "dialogTitle": "Paga {{price}} — Soporte remoto",
+      "dialogDesc": "Escanea con tu teléfono para pagar la sesión de soporte remoto. Esta pantalla continúa sola cuando llega el pago.",
+      "guestTitle": "Pago como invitado: no necesitas cuenta",
+      "guestBody": "Puedes pagar como invitado, sin cuenta. Termina el pago en tu teléfono y esta pantalla continuará sola.",
+      "confirmedLabel": "Ya completé el pago"
+    },
+    "setup": {
+      "stepOf": "Configuración: paso {{step}} de 3",
+      "app": {
+        "title": "Instala la app de soporte",
+        "body": "La app Snow Support es la que comparte tu pantalla con el técnico. Instálala, presiona Revisar y este paso pasará a Listo.",
+        "installBtn": "Instalar app de soporte",
+        "downloading": "Descargando...",
+        "recheckBtn": "Revisar",
+        "rechecking": "Comprobando..."
+      },
+      "overlay": {
+        "title": "Permite «Mostrar sobre otras apps»",
+        "why": "Este permiso es el que dibuja el puntero del técnico en tu pantalla.",
+        "how": "Se abre una lista de apps: busca <1>Snow Support</1> y activa <1>«Permitir mostrar sobre otras apps»</1>. Luego vuelve y confirma."
+      },
+      "openSettingsBtn": "Abrir Ajustes",
+      "confirmBtn": "Ya lo activé",
+      "continueBtn": "Continuar",
+      "a11y": {
+        "title": "Activa el servicio de accesibilidad de Snow Support",
+        "why": "Esto permite que los clics del técnico realmente funcionen en tu equipo.",
+        "how": "Busca <1>Snow Support</1> en la lista y ponlo en <1>Activado</1>. Luego vuelve y confirma.",
+        "openBtn": "Abrir Ajustes de accesibilidad",
+        "important": "<1>Importante:</1> el paso 2 (Mostrar sobre otras apps) debe estar Listo primero; activar esto antes del permiso de superposición puede dejar el control sin respuesta hasta desenchufar el equipo."
+      }
+    },
+    "ready": {
+      "title": "Todo listo",
+      "subtitle": "Qué pasa después",
+      "point1": "El técnico puede ver tu pantalla y controlar tu equipo.",
+      "point2": "Un borde rojo permanece en pantalla todo el tiempo para que siempre sepas que está activo.",
+      "point3": "Puedes terminar la sesión cuando quieras.",
+      "startBtn": "Iniciar soporte remoto",
+      "starting": "Iniciando..."
+    },
+    "started": {
+      "title": "Sesión iniciada",
+      "body1": "La app Snow Support está abierta y continúa desde aquí: muestra un código de 6 dígitos y te pide confirmar que compartes la pantalla.",
+      "body2": "Dale el código a tu técnico y acepta el aviso. Recuerda: el borde rojo indica que la sesión está activa y puedes terminarla cuando quieras."
+    },
+    "toast": {
+      "saveFailedTitle": "No se pudo guardar la solicitud",
+      "saveFailedDesc": "Revisa tu conexión a internet e inténtalo de nuevo.",
+      "waivedTitle": "Pago exento: todo listo",
+      "receivedTitle": "Pago recibido",
+      "readyDesc": "Preparemos tu equipo para el técnico.",
+      "codeRejectedTitle": "Código no aceptado",
+      "codeInvalid": "Ese código no es correcto. Revísalo e inténtalo de nuevo.",
+      "codeExpired": "Ese código venció.",
+      "codeUsedUp": "Ese código ya se usó.",
+      "codeTooMany": "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
+      "codeNoRequest": "Esta solicitud ya no está esperando el pago.",
+      "codeSignedOut": "Inicia sesión para usar un código.",
+      "tryAgain": "Inténtalo de nuevo.",
+      "codeCheckFailedTitle": "No se pudo comprobar el código",
+      "notYetTitle": "Aún no se recibió el pago",
+      "notYetDesc": "Puede tardar un minuto después del pago. Mantén esta pantalla abierta.",
+      "installFailedTitle": "Falló la instalación",
+      "installFailedDesc": "No se pudo instalar la app de soporte.",
+      "settingsFailedTitle": "No se pudo abrir Ajustes",
+      "overlayManual": "Abre Ajustes de Android → Apps → Acceso especial de apps → Mostrar sobre otras apps manualmente.",
+      "a11yManual": "Abre Ajustes de Android → Accesibilidad manualmente.",
+      "startFailedTitle": "No se pudo iniciar",
+      "startFailedDesc": "Abre la app Snow Support desde tu lista de apps."
+    }
+  }
+}

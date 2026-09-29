@@ -142,7 +142,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         }
         ids.filter { it != id }.forEach { RecordScheduler.cancel(ctx, it) }
         if (kind == Fire.START_LATE) RecordScheduler.startedLate(ctx, s, endsAt)
-        if (moved) RecordScheduler.notify(ctx, id + "u", "Recording on this box: ${RecordScheduler.label(s)}", "The USB drive wasn't connected.")
+        if (moved) RecordScheduler.movedToBox(ctx, s)
         RecorderPlugin.emitChanged()
     }
 

@@ -5,6 +5,7 @@ import { robustFetch, isOnline } from '@/utils/network';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
 import { isDemo } from '@/lib/demoMode';
+import i18n from '@/i18n';
 
 export interface AppData {
   id: string;
@@ -150,7 +151,7 @@ export const useAppData = () => {
           name: app.name,
           version: (app as any).version || '1.0',
           size: app.size || '25MB',
-          description: app.description || 'No description available',
+          description: app.description || i18n.t('apps.data.noDescription'),
           icon: iconUrl,
           apk: downloadUrl,
           downloadUrl,
@@ -234,10 +235,10 @@ export const useAppData = () => {
 
         return {
           id: app.id || app.packageName || `remote-${index}`,
-          name: app.name || 'Unknown App',
+          name: app.name || i18n.t('apps.data.unknownApp'),
           version: app.version || '1.0',
           size: app.size || '25MB',
-          description: app.description || 'No description available',
+          description: app.description || i18n.t('apps.data.noDescription'),
           icon: app.icon || 'https://snowmediaapps.com/apps/icons/default.png',
           apk: downloadUrl,
           downloadUrl,
@@ -313,7 +314,7 @@ export const useAppData = () => {
 
     console.warn('[AppData] All sources failed, using fallback apps');
     setApps(filterAppsForDemo(fallbackApps));
-    setError('Unable to fetch apps. Using offline data.');
+    setError(i18n.t('apps.data.fetchFailed'));
     setLoading(false);
   };
 
@@ -361,7 +362,7 @@ export const useAppData = () => {
         if (prev) {
           console.warn('[AppData] Safety timeout triggered');
           setApps(filterAppsForDemo(fallbackApps));
-          setError('Loading timed out. Using offline data.');
+          setError(i18n.t('apps.data.timedOut'));
           return false;
         }
         return prev;

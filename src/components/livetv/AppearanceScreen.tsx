@@ -14,6 +14,7 @@ import {
 import { LIVE_LAYOUTS, saveLiveLayout, useLiveLayout, type LiveLayout } from '@/lib/liveLayout';
 import LiveLayoutWire from './LiveLayoutWire';
 import { keepInView } from '@/utils/keepInView';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   onBack: () => void;
@@ -33,6 +34,13 @@ interface Chip {
 }
 
 const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
+  const { t } = useTranslation();
+  // The names in lib/theme and lib/liveLayout stay the fallback; the screen shows the translated one by id.
+  const chipLabel = (chip: Chip) => {
+    // Layout names are shared with the Live TV layout chooser (live.layouts.*).
+    const layout = chip.kind === 'liveLayout' ? LIVE_LAYOUTS.find(l => l.id === chip.id) : undefined;
+    return layout ? t(layout.labelKey) : t(`liveAccount.appearance.${chip.kind}.${chip.id}`, { defaultValue: chip.label });
+  };
   const [theme, setTheme] = useTheme();
   const liveLayout = useLiveLayout();
   const liveLayoutRef = useRef(liveLayout);
@@ -176,7 +184,7 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
         >
           <LiveLayoutWire id={chip.id as LiveLayout} />
           <div className="mt-2 flex items-center justify-between">
-            <span className={`text-base font-quicksand font-bold ${selected ? 'text-brand-gold' : 'text-white'}`}>{chip.label}</span>
+            <span className={`text-base font-quicksand font-bold ${selected ? 'text-brand-gold' : 'text-white'}`}>{chipLabel(chip)}</span>
             {selected && <Check className="w-4 h-4 text-brand-gold" />}
           </div>
         </div>
@@ -197,15 +205,19 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
             style={{ backgroundColor: `hsl(${chip.hsl})` }}
           />
         )}
-        <span className="text-sm font-nunito text-white">{chip.label}</span>
+        <span className="text-sm font-nunito text-white">{chipLabel(chip)}</span>
         {selected && <Check className="w-3.5 h-3.5 text-brand-gold" />}
       </div>
     );
   };
 
-  const groupLabels = ['Live TV layout', 'Text size', 'Font', 'Highlight color', 'Background', 'Text color'];
+  const groupLabels = [
+    t('liveAccount.appearance.groupLayout'), t('liveAccount.appearance.groupTextSize'), t('liveAccount.appearance.groupFont'),
+    t('liveAccount.appearance.groupAccent'), t('liveAccount.appearance.groupBackground'), t('liveAccount.appearance.groupTextColor'),
+  ];
+  const layoutDesc = LIVE_LAYOUTS.find(l => l.id === liveLayout);
   const groupHints: Record<number, string> = {
-    0: `${LIVE_LAYOUTS.find(l => l.id === liveLayout)?.desc ?? ''}${onTryLayout ? ' · Pick another to try it on the Live TV screen.' : ''}`,
+    0: `${layoutDesc ? t(layoutDesc.descKey) : ''}${onTryLayout ? ` · ${t('liveAccount.appearance.tryHint')}` : ''}`,
   };
 
   return (
@@ -213,13 +225,13 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
       <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
         <BackButton
           onClick={onBack}
-          label="Back"
+          label={t('common.back')}
           data-player-header-btn=""
           focused={focusIdx === 0}
         />
         <div className="flex items-center gap-2">
           <Palette className="w-7 h-7 text-brand-gold" />
-          <h1 className="text-2xl font-quicksand font-bold text-white">Appearance</h1>
+          <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.appearance.title')}</h1>
         </div>
       </div>
 
@@ -248,7 +260,7 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
               className={`tv-ring inline-flex items-center gap-2 rounded-xl px-4 py-3 border border-white/15 bg-slate-900/60 cursor-pointer ${focusIdx === groupStarts.resetIdx ? 'scale-105 z-10' : ''}`}
             >
               <RotateCcw className="w-4 h-4 text-brand-ice" />
-              <span className="text-sm font-nunito">Reset to default</span>
+              <span className="text-sm font-nunito">{t('liveAccount.appearance.resetBtn')}</span>
             </div>
           </div>
         </div>

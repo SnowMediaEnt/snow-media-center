@@ -1,0 +1,144 @@
+{
+  "support": {
+    "header": {
+      "title": "Support",
+      "subtitle": "Get help, chat with AI, or catch up on posts from Snow Media"
+    },
+    "tabs": {
+      "helpTab": "Help",
+      "aiTab": "AI Chat",
+      "postsTab": "Posts"
+    },
+    "cards": {
+      "howTo": {
+        "title": "How to use SMC",
+        "desc": "A simple tour of every screen"
+      },
+      "speedTest": {
+        "title": "Speedtest",
+        "desc": "Test your internet speed"
+      },
+      "guide": {
+        "title": "Buffering Guide",
+        "desc": "Step-by-step buffering fixes"
+      },
+      "videos": {
+        "title": "Support Videos",
+        "desc": "Tutorials and walkthroughs"
+      },
+      "tickets": {
+        "title": "Submit a Ticket",
+        "descNew": "New reply from Support",
+        "desc": "Contact Snow Media Support"
+      },
+      "remote": {
+        "title": "Remote Access",
+        "desc": "A technician fixes your box live — $25"
+      },
+      "cleaner": {
+        "title": "Device Cleaner",
+        "desc": "Free up space and memory"
+      },
+      "apps": {
+        "title": "Main Apps",
+        "desc": "Download apps and streaming tools"
+      }
+    },
+    "toast": {
+      "launchUnavailableTitle": "Launch unavailable",
+      "launchUnavailableDesc": "App launching only works on Android.",
+      "launchFailedTitle": "Launch failed",
+      "launchFailedDesc": "Could not launch {{name}}.",
+      "appInfoUnavailableTitle": "App Info unavailable",
+      "appInfoUnavailableDesc": "Only works on Android devices.",
+      "notInstalledTitle": "App not installed",
+      "notInstalledDesc": "{{name}} isn't installed on this device.",
+      "openingTitle": "Opening {{name}}",
+      "openingDesc": "Tap 'Force Stop', then 'Storage' → 'Clear cache'. Press Back when done.",
+      "appInfoFailedTitle": "Could not open App Info",
+      "appInfoFailedDesc": "Open Android Settings → Apps → {{name}} manually."
+    },
+    "speedTest": {
+      "title": "Internet Speed Test",
+      "startBtn": "Start",
+      "runAgainBtn": "Run Again",
+      "testingBtn": "Testing…",
+      "phase": {
+        "idle": "Ready",
+        "ping": "Measuring latency…",
+        "download": "Testing download speed…",
+        "upload": "Testing upload speed…",
+        "done": "Test complete",
+        "error": "Test failed"
+      },
+      "download": "Download",
+      "upload": "Upload",
+      "mbps": "Mbps",
+      "ping": "Ping",
+      "jitter": "Jitter",
+      "ms": "{{value}} ms",
+      "verdict": {
+        "title": "Streaming Verdict",
+        "excellent": "Excellent — your connection ({{speed}} Mbps) handles 4K streaming with no buffering.",
+        "good": "Good for HD streaming. For consistent 4K you'll want at least 25 Mbps.",
+        "poor": "Below the 15 Mbps recommended for HD streaming — expect buffering. Try a wired connection, move closer to your router, or contact your ISP."
+      },
+      "failed": "Speed test failed: {{error}}. Check your internet connection and try again.",
+      "powered": "Powered by Cloudflare's global speed test network",
+      "errors": {
+        "pingFailed": "Ping failed",
+        "generic": "Speed test failed"
+      }
+    },
+    "videos": {
+      "title": "Support Videos",
+      "subtitle": "Help tutorials and guides from Vimeo",
+      "allTab": "All ({{count}})",
+      "servicesTab": "Services ({{count}})",
+      "devicesTab": "Devices ({{count}})",
+      "watchBtn": "Watch Video",
+      "loading": "Loading support videos...",
+      "loadError": "Error loading videos: {{error}}",
+      "empty": "No videos found. Upload some videos to your Vimeo account to see them here.",
+      "emptyDevice": "No device videos found. Tag your videos with: x96, FireTV, or Older",
+      "emptyService": "No service videos found. Tag your videos with: DreamStreams, Vibez TV, Plex, or Support",
+      "emptyAll": "No videos found in your Vimeo account.",
+      "closeHint": "Press ESC/Back to Close | P/K to Play/Pause",
+      "closeBtn": "✕ Close",
+      "frameTitle": "Support Video",
+      "fetchFailed": "Failed to fetch videos",
+      "timedOut": "Loading timed out. Please try again."
+    },
+    "mail": {
+      "heading": "Posts from Snow Media Entertainment",
+      "notifOff": "Notifications off (Settings → UI)",
+      "checking": "Checking for posts…",
+      "emptyTitle": "Nothing here yet",
+      "emptyDesc": "When Snow Media posts news, deals or event announcements, they land here — dated, and marked until you open them.",
+      "newChip": "New",
+      "reader": {
+        "okToScan": "OK to scan",
+        "shopNow": "Shop now",
+        "empty": "This post has no content to show.",
+        "hintScroll": "Scroll",
+        "hintPick": "Pick a link ({{current}} of {{total}})",
+        "hintScan": "OK Scan it with your phone",
+        "hintClose": "Back Close",
+        "makingCode": "Making code…",
+        "scanTitle": "Scan with your phone",
+        "closeHint": "Press OK or Back to close"
+      },
+      "link": {
+        "open": "Open link",
+        "watch": "Watch video",
+        "survey": "Take the survey",
+        "shop": "Shop {{name}}",
+        "productFallback": "Product"
+      },
+      "toast": {
+        "newPosts_one": "New post from Snow Media",
+        "newPosts_other": "{{count}} new posts from Snow Media"
+      }
+    }
+  }
+}

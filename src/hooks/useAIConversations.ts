@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getDeviceId } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
+import i18n, { getAppLanguage } from '@/i18n';
 
 export interface AIConversation {
   id: string;
@@ -51,8 +52,8 @@ export const useAIConversations = () => {
     } catch (error) {
       console.error('Error fetching AI conversations:', error);
       toast({
-        title: "Error",
-        description: "Failed to load AI conversations",
+        title: i18n.t('ai.conversations.toast.errorTitle'),
+        description: i18n.t('ai.conversations.toast.loadListFailed'),
         variant: "destructive"
       });
     } finally {
@@ -88,8 +89,8 @@ export const useAIConversations = () => {
     } catch (error) {
       console.error('Error fetching AI messages:', error);
       toast({
-        title: "Error",
-        description: "Failed to load conversation messages",
+        title: i18n.t('ai.conversations.toast.errorTitle'),
+        description: i18n.t('ai.conversations.toast.loadMessagesFailed'),
         variant: "destructive"
       });
       return [];
@@ -136,8 +137,8 @@ export const useAIConversations = () => {
     } catch (error) {
       console.error('Error creating AI conversation:', error);
       toast({
-        title: "Error",
-        description: "Failed to create AI conversation",
+        title: i18n.t('ai.conversations.toast.errorTitle'),
+        description: i18n.t('ai.conversations.toast.createFailed'),
         variant: "destructive"
       });
       throw error;
@@ -171,8 +172,8 @@ export const useAIConversations = () => {
     } catch (error) {
       console.error('Error sending AI message:', error);
       toast({
-        title: "Error",
-        description: "Failed to send message",
+        title: i18n.t('ai.conversations.toast.errorTitle'),
+        description: i18n.t('ai.conversations.toast.sendFailed'),
         variant: "destructive"
       });
       throw error;
@@ -199,6 +200,7 @@ export const useAIConversations = () => {
           conversationId,
           currentVersion,
           device_id: getDeviceId(),
+          language: getAppLanguage(),
         }
       });
 
@@ -225,7 +227,7 @@ export const useAIConversations = () => {
         .insert({
           conversation_id: conversationId,
           sender_type: 'assistant',
-          message: "I'm sorry, I'm having trouble processing your request right now. Please try again later."
+          message: i18n.t('ai.conversations.aiTroubleReply')
         });
       await touchConversation(conversationId);
     }
@@ -256,14 +258,14 @@ export const useAIConversations = () => {
       });
 
       toast({
-        title: "Deleted",
-        description: "AI conversation removed"
+        title: i18n.t('ai.conversations.toast.deletedTitle'),
+        description: i18n.t('ai.conversations.toast.deletedDesc')
       });
     } catch (error) {
       console.error('Error deleting conversation:', error);
       toast({
-        title: "Error",
-        description: "Failed to delete conversation",
+        title: i18n.t('ai.conversations.toast.errorTitle'),
+        description: i18n.t('ai.conversations.toast.deleteFailed'),
         variant: "destructive"
       });
     }

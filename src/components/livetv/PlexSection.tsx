@@ -12,6 +12,8 @@
 //     rings can't be occluded by an under-estimated row.
 //   • Poster images are loaded off the JS heap by PlexImage (see that file).
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Compass, Settings as SettingsIcon, Eye, EyeOff, LogOut, MessageSquare, Tv, Film, Ghost } from 'lucide-react';
 import { activeSeason, loadSeasonRows, loadSharedSeason, loadStoredSeason, storeSeasonRow, type Season, type SharedSeasonRow } from '@/lib/plexSeasonal';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -42,7 +44,7 @@ import {
   setPlexImageFocus, preloadImages, plexPhotoTranscodeUrl, POSTER_TILE_W, POSTER_TILE_H,
   type PlexLibrary, type PlexItem, type PlexEpisode, type PlexPlayInfo, plexRouteLabel,
   setPlexPlaybackActive } from '@/lib/plex';
-import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
 import { peekPlexVoice, pickPlexVoiceMatch, plexVoiceQuery, plexVoiceSearchTexts, PLEX_VOICE_EVENT, PLEX_VOICE_KEY, type PlexVoiceIntent } from '@/lib/plexVoice';
@@ -68,7 +70,7 @@ import { focusBackdrop } from '@/lib/plexBackdrop';
 import { revealPlexRail, unshiftAround } from '@/lib/plexReveal';
 import { continueWatching, initPlexProgress, mergeContinue, progressCount, progressDiag, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { upNextEpisodes } from '@/lib/plexUpNext';
-import { fetchFeedItems, othersWatchingKeys, OTHERS_TTL_MS, OTHERS_WATCHING_TITLE } from '@/lib/plexOthersWatching';
+import { fetchFeedItems, othersWatchingKeys, OTHERS_TTL_MS, OTHERS_WATCHING_TITLE_KEY } from '@/lib/plexOthersWatching';
 import { myList, pullFavoritesFromCloud, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
@@ -77,7 +79,7 @@ import { setPlexKeyOwner, isPlexKeyOwner } from './plexKeyOwner';
 import { recordPlexWatch } from '@/lib/watchHistory';
 import {
   becauseYouWatched, hiddenGems, surpriseMe, rediscover, pickGenres, genreRow,
-  DECADES, decadeTitle, decadeRow, pickServices, serviceRow, STREAMING_SERVICES, type DiscoverRow, type ServiceMap,
+  DECADES, discoverRow, decadeRow, pickServices, serviceRow, STREAMING_SERVICES, type DiscoverRow, type ServiceMap,
 } from '@/lib/plexDiscover';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
@@ -408,9 +410,10 @@ const PAGE_FIRST = 60;
 const PAGE_MORE = 200;
 
 type TabType = 'home' | 'discover' | 'search' | 'seasonal' | 'movie' | 'show' | 'request' | 'manage';
-interface Tab { key: string; title: string; type: TabType; libKey?: string; }
+// `titleKey`: the app's own tabs (translated when drawn); `title`: a library's or the season's own name.
+interface Tab { key: string; title: string; titleKey?: string; type: TabType; libKey?: string; }
 type MenuGroup = 'home' | 'libraries' | 'more';
-interface MenuEntry { tabIdx: number; title: string; group: MenuGroup; key: string; }
+interface MenuEntry { tabIdx: number; title: string; titleKey?: string; group: MenuGroup; key: string; }
 
 interface Props {
   isActive: boolean;
@@ -478,6 +481,7 @@ const RAIL_ROWS_SPAN = (() => {
 const RAIL_H_FALLBACK = 212;
 
 const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, onFocusChange }: RailBrowserProps) => {
+  const { t } = useTranslation();
   const [row, setRow] = useState(0);
   const [col, setCol] = useState(0);
   const onFocusChangeRef = useRef(onFocusChange); onFocusChangeRef.current = onFocusChange;
@@ -624,7 +628,7 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
     <div>
       {rows.map((r, ri) => (
         <div key={r.id} data-plex-row={r.id} className="plex-rail" ref={(el) => { railBoxRefs.current[r.id] = el; }}>
-          <div className="plex-rail-head font-quicksand">{r.title}</div>
+          <div className="plex-rail-head font-quicksand">{r.titleKey ? t(r.titleKey, r.titleParams) : r.title}</div>
           {(ri < row - RAIL_ROWS_SPAN || ri > row + RAIL_ROWS_SPAN) ? (
             <div aria-hidden="true" style={{ height: railHRef.current || RAIL_H_FALLBACK }} />
           ) : (
@@ -698,8 +702,9 @@ interface HomePanelProps {
    *  Watching is theirs too and joins the app's own. */
   serverResume?: boolean;
   /** Home's play-count rail: "Popular on Snow Media" on the shared account,
-   *  where the plays are everyone's; "Most Watched" on a viewer's own. */
-  popularTitle?: string;
+   *  where the plays are everyone's; "Most Watched" on a viewer's own.
+   *  A translation key. */
+  popularTitleKey?: string;
   /** The server's machineIdentifier: "What others are watching" is only for
    *  the server the shared feed describes. */
   clientIdentifier?: string;
@@ -708,7 +713,8 @@ interface HomePanelProps {
 const HOME_REFRESH_MS = 3 * 60 * 60 * 1000;
 /** …and when the viewer comes back to Home or the app after this long. */
 const HOME_RETURN_MS = 30 * 60 * 1000;
-const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs, watchNonce = 0, serverResume = false, popularTitle = 'Most Watched', clientIdentifier }: HomePanelProps) => {
+const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs, watchNonce = 0, serverResume = false, popularTitleKey = 'plex.home.mostWatched', clientIdentifier }: HomePanelProps) => {
+  const { t } = useTranslation();
   const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const recentPath = homeKey(HOME_ADDED_KEY);
   // Seeded from the cache however old it is: rails already in memory are
@@ -901,26 +907,26 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
     const cont = DEMO ? familyOnly(onDeck, adultKeys)
       : serverResume ? mergeContinue(familyOnly(ownContinue, adultKeys, true), familyOnly(onDeck, adultKeys))
         : familyOnly(mergeContinue(ownContinue, upNext), adultKeys, true);
-    if (cont.length > 0) r.push({ id: 'continue', title: 'Continue Watching', items: cont.slice(0, RAIL_CAP) });
+    if (cont.length > 0) r.push({ id: 'continue', title: '', titleKey: 'plex.library.rows.continue', items: cont.slice(0, RAIL_CAP) });
     const mine = familyOnly(listItems, adultKeys, true);
-    if (mine.length > 0) r.push({ id: 'mylist', title: 'My List', items: mine.slice(0, RAIL_CAP) });
-    r.push({ id: 'added', title: 'Recently Added', items: familyOnly(newestAdded([recent, addedLibs], RAIL_CAP * 2), adultKeys).slice(0, RAIL_CAP) });
+    if (mine.length > 0) r.push({ id: 'mylist', title: '', titleKey: 'plex.home.myList', items: mine.slice(0, RAIL_CAP) });
+    r.push({ id: 'added', title: '', titleKey: 'plex.library.rows.added', items: familyOnly(newestAdded([recent, addedLibs], RAIL_CAP * 2), adultKeys).slice(0, RAIL_CAP) });
     // Other Snow Media viewers, this week (see loadOthersWatching).
     const oth = familyOnly(others, adultKeys);
-    if (oth.length > 0) r.push({ id: 'others', title: OTHERS_WATCHING_TITLE, items: oth });
+    if (oth.length > 0) r.push({ id: 'others', title: '', titleKey: OTHERS_WATCHING_TITLE_KEY, items: oth });
     const rel = familyOnly(released, adultKeys);
-    if (rel.length > 0) r.push({ id: 'released', title: 'Recently Released', items: rel });
+    if (rel.length > 0) r.push({ id: 'released', title: '', titleKey: 'plex.library.rows.released', items: rel });
     // Most played on this server (see loadPopular); says so on the tin.
     const pop = familyOnly(popular, adultKeys);
-    if (pop.length > 0) r.push({ id: 'popular', title: popularTitle, items: pop });
+    if (pop.length > 0) r.push({ id: 'popular', title: '', titleKey: popularTitleKey, items: pop });
     // Last: it lands after Home is up (see loadNewEpisodes).
     const eps = familyOnly(newEpisodes, adultKeys);
-    if (eps.length > 0) r.push({ id: 'episodes', title: 'New Episodes', items: eps });
+    if (eps.length > 0) r.push({ id: 'episodes', title: '', titleKey: 'plex.home.newEpisodes', items: eps });
     return r;
-  }, [onDeck, ownContinue, upNext, listItems, recent, addedLibs, released, others, popular, newEpisodes, adultKeys, serverResume, popularTitle]);
+  }, [onDeck, ownContinue, upNext, listItems, recent, addedLibs, released, others, popular, newEpisodes, adultKeys, serverResume, popularTitleKey]);
 
-  if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
-  if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;
+  if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> {t('common.loading')}</div>;
+  if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">{t('plex.home.nothingYet')}</div>;
 
   return <RailBrowser isActive={isActive} base={base} token={token} rows={rows} onPlay={onPlay} onExitToTabs={onExitToTabs} />;
 });
@@ -934,6 +940,7 @@ HomePanel.displayName = 'HomePanel';
 // coming back is instant for five minutes.
 const DISCOVER_KEY = 'smc:discover/';
 const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs }: HomePanelProps) => {
+  const { t } = useTranslation();
   const [rawRows, setRows] = useState<DiscoverRow[]>(() => getCachedDiscover(base));
   // Cached or fresh, no adult title reaches a Discover row.
   const rows = useMemo<DiscoverRow[]>(
@@ -977,11 +984,13 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
     // `fromCache`: a row taken from the cache is not written back, or its
     // timestamp would renew on every interrupted visit and it would never
     // be refreshed.
+    // `title`: what is kept with the row (a genre's name, the title "Because
+    // you watched" names); the fixed rows get their heading from the id.
     const land = (id: string, title: string, items: PlexItem[] | null, fromCache = false) => {
       if (!items?.length) return;
       if (!fromCache) setCachedHub(base, `${DISCOVER_KEY}${id}`, items, epoch);
       if (cancelled) return;
-      acc.push({ id, title, items });
+      acc.push(discoverRow(id, title, items));
       setRows(acc.slice());
     };
     const cachedRow = (id: string) => getCachedHubWithin(base, `${DISCOVER_KEY}${id}`, DISCOVER_TTL_MS);
@@ -997,11 +1006,11 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
         () => (had.again ? Promise.resolve(cachedRow('again')) : rediscover(base, token, libraries).catch(() => null)),
       ];
       const [byw, gems, random, again] = await mapLimit(wave1, HOME_PARALLEL, (f) => f()) as [
-        { title: string; items: PlexItem[] } | null, PlexItem[] | null, PlexItem[] | null, PlexItem[] | null];
-      if (byw) land('byw', byw.title, byw.items);
-      land('gems', 'Hidden Gems', gems, had.gems);
-      land('random', 'Surprise Me', random, had.random);
-      land('again', 'Rediscover', again, had.again);
+        { watched: string; items: PlexItem[] } | null, PlexItem[] | null, PlexItem[] | null, PlexItem[] | null];
+      if (byw) land('byw', byw.watched, byw.items);
+      land('gems', '', gems, had.gems);
+      land('random', '', random, had.random);
+      land('again', '', again, had.again);
       if (cancelled) return;
       setLoading(false);
       // Wave 2. Genre rows in the app's order, then the decades that have
@@ -1019,7 +1028,7 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
         const id = `decade:${d}`;
         const hit = cachedRow(id);
         const items = hit ?? await decadeRow(base, token, libraries, d).catch(() => null);
-        land(id, decadeTitle(d), items, !!hit);
+        land(id, '', items, !!hit);
         if (cancelled) return;
       }
       // Row order is what the cache replays, so remember it too. Written only
@@ -1078,7 +1087,7 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
         // see is not asked for again on every visit.
         if (!hit && items) setCachedHub(base, `${DISCOVER_KEY}${id}`, items, epoch);
         if (cancelled || !items?.length) return;
-        const added = [...rawRowsRef.current, { id, title: next.title, items }];
+        const added = [...rawRowsRef.current, discoverRow(id, next.title, items)];
         setRows(added);
         setCachedHub(base, `${DISCOVER_KEY}order`, added.map((r) => ({ ratingKey: r.id, title: r.title, type: 'row' })), epoch);
       } finally {
@@ -1092,8 +1101,8 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseDone, near, serviceTick, base, token, libKeysSig]);
 
-  if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Finding things to watch…</div>;
-  if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing to discover yet — this server has no libraries to browse.</div>;
+  if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> {t('plex.discover.finding')}</div>;
+  if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">{t('plex.discover.nothing')}</div>;
 
   return <RailBrowser isActive={isActive} base={base} token={token} rows={rows} onPlay={onPlay} onExitToTabs={onExitToTabs} onFocusChange={handleFocus} />;
 });
@@ -1107,6 +1116,7 @@ const SERVICE_NEAR_ROWS = 3;
 // rest on the menu entry and lands one row at a time. What it finds is kept
 // for half a day, across launches, so the lookups run about twice a day.
 const SeasonalPanel = memo(({ isActive, base, token, libraries, adultKeys, season, clientIdentifier, onPlay, onExitToTabs }: HomePanelProps & { season: Season; clientIdentifier?: string }) => {
+  const { t } = useTranslation();
   const libKeysSig = libraries.map((l) => `${l.type}:${l.key}`).join(',');
   // Rows and titles as the Hub last set them (kept with the stored rows), else
   // the list that shipped with the app.
@@ -1173,8 +1183,8 @@ const SeasonalPanel = memo(({ isActive, base, token, libraries, adultKeys, seaso
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base, token, libKeysSig, season, clientIdentifier]);
 
-  if (loading && rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Gathering the {season.title} collection…</div>;
-  if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">{done ? `None of the ${season.title} collection is on this server yet.` : 'Loading…'}</div>;
+  if (loading && rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> {t('plex.seasonal.gathering', { season: season.title })}</div>;
+  if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">{done ? t('plex.seasonal.none', { season: season.title }) : t('common.loading')}</div>;
 
   return <RailBrowser isActive={isActive} base={base} token={token} rows={rows} onPlay={onPlay} onExitToTabs={onExitToTabs} />;
 });
@@ -1193,7 +1203,7 @@ function getCachedDiscover(base: string): DiscoverRow[] {
   for (const o of order) {
     const items = getCachedHubWithin(base, `${DISCOVER_KEY}${o.ratingKey}`, DISCOVER_TTL_MS);
     if (!items) return [];
-    out.push({ id: o.ratingKey, title: o.title, items });
+    out.push(discoverRow(o.ratingKey, o.title, items));
   }
   return out;
 }
@@ -1263,7 +1273,15 @@ const ChipTile = memo(({ chip, art, base, token, focused, onPick }: {
 });
 ChipTile.displayName = 'ChipTile';
 
+// The heading over each group of suggestions (translation keys).
+const CHIP_GROUP_KEY: Record<SearchChip['group'], string> = {
+  didyoumean: 'plex.search.didYouMean',
+  popular: 'plex.search.popular',
+  recent: 'plex.search.recent',
+};
+
 const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTabs, initialQuery }: SearchPanelProps) => {
+  const { t } = useTranslation();
   // A voice search arrives with its words already typed.
   const [query, setQuery] = useState(initialQuery ?? '');
   // What the server answered; `results` is that with adult titles removed.
@@ -1479,11 +1497,11 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   const askRequest = useCallback((it: OverseerrItem) => {
     if (kidsLevel()) return;
     if (it.status === 5) {
-      toast({ title: 'Not showing on Plex yet', description: `${it.title} is listed as on Plex, but this server isn't showing it. It may still be being added — check back soon.` });
+      toast({ title: i18n.t('plex.search.toast.notShowingTitle'), description: i18n.t('plex.search.toast.notShowingDesc', { title: it.title }) });
       return;
     }
     if (reqSentRef.current[it.id] || it.status === 2 || it.status === 3) {
-      toast({ title: 'Already requested', description: `${it.title} is already on its way to Plex.` });
+      toast({ title: i18n.t('plex.search.toast.alreadyTitle'), description: i18n.t('plex.search.toast.onItsWayToPlex', { title: it.title }) });
       return;
     }
     setConfirmIdx(0);
@@ -1497,16 +1515,16 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
     setRequesting(false);
     setConfirmReq(null);
     if (res === 'failed') {
-      toast({ title: "Couldn't send that request", description: 'Please try again in a minute.', variant: 'destructive' });
+      toast({ title: i18n.t('plex.search.toast.sendFailedTitle'), description: i18n.t('plex.search.toast.sendFailedDesc'), variant: 'destructive' });
       return;
     }
     setReqSent((m) => ({ ...m, [it.id]: res }));
     try { trackEvent('plex_request', 'player', { media: it.mediaType, title: it.title.slice(0, 80), result: res }); } catch { /* ignore */ }
     toast({
-      title: res === 'already' ? 'Already requested' : 'Requested!',
+      title: res === 'already' ? i18n.t('plex.search.toast.alreadyTitle') : i18n.t('plex.search.toast.requestedTitle'),
       description: res === 'already'
-        ? `${it.title} is already on its way.`
-        : `${it.title} will be added to Plex${it.mediaType === 'tv' ? ', every season' : ''}, usually within a few hours. We'll let you know when it's ready.`,
+        ? i18n.t('plex.search.toast.onItsWay', { title: it.title })
+        : i18n.t(it.mediaType === 'tv' ? 'plex.search.toast.addedShow' : 'plex.search.toast.addedMovie', { title: it.title }),
     });
   }, []);
   const chipIdxRef = useRef(chipIdx); useEffect(() => { chipIdxRef.current = chipIdx; }, [chipIdx]);
@@ -1672,7 +1690,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setZone('input')}
-          placeholder="Search movies & shows…"
+          placeholder={t('plex.search.placeholder')}
           className="flex-1 bg-transparent outline-none text-white font-nunito text-base placeholder:text-brand-ice/50"
         />
         {loading && <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />}
@@ -1685,7 +1703,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
             return (
               <div key={group} className="plex-rail">
                 <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-2">
-                  {group === 'didyoumean' ? 'Did you mean' : group === 'popular' ? 'Popular searches' : 'Recent on this box'}
+                  {t(CHIP_GROUP_KEY[group])}
                 </div>
                 <div className="grid grid-cols-6 gap-x-3 gap-y-5" data-art-tick={chipArtTick}>
                   {mine.map(({ c, i }) => (
@@ -1706,7 +1724,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         </div>
       )}
       {results.length === 0 ? (
-        showChips || reqItems.length ? null : <div className="text-brand-ice/70 font-nunito text-sm text-center py-6">{query.trim() ? (loading ? 'Searching…' : 'No results.') : 'Type to search Plex.'}</div>
+        showChips || reqItems.length ? null : <div className="text-brand-ice/70 font-nunito text-sm text-center py-6">{query.trim() ? (loading ? t('plex.player.searching') : t('plex.search.noResults')) : t('plex.search.typeToSearch')}</div>
       ) : (
         <div className="mb-4 grid grid-cols-6 gap-x-3 gap-y-5">
           {Array.from({ length: rows * COLS }).map((_, idx) => {
@@ -1723,18 +1741,18 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         <div>
           {reqItems.every((it) => it.status === 5) ? (
             <>
-              <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-1">Listed on Plex, not showing yet</div>
-              <div className="text-sm text-brand-ice/50 font-nunito mb-2">These are being added to Plex. Check back soon.</div>
+              <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-1">{t('plex.search.listedTitle')}</div>
+              <div className="text-sm text-brand-ice/50 font-nunito mb-2">{t('plex.search.listedBody')}</div>
             </>
           ) : results.length === 0 && !loading ? (
             <>
-              <div className="text-xl font-quicksand font-bold text-white mb-1">“{query.trim()}” isn’t on Plex yet</div>
-              <div className="text-base text-brand-ice/70 font-nunito mb-3">Pick it below and press OK to request it — we will add it to Plex for you and let you know when it’s ready.</div>
+              <div className="text-xl font-quicksand font-bold text-white mb-1">{t('plex.search.notOnPlexTitle', { query: query.trim() })}</div>
+              <div className="text-base text-brand-ice/70 font-nunito mb-3">{t('plex.search.notOnPlexBody')}</div>
             </>
           ) : (
             <>
-              <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-1">Not on Plex yet? Request it</div>
-              <div className="text-sm text-brand-ice/50 font-nunito mb-2">Press OK on a title and we will add it to Plex for you, and let you know when it’s ready.</div>
+              <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito mb-1">{t('plex.search.requestTitle')}</div>
+              <div className="text-sm text-brand-ice/50 font-nunito mb-2">{t('plex.search.requestBody')}</div>
             </>
           )}
           <div className="grid grid-cols-6 gap-x-3 gap-y-5">
@@ -1751,7 +1769,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         </div>
       )}
       {confirmReq && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70" role="dialog" aria-label="Request this title?">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70" role="dialog" aria-label={t('plex.search.requestAria')}>
           <div className="max-w-2xl w-full mx-6 rounded-3xl border border-brand-gold/40 bg-[#0b1220] p-7 shadow-2xl">
             <div className="flex items-start text-left">
               {confirmReq.posterUrl && (
@@ -1759,7 +1777,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
               )}
               <div className="min-w-0">
                 <div className="text-xs uppercase tracking-wider text-brand-gold font-nunito font-bold">
-                  {confirmReq.mediaType === 'tv' ? 'Show' : 'Movie'} · not on Plex yet
+                  {confirmReq.mediaType === 'tv' ? t('plex.search.showNotOnPlex') : t('plex.search.movieNotOnPlex')}
                 </div>
                 <div className="mt-1 text-2xl font-quicksand font-bold text-white leading-tight">
                   {confirmReq.title}{confirmReq.year ? ` (${confirmReq.year})` : ''}
@@ -1771,19 +1789,19 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
                 )}
                 <p className="mt-3 text-base text-white/85 font-nunito">
                   {confirmReq.mediaType === 'tv'
-                    ? 'Request it and every season is added to Plex, usually within a few hours. We will let you know when it’s ready.'
-                    : 'Request it and it is added to Plex, usually within a few hours. We will let you know when it’s ready.'}
+                    ? t('plex.search.confirmShow')
+                    : t('plex.search.confirmMovie')}
                 </p>
               </div>
             </div>
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button type="button" disabled={requesting} onClick={() => void sendRequest(confirmReq)}
                 className={`h-12 rounded-xl text-lg font-quicksand font-bold bg-brand-gold text-slate-900 ${confirmIdx === 0 ? 'ring-4 ring-brand-ice scale-105' : ''}`}>
-                {requesting ? 'Sending…' : 'Request'}
+                {requesting ? t('plex.search.sendingBtn') : t('plex.request.requestBtn')}
               </button>
               <button type="button" onClick={() => setConfirmReq(null)}
                 className={`h-12 rounded-xl text-lg font-quicksand font-bold bg-slate-800 border border-slate-600 text-white ${confirmIdx === 1 ? 'ring-4 ring-brand-ice scale-105' : ''}`}>
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -1798,7 +1816,8 @@ SearchPanel.displayName = 'SearchPanel';
 const RequestTile = memo(({ item: it, sent, focused, onPick }: {
   item: OverseerrItem; sent?: 'requested' | 'already'; focused: boolean; onPick: () => void;
 }) => {
-  const state = sent ? 'Requested' : it.status === 5 ? 'Being added' : it.status === 4 ? 'Partly on Plex' : it.status >= 2 ? 'Requested' : null;
+  const { t } = useTranslation();
+  const state = sent ? t('plex.search.requestedChip') : it.status === 5 ? t('plex.search.beingAddedChip') : it.status === 4 ? t('plex.search.partlyChip') : it.status >= 2 ? t('plex.search.requestedChip') : null;
   return (
     <div
       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
@@ -1809,9 +1828,9 @@ const RequestTile = memo(({ item: it, sent, focused, onPick }: {
           ? <img src={tmdbSized(it.posterUrl, 'w185')} alt="" decoding="async" className="absolute inset-0 w-full h-full object-cover opacity-80" />
           : <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-navy/70 to-black/80 p-3 text-center"><span className="text-base font-quicksand font-bold text-white/85">{it.title}</span></div>}
         <span className="plex-sheen" aria-hidden="true" />
-        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-plex-xs bg-black/75 text-plex-micro font-nunito font-semibold text-white/90">{it.mediaType === 'tv' ? 'Show' : 'Movie'}</span>
+        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-plex-xs bg-black/75 text-plex-micro font-nunito font-semibold text-white/90">{it.mediaType === 'tv' ? t('plex.request.typeShow') : t('plex.request.typeMovie')}</span>
         <span className={`absolute bottom-2 left-2 right-2 px-2 py-1 rounded-plex-xs text-center text-xs font-nunito font-bold ${state ? 'bg-emerald-600/85 text-white' : 'bg-brand-gold/90 text-slate-900'}`}>
-          {state ?? '+ Request'}
+          {state ?? t('plex.search.plusRequestChip')}
         </span>
       </div>
       <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>
@@ -1855,6 +1874,7 @@ async function serverAnsweredWithError(): Promise<boolean> {
 const stallStartOf = (snap: DiagSnapshot): number | undefined => (snap.bufferingForMs > 0 ? Date.now() - snap.bufferingForMs : undefined);
 
 const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggle, onExitToTabs, serverName, owned, accountToken, onSignOut }: ManagePanelProps) => {
+  const { t } = useTranslation();
   const hiddenCount = libraries.filter((l) => hidden.indexOf(l.key) >= 0).length;
   const [cursor, setCursor] = useState(0);
   const [account, setAccount] = useState<{ username?: string; email?: string } | null>(null);
@@ -1897,8 +1917,8 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
       if (!isPlexKeyOwner('browse')) return;
-      const t = e.target as HTMLElement;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
       const keys = ['ArrowUp','ArrowDown','Enter',' '];
       if (!keys.includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
@@ -1934,7 +1954,8 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
   }, [isActive, disarmConfirm, doSignOut]);
 
   const accountLine = account?.username || account?.email;
-  const ownedLine = isProviderServer(serverName) ? 'Provider server' : owned === true ? 'You own this server' : owned === false ? 'Shared with you' : '';
+  const ownedLine = isProviderServer(serverName) ? t('plex.manage.providerServer') : owned === true ? t('plex.manage.youOwn') : owned === false ? t('plex.manage.sharedWithYou') : '';
+  const libType = (type: string): string => (type === 'movie' ? t('plex.request.typeMovie') : type === 'show' ? t('plex.request.typeShow') : type);
 
   return (
     <div className="max-w-xl mx-auto flex flex-col gap-2">
@@ -1947,26 +1968,26 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
       )}
       {librariesError && libraries.length > 0 && (
         <div className="mb-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-2 font-nunito text-xs text-amber-200">
-          This list may be out of date — the last refresh failed: {librariesError}
+          {t('plex.manage.outOfDate', { error: librariesError })}
         </div>
       )}
       {libraries.length === 0 ? (
         <div className="font-nunito text-sm space-y-1">
           <div className="text-brand-ice/70">
-            {librariesError ? 'Could not load your libraries.' : 'No libraries found on this server.'}
+            {librariesError ? t('plex.manage.loadFailed') : t('plex.manage.noLibraries')}
           </div>
           {librariesError && <div className="text-amber-300 text-xs">{librariesError}</div>}
           <div className="text-brand-ice/70 text-xs">
             {librariesError
-              ? 'The server answered, but this request failed. Check it is online and that this Plex account still has access.'
-              : 'This account has no movie or TV libraries shared on it. Music and photo libraries are not listed here.'}
+              ? t('plex.manage.loadFailedHint')
+              : t('plex.manage.noLibrariesHint')}
           </div>
         </div>
       ) : hiddenCount === libraries.length ? (
         <div className="font-nunito text-sm space-y-2">
-          <div className="text-brand-ice/70">All {libraries.length} libraries are hidden, so no tabs appear.</div>
-          <div className="text-brand-ice/70 text-xs">Pick one below to show it again.</div>
-          <div className="text-xs uppercase tracking-wide text-brand-ice/70 pt-1">Show / hide libraries</div>
+          <div className="text-brand-ice/70">{t('plex.manage.allHidden', { total: libraries.length })}</div>
+          <div className="text-brand-ice/70 text-xs">{t('plex.manage.pickToShow')}</div>
+          <div className="text-xs uppercase tracking-wide text-brand-ice/70 pt-1">{t('plex.manage.showHide')}</div>
           {libraries.map((lib, i) => {
             const focused = isActive && cursor === i;
             return (
@@ -1977,16 +1998,16 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
                 data-focused={focused ? 'true' : 'false'}>
                 <div>
                   <div className="font-quicksand text-white">{lib.title}</div>
-                  <div className="text-xs font-nunito text-brand-ice/70 uppercase">{lib.type}</div>
+                  <div className="text-xs font-nunito text-brand-ice/70 uppercase">{libType(lib.type)}</div>
                 </div>
-                <span className="flex items-center gap-2 text-xs text-brand-ice/70"><EyeOff className="w-4 h-4" /> Hidden</span>
+                <span className="flex items-center gap-2 text-xs text-brand-ice/70"><EyeOff className="w-4 h-4" /> {t('plex.manage.hidden')}</span>
               </div>
             );
           })}
         </div>
       ) : (
         <>
-          <div className="text-xs uppercase tracking-wide text-brand-ice/70 mb-1">Show / hide libraries</div>
+          <div className="text-xs uppercase tracking-wide text-brand-ice/70 mb-1">{t('plex.manage.showHide')}</div>
           {libraries.map((lib, i) => {
             const focused = isActive && cursor === i;
             const isHidden = hidden.indexOf(lib.key) >= 0;
@@ -1998,11 +2019,11 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
                 data-focused={focused ? 'true' : 'false'}>
                 <div>
                   <div className="font-quicksand text-white">{lib.title}</div>
-                  <div className="text-xs font-nunito text-brand-ice/70 uppercase">{lib.type}</div>
+                  <div className="text-xs font-nunito text-brand-ice/70 uppercase">{libType(lib.type)}</div>
                 </div>
                 {isHidden
-                  ? <span className="flex items-center gap-2 text-xs text-brand-ice/70"><EyeOff className="w-4 h-4" /> Hidden</span>
-                  : <span className="flex items-center gap-2 text-xs text-brand-gold"><Eye className="w-4 h-4" /> Visible</span>}
+                  ? <span className="flex items-center gap-2 text-xs text-brand-ice/70"><EyeOff className="w-4 h-4" /> {t('plex.manage.hidden')}</span>
+                  : <span className="flex items-center gap-2 text-xs text-brand-gold"><Eye className="w-4 h-4" /> {t('plex.manage.visible')}</span>}
               </div>
             );
           })}
@@ -2028,7 +2049,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
             data-focused={focused ? 'true' : 'false'}>
             <LogOut className={`w-4 h-4 ${confirmSignOut ? 'text-red-300' : 'text-brand-ice/70'}`} />
             <div className={`font-quicksand ${confirmSignOut ? 'text-red-200' : 'text-white'}`}>
-              {confirmSignOut ? "Press OK again to sign out — you'll need a new code to sign back in" : 'Sign out of Plex'}
+              {confirmSignOut ? t('plex.manage.confirmSignOut') : t('plex.auth.signOutBtn')}
             </div>
           </div>
         );
@@ -2049,40 +2070,45 @@ const clock = (s?: number): string => {
 const ago = (ms?: number): string => {
   if (!ms) return '';
   const min = Math.round((Date.now() - ms) / 60000);
-  return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} days ago`;
+  return min < 1 ? i18n.t('plex.check.agoNow')
+    : min < 60 ? i18n.t('plex.check.agoMinutes', { n: min })
+      : min < 1440 ? i18n.t('plex.check.agoHours', { n: Math.round(min / 60) })
+        : i18n.t('plex.check.agoDays', { count: Math.round(min / 1440) });
 };
+// Translation keys for the reasons a beat saved nothing.
 const SKIP_WHY: Record<string, string> = {
-  inactive: 'not playing yet',
-  'no-duration': 'no running time',
-  'no-position': 'no position',
+  inactive: 'plex.check.whyInactive',
+  'no-duration': 'plex.check.whyNoDuration',
+  'no-position': 'plex.check.whyNoPosition',
 };
-const yesNo = (v?: boolean) => (v ? 'yes' : 'no');
 const ContinueWatchingCheck = () => {
+  const { t } = useTranslation();
   const d = progressDiag();
   const saved = progressCount();
   const shown = continueWatching().length;
-  const skip = d.beatSkip ? ` but saved nothing: ${SKIP_WHY[d.beatSkip] ?? d.beatSkip}` : '';
+  const yesNo = (v?: boolean) => (v ? t('plex.check.yes') : t('plex.check.no'));
+  const why = d.beatSkip ? (SKIP_WHY[d.beatSkip] ? t(SKIP_WHY[d.beatSkip]) : d.beatSkip) : '';
   return (
     <div className="mt-3 px-4 py-3 rounded-xl border border-white/10 bg-black/30 font-nunito text-xs text-brand-ice/75 space-y-0.5">
-      <div className="font-quicksand text-sm text-white/85">Continue Watching check</div>
-      <div>{saved} title{saved === 1 ? '' : 's'} with a saved place on this profile · {shown} in Continue Watching</div>
+      <div className="font-quicksand text-sm text-white/85">{t('plex.check.title')}</div>
+      <div>{t('plex.check.saved', { count: saved, shown })}</div>
       <div>
         {d.savedAt
-          ? `Last saved ${ago(d.savedAt)}: "${d.title ?? '?'}" at ${clock(d.at)} of ${clock(d.dur)}${d.done ? ' (counted as watched)' : ''}`
-          : 'Nothing saved yet on this box.'}
+          ? t(d.done ? 'plex.check.lastSavedDone' : 'plex.check.lastSaved', { ago: ago(d.savedAt), title: d.title ?? '?', at: clock(d.at), dur: clock(d.dur) })
+          : t('plex.check.nothingSaved')}
       </div>
-      {d.infoMissAt ? <div>Couldn't read what was playing {ago(d.infoMissAt)}.</div> : null}
+      {d.infoMissAt ? <div>{t('plex.check.infoMiss', { ago: ago(d.infoMissAt) })}</div> : null}
       {d.beatAt ? (
         <div>
           {d.beatPos != null
-            ? `Player last reported ${clock(d.beatPos)} of ${clock(d.beatDur)}, ${ago(d.beatAt)}${skip}`
-            : `Player last checked ${ago(d.beatAt)}${skip}`}
+            ? t(d.beatSkip ? 'plex.check.reportedSkip' : 'plex.check.reported', { pos: clock(d.beatPos), dur: clock(d.beatDur), ago: ago(d.beatAt), why })
+            : t(d.beatSkip ? 'plex.check.checkedSkip' : 'plex.check.checked', { ago: ago(d.beatAt), why })}
         </div>
       ) : null}
-      {d.closedAt ? <div>Last closed {ago(d.closedAt)} — title known: {yesNo(d.closedKnown)}, playing: {yesNo(d.closedActive)}</div> : null}
-      {d.storageErrorAt ? <div>Couldn't save on this box {ago(d.storageErrorAt)}: its storage is full or unavailable.</div> : null}
+      {d.closedAt ? <div>{t('plex.check.closed', { ago: ago(d.closedAt), known: yesNo(d.closedKnown), playing: yesNo(d.closedActive) })}</div> : null}
+      {d.storageErrorAt ? <div>{t('plex.check.storageError', { ago: ago(d.storageErrorAt) })}</div> : null}
       {d.cloudErrorAt || d.cloudError
-        ? <div>{`Couldn't copy to your account${d.cloudErrorAt ? ` ${ago(d.cloudErrorAt)}` : ''}${d.cloudError ? `: ${d.cloudError}` : '.'}`}</div>
+        ? <div>{t(d.cloudErrorAt ? (d.cloudError ? 'plex.check.cloudAgoError' : 'plex.check.cloudAgo') : (d.cloudError ? 'plex.check.cloudError' : 'plex.check.cloud'), { ago: ago(d.cloudErrorAt), error: d.cloudError })}</div>
         : null}
     </div>
   );
@@ -2096,6 +2122,7 @@ interface JustLinkedCardProps {
   onSignOut: () => void;
 }
 const JustLinkedCard = memo(({ conn, accountToken, onContinue, onSignOut }: JustLinkedCardProps) => {
+  const { t } = useTranslation();
   const [account, setAccount] = useState<{ username?: string; email?: string } | null>(null);
   const [focusIdx, setFocusIdx] = useState(0); // 0=Continue, 1=Sign out
   const focusRef = useRef(focusIdx); useEffect(() => { focusRef.current = focusIdx; }, [focusIdx]);
@@ -2113,8 +2140,8 @@ const JustLinkedCard = memo(({ conn, accountToken, onContinue, onSignOut }: Just
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!isPlexKeyOwner('browse')) return;
-      const t = e.target as HTMLElement;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
       if (isBack) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
@@ -2144,34 +2171,34 @@ const JustLinkedCard = memo(({ conn, accountToken, onContinue, onSignOut }: Just
   return (
     <div className="min-h-screen flex items-center justify-center p-8 text-white">
       <div className="w-full max-w-lg rounded-3xl bg-slate-900/90 border border-white/10 p-8 text-center shadow-2xl">
-        <h2 className="text-2xl font-quicksand font-bold mb-2">Connected to {conn?.name || 'Plex'}</h2>
-        {accountLine && <p className="text-brand-ice/70 font-nunito text-sm mb-4">as {accountLine}</p>}
+        <h2 className="text-2xl font-quicksand font-bold mb-2">{t('plex.linked.connectedTo', { name: conn?.name || 'Plex' })}</h2>
+        {accountLine && <p className="text-brand-ice/70 font-nunito text-sm mb-4">{t('plex.linked.as', { account: accountLine })}</p>}
         {showOwnedWarning && (
           <div className="mb-6 rounded-xl bg-red-500/15 border border-red-500/40 px-4 py-3 text-left">
-            <p className="text-red-200 font-quicksand font-semibold text-sm mb-1">Heads up</p>
+            <p className="text-red-200 font-quicksand font-semibold text-sm mb-1">{t('plex.linked.headsUp')}</p>
             <p className="text-red-100/90 font-nunito text-sm">
-              This looks like <span className="font-bold">YOUR OWN</span> Plex server. If you meant to use your provider's service, sign out and send them the code instead.
+              <Trans i18nKey="plex.linked.ownServer" components={{ 1: <span className="font-bold" /> }} />
             </p>
           </div>
         )}
         {showProviderReassure && (
-          <p className="text-brand-ice/70 font-nunito text-sm mb-4">You're all set — this is your provider's server.</p>
+          <p className="text-brand-ice/70 font-nunito text-sm mb-4">{t('plex.linked.allSet')}</p>
         )}
         <div className="mt-4 flex items-center justify-center gap-3">
           <button type="button"
             data-focused={focusIdx === 0 ? 'true' : 'false'}
             onClick={onContinue}
             className={`tv-ring tv-ring-contrast px-6 py-3 rounded-xl font-quicksand font-bold ${focusIdx === 0 ? 'bg-brand-gold text-black scale-105 z-10' : 'bg-white/10 text-white'}`}>
-            Continue
+            {t('plex.linked.continueBtn')}
           </button>
           <button type="button"
             data-focused={focusIdx === 1 ? 'true' : 'false'}
             onClick={onSignOut}
             className={`tv-ring tv-ring-contrast px-6 py-3 rounded-xl font-quicksand font-semibold ${focusIdx === 1 ? 'bg-brand-gold text-black scale-105 z-10' : 'bg-white/10 text-white'}`}>
-            Sign out
+            {t('common.signOut')}
           </button>
         </div>
-        <p className="text-center text-xs text-brand-ice/60 font-nunito mt-4">◀ ▶ select · OK activate · Back continues</p>
+        <p className="text-center text-xs text-brand-ice/60 font-nunito mt-4">{t('plex.linked.hint')}</p>
       </div>
     </div>
   );
@@ -2198,6 +2225,7 @@ const seedFromItem = (it: PlexItem): PlexPlayInfo | null => {
 
 // ─── MAIN ──────────────────────────────────────────────────────────────────
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport, onNeedLiveTV, onFullscreenChange }: Props) => {
+  const { t } = useTranslation();
   const {
     status, conn, pinCode, error, justLinked, accountToken, providerNote, providerAvailable,
     clearJustLinked, startLink, cancelLink, signOut, retryConnect, linkWithProvider, reportAuthFailure,
@@ -2549,7 +2577,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         // here: a throw is usually a Wi-Fi blip, and discarding the saved
         // server over one would strand a box whose PMS is on the LAN while
         // the internet is down.
-        const msg = (e as Error)?.message || 'Could not reach the server';
+        const msg = (e as Error)?.message || i18n.t('plex.section.unreachable');
         setLibrariesError(msg);
         // 401 is not a blip: the token is dead. The hook decides whether it
         // is the provider's (replaceable from the Live TV line) or a member's
@@ -2578,9 +2606,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [season] = useState<Season | null>(() => activeSeason());
   const tabs = useMemo<Tab[]>(() => {
     const t: Tab[] = [
-      { key: '__home', title: 'Home', type: 'home' },
-      { key: '__discover', title: 'Discover', type: 'discover' },
-      { key: '__search', title: 'Search', type: 'search' },
+      { key: '__home', title: '', titleKey: 'plex.menu.home', type: 'home' },
+      { key: '__discover', title: '', titleKey: 'plex.menu.discover', type: 'discover' },
+      { key: '__search', title: '', titleKey: 'plex.menu.search', type: 'search' },
     ];
     // In season (e.g. Halloween): its own entry at the top of the libraries.
     if (season) t.push({ key: `__season_${season.id}`, title: season.title, type: 'seasonal' });
@@ -2589,8 +2617,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     }
     // A Kids profile does not request titles or change Plex's settings.
     if (!kidsLevel()) {
-      t.push({ key: '__request', title: 'Request', type: 'request' });
-      t.push({ key: '__manage', title: 'Settings', type: 'manage' });
+      t.push({ key: '__request', title: '', titleKey: 'plex.menu.request', type: 'request' });
+      t.push({ key: '__manage', title: '', titleKey: 'plex.menu.settings', type: 'manage' });
     }
     return t;
   }, [visibleLibraries, season]);
@@ -2606,7 +2634,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     for (const g of order) {
       tabs.forEach((t, i) => {
         const group: MenuGroup = (t.type === 'home' || t.type === 'discover' || t.type === 'search') ? 'home' : (t.type === 'movie' || t.type === 'show' || t.type === 'seasonal') ? 'libraries' : 'more';
-        if (group === g) out.push({ tabIdx: i, title: t.title, group, key: t.key });
+        if (group === g) out.push({ tabIdx: i, title: t.title, titleKey: t.titleKey, group, key: t.key });
       });
     }
     return out;
@@ -2699,7 +2727,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
     if (dl.machineIdentifier && conn.clientIdentifier && dl.machineIdentifier !== conn.clientIdentifier) {
       const title = dl.title || '';
-      if (!title) { finish(); toast({ title: 'This title lives on a different Plex server' }); return; }
+      if (!title) { finish(); toast({ title: i18n.t('plex.section.otherServer') }); return; }
       searchPlex(conn.base, conn.token, title)
         .then((results) => {
           // An orphaned continuation must never touch the key-owner token, the
@@ -2711,9 +2739,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           const norm = (s: string) => s.trim().toLowerCase();
           const match = results.find((r) => norm(r.title) === norm(title)) || results[0];
           if (match) { setDeepLinked(true); openDetail(match); }
-          else toast({ title: 'This title lives on a different Plex server' });
+          else toast({ title: i18n.t('plex.section.otherServer') });
         })
-        .catch(() => { if (cancelled) return; finish(); toast({ title: 'This title lives on a different Plex server' }); });
+        .catch(() => { if (cancelled) return; finish(); toast({ title: i18n.t('plex.section.otherServer') }); });
       return () => { cancelled = true; };
     }
 
@@ -3153,7 +3181,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       qualityKeyRef.current = relay.key;
       setUseTranscode(true);
       setStreamUrl(sourceTranscodeUrl(conn, srcKey, { maxVideoBitrateKbps: relay.maxVideoBitrateKbps, videoResolution: relay.videoResolution }));
-      try { toast({ title: `Playing at ${relay.label}`, description: "This TV can only reach the Plex server through Plex's relay, which can't carry more. Change it under Quality." }); } catch { /* ignore */ }
+      try { toast({ title: i18n.t('plex.section.toast.relayTitle', { quality: relay.label }), description: i18n.t('plex.section.toast.relayDesc') }); } catch { /* ignore */ }
       return;
     }
     try {
@@ -3188,10 +3216,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // The stats panel's Session line (Help → Playback stats): what the server
   // does with the file, like the Plex app's "Direct Playing" line.
   const statsSession = !useTranscode
-    ? 'Direct play of the original file'
+    ? t('plex.section.sessionDirect')
     : qualityCapKbps
-      ? `Converting to ${PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKey)?.label ?? 'a lower quality'}`
-      : forcedTranscodeRef.current ? 'Converting the sound (picture as it is)' : 'Converting at original quality';
+      ? t('plex.section.sessionConvertTo', { quality: PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKey)?.label ?? t('plex.section.aLowerQuality') })
+      : forcedTranscodeRef.current ? t('plex.section.sessionSoundOnly') : t('plex.section.sessionOriginal');
   // What is playing, as far as Play already knew it: the title's page, the
   // episode list, Up Next. PlexProgressReporter saves from this until
   // EpisodeAutoplay's fuller answer from the server arrives (playInfo below).
@@ -3377,7 +3405,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         if (tracks && tracks.length > 0 && tracks.some(t => t.selected)) return;
         if (audioSafetyRef.current === key) return;
         audioSafetyRef.current = key;
-        try { toast({ title: 'Fixing audio…' }); } catch { /* ignore */ }
+        try { toast({ title: i18n.t('plex.section.toast.fixingAudio') }); } catch { /* ignore */ }
         let resume: number | undefined;
         try {
           const p = await SnowPlayer.getPosition();
@@ -3635,8 +3663,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
       try {
         toast(refused
-          ? { title: "The Plex server wouldn't convert this", description: 'Playing original quality instead. Over the Plex Relay it may buffer.' }
-          : { title: "The Plex server couldn't convert this in time", description: 'Playing original quality instead.' });
+          ? { title: i18n.t('plex.section.toast.refusedTitle'), description: i18n.t('plex.section.toast.refusedDesc') }
+          : { title: i18n.t('plex.section.toast.tooSlowTitle'), description: i18n.t('plex.section.toast.tooSlowDesc') });
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
@@ -3762,10 +3790,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     changeQualityRef.current(move.step.key, Math.floor(resume));
     try {
       toast(move.reason === 'slow-start'
-        ? { title: 'The Plex server is slow to convert this', description: `Playing ${shown} instead. Change it any time under Quality.` }
+        ? { title: i18n.t('plex.section.toast.slowConvertTitle'), description: i18n.t('plex.section.toast.slowConvertDesc', { quality: shown }) }
         : move.direction === 'down'
-          ? { title: `Lowered to ${shown} for your speed`, description: 'It goes back up by itself when the speed does. Change it any time under Quality.' }
-          : { title: `Back to ${shown}`, description: 'Your speed picked up.' });
+          ? { title: i18n.t('plex.section.toast.loweredTitle', { quality: shown }), description: i18n.t('plex.section.toast.loweredDesc') }
+          : { title: i18n.t('plex.section.toast.backToTitle', { quality: shown }), description: i18n.t('plex.section.toast.backToDesc') });
     } catch { /* ignore */ }
   }, [nativeGetPosition, autoLadder]);
   // A conversion automatic quality asked for (a drop, or the relay's start)
@@ -4171,7 +4199,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             menuHoldTimerRef.current = null;
             menuHoldFiredRef.current = true;
             toggleHidden(libKey);
-            toast({ title: `${title} hidden`, description: 'Bring it back any time under Settings.' });
+            toast({ title: i18n.t('plex.section.toast.hiddenTitle', { name: title }), description: i18n.t('plex.section.toast.hiddenDesc') });
           }, 600) as unknown as number;
         }
         return;
@@ -4229,10 +4257,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-6"
       role="dialog" aria-modal="true">
       <div className="max-w-md w-full rounded-xl border border-brand-gold/40 bg-[#0b1622] p-6 text-center shadow-2xl">
-        <p className="font-nunito text-white/90 text-base leading-relaxed">{DEMO_DIALOG_MSG}</p>
+        <p className="font-nunito text-white/90 text-base leading-relaxed">{demoDialogMsg()}</p>
         <button type="button" autoFocus onClick={() => setDemoNotice(false)}
           className="mt-5 px-6 py-2 rounded-lg bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
-          OK
+          {i18n.t('common.ok')}
         </button>
       </div>
     </div>
@@ -4240,7 +4268,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   // ── render: auth gate ───────────────────────────────────────────────
   if (status === 'loading' || status === 'connecting') {
-    return <div className="min-h-screen flex items-center justify-center text-white"><div className="w-full max-w-md"><SnowLoader size="md" label="Connecting to Plex…" /></div></div>;
+    return <div className="min-h-screen flex items-center justify-center text-white"><div className="w-full max-w-md"><SnowLoader size="md" label={t('plex.section.connecting')} /></div></div>;
   }
   if (status !== 'ready') {
     return <PlexAuthScreen status={status} pinCode={pinCode} error={error} providerNote={providerNote} providerAvailable={providerAvailable} onStartLink={startLink} onLinkWithProvider={() => { void linkWithProvider(); }} onNeedLiveTV={onNeedLiveTV} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
@@ -4267,9 +4295,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return (
       <div className="min-h-screen flex-1 flex flex-col items-center justify-center gap-4 bg-black/40 text-white">
         <div className="w-full max-w-md">
-          <SnowLoader size="md" label="Getting Plex ready…" />
+          <SnowLoader size="md" label={t('plex.section.gettingReady')} />
         </div>
-        <p className="text-xs font-nunito text-brand-ice/70">Plex · {conn?.name}</p>
+        <p className="text-xs font-nunito text-brand-ice/70">{t('plex.section.serverLine', { name: conn?.name })}</p>
       </div>
     );
   }
@@ -4291,14 +4319,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const playerLayer = fullscreen ? (
       <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
         {!NATIVE_PLAYBACK && streamUrl && (
-          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
             <VideoPlayer src={streamUrl} volume={volume} className="w-full h-full" />
           </Suspense>
         )}
         {NATIVE_PLAYBACK && !native.error && !slowLoad && !(preBufferActive && nativeActive) && (!streamUrl || !nativeActive || native.buffering) && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-full max-w-md">
-              <SnowLoader size="lg" label={streamUrl && nativeActive ? 'Buffering…' : 'Loading…'} />
+              <SnowLoader size="lg" label={streamUrl && nativeActive ? t('plex.buffering.headline') : t('common.loading')} />
             </div>
           </div>
         )}
@@ -4308,8 +4336,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <div className="w-full max-w-md mb-3">
               <SnowLoader size="md" />
             </div>
-            <p className="font-quicksand font-semibold mb-1">Still preparing…</p>
-            <p className="text-sm text-brand-ice/70 font-nunito mb-4">Your Plex server is slow to respond.</p>
+            <p className="font-quicksand font-semibold mb-1">{t('plex.section.stillPreparing')}</p>
+            <p className="text-sm text-brand-ice/70 font-nunito mb-4">{t('plex.section.slowToRespond')}</p>
             <button onClick={() => {
               if (!streamUrl && playing) {
                 // No stream URL resolved yet — native.retry() would be a no-op.
@@ -4321,24 +4349,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                 native.retry();
               }
             }} autoFocus data-focused="true" className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold">
-              <RotateCw className="w-4 h-4" /> Retry
+              <RotateCw className="w-4 h-4" /> {t('common.retry')}
             </button>
           </div>
         )}
         {NATIVE_PLAYBACK && native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 p-6 text-center">
             <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
-            <p className="font-quicksand font-semibold mb-1">Playback Error</p>
+            <p className="font-quicksand font-semibold mb-1">{t('plex.section.playbackError')}</p>
             <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
             <button onClick={() => { armSlowLoadTimer(); native.retry(); }} autoFocus data-focused="true" className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold">
-              <RotateCw className="w-4 h-4" /> Retry
+              <RotateCw className="w-4 h-4" /> {t('common.retry')}
             </button>
           </div>
         )}
         {titleShown && (
           <div className="absolute top-0 left-0 right-0 p-4 pr-96 bg-gradient-to-b from-black/80 to-transparent pointer-events-none animate-fade-in">
             <p className="font-quicksand font-bold text-white truncate">
-              {playingTitle}{useTranscode ? ' · transcoding' : ''}
+              {playingTitle}{useTranscode ? ` · ${t('plex.section.transcoding')}` : ''}
               {playingResLabel && (
                 <span className={`ml-2 align-middle text-xs font-bold px-2 py-1 rounded-lg bg-black/70 ${playingResLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{playingResLabel}</span>
               )}
@@ -4346,7 +4374,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           </div>
         )}
         {NATIVE_PLAYBACK && !native.error && (
-          <BufferingDiagnostics buffering={native.buffering} showHelpHint footnote={routeLabel ? `Route: ${routeLabel}` : undefined} explain={explainStall} autoNote={autoNote} needKbps={stallNeedKbps} quickCheckLabel />
+          <BufferingDiagnostics buffering={native.buffering} showHelpHint footnote={routeLabel ? t('plex.section.route', { route: routeLabel }) : undefined} explain={explainStall} autoNote={autoNote} needKbps={stallNeedKbps} quickCheckLabel />
         )}
         {NATIVE_PLAYBACK && !native.error && (
           <PlexPlayerOverlay
@@ -4443,7 +4471,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         // first 2–4% of that. The server line was the thing being cut off.
         style={{ paddingTop: '3.5vh' }}
       >
-        <div className={`pb-1 text-xs font-nunito text-brand-ice/60 truncate ${menuCollapsed ? 'px-0 text-center' : 'px-5'}`}>{menuCollapsed ? 'Plex' : `Plex · ${conn?.name}`}</div>
+        <div className={`pb-1 text-xs font-nunito text-brand-ice/60 truncate ${menuCollapsed ? 'px-0 text-center' : 'px-5'}`}>{menuCollapsed ? 'Plex' : t('plex.section.serverLine', { name: conn?.name })}</div>
         {menuEntries.map((m, i) => {
           const focused = isActive && !fullscreen && zone === 'tabs' && menuIdx === i;
           const tab = tabs[m.tabIdx];
@@ -4459,7 +4487,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               <button
                 ref={(el) => { menuBtnRefs.current[i] = el; }}
                 data-focused={focused ? 'true' : 'false'}
-                title={menuCollapsed ? m.title : undefined}
+                title={menuCollapsed ? (m.titleKey ? t(m.titleKey) : m.title) : undefined}
                 onClick={(e) => { if (menuCollapsed) return; e.stopPropagation(); cancelPendingTab(); setMenuKey(m.key); if (m.tabIdx !== libIdx) setLibIdx(m.tabIdx); setZone('grid'); }}
                 // appearance-none: an old WebView (X96 / T95 Android 9) paints the OS
                 // button face over a <button> whose only background is the reset's
@@ -4472,12 +4500,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               >
                 {selected && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-brand-gold" aria-hidden="true" />}
                 <Icon className={`w-4 h-4 flex-shrink-0 ${selected ? 'text-brand-gold opacity-100' : 'opacity-80'}`} />
-                {!menuCollapsed && <span className="truncate">{m.title}</span>}
+                {!menuCollapsed && <span className="truncate">{m.titleKey ? t(m.titleKey) : m.title}</span>}
               </button>
             </div>
           );
         })}
-        {!menuCollapsed && <div className="mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">▶ into rows · Hold OK hide a library · Back exit</div>}
+        {!menuCollapsed && <div className="mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">{t('plex.section.menuHint')}</div>}
       </div>
 
       <div className="relative flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -4487,7 +4515,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           // behind it (its hubs would compete with the search); entering the
           // content before it lands shows Home as usual.
           <div className="h-full flex items-center justify-center text-brand-ice/80 font-nunito text-base">
-            <Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Finding “{voiceWait}” on Plex…
+            <Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> {t('plex.section.finding', { title: voiceWait })}
           </div>
         ) : currentTab?.type === 'home' && conn ? (
           <HomePanel
@@ -4502,7 +4530,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             serverResume={ownPlexAccount}
             // Plays on the provider's server under the shared account are
             // every Snow Media viewer's.
-            popularTitle={!ownPlexAccount && isProviderServer(conn.name) ? 'Popular on Snow Media' : 'Most Watched'}
+            popularTitleKey={!ownPlexAccount && isProviderServer(conn.name) ? 'plex.home.popularSnow' : 'plex.home.mostWatched'}
             clientIdentifier={conn.clientIdentifier}
           />
         ) : currentTab?.type === 'discover' && conn ? (
@@ -4560,9 +4588,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             serverResume={ownPlexAccount}
           />
         ) : itemsLoading && items.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/70 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading…</div>
+          <div className="h-full flex items-center justify-center text-brand-ice/70 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> {t('common.loading')}</div>
         ) : items.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>
+          <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">{t('plex.home.nothingYet')}</div>
         ) : (
           <div style={{ height: totalH, position: 'relative', width: '100%' }}>
             {rowVirtualizer.getVirtualItems().map((vr) => {

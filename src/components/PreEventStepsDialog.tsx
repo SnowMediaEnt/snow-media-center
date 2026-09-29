@@ -1,8 +1,9 @@
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NoticeLayer from '@/components/ui/notice-layer';
-import { PRE_EVENT_STEPS, DEFAULT_PRE_EVENT_HEADLINE } from '@/hooks/usePreEventAlert';
+import { DEFAULT_PRE_EVENT_HEADLINE } from '@/hooks/usePreEventAlert';
 import { trackEvent } from '@/lib/analytics';
 
 interface PreEventStepsDialogProps {
@@ -21,13 +22,20 @@ interface PreEventStepsDialogProps {
  * viewer with a dead app: no clicks, no typing, no keyboard. It had no
  * currentView gate either, so it landed over the Player mid-stream.
  */
+// The five steps, as keys: the list is drawn in the viewer's language.
+const STEP_KEYS = ['popups.preEvent.step1', 'popups.preEvent.step2', 'popups.preEvent.step3', 'popups.preEvent.step4', 'popups.preEvent.step5'];
+
 const PreEventStepsDialog = ({ open, headline, onDismiss }: PreEventStepsDialogProps) => {
+  const { t } = useTranslation();
   const handleDismiss = () => {
     try { trackEvent('alert_popup_action', 'alerts', { alert: 'pre_event', action: 'ok' }); } catch { void 0; }
     onDismiss();
   };
 
-  const title = (headline && headline.trim()) || DEFAULT_PRE_EVENT_HEADLINE;
+  // The headline is the admin's (the event name). Empty, or the stock English one the
+  // admin panel fills in, it is shown in the viewer's language instead.
+  const written = (headline && headline.trim()) || '';
+  const title = !written || written === DEFAULT_PRE_EVENT_HEADLINE ? t('popups.preEvent.defaultHeadline') : written;
 
   return (
     <NoticeLayer open={open} labelledBy="smc-pre-event-title" onDismiss={handleDismiss}>
@@ -39,12 +47,12 @@ const PreEventStepsDialog = ({ open, headline, onDismiss }: PreEventStepsDialogP
           </h2>
         </div>
         <ol className="px-6 py-5 space-y-3 overflow-y-auto">
-          {PRE_EVENT_STEPS.map((step, i) => (
+          {STEP_KEYS.map((key, i) => (
             <li key={i} className="flex items-start gap-3 text-base font-medium text-slate-100">
               <span className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-gold text-slate-900 flex items-center justify-center font-bold text-base shadow-lg">
                 {i + 1}
               </span>
-              <span className="pt-0.5">{step}</span>
+              <span className="pt-0.5">{t(key)}</span>
             </li>
           ))}
         </ol>
@@ -55,7 +63,7 @@ const PreEventStepsDialog = ({ open, headline, onDismiss }: PreEventStepsDialogP
             onClick={handleDismiss}
             className="min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 focus:ring-brand-ice focus:scale-105 transition"
           >
-            OK, got it
+            {t('popups.preEvent.okGotItBtn')}
           </Button>
         </div>
       </div>

@@ -49,6 +49,7 @@ import { lastPlaybackStartAt, lastSeekAt, markPlaybackStart, markSeek } from '@/
 import plugin from '../../android/app/src/main/java/com/snowmedia/player/SnowPlayerPlugin.kt?raw';
 import rule from '../../android/app/src/main/java/com/snowmedia/player/PreBufferRule.kt?raw';
 import uhdRule from '../../android/app/src/main/java/com/snowmedia/player/UhdBuffer.kt?raw';
+import strings from '../../android/app/src/main/res/values/strings.xml?raw';
 
 const FILM = 'https://srv.plex.direct:32400/library/parts/42/1700000000/file.mkv';
 const CHANNEL = 'http://iptv.example/live/1.ts';
@@ -297,14 +298,18 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
 
   it('a film that gives up says how its server failed, and never with a URL', () => {
     const msg = body('private fun exhaustedMessage(');
+    // The words are in strings.xml (AppLocale, the app's saved language); the choice of which is here.
     // Stopped answering: worth another try.
-    expect(msg).toMatch(/ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,\s*PlaybackException\.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,\s*PlaybackException\.ERROR_CODE_IO_UNSPECIFIED,\s*-> "The server stopped responding\. Try again\."/);
+    expect(msg).toMatch(/ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,\s*PlaybackException\.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,\s*PlaybackException\.ERROR_CODE_IO_UNSPECIFIED,\s*-> localized\(R\.string\.player_err_server_stopped\)/);
     // Turned down: the HTTP status when there is one.
-    expect(msg).toMatch(/ERROR_CODE_IO_BAD_HTTP_STATUS -> \{\s*val status = httpStatusOf\(error\)\s*if \(status != null\) "\$server refused this file \(HTTP \$status\)\." else "\$server refused this file\."/);
-    expect(msg).toMatch(/ERROR_CODE_IO_FILE_NOT_FOUND,\s*PlaybackException\.ERROR_CODE_IO_NO_PERMISSION,\s*-> "\$server refused this file\."/);
-    expect(msg).toContain('val server = if (isPlexStream(Uri.parse(url))) "The Plex server" else "The server"');
+    expect(msg).toMatch(/ERROR_CODE_IO_BAD_HTTP_STATUS -> \{\s*val status = httpStatusOf\(error\)\s*when \{\s*status != null && plex -> localized\(R\.string\.player_err_plex_refused_status, status\)\s*status != null -> localized\(R\.string\.player_err_refused_status, status\)\s*plex -> localized\(R\.string\.player_err_plex_refused\)\s*else -> localized\(R\.string\.player_err_refused\)/);
+    expect(msg).toMatch(/ERROR_CODE_IO_FILE_NOT_FOUND,\s*PlaybackException\.ERROR_CODE_IO_NO_PERMISSION,\s*-> localized\(if \(plex\) R\.string\.player_err_plex_refused else R\.string\.player_err_refused\)/);
+    expect(msg).toContain('val plex = isPlexStream(Uri.parse(url))');
+    expect(strings).toContain('<string name="player_err_server_stopped">The server stopped responding. Try again.</string>');
+    expect(strings).toContain('<string name="player_err_refused_status">The server refused this file (HTTP %1$d).</string>');
+    expect(strings).toContain('<string name="player_err_plex_refused_status">The Plex server refused this file (HTTP %1$d).</string>');
     // Anything else in the player's words, unless they carry an address.
-    expect(msg).toContain('else -> error.message?.takeIf { it.isNotBlank() && !it.contains("://") } ?: "Playback error"');
+    expect(msg).toContain('else -> error.message?.takeIf { it.isNotBlank() && !it.contains("://") } ?: localized(R.string.player_err_playback)');
     expect(msg).not.toMatch(/\$url|\+ url|dataSpec|\.uri/);
     const status = body('private fun httpStatusOf(');
     expect(status).toContain('if (t is HttpDataSource.InvalidResponseCodeException) return t.responseCode.takeIf { it > 0 }');

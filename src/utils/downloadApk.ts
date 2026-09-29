@@ -1,8 +1,13 @@
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { isNativePlatform } from "@/utils/platform";
 import { CapacitorHttp, type PluginListenerHandle } from "@capacitor/core";
+import i18n from "@/i18n";
+import { formatNumber } from "@/i18n/format";
 
-const MB = (bytes: number) => `${(bytes / 1048576).toFixed(1)}MB`;
+const MB = (bytes: number) => `${formatNumber(Math.round((bytes / 1048576) * 10) / 10)}MB`;
+
+/** A download that ended short. A class of its own, so it is recognised without reading its (translated) text. */
+class IncompleteDownloadError extends Error {}
 
 /**
  * Headers for APK fetches.
@@ -77,7 +82,7 @@ async function describeDownloadFailure(
   expectedBytes: number | null,
   error: unknown,
 ): Promise<string> {
-  const base = error instanceof Error ? error.message : 'Native download error';
+  const base = error instanceof Error ? error.message : i18n.t('updater.errors.nativeError');
 
   let written: number | null = null;
   try {
@@ -90,15 +95,15 @@ async function describeDownloadFailure(
 
   if (written !== null && expectedBytes) {
     if (written === 0) {
-      return `Download failed: no data received (expected ${MB(expectedBytes)}). ${base}`;
+      return i18n.t('updater.errors.failedNoData', { expected: MB(expectedBytes), detail: base });
     }
     const pct = Math.round((written / expectedBytes) * 100);
-    return `Download failed: connection dropped at ${MB(written)} of ${MB(expectedBytes)} (${pct}%). ${base}`;
+    return i18n.t('updater.errors.failedDropped', { written: MB(written), expected: MB(expectedBytes), percent: pct, detail: base });
   }
   if (written) {
-    return `Download failed after ${MB(written)}. ${base}`;
+    return i18n.t('updater.errors.failedAfter', { written: MB(written), detail: base });
   }
-  return `Download failed: ${base}`;
+  return i18n.t('updater.errors.failedPlain', { detail: base });
 }
 
 
@@ -139,7 +144,7 @@ export async function downloadApkToCache(
   console.log('[APK] Native:', isNative);
   
   if (!isNative) {
-    throw new Error('APK downloads are only available on Android devices');
+    throw new Error(i18n.t('updater.errors.androidOnly'));
   }
 
   // Clean up old APKs first
@@ -240,8 +245,8 @@ export async function downloadApkToCache(
       const stat = await Filesystem.stat({ path, directory: Directory.Cache });
       if (typeof stat.size === 'number' && stat.size < expectedBytes) {
         try { await Filesystem.deleteFile({ path, directory: Directory.Cache }); } catch { /* ignore */ }
-        throw new Error(
-          `Download incomplete: got ${MB(stat.size)} of ${MB(expectedBytes)}. Check your connection and try again.`,
+        throw new IncompleteDownloadError(
+          i18n.t('updater.errors.downloadIncomplete', { got: MB(stat.size), expected: MB(expectedBytes) }),
         );
       }
     }
@@ -261,11 +266,11 @@ export async function downloadApkToCache(
   } catch (error) {
     console.error('[APK] Native download failed:', error);
     // Already a specific, actionable message — don't bury it in a second wrapper.
-    if (error instanceof Error && error.message.startsWith('Download incomplete')) throw error;
+    if (error instanceof IncompleteDownloadError) throw error;
     let msg = await describeDownloadFailure(path, expectedBytes, error);
     // If HEAD was also refused, name the status — it usually IS the cause.
     if (preflightStatus !== null && (preflightStatus < 200 || preflightStatus >= 300)) {
-      msg += ` (the server also answered HTTP ${preflightStatus} to a HEAD request for this URL)`;
+      msg += ` ${i18n.t('updater.errors.headStatus', { status: preflightStatus })}`;
     }
     throw new Error(msg);
   } finally {

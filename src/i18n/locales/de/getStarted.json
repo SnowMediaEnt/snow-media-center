@@ -1,0 +1,80 @@
+{
+  "getStarted": {
+    "flow": {
+      "oneMoment": "Einen Moment…",
+      "unavailableTitle": "Registrierung hier nicht verfügbar",
+      "unavailableDesc": "Auf diesem Gerät können derzeit keine neuen Konten erstellt werden. Wenn du schon Benutzername und Passwort hast, drücke Zurück und melde dich an.",
+      "backToSignInBtn": "Zurück zur Anmeldung"
+    },
+    "ds": {
+      "subtitle": "Teste es erst kostenlos oder kauf gleich einen Tarif.",
+      "trialTitle": "Testzugang",
+      "trialSub": "24 Stunden · ohne Karte",
+      "trialDesc": "Wir erstellen deinen Login und melden den Player sofort an.",
+      "buyTitle": "Tarif kaufen",
+      "buySub": "Laufzeit wählen und jetzt bezahlen",
+      "buyDesc": "Bezahle am Fernseher oder mit dem Handy, dann meldet sich der Player von selbst an."
+    },
+    "chooser": {
+      "title": "Los geht's",
+      "subtitle": "Wähle einen Dienst, wir richten alles ein.",
+      "dsSub": "Einrichtung am Fernseher · etwa eine Minute",
+      "dsDesc": "Starte hier einen kostenlosen 24-Stunden-Test oder kaufe einen Tarif. Dein Login wird für dich erstellt und der Player meldet sich von selbst an.",
+      "vibezSub": "Am Handy abschließen · etwa 5 Minuten",
+      "vibezDesc": "Die Vibez-Registrierung läuft auf deren Website. Scanne einen Code mit dem Handy, bezahle dort, und du bekommst einen Login per E-Mail. Gib ihn dann hier ein.",
+      "haveLoginBtn": "Ich habe schon einen Login"
+    },
+    "plans": {
+      "title": "Los geht's mit Vibez",
+      "subtitle": "Du schließt es am Handy ab, etwa 5 Minuten",
+      "free": "Kostenlos",
+      "seePlans": "Tarife ansehen und registrieren",
+      "seePlansDesc": "Scanne mit dem Handy, wähle dort ein Paket und bezahle. Komm dann zurück und gib den Login aus der E-Mail ein.",
+      "whatOffers": "Das bietet Vibez",
+      "trial": "Testzugang",
+      "plan": "Tarif",
+      "noCard": "ohne Karte",
+      "trialSubLabel": "{{label}} · ohne Karte",
+      "streamingPlan": "Streaming-Tarif",
+      "priceNext": "Preis auf dem nächsten Bildschirm"
+    },
+    "tier": {
+      "month_one": "{{count}} Monat",
+      "month_other": "{{count}} Monate",
+      "year": "1 Jahr",
+      "connections_one": "{{count}} Verbindung",
+      "connections_other": "{{count}} Verbindungen",
+      "plan": "Tarif"
+    },
+    "handoff": {
+      "title": "Am Handy abschließen",
+      "intro": "{{label}}: Die Vibez-Registrierung läuft auf deren Website. Scanne das mit dem Handy und bezahle, dann schicken sie dir Benutzername und Passwort per E-Mail. Komm danach hierher zurück.",
+      "qrAlt": "QR-Code für die Vibez-Registrierung",
+      "orType": "Oder gib das in einem Browser ein",
+      "nothingChanges": "Am Fernseher ändert sich nichts, bis du zurückkommst und den zugesandten Login eingibst.",
+      "haveLoginBtn": "Ich habe meinen Login – weiter",
+      "openBtn": "Am Fernseher öffnen"
+    },
+    "signIn": {
+      "title": "Gib deinen Vibez-Login ein",
+      "intro": "Nutze den Benutzernamen und das Passwort, die Vibez dir nach der Zahlung per E-Mail geschickt hat.",
+      "introResumed": "Nutze den Benutzernamen und das Passwort, die Vibez dir für {{label}} per E-Mail geschickt hat.",
+      "usernameLabel": "Benutzername",
+      "usernamePlaceholder": "Benutzername von Vibez",
+      "usernameAria": "Vibez-Benutzername",
+      "passwordLabel": "Passwort",
+      "passwordPlaceholder": "Passwort von Vibez",
+      "passwordAria": "Vibez-Passwort",
+      "checking": "Prüfung bei Vibez…",
+      "forgetBtn": "Ich habe nichts gekauft",
+      "missingTitle": "Angaben fehlen",
+      "missingDesc": "Gib den Benutzernamen und das Passwort ein, die Vibez dir geschickt hat.",
+      "couldNotTitle": "Anmeldung nicht möglich",
+      "tryAgainDesc": "Bitte versuche es erneut.",
+      "unreachableTitle": "Vibez nicht erreichbar",
+      "unreachableDesc": "Wir konnten den Login gerade nicht prüfen. Prüfe die Verbindung und versuche es erneut.",
+      "connectedTitle": "Verbunden",
+      "connectedDesc": "Bei Vibez als {{username}} angemeldet."
+    }
+  }
+}

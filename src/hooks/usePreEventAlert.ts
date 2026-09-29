@@ -24,6 +24,8 @@ export interface PreEventAlertRow {
   updated_at: string;
 }
 
+// English text for the admin panel (AppAlertsManager), which stays English. Customers see the
+// same five steps in their language: PreEventStepsDialog reads popups.preEvent.step1..5.
 export const PRE_EVENT_STEPS: string[] = [
   "Make sure you aren't expired",
   'Update Playlist / Update Channels',

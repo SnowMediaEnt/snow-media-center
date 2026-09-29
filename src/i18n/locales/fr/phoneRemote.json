@@ -1,0 +1,39 @@
+{
+  "phoneRemote": {
+    "kinds": {
+      "iphone": "Un iPhone",
+      "ipad": "Un iPad",
+      "androidPhone": "Un téléphone Android",
+      "androidTablet": "Une tablette Android",
+      "phoneOrComputer": "Un téléphone ou un ordinateur",
+      "phone": "Un téléphone"
+    },
+    "pairing": {
+      "failed": "Impossible d'obtenir un code d'association : vérifiez la connexion internet.",
+      "qrAlt": "Code QR pour associer votre téléphone",
+      "orGoTo": "ou rendez-vous sur <1>snowmediaent.com/remote</1>"
+    },
+    "request": {
+      "title": "Autoriser ce téléphone ?",
+      "text": "{{device}} a saisi le code de cette TV et veut devenir une télécommande de Snow Media Center.",
+      "hint": "Autorisez-le seulement s'il s'agit de votre téléphone ou de celui d'une personne présente dans la pièce.",
+      "allowBtn": "Autoriser",
+      "denyBtn": "Ne pas autoriser",
+      "unreachable": "Impossible de joindre le serveur de Snow Media Center. Réessayez l'association depuis le téléphone.",
+      "allowed": "Téléphone autorisé. Il peut maintenant contrôler cette TV."
+    },
+    "typing": {
+      "offToastTitle": "Carte du clavier du téléphone désactivée",
+      "offToastDesc": "Réactivez-la à tout moment dans Paramètres → Télécommande mobile.",
+      "readyTitle": "Le clavier de votre téléphone est prêt",
+      "readyText": "Saisissez sur la télécommande mobile et le texte apparaît ici.",
+      "title": "Saisissez sur votre téléphone",
+      "lastTime": "C'était la dernière fois. Réactivez-la dans Paramètres → Télécommande mobile.",
+      "showsMore_one": "S'affichera encore {{count}} fois. Activez ou désactivez-la dans Paramètres → Télécommande mobile.",
+      "showsMore_many": "S'affichera encore {{count}} fois. Activez ou désactivez-la dans Paramètres → Télécommande mobile.",
+      "showsMore_other": "S'affichera encore {{count}} fois. Activez ou désactivez-la dans Paramètres → Télécommande mobile.",
+      "onOff": "Activez ou désactivez-la dans Paramètres → Télécommande mobile.",
+      "dontShowBtn": "Ne plus afficher"
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { tryPlayerBridge } from '@/lib/playerLogin';
 import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow } from 'date-fns';
+import { formatRelative } from '@/i18n/format';
 import { useNavigate } from 'react-router-dom';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
@@ -31,6 +32,7 @@ interface SupportTicketSystemProps {
 }
 
 const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<'list' | 'ticket' | 'create' | 'ai-chat'>('list');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [newSubject, setNewSubject] = useState('');
@@ -79,10 +81,10 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       setBridging(false);
       if (r.ok) {
         toast({
-          title: 'Account restored',
+          title: t('tickets.toast.restoredTitle'),
           description: r.emailMasked
-            ? `Signed into your Snow Media account (${r.emailMasked}). Your tickets are back.`
-            : 'Signed into your Snow Media account. Your tickets are back.',
+            ? t('tickets.toast.restoredDescEmail', { email: r.emailMasked })
+            : t('tickets.toast.restoredDesc'),
         });
       }
     });
@@ -90,7 +92,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     // the request is in flight (the other bridge landed and `user` flipped),
     // the resolver's cancelled-guard would otherwise leave `bridging` true.
     return () => { cancelled = true; setBridging(false); };
-  }, [authLoading, playerLoading, user, playerAccount?.username, playerAccount?.password, playerAccount?.host, toast]);
+  }, [authLoading, playerLoading, user, playerAccount?.username, playerAccount?.password, playerAccount?.host, toast, t]);
 
 
 
@@ -105,7 +107,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     deleteTicket
   } = useSupportTickets(user);
 
-  const selectedTicket = tickets.find(t => t.id === selectedTicketId);
+  const selectedTicket = tickets.find(tk => tk.id === selectedTicketId);
   const ticketMessages = selectedTicketId ? messages[selectedTicketId] || [] : [];
 
   // AI conversations
@@ -150,7 +152,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   const handleDeleteAIChat = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('Delete this AI conversation?')) {
+    if (confirm(t('tickets.ai.confirmDelete'))) {
       await deleteAIConversation(id);
     }
   };
@@ -360,8 +362,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       const hasEmail = email.length > 0;
       if (hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         toast({
-          title: "Invalid email",
-          description: "Please enter a valid email or leave it blank to send anonymously.",
+          title: t('tickets.toast.invalidEmailTitle'),
+          description: t('tickets.toast.invalidEmailDesc'),
           variant: "destructive",
         });
         return;
@@ -379,10 +381,10 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
         });
         if (error) throw error;
         toast({
-          title: "Ticket sent",
+          title: t('tickets.toast.sentTitle'),
           description: hasEmail
-            ? "We received it. Create an account to get a reply in-app."
-            : "We received your anonymous ticket. No reply will be possible.",
+            ? t('tickets.toast.sentDescEmail')
+            : t('tickets.toast.sentDescAnon'),
         });
         try { trackEvent('ticket_create', 'support', { subject_len: newSubject.length, has_user: false, guest_has_email: hasEmail }); } catch { void 0; }
         setNewSubject('');
@@ -398,8 +400,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       } catch (error) {
         console.error('Failed to send guest ticket:', error);
         toast({
-          title: "Error",
-          description: (error as Error)?.message || "Failed to send ticket. Please try again.",
+          title: t('tickets.toast.errorTitle'),
+          description: (error as Error)?.message || t('tickets.toast.sendFailed'),
           variant: "destructive",
         });
       }
@@ -422,21 +424,21 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   const handleCreateAccountFromPrompt = async () => {
     if (!pendingAccountEmail || !accountPassword.trim() || accountPassword.length < 6) {
-      toast({ title: 'Password too short', description: 'Use at least 6 characters.', variant: 'destructive' });
+      toast({ title: t('tickets.toast.passwordShortTitle'), description: t('tickets.toast.passwordShortDesc'), variant: 'destructive' });
       return;
     }
     setCreatingAccount(true);
     try {
       const { error } = await signUp(pendingAccountEmail, accountPassword, accountName.trim() || undefined);
       if (error) throw error;
-      toast({ title: 'Account created', description: 'Check your email to confirm, then sign in to see replies.' });
+      toast({ title: t('tickets.toast.accountCreatedTitle'), description: t('tickets.toast.accountCreatedDesc') });
       setAccountPromptOpen(false);
       setAccountName('');
       setAccountPassword('');
       setPendingAccountEmail('');
     } catch (e: unknown) {
       console.error('Account create failed', e);
-      toast({ title: 'Could not create account', description: e instanceof Error ? e.message : 'Try again later.', variant: 'destructive' });
+      toast({ title: t('tickets.toast.accountFailedTitle'), description: e instanceof Error ? e.message : t('tickets.toast.accountFailedDesc'), variant: 'destructive' });
     } finally {
       setCreatingAccount(false);
     }
@@ -457,8 +459,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     } catch (error) {
       console.error('Failed to send reply:', error);
       toast({
-        title: 'Could not send that',
-        description: error instanceof Error ? error.message : 'Please try again.',
+        title: t('tickets.toast.replyFailedTitle'),
+        description: error instanceof Error ? error.message : t('tickets.toast.replyFailedDesc'),
         variant: 'destructive',
       });
     }
@@ -488,6 +490,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     const now = new Date();
     const hoursDiff = (now.getTime() - lastMessage.getTime()) / (1000 * 60 * 60);
     return hoursDiff <= 24;
+  };
+
+  /** "Active", "Open", "In Progress"... from the stored status code. */
+  const statusLabel = (status: string, isActive?: boolean) => {
+    if (isActive) return t('tickets.status.active');
+    return t(`tickets.status.${status === 'in_progress' ? 'inProgress' : status}`, { defaultValue: status.replace('_', ' ') });
   };
 
   const getStatusIcon = (status: string, isActive?: boolean) => {
@@ -531,31 +539,31 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       <div ref={tvFocus.containerRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <BackButton onClick={() => setView('list')} label="Back to Tickets" data-tv-focus-id="create-back" />
-            <h1 className="text-3xl font-bold">Create Support Ticket</h1>
+            <BackButton onClick={() => setView('list')} label={t('tickets.list.backToTickets')} data-tv-focus-id="create-back" />
+            <h1 className="text-3xl font-bold">{t('tickets.create.title')}</h1>
           </div>
 
           <Card className="bg-slate-800/50 border-slate-700">
             <CardHeader>
-              <CardTitle className="text-white">New Support Request</CardTitle>
+              <CardTitle className="text-white">{t('tickets.create.cardTitle')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {!user && (
                 <>
                   <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
-                    <strong>Not signed in</strong> — your ticket will be delivered, but you won't be able to receive replies in the app. Sign in to get responses.
+                    <Trans i18nKey="tickets.create.notSignedIn" components={{ 1: <strong /> }} />
                   </div>
 
                   <div>
                     <label className="text-sm font-medium text-slate-300 mb-2 block">
-                      Your email <span className="text-slate-400 font-normal">(optional)</span>
+                      <Trans i18nKey="tickets.create.emailLabel" components={{ 1: <span className="text-slate-400 font-normal" /> }} />
                     </label>
                     <Input
                       type="email"
                       value={guestEmail}
                       onChange={(e) => setGuestEmail(e.target.value)}
                       onKeyDown={(e) => handleTicketFieldKeyDown(e, 'create-subject')}
-                      placeholder="you@example.com (leave blank to send anonymously)"
+                      placeholder={t('tickets.create.emailPlaceholder')}
                       enterKeyHint="next"
                       autoComplete="off"
                       autoCorrect="off"
@@ -570,7 +578,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               )}
               <div>
                 <label className="text-sm font-medium text-slate-300 mb-2 block">
-                  Subject
+                  {t('tickets.create.subjectLabel')}
                 </label>
                 <Input
                   value={newSubject}
@@ -580,7 +588,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   autoComplete="off"
                   autoCorrect="off"
                   spellCheck={false}
-                  placeholder="Brief description of your issue..."
+                  placeholder={t('tickets.create.subjectPlaceholder')}
                   data-tv-focus-id="create-subject"
                   data-tv-allow-enter="true"
                   className="bg-slate-700 border-slate-600 text-white "
@@ -591,13 +599,13 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               
               <div>
                 <label className="text-sm font-medium text-slate-300 mb-2 block">
-                  Message
+                  {t('tickets.create.messageLabel')}
                 </label>
                 <Textarea
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => handleTicketFieldKeyDown(e)}
-                  placeholder="Describe your issue in detail..."
+                  placeholder={t('tickets.create.messagePlaceholder')}
                   rows={8}
                   enterKeyHint="done"
                   data-tv-focus-id="create-message"
@@ -613,7 +621,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   data-tv-focus-id="create-submit"
                   className="bg-blue-600 hover:bg-blue-700 "
                 >
-                  {loading ? "Creating..." : "Create Ticket"}
+                  {loading ? t('tickets.create.creating') : t('tickets.create.createBtn')}
                 </Button>
                 <Button 
                   onClick={() => setView('list')}
@@ -621,7 +629,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   data-tv-focus-id="create-cancel"
                   className=""
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
               </div>
             </CardContent>
@@ -633,22 +641,23 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'ticket' && selectedTicket) {
     const ticketActive = isTicketActive(selectedTicket);
+    const canClose = selectedTicket.status !== 'closed' && selectedTicket.status !== 'resolved';
     return (
       <div ref={tvFocus.containerRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
-              <BackButton onClick={() => setView('list')} label="Back to Tickets" data-tv-focus-id="ticket-back" />
+              <BackButton onClick={() => setView('list')} label={t('tickets.list.backToTickets')} data-tv-focus-id="ticket-back" />
               <h1 className="text-3xl font-bold">{selectedTicket.subject}</h1>
               <Badge className={getStatusColor(selectedTicket.status, ticketActive)}>
                 {getStatusIcon(selectedTicket.status, ticketActive)}
                 <span className="ml-1 capitalize">
-                  {ticketActive ? 'Active' : selectedTicket.status.replace('_', ' ')}
+                  {statusLabel(selectedTicket.status, ticketActive)}
                 </span>
               </Badge>
             </div>
             <div className="flex items-center gap-2">
-              {selectedTicket.status !== 'closed' && selectedTicket.status !== 'resolved' && (
+              {canClose && (
                 <Button 
                   onClick={handleCloseTicket}
                   variant="outline"
@@ -656,13 +665,13 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white "
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Close Ticket
+                  {t('tickets.ticket.closeBtn')}
                 </Button>
               )}
               <Button
                 onClick={async () => {
                   if (!selectedTicketId) return;
-                  if (!confirm('Delete this ticket and all its messages? This cannot be undone.')) return;
+                  if (!confirm(t('tickets.ticket.confirmDelete'))) return;
                   await deleteTicket(selectedTicketId);
                   setSelectedTicketId(null);
                   setView('list');
@@ -672,7 +681,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white "
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Delete Ticket
+                {t('tickets.ticket.deleteBtn')}
               </Button>
             </div>
           </div>
@@ -682,14 +691,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2">
                   <MessageCircle className="h-5 w-5" />
-                  Messages
+                  {t('tickets.ticket.messages')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <ScrollArea
                   ref={ticketScrollAreaRef}
                   data-tv-focus-id="ticket-messages"
-                  aria-label="Ticket conversation history"
+                  aria-label={t('tickets.ticket.historyAria')}
                   className="h-96 pr-4"
                 >
                   <div className="space-y-4">
@@ -701,10 +710,10 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       }`}>
                         <div className="flex items-center gap-2 mb-2">
                           <Badge variant={message.sender_type === 'user' ? 'default' : 'secondary'}>
-                            {message.sender_type === 'user' ? 'You' : 'Snow Media Support'}
+                            {message.sender_type === 'user' ? t('tickets.ticket.you') : t('tickets.ticket.support')}
                           </Badge>
                           <span className="text-xs text-slate-400">
-                            {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
+                            {formatRelative(message.created_at)}
                           </span>
                         </div>
                         {message.message?.trim() ? (
@@ -729,7 +738,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   <Textarea
                     value={replyMessage}
                     onChange={(e) => setReplyMessage(e.target.value)}
-                    placeholder="Type your reply..."
+                    placeholder={t('tickets.ticket.replyPlaceholder')}
                     rows={4}
                     data-tv-focus-id="ticket-reply"
                     className="bg-slate-700 border-slate-600 text-white "
@@ -740,7 +749,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                         ? <Mic className="h-4 w-4 text-brand-gold" />
                         : <ImageIcon className="h-4 w-4 text-brand-gold" />}
                       <span className="font-nunito">
-                        {attach.draft.kind === 'audio' ? 'Voice message ready to send' : 'Screenshot ready to send'}
+                        {attach.draft.kind === 'audio' ? t('tickets.ticket.voiceReady') : t('tickets.ticket.shotReady')}
                       </span>
                       <Button
                         variant="ghost"
@@ -749,7 +758,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                         data-tv-focus-id="ticket-attach-clear"
                         className="ml-auto text-slate-300"
                       >
-                        Remove
+                        {t('tickets.ticket.removeBtn')}
                       </Button>
                     </div>
                   ) : null}
@@ -761,7 +770,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       className="bg-blue-600 hover:bg-blue-700 "
                     >
                       <Send className="h-4 w-4 mr-2" />
-                      Send Reply
+                      {t('tickets.ticket.sendReplyBtn')}
                     </Button>
                     {attach.canScreenshot && (
                       <Button
@@ -772,7 +781,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                         className="border-slate-600 text-slate-200"
                       >
                         <ImageIcon className="h-4 w-4 mr-2" />
-                        Attach screenshot
+                        {t('tickets.ticket.attachShotBtn')}
                       </Button>
                     )}
                     {attach.canRecord && (
@@ -785,7 +794,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                           className="border-slate-600 text-slate-200"
                         >
                           <Mic className="h-4 w-4 mr-2" />
-                          Record a voice message
+                          {t('tickets.ticket.recordBtn')}
                         </Button>
                       ) : (
                         <>
@@ -795,14 +804,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                             className="bg-red-600 hover:bg-red-700"
                           >
                             <Square className="h-4 w-4 mr-2" />
-                            Stop ({Math.floor(attach.recordingMs / 1000)}s)
+                            {t('tickets.ticket.stopBtn', { seconds: Math.floor(attach.recordingMs / 1000) })}
                           </Button>
                           <Button
                             variant="ghost"
                             onClick={attach.cancelRecording}
                             className="text-slate-300"
                           >
-                            Cancel
+                            {t('common.cancel')}
                           </Button>
                         </>
                       )
@@ -810,8 +819,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   </div>
                   {!attach.canRecord && attach.canScreenshot && (
                     <p className="text-xs font-nunito text-slate-400">
-                      Voice messages need a microphone, which TV remotes don't share with apps —
-                      you can still play any that support sends you.
+                      {t('tickets.ticket.noMicNote')}
                     </p>
                   )}
                 </div>
@@ -828,7 +836,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       <div ref={tvFocus.containerRef} className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <BackButton onClick={() => { setView('list'); setSelectedAIConversationId(null); }} label="Back" data-tv-focus-id="ai-chat-back" />
+            <BackButton onClick={() => { setView('list'); setSelectedAIConversationId(null); }} label={t('common.back')} data-tv-focus-id="ai-chat-back" />
             <h1 className="text-3xl font-bold line-clamp-1">{selectedAIConversation.title}</h1>
           </div>
 
@@ -836,14 +844,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">
                 <Bot className="h-5 w-5" />
-                AI Assistant
+                {t('tickets.ai.assistant')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ScrollArea
                 ref={aiScrollAreaRef}
                 data-tv-focus-id="ai-chat-messages"
-                aria-label="AI conversation history"
+                aria-label={t('tickets.ai.historyAria')}
                 className="h-96 pr-4"
               >
                 <div className="space-y-4">
@@ -858,10 +866,10 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     >
                       <div className="flex items-center gap-2 mb-2">
                         <Badge className={m.sender_type === 'user' ? 'bg-purple-600 text-white' : 'bg-slate-600 text-white'}>
-                          {m.sender_type === 'user' ? 'You' : 'AI Assistant'}
+                          {m.sender_type === 'user' ? t('tickets.ai.you') : t('tickets.ai.assistant')}
                         </Badge>
                         <span className="text-xs text-slate-400">
-                          {formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}
+                          {formatRelative(m.created_at)}
                         </span>
                       </div>
                       <p className="text-slate-200 whitespace-pre-wrap">{m.message}</p>
@@ -877,7 +885,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Input
                   value={aiReplyMessage}
                   onChange={(e) => setAiReplyMessage(e.target.value)}
-                  placeholder="Type your message..."
+                  placeholder={t('tickets.ai.typePlaceholder')}
                   data-tv-focus-id="ai-chat-input"
                   className="bg-slate-700 border-purple-600/50 text-white "
                   onKeyPress={(e) => e.key === 'Enter' && handleSendAIReply()}
@@ -903,8 +911,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <BackButton onClick={onBack} label="Back" data-tv-focus-id="list-back" />
-            <h1 className="text-3xl font-bold">Tickets</h1>
+            <BackButton onClick={onBack} label={t('common.back')} data-tv-focus-id="list-back" />
+            <h1 className="text-3xl font-bold">{t('tickets.list.title')}</h1>
           </div>
           {!isDemo() && (
             <Button 
@@ -913,7 +921,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               className="bg-blue-600 hover:bg-blue-700 "
             >
               <Plus className="h-4 w-4 mr-2" />
-              New Ticket
+              {t('tickets.list.newBtn')}
             </Button>
           )}
         </div>
@@ -938,7 +946,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     </CardTitle>
                     <div className="flex items-center gap-2 ml-2">
                       {ticket.user_has_unread && (
-                        <Badge className="bg-blue-600 text-white">New</Badge>
+                        <Badge className="bg-blue-600 text-white">{t('tickets.list.newChip')}</Badge>
                       )}
                       <Button
                         variant="ghost"
@@ -947,7 +955,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                         data-tv-disabled="true"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm('Delete this ticket? This cannot be undone.')) {
+                          if (confirm(t('tickets.list.confirmDelete'))) {
                             deleteTicket(ticket.id);
                           }
                         }}
@@ -961,18 +969,18 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     <Badge className={getStatusColor(ticket.status, ticketActive)}>
                       {getStatusIcon(ticket.status, ticketActive)}
                       <span className="ml-1 capitalize">
-                        {ticketActive ? 'Active' : ticket.status.replace('_', ' ')}
+                        {statusLabel(ticket.status, ticketActive)}
                       </span>
                     </Badge>
                     <Badge variant="outline" className="text-slate-300">
-                      {ticket.priority}
+                      {t(`tickets.priority.${ticket.priority}`, { defaultValue: ticket.priority })}
                     </Badge>
                 </div>
                 </CardHeader>
                 <CardContent>
                   <div className="text-sm text-slate-400">
-                    <p>Created: {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}</p>
-                    <p>Last updated: {formatDistanceToNow(new Date(ticket.last_message_at), { addSuffix: true })}</p>
+                    <p>{t('tickets.list.created', { when: formatRelative(ticket.created_at) })}</p>
+                    <p>{t('tickets.list.updated', { when: formatRelative(ticket.last_message_at) })}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -982,15 +990,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
           {tickets.length === 0 && !loading && (
             <div className="col-span-full text-center py-12">
               <MessageCircle className="h-12 w-12 mx-auto text-slate-500 mb-4" />
-              <h3 className="text-xl font-semibold text-slate-300 mb-2">No Support Tickets</h3>
+              <h3 className="text-xl font-semibold text-slate-300 mb-2">{t('tickets.list.emptyTitle')}</h3>
               <p className="text-slate-500 mb-4">
                 {user
-                  ? "You haven't created any support tickets yet."
+                  ? t('tickets.list.emptyUser')
                   : bridging
-                    ? 'Checking for your Snow Media account…'
+                    ? t('tickets.list.emptyChecking')
                     : playerAccount
-                      ? 'Your tickets are on your Snow Media website account, not your streaming login. Sign in to it to see them.'
-                      : "You can send a ticket without an account, but replies require signing in."}
+                      ? t('tickets.list.emptyPlayerOnly')
+                      : t('tickets.list.emptyGuest')}
               </p>
               <div className="flex items-center justify-center gap-2 flex-wrap">
                 {!isDemo() && (
@@ -1000,7 +1008,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     className="bg-blue-600 hover:bg-blue-700 "
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    {user ? 'Create Your First Ticket' : 'Send a Ticket'}
+                    {user ? t('tickets.list.createFirstBtn') : t('tickets.list.sendBtn')}
                   </Button>
                 )}
                 {!user && (
@@ -1011,7 +1019,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
                   >
                     <LogIn className="h-4 w-4 mr-2" />
-                    Sign In
+                    {t('tickets.list.signIn')}
                   </Button>
                 )}
               </div>
@@ -1027,10 +1035,10 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-white flex items-center gap-2">
                   <Bot className="h-5 w-5 text-purple-300" />
-                  AI Chat History
+                  {t('tickets.ai.historyTitle')}
                 </CardTitle>
                 <Badge variant="outline" className="text-purple-200 border-purple-400/50">
-                  Last 5 saved
+                  {t('tickets.ai.lastFiveChip')}
                 </Badge>
               </div>
             </CardHeader>
@@ -1040,7 +1048,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Input
                   value={aiNewMessage}
                   onChange={(e) => setAiNewMessage(e.target.value)}
-                  placeholder="Ask the AI anything..."
+                  placeholder={t('tickets.ai.askPlaceholder')}
                   data-tv-focus-id="ai-new-input"
                   className="bg-slate-700 border-purple-600/50 text-white "
                   onKeyPress={(e) => e.key === 'Enter' && handleStartAIChat()}
@@ -1052,14 +1060,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   className="bg-purple-600 hover:bg-purple-700 "
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  New Chat
+                  {t('tickets.ai.newChatBtn')}
                 </Button>
               </div>
 
               {/* Saved conversations */}
               {aiConversations.length === 0 ? (
                 <p className="text-sm text-purple-200/70 text-center py-4">
-                  No saved AI conversations yet. Start one above.
+                  {t('tickets.ai.empty')}
                 </p>
               ) : (
                 <div className="grid gap-2 md:grid-cols-2">
@@ -1074,7 +1082,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-white line-clamp-1">{c.title}</p>
                         <p className="text-xs text-purple-200/70">
-                          Last message: {formatDistanceToNow(new Date(c.last_message_at), { addSuffix: true })}
+                          {t('tickets.ai.lastMessage', { when: formatRelative(c.last_message_at) })}
                         </p>
                       </div>
                       <Button
@@ -1099,29 +1107,29 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       <Dialog open={accountPromptOpen} onOpenChange={setAccountPromptOpen}>
         <DialogContent className="bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
-            <DialogTitle>Create an account?</DialogTitle>
+            <DialogTitle>{t('tickets.account.title')}</DialogTitle>
             <DialogDescription className="text-slate-300">
-              We'll use <strong className="text-white">{pendingAccountEmail}</strong> so you can receive replies to your ticket in-app. Set a password (and optional name) below, or skip.
+              <Trans i18nKey="tickets.account.desc" values={{ email: pendingAccountEmail }} components={{ 1: <strong className="text-white" /> }} />
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <label className="text-sm text-slate-300 mb-1 block">Name (optional)</label>
+              <label className="text-sm text-slate-300 mb-1 block">{t('tickets.account.nameLabel')}</label>
               <Input
                 value={accountName}
                 onChange={(e) => setAccountName(e.target.value)}
-                placeholder="Your name"
+                placeholder={t('tickets.account.namePlaceholder')}
                 autoComplete="off"
                 className="bg-slate-800 border-slate-700 text-white"
               />
             </div>
             <div>
-              <label className="text-sm text-slate-300 mb-1 block">Password</label>
+              <label className="text-sm text-slate-300 mb-1 block">{t('tickets.account.passwordLabel')}</label>
               <Input
                 type="password"
                 value={accountPassword}
                 onChange={(e) => setAccountPassword(e.target.value)}
-                placeholder="At least 6 characters"
+                placeholder={t('tickets.account.passwordPlaceholder')}
                 autoComplete="new-password"
                 className="bg-slate-800 border-slate-700 text-white"
               />
@@ -1138,14 +1146,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               }}
               disabled={creatingAccount}
             >
-              Skip
+              {t('tickets.account.skipBtn')}
             </Button>
             <Button
               onClick={handleCreateAccountFromPrompt}
               disabled={creatingAccount || accountPassword.length < 6}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              {creatingAccount ? 'Creating...' : 'Create account'}
+              {creatingAccount ? t('tickets.account.creating') : t('tickets.account.createBtn')}
             </Button>
           </DialogFooter>
         </DialogContent>

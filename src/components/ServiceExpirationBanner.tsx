@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   useMyUserServices,
   findUrgentService,
@@ -9,16 +10,18 @@ import {
 } from '@/hooks/useUserServices';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { trackEvent } from '@/lib/analytics';
+import { serverDisplayName } from '@/lib/xtream';
 
 interface Props {
   onOpenDashboard?: () => void;
 }
 
 type UrgentSource =
-  | { kind: 'service'; id: string; name: string; days: number | null; severity: ExpirySeverity; label: string }
-  | { kind: 'player'; id: string; name: string; days: number | null; severity: ExpirySeverity; label: string };
+  | { kind: 'service'; id: string; name: string; shown: string | null; days: number | null; severity: ExpirySeverity; label: string }
+  | { kind: 'player'; id: string; name: string; shown: string | null; days: number | null; severity: ExpirySeverity; label: string };
 
 const ServiceExpirationBanner = ({ onOpenDashboard }: Props) => {
+  const { t } = useTranslation();
   const { services } = useMyUserServices();
   const { account: playerAccount, state: playerState, days: playerDays } = usePlayerAccount();
   const reportedRef = useRef<string | null>(null);
@@ -33,7 +36,9 @@ const ServiceExpirationBanner = ({ onOpenDashboard }: Props) => {
       return {
         kind: 'service',
         id: urgentSvc.id,
+        // `name` goes to analytics as is; `shown` is what the viewer reads (null = use the translated fallback).
         name: urgentSvc.service_name || urgentSvc.service_type || 'Your service',
+        shown: urgentSvc.service_name || urgentSvc.service_type || null,
         days: d,
         severity: st.severity,
         label: st.label,
@@ -46,6 +51,7 @@ const ServiceExpirationBanner = ({ onOpenDashboard }: Props) => {
         kind: 'player',
         id: `player-${playerAccount.username}`,
         name: playerAccount.serverLabel || 'Player',
+        shown: playerAccount.serverLabel ? serverDisplayName(playerAccount.serverLabel) : null,
         days: playerDays,
         severity: playerState.severity,
         label: playerState.label,
@@ -77,7 +83,14 @@ const ServiceExpirationBanner = ({ onOpenDashboard }: Props) => {
 
   const critical = urgent.severity === 'critical';
   const warning = urgent.severity === 'warning';
-  const msg = `${urgent.name} ${urgent.label}.`;
+  const who = urgent.shown ?? t(urgent.kind === 'service' ? 'account.banner.serviceFallback' : 'account.banner.playerFallback');
+  const days = urgent.days;
+  // A full sentence with the name, so the hook's short label is not used here.
+  const msg = days === null ? t('account.banner.expiringShort')
+    : days < 0 ? t('account.banner.expiredAgo', { name: who, count: Math.abs(days) })
+    : days === 0 ? t('account.banner.expiresToday', { name: who })
+    : days === 1 ? t('account.banner.expiresTomorrow', { name: who })
+    : t('account.banner.expiresInDays', { name: who, count: days });
 
   const handleClick = () => {
     try {
@@ -104,8 +117,8 @@ const ServiceExpirationBanner = ({ onOpenDashboard }: Props) => {
     >
       <AlertTriangle className="w-4 h-4 flex-shrink-0" />
       <span className="hidden sm:inline truncate min-w-0">{msg}</span>
-      <span className="sm:hidden truncate min-w-0">Service expiring</span>
-      <span className="underline opacity-90 flex-shrink-0">Manage</span>
+      <span className="sm:hidden truncate min-w-0">{t('account.banner.expiringShort')}</span>
+      <span className="underline opacity-90 flex-shrink-0">{t('account.banner.manageBtn')}</span>
     </button>
   );
 };

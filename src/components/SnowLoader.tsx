@@ -47,6 +47,7 @@
 import { memo, useEffect, useId, useState, type CSSProperties } from 'react';
 import ableArt from '@/assets/able-loader.png';
 import './snow-loader.css';
+import i18n from '@/i18n';
 
 export type SnowLoaderSize = 'sm' | 'md' | 'lg';
 
@@ -360,7 +361,7 @@ const SnowLoader = ({
   const seconds = Math.max(0, Math.floor(elapsedMs / 1000));
 
   return (
-    <div className={rootClass} role="status" aria-label={label ?? 'Loading'}>
+    <div className={rootClass} role="status" aria-label={label ?? i18n.t('common.loading')}>
       <div className="smc-loader-viewport">
         {/* Everything that stands on the ground lives in here, and the WORLD
             is what tilts into a hill. Inside it the layout is the same flat

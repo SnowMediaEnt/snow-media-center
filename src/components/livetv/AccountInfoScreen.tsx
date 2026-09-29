@@ -7,7 +7,9 @@ import {
 } from 'lucide-react';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { expDateToMs } from '@/lib/xtream';
-import { formatCount, readCounts } from '@/lib/catalogCounts';
+import { readCounts } from '@/lib/catalogCounts';
+import { formatDate, formatDateTime, formatNumber } from '@/i18n/format';
+import { useTranslation } from 'react-i18next';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import RenewQR from './RenewQR';
@@ -19,16 +21,9 @@ interface Props {
   onChangeCredentials: () => void;
 }
 
-const fmtDate = (ms: number | null) =>
-  ms ? new Date(ms).toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  }) : '—';
+const fmtDate = (ms: number | null) => (ms ? formatDateTime(ms) : '—');
 
-const fmtDay = (ms: number | null) =>
-  ms ? new Date(ms).toLocaleDateString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-  }) : '—';
+const fmtDay = (ms: number | null) => (ms ? formatDate(ms) : '—');
 
 interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: boolean }
 
@@ -37,6 +32,7 @@ interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: b
  * Two-button D-pad nav: Back / Sign out.
  */
 const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Props) => {
+  const { t } = useTranslation();
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -90,8 +86,8 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
     return (
       <div className="min-h-screen flex items-center justify-center text-white bg-black/70">
         <Card className="rounded-2xl p-6 bg-slate-900/80 border-slate-700 text-center">
-          <p className="text-white/80 mb-4">No player account on this device.</p>
-          <BackButton onClick={onBack} label="Back" />
+          <p className="text-white/80 mb-4">{t('liveAccount.account.noAccount')}</p>
+          <BackButton onClick={onBack} label={t('common.back')} />
         </Card>
       </div>
     );
@@ -109,19 +105,19 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
 
   const expMs = expDateToMs(account.expDate);
   const createdMs = expDateToMs(account.createdAt);
-  const status = account.status || 'Unknown';
-  const isExpired = /expired|disabled|banned/i.test(status) || (days !== null && days < 0);
+  const status = account.status || t('liveAccount.account.statusUnknown');
+  const isExpired = /expired|disabled|banned/i.test(account.status || '') || (days !== null && days < 0);
   const statusBadge = isExpired
     ? 'bg-red-600/30 text-red-100 border-red-400/40'
     : 'bg-emerald-600/30 text-emerald-100 border-emerald-400/40';
-  const statusLabel = isExpired ? 'Expired' : (status.toLowerCase() === 'active' ? 'Active' : status);
+  const statusLabel = isExpired ? t('liveAccount.account.statusExpired') : ((account.status || '').toLowerCase() === 'active' ? t('liveAccount.account.statusActive') : status);
 
   const daysColor = state.severity === 'critical'
     ? 'text-red-300'
     : state.severity === 'warning'
       ? 'text-amber-300'
       : 'text-emerald-300';
-  const daysLabel = days === null ? '—' : state.show ? state.label : `${days} days left`;
+  const daysLabel = days === null ? '—' : state.show ? state.label : t('liveAccount.account.daysLeft', { count: days });
 
   // What the service carries, as far as the Player has measured it. Live TV
   // counts itself in the background; movies and series fill in as their
@@ -131,32 +127,32 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
     const live = readCounts(account, 'live').total;
     const vod = readCounts(account, 'vod').total;
     const series = readCounts(account, 'series').total;
-    if (live != null) parts.push(`${formatCount(live)} channels`);
-    if (vod != null) parts.push(`${formatCount(vod)} movies`);
-    if (series != null) parts.push(`${formatCount(series)} series`);
+    if (live != null) parts.push(t('liveAccount.account.countChannels', { count: live, num: formatNumber(live) }));
+    if (vod != null) parts.push(t('liveAccount.account.countMovies', { count: vod, num: formatNumber(vod) }));
+    if (series != null) parts.push(t('liveAccount.account.countSeries', { count: series, num: formatNumber(series) }));
     return parts.join(' · ');
   })();
 
   const rows: Row[] = [
-    { label: 'Username',  icon: KeyRound, value: <span className="break-all">{account.username}</span> },
-    { label: 'Password',  icon: KeyRound, mono: true, value: (
+    { label: t('liveAccount.account.username'),  icon: KeyRound, value: <span className="break-all">{account.username}</span> },
+    { label: t('liveAccount.account.password'),  icon: KeyRound, mono: true, value: (
       <span className="font-mono tracking-widest break-all">
         {showPwd ? account.password : '•'.repeat(Math.max(8, account.password.length))}
       </span>
     )},
-    { label: 'Status',    icon: ShieldCheck, value: (
+    { label: t('liveAccount.account.status'),    icon: ShieldCheck, value: (
       <Badge className={`border ${statusBadge}`}>{statusLabel}</Badge>
     )},
-    { label: 'Expires',   icon: Calendar, value: (
+    { label: t('liveAccount.account.expires'),   icon: Calendar, value: (
       <span><span className="font-medium">{fmtDay(expMs)}</span>
         <span className={`ml-2 text-sm font-semibold ${daysColor}`}>({daysLabel})</span>
       </span>
     )},
-    { label: 'Trial',     icon: ShieldCheck, value: account.isTrial ? 'Yes' : 'No' },
-    { label: 'Connections', icon: Users, value: `${account.activeCons ?? 0} active / ${account.maxConnections ?? '—'} allowed` },
-    ...(catalogue ? [{ label: 'Catalog', icon: Library, value: catalogue } as Row] : []),
-    { label: 'Created',   icon: Clock,  value: fmtDate(createdMs) },
-    { label: 'Server',    icon: Server, value: (
+    { label: t('liveAccount.account.trial'),     icon: ShieldCheck, value: account.isTrial ? t('common.yes') : t('common.no') },
+    { label: t('liveAccount.account.connections'), icon: Users, value: t('liveAccount.account.connectionsValue', { active: account.activeCons ?? 0, max: account.maxConnections ?? '—' }) },
+    ...(catalogue ? [{ label: t('liveAccount.account.catalog'), icon: Library, value: catalogue } as Row] : []),
+    { label: t('liveAccount.account.created'),   icon: Clock,  value: fmtDate(createdMs) },
+    { label: t('liveAccount.account.server'),    icon: Server, value: (
       <span>{account.serverLabel}
         <span className="ml-2 text-white/70 text-xs break-all">{account.host}</span>
       </span>
@@ -169,13 +165,13 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
         <div className="flex items-center gap-3">
           <BackButton
             onClick={onBack}
-            label="Back"
+            label={t('common.back')}
             data-player-header-btn=""
             focused={focusIdx === 0}
           />
           <div className="flex items-center gap-2">
             <Tv className="w-7 h-7 text-brand-gold" />
-            <h1 className="text-2xl font-quicksand font-bold text-white">Account</h1>
+            <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.account.title')}</h1>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -187,7 +183,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
             className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}
           >
             {showPwd ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
-            {showPwd ? 'Hide' : 'Show'} password
+            <span className="min-w-0 truncate">{showPwd ? t('liveAccount.account.hidePasswordBtn') : t('liveAccount.account.showPasswordBtn')}</span>
           </Button>
           <Button
             variant="white"
@@ -196,7 +192,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
             data-focused={focusIdx === 2 ? "true" : "false"}
             className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 2 ? 'scale-105 z-10' : ''}`}
           >
-            <KeyRound className="w-4 h-4 mr-2" /> Change credentials
+            <KeyRound className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('liveAccount.account.changeCredentialsBtn')}</span>
           </Button>
           {showRenew && (
             <Button
@@ -206,7 +202,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
               data-focused={focusIdx === 3 ? "true" : "false"}
               className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 3 ? 'scale-105 z-10' : ''}`}
             >
-              <RefreshCw className="w-4 h-4 mr-2" /> Renew
+              <RefreshCw className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('liveAccount.account.renewBtn')}</span>
             </Button>
           )}
           <Button
@@ -216,7 +212,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
             data-focused={focusIdx === signOutIdx ? "true" : "false"}
             className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === signOutIdx ? 'scale-105 z-10' : ''}`}
           >
-            <LogOut className="w-4 h-4 mr-2" /> Sign out
+            <LogOut className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('common.signOut')}</span>
           </Button>
         </div>
       </div>

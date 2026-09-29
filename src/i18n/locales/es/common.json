@@ -1,12 +1,11 @@
 {
   "common": {
-    "signIn": "Mi Cuenta",
+    "signIn": "Mi cuenta",
     "dashboard": "Panel",
     "settings": "Ajustes",
     "admin": "Admin",
     "back": "Atrás",
     "backToHome": "Volver al inicio",
-    "beta": "Beta",
     "ok": "OK",
     "cancel": "Cancelar",
     "close": "Cerrar",

@@ -24,6 +24,9 @@ import {
   MonitorPlay,
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import { Trans, useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import i18n from '@/i18n';
 import { useToast } from '@/hooks/use-toast';
 import SpeedTest from '@/components/SpeedTest';
 import { AppManager, isWebUnsupportedError } from '@/capacitor/AppManager';
@@ -37,6 +40,7 @@ import { trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { overlayAboveOwnsBack } from '@/lib/overlayBack';
 import { MessageSquare } from 'lucide-react';
+import { serverDisplayName } from '@/lib/xtream';
 
 interface BufferingGuideProps {
   onClose: () => void;
@@ -70,34 +74,13 @@ interface State {
 const STEPS = ['intro', 'step1', 'step2', 'step3', 'step4', 'summary'] as const;
 type StepKey = typeof STEPS[number];
 
-const HINTS: Record<StepKey, string> = {
-  intro: 'Pick the app that is buffering, then press Next.',
-  step1: 'Only one channel or title? Report it and we fix it at the source.',
-  step2: 'Force Stop, then Clear Cache, then press Back to come here.',
-  step3: 'Aim for 15 Mbps or more on this device.',
-  step4: 'Install, sign in, Quick Connect, then test again.',
-  summary: 'Send these results to support if it is still buffering.',
-};
+// The words for the steps live in the translations (guides.buffering.*) and are
+// looked up when drawn. Only these sets say which steps have a Kids version.
+const KIDS_HINT_STEPS: ReadonlySet<StepKey> = new Set<StepKey>(['step1', 'step2', 'step4', 'summary']);
 
-// A Kids profile's guide: the fixes that need the box's settings, a new app
-// or a ticket are a grown-up's job, so those steps say so instead.
-const KIDS_HINTS: Partial<Record<StepKey, string>> = {
-  step1: 'Only one channel or title? Tell a grown-up which one.',
-  step2: 'Ask a grown-up to clear the app\'s cache.',
-  step4: 'Ask a grown-up to set up a VPN.',
-  summary: 'Still buffering? Show this to a grown-up.',
-};
-
-// Short names for the step tracker across the top.
-const STEP_LABELS: Record<StepKey, string> = {
-  intro: 'App',
-  step1: 'One or all',
-  step2: 'Refresh app',
-  step3: 'Speed',
-  step4: 'VPN',
-  summary: 'Results',
-};
-
+// The app names as the support team reads them in a ticket, and as the box
+// matches them against its installed apps. Never translated; what the viewer
+// sees comes from appLabelOf() below.
 const APP_LABELS: Record<Exclude<AppType, null>, string> = {
   dreamstreams: 'Dreamstreams',
   vibeztv: 'VibezTV',
@@ -147,9 +130,12 @@ const BufferingGuide = ({
   onNavigateToChat,
   origin,
 }: BufferingGuideProps) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  // The name of the chosen app as the viewer reads it (brands stay as they are).
+  const appLabelOf = (type: AppType): string => (type === null || type === 'other' ? t('guides.buffering.yourApp') : serverDisplayName(APP_LABELS[type]));
   // Kids profile: no tickets, no Android App Info, and no installing or
   // opening other apps (Main Apps and the Device Cleaner are hidden too).
   const kids = !!kidsLevel();
@@ -858,18 +844,18 @@ const BufferingGuide = ({
     try {
       await AppManager.openAppSettings({ packageName, appName });
       toast({
-        title: 'Opened app settings',
-        description: 'Tap Force Stop, then Storage → Clear Cache. Press Back when done.',
+        title: t('guides.buffering.toast.openedSettingsTitle'),
+        description: t('guides.buffering.toast.openedSettingsDesc'),
       });
     } catch (err) {
       if (isWebUnsupportedError(err)) {
         toast({
-          title: 'Open in the installed app',
-          description: 'This action only works inside the installed Snow Media Center app.',
+          title: t('guides.buffering.toast.webOnlyTitle'),
+          description: t('guides.buffering.toast.webOnlyDesc'),
           variant: 'destructive',
         });
       } else {
-        toast({ title: 'Could not open settings', description: String(err), variant: 'destructive' });
+        toast({ title: t('guides.buffering.toast.cantOpenSettingsTitle'), description: String(err), variant: 'destructive' });
       }
     }
   };
@@ -880,12 +866,12 @@ const BufferingGuide = ({
     } catch (err) {
       if (isWebUnsupportedError(err)) {
         toast({
-          title: 'Open in the installed app',
-          description: 'This action only works inside the installed Snow Media Center app.',
+          title: t('guides.buffering.toast.webOnlyTitle'),
+          description: t('guides.buffering.toast.webOnlyDesc'),
           variant: 'destructive',
         });
       } else {
-        toast({ title: 'Could not launch app', description: String(err), variant: 'destructive' });
+        toast({ title: t('guides.buffering.toast.cantLaunchTitle'), description: String(err), variant: 'destructive' });
       }
     }
   };
@@ -908,8 +894,8 @@ const BufferingGuide = ({
       const body = overrideBody ?? `${supportScript}\n\nSaved: ${ts}`;
       await createTicket(subject, body);
       toast({
-        title: 'Ticket submitted',
-        description: 'Opening Support → Tickets.',
+        title: t('guides.buffering.toast.ticketSubmittedTitle'),
+        description: t('guides.buffering.toast.ticketSubmittedDesc'),
       });
       onClose();
       // Defer nav slightly so the modal unmounts cleanly first
@@ -920,8 +906,8 @@ const BufferingGuide = ({
     } catch (err) {
       console.error('[BufferingGuide] submitAsTicket failed', err);
       toast({
-        title: 'Could not submit ticket',
-        description: err instanceof Error ? err.message : 'Unknown error',
+        title: t('guides.buffering.toast.cantSubmitTitle'),
+        description: err instanceof Error ? err.message : t('guides.buffering.toast.unknownError'),
         variant: 'destructive',
       });
     } finally {
@@ -932,11 +918,11 @@ const BufferingGuide = ({
   const buildChannelReport = () => {
     const title = reportTitle.trim();
     if (!title) {
-      toast({ title: 'Enter a title', description: 'Type the channel or movie/show name first.', variant: 'destructive' });
+      toast({ title: t('guides.buffering.toast.enterTitleTitle'), description: t('guides.buffering.toast.enterTitleDesc'), variant: 'destructive' });
       return null;
     }
     if (!reportDevice) {
-      toast({ title: 'Pick a device', description: 'Tell us which device you are watching on.', variant: 'destructive' });
+      toast({ title: t('guides.buffering.toast.pickDeviceTitle'), description: t('guides.buffering.toast.pickDeviceDesc'), variant: 'destructive' });
       return null;
     }
     const ts = new Date().toLocaleString();
@@ -979,16 +965,16 @@ const BufferingGuide = ({
       });
       if (error) throw error;
       toast({
-        title: 'Report sent',
-        description: 'Thanks! Sign in next time to track it on your account.',
+        title: t('guides.buffering.toast.reportSentTitle'),
+        description: t('guides.buffering.toast.reportSentDesc'),
       });
       setShowAnonConfirm(false);
       onClose();
     } catch (err) {
       console.error('[BufferingGuide] anonymous report failed', err);
       toast({
-        title: 'Could not send report',
-        description: err instanceof Error ? err.message : 'Unknown error',
+        title: t('guides.buffering.toast.cantSendReportTitle'),
+        description: err instanceof Error ? err.message : t('guides.buffering.toast.unknownError'),
         variant: 'destructive',
       });
     } finally {
@@ -1013,15 +999,15 @@ const BufferingGuide = ({
             data-summary-order="0"
             className="h-10 px-5 text-base rounded-xl bg-white/5 border-white/20 text-white hover:bg-white/10"
           >
-            <ArrowLeft className="mr-2" /> {origin === 'plex-movie' ? 'Back to Player' : 'Close'}
+            <ArrowLeft className="mr-2" /> {origin === 'plex-movie' ? t('guides.buffering.backToPlayerBtn') : t('common.close')}
           </Button>
           <div className="text-center flex-1 min-w-0 px-4">
-            <h1 className="text-xl font-bold text-white truncate leading-tight">Fix Buffering</h1>
-            <p className="text-sm text-white/60 leading-tight">Step {Math.min(stepIndex + 1, STEPS.length)} of {STEPS.length} · {STEP_LABELS[step]}</p>
+            <h1 className="text-xl font-bold text-white truncate leading-tight">{t('guides.buffering.title')}</h1>
+            <p className="text-sm text-white/60 leading-tight">{t('guides.buffering.stepOf', { current: Math.min(stepIndex + 1, STEPS.length), total: STEPS.length, label: t(`guides.buffering.steps.${step}`) })}</p>
           </div>
           <span className="w-[120px] hidden sm:block" aria-hidden="true" />
         </div>
-        <ol className="max-w-5xl mx-auto mt-2 grid grid-cols-6 gap-2" aria-label="Progress">
+        <ol className="max-w-5xl mx-auto mt-2 grid grid-cols-6 gap-2" aria-label={t('guides.buffering.progressAria')}>
           {STEPS.map((k, i) => {
             const done = i < stepIndex;
             const current = i === stepIndex;
@@ -1030,7 +1016,7 @@ const BufferingGuide = ({
                 <div className={`h-1.5 rounded-full ${done ? 'bg-cyan-400' : current ? 'bg-yellow-300' : 'bg-white/15'}`} />
                 <div className={`mt-1 flex items-center justify-center text-xs sm:text-sm truncate ${current ? 'text-yellow-200 font-semibold' : done ? 'text-cyan-200' : 'text-white/45'}`}>
                   {done && <Check className="w-3.5 h-3.5 mr-1 flex-shrink-0" />}
-                  <span className="truncate">{STEP_LABELS[k]}</span>
+                  <span className="truncate">{t(`guides.buffering.steps.${k}`)}</span>
                 </div>
               </li>
             );
@@ -1041,26 +1027,28 @@ const BufferingGuide = ({
       {/* Content */}
       <div ref={contentRef} className="flex-1 overflow-y-auto px-[5vw] pt-4 pb-12">
         <div className="max-w-5xl mx-auto">
+          {/* i18n-ignore: state check, not text */}
           {step === 'intro' && (
             <>
               <IntroStep
                 value={state.appType}
-                onSelect={(t) => setState((s) => ({ ...s, appType: t }))}
+                onSelect={(type) => setState((s) => ({ ...s, appType: type }))}
               />
               <div className="mt-5 flex justify-center">
                 <Button
                   onClick={() => setStepIndex(STEPS.indexOf('step4'))}
                   variant="outline"
-                  title="Already tried a VPN? Jump straight to the VPN step."
+                  title={t('guides.buffering.skipToVpnTitle')}
                   className="h-11 px-5 text-base rounded-xl bg-transparent border-white/20 text-white/85 hover:bg-white/10"
                 >
-                  <ShieldCheck className="mr-2 text-cyan-300" /> Already tried the rest? Go to the VPN step
+                  <ShieldCheck className="mr-2 text-cyan-300" /> {t('guides.buffering.skipToVpnBtn')}
                 </Button>
               </div>
             </>
           )}
 
 
+          {/* i18n-ignore: state check, not text */}
           {step === 'step1' && state.step1Choice !== 'one_only' && (
             <Step1
               value={state.step1Choice}
@@ -1072,11 +1060,12 @@ const BufferingGuide = ({
             />
           )}
 
+          {/* i18n-ignore: state check, not text */}
           {step === 'step1' && state.step1Choice === 'one_only' && kids && (
             <StepPanel
               icon={<AlertTriangle className="!w-7 !h-7" />}
-              title="Tell a grown-up"
-              lead="When only one channel or show fails, it gets fixed at the source. Tell a grown-up which one — they can report it from their profile."
+              title={t('guides.buffering.kidsOne.title')}
+              lead={t('guides.buffering.kidsOne.lead')}
             >
               <ActionButton
                 onClick={() => {
@@ -1086,16 +1075,17 @@ const BufferingGuide = ({
                 tone="secondary"
                 icon={<ArrowLeft />}
               >
-                Change answer
+                {t('guides.buffering.changeAnswerBtn')}
               </ActionButton>
             </StepPanel>
           )}
 
+          {/* i18n-ignore: state check, not text */}
           {step === 'step1' && state.step1Choice === 'one_only' && !kids && (
             <ReportChannelStep
               title={reportTitle}
               device={reportDevice}
-              appLabel={state.appType ? APP_LABELS[state.appType] : 'your app'}
+              appLabel={appLabelOf(state.appType)}
               submitting={submittingTicket}
               onTitleChange={setReportTitle}
               onDeviceChange={setReportDevice}
@@ -1110,11 +1100,12 @@ const BufferingGuide = ({
           )}
 
 
+          {/* i18n-ignore: state check, not text */}
           {step === 'step2' && (
             <Step2
               kids={kids}
               value={state.didRestartAndCache}
-              appLabel={state.appType ? APP_LABELS[state.appType] : 'your app'}
+              appLabel={appLabelOf(state.appType)}
               chosenApp={chosenApp}
               chosenAppInstalled={chosenAppInstalled}
               onOpenSettings={() => {
@@ -1142,8 +1133,8 @@ const BufferingGuide = ({
                 const fallbackLabel = label || chosenApp?.name || undefined;
                 if (!pkg && !fallbackLabel) {
                   toast({
-                    title: 'Open Android Settings → Apps',
-                    description: 'Find the app, then tap Force Stop and Clear Cache.',
+                    title: t('guides.buffering.toast.openAndroidSettingsTitle'),
+                    description: t('guides.buffering.toast.openAndroidSettingsDesc'),
                   });
                   return;
                 }
@@ -1152,13 +1143,14 @@ const BufferingGuide = ({
               onSelect={(v) => {
                 setState((s) => ({ ...s, didRestartAndCache: v }));
                 if (v === true) {
-                  toast({ title: 'Great!', description: 'Glad we got it sorted.' });
+                  toast({ title: t('guides.buffering.toast.greatTitle'), description: t('guides.buffering.toast.greatDesc') });
                   jumpToSummary();
                 }
               }}
             />
           )}
 
+          {/* i18n-ignore: state check, not text */}
           {step === 'step3' && (
             <Step3
               speedMbps={state.speedMbps}
@@ -1169,14 +1161,14 @@ const BufferingGuide = ({
                 const raw = speedInput.trim().replace(',', '.');
                 const n = Number(raw);
                 if (!raw || Number.isNaN(n) || n < 0) {
-                  toast({ title: 'Invalid speed', description: 'Enter a number like 25.', variant: 'destructive' });
+                  toast({ title: t('guides.buffering.toast.invalidSpeedTitle'), description: t('guides.buffering.toast.invalidSpeedDesc'), variant: 'destructive' });
                   return;
                 }
                 setState((s) => ({ ...s, speedMbps: n, speedMethod: 'speedtest_app' }));
                 if (n < 15) {
                   toast({
-                    title: 'Speed is too low',
-                    description: 'Below 15 Mbps will cause buffering. Try 5GHz Wi-Fi, move closer, or use Ethernet.',
+                    title: t('guides.buffering.toast.speedLowTitle'),
+                    description: t('guides.buffering.toast.speedLowDesc'),
                     variant: 'destructive',
                   });
                 }
@@ -1184,6 +1176,7 @@ const BufferingGuide = ({
             />
           )}
 
+          {/* i18n-ignore: state check, not text */}
           {step === 'step4' && (
             <Step4
               kids={kids}
@@ -1197,7 +1190,7 @@ const BufferingGuide = ({
                 setState((s) => ({ ...s, vpnChoice: c, vpnSpeedOk: null, vpnTest: null }));
                 const app = c === 'ipvanish' ? ipvanishApp : surfsharkApp;
                 if (app) onDownload(app);
-                else toast({ title: 'VPN not in store', description: 'Use the Downloader code instead.', variant: 'destructive' });
+                else toast({ title: t('guides.buffering.toast.vpnNotInStoreTitle'), description: t('guides.buffering.toast.vpnNotInStoreDesc'), variant: 'destructive' });
               }}
               onLaunchVpn={(c) => {
                 setState((s) => ({ ...s, vpnChoice: c }));
@@ -1210,41 +1203,42 @@ const BufferingGuide = ({
                 setState((s) => ({ ...s, vpnSpeedOk: ok }));
                 if (!ok) {
                   toast({
-                    title: 'Switch VPN server',
-                    description: 'Pick the closest city/server, then re-test for 15+ Mbps.',
+                    title: t('guides.buffering.toast.switchVpnServerTitle'),
+                    description: t('guides.buffering.toast.switchVpnServerDesc'),
                   });
                 }
               }}
               onVpnTest={(v) => {
                 if (state.vpnSpeedOk === false) {
-                  toast({ title: 'Get speed to 15+ first', description: 'Switch VPN city/server, then re-test speed.' });
+                  toast({ title: t('guides.buffering.toast.getSpeedFirstTitle'), description: t('guides.buffering.toast.getSpeedFirstDesc') });
                   return;
                 }
                 setState((s) => ({ ...s, vpnTest: v }));
                 if (v === 'fixed') {
-                  toast({ title: 'Awesome!', description: 'Likely ISP throttling — keep VPN on while streaming.' });
+                  toast({ title: t('guides.buffering.toast.awesomeTitle'), description: t('guides.buffering.toast.awesomeDesc') });
                   jumpToSummary();
                 }
               }}
               onTestStreamingApp={() => {
                 if (chosenApp) onLaunch(chosenApp);
-                else toast({ title: 'Open the streaming app manually.' });
+                else toast({ title: t('guides.buffering.toast.openAppManually') });
               }}
-              chosenAppLabel={state.appType ? APP_LABELS[state.appType] : null}
+              chosenAppLabel={state.appType ? appLabelOf(state.appType) : null}
               chosenAppAvailable={!!chosenApp && chosenAppInstalled}
               vpnChoice={state.vpnChoice}
               onChooseVpn={(c) => setState((s) => ({ ...s, vpnChoice: c, vpnSpeedOk: null, vpnTest: null }))}
             />
           )}
 
+          {/* i18n-ignore: state check, not text */}
           {step === 'summary' && (
             <Summary
               kids={kids}
               diagnosis={diagnosis}
-              recap={buildRecap(state)}
+              recap={buildRecap(state, t)}
               resolved={state.didRestartAndCache === true || state.vpnTest === 'fixed'}
               chosenApp={chosenApp}
-              chosenAppLabel={state.appType ? APP_LABELS[state.appType] : null}
+              chosenAppLabel={state.appType ? appLabelOf(state.appType) : null}
               chosenAppInstalled={chosenAppInstalled}
               onLaunchApp={() => chosenApp && onLaunch(chosenApp)}
               // Not the function itself: the button would hand it the click
@@ -1271,16 +1265,17 @@ const BufferingGuide = ({
                 data-summary-order="4"
                 className="h-12 px-6 text-base rounded-xl bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white focus-visible:bg-white/10 focus-visible:text-white active:bg-white/10 active:text-white"
               >
-                <ArrowLeft className="mr-2" /> Back
+                <ArrowLeft className="mr-2" /> {t('common.back')}
               </Button>
             )}
           </div>
 
           <p className="flex-1 min-w-0 px-4 text-center text-sm sm:text-base text-cyan-100/80 select-none pointer-events-none">
-            {(kids && KIDS_HINTS[step]) || HINTS[step]}
+            {kids && KIDS_HINT_STEPS.has(step) ? t(`guides.buffering.kidsHints.${step}`) : t(`guides.buffering.hints.${step}`)}
           </p>
 
           <div className="w-[150px] flex-shrink-0 flex justify-end">
+            {/* i18n-ignore: state check, not text */}
             {step !== 'summary' && (
               <Button
                 onClick={goNext}
@@ -1288,7 +1283,7 @@ const BufferingGuide = ({
                 data-guide-nav="next"
                 className="h-12 px-8 text-base font-semibold rounded-xl bg-cyan-500 text-slate-950 hover:bg-cyan-400 disabled:opacity-35 border border-transparent"
               >
-                Next <ArrowRight className="ml-2" />
+                {t('guides.buffering.nextBtn')} <ArrowRight className="ml-2" />
               </Button>
             )}
           </div>
@@ -1300,8 +1295,8 @@ const BufferingGuide = ({
           onClose={() => {
             setShowSpeedTest(false);
             toast({
-              title: 'Enter your download speed',
-              description: 'Type the Mbps you saw above, then continue.',
+              title: t('guides.buffering.toast.enterSpeedTitle'),
+              description: t('guides.buffering.toast.enterSpeedDesc'),
             });
           }}
         />
@@ -1310,12 +1305,12 @@ const BufferingGuide = ({
       {showAnonConfirm && (
         <div ref={anonConfirmRef} className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
           <div className="bg-[#0d1b2e] border border-white/15 rounded-3xl max-w-xl w-full p-8 shadow-2xl">
-            <h3 className="text-2xl font-bold text-white mb-4">Send report without signing in?</h3>
+            <h3 className="text-2xl font-bold text-white mb-4">{t('guides.buffering.anon.title')}</h3>
             <p className="text-base text-white/85 leading-relaxed mb-4">
-              Your report will be submitted to Snow Media support, but it will <strong>not</strong> be saved to your account.
+              <Trans i18nKey="guides.buffering.anon.body1" components={[<strong key="0" />]} />
             </p>
             <p className="text-base text-cyan-100/90 leading-relaxed mb-7">
-              Tip: Go back to the Home Screen and tap <strong>Sign In</strong> first so your ticket is saved on your account and you can track replies.
+              <Trans i18nKey="guides.buffering.anon.body2" components={[<strong key="0" />]} />
             </p>
             <div className="flex justify-end gap-3">
               <Button
@@ -1324,14 +1319,14 @@ const BufferingGuide = ({
                 disabled={submittingTicket}
                 className="h-12 px-6 text-base rounded-xl bg-white/5 border-white/20 text-white hover:bg-white/10"
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={submitAnonymousChannelReport}
                 disabled={submittingTicket}
                 className="h-12 px-6 text-base font-semibold rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950"
               >
-                {submittingTicket ? 'Sending…' : 'Send anyway'}
+                {submittingTicket ? t('guides.buffering.sendingBtn') : t('guides.buffering.sendAnywayBtn')}
               </Button>
             </div>
           </div>
@@ -1341,12 +1336,12 @@ const BufferingGuide = ({
       {showSignInPrompt && (
         <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
           <div className="bg-[#0d1b2e] border border-white/15 rounded-3xl max-w-xl w-full p-8 shadow-2xl">
-            <h3 className="text-2xl font-bold text-white mb-4">Sign in to submit a ticket</h3>
+            <h3 className="text-2xl font-bold text-white mb-4">{t('guides.buffering.signInPrompt.title')}</h3>
             <p className="text-base text-white/85 leading-relaxed mb-4">
-              You need an account to submit a support ticket so our team can <strong>reply back to you</strong> and you can track the conversation.
+              <Trans i18nKey="guides.buffering.signInPrompt.body1" components={[<strong key="0" />]} />
             </p>
             <p className="text-base text-cyan-100/90 leading-relaxed mb-7">
-              Sign in or create a free account to submit your ticket and get replies back.
+              {t('guides.buffering.signInPrompt.body2')}
             </p>
             <div className="flex justify-end gap-3">
               <Button
@@ -1354,7 +1349,7 @@ const BufferingGuide = ({
                 onClick={() => setShowSignInPrompt(false)}
                 className="h-12 px-6 text-base rounded-xl bg-white/5 border-white/20 text-white hover:bg-white/10"
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={() => {
@@ -1365,7 +1360,7 @@ const BufferingGuide = ({
                 className="h-12 px-6 text-base font-semibold rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950"
                 autoFocus
               >
-                Sign In
+                {t('guides.buffering.signInPrompt.signInBtn')}
               </Button>
             </div>
           </div>
@@ -1375,12 +1370,12 @@ const BufferingGuide = ({
       {showVpnSkipConfirm && (
         <div ref={vpnSkipConfirmRef} className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
           <div className="bg-[#0d1b2e] border border-white/15 rounded-3xl max-w-xl w-full p-8 shadow-2xl">
-            <h3 className="text-2xl font-bold text-white mb-4">Skip the VPN step?</h3>
+            <h3 className="text-2xl font-bold text-white mb-4">{t('guides.buffering.vpnSkip.title')}</h3>
             <p className="text-base text-white/85 leading-relaxed mb-4">
-              Heads up: Your internet provider can slow you down during peak hours — or for no clear reason at all. In 2026, ISP throttling is the <strong>#1 cause of buffering</strong>.
+              <Trans i18nKey="guides.buffering.vpnSkip.body1" components={[<strong key="0" />]} />
             </p>
             <p className="text-base text-cyan-100/90 leading-relaxed mb-7">
-              If nothing has worked up to this point, installing and turning on a VPN will more than likely fix it. You can still continue if you'd rather skip for now.
+              {t('guides.buffering.vpnSkip.body2')}
             </p>
             <div className="flex justify-end gap-3">
               <Button
@@ -1388,7 +1383,7 @@ const BufferingGuide = ({
                 onClick={() => setShowVpnSkipConfirm(false)}
                 className="h-12 px-6 text-base rounded-xl bg-white/5 border-white/20 text-white hover:bg-white/10"
               >
-                Go back
+                {t('guides.buffering.goBackBtn')}
               </Button>
               <Button
                 data-vpn-skip-primary="true"
@@ -1398,7 +1393,7 @@ const BufferingGuide = ({
                 }}
                 className="h-12 px-6 text-base font-semibold rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950"
               >
-                Skip VPN <ArrowRight className="ml-2" />
+                {t('guides.buffering.skipVpnBtn')} <ArrowRight className="ml-2" />
               </Button>
             </div>
           </div>
@@ -1551,18 +1546,20 @@ const ChoiceButton = ({
   </Button>
 );
 
-const IntroStep = ({ value, onSelect }: { value: AppType; onSelect: (t: AppType) => void }) => (
+const IntroStep = ({ value, onSelect }: { value: AppType; onSelect: (type: AppType) => void }) => {
+  const { t } = useTranslation();
+  return (
   <StepPanel
     icon={<Wifi className="!w-7 !h-7" />}
-    title="Which app is buffering?"
-    lead="We'll go through the usual fixes one at a time. This is for Snow Media's streaming apps — Netflix, Disney+ or Hulu buffering is usually something else."
+    title={t('guides.buffering.intro.title')}
+    lead={t('guides.buffering.intro.lead')}
   >
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {([
-        ['dreamstreams', 'Dreamstreams', 'Live TV, movies and shows', <Tv key="i" />],
-        ['vibeztv', 'VibezTV', 'Live TV, movies and shows', <MonitorPlay key="i" />],
-        ['plex', 'Plex', 'Your Plex movies and TV', <Film key="i" />],
-        ['other', 'Other / not sure', 'Any other streaming app', <HelpCircle key="i" />],
+        ['dreamstreams', 'DreamStreams', t('guides.buffering.intro.subLive'), <Tv key="i" />],
+        ['vibeztv', 'VibezTV', t('guides.buffering.intro.subLive'), <MonitorPlay key="i" />],
+        ['plex', 'Plex', t('guides.buffering.intro.subPlex'), <Film key="i" />],
+        ['other', t('guides.buffering.intro.otherLabel'), t('guides.buffering.intro.otherSub'), <HelpCircle key="i" />],
       ] as [AppType, string, string, React.ReactNode][]).map(([k, label, sub, icon]) => (
         <ChoiceButton key={k} active={value === k} onClick={() => onSelect(k)} icon={icon} sub={sub}>
           {label}
@@ -1570,14 +1567,17 @@ const IntroStep = ({ value, onSelect }: { value: AppType; onSelect: (t: AppType)
       ))}
     </div>
   </StepPanel>
-);
+  );
+};
 
-const DEVICE_OPTIONS: string[] = [
-  'Amazon Fire TV / Firestick',
-  'Android TV / Google TV',
-  'Android Phone or Tablet',
-  'Set-Top Box (X96 / T95 / etc.)',
-  'Other',
+// `value` is what the support team reads in the ticket (English, never
+// translated); `labelKey` is what the viewer reads.
+const DEVICE_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: 'Amazon Fire TV / Firestick', labelKey: 'guides.buffering.device.fireTv' },
+  { value: 'Android TV / Google TV', labelKey: 'guides.buffering.device.androidTv' },
+  { value: 'Android Phone or Tablet', labelKey: 'guides.buffering.device.androidPhone' },
+  { value: 'Set-Top Box (X96 / T95 / etc.)', labelKey: 'guides.buffering.device.setTop' },
+  { value: 'Other', labelKey: 'guides.buffering.device.other' },
 ];
 
 const ReportChannelStep = ({
@@ -1598,14 +1598,16 @@ const ReportChannelStep = ({
   onDeviceChange: (v: string) => void;
   onSubmit: () => void;
   onBack: () => void;
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <StepPanel
     icon={<AlertTriangle className="!w-7 !h-7" />}
-    title="Report the channel or title"
-    lead={<>Tell us exactly what's buffering in <strong className="text-white">{appLabel}</strong> and what you watch on. We'll open a support ticket so it gets fixed at the source.</>}
+    title={t('guides.buffering.report.title')}
+    lead={<Trans i18nKey="guides.buffering.report.lead" values={{ appLabel }} components={[<strong key="0" className="text-white" />]} />}
   >
     <div className="space-y-2">
-      <label className="block text-lg font-semibold text-white">Channel or movie/show name</label>
+      <label className="block text-lg font-semibold text-white">{t('guides.buffering.report.nameLabel')}</label>
       <input
         type="text"
         value={title}
@@ -1616,18 +1618,18 @@ const ReportChannelStep = ({
             (e.currentTarget as HTMLInputElement).blur();
           }
         }}
-        placeholder="e.g. ESPN HD, The Bear S03E01"
+        placeholder={t('guides.buffering.report.namePlaceholder')}
         data-guide-entry="true"
         className="w-full h-14 px-4 rounded-2xl bg-black/40 border-2 border-white/20 text-lg text-white placeholder:text-white/40 focus:outline-none focus:border-yellow-300"
       />
     </div>
 
     <div className="space-y-2">
-      <Question>Which device are you watching on?</Question>
+      <Question>{t('guides.buffering.report.deviceQuestion')}</Question>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {DEVICE_OPTIONS.map((d) => (
-          <ChoiceButton key={d} active={device === d} onClick={() => onDeviceChange(d)}>
-            {d}
+          <ChoiceButton key={d.value} active={device === d.value} onClick={() => onDeviceChange(d.value)}>
+            {t(d.labelKey)}
           </ChoiceButton>
         ))}
       </div>
@@ -1635,7 +1637,7 @@ const ReportChannelStep = ({
 
     <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-3 pt-1">
       <ActionButton onClick={onBack} tone="secondary" icon={<ArrowLeft />}>
-        Change answer
+        {t('guides.buffering.changeAnswerBtn')}
       </ActionButton>
       <ActionButton
         onClick={onSubmit}
@@ -1643,38 +1645,42 @@ const ReportChannelStep = ({
         disabled={submitting || !title.trim() || !device}
         icon={<MessageSquare />}
       >
-        {submitting ? 'Sending…' : 'Send report'}
+        {submitting ? t('guides.buffering.sendingBtn') : t('guides.buffering.report.sendBtn')}
       </ActionButton>
     </div>
   </StepPanel>
-);
+  );
+};
 
-const Step1 = ({ value, onSelect }: { value: Step1Choice; onSelect: (c: Step1Choice) => void }) => (
+const Step1 = ({ value, onSelect }: { value: Step1Choice; onSelect: (c: Step1Choice) => void }) => {
+  const { t } = useTranslation();
+  return (
   <StepPanel
     icon={<Tv className="!w-7 !h-7" />}
-    title="Is it one channel, or everything?"
-    lead="When only one channel or title fails, your internet is usually fine — it's the source, and we can fix that on our end."
+    title={t('guides.buffering.step1.title')}
+    lead={t('guides.buffering.step1.lead')}
   >
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <ChoiceButton
         active={value === 'one_only'}
         onClick={() => onSelect('one_only')}
         icon={<AlertTriangle className="text-amber-300" />}
-        sub="Report it and we'll fix it"
+        sub={t('guides.buffering.step1.oneSub')}
       >
-        Just one channel or title
+        {t('guides.buffering.step1.oneTitle')}
       </ChoiceButton>
       <ChoiceButton
         active={value === 'all_buffer'}
         onClick={() => onSelect('all_buffer')}
         icon={<Wifi className="text-cyan-300" />}
-        sub="Let's find the cause together"
+        sub={t('guides.buffering.step1.allSub')}
       >
-        Everything buffers
+        {t('guides.buffering.step1.allTitle')}
       </ChoiceButton>
     </div>
   </StepPanel>
-);
+  );
+};
 
 const NumberedSteps = ({ items }: { items: React.ReactNode[] }) => (
   <ol className="space-y-2">
@@ -1705,58 +1711,61 @@ const Step2 = ({
   chosenAppInstalled: boolean;
   onOpenSettings: () => void;
   onSelect: (v: boolean) => void;
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <StepPanel
     icon={<SettingsIcon className="!w-7 !h-7" />}
-    title={`Refresh ${appLabel}`}
-    lead="Clearing the app's cache fixes a lot of buffering. It doesn't sign you out or delete anything."
+    title={t('guides.buffering.step2.title', { app: appLabel })}
+    lead={t('guides.buffering.step2.lead')}
   >
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
       <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 space-y-4">
         {kids ? (
           <Note>
-            Ask a grown-up to do this part. In the box's settings for {appLabel}: <strong>Force Stop</strong>, then <strong>Storage → Clear Cache</strong>.
+            <Trans i18nKey="guides.buffering.step2.kidsNote" values={{ app: appLabel }} components={[<strong key="0" />, <strong key="1" />]} />
           </Note>
         ) : (
           <>
             <ActionButton onClick={onOpenSettings} icon={<SettingsIcon />} className="w-full">
-              Open {appLabel} settings
+              {t('guides.buffering.step2.openSettingsBtn', { app: appLabel })}
             </ActionButton>
             <NumberedSteps
               items={[
-                <>Choose <strong className="text-white">Force Stop</strong></>,
-                <>Go to <strong className="text-white">Storage → Clear Cache</strong> (not Clear Data)</>,
-                <>Press <strong className="text-white">Back</strong> on your remote to come here</>,
+                <Trans key="1" i18nKey="guides.buffering.step2.item1" components={[<strong key="0" className="text-white" />]} />,
+                <Trans key="2" i18nKey="guides.buffering.step2.item2" components={[<strong key="0" className="text-white" />]} />,
+                <Trans key="3" i18nKey="guides.buffering.step2.item3" components={[<strong key="0" className="text-white" />]} />,
               ]}
             />
           </>
         )}
         {!kids && chosenApp && !chosenAppInstalled && (
-          <Note tone="warn">{appLabel} doesn't look installed on this device. Install it from Main Apps first.</Note>
+          <Note tone="warn">{t('guides.buffering.step2.notInstalled', { app: appLabel })}</Note>
         )}
       </div>
 
       <div className="space-y-3">
-        <Question>Did that fix the buffering?</Question>
+        <Question>{t('guides.buffering.step2.question')}</Question>
         <ChoiceButton
           active={value === true}
           onClick={() => onSelect(true)}
           icon={<CheckCircle2 className="text-emerald-300" />}
         >
-          Yes, it's fixed
+          {t('guides.buffering.step2.fixedBtn')}
         </ChoiceButton>
         <ChoiceButton
           active={value === false}
           onClick={() => onSelect(false)}
           icon={<RotateCw className="text-white/80" />}
-          sub="Next we'll test your internet speed"
+          sub={t('guides.buffering.step2.stillSub')}
         >
-          Still buffering
+          {t('guides.buffering.stillBufferingBtn')}
         </ChoiceButton>
       </div>
     </div>
   </StepPanel>
-);
+  );
+};
 
 const Step3 = ({
   speedMbps,
@@ -1771,20 +1780,21 @@ const Step3 = ({
   onRunInApp: () => void;
   onSaveTyped: () => void;
 }) => {
+  const { t } = useTranslation();
   const good = typeof speedMbps === 'number' && speedMbps >= 15;
   return (
     <StepPanel
       icon={<Gauge className="!w-7 !h-7" />}
-      title="Test your internet speed"
-      lead="Streaming needs at least 15 Mbps download on this device. Run the test here, or type in a result from another speed test."
+      title={t('guides.buffering.step3.title')}
+      lead={t('guides.buffering.step3.lead')}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
         <div className="space-y-4">
           <ActionButton onClick={onRunInApp} icon={<Gauge />} className="w-full">
-            Run speed test
+            {t('guides.buffering.step3.runBtn')}
           </ActionButton>
           <div className="space-y-2">
-            <label className="block text-base text-white/75">Or type your download speed</label>
+            <label className="block text-base text-white/75">{t('guides.buffering.step3.typeLabel')}</label>
             <div className="flex items-center gap-3">
               <input
                 type="number"
@@ -1798,11 +1808,11 @@ const Step3 = ({
                     onSaveTyped();
                   }
                 }}
-                placeholder="Mbps"
+                placeholder={t('guides.buffering.step3.mbps')}
                 className="flex-1 min-w-0 h-14 px-4 rounded-2xl bg-black/40 border-2 border-white/20 text-lg text-white placeholder:text-white/40 focus:outline-none focus:border-yellow-300"
               />
               <ActionButton onClick={onSaveTyped} tone="secondary">
-                Save
+                {t('common.save')}
               </ActionButton>
             </div>
           </div>
@@ -1819,22 +1829,22 @@ const Step3 = ({
         >
           {typeof speedMbps === 'number' ? (
             <>
-              <p className="text-sm uppercase tracking-wider text-white/60">Your speed</p>
+              <p className="text-sm uppercase tracking-wider text-white/60">{t('guides.buffering.step3.yourSpeed')}</p>
               <p className={`mt-1 text-5xl font-bold ${good ? 'text-emerald-200' : 'text-rose-200'}`}>
                 {speedMbps}
-                <span className="ml-2 text-2xl font-semibold">Mbps</span>
+                <span className="ml-2 text-2xl font-semibold">{t('guides.buffering.step3.mbps')}</span>
               </p>
               <p className="mt-3 text-base text-white/85 leading-relaxed">
                 {good
-                  ? 'Good for streaming. Press Next.'
-                  : 'Too slow for smooth streaming. Try 5 GHz Wi-Fi, move the box closer to the router, or use an Ethernet cable, then test again.'}
+                  ? t('guides.buffering.step3.good')
+                  : t('guides.buffering.step3.tooSlow')}
               </p>
             </>
           ) : (
             <>
-              <p className="text-sm uppercase tracking-wider text-white/50">Your speed</p>
+              <p className="text-sm uppercase tracking-wider text-white/50">{t('guides.buffering.step3.yourSpeed')}</p>
               <p className="mt-1 text-5xl font-bold text-white/25">—</p>
-              <p className="mt-3 text-base text-white/60">Run the test and your result shows here.</p>
+              <p className="mt-3 text-base text-white/60">{t('guides.buffering.step3.emptyHint')}</p>
             </>
           )}
         </div>
@@ -1880,6 +1890,7 @@ const Step4 = ({
   vpnChoice: VpnChoice;
   onChooseVpn: (c: 'ipvanish' | 'surfshark') => void;
 }) => {
+  const { t } = useTranslation();
   const activeChoice: 'ipvanish' | 'surfshark' = vpnChoice ?? 'ipvanish';
   const activeApp = activeChoice === 'ipvanish' ? ipvanishApp : surfsharkApp;
   const activeInstalled = activeChoice === 'ipvanish' ? ipvanishInstalled : surfsharkInstalled;
@@ -1887,13 +1898,13 @@ const Step4 = ({
   return (
     <StepPanel
       icon={<ShieldCheck className="!w-7 !h-7" />}
-      title="Try a VPN"
-      lead="Internet providers often slow streaming down, especially in the evening. A VPN hides your streaming from them, and is the most common fix."
+      title={t('guides.buffering.step4.title')}
+      lead={t('guides.buffering.step4.lead')}
     >
       {kids ? (
         // No installing, opening or signing up for a VPN on a Kids profile.
         <Note>
-          A VPN is a grown-up's job. Ask one to set it up and turn it on, then come back and try your stream again.
+          {t('guides.buffering.step4.kidsNote')}
         </Note>
       ) : (
         <>
@@ -1903,18 +1914,18 @@ const Step4 = ({
               active={activeChoice === 'ipvanish'}
               onClick={() => onChooseVpn('ipvanish')}
               icon={<img src={VPN_INFO.ipvanish.icon} alt="" className="w-8 h-8 rounded-lg" />}
-              sub={ipvanishInstalled ? 'Installed' : 'Not installed'}
+              sub={ipvanishInstalled ? t('guides.buffering.step4.installed') : t('guides.buffering.step4.notInstalled')}
             >
-              IPVanish
+              {VPN_INFO.ipvanish.label}
             </ChoiceButton>
             <ChoiceButton
               dataVpnChoice="surfshark"
               active={activeChoice === 'surfshark'}
               onClick={() => onChooseVpn('surfshark')}
               icon={<img src={VPN_INFO.surfshark.icon} alt="" className="w-8 h-8 rounded-lg" />}
-              sub={surfsharkInstalled ? 'Installed' : 'Not installed'}
+              sub={surfsharkInstalled ? t('guides.buffering.step4.installed') : t('guides.buffering.step4.notInstalled')}
             >
-              Surfshark
+              {VPN_INFO.surfshark.label}
             </ChoiceButton>
           </div>
 
@@ -1930,41 +1941,41 @@ const Step4 = ({
 
       {anyInstalled && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 space-y-5">
-          <p className="text-sm uppercase tracking-wider text-cyan-200/80">With the VPN connected</p>
+          <p className="text-sm uppercase tracking-wider text-cyan-200/80">{t('guides.buffering.step4.withVpn')}</p>
 
           <div className="space-y-3">
-            <Question>1. Test your speed again</Question>
+            <Question>{t('guides.buffering.step4.test1')}</Question>
             <ActionButton onClick={onRunSpeedTest} icon={<Gauge />} className="w-full">
-              Run speed test with VPN on
+              {t('guides.buffering.step4.runVpnBtn')}
             </ActionButton>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <ChoiceButton active={vpnSpeedOk === true} onClick={() => onVpnSpeedOk(true)} icon={<CheckCircle2 className="text-emerald-300" />}>
-                15 Mbps or more
+                {t('guides.buffering.step4.speedOk')}
               </ChoiceButton>
               <ChoiceButton
                 active={vpnSpeedOk === false}
                 onClick={() => onVpnSpeedOk(false)}
                 icon={<AlertTriangle className="text-amber-300" />}
-                sub="Pick a closer VPN city, then test again"
+                sub={t('guides.buffering.step4.speedLowSub')}
               >
-                Under 15 Mbps
+                {t('guides.buffering.step4.speedLow')}
               </ChoiceButton>
             </div>
           </div>
 
           <div className="space-y-3">
-            <Question>2. Try your stream{chosenAppLabel ? ` in ${chosenAppLabel}` : ''}</Question>
+            <Question>{chosenAppLabel ? t('guides.buffering.step4.test2In', { app: chosenAppLabel }) : t('guides.buffering.step4.test2')}</Question>
             {chosenAppAvailable && !kids && (
               <ActionButton onClick={onTestStreamingApp} tone="secondary" icon={<Play />} className="w-full">
-                Open {chosenAppLabel}
+                {t('guides.buffering.openAppBtn', { app: chosenAppLabel })}
               </ActionButton>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <ChoiceButton active={vpnTest === 'fixed'} onClick={() => onVpnTest('fixed')} icon={<CheckCircle2 className="text-emerald-300" />}>
-                The VPN fixed it
+                {t('guides.buffering.step4.vpnFixed')}
               </ChoiceButton>
               <ChoiceButton active={vpnTest === 'still_buffering'} onClick={() => onVpnTest('still_buffering')} icon={<RotateCw className="text-white/80" />}>
-                Still buffering
+                {t('guides.buffering.stillBufferingBtn')}
               </ChoiceButton>
             </div>
           </div>
@@ -1987,6 +1998,7 @@ const VpnSection = ({
   onDownloadVpn: () => void;
   onLaunchVpn: () => void;
 }) => {
+  const { t } = useTranslation();
   const info = VPN_INFO[choice];
   return (
     <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-5 items-start rounded-2xl border border-white/10 bg-white/[0.04] p-5">
@@ -1994,33 +2006,34 @@ const VpnSection = ({
         {/* Primary action — full width so D-pad lands here first */}
         {vpnInstalled ? (
           <ActionButton onClick={onLaunchVpn} data-vpn-primary-action={choice} tone="go" icon={<Play />} className="w-full">
-            Open {info.label}
+            {t('guides.buffering.vpn.openBtn', { name: info.label })}
           </ActionButton>
         ) : (
           <ActionButton onClick={onDownloadVpn} data-vpn-primary-action={choice} icon={<DownloadIcon />} className="w-full">
-            Install {info.label}
+            {t('guides.buffering.vpn.installBtn', { name: info.label })}
           </ActionButton>
         )}
         <NumberedSteps
           items={[
-            <><strong className="text-white">Sign in</strong> — your reseller has the details, or sign up with the QR code</>,
-            <>Choose <strong className="text-white">Quick Connect</strong>, then come back and try your stream</>,
+            <Trans key="1" i18nKey="guides.buffering.vpn.item1" components={[<strong key="0" className="text-white" />]} />,
+            <Trans key="2" i18nKey="guides.buffering.vpn.item2" components={[<strong key="0" className="text-white" />]} />,
           ]}
         />
         <Note tone="warn">
-          A VPN is a paid service — free ones are too slow for streaming. It does <strong>not</strong> work with VibezTV.
+          <Trans i18nKey="guides.buffering.vpn.paidNote" components={[<strong key="0" />]} />
         </Note>
       </div>
       <div className="flex flex-col items-center text-center">
-        <p className="mb-2 text-base text-white/75">Need an account?</p>
+        <p className="mb-2 text-base text-white/75">{t('guides.buffering.vpn.needAccount')}</p>
         <QrBlock value={info.signupUrl} />
-        <p className="mt-2 max-w-[180px] text-sm text-white/55 leading-snug">Scan with your phone to sign up</p>
+        <p className="mt-2 max-w-[180px] text-sm text-white/55 leading-snug">{t('guides.buffering.vpn.scanToSignUp')}</p>
       </div>
     </div>
   );
 };
 
 const QrBlock = ({ value }: { value: string }) => {
+  const { t } = useTranslation();
   const [dataUrl, setDataUrl] = useState<string>('');
   useEffect(() => {
     let cancelled = false;
@@ -2036,9 +2049,9 @@ const QrBlock = ({ value }: { value: string }) => {
   return (
     <div className="bg-white p-2 rounded-xl flex-shrink-0">
       {dataUrl ? (
-        <img src={dataUrl} alt="QR code" className="w-[150px] h-[150px]" />
+        <img src={dataUrl} alt={t('guides.buffering.qrAlt')} className="w-[150px] h-[150px]" />
       ) : (
-        <div className="w-[150px] h-[150px] flex items-center justify-center text-slate-500 text-sm">Loading…</div>
+        <div className="w-[150px] h-[150px] flex items-center justify-center text-slate-500 text-sm">{t('common.loading')}</div>
       )}
     </div>
   );
@@ -2058,7 +2071,7 @@ const Summary = ({
   onRestart,
 }: {
   kids: boolean;
-  diagnosis: { title: string; bullets: string[] };
+  diagnosis: Diagnosis;
   recap: { label: string; value: string }[];
   resolved: boolean;
   chosenApp: AppData | undefined;
@@ -2068,7 +2081,9 @@ const Summary = ({
   onSubmitTicket: () => void;
   submittingTicket: boolean;
   onRestart: () => void;
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <section className="space-y-5">
     <div className={`rounded-3xl border-2 p-5 ${resolved ? 'border-emerald-300/50 bg-emerald-400/10' : 'border-cyan-300/40 bg-cyan-400/10'}`}>
       <div className="flex items-start">
@@ -2076,13 +2091,13 @@ const Summary = ({
           {resolved ? <CheckCircle2 className="w-8 h-8" /> : <HelpCircle className="w-8 h-8" />}
         </span>
         <div className="min-w-0">
-          <p className="text-sm uppercase tracking-wider text-white/60">{resolved ? 'Sorted' : 'What we found'}</p>
-          <h2 className="text-2xl font-bold text-white leading-tight">{diagnosis.title}</h2>
+          <p className="text-sm uppercase tracking-wider text-white/60">{resolved ? t('guides.buffering.summary.sorted') : t('guides.buffering.summary.found')}</p>
+          <h2 className="text-2xl font-bold text-white leading-tight">{t(diagnosis.titleKey)}</h2>
           <ul className="mt-3 space-y-1.5">
             {diagnosis.bullets.map((b, i) => (
               <li key={i} className="flex items-start text-base sm:text-lg text-white/85 leading-snug">
                 <span className="mr-3 mt-2.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-white/60" />
-                <span className="min-w-0">{b}</span>
+                <span className="min-w-0">{t(b.key, b.params)}</span>
               </li>
             ))}
           </ul>
@@ -2093,14 +2108,14 @@ const Summary = ({
     {/* A Kids profile does not open other apps or send tickets: a grown-up
         sends the results from their own profile. */}
     {kids && !resolved && (
-      <Note>Still buffering? Show this screen to a grown-up. They can send it to support from their profile.</Note>
+      <Note>{t('guides.buffering.summary.kidsNote')}</Note>
     )}
 
     {/* Actions sit above the recap so they are on screen without scrolling. */}
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       {!kids && chosenApp && chosenAppInstalled && chosenAppLabel && (
         <ActionButton onClick={onLaunchApp} data-summary-order="1" tone="go" icon={<Play />}>
-          Open {chosenAppLabel}
+          {t('guides.buffering.openAppBtn', { app: chosenAppLabel })}
         </ActionButton>
       )}
       {!kids && (
@@ -2110,16 +2125,16 @@ const Summary = ({
           data-summary-order="2"
           icon={<MessageSquare />}
         >
-          {submittingTicket ? 'Sending…' : 'Send to support'}
+          {submittingTicket ? t('guides.buffering.sendingBtn') : t('guides.buffering.summary.sendBtn')}
         </ActionButton>
       )}
       <ActionButton onClick={onRestart} data-summary-order="3" tone="secondary" icon={<RotateCw />}>
-        Start over
+        {t('guides.buffering.summary.startOverBtn')}
       </ActionButton>
     </div>
 
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-      <p className="mb-3 text-lg font-semibold text-white">What you tried</p>
+      <p className="mb-3 text-lg font-semibold text-white">{t('guides.buffering.summary.whatYouTried')}</p>
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
         {recap.map((r) => (
           <div key={r.label} className="flex items-baseline justify-between border-b border-white/5 pb-1.5">
@@ -2130,73 +2145,52 @@ const Summary = ({
       </dl>
     </div>
   </section>
-);
+  );
+};
 
 /* ---------------- Logic ---------------- */
 
-function getDiagnosis(state: State): { title: string; bullets: string[] } {
+// What we found: keys, not text, so the summary is drawn in the app's language
+// and the support ticket can still be written in English.
+interface Diagnosis { titleKey: string; bullets: { key: string; params?: Record<string, string | number> }[] }
+
+function getDiagnosis(state: State): Diagnosis {
+  const d = 'guides.buffering.diag';
   if (state.step1Choice === 'one_only') {
-    return {
-      title: "It's that one channel or title",
-      bullets: [
-        'If only one channel/title is failing, your internet is usually fine.',
-        'Email the exact channel/title name to support so we can fix it fast.',
-      ],
-    };
+    return { titleKey: `${d}.oneOnly.title`, bullets: [{ key: `${d}.oneOnly.b1` }, { key: `${d}.oneOnly.b2` }] };
   }
   if (state.didRestartAndCache === true) {
-    return {
-      title: 'Fixed: clearing the cache did it',
-      bullets: [
-        'Clearing cache + restarting refreshes the app and connection.',
-        'If it happens again, repeat the Force Stop + Clear Cache step first.',
-      ],
-    };
+    return { titleKey: `${d}.cacheFixed.title`, bullets: [{ key: `${d}.cacheFixed.b1` }, { key: `${d}.cacheFixed.b2` }] };
   }
   if (typeof state.speedMbps === 'number' && state.speedMbps < 15) {
     return {
-      title: 'Your internet is too slow on this device',
-      bullets: [
-        `Speed on the streaming device is under 15 Mbps (${state.speedMbps} Mbps).`,
-        'Switch to 5GHz Wi-Fi, move closer, or try Ethernet.',
-        'Restart modem/router and re-test speed.',
-      ],
+      titleKey: `${d}.slow.title`,
+      bullets: [{ key: `${d}.slow.b1`, params: { speed: state.speedMbps } }, { key: `${d}.slow.b2` }, { key: `${d}.slow.b3` }],
     };
   }
   if (state.vpnTest === 'fixed') {
-    return {
-      title: 'Fixed: your provider was slowing you down',
-      bullets: [
-        'VPN working means your ISP likely slowed streaming traffic (especially during peak hours).',
-        'Keep VPN on while streaming and use a nearby/fast server.',
-        'If speed drops with VPN, choose the closest VPN city/server and re-test (15+ Mbps).',
-      ],
-    };
+    return { titleKey: `${d}.vpnFixed.title`, bullets: [{ key: `${d}.vpnFixed.b1` }, { key: `${d}.vpnFixed.b2` }, { key: `${d}.vpnFixed.b3` }] };
   }
-  return {
-    title: "Still buffering: let's get support on it",
-    bullets: [
-      'Re-check speed test closer to the router (15+ Mbps).',
-      'Try VPN with a different nearby city/server and re-test speed (15+ Mbps).',
-      'Press Send to support and we will pick it up from your results.',
-    ],
-  };
+  return { titleKey: `${d}.still.title`, bullets: [{ key: `${d}.still.b1` }, { key: `${d}.still.b2` }, { key: `${d}.still.b3` }] };
 }
 
-function buildRecap(state: State): { label: string; value: string }[] {
-  const yn = (v: boolean | null) => (v === null ? '—' : v ? 'Yes' : 'No');
+function buildRecap(state: State, t: TFunction): { label: string; value: string }[] {
+  const yn = (v: boolean | null) => (v === null ? '—' : v ? t('common.yes') : t('common.no'));
+  const r = 'guides.buffering.recap';
   return [
-    { label: 'App', value: state.appType ? APP_LABELS[state.appType].replace('your app', 'Other') : '—' },
-    { label: 'Buffering', value: state.step1Choice === 'one_only' ? 'One channel/title' : state.step1Choice === 'all_buffer' ? 'Everything' : '—' },
-    { label: 'Clearing the cache fixed it', value: yn(state.didRestartAndCache) },
-    { label: 'Speed', value: typeof state.speedMbps === 'number' ? `${state.speedMbps} Mbps` : '—' },
-    { label: 'VPN', value: state.vpnChoice ? VPN_INFO[state.vpnChoice].label : '—' },
-    { label: 'Speed with VPN 15+', value: yn(state.vpnSpeedOk) },
-    { label: 'VPN fixed it', value: state.vpnTest === 'fixed' ? 'Yes' : state.vpnTest === 'still_buffering' ? 'No' : '—' },
+    { label: t(`${r}.app`), value: state.appType ? (state.appType === 'other' ? t(`${r}.other`) : serverDisplayName(APP_LABELS[state.appType])) : '—' },
+    { label: t(`${r}.buffering`), value: state.step1Choice === 'one_only' ? t(`${r}.oneChannel`) : state.step1Choice === 'all_buffer' ? t(`${r}.everything`) : '—' },
+    { label: t(`${r}.cacheFixed`), value: yn(state.didRestartAndCache) },
+    { label: t(`${r}.speed`), value: typeof state.speedMbps === 'number' ? t(`${r}.speedValue`, { speed: state.speedMbps }) : '—' },
+    { label: t(`${r}.vpn`), value: state.vpnChoice ? VPN_INFO[state.vpnChoice].label : '—' },
+    { label: t(`${r}.vpnSpeed`), value: yn(state.vpnSpeedOk) },
+    { label: t(`${r}.vpnFixed`), value: state.vpnTest === 'fixed' ? t('common.yes') : state.vpnTest === 'still_buffering' ? t('common.no') : '—' },
   ];
 }
 
-function buildSupportScript(state: State, d: { title: string; bullets: string[] }): string {
+// The results the support team reads in the ticket: always English, whatever
+// language the viewer uses.
+function buildSupportScript(state: State, d: Diagnosis): string {
   const lines: string[] = [];
   lines.push('Snow Media Buffering Walkthrough Results:');
   lines.push(`• App type: ${state.appType ?? 'N/A'}`);
@@ -2215,7 +2209,7 @@ function buildSupportScript(state: State, d: { title: string; bullets: string[] 
   );
   lines.push(`• VPN test: ${state.vpnTest ?? 'N/A'}`);
   lines.push('');
-  lines.push(`Likely cause: ${d.title}`);
+  lines.push(`Likely cause: ${i18n.t(d.titleKey, { lng: 'en' })}`);
   lines.push('');
   lines.push('Extra details (optional):');
   lines.push('- Device type (Fire TV / X96 / other Android box):');

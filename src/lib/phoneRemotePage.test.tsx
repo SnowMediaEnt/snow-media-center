@@ -235,3 +235,43 @@ describe('the phone remote page: pairing', () => {
     expect(screen.getByText(/didn't allow this phone/)).toBeTruthy();
   });
 });
+
+describe('the phone remote page: language', () => {
+  it('follows the TV language from the QR link, and keeps it after the address is cleaned', async () => {
+    window.history.replaceState(null, '', '/remote?c=BCDFGHJK&lang=es');
+    h.replies.fn = (b) => (b.op === 'join' ? { ok: true, pending: true, token: 'e'.repeat(32), label: 'Den TV' } : { ok: true, pending: true });
+    render(<PhoneRemotePage />);
+    await flush();
+    expect(screen.getByText('Casi listo')).toBeTruthy();
+    expect(document.title).toBe('Control remoto Snow Media');
+    expect(document.documentElement.lang).toBe('es');
+    expect(localStorage.getItem('smc-phone-remote-lang')).toBe('es');
+  });
+
+  it('uses the last TV language when the address has none, and English when it never had one', () => {
+    localStorage.setItem('smc-phone-remote-lang', 'de');
+    const { unmount } = render(<PhoneRemotePage />);
+    expect(screen.getByText('Verbinden')).toBeTruthy();
+    unmount();
+    localStorage.clear();
+    render(<PhoneRemotePage />);
+    expect(screen.getByText('Connect')).toBeTruthy();
+  });
+
+  it('ignores a language it does not have', () => {
+    window.history.replaceState(null, '', '/remote?lang=xx');
+    render(<PhoneRemotePage />);
+    expect(screen.getByText('Connect')).toBeTruthy();
+    expect(localStorage.getItem('smc-phone-remote-lang')).toBeNull();
+  });
+
+  it('shows the remote in Arabic, with the TV text box named inside the sentence', async () => {
+    window.history.replaceState(null, '', '/remote?lang=ar');
+    localStorage.setItem('smc-phone-remote', JSON.stringify(pairing));
+    render(<PhoneRemotePage />);
+    status('SUBSCRIBED');
+    await fromBox({ t: 'field', typing: true, value: '', password: false, label: 'Search' });
+    expect(screen.getByText(/يوجد مربع نص مفتوح على التلفزيون/)).toBeTruthy();
+    expect(screen.getByText('رجوع')).toBeTruthy();
+  });
+});

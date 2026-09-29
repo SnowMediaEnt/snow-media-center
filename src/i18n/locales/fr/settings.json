@@ -7,12 +7,14 @@
       "ui": "Interface",
       "updates": "Mises à jour",
       "alerts": "Alertes d'applis",
-      "ai": "IA"
+      "ai": "IA",
+      "profiles": "Profils",
+      "remote": "Télécommande mobile"
     },
     "mediaManagerHeading": "Gestionnaire de médias",
     "contentBar": {
       "title": "Barre de contenu",
-      "description": "Affiche les titres tendances Plex et le sport en direct sur l'écran d'accueil. Désactivez-la sur les appareils lents pour une expérience plus fluide.",
+      "description": "Affiche les titres tendance Plex et le sport en direct sur l'écran d'accueil. Désactivez-la sur les appareils lents pour une expérience plus fluide.",
       "aria": "Activer la barre de contenu d'accueil"
     },
     "player": {
@@ -22,7 +24,68 @@
     },
     "language": {
       "title": "Langue",
-      "description": "Choisissez la langue de l'application. La couverture des traductions est encore en cours d'extension."
+      "description": "Choisissez la langue de l'appli."
+    },
+    "aiTier": {
+      "titleFree": "Snow AI : Gratuit",
+      "titlePremium": "Snow AI : Premium",
+      "descPremium": "La version gratuite est incluse. Premium utilise le modèle le plus puissant pour le chat IA et les commandes vocales — {{gems}} Snow Gems par message. Changez quand vous voulez pour comparer.",
+      "descSignIn": "La version gratuite est incluse. Connectez-vous pour essayer Premium, le modèle le plus puissant (payé avec des Snow Gems).",
+      "aria": "Snow AI Premium"
+    },
+    "dashboardSize": {
+      "title": "Grand tableau de bord",
+      "description": "Désactivé, le Tableau de bord tient sur un écran. Activé, tout est plus grand et plus lisible depuis le canapé, et la page défile."
+    },
+    "postNotify": {
+      "title": "Notifications des actus",
+      "description": "Activé, une nouvelle actu de Snow Media affiche un compteur sur la carte Assistance et une alerte sur l'accueil. Désactivé, elle arrive quand même dans Assistance → Actus, discrètement."
+    },
+    "deviceAlerts": {
+      "title": "Alertes sur cet appareil",
+      "description": "Activé par défaut. Les avis de service s'affichent à l'écran même quand Snow Media Center est fermé : appuyez sur OK pour ouvrir l'appli, ou fermez-le et il ne reviendra pas. Désactivez pour ne voir les alertes que dans l'appli.",
+      "blocked": "Les notifications de cette appli sont désactivées dans les paramètres de votre appareil : rien ne s'affichera tant que vous ne les réactivez pas là-bas."
+    },
+    "remote": {
+      "title": "Utilisez votre téléphone comme télécommande",
+      "step1": "Scannez le code QR avec l'appareil photo de votre téléphone, ou allez sur <1>snowmediaent.com/remote</1>",
+      "step2": "Saisissez le code affiché ici, puis choisissez Autoriser sur la TV",
+      "step3": "Naviguez, sélectionnez, revenez en arrière, lancez ou mettez en pause, écrivez et parlez, depuis votre téléphone",
+      "connected_one": "📱 {{count}} téléphone connecté en ce moment.",
+      "connected_many": "📱 {{count}} téléphones connectés en ce moment.",
+      "connected_other": "📱 {{count}} téléphones connectés en ce moment.",
+      "paired": "Un téléphone est associé : ouvrez snowmediaent.com/remote dessus pour l'utiliser.",
+      "none": "Aucun téléphone associé pour l'instant.",
+      "stayPaired": "Les téléphones associés le restent ; chaque code ne sert qu'une fois.",
+      "typingHintTitle": "Afficher le code QR lors de la saisie",
+      "typingHintDesc": "Une petite carte propose le clavier de votre téléphone dès qu'un champ de texte est ouvert sur la TV.",
+      "unpairBtn": "Dissocier les téléphones"
+    },
+    "profiles": {
+      "kidsTag": "Enfants",
+      "pinTag": "PIN",
+      "watchingTag": "actif",
+      "switchTitle": "Changer de profil",
+      "switchDesc": "Choisissez un autre profil. Chacun a sa propre liste Reprendre la lecture, Ma liste, ses favoris et son écran d'accueil.",
+      "manageTitle": "Ajouter ou modifier des profils",
+      "manageDesc": "Ajoutez quelqu'un (jusqu'à 8 profils), créez un profil Enfants, renommez, changez la couleur ou ajoutez un code PIN."
+    },
+    "toast": {
+      "aiSignInTitle": "Connectez-vous pour Premium",
+      "aiSignInDesc": "Snow AI Premium utilise les Snow Gems de votre compte.",
+      "notifBlockedTitle": "Notifications bloquées",
+      "notifBlockedDesc": "Autorisez les notifications de Snow Media Center dans les paramètres de l'appareil, puis réessayez.",
+      "alertsOnTitle": "Alertes activées sur cet appareil",
+      "alertsOffTitle": "Alertes désactivées sur cet appareil",
+      "alertsOnDesc": "Les avis de service s'afficheront même si Snow Media Center est fermé.",
+      "alertsOffDesc": "Les alertes ne s'afficheront que dans l'appli.",
+      "alertsFailTitle": "Impossible de modifier les alertes",
+      "playerOnTitle": "Lecteur activé",
+      "playerOffTitle": "Lecteur désactivé",
+      "playerDesc": "Modification appliquée à tous les appareils.",
+      "updateFailTitle": "Échec de la mise à jour",
+      "unpairedTitle": "Téléphones dissociés",
+      "unpairedDesc": "Associez-les à nouveau avec le nouveau code."
     }
   }
 }

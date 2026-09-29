@@ -1,0 +1,83 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="rec_notif_title_none">Aufnahme läuft</string>
+    <string name="rec_notif_title_programme">Aufnahme: %1$s (%2$s)</string>
+    <string name="rec_notif_title_channel">Aufnahme: %1$s</string>
+    <string name="rec_notif_text_starting">Startet</string>
+    <string name="rec_notif_text_until">Bis %1$s · nutzt 1 Stream deines Zugangs</string>
+    <string name="rec_notif_text_until_stopped">Bis du sie stoppst · nutzt 1 Stream deines Zugangs</string>
+    <string name="rec_channel_name">Aufnahmen</string>
+    <string name="rec_channel_desc">Wird angezeigt, solange ein Sender aufgenommen wird.</string>
+    <string name="rec_notif_stop">Stopp</string>
+    <string name="rec_ended_title">Aufnahme von %1$s gestoppt</string>
+    <string name="rec_reason_drive_full">Der Speicher ist voll</string>
+    <string name="rec_reason_unsupported">Dieser Sender kann nicht aufgenommen werden</string>
+    <string name="rec_reason_drive_removed">Der Speicher wurde entfernt</string>
+    <string name="rec_reason_write_failed">Die Aufnahme konnte nicht gespeichert werden</string>
+    <string name="sched_default_title">Aufnahme</string>
+    <string name="sched_missed_title">Aufnahme verpasst: %1$s</string>
+    <string name="sched_missed_text">%1$s–%2$s. %3$s</string>
+    <string name="sched_failed_title">Geplante Aufnahme nicht gestartet: %1$s</string>
+    <string name="sched_late_title">Verspätet gestartet: %1$s</string>
+    <string name="sched_late_text">Die Box war um %1$s aus. Aufnahme bis %2$s.</string>
+    <string name="sched_usb_title">Aufnahme auf dieser Box: %1$s</string>
+    <string name="sched_reason_no_login">Melde dich bei Live-TV an, um aufzunehmen.</string>
+    <string name="sched_reason_other_line">Live-TV ist mit einem anderen Zugang angemeldet.</string>
+    <string name="sched_reason_no_space">Nicht genug freier Speicher.</string>
+    <string name="sched_reason_usb_gone">Der USB-Speicher war nicht verbunden.</string>
+    <string name="sched_reason_blocked">Die Box hat einen geplanten Start blockiert. Erlaube „Wecker und Erinnerungen“ für SMC.</string>
+    <string name="sched_reason_missed">Die Box war aus oder SMC wurde beendet.</string>
+    <string name="sched_reason_start_failed">Die Aufnahme konnte nicht starten.</string>
+    <string name="alert_channel_name">Meldungen von Snow Media</string>
+    <string name="alert_channel_desc">Service-Hinweise, Störungen und Ankündigungen von Snow Media.</string>
+    <string name="alert_plex_title">Jetzt auf Plex</string>
+    <string name="alert_plex_request_fallback">Deine Anfrage</string>
+    <string name="alert_plex_ready">%1$s ist bereit zum Ansehen. Öffne den Player, dann Plex.</string>
+    <string name="widget_open_app">Öffne Snow Media Center für Neuigkeiten.</string>
+    <string name="widget_not_signed_in">Nicht angemeldet – öffnen, um deinen Zugang hinzuzufügen</string>
+    <string name="widget_line_fallback">Dein Zugang</string>
+    <string name="widget_trial">Testzugang · %1$s</string>
+    <string name="widget_active">%1$s · aktiv</string>
+    <string name="widget_expired">%1$s · abgelaufen – verlängere, um weiterzuschauen</string>
+    <string name="widget_expires_today">%1$s · läuft heute ab</string>
+    <string name="billing_network">Der Abrechnungsserver ist nicht erreichbar. Prüfe deine Internetverbindung und versuche es erneut.</string>
+    <string name="billing_bad_response">Der Abrechnungsserver hat eine unerwartete Antwort gesendet (%1$s).</string>
+    <string name="billing_cancelled">Gestoppt.</string>
+    <string name="billing_http_401">Bitte melde dich erneut an.</string>
+    <string name="billing_http_403">Dieses Konto kann nicht in der App verwendet werden.</string>
+    <string name="billing_http_404">Dieser Eintrag wurde nicht gefunden.</string>
+    <string name="billing_http_429">Zu viele Versuche. Bitte warte einen Moment.</string>
+    <string name="billing_http_5xx">Beim Abrechnungsserver ist ein Problem aufgetreten. Versuche es in einer Minute erneut.</string>
+    <string name="billing_request_failed">Anfrage fehlgeschlagen (%1$d).</string>
+    <string name="billing_register_required">E-Mail, Passwort, Vorname und Nachname sind erforderlich.</string>
+    <string name="billing_login_required">E-Mail und Passwort sind erforderlich.</string>
+    <string name="billing_field_required">%1$s ist erforderlich.</string>
+    <string name="billing_not_configured">Die Abrechnung ist in dieser Version nicht eingerichtet.</string>
+    <string name="billing_internal">Etwas ist schiefgelaufen. Bitte versuche es erneut.</string>
+    <string name="billing_sign_in">Bitte melde dich an.</string>
+    <string name="player_err_stream_dropping">Der Stream bricht immer wieder ab. Versuche es erneut.</string>
+    <string name="player_err_server_stopped">Der Server antwortet nicht mehr. Versuche es erneut.</string>
+    <string name="player_err_refused">Der Server hat diese Datei abgelehnt.</string>
+    <string name="player_err_refused_status">Der Server hat diese Datei abgelehnt (HTTP %1$d).</string>
+    <string name="player_err_plex_refused">Der Plex-Server hat diese Datei abgelehnt.</string>
+    <string name="player_err_plex_refused_status">Der Plex-Server hat diese Datei abgelehnt (HTTP %1$d).</string>
+    <string name="player_err_playback">Wiedergabefehler</string>
+    <string name="player_err_audio">Audiodecoder fehlgeschlagen</string>
+    <string name="voice_speak_now">Sprich jetzt</string>
+    <plurals name="rec_notif_title_channels">
+        <item quantity="one">Aufnahme von %d Sender</item>
+        <item quantity="other">Aufnahme von %d Sendern</item>
+    </plurals>
+    <plurals name="rec_notif_text_streams">
+        <item quantity="one">Nutzt %d Stream deines Zugangs</item>
+        <item quantity="other">Nutzt %d Streams deines Zugangs</item>
+    </plurals>
+    <plurals name="sched_reason_too_many">
+        <item quantity="one">Es lief bereits %d Aufnahme.</item>
+        <item quantity="other">Es liefen bereits %d Aufnahmen.</item>
+    </plurals>
+    <plurals name="widget_days_left">
+        <item quantity="one">%1$s · noch %2$d Tag</item>
+        <item quantity="other">%1$s · noch %2$d Tage</item>
+    </plurals>
+</resources>

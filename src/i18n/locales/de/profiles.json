@@ -1,0 +1,109 @@
+{
+  "profiles": {
+    "header": "Profile",
+    "kidsChip": "KINDER",
+    "pad": {
+      "digits": "{{filled}} von {{length}} Ziffern",
+      "done": "Fertig"
+    },
+    "pick": {
+      "title": "Wer schaut?",
+      "introSingle": "Jeder im Haushalt kann ein eigenes Profil haben, mit eigenem Weiterschauen, eigener Liste, eigenen Favoriten und eigenem Startbildschirm. Kinderprofile zeigen nur, was zum Alter passt."
+    },
+    "manage": {
+      "title": "Profile verwalten",
+      "subtitle": "Wähle ein Profil zum Ändern.",
+      "addProfile": "Profil hinzufügen",
+      "doneBtn": "Fertig",
+      "manageBtn": "Profile verwalten",
+      "bringBtn": "{{names}} von diesem Gerät hinzufügen"
+    },
+    "edit": {
+      "addTitle": "Profil hinzufügen",
+      "editTitle": "{{name}} bearbeiten",
+      "editTitleUnnamed": "Profil bearbeiten",
+      "nameLabel": "Name",
+      "namePlaceholder": "Name der Person",
+      "colorLabel": "Farbe",
+      "kidsLabel": "Kinderprofil",
+      "levelOff": "Aus",
+      "levelOffHint": "Alles",
+      "levelLittle": "Kleine Kinder",
+      "levelLittleHint": "G und TV-Y / TV-G",
+      "levelKids": "Kinder",
+      "levelKidsHint": "Bis PG und TV-PG",
+      "levelTeen": "Teenager",
+      "levelTeenHint": "Bis PG-13 und TV-14",
+      "kidsInfo": "Kinderprofile sehen Plex-Titel bis zu dieser Altersfreigabe, altersgerechte Live-TV-Sender und ihre eigene Kinder-Spielelounge. Die Spielelounge für Erwachsene, der Shop, die Haupt-Apps, die Einstellungen, Tickets und der Fernzugriff bleiben verborgen. Ihre KI antwortet nur jugendfrei und hilft nur bei Kindersendungen, Filmen, Sendern und Spielen.",
+      "pinLabel": "PIN",
+      "changePinBtn": "PIN ändern",
+      "addPinBtn": "PIN festlegen",
+      "removePinBtn": "PIN entfernen",
+      "signInForPin": "Melde dich in deinem Snow-Media-Konto an, um eine PIN festzulegen. So lässt sich eine vergessene zurücksetzen. Danach überträgt Profile verwalten die Profile dieses Geräts ins Konto.",
+      "deleteBtn": "Profil löschen",
+      "inUseNote": "Dieses Profil ist gerade in Gebrauch. Wechsle zu einem anderen, um es zu löschen.",
+      "giveName": "Gib dem Profil einen Namen.",
+      "maxProfiles": "Höchstens {{max}} Profile."
+    },
+    "colors": {
+      "blue": "Blau",
+      "gold": "Gold",
+      "purple": "Lila",
+      "teal": "Petrol",
+      "red": "Rot",
+      "green": "Grün",
+      "pink": "Rosa",
+      "orange": "Orange"
+    },
+    "pin": {
+      "thisProfile": "dieses Profil",
+      "unlockTitle": "PIN für {{name}} eingeben",
+      "grownupTitle": "Frag einen Erwachsenen",
+      "newTitle": "Neue PIN für {{name}}",
+      "confirmTitle": "Neue PIN noch einmal eingeben",
+      "grownupHint": "Die PIN eines Erwachsenenprofils öffnet das.",
+      "newHint": "Vier Ziffern. Nutze die Zifferntasten der Fernbedienung oder das Tastenfeld.",
+      "forgotBtn": "PIN vergessen?",
+      "signInAgainBtn": "Vergessen? Erneut anmelden",
+      "waitTooMany_one": "Zu viele Versuche: warte {{count}} Sekunde.",
+      "waitTooMany_other": "Zu viele Versuche: warte {{count}} Sekunden.",
+      "wrong": "Falsche PIN. Versuche es noch einmal.",
+      "wrongWait_one": "Falsche PIN. Zu viele Versuche: warte {{count}} Sekunde.",
+      "wrongWait_other": "Falsche PIN. Zu viele Versuche: warte {{count}} Sekunden.",
+      "notGrownUp": "Das ist nicht die PIN eines Erwachsenen.",
+      "notGrownUpWait_one": "Das ist nicht die PIN eines Erwachsenen. Zu viele Versuche: warte {{count}} Sekunde.",
+      "notGrownUpWait_other": "Das ist nicht die PIN eines Erwachsenen. Zu viele Versuche: warte {{count}} Sekunden.",
+      "mismatch": "Die PINs stimmen nicht überein. Gib die neue PIN noch einmal ein.",
+      "checking": "Wird geprüft…"
+    },
+    "forgot": {
+      "title": "PIN für {{name}} zurücksetzen",
+      "sending": "Code zum Zurücksetzen wird gesendet…",
+      "tooManyRequests": "Zu viele Anfragen zum Zurücksetzen. Versuche es in einer Stunde erneut oder kontaktiere den Snow-Media-Support.",
+      "signedOut": "Melde dich auf diesem Gerät in deinem Snow-Media-Konto an, um die PIN zurückzusetzen.",
+      "noPin": "Dieses Profil hat keine PIN mehr. Wähle es erneut aus.",
+      "unreachable": "Snow Media nicht erreichbar. Prüfe die Internetverbindung und versuche es erneut.",
+      "emailed": "Wir haben einen 6-stelligen Code an {{email}} gesendet. Gib ihn unten ein.",
+      "emailedSupport": "Wir haben einen 6-stelligen Code an {{email}} gesendet. Gib ihn unten ein. Der Snow-Media-Support wurde ebenfalls informiert. Wenn die E-Mail nicht ankommt, kann er die PIN für dich zurücksetzen.",
+      "notEmailed": "Wir konnten keinen Code an dieses Konto senden.",
+      "notEmailedSupport": "Wir konnten keinen Code an dieses Konto senden. Der Snow-Media-Support wurde ebenfalls informiert. Wenn die E-Mail nicht ankommt, kann er die PIN für dich zurücksetzen.",
+      "wrongCode": "Dieser Code ist nicht richtig.",
+      "wrongCodeLeft_one": "Dieser Code ist nicht richtig. Noch {{count}} Versuch.",
+      "wrongCodeLeft_other": "Dieser Code ist nicht richtig. Noch {{count}} Versuche.",
+      "expired": "Dieser Code ist abgelaufen. Geh zurück und fordere einen neuen an.",
+      "tooManyCodes": "Zu viele falsche Codes. Geh zurück und fordere einen neuen an.",
+      "unreachableShort": "Snow Media nicht erreichbar. Versuche es erneut."
+    },
+    "intro": {
+      "dialogLabel": "Profile",
+      "title": "Neu: Profile für alle",
+      "pointEveryone": "Jeder im Haushalt bekommt sein eigenes Setup, mit eigenem Weiterschauen, eigener Liste, eigenen Favoriten und eigenem Startbildschirm.",
+      "pointKids": "Kinderprofile zeigen nur Filme, Sendungen und Sender für Kinder im gewählten Alter, dazu bald einen Bereich mit Kinderspielen.",
+      "pointSafety": "Sicherheit überall: Filme, Sendungen, Live-TV-Sender und die KI bleiben altersgerecht. Auf Wunsch kannst du jedem Profil eine PIN geben.",
+      "hint": "Richte sie jederzeit unter Einstellungen → Profile ein oder mit der Profil-Schaltfläche oben auf dem Startbildschirm.",
+      "setUpBtn": "Profile einrichten",
+      "laterBtn": "Vielleicht später"
+    },
+    "defaultName": "Ich"
+  }
+}

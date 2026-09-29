@@ -1,0 +1,71 @@
+{
+  "giveaway": {
+    "main": {
+      "entriesClosed": "Entries closed",
+      "tileDays": "DAYS",
+      "tileHrs": "HRS",
+      "tileMin": "MIN",
+      "startsIn": "Starts in",
+      "untilClose": "until entries close",
+      "loadError": "Could not load the giveaway right now. Please try again.",
+      "fbNameNeededTitle": "Facebook name needed",
+      "fbNameNeededDesc": "Enter the Facebook name you left the review with.",
+      "entrySubmittedTitle": "Entry submitted",
+      "entrySubmittedDesc": "Your Facebook review is pending review — entries are added once approved.",
+      "alreadyClaimedTitle": "Already claimed",
+      "alreadyClaimedDesc": "You already submitted a Facebook review for this giveaway.",
+      "closedTitle": "Giveaway closed",
+      "closedDesc": "This giveaway is no longer accepting entries.",
+      "submitFailedTitle": "Could not submit",
+      "submitFailedDesc": "Please try again in a moment.",
+      "statusActive": "Active now",
+      "statusPaused": "Paused",
+      "statusEndedSoon": "Ended — drawing soon",
+      "statusDrawn": "Winners drawn",
+      "statusEnded": "Ended",
+      "noGiveaway": "No giveaway right now",
+      "checkBack": "Check back soon — new giveaways are announced on the home screen.",
+      "startsOn": "Starts {{date}}",
+      "endsOn": "Ends {{date}}",
+      "winnerCount_one": "{{count}} winner",
+      "winnerCount_other": "{{count}} winners",
+      "yourEntries": "Your entries",
+      "noEntries": "No entries yet. Renew a service, buy a device, or claim the Facebook review bonus below.",
+      "entryType": {
+        "account_creation": "New account bonus",
+        "renewal": "Service renewal",
+        "device_purchase": "Device purchase",
+        "facebook_review": "Facebook review"
+      },
+      "entryPending": "Pending",
+      "entryVoid": "Void",
+      "fbBonusTitle": "Facebook review bonus",
+      "fbBonusDesc": "Left us a review on Facebook? Claim your bonus entry — it appears once an admin approves it.",
+      "fbNamePlaceholder": "Your Facebook name",
+      "reviewUrlPlaceholder": "Link to your review (optional)",
+      "claimBtn": "Claim bonus entry",
+      "signInPrompt": "Sign in to see your entries and claim bonuses.",
+      "winners": "Winners",
+      "howToEnter": "How to enter",
+      "previousGiveaways": "Previous giveaways",
+      "pastCount_one": "{{count}} past giveaway · see who won",
+      "pastCount_other": "{{count}} past giveaways · see who won",
+      "hide": "Hide",
+      "show": "Show",
+      "notAnnounced": "Winners not announced."
+    },
+    "promo": {
+      "fallbackText": "A new giveaway is live!",
+      "maybeEntered": "You may already be entered — check your entries!",
+      "endsIn_one": "⏳ Ends in {{count}} day",
+      "endsIn_other": "⏳ Ends in {{count}} days",
+      "notNowBtn": "Not now",
+      "viewBtn": "View Giveaway"
+    },
+    "winners": {
+      "title": "🎉 We have winners!",
+      "prizeLabel": "Prize:",
+      "dismissBtn": "Dismiss"
+    }
+  }
+}

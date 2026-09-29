@@ -6,6 +6,8 @@
 // Fire-TV D-pad only. All Plex HTTP via plex.ts.
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Play, RotateCw, List, Plus, Check, Gauge } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { getPlexMetadata as _getPlexMetadata, getPlexSeasons as _getPlexSeasons,
   getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, resolutionLabel, findPlexCopies,
   type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson, type PlexVersion } from '@/lib/plex';
@@ -56,7 +58,16 @@ const fmtRuntime = (ms?: number): string => {
   const total = Math.floor(ms / 60000);
   const h = Math.floor(total / 60);
   const m = total % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  return h > 0 ? i18n.t('plex.detail.hoursMinutes', { h, m }) : i18n.t('plex.detail.minutes', { m });
+};
+
+// The icon in front of a detail button; kept out of the JSX so the ids are not read as text.
+const buttonIcon = (id: string, listed: boolean) => {
+  if (id === 'play') return <Play className="w-4 h-4 fill-current" />;
+  if (id === 'resume') return <RotateCw className="w-4 h-4" />;
+  if (id === 'browse') return <List className="w-4 h-4" />;
+  if (id === 'mylist') return listed ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />;
+  return null;
 };
 
 const techBadge = (meta?: PlexMetadata['media']): string => {
@@ -89,6 +100,7 @@ ResBadge.displayName = 'ResBadge';
 // `chips`: the episode's versions as "4K|1080p*" (* = the one OK plays);
 // `note`: the speed check's word on 4K, on the focused row.
 const EpisodeRow = memo(({ ep, base, token, focused, chips, note }: { ep: PlexEpisode; base: string; token: string; focused: boolean; progressTick: number; chips?: string; note?: string }) => {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => { if (focused) ref.current?.scrollIntoView({ block: 'nearest' }); }, [focused]);
   // This viewer's own progress (plexProgress), same rule as the resume.
@@ -120,8 +132,8 @@ const EpisodeRow = memo(({ ep, base, token, focused, chips, note }: { ep: PlexEp
         <div className="text-xs text-brand-ice/70 font-nunito">
           {fmtRuntime(ep.duration)}
           {resumePct != null && left > 0
-            ? ` · ${fmtRuntime(left * 1000)} left`
-            : watched ? ' · ✓ Watched' : ''}
+            ? ` · ${t('plex.detail.timeLeft', { time: fmtRuntime(left * 1000) })}`
+            : watched ? ` · ${t('plex.detail.watched')}` : ''}
         </div>
         {ep.summary && <div className="text-xs text-brand-ice/70 font-nunito line-clamp-2 mt-1">{ep.summary}</div>}
         {chips && (
@@ -145,6 +157,7 @@ const EpisodeRow = memo(({ ep, base, token, focused, chips, note }: { ep: PlexEp
 EpisodeRow.displayName = 'EpisodeRow';
 
 const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, onBack, watchNonce = 0, serverResume = false }: Props) => {
+  const { t } = useTranslation();
   // ── back-stack of items (top = current). Opening a title from actor
   //    filmography pushes; Back pops before we ever hit onBack().
   const [stack, setStack] = useState<PlexItem[]>([item]);
@@ -154,7 +167,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   // when they change, e.g. the final save as the player closes.
   const [progressTick, setProgressTick] = useState(0);
   useEffect(() => {
-    const bump = () => setProgressTick((t) => t + 1);
+    const bump = () => setProgressTick((n) => n + 1);
     window.addEventListener(PLEX_PROGRESS_EVENT, bump);
     window.addEventListener(PLEX_FAVORITES_EVENT, bump);
     return () => {
@@ -383,9 +396,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const speedNote = (v: PlexVersion | null | undefined): string => {
     if (!v || !is4k(v)) return '';
     const verdict = speedVerdict(v, speedKbps);
-    if (verdict?.tooSlow) return speedWarning(v, verdict);
-    if (verdict) return 'your speed is fine for it';
-    return speedChecking ? 'checking your speed…' : '';
+    if (verdict?.tooSlow) return speedWarning(v, verdict); // worded in plexVersions
+    if (verdict) return t('plex.detail.speedFine');
+    return speedChecking ? t('plex.detail.speedChecking') : '';
   };
 
   // My List is for movies and shows (an episode's show is what gets saved).
@@ -393,20 +406,26 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const listed = canList && isFavorite(current.ratingKey);
   const detailButtons: Array<{ id: string; label: string }> = useMemo(() => {
     const b: Array<{ id: string; label: string }> = [];
-    if (isShow) b.push({ id: 'browse', label: 'Browse Episodes' });
-    else b.push({ id: 'play', label: startWait ? 'Checking speed…' : multi && effective ? `Play ${versionName(effective, versions)}` : 'Play' });
+    if (isShow) b.push({ id: 'browse', label: t('plex.detail.browseBtn') });
+    else b.push({ id: 'play', label: startWait ? t('plex.detail.checkingBtn') : multi && effective ? t('plex.detail.playNamedBtn', { name: versionName(effective, versions) }) : t('plex.detail.play') });
     if (canResume) {
       const h = Math.floor(resumeSec / 3600);
       const m = Math.floor((resumeSec % 3600) / 60);
-      b.push({ id: 'resume', label: `Resume ${h > 0 ? `${h}:${String(m).padStart(2, '0')}` : `${m}m`}` });
+      b.push({ id: 'resume', label: t('plex.detail.resumeBtn', { time: h > 0 ? `${h}:${String(m).padStart(2, '0')}` : t('plex.detail.minutes', { m }) }) });
     }
-    if (canList) b.push({ id: 'mylist', label: listed ? 'In My List' : 'My List' });
+    if (canList) b.push({ id: 'mylist', label: listed ? t('plex.detail.inListBtn') : t('plex.detail.listBtn') });
     return b;
-  }, [isShow, canResume, resumeSec, canList, listed, startWait, multi, effective, versions]);
+  }, [isShow, canResume, resumeSec, canList, listed, startWait, multi, effective, versions, t]);
 
   useEffect(() => { if (btn >= detailButtons.length) setBtn(0); }, [detailButtons.length, btn]);
 
   const cast: PlexPerson[] = meta?.cast ?? [];
+  const isDetailStep = step === 'detail';
+  const isSeasonsStep = step === 'seasons';
+  const isEpisodesStep = step === 'episodes';
+  const isActorStep = step === 'actorGrid';
+  const hasAudience = typeof meta?.audienceRating === 'number';
+  const hasCritics = typeof meta?.rating === 'number';
 
   // Seasons and episodes already loaded for this show / this season are kept:
   // Back and in again used to refetch the list, show the spinner and put the
@@ -699,7 +718,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
       </div>
 
       <div className="relative z-10 h-full overflow-y-auto px-8 py-6">
-        {step === 'detail' && (
+        {isDetailStep && (
           <div className="max-w-6xl mx-auto flex">
             {/* mr-6, not the row's gap-6: flex gap is 0 on Chromium < 84 and the
                 poster sat hard against the title there. */}
@@ -725,15 +744,15 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                 {metaLoading && !meta && <span className="h-4 w-32 rounded bg-white/10 animate-pulse" />}
               </div>
               <div className="flex flex-wrap items-center gap-4 mb-2 min-h-[26px]">
-                {typeof meta?.audienceRating === 'number' && (
+                {hasAudience && (
                   <div className="flex items-baseline gap-1">
                     <span className="text-brand-gold text-base">★</span>
                     <span className="font-quicksand font-bold text-base">{meta.audienceRating.toFixed(1)}</span>
-                    <span className="text-plex-cap text-brand-ice/70">/10 Rating</span>
+                    <span className="text-plex-cap text-brand-ice/70">{t('plex.detail.ratingOutOf')}</span>
                   </div>
                 )}
-                {typeof meta?.rating === 'number' && (
-                  <div className="text-plex-cap text-brand-ice/70 font-nunito">Critics <span className="font-bold text-white">{meta.rating.toFixed(1)}</span></div>
+                {hasCritics && (
+                  <div className="text-plex-cap text-brand-ice/70 font-nunito">{t('plex.detail.critics')} <span className="font-bold text-white">{meta.rating.toFixed(1)}</span></div>
                 )}
                 {metaLoading && !meta && <span className="h-5 w-20 rounded bg-white/10 animate-pulse" />}
               </div>
@@ -744,7 +763,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                 <p className="text-white/80 font-nunito text-plex-body mb-3 line-clamp-4" style={{ maxWidth: '61.8%' }}>{meta?.summary || current.summary}</p>
               )}
               {(meta?.directors.length ?? 0) > 0 && (
-                <p className="text-plex-cap text-brand-ice/80 font-nunito mb-3"><span className="text-brand-ice/70">Director:</span> {meta!.directors.join(', ')}</p>
+                <p className="text-plex-cap text-brand-ice/80 font-nunito mb-3"><span className="text-brand-ice/70">{t('plex.detail.director')}</span> {meta!.directors.join(', ')}</p>
               )}
               <div className="flex flex-wrap gap-2">
                 {detailButtons.map((b, i) => {
@@ -756,11 +775,8 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       data-focused={focused ? 'true' : 'false'}
                       onClick={() => { setZone('buttons'); setBtn(i); activateDetail(b.id); }}
                       className={`tv-ring tv-ring-contrast inline-flex items-center gap-2 h-10 px-4 rounded-lg font-quicksand font-semibold text-sm border ${focused ? 'bg-brand-gold text-brand-navy border-transparent scale-105 z-10' : 'bg-white/10 text-white border-white/15'}`}>
-                      {b.id === 'play' && <Play className="w-4 h-4 fill-current" />}
-                      {b.id === 'resume' && <RotateCw className="w-4 h-4" />}
-                      {b.id === 'browse' && <List className="w-4 h-4" />}
-                      {b.id === 'mylist' && (listed ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />)}
-                      {b.label}
+                      {buttonIcon(b.id, listed)}
+                      <span className="min-w-0 truncate">{b.label}</span>
                     </button>
                   );
                 })}
@@ -770,7 +786,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     data-focused={isActive && zone === 'buttons' && btn === detailButtons.length ? 'true' : 'false'}
                     onClick={() => { void playCurrent(undefined); }}
                     className="tv-ring tv-ring-contrast inline-flex items-center gap-2 h-10 px-4 rounded-lg font-quicksand font-semibold text-sm border border-transparent bg-brand-gold text-brand-navy">
-                    <Play className="w-4 h-4 fill-current" /> Play
+                    <Play className="w-4 h-4 fill-current" /> {t('plex.detail.play')}
                   </button>
                 )}
                 {metaLoading && detailButtons.length === 0 && (
@@ -782,7 +798,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               {multi && (
                 <div className="mt-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-plex-cap text-brand-ice/70 font-nunito mr-1">Version</span>
+                    <span className="text-plex-cap text-brand-ice/70 font-nunito mr-1">{t('plex.detail.versionLabel')}</span>
                     {versions.map((v, i) => {
                       const focused = isActive && zone === 'versions' && verIdx === i;
                       const on = effective?.id === v.id;
@@ -796,7 +812,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                           className={`tv-ring tv-ring-contrast inline-flex items-center gap-2 h-9 px-3 rounded-lg font-quicksand font-semibold text-sm border ${focused ? 'bg-brand-gold text-brand-navy border-transparent scale-105 z-10' : on ? 'bg-white/15 text-white border-brand-gold' : 'bg-white/5 text-white/80 border-white/15'}`}>
                           {on && <Check className="w-4 h-4" />}
                           <span>{versionName(v, versions)}</span>
-                          {v.bitrateKbps ? <span className="text-plex-micro opacity-70">{Math.round(v.bitrateKbps / 100) / 10} Mb/s</span> : null}
+                          {v.bitrateKbps ? <span className="text-plex-micro opacity-70">{t('plex.detail.mbps', { value: Math.round(v.bitrateKbps / 100) / 10 })}</span> : null}
                           {note && is4k(v) && <span className="text-plex-micro opacity-80 inline-flex items-center gap-1"><Gauge className="w-3 h-3" />{note}</span>}
                         </button>
                       );
@@ -804,7 +820,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                   </div>
                   {fellBack && baseChoice && (
                     <p className="text-plex-cap text-brand-ice/80 font-nunito mt-2">
-                      {speedNote(baseChoice)} — starting in {effective ? versionName(effective, versions) : 'a lighter version'}. Pick {versionName(baseChoice, versions)} to play it anyway.
+                      {t('plex.detail.fellBack', { note: speedNote(baseChoice), name: effective ? versionName(effective, versions) : t('plex.detail.lighterVersion'), pick: versionName(baseChoice, versions) })}
                     </p>
                   )}
                 </div>
@@ -812,7 +828,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
               {/* Cast row — horizontal, D-pad scrollable, focus zone 'cast'. */}
               <div className="mt-6">
-                <div className="plex-rail-head font-quicksand">Cast</div>
+                <div className="plex-rail-head font-quicksand">{t('plex.detail.cast')}</div>
                 {metaLoading || !castReady ? (
                   <div className="flex gap-3 py-2 px-2 -mx-2">
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -823,7 +839,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     ))}
                   </div>
                 ) : cast.length === 0 ? (
-                  <div className="text-sm text-brand-ice/70 font-nunito">No cast info.</div>
+                  <div className="text-sm text-brand-ice/70 font-nunito">{t('plex.detail.noCast')}</div>
                 ) : (
                   <div className="flex gap-3 overflow-x-auto pb-2 pt-2 px-2 -mx-2">
                     {cast.map((p, i) => {
@@ -852,13 +868,13 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
           </div>
         )}
 
-        {step === 'seasons' && (
+        {isSeasonsStep && (
           <div className="max-w-6xl mx-auto">
-            <h2 className="font-quicksand font-bold text-plex-section mb-3">{meta?.title || current.title} · Seasons</h2>
+            <h2 className="font-quicksand font-bold text-plex-section mb-3">{t('plex.detail.seasonsTitle', { title: meta?.title || current.title })}</h2>
             {seasonsLoading ? (
-              <div className="text-brand-ice/70 font-nunito flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
+              <div className="text-brand-ice/70 font-nunito flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> {t('common.loading')}</div>
             ) : seasons.length === 0 ? (
-              <div className="text-brand-ice/70 font-nunito">No seasons.</div>
+              <div className="text-brand-ice/70 font-nunito">{t('plex.detail.noSeasons')}</div>
             ) : (
               // pt-2 px-2 -mx-2: room for the focused card's scale + ring so the
               // shelf's overflow clip never cuts the highlight.
@@ -876,19 +892,19 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                 })}
               </div>
             )}
-            <p className="text-xs text-brand-ice/70 mt-4">◀ ▶ pick a season · OK to open · Back to detail</p>
+            <p className="text-xs text-brand-ice/70 mt-4">{t('plex.detail.seasonsHint')}</p>
           </div>
         )}
 
-        {step === 'episodes' && (
+        {isEpisodesStep && (
           <div className="max-w-4xl mx-auto">
             <h2 className="font-quicksand font-bold text-plex-section mb-3">
               {(meta?.title || current.title)}{seasons[seasonIdx] ? ` · ${seasons[seasonIdx].title}` : ''}
             </h2>
             {episodesLoading ? (
-              <div className="text-brand-ice/70 font-nunito flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
+              <div className="text-brand-ice/70 font-nunito flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> {t('common.loading')}</div>
             ) : episodes.length === 0 ? (
-              <div className="text-brand-ice/70 font-nunito">No episodes.</div>
+              <div className="text-brand-ice/70 font-nunito">{t('plex.detail.noEpisodes')}</div>
             ) : (
               <div className="flex flex-col gap-2 px-1 py-1">
                 {episodes.map((ep, i) => {
@@ -900,7 +916,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     chips = vs.map((v) => `${versionName(v, vs)}${v.id === play?.id ? '*' : ''}`).join('|');
                     if (epIdx === i) {
                       const n = speedNote(b);
-                      note = n && b && play && b.id !== play.id ? `${n} — playing ${versionName(play, vs)}` : n || undefined;
+                      note = n && b && play && b.id !== play.id ? t('plex.detail.notePlaying', { note: n, name: versionName(play, vs) }) : n || undefined;
                     }
                   }
                   return (
@@ -909,17 +925,17 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                 })}
               </div>
             )}
-            <p className="text-xs text-brand-ice/70 mt-4">▲ ▼ pick{anyEpVersions ? ' · ◀ ▶ version' : ''} · OK to play · Back to seasons</p>
+            <p className="text-xs text-brand-ice/70 mt-4">{anyEpVersions ? t('plex.detail.episodesHintVersions') : t('plex.detail.episodesHint')}</p>
           </div>
         )}
 
-        {step === 'actorGrid' && (
+        {isActorStep && (
           <div className="max-w-6xl mx-auto">
-            <h2 className="font-quicksand font-bold text-plex-section mb-3">{actorName} · Titles</h2>
+            <h2 className="font-quicksand font-bold text-plex-section mb-3">{t('plex.detail.actorTitles', { name: actorName })}</h2>
             {actorLoading ? (
-              <div className="text-brand-ice/70 font-nunito flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
+              <div className="text-brand-ice/70 font-nunito flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> {t('common.loading')}</div>
             ) : actorItems.length === 0 ? (
-              <div className="text-brand-ice/70 font-nunito text-sm">No other titles on this server.</div>
+              <div className="text-brand-ice/70 font-nunito text-sm">{t('plex.detail.noOtherTitles')}</div>
             ) : (
               <div className="grid grid-cols-8 gap-x-3 gap-y-5 p-2 -m-2">
                 {actorItems.map((it, idx) => {
@@ -942,7 +958,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                 })}
               </div>
             )}
-            <p className="text-xs text-brand-ice/70 mt-4">◀ ▶ ▲ ▼ browse · OK to open · Back to cast</p>
+            <p className="text-xs text-brand-ice/70 mt-4">{t('plex.detail.actorHint')}</p>
           </div>
         )}
       </div>

@@ -1,0 +1,39 @@
+{
+  "popups": {
+    "gotItBtn": "Got it",
+    "appAlert": {
+      "headsUp": "Heads up about <1>{{name}}</1>:",
+      "dismissBtn": "Dismiss",
+      "continueAnywayBtn": "Continue Anyway"
+    },
+    "preEvent": {
+      "okGotItBtn": "OK, got it",
+      "defaultHeadline": "PPV Tonight! Do the Pre-Event Steps BEFORE start time.",
+      "step1": "Make sure you aren't expired",
+      "step2": "Update Playlist / Update Channels",
+      "step3": "Restart router and device",
+      "step4": "Have a VPN ready",
+      "step5": "Enjoy!"
+    },
+    "serviceAlert": {
+      "yourService": "Your service",
+      "unknownTitle": "Service status unknown",
+      "unknownMsg": "{{name}}: no expiration date set. Open Dashboard → Edit to update it.",
+      "expiredTitle": "Service expired",
+      "expiredMsg_one": "{{name}} expired {{count}} day ago. Renew before continuing.",
+      "expiredMsg_other": "{{name}} expired {{count}} days ago. Renew before continuing.",
+      "todayTitle": "Service expires today",
+      "todayMsg": "{{name}} expires today. Renew to avoid interruption.",
+      "tomorrowTitle": "Service expires tomorrow",
+      "tomorrowMsg": "{{name}} expires tomorrow. Renew it from Dashboard before it lapses.",
+      "soonTitle_one": "Service expires in {{count}} day",
+      "soonTitle_other": "Service expires in {{count}} days",
+      "soonMsg_one": "{{name}} expires in {{count}} day. Renew it from Dashboard before it lapses.",
+      "soonMsg_other": "{{name}} expires in {{count}} days. Renew it from Dashboard before it lapses."
+    },
+    "demo": {
+      "msg": "You're in the live demo — playback works in the installed app on your TV.",
+      "account": "Demo account"
+    }
+  }
+}

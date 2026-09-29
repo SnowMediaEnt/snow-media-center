@@ -1,0 +1,132 @@
+{
+  "cleaner": {
+    "title": "Geräte-Cleaner",
+    "subtitle": "Gibt Speicher und Arbeitsspeicher auf dieser Box frei. Du wirst nirgends abgemeldet.",
+    "backLabel": "Zurück zum Support",
+    "checkAgainBtn": "Erneut prüfen",
+    "notNative": "Der Cleaner funktioniert nur in der installierten Snow-Media-Center-App auf deiner TV-Box.",
+    "storage": {
+      "title": "Speicher",
+      "free": "{{size}} frei",
+      "used": "{{used}} von {{total}} belegt",
+      "reading": "Wird gelesen…",
+      "nearlyFull": "Diese Box ist fast voll. Deshalb schlagen App-Updates mit „App nicht installiert“ fehl und Streams ruckeln – räum auf und versuche es erneut."
+    },
+    "memory": {
+      "title": "Arbeitsspeicher",
+      "low": "Der Box fehlt gerade Arbeitsspeicher.",
+      "hint": "Wenn du Hintergrund-Apps schließt, wird mehr frei."
+    },
+    "phase": {
+      "junk": "Übrig gebliebene Dateien werden gelöscht…",
+      "memory": "Hintergrund-Apps werden geschlossen…",
+      "caches": "App-Caches werden geleert – {{done}} von {{total}}",
+      "working": "{{app}} wird bearbeitet – die Einstellungen öffnen und schließen sich selbst. Lass die Fernbedienung in Ruhe.",
+      "settingsOpens": "Die Einstellungen öffnen sich selbst. Lass die Fernbedienung in Ruhe, bis sie zurück sind."
+    },
+    "stopBtn": "Stopp",
+    "done": "Fertig",
+    "all": {
+      "title": "Diese Box aufräumen",
+      "desc": "Übrige Dateien, Hintergrund-Apps, dann alle App-Caches",
+      "descReach": "Übrige Dateien, Hintergrund-Apps, dann alle App-Caches – etwa {{size}} lassen sich freigeben"
+    },
+    "caches": {
+      "title": "App-Caches leeren",
+      "fireList": "Öffnet die App-Liste von Fire TV",
+      "count_one": "{{count}} App",
+      "count_other": "{{count}} Apps",
+      "countSize_one": "{{count}} App · {{size}}",
+      "countSize_other": "{{count}} Apps · {{size}}"
+    },
+    "background": {
+      "title": "Hintergrund-Apps schließen",
+      "desc": "Gibt Arbeitsspeicher für den Player frei"
+    },
+    "junk": {
+      "title": "Übrige Installer entfernen",
+      "count_one": "{{count}} Datei · {{size}}",
+      "count_other": "{{count}} Dateien · {{size}}",
+      "none": "Nichts übrig"
+    },
+    "usage": {
+      "onTitle": "App-Nutzung ist an",
+      "offTitle": "App-Größen anzeigen",
+      "onDesc": "Größen und Datum der letzten Nutzung sind sichtbar",
+      "offDesc": "Nötig, um ungenutzte Apps zu finden"
+    },
+    "lastClean": "Letzte Bereinigung: {{when}}",
+    "fire": {
+      "title": "Fire TV leert Caches immer nur für eine App",
+      "body": "Fire TV hat keine Einstellung, mit der eine andere App Caches für dich leeren kann. Deshalb führt dich der Cleaner für jede App zur eigenen Seite von Fire TV. Wähle unten eine App, wähle auf der geöffneten Seite <1>Cache leeren</1> und drücke dann Zurück, um direkt hierher zurückzukehren. Übrige Dateien und Hintergrund-Apps werden weiterhin mit einem Tastendruck bereinigt.",
+      "openListBtn": "App-Liste von Fire TV öffnen",
+      "cacheSize": "{{size}} Cache",
+      "cacheHidden": "Die Cache-Größe ist auf Fire TV verborgen",
+      "clearCacheBtn": "Cache leeren"
+    },
+    "gate": {
+      "title": "Ein Schalter muss noch an",
+      "body": "Android erlaubt es keiner App, den Cache einer anderen von allein zu leeren. Suche in der geöffneten Liste <1>Snow Media Cache Cleaner</1> und schalte ihn ein – komm dann hierher zurück und tippe auf Aufräumen. Er tippt nur auf „Cache leeren“, nie auf „Daten löschen“, und du kannst ihn jederzeit wieder ausschalten. Alles andere auf diesem Bildschirm funktioniert auch ohne ihn.",
+      "openBtn": "Bedienungshilfen öffnen"
+    },
+    "unused": {
+      "title": "Apps, die niemand öffnet",
+      "needUsage": "Schalte oben die App-Nutzung ein, dann listet diese Box, was seit {{days}} Tagen nicht geöffnet wurde – mit dem jeweiligen Platzbedarf.",
+      "none": "Alles hier Installierte wird genutzt. Nichts zu entfernen.",
+      "more": "{{count}} weitere, die kleinsten zuerst – räum die großen auf und prüfe erneut."
+    },
+    "detailsBtn": "Details",
+    "removeBtn": "Entfernen",
+    "check": {
+      "title": "Einen Blick wert",
+      "desc": "Apps, die nicht aus einem Store stammen, und Apps, die sich nicht öffnen lassen. Die meisten sind harmlos – ein gewollter Sideload oder ein Helfer, den eine andere App installiert hat. Die Werbung und Pop-ups, die man der Box zuschreibt, stammen meist von einer davon.",
+      "none": "Es ist nichts Unerwartetes installiert.",
+      "sideloaded": "Außerhalb eines Stores installiert",
+      "noWay": "Lässt sich nicht öffnen",
+      "more": "{{count}} weitere nicht angezeigt."
+    },
+    "age": {
+      "never": "nie geöffnet",
+      "today": "heute genutzt",
+      "yesterday": "gestern genutzt",
+      "days_one": "zuletzt vor {{count}} Tag genutzt",
+      "days_other": "zuletzt vor {{count}} Tagen genutzt",
+      "months_one": "zuletzt vor etwa {{count}} Monat genutzt",
+      "months_other": "zuletzt vor etwa {{count}} Monaten genutzt"
+    },
+    "lines": {
+      "fireCaches": "App-Caches: Wähle unten in der Fire-TV-Liste eine App, um ihren Cache zu leeren",
+      "noCaches": "keine App-Caches, die sich zu leeren lohnen",
+      "cachesDone": "Caches bei {{done}} von {{total}} Apps geleert",
+      "cachesRoot_one": "Caches bei {{count}} App geleert",
+      "cachesRoot_other": "Caches bei {{count}} Apps geleert",
+      "junkRemoved": "{{size}} übrige Dateien entfernt",
+      "memoryFreed": "{{size}} Arbeitsspeicher freigegeben",
+      "askedToStop_one": "{{count}} App aufgefordert, die Hintergrundarbeit zu beenden",
+      "askedToStop_other": "{{count}} Apps aufgefordert, die Hintergrundarbeit zu beenden",
+      "noJunk": "keine übrigen Dateien zu entfernen",
+      "stopped": "gestoppt"
+    },
+    "toast": {
+      "fireCachesTitle": "Auf Fire TV werden Caches einzeln pro App geleert",
+      "fireCachesDesc": "Wähle weiter unten in der Liste eine App und wähle auf der geöffneten Seite Cache leeren.",
+      "turnOnTitle": "Schalte zuerst die Cache-Bereinigung ein",
+      "turnOnDesc": "Schalte Snow Media Cache Cleaner unter Bedienungshilfen ein. Die Schaltfläche unten auf diesem Bildschirm öffnet diese Liste.",
+      "clearFailedTitle": "Caches konnten nicht geleert werden",
+      "openListTitle": "App-Liste konnte nicht geöffnet werden",
+      "openListDesc": "Gehe auf dem Fire-TV-Startbildschirm zu Einstellungen → Anwendungen → Installierte Anwendungen verwalten, wähle eine App und dann Cache leeren.",
+      "backgroundFailedTitle": "Hintergrund-Apps konnten nicht geschlossen werden",
+      "removedTitle": "Entfernt",
+      "removedDesc": "{{name}} ist weg.",
+      "keptTitle": "Behalten",
+      "keptDesc": "{{name}} ist weiterhin installiert.",
+      "removeFailedTitle": "Konnte nicht entfernt werden",
+      "appInfoFailedTitle": "App-Info konnte nicht geöffnet werden",
+      "byHandTitle": "Öffne es von Hand",
+      "byHandDesc": "Android-Einstellungen → Bedienungshilfen → Snow Media Cache Cleaner.",
+      "noUsageTitle": "Diese Box hat keinen Nutzungsbildschirm",
+      "noUsageDesc": "Cache-Leeren und Hintergrund-Schließen funktionieren weiterhin. Größen und Datum der letzten Nutzung bleiben verborgen.",
+      "usageFailedTitle": "Dieser Bildschirm konnte nicht geöffnet werden"
+    }
+  }
+}

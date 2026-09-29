@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Pin, PinOff, X } from 'lucide-react';
@@ -23,6 +24,7 @@ const AppContextMenu = ({
   onUnpin, 
   onClose 
 }: AppContextMenuProps) => {
+  const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu on click outside
@@ -93,7 +95,7 @@ const AppContextMenu = ({
             className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/20"
           >
             <PinOff className="w-4 h-4 mr-2" />
-            Remove Pin
+            {t('apps.contextMenu.removePinBtn')}
           </Button>
         ) : (
           <Button
@@ -110,7 +112,7 @@ const AppContextMenu = ({
             disabled={!canPinMore}
           >
             <Pin className="w-4 h-4 mr-2" />
-            {canPinMore ? 'Pin App' : 'Max 5 Pinned'}
+            {canPinMore ? t('apps.contextMenu.pinAppBtn') : t('apps.contextMenu.maxPinnedBtn')}
           </Button>
         )}
 
@@ -120,7 +122,7 @@ const AppContextMenu = ({
           className="w-full justify-start text-slate-400 hover:text-white hover:bg-slate-700"
         >
           <X className="w-4 h-4 mr-2" />
-          Cancel
+          {t('common.cancel')}
         </Button>
       </Card>
     </div>

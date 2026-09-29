@@ -15,7 +15,8 @@ import {
   Trash2
 } from 'lucide-react';
 import { useAIConversations } from '@/hooks/useAIConversations';
-import { formatDistanceToNow } from 'date-fns';
+import { useTranslation } from 'react-i18next';
+import { formatRelative } from '@/i18n/format';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface AIConversationSystemProps {
@@ -23,6 +24,7 @@ interface AIConversationSystemProps {
 }
 
 const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<'list' | 'conversation' | 'create'>('list');
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
@@ -83,11 +85,11 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
   // Auto-focus first conversation card when list view opens
   useEffect(() => {
     if (view !== 'list' || conversations.length === 0) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       const first = document.querySelector<HTMLElement>('[data-convo-idx="0"]');
       first?.focus();
     }, 100);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [view, conversations.length]);
 
   const handleCreateConversation = async () => {
@@ -134,26 +136,26 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <BackButton onClick={() => setView('list')} label="Back to Conversations" />
-            <h1 className="text-3xl font-bold">New AI Conversation</h1>
+            <BackButton onClick={() => setView('list')} label={t('ai.conversations.backToConversations')} />
+            <h1 className="text-3xl font-bold">{t('ai.conversations.newTitle')}</h1>
           </div>
 
           <Card className="bg-slate-800/50 border-slate-700">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">
                 <Bot className="h-5 w-5" />
-                Start a New Conversation
+                {t('ai.conversations.startNewHeading')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-slate-300 mb-2 block">
-                  Your Message
+                  {t('ai.conversations.yourMessage')}
                 </label>
                 <Input
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Ask me anything..."
+                  placeholder={t('ai.conversations.askPlaceholder')}
                   className="bg-slate-700 border-slate-600 text-white"
                   onKeyPress={(e) => e.key === 'Enter' && handleCreateConversation()}
                 />
@@ -165,13 +167,13 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
                   disabled={!newMessage.trim() || loading}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
-                  {loading ? "Starting..." : "Start Conversation"}
+                  {loading ? t('ai.conversations.startingBtn') : t('ai.conversations.startBtn')}
                 </Button>
                 <Button 
                   onClick={() => setView('list')}
                   variant="outline"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
               </div>
             </CardContent>
@@ -186,7 +188,7 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <BackButton onClick={() => setView('list')} label="Back to Conversations" />
+            <BackButton onClick={() => setView('list')} label={t('ai.conversations.backToConversations')} />
             <h1 className="text-3xl font-bold line-clamp-1">{selectedConversation.title}</h1>
           </div>
 
@@ -194,7 +196,7 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">
                 <Bot className="h-5 w-5" />
-                AI Assistant
+                {t('ai.conversations.assistant')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -254,11 +256,11 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
                             <Bot className="h-4 w-4" />
                           )}
                           <Badge variant={message.sender_type === 'user' ? 'default' : 'secondary'}>
-                            {message.sender_type === 'user' ? 'You' : 'AI Assistant'}
+                            {message.sender_type === 'user' ? t('ai.conversations.you') : t('ai.conversations.assistant')}
                           </Badge>
                         </div>
                         <span className="text-xs text-slate-400">
-                          {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
+                          {formatRelative(message.created_at)}
                         </span>
                       </div>
                       <p className="text-slate-200 whitespace-pre-wrap">{message.message}</p>
@@ -273,7 +275,7 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
                 <Input
                   value={replyMessage}
                   onChange={(e) => setReplyMessage(e.target.value)}
-                  placeholder="Type your message..."
+                  placeholder={t('ai.conversations.typePlaceholder')}
                   className="bg-slate-700 border-slate-600 text-white"
                   onKeyPress={(e) => e.key === 'Enter' && handleSendReply()}
                 />
@@ -299,22 +301,22 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
           <div className="flex items-center gap-4">
             <Button onClick={onBack} variant="outline" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
+              {t('common.back')}
             </Button>
-            <h1 className="text-3xl font-bold">AI Conversations</h1>
+            <h1 className="text-3xl font-bold">{t('ai.conversations.listTitle')}</h1>
           </div>
           <Button 
             onClick={() => setView('create')}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <Plus className="h-4 w-4 mr-2" />
-            New Conversation
+            {t('ai.conversations.newBtn')}
           </Button>
         </div>
 
         <div className="mb-4">
           <Badge variant="outline" className="text-slate-300">
-            Showing up to 5 most recent conversations
+            {t('ai.conversations.showingRecent')}
           </Badge>
         </div>
 
@@ -377,8 +379,8 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
               </CardHeader>
               <CardContent>
                 <div className="text-sm text-slate-400">
-                  <p>Created: {formatDistanceToNow(new Date(conversation.created_at), { addSuffix: true })}</p>
-                  <p>Last message: {formatDistanceToNow(new Date(conversation.last_message_at), { addSuffix: true })}</p>
+                  <p>{t('ai.conversations.created', { when: formatRelative(conversation.created_at) })}</p>
+                  <p>{t('ai.conversations.lastMessage', { when: formatRelative(conversation.last_message_at) })}</p>
                 </div>
               </CardContent>
             </Card>
@@ -387,14 +389,14 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
           {conversations.length === 0 && !loading && (
             <div className="col-span-full text-center py-12">
               <Bot className="h-12 w-12 mx-auto text-slate-500 mb-4" />
-              <h3 className="text-xl font-semibold text-slate-300 mb-2">No AI Conversations</h3>
-              <p className="text-slate-500 mb-4">Start chatting with our AI assistant to get help, ask questions, or just have a conversation.</p>
+              <h3 className="text-xl font-semibold text-slate-300 mb-2">{t('ai.conversations.emptyTitle')}</h3>
+              <p className="text-slate-500 mb-4">{t('ai.conversations.emptyBody')}</p>
               <Button 
                 onClick={() => setView('create')}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Start Your First Conversation
+                {t('ai.conversations.startFirstBtn')}
               </Button>
             </div>
           )}

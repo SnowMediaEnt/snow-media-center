@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export const Spinner = ({ label }: { label: string }) => (
   <div className="flex items-center gap-3 text-brand-ice/90 font-nunito">
@@ -7,7 +8,9 @@ export const Spinner = ({ label }: { label: string }) => (
   </div>
 );
 
-export const RateLimitNote = ({ secondsLeft }: { secondsLeft: number }) =>
-  secondsLeft > 0 ? (
-    <p className="text-amber-200 text-sm font-nunito">Too many attempts. Please wait {secondsLeft}s.</p>
+export const RateLimitNote = ({ secondsLeft }: { secondsLeft: number }) => {
+  const { t } = useTranslation();
+  return secondsLeft > 0 ? (
+    <p className="text-amber-200 text-sm font-nunito">{t('billing.rateLimit.wait', { seconds: secondsLeft })}</p>
   ) : null;
+};

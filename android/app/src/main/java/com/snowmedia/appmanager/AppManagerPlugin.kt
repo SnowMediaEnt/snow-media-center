@@ -22,6 +22,8 @@ import android.speech.SpeechRecognizer
 import android.text.TextUtils
 import android.util.Log
 import androidx.core.content.FileProvider
+import com.snowmedia.AppLocale
+import com.snowmedia.R
 import androidx.activity.result.ActivityResult
 import com.getcapacitor.*
 import com.getcapacitor.annotation.ActivityCallback
@@ -513,10 +515,11 @@ class AppManagerPlugin : Plugin() {
     try {
       val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toString())
+        // The language picked in SMC, not the box's: someone on an English box can use SMC in Spanish.
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, AppLocale.speechTag(context))
         putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-        putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now")
+        putExtra(RecognizerIntent.EXTRA_PROMPT, AppLocale.string(context, R.string.voice_speak_now))
       }
       pendingVoiceCall = call
       voiceListening = true
@@ -622,7 +625,8 @@ class AppManagerPlugin : Plugin() {
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
           putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-          putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toString())
+          // The language picked in SMC, not the box's (see AppLocale).
+          putExtra(RecognizerIntent.EXTRA_LANGUAGE, AppLocale.speechTag(context))
           putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
           putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
           putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)

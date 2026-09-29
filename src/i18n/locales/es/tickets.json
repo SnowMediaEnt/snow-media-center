@@ -1,0 +1,143 @@
+{
+  "tickets": {
+    "list": {
+      "title": "Tickets",
+      "backToTickets": "Volver a Tickets",
+      "newBtn": "Nuevo ticket",
+      "newChip": "Nuevo",
+      "created": "Creado: {{when}}",
+      "updated": "Última actualización: {{when}}",
+      "emptyTitle": "No hay tickets de soporte",
+      "emptyUser": "Aún no has creado ningún ticket de soporte.",
+      "emptyChecking": "Buscando tu cuenta de Snow Media…",
+      "emptyPlayerOnly": "Tus tickets están en tu cuenta web de Snow Media, no en tu acceso de streaming. Inicia sesión en ella para verlos.",
+      "emptyGuest": "Puedes enviar un ticket sin cuenta, pero para recibir respuestas debes iniciar sesión.",
+      "createFirstBtn": "Crea tu primer ticket",
+      "sendBtn": "Enviar un ticket",
+      "signIn": "Iniciar sesión",
+      "confirmDelete": "¿Eliminar este ticket? No se puede deshacer."
+    },
+    "status": {
+      "active": "Activo",
+      "open": "Abierto",
+      "inProgress": "En curso",
+      "resolved": "Resuelto",
+      "closed": "Cerrado"
+    },
+    "priority": {
+      "normal": "Normal",
+      "low": "Baja",
+      "high": "Alta",
+      "urgent": "Urgente"
+    },
+    "ai": {
+      "historyTitle": "Historial del chat con IA",
+      "lastFiveChip": "Últimos 5 guardados",
+      "askPlaceholder": "Pregúntale lo que quieras a la IA...",
+      "newChatBtn": "Nuevo chat",
+      "empty": "Aún no hay conversaciones con la IA guardadas. Empieza una arriba.",
+      "lastMessage": "Último mensaje: {{when}}",
+      "confirmDelete": "¿Eliminar esta conversación con la IA?",
+      "assistant": "Asistente IA",
+      "historyAria": "Historial de la conversación con la IA",
+      "typePlaceholder": "Escribe tu mensaje...",
+      "you": "Tú"
+    },
+    "ticket": {
+      "confirmDelete": "¿Eliminar este ticket y todos sus mensajes? No se puede deshacer.",
+      "closeBtn": "Cerrar ticket",
+      "deleteBtn": "Eliminar ticket",
+      "messages": "Mensajes",
+      "historyAria": "Historial de la conversación del ticket",
+      "you": "Tú",
+      "support": "Soporte de Snow Media",
+      "replyPlaceholder": "Escribe tu respuesta...",
+      "voiceReady": "Mensaje de voz listo para enviar",
+      "shotReady": "Captura lista para enviar",
+      "removeBtn": "Quitar",
+      "sendReplyBtn": "Enviar respuesta",
+      "attachShotBtn": "Adjuntar captura",
+      "recordBtn": "Grabar un mensaje de voz",
+      "stopBtn": "Detener ({{seconds}} s)",
+      "noMicNote": "Los mensajes de voz necesitan un micrófono, y los controles de TV no lo comparten con las apps; aun así puedes escuchar los que te envíe soporte."
+    },
+    "create": {
+      "title": "Crear ticket de soporte",
+      "cardTitle": "Nueva solicitud de soporte",
+      "notSignedIn": "<1>No has iniciado sesión</1>: tu ticket se entregará, pero no podrás recibir respuestas en la app. Inicia sesión para recibirlas.",
+      "emailLabel": "Tu correo <1>(opcional)</1>",
+      "emailPlaceholder": "tu@ejemplo.com (déjalo vacío para enviar de forma anónima)",
+      "subjectLabel": "Asunto",
+      "subjectPlaceholder": "Breve descripción de tu problema...",
+      "messageLabel": "Mensaje",
+      "messagePlaceholder": "Describe tu problema con detalle...",
+      "creating": "Creando...",
+      "createBtn": "Crear ticket"
+    },
+    "account": {
+      "title": "¿Crear una cuenta?",
+      "desc": "Usaremos <1>{{email}}</1> para que recibas las respuestas a tu ticket en la app. Define una contraseña (y un nombre opcional) abajo, u omite este paso.",
+      "nameLabel": "Nombre (opcional)",
+      "namePlaceholder": "Tu nombre",
+      "passwordLabel": "Contraseña",
+      "passwordPlaceholder": "Al menos 6 caracteres",
+      "skipBtn": "Omitir",
+      "creating": "Creando...",
+      "createBtn": "Crear cuenta"
+    },
+    "toast": {
+      "restoredTitle": "Cuenta restaurada",
+      "restoredDescEmail": "Iniciaste sesión en tu cuenta de Snow Media ({{email}}). Tus tickets han vuelto.",
+      "restoredDesc": "Iniciaste sesión en tu cuenta de Snow Media. Tus tickets han vuelto.",
+      "invalidEmailTitle": "Correo no válido",
+      "invalidEmailDesc": "Ingresa un correo válido o déjalo vacío para enviar de forma anónima.",
+      "sentTitle": "Ticket enviado",
+      "sentDescEmail": "Lo recibimos. Crea una cuenta para recibir la respuesta en la app.",
+      "sentDescAnon": "Recibimos tu ticket anónimo. No será posible responderte.",
+      "errorTitle": "Error",
+      "sendFailed": "No se pudo enviar el ticket. Inténtalo de nuevo.",
+      "passwordShortTitle": "Contraseña demasiado corta",
+      "passwordShortDesc": "Usa al menos 6 caracteres.",
+      "accountCreatedTitle": "Cuenta creada",
+      "accountCreatedDesc": "Revisa tu correo para confirmar y luego inicia sesión para ver las respuestas.",
+      "accountFailedTitle": "No se pudo crear la cuenta",
+      "accountFailedDesc": "Inténtalo más tarde.",
+      "replyFailedTitle": "No se pudo enviar",
+      "replyFailedDesc": "Inténtalo de nuevo.",
+      "successTitle": "Listo",
+      "loadTicketsFailed": "No se pudieron cargar los tickets de soporte",
+      "loadMessagesFailed": "No se pudieron cargar los mensajes",
+      "createdDesc": "Ticket de soporte creado correctamente",
+      "createFailed": "No se pudo crear el ticket de soporte",
+      "messageFailed": "No se pudo enviar el mensaje",
+      "closedDesc": "El ticket se cerró",
+      "closeFailed": "No se pudo cerrar el ticket",
+      "deletedTitle": "Eliminado",
+      "deletedDesc": "Ticket eliminado",
+      "deleteFailed": "No se pudo eliminar el ticket"
+    },
+    "attachment": {
+      "failed": "No se pudo abrir este adjunto.",
+      "loadingVoice": "Cargando mensaje de voz…",
+      "loadingShot": "Cargando captura…",
+      "openFullAria": "Abrir la captura en tamaño completo",
+      "shotAlt": "Captura adjunta a este mensaje",
+      "shotPng": "Captura (PNG)",
+      "shot": "Captura",
+      "toast": {
+        "shotAttachedTitle": "Captura adjuntada",
+        "shotAttachedDesc": "El video no aparece en una captura; los menús y los errores sí.",
+        "shotFailedTitle": "No se pudo tomar la captura",
+        "cannotRecordTitle": "No se puede grabar aquí",
+        "nothingRecordedTitle": "No se grabó nada",
+        "nothingRecordedDesc": "Mantén presionado el botón mientras hablas y luego suéltalo."
+      },
+      "errors": {
+        "empty": "Ese archivo quedó vacío; inténtalo de nuevo.",
+        "tooBig": "Ese archivo es demasiado grande para adjuntar (límite de 10 MB).",
+        "uploadFailed": "No se pudo subir ese adjunto.",
+        "noMic": "Este dispositivo no tiene un micrófono disponible para las apps."
+      }
+    }
+  }
+}

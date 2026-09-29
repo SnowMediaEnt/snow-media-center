@@ -17,17 +17,19 @@
 // only the overlay. It does not open over another popup.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Mic, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import i18n, { getAppLanguage } from '@/i18n';
 import { App as CapApp } from '@capacitor/app';
 import VoiceInput, { type VoiceLifecycleControls, type VoiceState } from '@/components/VoiceInput';
 import { supabase } from '@/integrations/supabase/client';
 import {
   installApp, openInstalledApp, openPlexTitle, openScreen, playChannel, reportChannel, setPreference, generateWallpaper,
-  KIDS_BLOCKED_SCREENS, SCREEN_LABELS, type Navigate, type PreferenceKey, type Screen,
+  KIDS_BLOCKED_SCREENS, screenLabel, type Navigate, type PreferenceKey, type Screen,
 } from '@/lib/appActions';
 import { getDeviceId, trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { getPreferredTier, setPreferredTier } from '@/lib/aiTiers';
-import { KIDS_AI_SHORT } from '@/lib/kidsAiNotice';
+import { kidsAiShort } from '@/lib/kidsAiNotice';
 import { openProfiles } from '@/lib/profilesUi';
 import { parseVoiceCommand, type VoiceAction } from '@/lib/voiceCommands';
 import { OPEN_VOICE_EVENT, noteVoiceOverlay, setVoiceKeyHandler } from '@/lib/voiceUi';
@@ -66,9 +68,11 @@ type Phase =
 
 interface AiCall { name: string; arguments: Record<string, unknown> }
 
-const EXAMPLES = ['"Put on ESPN"', '"Watch The Office"', '"Open YouTube"', '"Go to the Guide"', '"Search for Batman"'];
+// The quick commands are English only (other languages go to the assistant), so
+// the examples stay as they are said.
 
 const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; blocked?: boolean }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: 'listening' });
   const [attempt, setAttempt] = useState(0);
@@ -132,36 +136,36 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
     const nav = navigateRef.current;
     const kids = !!kidsLevel();
     const req = reqRef.current;
-    const grownUp = (what: string) => say(heard, `${what} needs a grown-up — switch profile first.`, 2600);
+    const grownUp = (text: string) => say(heard, text, 2600);
     switch (a.kind) {
       case 'screen':
-        if (kids && KIDS_BLOCKED_SCREENS.has(a.screen)) { grownUp(SCREEN_LABELS[a.screen]); return; }
-        say(heard, `Opening ${openScreen(a.screen, nav)}…`);
+        if (kids && KIDS_BLOCKED_SCREENS.has(a.screen)) { grownUp(i18n.t('voice.host.grownUpScreen', { what: screenLabel(a.screen) })); return; }
+        say(heard, i18n.t('voice.host.opening', { where: openScreen(a.screen, nav) }));
         return;
       case 'profiles':
         close();
         openProfiles('pick');
         return;
       case 'channel':
-        say(heard, `Finding ${a.name}…`);
+        say(heard, i18n.t('voice.host.findingChannel', { name: a.name }));
         playChannel(a.name, nav);
         return;
       case 'plex':
       case 'watch':
-        say(heard, a.kind === 'plex' && !a.open ? `Searching Plex for ${a.query}…` : `Finding ${a.query} on Plex…`);
+        say(heard, a.kind === 'plex' && !a.open ? i18n.t('voice.host.searchingPlex', { query: a.query }) : i18n.t('voice.host.findingOnPlex', { query: a.query }));
         openPlexTitle(a.query, a.kind === 'watch' ? true : a.open, nav);
         return;
       case 'app':
-        if (kids) { grownUp('Opening other apps'); return; }
-        setPhase({ kind: 'working', heard, doing: `Looking for ${a.name}…` });
+        if (kids) { grownUp(i18n.t('voice.host.grownUpApps')); return; }
+        setPhase({ kind: 'working', heard, doing: i18n.t('voice.host.lookingForApp', { name: a.name }) });
         {
           const line = await openInstalledApp(a.name, nav);
           if (reqRef.current === req) say(heard, line, 2000);
         }
         return;
       case 'install':
-        if (kids) { grownUp('Installing apps'); return; }
-        say(heard, `Finding ${a.name} in Main Apps…`, 1800);
+        if (kids) { grownUp(i18n.t('voice.host.grownUpInstall')); return; }
+        say(heard, i18n.t('voice.host.findingInMainApps', { name: a.name }), 1800);
         installApp(a.name, nav);
         return;
       case 'ai':
@@ -183,25 +187,25 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
       case 'open_app': if (!str('app_name')) return false; await act(heard, { kind: 'app', name: str('app_name') }); return true;
       case 'install_app': if (!str('app_name')) return false; await act(heard, { kind: 'install', name: str('app_name') }); return true;
       case 'report_channel':
-        say(heard, `Opening a report for ${str('channel_name')} — press OK to send it.`, 2400);
+        say(heard, i18n.t('voice.host.openingReport', { name: str('channel_name') }), 2400);
         reportChannel({ search: str('channel_name'), issue: str('issue') || undefined, details: str('details') || undefined }, nav);
         return true;
       case 'set_preference': {
-        if (kidsLevel()) { say(heard, 'Settings need a grown-up — switch profile first.', 2600); return true; }
+        if (kidsLevel()) { say(heard, i18n.t('voice.host.grownUpSettings'), 2600); return true; }
         const said = setPreference(str('key') as PreferenceKey, str('value'));
-        say(heard, said ?? "I couldn't change that one.", 2600);
+        say(heard, said ?? i18n.t('voice.host.cantChange'), 2600);
         return true;
       }
       case 'generate_wallpaper':
-        if (kidsLevel()) { say(heard, 'Backgrounds need a grown-up — switch profile first.', 2600); return true; }
+        if (kidsLevel()) { say(heard, i18n.t('voice.host.grownUpBackgrounds'), 2600); return true; }
         // From the phone the idea is only filled in: making it costs Snow
         // Gems, so Generate is pressed on the TV.
         if (phone) {
-          say(heard, 'Your idea is in Settings → Media — press Generate on the TV.', 2600);
+          say(heard, i18n.t('voice.host.ideaInMedia'), 2600);
           generateWallpaper(str('prompt'), nav, false);
           return true;
         }
-        say(heard, 'Making your background — this takes a moment.', 2200);
+        say(heard, i18n.t('voice.host.makingBackground'), 2200);
         generateWallpaper(str('prompt'), nav);
         return true;
       default:
@@ -213,7 +217,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
     const req = reqRef.current;
     // Closed, or a newer command since: this answer is no longer wanted.
     const stale = () => !openRef.current || reqRef.current !== req;
-    setPhase({ kind: 'working', heard, doing: 'Thinking…' });
+    setPhase({ kind: 'working', heard, doing: i18n.t('voice.host.thinking') });
     try {
       const currentVersion = await fetch('/version.json').then((r) => r.json()).then((d) => d.currentVersion).catch(() => undefined);
       const { data: { session } } = await supabase.auth.getSession();
@@ -230,6 +234,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
           saveConversation: false,
           currentVersion,
           device_id: getDeviceId(),
+          language: getAppLanguage(),
           ...(tier ? { tier: 'premium' } : {}),
           ...(kidsLevel() ? { kids_level: kidsLevel() } : {}),
         },
@@ -249,14 +254,14 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
       if (error) {
         const failure = await failureOf(error);
         if (failure.error === 'insufficient_gems' || failure.error === 'premium_disabled' || failure.error === 'premium_requires_signin') {
-          setPhase({ kind: 'reply', heard, text: failure.message || 'Snow AI Premium isn\'t available right now — switch to Free under Settings → UI.' });
+          setPhase({ kind: 'reply', heard, text: failure.message || i18n.t('voice.host.premiumUnavailable') });
           setFocus('close');
           return;
         }
         throw error;
       }
       const d = data as { blocked?: boolean; reason?: string; response?: string; message?: string; functionCall?: AiCall } | null;
-      if (d?.blocked) { setPhase({ kind: 'reply', heard, text: d.reason || 'The assistant is busy right now. Try again in a bit.' }); return; }
+      if (d?.blocked) { setPhase({ kind: 'reply', heard, text: d.reason || i18n.t('voice.host.assistantBusy') }); return; }
       // Signed in on Free: the same 0.01 Snow Gems an AI Chat message costs.
       if (session?.user && !premium) {
         void supabase.rpc('update_user_credits', {
@@ -265,11 +270,11 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
       }
       if (d?.functionCall && (await runAiCall(heard, d.functionCall, phone))) return;
       const text = (d?.response || d?.message || '').trim();
-      setPhase({ kind: 'reply', heard, text: text || "Sorry, I didn't get that. Try \"put on ESPN\" or \"open Plex\"." });
+      setPhase({ kind: 'reply', heard, text: text || i18n.t('voice.host.didntGetThat') });
       setFocus('close');
     } catch {
       if (stale()) return;
-      setPhase({ kind: 'reply', heard, text: "Couldn't reach the assistant. Check the internet connection and try again." });
+      setPhase({ kind: 'reply', heard, text: i18n.t('voice.host.cantReach') });
       setFocus('close');
     }
   }, [runAiCall]);
@@ -319,7 +324,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
   const onVoiceState = useCallback((s: VoiceState, forAttempt: number) => {
     if (forAttempt !== attemptRef.current) return;
     if (s === 'error' || s === 'cancelled') {
-      const reason = s === 'cancelled' ? 'Stopped listening.' : "Voice didn't work on this box.";
+      const reason = s === 'cancelled' ? i18n.t('voice.host.stoppedListening') : i18n.t('voice.host.voiceDidntWork');
       setPhase((p) => (p.kind === 'listening' ? { kind: 'stopped', reason } : p));
     } else if (s === 'requesting_permission') {
       // Listening again (OK on the mic): whatever was on its way is dropped.
@@ -411,7 +416,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
       aria-modal="true"
       data-state="open"
       data-voice-overlay=""
-      aria-label="Voice"
+      aria-label={t('voice.host.dialogLabel')}
       className="fixed inset-x-0 bottom-0 z-[160] flex justify-center px-6 pb-10 pointer-events-none"
     >
       <div
@@ -432,14 +437,14 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
               </>
             ) : phase.kind === 'stopped' ? (
               <>
-                <div className="text-2xl font-bold">Didn’t catch that</div>
-                <div className="mt-1 text-lg text-white/80 max-h-40 overflow-y-auto">{phase.reason} Press OK on the mic to try again.</div>
+                <div className="text-2xl font-bold">{t('voice.host.didntCatch')}</div>
+                <div className="mt-1 text-lg text-white/80 max-h-40 overflow-y-auto">{phase.reason} {t('voice.host.pressOkRetry')}</div>
               </>
             ) : (
               <>
-                <div className="text-2xl font-bold">Listening…</div>
+                <div className="text-2xl font-bold">{t('voice.host.listening')}</div>
                 <div className="mt-1 text-base text-white/70">
-                  {kidsLevel() ? KIDS_AI_SHORT : `Try ${EXAMPLES.join(' · ')}`}
+                  {kidsLevel() ? kidsAiShort() : t('voice.host.tryExamples', { examples: t('voice.host.examples') })}
                 </div>
               </>
             )}
@@ -449,7 +454,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
               <VoiceInput
                 key={mic}
                 autoStart={!fromPhone}
-                prompt="Say a command"
+                prompt={t('voice.host.sayCommand')}
                 onTranscription={onTranscription}
                 onVoiceStateChange={(st) => onVoiceState(st, mic)}
                 onVoiceError={(title, description) => onVoiceError(title, description, mic)}
@@ -458,7 +463,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
             <button
               type="button"
               onClick={close}
-              aria-label="Close"
+              aria-label={t('common.close')}
               className={`rounded-xl p-2 ${focus === 'close' ? 'bg-white text-black' : 'bg-white/10 text-white'}`}
             >
               <X className="h-6 w-6" />

@@ -27,7 +27,92 @@
     },
     "plex": {
       "title": "Plex",
-      "description": "Películas y series"
+      "description": "Películas y series",
+      "tag": "(VOD)"
+    },
+    "kidsLounge": {
+      "title": "Sala de juegos infantil",
+      "description": "Juega, aprende y explora"
+    },
+    "header": {
+      "voiceLabel": "Voz",
+      "profileLabel": "Perfil: {{name}}. Cambiar o agregar perfiles",
+      "unreadReplies_one": "{{count}} respuesta de soporte sin leer",
+      "unreadReplies_many": "{{count}} respuestas de soporte sin leer",
+      "unreadReplies_other": "{{count}} respuestas de soporte sin leer"
+    },
+    "toast": {
+      "launchingTitle": "Abriendo app",
+      "launchingDesc": "Abriendo {{name}}...",
+      "launchFailedTitle": "No se pudo abrir",
+      "launchFailedDesc": "No se pudo abrir {{name}}. Verifica que esté instalada.",
+      "exitTitle": "Presiona atrás otra vez para salir",
+      "exitDesc": "Presiona el botón atrás otra vez para cerrar la app",
+      "installTitle": "Instalar {{name}}",
+      "installDesc": "Abriendo Apps principales para que la descargues.",
+      "plexCantOpenTitle": "No se puede abrir en Plex",
+      "plexCantOpenDesc": "Faltan datos del elemento de Plex.",
+      "plexPlayingTitle": "Reproduciendo en Plex…",
+      "plexMissingTitle": "Plex no está instalado",
+      "plexMissingDesc": "Instala Plex para reproducir este título.",
+      "plexFailedTitle": "No se pudo iniciar la reproducción",
+      "plexFailedDesc": "Se abrirá Plex en su lugar."
+    },
+    "mediaBar": {
+      "heading": "Recomendado",
+      "prevLabel": "Anterior",
+      "nextLabel": "Siguiente",
+      "demoTitle": "Demo en vivo"
+    },
+    "badges": {
+      "trendingChip": "TENDENCIA",
+      "continueChip": "SEGUIR",
+      "liveChip": "EN VIVO",
+      "forYouChip": "PARA TI"
+    },
+    "newsTicker": {
+      "loading": "Cargando noticias...",
+      "fallback1": "🚀 Nueva actualización de la app disponible",
+      "fallback2": "📺 Soporte en vivo disponible ahora - Chatea con Snow Media",
+      "fallback3": "🎬 Nuevos videotutoriales en Soporte",
+      "fallback4": "💫 La tienda Snow Media tiene contenido nuevo"
+    },
+    "clock": {
+      "updateTitle": "Actualización disponible: v{{version}}",
+      "updateTitleShort": "Actualización disponible",
+      "updateAria": "Actualización disponible — abre Ajustes → Actualizaciones"
+    },
+    "notFound": {
+      "title": "¡Vaya! No se encontró la página",
+      "homeLink": "Volver al inicio"
+    },
+    "contentBarPrompt": {
+      "title": "¿Mostrar la barra de contenido en vivo?",
+      "description": "Muestra títulos populares y deportes en vivo en la parte superior del inicio.",
+      "preview": "Vista previa",
+      "liveSub": "{{league}} · En vivo",
+      "continueSub": "Seguir · {{episode}}",
+      "laggy": "En dispositivos antiguos o menos potentes puede ir un poco lento.",
+      "notNowBtn": "Ahora no",
+      "turnOnBtn": "Activar",
+      "footer": "Puedes cambiarlo en cualquier momento en Ajustes."
+    },
+    "welcome": {
+      "title": "Te damos la bienvenida a Snow Media Center",
+      "intro": "Esto es lo que hace cada sección:",
+      "mainAppsDesc": "Descarga todas las apps de Snow Media.",
+      "supportVideosTitle": "Videos de soporte",
+      "supportVideosDesc": "Videos paso a paso sobre dispositivos y servicios.",
+      "chatTitle": "Chat y comunidad",
+      "chatDesc": "Envía tickets para ayuda o preguntas — también hay chat con IA.",
+      "signInNote": "Inicia sesión con tu cuenta de <1>snowmediaent.com</1> o crea una nueva para seguir tus compras y Snow Gems.",
+      "whatsNew": "Novedades de la v{{version}}",
+      "scrollHint": "▲ ▼ desplazar · OK cerrar",
+      "closeHint": "OK cerrar",
+      "letsGoBtn": "Vamos"
+    },
+    "exit": {
+      "pressHome": "Presiona el botón de inicio para salir"
     }
   }
 }

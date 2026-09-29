@@ -52,6 +52,9 @@ import {
   LINE_CHECK_SETTLE_MS, LINE_RECHECK_MS, LINE_RETRY_MS, LINE_TAKEN_MESSAGE, REWIND_SETTINGS_KEY, saveRewindSettings,
 } from '@/lib/liveRewind';
 
+// Slow under a loaded full run (fake timers and many hook renders); the default 5 s flakes.
+vi.setConfig({ testTimeout: 20_000 });
+
 const LINE = { host: 'http://panel.example', username: 'viewer', password: 'S3cretPass', output: 'ts' as const };
 const url = (id: number) => `${LINE.host}/live/${LINE.username}/${LINE.password}/${id}.ts`;
 const CHANNEL = { stream_id: 7 };

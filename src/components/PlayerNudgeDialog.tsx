@@ -4,6 +4,7 @@
 // Focus order: the checkbox on top, then Open Player / Continue side by side.
 import { memo, useEffect, useRef, useState } from 'react';
 import { Check, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -31,6 +32,7 @@ interface PlayerNudgeDialogProps {
 type Focus = 'check' | 'player' | 'continue';
 
 const PlayerNudgeDialog = ({ appName, info, open, onOpenPlayer, onContinue, onDismiss }: PlayerNudgeDialogProps) => {
+  const { t } = useTranslation();
   const checkRef = useRef<HTMLButtonElement>(null);
   const playerRef = useRef<HTMLButtonElement>(null);
   const continueRef = useRef<HTMLButtonElement>(null);
@@ -88,10 +90,10 @@ const PlayerNudgeDialog = ({ appName, info, open, onOpenPlayer, onContinue, onDi
         <DialogHeader>
           <div className="flex items-center gap-3 mb-1">
             <Sparkles className="w-7 h-7 text-brand-gold flex-shrink-0" />
-            <DialogTitle className="text-2xl text-white">{appName} is better in the Player</DialogTitle>
+            <DialogTitle className="text-2xl text-white">{t('live.playerNudge.title', { app: appName })}</DialogTitle>
           </div>
           <DialogDescription className="text-slate-300 text-base">
-            It's all on the main page under Player → {info.where}:
+            {t('live.playerNudge.where', { where: info.where })}
           </DialogDescription>
         </DialogHeader>
 
@@ -99,7 +101,7 @@ const PlayerNudgeDialog = ({ appName, info, open, onOpenPlayer, onContinue, onDi
           {PLAYER_BENEFITS.map((b) => (
             <li key={b} className="flex items-start text-base text-white/90 leading-snug">
               <Check className="w-5 h-5 mr-3 mt-0.5 text-emerald-300 flex-shrink-0" />
-              <span>{b}</span>
+              <span>{t(b)}</span>
             </li>
           ))}
         </ul>
@@ -116,7 +118,7 @@ const PlayerNudgeDialog = ({ appName, info, open, onOpenPlayer, onContinue, onDi
           <span className={`mr-3 flex h-6 w-6 items-center justify-center rounded-md border-2 ${dontShow ? 'bg-brand-gold border-brand-gold text-slate-900' : 'border-slate-400'}`}>
             {dontShow && <Check className="w-4 h-4" />}
           </span>
-          Don't show this again
+          {t('live.playerNudge.dontShow')}
         </button>
 
         <div className="grid grid-cols-2 gap-3 mt-1">
@@ -127,7 +129,7 @@ const PlayerNudgeDialog = ({ appName, info, open, onOpenPlayer, onContinue, onDi
             onFocus={() => setFocus('player')}
             className={`h-12 text-base font-semibold ${ring('player')}`}
           >
-            Open Player
+            <span className="block min-w-0 truncate">{t('live.playerNudge.openBtn')}</span>
           </Button>
           <Button
             ref={continueRef}
@@ -136,7 +138,7 @@ const PlayerNudgeDialog = ({ appName, info, open, onOpenPlayer, onContinue, onDi
             onFocus={() => setFocus('continue')}
             className={`h-12 text-base bg-slate-800 border-slate-600 text-white hover:bg-slate-700 ${ring('continue')}`}
           >
-            Continue to {appName}
+            <span className="block min-w-0 truncate">{t('live.playerNudge.continueBtn', { app: appName })}</span>
           </Button>
         </div>
       </DialogContent>

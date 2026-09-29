@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { App as CapApp } from '@capacitor/app';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { readSignInLink, signInLinkEmail, type SignInLink } from '@/lib/ssoLink';
 import { waitForStorageReady } from '@/utils/storage';
+
+/** What the page says: a key of ours (translated when drawn, so it follows the language)
+ *  or text that came from the server. */
+type Msg = { key: string; params?: Record<string, string> } | { text: string };
 
 const isBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || e.key === 'BrowserBack' || e.keyCode === 4 || e.keyCode === 27;
 const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13;
@@ -34,11 +39,12 @@ const ARM_MS = 500;
  * Cancel, leaves the box as it was.
  */
 const SsoConsume = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const [status, setStatus] = useState<'checking' | 'confirm' | 'loading' | 'success' | 'error'>('checking');
-  const [message, setMessage] = useState('Checking your sign-in link…');
+  const [message, setMessage] = useState<Msg>({ key: 'auth.sso.checking' });
   const [incomingEmail, setIncomingEmail] = useState<string | null>(null);
   // Who this box is signed in as now (email may be missing), or null.
   const [current, setCurrent] = useState<{ email: string | null } | null>(null);
@@ -47,19 +53,19 @@ const SsoConsume = () => {
   const shownAtRef = useRef(0);
   const doneTimerRef = useRef(0);
 
-  const fail = useCallback((msg: string) => { setStatus('error'); setMessage(msg); }, []);
+  const fail = useCallback((msg: Msg) => { setStatus('error'); setMessage(msg); }, []);
 
   // Read the link, take the tokens out of the address bar, and ask.
   useEffect(() => {
     const link = readSignInLink(location.search, location.hash);
     if (!link) {
-      if (!linkRef.current) fail('No sign-in token found in the link.');
+      if (!linkRef.current) fail({ key: 'auth.sso.noToken' });
       return;
     }
     linkRef.current = link;
     try { window.history.replaceState(window.history.state, '', '/sso'); } catch { /* ignore */ }
     setStatus('checking');
-    setMessage('Checking your sign-in link…');
+    setMessage({ key: 'auth.sso.checking' });
     let alive = true;
     void (async () => {
       const [now, email] = await Promise.all([
@@ -88,7 +94,7 @@ const SsoConsume = () => {
     if (!link) return;
     linkRef.current = null;
     setStatus('loading');
-    setMessage('Signing you in…');
+    setMessage({ key: 'auth.sso.signingIn' });
     try {
       const { data, error } = link.kind === 'session'
         ? await supabase.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })
@@ -96,18 +102,14 @@ const SsoConsume = () => {
       if (error) throw error;
       const email = data.user?.email ?? data.session?.user?.email;
       setStatus('success');
-      setMessage(email ? `Signed in as ${email}. Redirecting…` : 'Signed in successfully. Redirecting…');
-      toast({ title: 'Welcome back!', description: 'You are signed in.' });
+      setMessage(email ? { key: 'auth.sso.signedInAs', params: { email } } : { key: 'auth.sso.signedIn' });
+      toast({ title: t('auth.toast.welcomeBackTitle'), description: t('auth.sso.toastDesc') });
       doneTimerRef.current = window.setTimeout(() => navigate('/', { replace: true }), 1500);
     } catch (err) {
       console.error('[SsoConsume] Failed to consume magic link:', err instanceof Error ? err.message : 'unknown error');
-      fail(
-        err instanceof Error
-          ? err.message
-          : 'We could not sign you in with that link. It may have expired or already been used.'
-      );
+      fail(err instanceof Error ? { text: err.message } : { key: 'auth.sso.failed' });
     }
-  }, [fail, navigate, toast]);
+  }, [fail, navigate, toast, t]);
 
   const leave = useCallback(() => {
     linkRef.current = null;
@@ -162,6 +164,8 @@ const SsoConsume = () => {
       : 'text-red-400';
   const btn = (i: 0 | 1) =>
     `tv-ring rounded-xl px-6 py-3 text-lg font-semibold ${focus === i ? 'bg-white text-black' : 'bg-white/10 text-white'}`;
+  const isConfirm = status === 'confirm';
+  const isError = status === 'error';
   const sameAccount = !!current?.email && current.email === incomingEmail;
 
   return (
@@ -170,7 +174,7 @@ const SsoConsume = () => {
         <CardContent className="p-8 text-center space-y-6">
           <div className="flex items-center justify-center gap-2 mb-2">
             <KeyRound className="w-7 h-7 text-blue-400" />
-            <h1 className="text-2xl font-bold text-white">Snow Media Sign-In</h1>
+            <h1 className="text-2xl font-bold text-white">{t('auth.sso.title')}</h1>
           </div>
 
           <div className="flex flex-col items-center space-y-4">
@@ -178,44 +182,45 @@ const SsoConsume = () => {
             {status === 'confirm' ? (
               <p className="text-white text-lg">
                 {incomingEmail
-                  ? <>Sign in as <span className="font-semibold break-all">{incomingEmail}</span>?</>
-                  : 'Sign in with this link?'}
+                  ? <Trans i18nKey="auth.sso.confirmAs" values={{ email: incomingEmail }} components={{ b: <span className="font-semibold break-all" /> }} />
+                  : t('auth.sso.confirmLink')}
               </p>
             ) : (
-              <p className="text-white/90 text-base">{message}</p>
+              <p className="text-white/90 text-base">{'key' in message ? t(message.key, message.params) : message.text}</p>
             )}
           </div>
 
-          {status === 'confirm' && (
+          {isConfirm && (
             <div className="space-y-4">
               {current && (
                 <p className="text-sm text-amber-200/90">
                   {sameAccount
-                    ? 'This box is already signed in to that account.'
-                    : <>This box is signed in as <span className="font-semibold break-all">{current.email ?? 'another account'}</span>. Signing in replaces it on this box.</>}
+                    ? t('auth.sso.sameAccount')
+                    : current.email
+                      ? <Trans i18nKey="auth.sso.otherAccount" values={{ email: current.email }} components={{ b: <span className="font-semibold break-all" /> }} />
+                      : t('auth.sso.otherAccountUnknown')}
                 </p>
               )}
-              <p className="text-xs text-white/60">Only continue if you opened this link yourself.</p>
+              <p className="text-xs text-white/60">{t('auth.sso.onlyContinue')}</p>
               <div className="flex justify-center gap-3">
                 <button type="button" className={btn(0)} data-focused={focus === 0 ? 'true' : 'false'}
-                  onMouseEnter={() => setFocus(0)} onClick={() => void confirm()}>Sign in</button>
+                  onMouseEnter={() => setFocus(0)} onClick={() => void confirm()}>{t('common.signInAction')}</button>
                 <button type="button" className={btn(1)} data-focused={focus === 1 ? 'true' : 'false'}
-                  onMouseEnter={() => setFocus(1)} onClick={leave}>Cancel</button>
+                  onMouseEnter={() => setFocus(1)} onClick={leave}>{t('common.cancel')}</button>
               </div>
             </div>
           )}
 
-          {status === 'error' && (
+          {isError && (
             <div className="space-y-3">
               <Button
                 onClick={() => navigate('/auth')}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               >
-                Go to Sign In
+                {t('auth.sso.goSignInBtn')}
               </Button>
               <p className="text-xs text-white/60">
-                Sign-in links are single-use and expire after 1 hour. Request a new one
-                from snowmedia.com if needed.
+                {t('auth.sso.singleUse')}
               </p>
             </div>
           )}

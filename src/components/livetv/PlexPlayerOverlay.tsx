@@ -5,12 +5,15 @@
 // the playback stats panel — PlexSection's own Back handler exits playback.
 // Native-only (uses SnowPlayer position/tracks).
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, Maximize, LifeBuoy, Volume2, VolumeX } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@/lib/opensubtitles';
 import { PLEX_QUALITY_PRESETS, type PlexVersion } from '@/lib/plex';
 import { versionName } from '@/lib/plexVersions';
+import { qualityPresetLabel } from '@/lib/plexAutoQuality';
 import { formatMbps, getPlayerSpeedKbps } from '@/lib/bufferDiagnostics';
 import { SCREEN_FORMATS, type ScreenFormat } from '@/capacitor/SnowPlayer';
 import { useScreenFormat } from '@/hooks/useScreenFormat';
@@ -29,7 +32,8 @@ const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', '
 const SCRUB_STEPS = [10, 30, 60, 120, 300];
 const SCRUB_REPEAT_MS = 700;
 // The Help menu. "Playback stats" turns the stats panel on and off.
-const HELP_ITEMS = ['Fix buffering — step-by-step guide', 'More help & support', 'Playback stats'];
+// Keys, not text: translated when the menu is drawn.
+const HELP_ITEMS = ['plex.player.helpBuffering', 'plex.player.helpSupport', 'plex.player.helpStats'];
 const HELP_STATS = 2;
 
 export interface SubtitleSearchContext {
@@ -108,6 +112,10 @@ interface Props {
 }
 
 
+// SCREEN_FORMATS (SnowPlayer.ts) names its words by key (plexApi.screenFormat.*).
+const formatName = (f: { labelKey: string }): string => i18n.t(f.labelKey);
+const formatHint = (f: { hintKey: string }): string => i18n.t(f.hintKey);
+
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
 const fmtTime = (sec: number) => {
   const s = Math.max(0, Math.floor(sec));
@@ -120,14 +128,19 @@ const fmtTime = (sec: number) => {
 const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused, statsSession, serverName, needKbps }: Props) => {
   // The Quality menu: every version as it is (when there are several), then
   // the converted presets. `selected` is the entry now in effect.
-  const qualityList = useMemo((): Array<{ key: string; label: string }> => {
-    if (!versions || versions.length < 2) return PLEX_QUALITY_PRESETS.map((p) => ({ key: p.key, label: p.label }));
-    const files = versions.map((v) => ({
-      key: `original@${v.id}`,
-      label: `${versionName(v, versions)} · original${v.bitrateKbps ? ` (${formatMbps(v.bitrateKbps)})` : ''}`,
-    }));
-    return [...files, ...PLEX_QUALITY_PRESETS.filter((p) => p.key !== 'original').map((p) => ({ key: p.key, label: p.label }))];
-  }, [versions]);
+  const { t } = useTranslation();
+  // `name` is the short form the "Switching to …" notice uses.
+  const qualityList = useMemo((): Array<{ key: string; label: string; name: string }> => {
+    if (!versions || versions.length < 2) return PLEX_QUALITY_PRESETS.map((p) => ({ key: p.key, label: qualityPresetLabel(p), name: qualityPresetLabel(p) }));
+    const files = versions.map((v) => {
+      const name = `${versionName(v, versions)}${v.bitrateKbps ? ` (${formatMbps(v.bitrateKbps)})` : ''}`;
+      const label = v.bitrateKbps
+        ? t('plex.player.originalFileSpeed', { name: versionName(v, versions), speed: formatMbps(v.bitrateKbps) })
+        : t('plex.player.originalFile', { name: versionName(v, versions) });
+      return { key: `original@${v.id}`, label, name };
+    });
+    return [...files, ...PLEX_QUALITY_PRESETS.filter((p) => p.key !== 'original').map((p) => ({ key: p.key, label: p.label, name: p.label }))];
+  }, [versions, t]);
   const selectedQuality = qualityKey === 'original' && versions && versions.length > 1
     ? `original@${versionId ?? versions[0].id}` : qualityKey;
   const [visible, setVisible] = useState(false);
@@ -148,6 +161,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   // OpenSubtitles panel state
   const [osdlLoading, setOsdlLoading] = useState(false);
   const [osdlResults, setOsdlResults] = useState<OpenSubResult[]>([]);
+  // A key, translated when shown.
   const [osdlError, setOsdlError] = useState<string | null>(null);
   const [osdlBusyId, setOsdlBusyId] = useState<number | null>(null);
   /** File id we just downloaded — matched against the next external track that appears to auto-select it. */
@@ -209,7 +223,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     if (fresh) {
       controller?.setSubtitleTrack(fresh.id);
       pendingSubRef.current = null;
-      toast({ title: 'Subtitles loaded' });
+      toast({ title: i18n.t('plex.player.toast.subsLoaded') });
     }
   }, [tracksTick, subs, controller, toast]);
 
@@ -239,9 +253,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     setOsdlLoading(false);
     if (!res.ok) {
       const reason = (res as { reason?: string }).reason;
-      if (reason === 'not_configured') setOsdlError('Subtitle downloads are almost ready — the OpenSubtitles key still needs to be added.');
-      else if (reason === 'quota') setOsdlError('Daily subtitle download limit reached.');
-      else setOsdlError('Could not reach OpenSubtitles.');
+      if (reason === 'not_configured') setOsdlError('plex.player.toast.subsNotConfigured');
+      else if (reason === 'quota') setOsdlError('plex.player.toast.subsQuota');
+      else setOsdlError('plex.player.osdlUnreachable');
       return;
     }
 
@@ -255,9 +269,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     setOsdlBusyId(null);
     if (!dl.ok) {
       const reason = (dl as { reason?: string }).reason;
-      if (reason === 'not_configured') toast({ title: 'Subtitle downloads are almost ready — the OpenSubtitles key still needs to be added.' });
-      else if (reason === 'quota') toast({ title: 'Daily subtitle download limit reached.' });
-      else toast({ title: 'Could not download subtitles.' });
+      if (reason === 'not_configured') toast({ title: i18n.t('plex.player.toast.subsNotConfigured') });
+      else if (reason === 'quota') toast({ title: i18n.t('plex.player.toast.subsQuota') });
+      else toast({ title: i18n.t('plex.player.toast.subsFailed') });
       return;
     }
 
@@ -415,7 +429,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             void (async () => {
               const p = await getPositionRef.current();
               onFixAudioRef.current?.(Math.floor(p.position));
-              try { toastRef.current({ title: 'Fixing audio — converting sound only…' }); } catch { /* ignore */ }
+              try { toastRef.current({ title: i18n.t('plex.player.toast.fixingAudio') }); } catch { /* ignore */ }
             })();
             setMenu('none');
             return;
@@ -460,7 +474,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           const f = list[i];
           if (f) {
             void setScreenFormatRef.current(f.id as ScreenFormat);
-            try { toastRef.current({ title: `Screen format: ${f.label}` }); } catch { /* ignore */ }
+            try { toastRef.current({ title: i18n.t('plex.player.toast.screenFormat', { format: formatName(f) }) }); } catch { /* ignore */ }
           }
           setMenu('none');
         }
@@ -477,7 +491,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             void (async () => {
               const pos = await getPositionRef.current();
               onChangeQualityRef.current(p.key, Math.floor(pos.position));
-              try { toastRef.current({ title: `Switching to ${p.label.replace(' · original', '')}…` }); } catch { /* ignore */ }
+              try { toastRef.current({ title: i18n.t('plex.player.toast.switching', { name: p.name }) }); } catch { /* ignore */ }
             })();
           }
           setMenu('none');
@@ -555,14 +569,17 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     return () => window.removeEventListener('keydown', handler, true);
   }, [active]);
 
+  const isMenu = (m: string) => menu === m;
+  const isRow = (r: string) => row === r;
+  const isNextPrompt = prompt?.kind === 'next';
   // The prompt sits bottom-right over the picture, and above the control bar
   // while that is open; it steps aside while a menu is up.
   const promptEl = active && prompt && (!visible || menu === 'none') ? (
     <div className={`absolute right-12 ${visible ? 'bottom-44' : 'bottom-12'} z-30 pointer-events-none animate-fade-in`}>
       <div className="rounded-2xl bg-black/85 border-2 border-brand-gold px-6 py-4 max-w-md">
-        {prompt.kind === 'next' && (
+        {isNextPrompt && (
           <p className="text-xs uppercase tracking-wider text-brand-gold font-nunito mb-1">
-            Up next{prompt.countdown != null ? ` · playing in ${prompt.countdown}` : ''}
+            {prompt.countdown != null ? t('plex.player.upNextIn', { seconds: prompt.countdown }) : t('plex.player.upNext')}
           </p>
         )}
         {prompt.detail && <p className="text-white font-quicksand font-semibold text-lg leading-tight mb-2 truncate">{prompt.detail}</p>}
@@ -571,7 +588,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             {prompt.label}
           </span>
           <span className="ml-4 text-xs text-brand-ice/80 font-nunito">
-            {visible ? '' : `OK${prompt.onBack ? ' · BACK to keep watching' : ''}`}
+            {visible ? '' : prompt.onBack ? t('plex.player.promptOkBack') : t('common.ok')}
           </span>
         </div>
       </div>
@@ -615,9 +632,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       : 'bg-white/10 text-white';
 
   const subsList: Array<{ id: number; label: string; active: boolean }> = [
-    { id: -1, label: 'Off', active: subs.every((s) => !s.active) },
+    { id: -1, label: t('plex.player.subsOff'), active: subs.every((s) => !s.active) },
     ...subs.map((s) => ({ id: s.id, label: s.label, active: s.active })),
-    { id: -2, label: '⬇ Get subtitles…', active: false },
+    { id: -2, label: t('plex.player.getSubs'), active: false },
   ];
 
   return (
@@ -635,7 +652,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <div
             className={`relative rounded-full ${scrubbing ? 'h-2.5 bg-white/25' : 'h-1.5 bg-white/15'}`}
             data-focused={scrubbing ? 'true' : 'false'}
-            aria-label="Seek bar"
+            aria-label={t('plex.player.seekBar')}
           >
             <div className="h-full rounded-full bg-brand-gold" style={{ width: `${pct}%` }} />
             {scrubbing && (
@@ -656,52 +673,52 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <span>{dur > 0 ? fmtTime(dur) : ''}</span>
           </div>
           <div className="mt-4 flex items-center justify-center gap-3">
-            <button type="button" data-focused={row === 'seek-10' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek-10')}`} aria-label="Back 10 seconds"><Rewind className="w-6 h-6" /></button>
-            <button type="button" data-focused={row === 'play' ? 'true' : 'false'} className={`${btnBase} w-16 h-16 ${focusVis('play')}`} aria-label="Play/Pause">
+            <button type="button" data-focused={row === 'seek-10' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek-10')}`} aria-label={t('plex.player.back10')}><Rewind className="w-6 h-6" /></button>
+            <button type="button" data-focused={row === 'play' ? 'true' : 'false'} className={`${btnBase} w-16 h-16 ${focusVis('play')}`} aria-label={t('plex.player.playPause')}>
               {(paused ?? pollPaused) ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />}
             </button>
-            <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label="Forward 30 seconds"><FastForward className="w-6 h-6" /></button>
-            <button type="button" data-focused={btnFocused('audio')} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label="Audio"><AudioLines className="w-6 h-6" /></button>
-            <button type="button" data-focused={btnFocused('subs')} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-6 h-6" /></button>
-            <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-6 h-6" /></button>
-            <button type="button" data-focused={btnFocused('format')} className={`${btnBase} w-12 h-12 ${focusVis('format')}`} aria-label="Screen format"><Maximize className="w-6 h-6" /></button>
+            <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label={t('plex.player.forward30')}><FastForward className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('audio')} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label={t('plex.player.audio')}><AudioLines className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('subs')} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label={t('plex.player.subtitles')}><Subtitles className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label={t('plex.player.quality')}><Gauge className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('format')} className={`${btnBase} w-12 h-12 ${focusVis('format')}`} aria-label={t('plex.player.screenFormat')}><Maximize className="w-6 h-6" /></button>
             <div className="flex flex-col items-center gap-1">
               <button
                 type="button"
                 data-focused={btnFocused('volume')}
                 className={`${btnBase} w-12 h-12 ${focusVis('volume')}`}
-                aria-label="Volume"
+                aria-label={t('plex.player.volume')}
               >
                 {volPct === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
               </button>
-              {row === 'volume' && (
+              {isRow('volume') && (
                 <span className="text-xs font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
               )}
             </div>
             <div className="flex flex-col items-center gap-1">
-              <button type="button" data-focused={btnFocused('buffering')} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Help" onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-6 h-6" /></button>
-              <span className="text-xs font-nunito text-brand-ice/70 leading-none">Help</span>
+              <button type="button" data-focused={btnFocused('buffering')} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label={t('plex.player.help')} onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-6 h-6" /></button>
+              <span className="text-xs font-nunito text-brand-ice/70 leading-none">{t('plex.player.help')}</span>
             </div>
           </div>
           <p className="text-center text-xs text-brand-ice/60 font-nunito mt-4">
             {row === 'scrub'
-              ? '◀ ▶ move · keep pressing for bigger jumps · OK jump there · ▼ controls'
+              ? t('plex.player.hintScrub')
               : row === 'buffering'
-                ? 'Help — OK for support and playback stats'
+                ? t('plex.player.hintHelp')
                 : row === 'volume'
-                  ? 'Volume — OK opens the slider'
-                  : '▲ seek bar · ◀ ▶ select · OK activate · Back hides'}
+                  ? t('plex.player.hintVolume')
+                  : t('plex.player.hintControls')}
           </p>
         </div>
       </div>
 
-      {menu === 'audio' && (
+      {isMenu('audio') && (
         <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
-            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Audio</p>
-            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.audio')}</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
           </div>
-          {auds.length === 0 && <p className="text-sm text-brand-ice/70 px-3 py-2">No tracks</p>}
+          {auds.length === 0 && <p className="text-sm text-brand-ice/70 px-3 py-2">{t('plex.player.noTracks')}</p>}
           <div className="space-y-1">
             {auds.map((a, i) => (
               <div key={`${a.id}-${a.label}`} data-focused={menuIdx === i ? 'true' : 'false'}
@@ -712,20 +729,20 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <div data-focused={menuIdx === auds.length ? 'true' : 'false'}
               className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === auds.length ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-gold'}`}>
               <VolumeX className="w-3.5 h-3.5" />
-              <span className="truncate">Fix audio (no sound?)</span>
+              <span className="truncate">{t('plex.player.fixAudio')}</span>
             </div>
           </div>
         </div>
       )}
 
-      {menu === 'volume' && (
+      {isMenu('volume') && (
         <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               {volPct === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-              Volume
+              {t('plex.player.volume')}
             </p>
-            <span className="text-xs text-brand-ice/60 font-nunito">◀ ▶ · OK · Back</span>
+            <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHintSlider')}</span>
           </div>
           <div className="flex items-center gap-3 px-2 py-2">
             {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
@@ -733,41 +750,41 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               <div className={`h-full ${vol.boost ? 'bg-orange-400' : 'bg-brand-gold'} transition-[width] duration-150 ease-out`} style={{ width: `${vol.fill}%` }} />
               <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
             </div>
-            <span className={`text-sm font-quicksand font-bold tabular-nums text-right ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{volPct}%{vol.boost ? ' · Boost' : ''}</span>
+            <span className={`text-sm font-quicksand font-bold tabular-nums text-right ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost ? t('plex.player.volumeBoost', { pct: volPct }) : `${volPct}%`}</span>
           </div>
         </div>
       )}
 
 
-      {menu === 'format' && (
+      {isMenu('format') && (
         <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
-            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Screen format</p>
-            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.screenFormat')}</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
           </div>
           <div className="space-y-1">
             {SCREEN_FORMATS.map((f, i) => (
               <div key={f.id} data-focused={menuIdx === i ? 'true' : 'false'}
                 className={`tv-ring px-3 py-2 rounded-xl font-nunito text-sm ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
                 <div className="flex items-center justify-between">
-                  <span className="truncate">{f.label}</span>
+                  <span className="truncate">{formatName(f)}</span>
                   {f.id === screen.format && <span className="text-brand-gold text-xs">●</span>}
                 </div>
-                <div className="text-[11px] text-brand-ice/60">{f.hint}</div>
+                <div className="text-[11px] text-brand-ice/60">{formatHint(f)}</div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {menu === 'quality' && (
+      {isMenu('quality') && (
         <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
-            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Quality</p>
-            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.quality')}</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
           </div>
           {yourKbps != null && (
-            <p className="px-2 pb-1 text-xs text-brand-ice/70 font-nunito tabular-nums">Your speed: <span className="text-white/90">{formatMbps(yourKbps)}</span></p>
+            <p className="px-2 pb-1 text-xs text-brand-ice/70 font-nunito tabular-nums">{t('plex.player.yourSpeed')} <span className="text-white/90">{formatMbps(yourKbps)}</span></p>
           )}
           {/* Scrolls when a title's versions make the list taller than the
               room above the bar on a 540 px-tall TV viewport. */}
@@ -784,11 +801,11 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       )}
 
 
-      {menu === 'subs' && (
+      {isMenu('subs') && (
         <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
-            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Subtitles</p>
-            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.subtitles')}</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
           </div>
           <div className="space-y-1">
             {subsList.map((r, i) => (
@@ -801,24 +818,24 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         </div>
       )}
 
-      {menu === 'osdl' && (
+      {isMenu('osdl') && (
         <div className="absolute right-8 bottom-40 z-30 w-96 max-h-[60vh] overflow-y-auto rounded-2xl bg-black/90 border border-white/15 p-2 animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
-              <Download className="w-3.5 h-3.5 text-brand-gold" /> OpenSubtitles
+              <Download className="w-3.5 h-3.5 text-brand-gold" /> OpenSubtitles{/* i18n-ignore: brand name */}
             </p>
-            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+            <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
           </div>
           {osdlLoading && (
             <div className="flex items-center gap-2 px-3 py-4 text-brand-ice/70 font-nunito text-sm">
-              <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Searching…
+              <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> {t('plex.player.searching')}
             </div>
           )}
           {!osdlLoading && osdlError && (
-            <p className="px-3 py-3 text-sm font-nunito text-brand-ice/70">{osdlError}</p>
+            <p className="px-3 py-3 text-sm font-nunito text-brand-ice/70">{t(osdlError)}</p>
           )}
           {!osdlLoading && !osdlError && osdlResults.length === 0 && (
-            <p className="px-3 py-3 text-sm font-nunito text-brand-ice/70">No subtitles found.</p>
+            <p className="px-3 py-3 text-sm font-nunito text-brand-ice/70">{t('plex.player.noSubs')}</p>
           )}
           <div className="space-y-1 px-1">
             {!osdlLoading && osdlResults.map((r, i) => (
@@ -835,22 +852,22 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         </div>
       )}
 
-      {menu === 'help' && (
+      {isMenu('help') && (
         <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
-              <LifeBuoy className="w-3.5 h-3.5 text-brand-gold" /> Help
+              <LifeBuoy className="w-3.5 h-3.5 text-brand-gold" /> {t('plex.player.help')}
             </p>
-            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+            <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
           </div>
           {routeLabel && (
-            <p className="px-2 pb-2 text-xs text-brand-ice/70 font-nunito">Connection: <span className="text-white/90">{routeLabel}</span></p>
+            <p className="px-2 pb-2 text-xs text-brand-ice/70 font-nunito">{t('plex.player.connection')} <span className="text-white/90">{routeLabel}</span></p>
           )}
           <div className="space-y-1">
-            {HELP_ITEMS.map((label, i) => (
-              <div key={label} data-focused={menuIdx === i ? 'true' : 'false'}
+            {HELP_ITEMS.map((labelKey, i) => (
+              <div key={labelKey} data-focused={menuIdx === i ? 'true' : 'false'}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
-                <span className="truncate">{label}</span>
+                <span className="truncate">{t(labelKey)}</span>
                 {i === HELP_STATS && statsOpen && <span className="text-brand-gold text-xs">●</span>}
               </div>
             ))}

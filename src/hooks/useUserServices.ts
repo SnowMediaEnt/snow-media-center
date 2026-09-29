@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import i18n from '@/i18n';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface UserDevice {
@@ -186,26 +187,26 @@ export const expiryState = (days: number | null): ExpiryState => {
   if (days === null) {
     return { show: false, severity: 'info', label: '', daysUntil: null };
   }
+  // The label is written in the app's language when this runs; callers compute it while drawing.
   if (days > 30) {
-    return { show: false, severity: 'info', label: `expires in ${days} days`, daysUntil: days };
+    return { show: false, severity: 'info', label: i18n.t('account.expiry.inDays', { count: days }), daysUntil: days };
   }
   if (days >= 8) {
-    return { show: true, severity: 'info', label: `expires in ${days} days`, daysUntil: days };
+    return { show: true, severity: 'info', label: i18n.t('account.expiry.inDays', { count: days }), daysUntil: days };
   }
   if (days >= 2) {
-    return { show: true, severity: 'warning', label: `expires in ${days} days`, daysUntil: days };
+    return { show: true, severity: 'warning', label: i18n.t('account.expiry.inDays', { count: days }), daysUntil: days };
   }
   if (days === 1) {
-    return { show: true, severity: 'critical', label: 'expires tomorrow', daysUntil: days };
+    return { show: true, severity: 'critical', label: i18n.t('account.expiry.tomorrow'), daysUntil: days };
   }
   if (days === 0) {
-    return { show: true, severity: 'critical', label: 'expires today', daysUntil: days };
+    return { show: true, severity: 'critical', label: i18n.t('account.expiry.today'), daysUntil: days };
   }
-  const ago = Math.abs(days);
   return {
     show: true,
     severity: 'critical',
-    label: `expired ${ago} day${ago === 1 ? '' : 's'} ago`,
+    label: i18n.t('account.expiry.expiredAgo', { count: Math.abs(days) }),
     daysUntil: days,
   };
 };

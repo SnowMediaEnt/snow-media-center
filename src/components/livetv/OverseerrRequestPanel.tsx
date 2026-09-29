@@ -2,6 +2,8 @@
 // Owns the keyboard entirely while active (PlexSection gates itself out).
 import { memo, useEffect, useRef, useState } from 'react';
 import { Loader2, Search, Film, Tv } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { supabase } from '@/integrations/supabase/client';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
@@ -16,15 +18,17 @@ interface Props { isActive: boolean; onExitToTabs: () => void; }
 
 const COLS = 6;
 
-const statusBadge = (s: number): { label: string; cls: string } | null => {
-  if (s === 5) return { label: 'On Plex', cls: 'bg-emerald-600/80 text-white' };
-  if (s === 4) return { label: 'Partial', cls: 'bg-yellow-600/80 text-white' };
-  if (s === 3) return { label: 'Requested', cls: 'bg-yellow-600/80 text-white' };
-  if (s === 2) return { label: 'Pending', cls: 'bg-yellow-600/80 text-white' };
+// labelKey, not text: it is translated when the badge is drawn.
+const statusBadge = (s: number): { labelKey: string; cls: string } | null => {
+  if (s === 5) return { labelKey: 'plex.request.onPlexBadge', cls: 'bg-emerald-600/80 text-white' };
+  if (s === 4) return { labelKey: 'plex.request.partialBadge', cls: 'bg-yellow-600/80 text-white' };
+  if (s === 3) return { labelKey: 'plex.request.requestedBadge', cls: 'bg-yellow-600/80 text-white' };
+  if (s === 2) return { labelKey: 'plex.request.pendingBadge', cls: 'bg-yellow-600/80 text-white' };
   return null;
 };
 
 const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ResultItem[]>([]);
@@ -52,15 +56,15 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
       setCursor(0);
       if ((data?.results || []).length) setZone('results');
     } catch {
-      toast({ title: 'Search failed', description: 'Could not reach the request service.', variant: 'destructive' });
+      toast({ title: i18n.t('plex.request.toast.searchFailedTitle'), description: i18n.t('plex.request.toast.searchFailedDesc'), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
 
   const activate = (item: ResultItem) => {
-    if (item.status === 5) { toast({ title: 'Already on Plex', description: `${item.title} is already available.` }); return; }
-    if (item.status >= 2) { toast({ title: 'Already requested', description: `${item.title} has already been requested.` }); return; }
+    if (item.status === 5) { toast({ title: i18n.t('plex.request.toast.onPlexTitle'), description: i18n.t('plex.request.toast.onPlexDesc', { title: item.title }) }); return; }
+    if (item.status >= 2) { toast({ title: i18n.t('plex.request.toast.alreadyTitle'), description: i18n.t('plex.request.toast.alreadyDesc', { title: item.title }) }); return; }
     setConfirmIdx(0);
     setConfirming(item);
   };
@@ -79,15 +83,15 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
       });
       if (error) throw new Error('failed');
       if (data?.already) {
-        toast({ title: 'Already requested', description: `${item.title} was already requested.` });
+        toast({ title: i18n.t('plex.request.toast.alreadyTitle'), description: i18n.t('plex.request.toast.wasAlreadyDesc', { title: item.title }) });
         setResults((rs) => rs.map((r) => (r.id === item.id && r.mediaType === item.mediaType ? { ...r, status: 3 } : r)));
         return;
       }
       if (data?.error || !data?.ok) throw new Error(data?.error || 'failed');
-      toast({ title: 'Requested!', description: `${item.title} has been requested. It'll appear on Plex once it's ready.` });
+      toast({ title: i18n.t('plex.request.toast.requestedTitle'), description: i18n.t('plex.request.toast.requestedDesc', { title: item.title }) });
       setResults((rs) => rs.map((r) => (r.id === item.id && r.mediaType === item.mediaType ? { ...r, status: 3 } : r)));
     } catch {
-      toast({ title: 'Request failed', description: 'Please try again in a moment.', variant: 'destructive' });
+      toast({ title: i18n.t('plex.request.toast.failedTitle'), description: i18n.t('plex.request.toast.failedDesc'), variant: 'destructive' });
     } finally {
       requestingRef.current = false;
       setRequesting(false);
@@ -98,8 +102,8 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
   // Focus the search box when the panel becomes active in search zone.
   useEffect(() => {
     if (isActive && zone === 'search') {
-      const t = window.setTimeout(() => inputRef.current?.focus(), 50);
-      return () => window.clearTimeout(t);
+      const timer = window.setTimeout(() => inputRef.current?.focus(), 50);
+      return () => window.clearTimeout(timer);
     }
   }, [isActive, zone]);
 
@@ -169,7 +173,7 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
             else if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); (e.target as HTMLInputElement).blur(); if (results.length) setZone('results'); }
             else if (e.key === 'Escape' || (e.key === 'Backspace' && !query)) { e.stopPropagation(); (e.target as HTMLInputElement).blur(); }
           }}
-          placeholder="Search for a movie or show to request…"
+          placeholder={t('plex.request.searchPlaceholder')}
           className="tv-ring flex-1 bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white font-nunito placeholder:text-white/70 focus:outline-none"
           data-focused={isActive && zone === 'search' ? 'true' : 'false'}
         />
@@ -180,8 +184,8 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
         {results.length === 0 && !loading && (
           <div className="h-full flex flex-col items-center justify-center text-brand-ice/70 font-nunito text-sm gap-2">
             <Film className="w-8 h-8 text-brand-gold/60" />
-            <p>Search for something you'd like added to Plex.</p>
-            <p className="text-xs text-brand-ice/60 mt-4">Press OK on the search box to type · results show below</p>
+            <p>{t('plex.request.emptyTitle')}</p>
+            <p className="text-xs text-brand-ice/60 mt-4">{t('plex.request.emptyHint')}</p>
           </div>
         )}
         <div className="grid grid-cols-6 gap-x-3 gap-y-5 p-2">
@@ -203,11 +207,11 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
                     : <div className="plex-ph absolute inset-0 flex items-center justify-center">{it.mediaType === 'tv' ? <Tv className="w-8 h-8 text-brand-ice/30" /> : <Film className="w-8 h-8 text-brand-ice/30" />}</div>}
                   <span className="plex-sheen" aria-hidden="true" />
                   {badge && (
-                    <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-plex-xs text-plex-micro font-nunito font-bold ${badge.cls}`}>{badge.label}</span>
+                    <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-plex-xs text-plex-micro font-nunito font-bold ${badge.cls}`}>{t(badge.labelKey)}</span>
                   )}
                 </div>
                 <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
-                <div className="plex-sub font-nunito text-brand-ice/60">{it.year || ''} · {it.mediaType === 'tv' ? 'Show' : 'Movie'}</div>
+                <div className="plex-sub font-nunito text-brand-ice/60">{it.year || ''} · {it.mediaType === 'tv' ? t('plex.request.typeShow') : t('plex.request.typeMovie')}</div>
               </div>
             );
           })}
@@ -217,18 +221,18 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
       {confirming && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-6">
           <div className="w-full max-w-md rounded-3xl bg-slate-900/95 border-2 border-brand-gold/50 p-8 text-center">
-            <h3 className="text-xl font-quicksand font-bold text-white mb-2">Request {confirming.title}?</h3>
+            <h3 className="text-xl font-quicksand font-bold text-white mb-2">{t('plex.request.confirmTitle', { title: confirming.title })}</h3>
             <p className="text-brand-ice/70 font-nunito text-sm mb-6">
-              {confirming.mediaType === 'tv' ? 'All seasons will be requested.' : 'The movie will be added to the request queue.'}
+              {confirming.mediaType === 'tv' ? t('plex.request.confirmShow') : t('plex.request.confirmMovie')}
             </p>
             <div className="flex items-center justify-center gap-3">
               <button onClick={() => void submitRequest(confirming)} data-focused={confirmIdx === 0 ? 'true' : 'false'}
                 className={`tv-ring tv-ring-contrast px-6 py-3 rounded-xl border border-brand-gold/40 text-white font-quicksand font-bold ${confirmIdx === 0 ? 'bg-brand-gold/30 scale-105 z-10' : 'bg-brand-gold/15'}`}>
-                {requesting ? 'Requesting…' : 'Request'}
+                {requesting ? t('plex.request.requestingBtn') : t('plex.request.requestBtn')}
               </button>
               <button onClick={() => setConfirming(null)} data-focused={confirmIdx === 1 ? 'true' : 'false'}
                 className={`tv-ring px-6 py-3 rounded-xl border border-white/10 bg-white/10 text-white font-quicksand font-bold ${confirmIdx === 1 ? 'scale-105 z-10' : ''}`}>
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>

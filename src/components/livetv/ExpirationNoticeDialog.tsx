@@ -6,6 +6,8 @@ import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import { kidsLevel } from '@/lib/kidsFilter';
 import RenewQR from './RenewQR';
+import { useTranslation } from 'react-i18next';
+import { serverDisplayName } from '@/lib/xtream';
 
 interface Props {
   open: boolean;
@@ -16,6 +18,7 @@ interface Props {
 }
 
 const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDismiss }: Props) => {
+  const { t } = useTranslation();
   const DEMO = isDemo();
   // Renewing is a grown-up's: never a Renew QR on a Kids profile (the Player
   // does not raise this notice on one either).
@@ -71,14 +74,12 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDism
   }, [open, view, BTN_COUNT, showRenew, onDismiss, days, expired, serverLabel, DEMO]);
 
   const title = expired
-    ? `Your ${serverLabel} subscription has EXPIRED`
+    ? t('liveAccount.expiry.titleExpired', { serverLabel: serverDisplayName(serverLabel) })
     : days === 0
-      ? `Your ${serverLabel} subscription expires TODAY`
-      : `Your ${serverLabel} subscription expires in ${days} day${days === 1 ? '' : 's'}`;
+      ? t('liveAccount.expiry.titleToday', { serverLabel: serverDisplayName(serverLabel) })
+      : t('liveAccount.expiry.titleDays', { serverLabel: serverDisplayName(serverLabel), count: days });
 
-  const body = expired
-    ? 'Reach out to Snow Media to renew and restore access. You can renew through the store or by contacting support.'
-    : 'Reach out to Snow Media to renew and avoid losing access. You can renew through the store or by contacting support.';
+  const body = expired ? t('liveAccount.expiry.bodyExpired') : t('liveAccount.expiry.bodySoon');
 
   const Icon = expired ? ShieldAlert : AlertTriangle;
   const focusedCls = 'scale-105 z-10';
@@ -91,7 +92,7 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDism
         <div className={`px-6 py-4 border-b border-brand-gold/40 flex items-center gap-3 ${expired ? 'bg-gradient-to-r from-red-600/40 via-red-500/25 to-red-600/40' : 'bg-gradient-to-r from-brand-gold/30 via-yellow-500/20 to-brand-gold/30'}`}>
           <Icon className={`w-6 h-6 ${expired ? 'text-red-300' : 'text-brand-gold'}`} />
           <h2 className="text-2xl font-quicksand font-bold text-white leading-tight tracking-tight">
-            {view === 'qr' ? 'Renew your subscription' : title}
+            {view === 'qr' ? t('liveAccount.expiry.renewTitle') : title}
           </h2>
         </div>
 
@@ -113,7 +114,7 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDism
                   data-focused={focusIdx === 0 ? 'true' : 'false'}
                   className={`tv-ring tv-ring-contrast h-12 min-w-[140px] rounded-xl py-3 text-base font-semibold transition-transform duration-150 ease-out ${focusIdx === 0 ? focusedCls : ''}`}
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" /> Renew now
+                  <RefreshCw className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('liveAccount.expiry.renewBtn')}</span>
                 </Button>
               )}
               <Button
@@ -123,7 +124,7 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDism
                 data-focused={focusIdx === BTN_COUNT - 1 ? 'true' : 'false'}
                 className={`tv-ring h-12 min-w-[140px] rounded-xl py-3 text-base font-semibold transition-transform duration-150 ease-out ${focusIdx === BTN_COUNT - 1 ? focusedCls : ''}`}
               >
-                OK, got it
+                <span className="min-w-0 truncate">{t('liveAccount.expiry.gotItBtn')}</span>
               </Button>
             </div>
           </>

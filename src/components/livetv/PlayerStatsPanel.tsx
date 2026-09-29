@@ -17,8 +17,11 @@
 // - Codec names, numbers and error code names only: the plugin never sends a
 //   URL, and the route is the kind of address (plexRouteLabel), never a token.
 import { memo, useEffect, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { SnowPlayer, type PlayerStats } from '@/capacitor/SnowPlayer';
 import { formatMbps } from '@/lib/bufferDiagnostics';
+import { formatNumber } from '@/i18n/format';
 
 /** How often the panel reads the player while open. */
 const STATS_POLL_MS = 1000;
@@ -47,7 +50,7 @@ const clock = (sec: number): string => {
 };
 const mbps = (kbps: number | null | undefined): string => (kbps != null && kbps >= 0 ? formatMbps(kbps) : '—');
 const short = (kbps: number | null | undefined): string => (kbps != null && kbps >= 0 ? (kbps / 1000).toFixed(1) : '—');
-const count = (n: number | null | undefined): string => (typeof n === 'number' && Number.isFinite(n) ? Math.round(n).toLocaleString('en-US') : '—');
+const count = (n: number | null | undefined): string => (typeof n === 'number' && Number.isFinite(n) ? formatNumber(Math.round(n)) : '—');
 const text = (v: string | null | undefined): string => (v && v.trim() ? v : '—');
 const num = (n: number | null | undefined): n is number => typeof n === 'number' && Number.isFinite(n);
 
@@ -58,11 +61,11 @@ const stallsRow = (st: PlayerStats | null): string => {
 };
 const cpuRow = (n: number | null | undefined): string => (num(n) ? `${n.toFixed(1)}%` : '—');
 
-function engineState(st: PlayerStats): string {
-  if (st.state === 'ready') return st.playing ? 'Playing' : 'Paused';
-  if (st.state === 'buffering') return 'Buffering';
-  if (st.state === 'ended') return 'Ended';
-  return 'Idle';
+function engineState(st: PlayerStats, t: TFunction): string {
+  if (st.state === 'ready') return st.playing ? t('plex.stats.playing') : t('plex.stats.paused');
+  if (st.state === 'buffering') return t('plex.stats.buffering');
+  if (st.state === 'ended') return t('plex.stats.ended');
+  return t('plex.stats.idle');
 }
 
 const Card = ({ title, wide, children }: { title: string; wide?: boolean; children: ReactNode }) => (
@@ -80,6 +83,7 @@ const Row = ({ label, children }: { label?: string; children: ReactNode }) => (
 );
 
 const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, screenId }: PlayerStatsPanelProps) => {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<PlayerStats | null>(null);
   // An app built before getStats existed rejects the call.
   const [unavailable, setUnavailable] = useState(false);
@@ -107,12 +111,14 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, scre
 
   const st = stats;
   const frames = st && (st.renderedFrames != null || st.droppedFrames != null)
-    ? `${count(st.renderedFrames)} · ${count(st.droppedFrames)} dropped`
+    ? t('plex.stats.framesValue', { rendered: count(st.renderedFrames), dropped: count(st.droppedFrames) })
     : '—';
   // Every figure is read defensively: an app between versions may leave one out.
   const restartCount = num(st?.restarts) ? st.restarts : 0;
-  const restarts = st ? `${restartCount}${restartCount > 0 && st.lastRestartReason ? ` (last: ${st.lastRestartReason})` : ''}` : '—';
-  const ahead = st && num(st.bufferedAheadSec) ? `${st.bufferedAheadSec.toFixed(1)} s ahead` : '—';
+  const restarts = st
+    ? (restartCount > 0 && st.lastRestartReason ? t('plex.stats.restartsLast', { count: restartCount, reason: st.lastRestartReason }) : `${restartCount}`)
+    : '—';
+  const ahead = st && num(st.bufferedAheadSec) ? t('plex.stats.ahead', { value: st.bufferedAheadSec.toFixed(1) }) : '—';
   const at = st && num(st.positionSec) ? `${clock(st.positionSec)}${num(st.durationSec) && st.durationSec > 0 ? ` / ${clock(st.durationSec)}` : ''}` : '—';
   const memory = (mb: number | null | undefined) => (num(mb) ? `${Math.round(mb)} MB` : '—');
 
@@ -122,52 +128,52 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, scre
       data-player-stats
     >
       <div className="flex items-center justify-between px-1 pb-1.5">
-        <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/80">Playback stats</p>
-        <p className="text-[10px] text-brand-ice/60">Back closes</p>
+        <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/80">{t('plex.stats.title')}</p>
+        <p className="text-[10px] text-brand-ice/60">{t('plex.stats.backCloses')}</p>
       </div>
       {unavailable && (
-        <p className="px-1 pb-1.5 text-[11px] text-brand-ice/70 leading-snug">This version of the app can&apos;t read the player&apos;s stats yet — update SMC to see them.</p>
+        <p className="px-1 pb-1.5 text-[11px] text-brand-ice/70 leading-snug">{t('plex.stats.unavailable')}</p>
       )}
       <div className="grid grid-cols-4 gap-1.5">
         {session != null && (
-          <Card title="Session" wide>
+          <Card title={t('plex.stats.session')} wide>
             <Row>{session}</Row>
-            <Row label="Server">{text(serverName)}</Row>
-            <Row label="Route">{text(routeLabel)}</Row>
+            <Row label={t('plex.stats.server')}>{text(serverName)}</Row>
+            <Row label={t('plex.stats.route')}>{text(routeLabel)}</Row>
           </Card>
         )}
-        <Card title="Engine" wide={session == null}>
-          <Row>{engineLabel(st?.engine)} · {st ? engineState(st) : '—'}</Row>
-          <Row label="Buffer">{ahead}</Row>
-          <Row label="At">{at}</Row>
-          <Row label="First picture">{st && num(st.firstFrameMs) ? `${st.firstFrameMs} ms` : '—'}</Row>
-          <Row label="Stalls">{stallsRow(st)}</Row>
+        <Card title={t('plex.stats.engine')} wide={session == null}>
+          <Row>{engineLabel(st?.engine)} · {st ? engineState(st, t) : '—'}</Row>
+          <Row label={t('plex.stats.buffer')}>{ahead}</Row>
+          <Row label={t('plex.stats.at')}>{at}</Row>
+          <Row label={t('plex.stats.firstPicture')}>{st && num(st.firstFrameMs) ? t('plex.stats.ms', { value: st.firstFrameMs }) : '—'}</Row>
+          <Row label={t('plex.stats.stalls')}>{stallsRow(st)}</Row>
         </Card>
-        <Card title="Bandwidth">
-          <Row label="Now">{mbps(st?.nowKbps)}</Row>
-          <Row label="Average">{mbps(st?.avgKbps)}</Row>
-          <Row>{`(min ${short(st?.minKbps)}, max ${short(st?.maxKbps)})`}</Row>
-          {needKbps != null && needKbps > 0 && <Row label="Needs">{formatMbps(needKbps)}</Row>}
+        <Card title={t('plex.stats.bandwidth')}>
+          <Row label={t('plex.stats.now')}>{mbps(st?.nowKbps)}</Row>
+          <Row label={t('plex.stats.average')}>{mbps(st?.avgKbps)}</Row>
+          <Row>{t('plex.stats.minMax', { min: short(st?.minKbps), max: short(st?.maxKbps) })}</Row>
+          {needKbps != null && needKbps > 0 && <Row label={t('plex.stats.needs')}>{formatMbps(needKbps)}</Row>}
         </Card>
-        <Card title="Video">
+        <Card title={t('plex.stats.video')}>
           <Row>{text(st?.videoDecoder)}</Row>
           <Row>{text(st?.videoFormat)}</Row>
-          <Row label="Frames">{frames}</Row>
+          <Row label={t('plex.stats.frames')}>{frames}</Row>
         </Card>
-        <Card title="Audio">
+        <Card title={t('plex.stats.audio')}>
           <Row>{text(st?.audioDecoder)}</Row>
           <Row>{text(st?.audioFormat)}</Row>
         </Card>
-        <Card title="Player">
-          <Row label="Restarts">{restarts}</Row>
-          <Row label="Last error">{st ? (st.lastError || 'none') : '—'}</Row>
-          <Row label="Load">{text(st?.loadProfile)}</Row>
+        <Card title={t('plex.stats.player')}>
+          <Row label={t('plex.stats.restarts')}>{restarts}</Row>
+          <Row label={t('plex.stats.lastError')}>{st ? (st.lastError || t('plex.stats.none')) : '—'}</Row>
+          <Row label={t('plex.stats.load')}>{text(st?.loadProfile)}</Row>
         </Card>
-        <Card title="Memory">
-          <Row label="CPU">{cpuRow(st?.cpuPct)}</Row>
-          <Row label="Process">{memory(st?.pssMb)}</Row>
-          <Row label="Java">{memory(st?.javaHeapMb)}</Row>
-          <Row label="Native">{memory(st?.nativeHeapMb)}</Row>
+        <Card title={t('plex.stats.memory')}>
+          <Row label={t('plex.stats.cpu')}>{cpuRow(st?.cpuPct)}</Row>
+          <Row label={t('plex.stats.process')}>{memory(st?.pssMb)}</Row>
+          <Row label={t('plex.stats.java')}>{memory(st?.javaHeapMb)}</Row>
+          <Row label={t('plex.stats.native')}>{memory(st?.nativeHeapMb)}</Row>
         </Card>
       </div>
     </div>

@@ -1,8 +1,22 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Sparkles } from 'lucide-react';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
+
+// Sample tiles for the preview: made-up match-ups and titles, shown as they are.
+const SAMPLE = {
+  live: [
+    { name: 'Mariners @ Rays', league: 'MLB' },
+    { name: 'Lakers @ Celtics', league: 'NBA' },
+    { name: 'Chiefs @ 49ers', league: 'NFL' },
+  ],
+  shows: [
+    { name: 'Moving On', episode: 'S03E12' },
+    { name: 'Northern Lights', episode: 'S01E04' },
+  ],
+};
 
 const PROMPT_KEY = 'smc-media-bar-prompt-seen';
 const WELCOME_KEY = 'smc-welcome-shown-version';
@@ -16,6 +30,7 @@ const WELCOME_KEY = 'smc-welcome-shown-version';
  *  - no other modal in the DOM
  */
 const MediaBarPrompt = () => {
+  const { t } = useTranslation();
   const [enabled, setEnabled] = useMediaBarEnabled();
   const [open, setOpen] = useState(false);
   const [focusIdx, setFocusIdx] = useState(0); // 0 = Turn it on, 1 = Not now
@@ -95,13 +110,13 @@ const MediaBarPrompt = () => {
   // Toggle focus simply: Left → 0, Right → 1
   useEffect(() => {
     if (!open) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       const sel = focusIdxRef.current === 0
         ? '[data-mbp-btn="on"]'
         : '[data-mbp-btn="off"]';
       document.querySelector<HTMLButtonElement>(sel)?.focus();
     }, 60);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [open, focusIdx]);
 
   if (!open) return null;
@@ -115,58 +130,58 @@ const MediaBarPrompt = () => {
       <Card className="w-full max-w-lg bg-gradient-to-br from-blue-900 to-slate-900 border-blue-500/40 p-6 shadow-2xl">
         <div className="flex items-center gap-2 mb-3">
           <Sparkles className="w-6 h-6 text-yellow-300" />
-          <h2 className="text-2xl font-bold text-white">Show the live content bar?</h2>
+          <h2 className="text-2xl font-bold text-white">{t('home.contentBarPrompt.title')}</h2>
         </div>
         <p className="text-sm text-white/85 mb-4">
-          It shows trending titles &amp; live sports at the top of the home screen.
+          {t('home.contentBarPrompt.description')}
         </p>
 
         {/* Mini preview of the content bar — realistic compact cards */}
         <div className="bg-black/40 border border-white/10 rounded-xl p-3 mb-4">
-          <div className="text-[11px] uppercase tracking-wider text-white/60 mb-2">Preview</div>
+          <div className="text-[11px] uppercase tracking-wider text-white/60 mb-2">{t('home.contentBarPrompt.preview')}</div>
           <div className="flex gap-2 overflow-hidden">
             {/* LIVE 1 */}
             <div className="flex-1 min-w-0 aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-md bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 relative">
               <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
-                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />LIVE
+                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />{t('home.badges.liveChip')}
               </div>
               <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/90 to-transparent">
-                <div className="text-[9px] font-bold text-white leading-tight truncate">Mariners @ Rays</div>
-                <div className="text-[7px] text-white/70 leading-tight truncate">MLB · Live</div>
+                <div className="text-[9px] font-bold text-white leading-tight truncate">{SAMPLE.live[0].name}</div>
+                <div className="text-[7px] text-white/70 leading-tight truncate">{t('home.contentBarPrompt.liveSub', { league: SAMPLE.live[0].league })}</div>
               </div>
             </div>
             {/* LIVE 2 */}
             <div className="flex-1 min-w-0 aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-md bg-gradient-to-br from-orange-600 via-rose-700 to-slate-900 relative">
               <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
-                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />LIVE
+                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />{t('home.badges.liveChip')}
               </div>
               <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/90 to-transparent">
-                <div className="text-[9px] font-bold text-white leading-tight truncate">Lakers @ Celtics</div>
-                <div className="text-[7px] text-white/70 leading-tight truncate">NBA · Live</div>
+                <div className="text-[9px] font-bold text-white leading-tight truncate">{SAMPLE.live[1].name}</div>
+                <div className="text-[7px] text-white/70 leading-tight truncate">{t('home.contentBarPrompt.liveSub', { league: SAMPLE.live[1].league })}</div>
               </div>
             </div>
             {/* LIVE 3 */}
             <div className="flex-1 min-w-0 aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-md bg-gradient-to-br from-indigo-600 via-purple-800 to-slate-900 relative">
               <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
-                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />LIVE
+                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />{t('home.badges.liveChip')}
               </div>
               <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/90 to-transparent">
-                <div className="text-[9px] font-bold text-white leading-tight truncate">Chiefs @ 49ers</div>
-                <div className="text-[7px] text-white/70 leading-tight truncate">NFL · Live</div>
+                <div className="text-[9px] font-bold text-white leading-tight truncate">{SAMPLE.live[2].name}</div>
+                <div className="text-[7px] text-white/70 leading-tight truncate">{t('home.contentBarPrompt.liveSub', { league: SAMPLE.live[2].league })}</div>
               </div>
             </div>
             {/* SHOW 1 */}
             <div className="flex-1 min-w-0 aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-md bg-gradient-to-br from-slate-700 via-slate-800 to-black relative">
               <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/95 to-transparent">
-                <div className="text-[9px] font-bold text-white leading-tight truncate">Moving On</div>
-                <div className="text-[7px] text-white/70 leading-tight truncate">Continue · S03E12</div>
+                <div className="text-[9px] font-bold text-white leading-tight truncate">{SAMPLE.shows[0].name}</div>
+                <div className="text-[7px] text-white/70 leading-tight truncate">{t('home.contentBarPrompt.continueSub', { episode: SAMPLE.shows[0].episode })}</div>
               </div>
             </div>
             {/* SHOW 2 */}
             <div className="flex-1 min-w-0 aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-md bg-gradient-to-br from-zinc-700 via-zinc-900 to-black relative">
               <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/95 to-transparent">
-                <div className="text-[9px] font-bold text-white leading-tight truncate">Northern Lights</div>
-                <div className="text-[7px] text-white/70 leading-tight truncate">Continue · S01E04</div>
+                <div className="text-[9px] font-bold text-white leading-tight truncate">{SAMPLE.shows[1].name}</div>
+                <div className="text-[7px] text-white/70 leading-tight truncate">{t('home.contentBarPrompt.continueSub', { episode: SAMPLE.shows[1].episode })}</div>
               </div>
             </div>
           </div>
@@ -174,7 +189,7 @@ const MediaBarPrompt = () => {
 
 
         <p className="text-xs text-yellow-300/90 mb-5">
-          On older or less powerful devices this may make things a little laggy.
+          {t('home.contentBarPrompt.laggy')}
         </p>
 
         <div className="flex items-center justify-end gap-3">
@@ -186,7 +201,7 @@ const MediaBarPrompt = () => {
               focusIdx === 1 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
           >
-            Not now
+            {t('home.contentBarPrompt.notNowBtn')}
           </Button>
           <Button
             data-mbp-btn="on"
@@ -195,12 +210,12 @@ const MediaBarPrompt = () => {
               focusIdx === 0 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
           >
-            Turn it on
+            {t('home.contentBarPrompt.turnOnBtn')}
           </Button>
         </div>
 
         <p className="mt-4 text-[11px] text-white/55">
-          You can change this any time in Settings.
+          {t('home.contentBarPrompt.footer')}
         </p>
       </Card>
     </div>

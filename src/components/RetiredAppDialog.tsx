@@ -4,6 +4,7 @@
 // between the two buttons, Back dismisses.
 import { memo, useEffect, useRef, useState } from 'react';
 import { Tv } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -28,6 +29,7 @@ interface RetiredAppDialogProps {
 }
 
 const RetiredAppDialog = ({ appName, info, open, onOpenPlayer, onDownloadAnyway, onDismiss }: RetiredAppDialogProps) => {
+  const { t } = useTranslation();
   const playerRef = useRef<HTMLButtonElement>(null);
   const anywayRef = useRef<HTMLButtonElement>(null);
   const [focused, setFocused] = useState<'player' | 'anyway'>('player');
@@ -43,8 +45,8 @@ const RetiredAppDialog = ({ appName, info, open, onOpenPlayer, onDownloadAnyway,
     if (!open) return;
     track('shown');
     setFocused('player');
-    const t = setTimeout(() => playerRef.current?.focus(), 50);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => playerRef.current?.focus(), 50);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -83,7 +85,7 @@ const RetiredAppDialog = ({ appName, info, open, onOpenPlayer, onDownloadAnyway,
         <DialogHeader>
           <div className="flex items-center gap-3 mb-2">
             <Tv className="w-7 h-7 text-brand-gold" />
-            <DialogTitle className="text-2xl text-white">{appName} is now in the Player</DialogTitle>
+            <DialogTitle className="text-2xl text-white">{t('apps.retired.title', { app: appName })}</DialogTitle>
           </div>
           <DialogDescription className="text-slate-300 text-base whitespace-pre-wrap">
             {retiredAppMessage(appName, info)}
@@ -96,7 +98,7 @@ const RetiredAppDialog = ({ appName, info, open, onOpenPlayer, onDownloadAnyway,
             onClick={choosePlayer}
             className={focused === 'player' ? 'ring-4 ring-brand-ice scale-105' : ''}
           >
-            Open Player
+            {t('apps.retired.openPlayerBtn')}
           </Button>
           <Button
             ref={anywayRef}
@@ -106,7 +108,7 @@ const RetiredAppDialog = ({ appName, info, open, onOpenPlayer, onDownloadAnyway,
               focused === 'anyway' ? 'ring-4 ring-brand-ice scale-105' : ''
             }`}
           >
-            Download anyway
+            {t('apps.retired.downloadAnywayBtn')}
           </Button>
         </DialogFooter>
       </DialogContent>

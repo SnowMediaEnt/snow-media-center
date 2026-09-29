@@ -1,0 +1,144 @@
+{
+  "support": {
+    "header": {
+      "title": "Support",
+      "subtitle": "Hol dir Hilfe, chatte mit der KI oder lies die Beiträge von Snow Media"
+    },
+    "tabs": {
+      "helpTab": "Hilfe",
+      "aiTab": "KI-Chat",
+      "postsTab": "Beiträge"
+    },
+    "cards": {
+      "howTo": {
+        "title": "SMC-Anleitung",
+        "desc": "Eine einfache Tour durch jeden Bildschirm"
+      },
+      "speedTest": {
+        "title": "Speedtest",
+        "desc": "Teste deine Internetgeschwindigkeit"
+      },
+      "guide": {
+        "title": "Buffering-Hilfe",
+        "desc": "Schritt für Schritt gegen Ruckeln"
+      },
+      "videos": {
+        "title": "Support-Videos",
+        "desc": "Tutorials und Anleitungen"
+      },
+      "tickets": {
+        "title": "Ticket senden",
+        "descNew": "Neue Antwort vom Support",
+        "desc": "Kontaktiere den Snow-Media-Support"
+      },
+      "remote": {
+        "title": "Fernzugriff",
+        "desc": "Ein Techniker repariert deine Box live – $25"
+      },
+      "cleaner": {
+        "title": "Geräte-Cleaner",
+        "desc": "Speicher und Arbeitsspeicher freigeben"
+      },
+      "apps": {
+        "title": "Haupt-Apps",
+        "desc": "Apps und Streaming-Tools herunterladen"
+      }
+    },
+    "toast": {
+      "launchUnavailableTitle": "Start nicht möglich",
+      "launchUnavailableDesc": "Das Starten von Apps funktioniert nur unter Android.",
+      "launchFailedTitle": "Start fehlgeschlagen",
+      "launchFailedDesc": "{{name}} konnte nicht gestartet werden.",
+      "appInfoUnavailableTitle": "App-Info nicht verfügbar",
+      "appInfoUnavailableDesc": "Funktioniert nur auf Android-Geräten.",
+      "notInstalledTitle": "App nicht installiert",
+      "notInstalledDesc": "{{name}} ist auf diesem Gerät nicht installiert.",
+      "openingTitle": "{{name}} wird geöffnet",
+      "openingDesc": "Tippe auf „Beenden erzwingen“, dann „Speicher“ → „Cache leeren“. Drücke danach Zurück.",
+      "appInfoFailedTitle": "App-Info konnte nicht geöffnet werden",
+      "appInfoFailedDesc": "Öffne die Android-Einstellungen → Apps → {{name}} manuell."
+    },
+    "speedTest": {
+      "title": "Internet-Speedtest",
+      "startBtn": "Starten",
+      "runAgainBtn": "Erneut testen",
+      "testingBtn": "Wird getestet…",
+      "phase": {
+        "idle": "Bereit",
+        "ping": "Latenz wird gemessen…",
+        "download": "Download-Geschwindigkeit wird getestet…",
+        "upload": "Upload-Geschwindigkeit wird getestet…",
+        "done": "Test abgeschlossen",
+        "error": "Test fehlgeschlagen"
+      },
+      "download": "Download",
+      "upload": "Upload",
+      "mbps": "Mbit/s",
+      "ping": "Ping",
+      "jitter": "Jitter",
+      "ms": "{{value}} ms",
+      "verdict": {
+        "title": "Streaming-Fazit",
+        "excellent": "Ausgezeichnet: Deine Verbindung ({{speed}} Mbit/s) schafft 4K-Streaming ohne Ruckeln.",
+        "good": "Gut für HD-Streaming. Für stabiles 4K brauchst du mindestens 25 Mbit/s.",
+        "poor": "Unter den empfohlenen 15 Mbit/s für HD-Streaming – es wird ruckeln. Probiere ein Kabel, geh näher an den Router oder kontaktiere deinen Anbieter."
+      },
+      "failed": "Speedtest fehlgeschlagen: {{error}}. Prüfe deine Internetverbindung und versuche es erneut.",
+      "powered": "Bereitgestellt über das weltweite Speedtest-Netzwerk von Cloudflare",
+      "errors": {
+        "pingFailed": "Ping fehlgeschlagen",
+        "generic": "Speedtest fehlgeschlagen"
+      }
+    },
+    "videos": {
+      "title": "Support-Videos",
+      "subtitle": "Hilfe-Tutorials und Anleitungen von Vimeo",
+      "allTab": "Alle ({{count}})",
+      "servicesTab": "Dienste ({{count}})",
+      "devicesTab": "Geräte ({{count}})",
+      "watchBtn": "Video ansehen",
+      "loading": "Support-Videos werden geladen...",
+      "loadError": "Fehler beim Laden der Videos: {{error}}",
+      "empty": "Keine Videos gefunden. Lade Videos in dein Vimeo-Konto hoch, um sie hier zu sehen.",
+      "emptyDevice": "Keine Geräte-Videos gefunden. Tagge deine Videos mit: x96, FireTV oder Older",
+      "emptyService": "Keine Service-Videos gefunden. Tagge deine Videos mit: DreamStreams, Vibez TV, Plex oder Support",
+      "emptyAll": "Keine Videos in deinem Vimeo-Konto gefunden.",
+      "closeHint": "ESC/Zurück zum Schließen | P/K für Wiedergabe/Pause",
+      "closeBtn": "✕ Schließen",
+      "frameTitle": "Support-Video",
+      "fetchFailed": "Videos konnten nicht geladen werden",
+      "timedOut": "Das Laden hat zu lange gedauert. Versuche es erneut."
+    },
+    "mail": {
+      "heading": "Beiträge von Snow Media Entertainment",
+      "notifOff": "Benachrichtigungen aus (Einstellungen → Oberfläche)",
+      "checking": "Beiträge werden gesucht…",
+      "emptyTitle": "Noch nichts da",
+      "emptyDesc": "Wenn Snow Media Neuigkeiten, Angebote oder Events veröffentlicht, landen sie hier – mit Datum und markiert, bis du sie öffnest.",
+      "newChip": "Neu",
+      "reader": {
+        "okToScan": "OK zum Scannen",
+        "shopNow": "Jetzt kaufen",
+        "empty": "Dieser Beitrag hat keinen Inhalt zum Anzeigen.",
+        "hintScroll": "Scrollen",
+        "hintPick": "Link wählen ({{current}} von {{total}})",
+        "hintScan": "OK Mit dem Handy scannen",
+        "hintClose": "Zurück Schließen",
+        "makingCode": "Code wird erstellt…",
+        "scanTitle": "Mit dem Handy scannen",
+        "closeHint": "Drücke OK oder Zurück zum Schließen"
+      },
+      "link": {
+        "open": "Link öffnen",
+        "watch": "Video ansehen",
+        "survey": "An der Umfrage teilnehmen",
+        "shop": "{{name}} kaufen",
+        "productFallback": "Produkt"
+      },
+      "toast": {
+        "newPosts_one": "Neuer Beitrag von Snow Media",
+        "newPosts_other": "{{count}} neue Beiträge von Snow Media"
+      }
+    }
+  }
+}

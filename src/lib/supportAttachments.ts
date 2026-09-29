@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { SnowCapture, screenCaptureSupported } from '@/capacitor/SnowCapture';
 import { isFireTV } from '@/utils/platform';
+import i18n from '@/i18n';
 
 /**
  * Attachments on support tickets: a screenshot of what the customer is looking
@@ -59,15 +60,15 @@ export async function uploadAttachment(
   ticketId: string,
   draft: AttachmentDraft,
 ): Promise<UploadedAttachment> {
-  if (draft.blob.size === 0) throw new Error('That file came back empty — please try again.');
+  if (draft.blob.size === 0) throw new Error(i18n.t('tickets.attachment.errors.empty'));
   if (draft.blob.size > MAX_ATTACHMENT_BYTES) {
-    throw new Error('That file is too big to attach (10 MB limit).');
+    throw new Error(i18n.t('tickets.attachment.errors.tooBig'));
   }
   const path = `${ticketId}/${uuid()}.${extFor(draft.mime)}`;
   const { error } = await supabase.storage
     .from(ATTACHMENT_BUCKET)
     .upload(path, draft.blob, { contentType: draft.mime, upsert: false });
-  if (error) throw new Error(error.message || 'Could not upload that attachment.');
+  if (error) throw new Error(error.message || i18n.t('tickets.attachment.errors.uploadFailed'));
   return {
     attachment_path: path,
     attachment_kind: draft.kind,
@@ -136,7 +137,7 @@ export interface VoiceRecorder {
 }
 
 export async function startVoiceRecording(onAutoStop?: () => void): Promise<VoiceRecorder> {
-  if (!canRecordVoice()) throw new Error('This device has no microphone available to apps.');
+  if (!canRecordVoice()) throw new Error(i18n.t('tickets.attachment.errors.noMic'));
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: true, noiseSuppression: true },
   });

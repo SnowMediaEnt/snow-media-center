@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,18 +8,24 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { completeAccountClaim, getClaimSession, type ClaimSessionSnapshot } from '@/lib/accountClaim';
 import { BellRing, CheckCircle, Loader2, XCircle } from 'lucide-react';
+import { formatDate } from '@/i18n/format';
 
-const DEVICE_TYPES = [
-  'Fire TV Stick',
-  'Fire TV Stick 4K / Max',
-  'Fire TV Cube',
-  'Android TV Box',
-  'Google TV / Chromecast',
-  'NVIDIA Shield',
-  'Smart TV app',
-  'Phone / Tablet',
-  'Other',
+// `value` is what gets saved with the claim (always English); `labelKey` is only
+// what the phone shows. Brand names have no key and are shown as they are.
+const DEVICE_TYPES: Array<{ value: string; labelKey?: string }> = [
+  { value: 'Fire TV Stick' },
+  { value: 'Fire TV Stick 4K / Max' },
+  { value: 'Fire TV Cube' },
+  { value: 'Android TV Box', labelKey: 'auth.claim.devices.androidTvBox' },
+  { value: 'Google TV / Chromecast' },
+  { value: 'NVIDIA Shield' },
+  { value: 'Smart TV app', labelKey: 'auth.claim.devices.smartTvApp' },
+  { value: 'Phone / Tablet', labelKey: 'auth.claim.devices.phoneTablet' },
+  { value: 'Other', labelKey: 'auth.claim.devices.other' },
 ];
+
+/** A message to show: one of our own (translated when drawn) or the server's own text. */
+type Msg = { key: string } | { text: string };
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -31,6 +38,7 @@ type Status = 'loading' | 'invalid' | 'form' | 'confirm' | 'done' | 'already';
  * closes itself.
  */
 const ClaimAccount = () => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || '';
 
@@ -43,7 +51,7 @@ const ClaimAccount = () => {
   const [fullName, setFullName] = useState('');
   const [deviceType, setDeviceType] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Msg | null>(null);
   const [doneEmail, setDoneEmail] = useState('');
 
   useEffect(() => {
@@ -83,10 +91,10 @@ const ClaimAccount = () => {
       return;
     }
     if (res.reason === 'email_in_use') {
-      setError('That email is linked to a different account. Sign in with that account instead.');
+      setError({ key: 'auth.claim.errors.emailInUse' });
       return;
     }
-    setError('Could not complete the claim — please try again.');
+    setError({ key: 'auth.claim.errors.claimFailed' });
   };
 
   const submit = async (e?: React.FormEvent) => {
@@ -100,8 +108,8 @@ const ClaimAccount = () => {
         await finishClaim();
         return;
       }
-      if (!EMAIL_RE.test(em)) { setError('Please enter a valid email address.'); return; }
-      if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+      if (!EMAIL_RE.test(em)) { setError({ key: 'auth.claim.errors.invalidEmail' }); return; }
+      if (password.length < 6) { setError({ key: 'auth.claim.errors.passwordShort' }); return; }
 
       if (mode === 'create') {
         const { data, error: suErr } = await supabase.auth.signUp({
@@ -112,11 +120,11 @@ const ClaimAccount = () => {
             data: { full_name: fullName.trim(), tenant_code: 'snowmedia' },
           },
         });
-        if (suErr) { setError(suErr.message); return; }
+        if (suErr) { setError({ text: suErr.message }); return; }
         // Supabase answers success with empty identities when the email exists.
         if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           setMode('signin');
-          setError('That email already has an account — sign in instead.');
+          setError({ key: 'auth.claim.errors.alreadyHasAccount' });
           return;
         }
         if (data.session) {
@@ -130,10 +138,11 @@ const ClaimAccount = () => {
       }
 
       const { error: siErr } = await supabase.auth.signInWithPassword({ email: em, password });
-      if (siErr) { setError(siErr.message); return; }
+      if (siErr) { setError({ text: siErr.message }); return; }
       await finishClaim();
     } catch (err) {
-      setError((err as Error)?.message || 'Something went wrong — please try again.');
+      const text = (err as Error)?.message;
+      setError(text ? { text } : { key: 'auth.claim.errors.generic' });
     } finally {
       setBusy(false);
     }
@@ -147,20 +156,31 @@ const ClaimAccount = () => {
         email: email.trim().toLowerCase(),
         password,
       });
-      if (siErr) { setError(siErr.message); return; }
+      if (siErr) { setError({ text: siErr.message }); return; }
       await finishClaim();
     } catch (err) {
-      setError((err as Error)?.message || 'Something went wrong — please try again.');
+      const text = (err as Error)?.message;
+      setError(text ? { text } : { key: 'auth.claim.errors.generic' });
     } finally {
       setBusy(false);
     }
   };
 
   const expLabel = claim?.expiration_date
-    ? new Date(`${claim.expiration_date}T00:00:00`).toLocaleDateString(undefined, {
-        year: 'numeric', month: 'long', day: 'numeric',
-      })
+    ? formatDate(new Date(`${claim.expiration_date}T00:00:00`))
     : null;
+  const showName = hasSession || mode === 'create';
+  const isLoading = status === 'loading';
+  const isInvalid = status === 'invalid';
+  const isAlready = status === 'already';
+  const isDone = status === 'done';
+  const isConfirm = status === 'confirm';
+  const isForm = status === 'form';
+  const errorText = error ? ('key' in error ? t(error.key) : error.text) : '';
+  const bold = <span className="font-semibold text-white break-all" />;
+  const linkingKey = claim?.server_label
+    ? (expLabel ? 'auth.claim.linkingServerExpires' : 'auth.claim.linkingServer')
+    : (expLabel ? 'auth.claim.linkingExpires' : 'auth.claim.linking');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
@@ -168,74 +188,74 @@ const ClaimAccount = () => {
         <CardContent className="p-8 space-y-6">
           <div className="flex items-center justify-center gap-2">
             <BellRing className="w-7 h-7 text-blue-400 shrink-0" />
-            <h1 className="text-2xl font-bold text-white text-center">Claim your Snow Media account</h1>
+            <h1 className="text-2xl font-bold text-white text-center">{t('auth.claim.title')}</h1>
           </div>
 
-          {status === 'loading' && (
+          {isLoading && (
             <div className="flex flex-col items-center gap-3 py-6">
               <Loader2 className="w-12 h-12 animate-spin text-blue-400" />
-              <p className="text-white/70 text-sm">Loading your claim link…</p>
+              <p className="text-white/70 text-sm">{t('auth.claim.loading')}</p>
             </div>
           )}
 
-          {status === 'invalid' && (
+          {isInvalid && (
             <div className="flex flex-col items-center gap-3 py-4 text-center">
               <XCircle className="w-14 h-14 text-red-400" />
-              <h2 className="text-lg font-semibold text-white">Link expired or invalid</h2>
+              <h2 className="text-lg font-semibold text-white">{t('auth.claim.invalidTitle')}</h2>
               <p className="text-white/80 text-sm leading-relaxed">
-                Ask the TV to show the QR code again — in the Player go to Settings → Renewal Reminders.
+                {t('auth.claim.invalidDesc')}
               </p>
             </div>
           )}
 
-          {status === 'already' && (
+          {isAlready && (
             <div className="flex flex-col items-center gap-3 py-4 text-center">
               <CheckCircle className="w-14 h-14 text-green-400" />
-              <h2 className="text-lg font-semibold text-white">Already claimed</h2>
+              <h2 className="text-lg font-semibold text-white">{t('auth.claim.alreadyTitle')}</h2>
               <p className="text-white/80 text-sm leading-relaxed">
-                This claim link was already completed{doneEmail ? (
-                  <> for <span className="font-semibold text-white break-all">{doneEmail}</span></>
-                ) : ''}. You can close this page.
+                {doneEmail
+                  ? <Trans i18nKey="auth.claim.alreadyDescFor" values={{ email: doneEmail }} components={{ b: bold }} />
+                  : t('auth.claim.alreadyDesc')}
               </p>
             </div>
           )}
 
-          {status === 'done' && (
+          {isDone && (
             <div className="flex flex-col items-center gap-3 py-4 text-center">
               <CheckCircle className="w-14 h-14 text-green-400" />
-              <h2 className="text-lg font-semibold text-white">You're all set</h2>
+              <h2 className="text-lg font-semibold text-white">{t('auth.claim.doneTitle')}</h2>
               <p className="text-white/80 text-sm leading-relaxed">
-                Reminders will go to <span className="font-semibold text-white break-all">{doneEmail}</span>.
-                The TV updates itself — you can close this page.
+                <Trans i18nKey="auth.claim.doneDesc" values={{ email: doneEmail }} components={{ b: bold }} />
               </p>
             </div>
           )}
 
-          {status === 'confirm' && (
+          {isConfirm && (
             <div className="space-y-4 text-center">
-              <h2 className="text-lg font-semibold text-white">Confirm your email</h2>
+              <h2 className="text-lg font-semibold text-white">{t('auth.claim.confirmTitle')}</h2>
               <p className="text-white/80 text-sm leading-relaxed">
-                We sent a confirmation link to <span className="font-semibold text-white break-all">{email}</span>.
-                Tap it, then come back here and finish linking.
+                <Trans i18nKey="auth.claim.confirmDesc" values={{ email }} components={{ b: bold }} />
               </p>
-              {error && <p className="text-red-300 text-sm">{error}</p>}
+              {error && <p className="text-red-300 text-sm">{errorText}</p>}
               <Button
                 onClick={confirmAndFinish}
                 disabled={busy}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               >
                 {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                I've confirmed — finish linking
+                {t('auth.claim.confirmBtn')}
               </Button>
             </div>
           )}
 
-          {status === 'form' && claim && (
+          {isForm && claim && (
             <form onSubmit={submit} className="space-y-4">
               <p className="text-white/80 text-sm text-center leading-relaxed">
-                Linking subscription <span className="font-semibold text-white break-all">{claim.panel_username}</span>
-                {claim.server_label ? ` (${claim.server_label})` : ''}
-                {expLabel ? ` — expires ${expLabel}` : ''}.
+                <Trans
+                  i18nKey={linkingKey}
+                  values={{ username: claim.panel_username, server: claim.server_label ?? '', date: expLabel ?? '' }}
+                  components={{ b: bold }}
+                />
               </p>
 
               {!hasSession && (
@@ -247,7 +267,7 @@ const ClaimAccount = () => {
                       ? 'bg-blue-600 hover:bg-blue-700 text-white'
                       : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'}
                   >
-                    Create account
+                    {t('auth.claim.createTabBtn')}
                   </Button>
                   <Button
                     type="button"
@@ -256,32 +276,32 @@ const ClaimAccount = () => {
                       ? 'bg-blue-600 hover:bg-blue-700 text-white'
                       : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'}
                   >
-                    Sign in
+                    {t('common.signInAction')}
                   </Button>
                 </div>
               )}
 
               {hasSession ? (
                 <p className="text-white/70 text-xs text-center">
-                  You're already signed in on this phone — just confirm the details below.
+                  {t('auth.claim.alreadySignedIn')}
                 </p>
               ) : (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="claim-email" className="text-white">Email</Label>
+                    <Label htmlFor="claim-email" className="text-white">{t('auth.claim.emailLabel')}</Label>
                     <Input
                       id="claim-email"
                       type="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      placeholder={t('auth.claim.emailPlaceholder')}
                       autoComplete="email"
                       className="bg-black/30 text-white border-white/20"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="claim-pass" className="text-white">Password</Label>
+                    <Label htmlFor="claim-pass" className="text-white">{t('auth.claim.passwordLabel')}</Label>
                     <Input
                       id="claim-pass"
                       type="password"
@@ -289,7 +309,7 @@ const ClaimAccount = () => {
                       minLength={6}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder={mode === 'create' ? 'Choose a password (6+ characters)' : 'Your password'}
+                      placeholder={mode === 'create' ? t('auth.claim.passwordCreatePlaceholder') : t('auth.claim.passwordPlaceholder')}
                       autoComplete={mode === 'create' ? 'new-password' : 'current-password'}
                       className="bg-black/30 text-white border-white/20"
                     />
@@ -297,17 +317,17 @@ const ClaimAccount = () => {
                 </>
               )}
 
-              {(hasSession || mode === 'create') && (
+              {showName && (
                 <div className="space-y-2">
                   <Label htmlFor="claim-name" className="text-white">
-                    Your name <span className="text-white/50">(optional)</span>
+                    {t('auth.claim.nameLabel')} <span className="text-white/50">{t('auth.claim.optional')}</span>
                   </Label>
                   <Input
                     id="claim-name"
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Jane Smith"
+                    placeholder={t('auth.claim.namePlaceholder')}
                     autoComplete="name"
                     className="bg-black/30 text-white border-white/20"
                   />
@@ -316,7 +336,7 @@ const ClaimAccount = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="claim-device" className="text-white">
-                  Device type <span className="text-white/50">(optional)</span>
+                  {t('auth.claim.deviceLabel')} <span className="text-white/50">{t('auth.claim.optional')}</span>
                 </Label>
                 <select
                   id="claim-device"
@@ -324,12 +344,12 @@ const ClaimAccount = () => {
                   onChange={(e) => setDeviceType(e.target.value)}
                   className="w-full h-10 rounded-md bg-black/30 text-white border border-white/20 px-3 text-sm"
                 >
-                  <option value="">Select…</option>
-                  {DEVICE_TYPES.map((d) => <option key={d} value={d}>{d}</option>)}
+                  <option value="">{t('auth.claim.select')}</option>
+                  {DEVICE_TYPES.map((d) => <option key={d.value} value={d.value}>{d.labelKey ? t(d.labelKey) : d.value}</option>)}
                 </select>
               </div>
 
-              {error && <p className="text-red-300 text-sm text-center">{error}</p>}
+              {error && <p className="text-red-300 text-sm text-center">{errorText}</p>}
 
               <Button
                 type="submit"
@@ -337,7 +357,7 @@ const ClaimAccount = () => {
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               >
                 {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                {hasSession ? 'Link my account' : mode === 'create' ? 'Create account & link' : 'Sign in & link'}
+                {hasSession ? t('auth.claim.linkBtn') : mode === 'create' ? t('auth.claim.createLinkBtn') : t('auth.claim.signinLinkBtn')}
               </Button>
             </form>
           )}

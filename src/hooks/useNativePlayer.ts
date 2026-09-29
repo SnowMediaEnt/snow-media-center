@@ -5,6 +5,7 @@
 // auto-retry (matches VideoPlayer's shape), background stop + resume, and
 // the 'streaming-active' documentElement flag for parity.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import i18n from '@/i18n';
 import { onMediaKey } from '@/lib/mediaKeys';
 import { SnowPlayer, type SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { markPlaybackStart, markSeek } from '@/lib/playerSeek';
@@ -255,7 +256,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           markStreaming(false);
           quietOff();
           try { diagEnd(); } catch { /* ignore */ }
-          const msg = data.message || 'Playback error';
+          const msg = data.message || i18n.t('live.player.playbackError');
           const code = data.code;
           // AUDIO_DECODE is a codec-init failure — auto-retrying the same URL
           // won't fix it. Surface immediately so the caller (PlexSection) can
@@ -364,7 +365,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         quietOn();
       } catch (e) {
         if (cancelled || myNonce !== nonceRef.current) return;
-        setError({ message: (e as Error)?.message || 'Failed to load stream' });
+        setError({ message: (e as Error)?.message || i18n.t('live.player.loadFailed') });
       }
     })();
 

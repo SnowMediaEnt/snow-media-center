@@ -19,6 +19,7 @@
 // internet check well above what the video needs and no such proof, the
 // card names no culprit and suggests no quality.
 // Returns null when there is nothing Plex-specific to add.
+import i18n from '@/i18n';
 import { formatMbps, type ClassifyResult, type DiagSnapshot } from '@/lib/bufferDiagnostics';
 import { PLEX_QUALITY_PRESETS, type PlexQualityPreset, type PlexRoute } from '@/lib/plex';
 import { RELAY_PRESET } from '@/lib/plexAutoQuality';
@@ -61,8 +62,8 @@ export type PlexStallExplanation = ClassifyResult & { autoSaid?: boolean; droppe
  * the internet past the router is gone). Its only other internet verdict is
  * a slow check, which names its number instead.
  */
-export function connectionDropped(snap: Pick<DiagSnapshot, 'verdict' | 'online' | 'headline'>): boolean {
-  return snap.verdict === 'internet' && (!snap.online || /connection dropped/i.test(snap.headline));
+export function connectionDropped(snap: Pick<DiagSnapshot, 'verdict' | 'online' | 'dropped'>): boolean {
+  return snap.verdict === 'internet' && (!snap.online || !!snap.dropped);
 }
 
 /** The best quality preset that fits comfortably in `kbps`. */
@@ -106,16 +107,16 @@ export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): Ple
   // Proof of what the server sends flat out; the quick probes and the rate
   // arriving right now are not (see the top of this file).
   const server = ctx.serverKbps != null && ctx.serverKbps > 0 ? ctx.serverKbps : null;
-  const needs = need ? ` This video needs about ${formatMbps(need)}.` : '';
+  const needs = need ? ` ${i18n.t('plex.stall.needs', { speed: formatMbps(need) })}` : '';
   const netFine = !!need && net != null && net >= need * 1.3;
   const auto = ctx.autoNext || null;
   // With automatic quality on, what it will do (and when); otherwise what to
   // pick.
   const advice = (label: string): string => (auto
-    ? (ctx.autoSoon ? `Lowering to ${auto} in a few seconds.` : `Lowering to ${auto} automatically if it keeps stalling.`)
-    : `Pick ${label} in the player menu.`);
+    ? (ctx.autoSoon ? i18n.t('plex.stall.adviceSoon', { quality: auto }) : i18n.t('plex.stall.adviceAuto', { quality: auto }))
+    : i18n.t('plex.stall.advicePick', { quality: label }));
   // Nothing proven, the internet fine: no culprit.
-  const fine = (): PlexStallExplanation => ({ verdict: 'unknown', headline: 'Buffering…', detail: `Your internet is fine (quick check: ${formatMbps(net)}).${needs}` });
+  const fine = (): PlexStallExplanation => ({ verdict: 'unknown', headline: i18n.t('plex.buffering.headline'), detail: `${i18n.t('plex.stall.internetFine', { speed: formatMbps(net) })}${needs}` });
 
   if (ctx.route === 'relay') {
     const relay = relayPreset();
@@ -124,8 +125,8 @@ export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): Ple
     const tip = auto || (relay && !atRelay) ? ` ${advice(relay?.label ?? '')}` : '';
     return {
       verdict: 'server',
-      headline: 'Plex Relay is limiting the speed',
-      detail: `This TV can't reach the Plex server directly, so Plex sends it through its relay, which caps the speed.${needs}${tip}`,
+      headline: i18n.t('plex.stall.relayHeadline'),
+      detail: `${i18n.t('plex.stall.relayDetail')}${needs}${tip}`,
       autoSaid: !!auto,
     };
   }
@@ -136,8 +137,8 @@ export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): Ple
   if (quiet >= QUIET_SAY_MS) {
     return {
       verdict: 'unknown',
-      headline: 'Waiting for the Plex server to answer',
-      detail: `No data from the server for ${Math.round(quiet / 1000)} s.`,
+      headline: i18n.t('plex.stall.waitingHeadline'),
+      detail: i18n.t('plex.stall.waitingDetail', { seconds: Math.round(quiet / 1000) }),
     };
   }
 
@@ -146,30 +147,30 @@ export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): Ple
     if (server >= need) {
       return {
         verdict: 'unknown',
-        headline: 'Buffering…',
-        detail: `The Plex server is sending ${formatMbps(server)}, enough for this video.`,
+        headline: i18n.t('plex.buffering.headline'),
+        detail: i18n.t('plex.stall.sendingEnough', { speed: formatMbps(server) }),
       };
     }
     if (netFine) {
       return ctx.transcoding
         ? {
           verdict: 'server',
-          headline: "The Plex server can't convert this fast enough",
-          detail: `It manages ${formatMbps(server)} while converting; your internet is fine (quick check: ${formatMbps(net)}). ${auto ? advice('') : 'Try a lower quality, or Original.'}`,
+          headline: i18n.t('plex.stall.convertHeadline'),
+          detail: `${i18n.t('plex.stall.convertDetail', { server: formatMbps(server), speed: formatMbps(net) })} ${auto ? advice('') : i18n.t('plex.stall.tryLower')}`,
           autoSaid: !!auto,
         }
         : {
           verdict: 'server',
-          headline: "The Plex server can't send this fast enough",
-          detail: `It sends ${formatMbps(server)} at most and this video needs about ${formatMbps(need)}; your internet is fine (quick check: ${formatMbps(net)}). ${advice(presetFor(server))}`,
+          headline: i18n.t('plex.stall.sendHeadline'),
+          detail: `${i18n.t('plex.stall.sendDetail', { server: formatMbps(server), need: formatMbps(need), speed: formatMbps(net) })} ${advice(presetFor(server))}`,
           autoSaid: !!auto,
         };
     }
     // Short, but whether of the server's upload or of the line is not known.
     return {
       verdict: 'server',
-      headline: 'The Plex server connection is too slow for this video',
-      detail: `It carries ${formatMbps(server)} at most; this video needs about ${formatMbps(need)}. ${advice(presetFor(server))}`,
+      headline: i18n.t('plex.stall.slowLineHeadline'),
+      detail: `${i18n.t('plex.stall.slowLineDetail', { server: formatMbps(server), need: formatMbps(need) })} ${advice(presetFor(server))}`,
       autoSaid: !!auto,
     };
   }
@@ -178,8 +179,8 @@ export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): Ple
   if (need && net != null && net < need * 1.1) {
     return {
       verdict: 'internet',
-      headline: `Quick internet check: ${formatMbps(net)}, slower than this video needs`,
-      detail: `It needs about ${formatMbps(need)}. ${advice(presetFor(net))}`,
+      headline: i18n.t('plex.stall.quickHeadline', { speed: formatMbps(net) }),
+      detail: `${i18n.t('plex.stall.quickDetail', { need: formatMbps(need) })} ${advice(presetFor(net))}`,
       autoSaid: !!auto,
     };
   }
@@ -192,15 +193,15 @@ export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): Ple
   if (ctx.transcoding && snap.verdict === 'unknown') {
     return {
       verdict: 'unknown',
-      headline: 'The Plex server is converting this video',
-      detail: `It can take a few seconds to get ahead.${needs}`,
+      headline: i18n.t('plex.stall.convertingHeadline'),
+      detail: `${i18n.t('plex.stall.convertingDetail')}${needs}`,
     };
   }
 
   // The general verdict blames the server on a quick 64 KB probe of it: not
   // proof. Say what is known instead.
   if (snap.verdict === 'server') {
-    return netFine ? fine() : { verdict: 'unknown', headline: 'Buffering…', detail: `Checking what the Plex server sends.${needs}` };
+    return netFine ? fine() : { verdict: 'unknown', headline: i18n.t('plex.buffering.headline'), detail: `${i18n.t('plex.stall.checking')}${needs}` };
   }
 
   // Nothing Plex-specific: the general verdict, with the size of the file.

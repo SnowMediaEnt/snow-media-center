@@ -3,6 +3,7 @@
 // chrome only (gaps, borders, labels).
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
+import { useTranslation } from 'react-i18next';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Loader2, Plus, Tv, X, ChevronRight } from 'lucide-react';
@@ -102,6 +103,7 @@ const layoutNeighbor = (layout: Layout, idx: number, dir: 'up' | 'down' | 'left'
 };
 
 const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
+  const { t } = useTranslation();
   const native = hasNativePlayer();
   // usePlayerAccount already re-reads on playerAccountRefresh; a second
   // listener here made every refresh run twice.
@@ -176,7 +178,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
         const cats = await getLiveCategories(creds);
         if (cancelled) return;
         const withFav = [
-          { id: '__favs__', name: 'Favorites' },
+          { id: '__favs__', name: 'Favorites' }, // shown as t('live.categories.favorites')
           ...cats.map(c => ({ id: c.category_id, name: c.category_name })),
         ];
         setCategories(withFav);
@@ -636,9 +638,9 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="max-w-md text-center p-6 rounded-2xl bg-black/60 border border-white/10">
           <Tv className="w-10 h-10 mx-auto text-brand-gold mb-3" />
-          <h2 className="text-xl font-quicksand font-bold text-white mb-2">Multi-Screen needs the Fire TV / Android app</h2>
+          <h2 className="text-xl font-quicksand font-bold text-white mb-2">{t('live.multi.needsAppTitle')}</h2>
           <p className="text-sm text-brand-ice/70 font-nunito">
-            Multi-Screen runs four native video players at once, which the web preview can't do. Open the installed app on your Fire TV or Android device.
+            {t('live.multi.needsAppBody')}
           </p>
         </div>
       </div>
@@ -648,15 +650,15 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
   // Layout picker
   if (!layout) {
     const cards: Array<{ id: Layout; label: string; sub: string; need: number }> = [
-      { id: '2h', label: '2 Screens', sub: 'Side by Side', need: 2 },
-      { id: '2v', label: '2 Screens', sub: 'Stacked', need: 2 },
-      { id: '4',  label: '4 Screens', sub: 'Grid', need: 4 },
+      { id: '2h', label: t('live.multi.screens2'), sub: t('live.multi.sideBySide'), need: 2 },
+      { id: '2v', label: t('live.multi.screens2'), sub: t('live.multi.stacked'), need: 2 },
+      { id: '4',  label: t('live.multi.screens4'), sub: t('live.multi.grid'), need: 4 },
     ];
     const maxCon = account?.maxConnections ?? null;
     const active = account?.activeCons ?? 0;
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 gap-8">
-        <h2 className="text-2xl font-quicksand font-bold text-white">Choose a Multi-Screen layout</h2>
+        <h2 className="text-2xl font-quicksand font-bold text-white">{t('live.multi.pickLayout')}</h2>
         <div className="flex gap-4">
           {cards.map((c, i) => {
             const overplan = maxCon !== null && c.need > maxCon;
@@ -678,7 +680,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
                 </div>
                 {overplan && (
                   <div className="text-xs text-amber-300 font-nunito leading-snug">
-                    Your plan allows {maxCon} stream{maxCon === 1 ? '' : 's'} — extra screens may not play.
+                    {t('live.multi.planAllows', { count: maxCon })}
                   </div>
                 )}
               </div>
@@ -687,7 +689,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
         </div>
         {maxCon !== null && (
           <div className="text-sm text-brand-ice/70 font-nunito">
-            Your plan: {active} active / {maxCon} connections allowed
+            {t('live.multi.planUsage', { active, max: maxCon })}
           </div>
         )}
       </div>
@@ -743,7 +745,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
                 {!chromeHidden && !occupied && (
                   <div className="w-full h-full flex flex-col items-center justify-center text-brand-ice/70">
                     <Plus className="w-10 h-10 mb-1" />
-                    <span className="text-sm font-nunito">Add channel</span>
+                    <span className="text-sm font-nunito">{t('live.multi.addChannel')}</span>
                   </div>
                 )}
                 {!chromeHidden && occupied && (
@@ -762,8 +764,8 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
                     )}
                     {s.error && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 p-3 text-center">
-                        <div className="text-sm text-white font-quicksand font-semibold mb-1">{s.error}</div>
-                        <div className="text-xs text-brand-ice/60 font-nunito">OK to retry</div>
+                        <div className="text-sm text-white font-quicksand font-semibold mb-1">{t('live.multi.streamUnavailable')}</div>
+                        <div className="text-xs text-brand-ice/60 font-nunito">{t('live.multi.retryHint')}</div>
                       </div>
                     )}
                   </>
@@ -778,9 +780,9 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
       {tileMenuOpen && (
         <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
           <div className="pointer-events-auto bg-brand-navy border border-white/10 rounded-2xl p-3 w-64 shadow-2xl">
-            {['Change channel', 'Fullscreen', 'Close screen'].map((label, i) => (
+            {[t('live.multi.changeChannel'), t('live.multi.fullscreen'), t('live.multi.closeScreen')].map((label, i) => (
               <div
-                key={label}
+                key={i}
                 data-focused={tileMenuIdx === i ? 'true' : 'false'}
                 className={`tv-ring px-4 py-3 rounded-xl cursor-pointer font-quicksand font-semibold ${
                   tileMenuIdx === i ? 'bg-brand-gold/25 text-white scale-[1.02] z-10' : 'text-brand-ice hover:bg-white/5'
@@ -801,15 +803,15 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
           <div className="w-full h-full max-w-[1400px] bg-[#0b1a33] border border-white/15 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
             <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between flex-shrink-0">
               <div className="min-w-0">
-                <div className="text-2xl text-white font-quicksand font-bold">Add a channel to screen {pickerOpenForTile + 1}</div>
+                <div className="text-2xl text-white font-quicksand font-bold">{t('live.multi.addToScreen', { n: pickerOpenForTile + 1 })}</div>
                 <div className="text-sm text-brand-ice/70 font-nunito mt-0.5">
-                  {pickerPane === 'cat' ? 'Pick a category, then press Right' : 'Press OK to play · Left for categories · Back to close'}
+                  {pickerPane === 'cat' ? t('live.multi.pickCategoryHint') : t('live.multi.pressOkHint')}
                 </div>
               </div>
               <button
                 onClick={() => setPickerOpenForTile(null)}
                 className="p-3 rounded-xl text-brand-ice/70 hover:text-white flex-shrink-0"
-                aria-label="Close"
+                aria-label={t('common.close')}
               >
                 <X className="w-7 h-7" />
               </button>
@@ -840,7 +842,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
                               : selected ? 'bg-white/10 text-white' : 'text-brand-ice hover:bg-white/5'
                           }`}
                         >
-                          <span className="truncate">{c.name}</span>
+                          <span className="truncate">{c.id === '__favs__' ? t('live.categories.favorites') : c.name}</span>
                           <ChevronRight className="w-5 h-5 flex-shrink-0 opacity-60 ml-2" />
                         </div>
                       </div>
@@ -858,7 +860,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
                     <Loader2 className="w-8 h-8 animate-spin text-brand-gold" />
                   </div>
                 ) : channels.length === 0 ? (
-                  <div className="p-8 text-lg text-brand-ice/70 font-nunito">No channels in this category.</div>
+                  <div className="p-8 text-lg text-brand-ice/70 font-nunito">{t('live.list.noChannelsInCategory')}</div>
                 ) : (
                   <div style={{ height: chVirtualizer.getTotalSize(), position: 'relative' }}>
                     {chVirtualizer.getVirtualItems().map(v => {
@@ -913,13 +915,13 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
       {showHint && layout === '4' && (
         <div className="absolute left-0 right-0 bottom-0 z-20 bg-black/85 border-t border-white/10 px-4 py-3 flex items-center gap-3">
           <div className="flex-1 text-sm text-white font-nunito">
-            Buffering? Your plan may not have enough connections (4 screens need 4) or your device may not be strong enough — try fewer screens.
+            {t('live.multi.bufferingHint')}
           </div>
           <button
             onClick={() => { hintDismissedForSession = true; setShowHint(false); }}
             className="px-5 py-3 rounded-xl bg-brand-gold/25 border border-brand-gold text-white text-sm font-quicksand font-semibold"
           >
-            OK
+            {t('common.ok')}
           </button>
         </div>
       )}

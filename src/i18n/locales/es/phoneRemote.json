@@ -1,0 +1,39 @@
+{
+  "phoneRemote": {
+    "kinds": {
+      "iphone": "Un iPhone",
+      "ipad": "Un iPad",
+      "androidPhone": "Un celular Android",
+      "androidTablet": "Una tablet Android",
+      "phoneOrComputer": "Un celular o computadora",
+      "phone": "Un celular"
+    },
+    "pairing": {
+      "failed": "No se pudo obtener un código de vinculación: revisa la conexión a internet.",
+      "qrAlt": "Código QR para vincular tu celular",
+      "orGoTo": "o entra a <1>snowmediaent.com/remote</1>"
+    },
+    "request": {
+      "title": "¿Permitir este celular?",
+      "text": "{{device}} ingresó el código de esta TV y quiere ser un control remoto de Snow Media Center.",
+      "hint": "Permítelo solo si es tu celular o el de alguien que está en la habitación.",
+      "allowBtn": "Permitir",
+      "denyBtn": "No permitir",
+      "unreachable": "No se pudo conectar con el servidor de Snow Media Center. Intenta vincular de nuevo desde el celular.",
+      "allowed": "Celular permitido. Ya puede controlar esta TV."
+    },
+    "typing": {
+      "offToastTitle": "Tarjeta del teclado del celular desactivada",
+      "offToastDesc": "Vuelve a activarla cuando quieras en Ajustes → Control desde el celular.",
+      "readyTitle": "El teclado de tu celular está listo",
+      "readyText": "Escribe en el Control desde el celular y aparece aquí.",
+      "title": "Escribe con tu celular",
+      "lastTime": "Esta fue la última vez. Vuelve a activarla en Ajustes → Control desde el celular.",
+      "showsMore_one": "Se mostrará {{count}} vez más. Actívala o desactívala en Ajustes → Control desde el celular.",
+      "showsMore_many": "Se mostrará {{count}} veces más. Actívala o desactívala en Ajustes → Control desde el celular.",
+      "showsMore_other": "Se mostrará {{count}} veces más. Actívala o desactívala en Ajustes → Control desde el celular.",
+      "onOff": "Actívala o desactívala en Ajustes → Control desde el celular.",
+      "dontShowBtn": "No volver a mostrar"
+    }
+  }
+}

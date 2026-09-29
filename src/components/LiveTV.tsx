@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { peekIntent, takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, handLiveDeeplink, type PlayerIntent } from '@/lib/appActions';
 import { App as CapApp } from '@capacitor/app';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy, Trophy } from 'lucide-react';
 import { kidsLevel } from '@/lib/kidsFilter';
@@ -16,6 +17,7 @@ import {
   clearLiveCatalogue,
   daysUntilExp,
   SERVERS,
+  serverDisplayName,
   type XtreamCreds,
 } from '@/lib/xtream';
 import { saveLiveLayout, type LiveLayout } from '@/lib/liveLayout';
@@ -81,6 +83,7 @@ interface Props {
 type SectionId = 'live' | 'guide' | 'gameday' | 'vod' | 'movies' | 'series' | 'plex' | 'multi' | 'backups';
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
+  const { t } = useTranslation();
 
   const { user, loading: authLoading } = useAuth();
 
@@ -100,6 +103,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => { claimOpenRef.current = claimOpen; }, [claimOpen]);
 
   const [section, setSection] = useState<SectionId>('live');
+  const inSection = (id: SectionId) => section === id;
   const [mode, setMode] = useState<'choose' | 'live' | 'movies'>('choose');
   // Opened with somewhere to go (Home's Live TV / Plex card, the assistant):
   // the chooser must not be drawn while that is read. It is acted on in an
@@ -349,27 +353,27 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setPane('header');
   }, []);
 
-  const sections = useMemo<{ id: SectionId; label: string; icon: typeof Tv }[]>(() => {
+  const sections = useMemo<{ id: SectionId; labelKey: string; icon: typeof Tv }[]>(() => {
     if (mode === 'live') return [
-      { id: 'live',  label: 'Live TV', icon: Tv },
-      { id: 'guide', label: 'Guide',   icon: LayoutGrid },
+      { id: 'live',  labelKey: 'live.sections.liveLabel', icon: Tv },
+      { id: 'guide', labelKey: 'live.sections.guideLabel', icon: LayoutGrid },
       // Today's big games and the channel each is on. Not on a Kids profile
       // (its channels are the kids ones); a Teens profile has it.
-      ...(kidsLevel() === 'little' || kidsLevel() === 'kids' ? [] : [{ id: 'gameday' as SectionId, label: 'Game Day', icon: Trophy }]),
+      ...(kidsLevel() === 'little' || kidsLevel() === 'kids' ? [] : [{ id: 'gameday' as SectionId, labelKey: 'live.sections.gameDayLabel', icon: Trophy }]),
       // The line's movies. Plex has its own Home card, so it is not in here.
-      { id: 'vod',   label: 'VOD',     icon: Film },
-      { id: 'multi', label: 'Multi-Screen', icon: Grid2X2 },
+      { id: 'vod',   labelKey: 'live.sections.vodLabel', icon: Film },
+      { id: 'multi', labelKey: 'live.sections.multiLabel', icon: Grid2X2 },
       // Admin-published PPV and movie feeds carry no rating: never on a Kids
       // profile, whatever its age.
-      ...(kidsLevel() ? [] : [{ id: 'backups' as SectionId, label: 'Backups', icon: LifeBuoy }]),
+      ...(kidsLevel() ? [] : [{ id: 'backups' as SectionId, labelKey: 'live.sections.backupsLabel', icon: LifeBuoy }]),
     ];
     if (mode === 'movies') return [
-      { id: 'plex', label: 'Plex', icon: Film },
+      { id: 'plex', labelKey: 'live.sections.plexLabel', icon: Film },
       // Demo: Movies/Series render too — xtream.ts serves them from the
       // canned catalog (liveTvDemo.ts) when isDemo() is latched.
       ...(creds ? [
-        { id: 'movies' as SectionId, label: 'Movies', icon: Film },
-        { id: 'series' as SectionId, label: 'Series', icon: ListVideo },
+        { id: 'movies' as SectionId, labelKey: 'live.sections.moviesLabel', icon: Film },
+        { id: 'series' as SectionId, labelKey: 'live.sections.seriesLabel', icon: ListVideo },
       ] : []),
     ];
     return [];
@@ -566,10 +570,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // attempted in demo mode (sign out, change credentials, switch account).
   const demoAccountNote = useCallback(() => {
     toast({
-      title: 'Live demo',
-      description: 'The demo is pre-loaded with a demo account — sign-in and account switching work in the installed app.',
+      title: t('live.toast.liveDemoTitle'),
+      description: t('live.toast.liveDemoDesc'),
     });
-  }, [toast]);
+  }, [t]);
 
   const signOut = useCallback(async () => {
     // Demo: the demo account is pre-loaded — nothing to sign out of.
@@ -579,8 +583,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setCreds(null);
     setAccountFormOpen(false);
     setSettingsOpen(false);
-    toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
-  }, [toast, demoAccountNote]);
+    toast({ title: t('live.toast.signedOutTitle'), description: t('live.toast.signedOutDesc') });
+  }, [t, demoAccountNote]);
 
   // Refresh channel list (categories + currently visible category).
   // Cheap: bumps a nonce that cache-busts player_api.php and tells the
@@ -604,18 +608,18 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setIsRefreshing(true);
     if (!DEMO) { try { trackEvent('update_channels', 'player', { server: serverLabel }); } catch { /* ignore */ } }
     const updatingId = toast({
-      title: 'Updating channels…',
-      description: 'Fetching the latest list from the server.',
+      title: t('live.toast.updatingChannelsTitle'),
+      description: t('live.toast.updatingChannelsDesc'),
     });
     bumpXtreamRefresh();
     if (refreshToastTimerRef.current) window.clearTimeout(refreshToastTimerRef.current);
     refreshToastTimerRef.current = window.setTimeout(() => {
       refreshToastTimerRef.current = null;
       try { (updatingId as any)?.dismiss?.(); } catch { /* ignore */ }
-      toast({ title: 'Channels updated!', description: 'You now have the latest channels.' });
+      toast({ title: t('live.toast.channelsUpdatedTitle'), description: t('live.toast.channelsUpdatedDesc') });
       setIsRefreshing(false);
     }, 1400) as unknown as number;
-  }, [toast, serverLabel]);
+  }, [t, serverLabel]);
 
 
   // The live lists are only worth keeping while Live TV is on screen. Leaving
@@ -1004,7 +1008,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center text-white bg-black/70">
         <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
-        <p className="mt-4 text-lg font-nunito text-brand-ice/80">Signing you in with your account…</p>
+        <p className="mt-4 text-lg font-nunito text-brand-ice/80">{t('live.shell.signingIn')}</p>
       </div>
     );
   }
@@ -1088,17 +1092,17 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         <div className="flex items-center gap-3">
           <BackButton
             onClick={leaveMode}
-            label="Back"
+            label={t('common.back')}
             className="h-10 rounded-lg"
             data-player-header-btn=""
             focused={pane === 'header' && headerIdx === 0}
           />
           <div className="flex items-center gap-2">
             <Tv className="w-5 h-5 text-brand-gold" />
-            <h1 className="text-xl font-quicksand font-bold text-white">Player</h1>
+            <h1 className="text-xl font-quicksand font-bold text-white">{t('live.shell.title')}</h1>
             {creds?.serverLabel && (
               <span className="ml-2 text-xs px-2 py-1 rounded-full bg-white/10 text-brand-ice font-nunito">
-                {creds.serverLabel}
+                {serverDisplayName(creds.serverLabel)}
               </span>
             )}
           </div>
@@ -1109,12 +1113,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             size="sm"
             onClick={refreshChannels}
             disabled={isRefreshing}
-            aria-label="Update Channels"
+            aria-label={t('live.shell.updateChannelsBtn')}
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
             className={`tv-ring h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 1 ? 'scale-105 z-10' : ''}`}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Updating…' : 'Update Channels'}
+            <span className="min-w-0 truncate">{isRefreshing ? t('live.shell.updatingBtn') : t('live.shell.updateChannelsBtn')}</span>
           </Button>
           {/* Demo: no settings entry point — the demo account is fixed and
               the hub only exposes credential management. */}
@@ -1127,7 +1131,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               className={`tv-ring tv-ring-contrast h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 2 ? 'scale-105 z-10' : ''}`}
             >
               <SettingsIcon className="w-4 h-4 mr-2" />
-              Settings
+              <span className="min-w-0 truncate">{t('common.settings')}</span>
             </Button>
           )}
         </div>
@@ -1156,16 +1160,16 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                   tv-ring relative flex items-center gap-3 ${collapsed ? 'px-1 py-3 justify-center' : 'px-3 py-3'} rounded-xl cursor-pointer
                   ${isFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'hover:bg-white/5'}
                 `}
-                title={collapsed ? s.label : undefined}
+                title={collapsed ? t(s.labelKey) : undefined}
               >
                 <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-brand-gold' : 'text-brand-ice'}`} />
-                {!collapsed && <span className="font-quicksand font-semibold">{s.label}</span>}
+                {!collapsed && <span className="min-w-0 truncate font-quicksand font-semibold" title={t(s.labelKey)}>{t(s.labelKey)}</span>}
               </div>
             );
           })}
         </div>
 
-        {section === 'live' && (
+        {inSection('live') && (
           <LiveSection
             creds={creds!}
             isActive={pane === 'content' && !claimOpen && !trialAsking}
@@ -1177,7 +1181,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           />
         )}
 
-        {section === 'guide' && (
+        {inSection('guide') && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <GuideSection
               creds={creds!}
@@ -1189,7 +1193,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           </Suspense>
         )}
 
-        {section === 'gameday' && creds && (
+        {inSection('gameday') && creds && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <GameDaySection
               creds={creds}
@@ -1201,7 +1205,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           </Suspense>
         )}
 
-        {section === 'multi' && creds && (
+        {inSection('multi') && creds && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MultiScreenSection
               creds={creds}
@@ -1215,7 +1219,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         {/* Backups are a member perk: a box with no line never gets here
             (showCredsForm sends it to sign-in first), and an expired line is
             paused the same way Plex is. */}
-        {section === 'backups' && (
+        {inSection('backups') && (
           plexBlocked ? (
             <PlexBlockedScreen feature="Backups" serverLabel={acctServerLabel} onBack={onExitLeft} />
           ) : (
@@ -1231,7 +1235,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         )}
 
 
-        {section === 'vod' && creds && (
+        {inSection('vod') && creds && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MoviesSection
               creds={creds}
@@ -1242,7 +1246,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           </Suspense>
         )}
 
-        {section === 'movies' && creds && (
+        {inSection('movies') && creds && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MoviesSection
               creds={creds!}
@@ -1252,7 +1256,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             />
           </Suspense>
         )}
-        {section === 'series' && creds && (
+        {inSection('series') && creds && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <SeriesSection
               creds={creds!}
@@ -1262,7 +1266,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             />
           </Suspense>
         )}
-        {section === 'plex' && (
+        {inSection('plex') && (
           plexBlocked ? (
             <PlexBlockedScreen serverLabel={acctServerLabel} onBack={onExitLeft} />
           ) : (
@@ -1304,8 +1308,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               if (outcome === 'notnow') markClaimDismissed();
               if (outcome === 'done') {
                 toast({
-                  title: "You're all set",
-                  description: email ? `Your Snow Media account is ready (${email}).` : 'Saved. Add an email any time to get a Snow Media account.',
+                  title: t('live.toast.allSetTitle'),
+                  description: email ? t('live.toast.allSetDesc', { email }) : t('live.toast.allSetNoEmailDesc'),
                 });
               }
             }}

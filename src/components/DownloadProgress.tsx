@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
+import { formatNumber } from '@/i18n/format';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -7,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem } from '@capacitor/filesystem';
 import { downloadApkToCache, generateFileName, cleanupOldApks } from '@/utils/downloadApk';
-import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
+import { AppManager, isWebUnsupportedError, webUnsupportedMsg } from '@/capacitor/AppManager';
 import { trackAppLaunch, trackEvent } from '@/lib/analytics';
 
 interface DownloadProgressProps {
@@ -26,15 +29,23 @@ interface DownloadProgressProps {
   prefetchedPath?: string;
 }
 
+// Sizes and speeds are kept as numbers and written when drawn, in the viewer's number format.
+const one = (n: number) => formatNumber(Math.round(n * 10) / 10);
+const FALLBACK_SIZE = '25MB';
+// Unit symbols are the same in every language.
+const UNIT = { mb: 'MB', mbPerSec: 'MB/s', kbPerSec: 'KB/s' };
+
 type DownloadState = 'downloading' | 'complete' | 'installing' | 'installed' | 'error';
 type FocusedButton = 'install' | 'later' | 'open' | 'close';
 
 const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: DownloadProgressProps) => {
+  const { t } = useTranslation();
   const [progress, setProgress] = useState(prefetchedPath ? 100 : 0);
-  const [downloadSpeed, setDownloadSpeed] = useState('0 KB/s');
-  const [downloaded, setDownloaded] = useState('0 MB');
+  const [speedMBs, setSpeedMBs] = useState(0); // megabytes per second
+  const [downloadedMB, setDownloadedMB] = useState(0);
   const [state, setState] = useState<DownloadState>(prefetchedPath ? 'complete' : 'downloading');
   const [errorMessage, setErrorMessage] = useState('');
+  const inState = (name: DownloadState) => state === name;
   const [filePath, setFilePath] = useState(prefetchedPath || '');
   const [focusedButton, setFocusedButton] = useState<FocusedButton>('install');
   const { toast } = useToast();
@@ -117,7 +128,7 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
     const startDownload = async () => {
       if (!Capacitor.isNativePlatform()) {
         if (isMounted) {
-          setErrorMessage('Downloads only work on Android devices');
+          setErrorMessage(i18n.t('updater.download.webOnly'));
           setState('error');
         }
         return;
@@ -145,18 +156,17 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
             console.log(`[DownloadProgress] Native progress: ${percent}% (${progressEvent.bytes}/${progressEvent.contentLength})`);
             setProgress(percent > 95 ? 95 : percent);
             
-            const downloadedMB = (progressEvent.bytes / (1024 * 1024));
-            setDownloaded(`${downloadedMB.toFixed(1)} MB`);
+            const mbNow = (progressEvent.bytes / (1024 * 1024));
+            setDownloadedMB(mbNow);
             
             // Calculate speed
             const now = Date.now();
             const timeDiff = (now - lastTimeRef.current) / 1000;
             if (timeDiff > 0.5) {
-              const bytesDiff = (downloadedMB - lastBytesRef.current);
+              const bytesDiff = (mbNow - lastBytesRef.current);
               const speed = bytesDiff / timeDiff;
-              const speedStr = speed > 1 ? `${speed.toFixed(1)} MB/s` : `${(speed * 1024).toFixed(0)} KB/s`;
-              setDownloadSpeed(speedStr);
-              lastBytesRef.current = downloadedMB;
+              setSpeedMBs(speed);
+              lastBytesRef.current = mbNow;
               lastTimeRef.current = now;
             }
           });
@@ -178,7 +188,7 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
       } catch (error) {
         console.error('[DownloadProgress] Download error:', error);
         if (isMounted) {
-          setErrorMessage(error instanceof Error ? error.message : 'Download failed');
+          setErrorMessage(error instanceof Error ? error.message : i18n.t('updater.download.genericFail'));
           setState('error');
         }
       }
@@ -217,8 +227,8 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
   const handleInstall = useCallback(async () => {
     if (!filePath) {
       toast({
-        title: "Install Error",
-        description: "No file path available",
+        title: t('updater.download.installErrorTitle'),
+        description: t('updater.download.noFilePath'),
         variant: "destructive",
       });
       return;
@@ -233,8 +243,8 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
       setState('installed');
       try { trackEvent('install', 'apps', { app: app.name }); } catch { void 0; }
       toast({
-        title: "Installation Started",
-        description: `${app.name} installer opened`,
+        title: t('updater.download.startedTitle'),
+        description: t('updater.download.installerOpened', { name: app.name }),
       });
       
       // Clean up the APK file after install is triggered
@@ -247,8 +257,8 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
       console.error('Install error:', error);
       const rawMsg = error instanceof Error ? error.message : String(error ?? '');
       const friendly = isWebUnsupportedError(error)
-        ? WEB_UNSUPPORTED_MSG
-        : (rawMsg || 'Could not install APK');
+        ? webUnsupportedMsg()
+        : (rawMsg || t('updater.download.installGenericFail'));
 
       // Detect "needs permission" rejection from the native plugin.
       // In that case the user is being sent to Settings and will come back
@@ -256,9 +266,9 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
       const isPermissionIssue = /install permission|unknown app sources|unknown sources/i.test(rawMsg);
 
       toast({
-        title: isPermissionIssue ? "Permission Needed" : "Install Failed",
+        title: isPermissionIssue ? t('updater.download.permissionTitle') : t('updater.download.installFailedTitle'),
         description: isPermissionIssue
-          ? "Enable 'Install unknown apps' for Snow Media Center, then tap Install Now again."
+          ? t('updater.download.permissionDesc')
           : friendly,
         variant: "destructive",
       });
@@ -270,7 +280,7 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
       }
       setState('complete');
     }
-  }, [filePath, app.name, toast, onComplete, purgeCachedApk]);
+  }, [filePath, app.name, toast, onComplete, purgeCachedApk, t]);
 
   const handleOpenApp = useCallback(async () => {
     try {
@@ -280,12 +290,12 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
       onClose();
     } catch (error) {
       toast({
-        title: "Launch Failed",
-        description: "Could not open the app",
+        title: t('updater.download.launchFailedTitle'),
+        description: t('updater.download.launchFailedDesc'),
         variant: "destructive",
       });
     }
-  }, [app.packageName, app.name, toast, onClose]);
+  }, [app.packageName, app.name, toast, onClose, t]);
 
   const getFocusStyle = (button: FocusedButton) => 
     focusedButton === button 
@@ -307,23 +317,23 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
           </Button>
         </div>
 
-        {state === 'downloading' && (
+        {inState('downloading') && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
                 <Download className="w-5 h-5 text-blue-400 animate-pulse" />
               </div>
               <div>
-                <span className="text-white font-medium">Downloading...</span>
-                <p className="text-sm text-slate-400">Please wait</p>
+                <span className="text-white font-medium">{t('updater.download.downloading')}</span>
+                <p className="text-sm text-slate-400">{t('updater.download.pleaseWait')}</p>
               </div>
             </div>
             
             <Progress value={progress} className="h-3" />
             
             <div className="flex justify-between text-sm">
-              <span className="text-slate-300">{downloaded} / {app.size || '25MB'}</span>
-              <span className="text-green-400 font-medium">{downloadSpeed}</span>
+              <span className="text-slate-300">{`${one(downloadedMB)} ${UNIT.mb}`} / {app.size || FALLBACK_SIZE}</span>
+              <span className="text-green-400 font-medium">{speedMBs > 1 ? `${one(speedMBs)} ${UNIT.mbPerSec}` : `${formatNumber(Math.round(speedMBs * 1024))} ${UNIT.kbPerSec}`}</span>
             </div>
             
             <div className="text-center">
@@ -332,26 +342,26 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
           </div>
         )}
 
-        {state === 'complete' && (
+        {inState('complete') && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
                 <Package className="w-5 h-5 text-green-400" />
               </div>
               <div>
-                <span className="text-green-400 font-medium">Download Complete!</span>
-                <p className="text-sm text-slate-400">{app.size || '25MB'} downloaded</p>
+                <span className="text-green-400 font-medium">{t('updater.download.complete')}</span>
+                <p className="text-sm text-slate-400">{t('updater.download.sizeDownloaded', { size: app.size || FALLBACK_SIZE })}</p>
               </div>
             </div>
             
-            <p className="text-xs text-slate-500 text-center">Use ↑↓ to navigate, Enter to select</p>
+            <p className="text-xs text-slate-500 text-center">{t('updater.download.navHint')}</p>
             
             <Button 
               onClick={handleInstall}
               className={`w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg transition-all ${getFocusStyle('install')}`}
             >
-              <Package className="w-5 h-5 mr-2" />
-              Install Now
+              <Package className="w-5 h-5 mr-2 shrink-0" />
+              <span className="min-w-0 truncate">{t('updater.download.installNowBtn')}</span>
             </Button>
             
             <Button 
@@ -359,43 +369,43 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
               variant="outline"
               className={`w-full border-slate-600 text-slate-300 hover:bg-slate-700 transition-all ${getFocusStyle('later')}`}
             >
-              Install Later (delete download)
+              <span className="min-w-0 truncate">{t('updater.download.installLaterBtn')}</span>
             </Button>
           </div>
         )}
 
-        {state === 'installing' && (
+        {inState('installing') && (
           <div className="space-y-4 text-center py-4">
             <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto">
               <Package className="w-8 h-8 text-blue-400 animate-bounce" />
             </div>
             <div>
-              <span className="text-white font-medium text-lg">Installing...</span>
-              <p className="text-sm text-slate-400 mt-1">Follow the prompts on your device</p>
+              <span className="text-white font-medium text-lg">{t('updater.download.installing')}</span>
+              <p className="text-sm text-slate-400 mt-1">{t('updater.download.followPrompts')}</p>
             </div>
           </div>
         )}
 
-        {state === 'installed' && (
+        {inState('installed') && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
                 <Package className="w-5 h-5 text-green-400" />
               </div>
               <div>
-                <span className="text-green-400 font-medium">Installation Started!</span>
-                <p className="text-sm text-slate-400">Check your screen for install prompt</p>
+                <span className="text-green-400 font-medium">{t('updater.download.started')}</span>
+                <p className="text-sm text-slate-400">{t('updater.download.checkScreen')}</p>
               </div>
             </div>
             
-            <p className="text-xs text-slate-500 text-center">Use ↑↓ to navigate, Enter to select</p>
+            <p className="text-xs text-slate-500 text-center">{t('updater.download.navHint')}</p>
             
             <Button 
               onClick={handleOpenApp}
               className={`w-full bg-primary hover:bg-primary/80 text-primary-foreground py-6 text-lg transition-all ${getFocusStyle('open')}`}
             >
-              <Play className="w-5 h-5 mr-2" />
-              Open App
+              <Play className="w-5 h-5 mr-2 shrink-0" />
+              <span className="min-w-0 truncate">{t('updater.download.openAppBtn')}</span>
             </Button>
             
             <Button 
@@ -403,19 +413,19 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
               variant="outline"
               className={`w-full border-slate-600 text-slate-300 hover:bg-slate-700 transition-all ${getFocusStyle('close')}`}
             >
-              Close
+              {t('common.close')}
             </Button>
           </div>
         )}
 
-        {state === 'error' && (
+        {inState('error') && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
                 <AlertCircle className="w-5 h-5 text-red-400" />
               </div>
               <div>
-                <span className="text-red-400 font-medium">Download Failed</span>
+                <span className="text-red-400 font-medium">{t('updater.download.failed')}</span>
                 <p className="text-sm text-slate-400">{errorMessage}</p>
               </div>
             </div>
@@ -425,7 +435,7 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
               variant="outline"
               className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 ring-4 ring-brand-ice ring-offset-2 ring-offset-slate-800"
             >
-              Close
+              {t('common.close')}
             </Button>
           </div>
         )}

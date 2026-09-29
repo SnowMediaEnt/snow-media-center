@@ -17,7 +17,7 @@
 // /remote (and /r). Keep this file as it is in the SMC repo
 // (web/phone-remote/PhoneRemotePage.tsx) so both sides stay in step: the TV
 // app and the phone-remote function of the same release expect this version.
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { RealtimeClient, createClient, type RealtimeChannel } from '@supabase/supabase-js';
 import {
   ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, FastForward, Home, Keyboard, Loader2,
@@ -47,6 +47,10 @@ const VOICE_PAUSE_MS = 1_500;
 // Codes: 8 letters from these consonants (the TV shows them as ABCD-EFGH).
 const CODE_ALPHABET = 'BCDFGHJKLMNPQRSTVWXZ';
 const cleanCode = (raw: string) => raw.toUpperCase().replace(/[^A-Z]/g, '').split('').filter((ch) => CODE_ALPHABET.includes(ch)).join('').slice(0, 8);
+/** An example of what the code looks like: not text to translate. */
+const SAMPLE_CODE = 'BCDF-GHJK';
+/** The pad's middle key carries the same word as the TV remote's. */
+const OK_KEY = 'OK';
 const showCode = (c: string) => (c.length > 4 ? `${c.slice(0, 4)}-${c.slice(4)}` : c);
 
 interface Pairing { secret: string; label: string; id: string }
@@ -90,6 +94,325 @@ const speechCtor = (): (new () => Speech) | null => {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 };
 
+// ── language ───────────────────────────────────────────────────────────────
+// The page follows the TV's language, not the phone's: the TV puts it in the QR
+// address (?lang=xx). The page is served on its own and cannot share the app's
+// translation files, so it carries its own small dictionary. Arabic is text only:
+// the page stays left to right, like the TV.
+type Lang = 'en' | 'es' | 'fr' | 'de' | 'ar';
+const LANGS: Lang[] = ['en', 'es', 'fr', 'de', 'ar'];
+const LANG_KEY = 'smc-phone-remote-lang';
+
+const EN = {
+  title: 'Snow Media Remote',
+  tooManyTries: 'Too many tries from this network. Wait ten minutes and try again.',
+  busy: 'A lot of phones are pairing right now. Try again in a minute.',
+  wrongCode: "That code didn't work. Check the code on the TV — each code works once.",
+  badCode: 'The code is 8 letters, like BCDF-GHJK.',
+  connectFailed: "Couldn't connect. Check your internet and try again.",
+  switchTitle: 'Pair with a different TV?',
+  switchText: 'This phone is already the remote for “{{label}}”. Pairing with the TV showing code {{code}} replaces it.',
+  switchPair: 'Pair with the new TV',
+  switchKeep: 'Keep using “{{label}}”',
+  pairHelp: 'On your TV, open Snow Media Center → Settings → Phone Remote, then scan the QR code or type the 8-letter code here.',
+  codeAria: 'Code shown on the TV',
+  connect: 'Connect',
+  backTo: 'Back to “{{label}}”',
+  denied: "The TV didn't allow this phone.",
+  expired: "The TV didn't answer in time. Enter the new code on the TV to try again.",
+  almostTitle: 'Almost there',
+  almostText: "“{{label}}” is asking whether to allow this phone. Choose <b>Allow</b> with the TV's remote (press OK).",
+  cancel: 'Cancel',
+  up: 'Up',
+  down: 'Down',
+  left: 'Left',
+  right: 'Right',
+  unpairedByTv: 'This TV unpaired its phones. Pair again with the new code on the TV.',
+  forget: 'Forget',
+  quiet: "The TV isn't answering. Make sure Snow Media Center is open on it — the remote works while the app is on screen.",
+  away: "Another app is on the TV screen. Use the TV's own remote to get back to Snow Media Center — this remote works while it's on screen.",
+  back: 'Back',
+  home: 'Home',
+  options: 'Options',
+  textBoxOpen: '<b>A text box is open on the TV</b>. Tap to type it here.',
+  textBoxOpenNamed: '<b>A text box is open on the TV</b><i> (“{{label}}”)</i>. Tap to type it here.',
+  rewind: 'Rewind',
+  playPause: 'Play/Pause',
+  forward: 'Forward',
+  keyboard: 'Keyboard',
+  voice: 'Voice',
+  listening: 'Listening… tap to stop',
+  voiceOff: 'Voice (not on this phone)',
+  voiceUnavailable: "Voice isn't available in this browser.",
+  didntCatch: "Didn't catch that. Tap the mic and try again.",
+  micBlocked: 'The microphone is blocked. Allow it for this site in your browser settings, then try again.',
+  noMic: 'No microphone was found on this phone.',
+  voiceNetwork: 'Voice needs an internet connection. Try again.',
+  voiceStopped: 'Voice stopped. Tap the mic to try again.',
+  micStartFailed: "Couldn't start the microphone. Try again.",
+  tvBox: 'TV text box',
+  tvBoxNamed: 'TV text box: “{{label}}”',
+  tvBoxPassword: 'TV text box (a password: what you type goes to the TV)',
+  tvBoxNamedPassword: 'TV text box: “{{label}}” (a password: what you type goes to the TV)',
+  pickBox: 'Pick a text box on the TV (a search or sign-in box), then type here.',
+  typeHere: 'Type here',
+  go: 'Go',
+};
+type Key = keyof typeof EN;
+
+const ES: Record<Key, string> = {
+  title: 'Control remoto Snow Media',
+  tooManyTries: 'Demasiados intentos desde esta red. Espera diez minutos e inténtalo de nuevo.',
+  busy: 'Hay muchos celulares vinculándose ahora. Inténtalo de nuevo en un minuto.',
+  wrongCode: 'Ese código no funcionó. Revisa el código en la TV: cada código sirve una sola vez.',
+  badCode: 'El código tiene 8 letras, como BCDF-GHJK.',
+  connectFailed: 'No se pudo conectar. Revisa tu internet e inténtalo de nuevo.',
+  switchTitle: '¿Vincular con otra TV?',
+  switchText: 'Este celular ya es el control remoto de “{{label}}”. Al vincularlo con la TV que muestra el código {{code}}, se reemplaza.',
+  switchPair: 'Vincular con la TV nueva',
+  switchKeep: 'Seguir con “{{label}}”',
+  pairHelp: 'En tu TV, abre Snow Media Center → Ajustes → Control desde el celular, y luego escanea el código QR o escribe aquí el código de 8 letras.',
+  codeAria: 'Código que aparece en la TV',
+  connect: 'Conectar',
+  backTo: 'Volver a “{{label}}”',
+  denied: 'La TV no permitió este celular.',
+  expired: 'La TV no respondió a tiempo. Escribe el código nuevo de la TV para intentarlo de nuevo.',
+  almostTitle: 'Casi listo',
+  almostText: '“{{label}}” está preguntando si permite este celular. Elige <b>Permitir</b> con el control remoto de la TV (presiona OK).',
+  cancel: 'Cancelar',
+  up: 'Arriba',
+  down: 'Abajo',
+  left: 'Izquierda',
+  right: 'Derecha',
+  unpairedByTv: 'Esta TV desvinculó sus celulares. Vuelve a vincular con el código nuevo de la TV.',
+  forget: 'Olvidar',
+  quiet: 'La TV no responde. Asegúrate de que Snow Media Center esté abierto en ella: el control funciona mientras la app está en pantalla.',
+  away: 'Hay otra app en la pantalla de la TV. Usa el control remoto de la TV para volver a Snow Media Center: este control funciona mientras esté en pantalla.',
+  back: 'Atrás',
+  home: 'Inicio',
+  options: 'Opciones',
+  textBoxOpen: '<b>Hay un cuadro de texto abierto en la TV</b>. Toca para escribir aquí.',
+  textBoxOpenNamed: '<b>Hay un cuadro de texto abierto en la TV</b><i> (“{{label}}”)</i>. Toca para escribir aquí.',
+  rewind: 'Retroceder',
+  playPause: 'Reproducir/Pausar',
+  forward: 'Avanzar',
+  keyboard: 'Teclado',
+  voice: 'Voz',
+  listening: 'Escuchando… toca para detener',
+  voiceOff: 'Voz (no disponible en este celular)',
+  voiceUnavailable: 'La voz no está disponible en este navegador.',
+  didntCatch: 'No te entendí. Toca el micrófono e inténtalo de nuevo.',
+  micBlocked: 'El micrófono está bloqueado. Permítelo para este sitio en los ajustes del navegador y vuelve a intentarlo.',
+  noMic: 'No se encontró ningún micrófono en este celular.',
+  voiceNetwork: 'La voz necesita conexión a internet. Inténtalo de nuevo.',
+  voiceStopped: 'La voz se detuvo. Toca el micrófono para intentarlo de nuevo.',
+  micStartFailed: 'No se pudo iniciar el micrófono. Inténtalo de nuevo.',
+  tvBox: 'Cuadro de texto de la TV',
+  tvBoxNamed: 'Cuadro de texto de la TV: “{{label}}”',
+  tvBoxPassword: 'Cuadro de texto de la TV (una contraseña: lo que escribas va a la TV)',
+  tvBoxNamedPassword: 'Cuadro de texto de la TV: “{{label}}” (una contraseña: lo que escribas va a la TV)',
+  pickBox: 'Elige un cuadro de texto en la TV (de búsqueda o de inicio de sesión) y escribe aquí.',
+  typeHere: 'Escribe aquí',
+  go: 'Ir',
+};
+
+const FR: Record<Key, string> = {
+  title: 'Télécommande Snow Media',
+  tooManyTries: 'Trop de tentatives depuis ce réseau. Patientez dix minutes puis réessayez.',
+  busy: "Beaucoup de téléphones s'associent en ce moment. Réessayez dans une minute.",
+  wrongCode: "Ce code n'a pas fonctionné. Vérifiez le code sur la TV : chaque code ne sert qu'une fois.",
+  badCode: 'Le code comporte 8 lettres, comme BCDF-GHJK.',
+  connectFailed: 'Connexion impossible. Vérifiez votre connexion internet et réessayez.',
+  switchTitle: 'Associer à une autre TV ?',
+  switchText: "Ce téléphone est déjà la télécommande de « {{label}} ». L'associer à la TV qui affiche le code {{code}} remplace cette association.",
+  switchPair: 'Associer à la nouvelle TV',
+  switchKeep: 'Garder « {{label}} »',
+  pairHelp: 'Sur votre TV, ouvrez Snow Media Center → Paramètres → Télécommande mobile, puis scannez le code QR ou saisissez ici le code à 8 lettres.',
+  codeAria: 'Code affiché sur la TV',
+  connect: 'Se connecter',
+  backTo: 'Retour à « {{label}} »',
+  denied: "La TV n'a pas autorisé ce téléphone.",
+  expired: "La TV n'a pas répondu à temps. Saisissez le nouveau code de la TV pour réessayer.",
+  almostTitle: 'Presque terminé',
+  almostText: '« {{label}} » demande s\'il faut autoriser ce téléphone. Choisissez <b>Autoriser</b> avec la télécommande de la TV (appuyez sur OK).',
+  cancel: 'Annuler',
+  up: 'Haut',
+  down: 'Bas',
+  left: 'Gauche',
+  right: 'Droite',
+  unpairedByTv: 'Cette TV a dissocié ses téléphones. Associez ce téléphone à nouveau avec le nouveau code affiché sur la TV.',
+  forget: 'Oublier',
+  quiet: "La TV ne répond pas. Vérifiez que Snow Media Center est ouvert dessus : la télécommande fonctionne tant que l'appli est à l'écran.",
+  away: "Une autre appli est affichée sur la TV. Utilisez la télécommande de la TV pour revenir à Snow Media Center : cette télécommande fonctionne tant qu'il est à l'écran.",
+  back: 'Retour',
+  home: 'Accueil',
+  options: 'Options',
+  textBoxOpen: '<b>Un champ de texte est ouvert sur la TV</b>. Touchez pour saisir ici.',
+  textBoxOpenNamed: '<b>Un champ de texte est ouvert sur la TV</b><i> (« {{label}} »)</i>. Touchez pour saisir ici.',
+  rewind: 'Rembobiner',
+  playPause: 'Lecture/Pause',
+  forward: 'Avancer',
+  keyboard: 'Clavier',
+  voice: 'Voix',
+  listening: 'Écoute… touchez pour arrêter',
+  voiceOff: 'Voix (indisponible sur ce téléphone)',
+  voiceUnavailable: "La commande vocale n'est pas disponible dans ce navigateur.",
+  didntCatch: "Je n'ai pas compris. Touchez le micro et réessayez.",
+  micBlocked: "Le microphone est bloqué. Autorisez-le pour ce site dans les réglages du navigateur, puis réessayez.",
+  noMic: "Aucun microphone n'a été trouvé sur ce téléphone.",
+  voiceNetwork: 'La commande vocale nécessite une connexion internet. Réessayez.',
+  voiceStopped: "La commande vocale s'est arrêtée. Touchez le micro pour réessayer.",
+  micStartFailed: 'Impossible de démarrer le microphone. Réessayez.',
+  tvBox: 'Champ de texte de la TV',
+  tvBoxNamed: 'Champ de texte de la TV : « {{label}} »',
+  tvBoxPassword: 'Champ de texte de la TV (un mot de passe : ce que vous saisissez va vers la TV)',
+  tvBoxNamedPassword: 'Champ de texte de la TV : « {{label}} » (un mot de passe : ce que vous saisissez va vers la TV)',
+  pickBox: 'Choisissez un champ de texte sur la TV (recherche ou connexion), puis saisissez ici.',
+  typeHere: 'Saisissez ici',
+  go: 'OK',
+};
+
+const DE: Record<Key, string> = {
+  title: 'Snow-Media-Fernbedienung',
+  tooManyTries: 'Zu viele Versuche aus diesem Netzwerk. Warte zehn Minuten und versuche es dann erneut.',
+  busy: 'Gerade koppeln viele Handys. Versuche es in einer Minute erneut.',
+  wrongCode: 'Dieser Code hat nicht funktioniert. Prüfe den Code am Fernseher – jeder Code gilt nur einmal.',
+  badCode: 'Der Code besteht aus 8 Buchstaben, z. B. BCDF-GHJK.',
+  connectFailed: 'Verbindung nicht möglich. Prüfe dein Internet und versuche es erneut.',
+  switchTitle: 'Mit einem anderen Fernseher koppeln?',
+  switchText: 'Dieses Handy ist bereits die Fernbedienung für „{{label}}“. Wenn du es mit dem Fernseher koppelst, der den Code {{code}} zeigt, wird sie ersetzt.',
+  switchPair: 'Mit dem neuen Fernseher koppeln',
+  switchKeep: '„{{label}}“ weiter verwenden',
+  pairHelp: 'Öffne auf deinem Fernseher Snow Media Center → Einstellungen → Handy-Fernbedienung, scanne dann den QR-Code oder gib hier den Code mit 8 Buchstaben ein.',
+  codeAria: 'Am Fernseher angezeigter Code',
+  connect: 'Verbinden',
+  backTo: 'Zurück zu „{{label}}“',
+  denied: 'Der Fernseher hat dieses Handy nicht erlaubt.',
+  expired: 'Der Fernseher hat nicht rechtzeitig geantwortet. Gib den neuen Code vom Fernseher ein, um es erneut zu versuchen.',
+  almostTitle: 'Fast geschafft',
+  almostText: '„{{label}}“ fragt, ob dieses Handy erlaubt werden soll. Wähle mit der Fernbedienung des Fernsehers <b>Erlauben</b> (OK drücken).',
+  cancel: 'Abbrechen',
+  up: 'Hoch',
+  down: 'Runter',
+  left: 'Links',
+  right: 'Rechts',
+  unpairedByTv: 'Dieser Fernseher hat seine Handys getrennt. Kopple erneut mit dem neuen Code am Fernseher.',
+  forget: 'Vergessen',
+  quiet: 'Der Fernseher antwortet nicht. Prüfe, ob Snow Media Center dort geöffnet ist – die Fernbedienung funktioniert, solange die App im Bild ist.',
+  away: 'Eine andere App ist auf dem Fernseher zu sehen. Nutze die Fernbedienung des Fernsehers, um zu Snow Media Center zurückzukehren – diese Fernbedienung funktioniert, solange es im Bild ist.',
+  back: 'Zurück',
+  home: 'Start',
+  options: 'Optionen',
+  textBoxOpen: '<b>Am Fernseher ist ein Textfeld geöffnet</b>. Tippe, um es hier einzugeben.',
+  textBoxOpenNamed: '<b>Am Fernseher ist ein Textfeld geöffnet</b><i> („{{label}}“)</i>. Tippe, um es hier einzugeben.',
+  rewind: 'Zurückspulen',
+  playPause: 'Wiedergabe/Pause',
+  forward: 'Vorspulen',
+  keyboard: 'Tastatur',
+  voice: 'Sprache',
+  listening: 'Hört zu… tippen zum Stoppen',
+  voiceOff: 'Sprache (auf diesem Handy nicht verfügbar)',
+  voiceUnavailable: 'Sprache ist in diesem Browser nicht verfügbar.',
+  didntCatch: 'Das habe ich nicht verstanden. Tippe auf das Mikrofon und versuche es erneut.',
+  micBlocked: 'Das Mikrofon ist blockiert. Erlaube es für diese Seite in den Browser-Einstellungen und versuche es dann erneut.',
+  noMic: 'Auf diesem Handy wurde kein Mikrofon gefunden.',
+  voiceNetwork: 'Sprache braucht eine Internetverbindung. Versuche es erneut.',
+  voiceStopped: 'Die Spracheingabe wurde beendet. Tippe auf das Mikrofon, um es erneut zu versuchen.',
+  micStartFailed: 'Das Mikrofon konnte nicht gestartet werden. Versuche es erneut.',
+  tvBox: 'Textfeld am Fernseher',
+  tvBoxNamed: 'Textfeld am Fernseher: „{{label}}“',
+  tvBoxPassword: 'Textfeld am Fernseher (ein Passwort: Was du tippst, geht an den Fernseher)',
+  tvBoxNamedPassword: 'Textfeld am Fernseher: „{{label}}“ (ein Passwort: Was du tippst, geht an den Fernseher)',
+  pickBox: 'Wähle am Fernseher ein Textfeld (Suche oder Anmeldung) und tippe dann hier.',
+  typeHere: 'Hier tippen',
+  go: 'Los',
+};
+
+const AR: Record<Key, string> = {
+  title: 'جهاز التحكم Snow Media',
+  tooManyTries: 'محاولات كثيرة جدًا من هذه الشبكة. انتظر عشر دقائق ثم حاول مرة أخرى.',
+  busy: 'هناك عدد كبير من الهواتف يجري ربطها الآن. حاول مرة أخرى بعد دقيقة.',
+  wrongCode: 'لم يعمل هذا الرمز. تحقق من الرمز على التلفزيون، فكل رمز يعمل مرة واحدة فقط.',
+  badCode: 'الرمز مكوّن من 8 أحرف، مثل BCDF-GHJK.',
+  connectFailed: 'تعذّر الاتصال. تحقق من الإنترنت ثم حاول مرة أخرى.',
+  switchTitle: 'الربط بتلفزيون آخر؟',
+  switchText: 'هذا الهاتف هو جهاز التحكم لـ «{{label}}» بالفعل. سيؤدي ربطه بالتلفزيون الذي يعرض الرمز {{code}} إلى استبداله.',
+  switchPair: 'الربط بالتلفزيون الجديد',
+  switchKeep: 'متابعة استخدام «{{label}}»',
+  pairHelp: 'على التلفزيون، افتح Snow Media Center ← الإعدادات ← التحكم عبر الهاتف، ثم امسح رمز QR أو اكتب الرمز المكوّن من 8 أحرف هنا.',
+  codeAria: 'الرمز الظاهر على التلفزيون',
+  connect: 'اتصال',
+  backTo: 'العودة إلى «{{label}}»',
+  denied: 'لم يسمح التلفزيون بهذا الهاتف.',
+  expired: 'لم يستجب التلفزيون في الوقت المناسب. أدخل الرمز الجديد من التلفزيون للمحاولة مرة أخرى.',
+  almostTitle: 'أوشكنا على الانتهاء',
+  almostText: '«{{label}}» يسأل إن كان سيسمح بهذا الهاتف. اختر <b>سماح</b> بجهاز تحكم التلفزيون (اضغط موافق).',
+  cancel: 'إلغاء',
+  up: 'أعلى',
+  down: 'أسفل',
+  left: 'يسار',
+  right: 'يمين',
+  unpairedByTv: 'ألغى هذا التلفزيون ربط هواتفه. اربط من جديد بالرمز الجديد على التلفزيون.',
+  forget: 'إزالة',
+  quiet: 'التلفزيون لا يستجيب. تأكد من أن Snow Media Center مفتوح عليه، فجهاز التحكم يعمل ما دام التطبيق على الشاشة.',
+  away: 'هناك تطبيق آخر على شاشة التلفزيون. استخدم جهاز تحكم التلفزيون للعودة إلى Snow Media Center، فهذا الجهاز يعمل ما دام التطبيق على الشاشة.',
+  back: 'رجوع',
+  home: 'الرئيسية',
+  options: 'خيارات',
+  textBoxOpen: '<b>يوجد مربع نص مفتوح على التلفزيون</b>. المس للكتابة هنا.',
+  textBoxOpenNamed: '<b>يوجد مربع نص مفتوح على التلفزيون</b><i> («{{label}}»)</i>. المس للكتابة هنا.',
+  rewind: 'إرجاع',
+  playPause: 'تشغيل/إيقاف مؤقت',
+  forward: 'تقديم',
+  keyboard: 'لوحة المفاتيح',
+  voice: 'الصوت',
+  listening: 'جارٍ الاستماع… المس للإيقاف',
+  voiceOff: 'الصوت (غير متاح على هذا الهاتف)',
+  voiceUnavailable: 'الصوت غير متاح في هذا المتصفح.',
+  didntCatch: 'لم أفهم ذلك. المس الميكروفون وحاول مرة أخرى.',
+  micBlocked: 'الميكروفون محظور. اسمح به لهذا الموقع من إعدادات المتصفح ثم حاول مرة أخرى.',
+  noMic: 'لم يتم العثور على ميكروفون في هذا الهاتف.',
+  voiceNetwork: 'يحتاج الصوت إلى اتصال بالإنترنت. حاول مرة أخرى.',
+  voiceStopped: 'توقف الصوت. المس الميكروفون للمحاولة مرة أخرى.',
+  micStartFailed: 'تعذّر تشغيل الميكروفون. حاول مرة أخرى.',
+  tvBox: 'حقل نصي على التلفزيون',
+  tvBoxNamed: 'حقل نصي على التلفزيون: «{{label}}»',
+  tvBoxPassword: 'حقل نصي على التلفزيون (كلمة مرور: ما تكتبه يذهب إلى التلفزيون)',
+  tvBoxNamedPassword: 'حقل نصي على التلفزيون: «{{label}}» (كلمة مرور: ما تكتبه يذهب إلى التلفزيون)',
+  pickBox: 'اختر مربع نص على التلفزيون (بحث أو تسجيل دخول) ثم اكتب هنا.',
+  typeHere: 'اكتب هنا',
+  go: 'إرسال',
+};
+
+const DICT: Record<Lang, Record<Key, string>> = { en: EN, es: ES, fr: FR, de: DE, ar: AR };
+
+const asLang = (raw: unknown): Lang | null => {
+  const l = String(raw ?? '').slice(0, 2).toLowerCase();
+  return (LANGS as string[]).includes(l) ? (l as Lang) : null;
+};
+/** ?lang= from the QR (kept for next time, since the address is cleaned), else the last one, else English. */
+const pageLang = (): Lang => {
+  try {
+    const fromUrl = asLang(new URLSearchParams(window.location.search).get('lang'));
+    if (fromUrl) { try { localStorage.setItem(LANG_KEY, fromUrl); } catch { /* private mode */ } return fromUrl; }
+  } catch { /* no address */ }
+  try { return asLang(localStorage.getItem(LANG_KEY)) ?? 'en'; } catch { return 'en'; }
+};
+
+/** The page's text in the TV's language; `{{name}}` values are filled from `params`. */
+const tr = (key: Key, params?: Record<string, string>): string => {
+  const text = DICT[pageLang()][key] ?? EN[key];
+  return params ? text.replace(/\{\{(\w+)\}\}/g, (_m, name: string) => params[name] ?? '') : text;
+};
+
+/** `<b>bold</b>` and `<i>softer</i>` inside a text. */
+const rich = (text: string): ReactNode[] =>
+  text.split(/(<b>.*?<\/b>|<i>.*?<\/i>)/).filter(Boolean).map((part, i) => {
+    if (part.startsWith('<b>')) return <span key={i} className="font-semibold text-white">{part.slice(3, -4)}</span>;
+    if (part.startsWith('<i>')) return <span key={i} className="text-white/70">{part.slice(3, -4)}</span>;
+    return part;
+  });
+
 // ── pairing ────────────────────────────────────────────────────────────────
 
 function PairScreen({ onPaired, message, saved, onKeepSaved }: {
@@ -114,17 +437,17 @@ function PairScreen({ onPaired, message, saved, onKeepSaved }: {
     try {
       const r = await call({ op: 'join', code: c });
       if (!r.ok || typeof r.token !== 'string') {
-        setError(r.reason === 'too_many' ? 'Too many tries from this network. Wait ten minutes and try again.'
-          : r.reason === 'busy' ? 'A lot of phones are pairing right now. Try again in a minute.'
-            : r.reason === 'wrong_code' ? "That code didn't work. Check the code on the TV — each code works once."
-              : r.reason === 'bad_code' ? 'The code is 8 letters, like BCDF-GHJK.'
-                : "Couldn't connect. Check your internet and try again.");
+        setError(r.reason === 'too_many' ? tr('tooManyTries')
+          : r.reason === 'busy' ? tr('busy')
+            : r.reason === 'wrong_code' ? tr('wrongCode')
+              : r.reason === 'bad_code' ? tr('badCode')
+                : tr('connectFailed'));
         return;
       }
       clearUrl();
       setWaiting({ token: r.token, label: typeof r.label === 'string' && r.label ? r.label : 'Snow Media Center' });
     } catch {
-      setError("Couldn't connect. Check your internet and try again.");
+      setError(tr('connectFailed'));
     } finally {
       setBusy(false);
     }
@@ -150,15 +473,15 @@ function PairScreen({ onPaired, message, saved, onKeepSaved }: {
     return (
       <div className="min-h-screen bg-[#071b3a] text-white flex flex-col items-center justify-center px-6">
         <Tv className="w-14 h-14 text-[#d4af6a] mb-4" />
-        <h1 className="text-2xl font-bold text-center mb-2">Pair with a different TV?</h1>
-        <p className="text-white/70 text-center mb-8 max-w-sm">
-          This phone is already the remote for “{saved.label}”. Pairing with the TV showing code {showCode(code)} replaces it.
+        <h1 dir="auto" className="text-2xl font-bold text-center mb-2">{tr('switchTitle')}</h1>
+        <p dir="auto" className="text-white/70 text-center mb-8 max-w-sm">
+          {tr('switchText', { label: saved.label, code: showCode(code) })}
         </p>
         <button type="button" onClick={() => setAskSwitch(false)} className="w-72 rounded-2xl bg-[#d4af6a] text-black font-bold text-lg py-4">
-          Pair with the new TV
+          {tr('switchPair')}
         </button>
         <button type="button" onClick={() => { clearUrl(); onKeepSaved(); }} className="mt-3 w-72 rounded-2xl bg-white/10 font-semibold py-4">
-          Keep using “{saved.label}”
+          {tr('switchKeep', { label: saved.label })}
         </button>
       </div>
     );
@@ -167,9 +490,9 @@ function PairScreen({ onPaired, message, saved, onKeepSaved }: {
   return (
     <div className="min-h-screen bg-[#071b3a] text-white flex flex-col items-center justify-center px-6">
       <Tv className="w-14 h-14 text-[#d4af6a] mb-4" />
-      <h1 className="text-3xl font-bold text-center mb-2">Snow Media Remote</h1>
-      <p className="text-white/70 text-center mb-8 max-w-sm">
-        On your TV, open Snow Media Center → Settings → Phone Remote, then scan the QR code or type the 8-letter code here.
+      <h1 dir="auto" className="text-3xl font-bold text-center mb-2">{tr('title')}</h1>
+      <p dir="auto" className="text-white/70 text-center mb-8 max-w-sm">
+        {tr('pairHelp')}
       </p>
       <input
         value={showCode(code)}
@@ -181,8 +504,8 @@ function PairScreen({ onPaired, message, saved, onKeepSaved }: {
         autoCorrect="off"
         spellCheck={false}
         enterKeyHint="go"
-        aria-label="Code shown on the TV"
-        placeholder="BCDF-GHJK"
+        aria-label={tr('codeAria')}
+        placeholder={SAMPLE_CODE}
         className="w-72 text-center text-3xl tracking-[0.15em] font-bold rounded-2xl bg-white/10 border border-white/20 py-4 outline-none focus:border-[#d4af6a] uppercase"
       />
       <button
@@ -192,14 +515,14 @@ function PairScreen({ onPaired, message, saved, onKeepSaved }: {
         className="mt-6 w-72 rounded-2xl bg-[#d4af6a] text-black font-bold text-lg py-4 disabled:opacity-40 flex items-center justify-center"
       >
         {busy ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Smartphone className="w-5 h-5 mr-2" />}
-        Connect
+        {tr('connect')}
       </button>
       {saved && (
         <button type="button" onClick={onKeepSaved} className="mt-4 text-white/60 text-sm underline">
-          Back to “{saved.label}”
+          {tr('backTo', { label: saved.label })}
         </button>
       )}
-      {error && <p className="mt-4 text-amber-300 text-center max-w-sm">{error}</p>}
+      {error && <p dir="auto" className="mt-4 text-amber-300 text-center max-w-sm">{error}</p>}
     </div>
   );
 }
@@ -231,10 +554,10 @@ function WaitScreen({ token, label, onPaired, onStop }: {
           onPaired(p);
           return;
         }
-        if (!r.ok && r.reason === 'denied') { onStop("The TV didn't allow this phone."); return; }
-        if (!r.ok && r.reason === 'expired') { onStop("The TV didn't answer in time. Enter the new code on the TV to try again."); return; }
+        if (!r.ok && r.reason === 'denied') { onStop(tr('denied')); return; }
+        if (!r.ok && r.reason === 'expired') { onStop(tr('expired')); return; }
       } catch { /* a network blip: keep asking */ }
-      if (Date.now() - started > CLAIM_GIVE_UP_MS) { onStop("The TV didn't answer in time. Enter the new code on the TV to try again."); return; }
+      if (Date.now() - started > CLAIM_GIVE_UP_MS) { onStop(tr('expired')); return; }
       timer = window.setTimeout(() => void poll(), CLAIM_EVERY_MS);
     };
     void poll();
@@ -244,12 +567,12 @@ function WaitScreen({ token, label, onPaired, onStop }: {
   return (
     <div className="min-h-screen bg-[#071b3a] text-white flex flex-col items-center justify-center px-6">
       <Tv className="w-14 h-14 text-[#d4af6a] mb-4" />
-      <h1 className="text-2xl font-bold text-center mb-2">Almost there</h1>
-      <p className="text-white/80 text-center mb-2 max-w-sm">
-        “{label}” is asking whether to allow this phone. Choose <span className="font-semibold text-white">Allow</span> with the TV's remote (press OK).
+      <h1 dir="auto" className="text-2xl font-bold text-center mb-2">{tr('almostTitle')}</h1>
+      <p dir="auto" className="text-white/80 text-center mb-2 max-w-sm">
+        {rich(tr('almostText', { label }))}
       </p>
       <Loader2 className="w-8 h-8 animate-spin text-white/70 my-6" />
-      <button type="button" onClick={() => onStop(null)} className="text-white/60 text-sm underline">Cancel</button>
+      <button type="button" onClick={() => onStop(null)} className="text-white/60 text-sm underline">{tr('cancel')}</button>
     </div>
   );
 }
@@ -272,11 +595,11 @@ function Pad({ onKey }: { onKey: (k: string) => void }) {
   const btn = 'absolute flex items-center justify-center text-white active:bg-white/20 rounded-full select-none touch-none';
   return (
     <div className="relative w-72 h-72 rounded-full bg-white/10 border border-white/15 mx-auto" onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}>
-      <button type="button" aria-label="Up" className={`${btn} left-1/2 -translate-x-1/2 top-2 w-24 h-20`} onPointerDown={press('up')}><ChevronUp className="w-10 h-10" /></button>
-      <button type="button" aria-label="Down" className={`${btn} left-1/2 -translate-x-1/2 bottom-2 w-24 h-20`} onPointerDown={press('down')}><ChevronDown className="w-10 h-10" /></button>
-      <button type="button" aria-label="Left" className={`${btn} top-1/2 -translate-y-1/2 left-2 w-20 h-24`} onPointerDown={press('left')}><ChevronLeft className="w-10 h-10" /></button>
-      <button type="button" aria-label="Right" className={`${btn} top-1/2 -translate-y-1/2 right-2 w-20 h-24`} onPointerDown={press('right')}><ChevronRight className="w-10 h-10" /></button>
-      <button type="button" aria-label="OK" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full bg-[#d4af6a] text-black text-2xl font-bold active:scale-95 select-none touch-none" onPointerDown={press('ok')}>OK</button>
+      <button type="button" aria-label={tr('up')} className={`${btn} left-1/2 -translate-x-1/2 top-2 w-24 h-20`} onPointerDown={press('up')}><ChevronUp className="w-10 h-10" /></button>
+      <button type="button" aria-label={tr('down')} className={`${btn} left-1/2 -translate-x-1/2 bottom-2 w-24 h-20`} onPointerDown={press('down')}><ChevronDown className="w-10 h-10" /></button>
+      <button type="button" aria-label={tr('left')} className={`${btn} top-1/2 -translate-y-1/2 left-2 w-20 h-24`} onPointerDown={press('left')}><ChevronLeft className="w-10 h-10" /></button>
+      <button type="button" aria-label={tr('right')} className={`${btn} top-1/2 -translate-y-1/2 right-2 w-20 h-24`} onPointerDown={press('right')}><ChevronRight className="w-10 h-10" /></button>
+      <button type="button" aria-label={OK_KEY} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full bg-[#d4af6a] text-black text-2xl font-bold active:scale-95 select-none touch-none" onPointerDown={press('ok')}>{OK_KEY}</button>
     </div>
   );
 }
@@ -334,7 +657,7 @@ function RemoteScreen({ pairing, onUnpaired }: { pairing: Pairing; onUnpaired: (
         const r = await call({ op: 'check', secret });
         if (alive && r.ok && r.exists === false) {
           savePairing(null);
-          onUnpairedRef.current('This TV unpaired its phones. Pair again with the new code on the TV.');
+          onUnpairedRef.current(tr('unpairedByTv'));
         }
       } catch { /* offline: try again later */ }
     };
@@ -489,7 +812,7 @@ function RemoteScreen({ pairing, onUnpaired }: { pairing: Pairing; onUnpaired: (
     if (!Speech) return;
     if (recRef.current) { recRef.current.stop(true); return; }
     let r: Speech;
-    try { r = new Speech(); } catch { setVoiceNote("Voice isn't available in this browser."); return; }
+    try { r = new Speech(); } catch { setVoiceNote(tr('voiceUnavailable')); return; }
     let heard = '';
     let done = false;
     let pauseTimer = 0;
@@ -511,7 +834,7 @@ function RemoteScreen({ pairing, onUnpaired }: { pairing: Pairing; onUnpaired: (
         // With a text box open on the TV, words go into it; otherwise they are a command.
         if (fieldRef.current.typing) { setKeyboardOpen(true); onType(said); } else send({ t: 'voice', v: said });
       } else {
-        setVoiceNote(note === undefined ? "Didn't catch that. Tap the mic and try again." : note);
+        setVoiceNote(note === undefined ? tr('didntCatch') : note);
       }
     };
     maxTimer = window.setTimeout(() => finish(true), VOICE_MAX_MS);
@@ -533,25 +856,27 @@ function RemoteScreen({ pairing, onUnpaired }: { pairing: Pairing; onUnpaired: (
     };
     r.onerror = (e) => {
       const why = e?.error;
-      if (why === 'not-allowed' || why === 'service-not-allowed') finish(false, 'The microphone is blocked. Allow it for this site in your browser settings, then try again.');
-      else if (why === 'audio-capture') finish(false, 'No microphone was found on this phone.');
-      else if (why === 'network') finish(true, 'Voice needs an internet connection. Try again.');
+      if (why === 'not-allowed' || why === 'service-not-allowed') finish(false, tr('micBlocked'));
+      else if (why === 'audio-capture') finish(false, tr('noMic'));
+      else if (why === 'network') finish(true, tr('voiceNetwork'));
       else if (why === 'aborted') finish(true, null);
       else if (why === 'no-speech') finish(true);
-      else finish(true, 'Voice stopped. Tap the mic to try again.');
+      else finish(true, tr('voiceStopped'));
     };
     r.onend = () => finish(true);
     recRef.current = handle;
     setListening(true);
     setVoiceNote(null);
     buzz();
-    try { r.start(); } catch { finish(false, "Couldn't start the microphone. Try again."); }
+    try { r.start(); } catch { finish(false, tr('micStartFailed')); }
   };
   // Leaving the page (or this TV) stops the mic.
   useEffect(() => () => { recRef.current?.stop(false); }, []);
 
   const small = 'flex flex-col items-center justify-center rounded-2xl bg-white/10 active:bg-white/20 py-3 text-xs text-white/80 select-none';
   const typingOnTv = field.typing && !keyboardOpen;
+  const isQuiet = status === 'quiet';
+  const isAway = status === 'away';
   return (
     <div className="min-h-screen bg-[#071b3a] text-white px-5 pt-5 pb-8 flex flex-col">
       <div className="flex items-center justify-between mb-5">
@@ -559,56 +884,57 @@ function RemoteScreen({ pairing, onUnpaired }: { pairing: Pairing; onUnpaired: (
           <span className={`w-2.5 h-2.5 rounded-full mr-2 ${status === 'live' ? 'bg-emerald-400' : status === 'quiet' || status === 'away' ? 'bg-amber-400' : 'bg-white/40 animate-pulse'}`} />
           <span className="truncate font-semibold">{pairing.label}</span>
         </div>
-        <button type="button" onClick={() => { savePairing(null); onUnpaired(); }} className="text-white/60 text-sm flex items-center"><Unlink className="w-4 h-4 mr-1" /> Forget</button>
+        <button type="button" onClick={() => { savePairing(null); onUnpaired(); }} className="text-white/60 text-sm flex items-center"><Unlink className="w-4 h-4 mr-1" /> {tr('forget')}</button>
       </div>
-      {status === 'quiet' && (
-        <p className="mb-4 rounded-xl bg-amber-500/15 border border-amber-400/40 px-3 py-2 text-sm text-amber-200">
-          The TV isn't answering. Make sure Snow Media Center is open on it — the remote works while the app is on screen.
+      {isQuiet && (
+        <p dir="auto" className="mb-4 rounded-xl bg-amber-500/15 border border-amber-400/40 px-3 py-2 text-sm text-amber-200">
+          {tr('quiet')}
         </p>
       )}
-      {status === 'away' && (
-        <p className="mb-4 rounded-xl bg-amber-500/15 border border-amber-400/40 px-3 py-2 text-sm text-amber-200">
-          Another app is on the TV screen. Use the TV's own remote to get back to Snow Media Center — this remote works while it's on screen.
+      {isAway && (
+        <p dir="auto" className="mb-4 rounded-xl bg-amber-500/15 border border-amber-400/40 px-3 py-2 text-sm text-amber-200">
+          {tr('away')}
         </p>
       )}
 
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <button type="button" className={small} onClick={() => key('back')}><ArrowLeft className="w-6 h-6 mb-1" />Back</button>
-        <button type="button" className={small} onClick={() => { buzz(); send({ t: 'home' }); }}><Home className="w-6 h-6 mb-1" />Home</button>
-        <button type="button" className={small} onClick={() => key('menu')}><Menu className="w-6 h-6 mb-1" />Options</button>
+        <button type="button" className={small} onClick={() => key('back')}><ArrowLeft className="w-6 h-6 mb-1" />{tr('back')}</button>
+        <button type="button" className={small} onClick={() => { buzz(); send({ t: 'home' }); }}><Home className="w-6 h-6 mb-1" />{tr('home')}</button>
+        <button type="button" className={small} onClick={() => key('menu')}><Menu className="w-6 h-6 mb-1" />{tr('options')}</button>
       </div>
 
       {typingOnTv && (
         <button type="button" onClick={openKeyboard} className="mb-4 rounded-xl bg-[#d4af6a]/20 border border-[#d4af6a]/60 px-3 py-2 text-sm text-left">
-          <span className="font-semibold">A text box is open on the TV</span>
-          {field.label ? <span className="text-white/70"> (“{field.label}”)</span> : null}. Tap to type it here.
+          {rich(field.label ? tr('textBoxOpenNamed', { label: field.label }) : tr('textBoxOpen'))}
         </button>
       )}
 
       <Pad onKey={key} />
 
       <div className="grid grid-cols-3 gap-3 mt-6">
-        <button type="button" className={small} onClick={() => key('rw')}><Rewind className="w-6 h-6 mb-1" />Rewind</button>
-        <button type="button" className={small} onClick={() => key('playpause')}><Pause className="w-6 h-6 mb-1" />Play/Pause</button>
-        <button type="button" className={small} onClick={() => key('ff')}><FastForward className="w-6 h-6 mb-1" />Forward</button>
+        <button type="button" className={small} onClick={() => key('rw')}><Rewind className="w-6 h-6 mb-1" />{tr('rewind')}</button>
+        <button type="button" className={small} onClick={() => key('playpause')}><Pause className="w-6 h-6 mb-1" />{tr('playPause')}</button>
+        <button type="button" className={small} onClick={() => key('ff')}><FastForward className="w-6 h-6 mb-1" />{tr('forward')}</button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 mt-3">
         <button type="button" className={`${small} ${typingOnTv ? 'ring-2 ring-[#d4af6a]' : ''}`} onClick={() => { if (keyboardOpen) setKeyboardOpen(false); else openKeyboard(); }}>
-          <Keyboard className="w-6 h-6 mb-1" />Keyboard
+          <Keyboard className="w-6 h-6 mb-1" />{tr('keyboard')}
         </button>
         <button type="button" className={`${small} ${listening ? 'bg-red-500/40' : ''}`} onClick={talk} disabled={!Speech}>
-          <Mic className="w-6 h-6 mb-1" />{Speech ? (listening ? 'Listening… tap to stop' : 'Voice') : 'Voice (not on this phone)'}
+          <Mic className="w-6 h-6 mb-1" />{Speech ? (listening ? tr('listening') : tr('voice')) : tr('voiceOff')}
         </button>
       </div>
-      {voiceNote && <p className="mt-2 text-center text-sm text-amber-200">{voiceNote}</p>}
+      {voiceNote && <p dir="auto" className="mt-2 text-center text-sm text-amber-200">{voiceNote}</p>}
 
       {keyboardOpen && (
         <div className="mt-4 rounded-2xl bg-white/10 p-3">
-          <div className="text-xs text-white/60 mb-2">
+          <div dir="auto" className="text-xs text-white/60 mb-2">
             {field.typing
-              ? <>TV text box{field.label ? <>: “{field.label}”</> : null}{field.password ? ' (a password: what you type goes to the TV)' : ''}</>
-              : 'Pick a text box on the TV (a search or sign-in box), then type here.'}
+              ? (field.label
+                ? tr(field.password ? 'tvBoxNamedPassword' : 'tvBoxNamed', { label: field.label })
+                : tr(field.password ? 'tvBoxPassword' : 'tvBox'))
+              : tr('pickBox')}
           </div>
           <form onSubmit={(e) => { e.preventDefault(); if (textTimer.current) window.clearTimeout(textTimer.current); send({ t: 'text', v: text }); window.setTimeout(() => send({ t: 'submit' }), 150); buzz(); }} className="flex">
             <input
@@ -620,9 +946,9 @@ function RemoteScreen({ pairing, onUnpaired }: { pairing: Pairing; onUnpaired: (
               autoCorrect="off"
               enterKeyHint="go"
               className="flex-1 rounded-xl bg-black/30 border border-white/20 px-3 py-3 text-lg outline-none focus:border-[#d4af6a]"
-              placeholder="Type here"
+              placeholder={tr('typeHere')}
             />
-            <button type="submit" className="ml-2 rounded-xl bg-[#d4af6a] text-black font-bold px-4">Go</button>
+            <button type="submit" className="ml-2 rounded-xl bg-[#d4af6a] text-black font-bold px-4">{tr('go')}</button>
           </form>
         </div>
       )}
@@ -641,7 +967,13 @@ export default function PhoneRemotePage() {
   const onUnpaired = useCallback((msg?: string) => { setPairing(null); setMessage(msg ?? null); }, []);
   const onPaired = useCallback((p: Pairing) => { setMessage(null); setPairing(p); }, []);
   const onKeepSaved = useCallback(() => { setMessage(null); setPairing(loadPairing()); }, []);
-  useEffect(() => { document.title = 'Snow Media Remote'; }, []);
+  useEffect(() => {
+    document.title = tr('title');
+    // The text is in the TV's language: say so, and give the site's own back on the way out.
+    const before = document.documentElement.lang;
+    try { document.documentElement.lang = pageLang(); } catch { /* no document */ }
+    return () => { try { document.documentElement.lang = before; } catch { /* no document */ } };
+  }, []);
   return pairing
     ? <RemoteScreen key={pairing.secret} pairing={pairing} onUnpaired={onUnpaired} />
     : <PairScreen onPaired={onPaired} message={message} saved={loadPairing()} onKeepSaved={onKeepSaved} />;

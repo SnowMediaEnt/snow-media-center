@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.snowmedia.AppLocale
 import com.snowmedia.MainActivity
 import com.snowmedia.R
 
@@ -31,16 +32,19 @@ internal object AlertNotifier {
 
     private const val SEVERITY_CRITICAL = "critical"
 
+    /**
+     * Creates the channel, and renames it when the app's language changed: creating a channel that
+     * exists only updates its name and description, the viewer's own settings stay.
+     */
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (mgr.getNotificationChannel(CHANNEL_ID) != null) return
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Snow Media alerts",
+            AppLocale.string(context, R.string.alert_channel_name),
             NotificationManager.IMPORTANCE_HIGH,
         ).apply {
-            description = "Service notices, outages and announcements from Snow Media."
+            description = AppLocale.string(context, R.string.alert_channel_desc)
             enableVibration(false)
             setShowBadge(true)
         }

@@ -1,0 +1,143 @@
+{
+  "tickets": {
+    "list": {
+      "title": "Tickets",
+      "backToTickets": "Back to Tickets",
+      "newBtn": "New Ticket",
+      "newChip": "New",
+      "created": "Created: {{when}}",
+      "updated": "Last updated: {{when}}",
+      "emptyTitle": "No Support Tickets",
+      "emptyUser": "You haven't created any support tickets yet.",
+      "emptyChecking": "Checking for your Snow Media account…",
+      "emptyPlayerOnly": "Your tickets are on your Snow Media website account, not your streaming login. Sign in to it to see them.",
+      "emptyGuest": "You can send a ticket without an account, but replies require signing in.",
+      "createFirstBtn": "Create Your First Ticket",
+      "sendBtn": "Send a Ticket",
+      "signIn": "Sign In",
+      "confirmDelete": "Delete this ticket? This cannot be undone."
+    },
+    "status": {
+      "active": "Active",
+      "open": "Open",
+      "inProgress": "In Progress",
+      "resolved": "Resolved",
+      "closed": "Closed"
+    },
+    "priority": {
+      "normal": "Normal",
+      "low": "Low",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "ai": {
+      "historyTitle": "AI Chat History",
+      "lastFiveChip": "Last 5 saved",
+      "askPlaceholder": "Ask the AI anything...",
+      "newChatBtn": "New Chat",
+      "empty": "No saved AI conversations yet. Start one above.",
+      "lastMessage": "Last message: {{when}}",
+      "confirmDelete": "Delete this AI conversation?",
+      "assistant": "AI Assistant",
+      "historyAria": "AI conversation history",
+      "typePlaceholder": "Type your message...",
+      "you": "You"
+    },
+    "ticket": {
+      "confirmDelete": "Delete this ticket and all its messages? This cannot be undone.",
+      "closeBtn": "Close Ticket",
+      "deleteBtn": "Delete Ticket",
+      "messages": "Messages",
+      "historyAria": "Ticket conversation history",
+      "you": "You",
+      "support": "Snow Media Support",
+      "replyPlaceholder": "Type your reply...",
+      "voiceReady": "Voice message ready to send",
+      "shotReady": "Screenshot ready to send",
+      "removeBtn": "Remove",
+      "sendReplyBtn": "Send Reply",
+      "attachShotBtn": "Attach screenshot",
+      "recordBtn": "Record a voice message",
+      "stopBtn": "Stop ({{seconds}}s)",
+      "noMicNote": "Voice messages need a microphone, which TV remotes don't share with apps — you can still play any that support sends you."
+    },
+    "create": {
+      "title": "Create Support Ticket",
+      "cardTitle": "New Support Request",
+      "notSignedIn": "<1>Not signed in</1> — your ticket will be delivered, but you won't be able to receive replies in the app. Sign in to get responses.",
+      "emailLabel": "Your email <1>(optional)</1>",
+      "emailPlaceholder": "you@example.com (leave blank to send anonymously)",
+      "subjectLabel": "Subject",
+      "subjectPlaceholder": "Brief description of your issue...",
+      "messageLabel": "Message",
+      "messagePlaceholder": "Describe your issue in detail...",
+      "creating": "Creating...",
+      "createBtn": "Create Ticket"
+    },
+    "account": {
+      "title": "Create an account?",
+      "desc": "We'll use <1>{{email}}</1> so you can receive replies to your ticket in-app. Set a password (and optional name) below, or skip.",
+      "nameLabel": "Name (optional)",
+      "namePlaceholder": "Your name",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "At least 6 characters",
+      "skipBtn": "Skip",
+      "creating": "Creating...",
+      "createBtn": "Create account"
+    },
+    "toast": {
+      "restoredTitle": "Account restored",
+      "restoredDescEmail": "Signed into your Snow Media account ({{email}}). Your tickets are back.",
+      "restoredDesc": "Signed into your Snow Media account. Your tickets are back.",
+      "invalidEmailTitle": "Invalid email",
+      "invalidEmailDesc": "Please enter a valid email or leave it blank to send anonymously.",
+      "sentTitle": "Ticket sent",
+      "sentDescEmail": "We received it. Create an account to get a reply in-app.",
+      "sentDescAnon": "We received your anonymous ticket. No reply will be possible.",
+      "errorTitle": "Error",
+      "sendFailed": "Failed to send ticket. Please try again.",
+      "passwordShortTitle": "Password too short",
+      "passwordShortDesc": "Use at least 6 characters.",
+      "accountCreatedTitle": "Account created",
+      "accountCreatedDesc": "Check your email to confirm, then sign in to see replies.",
+      "accountFailedTitle": "Could not create account",
+      "accountFailedDesc": "Try again later.",
+      "replyFailedTitle": "Could not send that",
+      "replyFailedDesc": "Please try again.",
+      "successTitle": "Success",
+      "loadTicketsFailed": "Failed to load support tickets",
+      "loadMessagesFailed": "Failed to load messages",
+      "createdDesc": "Support ticket created successfully",
+      "createFailed": "Failed to create support ticket",
+      "messageFailed": "Failed to send message",
+      "closedDesc": "Ticket has been closed",
+      "closeFailed": "Failed to close ticket",
+      "deletedTitle": "Deleted",
+      "deletedDesc": "Ticket deleted",
+      "deleteFailed": "Failed to delete ticket"
+    },
+    "attachment": {
+      "failed": "This attachment could not be opened.",
+      "loadingVoice": "Loading voice message…",
+      "loadingShot": "Loading screenshot…",
+      "openFullAria": "Open screenshot full size",
+      "shotAlt": "Screenshot attached to this message",
+      "shotPng": "Screenshot (PNG)",
+      "shot": "Screenshot",
+      "toast": {
+        "shotAttachedTitle": "Screenshot attached",
+        "shotAttachedDesc": "Video does not appear in a screenshot — menus and errors do.",
+        "shotFailedTitle": "Could not take a screenshot",
+        "cannotRecordTitle": "Cannot record here",
+        "nothingRecordedTitle": "Nothing was recorded",
+        "nothingRecordedDesc": "Hold the button while you speak, then release."
+      },
+      "errors": {
+        "empty": "That file came back empty — please try again.",
+        "tooBig": "That file is too big to attach (10 MB limit).",
+        "uploadFailed": "Could not upload that attachment.",
+        "noMic": "This device has no microphone available to apps."
+      }
+    }
+  }
+}

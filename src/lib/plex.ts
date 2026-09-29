@@ -3,6 +3,7 @@
 // on native we use CapacitorHttp; web falls back to fetch (will CORS-fail — the
 // installed Android app is the supported path, same as the Xtream client).
 
+import i18n, { getAppLanguage } from '@/i18n';
 import { kidsAllowsLibrary, kidsAllowsPlex, kidsLevel, kidsRatingQuery } from '@/lib/kidsFilter';
 
 const PLEX_TOKEN_KEY = 'snow-plex-token-v1';
@@ -37,6 +38,9 @@ const plexHeaders = (token?: string): Record<string, string> => {
     'X-Plex-Device-Name': PLEX_PRODUCT,
     'X-Plex-Platform': 'Android',
     'Accept': 'application/json',
+    // The server names its own rows ("Recently Added") in the app's language. API calls only:
+    // stream URLs take their client parameters from PLEX_CLIENT_PARAMS and never carry this.
+    'X-Plex-Language': getAppLanguage(),
   };
   if (token) h['X-Plex-Token'] = token;
   return h;
@@ -201,7 +205,7 @@ async function fetchPlexServers(token: string): Promise<PlexServer[]> {
   return (data || [])
     .filter((d) => String(d.provides || '').includes('server'))
     .map((d) => ({
-      name: String(d.name || 'Plex Server'),
+      name: String(d.name || i18n.t('plexApi.serverFallback')),
       clientIdentifier: String(d.clientIdentifier || ''),
       accessToken: (d.accessToken as string) || token,
       owned: !!d.owned,
@@ -332,13 +336,13 @@ function plexRank(url: string, tier: number, ipv6?: boolean): number {
  *  "Direct to server · plex.direct · https". It names the kind of address, and
  *  a custom one by its host name alone: nothing past the host is ever shown. */
 export function plexRouteLabel(route: PlexRoute | undefined, base: string): string {
-  if (route === 'relay') return 'Plex Relay (speed-capped by Plex)';
+  if (route === 'relay') return i18n.t('plexApi.route.relay');
   const h = plexBaseInfo(base);
-  const where = route === 'lan' ? 'Home network' : route === 'direct' ? 'Direct to server' : 'Unknown route';
+  const where = route === 'lan' ? i18n.t('plexApi.route.lan') : route === 'direct' ? i18n.t('plexApi.route.direct') : i18n.t('plexApi.route.unknown');
   const host = h.kind === 'plex.direct' ? 'plex.direct'
     : h.kind === 'ip' ? 'IP'
-      : h.host ? `custom address (${h.host})` : '';
-  const parts = [where, host, h.https ? 'https' : 'http (unencrypted)', h.ipv6 ? 'IPv6' : ''];
+      : h.host ? i18n.t('plexApi.route.customAddress', { host: h.host }) : '';
+  const parts = [where, host, h.https ? 'https' : i18n.t('plexApi.route.httpUnencrypted'), h.ipv6 ? 'IPv6' : ''];
   return parts.filter(Boolean).join(' · ');
 }
 
@@ -618,7 +622,7 @@ async function fetchPlexLibraries(base: string, token: string): Promise<PlexLibr
     const key = String(d.key);
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ key, title: String(d.title || 'Library'), type: String(d.type) });
+    out.push({ key, title: String(d.title || i18n.t('plexApi.libraryFallback')), type: String(d.type) });
   }
   return out;
 }
@@ -890,7 +894,8 @@ export interface PlexQualityPreset {
   videoResolution?: string;
 }
 export const PLEX_QUALITY_PRESETS: PlexQualityPreset[] = [
-  { key: 'original', label: 'Original (direct)' },
+  // A getter, so the name follows the language at the moment it is shown (this list is built once).
+  { key: 'original', get label() { return i18n.t('plexApi.quality.original'); } },
   { key: '1080-20', label: '1080p · 20 Mbps', maxVideoBitrateKbps: 20000, videoResolution: '1920x1080' },
   { key: '1080-12', label: '1080p · 12 Mbps', maxVideoBitrateKbps: 12000, videoResolution: '1920x1080' },
   { key: '1080-8',  label: '1080p · 8 Mbps',  maxVideoBitrateKbps: 8000,  videoResolution: '1920x1080' },
@@ -1650,7 +1655,7 @@ export async function getPlexSeasons(base: string, token: string, showKey: strin
     .filter((s) => String(s.type || '') === 'season')
     .map((s) => ({
       ratingKey: String(s.ratingKey ?? ''),
-      title: String(s.title || `Season ${s.index ?? ''}`),
+      title: String(s.title || i18n.t('plexApi.seasonFallback', { index: s.index ?? '' })),
       index: s.index as number | undefined,
       thumb: s.thumb as string | undefined,
       leafCount: s.leafCount as number | undefined,

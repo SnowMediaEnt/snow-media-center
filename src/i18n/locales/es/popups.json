@@ -1,0 +1,42 @@
+{
+  "popups": {
+    "gotItBtn": "Entendido",
+    "appAlert": {
+      "headsUp": "Aviso sobre <1>{{name}}</1>:",
+      "dismissBtn": "Descartar",
+      "continueAnywayBtn": "Continuar de todos modos"
+    },
+    "preEvent": {
+      "okGotItBtn": "OK, entendido",
+      "defaultHeadline": "¡PPV esta noche! Haz los pasos previos ANTES de la hora de inicio.",
+      "step1": "Asegúrate de que tu servicio no haya vencido",
+      "step2": "Actualiza la lista / Actualiza los canales",
+      "step3": "Reinicia el router y el dispositivo",
+      "step4": "Ten una VPN lista",
+      "step5": "¡Disfruta!"
+    },
+    "serviceAlert": {
+      "yourService": "Tu servicio",
+      "unknownTitle": "Estado del servicio desconocido",
+      "unknownMsg": "{{name}}: sin fecha de vencimiento. Abre Panel → Editar para actualizarla.",
+      "expiredTitle": "Servicio vencido",
+      "expiredMsg_one": "{{name}} venció hace {{count}} día. Renueva antes de continuar.",
+      "expiredMsg_many": "{{name}} venció hace {{count}} días. Renueva antes de continuar.",
+      "expiredMsg_other": "{{name}} venció hace {{count}} días. Renueva antes de continuar.",
+      "todayTitle": "El servicio vence hoy",
+      "todayMsg": "{{name}} vence hoy. Renueva para evitar interrupciones.",
+      "tomorrowTitle": "El servicio vence mañana",
+      "tomorrowMsg": "{{name}} vence mañana. Renuévalo desde el Panel antes de que se corte.",
+      "soonTitle_one": "El servicio vence en {{count}} día",
+      "soonTitle_many": "El servicio vence en {{count}} días",
+      "soonTitle_other": "El servicio vence en {{count}} días",
+      "soonMsg_one": "{{name}} vence en {{count}} día. Renuévalo desde el Panel antes de que se corte.",
+      "soonMsg_many": "{{name}} vence en {{count}} días. Renuévalo desde el Panel antes de que se corte.",
+      "soonMsg_other": "{{name}} vence en {{count}} días. Renuévalo desde el Panel antes de que se corte."
+    },
+    "demo": {
+      "msg": "Estás en la demo en vivo: la reproducción funciona en la app instalada en tu TV.",
+      "account": "Cuenta demo"
+    }
+  }
+}

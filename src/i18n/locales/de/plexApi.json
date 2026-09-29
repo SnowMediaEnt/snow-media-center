@@ -1,0 +1,36 @@
+{
+  "plexApi": {
+    "serverFallback": "Plex-Server",
+    "libraryFallback": "Mediathek",
+    "seasonFallback": "Staffel {{index}}",
+    "route": {
+      "relay": "Plex Relay (Tempo von Plex begrenzt)",
+      "lan": "Heimnetzwerk",
+      "direct": "Direkt zum Server",
+      "unknown": "Unbekannte Route",
+      "customAddress": "eigene Adresse ({{host}})",
+      "httpUnencrypted": "http (unverschlüsselt)"
+    },
+    "quality": {
+      "original": "Original (direkt)"
+    },
+    "screenFormat": {
+      "fit": {
+        "label": "Einpassen",
+        "hint": "Ganzes Bild, richtige Form"
+      },
+      "zoom": {
+        "label": "Zoom",
+        "hint": "Füllt den Bildschirm, Ränder abgeschnitten"
+      },
+      "wide": {
+        "label": "Breit 16:9",
+        "hint": "Breitbild erzwingen"
+      },
+      "fill": {
+        "label": "Strecken",
+        "hint": "Füllt den Bildschirm, Form egal"
+      }
+    }
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "cleaner": {
+    "title": "Limpiador del equipo",
+    "subtitle": "Libera espacio y memoria en este equipo. No se cierra ninguna de tus sesiones.",
+    "backLabel": "Volver a Soporte",
+    "checkAgainBtn": "Revisar de nuevo",
+    "notNative": "El limpiador solo funciona dentro de la app Snow Media Center instalada en tu equipo de TV.",
+    "storage": {
+      "title": "Almacenamiento",
+      "free": "{{size}} libres",
+      "used": "{{used}} de {{total}} usados",
+      "reading": "Leyendo…",
+      "nearlyFull": "Este equipo está casi lleno. Por eso las actualizaciones de apps fallan con «App no instalada» y la reproducción se corta: límpialo e inténtalo de nuevo."
+    },
+    "memory": {
+      "title": "Memoria",
+      "low": "Al equipo le falta memoria en este momento.",
+      "hint": "Cerrar las apps en segundo plano libera más."
+    },
+    "phase": {
+      "junk": "Borrando archivos sobrantes…",
+      "memory": "Cerrando apps en segundo plano…",
+      "caches": "Borrando cachés de apps: {{done}} de {{total}}",
+      "working": "Procesando {{app}}: Ajustes se abre y se cierra solo. No toques el control remoto.",
+      "settingsOpens": "Ajustes se abrirá solo. No toques el control remoto hasta que vuelva."
+    },
+    "stopBtn": "Detener",
+    "done": "Listo",
+    "all": {
+      "title": "Limpiar este equipo",
+      "desc": "Archivos sobrantes, apps en segundo plano y luego todos los cachés",
+      "descReach": "Archivos sobrantes, apps en segundo plano y luego todos los cachés: unos {{size}} a tu alcance"
+    },
+    "caches": {
+      "title": "Borrar cachés de apps",
+      "fireList": "Abre la lista de apps de Fire TV",
+      "count_one": "{{count}} app",
+      "count_many": "{{count}} apps",
+      "count_other": "{{count}} apps",
+      "countSize_one": "{{count}} app · {{size}}",
+      "countSize_many": "{{count}} apps · {{size}}",
+      "countSize_other": "{{count}} apps · {{size}}"
+    },
+    "background": {
+      "title": "Cerrar apps en segundo plano",
+      "desc": "Libera memoria para el reproductor"
+    },
+    "junk": {
+      "title": "Quitar instaladores sobrantes",
+      "count_one": "{{count}} archivo · {{size}}",
+      "count_many": "{{count}} archivos · {{size}}",
+      "count_other": "{{count}} archivos · {{size}}",
+      "none": "No quedó nada"
+    },
+    "usage": {
+      "onTitle": "El uso de apps está activado",
+      "offTitle": "Mostrar tamaños de apps",
+      "onDesc": "Se ven los tamaños y las fechas de último uso",
+      "offDesc": "Necesario para encontrar apps sin usar"
+    },
+    "lastClean": "Última limpieza: {{when}}",
+    "fire": {
+      "title": "Fire TV borra los cachés de una app a la vez",
+      "body": "Fire TV no tiene ningún ajuste que permita a otra app vaciar cachés por ti, así que el Limpiador te lleva a la página propia de Fire TV para cada app. Elige una app abajo, presiona <1>Borrar caché</1> en la página que se abre y luego Atrás para volver aquí. Los archivos sobrantes y las apps en segundo plano se limpian igualmente de una sola vez.",
+      "openListBtn": "Abrir la lista de apps de Fire TV",
+      "cacheSize": "{{size}} de caché",
+      "cacheHidden": "El tamaño del caché está oculto en Fire TV",
+      "clearCacheBtn": "Borrar caché"
+    },
+    "gate": {
+      "title": "Solo falta activar un interruptor",
+      "body": "Android no permite que una app vacíe por su cuenta el caché de otra. En la lista que se abre, busca <1>Snow Media Cache Cleaner</1> y actívalo; luego vuelve aquí y presiona Limpiar. Solo toca «Borrar caché», nunca «Borrar datos», y puedes desactivarlo cuando quieras. Todo lo demás en esta pantalla funciona sin él.",
+      "openBtn": "Abrir Ajustes de accesibilidad"
+    },
+    "unused": {
+      "title": "Apps que nadie abre",
+      "needUsage": "Activa el uso de apps arriba y este equipo listará lo que no se ha abierto en {{days}} días, con el espacio que ocupa cada una.",
+      "none": "Todo lo instalado aquí se usa. No hay nada que quitar.",
+      "more": "{{count}} más, las más pequeñas primero: limpia las grandes y revisa de nuevo."
+    },
+    "detailsBtn": "Detalles",
+    "removeBtn": "Quitar",
+    "check": {
+      "title": "Vale la pena revisar",
+      "desc": "Apps que no vienen de una tienda y apps sin forma de abrirlas. La mayoría son inofensivas: una instalación manual que pediste o un ayudante que instaló otra app. Los anuncios y ventanas emergentes que la gente atribuye a su equipo suelen venir de una de estas.",
+      "none": "No hay nada inesperado instalado.",
+      "sideloaded": "Instalada desde fuera de una tienda",
+      "noWay": "No hay forma de abrirla",
+      "more": "{{count}} más sin mostrar."
+    },
+    "age": {
+      "never": "nunca abierta",
+      "today": "usada hoy",
+      "yesterday": "usada ayer",
+      "days_one": "usada por última vez hace {{count}} día",
+      "days_many": "usada por última vez hace {{count}} días",
+      "days_other": "usada por última vez hace {{count}} días",
+      "months_one": "usada por última vez hace unos {{count}} mes",
+      "months_many": "usada por última vez hace unos {{count}} meses",
+      "months_other": "usada por última vez hace unos {{count}} meses"
+    },
+    "lines": {
+      "fireCaches": "cachés de apps: elige una app en la lista de Fire TV de abajo para borrar su caché",
+      "noCaches": "no hay cachés de apps que valga la pena borrar",
+      "cachesDone": "cachés borrados en {{done}} de {{total}} apps",
+      "cachesRoot_one": "cachés borrados en {{count}} app",
+      "cachesRoot_many": "cachés borrados en {{count}} apps",
+      "cachesRoot_other": "cachés borrados en {{count}} apps",
+      "junkRemoved": "se quitaron {{size}} de archivos sobrantes",
+      "memoryFreed": "se liberaron {{size}} de memoria",
+      "askedToStop_one": "se pidió a {{count}} app detener su trabajo en segundo plano",
+      "askedToStop_many": "se pidió a {{count}} apps detener su trabajo en segundo plano",
+      "askedToStop_other": "se pidió a {{count}} apps detener su trabajo en segundo plano",
+      "noJunk": "no hay archivos sobrantes que quitar",
+      "stopped": "detenido"
+    },
+    "toast": {
+      "fireCachesTitle": "En Fire TV los cachés se borran de una app a la vez",
+      "fireCachesDesc": "Elige una app en la lista de más abajo y presiona Borrar caché en la página que se abre.",
+      "turnOnTitle": "Activa primero la limpieza de cachés",
+      "turnOnDesc": "Activa Snow Media Cache Cleaner en Accesibilidad. El botón al final de esta pantalla abre esa lista.",
+      "clearFailedTitle": "No se pudieron borrar los cachés",
+      "openListTitle": "No se pudo abrir la lista de apps",
+      "openListDesc": "En la pantalla de inicio de Fire TV ve a Ajustes → Aplicaciones → Administrar aplicaciones instaladas, elige una app y presiona Borrar caché.",
+      "backgroundFailedTitle": "No se pudieron cerrar las apps en segundo plano",
+      "removedTitle": "Quitada",
+      "removedDesc": "{{name}} ya no está.",
+      "keptTitle": "Conservada",
+      "keptDesc": "{{name}} sigue instalada.",
+      "removeFailedTitle": "No se pudo quitar",
+      "appInfoFailedTitle": "No se pudo abrir la info de la app",
+      "byHandTitle": "Ábrelo manualmente",
+      "byHandDesc": "Ajustes de Android → Accesibilidad → Snow Media Cache Cleaner.",
+      "noUsageTitle": "Este equipo no tiene pantalla de uso",
+      "noUsageDesc": "El borrado de cachés y el cierre en segundo plano siguen funcionando. Los tamaños y las fechas de último uso seguirán ocultos.",
+      "usageFailedTitle": "No se pudo abrir esa pantalla"
+    }
+  }
+}

@@ -9,9 +9,10 @@
 // listener runs before every screen's own and keeps the keys while it is up.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
+import { useTranslation } from 'react-i18next';
 import { Smartphone } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { PHONE_REMOTE_EVENT, answerPhoneRequest, pendingPhoneRequest, type PhoneRequest } from '@/lib/phoneRemote';
+import { PHONE_REMOTE_EVENT, answerPhoneRequest, pendingPhoneRequest, phoneKindKey, type PhoneRequest } from '@/lib/phoneRemote';
 
 const isBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || e.keyCode === 4 || e.keyCode === 27;
 const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23;
@@ -22,8 +23,10 @@ const ARM_MS = 800;
 const BACK_ONCE_MS = 350;
 
 const PhoneRequestPrompt = () => {
+  const { t } = useTranslation();
   const [request, setRequest] = useState<PhoneRequest | null>(() => pendingPhoneRequest());
   const [focus, setFocus] = useState<0 | 1>(0);
+  // The key of the note being shown, translated when drawn.
   const [note, setNote] = useState<string | null>(null);
   const requestRef = useRef(request); requestRef.current = request;
   const focusRef = useRef(focus); focusRef.current = focus;
@@ -62,8 +65,8 @@ const PhoneRequestPrompt = () => {
 
   useEffect(() => {
     if (!note) return;
-    const t = window.setTimeout(() => setNote(null), 4_000);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setNote(null), 4_000);
+    return () => window.clearTimeout(timer);
   }, [note]);
 
   const answer = useCallback((allow: boolean) => {
@@ -74,8 +77,8 @@ const PhoneRequestPrompt = () => {
     requestRef.current = null;
     setRequest(null);
     void answerPhoneRequest(r.rid, allow).then((ok) => {
-      if (!ok) setNote("Couldn't reach Snow Media Center's server. Try pairing again from the phone.");
-      else if (allow) setNote('Phone allowed. It can control this TV now.');
+      if (!ok) setNote('phoneRemote.request.unreachable');
+      else if (allow) setNote('phoneRemote.request.allowed');
     });
   }, []);
 
@@ -116,23 +119,23 @@ const PhoneRequestPrompt = () => {
     if (!note) return null;
     return (
       <div className="fixed z-[190] left-0 right-0 flex justify-center pointer-events-none" style={{ top: 'var(--tv-safe-block, 2rem)' }} role="status">
-        <div className="rounded-2xl border border-white/20 px-5 py-3 text-white shadow-2xl" style={{ backgroundColor: 'rgba(7, 27, 58, 0.95)' }}>{note}</div>
+        <div className="rounded-2xl border border-white/20 px-5 py-3 text-white shadow-2xl" style={{ backgroundColor: 'rgba(7, 27, 58, 0.95)' }}>{t(note)}</div>
       </div>
     );
   }
   const btn = (i: 0 | 1) => `tv-ring rounded-xl px-6 py-3 text-lg font-semibold ${focus === i ? 'bg-white text-black' : 'bg-white/10 text-white'}`;
   return (
-    <div className="fixed top-0 left-0 right-0 bottom-0 z-[190] bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" data-state="open" aria-label="Allow this phone?">
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[190] bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" data-state="open" aria-label={t('phoneRemote.request.title')}>
       <Card className="w-full max-w-xl bg-gradient-to-br from-blue-900 to-slate-900 border-brand-gold/50 p-7 shadow-2xl text-white">
         <div className="flex items-center mb-3">
           <Smartphone className="w-7 h-7 text-brand-gold mr-3" />
-          <h2 className="text-3xl font-bold">Allow this phone?</h2>
+          <h2 className="text-3xl font-bold">{t('phoneRemote.request.title')}</h2>
         </div>
-        <p className="text-lg text-white/80 mb-2">{request.device} entered this TV's code and wants to be a remote for Snow Media Center.</p>
-        <p className="text-base text-white/60 mb-6">Allow it only if it's your phone, or the phone of someone in the room.</p>
+        <p className="text-lg text-white/80 mb-2">{t('phoneRemote.request.text', { device: t(phoneKindKey(request.device)) })}</p>
+        <p className="text-base text-white/60 mb-6">{t('phoneRemote.request.hint')}</p>
         <div className="flex">
-          <button type="button" data-focused={focus === 0 ? 'true' : 'false'} className={`${btn(0)} mr-3`} onClick={() => answer(true)}>Allow</button>
-          <button type="button" data-focused={focus === 1 ? 'true' : 'false'} className={btn(1)} onClick={() => answer(false)}>Don't allow</button>
+          <button type="button" data-focused={focus === 0 ? 'true' : 'false'} className={`${btn(0)} mr-3`} onClick={() => answer(true)}>{t('phoneRemote.request.allowBtn')}</button>
+          <button type="button" data-focused={focus === 1 ? 'true' : 'false'} className={btn(1)} onClick={() => answer(false)}>{t('phoneRemote.request.denyBtn')}</button>
         </div>
       </Card>
     </div>

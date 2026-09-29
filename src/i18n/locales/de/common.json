@@ -1,12 +1,11 @@
 {
   "common": {
     "signIn": "Mein Konto",
-    "dashboard": "Übersicht",
+    "dashboard": "Dashboard",
     "settings": "Einstellungen",
     "admin": "Admin",
     "back": "Zurück",
     "backToHome": "Zurück zur Startseite",
-    "beta": "Beta",
     "ok": "OK",
     "cancel": "Abbrechen",
     "close": "Schließen",
@@ -16,7 +15,7 @@
     "yes": "Ja",
     "no": "Nein",
     "loading": "Wird geladen…",
-    "tryAgain": "Versuch es erneut",
+    "tryAgain": "Erneut versuchen",
     "signInAction": "Anmelden",
     "signOut": "Abmelden",
     "relative": {

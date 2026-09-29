@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import QRCode from 'qrcode';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -25,13 +26,14 @@ export const QRCheckoutDialog = ({
   open,
   onOpenChange,
   url,
-  title = 'Scan to Checkout',
-  description = 'Scan this QR code with your phone to complete the payment.',
+  title,
+  description,
   onConfirmPaid,
   confirming = false,
-  confirmLabel = "I've Completed Payment",
+  confirmLabel,
   checkoutNotice,
 }: QRCheckoutDialogProps) => {
+  const { t } = useTranslation();
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,13 +46,9 @@ export const QRCheckoutDialog = ({
   const notice =
     checkoutNotice === undefined
       ? {
-          title: 'Heads up — sign-in required at checkout',
+          title: t('billing.qrCheckout.noticeTitle'),
           body: (
-            <>
-              You'll be asked to sign in on the website to complete your purchase. Use the{' '}
-              <span className="font-semibold">same email & password</span> you use here in the app,
-              or create a new account on the site.
-            </>
+            <Trans i18nKey="billing.qrCheckout.noticeBody" components={[<span key="same" className="font-semibold" />]} />
           ),
         }
       : checkoutNotice;
@@ -61,17 +59,17 @@ export const QRCheckoutDialog = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <Smartphone className="w-6 h-6 text-blue-400" />
-            {title}
+            {title ?? t('billing.qrCheckout.title')}
           </DialogTitle>
           <DialogDescription className="text-blue-200">
-            {description}
+            {description ?? t('billing.qrCheckout.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-4 py-4">
           <div className="bg-white p-3 rounded-lg shadow-lg">
             {qrDataUrl ? (
-              <img src={qrDataUrl} alt="Checkout QR Code" className="w-[min(60vh,18rem)] h-[min(60vh,18rem)]" />
+              <img src={qrDataUrl} alt={t('billing.qrCheckout.qrAlt')} className="w-[min(60vh,18rem)] h-[min(60vh,18rem)]" />
             ) : (
               <div className="w-[min(60vh,18rem)] h-[min(60vh,18rem)] flex items-center justify-center">
                 <Loader2 className="w-10 h-10 text-slate-700 animate-spin" />
@@ -81,7 +79,7 @@ export const QRCheckoutDialog = ({
 
           <div className="text-center space-y-2 w-full">
             <p className="text-sm text-white/70">
-              Open your phone camera and point it at the QR code.
+              {t('billing.qrCheckout.pointCamera')}
             </p>
             {notice && (
               <div className="bg-blue-600/15 border border-blue-400/40 rounded-md p-3 text-left text-xs text-blue-100 space-y-1">
@@ -97,7 +95,7 @@ export const QRCheckoutDialog = ({
                 className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline break-all"
               >
                 <ExternalLink className="w-3 h-3" />
-                Or open this link
+                {t('billing.qrCheckout.openLink')}
               </a>
             )}
           </div>
@@ -110,9 +108,9 @@ export const QRCheckoutDialog = ({
               size="lg"
             >
               {confirming ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Verifying...</>
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('billing.qrCheckout.verifying')}</>
               ) : (
-                confirmLabel
+                confirmLabel ?? t('billing.qrCheckout.confirmDefault')
               )}
             </Button>
           )}
@@ -122,7 +120,7 @@ export const QRCheckoutDialog = ({
             variant="outline"
             className="w-full bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/30"
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
         </div>
       </DialogContent>

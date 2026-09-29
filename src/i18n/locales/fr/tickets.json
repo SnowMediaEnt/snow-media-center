@@ -1,0 +1,143 @@
+{
+  "tickets": {
+    "list": {
+      "title": "Tickets",
+      "backToTickets": "Retour aux tickets",
+      "newBtn": "Nouveau ticket",
+      "newChip": "Nouveau",
+      "created": "Créé : {{when}}",
+      "updated": "Dernière mise à jour : {{when}}",
+      "emptyTitle": "Aucun ticket d’assistance",
+      "emptyUser": "Vous n’avez encore créé aucun ticket d’assistance.",
+      "emptyChecking": "Recherche de votre compte Snow Media…",
+      "emptyPlayerOnly": "Vos tickets sont sur votre compte web Snow Media, pas sur votre identifiant de streaming. Connectez-vous-y pour les voir.",
+      "emptyGuest": "Vous pouvez envoyer un ticket sans compte, mais pour recevoir des réponses il faut vous connecter.",
+      "createFirstBtn": "Créer votre premier ticket",
+      "sendBtn": "Envoyer un ticket",
+      "signIn": "Se connecter",
+      "confirmDelete": "Supprimer ce ticket ? Cette action est irréversible."
+    },
+    "status": {
+      "active": "Actif",
+      "open": "Ouvert",
+      "inProgress": "En cours",
+      "resolved": "Résolu",
+      "closed": "Fermé"
+    },
+    "priority": {
+      "normal": "Normale",
+      "low": "Basse",
+      "high": "Haute",
+      "urgent": "Urgente"
+    },
+    "ai": {
+      "historyTitle": "Historique du chat IA",
+      "lastFiveChip": "5 derniers",
+      "askPlaceholder": "Posez n’importe quelle question à l’IA...",
+      "newChatBtn": "Nouveau chat",
+      "empty": "Aucune conversation IA enregistrée. Commencez-en une ci-dessus.",
+      "lastMessage": "Dernier message : {{when}}",
+      "confirmDelete": "Supprimer cette conversation IA ?",
+      "assistant": "Assistant IA",
+      "historyAria": "Historique de la conversation IA",
+      "typePlaceholder": "Écrivez votre message...",
+      "you": "Vous"
+    },
+    "ticket": {
+      "confirmDelete": "Supprimer ce ticket et tous ses messages ? Cette action est irréversible.",
+      "closeBtn": "Fermer le ticket",
+      "deleteBtn": "Supprimer le ticket",
+      "messages": "Messages",
+      "historyAria": "Historique de la conversation du ticket",
+      "you": "Vous",
+      "support": "Assistance Snow Media",
+      "replyPlaceholder": "Écrivez votre réponse...",
+      "voiceReady": "Message vocal prêt à envoyer",
+      "shotReady": "Capture prête à envoyer",
+      "removeBtn": "Retirer",
+      "sendReplyBtn": "Envoyer",
+      "attachShotBtn": "Joindre une capture",
+      "recordBtn": "Enregistrer un message vocal",
+      "stopBtn": "Arrêter ({{seconds}} s)",
+      "noMicNote": "Les messages vocaux nécessitent un micro, que les télécommandes TV ne partagent pas avec les applis ; vous pouvez quand même écouter ceux que l’assistance vous envoie."
+    },
+    "create": {
+      "title": "Créer un ticket d’assistance",
+      "cardTitle": "Nouvelle demande d’assistance",
+      "notSignedIn": "<1>Non connecté</1> : votre ticket sera transmis, mais vous ne pourrez pas recevoir de réponses dans l’appli. Connectez-vous pour en recevoir.",
+      "emailLabel": "Votre e-mail <1>(facultatif)</1>",
+      "emailPlaceholder": "vous@exemple.com (laissez vide pour envoyer anonymement)",
+      "subjectLabel": "Objet",
+      "subjectPlaceholder": "Brève description de votre problème...",
+      "messageLabel": "Message",
+      "messagePlaceholder": "Décrivez votre problème en détail...",
+      "creating": "Création...",
+      "createBtn": "Créer le ticket"
+    },
+    "account": {
+      "title": "Créer un compte ?",
+      "desc": "Nous utiliserons <1>{{email}}</1> pour que vous receviez les réponses à votre ticket dans l’appli. Choisissez un mot de passe (et un nom facultatif) ci-dessous, ou passez.",
+      "nameLabel": "Nom (facultatif)",
+      "namePlaceholder": "Votre nom",
+      "passwordLabel": "Mot de passe",
+      "passwordPlaceholder": "Au moins 6 caractères",
+      "skipBtn": "Passer",
+      "creating": "Création...",
+      "createBtn": "Créer le compte"
+    },
+    "toast": {
+      "restoredTitle": "Compte restauré",
+      "restoredDescEmail": "Connecté à votre compte Snow Media ({{email}}). Vos tickets sont de retour.",
+      "restoredDesc": "Connecté à votre compte Snow Media. Vos tickets sont de retour.",
+      "invalidEmailTitle": "E-mail invalide",
+      "invalidEmailDesc": "Saisissez un e-mail valide ou laissez vide pour envoyer anonymement.",
+      "sentTitle": "Ticket envoyé",
+      "sentDescEmail": "Nous l’avons reçu. Créez un compte pour recevoir la réponse dans l’appli.",
+      "sentDescAnon": "Nous avons reçu votre ticket anonyme. Aucune réponse ne sera possible.",
+      "errorTitle": "Erreur",
+      "sendFailed": "Échec de l’envoi du ticket. Veuillez réessayer.",
+      "passwordShortTitle": "Mot de passe trop court",
+      "passwordShortDesc": "Utilisez au moins 6 caractères.",
+      "accountCreatedTitle": "Compte créé",
+      "accountCreatedDesc": "Vérifiez vos e-mails pour confirmer, puis connectez-vous pour voir les réponses.",
+      "accountFailedTitle": "Impossible de créer le compte",
+      "accountFailedDesc": "Réessayez plus tard.",
+      "replyFailedTitle": "Impossible d’envoyer",
+      "replyFailedDesc": "Veuillez réessayer.",
+      "successTitle": "Succès",
+      "loadTicketsFailed": "Impossible de charger les tickets d’assistance",
+      "loadMessagesFailed": "Impossible de charger les messages",
+      "createdDesc": "Ticket d’assistance créé avec succès",
+      "createFailed": "Impossible de créer le ticket d’assistance",
+      "messageFailed": "Impossible d’envoyer le message",
+      "closedDesc": "Le ticket a été fermé",
+      "closeFailed": "Impossible de fermer le ticket",
+      "deletedTitle": "Supprimé",
+      "deletedDesc": "Ticket supprimé",
+      "deleteFailed": "Impossible de supprimer le ticket"
+    },
+    "attachment": {
+      "failed": "Impossible d’ouvrir cette pièce jointe.",
+      "loadingVoice": "Chargement du message vocal…",
+      "loadingShot": "Chargement de la capture…",
+      "openFullAria": "Ouvrir la capture en taille réelle",
+      "shotAlt": "Capture jointe à ce message",
+      "shotPng": "Capture (PNG)",
+      "shot": "Capture",
+      "toast": {
+        "shotAttachedTitle": "Capture jointe",
+        "shotAttachedDesc": "La vidéo n’apparaît pas dans une capture ; les menus et les erreurs, si.",
+        "shotFailedTitle": "Impossible de faire une capture",
+        "cannotRecordTitle": "Enregistrement impossible ici",
+        "nothingRecordedTitle": "Rien n’a été enregistré",
+        "nothingRecordedDesc": "Maintenez le bouton enfoncé pendant que vous parlez, puis relâchez."
+      },
+      "errors": {
+        "empty": "Ce fichier est revenu vide ; veuillez réessayer.",
+        "tooBig": "Ce fichier est trop volumineux pour être joint (limite de 10 Mo).",
+        "uploadFailed": "Impossible d’envoyer cette pièce jointe.",
+        "noMic": "Cet appareil n’a pas de micro disponible pour les applis."
+      }
+    }
+  }
+}

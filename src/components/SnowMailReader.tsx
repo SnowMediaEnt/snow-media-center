@@ -7,6 +7,7 @@
 // the mail.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, QrCode, ExternalLink, PlayCircle, ClipboardList, ShoppingBag } from 'lucide-react';
 import { blockLink, mailLongDate, sanitizeMailHtml, type MailBlock, type SnowMail } from '@/lib/snowMail';
 import { trackEvent } from '@/lib/analytics';
@@ -31,6 +32,7 @@ const LinkIcon = ({ block }: { block: MailBlock }) => {
 const money = (n?: number) => (typeof n === 'number' ? `$${Number.isInteger(n) ? n : n.toFixed(2)}` : '');
 
 const SnowMailReader = ({ mail, onClose }: Props) => {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const linkRefs = useRef<Map<string, HTMLElement>>(new Map());
   const links = useMemo(() => mail.blocks.map((b) => ({ block: b, link: blockLink(b) })).filter((x) => x.link), [mail.blocks]);
@@ -117,7 +119,7 @@ const SnowMailReader = ({ mail, onClose }: Props) => {
             className={`inline-flex items-center gap-3 rounded-full px-7 py-3.5 my-2 mr-3 text-lg font-bold cursor-pointer transition-all ${picked ? 'bg-brand-gold text-slate-900' : 'bg-brand-ice text-slate-900'} ${ring}`}>
             <LinkIcon block={b} />
             {link.label}
-            <span className="text-sm font-semibold opacity-70 flex items-center gap-1"><QrCode className="w-4 h-4" /> OK to scan</span>
+            <span className="text-sm font-semibold opacity-70 flex items-center gap-1"><QrCode className="w-4 h-4" /> {t('support.mail.reader.okToScan')}</span>
           </div>
         ) : null;
       case 'video':
@@ -127,7 +129,7 @@ const SnowMailReader = ({ mail, onClose }: Props) => {
             {b.thumbnailUrl && <img src={b.thumbnailUrl} alt="" className="w-full object-cover max-h-[55vh]" loading="lazy" />}
             <div className="absolute inset-0 flex items-center justify-center bg-black/35">
               <div className={`flex items-center gap-3 rounded-full px-7 py-3.5 text-lg font-bold ${picked ? 'bg-brand-gold text-slate-900' : 'bg-white/90 text-slate-900'}`}>
-                <PlayCircle className="w-7 h-7" /> {link.label} <span className="text-sm font-semibold opacity-70">· OK to scan</span>
+                <PlayCircle className="w-7 h-7" /> {link.label} <span className="text-sm font-semibold opacity-70">· {t('support.mail.reader.okToScan')}</span>
               </div>
             </div>
           </div>
@@ -138,10 +140,10 @@ const SnowMailReader = ({ mail, onClose }: Props) => {
             className={`flex items-center gap-6 rounded-2xl bg-white/[0.06] p-5 mb-6 cursor-pointer ${ring}`}>
             {b.product.image_url && <img src={b.product.image_url} alt="" className="w-40 h-40 object-cover rounded-xl shrink-0" loading="lazy" />}
             <div className="min-w-0 flex-1">
-              <div className="text-2xl font-extrabold text-white truncate">{b.product.name}</div>
-              {typeof b.product.price === 'number' && <div className="text-xl font-bold text-brand-gold mt-1">{money(b.product.price)}</div>}
+              <div className="text-2xl font-extrabold text-white truncate">{b.product.name || t('support.mail.link.productFallback')}</div>
+              {b.product.price !== undefined && <div className="text-xl font-bold text-brand-gold mt-1">{money(b.product.price)}</div>}
               <div className={`inline-flex items-center gap-2 mt-4 rounded-full px-6 py-2.5 text-base font-bold ${picked ? 'bg-brand-gold text-slate-900' : 'bg-brand-ice text-slate-900'}`}>
-                <ShoppingBag className="w-5 h-5" /> Shop now <span className="text-sm font-semibold opacity-70">· OK to scan</span>
+                <ShoppingBag className="w-5 h-5" /> {t('support.mail.reader.shopNow')} <span className="text-sm font-semibold opacity-70">· {t('support.mail.reader.okToScan')}</span>
               </div>
             </div>
           </div>
@@ -155,10 +157,11 @@ const SnowMailReader = ({ mail, onClose }: Props) => {
     <div className="fixed inset-0 z-[60] bg-[#0b1020] text-white flex flex-col" data-snow-mail-reader>
       <div className="shrink-0 flex items-center gap-4 px-8 py-3 border-b border-white/10 bg-gradient-to-r from-[#5E0466]/60 to-[#0A2147]/60">
         <button type="button" onClick={onClose} className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-base font-semibold hover:bg-white/20">
-          <ArrowLeft className="w-5 h-5" /> Back
+          <ArrowLeft className="w-5 h-5" /> {t('common.back')}
         </button>
         <img src="https://snowmediaent.com/yeti-logo.png" alt="" className="w-9 h-9 rounded-full" />
         <div className="min-w-0">
+          {/* i18n-ignore: company name */}
           <div className="text-base font-bold text-white/90 leading-tight">Snow Media Entertainment</div>
           <div className="text-sm text-white/60 leading-tight">{mailLongDate(mail.sentAt)}</div>
         </div>
@@ -170,29 +173,29 @@ const SnowMailReader = ({ mail, onClose }: Props) => {
           {mail.preheader && <p className="text-xl text-brand-ice/90 mb-6">{mail.preheader}</p>}
           <div className="mt-6">
             {mail.blocks.map(renderBlock)}
-            {mail.blocks.length === 0 && <p className="text-xl text-white/60">This post has no content to show.</p>}
+            {mail.blocks.length === 0 && <p className="text-xl text-white/60">{t('support.mail.reader.empty')}</p>}
           </div>
         </div>
       </div>
 
       <div className="shrink-0 px-8 py-2.5 border-t border-white/10 text-sm text-white/55 flex gap-6 bg-[#0b1020]">
-        <span>▲ ▼ Scroll</span>
-        {links.length > 0 && <span>◀ ▶ Pick a link ({linkIdx + 1} of {links.length})</span>}
-        {links.length > 0 && <span>OK Scan it with your phone</span>}
-        <span>Back Close</span>
+        <span>▲ ▼ {t('support.mail.reader.hintScroll')}</span>
+        {links.length > 0 && <span>◀ ▶ {t('support.mail.reader.hintPick', { current: linkIdx + 1, total: links.length })}</span>}
+        {links.length > 0 && <span>{t('support.mail.reader.hintScan')}</span>}
+        <span>{t('support.mail.reader.hintClose')}</span>
       </div>
 
       {qr && (
         <div className="absolute inset-0 z-10 bg-black/75 flex items-center justify-center" onClick={() => setQr(null)}>
           <div className="bg-[#111827] rounded-3xl p-8 flex items-center gap-8 max-w-4xl ring-1 ring-white/15">
             <div className="w-[320px] h-[320px] rounded-2xl bg-white flex items-center justify-center overflow-hidden">
-              {qr.png ? <img src={qr.png} alt="" className="w-full h-full" /> : <span className="text-slate-500">Making code…</span>}
+              {qr.png ? <img src={qr.png} alt="" className="w-full h-full" /> : <span className="text-slate-500">{t('support.mail.reader.makingCode')}</span>}
             </div>
             <div className="min-w-0">
-              <div className="text-sm uppercase tracking-widest text-brand-gold font-bold mb-2">Scan with your phone</div>
+              <div className="text-sm uppercase tracking-widest text-brand-gold font-bold mb-2">{t('support.mail.reader.scanTitle')}</div>
               <div className="text-3xl font-extrabold leading-tight mb-3">{qr.label}</div>
               <div className="text-base text-white/60 break-all">{qr.url}</div>
-              <div className="text-sm text-white/50 mt-6">Press OK or Back to close</div>
+              <div className="text-sm text-white/50 mt-6">{t('support.mail.reader.closeHint')}</div>
             </div>
           </div>
         </div>

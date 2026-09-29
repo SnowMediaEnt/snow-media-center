@@ -6,6 +6,7 @@
 // library while looking like it worked. Every branch below exists because the
 // naive version is wrong on one of the two section types.
 
+import i18n from '@/i18n';
 import type { PlexSectionType } from '@/lib/plexLibraryRows';
 
 export interface LibraryFilterState {
@@ -33,8 +34,8 @@ export function describeFilters(f: LibraryFilterState, sortTitle?: string): stri
   if (f.genre) bits.push(f.genre.title);
   if (f.year) bits.push(f.year.title);
   if (f.contentRating) bits.push(f.contentRating.title);
-  if (f.unwatched) bits.push('Unwatched');
-  if (sortTitle) bits.push(`by ${sortTitle}`);
+  if (f.unwatched) bits.push(i18n.t('plex.library.unwatched'));
+  if (sortTitle) bits.push(i18n.t('plex.library.sortedBy', { sort: sortTitle }));
   return bits.join(' · ');
 }
 
@@ -89,25 +90,32 @@ function yearParam(key: string): string {
  * Filtered against what the SERVER says it supports, so an unusual library
  * never gets an option that silently does nothing.
  */
-export const PREFERRED_SORTS: Array<{ key: string; title: string }> = [
-  { key: 'titleSort', title: 'A – Z' },
-  { key: 'titleSort:desc', title: 'Z – A' },
-  { key: 'addedAt:desc', title: 'Recently Added' },
-  { key: 'originallyAvailableAt:desc', title: 'Release Date' },
-  { key: 'year:desc', title: 'Year (newest)' },
-  { key: 'year', title: 'Year (oldest)' },
-  { key: 'audienceRating:desc', title: 'Rating (highest)' },
-  { key: 'lastViewedAt:desc', title: 'Recently Watched' },
+export const PREFERRED_SORTS: Array<{ key: string; title: string; titleKey: string }> = [
+  { key: 'titleSort', title: 'A – Z', titleKey: 'plex.library.sorts.aToZ' },
+  { key: 'titleSort:desc', title: 'Z – A', titleKey: 'plex.library.sorts.zToA' },
+  { key: 'addedAt:desc', title: 'Recently Added', titleKey: 'plex.library.sorts.recentlyAdded' },
+  { key: 'originallyAvailableAt:desc', title: 'Release Date', titleKey: 'plex.library.sorts.releaseDate' },
+  { key: 'year:desc', title: 'Year (newest)', titleKey: 'plex.library.sorts.yearNewest' },
+  { key: 'year', title: 'Year (oldest)', titleKey: 'plex.library.sorts.yearOldest' },
+  { key: 'audienceRating:desc', title: 'Rating (highest)', titleKey: 'plex.library.sorts.ratingHighest' },
+  { key: 'lastViewedAt:desc', title: 'Recently Watched', titleKey: 'plex.library.sorts.recentlyWatched' },
 ];
+
+/** A sort as it is shown: the title in the app's language (`title` above is the English fallback). */
+type Translate = (key: string, options?: { defaultValue?: string }) => string;
+const shown = (s: { key: string; title: string; titleKey: string }, tr: Translate): { key: string; title: string } =>
+  ({ key: s.key, title: tr(s.titleKey, { defaultValue: s.title }) });
 
 /** Keep only the sorts this section actually advertises. */
 export function availableSorts(
   serverSorts: Array<{ key: string; title: string }>,
+  // A screen passes its own t, so it redraws with the language.
+  tr: Translate = (key, options) => i18n.t(key, options),
 ): Array<{ key: string; title: string }> {
-  if (!serverSorts.length) return PREFERRED_SORTS;
+  if (!serverSorts.length) return PREFERRED_SORTS.map((s) => shown(s, tr));
   const supported = new Set(serverSorts.map((s) => s.key));
   const out = PREFERRED_SORTS.filter((s) => supported.has(s.key.split(':')[0]));
-  return out.length ? out : PREFERRED_SORTS;
+  return (out.length ? out : PREFERRED_SORTS).map((s) => shown(s, tr));
 }
 
 /** Find a filter by its Plex `filter` name, tolerating libtype prefixes. */

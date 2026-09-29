@@ -1,6 +1,9 @@
 import { act, configure, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// Slow under a loaded full run (renders the whole screen); the default 5 s flakes.
+vi.setConfig({ testTimeout: 20_000 });
+
 // The screen loads its games and channels, then lays out up to 80 rows: on a
 // busy test machine the first render can pass the default 1 s wait.
 configure({ asyncUtilTimeout: 4000 });

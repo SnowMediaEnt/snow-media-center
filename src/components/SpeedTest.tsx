@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, Gauge, Play, RotateCw, Wifi, Loader2 } from 'lucide-react';
@@ -17,6 +19,7 @@ const PING_URL = 'https://speed.cloudflare.com/__down?bytes=0';
 const fmtMbps = (bps: number) => (bps / 1_000_000).toFixed(bps > 100_000_000 ? 0 : 1);
 
 const SpeedTest = ({ onClose }: SpeedTestProps) => {
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<Phase>('idle');
   const [ping, setPing] = useState<number | null>(null);
   const [jitter, setJitter] = useState<number | null>(null);
@@ -40,7 +43,7 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
         // ignore
       }
     }
-    if (!samples.length) throw new Error('Ping failed');
+    if (!samples.length) throw new Error(i18n.t('support.speedTest.errors.pingFailed'));
     samples.sort((a, b) => a - b);
     const trimmed = samples.slice(1, -1).length ? samples.slice(1, -1) : samples;
     const avg = trimmed.reduce((s, v) => s + v, 0) / trimmed.length;
@@ -153,7 +156,7 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
       setPhase('done');
     } catch (e) {
       console.error('[SpeedTest] failed:', e);
-      setErrorMsg(e instanceof Error ? e.message : 'Speed test failed');
+      setErrorMsg(e instanceof Error ? e.message : i18n.t('support.speedTest.errors.generic'));
       setPhase('error');
     } finally {
       abortRef.current = null;
@@ -231,6 +234,8 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
 
   const focusRing = (id: 'back' | 'start') => (focused === id ? 'scale-105' : '');
 
+  const isDone = phase === 'done';
+  const isError = phase === 'error';
   const isRunning = phase === 'ping' || phase === 'download' || phase === 'upload';
   const downMbps = Number(fmtMbps(download));
   const upMbps = Number(fmtMbps(upload));
@@ -238,12 +243,12 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
   const goodForHD = downMbps >= 15;
 
   const phaseLabel: Record<Phase, string> = {
-    idle: 'Ready',
-    ping: 'Measuring latency…',
-    download: 'Testing download speed…',
-    upload: 'Testing upload speed…',
-    done: 'Test complete',
-    error: 'Test failed',
+    idle: t('support.speedTest.phase.idle'),
+    ping: t('support.speedTest.phase.ping'),
+    download: t('support.speedTest.phase.download'),
+    upload: t('support.speedTest.phase.upload'),
+    done: t('support.speedTest.phase.done'),
+    error: t('support.speedTest.phase.error'),
   };
 
   return (
@@ -254,12 +259,12 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
             ref={backBtnRef}
             focusId="speedtest-back"
             onClick={closeNow}
-            label="Back"
+            label={t('common.back')}
             focused={focused === 'back'}
           />
           <div className="flex items-center gap-3 text-white">
             <Gauge className="w-7 h-7 text-brand-ice" />
-            <h1 className="text-3xl font-bold">Internet Speed Test</h1>
+            <h1 className="text-3xl font-bold">{t('support.speedTest.title')}</h1>
           </div>
           <Button
             ref={startBtnRef}
@@ -274,17 +279,17 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
             {isRunning ? (
               <>
                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Testing…
+                {t('support.speedTest.testingBtn')}
               </>
             ) : phase === 'done' || phase === 'error' ? (
               <>
                 <RotateCw className="w-5 h-5 mr-2" />
-                Run Again
+                {t('support.speedTest.runAgainBtn')}
               </>
             ) : (
               <>
                 <Play className="w-5 h-5 mr-2" />
-                Start
+                {t('support.speedTest.startBtn')}
               </>
             )}
           </Button>
@@ -301,70 +306,69 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
         {/* Big readouts */}
         <div className="grid grid-cols-2 gap-6 mb-6">
           <Card className="p-8 bg-slate-900/70 border-slate-700 text-center">
-            <div className="text-blue-200 text-sm uppercase tracking-wider mb-2">Download</div>
+            <div className="text-blue-200 text-sm uppercase tracking-wider mb-2">{t('support.speedTest.download')}</div>
             <div className="text-6xl font-bold text-white tabular-nums">
               {downMbps || '—'}
             </div>
-            <div className="text-blue-300 mt-1">Mbps</div>
+            <div className="text-blue-300 mt-1">{t('support.speedTest.mbps')}</div>
           </Card>
           <Card className="p-8 bg-slate-900/70 border-slate-700 text-center">
-            <div className="text-blue-200 text-sm uppercase tracking-wider mb-2">Upload</div>
+            <div className="text-blue-200 text-sm uppercase tracking-wider mb-2">{t('support.speedTest.upload')}</div>
             <div className="text-6xl font-bold text-white tabular-nums">
               {upMbps || '—'}
             </div>
-            <div className="text-blue-300 mt-1">Mbps</div>
+            <div className="text-blue-300 mt-1">{t('support.speedTest.mbps')}</div>
           </Card>
         </div>
 
         <div className="grid grid-cols-2 gap-6 mb-6">
           <Card className="p-5 bg-slate-900/70 border-slate-700 text-center">
-            <div className="text-blue-200 text-xs uppercase tracking-wider mb-1">Ping</div>
+            <div className="text-blue-200 text-xs uppercase tracking-wider mb-1">{t('support.speedTest.ping')}</div>
             <div className="text-2xl font-semibold text-white tabular-nums">
-              {ping !== null ? `${Math.round(ping)} ms` : '—'}
+              {ping !== null ? t('support.speedTest.ms', { value: Math.round(ping) }) : '—'}
             </div>
           </Card>
           <Card className="p-5 bg-slate-900/70 border-slate-700 text-center">
-            <div className="text-blue-200 text-xs uppercase tracking-wider mb-1">Jitter</div>
+            <div className="text-blue-200 text-xs uppercase tracking-wider mb-1">{t('support.speedTest.jitter')}</div>
             <div className="text-2xl font-semibold text-white tabular-nums">
-              {jitter !== null ? `${Math.round(jitter)} ms` : '—'}
+              {jitter !== null ? t('support.speedTest.ms', { value: Math.round(jitter) }) : '—'}
             </div>
           </Card>
         </div>
 
         {/* Verdict */}
-        {phase === 'done' && (
+        {isDone && (
           <Card className="p-6 bg-gradient-to-br from-slate-900/80 to-slate-800/80 border-slate-700">
             <div className="flex items-center gap-3 mb-3">
               <Wifi className="w-6 h-6 text-brand-ice" />
-              <h2 className="text-xl font-bold text-white">Streaming Verdict</h2>
+              <h2 className="text-xl font-bold text-white">{t('support.speedTest.verdict.title')}</h2>
             </div>
             {goodFor4K ? (
               <p className="text-green-300">
-                Excellent — your connection ({downMbps} Mbps) handles 4K streaming with no buffering.
+                {t('support.speedTest.verdict.excellent', { speed: downMbps })}
               </p>
             ) : goodForHD ? (
               <p className="text-yellow-300">
-                Good for HD streaming. For consistent 4K you'll want at least 25 Mbps.
+                {t('support.speedTest.verdict.good')}
               </p>
             ) : (
               <p className="text-orange-300">
-                Below the 15 Mbps recommended for HD streaming — expect buffering. Try a wired
-                connection, move closer to your router, or contact your ISP.
+                {t('support.speedTest.verdict.poor')}
               </p>
             )}
           </Card>
         )}
 
-        {phase === 'error' && (
+        {isError && (
           <Card className="p-6 bg-red-900/30 border-red-700/50">
             <p className="text-red-200">
-              Speed test failed: {errorMsg}. Check your internet connection and try again.
+              {t('support.speedTest.failed', { error: errorMsg })}
             </p>
           </Card>
         )}
 
         <p className="text-center text-blue-300/60 text-xs mt-8">
-          Powered by Cloudflare's global speed test network
+          {t('support.speedTest.powered')}
         </p>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import { Gauge, Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { BackButton } from '@/components/ui/BackButton';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { usePlayerEngine, type PlayerEngine } from '@/hooks/usePlayerEngine';
@@ -9,26 +10,27 @@ interface Props {
   onBack: () => void;
 }
 
-/** Why MPV isn't offered, in plain English (EngineChoice's own reason codes). */
-const REASON_LABEL: Record<string, string> = {
-  'not-in-build': 'Not in this build',
-  'android-too-old': 'Needs Android 8 or later',
-  'init-failed': "Couldn't start on this box",
+/** Why MPV isn't offered (EngineChoice's own reason codes), as translation keys. */
+const REASON_KEY: Record<string, string> = {
+  'not-in-build': 'live.playback.reasonNotInBuild',
+  'android-too-old': 'live.playback.reasonAndroidTooOld',
+  'init-failed': 'live.playback.reasonInitFailed',
 };
 
 interface EngineChip {
   id: PlayerEngine;
-  label: string;
-  hint: string;
+  labelKey: string;
+  hintKey: string;
 }
 const CHIPS: EngineChip[] = [
-  { id: 'exo', label: 'ExoPlayer (default)', hint: 'Plays every screen: Live TV, Plex, VOD, Multi-Screen, Backups.' },
-  { id: 'mpv', label: 'MPV (beta)', hint: 'Live TV channels and the Live/Guide preview boxes only.' },
+  { id: 'exo', labelKey: 'live.playback.exoLabel', hintKey: 'live.playback.exoHint' },
+  { id: 'mpv', labelKey: 'live.playback.mpvLabel', hintKey: 'live.playback.mpvHint' },
 ];
 
 const dash = (n: number | null, digits = 0, suffix = ''): string => (n == null ? '—' : `${n.toFixed(digits)}${suffix}`);
 
 const PlaybackScreen = memo(({ onBack }: Props) => {
+  const { t } = useTranslation();
   const { engine, setEngine, loaded } = usePlayerEngine();
   const [mpvAvailable, setMpvAvailable] = useState(true);
   const [mpvReason, setMpvReason] = useState<string | null>(null);
@@ -90,17 +92,17 @@ const PlaybackScreen = memo(({ onBack }: Props) => {
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
       <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
-        <BackButton onClick={onBack} label="Back" data-player-header-btn="" focused={focusIdx === 0} />
+        <BackButton onClick={onBack} label={t('common.back')} data-player-header-btn="" focused={focusIdx === 0} />
         <div className="flex items-center gap-2">
           <Gauge className="w-7 h-7 text-brand-gold" />
-          <h1 className="text-2xl font-quicksand font-bold text-white">Playback</h1>
+          <h1 className="text-2xl font-quicksand font-bold text-white">{t('live.playback.title')}</h1>
         </div>
       </div>
 
       <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
         <div className="w-full max-w-3xl space-y-6">
           <div className="space-y-3">
-            <div className="text-xs uppercase tracking-wide text-white/70">Player engine</div>
+            <div className="text-xs uppercase tracking-wide text-white/70">{t('live.playback.engineHeading')}</div>
             <div className="flex flex-wrap gap-2">
               {CHIPS.map((chip, i) => {
                 const flatIdx = i + 1;
@@ -119,33 +121,33 @@ const PlaybackScreen = memo(({ onBack }: Props) => {
                     } ${focused ? 'scale-105 z-10' : ''}`}
                   >
                     <span className="flex items-center gap-2 text-sm font-quicksand font-bold text-white">
-                      {chip.label}
+                      {t(chip.labelKey)}
                       {selected && <Check className="w-3.5 h-3.5 text-brand-gold" />}
                     </span>
                     <span className="text-xs font-nunito text-brand-ice/70">
-                      {disabled && chip.id === 'mpv' ? (REASON_LABEL[mpvReason ?? ''] ?? 'Not available') : chip.hint}
+                      {disabled && chip.id === 'mpv' ? t(REASON_KEY[mpvReason ?? ''] ?? 'live.playback.notAvailable') : t(chip.hintKey)}
                     </span>
                   </div>
                 );
               })}
             </div>
             <p className="text-xs font-nunito text-brand-ice/60">
-              On MPV, volume past 100% is plain gain — no boost limiter (that's an ExoPlayer-only feature for now).
+              {t('live.playback.mpvGainNote')}
             </p>
           </div>
 
           <div className="space-y-3">
-            <div className="text-xs uppercase tracking-wide text-white/70">Compare</div>
+            <div className="text-xs uppercase tracking-wide text-white/70">{t('live.playback.compareHeading')}</div>
             <div className="rounded-2xl border border-white/10 bg-slate-900/60 overflow-hidden">
               <table className="w-full text-sm font-nunito">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-brand-ice/60 border-b border-white/10">
-                    <th className="px-3 py-2">Engine</th>
-                    <th className="px-3 py-2">First picture</th>
-                    <th className="px-3 py-2">Stalls / hr</th>
-                    <th className="px-3 py-2">Stall sec / hr</th>
-                    <th className="px-3 py-2">CPU</th>
-                    <th className="px-3 py-2">Memory</th>
+                    <th className="px-3 py-2">{t('live.playback.colEngine')}</th>
+                    <th className="px-3 py-2">{t('live.playback.colFirstPicture')}</th>
+                    <th className="px-3 py-2">{t('live.playback.colStalls')}</th>
+                    <th className="px-3 py-2">{t('live.playback.colStallSec')}</th>
+                    <th className="px-3 py-2">{t('live.playback.colCpu')}</th>
+                    <th className="px-3 py-2">{t('live.playback.colMemory')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -163,7 +165,7 @@ const PlaybackScreen = memo(({ onBack }: Props) => {
               </table>
             </div>
             <p className="text-xs font-nunito text-brand-ice/60">
-              Built from up to the last 30 Live TV watches per engine on this box — one reading 60 s in and one when it stops.
+              {t('live.playback.footnote')}
             </p>
           </div>
         </div>

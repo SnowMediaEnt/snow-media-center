@@ -1,0 +1,39 @@
+{
+  "popups": {
+    "gotItBtn": "Verstanden",
+    "appAlert": {
+      "headsUp": "Hinweis zu <1>{{name}}</1>:",
+      "dismissBtn": "Schließen",
+      "continueAnywayBtn": "Trotzdem fortfahren"
+    },
+    "preEvent": {
+      "okGotItBtn": "OK, verstanden",
+      "defaultHeadline": "PPV heute Abend! Erledige die Vorbereitungsschritte VOR dem Start.",
+      "step1": "Stelle sicher, dass dein Abo nicht abgelaufen ist",
+      "step2": "Playlist / Sender aktualisieren",
+      "step3": "Router und Gerät neu starten",
+      "step4": "Halte ein VPN bereit",
+      "step5": "Viel Spaß!"
+    },
+    "serviceAlert": {
+      "yourService": "Dein Dienst",
+      "unknownTitle": "Dienststatus unbekannt",
+      "unknownMsg": "{{name}}: kein Ablaufdatum gesetzt. Öffne Dashboard → Ändern, um es einzutragen.",
+      "expiredTitle": "Dienst abgelaufen",
+      "expiredMsg_one": "{{name}} ist vor {{count}} Tag abgelaufen. Verlängere, bevor du fortfährst.",
+      "expiredMsg_other": "{{name}} ist vor {{count}} Tagen abgelaufen. Verlängere, bevor du fortfährst.",
+      "todayTitle": "Dienst läuft heute ab",
+      "todayMsg": "{{name}} läuft heute ab. Verlängere, um Unterbrechungen zu vermeiden.",
+      "tomorrowTitle": "Dienst läuft morgen ab",
+      "tomorrowMsg": "{{name}} läuft morgen ab. Verlängere es im Dashboard, bevor es ausläuft.",
+      "soonTitle_one": "Dienst läuft in {{count}} Tag ab",
+      "soonTitle_other": "Dienst läuft in {{count}} Tagen ab",
+      "soonMsg_one": "{{name}} läuft in {{count}} Tag ab. Verlängere es im Dashboard, bevor es ausläuft.",
+      "soonMsg_other": "{{name}} läuft in {{count}} Tagen ab. Verlängere es im Dashboard, bevor es ausläuft."
+    },
+    "demo": {
+      "msg": "Du bist in der Live-Demo – die Wiedergabe funktioniert in der installierten App auf deinem Fernseher.",
+      "account": "Demo-Konto"
+    }
+  }
+}

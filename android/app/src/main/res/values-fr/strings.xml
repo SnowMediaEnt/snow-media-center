@@ -1,0 +1,87 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="rec_notif_title_none">Enregistrement</string>
+    <string name="rec_notif_title_programme">Enregistrement de %1$s (%2$s)</string>
+    <string name="rec_notif_title_channel">Enregistrement de %1$s</string>
+    <string name="rec_notif_text_starting">Démarrage</string>
+    <string name="rec_notif_text_until">Jusqu\'à %1$s · utilise 1 connexion de votre ligne</string>
+    <string name="rec_notif_text_until_stopped">Jusqu\'à l\'arrêt · utilise 1 connexion de votre ligne</string>
+    <string name="rec_channel_name">Enregistrements</string>
+    <string name="rec_channel_desc">S\'affiche pendant l\'enregistrement d\'une chaîne.</string>
+    <string name="rec_notif_stop">Arrêter</string>
+    <string name="rec_ended_title">Enregistrement de %1$s arrêté</string>
+    <string name="rec_reason_drive_full">Le disque est plein</string>
+    <string name="rec_reason_unsupported">Cette chaîne ne peut pas être enregistrée</string>
+    <string name="rec_reason_drive_removed">Le disque a été retiré</string>
+    <string name="rec_reason_write_failed">L\'enregistrement n\'a pas pu être écrit</string>
+    <string name="sched_default_title">Enregistrement</string>
+    <string name="sched_missed_title">Enregistrement manqué : %1$s</string>
+    <string name="sched_missed_text">%1$s–%2$s. %3$s</string>
+    <string name="sched_failed_title">L\'enregistrement programmé n\'a pas démarré : %1$s</string>
+    <string name="sched_late_title">Démarré en retard : %1$s</string>
+    <string name="sched_late_text">Le boîtier était éteint à %1$s. Enregistrement jusqu\'à %2$s.</string>
+    <string name="sched_usb_title">Enregistrement sur ce boîtier : %1$s</string>
+    <string name="sched_reason_no_login">Connectez-vous à TV en direct pour enregistrer.</string>
+    <string name="sched_reason_other_line">TV en direct est connectée à une autre ligne.</string>
+    <string name="sched_reason_no_space">Pas assez d\'espace libre.</string>
+    <string name="sched_reason_usb_gone">La clé USB n\'était pas connectée.</string>
+    <string name="sched_reason_blocked">Le boîtier a bloqué un démarrage programmé. Autorisez « Alarmes et rappels » pour SMC.</string>
+    <string name="sched_reason_missed">Le boîtier était éteint ou SMC a été arrêté de force.</string>
+    <string name="sched_reason_start_failed">L\'enregistrement n\'a pas pu démarrer.</string>
+    <string name="alert_channel_name">Alertes Snow Media</string>
+    <string name="alert_channel_desc">Avis de service, pannes et annonces de Snow Media.</string>
+    <string name="alert_plex_title">Maintenant sur Plex</string>
+    <string name="alert_plex_request_fallback">Votre demande</string>
+    <string name="alert_plex_ready">Vous pouvez regarder %1$s. Ouvrez le Lecteur, puis Plex.</string>
+    <string name="widget_open_app">Ouvrez Snow Media Center pour les dernières infos.</string>
+    <string name="widget_not_signed_in">Non connecté — ouvrez pour ajouter votre ligne</string>
+    <string name="widget_line_fallback">Votre ligne</string>
+    <string name="widget_trial">Essai · %1$s</string>
+    <string name="widget_active">%1$s · active</string>
+    <string name="widget_expired">%1$s · expirée — renouvelez pour continuer à regarder</string>
+    <string name="widget_expires_today">%1$s · expire aujourd\'hui</string>
+    <string name="billing_network">Impossible de joindre le serveur de facturation. Vérifiez votre connexion internet et réessayez.</string>
+    <string name="billing_bad_response">Le serveur de facturation a envoyé une réponse inattendue (%1$s).</string>
+    <string name="billing_cancelled">Arrêté.</string>
+    <string name="billing_http_401">Veuillez vous reconnecter.</string>
+    <string name="billing_http_403">Ce compte ne peut pas être utilisé depuis l\'appli.</string>
+    <string name="billing_http_404">Cet élément est introuvable.</string>
+    <string name="billing_http_429">Trop de tentatives. Veuillez patienter un instant.</string>
+    <string name="billing_http_5xx">Le serveur de facturation a rencontré un problème. Réessayez dans une minute.</string>
+    <string name="billing_request_failed">La requête a échoué (%1$d).</string>
+    <string name="billing_register_required">L\'e-mail, le mot de passe, le prénom et le nom sont obligatoires.</string>
+    <string name="billing_login_required">L\'e-mail et le mot de passe sont obligatoires.</string>
+    <string name="billing_field_required">%1$s est obligatoire.</string>
+    <string name="billing_not_configured">La facturation n\'est pas configurée dans cette version.</string>
+    <string name="billing_internal">Un problème est survenu. Veuillez réessayer.</string>
+    <string name="billing_sign_in">Veuillez vous connecter.</string>
+    <string name="player_err_stream_dropping">Le flux continue de couper. Réessayez.</string>
+    <string name="player_err_server_stopped">Le serveur ne répond plus. Réessayez.</string>
+    <string name="player_err_refused">Le serveur a refusé ce fichier.</string>
+    <string name="player_err_refused_status">Le serveur a refusé ce fichier (HTTP %1$d).</string>
+    <string name="player_err_plex_refused">Le serveur Plex a refusé ce fichier.</string>
+    <string name="player_err_plex_refused_status">Le serveur Plex a refusé ce fichier (HTTP %1$d).</string>
+    <string name="player_err_playback">Erreur de lecture</string>
+    <string name="player_err_audio">Échec du décodeur audio</string>
+    <string name="voice_speak_now">Parlez maintenant</string>
+    <plurals name="rec_notif_title_channels">
+        <item quantity="one">Enregistrement de %d chaîne</item>
+        <item quantity="many">Enregistrement de %d chaînes</item>
+        <item quantity="other">Enregistrement de %d chaînes</item>
+    </plurals>
+    <plurals name="rec_notif_text_streams">
+        <item quantity="one">Utilise %d connexion de votre ligne</item>
+        <item quantity="many">Utilise %d connexions de votre ligne</item>
+        <item quantity="other">Utilise %d connexions de votre ligne</item>
+    </plurals>
+    <plurals name="sched_reason_too_many">
+        <item quantity="one">%d enregistrement était déjà en cours.</item>
+        <item quantity="many">%d enregistrements étaient déjà en cours.</item>
+        <item quantity="other">%d enregistrements étaient déjà en cours.</item>
+    </plurals>
+    <plurals name="widget_days_left">
+        <item quantity="one">%1$s · %2$d jour restant</item>
+        <item quantity="many">%1$s · %2$d jours restants</item>
+        <item quantity="other">%1$s · %2$d jours restants</item>
+    </plurals>
+</resources>

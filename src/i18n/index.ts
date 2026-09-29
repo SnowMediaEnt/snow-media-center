@@ -141,11 +141,27 @@ const applyDocumentLang = (lng: string) => {
   } catch { /* ignore */ }
 };
 
+/**
+ * Test-only fake language for the screenshot check: `?pseudo=1` on the dev server wraps every
+ * translated string in ⟦…⟧, so English still written in the code (no brackets) stands out.
+ * The flag is kept for the tab like ?demo=1. import.meta.env.DEV is false in every build, so
+ * this is dropped from production bundles.
+ */
+let pseudo = false;
+if (import.meta.env.DEV && import.meta.env.MODE !== 'test') {
+  try {
+    if (/[?&]pseudo=1(?:&|$)/.test(location.search)) sessionStorage.setItem('smc-pseudo', '1');
+    pseudo = sessionStorage.getItem('smc-pseudo') === '1';
+  } catch { /* no storage: no fake language */ }
+  if (pseudo) i18n.use({ type: 'postProcessor', name: 'pseudo', process: (value: string) => `⟦${value}⟧` });
+}
+
 /** Resolves when the chosen language is loaded (English is always ready). */
 export const i18nReady: Promise<unknown> = i18n
   .use(lazyBackend)
   .use(initReactI18next)
   .init({
+    postProcess: import.meta.env.DEV && pseudo ? ['pseudo'] : false,
     resources: { en: { translation: en } },
     partialBundledLanguages: true,
     lng: getInitialLang(),

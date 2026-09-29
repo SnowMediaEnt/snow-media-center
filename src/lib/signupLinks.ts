@@ -112,21 +112,6 @@ export function toOffers(links: SignupLink[]): SignupOffers {
   };
 }
 
-/** "3 months · 6 connections", or the row's own label when the operator set one. */
-/** "1 month", "3 months", "1 year" — how the panel itself words each term. */
-export function termText(months: number | null): string {
-  if (!months) return '';
-  if (months === 12) return '1 year';
-  return months === 1 ? '1 month' : `${months} months`;
-}
-
-export function connectionsText(n: number | null): string {
-  if (!n) return '';
-  return n === 1 ? '1 connection' : `${n} connections`;
-}
-
-/** A one-line name for a tier, e.g. "1 year · 9 connections". */
-export function linkLabel(l: SignupLink): string {
-  if (l.label) return l.label;
-  return [termText(l.termMonths), connectionsText(l.connections)].filter(Boolean).join(' · ') || 'Plan';
-}
+// Tier wording ("1 year", "9 connections", "1 year · 9 connections") lives in
+// components/getstarted/tierText.ts, in the app's language; these names stay for callers.
+export { termLabel as termText, connectionsLabel as connectionsText, tierLabel as linkLabel } from '@/components/getstarted/tierText';

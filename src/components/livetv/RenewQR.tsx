@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Trans, useTranslation } from 'react-i18next';
 
 /** Renewal URL scanned by the phone — username + server label, encoded. */
 export const buildRenewUrl = (username: string, serverLabel: string): string =>
@@ -21,6 +22,7 @@ interface Props {
  * surface (never dismiss outright) via `onBack`.
  */
 const RenewQR = memo(({ username, serverLabel, onBack }: Props) => {
+  const { t } = useTranslation();
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const backRef = useRef<HTMLButtonElement>(null);
   const url = buildRenewUrl(username, serverLabel);
@@ -54,7 +56,7 @@ const RenewQR = memo(({ username, serverLabel, onBack }: Props) => {
         {qrDataUrl ? (
           <img
             src={qrDataUrl}
-            alt="Renewal QR code"
+            alt={t('liveAccount.renewQr.qrAlt')}
             className="w-[min(50vh,16rem)] h-[min(50vh,16rem)]"
           />
         ) : (
@@ -64,7 +66,7 @@ const RenewQR = memo(({ username, serverLabel, onBack }: Props) => {
         )}
       </div>
       <p className="text-sm text-white/80 text-center leading-relaxed">
-        Scan with your phone to renew — <span className="font-semibold text-white break-all">{username}</span>
+        <Trans i18nKey="liveAccount.renewQr.scan" values={{ username }} components={{ 1: <span className="font-semibold text-white break-all" /> }} />
       </p>
       <Button
         ref={backRef}
@@ -73,7 +75,7 @@ const RenewQR = memo(({ username, serverLabel, onBack }: Props) => {
         data-focused="true"
         className="min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out scale-105 z-10"
       >
-        <ArrowLeft className="w-4 h-4 mr-2" /> Back
+        <ArrowLeft className="w-4 h-4 mr-2" /> {t('common.back')}
       </Button>
     </div>
   );
