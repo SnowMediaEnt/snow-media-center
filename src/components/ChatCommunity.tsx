@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { openScreen, setPreference, reportChannel, installApp, generateWallpaper, playChannel, openPlexTitle, openInstalledApp, KIDS_BLOCKED_SCREENS, type Screen, type PreferenceKey } from '@/lib/appActions';
 import { kidsLevel } from '@/lib/kidsFilter';
-import { KIDS_AI_NOTICE, KIDS_AI_TITLE } from '@/lib/kidsAiNotice';
+import { kidsAiNotice, kidsAiTitle } from '@/lib/kidsAiNotice';
 import { Button } from '@/components/ui/button';
 import { isDemo } from '@/lib/demoMode';
 import { Card } from '@/components/ui/card';
@@ -16,7 +16,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useSupportTickets, SupportTicket } from '@/hooks/useSupportTickets';
 import { useAIConversations } from '@/hooks/useAIConversations';
 import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
+import { getAppLanguage } from '@/i18n';
+import { formatDateTime, formatDate, formatTime } from '@/i18n/format';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 import { getDeviceId, trackEvent } from '@/lib/analytics';
@@ -41,6 +43,9 @@ type AIFunctionCall = {
 };
 
 const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: ChatCommunityProps) => {
+  const { t } = useTranslation();
+  // "Sep 29, 10:30 PM" (no year), in the app's language.
+  const shortDateTime = (value: string) => t('ai.chat.dateTimeShort', { date: formatDate(value, 'short'), time: formatTime(value) });
   const [activeTab, setActiveTab] = useState<'admin' | 'community' | 'ai'>(lockedTab ?? 'admin');
   // Fire ai_chatbot_open exactly once per time the AI tab becomes visible.
   useEffect(() => {
@@ -175,12 +180,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     setPendingTtsMessageIndex(messageIndex);
     if (messageIndex !== null) {
       toast({
-        title: "Couldn't play the voice reply",
-        description: 'Tap 🔊 on the message to hear it.',
+        title: t('ai.chat.toast.cantPlayTitle'),
+        description: t('ai.chat.toast.cantPlayDesc'),
       });
     }
     console.warn('VOICE_TTS_PENDING_MANUAL_PLAY:', reason);
-  }, [toast]);
+  }, [toast, t]);
 
   const playPendingTts = useCallback(async () => {
     const buf = ttsPendingBufferRef.current;
@@ -245,13 +250,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       } catch (err) {
         console.error('VOICE_ERROR: replay failed', err);
         toast({
-          title: 'Audio playback failed',
-          description: 'Your device blocked audio playback.',
+          title: t('ai.chat.toast.audioFailedTitle'),
+          description: t('ai.chat.toast.audioFailedDesc'),
           variant: 'destructive',
         });
       }
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const speakReply = useCallback(async (text: string, messageIndex: number) => {
     stopVoicePlayback();
@@ -275,8 +280,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           setBlockedReason(reason);
         } else {
           toast({
-            title: 'Voice reply unavailable',
-            description: reason || 'Voice replies are briefly unavailable. Please try again.',
+            title: t('ai.chat.toast.voiceUnavailableTitle'),
+            description: reason || t('ai.chat.toast.voiceUnavailableDesc'),
             variant: 'destructive',
           });
         }
@@ -288,8 +293,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         voiceControlsRef.current?.setVoiceState('idle');
         restoreAiVoiceFocus();
         toast({
-          title: "Voice reply unavailable",
-          description: 'The server returned no audio. Try again in a moment.',
+          title: t('ai.chat.toast.voiceUnavailableTitle'),
+          description: t('ai.chat.toast.noAudioDesc'),
           variant: 'destructive',
         });
         return;
@@ -403,12 +408,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       voiceControlsRef.current?.setVoiceState('idle');
       restoreAiVoiceFocus();
       toast({
-        title: 'Voice reply failed',
-        description: err instanceof Error ? err.message : 'Could not generate voice reply.',
+        title: t('ai.chat.toast.voiceFailedTitle'),
+        description: err instanceof Error ? err.message : t('ai.chat.toast.voiceFailedDesc'),
         variant: 'destructive',
       });
     }
-  }, [restoreAiVoiceFocus, stopVoicePlayback, toast, markPendingTts]);
+  }, [restoreAiVoiceFocus, stopVoicePlayback, toast, markPendingTts, t]);
 
   useEffect(() => {
     return () => stopVoicePlayback(true);
@@ -447,7 +452,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const { profile, checkCredits, deductCredits, fetchProfile } = useUserProfile();
   useEffect(() => {
     let cancelled = false;
-    void loadAiTiers().then((t) => { if (!cancelled) setChatTiers(t.chat); });
+    void loadAiTiers().then((tiers) => { if (!cancelled) setChatTiers(tiers.chat); });
     return () => { cancelled = true; };
   }, []);
   useEffect(() => {
@@ -461,7 +466,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const chatCompareAvailable = !!chatPremium && !!user && !chatTrialUsed;
   const toggleChatTier = () => {
     if (!chatPremium) return;
-    if (!user) { toast({ title: 'Sign in for Premium', description: 'Premium answers need a signed-in account with Snow Gems.' }); return; }
+    if (!user) { toast({ title: t('ai.chat.toast.premiumSignInTitle'), description: t('ai.chat.toast.premiumSignInDesc') }); return; }
     const next: AiTier = effectiveChatTier === 'premium' ? 'free' : 'premium';
     setChatTier(next);
     setPreferredTier('chat', next);
@@ -521,7 +526,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const handleDeleteAIConversation = async (conversationId: string, e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    if (!confirm('Delete this AI conversation? This cannot be undone.')) return;
+    if (!confirm(t('ai.chat.confirmDeleteAi'))) return;
     if (activeAIConversationId === conversationId) {
       setActiveAIConversationId(null);
       setAiChat([]);
@@ -564,16 +569,16 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     if (isDemo()) return;
     if (!user) {
       toast({
-        title: "Login required",
-        description: "Please sign in to create a support ticket.",
+        title: t('ai.chat.toast.loginRequiredTitle'),
+        description: t('ai.chat.toast.signInForTicketDesc'),
         variant: "destructive",
       });
       return;
     }
     if (!newSubject.trim() || !newMessage.trim()) {
       toast({
-        title: "Missing information",
-        description: "Please fill in both subject and message.",
+        title: t('ai.chat.toast.missingInfoTitle'),
+        description: t('ai.chat.toast.missingInfoDesc'),
         variant: "destructive",
       });
       return;
@@ -584,7 +589,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       setNewMessage('');
       setShowNewTicketForm(false);
       // Auto-open the new ticket
-      const newTicket = tickets.find(t => t.id === ticketId);
+      const newTicket = tickets.find(tk => tk.id === ticketId);
       if (newTicket) {
         handleViewTicket(newTicket);
       }
@@ -621,8 +626,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           const targetSection = sectionMap[requestedSection] || requestedSection;
           onNavigate(targetSection);
           toast({
-            title: "Navigation",
-            description: `Navigating to ${args.section}: ${args.reason}`,
+            title: t('ai.chat.toast.navigationTitle'),
+            description: t('ai.chat.toast.navigatingTo', { section: args.section, reason: args.reason }),
           });
         }
         break;
@@ -632,8 +637,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           stopVoicePlayback();
           onNavigate('videos');
           toast({
-            title: "Support Videos",
-            description: `Looking for videos about: ${args.query}${args.app_name ? ` (${args.app_name})` : ''}`,
+            title: t('ai.chat.toast.videosTitle'),
+            description: args.app_name
+              ? t('ai.chat.toast.videosAboutApp', { query: args.query, app: args.app_name })
+              : t('ai.chat.toast.videosAbout', { query: args.query }),
           });
         }
         break;
@@ -643,15 +650,15 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           stopVoicePlayback();
           onNavigate('settings');
           toast({
-            title: "Background Settings",
-            description: "Opening settings to change background",
+            title: t('ai.chat.toast.backgroundSettingsTitle'),
+            description: t('ai.chat.toast.backgroundSettingsDesc'),
           });
         } else {
           toast({
-            title: "Background Change",
+            title: t('ai.chat.toast.backgroundChangeTitle'),
             description: args.action === 'suggest_themes' 
-              ? "You can change backgrounds in Settings > Media Management" 
-              : "You can upload custom backgrounds in Settings",
+              ? t('ai.chat.toast.backgroundThemesDesc') 
+              : t('ai.chat.toast.backgroundUploadDesc'),
           });
         }
         break;
@@ -665,8 +672,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             onNavigate('apps');
           }
           toast({
-            title: "Store",
-            description: `Opening ${args.section} store${args.search_term ? ` - searching for: ${args.search_term}` : ''}`,
+            title: t('ai.chat.toast.storeTitle'),
+            description: args.search_term
+              ? t('ai.chat.toast.openingStoreSearch', { section: args.section, term: args.search_term })
+              : t('ai.chat.toast.openingStore', { section: args.section }),
           });
         }
         break;
@@ -676,8 +685,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           stopVoicePlayback();
           onNavigate('apps');
           toast({
-            title: "App Installation",
-            description: `Helping with ${args.app_name} installation${args.device_type ? ` on ${args.device_type}` : ''}`,
+            title: t('ai.chat.toast.installTitle'),
+            description: args.device_type
+              ? t('ai.chat.toast.helpingInstallDevice', { app: args.app_name, device: args.device_type })
+              : t('ai.chat.toast.helpingInstall', { app: args.app_name }),
           });
         }
         break;
@@ -688,79 +699,79 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           onNavigate('credits');
         }
         toast({
-          title: "Snow Gems",
+          title: t('ai.chat.toast.gemsTitle'),
           description: args.action === 'balance' 
-            ? `Current balance: ${profile?.credits?.toFixed(2) || '0.00'} Snow Gems`
+            ? t('ai.chat.toast.gemsBalance', { amount: profile?.credits?.toFixed(2) || '0.00' })
             : args.action === 'purchase'
-            ? "Opening Snow Gems store"
-            : "Showing Snow Gems information",
+            ? t('ai.chat.toast.gemsOpeningStore')
+            : t('ai.chat.toast.gemsInfo'),
         });
         break;
       
       case 'open_screen': {
         if (!onNavigate) break;
         if (kidsLevel() && KIDS_BLOCKED_SCREENS.has(String(args.screen) as Screen)) {
-          toast({ title: 'Ask a grown-up', description: 'That part of the app needs a grown-up profile.' });
+          toast({ title: t('ai.chat.toast.grownUpTitle'), description: t('ai.chat.toast.grownUpPartDesc') });
           break;
         }
         stopVoicePlayback();
         const where = openScreen(String(args.screen) as Screen, onNavigate);
-        toast({ title: 'On it', description: `Opening ${where}.` });
+        toast({ title: t('ai.chat.toast.onItTitle'), description: t('ai.chat.toast.openingWhere', { where }) });
         break;
       }
       case 'set_preference': {
         const said = setPreference(String(args.key) as PreferenceKey, String(args.value));
-        toast({ title: said ? 'Done' : 'Hmm', description: said ?? "I couldn't change that one." });
+        toast({ title: said ? t('ai.chat.toast.doneTitle') : t('ai.chat.toast.hmmTitle'), description: said ?? t('ai.chat.toast.cantChangeDesc') });
         break;
       }
       case 'report_channel': {
         if (!onNavigate) break;
         stopVoicePlayback();
         reportChannel({ search: String(args.channel_name || ''), issue: args.issue ? String(args.issue) : undefined, details: args.details ? String(args.details) : undefined }, onNavigate);
-        toast({ title: 'Finding the channel', description: 'Press OK on the report when it opens to send it.' });
+        toast({ title: t('ai.chat.toast.findingChannelTitle'), description: t('ai.chat.toast.reportPressOkDesc') });
         break;
       }
       case 'install_app': {
         if (!onNavigate) break;
-        if (kidsLevel()) { toast({ title: 'Ask a grown-up', description: 'That needs a grown-up profile.' }); break; }
+        if (kidsLevel()) { toast({ title: t('ai.chat.toast.grownUpTitle'), description: t('ai.chat.toast.grownUpNeedsDesc') }); break; }
         stopVoicePlayback();
         installApp(String(args.app_name || ''), onNavigate);
-        toast({ title: 'Main Apps', description: `Finding ${args.app_name} and starting the download.` });
+        toast({ title: t('ai.chat.toast.mainAppsTitle'), description: t('ai.chat.toast.findingAppDownload', { name: args.app_name }) });
         break;
       }
       case 'generate_wallpaper': {
         if (!onNavigate) break;
-        if (kidsLevel()) { toast({ title: 'Ask a grown-up', description: 'That needs a grown-up profile.' }); break; }
+        if (kidsLevel()) { toast({ title: t('ai.chat.toast.grownUpTitle'), description: t('ai.chat.toast.grownUpNeedsDesc') }); break; }
         stopVoicePlayback();
         generateWallpaper(String(args.prompt || ''), onNavigate);
-        toast({ title: 'Wallpaper', description: 'Making it now — this takes a moment.' });
+        toast({ title: t('ai.chat.toast.wallpaperTitle'), description: t('ai.chat.toast.makingWallpaperDesc') });
         break;
       }
       case 'play_channel': {
         if (!onNavigate || !args.channel_name) break;
         stopVoicePlayback();
         playChannel(String(args.channel_name), onNavigate);
-        toast({ title: 'Live TV', description: `Finding ${args.channel_name}.` });
+        toast({ title: t('ai.chat.toast.liveTvTitle'), description: t('ai.chat.toast.findingChannel', { name: args.channel_name }) });
         break;
       }
       case 'plex_title': {
         if (!onNavigate || !args.title) break;
         stopVoicePlayback();
         openPlexTitle(String(args.title), args.action !== 'search', onNavigate);
-        toast({ title: 'Plex', description: `Finding ${args.title}.` });
+        toast({ title: 'Plex', description: t('ai.chat.toast.findingTitle', { title: args.title }) });
         break;
       }
       case 'open_app': {
         if (!onNavigate || !args.app_name) break;
-        if (kidsLevel()) { toast({ title: 'Ask a grown-up', description: 'Opening other apps needs a grown-up profile.' }); break; }
+        if (kidsLevel()) { toast({ title: t('ai.chat.toast.grownUpTitle'), description: t('ai.chat.toast.grownUpAppsDesc') }); break; }
         stopVoicePlayback();
-        void openInstalledApp(String(args.app_name), onNavigate).then((said) => toast({ title: 'Apps', description: said }));
+        void openInstalledApp(String(args.app_name), onNavigate).then((said) => toast({ title: t('ai.chat.toast.appsTitle'), description: said }));
         break;
       }
       default:
         console.log('Unknown function:', name, args);
     }
-  }, [onNavigate, profile, stopVoicePlayback, toast]);
+  }, [onNavigate, profile, stopVoicePlayback, toast, t]);
 
   /** The JSON the function sent with a non-2xx, for its own wording. */
   const readInvokeFailure = async (error: unknown): Promise<{ error?: string; message?: string; needed?: number | null }> => {
@@ -787,8 +798,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       const aiCost = tier === 'premium' ? premiumGems : 0.01;
       if (!isOwnerAdmin && !checkCredits(aiCost)) {
         toast({
-          title: "Insufficient Snow Gems",
-          description: `You need ${aiCost.toFixed(2)} Snow Gems. Your balance: ${profile?.credits?.toFixed(2) || '0.00'}`,
+          title: t('ai.chat.toast.insufficientTitle'),
+          description: t('ai.chat.toast.insufficientDesc', { cost: aiCost.toFixed(2), balance: profile?.credits?.toFixed(2) || '0.00' }),
           variant: "destructive",
         });
         return;
@@ -819,6 +830,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         saveConversation: !!user && !kidsLevel(),
         currentVersion,
         device_id: getDeviceId(),
+        // The app's language: the assistant answers in it.
+        language: getAppLanguage(),
         // A Kids profile: the server keeps every answer to its age.
         ...(kidsLevel() ? { kids_level: kidsLevel() } : {}),
       };
@@ -838,7 +851,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         const failure = await readInvokeFailure(error);
         if (failure.error === 'insufficient_gems' || failure.error === 'premium_requires_signin' || failure.error === 'premium_disabled') {
           setAiChat(prev => prev.slice(0, -1));
-          toast({ title: 'Premium AI', description: failure.message || 'Premium is not available right now.', variant: 'destructive' });
+          toast({ title: t('ai.chat.toast.premiumAiTitle'), description: failure.message || t('ai.chat.toast.premiumUnavailableDesc'), variant: 'destructive' });
           voiceControlsRef.current?.setVoiceState('idle');
           voiceControlsRef.current?.restoreFocus();
           return;
@@ -853,7 +866,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         if (pd?.trial_used) setChatTrialUsed(true);
         if (premiumText) {
           const receipt = describeReceipt(pd ? { tier: 'premium', trial_used: pd.trial_used, charged_gems: pd.charged_gems } : null);
-          if (receipt) toast({ title: 'Snow AI Premium', description: receipt });
+          if (receipt) toast({ title: t('ai.chat.snowAiPremium'), description: receipt });
         }
       }
 
@@ -866,8 +879,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           setBlockedReason(reason);
         } else {
           toast({
-            title: "AI unavailable",
-            description: reason || "Snow Media AI is briefly unavailable. Please try again.",
+            title: t('ai.chat.toast.aiUnavailableTitle'),
+            description: reason || t('ai.chat.toast.aiUnavailableDesc'),
             variant: "destructive",
           });
         }
@@ -885,7 +898,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         if (tier === 'premium') {
           // Charged server-side; refresh the balance and say what it cost.
           const receipt = describeReceipt(data as { tier?: AiTier; charged_gems?: number; trial_used?: boolean });
-          if (receipt) toast({ title: 'Snow AI Premium', description: receipt });
+          if (receipt) toast({ title: t('ai.chat.snowAiPremium'), description: receipt });
           void fetchProfile();
         } else {
           await deductCredits(0.01, `Snow Media AI Chat - "${userMessage.substring(0, 50)}..."`);
@@ -931,8 +944,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       voiceControlsRef.current?.setVoiceState('idle');
       voiceControlsRef.current?.restoreFocus();
       toast({
-        title: "AI Error",
-        description: "Failed to get AI response. Please try again.",
+        title: t('ai.chat.toast.aiErrorTitle'),
+        description: t('ai.chat.toast.aiErrorDesc'),
         variant: "destructive",
       });
     } finally {
@@ -1505,7 +1518,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 stopVoicePlayback(true);
                 onBack();
               }}
-              label="Back to Home"
+              label={t('common.backToHome')}
               focused={isFocused('back')}
             />
           </div>
@@ -1515,8 +1528,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             {/* Header */}
             <div className="flex flex-col items-center mb-8">
               <div className="text-center mt-4">
-                <h1 className="text-4xl font-bold text-white mb-2">Chat & Community</h1>
-                <p className="text-xl text-blue-200">Connect with admin and community</p>
+                <h1 className="text-4xl font-bold text-white mb-2">{t('ai.chat.pageTitle')}</h1>
+                <p className="text-xl text-blue-200">{t('ai.chat.pageSubtitle')}</p>
               </div>
             </div>
 
@@ -1533,7 +1546,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 }`}
               >
                 <User className="w-5 h-5 mr-2" />
-                User Support
+                {t('ai.chat.userSupportTab')}
               </Button>
               <Button
                 onClick={() => setActiveTab('community')}
@@ -1546,7 +1559,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 }`}
               >
                 <MessageSquare className="w-5 h-5 mr-2" />
-                Community
+                {t('ai.chat.communityTab')}
               </Button>
               <Button
                 onClick={() => setActiveTab('ai')}
@@ -1559,24 +1572,25 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 }`}
               >
                 <Brain className="w-5 h-5 mr-2" />
-                Snow Media AI
+                {t('ai.chat.aiTab')}
               </Button>
             </div>
           </>
         )}
 
         {/* User Support Tab Content */}
+        {/* i18n-ignore: state check, not text */}
         {activeTab === 'admin' && (
           <Card className="bg-gradient-to-br from-orange-900/30 to-slate-900 border-orange-700 p-6 min-h-[60vh]">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-2xl font-bold text-white">Support Tickets</h3>
+              <h3 className="text-2xl font-bold text-white">{t('ai.chat.ticketsTitle')}</h3>
               {!selectedTicket && !showNewTicketForm && !isDemo() && (
                 <Button 
                   onClick={() => {
                     if (!user) {
                       toast({
-                        title: "Sign in required",
-                        description: "Please sign in to create a support ticket.",
+                        title: t('ai.chat.toast.signInRequiredTitle'),
+                        description: t('ai.chat.toast.signInForTicketDesc'),
                         variant: "destructive",
                       });
                       return;
@@ -1587,7 +1601,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   className={`bg-blue-600 hover:bg-blue-700 transition-all duration-200 ${focusRing('create-ticket')}`}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Create New Ticket
+                  {t('ai.chat.createTicketBtn')}
                 </Button>
               )}
               {showNewTicketForm && (
@@ -1598,7 +1612,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   className={`border-orange-500 text-orange-400 hover:bg-orange-600 transition-all duration-200 ${focusRing('back-to-tickets')}`}
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Tickets
+                  {t('ai.chat.backToTicketsBtn')}
                 </Button>
               )}
             </div>
@@ -1607,22 +1621,22 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             {showNewTicketForm && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-white font-semibold mb-2">Subject</label>
+                  <label className="block text-white font-semibold mb-2">{t('ai.chat.subject')}</label>
                   <Input 
                     value={newSubject}
                     onChange={(e) => setNewSubject(e.target.value)}
-                    placeholder="What do you need help with?"
+                    placeholder={t('ai.chat.subjectPlaceholder')}
                     enterKeyHint="next"
                     data-focus-id="new-subject"
                     className={`bg-slate-800 border-slate-600 text-white transition-all duration-200 ${isFocused('new-subject') ? 'ring-4 ring-brand-ice' : ''}`}
                   />
                 </div>
                 <div>
-                  <label className="block text-white font-semibold mb-2">Message</label>
+                  <label className="block text-white font-semibold mb-2">{t('ai.chat.message')}</label>
                   <Textarea 
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Describe your issue in detail..."
+                    placeholder={t('ai.chat.messagePlaceholder')}
                     enterKeyHint="done"
                     data-focus-id="new-message"
                     className={`bg-slate-800 border-slate-600 text-white min-h-32 transition-all duration-200 ${isFocused('new-message') ? 'ring-4 ring-brand-ice' : ''}`}
@@ -1637,7 +1651,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     className={`bg-brand-gold hover:bg-brand-gold/80 transition-all duration-200 ${focusRing('submit-ticket')}`}
                   >
                     {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-                    Submit Ticket
+                    {t('ai.chat.submitTicketBtn')}
                   </Button>
                   <Button 
                     type="button"
@@ -1646,7 +1660,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     data-focus-id="cancel-ticket"
                     className={`border-slate-600 text-slate-300 transition-all duration-200 ${focusRing('cancel-ticket')}`}
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </Button>
                 </div>
               </div>
@@ -1665,8 +1679,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     className={`border-orange-500 text-orange-400 hover:bg-orange-600 transition-all duration-200 shrink-0 ${focusRing('back-to-tickets')}`}
                   >
                     <ArrowLeft className="w-4 h-4 mr-1" />
-                    Back
+                    {t('common.back')}
                   </Button>
+                  {/* i18n-ignore: state check, not text */}
                   {selectedTicket.status !== 'closed' && (
                     <Button 
                       onClick={handleCloseTicket}
@@ -1676,13 +1691,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                       className={`border-green-500 text-green-400 hover:bg-green-600 transition-all duration-200 shrink-0 ${focusRing('close-ticket')}`}
                     >
                       <Check className="w-3 h-3 mr-1" />
-                      Close Ticket
+                      {t('ai.chat.closeTicketBtn')}
                     </Button>
                   )}
                   <Button
                     onClick={async () => {
                       if (!selectedTicket) return;
-                      if (!confirm('Delete this ticket and all its messages? This cannot be undone.')) return;
+                      if (!confirm(t('ai.chat.confirmDeleteTicket'))) return;
                       await deleteTicket(selectedTicket.id);
                       setSelectedTicket(null);
                     }}
@@ -1692,7 +1707,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     className={`border-red-500 text-red-400 hover:bg-red-600 hover:text-white transition-all duration-200 shrink-0 ${focusRing('delete-ticket')}`}
                   >
                     <Trash2 className="w-3 h-3 mr-1" />
-                    Delete
+                    {t('common.delete')}
                   </Button>
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <h4 className="text-xl font-semibold text-slate-900 truncate">{selectedTicket.subject}</h4>
@@ -1700,11 +1715,11 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                       selectedTicket.status === 'closed' ? 'bg-slate-600' :
                       isTicketActive(selectedTicket) ? 'bg-green-600' : 'bg-orange-600'
                     }`}>
-                      {selectedTicket.status === 'closed' ? 'Closed' : isTicketActive(selectedTicket) ? 'Active' : 'Open'}
+                      {selectedTicket.status === 'closed' ? t('ai.chat.status.closed') : isTicketActive(selectedTicket) ? t('ai.chat.status.active') : t('ai.chat.status.open')}
                     </Badge>
                   </div>
                   <span className="text-white text-sm shrink-0">
-                    {format(new Date(selectedTicket.created_at), 'MMM d, yyyy h:mm a')}
+                    {formatDateTime(selectedTicket.created_at)}
                   </span>
                 </div>
 
@@ -1716,7 +1731,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 >
                   {isFocused('message-scroll') && (
                     <div className="text-center text-xs text-brand-ice mb-2 animate-pulse">
-                      ↑↓ Use D-pad to scroll messages
+                      {t('ai.chat.dpadScroll')}
                     </div>
                   )}
                   {(messages[selectedTicket.id] || []).map((msg) => (
@@ -1732,10 +1747,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                         <span className={`text-xs font-semibold ${
                           msg.sender_type === 'user' ? 'text-blue-300' : 'text-orange-300'
                         }`}>
-                          {msg.sender_type === 'user' ? 'You' : 'Support'}
+                          {msg.sender_type === 'user' ? t('ai.chat.you') : t('ai.chat.supportSender')}
                         </span>
                         <span className="text-xs text-white">
-                          {format(new Date(msg.created_at), 'MMM d, h:mm a')}
+                          {shortDateTime(msg.created_at)}
                         </span>
                       </div>
                       <p className="text-white text-sm">{msg.message}</p>
@@ -1744,12 +1759,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 </div>
 
                 {/* Reply box - Fixed at bottom */}
+                {/* i18n-ignore: state check, not text */}
                 {selectedTicket.status !== 'closed' && (
                   <div className="flex gap-2 mt-4 shrink-0">
                     <Textarea 
                       value={replyMessage}
                       onChange={(e) => setReplyMessage(e.target.value)}
-                      placeholder="Type your reply..."
+                      placeholder={t('ai.chat.replyPlaceholder')}
                       enterKeyHint="done"
                       data-focus-id="reply-input"
                       disabled={replySending}
@@ -1775,16 +1791,16 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 {loading ? (
                   <div className="text-center py-8">
                     <Loader2 className="w-8 h-8 mx-auto animate-spin text-orange-400" />
-                    <p className="text-slate-400 mt-2">Loading tickets...</p>
+                    <p className="text-slate-400 mt-2">{t('ai.chat.loadingTickets')}</p>
                   </div>
                 ) : tickets.length === 0 ? (
                   <div className="text-center py-8">
                     <MessageCircle className="w-16 h-16 mx-auto text-orange-400/50 mb-4" />
-                    <h4 className="text-xl font-semibold text-white mb-2">No Support Tickets</h4>
+                    <h4 className="text-xl font-semibold text-white mb-2">{t('ai.chat.noTicketsTitle')}</h4>
                     <p className="text-slate-400">
                       {user 
-                        ? 'Use the "Create New Ticket" button above to get help from our support team.'
-                        : 'Please sign in to create and view your support tickets.'}
+                        ? t('ai.chat.noTicketsUser')
+                        : t('ai.chat.noTicketsGuest')}
                     </p>
                   </div>
                 ) : (
@@ -1800,14 +1816,15 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                           <div className="flex items-center gap-2">
                             <h4 className="font-semibold text-white">{ticket.subject}</h4>
                             {ticket.user_has_unread && (
-                              <Badge className="bg-red-600 text-xs">New Reply</Badge>
+                              <Badge className="bg-red-600 text-xs">{t('ai.chat.newReplyChip')}</Badge>
                             )}
                           </div>
                           <p className="text-slate-400 text-sm mt-1">
-                            Last activity: {format(new Date(ticket.last_message_at), 'MMM d, yyyy h:mm a')}
+                            {t('ai.chat.lastActivity', { when: formatDateTime(ticket.last_message_at) })}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
+                          {/* i18n-ignore: state check, not text */}
                           {isTicketActive(ticket) && ticket.status !== 'closed' && (
                             <Clock className="w-4 h-4 text-green-400 animate-pulse" />
                           )}
@@ -1816,7 +1833,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                             ticket.status === 'resolved' ? 'bg-green-600' :
                             'bg-orange-600'
                           }>
-                            {ticket.status}
+                            {t(`ai.chat.status.${ticket.status}`, { defaultValue: ticket.status })}
                           </Badge>
                           <Button
                             type="button"
@@ -1824,7 +1841,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                             size="sm"
                             onClick={async (e) => {
                               e.stopPropagation();
-                              if (!confirm('Delete this ticket and all its messages? This cannot be undone.')) return;
+                              if (!confirm(t('ai.chat.confirmDeleteTicket'))) return;
                               await deleteTicket(ticket.id);
                             }}
                             className="text-red-400 hover:text-red-300 hover:bg-red-900/30"
@@ -1841,12 +1858,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-white">
                       <Brain className="h-5 w-5 text-purple-300" />
-                      <h4 className="font-semibold">AI Chat History</h4>
+                      <h4 className="font-semibold">{t('ai.chat.historyTitle')}</h4>
                     </div>
-                    <Badge className="bg-purple-700 text-white">Last 5 saved</Badge>
+                    <Badge className="bg-purple-700 text-white">{t('ai.chat.lastFiveSavedChip')}</Badge>
                   </div>
                   {aiConversations.length === 0 ? (
-                    <p className="py-3 text-center text-sm text-purple-200/70">No saved AI chats yet.</p>
+                    <p className="py-3 text-center text-sm text-purple-200/70">{t('ai.chat.noSavedChats')}</p>
                   ) : (
                     <div className="grid gap-2 md:grid-cols-2">
                       {aiConversations.map((conversation) => (
@@ -1861,12 +1878,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                           >
                             <p className="line-clamp-1 text-sm font-medium">{conversation.title}</p>
                             <p className="mt-1 text-xs text-purple-200/70">
-                              Last message: {format(new Date(conversation.last_message_at), 'MMM d, h:mm a')}
+                              {t('ai.chat.lastMessage', { when: shortDateTime(conversation.last_message_at) })}
                             </p>
                           </button>
                           <button
                             type="button"
-                            aria-label="Delete AI conversation"
+                            aria-label={t('ai.chat.deleteAiConversation')}
                             onClick={(e) => handleDeleteAIConversation(conversation.id, e)}
                             className="absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-2 text-red-300 hover:bg-red-900/30 hover:text-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                           >
@@ -1883,19 +1900,20 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         )}
 
         {/* Community Tab Content */}
+        {/* i18n-ignore: state check, not text */}
         {activeTab === 'community' && (
           <Card className="bg-gradient-to-br from-green-900/30 to-slate-900 border-green-700 p-6">
-            <h3 className="text-2xl font-bold text-white mb-2">Community Chat</h3>
+            <h3 className="text-2xl font-bold text-white mb-2">{t('ai.chat.communityTitle')}</h3>
             <p className="text-sm text-green-300/80 mb-4">
-              Chat with other Snow Media users right inside the app.
+              {t('ai.chat.communityIntro')}
             </p>
 
             <div className="bg-slate-800 rounded-lg p-6 mb-6">
               <div className="text-center py-8">
                 <MessageSquare className="w-16 h-16 mx-auto text-green-400/50 mb-4" />
-                <h4 className="text-xl font-semibold text-white mb-2">Snow Media Community</h4>
+                <h4 className="text-xl font-semibold text-white mb-2">{t('ai.chat.communityHeading')}</h4>
                 <p className="text-slate-400 mb-4">
-                  Tips, updates, and discussions from the community — all in-app.
+                  {t('ai.chat.communityBody')}
                 </p>
               </div>
             </div>
@@ -1907,13 +1925,14 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 className={`bg-green-600 hover:bg-green-700 text-white text-lg px-8 py-3 flex-1 transition-all duration-200 ${focusRing('visit-forum')}`}
               >
                 <MessageSquare className="w-5 h-5 mr-2" />
-                Open Community Chat
+                {t('ai.chat.openCommunityBtn')}
               </Button>
             </div>
           </Card>
         )}
 
         {/* AI Tab Content */}
+        {/* i18n-ignore: state check, not text */}
         {activeTab === 'ai' && (
           <Card className={`bg-slate-950/90 border-purple-500/40 text-white shadow-xl ${embedded ? 'p-5' : 'p-6'}`}>
             {/* A solid dark card. It was a 30% purple gradient over the Card's
@@ -1925,8 +1944,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   <Brain className="w-6 h-6 text-white" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-xl font-bold text-white leading-tight">Snow Media AI Assistant</h3>
-                  <p className="text-sm text-white/70 truncate">Ask about Snow Media, streaming apps, or help with your SMC app.</p>
+                  <h3 className="text-xl font-bold text-white leading-tight">{t('ai.chat.assistantTitle')}</h3>
+                  <p className="text-sm text-white/70 truncate">{t('ai.chat.assistantSubtitle')}</p>
                 </div>
               </div>
               <div className="flex items-center shrink-0">
@@ -1934,8 +1953,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   type="button"
                   onClick={() => setVoiceRepliesEnabled(v => !v)}
                   aria-pressed={voiceRepliesEnabled}
-                  aria-label={voiceRepliesEnabled ? 'Disable voice replies' : 'Enable voice replies'}
-                  title={voiceRepliesEnabled ? 'Voice replies: ON — tap to disable' : 'Voice replies: OFF — tap to enable'}
+                  aria-label={voiceRepliesEnabled ? t('ai.chat.disableVoiceReplies') : t('ai.chat.enableVoiceReplies')}
+                  title={voiceRepliesEnabled ? t('ai.chat.voiceRepliesOnTitle') : t('ai.chat.voiceRepliesOffTitle')}
                   className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border transition-colors ${
                     voiceRepliesEnabled
                       ? 'bg-brand-ice/15 border-brand-ice/40 text-brand-ice'
@@ -1943,20 +1962,20 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   }`}
                 >
                   {voiceRepliesEnabled ? <Volume2 className="w-3.5 h-3.5 mr-1" /> : <VolumeX className="w-3.5 h-3.5 mr-1" />}
-                  Voice {voiceRepliesEnabled ? 'ON' : 'OFF'}
+                  {voiceRepliesEnabled ? t('ai.chat.voiceOnChip') : t('ai.chat.voiceOffChip')}
                 </button>
                 {user && profile && (
                   <span className="ml-2 rounded-full bg-white/10 border border-white/15 px-3 py-1 text-xs font-semibold text-white/90">
-                    {profile.credits.toFixed(2)} Snow Gems
+                    {t('ai.chat.gemsAmount', { amount: profile.credits.toFixed(2) })}
                   </span>
                 )}
               </div>
             </div>
 
             <div className={`flex flex-wrap items-center text-xs font-semibold ${embedded ? 'mb-3' : 'mb-5'}`}>
-              <span className="mr-2 mb-1 rounded-full bg-brand-gold/15 border border-brand-gold/40 px-2.5 py-0.5 text-brand-gold">Text chat · 0.01 Snow Gems a message</span>
-              <span className="mr-2 mb-1 rounded-full bg-brand-ice/10 border border-brand-ice/35 px-2.5 py-0.5 text-brand-ice">Voice reply · 0.04 Snow Gems</span>
-              <span className="mb-1 rounded-full bg-white/10 border border-white/15 px-2.5 py-0.5 text-white/75">32+ languages</span>
+              <span className="mr-2 mb-1 rounded-full bg-brand-gold/15 border border-brand-gold/40 px-2.5 py-0.5 text-brand-gold">{t('ai.chat.textChatChip')}</span>
+              <span className="mr-2 mb-1 rounded-full bg-brand-ice/10 border border-brand-ice/35 px-2.5 py-0.5 text-brand-ice">{t('ai.chat.voiceReplyChip')}</span>
+              <span className="mb-1 rounded-full bg-white/10 border border-white/15 px-2.5 py-0.5 text-white/75">{t('ai.chat.languagesChip')}</span>
             </div>
 
             {/* A Kids profile: say plainly what this AI will and won't do. */}
@@ -1964,8 +1983,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               <div className="mb-4 rounded-lg border border-emerald-400/60 bg-emerald-900/40 p-3 flex items-start">
                 <ShieldCheck className="w-6 h-6 text-emerald-300 mr-3 mt-0.5 shrink-0" />
                 <div>
-                  <div className="font-bold text-emerald-200">{KIDS_AI_TITLE}</div>
-                  <p className="text-sm text-emerald-50/90">{KIDS_AI_NOTICE}</p>
+                  <div className="font-bold text-emerald-200">{kidsAiTitle()}</div>
+                  <p className="text-sm text-emerald-50/90">{kidsAiNotice()}</p>
                 </div>
               </div>
             )}
@@ -1978,14 +1997,14 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             >
               {isFocused('message-scroll') && aiChat.length > 0 && (
                 <div className="text-center text-xs text-brand-ice mb-2 animate-pulse">
-                  ↑↓ Use D-pad to scroll messages
+                  {t('ai.chat.dpadScroll')}
                 </div>
               )}
               {aiChat.length === 0 ? (
                 <div className={`text-center text-white/60 ${embedded ? 'py-3' : 'py-8'}`}>
                   <Brain className={`${embedded ? 'w-10 h-10 mb-2' : 'w-12 h-12 mb-4'} mx-auto text-purple-400`} />
-                  <p className="text-white/85 font-semibold">Start a conversation with Snow Media AI</p>
-                  <p className="text-sm mt-1">{kidsLevel() ? 'Try asking: "Find me a cartoon to watch"' : 'Try asking: "Help me install an app"'}</p>
+                  <p className="text-white/85 font-semibold">{t('ai.chat.startConversation')}</p>
+                  <p className="text-sm mt-1">{kidsLevel() ? t('ai.chat.tryAskingKids') : t('ai.chat.tryAskingAdult')}</p>
                 </div>
               ) : (
                 aiChat.map((msg, index) => (
@@ -1996,21 +2015,21 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   }`}>
                     <div className="flex items-center justify-between mb-1 text-xs">
                       <span className={`font-semibold mr-4 ${msg.role === 'user' ? 'text-blue-100' : 'text-purple-300'}`}>
-                        {msg.role === 'user' ? 'You' : 'Snow Media AI'}
+                        {msg.role === 'user' ? t('ai.chat.you') : t('ai.chat.aiSender')}
                       </span>
                       <span className="text-white/50">
-                        {msg.timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                        {formatTime(msg.timestamp)}
                       </span>
                     </div>
                     {msg.role === 'ai' && msg.premiumContent ? (
                       <div className="grid gap-3 md:grid-cols-2">
                         <div className="rounded-xl border border-white/15 bg-black/25 p-3">
-                          <p className="text-xs uppercase tracking-wide text-brand-ice/80 mb-1">Snow AI · included</p>
+                          <p className="text-xs uppercase tracking-wide text-brand-ice/80 mb-1">{t('ai.chat.snowAiIncluded')}</p>
                           <p className="text-white whitespace-pre-wrap">{msg.content}</p>
                         </div>
                         <div className="rounded-xl border border-brand-gold/60 bg-brand-gold/10 p-3">
                           <p className="text-xs uppercase tracking-wide text-brand-gold mb-1">
-                            Snow AI Premium{chatPremium ? ` · ${chatPremium.gems} gems a message` : ''}
+                            {chatPremium ? t('ai.chat.snowAiPremiumGems', { gems: chatPremium.gems }) : t('ai.chat.snowAiPremium')}
                           </p>
                           <p className="text-white whitespace-pre-wrap">{msg.premiumContent}</p>
                         </div>
@@ -2018,11 +2037,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     ) : (
                       <p className="text-white whitespace-pre-wrap">
                         {msg.content}
+                        {/* i18n-ignore: state check, not text */}
                         {msg.role === 'ai' && msg.tier === 'premium' && (
-                          <span className="ml-2 align-middle text-[10px] uppercase tracking-wide rounded-full bg-brand-gold text-black px-2 py-0.5">Premium</span>
+                          <span className="ml-2 align-middle text-[10px] uppercase tracking-wide rounded-full bg-brand-gold text-black px-2 py-0.5">{t('ai.chat.premiumChip')}</span>
                         )}
                       </p>
                     )}
+                    {/* i18n-ignore: state check, not text */}
                     {msg.role === 'ai' && pendingTtsMessageIndex === index && (
                       <button
                         type="button"
@@ -2030,7 +2051,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                         className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-brand-ice/20 border border-brand-ice/40 px-3 py-1.5 text-sm font-semibold text-brand-ice hover:bg-brand-ice/30 transition-colors"
                       >
                         <Volume2 className="w-4 h-4" />
-                        Tap to hear reply
+                        {t('ai.chat.tapToHearBtn')}
                       </button>
                     )}
                   </div>
@@ -2041,7 +2062,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               {aiLoading && (
                 <div className="flex items-center text-purple-400 mt-4">
                   <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  <span>Snow Media AI is thinking...</span>
+                  <span>{t('ai.chat.thinking')}</span>
                 </div>
               )}
             </div>
@@ -2051,7 +2072,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               <Input 
                 value={aiMessage}
                 onChange={(e) => setAiMessage(e.target.value)}
-                placeholder="Ask Snow Media AI anything..."
+                placeholder={t('ai.chat.askPlaceholder')}
                 enterKeyHint="done"
                 data-focus-id="ai-input"
                 className={`bg-black/40 border-white/20 text-white text-lg py-3 flex-1 transition-all duration-200 rounded-lg placeholder:text-white/45 ${isFocused('ai-input') ? 'ring-4 ring-brand-ice' : ''}`}
@@ -2083,10 +2104,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   }}
                   disabled={aiLoading || !aiChat.some(m => m.role === 'ai')}
                   className="h-full bg-brand-ice/20 hover:bg-brand-ice/30 border border-brand-ice/40 text-white px-4"
-                  aria-label="Hear the most recent AI reply"
+                  aria-label={t('ai.chat.hearLatestAria')}
                 >
                   <Volume2 className="w-4 h-4 mr-2" />
-                  Hear reply
+                  {t('ai.chat.hearBtn')}
                 </Button>
               </div>
               {chatPremium && (
@@ -2095,12 +2116,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   onClick={toggleChatTier}
                   disabled={aiLoading}
                   data-focus-id="ai-tier"
-                  title="Switch between Snow AI and Snow AI Premium"
+                  title={t('ai.chat.tierSwitchTitle')}
                   className={`px-4 py-3 transition-all duration-200 ${effectiveChatTier === 'premium'
                     ? 'text-black border-0 [background:var(--gradient-gold)] hover:brightness-110'
                     : 'bg-white/10 border border-white/30 text-white hover:bg-white/20'} ${focusRing('ai-tier')}`}
                 >
-                  {effectiveChatTier === 'premium' ? `Premium · ${chatPremium.gems}` : 'Free'}
+                  {effectiveChatTier === 'premium' ? t('ai.chat.tierPremiumBtn', { gems: chatPremium.gems }) : t('ai.chat.tierFreeBtn')}
                 </Button>
               )}
               {chatCompareAvailable && (
@@ -2109,10 +2130,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   onClick={() => void sendAiMessage(undefined, { compare: true })}
                   disabled={aiLoading || !aiMessage.trim()}
                   data-focus-id="ai-compare"
-                  title="Answer with both levels — the Premium one is free, once"
+                  title={t('ai.chat.compareTitle')}
                   className={`bg-brand-ice/20 border border-brand-ice/50 text-white px-4 py-3 transition-all duration-200 ${focusRing('ai-compare')}`}
                 >
-                  Compare · free once
+                  {t('ai.chat.compareBtn')}
                 </Button>
               )}
               <Button 
@@ -2131,8 +2152,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             {aiConversations.length > 0 && (
               <div className="mt-5 border-t border-purple-700/50 pt-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-purple-200">Saved AI Chats</h4>
-                  <Badge className="bg-purple-700 text-white">Last 5</Badge>
+                  <h4 className="text-sm font-semibold text-purple-200">{t('ai.chat.savedChatsTitle')}</h4>
+                  <Badge className="bg-purple-700 text-white">{t('ai.chat.lastFiveChip')}</Badge>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
                   {aiConversations.map((conversation, idx) => (
@@ -2148,12 +2169,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                       >
                         <p className="line-clamp-1 text-sm font-medium">{conversation.title}</p>
                         <p className="mt-1 text-xs text-purple-200/70">
-                          {format(new Date(conversation.last_message_at), 'MMM d, h:mm a')}
+                          {shortDateTime(conversation.last_message_at)}
                         </p>
                       </button>
                       <button
                         type="button"
-                        aria-label="Delete AI conversation"
+                        aria-label={t('ai.chat.deleteAiConversation')}
                         onClick={(e) => handleDeleteAIConversation(conversation.id, e)}
                         className="absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-2 text-red-300 hover:bg-red-900/30 hover:text-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                       >
@@ -2167,7 +2188,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             
             {!user && (
               <p className="text-purple-300 text-sm mt-4 text-center">
-                Sign in to save your chats &amp; images.
+                {t('ai.chat.signInToSave')}
               </p>
             )}
           </Card>

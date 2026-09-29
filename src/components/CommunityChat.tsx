@@ -7,7 +7,8 @@ import { ArrowLeft, Send, Users, Pin, Clock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow } from 'date-fns';
+import { useTranslation } from 'react-i18next';
+import { formatRelative } from '@/i18n/format';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
@@ -28,6 +29,7 @@ interface CommunityChatProps {
 }
 
 const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
@@ -41,10 +43,10 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
   const sendMessageRef = useRef<() => void>(() => {});
 
   const rooms = [
-    { id: 'general', name: 'General', description: 'General discussion' },
-    { id: 'support', name: 'Support', description: 'Technical support' },
-    { id: 'products', name: 'Products', description: 'Product discussions' },
-    { id: 'feedback', name: 'Feedback', description: 'Share your feedback' }
+    { id: 'general', name: t('ai.communityChat.roomGeneral'), description: t('ai.communityChat.roomGeneralDesc') },
+    { id: 'support', name: t('ai.communityChat.roomSupport'), description: t('ai.communityChat.roomSupportDesc') },
+    { id: 'products', name: t('ai.communityChat.roomProducts'), description: t('ai.communityChat.roomProductsDesc') },
+    { id: 'feedback', name: t('ai.communityChat.roomFeedback'), description: t('ai.communityChat.roomFeedbackDesc') }
   ];
 
   const tvNavigation = useMemo<TVFocusNavigationMap>(() => {
@@ -101,12 +103,12 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
       setMessages((data || []) as CommunityMessage[]);
     } catch (error) {
       console.error('Error loading messages:', error);
-      setLoadError('Could not load this chat room. Please try again.');
+      setLoadError(t('ai.communityChat.loadError'));
       setMessages([]);
     } finally {
       setLoading(false);
     }
-  }, [selectedRoom, user]);
+  }, [selectedRoom, user, t]);
 
   useEffect(() => {
     loadMessages();
@@ -146,14 +148,14 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
       setNewMessage('');
       await loadMessages();
       toast({
-        title: "Message sent!",
-        description: "Your message has been posted to the community.",
+        title: t('ai.communityChat.toast.sentTitle'),
+        description: t('ai.communityChat.toast.sentDesc'),
       });
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
-        title: "Error",
-        description: "Failed to send message",
+        title: t('ai.communityChat.toast.errorTitle'),
+        description: t('ai.communityChat.toast.sendFailed'),
         variant: "destructive",
       });
     } finally {
@@ -169,22 +171,22 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
       <div className={embedded ? "w-full" : "max-w-6xl mx-auto pb-16"}>
         {/* Back always renders — including embedded inside Support */}
         <div className={BACK_ROW}>
-          <BackButton onClick={onBack} label="Back to Home" data-tv-focus-id="back" />
+          <BackButton onClick={onBack} label={t('common.backToHome')} data-tv-focus-id="back" />
         </div>
         {/* Rest of the header — hidden when embedded inside Support */}
         {!embedded && (
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">In-App Community Chat</h1>
+              <h1 className="text-4xl font-bold text-white mb-2">{t('ai.communityChat.title')}</h1>
               <p className="text-xl text-blue-200">
-                Real-time chat between Snow Media users — separate from our website Blog & Forum.
+                {t('ai.communityChat.subtitle')}
               </p>
             </div>
           </div>
           <div className="flex items-center space-x-2 bg-blue-600/20 border border-blue-500/50 rounded-lg px-3 py-2">
             <Users className="w-4 h-4 text-blue-400" />
-            <span className="text-blue-400 text-sm">In-App Only</span>
+            <span className="text-blue-400 text-sm">{t('ai.communityChat.inAppOnlyChip')}</span>
           </div>
         </div>
         )}
@@ -194,7 +196,7 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
           <div className="lg:col-span-1">
             <Card className="bg-slate-900/95 border-blue-400/60 shadow-[0_0_24px_rgba(161,213,220,0.14)]">
               <CardHeader>
-                <CardTitle className="text-white">Chat Rooms</CardTitle>
+                <CardTitle className="text-white">{t('ai.communityChat.roomsTitle')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {rooms.map((room) => (
@@ -232,7 +234,7 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
               <CardContent className="flex-1 overflow-y-auto space-y-4 p-4">
                 {loading ? (
                   <div className="flex items-center justify-center h-full">
-                    <div className="text-slate-200">Loading messages...</div>
+                    <div className="text-slate-200">{t('ai.communityChat.loadingMessages')}</div>
                   </div>
                 ) : loadError ? (
                   <div className="flex items-center justify-center h-full">
@@ -242,13 +244,13 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">
                       <Users className="w-12 h-12 text-blue-200 mx-auto mb-4" />
-                      <div className="text-slate-100 font-medium">No messages yet</div>
-                      <div className="text-slate-300 text-sm">Be the first to start the conversation!</div>
+                      <div className="text-slate-100 font-medium">{t('ai.communityChat.noMessages')}</div>
+                      <div className="text-slate-300 text-sm">{t('ai.communityChat.beFirst')}</div>
                     </div>
                   </div>
                 ) : (
                   messages.map((message) => {
-                    const displayName = message.username || 'Member';
+                    const displayName = message.username || t('ai.communityChat.member');
                     return (
                     <div key={message.id} className="flex space-x-3">
                       <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
@@ -259,12 +261,12 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
                           <span className="font-medium text-white">{displayName}</span>
                           <span className="text-xs text-white/60 flex items-center">
                             <Clock className="w-3 h-3 mr-1" />
-                            {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
+                            {formatRelative(message.created_at)}
                           </span>
                           {message.is_pinned && (
                             <Badge variant="secondary" className="bg-yellow-600/20 text-yellow-400">
                               <Pin className="w-3 h-3 mr-1" />
-                              Pinned
+                              {t('ai.communityChat.pinned')}
                             </Badge>
                           )}
                         </div>
@@ -287,7 +289,7 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
                       data-tv-focus-id="input"
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder={`Message #${rooms.find(r => r.id === selectedRoom)?.name}...`}
+                      placeholder={t('ai.communityChat.messagePlaceholder', { room: rooms.find(r => r.id === selectedRoom)?.name })}
                       className="flex-1 min-h-12 bg-slate-800 border-blue-300/70 text-white placeholder:text-blue-100 transition-all duration-200"
                       onKeyPress={(e) => e.key === 'Enter' && sendMessageRef.current()}
                       disabled={sending}
@@ -303,7 +305,7 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
                   </div>
                 ) : (
                   <div className="text-center text-slate-100 font-medium bg-slate-800 border border-blue-300/50 rounded-lg p-4">
-                    Please sign in to participate in the chat
+                    {t('ai.communityChat.signInToChat')}
                   </div>
                 )}
               </div>

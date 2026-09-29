@@ -1,0 +1,15 @@
+# Work item 6: AI, voice and guides.
+src/components/ChatCommunity.tsx
+src/components/CommunityChat.tsx
+src/components/AIConversationSystem.tsx
+src/components/FreeAiBlockedDialog.tsx
+src/components/voice
+src/components/VoiceInput.tsx
+src/components/BufferingGuide.tsx
+src/components/HowToGuide.tsx
+src/components/TutorialArt.tsx
+src/data/tutorialContent.ts
+src/lib/kidsAiNotice.ts
+src/lib/appActions.ts
+src/lib/voiceUi.ts
+src/hooks/useAIConversations.ts

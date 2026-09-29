@@ -1,0 +1,409 @@
+{
+  "guides": {
+    "howTo": {
+      "basics": {
+        "title": "The Basics",
+        "subtitle": "Your remote + the Home screen",
+        "s0": {
+          "title": "Move with the arrows. OK picks. Back goes back.",
+          "line2": "That's 90% of everything — you can't break anything."
+        },
+        "s1": {
+          "title": "This is your Home screen.",
+          "line2": "Big cards: Live TV, Plex, Support and the Store."
+        },
+        "s2": {
+          "title": "The bar up top is yours.",
+          "line2": "What you were watching, your live channels with what's on now, and picks based on what you watch. OK jumps straight in."
+        },
+        "s3": {
+          "title": "The scrolling line at the very top is news from us.",
+          "line2": "Deals, updates and heads-ups show there."
+        },
+        "s4": {
+          "title": "My Account and Settings live in the top-right corner."
+        }
+      },
+      "livetv": {
+        "title": "Player — Live TV",
+        "subtitle": "Channels, layouts, guide & multi-screen",
+        "s0": {
+          "title": "Open Live TV from the Home screen.",
+          "line2": "Sign in with the details your seller gave you. Every account you add shows in one list.",
+          "linkBtn": "Take me there"
+        },
+        "s1": {
+          "title": "Pick your look: Classic, Compact or Vibez.",
+          "line2": "Live TV asks the first time. Change it any time under Player Settings → Appearance."
+        },
+        "s2": {
+          "title": "Pick a category, then a channel.",
+          "line2": "In Compact, the categories are one press to the LEFT. Back from the channels goes to the categories."
+        },
+        "s3": {
+          "title": "Rest on a channel and it plays in the preview box. OK goes full screen.",
+          "line2": "In Vibez, OK plays right away. While watching, OK shows the controls; Up and Down change the channel."
+        },
+        "s4": {
+          "title": "The Guide shows what's on now and what's next."
+        },
+        "s5": {
+          "title": "Multi-Screen plays 2 or 4 channels at once.",
+          "line2": "The sound follows the tile you highlight."
+        },
+        "s6": {
+          "title": "Channel not working? Hold OK on it.",
+          "line2": "Report a problem, add it to Favorites, or refresh a favorite whose link changed. Reports come straight to us."
+        }
+      },
+      "movies": {
+        "title": "Player — Plex",
+        "subtitle": "Movies & Series",
+        "s0": {
+          "title": "Open Plex from the Home screen.",
+          "linkBtn": "Take me there"
+        },
+        "s1": {
+          "title": "Signed into Live TV? Plex connects by itself — no code to send.",
+          "line2": "Not signed in yet? Press Connect with Live TV. You don't need your own Plex account."
+        },
+        "s2": {
+          "title": "The menu down the left: Home, Discover, your libraries, Search, Request.",
+          "line2": "OK on a poster opens the title page — then press Play."
+        },
+        "s3": {
+          "title": "Not sure what to watch? Discover has Hidden Gems, Surprise Me, genres and decades.",
+          "line2": "Home shows what you were watching, new arrivals and Most Watched."
+        },
+        "s4": {
+          "title": "Don't want a library? Hold OK on it in the menu to hide it.",
+          "line2": "Bring it back under Settings → Hidden."
+        },
+        "s5": {
+          "title": "Need subtitles? Open the Subtitles menu and pick 'Get subtitles…'."
+        },
+        "s6": {
+          "title": "No sound? Open the Audio menu and press 'Fix audio'.",
+          "line2": "It fixes the sound without restarting your movie."
+        }
+      },
+      "apps": {
+        "title": "Main Apps",
+        "subtitle": "Get & manage your apps",
+        "s0": {
+          "title": "Main Apps has every extra app you might need — all in one safe place.",
+          "line2": "Find it in Support → Main Apps.",
+          "linkBtn": "Take me there"
+        },
+        "s1": {
+          "title": "Press OK on an app, then Download to install it.",
+          "line2": "Already installed? It just says Open."
+        }
+      },
+      "support": {
+        "title": "Support",
+        "subtitle": "Help, AI and Posts",
+        "s0": {
+          "title": "Stuck? Support has your back.",
+          "line2": "Three tabs: Help, AI Chat and Posts."
+        },
+        "s1": {
+          "title": "Speed Test checks if your internet is fast enough for streaming."
+        },
+        "s2": {
+          "title": "TV keeps pausing? Open the Buffering Guide — it walks you through easy fixes.",
+          "linkBtn": "Open it"
+        },
+        "s3": {
+          "title": "Submit a Ticket to reach a real person.",
+          "line2": "A count shows on the Support card when we answer.",
+          "linkBtn": "Open tickets"
+        },
+        "s4": {
+          "title": "Box running slow or out of space? Device Cleaner frees it up.",
+          "line2": "It empties every app's cache, closes background apps, and lists apps nobody opens.",
+          "linkBtn": "Open the cleaner"
+        },
+        "s5": {
+          "title": "AI Chat answers instantly — and can do things for you.",
+          "line2": "Ask it to open a screen, change your Live TV look, report a channel, install an app, or make you a wallpaper."
+        },
+        "s6": {
+          "title": "Posts: every email we send lands here too.",
+          "line2": "Dated, marked New until you open it, readable full screen. Links become a code you scan with your phone.",
+          "linkBtn": "Open Posts"
+        }
+      },
+      "account": {
+        "title": "My Account & Snow Gems",
+        "subtitle": "Dashboard, gems & games",
+        "s0": {
+          "title": "My Account is your Dashboard — everything on one screen.",
+          "line2": "Your streaming account, devices and services, and your Snow Gems. Prefer it bigger? Settings → UI → Large dashboard.",
+          "linkBtn": "Take me there"
+        },
+        "s1": {
+          "title": "Snow Gems power Premium AI and Image Gen.",
+          "line2": "Purchase Snow Gems: pick a pack, scan the code with your phone, pay there — the gems land on your account by themselves."
+        },
+        "s2": {
+          "title": "The Game Lounge: Blackjack, Roulette, Slots, Plinko, Dice, Video Poker, Trivia and the Daily Spin.",
+          "line2": "Play for Snow Coins and climb the leaderboard. Never real money.",
+          "linkBtn": "Open the lounge"
+        }
+      },
+      "extras": {
+        "title": "Settings & Extras",
+        "subtitle": "Make it yours",
+        "s0": {
+          "title": "Change your wallpaper under Settings → Media.",
+          "line2": "Upload your own, or describe one and let AI make it.",
+          "linkBtn": "Take me there"
+        },
+        "s1": {
+          "title": "Settings → UI has the switches.",
+          "line2": "Content bar on or off, Large dashboard, Post notifications, and alerts on this device."
+        },
+        "s2": {
+          "title": "Saved Accounts remembers your sign-ins so you never retype them."
+        }
+      },
+      "title": "How to use SMC",
+      "pickTopic": "Pick a topic — press Back anytime to leave.",
+      "slideCount_one": "{{count}} slide",
+      "slideCount_other": "{{count}} slides",
+      "slideOf": "Slide {{current}} of {{total}}",
+      "doneBtn": "Done",
+      "nextBtn": "Next"
+    },
+    "buffering": {
+      "steps": {
+        "intro": "App",
+        "step1": "One or all",
+        "step2": "Refresh app",
+        "step3": "Speed",
+        "step4": "VPN",
+        "summary": "Results"
+      },
+      "hints": {
+        "intro": "Pick the app that is buffering, then press Next.",
+        "step1": "Only one channel or title? Report it and we fix it at the source.",
+        "step2": "Force Stop, then Clear Cache, then press Back to come here.",
+        "step3": "Aim for 15 Mbps or more on this device.",
+        "step4": "Install, sign in, Quick Connect, then test again.",
+        "summary": "Send these results to support if it is still buffering."
+      },
+      "kidsHints": {
+        "step1": "Only one channel or title? Tell a grown-up which one.",
+        "step2": "Ask a grown-up to clear the app's cache.",
+        "step4": "Ask a grown-up to set up a VPN.",
+        "summary": "Still buffering? Show this to a grown-up."
+      },
+      "yourApp": "your app",
+      "backToPlayerBtn": "Back to Player",
+      "title": "Fix Buffering",
+      "stepOf": "Step {{current}} of {{total}} · {{label}}",
+      "progressAria": "Progress",
+      "skipToVpnTitle": "Already tried a VPN? Jump straight to the VPN step.",
+      "skipToVpnBtn": "Already tried the rest? Go to the VPN step",
+      "kidsOne": {
+        "title": "Tell a grown-up",
+        "lead": "When only one channel or show fails, it gets fixed at the source. Tell a grown-up which one — they can report it from their profile."
+      },
+      "changeAnswerBtn": "Change answer",
+      "nextBtn": "Next",
+      "goBackBtn": "Go back",
+      "skipVpnBtn": "Skip VPN",
+      "sendingBtn": "Sending…",
+      "sendAnywayBtn": "Send anyway",
+      "stillBufferingBtn": "Still buffering",
+      "openAppBtn": "Open {{app}}",
+      "qrAlt": "QR code",
+      "toast": {
+        "openedSettingsTitle": "Opened app settings",
+        "openedSettingsDesc": "Tap Force Stop, then Storage → Clear Cache. Press Back when done.",
+        "webOnlyTitle": "Open in the installed app",
+        "webOnlyDesc": "This action only works inside the installed Snow Media Center app.",
+        "cantOpenSettingsTitle": "Could not open settings",
+        "cantLaunchTitle": "Could not launch app",
+        "ticketSubmittedTitle": "Ticket submitted",
+        "ticketSubmittedDesc": "Opening Support → Tickets.",
+        "cantSubmitTitle": "Could not submit ticket",
+        "unknownError": "Unknown error",
+        "enterTitleTitle": "Enter a title",
+        "enterTitleDesc": "Type the channel or movie/show name first.",
+        "pickDeviceTitle": "Pick a device",
+        "pickDeviceDesc": "Tell us which device you are watching on.",
+        "reportSentTitle": "Report sent",
+        "reportSentDesc": "Thanks! Sign in next time to track it on your account.",
+        "cantSendReportTitle": "Could not send report",
+        "openAndroidSettingsTitle": "Open Android Settings → Apps",
+        "openAndroidSettingsDesc": "Find the app, then tap Force Stop and Clear Cache.",
+        "greatTitle": "Great!",
+        "greatDesc": "Glad we got it sorted.",
+        "invalidSpeedTitle": "Invalid speed",
+        "invalidSpeedDesc": "Enter a number like 25.",
+        "speedLowTitle": "Speed is too low",
+        "speedLowDesc": "Below 15 Mbps will cause buffering. Try 5GHz Wi-Fi, move closer, or use Ethernet.",
+        "vpnNotInStoreTitle": "VPN not in store",
+        "vpnNotInStoreDesc": "Use the Downloader code instead.",
+        "switchVpnServerTitle": "Switch VPN server",
+        "switchVpnServerDesc": "Pick the closest city/server, then re-test for 15+ Mbps.",
+        "getSpeedFirstTitle": "Get speed to 15+ first",
+        "getSpeedFirstDesc": "Switch VPN city/server, then re-test speed.",
+        "awesomeTitle": "Awesome!",
+        "awesomeDesc": "Likely ISP throttling — keep VPN on while streaming.",
+        "openAppManually": "Open the streaming app manually.",
+        "enterSpeedTitle": "Enter your download speed",
+        "enterSpeedDesc": "Type the Mbps you saw above, then continue."
+      },
+      "anon": {
+        "title": "Send report without signing in?",
+        "body1": "Your report will be submitted to Snow Media support, but it will <0>not</0> be saved to your account.",
+        "body2": "Tip: Go back to the Home Screen and tap <0>Sign In</0> first so your ticket is saved on your account and you can track replies."
+      },
+      "signInPrompt": {
+        "title": "Sign in to submit a ticket",
+        "body1": "You need an account to submit a support ticket so our team can <0>reply back to you</0> and you can track the conversation.",
+        "body2": "Sign in or create a free account to submit your ticket and get replies back.",
+        "signInBtn": "Sign In"
+      },
+      "vpnSkip": {
+        "title": "Skip the VPN step?",
+        "body1": "Heads up: Your internet provider can slow you down during peak hours — or for no clear reason at all. In 2026, ISP throttling is the <0>#1 cause of buffering</0>.",
+        "body2": "If nothing has worked up to this point, installing and turning on a VPN will more than likely fix it. You can still continue if you'd rather skip for now."
+      },
+      "intro": {
+        "title": "Which app is buffering?",
+        "lead": "We'll go through the usual fixes one at a time. This is for Snow Media's streaming apps — Netflix, Disney+ or Hulu buffering is usually something else.",
+        "subLive": "Live TV, movies and shows",
+        "subPlex": "Your Plex movies and TV",
+        "otherLabel": "Other / not sure",
+        "otherSub": "Any other streaming app"
+      },
+      "device": {
+        "fireTv": "Amazon Fire TV / Firestick",
+        "androidTv": "Android TV / Google TV",
+        "androidPhone": "Android Phone or Tablet",
+        "setTop": "Set-Top Box (X96 / T95 / etc.)",
+        "other": "Other"
+      },
+      "report": {
+        "title": "Report the channel or title",
+        "lead": "Tell us exactly what's buffering in <0>{{appLabel}}</0> and what you watch on. We'll open a support ticket so it gets fixed at the source.",
+        "nameLabel": "Channel or movie/show name",
+        "namePlaceholder": "e.g. ESPN HD, The Bear S03E01",
+        "deviceQuestion": "Which device are you watching on?",
+        "sendBtn": "Send report"
+      },
+      "step1": {
+        "title": "Is it one channel, or everything?",
+        "lead": "When only one channel or title fails, your internet is usually fine — it's the source, and we can fix that on our end.",
+        "oneTitle": "Just one channel or title",
+        "oneSub": "Report it and we'll fix it",
+        "allTitle": "Everything buffers",
+        "allSub": "Let's find the cause together"
+      },
+      "step2": {
+        "title": "Refresh {{app}}",
+        "lead": "Clearing the app's cache fixes a lot of buffering. It doesn't sign you out or delete anything.",
+        "kidsNote": "Ask a grown-up to do this part. In the box's settings for {{app}}: <0>Force Stop</0>, then <1>Storage → Clear Cache</1>.",
+        "openSettingsBtn": "Open {{app}} settings",
+        "item1": "Choose <0>Force Stop</0>",
+        "item2": "Go to <0>Storage → Clear Cache</0> (not Clear Data)",
+        "item3": "Press <0>Back</0> on your remote to come here",
+        "notInstalled": "{{app}} doesn't look installed on this device. Install it from Main Apps first.",
+        "question": "Did that fix the buffering?",
+        "fixedBtn": "Yes, it's fixed",
+        "stillSub": "Next we'll test your internet speed"
+      },
+      "step3": {
+        "title": "Test your internet speed",
+        "lead": "Streaming needs at least 15 Mbps download on this device. Run the test here, or type in a result from another speed test.",
+        "runBtn": "Run speed test",
+        "typeLabel": "Or type your download speed",
+        "mbps": "Mbps",
+        "yourSpeed": "Your speed",
+        "good": "Good for streaming. Press Next.",
+        "tooSlow": "Too slow for smooth streaming. Try 5 GHz Wi-Fi, move the box closer to the router, or use an Ethernet cable, then test again.",
+        "emptyHint": "Run the test and your result shows here."
+      },
+      "step4": {
+        "title": "Try a VPN",
+        "lead": "Internet providers often slow streaming down, especially in the evening. A VPN hides your streaming from them, and is the most common fix.",
+        "kidsNote": "A VPN is a grown-up's job. Ask one to set it up and turn it on, then come back and try your stream again.",
+        "installed": "Installed",
+        "notInstalled": "Not installed",
+        "withVpn": "With the VPN connected",
+        "test1": "1. Test your speed again",
+        "runVpnBtn": "Run speed test with VPN on",
+        "speedOk": "15 Mbps or more",
+        "speedLow": "Under 15 Mbps",
+        "speedLowSub": "Pick a closer VPN city, then test again",
+        "test2": "2. Try your stream",
+        "test2In": "2. Try your stream in {{app}}",
+        "vpnFixed": "The VPN fixed it"
+      },
+      "vpn": {
+        "openBtn": "Open {{name}}",
+        "installBtn": "Install {{name}}",
+        "item1": "<0>Sign in</0> — your reseller has the details, or sign up with the QR code",
+        "item2": "Choose <0>Quick Connect</0>, then come back and try your stream",
+        "paidNote": "A VPN is a paid service — free ones are too slow for streaming. It does <0>not</0> work with VibezTV.",
+        "needAccount": "Need an account?",
+        "scanToSignUp": "Scan with your phone to sign up"
+      },
+      "summary": {
+        "sorted": "Sorted",
+        "found": "What we found",
+        "kidsNote": "Still buffering? Show this screen to a grown-up. They can send it to support from their profile.",
+        "sendBtn": "Send to support",
+        "startOverBtn": "Start over",
+        "whatYouTried": "What you tried"
+      },
+      "diag": {
+        "oneOnly": {
+          "title": "It's that one channel or title",
+          "b1": "If only one channel/title is failing, your internet is usually fine.",
+          "b2": "Email the exact channel/title name to support so we can fix it fast."
+        },
+        "cacheFixed": {
+          "title": "Fixed: clearing the cache did it",
+          "b1": "Clearing cache + restarting refreshes the app and connection.",
+          "b2": "If it happens again, repeat the Force Stop + Clear Cache step first."
+        },
+        "slow": {
+          "title": "Your internet is too slow on this device",
+          "b1": "Speed on the streaming device is under 15 Mbps ({{speed}} Mbps).",
+          "b2": "Switch to 5GHz Wi-Fi, move closer, or try Ethernet.",
+          "b3": "Restart modem/router and re-test speed."
+        },
+        "vpnFixed": {
+          "title": "Fixed: your provider was slowing you down",
+          "b1": "VPN working means your ISP likely slowed streaming traffic (especially during peak hours).",
+          "b2": "Keep VPN on while streaming and use a nearby/fast server.",
+          "b3": "If speed drops with VPN, choose the closest VPN city/server and re-test (15+ Mbps)."
+        },
+        "still": {
+          "title": "Still buffering: let's get support on it",
+          "b1": "Re-check speed test closer to the router (15+ Mbps).",
+          "b2": "Try VPN with a different nearby city/server and re-test speed (15+ Mbps).",
+          "b3": "Press Send to support and we will pick it up from your results."
+        }
+      },
+      "recap": {
+        "app": "App",
+        "other": "Other",
+        "buffering": "Buffering",
+        "oneChannel": "One channel/title",
+        "everything": "Everything",
+        "cacheFixed": "Clearing the cache fixed it",
+        "speed": "Speed",
+        "speedValue": "{{speed}} Mbps",
+        "vpn": "VPN",
+        "vpnSpeed": "Speed with VPN 15+",
+        "vpnFixed": "VPN fixed it"
+      }
+    }
+  }
+}

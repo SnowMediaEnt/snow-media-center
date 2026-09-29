@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { ArrowLeft, ArrowRight, X, ChevronRight, ExternalLink } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { openPlayerSection } from '@/lib/appActions';
 import { TUTORIAL_CHAPTERS, type TutorialChapter, type TutorialDeepLink } from '@/data/tutorialContent';
@@ -27,6 +28,7 @@ const kidsMayFollow = (dl: TutorialDeepLink): boolean =>
   : !KIDS_CLOSED_EVENTS.has(dl.event);
 
 const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<View>('chapters');
   const [chapterIdx, setChapterIdx] = useState(0);
   const [slideIdx, setSlideIdx] = useState(0);
@@ -218,13 +220,14 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
       aria-modal="true"
       className="fixed inset-0 z-[100] bg-black/95 flex flex-col [&_button:focus]:outline-none [&_button:focus-visible]:outline-none [&_button:focus]:ring-0 [&_button:focus]:scale-[1.04] [&_button:focus]:shadow-[0_0_28px_6px_hsl(45_93%_58%/0.55)] [&_button:focus]:border-yellow-300 [&_button:focus]:z-10 [&_button]:transition-all [&_button]:duration-150"
     >
+      {/* i18n-ignore: state check, not text */}
       {view === 'chapters' && (
         <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-8 tv-safe">
           <div className="max-w-2xl mx-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-3xl font-quicksand font-bold text-white">How to use SMC</h1>
-                <p className="text-base text-brand-ice/70 font-nunito mt-1">Pick a topic — press Back anytime to leave.</p>
+                <h1 className="text-3xl font-quicksand font-bold text-white">{t('guides.howTo.title')}</h1>
+                <p className="text-base text-brand-ice/70 font-nunito mt-1">{t('guides.howTo.pickTopic')}</p>
               </div>
               <Button
                 onClick={onClose}
@@ -234,7 +237,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                 data-focused="close"
               >
                 <X className="w-4 h-4 mr-1" />
-                Close
+                {t('common.close')}
               </Button>
             </div>
 
@@ -253,9 +256,9 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                     className={`${ch.color} h-20 px-5 rounded-xl border shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left`}
                   >
                     <Icon className="w-7 h-7 justify-self-center" />
-                    <span className="text-xl font-medium truncate text-white">{ch.title}</span>
+                    <span className="text-xl font-medium truncate text-white">{t(ch.titleKey)}</span>
                     <span className="text-sm justify-self-end flex items-center gap-2">
-                      <span className="opacity-80">{ch.slides.length} slide{ch.slides.length === 1 ? '' : 's'}</span>
+                      <span className="opacity-80">{t('guides.howTo.slideCount', { count: ch.slides.length })}</span>
                       <ChevronRight className="w-4 h-4 opacity-70" />
                     </span>
                   </button>
@@ -266,6 +269,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
         </div>
       )}
 
+      {/* i18n-ignore: state check, not text */}
       {view === 'slides' && chapter && slide && (
         <>
           {/* Header */}
@@ -278,11 +282,11 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                 className="bg-slate-800/60 border-slate-500 text-white"
               >
                 <X className="w-4 h-4 mr-1" />
-                Close
+                {t('common.close')}
               </Button>
               <div className="flex-1 min-w-0 text-center">
-                <div className="text-xl font-quicksand font-bold text-white truncate">{chapter.title}</div>
-                <div className="text-xs text-brand-ice/70 font-nunito">Slide {slideIdx + 1} of {slidesLen}</div>
+                <div className="text-xl font-quicksand font-bold text-white truncate">{t(chapter.titleKey)}</div>
+                <div className="text-xs text-brand-ice/70 font-nunito">{t('guides.howTo.slideOf', { current: slideIdx + 1, total: slidesLen })}</div>
               </div>
               {/* Width placeholder to keep title centered */}
               <div className="w-[6.5rem]" aria-hidden="true" />
@@ -313,11 +317,11 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                 </div>
               )}
               <h2 className={`${slide.art ? 'text-xl sm:text-2xl mb-1' : 'text-3xl'} font-quicksand font-bold text-white leading-snug`}>
-                {slide.title}
+                {t(slide.titleKey)}
               </h2>
-              {slide.line2 && (
+              {slide.line2Key && (
                 <p className={`text-brand-ice/80 font-nunito leading-relaxed ${slide.art ? 'text-sm sm:text-base mt-1' : 'text-lg mt-4'}`}>
-                  {slide.line2}
+                  {t(slide.line2Key)}
                 </p>
               )}
             </div>
@@ -337,7 +341,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                 className="bg-slate-800/60 border-slate-500 text-white min-w-[8rem]"
               >
                 <ArrowLeft className="w-5 h-5 mr-2" />
-                Back
+                {t('common.back')}
               </Button>
 
               {/* Dot progress */}
@@ -362,7 +366,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                     className="bg-emerald-700/60 border-emerald-400/70 text-white"
                   >
                     <ExternalLink className="w-5 h-5 mr-2" />
-                    {deepLink!.label}
+                    {t(deepLink!.labelKey)}
                   </Button>
                 )}
                 <Button
@@ -374,7 +378,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                   tabIndex={-1}
                   className="min-w-[8rem]"
                 >
-                  {isLast ? 'Done' : 'Next'}
+                  {isLast ? t('guides.howTo.doneBtn') : t('guides.howTo.nextBtn')}
                   {!isLast && <ArrowRight className="w-5 h-5 ml-2" />}
                 </Button>
               </div>
