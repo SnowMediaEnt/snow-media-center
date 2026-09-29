@@ -81,11 +81,14 @@ describe('the rewind buffer', () => {
     expect(body(plugin, 'private fun tsManager(): TimeshiftManager?')).toContain('TimeshiftManager.wipeFolder(root)');
   });
 
-  it('keeps the old channel 5-10 s after a change', () => {
-    expect(manager).toMatch(/const val GRACE_MS = (\d+)L/);
-    const grace = Number(/const val GRACE_MS = (\d+)L/.exec(manager)![1]);
-    expect(grace).toBeGreaterThanOrEqual(5000);
-    expect(grace).toBeLessThanOrEqual(10_000);
+  it('closes the old channel at once on a change: no grace, no third stream', () => {
+    expect(manager).not.toMatch(/GRACE_MS|dropPrevious|retire|previous/);
+    expect(manager).not.toContain('Handler');
+    const start = body(manager, 'fun start(key: String');
+    expect(start).toContain('cur?.close()');
+    expect(start.indexOf('cur?.close()')).toBeLessThan(start.indexOf('TimeshiftSession('));
+    expect(body(manager, 'fun stop()')).toContain('cur.close()');
+    expect(body(plugin, 'fun timeshiftStop(call: PluginCall)')).not.toContain('graceMs');
   });
 
   it('never grows past the disk budget or Max rewind', () => {
@@ -157,6 +160,17 @@ describe('recordings', () => {
     expect(body(recorder, 'fun rename(call: PluginCall)')).toContain('RecordingStore.isOurs(context, from)');
     expect(body(recorder, 'fun remove(call: PluginCall)')).toContain('RecordingStore.isOurs(context, f)');
     expect(body(recorder, 'fun remove(call: PluginCall)')).toContain('Stop the recording before deleting it');
+  });
+
+  it('a just-started recording never drops out of the list before its file shows up', () => {
+    // list() keeps the index entry of any running recording, file or not yet.
+    const list = body(store, 'fun list(ctx: Context)');
+    expect(list).toContain('RecordingService.isActive(it)');
+    expect(list).toMatch(/if \(!onMounted \|\| running \|\| seen\.contains\(path\)\) keep\.put\(o\)/);
+    // ...and the file is created before the index entry is written.
+    const start = body(service, 'private fun startJob(');
+    expect(start).toContain('job.file.createNewFile()');
+    expect(start.indexOf('job.file.createNewFile()')).toBeLessThan(start.indexOf('RecordingStore.begin('));
   });
 
   it('run as a foreground data-sync service, not exported, with its own notification', () => {

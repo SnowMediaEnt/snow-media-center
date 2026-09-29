@@ -223,6 +223,16 @@ describe('the streams gate (the buffer is a second stream on the line)', () => {
     expect(h.result.current.kind).toBe('buffer');
   });
 
+  it('on 3 streams a recording start wipes the buffer first, and the buffer opens again once the recording counts', async () => {
+    const h = mount({ active: true, directUrl: url(7), stream: CHANNEL, maxConnections: 3 });
+    await flush();
+    expect(count('timeshiftStart')).toBe(1);
+    h.rerender({ active: true, directUrl: url(7), stream: CHANNEL, maxConnections: 3, activeRecordings: 1 });
+    await flush();
+    expect(h.result.current.kind).toBe('buffer');
+    expect(count('timeshiftStart')).toBe(2); // the native side keeps the same channel as it is; after a wipe it opens anew
+  });
+
   it('bufferGate', () => {
     expect(bufferGate(1)).toBe('few');
     expect(bufferGate(2)).toBe('ok');

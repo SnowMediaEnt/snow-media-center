@@ -69,7 +69,7 @@ import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { useLiveRewind, rewindOffMessage, panelOffset, type RewindOffReason } from '@/hooks/useLiveRewind';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { usePlayerEngine } from '@/hooks/usePlayerEngine';
-import { recordEngineSample, sampleFromStats } from '@/lib/engineCompare';
+import { recordEngineSample, sampleFromStats, shouldSampleEngines } from '@/lib/engineCompare';
 import PlayerStatsPanel from './PlayerStatsPanel';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
@@ -83,7 +83,7 @@ import { recordChannelWatch } from '@/lib/watchHistory';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { onMediaKey } from '@/lib/mediaKeys';
 import { createSkipQueue, MEDIA_SKIP_SEC } from '@/lib/skipQueue';
-import { MAX_SIMULTANEOUS_RECORDINGS, endsAtLabel, extraStreamNote, recordingFileName } from '@/lib/recording';
+import { MAX_SIMULTANEOUS_RECORDINGS, REWIND_PAUSED_NOTE, endsAtLabel, extraStreamNote, pauseRewindForRecording, recordingFileName } from '@/lib/recording';
 import {
   demoGetLiveCategories,
   demoGetLiveStreams,
@@ -1463,17 +1463,26 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   // Engine comparison (PlaybackScreen's Compare table): one getStats() read
   // 60 s into a Live channel on the main player, and again when it stops.
+  // Only when mpv is in this build or the Stats panel is open: the read takes
+  // the PSS on the UI thread, which a customer box does not need to pay for.
+  const mpvInBuildRef = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    void SnowPlayer.getEngines().then((r) => { if (alive) mpvInBuildRef.current = !!r?.mpv?.available; }).catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
   useEffect(() => {
     if (!nativeActive) return;
     const startedAt = Date.now();
-    const t = window.setTimeout(() => {
-      void SnowPlayer.getStats().then((st) => recordEngineSample(sampleFromStats(st, 1))).catch(() => undefined);
-    }, 60_000);
+    const sample = (minutes: number) => {
+      if (!shouldSampleEngines(mpvInBuildRef.current, statsShownRef.current)) return;
+      void SnowPlayer.getStats().then((st) => recordEngineSample(sampleFromStats(st, minutes))).catch(() => undefined);
+    };
+    const t = window.setTimeout(() => sample(1), 60_000);
     return () => {
       window.clearTimeout(t);
       const minutes = (Date.now() - startedAt) / 60_000;
-      if (minutes <= 0) return;
-      void SnowPlayer.getStats().then((st) => recordEngineSample(sampleFromStats(st, minutes))).catch(() => undefined);
+      if (minutes > 0) sample(minutes);
     };
   }, [nativeActive, playingChannelId]);
 
@@ -2111,6 +2120,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // dialog, here, and in the error when the provider refuses (same words).
     const note = extraStreamNote(plan);
     try {
+      // The rewind buffer gives its stream up first, so the line never sees
+      // picture + buffer + recording together.
+      const paused = await pauseRewindForRecording(plan);
       // Its own connection, like the player's; the address is never logged.
       const r = await SnowRecorder.start({
         url: buildNativeLiveUrl(line, st.stream_id),
@@ -2122,7 +2134,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         maxSimultaneous: Math.min(MAX_SIMULTANEOUS_RECORDINGS, plan && plan >= 1 ? plan : MAX_SIMULTANEOUS_RECORDINGS),
       });
       const until = endsAtLabel(choice.durationMin);
-      toast({ title: `Recording ${st.name}`, description: `${until ? `Until ${until}` : 'Until you stop it'} · ${r.volumeLabel}. ${note}` });
+      toast({ title: `Recording ${st.name}`, description: `${until ? `Until ${until}` : 'Until you stop it'} · ${r.volumeLabel}. ${note}${paused ? ` ${REWIND_PAUSED_NOTE}` : ''}` });
     } catch (e) {
       const err = e as Error & { code?: string };
       const why = err?.message ?? '';

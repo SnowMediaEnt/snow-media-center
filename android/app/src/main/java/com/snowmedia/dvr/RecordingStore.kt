@@ -204,14 +204,16 @@ internal object RecordingStore {
                 )
             }
         }
-        // Forget files that are gone, but keep entries of volumes not mounted right now.
+        // Forget files that are gone, but keep entries of volumes not mounted right now,
+        // and any recording still running: its file may not exist for a moment yet.
         val mountedRoots = volumes(ctx).map { it.dir.absolutePath + File.separator }
         val keep = JSONArray()
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
             val path = o.optString("path")
             val onMounted = mountedRoots.any { path.startsWith(it) }
-            if (!onMounted || seen.contains(path)) keep.put(o)
+            val running = o.optString("id").let { it.isNotEmpty() && RecordingService.isActive(it) }
+            if (!onMounted || running || seen.contains(path)) keep.put(o)
         }
         if (keep.length() != arr.length()) writeIndex(ctx, keep)
         out.sortByDescending { it.optLong("startedAt") }

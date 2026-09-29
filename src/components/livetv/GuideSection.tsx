@@ -49,7 +49,7 @@ import {
   busyFromJobs, conflictMessage, loadPadding, minutesUntil, paddedLabel, paddedWindow, programmeChoices, programmeMode,
   programmeTimeUtcMs, recordingCap, type ProgrammeChoice, type SchedLike,
 } from '@/lib/recordSchedule';
-import { endsAtLabel, extraStreamNote, recordingFileName } from '@/lib/recording';
+import { REWIND_PAUSED_NOTE, endsAtLabel, extraStreamNote, pauseRewindForRecording, recordingFileName } from '@/lib/recording';
 import RecordDialog, { type RecordChoice } from './RecordDialog';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { usePlayerEngine } from '@/hooks/usePlayerEngine';
@@ -576,6 +576,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         toast({ title: 'That programme has finished', variant: 'destructive' });
       } else if (mode === 'now') {
         const minutes = minutesUntil(win.endMs, now);
+        const paused = await pauseRewindForRecording(target.plan);
         const r = await SnowRecorder.start({
           url: buildNativeLiveUrl(creds, target.ch.stream_id),
           channel: target.ch.name,
@@ -584,7 +585,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           durationMin: minutes,
           maxSimultaneous: recordingCap(target.plan),
         });
-        toast({ title: `Recording ${target.ch.name}`, description: `Until ${endsAtLabel(minutes) ?? ''} · ${r.volumeLabel}. ${note}` });
+        toast({ title: `Recording ${target.ch.name}`, description: `Until ${endsAtLabel(minutes) ?? ''} · ${r.volumeLabel}. ${note}${paused ? ` ${REWIND_PAUSED_NOTE}` : ''}` });
       } else {
         const r = await SnowRecorder.schedule({
           streamId: target.ch.stream_id,

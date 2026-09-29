@@ -27,6 +27,7 @@ const api = vi.hoisted(() => ({
   schedules: [] as Array<Record<string, unknown>>,
   calls: [] as Array<{ fn: string; opts?: Record<string, unknown> }>,
   plan: 2 as number | null,
+  buffer: false,
   scheduleError: null as (Error & { code?: string; data?: unknown }) | null,
 }));
 
@@ -44,7 +45,13 @@ vi.mock('@/lib/xtream', async (orig) => {
 });
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke: vi.fn() } } }));
 vi.mock('@capacitor/app', () => ({ App: { addListener: async () => ({ remove() {} }) } }));
-vi.mock('@/capacitor/SnowPlayer', () => ({ hasNativePlayer: () => true }));
+vi.mock('@/capacitor/SnowPlayer', () => ({
+  hasNativePlayer: () => true,
+  SnowPlayer: {
+    timeshiftStatus: async () => { api.calls.push({ fn: 'timeshiftStatus' }); return { state: api.buffer ? 'capturing' : 'off' }; },
+    timeshiftWipe: async () => { api.calls.push({ fn: 'timeshiftWipe' }); },
+  },
+}));
 vi.mock('@/capacitor/SnowRecorder', () => ({
   RECORDINGS_CHANGED_EVENT: 'smc-recordings:changed',
   notifyRecordingsChanged: () => { window.dispatchEvent(new CustomEvent('smc-recordings:changed')); },
@@ -110,6 +117,7 @@ beforeEach(() => {
   api.schedules = [];
   api.calls = [];
   api.plan = 2;
+  api.buffer = false;
   api.scheduleError = null;
 });
 afterEach(() => { document.documentElement.className = ''; sessionStorage.clear(); });
@@ -192,6 +200,43 @@ describe('Guide: hold OK to record a programme', () => {
     expect(opts.durationMin).toBeGreaterThanOrEqual(55); // 50 min left + 5 late
     expect(opts.durationMin).toBeLessThanOrEqual(56);
     expect(opts.maxSimultaneous).toBe(2);
+  });
+
+  /** Hold OK, choose the programme on now, Start. */
+  async function recordNow() {
+    const { Guide } = await freshGuide();
+    await openGuide(Guide as never);
+    down('Enter');
+    await sleep(700);
+    up('Enter');
+    act(() => { fireEvent.keyDown(window, { key: 'ArrowDown' }); });
+    act(() => { fireEvent.keyDown(window, { key: 'ArrowDown' }); });
+    act(() => { fireEvent.keyDown(window, { key: 'Enter' }); });
+    await sleep(20);
+  }
+
+  it('recording now while the rewind buffer runs wipes the buffer first, then starts, and says so', async () => {
+    api.buffer = true;
+    await recordNow();
+    const order = api.calls.map((c) => c.fn).filter((f) => f === 'timeshiftWipe' || f === 'start');
+    expect(order).toEqual(['timeshiftWipe', 'start']);
+    const toast = calls('toast').pop() as { description: string };
+    expect(toast.description).toContain('Rewind paused while recording');
+  });
+
+  it('with 4 streams the buffer stays; with no buffer nothing is wiped or said', async () => {
+    api.buffer = true;
+    api.plan = 4;
+    await recordNow();
+    expect(api.calls.some((c) => c.fn === 'timeshiftWipe')).toBe(false);
+    expect(calls('start')).toHaveLength(1);
+  });
+
+  it('no buffer running: no wipe and no rewind note', async () => {
+    await recordNow();
+    expect(api.calls.some((c) => c.fn === 'timeshiftWipe')).toBe(false);
+    const toast = calls('toast').pop() as { description: string };
+    expect(toast.description).not.toContain('Rewind paused');
   });
 
   it('a refusal from the scheduler is said in words', async () => {

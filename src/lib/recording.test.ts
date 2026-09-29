@@ -1,8 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const sp = vi.hoisted(() => ({ calls: [] as string[], state: 'capturing', fail: false }));
+vi.mock('@/capacitor/SnowPlayer', () => ({
+  SnowPlayer: {
+    timeshiftStatus: async () => { sp.calls.push('status'); if (sp.fail) throw new Error('older app'); return { state: sp.state }; },
+    timeshiftWipe: async () => { sp.calls.push('wipe'); },
+  },
+}));
 import {
   CUSTOM_MAX, CUSTOM_MIN, LOW_SPACE_BYTES, MAX_SIMULTANEOUS_RECORDINGS, RECORD_DURATIONS, cleanRename, endsAtLabel,
-  extraStreamNote, formatDuration, formatMinutes, isLowSpace, listWindow, recordingFileName, safeFilePart, stepCustom,
+  extraStreamNote, pauseRewindForRecording, formatDuration, formatMinutes, isLowSpace, listWindow, recordingFileName, safeFilePart, stepCustom,
 } from './recording';
+import liveSectionSrc from '../components/livetv/LiveSection.tsx?raw';
+import guideSectionSrc from '../components/livetv/GuideSection.tsx?raw';
 import storeKt from '../../android/app/src/main/java/com/snowmedia/dvr/RecordingStore.kt?raw';
 import serviceKt from '../../android/app/src/main/java/com/snowmedia/dvr/RecordingService.kt?raw';
 
@@ -84,5 +94,54 @@ describe('listWindow', () => {
     expect(listWindow(20, 0, 5)).toEqual({ start: 0, end: 5 });
     expect(listWindow(20, 10, 5)).toEqual({ start: 8, end: 13 });
     expect(listWindow(20, 19, 5)).toEqual({ start: 15, end: 20 });
+  });
+});
+
+describe('the rewind buffer gives way before a recording opens its stream', () => {
+  beforeEach(() => { sp.calls = []; sp.state = 'capturing'; sp.fail = false; });
+
+  it('wipes a running buffer on plans under 4 streams (or unknown)', async () => {
+    for (const plan of [1, 2, 3, null, undefined]) {
+      sp.calls = [];
+      expect(await pauseRewindForRecording(plan)).toBe(true);
+      expect(sp.calls).toEqual(['status', 'wipe']);
+    }
+  });
+
+  it('leaves it alone on 4 or more streams (room for picture + buffer + recording)', async () => {
+    expect(await pauseRewindForRecording(4)).toBe(false);
+    expect(await pauseRewindForRecording(10)).toBe(false);
+    expect(sp.calls).toEqual([]);
+  });
+
+  it('says nothing when there is no buffer, or the app is too old to have one', async () => {
+    sp.state = 'off';
+    expect(await pauseRewindForRecording(2)).toBe(false);
+    expect(sp.calls).toEqual(['status']);
+    sp.fail = true;
+    expect(await pauseRewindForRecording(2)).toBe(false);
+  });
+
+  it('Live TV and the Guide both do it before SnowRecorder.start, and say so', () => {
+    for (const src of [liveSectionSrc, guideSectionSrc]) {
+      const at = src.indexOf('pauseRewindForRecording(');
+      expect(at).toBeGreaterThan(0);
+      expect(at).toBeLessThan(src.indexOf('SnowRecorder.start('));
+      expect(src).toContain('REWIND_PAUSED_NOTE');
+    }
+  });
+});
+
+describe('a just-started recording stays in the list', () => {
+  it('list() keeps the entry of a running recording even before its file exists', () => {
+    expect(storeKt).toContain('RecordingService.isActive(it)');
+    expect(storeKt).toMatch(/!onMounted \|\| running \|\| seen\.contains\(path\)/);
+  });
+});
+
+describe('engine-compare sampling', () => {
+  it('LiveSection reads getStats for it only when mpv is in the build or the Stats panel is open', () => {
+    expect(liveSectionSrc).toContain('shouldSampleEngines(mpvInBuildRef.current, statsShownRef.current)');
+    expect(liveSectionSrc).not.toMatch(/window\.setTimeout\(\(\) => \{\s*void SnowPlayer\.getStats\(\)/);
   });
 });

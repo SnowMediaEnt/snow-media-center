@@ -183,7 +183,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
   useEffect(() => {
     if (!bufferOn || !directUrl || !key) return;
     void SnowPlayer.timeshiftStart({ url: directUrl, key, maxMinutes, hardCapMb: HARD_CAP_MB }).catch(() => { /* older app: no rewind */ });
-  }, [bufferOn, directUrl, key, maxMinutes, resumeNonce]);
+  }, [bufferOn, directUrl, key, maxMinutes, resumeNonce, activeRecordings]);
   // Leaving the player, rewind switched off, or the recordings taking the
   // streams: everything goes. (Sign-out wipes too, in playerSignOut.)
   useEffect(() => {

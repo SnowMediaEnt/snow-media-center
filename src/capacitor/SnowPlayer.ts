@@ -213,12 +213,12 @@ export interface SnowPlayerPlugin {
   getEngines(): Promise<{ mpv: { available: boolean; reason?: string } }>;
   /** Rewind live TV: capture the full-screen channel `key` from `url` (same
    *  address the player uses; never logged). The same key again is a no-op;
-   *  a new one keeps the last channel's buffer a few seconds. maxMinutes 0 =
+   *  a new one closes the last channel's buffer at once (no third stream). maxMinutes 0 =
    *  Auto (disk budget only). Does nothing while the channel plays on mpv.
    *  Older builds reject. */
   timeshiftStart(opts: { url: string; key: string; maxMinutes: number; hardCapMb: number }): Promise<void>;
-  /** Stop capturing; graceMs keeps the buffer that long. Back to live first. */
-  timeshiftStop(opts?: { graceMs?: number }): Promise<void>;
+  /** Stop capturing and delete the buffer now. Back to live first. */
+  timeshiftStop(): Promise<void>;
   /** Delete every rewind buffer now (leaving the player, sign-out). */
   timeshiftWipe(): Promise<void>;
   timeshiftStatus(): Promise<TimeshiftStatus>;

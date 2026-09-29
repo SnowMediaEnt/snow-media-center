@@ -150,6 +150,8 @@ class RecordingService : Service() {
             failSchedules(id, ScheduleReasons.tooMany(activeCount().coerceAtLeast(1)))
             return
         }
+        // The file exists before the index entry does, so a list() in between never sees an entry without one.
+        try { job.file.parentFile?.mkdirs(); job.file.createNewFile() } catch (_: Throwable) { /* record() opens it again */ }
         RecordingStore.begin(applicationContext, id, job.file, channel, now, job.scheduleId, job.title)
         holdLocks()
         updateNotification()

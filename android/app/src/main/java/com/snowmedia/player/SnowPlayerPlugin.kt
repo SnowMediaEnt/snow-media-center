@@ -2319,13 +2319,12 @@ class SnowPlayerPlugin : Plugin() {
         }
     }
 
-    /** Stop capturing (graceMs > 0 keeps the buffer that long). The player goes back to live first. */
+    /** Stop capturing and delete the buffer now. The player goes back to live first. */
     @PluginMethod
     fun timeshiftStop(call: PluginCall) {
-        val grace = (call.getInt("graceMs") ?: 0).toLong().coerceAtLeast(0L)
         activity?.runOnUiThread {
             slots[MAIN]?.let { if (tsBuffer) tsGoLive(it) }
-            tsManager?.stop(grace)
+            tsManager?.stop()
             call.resolve()
         }
     }
