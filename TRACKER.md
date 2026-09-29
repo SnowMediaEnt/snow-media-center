@@ -29,22 +29,25 @@ Status: building · ready to test · still broken · done.
 | 22 | Home top: date/time/buttons higher, full-colour "Snow Media Center" title, taller RSS strip under the title (not across it) | feature | ready to test | |
 | 23 | Home: Plex card shows "(VOD)" under the name | feature | ready to test | |
 | 24 | Home: bottom cards shorter, content bar bigger and centred evenly between the RSS strip and the cards; small "Recommended" | feature | ready to test | |
-| 25 | Live TV recording + rewind + scheduled recording (port from OmniMax) — plan: .claude/plan-rewind-record.md | feature | building | |
-| 25.1 | Rewind/record logic libraries (liveRewind, recording, skipQueue) | feature | building | |
-| 25.2 | Native rewind (dvr/ timeshift + SnowPlayerPlugin hooks, ExoPlayer only) | feature | building | |
-| 25.3 | Native recorder (foreground service, box/USB, 1 GB floor, FAT32 parts, 2 at once, CH+/CH-) | feature | building | |
-| 25.4 | useLiveRewind hook (2+ stream gate, MPV off) + sign-out wipes/stops | feature | building | |
-| 25.5 | Player bar: Back 10s / Go live / Record, timeline, -0:45 badge | feature | building | |
-| 25.6 | Live TV wiring: rewind, catch-up, remote keys (Rew/FF = 10 s, ▲▼ CH+/CH- change channel) | feature | building | |
-| 25.7 | Record dialog (hold OK / bar Record) with the extra-stream notice | feature | building | |
-| 25.8 | Recordings screen (play, rename, delete, stop) | feature | building | |
-| 25.9 | Rewind settings screen | feature | building | |
-| 25.10 | Scheduling rules + shared tests (padding, conflicts, missed, re-arm, URL encoding) | feature | building | |
-| 25.11 | Native scheduler (exact alarms, reboot re-arm, no credentials stored) | feature | building | |
-| 25.12 | Guide: hold OK to schedule a programme, red dots | feature | building | |
-| 25.13 | Recordings: Scheduled/Missed groups; Rewind & recording settings (padding) | feature | building | |
-| 25.14 | Stream gate counts recordings; sign-out cancels schedules | feature | building | |
-| 25.15 | Updater warns when a recording is running/soon; build 48 handover | feature | building | |
+| 25 | Live TV recording + rewind + scheduled recording (port from OmniMax) — plan: .claude/plan-rewind-record.md. Rewind only when the line has a free stream | feature | ready to test (build 48) | |
+| 25.1 | Rewind/record logic libraries (liveRewind, recording, skipQueue) | feature | ready to test (build 48) | |
+| 25.2 | Native rewind (dvr/ timeshift + SnowPlayerPlugin hooks, ExoPlayer only) | feature | ready to test (build 48) | |
+| 25.3 | Native recorder (foreground service, box/USB, 1 GB floor, FAT32 parts, 2 at once, CH+/CH-) | feature | ready to test (build 48) | |
+| 25.4 | useLiveRewind hook (2+ stream gate, MPV off) + sign-out wipes/stops | feature | ready to test (build 48) | |
+| 25.5 | Player bar: Back 10s / Go live / Record, timeline, -0:45 badge | feature | ready to test (build 48) | |
+| 25.6 | Live TV wiring: rewind, catch-up, remote keys (Rew/FF = 10 s, ▲▼ CH+/CH- change channel) | feature | ready to test (build 48) | |
+| 25.7 | Record dialog (hold OK / bar Record) with the extra-stream notice | feature | ready to test (build 48) | |
+| 25.8 | Recordings screen (play, rename, delete, stop) | feature | ready to test (build 48) | |
+| 25.9 | Rewind settings screen | feature | ready to test (build 48) | |
+| 25.10 | Scheduling rules + shared tests (padding, conflicts, missed, re-arm, URL encoding) | feature | ready to test (build 48) | |
+| 25.11 | Native scheduler (exact alarms, reboot re-arm, no credentials stored) | feature | ready to test (build 48) | |
+| 25.12 | Guide: hold OK to schedule a programme, red dots | feature | ready to test (build 48) | |
+| 25.13 | Recordings: Scheduled/Missed groups; Rewind & recording settings (padding) | feature | ready to test (build 48) | |
+| 25.14 | Stream gate counts recordings; sign-out cancels schedules | feature | ready to test (build 48) | |
+| 25.15 | Updater warns when a recording is running/soon; build 48 handover | feature | ready to test (build 48) | |
+
+| 26 | Player bar: name of the highlighted button shows under it (small line) | feature | ready to test (build 48) | |
+| 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand) | feature | planning (architect) | |
 
 ## Waiting on the owner
 - Migration 20260930070000 + notify-ticket/telegram-notify deploy: held until you decide.
