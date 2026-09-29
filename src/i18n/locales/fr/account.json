@@ -58,12 +58,12 @@
       "inDays_one": "Dans {{count}} jour",
       "inDays_many": "Dans {{count}} jours",
       "inDays_other": "Dans {{count}} jours",
-      "daysLeft_one": "{{count}} j restants",
+      "daysLeft_one": "{{count}} j restant",
       "daysLeft_many": "{{count}} j restants",
       "daysLeft_other": "{{count}} j restants",
       "dangerZone": "Zone de danger",
-      "dangerDescLarge": "Supprimez définitivement votre compte de l’application Snow Media et toutes les données associées.",
-      "dangerDescShort": "Supprimez votre compte de l’application et ses données.",
+      "dangerDescLarge": "Supprimez définitivement votre compte de l’appli Snow Media et toutes les données associées.",
+      "dangerDescShort": "Supprimez votre compte de l’appli et ses données.",
       "deleteMyAccountBtn": "Supprimer mon compte",
       "gemsAndUsage": "Snow Gems et utilisation de l’IA",
       "noTransactions": "Aucune transaction Snow Gem pour le moment",
@@ -73,7 +73,7 @@
         "deduction": "déduction"
       },
       "deleteConfirmTitle": "Supprimer votre compte ?",
-      "deleteConfirmDesc": "Cela supprime définitivement votre compte de l’application Snow Media, votre profil, vos Snow Gems, vos discussions, vos tickets d’assistance et vos médias. Cette action est irréversible. Votre compte distinct du lecteur de streaming n’est pas affecté.",
+      "deleteConfirmDesc": "Cela supprime définitivement votre compte de l’appli Snow Media, votre profil, vos Snow Gems, vos discussions, vos tickets d’assistance et vos médias. Cette action est irréversible. Votre compte distinct du lecteur de streaming n’est pas affecté.",
       "deleting": "Suppression…",
       "yesDeleteBtn": "Oui, supprimer mon compte",
       "deletedTitle": "Compte supprimé",
@@ -82,12 +82,12 @@
       "deleteFailedTitle": "Échec de la suppression",
       "signOutErrorTitle": "Erreur de déconnexion",
       "signedOutTitle": "Déconnecté",
-      "signedOutDesc": "Vous avez été déconnecté de votre compte et de TV en direct."
+      "signedOutDesc": "Vous avez été déconnecté de votre compte et de la TV en direct."
     },
     "services": {
       "deviceFireTv": "Amazon Fire TV / Firestick",
       "deviceSmartTv": "Smart TV",
-      "deviceAndroidTv": "Android TV Box",
+      "deviceAndroidTv": "Box Android TV",
       "devicePhone": "Téléphone ou tablette Android",
       "deviceOther": "Autre",
       "loadFailedTitle": "Chargement impossible",
@@ -96,7 +96,7 @@
       "saveFailedTitle": "Échec de l’enregistrement",
       "editTitle": "Modifier {{name}}",
       "title": "Mes appareils et services",
-      "description": "Choisissez les appareils que vous possédez et ajoutez la date d’expiration de votre service IPTV. Nous vous préviendrons 1 semaine avant, le jour de l’échéance, et afficherons un avis sur les applications associées s’il a expiré.",
+      "description": "Choisissez les appareils que vous possédez et ajoutez la date d’expiration de votre service IPTV. Nous vous préviendrons 1 semaine avant, le jour de l’échéance, et afficherons un avis sur les applis associées s’il a expiré.",
       "devicesYouOwn": "Appareils que vous possédez",
       "yourServices": "Vos services",
       "expirationLabel": "Date d’expiration (pour vous prévenir avant l’échéance)",
@@ -107,7 +107,7 @@
       "inDays_one": "Dans {{count}} j",
       "inDays_many": "Dans {{count}} j",
       "inDays_other": "Dans {{count}} j",
-      "daysLeft_one": "{{count}} j restants",
+      "daysLeft_one": "{{count}} j restant",
       "daysLeft_many": "{{count}} j restants",
       "daysLeft_other": "{{count}} j restants",
       "saving": "Enregistrement…",
@@ -124,11 +124,11 @@
       "expiredAgo_one": "{{name}} a expiré il y a {{count}} jour.",
       "expiredAgo_many": "{{name}} a expiré il y a {{count}} jours.",
       "expiredAgo_other": "{{name}} a expiré il y a {{count}} jours.",
-      "expiringShort": "Service bientôt expiré",
+      "expiringShort": "Service expire bientôt",
       "manageBtn": "Gérer"
     },
     "tiers": {
-      "freeSample": "C’était votre échantillon Premium gratuit.",
+      "freeSample": "C’était votre essai Premium gratuit.",
       "gemsUsed": "{{amount}} Snow Gems utilisés pour Premium.",
       "noCharge": "Premium, sans frais."
     }

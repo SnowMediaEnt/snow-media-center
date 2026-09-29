@@ -14,7 +14,7 @@
       "description": "Visitez la boutique officielle"
     },
     "giveaway": {
-      "title": "Tirage au sort",
+      "title": "Concours",
       "description": "Participez pour gagner des prix"
     },
     "player": {
@@ -31,7 +31,7 @@
       "tag": "(VOD)"
     },
     "kidsLounge": {
-      "title": "Espace jeux enfants",
+      "title": "Salon de jeux enfants",
       "description": "Jouez, apprenez et explorez"
     },
     "header": {
@@ -59,14 +59,14 @@
       "plexFailedDesc": "Ouverture de Plex à la place."
     },
     "mediaBar": {
-      "heading": "Recommandé",
+      "heading": "Recommandations",
       "prevLabel": "Précédent",
       "nextLabel": "Suivant",
       "demoTitle": "Démo en direct"
     },
     "badges": {
       "trendingChip": "TENDANCE",
-      "continueChip": "SUITE",
+      "continueChip": "REPRENDRE",
       "liveChip": "DIRECT",
       "forYouChip": "POUR VOUS"
     },
@@ -74,7 +74,7 @@
       "loading": "Chargement des actualités...",
       "fallback1": "🚀 Nouvelle mise à jour de l'appli disponible",
       "fallback2": "📺 Assistance en direct disponible - Discutez avec Snow Media",
-      "fallback3": "🎬 De nouveaux tutoriels vidéo dans Assistance",
+      "fallback3": "🎬 Nouveaux tutoriels vidéo dans la section Assistance",
       "fallback4": "💫 La boutique Snow Media a du nouveau contenu"
     },
     "clock": {
