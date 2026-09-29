@@ -43,6 +43,7 @@ const strip = (reel: number) => screen.getByTestId(`slot-strip-${reel}`);
 const reelBox = (reel: number) => strip(reel).parentElement as HTMLElement;
 const travel = (reel: number) => Number(strip(reel).dataset.travel ?? '0');
 const spinButton = () => screen.getByRole('button', { name: /games\.slots\.spin/ });
+const autoButton = () => screen.getByRole('button', { name: /games\.slots\.(autoTen|stopAuto)/ });
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const expectLanded = () => {
@@ -76,6 +77,46 @@ describe('Slots reel motion', () => {
     expect(sound.getAttribute('data-tv-focused')).toBe('false');
     fireEvent.keyDown(window, { key: 'ArrowUp' });
     expect(sound.getAttribute('data-tv-focused')).toBe('true');
+  });
+
+  it('moves right from Spin to Auto Spin and stops a run without cancelling its current spin', async () => {
+    spinSlots.mockResolvedValue(ack());
+    render(<Slots onBack={() => {}} />);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(autoButton().dataset.tvFocused).toBe('true');
+    fireEvent.click(autoButton());
+    expect(autoButton().getAttribute('aria-pressed')).toBe('true');
+    expect(spinSlots).toHaveBeenCalledTimes(1);
+    expect(spinButton().getAttribute('aria-disabled')).toBe('true');
+
+    fireEvent.click(autoButton());
+    expect(autoButton().getAttribute('aria-pressed')).toBe('false');
+    await waitForLanding();
+    await wait(900);
+    expect(spinSlots).toHaveBeenCalledTimes(1);
+    expect(spinButton().dataset.tvFocused).toBe('true');
+  }, 15000);
+
+  it('starts the next automatic spin only after the previous one settles', async () => {
+    spinSlots.mockResolvedValue(ack());
+    render(<Slots onBack={() => {}} />);
+    fireEvent.click(autoButton());
+    await wait(250);
+    expect(spinSlots).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(spinSlots).toHaveBeenCalledTimes(2), { timeout: 8000, interval: 60 });
+    expect(autoButton().getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(autoButton());
+    await wait(3100);
+    expect(spinSlots).toHaveBeenCalledTimes(2);
+  }, 16000);
+
+  it('stops Auto Spin when the server rejects a wager', async () => {
+    spinSlots.mockResolvedValue({ ok: false, error: 'insufficient_balance' });
+    render(<Slots onBack={() => {}} />);
+    fireEvent.click(autoButton());
+    await waitFor(() => expect(autoButton().getAttribute('aria-pressed')).toBe('false'));
+    expect(spinSlots).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.snow-game-error')).not.toBeNull();
   });
 
   it('always settles forward through at least six cell heights', () => {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Loader2, Minus, Plus, Volume2, VolumeX } from 'lucide-react';
+import { Loader2, Minus, Plus, Repeat2, Square, Volume2, VolumeX } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
@@ -33,6 +33,7 @@ interface SlotsProps {
 
 const BETS: number[] = [...TV_BETS];
 const BET_STORAGE_KEY = 'snow-slots-bet-v1';
+const AUTO_SPINS = 10;
 
 const SYMBOL_IMAGES: Record<string, string | undefined> = { p1: p1img, p2: p2img, p3: p3img, p4: p4img };
 const LOW_LETTER: Record<string, string> = { la: 'A', lk: 'K', lq: 'Q', lj: 'J' };
@@ -209,7 +210,7 @@ function FrostCollector({
   );
 }
 
-type FocusId = 'back' | 'sound' | 'fx' | 'betMinus' | 'betPlus' | 'spin';
+type FocusId = 'back' | 'sound' | 'fx' | 'betMinus' | 'betPlus' | 'spin' | 'auto';
 type ReelMode = 'idle' | 'spin' | 'settle';
 interface SettlePlan { from: number; target: number; start: number; duration: number }
 
@@ -228,6 +229,8 @@ const Slots = ({ onBack }: SlotsProps) => {
   ));
   const [bet, setBet] = useState<number>(() => readSavedBet(BET_STORAGE_KEY));
   const [spinning, setSpinning] = useState(false);
+  const [autoActive, setAutoActive] = useState(false);
+  const [autoSpinsLeft, setAutoSpinsLeft] = useState(0);
   const [reelCells, setReelCells] = useState<string[][]>(() => Array.from({ length: REELS }, () => buildCells()));
   const [landedWindows, setLandedWindows] = useState<string[][] | null>(null);
   const [winningCells, setWinningCells] = useState<boolean[][]>(() =>
@@ -258,11 +261,44 @@ const Slots = ({ onBack }: SlotsProps) => {
 
   const inFlight = useRef(false);
   const spinBtnRef = useRef<HTMLButtonElement>(null);
+  const autoBtnRef = useRef<HTMLButtonElement>(null);
   const backBtnRef = useRef<HTMLButtonElement>(null);
   const soundBtnRef = useRef<HTMLButtonElement>(null);
   const fxBtnRef = useRef<HTMLButtonElement>(null);
   const minusBtnRef = useRef<HTMLButtonElement>(null);
   const plusBtnRef = useRef<HTMLButtonElement>(null);
+  const autoActiveRef = useRef(false);
+  const autoSpinsLeftRef = useRef(0);
+  const autoTimerRef = useRef<number | null>(null);
+  const nextAutoSpinRef = useRef<() => void>(() => {});
+
+  const stopAuto = useCallback(() => {
+    autoActiveRef.current = false;
+    autoSpinsLeftRef.current = 0;
+    setAutoActive(false);
+    setAutoSpinsLeft(0);
+    if (autoTimerRef.current !== null) life.clearTimer(autoTimerRef.current);
+    autoTimerRef.current = null;
+    setFocus('spin');
+  }, [life]);
+
+  useEffect(() => () => {
+    autoActiveRef.current = false;
+    if (autoTimerRef.current !== null) life.clearTimer(autoTimerRef.current);
+    autoTimerRef.current = null;
+  }, [life]);
+
+  useEffect(() => {
+    if (autoActiveRef.current && (status !== 'connected' || !userId)) stopAuto();
+  }, [status, userId, stopAuto]);
+
+  useEffect(() => {
+    const stopWhenHidden = () => {
+      if (document.hidden && autoActiveRef.current) stopAuto();
+    };
+    document.addEventListener('visibilitychange', stopWhenHidden);
+    return () => document.removeEventListener('visibilitychange', stopWhenHidden);
+  }, [stopAuto]);
 
   // ---- Reel motion: DOM-driven, never React state per frame ----
   const stripRefs = useRef<Array<HTMLDivElement | null>>(Array(REELS).fill(null));
@@ -285,8 +321,8 @@ const Slots = ({ onBack }: SlotsProps) => {
   const inFreeSpins = freeSpinsRemaining > 0;
   const canBet = inFreeSpins || bet <= (balance ?? 0);
   const betIdx = BETS.indexOf(bet);
-  const spinUsable = !spinning && !!user && (inFreeSpins || canBet);
-  const betStepUsable = !spinning && !inFreeSpins;
+  const spinUsable = !spinning && !autoActive && !!user && (inFreeSpins || canBet);
+  const betStepUsable = !spinning && !autoActive && !inFreeSpins;
 
   /** Keep the busy Spin target focused, but guard activation until settled. */
   const focusRows = useMemo<FocusRows>(() => [
@@ -295,6 +331,7 @@ const Slots = ({ onBack }: SlotsProps) => {
       ...(betStepUsable && betIdx > 0 ? ['betMinus'] : []),
       ...(betStepUsable && betIdx < BETS.length - 1 ? ['betPlus'] : []),
       ...(spinUsable || spinning ? ['spin'] : []),
+      'auto',
     ],
   ], [betStepUsable, betIdx, spinUsable, spinning]);
 
@@ -320,6 +357,7 @@ const Slots = ({ onBack }: SlotsProps) => {
   useEffect(() => {
     const target =
       focus === 'spin' ? spinBtnRef.current
+        : focus === 'auto' ? autoBtnRef.current
         : focus === 'back' ? backBtnRef.current
           : focus === 'sound' ? soundBtnRef.current
           : focus === 'fx' ? fxBtnRef.current
@@ -426,6 +464,20 @@ const Slots = ({ onBack }: SlotsProps) => {
     setSpinning(false);
     inFlight.current = false;
 
+    if (autoActiveRef.current) {
+      if (autoSpinsLeftRef.current > 0) {
+        // Let the result and bonus celebration finish before the next wager.
+        autoTimerRef.current = life.timeout(() => {
+          autoTimerRef.current = null;
+          if (!life.isMounted()) return;
+          if (life.isHidden()) { stopAuto(); return; }
+          if (autoActiveRef.current) nextAutoSpinRef.current();
+        }, settled.totalPayout > 0 || settled.triggeredFreeSpins > 0 ? 2500 : 650);
+      } else {
+        stopAuto();
+      }
+    }
+
     const collectorHits = COLLECTOR_COLORS.filter((color) => settled.collectors[color].hit);
     const collectorTriggers = COLLECTOR_COLORS.filter((color) => settled.collectors[color].triggered);
     if (collectorHits.length > 0) {
@@ -470,7 +522,7 @@ const Slots = ({ onBack }: SlotsProps) => {
         if (calloutTokenRef.current === token) setCallout(null);
       }, reducedRef.current ? 1200 : 2400);
     }
-  }, [life, playSound]);
+  }, [life, playSound, stopAuto]);
 
   // Latest cells, readable from the animation loop without re-subscribing.
   const reelCellsRef = useRef(reelCells);
@@ -538,19 +590,25 @@ const Slots = ({ onBack }: SlotsProps) => {
   }, [life, promote]);
 
   const changeBet = useCallback((dir: 1 | -1) => {
-    if (spinning || inFreeSpins) return;
+    if (spinning || inFreeSpins || autoActiveRef.current) return;
     setBet((current) => {
       const idx = BETS.indexOf(current);
       return BETS[dir === 1 ? Math.min(BETS.length - 1, idx + 1) : Math.max(0, idx - 1)];
     });
   }, [spinning, inFreeSpins]);
 
-  const handleSpin = useCallback(async () => {
+  const handleSpin = useCallback(async (automatic = false) => {
     if (inFlight.current || spinning) return;
-    if (!user) { setErrorMsg(t('games.slots.errorSignIn')); return; }
-    if (balance === null && !inFreeSpins) { setErrorMsg(t('games.slots.errorLoadingChips')); return; }
-    if (!inFreeSpins && !canBet) { setErrorMsg(t('games.slots.errorNotEnoughChips')); return; }
+    if (automatic && !autoActiveRef.current) return;
+    if (!automatic && autoActiveRef.current) return;
+    if (!user) { stopAuto(); setErrorMsg(t('games.slots.errorSignIn')); return; }
+    if (balance === null && !inFreeSpins) { stopAuto(); setErrorMsg(t('games.slots.errorLoadingChips')); return; }
+    if (!inFreeSpins && !canBet) { stopAuto(); setErrorMsg(t('games.slots.errorNotEnoughChips')); return; }
     inFlight.current = true;
+    if (automatic) {
+      autoSpinsLeftRef.current -= 1;
+      setAutoSpinsLeft(autoSpinsLeftRef.current);
+    }
     const epoch = spinEpochRef.current + 1;
     spinEpochRef.current = epoch;
 
@@ -623,27 +681,42 @@ const Slots = ({ onBack }: SlotsProps) => {
           }, baseDelay + reel * stagger);
         });
       } else if (resp?.ok === false && resp.error === 'insufficient_balance') {
-        stopMotion(); setErrorMsg(t('games.slots.errorNotEnoughChips'));
+        stopAuto(); stopMotion(); setErrorMsg(t('games.slots.errorNotEnoughChips'));
       } else if (resp?.ok === false && resp.error === 'invalid_bet') {
-        stopMotion(); setErrorMsg(t('games.slots.errorInvalidBet'));
+        stopAuto(); stopMotion(); setErrorMsg(t('games.slots.errorInvalidBet'));
       } else if (resp?.error === 'game_disabled') {
-        stopMotion(); setErrorMsg(t('games.slots.errorGameDisabled'));
+        stopAuto(); stopMotion(); setErrorMsg(t('games.slots.errorGameDisabled'));
       } else {
-        stopMotion(); setErrorMsg(t('games.slots.errorSpinFailed'));
+        stopAuto(); stopMotion(); setErrorMsg(t('games.slots.errorSpinFailed'));
       }
     } catch {
       if (!life.isMounted() || epoch !== spinEpochRef.current) return;
+      stopAuto();
       stopMotion();
       setErrorMsg(t('games.slots.errorSpinFailed'));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spinning, user, canBet, bet, inFreeSpins, balance, collectors, life, stopMotion, ensureLoop, promote, playSound]);
+  }, [spinning, user, canBet, bet, inFreeSpins, balance, collectors, life, stopAuto, stopMotion, ensureLoop, promote, playSound]);
+
+  nextAutoSpinRef.current = () => { void handleSpin(true); };
+
+  const toggleAuto = () => {
+    if (autoActiveRef.current) { stopAuto(); return; }
+    if (!spinUsable || status !== 'connected') return;
+    autoActiveRef.current = true;
+    autoSpinsLeftRef.current = AUTO_SPINS;
+    setAutoActive(true);
+    setAutoSpinsLeft(AUTO_SPINS);
+    setFocus('auto');
+    void handleSpin(true);
+  };
 
   // A spin in flight or still stopping owns Back: no committed wager is dropped.
   const motionActive = () => modeRef.current.some((mode) => mode !== 'idle');
   const { requestBack } = useGameBack({
-    isBusy: () => spinning || inFlight.current || motionActive(),
+    isBusy: () => autoActiveRef.current || spinning || inFlight.current || motionActive(),
     onBlocked: () => {
+      if (autoActiveRef.current) stopAuto();
       setNotice(t('games.shared.finishSpinFirst'));
       life.timeout(() => setNotice(null), 2600);
     },
@@ -849,6 +922,24 @@ const Slots = ({ onBack }: SlotsProps) => {
               >
                 <span className="snow-slot-spin__disc" aria-hidden="true">▶</span>
                 <span>{spinning ? <><Loader2 className="animate-spin" /> {t('games.slots.spinning')}</> : inFreeSpins ? t('games.slots.spinFree') : t('games.slots.spin')}</span>
+              </Button>
+
+              <Button
+                ref={autoBtnRef}
+                type="button"
+                variant="navy"
+                onFocus={() => setFocus('auto')}
+                onClick={toggleAuto}
+                aria-disabled={!autoActive && (!spinUsable || status !== 'connected') ? 'true' : undefined}
+                aria-pressed={autoActive}
+                data-tv-focused={focus === 'auto' ? 'true' : 'false'}
+                className="snow-slot-auto"
+              >
+                {autoActive ? <Square aria-hidden="true" /> : <Repeat2 aria-hidden="true" />}
+                <span>{autoActive
+                  ? t('games.slots.stopAuto', { defaultValue: 'STOP AUTO' })
+                  : t('games.slots.autoTen', { defaultValue: 'AUTO ×10' })}</span>
+                {autoActive && <small>{autoSpinsLeft} {t('games.slots.autoLeft', { defaultValue: 'left' })}</small>}
               </Button>
 
               <div className="snow-slot-meter snow-slot-meter--win">

@@ -540,6 +540,28 @@
   text-indent: 2px;
 }
 
+.snow-slot-layout .snow-slot-auto {
+  min-width: 126px;
+  min-height: 51px;
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-right: 10px;
+  padding: 4px 10px;
+  border: 2px solid hsl(198 78% 63% / .7);
+  border-radius: 12px;
+  color: hsl(185 100% 91%);
+  font: 900 13px/1 Montserrat, sans-serif;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.snow-slot-auto svg { width: 17px; height: 17px; }
+.snow-slot-auto small { color: hsl(47 98% 72%); font-size: 10px; }
+.snow-slot-auto[aria-pressed='true'] { border-color: hsl(47 95% 68%); color: #fff; background: hsl(222 74% 23%); }
+
 .snow-slot-layout .snow-game-error,
 .snow-slot-layout .snow-game-note {
   position: absolute;
@@ -1028,6 +1050,9 @@
   .snow-slot-meter strong { font-size: 29px; }
   .snow-slot-layout .snow-slot-bet button { width: 55px; height: 55px; }
   .snow-slot-layout .snow-slot-spin { min-width: 280px; min-height: 70px; border-radius: 35px; font-size: 26px; }
+  .snow-slot-layout .snow-slot-auto { min-width: 180px; min-height: 68px; font-size: 20px; }
+  .snow-slot-auto svg { width: 24px; height: 24px; }
+  .snow-slot-auto small { font-size: 14px; }
   .snow-slot-spin__disc { width: 56px; height: 56px; font-size: 21px; }
   .snow-slot-layout .snow-slot-info { width: 310px; min-width: 310px; margin-left: 16px; }
   .snow-slot-layout .snow-slot-info > div { padding: 14px; }
@@ -1133,6 +1158,9 @@
   .snow-slot-layout .snow-slot-bet button { width: 90px; height: 90px; border-width: 3px; }
   .snow-slot-layout .snow-slot-bet button svg { width: 35px; height: 35px; }
   .snow-slot-layout .snow-slot-spin { min-width: 450px; min-height: 112px; margin-right: 18px; padding: 8px 40px 8px 107px; border-width: 5px; border-radius: 57px; font-size: 41px; }
+  .snow-slot-layout .snow-slot-auto { min-width: 290px; min-height: 105px; margin-right: 18px; border-width: 4px; border-radius: 24px; font-size: 31px; }
+  .snow-slot-auto svg { width: 38px; height: 38px; }
+  .snow-slot-auto small { font-size: 21px; }
   .snow-slot-spin > span:last-child svg { width: 34px; height: 34px; margin-right: 12px; }
   .snow-slot-spin__disc { left: 8px; top: 8px; width: 88px; height: 88px; border-width: 3px; font-size: 34px; }
 
@@ -1201,6 +1229,7 @@
   .snow-slot-sound-toggle svg { margin-right: 0; }
   .snow-slot-layout .snow-slot-info { width: 190px; min-width: 190px; }
   .snow-slot-layout .snow-slot-spin { min-width: 165px; padding-left: 52px; padding-right: 15px; font-size: 17px; }
+  .snow-slot-layout .snow-slot-auto { min-width: 105px; min-height: 49px; font-size: 11px; padding-left: 5px; padding-right: 5px; }
   .snow-slot-meter { display: none; }
   .snow-slot-collector-bank__title { display: none; }
   .snow-slot-collector { min-width: 92px; padding-left: 43px; }
