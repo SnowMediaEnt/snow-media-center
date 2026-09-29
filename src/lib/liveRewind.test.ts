@@ -3,7 +3,8 @@ import {
   DEFAULT_REWIND_SETTINGS, HARD_CAP_BYTES, MIN_FREE_BYTES, REWIND_SETTINGS_EVENT, REWIND_SETTINGS_KEY,
   availableLabel, behindLabel, buildTimeshiftUrl, catchupDays, catchupDurationMin, floorMinute, formatBytes,
   hasCatchup, loadRewindSettings, maxRewindMinutes, reserveBytes, rewindBudgetBytes, rewindChannelKey,
-  saveRewindSettings, serverUtcOffsetMinutes, timeshiftStamp,
+  LINE_RECHECK_MS, LINE_RETRY_MS, LINE_TAKEN_MESSAGE, captureRefused, lineTakenByOthers, parseLineUsage,
+  rewindOffMessage, saveRewindSettings, serverUtcOffsetMinutes, timeshiftStamp,
 } from './liveRewind';
 import storageBudgetKt from '../../android/app/src/main/java/com/snowmedia/dvr/StorageBudget.kt?raw';
 
@@ -134,5 +135,58 @@ describe('labels', () => {
     const key = rewindChannelKey('http://panel.example:8080/', 99);
     expect(key).toBe('http://panel.example:8080|99');
     expect(key).not.toContain(LINE.password);
+  });
+});
+
+describe('the line\'s use (is a stream free?)', () => {
+  const answer = (max: unknown, active: unknown) => ({ user_info: { max_connections: max, active_cons: active } });
+
+  it('reads max_connections and active_cons, numbers or strings', () => {
+    expect(parseLineUsage(answer(2, 1))).toEqual({ max: 2, active: 1 });
+    expect(parseLineUsage(answer('3', '0'))).toEqual({ max: 3, active: 0 });
+  });
+
+  it('missing or not a number: unknown', () => {
+    expect(parseLineUsage(answer(2, undefined))).toBeNull();
+    expect(parseLineUsage(answer(undefined, 1))).toBeNull();
+    expect(parseLineUsage(answer('', 1))).toBeNull();
+    expect(parseLineUsage(answer(2, null))).toBeNull();
+    expect(parseLineUsage(answer('two', 1))).toBeNull();
+    expect(parseLineUsage(answer(2, -1))).toBeNull();
+    expect(parseLineUsage(answer(true, 1))).toBeNull();
+    expect(parseLineUsage({})).toBeNull();
+    expect(parseLineUsage(null)).toBeNull();
+    expect(parseLineUsage({ user_info: 'nope' })).toBeNull();
+  });
+
+  it('another device counts only beyond this box\'s own streams and only on a full line', () => {
+    // 2-stream line: picture + buffer = 2 of 2 is our own doing.
+    expect(lineTakenByOthers({ max: 2, active: 2 }, 2, 0)).toBe(false);
+    expect(lineTakenByOthers({ max: 2, active: 3 }, 2, 0)).toBe(true);
+    // 3-stream line, another TV was already on when the buffer started.
+    expect(lineTakenByOthers({ max: 3, active: 3 }, 2, 1)).toBe(false);
+    expect(lineTakenByOthers({ max: 3, active: 4 }, 2, 1)).toBe(true);
+    // Streams left over: a neighbour is no reason to give the buffer up.
+    expect(lineTakenByOthers({ max: 5, active: 3 }, 2, 0)).toBe(false);
+    // A recording of ours is ours.
+    expect(lineTakenByOthers({ max: 3, active: 3 }, 3, 0)).toBe(false);
+  });
+
+  it('the native capture refused or dropped by the provider', () => {
+    expect(captureRefused({ state: 'unavailable', reason: 'The channel stopped sending, so rewind is paused.' })).toBe(true);
+    expect(captureRefused({ state: 'unavailable', reason: 'Not enough free space on this box to rewind.' })).toBe(false);
+    expect(captureRefused({ state: 'capturing' })).toBe(false);
+    expect(captureRefused(null)).toBe(false);
+  });
+
+  it('timings and words', () => {
+    expect(LINE_RECHECK_MS).toBe(60_000);
+    expect(LINE_RETRY_MS).toBe(300_000);
+    expect(LINE_TAKEN_MESSAGE).toBe('Rewind turned off: another device is using your line\'s streams.');
+    expect(rewindOffMessage('line-taken')).toBe(LINE_TAKEN_MESSAGE);
+    expect(rewindOffMessage('line-full')).toMatch(/another device/);
+    expect(rewindOffMessage('line-unknown')).toMatch(/couldn't check/);
+    expect(rewindOffMessage('line-checking')).toMatch(/checking/);
+    expect(rewindOffMessage('recording')).toMatch(/paused while recording/);
   });
 });

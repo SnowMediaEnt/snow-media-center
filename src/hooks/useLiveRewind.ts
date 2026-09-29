@@ -10,60 +10,74 @@
 //   onto it to rewind; everything is wiped when the player is left, the app
 //   goes to the background (native), or the viewer signs out (playerSignOut).
 //   The buffer is a second connection to the line, so it runs only when the
-//   plan allows two or more streams (bufferGate), and never on mpv.
+//   plan allows two or more streams AND the panel says a stream is free right
+//   now (bufferGate), and never on mpv. While it runs the panel is asked again
+//   every 60 s at most; when another device has taken the line, or the
+//   provider refuses or drops the capture, the buffer is wiped (the viewer is
+//   moved to live first), a toast says why, and it is tried again only on the
+//   next channel or after 5 minutes.
 //
 // Addresses carry the line's credentials. This file never logs one.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SnowPlayer, type TimeshiftStatus } from '@/capacitor/SnowPlayer';
+import { toast } from '@/hooks/use-toast';
 import { authenticate, type XtreamCreds, type XtreamLiveStream } from '@/lib/xtream';
 import {
-  HARD_CAP_MB, REWIND_SETTINGS_EVENT, buildTimeshiftUrl, catchupDays, catchupDurationMin,
-  deviceUtcOffsetMinutes, floorMinute, loadRewindSettings, maxRewindMinutes, rewindChannelKey,
-  serverUtcOffsetMinutes, type RewindSettings,
+  HARD_CAP_MB, LINE_CHECK_SETTLE_MS, LINE_RECHECK_MS, LINE_RETRY_MS, LINE_TAKEN_MESSAGE, REWIND_SETTINGS_EVENT,
+  buildTimeshiftUrl, captureRefused, catchupDays, catchupDurationMin, deviceUtcOffsetMinutes, floorMinute,
+  lineTakenByOthers, loadRewindSettings, maxRewindMinutes, parseLineUsage, rewindChannelKey,
+  serverUtcOffsetMinutes, type LineUsage, type RewindOffReason, type RewindSettings,
 } from '@/lib/liveRewind';
 
-export type RewindKind = 'off' | 'buffer' | 'catchup';
+// The reasons and their words live in liveRewind.ts; these keep the old import path working.
+export { rewindOffMessage } from '@/lib/liveRewind';
+export type { RewindOffReason } from '@/lib/liveRewind';
 
-/** Why rewind is off for the channel on screen (null when it is on, or nothing plays). */
-export type RewindOffReason =
-  /** Switched off in Settings. */
-  | 'disabled'
-  /** The channel plays on mpv (owner test builds): rewind is ExoPlayer only. */
-  | 'engine'
-  /** The plan allows one stream, so the buffer's second stream is not opened. */
-  | 'streams'
-  /** How many streams the plan allows is not known (another saved line). */
-  | 'streams-unknown'
-  /** Recordings are using the streams the buffer would need. */
-  | 'recording';
+export type RewindKind = 'off' | 'buffer' | 'catchup';
 
 /** The buffer needs its own stream next to the picture being watched. */
 export const BUFFER_MIN_STREAMS = 2;
 
-export type BufferGate = 'ok' | 'unknown' | 'few';
+/** ok: start · unknown: can't tell · few: the plan is too small · full: the panel says no stream is free. */
+export type BufferGate = 'ok' | 'unknown' | 'few' | 'full';
 
 /**
- * May the on-box buffer open its second stream? Only when the plan's streams,
- * less those the running recordings use, still leave two (the picture and the
- * buffer). An unknown plan counts as no: a wrong guess on a one-stream line
- * costs the viewer the picture they are watching.
+ * May the on-box buffer open its second stream?
+ *
+ * Without `usage` this is the plan check, which costs no request: the plan's
+ * streams, less those the running recordings use, must still leave two (the
+ * picture and the buffer). An unknown plan counts as no: a wrong guess on a
+ * one-stream line costs the viewer the picture they are watching.
+ *
+ * With `usage` (what the panel reports right now, see parseLineUsage) the
+ * panel's own numbers decide, and the plan check is repeated on its
+ * max_connections: a stream must be free (max - active_cons >= 1). active_cons
+ * already counts this box's own playing stream (see liveRewind.ts), and a
+ * count of 0 while a channel plays is not believed. `usage` null = the panel
+ * could not be asked, or did not say: 'unknown', no buffer.
  */
-export function bufferGate(maxConnections: number | null | undefined, activeRecordings = 0): BufferGate {
-  if (maxConnections == null) return 'unknown';
-  const n = Math.floor(Number(maxConnections));
+export function bufferGate(
+  maxConnections: number | null | undefined,
+  activeRecordings = 0,
+  usage?: LineUsage | null,
+): BufferGate {
+  if (usage === null) return 'unknown';
+  const planned = usage ? usage.max : maxConnections;
+  if (planned == null) return 'unknown';
+  const n = Math.floor(Number(planned));
   if (!Number.isFinite(n) || n < 1) return 'unknown';
-  return n - Math.max(0, Math.floor(activeRecordings)) >= BUFFER_MIN_STREAMS ? 'ok' : 'few';
+  if (n - Math.max(0, Math.floor(activeRecordings)) < BUFFER_MIN_STREAMS) return 'few';
+  if (!usage) return 'ok';
+  if (usage.active < 1) return 'unknown';
+  return usage.max - usage.active >= 1 ? 'ok' : 'full';
 }
 
-/** What to tell the viewer who asks for rewind while it is off. */
-export function rewindOffMessage(reason: RewindOffReason | null): string {
-  switch (reason) {
-    case 'streams': return 'Your plan allows 1 stream, so rewind works only on channels with catch-up.';
-    case 'streams-unknown': return 'This box can\'t tell how many streams your plan allows, so rewind works only on channels with catch-up.';
-    case 'recording': return 'Rewind is paused while recording (your plan\'s streams are in use).';
-    case 'engine': return 'Rewind needs the ExoPlayer engine. Change it under Live TV settings › Playback.';
-    default: return 'Rewind is off. Turn on Rewind live TV in Live TV settings.';
-  }
+/** What the last ask of the panel decided for a channel (token = channel + restarts). */
+interface LineCheck {
+  token: string;
+  gate: BufferGate;
+  /** The buffer ran and gave its stream back (vs never started). */
+  taken: boolean;
 }
 
 export interface RewindInfo {
@@ -135,6 +149,16 @@ export async function panelOffset(line: XtreamCreds): Promise<number> {
   return v;
 }
 
+/**
+ * What the panel says about the line now: the account read the app already
+ * makes (direct first, then Snow Media's list proxy on an ISP block). Null
+ * when it fails or doesn't say. The request carries the line's login: nothing
+ * here logs it or its errors.
+ */
+async function fetchLineUsage(line: XtreamCreds): Promise<LineUsage | null> {
+  try { return parseLineUsage(await authenticate(line)); } catch { return null; }
+}
+
 /** A long pause on a catch-up channel resumes from the archive (shorter ones from the player's memory). */
 export const CATCHUP_RESUME_AFTER_MS = 60_000;
 /** Forward to within this of now is live. */
@@ -149,26 +173,85 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
   }, []);
 
   const days = catchupDays(stream);
+  // The plan check (no request): can the plan ever hold the picture and the buffer?
   const gate = bufferGate(maxConnections, activeRecordings);
   // The gate that ignores recordings: tells "the plan is too small" from "recordings took the room".
   const planGate = bufferGate(maxConnections, 0);
   const playing = active && !!stream && !!line;
+  const key = stream && line ? rewindChannelKey(line.host, stream.stream_id) : '';
+
+  // ---- is a stream free on the line? -------------------------------------------
+  // For an ordinary channel the plan check passes, the panel is asked once
+  // (a few seconds after the channel opens: zapping doesn't ask per channel),
+  // and the buffer starts only if a stream is free. Not asked at all when
+  // rewind is off, on mpv, on a catch-up channel, or when not full screen.
+  const wantBuffer = playing && engine !== 'mpv' && settings.enabled && days === 0 && gate === 'ok' && !!directUrl;
+  // Coming back from Home: the plugin wiped the buffer, so start again (and ask again).
+  const [resumeNonce, setResumeNonce] = useState(0);
+  // Bumped by the retry timer: ask again after the buffer was refused or gave up.
+  const [retryNonce, setRetryNonce] = useState(0);
+  const checkToken = `${key}#${resumeNonce}#${retryNonce}`;
+  const [lineCheck, setLineCheck] = useState<LineCheck | null>(null);
+  const verdict = lineCheck && lineCheck.token === checkToken ? lineCheck : null;
   let kind: RewindKind = 'off';
   let offReason: RewindOffReason | null = null;
   if (playing) {
     if (engine === 'mpv') offReason = 'engine';
     else if (!settings.enabled) offReason = 'disabled';
     else if (days > 0) kind = 'catchup';
-    else if (gate === 'ok') kind = 'buffer';
     else if (gate === 'unknown') offReason = 'streams-unknown';
-    else offReason = planGate === 'ok' ? 'recording' : 'streams';
+    else if (gate === 'few') offReason = planGate === 'ok' ? 'recording' : 'streams';
+    else if (!verdict) offReason = 'line-checking';
+    else if (verdict.gate === 'ok') kind = 'buffer';
+    else if (verdict.taken) offReason = 'line-taken';
+    else if (verdict.gate === 'full') offReason = 'line-full';
+    else if (verdict.gate === 'few') offReason = 'streams';
+    else offReason = 'line-unknown';
   }
-  const key = stream && line ? rewindChannelKey(line.host, stream.stream_id) : '';
+
+  // Latest values for the timers below (they must not restart on every render).
+  const lineRef = useRef(line);
+  lineRef.current = line;
+  const recordingsRef = useRef(activeRecordings);
+  recordingsRef.current = activeRecordings;
+  const maxConnectionsRef = useRef(maxConnections);
+  maxConnectionsRef.current = maxConnections;
+  const checkTokenRef = useRef(checkToken);
+  checkTokenRef.current = checkToken;
+  // What the other devices used when the buffer started (the panel's count less ours).
+  const baseRef = useRef({ others: 0, rec: 0 });
+  // When the panel was last asked: the running buffer never asks more often than LINE_RECHECK_MS.
+  const lastAskRef = useRef(0);
+  const lineUser = line ? `${line.host}|${line.username}` : '';
+
+  // The start check.
+  useEffect(() => {
+    if (!wantBuffer) return;
+    let alive = true;
+    const t = window.setTimeout(async () => {
+      const l = lineRef.current;
+      if (!l) return;
+      lastAskRef.current = Date.now();
+      const usage = await fetchLineUsage(l);
+      if (!alive) return;
+      const rec = recordingsRef.current;
+      const g = bufferGate(maxConnectionsRef.current, rec, usage);
+      if (usage) baseRef.current = { others: Math.max(0, usage.active - 1 - rec), rec };
+      setLineCheck({ token: checkTokenRef.current, gate: g, taken: false });
+    }, LINE_CHECK_SETTLE_MS);
+    return () => { alive = false; window.clearTimeout(t); setLineCheck(null); };
+  }, [wantBuffer, checkToken, lineUser]);
+
+  // Not started (or given up): try again after 5 minutes, or on the next channel.
+  const retryDue = wantBuffer && !!verdict && verdict.gate !== 'ok';
+  useEffect(() => {
+    if (!retryDue) return;
+    const t = window.setTimeout(() => setRetryNonce((n) => n + 1), LINE_RETRY_MS);
+    return () => window.clearTimeout(t);
+  }, [retryDue, checkToken]);
 
   // ---- on-box buffer -------------------------------------------------------
   const bufferOn = kind === 'buffer' && !!directUrl;
-  // Coming back from Home: the plugin wiped the buffer, so start again.
-  const [resumeNonce, setResumeNonce] = useState(0);
   useEffect(() => {
     if (!bufferOn) return;
     let hidden = document.hidden;
@@ -184,25 +267,90 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
     if (!bufferOn || !directUrl || !key) return;
     void SnowPlayer.timeshiftStart({ url: directUrl, key, maxMinutes, hardCapMb: HARD_CAP_MB }).catch(() => { /* older app: no rewind */ });
   }, [bufferOn, directUrl, key, maxMinutes, resumeNonce, activeRecordings]);
-  // Leaving the player, rewind switched off, or the recordings taking the
-  // streams: everything goes. (Sign-out wipes too, in playerSignOut.)
+  // Leaving the player, rewind switched off, the recordings taking the
+  // streams, or the line taken: everything goes. (Sign-out wipes too, in playerSignOut.)
   useEffect(() => {
     if (!bufferOn) return;
     return () => { void SnowPlayer.timeshiftWipe().catch(() => { /* older app */ }); };
   }, [bufferOn]);
 
   const [status, setStatus] = useState<TimeshiftStatus | null>(null);
+  const statusRef = useRef<TimeshiftStatus | null>(null);
+  statusRef.current = status;
+
+  // The buffer gives its stream back: jump to live first if the viewer is behind
+  // it, then everything is wiped (bufferOn goes false), and one short toast says why.
+  const yieldedRef = useRef('');
+  const yieldBuffer = useCallback(async (token: string) => {
+    if (yieldedRef.current === token) return;
+    yieldedRef.current = token;
+    try {
+      const st = await SnowPlayer.timeshiftStatus();
+      if (st.mode === 'buffer') await SnowPlayer.timeshiftGoLive();
+    } catch { /* older app: the wipe below still runs */ }
+    if (checkTokenRef.current !== token) return;
+    setLineCheck({ token, gate: 'full', taken: true });
+    try { toast({ title: LINE_TAKEN_MESSAGE }); } catch { /* ignore */ }
+  }, []);
+
+  // While the buffer runs: ask the panel again, at most every 60 s, and give the
+  // stream back if another device has taken the line. A failed read changes nothing.
+  useEffect(() => {
+    if (!bufferOn) return;
+    const token = checkToken;
+    let alive = true;
+    let busy = false;
+    let timer = 0;
+    const schedule = () => {
+      timer = window.setTimeout(run, Math.max(0, lastAskRef.current + LINE_RECHECK_MS - Date.now()));
+    };
+    const run = async () => {
+      timer = 0;
+      const l = lineRef.current;
+      if (!alive || !l) return;
+      if (!document.hidden && !busy) {
+        busy = true;
+        lastAskRef.current = Date.now();
+        const usage = await fetchLineUsage(l);
+        busy = false;
+        if (!alive) return;
+        if (usage) {
+          const rec = recordingsRef.current;
+          const buffer = statusRef.current && statusRef.current.state === 'unavailable' ? 0 : 1;
+          const own = 1 + buffer + rec;
+          if (baseRef.current.rec !== rec) {
+            // A recording started or stopped: the panel's count may lag, so start from this reading.
+            baseRef.current = { others: Math.max(0, usage.active - own), rec };
+          } else if (lineTakenByOthers(usage, own, baseRef.current.others)) {
+            void yieldBuffer(token);
+            return;
+          }
+        }
+      }
+      if (alive) schedule();
+    };
+    schedule();
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [bufferOn, checkToken, yieldBuffer]);
+
+  // The native capture's status. The provider refusing or dropping the buffer's
+  // own connection ends it the same way. (Local only: no request to the panel.)
   useEffect(() => {
     if (!bufferOn) { setStatus(null); return; }
-    if (!watching) return;
+    const token = checkToken;
     let alive = true;
     const tick = async () => {
-      try { const st = await SnowPlayer.timeshiftStatus(); if (alive) setStatus(st); } catch { /* older app */ }
+      try {
+        const st = await SnowPlayer.timeshiftStatus();
+        if (!alive) return;
+        setStatus(st);
+        if (captureRefused(st)) void yieldBuffer(token);
+      } catch { /* older app */ }
     };
     void tick();
-    const t = window.setInterval(tick, 1000);
+    const t = window.setInterval(tick, watching ? 1000 : 5000);
     return () => { alive = false; window.clearInterval(t); };
-  }, [bufferOn, watching, key]);
+  }, [bufferOn, watching, key, checkToken, yieldBuffer]);
 
   // ---- panel catch-up --------------------------------------------------------
   // Null = live. startMs: the minute the archive stream starts at; requestedAt
@@ -236,8 +384,6 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
     return buildTimeshiftUrl(line, stream.stream_id, cu.startMs, catchupDurationMin(cu.startMs, cu.requestedAt), cu.offsetMin);
   }, [kind, cu, line, stream]);
 
-  const lineRef = useRef(line);
-  lineRef.current = line;
   const playCatchupFrom = useCallback(async (atMs: number) => {
     const l = lineRef.current;
     if (!l) return;

@@ -25,10 +25,10 @@ const settle = async () => { await act(async () => { await Promise.resolve(); })
 beforeEach(() => { localStorage.removeItem(REWIND_SETTINGS_KEY); localStorage.removeItem(PADDING_KEY); h.plan = 2; h.demo = false; });
 
 describe('Rewind live TV settings', () => {
-  it('says it uses one extra stream on the line', async () => {
+  it('says it uses one extra stream, only when the line has a free one, and yields to another TV', async () => {
     render(<RewindSettingsScreen onBack={vi.fn()} />);
     await settle();
-    expect(EXTRA_STREAM_LINE).toBe('Uses one extra stream on your line');
+    expect(EXTRA_STREAM_LINE).toBe('Uses one extra stream. It turns on only when your line has a free stream, and turns off by itself if another TV needs it.');
     expect(document.querySelector('[data-rewind-extra-stream]')?.textContent).toContain(EXTRA_STREAM_LINE);
     // A plan with two streams has nothing else to explain.
     expect(document.querySelector('[data-rewind-plan]')).toBeNull();

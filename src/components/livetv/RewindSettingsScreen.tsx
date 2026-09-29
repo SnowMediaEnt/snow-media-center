@@ -6,8 +6,9 @@
 // box would allow (Auto).
 //
 // Rewind on the box opens a second stream on the line while a channel is
-// full screen, so it says so, and says why it does not run on a one-stream
-// plan (only channels with provider catch-up rewind there).
+// full screen, so it says so: it turns on only when the line has a free stream
+// and turns itself off if another TV needs it. It also says why it does not
+// run on a one-stream plan (only channels with provider catch-up rewind there).
 //
 // D-pad: ▲▼ rows, ◀▶ or OK changes the focused row, Back closes.
 import { memo, useEffect, useRef, useState } from 'react';
@@ -15,11 +16,11 @@ import { History, Info } from 'lucide-react';
 import { BackButton } from '@/components/ui/BackButton';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
-import { bufferGate, rewindOffMessage } from '@/hooks/useLiveRewind';
+import { bufferGate } from '@/hooks/useLiveRewind';
 import { AFTER_CHOICES, BEFORE_CHOICES, loadPadding, savePadding, type RecordPadding } from '@/lib/recordSchedule';
 import { isDemo } from '@/lib/demoMode';
 import {
-  HARD_CAP_BYTES, MAX_REWIND_CHOICES, formatBytes, loadRewindSettings, rewindBudgetBytes, saveRewindSettings,
+  HARD_CAP_BYTES, MAX_REWIND_CHOICES, formatBytes, loadRewindSettings, rewindBudgetBytes, rewindOffMessage, saveRewindSettings,
   type RewindSettings,
 } from '@/lib/liveRewind';
 
@@ -29,7 +30,7 @@ type Row = 'back' | 'enabled' | 'max' | 'before' | 'after';
 const ROWS: Row[] = ['back', 'enabled', 'max', 'before', 'after'];
 
 /** Said under the switch: what the buffer costs the line. */
-export const EXTRA_STREAM_LINE = 'Uses one extra stream on your line';
+export const EXTRA_STREAM_LINE = 'Uses one extra stream. It turns on only when your line has a free stream, and turns off by itself if another TV needs it.';
 
 const RewindSettingsScreen = memo(({ onBack }: Props) => {
   const [s, setS] = useState<RewindSettings>(loadRewindSettings);
