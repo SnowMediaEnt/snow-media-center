@@ -44,7 +44,7 @@
       "goYearly": "اختر الاشتراك السنوي ووفّر بسعر الباقة.",
       "checkoutBtn": "الدفع من هاتفك",
       "openSiteBtn": "افتح snowmediaent.com على هذا الجهاز",
-      "hint": "▲ ▼ ◀ ▶ للاختيار · OK للتحديد · رجوع"
+      "hint": "▲ ▼ ◀ ▶ للاختيار · موافق للتحديد · رجوع"
     },
     "detail": {
       "backTo": "◀ العودة إلى {{section}}",
@@ -52,7 +52,7 @@
       "creditPack": "باقة الرصيد",
       "buyBtn": "اشترِ من هاتفك",
       "openSiteBtn": "افتح على هذا الجهاز",
-      "hint": "◀ ▶ للاختيار · OK للتحديد · رجوع إلى القائمة"
+      "hint": "◀ ▶ للاختيار · موافق للتحديد · رجوع إلى القائمة"
     },
     "qr": {
       "alt": "رمز QR للدفع",
@@ -62,10 +62,10 @@
       "createAccount": "أنشئ حسابك عند الدفع ثم سجّل الدخول إلى SMC به (حسابي، أعلى الصفحة الرئيسية).",
       "createAccountWhy": "بهذه الطريقة تظهر المشتريات وبيانات دخول الخدمة وتذاكر الدعم على هذا الجهاز.",
       "loginsInTicket": "تصلك بيانات دخول الخدمة في تذكرة دعم هنا داخل التطبيق مباشرة.",
-      "close": "اضغط OK أو رجوع للإغلاق"
+      "close": "اضغط موافق أو رجوع للإغلاق"
     },
     "quote": {
-      "bundleDreamstreams": "{{device}} + سنة من DreamStreams ({{connections}} اتصالات)",
+      "bundleDreamstreams": "{{device}} + سنة من DreamStreams (الاتصالات: {{connections}})",
       "bundleVibeztv": "{{device}} + سنة من VibezTV (9 اتصالات)",
       "plexIncluded": "PLEX مشمول",
       "trialIncluded": "يشمل تجربة الخدمة لمدة شهر",

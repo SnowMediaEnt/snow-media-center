@@ -18,7 +18,7 @@
       "description": "شارك واربح جوائز"
     },
     "player": {
-      "title": "المشغل",
+      "title": "المشغّل",
       "description": "البث المباشر والأفلام والمسلسلات"
     },
     "liveTv": {
@@ -27,7 +27,7 @@
     },
     "plex": {
       "title": "Plex",
-      "description": "أفلام ومسلسلات",
+      "description": "أفلام وبرامج",
       "tag": "(عند الطلب)"
     },
     "kidsLounge": {
@@ -37,12 +37,12 @@
     "header": {
       "voiceLabel": "الأوامر الصوتية",
       "profileLabel": "الملف الشخصي: {{name}}. تبديل الملفات أو إضافتها",
-      "unreadReplies_zero": "لا ردود دعم غير مقروءة",
-      "unreadReplies_one": "رد دعم واحد غير مقروء",
-      "unreadReplies_two": "ردّان للدعم غير مقروءين",
-      "unreadReplies_few": "{{count}} ردود دعم غير مقروءة",
-      "unreadReplies_many": "{{count}} رداً للدعم غير مقروء",
-      "unreadReplies_other": "{{count}} رد دعم غير مقروء"
+      "unreadReplies_zero": "لا توجد ردود غير مقروءة من الدعم",
+      "unreadReplies_one": "ردّ واحد غير مقروء من الدعم",
+      "unreadReplies_two": "ردّان غير مقروءين من الدعم",
+      "unreadReplies_few": "{{count}} ردود غير مقروءة من الدعم",
+      "unreadReplies_many": "{{count}} ردًا غير مقروء من الدعم",
+      "unreadReplies_other": "{{count}} ردّ غير مقروء من الدعم"
     },
     "toast": {
       "launchingTitle": "جارٍ تشغيل التطبيق",
@@ -62,7 +62,7 @@
       "plexFailedDesc": "سيتم فتح Plex بدلاً من ذلك."
     },
     "mediaBar": {
-      "heading": "موصى به",
+      "heading": "مقترحات",
       "prevLabel": "السابق",
       "nextLabel": "التالي",
       "demoTitle": "عرض تجريبي مباشر"
@@ -71,7 +71,7 @@
       "trendingChip": "الرائج",
       "continueChip": "متابعة",
       "liveChip": "مباشر",
-      "forYouChip": "لك"
+      "forYouChip": "مقترح لك"
     },
     "newsTicker": {
       "loading": "جارٍ تحميل الأخبار...",
@@ -97,7 +97,7 @@
       "continueSub": "متابعة · {{episode}}",
       "laggy": "على الأجهزة القديمة أو الأقل قوة قد يصبح الأداء أبطأ قليلًا.",
       "notNowBtn": "ليس الآن",
-      "turnOnBtn": "تشغيله",
+      "turnOnBtn": "تفعيل",
       "footer": "يمكنك تغيير هذا في أي وقت من الإعدادات."
     },
     "welcome": {
@@ -110,8 +110,8 @@
       "chatDesc": "أرسل تذاكر للمساعدة أو الأسئلة — الدردشة بالذكاء الاصطناعي متاحة أيضًا.",
       "signInNote": "سجّل الدخول بحسابك على <1>snowmediaent.com</1> أو أنشئ حسابًا جديدًا لتتابع مشترياتك وSnow Gems.",
       "whatsNew": "الجديد في الإصدار v{{version}}",
-      "scrollHint": "▲ ▼ تمرير · OK إغلاق",
-      "closeHint": "OK إغلاق",
+      "scrollHint": "▲ ▼ تمرير · موافق للإغلاق",
+      "closeHint": "موافق للإغلاق",
       "letsGoBtn": "هيا بنا"
     }
   }
