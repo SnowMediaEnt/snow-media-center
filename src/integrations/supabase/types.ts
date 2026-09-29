@@ -1622,6 +1622,39 @@ export type Database = {
           },
         ]
       }
+      customer_merges: {
+        Row: {
+          id: string
+          kept_before: Json
+          kept_id: string
+          merged_at: string
+          merged_by: string | null
+          merged_id: string
+          merged_row: Json
+          summary: Json
+        }
+        Insert: {
+          id?: string
+          kept_before: Json
+          kept_id: string
+          merged_at?: string
+          merged_by?: string | null
+          merged_id: string
+          merged_row: Json
+          summary: Json
+        }
+        Update: {
+          id?: string
+          kept_before?: Json
+          kept_id?: string
+          merged_at?: string
+          merged_by?: string | null
+          merged_id?: string
+          merged_row?: Json
+          summary?: Json
+        }
+        Relationships: []
+      }
       customer_payments: {
         Row: {
           amount: number
@@ -4123,12 +4156,17 @@ export type Database = {
           attachment_mime: string | null
           attachment_ms: number | null
           attachment_path: string | null
+          body_en: string | null
+          body_viewer: string | null
+          body_viewer_lang: string | null
           created_at: string
           edited_at: string | null
           id: string
           message: string
+          original_lang: string | null
           sender_type: string
           ticket_id: string
+          translated_at: string | null
           user_id: string | null
         }
         Insert: {
@@ -4137,12 +4175,17 @@ export type Database = {
           attachment_mime?: string | null
           attachment_ms?: number | null
           attachment_path?: string | null
+          body_en?: string | null
+          body_viewer?: string | null
+          body_viewer_lang?: string | null
           created_at?: string
           edited_at?: string | null
           id?: string
           message: string
+          original_lang?: string | null
           sender_type: string
           ticket_id: string
+          translated_at?: string | null
           user_id?: string | null
         }
         Update: {
@@ -4151,12 +4194,17 @@ export type Database = {
           attachment_mime?: string | null
           attachment_ms?: number | null
           attachment_path?: string | null
+          body_en?: string | null
+          body_viewer?: string | null
+          body_viewer_lang?: string | null
           created_at?: string
           edited_at?: string | null
           id?: string
           message?: string
+          original_lang?: string | null
           sender_type?: string
           ticket_id?: string
+          translated_at?: string | null
           user_id?: string | null
         }
         Relationships: [
@@ -4175,36 +4223,45 @@ export type Database = {
           created_at: string
           id: string
           last_message_at: string
+          original_lang: string | null
           priority: string
           status: string
           subject: string
+          subject_en: string | null
           updated_at: string
           user_has_unread: boolean
           user_id: string
+          viewer_lang: string | null
         }
         Insert: {
           admin_has_unread?: boolean
           created_at?: string
           id?: string
           last_message_at?: string
+          original_lang?: string | null
           priority?: string
           status?: string
           subject: string
+          subject_en?: string | null
           updated_at?: string
           user_has_unread?: boolean
           user_id: string
+          viewer_lang?: string | null
         }
         Update: {
           admin_has_unread?: boolean
           created_at?: string
           id?: string
           last_message_at?: string
+          original_lang?: string | null
           priority?: string
           status?: string
           subject?: string
+          subject_en?: string | null
           updated_at?: string
           user_has_unread?: boolean
           user_id?: string
+          viewer_lang?: string | null
         }
         Relationships: []
       }
@@ -5007,6 +5064,15 @@ export type Database = {
           token_prefix: string
           use_count: number
         }[]
+      }
+      admin_merge_customers: {
+        Args: {
+          p_dry_run?: boolean
+          p_keep: string
+          p_login?: string
+          p_merge: string
+        }
+        Returns: Json
       }
       admin_posts: { Args: never; Returns: Json }
       admin_relink_line: {
