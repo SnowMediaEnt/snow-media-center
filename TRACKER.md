@@ -50,6 +50,8 @@ Status: building · ready to test · still broken · done.
 | 28 | Live TV sign-in: username capitals turned to lowercase (falls back to as-typed if the panel refuses) | feature | ready to test (build 48) | |
 | 29 | Every screen changes language (es/fr/de/ar; English default; Arabic text, screens stay left-to-right; AI + Plex follow the language) — plan: .claude/plan-i18n.md | feature | ready to test (build 49) | |
 | 30 | Game Day uses every signed-in Live TV line, with a service tag (DreamStreams/Vibez) on each link | feature | ready to test (build 50) | |
+| 31 | Live TV VOD search finds nothing; focus sticks on Close search — see bugs/vod-search.md | bug | building | 1 |
+| 32 | Live TV VOD slow to start on ExoPlayer (~30 s); seek keeps buffering until OK — see bugs/vod-slow-start-seek.md | bug | building | 2 |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner
