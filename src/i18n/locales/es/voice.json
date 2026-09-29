@@ -62,7 +62,8 @@
       "pressOkRetry": "Presiona OK en el micrófono para intentarlo de nuevo.",
       "listening": "Escuchando…",
       "tryExamples": "Prueba {{examples}}",
-      "sayCommand": "Di un comando"
+      "sayCommand": "Di un comando",
+      "examples": "\"Pon ESPN\" · \"Quiero ver The Office\" · \"Abre YouTube\" · \"Ve a la Guía\" · \"Busca Batman\""
     }
   }
 }

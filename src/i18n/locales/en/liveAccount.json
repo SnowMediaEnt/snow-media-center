@@ -76,16 +76,6 @@
       "groupTextColor": "Text color",
       "tryHint": "Pick another to try it on the Live TV screen.",
       "resetBtn": "Reset to default",
-      "liveLayout": {
-        "classic": "Classic",
-        "compact": "Compact",
-        "grid": "Vibez"
-      },
-      "liveLayoutDesc": {
-        "classic": "Categories beside a tall channel list, preview above it",
-        "compact": "Slim channel list, categories one press away, big preview",
-        "grid": "Categories beside a wall of channel logos, OK plays (no preview)"
-      },
       "fontScale": {
         "sm": "Small",
         "md": "Medium",
@@ -169,7 +159,7 @@
       "signingIn": "Signing in…",
       "getStarted": "New here? Get started",
       "finishSetup": "Finish setting up {{label}}",
-      "note": "Email usernames connect to Vibez; all other usernames connect to Dreamstreams. Your credentials are stored only on this device.",
+      "note": "Email usernames connect to Vibez; all other usernames connect to DreamStreams. Your credentials are stored only on this device.",
       "missingTitle": "Missing info",
       "missingDesc": "Please enter your username and password.",
       "failedTitle": "Could not sign in",

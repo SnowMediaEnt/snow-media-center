@@ -101,11 +101,13 @@
       "loadError": "Error al cargar los videos: {{error}}",
       "empty": "No hay videos. Sube videos a tu cuenta de Vimeo para verlos aquí.",
       "emptyDevice": "No hay videos de dispositivos. Etiqueta tus videos con: x96, FireTV u Older",
-      "emptyService": "No hay videos de servicios. Etiqueta tus videos con: Dreamstreams, Vibez TV, Plex o Support",
+      "emptyService": "No hay videos de servicios. Etiqueta tus videos con: DreamStreams, Vibez TV, Plex o Support",
       "emptyAll": "No hay videos en tu cuenta de Vimeo.",
       "closeHint": "Presiona ESC/Atrás para cerrar | P/K para reproducir/pausar",
       "closeBtn": "✕ Cerrar",
-      "frameTitle": "Video de soporte"
+      "frameTitle": "Video de soporte",
+      "fetchFailed": "No se pudieron cargar los videos",
+      "timedOut": "La carga tardó demasiado. Inténtalo de nuevo."
     },
     "mail": {
       "heading": "Novedades de Snow Media Entertainment",

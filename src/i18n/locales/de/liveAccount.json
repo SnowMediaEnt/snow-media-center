@@ -76,16 +76,6 @@
       "groupTextColor": "Textfarbe",
       "tryHint": "Wähle ein anderes, um es auf dem Live-TV-Bildschirm zu testen.",
       "resetBtn": "Zurücksetzen",
-      "liveLayout": {
-        "classic": "Klassisch",
-        "compact": "Kompakt",
-        "grid": "Vibez"
-      },
-      "liveLayoutDesc": {
-        "classic": "Kategorien neben einer hohen Senderliste, Vorschau darüber",
-        "compact": "Schmale Senderliste, Kategorien einen Tastendruck entfernt, große Vorschau",
-        "grid": "Kategorien neben einer Wand aus Senderlogos, OK spielt ab (keine Vorschau)"
-      },
       "fontScale": {
         "sm": "Klein",
         "md": "Mittel",
@@ -169,7 +159,7 @@
       "signingIn": "Anmeldung läuft…",
       "getStarted": "Neu hier? Los geht's",
       "finishSetup": "Einrichtung von {{label}} abschließen",
-      "note": "Ist der Benutzername eine E-Mail-Adresse, geht es zu Vibez, sonst zu Dreamstreams. Deine Zugangsdaten werden nur auf diesem Gerät gespeichert.",
+      "note": "Ist der Benutzername eine E-Mail-Adresse, geht es zu Vibez, sonst zu DreamStreams. Deine Zugangsdaten werden nur auf diesem Gerät gespeichert.",
       "missingTitle": "Angaben fehlen",
       "missingDesc": "Bitte gib Benutzername und Passwort ein.",
       "failedTitle": "Anmeldung nicht möglich",

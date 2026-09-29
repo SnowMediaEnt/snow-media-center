@@ -33,6 +33,10 @@
       "soonMsg_one": "{{name}} expire dans {{count}} jour. Renouvelez-le depuis le Tableau de bord avant son expiration.",
       "soonMsg_many": "{{name}} expire dans {{count}} jours. Renouvelez-le depuis le Tableau de bord avant son expiration.",
       "soonMsg_other": "{{name}} expire dans {{count}} jours. Renouvelez-le depuis le Tableau de bord avant son expiration."
+    },
+    "demo": {
+      "msg": "Vous êtes dans la démo en direct : la lecture fonctionne dans l'appli installée sur votre TV.",
+      "account": "Compte démo"
     }
   }
 }

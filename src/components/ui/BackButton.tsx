@@ -2,6 +2,7 @@ import { forwardRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import i18n from '@/i18n';
 
 interface BackButtonProps
   extends Omit<React.ComponentPropsWithoutRef<typeof Button>, 'onClick' | 'variant' | 'size'> {
@@ -19,7 +20,7 @@ interface BackButtonProps
  *  make sure the screen root carries `tv-scroll-container tv-safe` so it sits
  *  inside the TV overscan-safe area. Never position it fixed or absolute. */
 export const BackButton = forwardRef<HTMLButtonElement, BackButtonProps>(
-  ({ onClick, label = 'Back to Home', focused = false, className, focusId = 'back', id, disabled, ...rest }, ref) => (
+  ({ onClick, label, focused = false, className, focusId = 'back', id, disabled, ...rest }, ref) => (
     <Button
       ref={ref}
       id={id}
@@ -45,7 +46,7 @@ export const BackButton = forwardRef<HTMLButtonElement, BackButtonProps>(
       )}
     >
       <ArrowLeft className="w-5 h-5 mr-2" />
-      {label}
+      {label ?? i18n.t('common.back')}
     </Button>
   )
 );

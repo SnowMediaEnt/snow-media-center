@@ -33,6 +33,10 @@
       "soonMsg_one": "{{name}} vence en {{count}} día. Renuévalo desde el Panel antes de que se corte.",
       "soonMsg_many": "{{name}} vence en {{count}} días. Renuévalo desde el Panel antes de que se corte.",
       "soonMsg_other": "{{name}} vence en {{count}} días. Renuévalo desde el Panel antes de que se corte."
+    },
+    "demo": {
+      "msg": "Estás en la demo en vivo: la reproducción funciona en la app instalada en tu TV.",
+      "account": "Cuenta demo"
     }
   }
 }

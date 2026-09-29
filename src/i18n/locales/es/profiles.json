@@ -107,6 +107,7 @@
       "hint": "Configúralos cuando quieras en Ajustes → Perfiles, o con el botón de perfil en la parte superior del Inicio.",
       "setUpBtn": "Configurar perfiles",
       "laterBtn": "Quizás después"
-    }
+    },
+    "defaultName": "Yo"
   }
 }

@@ -101,11 +101,13 @@
       "loadError": "Erreur de chargement des vidéos : {{error}}",
       "empty": "Aucune vidéo. Importez des vidéos sur votre compte Vimeo pour les voir ici.",
       "emptyDevice": "Aucune vidéo d’appareil. Ajoutez le tag : x96, FireTV ou Older",
-      "emptyService": "Aucune vidéo de service. Ajoutez le tag : Dreamstreams, Vibez TV, Plex ou Support",
+      "emptyService": "Aucune vidéo de service. Ajoutez le tag : DreamStreams, Vibez TV, Plex ou Support",
       "emptyAll": "Aucune vidéo dans votre compte Vimeo.",
       "closeHint": "ESC/Retour pour fermer | P/K pour lecture/pause",
       "closeBtn": "✕ Fermer",
-      "frameTitle": "Vidéo d’assistance"
+      "frameTitle": "Vidéo d’assistance",
+      "fetchFailed": "Impossible de charger les vidéos",
+      "timedOut": "Le chargement a pris trop de temps. Veuillez réessayer."
     },
     "mail": {
       "heading": "Actus de Snow Media Entertainment",

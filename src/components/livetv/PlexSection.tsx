@@ -44,7 +44,7 @@ import {
   setPlexImageFocus, preloadImages, plexPhotoTranscodeUrl, POSTER_TILE_W, POSTER_TILE_H,
   type PlexLibrary, type PlexItem, type PlexEpisode, type PlexPlayInfo, plexRouteLabel,
   setPlexPlaybackActive } from '@/lib/plex';
-import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
 import { peekPlexVoice, pickPlexVoiceMatch, plexVoiceQuery, plexVoiceSearchTexts, PLEX_VOICE_EVENT, PLEX_VOICE_KEY, type PlexVoiceIntent } from '@/lib/plexVoice';
@@ -4257,7 +4257,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-6"
       role="dialog" aria-modal="true">
       <div className="max-w-md w-full rounded-xl border border-brand-gold/40 bg-[#0b1622] p-6 text-center shadow-2xl">
-        <p className="font-nunito text-white/90 text-base leading-relaxed">{DEMO_DIALOG_MSG}</p>
+        <p className="font-nunito text-white/90 text-base leading-relaxed">{demoDialogMsg()}</p>
         <button type="button" autoFocus onClick={() => setDemoNotice(false)}
           className="mt-5 px-6 py-2 rounded-lg bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
           {i18n.t('common.ok')}

@@ -29,7 +29,7 @@
     "contextMenu": {
       "removePinBtn": "Retirer l'épingle",
       "pinAppBtn": "Épingler",
-      "maxPinnedBtn": "5 épinglées max."
+      "maxPinnedBtn": "4 épinglées max."
     },
     "pinned": {
       "title": "Applis épinglées",
@@ -51,7 +51,7 @@
       "openPlayerBtn": "Ouvrir le Lecteur",
       "downloadAnywayBtn": "Télécharger quand même",
       "whereLiveTv": "TV en direct",
-      "message": "Nous ne prenons plus en charge l'appli {{app}}. Tout se trouve dans le Lecteur de la page principale : Dreamstreams et VibezTV sont dans TV en direct, et Plex est dans Plex. {{app}} se trouve dans {{where}}."
+      "message": "Nous ne prenons plus en charge l'appli {{app}}. Tout se trouve dans le Lecteur de la page principale : DreamStreams et VibezTV sont dans TV en direct, et Plex est dans Plex. {{app}} se trouve dans {{where}}."
     },
     "toast": {
       "refreshingTitle": "Actualisation…",
@@ -99,6 +99,13 @@
       "pinFailedDesc": "Vous pouvez épingler 4 applis au maximum.",
       "unpinnedTitle": "Appli détachée",
       "unpinnedDesc": "{{name}} a été retirée des applis épinglées."
+    },
+    "webUnsupported": "Cette action ne fonctionne que dans l'appli Snow Media Center installée sur votre appareil Android.",
+    "data": {
+      "noDescription": "Aucune description",
+      "unknownApp": "Appli inconnue",
+      "fetchFailed": "Impossible de charger les applis. Données hors ligne utilisées.",
+      "timedOut": "Le chargement a pris trop de temps. Données hors ligne utilisées."
     }
   }
 }

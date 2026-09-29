@@ -103,6 +103,7 @@
       "hint": "Richte sie jederzeit unter Einstellungen → Profile ein oder mit der Profil-Schaltfläche oben auf dem Startbildschirm.",
       "setUpBtn": "Profile einrichten",
       "laterBtn": "Vielleicht später"
-    }
+    },
+    "defaultName": "Ich"
   }
 }

@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Tv, Wifi, Calendar, Smartphone } from 'lucide-react';
 import { ensureCustomerRow, daysUntil, type UserDevice, type UserService } from '@/hooks/useUserServices';
 import { trackEvent } from '@/lib/analytics';
+import { serverDisplayName } from '@/lib/xtream';
 
 const DEVICE_OPTIONS: string[] = [
   'Amazon Fire TV / Firestick',
@@ -371,7 +372,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                         } ${focusedIndex === DEVICE_OPTIONS.length + SERVICE_OPTIONS.indexOf(name) ? focusClass : ''}`}
                       >
                         <Wifi className="w-4 h-4 mr-2 flex-shrink-0" />
-                        <span className="whitespace-normal">{name}</span>
+                        <span className="whitespace-normal">{serverDisplayName(name)}</span>
                       </Button>
                     );
                   })}

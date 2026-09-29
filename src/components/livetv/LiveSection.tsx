@@ -75,7 +75,7 @@ import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { usePlayerEngine } from '@/hooks/usePlayerEngine';
 import { recordEngineSample, sampleFromStats, shouldSampleEngines } from '@/lib/engineCompare';
 import PlayerStatsPanel from './PlayerStatsPanel';
-import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import { channelForName } from '@/lib/voiceCommands';
@@ -2269,7 +2269,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             <p className="mt-6 px-3 py-1 rounded-full bg-brand-gold/20 border border-brand-gold/40 text-brand-gold text-xs font-nunito font-semibold tracking-widest uppercase">
               {t('live.player.demoMode')}
             </p>
-            <p className="mt-2 text-brand-ice/70 font-nunito text-xs max-w-md">{DEMO_DIALOG_MSG}</p>
+            <p className="mt-2 text-brand-ice/70 font-nunito text-xs max-w-md">{demoDialogMsg()}</p>
           </div>
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
@@ -2692,7 +2692,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           )}
         </div>
 
-          <p className="flex-shrink-0 text-xs font-nunito text-brand-ice/55">{t('live.list.hintCompact')}</p>
+          <p className="flex-shrink-0 pr-24 text-xs font-nunito text-brand-ice/55">{t('live.list.hintCompact')}</p>
         </div>
       {reportDialog}
       {recordDialog}

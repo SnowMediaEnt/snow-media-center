@@ -142,7 +142,7 @@ export function setPreference(key: PreferenceKey, value: string): string | null 
       const layout = (['classic', 'compact', 'grid'] as LiveLayout[]).find((l) => l === v);
       if (!layout) return null;
       saveLiveLayout(layout);
-      return i18n.t('ai.prefs.liveLayout', { layout: i18n.t(`ai.prefs.layout.${layout}`) });
+      return i18n.t('ai.prefs.liveLayout', { layout: i18n.t(`live.layouts.${layout}Label`) });
     }
     case 'dashboard_size': {
       const size: DashboardSize = v === 'large' ? 'large' : 'compact';

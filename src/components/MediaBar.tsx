@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { buildViewerBar, type BarChannel } from '@/lib/contentBar';
 import { WATCH_HISTORY_EVENT } from '@/lib/watchHistory';
 import { isAdultTitle } from '@/lib/adultContent';
@@ -617,7 +617,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
           <DialogHeader>
             <DialogTitle>{t('home.mediaBar.demoTitle')}</DialogTitle>
           </DialogHeader>
-          <p className="text-white/80 font-nunito text-sm leading-relaxed">{DEMO_DIALOG_MSG}</p>
+          <p className="text-white/80 font-nunito text-sm leading-relaxed">{demoDialogMsg()}</p>
           <DialogFooter>
             <Button
               variant="outline"

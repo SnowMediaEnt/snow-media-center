@@ -109,6 +109,9 @@
       "scrollHint": "▲ ▼ scroll · OK close",
       "closeHint": "OK close",
       "letsGoBtn": "Let's go"
+    },
+    "exit": {
+      "pressHome": "Press home button to exit"
     }
   }
 }

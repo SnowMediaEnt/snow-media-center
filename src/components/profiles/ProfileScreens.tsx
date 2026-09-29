@@ -22,7 +22,7 @@ import { KIDS_LEVELS, type KidsLevel } from '@/lib/kidsFilter';
 import {
   AVATARS, FORGOT_AFTER, MAX_PROFILES, PROFILES_EVENT, activeProfile, avatarColors, boxProfilesToBring, bringBoxProfiles,
   checkGrownUpPin, checkPin, createProfile, deleteProfile, getProfile, grownUpPadLockedFor, grownUpsWithPin,
-  kidsHoldNeedsGrownUp, lastPickedId, loadProfiles, pickProfile, pinFailures, pinLockedFor, pinsAvailable, pullProfiles,
+  kidsHoldNeedsGrownUp, lastPickedId, loadProfiles, pickProfile, pinFailures, pinLockedFor, pinsAvailable, profileName, pullProfiles,
   requestPinReset, setPin, updateProfile, verifyPinReset, type Profile,
 } from '@/lib/profiles';
 import { MAIN_PROFILE } from '@/lib/viewer';
@@ -106,7 +106,7 @@ function nearest(root: HTMLElement, fromId: string, dir: 'up' | 'down' | 'left' 
 
 // ── pieces ─────────────────────────────────────────────────────────────────
 
-const Avatar = memo(({ p, size = 112, focused = false }: { p: Pick<Profile, 'name' | 'avatar' | 'kidsLevel' | 'pinHash'>; size?: number; focused?: boolean }) => {
+const Avatar = memo(({ p, size = 112, focused = false }: { p: Pick<Profile, 'id' | 'name' | 'avatar' | 'kidsLevel' | 'pinHash'>; size?: number; focused?: boolean }) => {
   const { t } = useTranslation();
   const c = avatarColors(p.avatar);
   return (
@@ -115,7 +115,7 @@ const Avatar = memo(({ p, size = 112, focused = false }: { p: Pick<Profile, 'nam
         className="w-full h-full rounded-2xl flex items-center justify-center font-bold text-white select-none"
         style={{ backgroundColor: c.bg, fontSize: size * 0.45, boxShadow: focused ? `0 0 0 4px ${c.ring}, 0 0 24px ${c.ring}` : 'none' }}
       >
-        {(p.name.trim()[0] || '?').toUpperCase()}
+        {(profileName(p).trim()[0] || '?').toUpperCase()}
       </div>
       {p.pinHash && (
         <div className="absolute -bottom-2 -right-2 rounded-full bg-black/80 p-1.5 border border-white/30">
@@ -234,7 +234,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
   const loadDraft = useCallback((id: string | null) => {
     const p = id ? getProfile(id) : null;
     const used = new Set(loadProfiles().map((x) => x.avatar));
-    setDraft(p ? { name: p.name, avatar: p.avatar, kidsLevel: p.kidsLevel }
+    setDraft(p ? { name: profileName(p), avatar: p.avatar, kidsLevel: p.kidsLevel }
       : { name: '', avatar: AVATARS.find((a) => !used.has(a.id))?.id ?? 'blue', kidsLevel: null });
   }, []);
 
@@ -523,7 +523,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
                     </div>
                   )}
                 </div>
-                <div className={`mt-3 text-xl ${focus === id ? 'text-white font-bold' : 'text-white/70'}`}>{p.name}</div>
+                <div className={`mt-3 text-xl ${focus === id ? 'text-white font-bold' : 'text-white/70'}`}>{profileName(p)}</div>
               </button>
             );
           })}
@@ -552,7 +552,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
           {/* Made on this box before signing in: the account's list doesn't have them. */}
           {toBring.length > 0 && profiles.length < MAX_PROFILES && (
             <Btn id="bring" {...fp} className="ml-4" onPress={() => { const first = toBring[0].id; if (bringBoxProfiles() > 0) setFocus(`m-${first}`); }}>
-              {t('profiles.manage.bringBtn', { names: toBring.map((p) => p.name).join(', ') })}
+              {t('profiles.manage.bringBtn', { names: toBring.map((p) => profileName(p)).join(', ') })}
             </Btn>
           )}
           {!managing && cancelable && <Btn id="cancel" {...fp} className="ml-4" onPress={onClose}>{t('common.cancel')}</Btn>}
@@ -563,11 +563,11 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
     const isNew = !screen.id;
     const p = screen.id ? getProfile(screen.id) : null;
     const isMain = screen.id === MAIN_PROFILE;
-    title = isNew ? t('profiles.edit.addTitle') : p?.name ? t('profiles.edit.editTitle', { name: p.name }) : t('profiles.edit.editTitleUnnamed');
+    title = isNew ? t('profiles.edit.addTitle') : p?.name ? t('profiles.edit.editTitle', { name: profileName(p) }) : t('profiles.edit.editTitleUnnamed');
     body = (
       <div className="w-full max-w-2xl mx-auto">
         <div className="flex items-center mb-6">
-          <Avatar p={{ name: draft.name || '?', avatar: draft.avatar, kidsLevel: draft.kidsLevel, pinHash: p?.pinHash ?? null }} size={96} />
+          <Avatar p={{ id: p?.id ?? '', name: draft.name || '?', avatar: draft.avatar, kidsLevel: draft.kidsLevel, pinHash: p?.pinHash ?? null }} size={96} />
           <div className="ml-6 flex-1">
             <label className="block text-white/70 text-sm mb-1" htmlFor="profile-name">{t('profiles.edit.nameLabel')}</label>
             <input
@@ -683,7 +683,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
     );
   } else if (screen.kind === 'pin') {
     const p = 'profileId' in screen ? getProfile(screen.profileId) : null;
-    const who = p?.name ?? t('profiles.pin.thisProfile');
+    const who = p ? profileName(p) : t('profiles.pin.thisProfile');
     title = screen.purpose === 'unlock' ? t('profiles.pin.unlockTitle', { name: who })
       : screen.purpose === 'grownup' ? t('profiles.pin.grownupTitle')
         : screen.purpose === 'new' ? t('profiles.pin.newTitle', { name: who })
@@ -711,7 +711,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
   } else if (screen.kind === 'forgot') {
     const p = getProfile(screen.profileId);
     const codeSent = forgot?.state === 'sent';
-    title = t('profiles.forgot.title', { name: p?.name ?? t('profiles.pin.thisProfile') });
+    title = t('profiles.forgot.title', { name: p ? profileName(p) : t('profiles.pin.thisProfile') });
     body = (
       <div className="flex flex-col items-center max-w-xl mx-auto text-center">
         <p className={`mb-6 text-lg ${forgot?.state === 'failed' ? 'text-amber-300' : 'text-white/80'}`}>{forgot ? t(forgot.msg.key, forgot.msg.params) : ''}</p>

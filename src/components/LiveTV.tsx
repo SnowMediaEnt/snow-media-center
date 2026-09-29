@@ -17,6 +17,7 @@ import {
   clearLiveCatalogue,
   daysUntilExp,
   SERVERS,
+  serverDisplayName,
   type XtreamCreds,
 } from '@/lib/xtream';
 import { saveLiveLayout, type LiveLayout } from '@/lib/liveLayout';
@@ -1101,7 +1102,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             <h1 className="text-xl font-quicksand font-bold text-white">{t('live.shell.title')}</h1>
             {creds?.serverLabel && (
               <span className="ml-2 text-xs px-2 py-1 rounded-full bg-white/10 text-brand-ice font-nunito">
-                {creds.serverLabel}
+                {serverDisplayName(creds.serverLabel)}
               </span>
             )}
           </div>

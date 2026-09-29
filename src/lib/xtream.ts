@@ -39,6 +39,16 @@ export const SERVERS: XtreamServer[] = [
   { label: 'Vibez',    host: 'https://strmz.xyz' },
 ];
 
+/**
+ * A server label as the viewer reads it. The labels above are stored with every saved line,
+ * and matched by alerts and analytics, so they never change; only the brand spelling shown does.
+ */
+export const serverDisplayName = (label: string): string =>
+  label === 'Dreamstreams' ? 'DreamStreams'
+    // The website demo's line (data/liveTvDemo.ts), shown in the viewer's language.
+    : label === 'DEMO ACCOUNT' ? i18n.t('popups.demo.account')
+      : label;
+
 export interface XtreamCreds {
   host: string;
   username: string;

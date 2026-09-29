@@ -62,7 +62,7 @@
       "close": "Presiona OK o Atrás para cerrar"
     },
     "quote": {
-      "bundleDreamstreams": "{{device}} + 1 año de DreamStreams ({{connections}} conexiones)",
+      "bundleDreamStreams": "{{device}} + 1 año de DreamStreams ({{connections}} conexiones)",
       "bundleVibeztv": "{{device}} + 1 año de VibezTV (9 conexiones)",
       "plexIncluded": "PLEX incluido",
       "trialIncluded": "Incluye prueba del servicio por 1 mes",

@@ -30,7 +30,7 @@ import {
 } from '@/lib/gameDay';
 import { GAME_REMINDERS_EVENT, hasReminder, toggleReminder } from '@/lib/gameReminders';
 import { buildLines } from '@/lib/liveLines';
-import { loadSavedAccounts, type XtreamCreds } from '@/lib/xtream';
+import { loadSavedAccounts, serverDisplayName, type XtreamCreds } from '@/lib/xtream';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { useTranslation } from 'react-i18next';
 
@@ -508,7 +508,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
                       {link.note && <span className={`block truncate text-xs ${focused ? 'text-black/60' : 'text-white/50'}`}>{link.note}</span>}
                     </span>
                     <span className={`ml-3 shrink-0 text-xs font-bold uppercase tracking-wide ${focused ? 'text-black/60' : 'text-brand-ice/70'}`}>
-                      {t(`gameDay.link.${link.via}`, { defaultValue: LINK_LABELS[link.via] })}{lines.length > 1 && link.line.serverLabel ? ` · ${link.line.serverLabel}` : ''}
+                      {t(`gameDay.link.${link.via}`, { defaultValue: LINK_LABELS[link.via] })}{lines.length > 1 && link.line.serverLabel ? ` · ${serverDisplayName(link.line.serverLabel)}` : ''}
                     </span>
                   </button>
                 </div>

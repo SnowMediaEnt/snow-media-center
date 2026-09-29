@@ -12,6 +12,7 @@ import {
   upsertSavedAccount,
   savedAccountId,
   daysUntilExp,
+  serverDisplayName,
   type XtreamCreds,
   type XtreamServer,
 } from '@/lib/xtream';
@@ -208,7 +209,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
           vibezEnabled={vibezOn}
           onDone={(c) => {
             setChildOpen(false);
-            toast({ title: t('liveAccount.credentials.connectedTitle'), description: c.serverLabel ? t('liveAccount.credentials.connectedDesc', { server: c.serverLabel }) : t('liveAccount.credentials.connectedYourService') });
+            toast({ title: t('liveAccount.credentials.connectedTitle'), description: c.serverLabel ? t('liveAccount.credentials.connectedDesc', { server: serverDisplayName(c.serverLabel) }) : t('liveAccount.credentials.connectedYourService') });
             onSaved(c);
           }}
           onCancel={() => setChildOpen(false)}

@@ -253,7 +253,7 @@ describe('Guide: hold OK to record a programme', () => {
     await sleep(20);
     const toast = calls('toast').find((t) => (t as { variant?: string }).variant === 'destructive') as { title: string; description: string };
     expect(toast.title).toBe('Could not schedule it');
-    expect(toast.description).toMatch(/^You already have 2 recordings at \d\d:\d\d\. Cancel one first\.$/);
+    expect(toast.description).toMatch(/^You already have 2 recordings at \d{1,2}:\d\d\s[AP]M\. Cancel one first\.$/);
   });
 
   it('a programme that is scheduled carries a red dot, and is marked in the dialog', async () => {

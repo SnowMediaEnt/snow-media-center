@@ -16,8 +16,8 @@
     },
     "screenFormat": {
       "fit": {
-        "label": "Ajuster",
-        "hint": "Image entière, bonne forme"
+        "label": "Adapter",
+        "hint": "Image entière, bonnes proportions"
       },
       "zoom": {
         "label": "Zoom",

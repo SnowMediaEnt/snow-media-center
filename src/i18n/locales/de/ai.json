@@ -105,7 +105,7 @@
         "backgroundSettingsTitle": "Hintergrundeinstellungen",
         "backgroundSettingsDesc": "Einstellungen zum Ändern des Hintergrunds werden geöffnet",
         "backgroundChangeTitle": "Hintergrund ändern",
-        "backgroundThemesDesc": "Du kannst Hintergründe unter Einstellungen > Medien-Manager ändern",
+        "backgroundThemesDesc": "Du kannst Hintergründe unter Einstellungen → Medien-Manager ändern.",
         "backgroundUploadDesc": "Du kannst eigene Hintergründe in den Einstellungen hochladen",
         "storeTitle": "Shop",
         "openingStore": "Shop {{section}} wird geöffnet",
@@ -253,11 +253,6 @@
       "store": "Shop"
     },
     "prefs": {
-      "layout": {
-        "classic": "Klassisch",
-        "compact": "Kompakt",
-        "grid": "Raster"
-      },
       "liveLayout": "Live-TV nutzt das Layout „{{layout}}“.",
       "dashboardLarge": "Das Dashboard ist auf Groß eingestellt.",
       "dashboardCompact": "Das Dashboard passt jetzt auf einen Bildschirm.",

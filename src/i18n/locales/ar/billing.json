@@ -25,7 +25,9 @@
       "rateLimitedSeconds_many": "محاولات كثيرة جدًا. انتظر {{count}} ثانية.",
       "rateLimitedSeconds_other": "محاولات كثيرة جدًا. انتظر {{count}} ثانية.",
       "rateLimited": "محاولات كثيرة جدًا. يرجى الانتظار قليلًا.",
-      "signInAgain": "يرجى تسجيل الدخول مرة أخرى."
+      "signInAgain": "يرجى تسجيل الدخول مرة أخرى.",
+      "notAvailable": "الفوترة متاحة فقط في تطبيق Snow Media Center.",
+      "notConfigured": "الفوترة غير مُعدّة في هذا الإصدار."
     },
     "plans": {
       "termOther": "أخرى",
@@ -116,7 +118,7 @@
       "signInFailedTitle": "تعذر تسجيل الدخول",
       "createTitle": "إنشاء حساب فوترة",
       "signInTitle": "تسجيل الدخول إلى الفوترة",
-      "defaultHeading": "حساب الفوترة الخاص بك في Dreamstreams: الباقات والتجديدات والتجارب.",
+      "defaultHeading": "حساب الفوترة الخاص بك في DreamStreams: الباقات والتجديدات والتجارب.",
       "emailLabel": "البريد الإلكتروني",
       "emailPlaceholder": "عنوان البريد الإلكتروني",
       "passwordLabel": "كلمة المرور",
@@ -191,8 +193,8 @@
       "invoiceOnly": "فاتورة رقم {{id}}",
       "finishPaymentBtn": "إتمام الدفع",
       "noServices": "لا توجد خدمات بعد",
-      "noServicesTrial": "ابدأ تجربة مجانية لمدة 24 ساعة أو اشترِ باقة للحصول على بيانات دخول Dreamstreams.",
-      "noServicesBuy": "اشترِ باقة للحصول على بيانات دخول Dreamstreams للمشغّل.",
+      "noServicesTrial": "ابدأ تجربة مجانية لمدة 24 ساعة أو اشترِ باقة للحصول على بيانات دخول DreamStreams.",
+      "noServicesBuy": "اشترِ باقة للحصول على بيانات دخول DreamStreams للمشغّل.",
       "serviceFallback": "خدمة",
       "trialChip": "تجربة",
       "thisDeviceChip": "هذا الجهاز",

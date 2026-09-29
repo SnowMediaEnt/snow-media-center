@@ -105,7 +105,7 @@
         "backgroundSettingsTitle": "إعدادات الخلفية",
         "backgroundSettingsDesc": "جارٍ فتح الإعدادات لتغيير الخلفية",
         "backgroundChangeTitle": "تغيير الخلفية",
-        "backgroundThemesDesc": "يمكنك تغيير الخلفيات من الإعدادات > مدير الوسائط",
+        "backgroundThemesDesc": "يمكنك تغيير الخلفيات من الإعدادات ← مدير الوسائط.",
         "backgroundUploadDesc": "يمكنك رفع خلفيات مخصصة من الإعدادات",
         "storeTitle": "المتجر",
         "openingStore": "جارٍ فتح متجر {{section}}",
@@ -253,11 +253,6 @@
       "store": "المتجر"
     },
     "prefs": {
-      "layout": {
-        "classic": "كلاسيكي",
-        "compact": "مضغوط",
-        "grid": "شبكي"
-      },
       "liveLayout": "تم ضبط البث المباشر على التخطيط {{layout}}.",
       "dashboardLarge": "تم ضبط لوحة التحكم على الحجم الكبير.",
       "dashboardCompact": "تم ضبط لوحة التحكم لتناسب شاشة واحدة.",

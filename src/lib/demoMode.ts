@@ -6,6 +6,7 @@
 //
 // isDemo() is ALWAYS false on native, so nothing about the shipped TV app
 // changes: every demo gate is dead code on device.
+import i18n from '@/i18n';
 import { isNativePlatform } from '@/utils/platform';
 
 const DEMO_KEY = 'smc-demo';
@@ -40,5 +41,5 @@ export const isDemo = (): boolean => {
   return false;
 };
 
-export const DEMO_DIALOG_MSG =
-  "You're in the live demo — playback works in the installed app on your TV.";
+/** The "you're in the demo" line, in the app's language (call it while drawing). */
+export const demoDialogMsg = (): string => i18n.t('popups.demo.msg');

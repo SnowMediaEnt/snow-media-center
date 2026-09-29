@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tv, Calendar, KeyRound, Users, LogOut } from 'lucide-react';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
-import { clearPlayerAccount, clearCreds, expDateToMs } from '@/lib/xtream';
+import { clearPlayerAccount, clearCreds, expDateToMs, serverDisplayName } from '@/lib/xtream';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/i18n/format';
 import { useTranslation } from 'react-i18next';
@@ -72,7 +72,7 @@ const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
     return (
       <div className="text-sm">
         <div className="flex items-center gap-2 flex-wrap mb-2">
-          <Badge className={`border ${serverBadgeColor}`}>{account.serverLabel}</Badge>
+          <Badge className={`border ${serverBadgeColor}`}>{serverDisplayName(account.serverLabel)}</Badge>
           {account.isTrial && (
             <Badge className="bg-amber-500/30 text-amber-100 border border-amber-400/40">{t('liveAccount.account.trial')}</Badge>
           )}
@@ -102,7 +102,7 @@ const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-lg font-bold text-white">{t('liveAccount.playerCard.title')}</h3>
-            <Badge className={`border ${serverBadgeColor}`}>{account.serverLabel}</Badge>
+            <Badge className={`border ${serverBadgeColor}`}>{serverDisplayName(account.serverLabel)}</Badge>
             {account.isTrial && (
               <Badge className="bg-amber-500/30 text-amber-100 border border-amber-400/40">{t('liveAccount.account.trial')}</Badge>
             )}

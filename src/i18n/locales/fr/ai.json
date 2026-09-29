@@ -105,7 +105,7 @@
         "backgroundSettingsTitle": "Paramètres de l'arrière-plan",
         "backgroundSettingsDesc": "Ouverture des paramètres pour changer l'arrière-plan",
         "backgroundChangeTitle": "Changement d'arrière-plan",
-        "backgroundThemesDesc": "Vous pouvez changer l'arrière-plan dans Paramètres > Gestionnaire de médias",
+        "backgroundThemesDesc": "Vous pouvez changer l'arrière-plan dans Paramètres → Gestionnaire de médias.",
         "backgroundUploadDesc": "Vous pouvez importer des arrière-plans personnalisés dans Paramètres",
         "storeTitle": "Boutique",
         "openingStore": "Ouverture de la boutique {{section}}",
@@ -253,11 +253,6 @@
       "store": "Boutique"
     },
     "prefs": {
-      "layout": {
-        "classic": "Classique",
-        "compact": "Compact",
-        "grid": "Grille"
-      },
       "liveLayout": "TV en direct utilise la disposition {{layout}}.",
       "dashboardLarge": "Le tableau de bord est en grand format.",
       "dashboardCompact": "Le tableau de bord tient maintenant sur un écran.",

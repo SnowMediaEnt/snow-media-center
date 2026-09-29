@@ -58,6 +58,12 @@
     <string name="billing_http_429">Too many attempts. Please wait a moment.</string>
     <string name="billing_http_5xx">The billing server had a problem. Please try again in a minute.</string>
     <string name="billing_request_failed">Request failed (%1$d).</string>
+    <string name="billing_register_required">Email, password, first name and last name are required.</string>
+    <string name="billing_login_required">Email and password are required.</string>
+    <string name="billing_field_required">%1$s is required.</string>
+    <string name="billing_not_configured">Billing is not set up in this build.</string>
+    <string name="billing_internal">Something went wrong. Please try again.</string>
+    <string name="billing_sign_in">Please sign in.</string>
     <string name="player_err_stream_dropping">The stream keeps dropping. Try again.</string>
     <string name="player_err_server_stopped">The server stopped responding. Try again.</string>
     <string name="player_err_refused">The server refused this file.</string>

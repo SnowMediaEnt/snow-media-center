@@ -7,6 +7,7 @@ import { isDemo } from '@/lib/demoMode';
 import { kidsLevel } from '@/lib/kidsFilter';
 import RenewQR from './RenewQR';
 import { useTranslation } from 'react-i18next';
+import { serverDisplayName } from '@/lib/xtream';
 
 interface Props {
   open: boolean;
@@ -73,10 +74,10 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDism
   }, [open, view, BTN_COUNT, showRenew, onDismiss, days, expired, serverLabel, DEMO]);
 
   const title = expired
-    ? t('liveAccount.expiry.titleExpired', { serverLabel })
+    ? t('liveAccount.expiry.titleExpired', { serverLabel: serverDisplayName(serverLabel) })
     : days === 0
-      ? t('liveAccount.expiry.titleToday', { serverLabel })
-      : t('liveAccount.expiry.titleDays', { serverLabel, count: days });
+      ? t('liveAccount.expiry.titleToday', { serverLabel: serverDisplayName(serverLabel) })
+      : t('liveAccount.expiry.titleDays', { serverLabel: serverDisplayName(serverLabel), count: days });
 
   const body = expired ? t('liveAccount.expiry.bodyExpired') : t('liveAccount.expiry.bodySoon');
 

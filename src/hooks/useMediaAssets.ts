@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import i18n from '@/i18n';
 
 export interface MediaAsset {
   id: string;
@@ -58,7 +59,7 @@ export const useMediaAssets = () => {
       // Check authentication FIRST before any operations
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) {
-        throw new Error('Please sign in to upload assets');
+        throw new Error(i18n.t('media.toast.signInToUpload'));
       }
       const user = session.user;
 

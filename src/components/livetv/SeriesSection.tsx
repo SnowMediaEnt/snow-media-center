@@ -28,7 +28,7 @@ import PosterCard from './PosterCard';
 import { tmdbSized } from '@/lib/tmdbImage';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
-import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import SnowLoader from '@/components/SnowLoader';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
@@ -533,7 +533,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-6"
       role="dialog" aria-modal="true">
       <div className="max-w-md w-full rounded-3xl border border-brand-gold/40 bg-[#0b1622] p-8 text-center shadow-2xl">
-        <p className="font-nunito text-white/90 text-base leading-relaxed">{DEMO_DIALOG_MSG}</p>
+        <p className="font-nunito text-white/90 text-base leading-relaxed">{demoDialogMsg()}</p>
         <button type="button" autoFocus onClick={() => setDemoNotice(false)}
           className="mt-6 px-6 py-3 rounded-xl bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
           {t('common.ok')}

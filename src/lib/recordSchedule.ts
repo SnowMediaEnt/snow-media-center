@@ -12,11 +12,12 @@ import { SnowRecorder, hasRecorder } from '@/capacitor/SnowRecorder';
 import { deviceUtcOffsetMinutes, formatBytes } from '@/lib/liveRewind';
 import { MAX_SIMULTANEOUS_RECORDINGS } from '@/lib/recording';
 import i18n from '@/i18n';
+import { formatTime } from '@/i18n/format';
 
 const MIN = 60_000;
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-/** "21:05" in the box's own clock. */
-export const clockLabel = (ms: number): string => `${pad2(new Date(ms).getHours())}:${pad2(new Date(ms).getMinutes())}`;
+/** "9:05 PM" in the box's own clock (12-hour in every language, see format.ts). */
+export const clockLabel = (ms: number): string => formatTime(ms);
 
 // ---- padding (Live TV › Settings › Rewind & recording) -----------------------
 
@@ -299,4 +300,32 @@ export async function recordingGuardNote(now: number = Date.now()): Promise<stri
   } catch {
     return null;
   }
+}
+
+/**
+ * The native side stores why a schedule failed or a recording stopped in fixed English
+ * (ScheduleReasons in ScheduleRules.kt, the REASON_* in RecordingService.kt). This shows
+ * them in the app's language; anything it does not know is shown as it came.
+ */
+const REASON_KEYS: Record<string, string> = {
+  'Sign in to Live TV to record.': 'noLogin',
+  'Live TV is signed in to a different line.': 'otherLine',
+  'Not enough free space.': 'noSpace',
+  "The USB drive wasn't connected.": 'usbGone',
+  'The box blocked a timed start. Allow Alarms & reminders for SMC.': 'blocked',
+  'The box was off or SMC was force-stopped.': 'missed',
+  'The recording could not start.': 'startFailed',
+  'The drive is full': 'driveFull',
+  "This channel can't be recorded": 'unsupported',
+  'The drive was removed': 'driveRemoved',
+  'The recording could not be written': 'writeFailed',
+};
+const TOO_MANY = /^(\d+) recordings? (?:was|were) already running\.$/;
+
+export function reasonText(reason: string): string {
+  const key = REASON_KEYS[reason.trim()];
+  if (key) return i18n.t(`recordings.reasons.${key}`);
+  const running = TOO_MANY.exec(reason.trim());
+  if (running) return i18n.t('recordings.reasons.tooMany', { count: Number(running[1]) });
+  return reason;
 }

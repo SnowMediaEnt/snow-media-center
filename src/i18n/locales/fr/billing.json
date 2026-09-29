@@ -22,7 +22,9 @@
       "rateLimitedSeconds_many": "Trop de tentatives. Patientez {{count}} secondes.",
       "rateLimitedSeconds_other": "Trop de tentatives. Patientez {{count}} secondes.",
       "rateLimited": "Trop de tentatives. Patientez un instant.",
-      "signInAgain": "Veuillez vous reconnecter."
+      "signInAgain": "Veuillez vous reconnecter.",
+      "notAvailable": "La facturation n'est disponible que dans l'appli Snow Media Center.",
+      "notConfigured": "La facturation n'est pas configurée dans cette version."
     },
     "plans": {
       "termOther": "Autres",
@@ -104,7 +106,7 @@
       "signInFailedTitle": "Connexion impossible",
       "createTitle": "Créer un compte de facturation",
       "signInTitle": "Se connecter à la facturation",
-      "defaultHeading": "Votre compte de facturation Dreamstreams : forfaits, renouvellements et essais.",
+      "defaultHeading": "Votre compte de facturation DreamStreams : forfaits, renouvellements et essais.",
       "emailLabel": "E-mail",
       "emailPlaceholder": "Adresse e-mail",
       "passwordLabel": "Mot de passe",
@@ -179,8 +181,8 @@
       "invoiceOnly": "Facture n° {{id}}",
       "finishPaymentBtn": "Finaliser le paiement",
       "noServices": "Aucun service pour le moment",
-      "noServicesTrial": "Démarrez un essai gratuit de 24 heures ou achetez un forfait pour obtenir un identifiant Dreamstreams.",
-      "noServicesBuy": "Achetez un forfait pour obtenir un identifiant Dreamstreams pour le Lecteur.",
+      "noServicesTrial": "Démarrez un essai gratuit de 24 heures ou achetez un forfait pour obtenir un identifiant DreamStreams.",
+      "noServicesBuy": "Achetez un forfait pour obtenir un identifiant DreamStreams pour le Lecteur.",
       "serviceFallback": "Service",
       "trialChip": "Essai",
       "thisDeviceChip": "Cet appareil",

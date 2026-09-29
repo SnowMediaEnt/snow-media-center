@@ -81,16 +81,6 @@
       "groupTextColor": "Color del texto",
       "tryHint": "Elige otro para probarlo en la pantalla de TV en vivo.",
       "resetBtn": "Restablecer",
-      "liveLayout": {
-        "classic": "Clásico",
-        "compact": "Compacto",
-        "grid": "Vibez"
-      },
-      "liveLayoutDesc": {
-        "classic": "Categorías junto a una lista alta de canales, vista previa arriba",
-        "compact": "Lista de canales delgada, categorías a un botón de distancia, vista previa grande",
-        "grid": "Categorías junto a un mosaico de logos de canales, OK reproduce (sin vista previa)"
-      },
       "fontScale": {
         "sm": "Pequeño",
         "md": "Mediano",
@@ -175,7 +165,7 @@
       "signingIn": "Iniciando sesión…",
       "getStarted": "¿Eres nuevo? Empieza aquí",
       "finishSetup": "Termina de configurar {{label}}",
-      "note": "Los usuarios con correo se conectan a Vibez; todos los demás se conectan a Dreamstreams. Tus credenciales se guardan solo en este dispositivo.",
+      "note": "Los usuarios con correo se conectan a Vibez; todos los demás se conectan a DreamStreams. Tus credenciales se guardan solo en este dispositivo.",
       "missingTitle": "Faltan datos",
       "missingDesc": "Ingresa tu usuario y contraseña.",
       "failedTitle": "No se pudo iniciar sesión",

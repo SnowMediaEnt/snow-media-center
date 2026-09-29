@@ -30,6 +30,10 @@
       "soonTitle_other": "Service expires in {{count}} days",
       "soonMsg_one": "{{name}} expires in {{count}} day. Renew it from Dashboard before it lapses.",
       "soonMsg_other": "{{name}} expires in {{count}} days. Renew it from Dashboard before it lapses."
+    },
+    "demo": {
+      "msg": "You're in the live demo — playback works in the installed app on your TV.",
+      "account": "Demo account"
     }
   }
 }

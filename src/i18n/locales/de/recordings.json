@@ -165,6 +165,21 @@
       "figuresInApp": "Die Werte erscheinen in der App auf deiner TV-Box.",
       "nearlyFull": "Dieses Gerät ist fast voll: Zurückspulen bei Sendern ohne Zeitversatz hat keinen Platz.",
       "recordingsSeparate": "Aufnahmen sind getrennt (Live-TV › Aufnahmen) und werden nie vom Zurückspulen gelöscht."
+    },
+    "reasons": {
+      "noLogin": "Melde dich bei Live-TV an, um aufzunehmen.",
+      "otherLine": "Live-TV ist mit einem anderen Zugang angemeldet.",
+      "noSpace": "Nicht genug freier Speicher.",
+      "usbGone": "Der USB-Speicher war nicht verbunden.",
+      "blocked": "Die Box hat einen geplanten Start blockiert. Erlaube „Wecker und Erinnerungen“ für SMC.",
+      "missed": "Die Box war aus oder SMC wurde beendet.",
+      "startFailed": "Die Aufnahme konnte nicht starten.",
+      "driveFull": "Der Speicher ist voll",
+      "unsupported": "Dieser Sender kann nicht aufgenommen werden",
+      "driveRemoved": "Der Speicher wurde entfernt",
+      "writeFailed": "Die Aufnahme konnte nicht gespeichert werden",
+      "tooMany_one": "Es lief bereits {{count}} Aufnahme.",
+      "tooMany_other": "Es liefen bereits {{count}} Aufnahmen."
     }
   }
 }

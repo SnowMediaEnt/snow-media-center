@@ -107,6 +107,7 @@
       "hint": "Configurez-les à tout moment dans Paramètres → Profils, ou avec le bouton de profil en haut de l'Accueil.",
       "setUpBtn": "Configurer les profils",
       "laterBtn": "Plus tard"
-    }
+    },
+    "defaultName": "Moi"
   }
 }

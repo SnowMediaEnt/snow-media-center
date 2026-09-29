@@ -3,6 +3,7 @@ import { AlertTriangle, Info, AlertOctagon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import type { PlayerServerAlert } from '@/hooks/usePlayerServerAlert';
+import { serverDisplayName } from '@/lib/xtream';
 
 interface Props {
   alert: PlayerServerAlert;
@@ -40,7 +41,7 @@ const PlayerServerAlertDialog = memo(({ alert, serverLabel, onDismiss }: Props) 
       <div className={`w-full max-w-lg rounded-3xl bg-slate-900/95 border-2 ${ring} p-8 text-center`}>
         <div className="flex justify-center mb-4"><Icon className={`w-14 h-14 ${color}`} /></div>
         <div className="text-xs uppercase tracking-wide text-brand-ice/70 font-nunito mb-2">
-          {t('live.serverAlert.notice', { server: serverLabel })}
+          {t('live.serverAlert.notice', { server: serverDisplayName(serverLabel) })}
         </div>
         <h2 className="text-2xl font-quicksand font-bold text-white mb-3">{alert.title}</h2>
         <p className="text-brand-ice/90 font-nunito whitespace-pre-wrap mb-6">{alert.message}</p>

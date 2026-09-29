@@ -88,7 +88,7 @@ describe('Buffering Guide on a Kids profile', () => {
   it('asks a grown-up to clear the cache instead of opening Android App Info', () => {
     setKidsLevel('little');
     const props = renderGuide();
-    ok(/Dreamstreams/);
+    ok(/DreamStreams/);
     ok(/^Next/);
     ok(/Everything buffers/);
     ok(/^Next/);
@@ -101,7 +101,7 @@ describe('Buffering Guide on a Kids profile', () => {
   it('sends a one-channel problem to a grown-up, not into a ticket form', () => {
     setKidsLevel('teen');
     renderGuide();
-    ok(/Dreamstreams/);
+    ok(/DreamStreams/);
     ok(/^Next/);
     ok(/Just one channel or title/);
     expect(screen.getByText('Tell a grown-up')).toBeTruthy();
@@ -120,10 +120,10 @@ describe('Buffering Guide on a grown-up profile', () => {
     expect(screen.getByRole('button', { name: /Open IPVanish/ })).toBeTruthy();
     first.unmount();
     renderGuide();
-    ok(/Dreamstreams/);
+    ok(/DreamStreams/);
     ok(/^Next/);
     ok(/Everything buffers/);
     ok(/^Next/);
-    expect(screen.getByRole('button', { name: /Open Dreamstreams settings/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Open DreamStreams settings/ })).toBeTruthy();
   });
 });

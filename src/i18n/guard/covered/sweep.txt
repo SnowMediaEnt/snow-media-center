@@ -1,0 +1,63 @@
+# Item 11 (final sweep): everything customer-facing that no item listed.
+# Stays out on purpose: the Game Lounge (components/games, components/kids, Games.tsx),
+# staff-only admin screens (Admin*, AppAlertsManager, ApkCacheViewer, FreeAISection,
+# KnowledgeManager, AppManagement, pages/AdminKnowledge, hooks/useAdminTickets) and the
+# unused shadcn parts (ui/pagination, breadcrumb, carousel, sidebar).
+src/components/MediaManager.tsx
+src/components/SnowLoader.tsx
+src/components/ui/BackButton.tsx
+src/components/ui/dialog.tsx
+src/components/ui/sheet.tsx
+src/components/ui/alert-dialog.tsx
+src/components/ui/toast.tsx
+src/components/ui/notice-layer.tsx
+src/lib
+src/utils
+src/capacitor
+src/data
+src/hooks/use-mobile.tsx
+src/hooks/useAIConversations.ts
+src/hooks/useActiveGiveaway.ts
+src/hooks/useActiveProfile.ts
+src/hooks/useAdminRole.ts
+src/hooks/useAppAlerts.ts
+src/hooks/useAppData.ts
+src/hooks/useApps.ts
+src/hooks/useAuth.ts
+src/hooks/useBackupStreams.ts
+src/hooks/useBillingEnabled.ts
+src/hooks/useBroadcastAlert.ts
+src/hooks/useCart.ts
+src/hooks/useCustomEmail.ts
+src/hooks/useDeviceAlerts.ts
+src/hooks/useDeviceInstalledApps.ts
+src/hooks/useFeatureFlag.ts
+src/hooks/useGameSocket.ts
+src/hooks/useGiveawayWinners.ts
+src/hooks/useLiveRewind.ts
+src/hooks/useMediaAssets.ts
+src/hooks/useMediaBarEnabled.ts
+src/hooks/useMultiScreenPlayers.ts
+src/hooks/useNativePlayer.ts
+src/hooks/useNavigation.ts
+src/hooks/useOwnHardwareBack.ts
+src/hooks/usePinnedApps.ts
+src/hooks/usePlayerAccount.ts
+src/hooks/usePlayerAccountSync.ts
+src/hooks/usePlayerEngine.ts
+src/hooks/usePlayerServerAlert.ts
+src/hooks/usePlexAuth.ts
+src/hooks/usePreEventAlert.ts
+src/hooks/useRemoteHome.ts
+src/hooks/useScreenFormat.ts
+src/hooks/useSnowMail.ts
+src/hooks/useSupportTickets.ts
+src/hooks/useTVFocus.ts
+src/hooks/useTheme.ts
+src/hooks/useTransientVisible.ts
+src/hooks/useUnreadTickets.ts
+src/hooks/useUpdateCheck.ts
+src/hooks/useUserProfile.ts
+src/hooks/useUserServices.ts
+src/hooks/useVersion.ts
+src/hooks/useVimeoVideos.ts

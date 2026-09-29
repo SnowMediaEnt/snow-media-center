@@ -16,6 +16,9 @@ import { emptyPlayerStats } from '@/capacitor/SnowPlayer';
 import { AutoQuality } from '@/lib/plexAutoQuality';
 import { markPlaybackStart } from '@/lib/playerSeek';
 
+// Slow under a loaded full run (renders the whole screen); the default 5 s flakes.
+vi.setConfig({ testTimeout: 20_000 });
+
 type NativeState = {
   error: { code?: string; message: string } | null; buffering: boolean; paused: boolean; audioWarning: null; controller: null;
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;

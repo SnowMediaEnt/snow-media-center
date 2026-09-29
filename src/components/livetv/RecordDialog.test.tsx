@@ -271,7 +271,7 @@ describe('programme mode (the Guide)', () => {
     release();
     const msg = (document.querySelector('[data-record-conflict]')?.textContent ?? '').trim();
     expect(msg).toBe(conflictMessage({ atMs: later.startMs - 2 * 60_000, count: 2 }));
-    expect(msg).toMatch(/^You already have 2 recordings at \d\d:\d\d\. Cancel one first\.$/);
+    expect(msg).toMatch(/^You already have 2 recordings at \d{1,2}:\d\d\s[AP]M\. Cancel one first\.$/);
     expect(document.querySelector('[data-record-row="start"]')?.getAttribute('data-disabled')).toBe('true');
     key('ArrowDown'); key('ArrowDown'); key('Enter');
     expect(onStart).not.toHaveBeenCalled();

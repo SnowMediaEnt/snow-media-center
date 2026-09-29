@@ -6,14 +6,14 @@
       "signedInAs": "Angemeldet bei {{server}} als {{username}}",
       "notSignedIn": "Du bist noch nicht angemeldet.",
       "playerTitle": "Player-Konto",
-      "playerDesc": "Dein Dreamstreams-/Vibez-Streaming-Login – derselbe, den der Player nutzt.",
-      "signInDsBtn": "Mit Dreamstreams / Vibez anmelden",
+      "playerDesc": "Dein DreamStreams-/Vibez-Streaming-Login – derselbe, den der Player nutzt.",
+      "signInDsBtn": "Mit DreamStreams / Vibez anmelden",
       "remindersLinked": "Erinnerungen sind mit {{email}} verknüpft",
       "remindersLinkedNoEmail": "Erinnerungen sind mit deiner E-Mail verknüpft",
       "linkEmailBtn": "E-Mail für Abo-Erinnerungen verknüpfen",
       "billingTitle": "Abrechnung & Abo",
-      "billingDescGuest": "Sieh dir deinen Dreamstreams-Tarif an, verlängere, kaufe einen Tarif, löse einen Geschenkcode ein oder verknüpfe ein Abrechnungskonto mit diesem Gerät.",
-      "billingDesc": "Dein Dreamstreams-Tarif: verlängern, einen Tarif kaufen, einen Geschenkcode einlösen oder ein Abrechnungskonto mit diesem Gerät verknüpfen.",
+      "billingDescGuest": "Sieh dir deinen DreamStreams-Tarif an, verlängere, kaufe einen Tarif, löse einen Geschenkcode ein oder verknüpfe ein Abrechnungskonto mit diesem Gerät.",
+      "billingDesc": "Dein DreamStreams-Tarif: verlängern, einen Tarif kaufen, einen Geschenkcode einlösen oder ein Abrechnungskonto mit diesem Gerät verknüpfen.",
       "linkBillingBtn": "Abrechnungskonto verknüpfen",
       "openBillingBtn": "Abrechnungskonto öffnen",
       "websiteTitle": "Website-Konto",
@@ -43,7 +43,7 @@
       "accountStats": "Kontostatistiken",
       "memberSince": "Mitglied seit:",
       "totalGemsUsed": "Insgesamt genutzte Snow Gems:",
-      "playerDescSignedOut": "Melde dich mit deinem Dreamstreams- oder Vibez-Login an, um hier dein Streaming-Konto zu sehen. Damit wirst du auch im Player angemeldet.",
+      "playerDescSignedOut": "Melde dich mit deinem DreamStreams- oder Vibez-Login an, um hier dein Streaming-Konto zu sehen. Damit wirst du auch im Player angemeldet.",
       "devicesServicesTitle": "Meine Geräte & Dienste",
       "editBtn": "Ändern",
       "devices": "Geräte",
@@ -123,6 +123,14 @@
       "freeSample": "Das war dein kostenloser Premium-Test.",
       "gemsUsed": "{{amount}} Snow Gems für Premium verbraucht.",
       "noCharge": "Premium, kostenlos."
+    },
+    "expiry": {
+      "inDays_one": "läuft in {{count}} Tag ab",
+      "inDays_other": "läuft in {{count}} Tagen ab",
+      "tomorrow": "läuft morgen ab",
+      "today": "läuft heute ab",
+      "expiredAgo_one": "seit {{count}} Tag abgelaufen",
+      "expiredAgo_other": "seit {{count}} Tagen abgelaufen"
     }
   }
 }

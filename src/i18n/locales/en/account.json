@@ -6,14 +6,14 @@
       "signedInAs": "Signed in to {{server}} as {{username}}",
       "notSignedIn": "You are not signed in yet.",
       "playerTitle": "Player Account",
-      "playerDesc": "Your Dreamstreams / Vibez streaming login — the same one the Player uses.",
-      "signInDsBtn": "Sign in with Dreamstreams / Vibez",
+      "playerDesc": "Your DreamStreams / Vibez streaming login — the same one the Player uses.",
+      "signInDsBtn": "Sign in with DreamStreams / Vibez",
       "remindersLinked": "Reminders are linked to {{email}}",
       "remindersLinkedNoEmail": "Reminders are linked to your email",
       "linkEmailBtn": "Link email for renewal reminders",
       "billingTitle": "Billing & subscription",
-      "billingDescGuest": "See your Dreamstreams plan, renew, buy a plan, redeem a gift code, or link a billing account to this device.",
-      "billingDesc": "Your Dreamstreams plan: renew, buy a plan, redeem a gift code, or link a billing account to this device.",
+      "billingDescGuest": "See your DreamStreams plan, renew, buy a plan, redeem a gift code, or link a billing account to this device.",
+      "billingDesc": "Your DreamStreams plan: renew, buy a plan, redeem a gift code, or link a billing account to this device.",
       "linkBillingBtn": "Link a billing account",
       "openBillingBtn": "Open billing account",
       "websiteTitle": "Website account",
@@ -43,7 +43,7 @@
       "accountStats": "Account Stats",
       "memberSince": "Member Since:",
       "totalGemsUsed": "Total Snow Gems Used:",
-      "playerDescSignedOut": "Sign in with your Dreamstreams or Vibez login to see your streaming account here. This also signs you in to the Player.",
+      "playerDescSignedOut": "Sign in with your DreamStreams or Vibez login to see your streaming account here. This also signs you in to the Player.",
       "devicesServicesTitle": "My Devices & Services",
       "editBtn": "Edit",
       "devices": "Devices",
@@ -123,6 +123,14 @@
       "freeSample": "That was your free Premium sample.",
       "gemsUsed": "{{amount}} Snow Gems used for Premium.",
       "noCharge": "Premium, no charge."
+    },
+    "expiry": {
+      "inDays_one": "expires in {{count}} day",
+      "inDays_other": "expires in {{count}} days",
+      "tomorrow": "expires tomorrow",
+      "today": "expires today",
+      "expiredAgo_one": "expired {{count}} day ago",
+      "expiredAgo_other": "expired {{count}} days ago"
     }
   }
 }

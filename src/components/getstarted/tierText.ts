@@ -1,5 +1,5 @@
 // Words for a Vibez tier ("3 months", "9 connections", "3 months · 9 connections"),
-// in the app's language. lib/signupLinks has English-only versions of these; the
+// in the app's language. lib/signupLinks re-exports them under its older names; the
 // operator's own label on a row (link.label) is shown as written.
 import i18n from '@/i18n';
 import type { SignupLink } from '@/lib/signupLinks';

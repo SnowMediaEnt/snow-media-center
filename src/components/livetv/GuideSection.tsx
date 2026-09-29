@@ -56,7 +56,7 @@ import { usePlayerEngine } from '@/hooks/usePlayerEngine';
 import { toast } from '@/hooks/use-toast';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import SnowLoader from '@/components/SnowLoader';
-import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { voiceOwnsBack } from '@/lib/voiceUi';
 import i18n from '@/i18n';
 import { formatTime } from '@/i18n/format';
@@ -825,7 +825,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
             <p className="px-3 py-1 rounded-full bg-brand-gold/20 border border-brand-gold/40 text-brand-gold text-xs font-nunito font-semibold tracking-widest uppercase">
               {t('guide.demoNotice')}
             </p>
-            <p className="mt-2 text-brand-ice/70 font-nunito text-sm max-w-md">{DEMO_DIALOG_MSG}</p>
+            <p className="mt-2 text-brand-ice/70 font-nunito text-sm max-w-md">{demoDialogMsg()}</p>
           </div>
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (

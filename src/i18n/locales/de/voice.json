@@ -62,7 +62,8 @@
       "pressOkRetry": "Drücke OK am Mikrofon, um es erneut zu versuchen.",
       "listening": "Hört zu…",
       "tryExamples": "Sag zum Beispiel {{examples}}",
-      "sayCommand": "Sprich einen Befehl"
+      "sayCommand": "Sprich einen Befehl",
+      "examples": "„Mach ESPN an“ · „The Office ansehen“ · „Öffne YouTube“ · „Geh zum Guide“ · „Suche Batman“"
     }
   }
 }

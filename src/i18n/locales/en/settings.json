@@ -24,7 +24,7 @@
     },
     "language": {
       "title": "Language",
-      "description": "Choose the app language. Translation coverage is still being expanded."
+      "description": "Choose the app language."
     },
     "aiTier": {
       "titleFree": "Snow AI: Free",

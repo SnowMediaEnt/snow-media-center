@@ -30,6 +30,10 @@
       "soonTitle_other": "Dienst läuft in {{count}} Tagen ab",
       "soonMsg_one": "{{name}} läuft in {{count}} Tag ab. Verlängere es im Dashboard, bevor es ausläuft.",
       "soonMsg_other": "{{name}} läuft in {{count}} Tagen ab. Verlängere es im Dashboard, bevor es ausläuft."
+    },
+    "demo": {
+      "msg": "Du bist in der Live-Demo – die Wiedergabe funktioniert in der installierten App auf deinem Fernseher.",
+      "account": "Demo-Konto"
     }
   }
 }

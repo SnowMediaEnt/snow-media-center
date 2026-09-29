@@ -97,7 +97,7 @@
         },
         "s1": {
           "title": "Press OK on an app, then Download to install it.",
-          "line2": "Already installed? It just says Open."
+          "line2": "Already installed? It just says Launch."
         }
       },
       "support": {
@@ -156,7 +156,7 @@
         "title": "Settings & Extras",
         "subtitle": "Make it yours",
         "s0": {
-          "title": "Change your wallpaper under Settings → Media.",
+          "title": "Change your wallpaper under Settings → Media Manager.",
           "line2": "Upload your own, or describe one and let AI make it.",
           "linkBtn": "Take me there"
         },

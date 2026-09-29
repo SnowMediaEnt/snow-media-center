@@ -101,11 +101,13 @@
       "loadError": "خطأ في تحميل الفيديوهات: {{error}}",
       "empty": "لا توجد فيديوهات. ارفع فيديوهات إلى حسابك على Vimeo لتظهر هنا.",
       "emptyDevice": "لا توجد فيديوهات للأجهزة. ضع على فيديوهاتك الوسم: x96 أو FireTV أو Older",
-      "emptyService": "لا توجد فيديوهات للخدمات. ضع على فيديوهاتك الوسم: Dreamstreams أو Vibez TV أو Plex أو Support",
+      "emptyService": "لا توجد فيديوهات للخدمات. ضع على فيديوهاتك الوسم: DreamStreams أو Vibez TV أو Plex أو Support",
       "emptyAll": "لا توجد فيديوهات في حسابك على Vimeo.",
       "closeHint": "اضغط ESC/رجوع للإغلاق | P/K للتشغيل/الإيقاف المؤقت",
       "closeBtn": "✕ إغلاق",
-      "frameTitle": "فيديو الدعم"
+      "frameTitle": "فيديو الدعم",
+      "fetchFailed": "تعذّر تحميل الفيديوهات",
+      "timedOut": "استغرق التحميل وقتًا طويلًا. حاول مرة أخرى."
     },
     "mail": {
       "heading": "منشورات من Snow Media Entertainment",

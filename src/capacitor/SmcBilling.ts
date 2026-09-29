@@ -187,12 +187,11 @@ export interface SmcBillingPlugin {
   cancelPoll(options?: { pollId?: string }): Promise<void>;
 }
 
-const NOT_AVAILABLE = 'Billing is only available in the Snow Media Center app.';
-
+// The screens show billingErrorText(), which words 'not_available' in the app's language.
 class NotAvailable extends Error {
   code = 'not_available';
   data = { code: 'not_available', status: 0, details: null };
-  constructor() { super(NOT_AVAILABLE); }
+  constructor() { super('Billing is only available in the Snow Media Center app.'); }
 }
 
 const offState: BillingState = { configured: false, signedIn: false, email: null, tokenExpiresAt: null, pendingInvoice: null };

@@ -218,9 +218,10 @@ describe('Scheduled group', () => {
     const first = document.querySelector('[data-scheduled-row="s1"]')!;
     expect(first.textContent).toContain('The News');
     // Day and time, channel and drive, and the padded times.
-    expect(first.textContent).toMatch(/Today \d\d:\d\d|Tomorrow \d\d:\d\d/);
+    // 12-hour clock in every language (owner's choice).
+    expect(first.textContent).toMatch(/(Today|Tomorrow) \d{1,2}:\d\d\s[AP]M/);
     expect(first.textContent).toContain('CNN · This box');
-    expect(first.textContent).toMatch(/\d\d:\d\d \u2192 \d\d:\d\d/);
+    expect(first.textContent).toMatch(/\d{1,2}:\d\d\s[AP]M \u2192 \d{1,2}:\d\d\s[AP]M/);
     expect(document.querySelector('[data-scheduled-row="s2"]')).not.toBeNull();
     expect(document.querySelector('[data-scheduled-row="d1"]')).toBeNull();
     expect(document.querySelector('[data-scheduled-row="r1"]')).toBeNull();

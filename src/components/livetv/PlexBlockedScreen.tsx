@@ -7,6 +7,7 @@ import { isDemo } from '@/lib/demoMode';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { kidsLevel } from '@/lib/kidsFilter';
 import RenewQR from './RenewQR';
+import { serverDisplayName } from '@/lib/xtream';
 
 interface Props {
   serverLabel: string;
@@ -103,7 +104,7 @@ const PlexBlockedScreen = memo(({ serverLabel, onBack, feature = 'Plex' }: Props
               {t(`plex.blocked.pausedTitle${which}`)}
             </h2>
             <p className="text-brand-ice/90 font-nunito text-base leading-relaxed mb-6">
-              <Trans i18nKey={`plex.blocked.pausedBody${which}`} values={{ server: serverLabel }} components={{ 1: <span className="font-semibold text-white" /> }} />
+              <Trans i18nKey={`plex.blocked.pausedBody${which}`} values={{ server: serverDisplayName(serverLabel) }} components={{ 1: <span className="font-semibold text-white" /> }} />
             </p>
           </>
         )}

@@ -198,18 +198,6 @@
       "noTracks": "Sin pistas",
       "fixAudio": "Arreglar audio (¿sin sonido?)",
       "volumeBoost": "{{pct}}% · Amplificado",
-      "format": {
-        "fit": "Ajustar",
-        "zoom": "Zoom",
-        "wide": "Ancho 16:9",
-        "fill": "Estirar"
-      },
-      "formatHint": {
-        "fit": "Imagen completa, con su forma correcta",
-        "zoom": "Llena la pantalla, se recortan los bordes",
-        "wide": "Forzar pantalla ancha",
-        "fill": "Llena la pantalla, ignora la forma"
-      },
       "yourSpeed": "Tu velocidad:",
       "searching": "Buscando…",
       "noSubs": "No se encontraron subtítulos.",

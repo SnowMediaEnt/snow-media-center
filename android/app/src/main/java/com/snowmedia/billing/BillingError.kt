@@ -61,7 +61,7 @@ class BillingError(
          * The text for [id] in the app's language. There is no Context here; AppLocale has the app's
          * (given to it by the first plugin that loads). If it somehow has none yet, the code stands in.
          */
-        private fun text(code: String, id: Int, vararg args: Any): String =
+        fun text(code: String, id: Int, vararg args: Any): String =
             AppLocale.stringOrNull(id, *args) ?: code
 
         fun network(cause: Throwable): BillingError =

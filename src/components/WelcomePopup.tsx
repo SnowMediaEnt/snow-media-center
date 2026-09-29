@@ -51,7 +51,7 @@ const CHANGELOG: Record<string, string[]> = {
     '🎃 Plex Halloween: a hand-picked collection at the top of Plex, with rows for kids and families and for every kind of horror fan',
     '📶 Plex buffers less: it starts at original quality and drops only if a film keeps buffering, and the buffering card says why',
     '🛠️ The buffering guide is redesigned: bigger, clearer, with a step tracker and big buttons made for the remote',
-    '📲 Main Apps: Dreamstreams, VibezTV and Plex now point you to the Player, where they live under Live TV and Plex',
+    '📲 Main Apps: DreamStreams, VibezTV and Plex now point you to the Player, where they live under Live TV and Plex',
     '🤖 Older Android boxes: the Dashboard and Settings buttons are back at the top right',
   ],
   '1.7.6': [

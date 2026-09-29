@@ -168,6 +168,22 @@
       "figuresInApp": "Les chiffres s'affichent dans l'appli sur votre boîtier TV.",
       "nearlyFull": "Ce boîtier est presque plein : le rembobinage sur les chaînes sans replay n'aura pas de place.",
       "recordingsSeparate": "Les enregistrements sont séparés (TV en direct › Enregistrements) et ne sont jamais effacés par le rembobinage."
+    },
+    "reasons": {
+      "noLogin": "Connectez-vous à TV en direct pour enregistrer.",
+      "otherLine": "TV en direct est connectée à une autre ligne.",
+      "noSpace": "Pas assez d'espace libre.",
+      "usbGone": "La clé USB n'était pas connectée.",
+      "blocked": "Le boîtier a bloqué un démarrage programmé. Autorisez « Alarmes et rappels » pour SMC.",
+      "missed": "Le boîtier était éteint ou SMC a été arrêté de force.",
+      "startFailed": "L'enregistrement n'a pas pu démarrer.",
+      "driveFull": "Le disque est plein",
+      "unsupported": "Cette chaîne ne peut pas être enregistrée",
+      "driveRemoved": "Le disque a été retiré",
+      "writeFailed": "L'enregistrement n'a pas pu être écrit",
+      "tooMany_one": "{{count}} enregistrement était déjà en cours.",
+      "tooMany_many": "{{count}} enregistrements étaient déjà en cours.",
+      "tooMany_other": "{{count}} enregistrements étaient déjà en cours."
     }
   }
 }

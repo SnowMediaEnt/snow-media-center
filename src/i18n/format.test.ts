@@ -18,13 +18,19 @@ describe('format: 12-hour clock and digits 0-9', () => {
   });
 
   it.each(LANGS)('%s: 12-hour time with 0-9 digits', (lang) => {
-    const time = formatTime(D, lang);
+    const time = formatTime(D, lang).replace(/[\u2068\u2069]/g, '');
     expect(time).toMatch(/^10[:.]30/);
     expect(time).not.toMatch(/22/); // never 24-hour
     for (const s of [time, formatDate(D, 'medium', lang), formatDateTime(D, lang), formatNumber(1234567, lang)]) {
       expect(s).not.toMatch(/[٠-٩۰-۹]/); // no Arabic-Indic digits
       expect(s).toMatch(/[0-9]/);
     }
+  });
+
+  it('Arabic times and dates are bidi-isolated, so they stay whole inside left-to-right screens', () => {
+    expect(formatTime(D, 'ar')).toMatch(/^\u2068.*\u2069$/);
+    expect(formatDateTime(D, 'ar')).toMatch(/^\u2068.*\u2069$/);
+    expect(formatTime(D, 'en')).not.toMatch(/[\u2068\u2069]/);
   });
 
   it('Arabic uses Arabic words but Latin digits', () => {

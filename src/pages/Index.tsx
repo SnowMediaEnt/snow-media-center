@@ -41,7 +41,7 @@ import { useActiveProfile } from '@/hooks/useActiveProfile';
 import { homeCardIds, profileGameView, type HomeCardId } from '@/lib/kidsGameNavigation';
 import { setGameMusicMode } from '@/components/games/shared/gameMusic';
 import { openProfiles } from '@/lib/profilesUi';
-import { avatarColors } from '@/lib/profiles';
+import { avatarColors, profileName } from '@/lib/profiles';
 import ProfileGate from '@/components/profiles/ProfileGate';
 import LazyVoiceCommandHost from '@/components/voice/LazyVoiceCommandHost';
 import GameReminderHost from '@/components/GameReminderHost';
@@ -1384,7 +1384,7 @@ const Index = () => {
                 isGiveawayFocused={focusedButton === -4}
                 giveawayLabel={giveawayLabel}
                 onOpenGiveaway={onOpenGiveaway}
-                profileBadge={{ name: profile.name, avatar: profile.avatar, kids }}
+                profileBadge={{ name: profileName(profile), avatar: profile.avatar, kids }}
                 isProfileFocused={focusedButton === -7}
                 onOpenProfiles={onOpenProfilesPick}
                 isVoiceFocused={focusedButton === -6}

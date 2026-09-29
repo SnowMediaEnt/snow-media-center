@@ -101,11 +101,13 @@
       "loadError": "Error loading videos: {{error}}",
       "empty": "No videos found. Upload some videos to your Vimeo account to see them here.",
       "emptyDevice": "No device videos found. Tag your videos with: x96, FireTV, or Older",
-      "emptyService": "No service videos found. Tag your videos with: Dreamstreams, Vibez TV, Plex, or Support",
+      "emptyService": "No service videos found. Tag your videos with: DreamStreams, Vibez TV, Plex, or Support",
       "emptyAll": "No videos found in your Vimeo account.",
       "closeHint": "Press ESC/Back to Close | P/K to Play/Pause",
       "closeBtn": "✕ Close",
-      "frameTitle": "Support Video"
+      "frameTitle": "Support Video",
+      "fetchFailed": "Failed to fetch videos",
+      "timedOut": "Loading timed out. Please try again."
     },
     "mail": {
       "heading": "Posts from Snow Media Entertainment",

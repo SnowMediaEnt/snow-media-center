@@ -6,14 +6,14 @@
       "signedInAs": "Connecté à {{server}} en tant que {{username}}",
       "notSignedIn": "Vous n’êtes pas encore connecté.",
       "playerTitle": "Compte du lecteur",
-      "playerDesc": "Votre identifiant de streaming Dreamstreams / Vibez, le même que celui du lecteur.",
-      "signInDsBtn": "Se connecter avec Dreamstreams / Vibez",
+      "playerDesc": "Votre identifiant de streaming DreamStreams / Vibez, le même que celui du lecteur.",
+      "signInDsBtn": "Se connecter avec DreamStreams / Vibez",
       "remindersLinked": "Les rappels sont liés à {{email}}",
       "remindersLinkedNoEmail": "Les rappels sont liés à votre e-mail",
       "linkEmailBtn": "Lier l’e-mail aux rappels de renouvellement",
       "billingTitle": "Facturation et abonnement",
-      "billingDescGuest": "Consultez votre forfait Dreamstreams, renouvelez, achetez un forfait, utilisez un code cadeau ou liez un compte de facturation à cet appareil.",
-      "billingDesc": "Votre forfait Dreamstreams : renouvelez, achetez un forfait, utilisez un code cadeau ou liez un compte de facturation à cet appareil.",
+      "billingDescGuest": "Consultez votre forfait DreamStreams, renouvelez, achetez un forfait, utilisez un code cadeau ou liez un compte de facturation à cet appareil.",
+      "billingDesc": "Votre forfait DreamStreams : renouvelez, achetez un forfait, utilisez un code cadeau ou liez un compte de facturation à cet appareil.",
       "linkBillingBtn": "Lier un compte de facturation",
       "openBillingBtn": "Ouvrir le compte de facturation",
       "websiteTitle": "Compte du site web",
@@ -43,7 +43,7 @@
       "accountStats": "Statistiques du compte",
       "memberSince": "Membre depuis :",
       "totalGemsUsed": "Total de Snow Gems utilisés :",
-      "playerDescSignedOut": "Connectez-vous avec votre identifiant Dreamstreams ou Vibez pour voir ici votre compte de streaming. Cela vous connecte aussi au lecteur.",
+      "playerDescSignedOut": "Connectez-vous avec votre identifiant DreamStreams ou Vibez pour voir ici votre compte de streaming. Cela vous connecte aussi au lecteur.",
       "devicesServicesTitle": "Mes appareils et services",
       "editBtn": "Modifier",
       "devices": "Appareils",
@@ -131,6 +131,16 @@
       "freeSample": "C’était votre essai Premium gratuit.",
       "gemsUsed": "{{amount}} Snow Gems utilisés pour Premium.",
       "noCharge": "Premium, sans frais."
+    },
+    "expiry": {
+      "inDays_one": "expire dans {{count}} jour",
+      "inDays_many": "expire dans {{count}} jours",
+      "inDays_other": "expire dans {{count}} jours",
+      "tomorrow": "expire demain",
+      "today": "expire aujourd'hui",
+      "expiredAgo_one": "expiré depuis {{count}} jour",
+      "expiredAgo_many": "expiré depuis {{count}} jours",
+      "expiredAgo_other": "expiré depuis {{count}} jours"
     }
   }
 }

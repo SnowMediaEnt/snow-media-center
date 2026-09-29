@@ -65,7 +65,7 @@
       "close": "اضغط موافق أو رجوع للإغلاق"
     },
     "quote": {
-      "bundleDreamstreams": "{{device}} + سنة من DreamStreams (الاتصالات: {{connections}})",
+      "bundleDreamStreams": "{{device}} + سنة من DreamStreams (الاتصالات: {{connections}})",
       "bundleVibeztv": "{{device}} + سنة من VibezTV (9 اتصالات)",
       "plexIncluded": "PLEX مشمول",
       "trialIncluded": "يشمل تجربة الخدمة لمدة شهر",

@@ -29,7 +29,7 @@
       },
       "fill": {
         "label": "Strecken",
-        "hint": "Füllt den Bildschirm, Form ignoriert"
+        "hint": "Füllt den Bildschirm, Form egal"
       }
     }
   }

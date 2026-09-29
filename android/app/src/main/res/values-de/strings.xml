@@ -49,6 +49,12 @@
     <string name="billing_http_429">Zu viele Versuche. Bitte warte einen Moment.</string>
     <string name="billing_http_5xx">Beim Abrechnungsserver ist ein Problem aufgetreten. Versuche es in einer Minute erneut.</string>
     <string name="billing_request_failed">Anfrage fehlgeschlagen (%1$d).</string>
+    <string name="billing_register_required">E-Mail, Passwort, Vorname und Nachname sind erforderlich.</string>
+    <string name="billing_login_required">E-Mail und Passwort sind erforderlich.</string>
+    <string name="billing_field_required">%1$s ist erforderlich.</string>
+    <string name="billing_not_configured">Die Abrechnung ist in dieser Version nicht eingerichtet.</string>
+    <string name="billing_internal">Etwas ist schiefgelaufen. Bitte versuche es erneut.</string>
+    <string name="billing_sign_in">Bitte melde dich an.</string>
     <string name="player_err_stream_dropping">Der Stream bricht immer wieder ab. Versuche es erneut.</string>
     <string name="player_err_server_stopped">Der Server antwortet nicht mehr. Versuche es erneut.</string>
     <string name="player_err_refused">Der Server hat diese Datei abgelehnt.</string>

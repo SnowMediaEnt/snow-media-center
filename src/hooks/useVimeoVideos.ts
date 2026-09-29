@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invokeEdgeFunction } from '@/utils/edgeFunctions';
+import i18n from '@/i18n';
 
 export interface VimeoVideo {
   id: string;
@@ -41,7 +42,7 @@ export const useVimeoVideos = () => {
       console.log(`[Vimeo] Loaded ${data?.videos?.length || 0} videos`);
       setVideos(data?.videos || []);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch videos';
+      const errorMessage = err instanceof Error ? err.message : i18n.t('support.videos.fetchFailed');
       setError(errorMessage);
       console.error('[Vimeo] Error fetching videos:', err);
     } finally {
@@ -58,7 +59,7 @@ export const useVimeoVideos = () => {
       setLoading(prev => {
         if (prev) {
           console.warn('[Vimeo] Safety timeout - loading took too long');
-          setError('Loading timed out. Please try again.');
+          setError(i18n.t('support.videos.timedOut'));
           return false;
         }
         return prev;

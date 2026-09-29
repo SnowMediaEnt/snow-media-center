@@ -74,6 +74,9 @@ export function billingErrorText(err: BillingErrorInfo): string {
   const t = i18n.t.bind(i18n);
   switch (err.code) {
     case 'network': return t('billing.errors.network');
+    case 'not_available': return t('billing.errors.notAvailable');
+    case 'not_configured': return t('billing.errors.notConfigured');
+    case 'internal': return t('billing.errors.generic');
     case 'bad_response': return t('billing.errors.badResponse');
     case 'invalid_app_key': return t('billing.errors.invalidAppKey');
     case 'two_factor_required': return t('billing.errors.twoFactorRequired', { site: BILLING_SITE.replace('https://', '') });

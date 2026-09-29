@@ -29,7 +29,7 @@
     "contextMenu": {
       "removePinBtn": "Quitar fijado",
       "pinAppBtn": "Fijar app",
-      "maxPinnedBtn": "Máx. 5 fijadas"
+      "maxPinnedBtn": "Máx. 4 fijadas"
     },
     "pinned": {
       "title": "Apps fijadas",
@@ -51,7 +51,7 @@
       "openPlayerBtn": "Abrir Reproductor",
       "downloadAnywayBtn": "Descargar igual",
       "whereLiveTv": "TV en vivo",
-      "message": "Ya no damos soporte a la app {{app}}. Todo está en el Reproductor de la página principal: Dreamstreams y VibezTV están en TV en vivo, y Plex está en Plex. {{app}} está en {{where}}."
+      "message": "Ya no damos soporte a la app {{app}}. Todo está en el Reproductor de la página principal: DreamStreams y VibezTV están en TV en vivo, y Plex está en Plex. {{app}} está en {{where}}."
     },
     "toast": {
       "refreshingTitle": "Actualizando…",
@@ -99,6 +99,13 @@
       "pinFailedDesc": "Se pueden fijar 4 apps como máximo.",
       "unpinnedTitle": "App desfijada",
       "unpinnedDesc": "{{name}} se quitó de las apps fijadas."
+    },
+    "webUnsupported": "Esta acción solo funciona en la app Snow Media Center instalada en tu dispositivo Android.",
+    "data": {
+      "noDescription": "Sin descripción",
+      "unknownApp": "App desconocida",
+      "fetchFailed": "No se pudieron cargar las apps. Se usan los datos sin conexión.",
+      "timedOut": "La carga tardó demasiado. Se usan los datos sin conexión."
     }
   }
 }

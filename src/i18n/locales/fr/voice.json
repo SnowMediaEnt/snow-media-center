@@ -48,7 +48,7 @@
       "grownUpSettings": "Les paramètres demandent un adulte. Changez d'abord de profil.",
       "grownUpBackgrounds": "Les arrière-plans demandent un adulte. Changez d'abord de profil.",
       "cantChange": "Je n'ai pas pu modifier cela.",
-      "ideaInMedia": "Votre idée est dans Paramètres → Médias : appuyez sur Générer sur la TV.",
+      "ideaInMedia": "Votre idée est dans Paramètres → Gestionnaire de médias : appuyez sur Générer sur la TV.",
       "makingBackground": "Création de votre arrière-plan, cela prend un instant.",
       "thinking": "Réflexion…",
       "premiumUnavailable": "Snow AI Premium n'est pas disponible pour le moment : passez à Gratuit dans Paramètres → Interface.",
@@ -62,7 +62,8 @@
       "pressOkRetry": "Appuyez sur OK sur le micro pour réessayer.",
       "listening": "Écoute en cours…",
       "tryExamples": "Essayez {{examples}}",
-      "sayCommand": "Dites une commande"
+      "sayCommand": "Dites une commande",
+      "examples": "« Mets ESPN » · « Regarder The Office » · « Ouvre YouTube » · « Va au Guide » · « Cherche Batman »"
     }
   }
 }

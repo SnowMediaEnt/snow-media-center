@@ -49,6 +49,12 @@
     <string name="billing_http_429">Demasiados intentos. Espera un momento.</string>
     <string name="billing_http_5xx">El servidor de facturación tuvo un problema. Inténtalo de nuevo en un minuto.</string>
     <string name="billing_request_failed">La solicitud falló (%1$d).</string>
+    <string name="billing_register_required">Se necesitan el correo, la contraseña, el nombre y el apellido.</string>
+    <string name="billing_login_required">Se necesitan el correo y la contraseña.</string>
+    <string name="billing_field_required">Falta %1$s.</string>
+    <string name="billing_not_configured">La facturación no está configurada en esta versión.</string>
+    <string name="billing_internal">Algo salió mal. Inténtalo de nuevo.</string>
+    <string name="billing_sign_in">Inicia sesión.</string>
     <string name="player_err_stream_dropping">La transmisión se sigue cortando. Inténtalo de nuevo.</string>
     <string name="player_err_server_stopped">El servidor dejó de responder. Inténtalo de nuevo.</string>
     <string name="player_err_refused">El servidor rechazó este archivo.</string>

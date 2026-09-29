@@ -105,7 +105,7 @@
         "backgroundSettingsTitle": "Background Settings",
         "backgroundSettingsDesc": "Opening settings to change background",
         "backgroundChangeTitle": "Background Change",
-        "backgroundThemesDesc": "You can change backgrounds in Settings > Media Management",
+        "backgroundThemesDesc": "You can change backgrounds in Settings → Media Manager.",
         "backgroundUploadDesc": "You can upload custom backgrounds in Settings",
         "storeTitle": "Store",
         "openingStore": "Opening {{section}} store",
@@ -253,11 +253,6 @@
       "store": "the Store"
     },
     "prefs": {
-      "layout": {
-        "classic": "Classic",
-        "compact": "Compact",
-        "grid": "Grid"
-      },
       "liveLayout": "Live TV is set to the {{layout}} layout.",
       "dashboardLarge": "The Dashboard is set to Large.",
       "dashboardCompact": "The Dashboard is set to fit one screen.",

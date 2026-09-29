@@ -29,7 +29,7 @@
     "contextMenu": {
       "removePinBtn": "App lösen",
       "pinAppBtn": "App anheften",
-      "maxPinnedBtn": "Max. 5 angeheftet"
+      "maxPinnedBtn": "Max. 4 angeheftet"
     },
     "pinned": {
       "title": "Angeheftete Apps",
@@ -50,7 +50,7 @@
       "openPlayerBtn": "Player öffnen",
       "downloadAnywayBtn": "Trotzdem laden",
       "whereLiveTv": "Live-TV",
-      "message": "Die App {{app}} wird nicht mehr unterstützt. Alles ist im Player auf der Startseite: Dreamstreams und VibezTV sind unter Live-TV, Plex ist unter Plex. {{app}} findest du unter {{where}}."
+      "message": "Die App {{app}} wird nicht mehr unterstützt. Alles ist im Player auf der Startseite: DreamStreams und VibezTV sind unter Live-TV, Plex ist unter Plex. {{app}} findest du unter {{where}}."
     },
     "toast": {
       "refreshingTitle": "Wird aktualisiert…",
@@ -97,6 +97,13 @@
       "pinFailedDesc": "Es können höchstens 4 Apps angeheftet werden.",
       "unpinnedTitle": "App gelöst",
       "unpinnedDesc": "{{name}} wurde aus den angehefteten Apps entfernt."
+    },
+    "webUnsupported": "Diese Aktion funktioniert nur in der installierten App Snow Media Center auf deinem Android-Gerät.",
+    "data": {
+      "noDescription": "Keine Beschreibung vorhanden",
+      "unknownApp": "Unbekannte App",
+      "fetchFailed": "Apps konnten nicht geladen werden. Offline-Daten werden verwendet.",
+      "timedOut": "Das Laden hat zu lange gedauert. Offline-Daten werden verwendet."
     }
   }
 }

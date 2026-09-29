@@ -40,6 +40,7 @@ import { trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { overlayAboveOwnsBack } from '@/lib/overlayBack';
 import { MessageSquare } from 'lucide-react';
+import { serverDisplayName } from '@/lib/xtream';
 
 interface BufferingGuideProps {
   onClose: () => void;
@@ -134,7 +135,7 @@ const BufferingGuide = ({
   const { user } = useAuth();
   const navigate = useNavigate();
   // The name of the chosen app as the viewer reads it (brands stay as they are).
-  const appLabelOf = (type: AppType): string => (type === null || type === 'other' ? t('guides.buffering.yourApp') : APP_LABELS[type]);
+  const appLabelOf = (type: AppType): string => (type === null || type === 'other' ? t('guides.buffering.yourApp') : serverDisplayName(APP_LABELS[type]));
   // Kids profile: no tickets, no Android App Info, and no installing or
   // opening other apps (Main Apps and the Device Cleaner are hidden too).
   const kids = !!kidsLevel();
@@ -1555,7 +1556,7 @@ const IntroStep = ({ value, onSelect }: { value: AppType; onSelect: (type: AppTy
   >
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {([
-        ['dreamstreams', 'Dreamstreams', t('guides.buffering.intro.subLive'), <Tv key="i" />],
+        ['dreamstreams', 'DreamStreams', t('guides.buffering.intro.subLive'), <Tv key="i" />],
         ['vibeztv', 'VibezTV', t('guides.buffering.intro.subLive'), <MonitorPlay key="i" />],
         ['plex', 'Plex', t('guides.buffering.intro.subPlex'), <Film key="i" />],
         ['other', t('guides.buffering.intro.otherLabel'), t('guides.buffering.intro.otherSub'), <HelpCircle key="i" />],
@@ -2177,7 +2178,7 @@ function buildRecap(state: State, t: TFunction): { label: string; value: string 
   const yn = (v: boolean | null) => (v === null ? '—' : v ? t('common.yes') : t('common.no'));
   const r = 'guides.buffering.recap';
   return [
-    { label: t(`${r}.app`), value: state.appType ? (state.appType === 'other' ? t(`${r}.other`) : APP_LABELS[state.appType]) : '—' },
+    { label: t(`${r}.app`), value: state.appType ? (state.appType === 'other' ? t(`${r}.other`) : serverDisplayName(APP_LABELS[state.appType])) : '—' },
     { label: t(`${r}.buffering`), value: state.step1Choice === 'one_only' ? t(`${r}.oneChannel`) : state.step1Choice === 'all_buffer' ? t(`${r}.everything`) : '—' },
     { label: t(`${r}.cacheFixed`), value: yn(state.didRestartAndCache) },
     { label: t(`${r}.speed`), value: typeof state.speedMbps === 'number' ? t(`${r}.speedValue`, { speed: state.speedMbps }) : '—' },

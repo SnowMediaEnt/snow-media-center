@@ -49,6 +49,12 @@
     <string name="billing_http_429">محاولات كثيرة جدًا. يرجى الانتظار قليلًا.</string>
     <string name="billing_http_5xx">حدثت مشكلة في خادم الفوترة. حاول مرة أخرى بعد دقيقة.</string>
     <string name="billing_request_failed">فشل الطلب (%1$d).</string>
+    <string name="billing_register_required">البريد الإلكتروني وكلمة المرور والاسم الأول واسم العائلة مطلوبة.</string>
+    <string name="billing_login_required">البريد الإلكتروني وكلمة المرور مطلوبان.</string>
+    <string name="billing_field_required">الحقل %1$s مطلوب.</string>
+    <string name="billing_not_configured">الفوترة غير مُعدّة في هذا الإصدار.</string>
+    <string name="billing_internal">حدث خطأ ما. يرجى المحاولة مرة أخرى.</string>
+    <string name="billing_sign_in">يرجى تسجيل الدخول.</string>
     <string name="player_err_stream_dropping">ينقطع البث باستمرار. حاول مرة أخرى.</string>
     <string name="player_err_server_stopped">توقف الخادم عن الاستجابة. حاول مرة أخرى.</string>
     <string name="player_err_refused">رفض الخادم هذا الملف.</string>

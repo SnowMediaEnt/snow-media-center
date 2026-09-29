@@ -29,7 +29,7 @@
     "contextMenu": {
       "removePinBtn": "إزالة الاختصار",
       "pinAppBtn": "إضافة اختصار",
-      "maxPinnedBtn": "5 اختصارات كحد أقصى"
+      "maxPinnedBtn": "4 اختصارات كحد أقصى"
     },
     "pinned": {
       "title": "اختصارات التطبيقات",
@@ -54,7 +54,7 @@
       "openPlayerBtn": "افتح المشغّل",
       "downloadAnywayBtn": "التنزيل على أي حال",
       "whereLiveTv": "البث المباشر",
-      "message": "لم نعد ندعم تطبيق {{app}}. كل شيء موجود الآن في المشغّل بالصفحة الرئيسية: Dreamstreams وVibezTV في البث المباشر، وPlex في Plex. {{app}} موجود ضمن {{where}}."
+      "message": "لم نعد ندعم تطبيق {{app}}. كل شيء موجود الآن في المشغّل بالصفحة الرئيسية: DreamStreams وVibezTV في البث المباشر، وPlex في Plex. {{app}} موجود ضمن {{where}}."
     },
     "toast": {
       "refreshingTitle": "جارٍ التحديث…",
@@ -105,6 +105,13 @@
       "pinFailedDesc": "يمكن إضافة 4 اختصارات كحد أقصى.",
       "unpinnedTitle": "تمت إزالة الاختصار",
       "unpinnedDesc": "تمت إزالة {{name}} من الاختصارات."
+    },
+    "webUnsupported": "يعمل هذا الإجراء فقط داخل تطبيق Snow Media Center المثبّت على جهاز Android.",
+    "data": {
+      "noDescription": "لا يوجد وصف",
+      "unknownApp": "تطبيق غير معروف",
+      "fetchFailed": "تعذّر تحميل التطبيقات. يتم استخدام البيانات دون اتصال.",
+      "timedOut": "استغرق التحميل وقتًا طويلًا. يتم استخدام البيانات دون اتصال."
     }
   }
 }

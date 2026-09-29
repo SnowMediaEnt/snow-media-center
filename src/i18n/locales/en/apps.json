@@ -29,7 +29,7 @@
     "contextMenu": {
       "removePinBtn": "Remove Pin",
       "pinAppBtn": "Pin App",
-      "maxPinnedBtn": "Max 5 Pinned"
+      "maxPinnedBtn": "Max 4 Pinned"
     },
     "pinned": {
       "title": "Pinned Apps",
@@ -50,7 +50,7 @@
       "openPlayerBtn": "Open Player",
       "downloadAnywayBtn": "Download anyway",
       "whereLiveTv": "Live TV",
-      "message": "We no longer support the {{app}} app. Everything is in the Player on the main page: Dreamstreams and VibezTV are in Live TV, and Plex is in Plex. {{app}} is under {{where}}."
+      "message": "We no longer support the {{app}} app. Everything is in the Player on the main page: DreamStreams and VibezTV are in Live TV, and Plex is in Plex. {{app}} is under {{where}}."
     },
     "toast": {
       "refreshingTitle": "Refreshing…",
@@ -97,6 +97,13 @@
       "pinFailedDesc": "Maximum of 4 apps can be pinned.",
       "unpinnedTitle": "App Unpinned",
       "unpinnedDesc": "{{name}} removed from pinned apps."
+    },
+    "webUnsupported": "This action only works inside the installed Snow Media Center app on your Android device.",
+    "data": {
+      "noDescription": "No description available",
+      "unknownApp": "Unknown App",
+      "fetchFailed": "Unable to fetch apps. Using offline data.",
+      "timedOut": "Loading timed out. Using offline data."
     }
   }
 }

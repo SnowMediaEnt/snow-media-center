@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo } from '@/lib/demoMode';
 import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone } from 'lucide-react';
 import { openProfiles } from '@/lib/profilesUi';
-import { avatarColors, loadProfiles, PROFILES_EVENT } from '@/lib/profiles';
+import { avatarColors, loadProfiles, profileName, PROFILES_EVENT } from '@/lib/profiles';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
 import PairingQR from '@/components/remote/PairingQR';
 import { PHONE_REMOTE_EVENT, connectedPhones, isPaired, setTypingHintEnabled, typingHintEnabled, unpairAllPhones } from '@/lib/phoneRemote';
@@ -839,12 +839,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               <div className="flex items-start gap-3 mb-4">
                 <Languages className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-bold text-white">{t('settings.language.title')}</h3>
-                    <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40">
-                      {t('common.beta')}
-                    </span>
-                  </div>
+                  <h3 className="text-lg font-bold text-white">{t('settings.language.title')}</h3>
                   <p className="text-sm text-white/70 mt-1">{t('settings.language.description')}</p>
                 </div>
               </div>
@@ -937,10 +932,10 @@ const Settings = ({ onBack }: SettingsProps) => {
                     className="inline-flex items-center justify-center rounded-lg font-bold text-white mr-2"
                     style={{ width: 36, height: 36, backgroundColor: avatarColors(p.avatar).bg }}
                   >
-                    {(p.name.trim()[0] || '?').toUpperCase()}
+                    {(profileName(p).trim()[0] || '?').toUpperCase()}
                   </span>
                   <span className="text-white/90">
-                    {p.name}{p.kidsLevel ? ` · ${t('settings.profiles.kidsTag')}` : ''}{p.pinHash ? ` · ${t('settings.profiles.pinTag')}` : ''}{p.id === currentProfileId ? ` (${t('settings.profiles.watchingTag')})` : ''}
+                    {profileName(p)}{p.kidsLevel ? ` · ${t('settings.profiles.kidsTag')}` : ''}{p.pinHash ? ` · ${t('settings.profiles.pinTag')}` : ''}{p.id === currentProfileId ? ` (${t('settings.profiles.watchingTag')})` : ''}
                   </span>
                 </div>
               ))}

@@ -3,6 +3,7 @@
 
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import i18n from '@/i18n';
+import { formatTime } from '@/i18n/format';
 
 /**
  * The Record dialog's lengths, minutes; 0 = until I stop it. `label` is the English fallback;
@@ -128,9 +129,8 @@ export function formatDuration(sec: number): string {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(s % 60)}` : `${m}:${pad2(s % 60)}`;
 }
 
-/** When a recording of `minutes` started now ends, "21:45"; null for until stopped. */
+/** When a recording of `minutes` started now ends, "9:45 PM"; null for until stopped. */
 export function endsAtLabel(minutes: number, now: Date = new Date()): string | null {
   if (minutes <= 0) return null;
-  const end = new Date(now.getTime() + minutes * 60_000);
-  return `${pad2(end.getHours())}:${pad2(end.getMinutes())}`;
+  return formatTime(now.getTime() + minutes * 60_000);
 }

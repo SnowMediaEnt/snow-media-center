@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { App as CapApp } from '@capacitor/app';
+import i18n from '@/i18n';
 import { GLOBAL_MODAL_SELECTOR } from '@/components/games/shared/gameInput';
 import { gameOwnsHardwareBack } from '@/components/games/shared/gameBack';
 
@@ -49,7 +50,7 @@ const exitApp = () => {
   } catch (error) {
     console.log('Exit app failed:', error);
     try { window.location.href = 'about:blank'; }
-    catch { alert('Press home button to exit'); }
+    catch { alert(i18n.t('home.exit.pressHome')); }
   }
 };
 

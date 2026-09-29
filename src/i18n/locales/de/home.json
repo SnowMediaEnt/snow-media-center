@@ -109,6 +109,9 @@
       "scrollHint": "▲ ▼ scrollen · OK schließen",
       "closeHint": "OK schließen",
       "letsGoBtn": "Los geht's"
+    },
+    "exit": {
+      "pressHome": "Drücke die Home-Taste, um die App zu verlassen"
     }
   }
 }

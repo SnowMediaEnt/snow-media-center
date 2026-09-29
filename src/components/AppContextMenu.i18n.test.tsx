@@ -25,6 +25,6 @@ describe('AppContextMenu language', () => {
   it('says why a pin is not possible', async () => {
     await i18n.changeLanguage('de');
     show(false, false);
-    expect(screen.getByText('Max. 5 angeheftet')).toBeTruthy();
+    expect(screen.getByText('Max. 4 angeheftet')).toBeTruthy();
   });
 });

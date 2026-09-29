@@ -1,4 +1,5 @@
 import { registerPlugin, Capacitor, type PluginListenerHandle } from "@capacitor/core";
+import i18n from "@/i18n";
 
 export interface InstalledAppInfo {
   packageName: string;
@@ -118,45 +119,51 @@ export interface AppManagerPlugin {
 
 }
 
-export const WEB_UNSUPPORTED_MSG =
-  "This action only works inside the installed Snow Media Center app on your Android device.";
+/** Thrown by the web fallback; written in the app's language when it is thrown. */
+export const webUnsupportedMsg = (): string => i18n.t('apps.webUnsupported');
+
+/** The web fallback's error. It is recognised by its code, never by its (translated) text. */
+class WebUnsupportedError extends Error {
+  code = 'web_unsupported';
+}
+const unsupported = () => new WebUnsupportedError(webUnsupportedMsg());
 
 const webFallback: AppManagerPlugin = {
   async isInstalled() { return { installed: false }; },
   async getAppInfo() { return { installed: false, packageName: '', versionName: '', versionCode: 0 }; },
-  async getApkInfo() { throw new Error(WEB_UNSUPPORTED_MSG); },
+  async getApkInfo() { throw unsupported(); },
   async getInstalledApps() { return { apps: [] }; },
   async listCachedApks() { return { files: [], totalBytes: 0, count: 0 }; },
   async deleteCachedApk() { return { deleted: false }; },
   async clearOwnCache() { return { freedBytes: 0 }; },
-  async installApk() { throw new Error(WEB_UNSUPPORTED_MSG); },
-  async launch() { throw new Error(WEB_UNSUPPORTED_MSG); },
-  async uninstall() { throw new Error(WEB_UNSUPPORTED_MSG); },
-  async openAppSettings() { throw new Error(WEB_UNSUPPORTED_MSG); },
+  async installApk() { throw unsupported(); },
+  async launch() { throw unsupported(); },
+  async uninstall() { throw unsupported(); },
+  async openAppSettings() { throw unsupported(); },
   async isAccessibilityEnabled() { return { enabled: false }; },
-  async openAccessibilitySettings() { throw new Error(WEB_UNSUPPORTED_MSG); },
+  async openAccessibilitySettings() { throw unsupported(); },
   async openManageApps() { return { opened: false }; },
-  async clearAppCache() { throw new Error(WEB_UNSUPPORTED_MSG); },
+  async clearAppCache() { throw unsupported(); },
   async openUrl({ url }) { window.open(url, '_blank', 'noopener,noreferrer'); },
   async isSpeechRecognitionAvailable() { return { available: false }; },
-  async startVoiceInput() { throw new Error(WEB_UNSUPPORTED_MSG); },
+  async startVoiceInput() { throw unsupported(); },
   async cancelVoiceInput() { /* no-op on web */ },
-  async injectKey() { throw new Error(WEB_UNSUPPORTED_MSG); },
+  async injectKey() { throw unsupported(); },
   async getStorageInfo() { return { totalBytes: 0, freeBytes: 0, totalMemoryBytes: 0, freeMemoryBytes: 0, lowMemory: false }; },
   async hasUsageAccess() { return { enabled: false }; },
   async openUsageAccessSettings() { return { opened: false }; },
   async getDeviceApps() { return { apps: [], usageAccess: false }; },
-  async closeBackgroundApps() { throw new Error(WEB_UNSUPPORTED_MSG); },
-  async clearCacheForApps() { throw new Error(WEB_UNSUPPORTED_MSG); },
+  async closeBackgroundApps() { throw unsupported(); },
+  async clearCacheForApps() { throw unsupported(); },
   async cancelCacheClear() { /* no-op on web */ },
   async addListener() { return { remove: async () => { /* no-op */ } } as PluginListenerHandle; },
 };
 
 
 export function isWebUnsupportedError(err: unknown): boolean {
+  if ((err as { code?: unknown } | null)?.code === 'web_unsupported') return true;
   const msg = err instanceof Error ? err.message : String(err ?? '');
   return (
-    msg === WEB_UNSUPPORTED_MSG ||
     /not implemented/i.test(msg) ||
     /not available/i.test(msg)
   );

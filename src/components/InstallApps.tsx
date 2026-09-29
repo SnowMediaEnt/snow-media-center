@@ -16,7 +16,7 @@ import { useAppData, AppData } from '@/hooks/useAppData';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
-import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
+import { AppManager, isWebUnsupportedError, webUnsupportedMsg } from '@/capacitor/AppManager';
 import { generatePackageName, findCachedApk } from '@/utils/downloadApk';
 import DownloadProgress from '@/components/DownloadProgress';
 
@@ -610,7 +610,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
       if (isWebUnsupportedError(error)) {
         toast({
           title: t('apps.toast.launchFailedTitle'),
-          description: WEB_UNSUPPORTED_MSG,
+          description: webUnsupportedMsg(),
           variant: "destructive",
         });
         return;
@@ -663,7 +663,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
       console.error('Uninstall error:', error);
       const msg = error instanceof Error ? error.message : '';
       const friendly = isWebUnsupportedError(error)
-        ? WEB_UNSUPPORTED_MSG
+        ? webUnsupportedMsg()
         : msg.includes('Package not installed')
           ? t('apps.toast.notOnDevice', { name: app.name })
           : t('apps.toast.couldNotOpenInfo', { name: app.name });
@@ -688,7 +688,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
     } catch (error) {
       console.error('App settings error:', error);
       const friendly = isWebUnsupportedError(error)
-        ? WEB_UNSUPPORTED_MSG
+        ? webUnsupportedMsg()
         : t('apps.toast.couldNotOpenSettings', { name: app.name });
       toast({
         title: t('apps.toast.settingsFailedTitle'),
@@ -701,7 +701,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
   /** Opens App Info and prompts the user to tap Force Stop. */
   const handleForceStop = useCallback(async (app: AppData) => {
     if (!Capacitor.isNativePlatform()) {
-      toast({ title: WEB_UNSUPPORTED_MSG, variant: 'destructive' });
+      toast({ title: webUnsupportedMsg(), variant: 'destructive' });
       return;
     }
     const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
@@ -719,7 +719,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
     } catch (err) {
       toast({
         title: t('apps.toast.forceStopFailedTitle'),
-        description: isWebUnsupportedError(err) ? WEB_UNSUPPORTED_MSG : t('apps.toast.couldNotOpenInfo', { name: app.name }),
+        description: isWebUnsupportedError(err) ? webUnsupportedMsg() : t('apps.toast.couldNotOpenInfo', { name: app.name }),
         variant: 'destructive',
       });
     }
@@ -728,7 +728,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
   /** Opens App Info so the user can manually clear this app's cache. */
   const handleAutoClearCache = useCallback(async (app: AppData) => {
     if (!Capacitor.isNativePlatform()) {
-      toast({ title: WEB_UNSUPPORTED_MSG, variant: 'destructive' });
+      toast({ title: webUnsupportedMsg(), variant: 'destructive' });
       return;
     }
     const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
@@ -748,7 +748,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
       toast({
         title: t('apps.toast.clearCacheFailedTitle'),
         description: isWebUnsupportedError(err)
-          ? WEB_UNSUPPORTED_MSG
+          ? webUnsupportedMsg()
           : msg.includes('Package not installed')
             ? t('apps.toast.notOnDevice', { name: app.name })
             : t('apps.toast.couldNotOpenInfo', { name: app.name }),

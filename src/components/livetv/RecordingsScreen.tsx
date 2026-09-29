@@ -30,7 +30,7 @@ import { AlertTriangle, ArrowLeft, Check, Circle, Clock, Film, HardDrive, Pencil
 import {
   SnowRecorder, RECORDINGS_CHANGED_EVENT, notifyRecordingsChanged, type RecordSchedule, type RecordVolume, type RecordingItem,
 } from '@/capacitor/SnowRecorder';
-import { clockLabel, paddedLabel, paddedWindow } from '@/lib/recordSchedule';
+import { clockLabel, paddedLabel, paddedWindow, reasonText } from '@/lib/recordSchedule';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { cleanRename, formatDuration, isLowSpace, listWindow } from '@/lib/recording';
@@ -587,7 +587,7 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
                   <div className="flex-1 min-w-0">
                     <p className="text-lg font-nunito font-semibold truncate">{x.programmeTitle || x.channelName} · {x.channelName}</p>
                     <p className="text-sm font-nunito text-amber-200 truncate">
-                      {dayTime(x.startUtcMs, now)} · {x.reason || (x.status === 'missed' ? t('recordings.list.wasMissed') : t('recordings.list.didNotStart'))}
+                      {dayTime(x.startUtcMs, now)} · {x.reason ? reasonText(x.reason) : (x.status === 'missed' ? t('recordings.list.wasMissed') : t('recordings.list.didNotStart'))}
                     </p>
                   </div>
                   <span className="ml-3 text-base font-quicksand font-bold text-amber-300 flex-shrink-0">{x.status === 'missed' ? t('recordings.list.missedChip') : t('recordings.list.failedChip')}</span>

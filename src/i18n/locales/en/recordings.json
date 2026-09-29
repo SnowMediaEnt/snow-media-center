@@ -165,6 +165,21 @@
       "figuresInApp": "Figures show in the app on your TV box.",
       "nearlyFull": "This box is nearly full: rewind on channels without catch-up won't have room.",
       "recordingsSeparate": "Recordings are separate (Live TV › Recordings) and are never wiped by rewind."
+    },
+    "reasons": {
+      "noLogin": "Sign in to Live TV to record.",
+      "otherLine": "Live TV is signed in to a different line.",
+      "noSpace": "Not enough free space.",
+      "usbGone": "The USB drive wasn't connected.",
+      "blocked": "The box blocked a timed start. Allow Alarms & reminders for SMC.",
+      "missed": "The box was off or SMC was force-stopped.",
+      "startFailed": "The recording could not start.",
+      "driveFull": "The drive is full",
+      "unsupported": "This channel can't be recorded",
+      "driveRemoved": "The drive was removed",
+      "writeFailed": "The recording could not be written",
+      "tooMany_one": "{{count}} recording was already running.",
+      "tooMany_other": "{{count}} recordings were already running."
     }
   }
 }

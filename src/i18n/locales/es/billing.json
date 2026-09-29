@@ -22,7 +22,9 @@
       "rateLimitedSeconds_many": "Demasiados intentos. Espera {{count}} segundos.",
       "rateLimitedSeconds_other": "Demasiados intentos. Espera {{count}} segundos.",
       "rateLimited": "Demasiados intentos. Espera un momento.",
-      "signInAgain": "Inicia sesión de nuevo."
+      "signInAgain": "Inicia sesión de nuevo.",
+      "notAvailable": "La facturación solo está disponible en la app Snow Media Center.",
+      "notConfigured": "La facturación no está configurada en esta versión."
     },
     "plans": {
       "termOther": "Otros",
@@ -104,7 +106,7 @@
       "signInFailedTitle": "No se pudo iniciar sesión",
       "createTitle": "Crear una cuenta de facturación",
       "signInTitle": "Iniciar sesión en facturación",
-      "defaultHeading": "Tu cuenta de facturación de Dreamstreams: planes, renovaciones y pruebas.",
+      "defaultHeading": "Tu cuenta de facturación de DreamStreams: planes, renovaciones y pruebas.",
       "emailLabel": "Correo",
       "emailPlaceholder": "Correo electrónico",
       "passwordLabel": "Contraseña",
@@ -179,8 +181,8 @@
       "invoiceOnly": "Factura n.º {{id}}",
       "finishPaymentBtn": "Finalizar pago",
       "noServices": "Aún no hay servicios",
-      "noServicesTrial": "Inicia una prueba gratis de 24 horas o compra un plan para obtener un acceso a Dreamstreams.",
-      "noServicesBuy": "Compra un plan para obtener un acceso a Dreamstreams para el reproductor.",
+      "noServicesTrial": "Inicia una prueba gratis de 24 horas o compra un plan para obtener un acceso a DreamStreams.",
+      "noServicesBuy": "Compra un plan para obtener un acceso a DreamStreams para el reproductor.",
       "serviceFallback": "Servicio",
       "trialChip": "Prueba",
       "thisDeviceChip": "Este dispositivo",

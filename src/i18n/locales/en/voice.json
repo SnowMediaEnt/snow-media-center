@@ -48,7 +48,7 @@
       "grownUpSettings": "Settings need a grown-up — switch profile first.",
       "grownUpBackgrounds": "Backgrounds need a grown-up — switch profile first.",
       "cantChange": "I couldn't change that one.",
-      "ideaInMedia": "Your idea is in Settings → Media — press Generate on the TV.",
+      "ideaInMedia": "Your idea is in Settings → Media Manager — press Generate on the TV.",
       "makingBackground": "Making your background — this takes a moment.",
       "thinking": "Thinking…",
       "premiumUnavailable": "Snow AI Premium isn't available right now — switch to Free under Settings → UI.",
@@ -62,7 +62,8 @@
       "pressOkRetry": "Press OK on the mic to try again.",
       "listening": "Listening…",
       "tryExamples": "Try {{examples}}",
-      "sayCommand": "Say a command"
+      "sayCommand": "Say a command",
+      "examples": "\"Put on ESPN\" · \"Watch The Office\" · \"Open YouTube\" · \"Go to the Guide\" · \"Search for Batman\""
     }
   }
 }

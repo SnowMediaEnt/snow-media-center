@@ -1,5 +1,6 @@
 package com.snowmedia.billing
 
+import com.snowmedia.R
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -168,7 +169,7 @@ class BillingApi(
             if (token.isNullOrBlank()) {
                 // Do not even ask: the server would answer 401 missing_token and
                 // count it against the per-IP bearer-failure limit.
-                throw BillingError("missing_token", "Please sign in.", 401)
+                throw BillingError("missing_token", BillingError.text("missing_token", R.string.billing_sign_in), 401)
             }
             b.header("Authorization", "Bearer $token")
         }

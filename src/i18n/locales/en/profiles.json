@@ -103,6 +103,7 @@
       "hint": "Set them up any time under Settings → Profiles, or with the profile button at the top of Home.",
       "setUpBtn": "Set up profiles",
       "laterBtn": "Maybe later"
-    }
+    },
+    "defaultName": "Me"
   }
 }

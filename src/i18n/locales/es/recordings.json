@@ -168,6 +168,22 @@
       "figuresInApp": "Las cifras se muestran en la app de tu equipo de TV.",
       "nearlyFull": "Este equipo está casi lleno: el retroceso en canales sin diferido no tendrá espacio.",
       "recordingsSeparate": "Las grabaciones son aparte (TV en vivo › Grabaciones) y el retroceso nunca las borra."
+    },
+    "reasons": {
+      "noLogin": "Inicia sesión en TV en vivo para grabar.",
+      "otherLine": "TV en vivo tiene la sesión iniciada en otra línea.",
+      "noSpace": "No hay suficiente espacio libre.",
+      "usbGone": "La unidad USB no estaba conectada.",
+      "blocked": "El equipo bloqueó un inicio programado. Permite Alarmas y recordatorios para SMC.",
+      "missed": "El equipo estaba apagado o se forzó la detención de SMC.",
+      "startFailed": "No se pudo iniciar la grabación.",
+      "driveFull": "La unidad está llena",
+      "unsupported": "Este canal no se puede grabar",
+      "driveRemoved": "Se quitó la unidad",
+      "writeFailed": "No se pudo escribir la grabación",
+      "tooMany_one": "Ya había {{count}} grabación en curso.",
+      "tooMany_many": "Ya había {{count}} grabaciones en curso.",
+      "tooMany_other": "Ya había {{count}} grabaciones en curso."
     }
   }
 }

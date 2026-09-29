@@ -105,7 +105,7 @@
         "backgroundSettingsTitle": "Ajustes de fondo",
         "backgroundSettingsDesc": "Abriendo ajustes para cambiar el fondo",
         "backgroundChangeTitle": "Cambio de fondo",
-        "backgroundThemesDesc": "Puedes cambiar los fondos en Ajustes > Gestor de medios",
+        "backgroundThemesDesc": "Puedes cambiar los fondos en Ajustes → Gestor de medios.",
         "backgroundUploadDesc": "Puedes subir fondos personalizados en Ajustes",
         "storeTitle": "Tienda",
         "openingStore": "Abriendo la tienda de {{section}}",
@@ -253,11 +253,6 @@
       "store": "Tienda"
     },
     "prefs": {
-      "layout": {
-        "classic": "Clásico",
-        "compact": "Compacto",
-        "grid": "Vibez"
-      },
       "liveLayout": "TV en vivo usa el diseño {{layout}}.",
       "dashboardLarge": "El panel está en tamaño Grande.",
       "dashboardCompact": "El panel ahora cabe en una pantalla.",

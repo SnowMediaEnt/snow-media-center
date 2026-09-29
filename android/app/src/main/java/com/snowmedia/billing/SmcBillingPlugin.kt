@@ -8,7 +8,9 @@ import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.snowmedia.AppLocale
 import com.snowmedia.BuildConfig
+import com.snowmedia.R
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
@@ -49,6 +51,8 @@ class SmcBillingPlugin : Plugin() {
         get() = BuildConfig.SMC_BILLING_APP_KEY.isNotBlank() && BuildConfig.SMC_BILLING_BASE_URL.isNotBlank()
 
     override fun load() {
+        // Its messages come from strings.xml in the app's language; make sure AppLocale has a Context.
+        AppLocale.attach(context)
         store = SecureStore.get(context)
         api = BillingApi(
             baseUrl = BuildConfig.SMC_BILLING_BASE_URL,
@@ -99,7 +103,7 @@ class SmcBillingPlugin : Plugin() {
         val first = call.getString("firstName")
         val last = call.getString("lastName")
         if (email.isNullOrBlank() || password.isNullOrEmpty() || first.isNullOrBlank() || last.isNullOrBlank()) {
-            reject(call, BillingError("validation_error", "Email, password, first name and last name are required.", 422))
+            reject(call, BillingError("validation_error", BillingError.text("validation_error", R.string.billing_register_required), 422))
             return
         }
         run(call) {
@@ -114,7 +118,7 @@ class SmcBillingPlugin : Plugin() {
         val email = call.getString("email")
         val password = call.getString("password")
         if (email.isNullOrBlank() || password.isNullOrEmpty()) {
-            reject(call, BillingError("validation_error", "Email and password are required.", 422))
+            reject(call, BillingError("validation_error", BillingError.text("validation_error", R.string.billing_login_required), 422))
             return
         }
         run(call) {
@@ -342,12 +346,12 @@ class SmcBillingPlugin : Plugin() {
     private fun PluginCall.num(key: String): Long? = (data.opt(key) as? Number)?.toLong()
 
     private fun missing(field: String) =
-        BillingError("validation_error", "$field is required.", 422, JSONObject().put("field", field))
+        BillingError("validation_error", BillingError.text("validation_error", R.string.billing_field_required, field), 422, JSONObject().put("field", field))
 
     /** Run [block] off the main thread; resolve with its result or reject with its error. */
     private fun run(call: PluginCall, block: () -> JSObject) {
         if (!configured) {
-            reject(call, BillingError("not_configured", "Billing is not set up in this build.", 0))
+            reject(call, BillingError("not_configured", BillingError.text("not_configured", R.string.billing_not_configured), 0))
             return
         }
         io.execute {
@@ -363,7 +367,7 @@ class SmcBillingPlugin : Plugin() {
         val e = when (t) {
             is BillingError -> t
             is ParseException -> BillingError.badResponse(200, t.message ?: "unexpected shape", t)
-            else -> BillingError("internal", "Something went wrong. Please try again.", 0, null, t)
+            else -> BillingError("internal", BillingError.text("internal", R.string.billing_internal), 0, null, t)
         }
         if (e.isAuthError) {
             // The token is dead. Forget it so the next getState() says signed-out

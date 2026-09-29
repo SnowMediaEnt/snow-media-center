@@ -112,9 +112,9 @@ interface Props {
 }
 
 
-// SCREEN_FORMATS (SnowPlayer.ts) carries English text; the id picks the wording.
-const formatName = (f: { id: string; label: string }): string => i18n.t(`plex.player.format.${f.id}`, { defaultValue: f.label });
-const formatHint = (f: { id: string; hint: string }): string => i18n.t(`plex.player.formatHint.${f.id}`, { defaultValue: f.hint });
+// SCREEN_FORMATS (SnowPlayer.ts) names its words by key (plexApi.screenFormat.*).
+const formatName = (f: { labelKey: string }): string => i18n.t(f.labelKey);
+const formatHint = (f: { hintKey: string }): string => i18n.t(f.hintKey);
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
 const fmtTime = (sec: number) => {

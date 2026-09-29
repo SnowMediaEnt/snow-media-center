@@ -37,6 +37,7 @@
 // clear it from the Hub when the email never arrives.
 //
 // Nothing here throws; storage and network failures leave things as they were.
+import i18n from '@/i18n';
 import { supabase } from '@/integrations/supabase/client';
 import { setKidsLevel, type KidsLevel } from '@/lib/kidsFilter';
 import { sha256Hex } from '@/lib/sha256';
@@ -120,6 +121,13 @@ const accountKey = (): string => viewerAccountId() ?? 'device';
 const emit = () => { try { window.dispatchEvent(new CustomEvent(PROFILES_EVENT)); } catch { /* ignore */ } };
 
 const mainProfile = (): Profile => ({ id: MAIN_PROFILE, name: 'Me', avatar: 'blue', kidsLevel: null, pinHash: null, position: 0, t: 0 });
+
+/**
+ * The name to show. The main profile's built-in "Me" is stored as is (it syncs to the
+ * account) and shown in the app's language; a name the viewer typed is shown as typed.
+ */
+export const profileName = (p: Pick<Profile, 'id' | 'name'>): string =>
+  (p.id === MAIN_PROFILE && p.name === 'Me' ? i18n.t('profiles.defaultName') : p.name);
 
 const clean = (p: Partial<Profile> & { id: string }): Profile => ({
   id: p.id,

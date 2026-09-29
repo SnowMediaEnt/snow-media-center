@@ -10,6 +10,7 @@ import {
 } from '@/hooks/useUserServices';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { trackEvent } from '@/lib/analytics';
+import { serverDisplayName } from '@/lib/xtream';
 
 interface Props {
   onOpenDashboard?: () => void;
@@ -50,7 +51,7 @@ const ServiceExpirationBanner = ({ onOpenDashboard }: Props) => {
         kind: 'player',
         id: `player-${playerAccount.username}`,
         name: playerAccount.serverLabel || 'Player',
-        shown: playerAccount.serverLabel || null,
+        shown: playerAccount.serverLabel ? serverDisplayName(playerAccount.serverLabel) : null,
         days: playerDays,
         severity: playerState.severity,
         label: playerState.label,
@@ -84,7 +85,7 @@ const ServiceExpirationBanner = ({ onOpenDashboard }: Props) => {
   const warning = urgent.severity === 'warning';
   const who = urgent.shown ?? t(urgent.kind === 'service' ? 'account.banner.serviceFallback' : 'account.banner.playerFallback');
   const days = urgent.days;
-  // The wording follows the day count; the hook's own label is English-only.
+  // A full sentence with the name, so the hook's short label is not used here.
   const msg = days === null ? t('account.banner.expiringShort')
     : days < 0 ? t('account.banner.expiredAgo', { name: who, count: Math.abs(days) })
     : days === 0 ? t('account.banner.expiresToday', { name: who })

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { kidsLevel } from '@/lib/kidsFilter';
-import { KIDS_IMAGE_TITLE, kidsImageNotice } from '@/lib/kidsAiNotice';
+import { kidsImageTitle, kidsImageNotice } from '@/lib/kidsAiNotice';
+import { useTranslation } from 'react-i18next';
 
 /** A Kids profile's backgrounds are kept child-friendly by the server. */
 const kidsBody = (): { kids_level?: string } => { const l = kidsLevel(); return l ? { kids_level: l } : {}; };
@@ -89,6 +90,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   const { user, session } = useAuth();
   const { profile, checkCredits, deductCredits, fetchProfile } = useUserProfile();
   const { toast } = useToast();
+  const { t } = useTranslation();
   
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -496,6 +498,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       size: '1792x1024',
       // 100 * 0.01 = 1.00 credit per image. $5 pack = 50 images.
       credits: 100,
+      // media.generate.quality says this in the viewer's language.
       description: 'High resolution (1792x1024) - highest quality available'
     };
   };
@@ -555,8 +558,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       await uploadAsset(file, uploadForm.assetType, uploadForm.section, uploadForm.description);
       
       toast({
-        title: "Upload successful",
-        description: `${file.name} has been uploaded successfully.`,
+        title: t('media.toast.uploadedTitle'),
+        description: t('media.toast.uploadedDesc', { name: file.name }),
       });
       
       // Reset form
@@ -565,8 +568,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     } catch (error) {
       console.error('Upload error details:', error);
       toast({
-        title: "Upload failed",
-        description: `Failed to upload ${file.name}. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        title: t('media.toast.uploadFailedTitle'),
+        description: t('media.toast.uploadFailedDesc', { name: file.name, error: error instanceof Error ? error.message : t('media.toast.unknownError') }),
         variant: "destructive",
       });
     } finally {
@@ -578,14 +581,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     try {
       await toggleAssetActive(id, !currentStatus);
       toast({
-        title: currentStatus ? "Asset deactivated" : "Asset activated",
-        description: `Asset is now ${!currentStatus ? 'active' : 'inactive'}.`,
+        title: currentStatus ? t('media.toast.deactivatedTitle') : t('media.toast.activatedTitle'),
+        description: !currentStatus ? t('media.toast.nowActiveDesc') : t('media.toast.nowInactiveDesc'),
       });
     
     } catch (error) {
       toast({
-        title: "Failed to update",
-        description: "Could not update asset status.",
+        title: t('media.toast.updateFailedTitle'),
+        description: t('media.toast.updateFailedDesc'),
         variant: "destructive",
       });
     }
@@ -596,14 +599,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     try {
       await deleteAsset(id, filePath);
       toast({
-        title: "Asset deleted",
-        description: `${name} has been deleted.`,
+        title: t('media.toast.deletedTitle'),
+        description: t('media.toast.deletedDesc', { name }),
       });
     } catch (error: any) {
       console.error('[MediaManager] Delete failed:', error);
       toast({
-        title: "Delete failed",
-        description: error?.message || "Failed to delete asset. Please try again.",
+        title: t('media.toast.deleteFailedTitle'),
+        description: error?.message || t('media.toast.deleteFailedDesc'),
         variant: "destructive",
       });
     }
@@ -621,7 +624,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           setActiveAnonId(null);
         }
         applyBackground(null);
-        toast({ title: 'Background cleared', description: 'Default background restored.' });
+        toast({ title: t('media.toast.bgClearedTitle'), description: t('media.toast.bgClearedDesc') });
         return;
       }
 
@@ -639,12 +642,12 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         setActiveAnonId(item.id);
       }
       applyBackground(item.url);
-      toast({ title: 'Background set', description: item.name });
+      toast({ title: t('media.toast.bgSetTitle'), description: item.name });
     } catch (error) {
       console.error('[MediaManager] Activate failed:', error);
       toast({
-        title: 'Failed to set background',
-        description: 'Please try again.',
+        title: t('media.toast.bgFailedTitle'),
+        description: t('media.toast.tryAgainDesc'),
         variant: 'destructive',
       });
     }
@@ -661,12 +664,12 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         await deleteAsset(item.id, item.asset.file_path);
       }
       if (wasActive) applyBackground(null);
-      toast({ title: 'Asset deleted', description: item.name });
+      toast({ title: t('media.toast.deletedTitle'), description: item.name });
     } catch (error: any) {
       console.error('[MediaManager] Delete failed:', error);
       toast({
-        title: 'Delete failed',
-        description: error?.message || 'Please try again.',
+        title: t('media.toast.deleteFailedTitle'),
+        description: error?.message || t('media.toast.tryAgainDesc'),
         variant: 'destructive',
       });
       // Safety: if the file we tried to delete WAS the background, revert it
@@ -686,8 +689,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   const handleGenerateImage = async (skipAnonWarning = false, opts?: { tier?: AiTier }) => {
     if (!generatePrompt.trim()) {
       toast({
-        title: "Prompt required",
-        description: "Please enter a description for the image you want to generate.",
+        title: t('media.toast.promptRequiredTitle'),
+        description: t('media.toast.promptRequiredDesc'),
         variant: "destructive",
       });
       return;
@@ -707,8 +710,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
     if (foundInappropriate) {
       toast({
-        title: "Content Policy Violation",
-        description: "Your request contains inappropriate content and cannot be processed. Please create family-friendly wallpaper descriptions only.",
+        title: t('media.toast.policyTitle'),
+        description: t('media.toast.policyDesc'),
         variant: "destructive",
       });
       return;
@@ -729,7 +732,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     const tier: AiTier = kids ? 'free' : (opts?.tier ?? effectiveTier);
     const premiumGems = premiumTier?.gems ?? 0;
     if (tier === 'premium' && anonMode) {
-      toast({ title: 'Sign in for Premium', description: 'Premium images need a signed-in account with Snow Gems.' });
+      toast({ title: t('media.toast.premiumSignInTitle'), description: t('media.toast.premiumSignInDesc') });
       return;
     }
     // Premium is charged by the server; the free tier is charged here as before.
@@ -737,8 +740,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
     if (!anonMode && !isOwnerAdmin && !checkCredits(imageCost)) {
       toast({
-        title: "Insufficient Snow Gems",
-        description: `You need ${imageCost.toFixed(2)} Snow Gems to generate an image. Your balance: ${profile?.credits?.toFixed(2) || '0.00'}`,
+        title: t('media.toast.insufficientTitle'),
+        description: t('media.toast.insufficientDesc', { need: imageCost.toFixed(2), balance: profile?.credits?.toFixed(2) || '0.00' }),
         variant: "destructive",
       });
       return;
@@ -764,8 +767,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       const height = Math.round(targetHeight / 64) * 64;
 
       toast({
-        title: "Now generating image",
-        description: "Please wait...",
+        title: t('media.toast.generatingTitle'),
+        description: t('media.toast.generatingDesc'),
       });
 
       // Authed path: send Bearer; anon path: let supabase client default to anon key.
@@ -787,8 +790,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       try { trackEvent('ai_image_generate', 'ai', { tier, ok: response.ok }); } catch { /* ignore */ }
       if (response.status === 402) {
         toast({
-          title: 'Not enough Snow Gems',
-          description: result?.details || `Premium needs ${premiumGems} Snow Gems. Top up from the Dashboard.`,
+          title: t('media.toast.notEnoughTitle'),
+          description: result?.details || t('media.toast.notEnoughDesc', { gems: premiumGems }),
           variant: 'destructive',
         });
         return;
@@ -801,7 +804,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       }
 
       if (!response.ok || !result?.image) {
-        throw new Error((result?.error === 'kids_blocked' ? result.details : null) || result?.error || result?.details || 'Failed to generate image');
+        throw new Error((result?.error === 'kids_blocked' ? result.details : null) || result?.error || result?.details || t('media.toast.failedGeneric'));
       }
 
       // Anonymous = ephemeral: can't write to media_assets (RLS), but DO NOT
@@ -811,11 +814,11 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       // here in the same grid the user navigates with the D-pad.
       if (anonMode) {
         const id = `anon-${Date.now()}`;
-        const newImage: AnonImage = { id, dataUrl: result.image, name: generatePrompt.slice(0, 60) || 'AI image' };
+        const newImage: AnonImage = { id, dataUrl: result.image, name: generatePrompt.slice(0, 60) || t('media.gallery.aiImage') };
         setAnonGallery((prev) => [newImage, ...prev].slice(0, ANON_MAX_IMAGES));
         toast({
-          title: 'Image ready!',
-          description: 'Added to your gallery. Sign in to save it permanently.',
+          title: t('media.toast.readyTitle'),
+          description: t('media.toast.readyDesc'),
         });
         setGeneratePrompt('');
         (document.activeElement as HTMLElement | null)?.blur?.();
@@ -830,7 +833,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       // Signed-in path: persist exactly as before.
       const { data: { session: uploadSession } } = await supabase.auth.getSession();
       if (!uploadSession?.user) {
-        throw new Error('Session expired during generation. Please sign in and try again.');
+        throw new Error(t('media.toast.sessionExpired'));
       }
 
       const base64Response = await fetch(result.image);
@@ -842,25 +845,25 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
       if (result.isAdmin) {
         toast({
-          title: "Image complete!",
-          description: `Your AI-generated background is ready. (Admin: free)`,
+          title: t('media.toast.completeTitle'),
+          description: t('media.toast.completeAdminDesc'),
         });
       } else if (tier === 'premium') {
         // Charged server-side; only refresh the balance and say what happened.
         await fetchProfile();
-        toast({ title: 'Premium image complete!', description: describeReceipt(result) ?? 'Your background is ready.' });
+        toast({ title: t('media.toast.premiumCompleteTitle'), description: describeReceipt(result) ?? t('media.toast.readyShortDesc') });
       } else {
         const creditDeducted = await deductCredits(imageCost, `AI Image Generation - ${generatePrompt}`);
         if (!creditDeducted) {
           toast({
-            title: "Snow Gem deduction failed",
-            description: "Image generated but couldn't deduct Snow Gems. Contact support.",
+            title: t('media.toast.deductFailedTitle'),
+            description: t('media.toast.deductFailedDesc'),
             variant: "destructive",
           });
         } else {
           toast({
-            title: "Image complete!",
-            description: `Your AI-generated background is ready. ${imageCost.toFixed(2)} Snow Gems used.`,
+            title: t('media.toast.completeTitle'),
+            description: t('media.toast.completeDesc', { gems: imageCost.toFixed(2) }),
           });
         }
       }
@@ -875,8 +878,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     } catch (error) {
       console.error('Generate image error:', error);
       toast({
-        title: "Generation failed",
-        description: `Failed to generate image: ${error.message}`,
+        title: t('media.toast.failedTitle'),
+        description: t('media.toast.failedDesc', { error: error.message }),
         variant: "destructive",
       });
     } finally {
@@ -923,13 +926,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     if (!prompt || comparing || generating || kids) return;
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     if (!currentSession?.user) {
-      toast({ title: 'Sign in to compare', description: 'The comparison needs a signed-in account.' });
+      toast({ title: t('media.toast.compareSignInTitle'), description: t('media.toast.compareSignInDesc') });
       return;
     }
     const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
     const standardCost = imageConfig.credits * 0.01;
     if (!isOwnerAdmin && !checkCredits(standardCost)) {
-      toast({ title: 'Insufficient Snow Gems', description: `The Standard side costs ${standardCost.toFixed(2)} Snow Gems.`, variant: 'destructive' });
+      toast({ title: t('media.toast.insufficientTitle'), description: t('media.toast.compareCostDesc', { gems: standardCost.toFixed(2) }), variant: 'destructive' });
       return;
     }
     setComparing(true);
@@ -951,16 +954,16 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     if (freeImage && !isOwnerAdmin) void deductCredits(standardCost, `AI Image Generation (compare) - ${prompt}`);
     if (premium.body?.trial_used) setTrialUsed(true);
     const note = premium.body?.trial_used
-      ? 'The Premium side was your free sample.'
+      ? t('media.compare.freeSampleNote')
       : premium.ok && premium.body?.charged_gems
-        ? `${premium.body.charged_gems} Snow Gems used for the Premium side.`
+        ? t('media.compare.gemsUsedNote', { gems: premium.body.charged_gems })
         : null;
     setCompare({
       prompt,
       free: freeImage,
       premium: premiumImage,
-      freeError: freeImage ? null : String((free.body?.error === 'kids_blocked' ? free.body.details : null) || free.body?.error || free.body?.details || 'Standard did not answer.'),
-      premiumError: premiumImage ? null : String(premium.body?.details || premium.body?.error || 'Premium did not answer.'),
+      freeError: freeImage ? null : String((free.body?.error === 'kids_blocked' ? free.body.details : null) || free.body?.error || free.body?.details || t('media.compare.standardNoAnswer')),
+      premiumError: premiumImage ? null : String(premium.body?.details || premium.body?.error || t('media.compare.premiumNoAnswer')),
       note,
     });
     void fetchProfile();
@@ -980,17 +983,17 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       setPreferredTier('image', which);
       try { trackEvent('ai_compare_keep', 'ai', { feature: 'image', tier: which }); } catch { /* ignore */ }
       toast({
-        title: which === 'premium' ? 'Premium is now your level' : 'Standard is now your level',
+        title: which === 'premium' ? t('media.toast.premiumLevelTitle') : t('media.toast.standardLevelTitle'),
         description: which === 'premium' && premiumTier
-          ? `Saved. Premium images cost ${premiumTier.gems} Snow Gems each; switch back any time.`
-          : 'Saved. Switch to Premium any time from the button next to Generate.',
+          ? t('media.toast.premiumLevelDesc', { gems: premiumTier.gems })
+          : t('media.toast.standardLevelDesc'),
       });
       setCompare(null);
       setGeneratePrompt('');
       setFocusedElement('generate-btn');
       setTimeout(() => galleryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } catch (e) {
-      toast({ title: 'Could not save it', description: e instanceof Error ? e.message : String(e), variant: 'destructive' });
+      toast({ title: t('media.toast.saveFailedTitle'), description: e instanceof Error ? e.message : String(e), variant: 'destructive' });
     }
   };
 
@@ -1006,7 +1009,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       <div className="min-h-screen p-8 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto mb-4" />
-          <p className="text-xl text-blue-200">Loading media assets...</p>
+          <p className="text-xl text-blue-200">{t('media.loading')}</p>
         </div>
       </div>
     );
@@ -1019,13 +1022,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           <div className="flex items-center mb-8">
             <BackButton
               onClick={onBack}
-              label="Back to Home"
+              label={t('media.backToHome')}
               focused={focusedElement === 'back'}
               className="mr-6"
             />
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">Media Manager</h1>
-              <p className="text-xl text-blue-200">Upload and manage backgrounds, icons, and assets</p>
+              <h1 className="text-4xl font-bold text-white mb-2">{t('media.title')}</h1>
+              <p className="text-xl text-blue-200">{t('media.subtitle')}</p>
             </div>
           </div>
         )}
@@ -1033,12 +1036,12 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         {/* AI Generation Section — hidden in the website demo (uploads stay). */}
         {!isDemo() && (
         <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6 mb-6">
-          <h2 className="text-2xl font-bold text-white mb-4">Generate Background with AI</h2>
+          <h2 className="text-2xl font-bold text-white mb-4">{t('media.generate.title')}</h2>
           {kids && (
             <div className="flex items-start rounded-lg bg-emerald-500/15 border border-emerald-300/40 p-3 mb-4">
               <ShieldCheck className="w-5 h-5 text-emerald-300 mr-2 mt-0.5 shrink-0" />
               <div>
-                <div className="font-semibold text-white">{KIDS_IMAGE_TITLE}</div>
+                <div className="font-semibold text-white">{kidsImageTitle()}</div>
                 <p className="text-sm text-emerald-100">{kidsImageNotice(kids)}</p>
               </div>
             </div>
@@ -1049,33 +1052,33 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                 <div className="flex items-center gap-2 mb-2">
                   <Monitor className="w-4 h-4" />
                   <span className="text-sm text-purple-200">
-                    Detected: {screenInfo.width}x{screenInfo.height} ({screenInfo.ratio})
+                    {t('media.generate.detected', { width: screenInfo.width, height: screenInfo.height, ratio: screenInfo.ratio })}
                   </span>
                 </div>
                 <p className="text-sm text-purple-200">
                   {effectiveTier === 'premium' && premiumTier
-                    ? `Premium: ${premiumTier.gems} Snow Gems per image - ${premiumTier.blurb ?? premiumTier.model}`
-                    : `Cost: ${(imageConfig.credits * 0.01).toFixed(2)} Snow Gems - ${imageConfig.description}`}
+                    ? t('media.generate.premiumCost', { gems: premiumTier.gems, model: premiumTier.blurb ?? premiumTier.model })
+                    : t('media.generate.cost', { gems: (imageConfig.credits * 0.01).toFixed(2), quality: t('media.generate.quality') })}
                 </p>
                 {user && profile && (
                   <p className="text-sm text-purple-200">
-                    Your balance: {profile.credits.toFixed(2)} Snow Gems
+                    {t('media.generate.balance', { gems: profile.credits.toFixed(2) })}
                   </p>
                 )}
               </div>
               {!isAuthenticated && (
-                <p className="text-sm text-purple-200 italic">Sign in to save your AI images.</p>
+                <p className="text-sm text-purple-200 italic">{t('media.generate.signInToSave')}</p>
               )}
             </div>
             <div className="flex gap-4">
               <div className="flex-1" data-focus-id="prompt-input">
-                <Label htmlFor="generate-prompt" className="text-white mb-2 block">Describe the background you want</Label>
+                <Label htmlFor="generate-prompt" className="text-white mb-2 block">{t('media.generate.promptLabel')}</Label>
                 <Input
                   id="generate-prompt"
                   ref={promptInputRef}
                   value={generatePrompt}
                   onChange={(e) => setGeneratePrompt(e.target.value)}
-                  placeholder="e.g., A serene mountain landscape at sunset with purple sky"
+                  placeholder={t('media.generate.promptPlaceholder')}
                   className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all ${hasUserNavigated && focusedElement === 'prompt-input' ? 'ring-4 ring-brand-ice' : ''}`}
                   disabled={generating}
                 />
@@ -1090,10 +1093,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   {generating ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Generating...
+                      {t('media.generate.generating')}
                     </>
                   ) : (
-                    'Generate'
+                    t('media.generate.generateBtn')
                   )}
                 </Button>
                 {premiumTier && (
@@ -1102,12 +1105,12 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                     onClick={toggleTier}
                     disabled={generating || comparing}
                     data-focus-id="tier-btn"
-                    title="Switch between Standard and Premium"
+                    title={t('media.generate.tierSwitchTitle')}
                     className={`transition-all ${effectiveTier === 'premium'
                       ? 'text-black border-0 [background:var(--gradient-gold)] hover:brightness-110'
                       : 'bg-white/10 border border-white/30 text-white hover:bg-white/20'} ${getFocusClass('tier-btn')}`}
                   >
-                    {effectiveTier === 'premium' ? `Premium · ${premiumTier.gems} gems` : `Standard · ${(imageConfig.credits * 0.01).toFixed(0)} gem`}
+                    {effectiveTier === 'premium' ? t('media.generate.tierPremiumBtn', { gems: premiumTier.gems }) : t('media.generate.tierStandardBtn', { gems: (imageConfig.credits * 0.01).toFixed(0) })}
                   </Button>
                 )}
                 {compareAvailable && (
@@ -1119,7 +1122,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                     className={`bg-brand-ice/20 border border-brand-ice/50 text-white hover:bg-brand-ice/30 transition-all ${getFocusClass('compare-btn')}`}
                   >
                     {comparing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    See the difference · free once
+                    {t('media.generate.compareBtn')}
                   </Button>
                 )}
               </div>
@@ -1132,7 +1135,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         {compare && (
           <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6 mb-6">
             <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
-              <h2 className="text-2xl font-quicksand font-bold text-white">Standard or Premium?</h2>
+              <h2 className="text-2xl font-quicksand font-bold text-white">{t('media.compare.title')}</h2>
               <p className="text-sm text-brand-ice/80 truncate max-w-full">"{compare.prompt}"</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1140,12 +1143,12 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                 const img = side === 'free' ? compare.free : compare.premium;
                 const err = side === 'free' ? compare.freeError : compare.premiumError;
                 const id = side === 'free' ? 'compare-keep-free' : 'compare-keep-premium';
-                const title = side === 'free' ? 'Standard' : 'Premium';
+                const title = side === 'free' ? t('media.compare.standard') : t('media.compare.premium');
                 return (
                   <div key={side} className={`rounded-2xl overflow-hidden border ${side === 'premium' ? 'border-brand-gold/60' : 'border-white/15'} bg-black/30`}>
                     <div className="aspect-video bg-black/50 flex items-center justify-center">
                       {img ? (
-                        <img src={img} alt={`${title} result`} className="w-full h-full object-cover" />
+                        <img src={img} alt={t('media.compare.resultAlt', { tier: title })} className="w-full h-full object-cover" />
                       ) : comparing ? (
                         <Loader2 className="w-8 h-8 animate-spin text-brand-gold" />
                       ) : (
@@ -1156,7 +1159,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                       <div>
                         <p className={`font-quicksand font-bold ${side === 'premium' ? 'text-brand-gold' : 'text-white'}`}>{title}</p>
                         <p className="text-xs text-white/60">
-                          {side === 'premium' && premiumTier ? `${premiumTier.gems} gems per image after this` : `${(imageConfig.credits * 0.01).toFixed(0)} gem per image`}
+                          {side === 'premium' && premiumTier ? t('media.compare.premiumAfter', { gems: premiumTier.gems }) : t('media.compare.standardPer', { gems: (imageConfig.credits * 0.01).toFixed(0) })}
                         </p>
                       </div>
                       <Button
@@ -1168,7 +1171,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                           ? 'text-black border-0 [background:var(--gradient-gold)] hover:brightness-110'
                           : 'bg-white/15 border border-white/30 text-white hover:bg-white/25'} ${getFocusClass(id)}`}
                       >
-                        Keep {title}
+                        {t('media.compare.keepBtn', { tier: title })}
                       </Button>
                     </div>
                   </div>
@@ -1177,7 +1180,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
               <p className="text-sm text-brand-ice/80">
-                {compare.note ?? 'Standard costs its normal gems. Premium here is your free sample.'}
+                {compare.note ?? t('media.compare.defaultNote')}
               </p>
               <Button
                 type="button"
@@ -1186,7 +1189,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                 data-focus-id="compare-close"
                 className={`border-white/25 bg-white/5 text-white ${getFocusClass('compare-close')}`}
               >
-                Close
+                {t('common.close')}
               </Button>
             </div>
           </Card>
@@ -1194,19 +1197,19 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
         {/* Upload Section */}
         <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 mb-8">
-          <h2 className="text-2xl font-bold text-white mb-4">Upload New Asset</h2>
+          <h2 className="text-2xl font-bold text-white mb-4">{t('media.upload.title')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-4">
             <div data-focus-id="asset-type">
-              <Label htmlFor="asset-type" className="text-white mb-2 block">Asset Type</Label>
+              <Label htmlFor="asset-type" className="text-white mb-2 block">{t('media.upload.typeLabel')}</Label>
               <Select value={uploadForm.assetType} onValueChange={(value) => setUploadForm({...uploadForm, assetType: value as MediaAsset['asset_type']})}>
                 <SelectTrigger className={`bg-white/10 border-white/20 text-white transition-all rounded-md ${focusedElement === 'asset-type' ? 'ring-4 ring-brand-ice scale-105' : ''}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-600">
-                  <SelectItem value="background">Background</SelectItem>
-                  <SelectItem value="icon">Icon</SelectItem>
-                  <SelectItem value="logo">Logo</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="background">{t('media.upload.types.background')}</SelectItem>
+                  <SelectItem value="icon">{t('media.upload.types.icon')}</SelectItem>
+                  <SelectItem value="logo">{t('media.upload.types.logo')}</SelectItem>
+                  <SelectItem value="other">{t('media.upload.types.other')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1220,7 +1223,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
               className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all rounded-md ${focusedElement === 'file-input' ? 'ring-4 ring-brand-ice scale-105' : ''}`}
             >
               {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-              Choose File
+              {t('media.upload.chooseFileBtn')}
             </Button>
             {/* tabIndex=-1: keep the hidden file input out of native tab order.
                 Otherwise, when generate-btn becomes disabled after a successful
@@ -1247,7 +1250,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
             focusable with a bright brand-ice highlight ring. */}
         <div ref={galleryRef} className="space-y-4">
           <h3 className="text-2xl font-bold text-white mb-4">
-            Your Assets {galleryItems.length > 0 && (
+            {t('media.gallery.title')} {galleryItems.length > 0 && (
               <span className="text-base font-normal text-blue-200">
                 ({galleryItems.length})
               </span>
@@ -1269,7 +1272,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   {/* Active indicator badge */}
                   {item.isActive && (
                     <div className="absolute top-2 right-2 z-10 bg-green-500 text-white text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded shadow">
-                      Background
+                      {t('media.gallery.backgroundBadge')}
                     </div>
                   )}
 
@@ -1285,7 +1288,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
                   <h4 className="text-sm font-semibold text-foreground mb-1 truncate">{item.name}</h4>
                   <p className="text-xs text-muted-foreground mb-2">
-                    {item.kind === 'anon' ? 'Session only · sign in to save' : `${item.asset.asset_type} · ${item.asset.section}`}
+                    {item.kind === 'anon' ? t('media.gallery.sessionOnly') : `${t(`media.upload.types.${item.asset.asset_type}`, { defaultValue: item.asset.asset_type })} · ${item.asset.section}`}
                   </p>
 
                   <div className="flex items-center justify-between gap-2">
@@ -1301,9 +1304,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                       } ${isToggleFocused ? 'ring-4 ring-brand-ice scale-105' : ''}`}
                     >
                       {item.isActive ? (
-                        <><Eye className="w-3 h-3 mr-1" /> Active</>
+                        <><Eye className="w-3 h-3 mr-1" /> {t('media.gallery.activeBtn')}</>
                       ) : (
-                        <><EyeOff className="w-3 h-3 mr-1" /> Activate</>
+                        <><EyeOff className="w-3 h-3 mr-1" /> {t('media.gallery.activateBtn')}</>
                       )}
                     </Button>
 
@@ -1314,7 +1317,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                       data-focus-id={`asset-delete-${item.id}`}
                       className={`transition-all ${isDeleteFocused ? 'ring-4 ring-brand-ice scale-105' : ''}`}
                       onClick={(e) => { e.stopPropagation(); handleDeleteItem(item); }}
-                      aria-label={`Delete ${item.name}`}
+                      aria-label={t('media.gallery.deleteAria', { name: item.name })}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -1329,8 +1332,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         {assets.length === 0 && anonGallery.length === 0 && (
           <div className="text-center py-12">
             <Upload className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-300 mb-2">No assets uploaded yet</h3>
-            <p className="text-slate-400">Upload your first image to get started</p>
+            <h3 className="text-xl font-bold text-slate-300 mb-2">{t('media.gallery.emptyTitle')}</h3>
+            <p className="text-slate-400">{t('media.gallery.emptyText')}</p>
           </div>
         )}
       </div>
@@ -1344,14 +1347,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       <AlertDialog open={showAnonWarning} onOpenChange={setShowAnonWarning}>
         <AlertDialogContent className="bg-slate-900 border-blue-500/40 text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Heads up — you're not signed in</AlertDialogTitle>
+            <AlertDialogTitle className="text-white">{t('media.anon.title')}</AlertDialogTitle>
             <AlertDialogDescription className="text-blue-100">
-              This image won't be saved to your account. Sign in to keep your AI-generated images permanently.
+              {t('media.anon.body')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">
-              Cancel
+              {t('common.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               className="bg-blue-600 text-white hover:bg-blue-700"
@@ -1360,7 +1363,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                 navigate('/auth');
               }}
             >
-              Sign in
+              {t('media.anon.signIn')}
             </AlertDialogAction>
             <AlertDialogAction
               className="bg-purple-600 text-white hover:bg-purple-700"
@@ -1369,7 +1372,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                 handleGenerateImage(true);
               }}
             >
-              Generate anyway
+              {t('media.anon.generateAnywayBtn')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

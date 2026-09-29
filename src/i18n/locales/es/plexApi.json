@@ -17,11 +17,11 @@
     "screenFormat": {
       "fit": {
         "label": "Ajustar",
-        "hint": "Imagen completa, forma correcta"
+        "hint": "Imagen completa, con su forma correcta"
       },
       "zoom": {
         "label": "Zoom",
-        "hint": "Llena la pantalla, bordes recortados"
+        "hint": "Llena la pantalla, se recortan los bordes"
       },
       "wide": {
         "label": "Ancho 16:9",
@@ -29,7 +29,7 @@
       },
       "fill": {
         "label": "Estirar",
-        "hint": "Llena la pantalla, sin respetar la forma"
+        "hint": "Llena la pantalla, ignora la forma"
       }
     }
   }

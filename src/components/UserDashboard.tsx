@@ -27,6 +27,7 @@ import ClaimAccountCard, { type ClaimCloseOutcome } from '@/components/livetv/Cl
 import { claimDoneKey, isClaimDone } from '@/lib/accountClaim';
 import { useBillingEnabled } from '@/hooks/useBillingEnabled';
 import { signOutPlayer } from '@/lib/playerSignOut';
+import { serverDisplayName } from '@/lib/xtream';
 
 // Billing account (plans, renewals, trial). Behind the billing_account flag.
 const BillingAccountScreen = lazy(() => import('@/components/billing/BillingAccountScreen'));
@@ -392,7 +393,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <h1 className="text-3xl font-quicksand font-bold text-white mb-2 text-shadow-strong">{t('account.dashboard.title')}</h1>
             <p className="text-xl text-brand-ice font-nunito">
               {playerAccount
-                ? t('account.dashboard.signedInAs', { server: playerAccount.serverLabel, username: playerAccount.username })
+                ? t('account.dashboard.signedInAs', { server: serverDisplayName(playerAccount.serverLabel), username: playerAccount.username })
                 : t('account.dashboard.notSignedIn')}
             </p>
           </div>

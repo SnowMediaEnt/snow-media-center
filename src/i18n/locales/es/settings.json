@@ -9,7 +9,7 @@
       "alerts": "Alertas de apps",
       "ai": "IA",
       "profiles": "Perfiles",
-      "remote": "Control celular"
+      "remote": "Control desde el celular"
     },
     "mediaManagerHeading": "Gestor de medios",
     "contentBar": {
@@ -24,7 +24,7 @@
     },
     "language": {
       "title": "Idioma",
-      "description": "Elige el idioma de la aplicación. La cobertura de traducciones aún se está ampliando."
+      "description": "Elige el idioma de la app."
     },
     "aiTier": {
       "titleFree": "Snow AI: Gratis",

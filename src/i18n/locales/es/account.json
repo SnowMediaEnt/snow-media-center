@@ -6,14 +6,14 @@
       "signedInAs": "Sesión iniciada en {{server}} como {{username}}",
       "notSignedIn": "Aún no has iniciado sesión.",
       "playerTitle": "Cuenta del reproductor",
-      "playerDesc": "Tu acceso de streaming de Dreamstreams / Vibez, el mismo que usa el reproductor.",
-      "signInDsBtn": "Iniciar sesión con Dreamstreams / Vibez",
+      "playerDesc": "Tu acceso de streaming de DreamStreams / Vibez, el mismo que usa el reproductor.",
+      "signInDsBtn": "Iniciar sesión con DreamStreams / Vibez",
       "remindersLinked": "Los recordatorios están vinculados a {{email}}",
       "remindersLinkedNoEmail": "Los recordatorios están vinculados a tu correo",
       "linkEmailBtn": "Vincular correo para avisos de renovación",
       "billingTitle": "Facturación y suscripción",
-      "billingDescGuest": "Consulta tu plan de Dreamstreams, renueva, compra un plan, canjea un código de regalo o vincula una cuenta de facturación a este dispositivo.",
-      "billingDesc": "Tu plan de Dreamstreams: renueva, compra un plan, canjea un código de regalo o vincula una cuenta de facturación a este dispositivo.",
+      "billingDescGuest": "Consulta tu plan de DreamStreams, renueva, compra un plan, canjea un código de regalo o vincula una cuenta de facturación a este dispositivo.",
+      "billingDesc": "Tu plan de DreamStreams: renueva, compra un plan, canjea un código de regalo o vincula una cuenta de facturación a este dispositivo.",
       "linkBillingBtn": "Vincular cuenta de facturación",
       "openBillingBtn": "Abrir cuenta de facturación",
       "websiteTitle": "Cuenta del sitio web",
@@ -43,7 +43,7 @@
       "accountStats": "Estadísticas de la cuenta",
       "memberSince": "Miembro desde:",
       "totalGemsUsed": "Total de Snow Gems usados:",
-      "playerDescSignedOut": "Inicia sesión con tu acceso de Dreamstreams o Vibez para ver aquí tu cuenta de streaming. Esto también inicia sesión en el reproductor.",
+      "playerDescSignedOut": "Inicia sesión con tu acceso de DreamStreams o Vibez para ver aquí tu cuenta de streaming. Esto también inicia sesión en el reproductor.",
       "devicesServicesTitle": "Mis dispositivos y servicios",
       "editBtn": "Editar",
       "devices": "Dispositivos",
@@ -131,6 +131,16 @@
       "freeSample": "Esa fue tu muestra Premium gratis.",
       "gemsUsed": "{{amount}} Snow Gems usados en Premium.",
       "noCharge": "Premium, sin cargo."
+    },
+    "expiry": {
+      "inDays_one": "vence en {{count}} día",
+      "inDays_many": "vence en {{count}} días",
+      "inDays_other": "vence en {{count}} días",
+      "tomorrow": "vence mañana",
+      "today": "vence hoy",
+      "expiredAgo_one": "venció hace {{count}} día",
+      "expiredAgo_many": "venció hace {{count}} días",
+      "expiredAgo_other": "venció hace {{count}} días"
     }
   }
 }

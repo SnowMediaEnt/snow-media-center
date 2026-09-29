@@ -36,7 +36,11 @@ interface Chip {
 const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
   const { t } = useTranslation();
   // The names in lib/theme and lib/liveLayout stay the fallback; the screen shows the translated one by id.
-  const chipLabel = (chip: Chip) => t(`liveAccount.appearance.${chip.kind}.${chip.id}`, { defaultValue: chip.label });
+  const chipLabel = (chip: Chip) => {
+    // Layout names are shared with the Live TV layout chooser (live.layouts.*).
+    const layout = chip.kind === 'liveLayout' ? LIVE_LAYOUTS.find(l => l.id === chip.id) : undefined;
+    return layout ? t(layout.labelKey) : t(`liveAccount.appearance.${chip.kind}.${chip.id}`, { defaultValue: chip.label });
+  };
   const [theme, setTheme] = useTheme();
   const liveLayout = useLiveLayout();
   const liveLayoutRef = useRef(liveLayout);
@@ -213,7 +217,7 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
   ];
   const layoutDesc = LIVE_LAYOUTS.find(l => l.id === liveLayout);
   const groupHints: Record<number, string> = {
-    0: `${layoutDesc ? t(`liveAccount.appearance.liveLayoutDesc.${layoutDesc.id}`, { defaultValue: layoutDesc.desc }) : ''}${onTryLayout ? ` · ${t('liveAccount.appearance.tryHint')}` : ''}`,
+    0: `${layoutDesc ? t(layoutDesc.descKey) : ''}${onTryLayout ? ` · ${t('liveAccount.appearance.tryHint')}` : ''}`,
   };
 
   return (

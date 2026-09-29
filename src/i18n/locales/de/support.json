@@ -101,11 +101,13 @@
       "loadError": "Fehler beim Laden der Videos: {{error}}",
       "empty": "Keine Videos gefunden. Lade Videos in dein Vimeo-Konto hoch, um sie hier zu sehen.",
       "emptyDevice": "Keine Geräte-Videos gefunden. Tagge deine Videos mit: x96, FireTV oder Older",
-      "emptyService": "Keine Service-Videos gefunden. Tagge deine Videos mit: Dreamstreams, Vibez TV, Plex oder Support",
+      "emptyService": "Keine Service-Videos gefunden. Tagge deine Videos mit: DreamStreams, Vibez TV, Plex oder Support",
       "emptyAll": "Keine Videos in deinem Vimeo-Konto gefunden.",
       "closeHint": "ESC/Zurück zum Schließen | P/K für Wiedergabe/Pause",
       "closeBtn": "✕ Schließen",
-      "frameTitle": "Support-Video"
+      "frameTitle": "Support-Video",
+      "fetchFailed": "Videos konnten nicht geladen werden",
+      "timedOut": "Das Laden hat zu lange gedauert. Versuche es erneut."
     },
     "mail": {
       "heading": "Beiträge von Snow Media Entertainment",

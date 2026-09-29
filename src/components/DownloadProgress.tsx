@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem } from '@capacitor/filesystem';
 import { downloadApkToCache, generateFileName, cleanupOldApks } from '@/utils/downloadApk';
-import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
+import { AppManager, isWebUnsupportedError, webUnsupportedMsg } from '@/capacitor/AppManager';
 import { trackAppLaunch, trackEvent } from '@/lib/analytics';
 
 interface DownloadProgressProps {
@@ -257,7 +257,7 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
       console.error('Install error:', error);
       const rawMsg = error instanceof Error ? error.message : String(error ?? '');
       const friendly = isWebUnsupportedError(error)
-        ? WEB_UNSUPPORTED_MSG
+        ? webUnsupportedMsg()
         : (rawMsg || t('updater.download.installGenericFail'));
 
       // Detect "needs permission" rejection from the native plugin.

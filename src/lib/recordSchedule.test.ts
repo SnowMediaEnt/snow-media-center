@@ -9,7 +9,7 @@ import vectors from './recordSchedule.vectors.json';
 import {
   AFTER_CHOICES, BEFORE_CHOICES, DEFAULT_PADDING, PADDING_KEY, busyFromJobs, clockLabel, conflictMessage, estimateBytes,
   formatHm, loadPadding, mergeAdjacent, minutesUntil, paddedLabel, paddedWindow, planAtFire, programmeChoices,
-  programmeMode, programmeTimeUtcMs, recordingCap, savePadding, scheduleConflict, spaceWarning, updateGuardNote,
+  programmeMode, programmeTimeUtcMs, reasonText, recordingCap, savePadding, scheduleConflict, spaceWarning, updateGuardNote,
   type FireKind, type SchedLike,
 } from './recordSchedule';
 import { buildNativeLiveUrl } from './xtream';
@@ -119,8 +119,10 @@ describe('what the dialog shows', () => {
   });
 
   it('the padded times and the space estimate read plainly', () => {
-    expect(paddedLabel(at(19, 58), at(21, 5))).toBe('19:58 → 21:05');
-    expect(clockLabel(at(7, 5))).toBe('07:05');
+    // 12-hour clock in every language (owner's choice); Intl may put a narrow space before AM/PM.
+    const plain = (s: string) => s.replace(/\s/g, ' ');
+    expect(plain(paddedLabel(at(19, 58), at(21, 5)))).toBe('7:58 PM → 9:05 PM');
+    expect(plain(clockLabel(at(7, 5)))).toBe('7:05 AM');
     expect(formatHm(67)).toBe('1 h 07');
     expect(formatHm(45)).toBe('45 min');
     expect(formatHm(120)).toBe('2 h 00');
@@ -134,8 +136,8 @@ describe('what the dialog shows', () => {
 
   it('the conflict message names the time and the count', () => {
     const c = { atMs: at(20), count: 2 };
-    expect(conflictMessage(c)).toBe('You already have 2 recordings at 20:00. Cancel one first.');
-    expect(conflictMessage({ atMs: at(20), count: 1 })).toBe('You already have 1 recording at 20:00. Cancel one first.');
+    expect(conflictMessage(c).replace(/\s/g, ' ')).toBe('You already have 2 recordings at 8:00 PM. Cancel one first.');
+    expect(conflictMessage({ atMs: at(20), count: 1 }).replace(/\s/g, ' ')).toBe('You already have 1 recording at 8:00 PM. Cancel one first.');
   });
 
   it('the limit is two, or the plan if it is smaller; running recordings count as busy', () => {
@@ -169,5 +171,22 @@ describe("the updater's warning", () => {
 
   it('nothing at stake gives null', () => {
     expect(updateGuardNote([], [], now)).toBeNull();
+  });
+});
+
+describe('reasonText', () => {
+  it('shows the stored English reasons in the app language, and unknown ones as they came', async () => {
+    const i18n = (await import('@/i18n')).default;
+    expect(reasonText('Not enough free space.')).toBe('Not enough free space.');
+    expect(reasonText('3 recordings were already running.')).toBe('3 recordings were already running.');
+    await i18n.changeLanguage('es');
+    try {
+      expect(reasonText('Not enough free space.')).toBe('No hay suficiente espacio libre.');
+      expect(reasonText('The drive is full')).toBe('La unidad está llena');
+      expect(reasonText('1 recording was already running.')).toBe('Ya había 1 grabación en curso.');
+      expect(reasonText('Something new')).toBe('Something new');
+    } finally {
+      await i18n.changeLanguage('en');
+    }
   });
 });

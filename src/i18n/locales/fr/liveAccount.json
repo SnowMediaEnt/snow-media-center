@@ -81,16 +81,6 @@
       "groupTextColor": "Couleur du texte",
       "tryHint": "Choisissez-en un autre pour l'essayer sur l'écran TV en direct.",
       "resetBtn": "Réinitialiser",
-      "liveLayout": {
-        "classic": "Classique",
-        "compact": "Compact",
-        "grid": "Vibez"
-      },
-      "liveLayoutDesc": {
-        "classic": "Catégories à côté d'une longue liste de chaînes, aperçu au-dessus",
-        "compact": "Liste de chaînes fine, catégories à un appui, grand aperçu",
-        "grid": "Catégories à côté d'un mur de logos de chaînes, OK lance la lecture (sans aperçu)"
-      },
       "fontScale": {
         "sm": "Petit",
         "md": "Moyen",

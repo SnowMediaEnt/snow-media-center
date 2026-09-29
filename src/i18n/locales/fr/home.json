@@ -110,6 +110,9 @@
       "scrollHint": "▲ ▼ défiler · OK fermer",
       "closeHint": "OK fermer",
       "letsGoBtn": "C'est parti"
+    },
+    "exit": {
+      "pressHome": "Appuyez sur le bouton d'accueil pour quitter"
     }
   }
 }

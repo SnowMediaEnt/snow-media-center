@@ -70,7 +70,6 @@ interface AiCall { name: string; arguments: Record<string, unknown> }
 
 // The quick commands are English only (other languages go to the assistant), so
 // the examples stay as they are said.
-const EXAMPLES = ['"Put on ESPN"', '"Watch The Office"', '"Open YouTube"', '"Go to the Guide"', '"Search for Batman"'];
 
 const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; blocked?: boolean }) => {
   const { t } = useTranslation();
@@ -445,7 +444,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
               <>
                 <div className="text-2xl font-bold">{t('voice.host.listening')}</div>
                 <div className="mt-1 text-base text-white/70">
-                  {kidsLevel() ? kidsAiShort() : t('voice.host.tryExamples', { examples: EXAMPLES.join(' · ') })}
+                  {kidsLevel() ? kidsAiShort() : t('voice.host.tryExamples', { examples: t('voice.host.examples') })}
                 </div>
               </>
             )}
