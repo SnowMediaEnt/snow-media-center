@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { AlertTriangle, Info, AlertOctagon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +31,7 @@ const severityStyles: Record<
 };
 
 const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAlertDialogProps) => {
+  const { t } = useTranslation();
   const dismissRef = useRef<HTMLButtonElement>(null);
   const continueRef = useRef<HTMLButtonElement>(null);
   const [focused, setFocused] = useState<'dismiss' | 'continue'>('continue');
@@ -91,7 +93,7 @@ const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAler
             <DialogTitle className="text-2xl text-white">{alert.title}</DialogTitle>
           </div>
           <DialogDescription className="text-slate-300 text-base whitespace-pre-wrap">
-            {appName ? <span className="block mb-2 text-slate-400 text-sm">Heads up about <strong>{appName}</strong>:</span> : null}
+            {appName ? <span className="block mb-2 text-slate-400 text-sm"><Trans i18nKey="popups.appAlert.headsUp" values={{ name: appName }} components={{ 1: <strong /> }} /></span> : null}
             {alert.message}
           </DialogDescription>
         </DialogHeader>
@@ -104,7 +106,7 @@ const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAler
               focused === 'dismiss' ? 'ring-4 ring-brand-ice scale-105' : ''
             }`}
           >
-            Dismiss
+            {t('popups.appAlert.dismissBtn')}
           </Button>
           <Button
             ref={continueRef}
@@ -112,7 +114,7 @@ const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAler
             onClick={handleContinue}
             className={focused === 'continue' ? 'ring-4 ring-brand-ice scale-105' : ''}
           >
-            Continue Anyway
+            {t('popups.appAlert.continueAnywayBtn')}
           </Button>
         </DialogFooter>
       </DialogContent>

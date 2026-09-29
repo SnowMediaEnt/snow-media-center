@@ -7,7 +7,9 @@
       "ui": "UI",
       "updates": "Updates",
       "alerts": "App Alerts",
-      "ai": "AI"
+      "ai": "AI",
+      "profiles": "Profiles",
+      "remote": "Phone Remote"
     },
     "mediaManagerHeading": "Media Manager",
     "contentBar": {
@@ -23,6 +25,66 @@
     "language": {
       "title": "Language",
       "description": "Choose the app language. Translation coverage is still being expanded."
+    },
+    "aiTier": {
+      "titleFree": "Snow AI: Free",
+      "titlePremium": "Snow AI: Premium",
+      "descPremium": "Free is included. Premium uses the most powerful model for AI Chat and voice commands — {{gems}} Snow Gems a message. Switch any time to compare.",
+      "descSignIn": "Free is included. Sign in to try Premium, the most powerful model (paid with Snow Gems).",
+      "aria": "Snow AI Premium"
+    },
+    "dashboardSize": {
+      "title": "Large dashboard",
+      "description": "Off, the Dashboard fits on one screen. On, everything is bigger and easier to read from the couch, and the page scrolls."
+    },
+    "postNotify": {
+      "title": "Post notifications",
+      "description": "On, a new post from Snow Media shows a count on the Support card and a heads-up on the home screen. Off, it still arrives under Support → Posts, quietly."
+    },
+    "deviceAlerts": {
+      "title": "Alerts on this device",
+      "description": "On by default. Service notices pop up on screen even when Snow Media Center is closed — press OK on one to open the app, or dismiss it and it stays gone. Turn this off to keep alerts inside the app only.",
+      "blocked": "Notifications are switched off for this app in your device settings, so nothing will show until you turn them back on there."
+    },
+    "remote": {
+      "title": "Use your phone as a remote",
+      "step1": "Scan the QR code with your phone's camera, or go to <1>snowmediaent.com/remote</1>",
+      "step2": "Enter the code shown here, then choose Allow on the TV",
+      "step3": "Move, select, go back, play/pause, type and talk — right from your phone",
+      "connected_one": "📱 {{count}} phone connected now.",
+      "connected_other": "📱 {{count}} phones connected now.",
+      "paired": "A phone is paired — open snowmediaent.com/remote on it to use it.",
+      "none": "No phone paired yet.",
+      "stayPaired": "Paired phones stay paired; each code works once.",
+      "typingHintTitle": "Show the QR code when typing",
+      "typingHintDesc": "A small card offers your phone's keyboard whenever a text box is open on the TV.",
+      "unpairBtn": "Unpair all phones"
+    },
+    "profiles": {
+      "kidsTag": "Kids",
+      "pinTag": "PIN",
+      "watchingTag": "watching",
+      "switchTitle": "Switch who's watching",
+      "switchDesc": "Pick another profile. Each one has its own Continue Watching, My List, favourites and home screen.",
+      "manageTitle": "Add or edit profiles",
+      "manageDesc": "Add someone (up to 8 profiles), make a Kids profile, rename, change the colour, or add a PIN."
+    },
+    "toast": {
+      "aiSignInTitle": "Sign in for Premium",
+      "aiSignInDesc": "Snow AI Premium uses Snow Gems from your account.",
+      "notifBlockedTitle": "Notifications are blocked",
+      "notifBlockedDesc": "Allow notifications for Snow Media Center in your device settings, then try again.",
+      "alertsOnTitle": "Alerts on for this device",
+      "alertsOffTitle": "Alerts off for this device",
+      "alertsOnDesc": "Service notices will pop up even when Snow Media Center is closed.",
+      "alertsOffDesc": "Alerts will only show inside the app.",
+      "alertsFailTitle": "Could not change alerts",
+      "playerOnTitle": "Player enabled",
+      "playerOffTitle": "Player disabled",
+      "playerDesc": "Change applied to all devices.",
+      "updateFailTitle": "Could not update",
+      "unpairedTitle": "Phones unpaired",
+      "unpairedDesc": "Pair again with the new code."
     }
   }
 }

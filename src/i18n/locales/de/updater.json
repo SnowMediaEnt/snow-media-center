@@ -1,0 +1,93 @@
+{
+  "updater": {
+    "shared": {
+      "guardHint": "Wähle Später, um die Aufnahme zuerst abzuschließen.",
+      "laterBtn": "Später",
+      "anywayBtn": "Trotzdem updaten"
+    },
+    "panel": {
+      "title": "App-Updates",
+      "currentVersion": "Aktuelle Version:",
+      "availableTitle": "Update verfügbar",
+      "availableVersion": "Verfügbare Version:",
+      "releaseDate": "Veröffentlichung:",
+      "changes": "Änderungen:",
+      "checkingBtn": "Suche läuft...",
+      "checkBtn": "Nach Updates suchen",
+      "downloadBtn": "v{{version}} herunterladen"
+    },
+    "toast": {
+      "availableTitle": "Update verfügbar",
+      "availableDesc": "Version {{version}} ist verfügbar",
+      "noUpdatesTitle": "Keine Updates",
+      "noUpdatesDesc": "Du hast die neueste Version",
+      "checkFailedTitle": "Update-Suche fehlgeschlagen",
+      "unknownError": "Unbekannter Fehler",
+      "mismatchTitle": "Abweichende Version",
+      "mismatchDesc": "Der heruntergeladene APK ist v{{version}}. Installer wird geöffnet…",
+      "cachedTitle": "Gespeichertes Update wird verwendet",
+      "downloadedTitle": "Update heruntergeladen",
+      "openingInstallerDesc": "Android-Installer für v{{version}} wird geöffnet…",
+      "installerOpenedTitle": "Installer geöffnet",
+      "installerOpenedDesc": "Wenn Android fertig ist, öffne Snow Media Center erneut, um die neue Version zu prüfen.",
+      "downloadStartedTitle": "Download gestartet",
+      "downloadStartedDesc": "Download von Version {{version}} gestartet",
+      "downloadFailedTitle": "Download fehlgeschlagen",
+      "tryAgain": "Bitte versuche es erneut"
+    },
+    "prompt": {
+      "downloadingTitle": "Update wird heruntergeladen…",
+      "downloadingDesc": "Snow Media Center v{{version}} wird im Hintergrund heruntergeladen.",
+      "failedTitle": "Update fehlgeschlagen",
+      "failedDesc": "Bitte versuche es später erneut",
+      "title": "Update verfügbar — v{{version}}",
+      "ready": "Bereit zur Installation. Das Update wurde bereits heruntergeladen.",
+      "readySized": "Bereit zur Installation ({{size}}). Das Update wurde bereits heruntergeladen.",
+      "whatsNew": "Neuerungen",
+      "installingBtn": "Installer wird geöffnet…",
+      "updateNowBtn": "Jetzt updaten"
+    },
+    "download": {
+      "downloading": "Wird heruntergeladen...",
+      "pleaseWait": "Bitte warten",
+      "complete": "Download abgeschlossen!",
+      "sizeDownloaded": "{{size}} heruntergeladen",
+      "navHint": "Mit ↑↓ navigieren, mit Enter auswählen",
+      "installNowBtn": "Jetzt installieren",
+      "installLaterBtn": "Später (Download löschen)",
+      "installing": "Wird installiert...",
+      "followPrompts": "Folge den Anweisungen auf deinem Gerät",
+      "started": "Installation gestartet!",
+      "checkScreen": "Achte auf die Installationsabfrage auf dem Bildschirm",
+      "openAppBtn": "App öffnen",
+      "failed": "Download fehlgeschlagen",
+      "webOnly": "Downloads funktionieren nur auf Android-Geräten",
+      "genericFail": "Download fehlgeschlagen",
+      "installGenericFail": "APK konnte nicht installiert werden",
+      "installErrorTitle": "Installationsfehler",
+      "noFilePath": "Kein Dateipfad verfügbar",
+      "startedTitle": "Installation gestartet",
+      "installerOpened": "Installer von {{name}} geöffnet",
+      "permissionTitle": "Berechtigung nötig",
+      "installFailedTitle": "Installation fehlgeschlagen",
+      "permissionDesc": "Aktiviere „Unbekannte Apps installieren“ für Snow Media Center und tippe dann erneut auf Jetzt installieren.",
+      "launchFailedTitle": "Start fehlgeschlagen",
+      "launchFailedDesc": "App konnte nicht geöffnet werden"
+    },
+    "errors": {
+      "invalidData": "Ungültige Update-Daten erhalten",
+      "invalidInfo": "Ungültige Update-Informationen",
+      "androidOnly": "APK-Downloads sind nur auf Android-Geräten möglich",
+      "noPackageName": "Der APK hat keinen Paketnamen",
+      "notInstallable": "Der Update-Server hat keinen installierbaren APK geliefert. {{detail}} Öffne {{url}} in einem Browser – wenn dort die App heruntergeladen wird, behandelt der Server die Anfrage dieses Geräts anders (Hotlink-Schutz oder Bot-Regel).",
+      "wrongPackage": "Der heruntergeladene APK ist für {{apk}}, nicht für {{installed}}",
+      "downloadIncomplete": "Download unvollständig: {{got}} von {{expected}} erhalten. Prüfe deine Verbindung und versuche es erneut.",
+      "failedNoData": "Download fehlgeschlagen: keine Daten empfangen (erwartet: {{expected}}). {{detail}}",
+      "failedDropped": "Download fehlgeschlagen: Verbindung bei {{written}} von {{expected}} ({{percent}} %) abgebrochen. {{detail}}",
+      "failedAfter": "Download nach {{written}} fehlgeschlagen. {{detail}}",
+      "failedPlain": "Download fehlgeschlagen: {{detail}}",
+      "nativeError": "Nativer Download-Fehler",
+      "headStatus": "(der Server antwortete auch mit HTTP {{status}} auf eine HEAD-Anfrage für diese URL)"
+    }
+  }
+}

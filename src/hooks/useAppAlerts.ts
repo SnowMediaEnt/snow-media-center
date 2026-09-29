@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { supabase } from '@/integrations/supabase/client';
 import { useMyUserServices, daysUntil, expiryState, type UserService } from '@/hooks/useUserServices';
 import { setPausableInterval } from '@/utils/pausableInterval';
@@ -24,27 +26,27 @@ export interface AppAlert {
 const buildServiceAlert = (service: UserService, app: string): AppAlert => {
   const d = daysUntil(service.expiration_date);
   const state = expiryState(d);
-  const name = service.service_name || service.service_type || 'Your service';
-  let title = 'Service expiring soon';
-  let message = '';
+  const name = service.service_name || service.service_type || i18n.t('popups.serviceAlert.yourService');
+  let title: string;
+  let message: string;
   let severity: AppAlert['severity'] = state.severity;
 
   if (d === null) {
-    title = 'Service status unknown';
-    message = `${name}: no expiration date set. Open Dashboard → Edit to update it.`;
+    title = i18n.t('popups.serviceAlert.unknownTitle');
+    message = i18n.t('popups.serviceAlert.unknownMsg', { name });
     severity = 'info';
   } else if (d < 0) {
-    title = 'Service expired';
-    message = `${name} ${state.label}. Renew before continuing.`;
+    title = i18n.t('popups.serviceAlert.expiredTitle');
+    message = i18n.t('popups.serviceAlert.expiredMsg', { name, count: Math.abs(d) });
   } else if (d === 0) {
-    title = 'Service expires today';
-    message = `${name} ${state.label}. Renew to avoid interruption.`;
+    title = i18n.t('popups.serviceAlert.todayTitle');
+    message = i18n.t('popups.serviceAlert.todayMsg', { name });
   } else if (d === 1) {
-    title = 'Service expires tomorrow';
-    message = `${name} ${state.label}. Renew it from Dashboard before it lapses.`;
+    title = i18n.t('popups.serviceAlert.tomorrowTitle');
+    message = i18n.t('popups.serviceAlert.tomorrowMsg', { name });
   } else {
-    title = `Service ${state.label}`;
-    message = `${name} ${state.label}. Renew it from Dashboard before it lapses.`;
+    title = i18n.t('popups.serviceAlert.soonTitle', { count: d });
+    message = i18n.t('popups.serviceAlert.soonMsg', { name, count: d });
   }
 
   return {
@@ -71,6 +73,9 @@ export const useAppAlerts = () => {
   const [alerts, setAlerts] = useState<AppAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const { services: userServices } = useMyUserServices();
+  // These alerts are written here, not by the Hub: written again when the language changes.
+  const { i18n: i18nInstance } = useTranslation();
+  const language = i18nInstance.language;
 
   const fetchAlerts = useCallback(async () => {
     try {
@@ -134,7 +139,9 @@ export const useAppAlerts = () => {
       }
     }
     return out;
-  }, [userServices]);
+    // `language` is not read inside: it makes the texts be written again in the new language.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userServices, language]);
 
   const getAlertForApp = useCallback(
     (appName: string): AppAlert | null => {

@@ -1,0 +1,93 @@
+{
+  "updater": {
+    "shared": {
+      "guardHint": "Choisissez Plus tard pour terminer d'abord l'enregistrement.",
+      "laterBtn": "Plus tard",
+      "anywayBtn": "Installer quand même"
+    },
+    "panel": {
+      "title": "Mises à jour de l'appli",
+      "currentVersion": "Version actuelle :",
+      "availableTitle": "Mise à jour disponible",
+      "availableVersion": "Version disponible :",
+      "releaseDate": "Date de sortie :",
+      "changes": "Modifications :",
+      "checkingBtn": "Vérification...",
+      "checkBtn": "Chercher des mises à jour",
+      "downloadBtn": "Télécharger v{{version}}"
+    },
+    "toast": {
+      "availableTitle": "Mise à jour disponible",
+      "availableDesc": "La version {{version}} est disponible",
+      "noUpdatesTitle": "Aucune mise à jour",
+      "noUpdatesDesc": "Vous avez la dernière version",
+      "checkFailedTitle": "Échec de la recherche de mises à jour",
+      "unknownError": "Erreur inconnue",
+      "mismatchTitle": "Version différente",
+      "mismatchDesc": "L'APK téléchargé est en v{{version}}. Ouverture de l'installateur…",
+      "cachedTitle": "Utilisation de la mise à jour en cache",
+      "downloadedTitle": "Mise à jour téléchargée",
+      "openingInstallerDesc": "Ouverture de l'installateur Android pour la v{{version}}…",
+      "installerOpenedTitle": "Installateur ouvert",
+      "installerOpenedDesc": "Quand Android a terminé, rouvrez Snow Media Center pour vérifier la nouvelle version.",
+      "downloadStartedTitle": "Téléchargement lancé",
+      "downloadStartedDesc": "Téléchargement de la version {{version}} lancé",
+      "downloadFailedTitle": "Échec du téléchargement",
+      "tryAgain": "Veuillez réessayer"
+    },
+    "prompt": {
+      "downloadingTitle": "Téléchargement de la mise à jour…",
+      "downloadingDesc": "Snow Media Center v{{version}} se télécharge en arrière-plan.",
+      "failedTitle": "Échec de la mise à jour",
+      "failedDesc": "Veuillez réessayer plus tard",
+      "title": "Mise à jour disponible — v{{version}}",
+      "ready": "Prêt à installer. La mise à jour est déjà téléchargée.",
+      "readySized": "Prêt à installer ({{size}}). La mise à jour est déjà téléchargée.",
+      "whatsNew": "Nouveautés",
+      "installingBtn": "Ouverture de l'installateur…",
+      "updateNowBtn": "Mettre à jour"
+    },
+    "download": {
+      "downloading": "Téléchargement...",
+      "pleaseWait": "Veuillez patienter",
+      "complete": "Téléchargement terminé !",
+      "sizeDownloaded": "{{size}} téléchargés",
+      "navHint": "Utilisez ↑↓ pour naviguer, Entrée pour choisir",
+      "installNowBtn": "Installer",
+      "installLaterBtn": "Plus tard (supprimer le fichier)",
+      "installing": "Installation...",
+      "followPrompts": "Suivez les instructions sur votre appareil",
+      "started": "Installation lancée !",
+      "checkScreen": "Regardez votre écran pour l'invite d'installation",
+      "openAppBtn": "Ouvrir l'appli",
+      "failed": "Échec du téléchargement",
+      "webOnly": "Les téléchargements ne fonctionnent que sur les appareils Android",
+      "genericFail": "Échec du téléchargement",
+      "installGenericFail": "Impossible d'installer l'APK",
+      "installErrorTitle": "Erreur d'installation",
+      "noFilePath": "Aucun chemin de fichier disponible",
+      "startedTitle": "Installation lancée",
+      "installerOpened": "Installateur de {{name}} ouvert",
+      "permissionTitle": "Autorisation requise",
+      "installFailedTitle": "Échec de l'installation",
+      "permissionDesc": "Activez « Installer des applis inconnues » pour Snow Media Center, puis appuyez de nouveau sur Installer.",
+      "launchFailedTitle": "Échec du lancement",
+      "launchFailedDesc": "Impossible d'ouvrir l'appli"
+    },
+    "errors": {
+      "invalidData": "Données de mise à jour non valides",
+      "invalidInfo": "Informations de mise à jour non valides",
+      "androidOnly": "Les téléchargements d'APK ne sont disponibles que sur les appareils Android",
+      "noPackageName": "L'APK n'a pas de nom de paquet",
+      "notInstallable": "Le serveur de mises à jour n'a pas renvoyé d'APK installable. {{detail}} Ouvrez {{url}} dans un navigateur : s'il télécharge l'appli, le serveur traite différemment la requête de cet appareil (protection anti-hotlink ou règle anti-bot).",
+      "wrongPackage": "L'APK téléchargé est pour {{apk}}, pas pour {{installed}}",
+      "downloadIncomplete": "Téléchargement incomplet : {{got}} reçus sur {{expected}}. Vérifiez votre connexion et réessayez.",
+      "failedNoData": "Échec du téléchargement : aucune donnée reçue ({{expected}} attendus). {{detail}}",
+      "failedDropped": "Échec du téléchargement : connexion perdue à {{written}} sur {{expected}} ({{percent}} %). {{detail}}",
+      "failedAfter": "Échec du téléchargement après {{written}}. {{detail}}",
+      "failedPlain": "Échec du téléchargement : {{detail}}",
+      "nativeError": "Erreur de téléchargement natif",
+      "headStatus": "(le serveur a aussi répondu HTTP {{status}} à une requête HEAD pour cette URL)"
+    }
+  }
+}

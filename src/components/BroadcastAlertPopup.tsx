@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Info, AlertOctagon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import NoticeLayer from '@/components/ui/notice-layer';
@@ -29,6 +30,7 @@ interface Props {
  * which Radix dialogs never set, so it was blind to every one of them.
  */
 const BroadcastAlertPopup = ({ open, alert, onDismiss }: Props) => {
+  const { t } = useTranslation();
   const handleDismiss = () => {
     try { trackEvent('alert_popup_action', 'alerts', { alert: 'broadcast', action: 'ok', title: alert.title, severity: alert.severity }); } catch { void 0; }
     onDismiss();
@@ -52,7 +54,7 @@ const BroadcastAlertPopup = ({ open, alert, onDismiss }: Props) => {
             onClick={handleDismiss}
             className="min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 focus:ring-brand-ice focus:scale-105 transition"
           >
-            Got it
+            {t('popups.gotItBtn')}
           </Button>
         </div>
       </div>

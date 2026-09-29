@@ -1,6 +1,7 @@
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
 import { isNativePlatform } from '@/utils/platform';
+import i18n from '@/i18n';
 import { AppManager } from '@/capacitor/AppManager';
 import { downloadApkToCache, cleanupOldApks } from '@/utils/downloadApk';
 
@@ -131,7 +132,7 @@ export async function prepareSmcUpdate(
   onProgress?: (pct: number) => void,
 ): Promise<PreparedUpdate> {
   if (!isNativePlatform()) {
-    throw new Error('APK downloads are only available on Android devices');
+    throw new Error(i18n.t('updater.errors.androidOnly'));
   }
   // If we already handed this exact version to the installer and we are STILL
   // running, that install did not take. The cached bytes are the prime suspect
@@ -167,7 +168,7 @@ export async function prepareSmcUpdate(
     const filePath = await downloadApkToCache(info.downloadUrl, fileName, onProgress, { cacheBust });
     try {
       const apkInfo = await AppManager.getApkInfo({ filePath });
-      if (!apkInfo?.packageName) throw new Error('APK has no package name');
+      if (!apkInfo?.packageName) throw new Error(i18n.t('updater.errors.noPackageName'));
       return {
         filePath,
         apkVersionName: apkInfo.versionName,
@@ -181,11 +182,7 @@ export async function prepareSmcUpdate(
       try { await Filesystem.deleteFile({ path: `apk/${fileName}`, directory: Directory.Cache }); } catch { /* ignore */ }
     }
   }
-  throw new Error(
-    `The update server did not return an installable APK. ${lastErr ?? ''} ` +
-    `Open ${info.downloadUrl} in a browser — if it downloads the app, the server is ` +
-    `treating this device's request differently (hotlink protection or a bot rule).`,
-  );
+  throw new Error(i18n.t('updater.errors.notInstallable', { detail: lastErr ?? '', url: info.downloadUrl }));
 }
 
 /**
@@ -202,7 +199,7 @@ export async function installPreparedUpdate(prepared: PreparedUpdate): Promise<v
     prepared.apkPackageName !== installed.packageName
   ) {
     throw new Error(
-      `Downloaded APK is for ${prepared.apkPackageName}, not ${installed.packageName}`,
+      i18n.t('updater.errors.wrongPackage', { apk: prepared.apkPackageName, installed: installed.packageName }),
     );
   }
   if (
@@ -216,6 +213,7 @@ export async function installPreparedUpdate(prepared: PreparedUpdate): Promise<v
     // that predates the version bump, so the file is named for the new release
     // while its manifest still carries the old code. Say all of that, because
     // "not newer than installed" sends you looking in the wrong place.
+    // Left in English on purpose: it tells the owner what to rebuild and re-upload.
     throw new Error(
       `The downloaded APK reports versionCode ${prepared.apkVersionCode}` +
       `${prepared.apkVersionName ? ` (v${prepared.apkVersionName})` : ''}, but this ` +

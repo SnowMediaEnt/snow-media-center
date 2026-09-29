@@ -1,7 +1,28 @@
 import { memo, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle } from 'lucide-react';
+import { getAppLanguage } from '@/i18n';
 import { useUpdateCheck } from '@/hooks/useUpdateCheck';
 import { setPausableInterval } from '@/utils/pausableInterval';
+
+/**
+ * The clock shows the weekday and the seconds, which src/i18n/format.ts does not
+ * offer, so it keeps its own formatters: one pair per language (creating one is slow
+ * on weak boxes and this ticks every second), a 12-hour clock, and Arabic with 0-9.
+ */
+const clockFormats = new Map<string, { date: Intl.DateTimeFormat; time: Intl.DateTimeFormat }>();
+const clockFormatFor = (lang: string) => {
+  let f = clockFormats.get(lang);
+  if (!f) {
+    const locale = lang === 'ar' ? 'ar-u-nu-latn' : lang;
+    f = {
+      date: new Intl.DateTimeFormat(locale, { weekday: 'short', month: 'short', day: 'numeric' }),
+      time: new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
+    };
+    clockFormats.set(lang, f);
+  }
+  return f;
+};
 
 interface HomeClockProps {
   version: string;
@@ -15,7 +36,9 @@ interface HomeClockProps {
  * Index.tsx) places it, between the renewal banner and the header.
  */
 const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
+  const { t } = useTranslation();
   const [now, setNow] = useState(() => new Date());
+  const format = clockFormatFor(getAppLanguage());
   const { updateAvailable, latestVersion } = useUpdateCheck(version);
 
   useEffect(() => {
@@ -34,22 +57,14 @@ const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
           className="font-bold font-quicksand text-shadow-soft text-white"
           style={{ fontSize: 'clamp(0.65rem, 0.95vw, 1rem)' }}
         >
-          {now.toLocaleDateString('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-          })}
+          {format.date.format(now)}
         </div>
         <div className="w-px h-4 bg-white/40 flex-shrink-0" />
         <div
           className="opacity-90 font-nunito text-shadow-soft text-white"
           style={{ fontSize: 'clamp(0.65rem, 0.95vw, 1rem)' }}
         >
-          {now.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-          })}
+          {format.time.format(now)}
         </div>
         <div className="w-px h-4 bg-white/40 flex-shrink-0" />
         <div
@@ -61,8 +76,8 @@ const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
             <button
               type="button"
               onClick={onUpdateClick}
-              title={latestVersion ? `Update available: v${latestVersion}` : 'Update available'}
-              aria-label="Update available — open Settings → Updates"
+              title={latestVersion ? t('home.clock.updateTitle', { version: latestVersion }) : t('home.clock.updateTitleShort')}
+              aria-label={t('home.clock.updateAria')}
               className="flex items-center justify-center rounded-full p-0.5 hover:bg-white/10 transition-colors animate-pulse"
             >
               <AlertTriangle

@@ -1,16 +1,16 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { formatDate } from '@/i18n/format';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { setPausableInterval } from '@/utils/pausableInterval';
 
-const FALLBACK_NEWS = [
-  '🚀 New streaming app update available',
-  '📺 Live support available now - Chat with Snow Media',
-  '🎬 Fresh video tutorials added to Support section',
-  '💫 Snow Media Store updated with new content',
-];
+// The app's own lines, for before the feed arrives or when it is empty. Kept as
+// markers (compared by identity, never stored) and turned into text in the viewer's
+// language when drawn; the feed's own lines are the Hub's and are shown as written.
+const FALLBACK_NEWS: string[] = ['\u0000fallback'];
 
-const INITIAL_NEWS = ['Loading news feed...'];
+const INITIAL_NEWS: string[] = ['\u0000initial'];
 
 const sameItems = (a: string[], b: string[]) =>
   a.length === b.length && a.every((item, index) => item === b[index]);
@@ -59,6 +59,7 @@ interface NewsTickerProps {
 }
 
 const NewsTicker = memo(({ compact = false, medium = false, leadIn = '0px' }: NewsTickerProps) => {
+  const { t } = useTranslation();
   const cached = useMemo(readCachedNews, []);
   const [newsItems, setNewsItems] = useState<string[]>(cached?.items ?? INITIAL_NEWS);
   const isNative = useMemo(() => isNativePlatform(), []);
@@ -70,7 +71,7 @@ const NewsTicker = memo(({ compact = false, medium = false, leadIn = '0px' }: Ne
 
     const applyItems = (items: string[]) => {
       setNewsItems((prev) => (sameItems(prev, items) ? prev : items));
-      writeCachedNews(items);
+      if (items !== FALLBACK_NEWS) writeCachedNews(items);
     };
 
     const fetchRSSFeed = async () => {
@@ -114,11 +115,7 @@ const NewsTicker = memo(({ compact = false, medium = false, leadIn = '0px' }: Ne
           const pubDate = item.querySelector('pubDate')?.textContent;
 
           if (title && description && pubDate) {
-            const formattedDate = new Date(pubDate).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            });
+            const formattedDate = formatDate(pubDate);
             newsArray.push(`${title} - ${description} • ${formattedDate}`);
           } else if (title && description) {
             newsArray.push(`${title} - ${description}`);
@@ -159,7 +156,12 @@ const NewsTicker = memo(({ compact = false, medium = false, leadIn = '0px' }: Ne
   // Build one continuous string so the marquee never restarts mid-cycle.
   // Trailing separator ensures the join between the duplicated copies looks
   // identical to every other join (no fused/missing items at the seam).
-  const tickerText = useMemo(() => `${newsItems.join('   •   ')}   •   `, [newsItems]);
+  const shownItems = useMemo(() => {
+    if (newsItems === INITIAL_NEWS) return [t('home.newsTicker.loading')];
+    if (newsItems === FALLBACK_NEWS) return [t('home.newsTicker.fallback1'), t('home.newsTicker.fallback2'), t('home.newsTicker.fallback3'), t('home.newsTicker.fallback4')];
+    return newsItems;
+  }, [newsItems, t]);
+  const tickerText = useMemo(() => `${shownItems.join('   •   ')}   •   `, [shownItems]);
 
   const trackHeight = compact ? (medium ? 'news-ticker-medium' : 'h-8') : 'h-[3.75rem] py-1';
   const textSize = compact ? (medium ? 'text-base' : 'text-sm') : 'text-xl';
@@ -248,7 +250,7 @@ const NewsTicker = memo(({ compact = false, medium = false, leadIn = '0px' }: Ne
         />
         {/* LIVE badge overlays on top */}
         <div className={`bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-bold ${badgeMargin} z-10 flex-shrink-0 leading-tight relative`}>
-          LIVE
+          {t('home.badges.liveChip')}
         </div>
       </div>
     </div>

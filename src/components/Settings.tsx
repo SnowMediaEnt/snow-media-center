@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -71,11 +71,10 @@ const Settings = ({ onBack }: SettingsProps) => {
   // A Kids profile gets a short Settings: backgrounds (kept kids-safe by the
   // server), the content bar, language, switching profile and the phone
   // remote. No updates and no admin tools, even on an admin's account.
+  // The language picker is for everyone: admin or not, Kids profile or not, demo too.
   const kids = !!currentProfile.kidsLevel;
   const isAdmin = hasAdminRole && !demo && !kids;
   const showUpdates = !demo && !kids;
-  // Languages are still in beta: offered on admin accounts, Kids profiles too.
-  const showLanguages = hasAdminRole && !demo;
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   const dashboardSize = useDashboardSize();
   const mailNotify = useMailNotify();
@@ -114,7 +113,8 @@ const Settings = ({ onBack }: SettingsProps) => {
   const aiTierShown = !!aiPremium && !demo && !kids;
   const canPremium = aiTierShown && !!user;
   const toggleAiTier = () => {
-    if (!canPremium) { toast({ title: 'Sign in for Premium', description: 'Snow AI Premium uses Snow Gems from your account.' }); return; }
+    // i18n.t, not t: the key handler that calls this keeps the render it was made in.
+    if (!canPremium) { toast({ title: i18n.t('settings.toast.aiSignInTitle'), description: i18n.t('settings.toast.aiSignInDesc') }); return; }
     const next: AiTier = aiTier === 'premium' ? 'free' : 'premium';
     setPreferredTier('chat', next);
     setAiTierState(next);
@@ -136,29 +136,29 @@ const Settings = ({ onBack }: SettingsProps) => {
         // Android 13+ and the viewer said no. Nothing was switched on, so say
         // that rather than leaving a toggle that looks on but shows nothing.
         toast({
-          title: 'Notifications are blocked',
-          description: 'Allow notifications for Snow Media Center in your device settings, then try again.',
+          title: i18n.t('settings.toast.notifBlockedTitle'),
+          description: i18n.t('settings.toast.notifBlockedDesc'),
           variant: 'destructive',
         });
         return;
       }
       toast({
-        title: next ? 'Alerts on for this device' : 'Alerts off for this device',
+        title: next ? i18n.t('settings.toast.alertsOnTitle') : i18n.t('settings.toast.alertsOffTitle'),
         description: next
-          ? 'Service notices will pop up even when Snow Media Center is closed.'
-          : 'Alerts will only show inside the app.',
+          ? i18n.t('settings.toast.alertsOnDesc')
+          : i18n.t('settings.toast.alertsOffDesc'),
       });
     } catch (e) {
-      toast({ title: 'Could not change alerts', description: (e as Error).message, variant: 'destructive' });
+      toast({ title: i18n.t('settings.toast.alertsFailTitle'), description: (e as Error).message, variant: 'destructive' });
     }
   };
 
   const togglePlayer = async (next: boolean) => {
     try {
       await setFeatureFlag('player_enabled', next);
-      toast({ title: next ? 'Player enabled' : 'Player disabled', description: 'Change applied to all devices.' });
+      toast({ title: next ? i18n.t('settings.toast.playerOnTitle') : i18n.t('settings.toast.playerOffTitle'), description: i18n.t('settings.toast.playerDesc') });
     } catch (e) {
-      toast({ title: 'Could not update', description: (e as Error).message, variant: 'destructive' });
+      toast({ title: i18n.t('settings.toast.updateFailTitle'), description: (e as Error).message, variant: 'destructive' });
     }
   };
   const [activeTab, setActiveTab] = useState(() => {
@@ -213,7 +213,7 @@ const Settings = ({ onBack }: SettingsProps) => {
           : [...(aiTierShown ? ['ui-ai-tier' as SettingsFocus] : []), 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
         if (!kids && deviceAlerts.supported) order.push('ui-device-alerts-toggle');
         if (isAdmin) order.push('ui-player-toggle');
-        if (showLanguages) order.push(...SUPPORTED_LANGUAGES.map((lang) => `ui-language-${lang.code}` as SettingsFocus));
+        order.push(...SUPPORTED_LANGUAGES.map((lang) => `ui-language-${lang.code}` as SettingsFocus));
         return order;
       };
 
@@ -227,7 +227,7 @@ const Settings = ({ onBack }: SettingsProps) => {
         else if (event.key === 'ArrowUp') setFocusedElement('tab-remote');
         else if (event.key === 'Enter' || event.key === ' ') {
           if (focusedElement === 'remote-hint') setTypingHintEnabled(!typingHintEnabled());
-          else { void unpairAllPhones(); toast({ title: 'Phones unpaired', description: 'Pair again with the new code.' }); }
+          else { void unpairAllPhones(); toast({ title: i18n.t('settings.toast.unpairedTitle'), description: i18n.t('settings.toast.unpairedDesc') }); }
         } else if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) setFocusedElement('tab-remote');
         return;
       }
@@ -477,7 +477,7 @@ const Settings = ({ onBack }: SettingsProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   // toggleAiTier reads the state below; it is recreated with it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, kids, showLanguages, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium]);
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, kids, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium]);
 
   useEffect(() => {
     const scrollAllToTop = () => {
@@ -567,47 +567,47 @@ const Settings = ({ onBack }: SettingsProps) => {
               {...settingsFocusAttrs('tab-media')}
               onFocus={() => setFocusedElement('tab-media')}
               value="media"
-              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-media')}`}
+              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-media')}`}
             >
               <Image className="w-4 h-4 mr-2" />
-              {t('settings.tabs.media')}
+              <span className="min-w-0 truncate">{t('settings.tabs.media')}</span>
             </TabsTrigger>
             <TabsTrigger
               {...settingsFocusAttrs('tab-ui')}
               onFocus={() => setFocusedElement('tab-ui')}
               value="ui"
-              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-ui')}`}
+              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-ui')}`}
             >
               <Sliders className="w-4 h-4 mr-2" />
-              {t('settings.tabs.ui')}
+              <span className="min-w-0 truncate">{t('settings.tabs.ui')}</span>
             </TabsTrigger>
             <TabsTrigger
               {...settingsFocusAttrs('tab-profiles')}
               onFocus={() => setFocusedElement('tab-profiles')}
               value="profiles"
-              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-profiles')}`}
+              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-profiles')}`}
             >
               <UsersRound className="w-4 h-4 mr-2" />
-              Profiles
+              <span className="min-w-0 truncate">{t('settings.tabs.profiles')}</span>
             </TabsTrigger>
             <TabsTrigger
               {...settingsFocusAttrs('tab-remote')}
               onFocus={() => setFocusedElement('tab-remote')}
               value="remote"
-              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-remote')}`}
+              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-remote')}`}
             >
               <Smartphone className="w-4 h-4 mr-2" />
-              Phone Remote
+              <span className="min-w-0 truncate">{t('settings.tabs.remote')}</span>
             </TabsTrigger>
             {showUpdates && (
               <TabsTrigger
                 {...settingsFocusAttrs('tab-updates')}
                 onFocus={() => setFocusedElement('tab-updates')}
                 value="updates"
-                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-updates')}`}
+                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-updates')}`}
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
-                {t('settings.tabs.updates')}
+                <span className="min-w-0 truncate">{t('settings.tabs.updates')}</span>
               </TabsTrigger>
             )}
             {isAdmin && (
@@ -615,10 +615,10 @@ const Settings = ({ onBack }: SettingsProps) => {
                 {...settingsFocusAttrs('tab-alerts')}
                 onFocus={() => setFocusedElement('tab-alerts')}
                 value="alerts"
-                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-alerts')}`}
+                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-alerts')}`}
               >
                 <AlertTriangle className="w-4 h-4 mr-2" />
-                {t('settings.tabs.alerts')}
+                <span className="min-w-0 truncate">{t('settings.tabs.alerts')}</span>
               </TabsTrigger>
             )}
             {isAdmin && (
@@ -626,10 +626,10 @@ const Settings = ({ onBack }: SettingsProps) => {
                 {...settingsFocusAttrs('tab-ai')}
                 onFocus={() => setFocusedElement('tab-ai')}
                 value="ai"
-                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-ai')}`}
+                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-ai')}`}
               >
                 <Bot className="w-4 h-4 mr-2" />
-                {t('settings.tabs.ai')}
+                <span className="min-w-0 truncate">{t('settings.tabs.ai')}</span>
               </TabsTrigger>
             )}
           </TabsList>
@@ -662,12 +662,12 @@ const Settings = ({ onBack }: SettingsProps) => {
                     <Bot className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                     <div>
                       <h3 className="text-lg font-bold text-white">
-                        Snow AI: {aiTier === 'premium' && canPremium ? 'Premium' : 'Free'}
+                        {aiTier === 'premium' && canPremium ? t('settings.aiTier.titlePremium') : t('settings.aiTier.titleFree')}
                       </h3>
                       <p className="text-sm text-white/70 mt-1">
                         {canPremium
-                          ? `Free is included. Premium uses the most powerful model for AI Chat and voice commands — ${aiPremium?.gems ?? ''} Snow Gems a message. Switch any time to compare.`
-                          : 'Free is included. Sign in to try Premium, the most powerful model (paid with Snow Gems).'}
+                          ? t('settings.aiTier.descPremium', { gems: aiPremium?.gems ?? '' })
+                          : t('settings.aiTier.descSignIn')}
                       </p>
                     </div>
                   </div>
@@ -675,7 +675,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                     checked={aiTier === 'premium' && canPremium}
                     onCheckedChange={toggleAiTier}
                     disabled={!canPremium}
-                    aria-label="Snow AI Premium"
+                    aria-label={t('settings.aiTier.aria')}
                     className="mt-1"
                   />
                 </div>
@@ -724,17 +724,16 @@ const Settings = ({ onBack }: SettingsProps) => {
                 <div className="flex items-start gap-3">
                   <LayoutDashboard className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                   <div>
-                    <h3 className="text-lg font-bold text-white">Large dashboard</h3>
+                    <h3 className="text-lg font-bold text-white">{t('settings.dashboardSize.title')}</h3>
                     <p className="text-sm text-white/70 mt-1">
-                      Off, the Dashboard fits on one screen. On, everything is bigger and easier
-                      to read from the couch, and the page scrolls.
+                      {t('settings.dashboardSize.description')}
                     </p>
                   </div>
                 </div>
                 <Switch
                   checked={dashboardSize === 'large'}
                   onCheckedChange={(v) => saveDashboardSize(v ? 'large' : 'compact')}
-                  aria-label="Large dashboard"
+                  aria-label={t('settings.dashboardSize.title')}
                   className="mt-1"
                 />
               </div>
@@ -753,18 +752,16 @@ const Settings = ({ onBack }: SettingsProps) => {
                 <div className="flex items-start gap-3">
                   <Newspaper className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                   <div>
-                    <h3 className="text-lg font-bold text-white">Post notifications</h3>
+                    <h3 className="text-lg font-bold text-white">{t('settings.postNotify.title')}</h3>
                     <p className="text-sm text-white/70 mt-1">
-                      On, a new post from Snow Media shows a count on the Support card and a
-                      heads-up on the home screen. Off, it still arrives under Support → Posts,
-                      quietly.
+                      {t('settings.postNotify.description')}
                     </p>
                   </div>
                 </div>
                 <Switch
                   checked={mailNotify}
                   onCheckedChange={saveMailNotify}
-                  aria-label="Post notifications"
+                  aria-label={t('settings.postNotify.title')}
                   className="mt-1"
                 />
               </div>
@@ -784,16 +781,13 @@ const Settings = ({ onBack }: SettingsProps) => {
                   <div className="flex items-start gap-3">
                     <Bell className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                     <div>
-                      <h3 className="text-lg font-bold text-white">Alerts on this device</h3>
+                      <h3 className="text-lg font-bold text-white">{t('settings.deviceAlerts.title')}</h3>
                       <p className="text-sm text-white/70 mt-1">
-                        On by default. Service notices pop up on screen even when Snow Media Center
-                        is closed — press OK on one to open the app, or dismiss it and it stays
-                        gone. Turn this off to keep alerts inside the app only.
+                        {t('settings.deviceAlerts.description')}
                       </p>
                       {deviceAlerts.status.channelBlocked && (
                         <p className="text-sm text-amber-300 mt-2">
-                          Notifications are switched off for this app in your device settings, so
-                          nothing will show until you turn them back on there.
+                          {t('settings.deviceAlerts.blocked')}
                         </p>
                       )}
                     </div>
@@ -802,7 +796,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                     checked={deviceAlerts.status.enabled}
                     disabled={deviceAlerts.busy}
                     onCheckedChange={toggleDeviceAlerts}
-                    aria-label="Alerts on this device"
+                    aria-label={t('settings.deviceAlerts.title')}
                     className="mt-1"
                   />
                 </div>
@@ -840,48 +834,47 @@ const Settings = ({ onBack }: SettingsProps) => {
               </Card>
             )}
 
-            {showLanguages && (
-              <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
-                <div className="flex items-start gap-3 mb-4">
-                  <Languages className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-bold text-white">{t('settings.language.title')}</h3>
-                      <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40">
-                        {t('common.beta')}
-                      </span>
-                    </div>
-                    <p className="text-sm text-white/70 mt-1">{t('settings.language.description')}</p>
+            {/* Everyone can pick a language: admin or not, Kids profile or not, demo too. */}
+            <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <Languages className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-white">{t('settings.language.title')}</h3>
+                    <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40">
+                      {t('common.beta')}
+                    </span>
                   </div>
+                  <p className="text-sm text-white/70 mt-1">{t('settings.language.description')}</p>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {SUPPORTED_LANGUAGES.map((lang) => {
-                    const selected = currentLang.startsWith(lang.code);
-                    return (
-                      <button
-                        key={lang.code}
-                        type="button"
-                        {...settingsFocusAttrs(`ui-language-${lang.code}`)}
-                        onFocus={() => setFocusedElement(`ui-language-${lang.code}`)}
-                        onClick={() => {
-                          setFocusedElement(`ui-language-${lang.code}`);
-                          handleLanguageSelect(lang.code);
-                        }}
-                        tabIndex={0}
-                        className={`tv-ring flex items-center justify-between gap-2 px-4 py-3 rounded-md border text-base transition-all duration-150 ${focusRing(`ui-language-${lang.code}`)} ${
-                          selected
-                            ? 'bg-brand-gold/20 border-brand-gold text-white'
-                            : 'bg-slate-800 border-slate-500/60 text-slate-100 hover:bg-slate-700'
-                        }`}
-                      >
-                        <span dir="auto" className="font-medium">{lang.nativeName}</span>
-                        {selected && <Check className="w-4 h-4 text-brand-gold shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Card>
-            )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {SUPPORTED_LANGUAGES.map((lang) => {
+                  const selected = currentLang.startsWith(lang.code);
+                  return (
+                    <button
+                      key={lang.code}
+                      type="button"
+                      {...settingsFocusAttrs(`ui-language-${lang.code}`)}
+                      onFocus={() => setFocusedElement(`ui-language-${lang.code}`)}
+                      onClick={() => {
+                        setFocusedElement(`ui-language-${lang.code}`);
+                        handleLanguageSelect(lang.code);
+                      }}
+                      tabIndex={0}
+                      className={`tv-ring flex items-center justify-between gap-2 px-4 py-3 rounded-md border text-base transition-all duration-150 ${focusRing(`ui-language-${lang.code}`)} ${
+                        selected
+                          ? 'bg-brand-gold/20 border-brand-gold text-white'
+                          : 'bg-slate-800 border-slate-500/60 text-slate-100 hover:bg-slate-700'
+                      }`}
+                    >
+                      <span dir="auto" className="font-medium">{lang.nativeName}</span>
+                      {selected && <Check className="w-4 h-4 text-brand-gold shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </Card>
           </TabsContent>
 
           <TabsContent value="remote" className="mt-4">
@@ -889,18 +882,18 @@ const Settings = ({ onBack }: SettingsProps) => {
               <div className="flex flex-wrap items-start">
                 <div className="mr-6 mb-3">
                   {/* Smaller on short layouts (960x540) so the code under it is on screen. */}
-                  {activeTab === 'remote' && <PairingQR size={window.innerHeight < 640 ? 150 : 220} />}
+                  {activeTab === 'remote' /* i18n-ignore */ && <PairingQR size={window.innerHeight < 640 ? 150 : 220} />}
                 </div>
                 <div className="flex-1 min-w-[16rem]">
-                  <h3 className="text-xl font-bold text-white mb-1">Use your phone as a remote</h3>
+                  <h3 className="text-xl font-bold text-white mb-1">{t('settings.remote.title')}</h3>
                   <ol className="text-white/80 space-y-0.5 mb-2 list-decimal pl-5">
-                    <li>Scan the QR code with your phone's camera, or go to <span className="font-semibold text-white">snowmediaent.com/remote</span></li>
-                    <li>Enter the code shown here, then choose Allow on the TV</li>
-                    <li>Move, select, go back, play/pause, type and talk — right from your phone</li>
+                    <li><Trans i18nKey="settings.remote.step1" components={{ 1: <span className="font-semibold text-white" /> }} /></li>
+                    <li>{t('settings.remote.step2')}</li>
+                    <li>{t('settings.remote.step3')}</li>
                   </ol>
                   <p className="text-sm text-white/60 mb-3">
-                    {remotePhones > 0 ? `📱 ${remotePhones} phone${remotePhones === 1 ? '' : 's'} connected now.` : remotePaired ? 'A phone is paired — open snowmediaent.com/remote on it to use it.' : 'No phone paired yet.'}
-                    {' '}Paired phones stay paired; each code works once.
+                    {remotePhones > 0 ? t('settings.remote.connected', { count: remotePhones }) : remotePaired ? t('settings.remote.paired') : t('settings.remote.none')}
+                    {' '}{t('settings.remote.stayPaired')}
                   </p>
                 </div>
               </div>
@@ -916,20 +909,21 @@ const Settings = ({ onBack }: SettingsProps) => {
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <div className="font-semibold text-white">Show the QR code when typing</div>
-                      <div className="text-sm text-white/70">A small card offers your phone's keyboard whenever a text box is open on the TV.</div>
+                      <div className="font-semibold text-white">{t('settings.remote.typingHintTitle')}</div>
+                      <div className="text-sm text-white/70">{t('settings.remote.typingHintDesc')}</div>
                     </div>
-                    <Switch checked={remoteHint} onCheckedChange={(v) => setTypingHintEnabled(!!v)} aria-label="Show the QR code when typing" />
+                    <Switch checked={remoteHint} onCheckedChange={(v) => setTypingHintEnabled(!!v)} aria-label={t('settings.remote.typingHintTitle')} />
                   </div>
                 </Card>
                 <Button
                   {...settingsFocusAttrs('remote-unpair')}
                   variant="outline"
                   onFocus={() => setFocusedElement('remote-unpair')}
-                  onClick={() => { void unpairAllPhones(); toast({ title: 'Phones unpaired', description: 'Pair again with the new code.' }); }}
-                  className={`tv-ring shrink-0 ${focusRing('remote-unpair')}`}
+                  onClick={() => { void unpairAllPhones(); toast({ title: t('settings.toast.unpairedTitle'), description: t('settings.toast.unpairedDesc') }); }}
+                  title={t('settings.remote.unpairBtn')}
+                  className={`tv-ring shrink-0 min-w-0 max-w-[14rem] ${focusRing('remote-unpair')}`}
                 >
-                  Unpair all phones
+                  <span className="min-w-0 truncate">{t('settings.remote.unpairBtn')}</span>
                 </Button>
               </div>
             </Card>
@@ -946,7 +940,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                     {(p.name.trim()[0] || '?').toUpperCase()}
                   </span>
                   <span className="text-white/90">
-                    {p.name}{p.kidsLevel ? ' · Kids' : ''}{p.pinHash ? ' · PIN' : ''}{p.id === currentProfileId ? ' (watching)' : ''}
+                    {p.name}{p.kidsLevel ? ` · ${t('settings.profiles.kidsTag')}` : ''}{p.pinHash ? ` · ${t('settings.profiles.pinTag')}` : ''}{p.id === currentProfileId ? ` (${t('settings.profiles.watchingTag')})` : ''}
                   </span>
                 </div>
               ))}
@@ -964,11 +958,11 @@ const Settings = ({ onBack }: SettingsProps) => {
                 <div className="flex items-start gap-3">
                   <UsersRound className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                   <div>
-                    <h3 className="text-lg font-bold text-white">{id === 'profiles-switch' ? "Switch who's watching" : 'Add or edit profiles'}</h3>
+                    <h3 className="text-lg font-bold text-white">{id === 'profiles-switch' ? t('settings.profiles.switchTitle') : t('settings.profiles.manageTitle')}</h3>
                     <p className="text-sm text-white/70 mt-1">
                       {id === 'profiles-switch'
-                        ? 'Pick another profile. Each one has its own Continue Watching, My List, favourites and home screen.'
-                        : 'Add someone (up to 8 profiles), make a Kids profile, rename, change the colour, or add a PIN.'}
+                        ? t('settings.profiles.switchDesc')
+                        : t('settings.profiles.manageDesc')}
                     </p>
                   </div>
                 </div>
