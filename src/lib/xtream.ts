@@ -607,7 +607,26 @@ export interface AuthProbeResult {
 }
 
 /** Authenticate against exactly one server routed by username format. */
+// Usernames are lowercase on the panels; people (and phone keyboards) type
+// capitals. Sign in with the lowercase name first; only if the panel says no
+// and the typed name had capitals, try it exactly as typed, so a line whose
+// name really has capitals still gets in.
 export async function authenticateRouted(
+  username: string,
+  password: string,
+  onProgress?: (server: XtreamServer) => void,
+): Promise<AuthProbeResult> {
+  const typed = username.trim();
+  const lower = typed.toLowerCase();
+  const first = await authenticateRoutedExact(lower, password, onProgress);
+  if (first.ok || first.authedButBlocked || lower === typed || first.error !== INVALID_LOGIN) return first;
+  const second = await authenticateRoutedExact(typed, password, onProgress);
+  return second.ok || second.authedButBlocked ? second : first;
+}
+
+const INVALID_LOGIN = 'Invalid username or password.';
+
+async function authenticateRoutedExact(
   username: string,
   password: string,
   onProgress?: (server: XtreamServer) => void,
@@ -669,7 +688,7 @@ export async function authenticateRouted(
       error: 'Your subscription is ' + status + '. Please renew to keep watching.',
     };
   }
-  return { ok: false, error: 'Invalid username or password.' };
+  return { ok: false, error: INVALID_LOGIN };
 }
 
 // --- Live -------------------------------------------------------------------

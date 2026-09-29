@@ -47,6 +47,7 @@ Status: building · ready to test · still broken · done.
 | 25.15 | Updater warns when a recording is running/soon; build 48 handover | feature | ready to test (build 48) | |
 
 | 26 | Player bar: name of the highlighted button shows under it (small line) | feature | ready to test (build 48) | |
+| 28 | Live TV sign-in: username capitals turned to lowercase (falls back to as-typed if the panel refuses) | feature | ready to test (build 48) | |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand) | feature | planning (architect) | |
 
 ## Waiting on the owner
