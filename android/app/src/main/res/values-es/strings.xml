@@ -4,8 +4,8 @@
     <string name="rec_notif_title_programme">Grabando %1$s (%2$s)</string>
     <string name="rec_notif_title_channel">Grabando %1$s</string>
     <string name="rec_notif_text_starting">Iniciando</string>
-    <string name="rec_notif_text_until">Hasta las %1$s · usa 1 transmisión de tu línea</string>
-    <string name="rec_notif_text_until_stopped">Hasta que la detengas · usa 1 transmisión de tu línea</string>
+    <string name="rec_notif_text_until">Hasta las %1$s · usa 1 conexión de tu línea</string>
+    <string name="rec_notif_text_until_stopped">Hasta que la detengas · usa 1 conexión de tu línea</string>
     <string name="rec_channel_name">Grabaciones</string>
     <string name="rec_channel_desc">Se muestra mientras se graba un canal.</string>
     <string name="rec_notif_stop">Detener</string>
@@ -34,20 +34,20 @@
     <string name="alert_plex_request_fallback">Tu solicitud</string>
     <string name="alert_plex_ready">Ya puedes ver %1$s. Abre el Reproductor y luego Plex.</string>
     <string name="widget_open_app">Abre Snow Media Center para ver lo último.</string>
-    <string name="widget_not_signed_in">Sin sesión — ábrelo para añadir tu línea</string>
+    <string name="widget_not_signed_in">Sin sesión — ábrelo para agregar tu línea</string>
     <string name="widget_line_fallback">Tu línea</string>
     <string name="widget_trial">Prueba · %1$s</string>
     <string name="widget_active">%1$s · activa</string>
     <string name="widget_expired">%1$s · vencida — renueva para seguir viendo</string>
     <string name="widget_expires_today">%1$s · vence hoy</string>
-    <string name="billing_network">No se pudo conectar con el servidor de pagos. Revisa tu conexión a internet e inténtalo de nuevo.</string>
-    <string name="billing_bad_response">El servidor de pagos envió una respuesta inesperada (%1$s).</string>
+    <string name="billing_network">No se pudo conectar con el servidor de facturación. Revisa tu conexión a internet e inténtalo de nuevo.</string>
+    <string name="billing_bad_response">El servidor de facturación envió una respuesta inesperada (%1$s).</string>
     <string name="billing_cancelled">Detenido.</string>
     <string name="billing_http_401">Inicia sesión de nuevo.</string>
     <string name="billing_http_403">Esta cuenta no se puede usar desde la app.</string>
     <string name="billing_http_404">No se encontró ese elemento.</string>
     <string name="billing_http_429">Demasiados intentos. Espera un momento.</string>
-    <string name="billing_http_5xx">El servidor de pagos tuvo un problema. Inténtalo de nuevo en un minuto.</string>
+    <string name="billing_http_5xx">El servidor de facturación tuvo un problema. Inténtalo de nuevo en un minuto.</string>
     <string name="billing_request_failed">La solicitud falló (%1$d).</string>
     <string name="player_err_stream_dropping">La transmisión se sigue cortando. Inténtalo de nuevo.</string>
     <string name="player_err_server_stopped">El servidor dejó de responder. Inténtalo de nuevo.</string>
@@ -64,9 +64,9 @@
         <item quantity="other">Grabando %d canales</item>
     </plurals>
     <plurals name="rec_notif_text_streams">
-        <item quantity="one">Usa %d transmisión de tu línea</item>
-        <item quantity="many">Usa %d transmisiones de tu línea</item>
-        <item quantity="other">Usa %d transmisiones de tu línea</item>
+        <item quantity="one">Usa %d conexión de tu línea</item>
+        <item quantity="many">Usa %d conexiones de tu línea</item>
+        <item quantity="other">Usa %d conexiones de tu línea</item>
     </plurals>
     <plurals name="sched_reason_too_many">
         <item quantity="one">Ya había %d grabación en curso.</item>

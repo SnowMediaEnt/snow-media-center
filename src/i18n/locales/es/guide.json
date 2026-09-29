@@ -2,7 +2,7 @@
   "guide": {
     "untitled": "Programa",
     "favorites": "Favoritos",
-    "buffering": "Almacenando en búfer…",
+    "buffering": "Cargando…",
     "demoNotice": "Modo demo — la reproducción está desactivada",
     "playbackError": "Error de reproducción",
     "volumeBack": "Vol {{pct}}% · Atrás para salir",
@@ -16,7 +16,7 @@
     "channelHeader": "Canal",
     "earlier": "◀ antes",
     "loadingChannels": "Cargando canales…",
-    "noFavorites": "Aún no hay favoritos. En TV en vivo, mantén OK en un canal y elige Añadir a favoritos.",
+    "noFavorites": "Aún no hay favoritos. En TV en vivo, mantén OK en un canal y elige Agregar a Favoritos.",
     "noChannels": "No hay canales en esta categoría.",
     "epgLoading": "EPG…",
     "noListings": "Sin programación",

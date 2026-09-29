@@ -33,12 +33,12 @@
           "linkBtn": "Llévame allí"
         },
         "s1": {
-          "title": "Elige tu estilo: Classic, Compact o Vibez.",
+          "title": "Elige tu estilo: Clásico, Compacto o Vibez.",
           "line2": "TV en vivo te lo pregunta la primera vez. Cámbialo cuando quieras en Ajustes del reproductor → Apariencia."
         },
         "s2": {
           "title": "Elige una categoría y luego un canal.",
-          "line2": "En Compact, las categorías están una pulsación a la IZQUIERDA. Atrás desde los canales lleva a las categorías."
+          "line2": "En Compacto, las categorías están a la IZQUIERDA, a un botón de distancia. Atrás desde los canales lleva a las categorías."
         },
         "s3": {
           "title": "Detente en un canal y se reproduce en el cuadro de vista previa. OK lo pasa a pantalla completa.",
@@ -65,11 +65,11 @@
         },
         "s1": {
           "title": "¿Ya iniciaste sesión en TV en vivo? Plex se conecta solo, sin códigos.",
-          "line2": "¿Aún no has iniciado sesión? Pulsa Conectar con TV en vivo. No necesitas tu propia cuenta de Plex."
+          "line2": "¿Aún no has iniciado sesión? Presiona Conectar con TV en vivo. No necesitas tu propia cuenta de Plex."
         },
         "s2": {
           "title": "El menú de la izquierda: Inicio, Descubrir, tus bibliotecas, Buscar y Solicitar.",
-          "line2": "OK sobre un póster abre la página del título; luego pulsa Reproducir."
+          "line2": "OK sobre un póster abre la página del título; luego presiona Reproducir."
         },
         "s3": {
           "title": "¿No sabes qué ver? Descubrir tiene Joyas ocultas, Sorpréndeme, géneros y décadas.",
@@ -80,10 +80,10 @@
           "line2": "Recupérala en Ajustes → Ocultas."
         },
         "s5": {
-          "title": "¿Necesitas subtítulos? Abre el menú Subtítulos y elige \"Get subtitles…\"."
+          "title": "¿Necesitas subtítulos? Abre el menú Subtítulos y elige «Buscar subtítulos…»."
         },
         "s6": {
-          "title": "¿Sin sonido? Abre el menú Audio y pulsa \"Fix audio\".",
+          "title": "¿Sin sonido? Abre el menú Audio y presiona «Arreglar audio».",
           "line2": "Arregla el sonido sin reiniciar tu película."
         }
       },
@@ -96,16 +96,16 @@
           "linkBtn": "Llévame allí"
         },
         "s1": {
-          "title": "Pulsa OK en una app y luego Descargar para instalarla.",
+          "title": "Presiona OK en una app y luego Descargar para instalarla.",
           "line2": "¿Ya está instalada? Solo dice Abrir."
         }
       },
       "support": {
         "title": "Soporte",
-        "subtitle": "Ayuda, IA y Publicaciones",
+        "subtitle": "Ayuda, IA y Novedades",
         "s0": {
-          "title": "¿Atascado? Soporte te ayuda.",
-          "line2": "Tres pestañas: Ayuda, Chat con IA y Publicaciones."
+          "title": "¿Algo no funciona? Soporte te ayuda.",
+          "line2": "Tres pestañas: Ayuda, Chat con IA y Novedades."
         },
         "s1": {
           "title": "La prueba de velocidad revisa si tu internet es lo bastante rápido para hacer streaming."
@@ -120,8 +120,8 @@
           "linkBtn": "Abrir tickets"
         },
         "s4": {
-          "title": "¿El equipo va lento o sin espacio? El Limpiador del dispositivo lo libera.",
-          "line2": "Vacía la caché de cada app, cierra las apps en segundo plano y lista las que nadie abre.",
+          "title": "¿El equipo va lento o sin espacio? El Limpiador del equipo lo libera.",
+          "line2": "Vacía el caché de cada app, cierra las apps en segundo plano y lista las que nadie abre.",
           "linkBtn": "Abrir el limpiador"
         },
         "s5": {
@@ -129,9 +129,9 @@
           "line2": "Pídele que abra una pantalla, cambie el estilo de TV en vivo, reporte un canal, instale una app o te haga un fondo de pantalla."
         },
         "s6": {
-          "title": "Publicaciones: cada correo que enviamos también llega aquí.",
+          "title": "Novedades: cada correo que enviamos también llega aquí.",
           "line2": "Con fecha, marcadas como Nuevo hasta que las abres y legibles a pantalla completa. Los enlaces se convierten en un código que escaneas con tu teléfono.",
-          "linkBtn": "Ver publicaciones"
+          "linkBtn": "Ver novedades"
         }
       },
       "account": {
@@ -143,20 +143,20 @@
           "linkBtn": "Llévame allí"
         },
         "s1": {
-          "title": "Los Snow Gems dan poder a la IA Premium y a la generación de imágenes.",
+          "title": "Los Snow Gems activan la IA Premium y la generación de imágenes.",
           "line2": "Compra Snow Gems: elige un paquete, escanea el código con tu teléfono y paga allí; los gems llegan solos a tu cuenta."
         },
         "s2": {
-          "title": "El Game Lounge: Blackjack, Roulette, Slots, Plinko, Dice, Video Poker, Trivia y el Daily Spin.",
+          "title": "La Sala de juegos: Blackjack, Roulette, Slots, Plinko, Dice, Video Poker, Trivia y el Daily Spin.",
           "line2": "Juega por Snow Coins y sube en la clasificación. Nunca con dinero real.",
-          "linkBtn": "Abrir el Game Lounge"
+          "linkBtn": "Abrir la Sala de juegos"
         }
       },
       "extras": {
         "title": "Ajustes y extras",
         "subtitle": "Hazlo tuyo",
         "s0": {
-          "title": "Cambia tu fondo de pantalla en Ajustes → Medios.",
+          "title": "Cambia tu fondo de pantalla en Ajustes → Gestor de medios.",
           "line2": "Sube el tuyo o descríbelo y deja que la IA lo cree.",
           "linkBtn": "Llévame allí"
         },
@@ -169,7 +169,7 @@
         }
       },
       "title": "Cómo usar SMC",
-      "pickTopic": "Elige un tema; pulsa Atrás cuando quieras para salir.",
+      "pickTopic": "Elige un tema; presiona Atrás cuando quieras para salir.",
       "slideCount_one": "{{count}} diapositiva",
       "slideCount_many": "{{count}} diapositivas",
       "slideCount_other": "{{count}} diapositivas",
@@ -187,16 +187,16 @@
         "summary": "Resultados"
       },
       "hints": {
-        "intro": "Elige la app que se corta y pulsa Siguiente.",
+        "intro": "Elige la app que se corta y presiona Siguiente.",
         "step1": "¿Solo un canal o título? Repórtalo y lo arreglamos en el origen.",
-        "step2": "Force Stop, luego Clear Cache y pulsa Atrás para volver aquí.",
-        "step3": "Busca 15 Mbps o más en este dispositivo.",
+        "step2": "Force Stop, luego Clear Cache y presiona Atrás para volver aquí.",
+        "step3": "Lo ideal: 15 Mbps o más en este dispositivo.",
         "step4": "Instala, inicia sesión, Quick Connect y prueba de nuevo.",
         "summary": "Envía estos resultados a soporte si sigue cortándose."
       },
       "kidsHints": {
         "step1": "¿Solo un canal o título? Dile a un adulto cuál.",
-        "step2": "Pídele a un adulto que borre la caché de la app.",
+        "step2": "Pídele a un adulto que borre el caché de la app.",
         "step4": "Pídele a un adulto que configure una VPN.",
         "summary": "¿Sigue cortándose? Muéstraselo a un adulto."
       },
@@ -222,7 +222,7 @@
       "qrAlt": "Código QR",
       "toast": {
         "openedSettingsTitle": "Se abrieron los ajustes de la app",
-        "openedSettingsDesc": "Toca Force Stop y luego Storage → Clear Cache. Pulsa Atrás al terminar.",
+        "openedSettingsDesc": "Toca Force Stop y luego Storage → Clear Cache. Presiona Atrás al terminar.",
         "webOnlyTitle": "Ábrelo en la app instalada",
         "webOnlyDesc": "Esta acción solo funciona dentro de la app Snow Media Center instalada.",
         "cantOpenSettingsTitle": "No se pudieron abrir los ajustes",
@@ -307,12 +307,12 @@
       },
       "step2": {
         "title": "Actualizar {{app}}",
-        "lead": "Borrar la caché de la app arregla muchos cortes. No cierra tu sesión ni borra nada.",
+        "lead": "Borrar el caché de la app arregla muchos cortes. No cierra tu sesión ni borra nada.",
         "kidsNote": "Pídele a un adulto que haga esta parte. En los ajustes del equipo para {{app}}: <0>Force Stop</0> y luego <1>Storage → Clear Cache</1>.",
         "openSettingsBtn": "Abrir ajustes de {{app}}",
         "item1": "Elige <0>Force Stop</0> (Forzar detención)",
         "item2": "Ve a <0>Storage → Clear Cache</0> (Borrar caché), no a Clear Data",
-        "item3": "Pulsa <0>Atrás</0> en tu control para volver aquí",
+        "item3": "Presiona <0>Atrás</0> en tu control para volver aquí",
         "notInstalled": "{{app}} no parece estar instalada en este dispositivo. Instálala primero desde Apps principales.",
         "question": "¿Eso arregló los cortes?",
         "fixedBtn": "Sí, quedó arreglado",
@@ -325,7 +325,7 @@
         "typeLabel": "O escribe tu velocidad de descarga",
         "mbps": "Mbps",
         "yourSpeed": "Tu velocidad",
-        "good": "Buena para streaming. Pulsa Siguiente.",
+        "good": "Buena para streaming. Presiona Siguiente.",
         "tooSlow": "Muy lenta para ver sin cortes. Prueba Wi-Fi de 5 GHz, acerca el equipo al router o usa un cable Ethernet, y vuelve a probar.",
         "emptyHint": "Haz la prueba y tu resultado aparecerá aquí."
       },
@@ -369,8 +369,8 @@
           "b2": "Envía a soporte el nombre exacto del canal o título para arreglarlo rápido."
         },
         "cacheFixed": {
-          "title": "Resuelto: borrar la caché lo arregló",
-          "b1": "Borrar la caché y reiniciar renueva la app y la conexión.",
+          "title": "Resuelto: borrar el caché lo arregló",
+          "b1": "Borrar el caché y reiniciar renueva la app y la conexión.",
           "b2": "Si vuelve a pasar, repite primero el paso de Force Stop + Clear Cache."
         },
         "slow": {
@@ -389,7 +389,7 @@
           "title": "Sigue cortándose: que soporte lo revise",
           "b1": "Vuelve a probar la velocidad más cerca del router (15+ Mbps).",
           "b2": "Prueba la VPN con otra ciudad o servidor cercano y vuelve a probar la velocidad (15+ Mbps).",
-          "b3": "Pulsa Enviar a soporte y lo retomaremos con tus resultados."
+          "b3": "Presiona Enviar a soporte y lo retomaremos con tus resultados."
         }
       },
       "recap": {
@@ -398,7 +398,7 @@
         "buffering": "Cortes",
         "oneChannel": "Un canal o título",
         "everything": "Todo",
-        "cacheFixed": "Borrar la caché lo arregló",
+        "cacheFixed": "Borrar el caché lo arregló",
         "speed": "Velocidad",
         "speedValue": "{{speed}} Mbps",
         "vpn": "VPN",

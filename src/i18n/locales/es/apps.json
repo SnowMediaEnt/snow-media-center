@@ -13,7 +13,7 @@
       "downloadBtn": "Descargar",
       "unpinTitle": "Desfijar app",
       "pinTitle": "Fijar app para acceso rápido",
-      "forceStopBtn": "Forzar cierre",
+      "forceStopBtn": "Forzar detención",
       "forceStopHint": "Abre la información de la app en el sistema: toca Forzar detención",
       "clearCacheBtn": "Borrar caché",
       "clearCacheHint": "Toca automáticamente Almacenamiento → Borrar caché (sin perder datos). Requiere el permiso de Accesibilidad una vez.",
@@ -36,7 +36,7 @@
       "launchHint": "Toca para abrir · Mantén para cambiar",
       "downloadHint": "No instalada: toca para descargar · Mantén para cambiar",
       "installBtn": "Instalar",
-      "addBtn": "Añadir",
+      "addBtn": "Agregar",
       "changeTitle": "Cambiar app fijada",
       "selectTitle": "Elige apps para fijar",
       "pinnedLabel": "Fijada",
@@ -44,7 +44,7 @@
       "canPinMore_one": "Puedes fijar {{count}} app más",
       "canPinMore_many": "Puedes fijar {{count}} apps más",
       "canPinMore_other": "Puedes fijar {{count}} apps más",
-      "maxReached": "Máximo 4 apps fijadas. Quita una para añadir más."
+      "maxReached": "Máximo 4 apps fijadas. Quita una para agregar más."
     },
     "retired": {
       "title": "{{app}} ahora está en el Reproductor",

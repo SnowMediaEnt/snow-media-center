@@ -53,7 +53,7 @@
       "stepOf": "Configuración: paso {{step}} de 3",
       "app": {
         "title": "Instala la app de soporte",
-        "body": "La app Snow Support es la que comparte tu pantalla con el técnico. Instálala, pulsa Volver a comprobar y este paso pasará a Listo.",
+        "body": "La app Snow Support es la que comparte tu pantalla con el técnico. Instálala, presiona Revisar y este paso pasará a Listo.",
         "installBtn": "Instalar app de soporte",
         "downloading": "Descargando...",
         "recheckBtn": "Revisar",
@@ -69,7 +69,7 @@
       "continueBtn": "Continuar",
       "a11y": {
         "title": "Activa el servicio de accesibilidad de Snow Support",
-        "why": "Esto permite que los clics del técnico realmente pulsen cosas en tu equipo.",
+        "why": "Esto permite que los clics del técnico realmente funcionen en tu equipo.",
         "how": "Busca <1>Snow Support</1> en la lista y ponlo en <1>Activado</1>. Luego vuelve y confirma.",
         "openBtn": "Abrir Ajustes de accesibilidad",
         "important": "<1>Importante:</1> el paso 2 (Mostrar sobre otras apps) debe estar Listo primero; activar esto antes del permiso de superposición puede dejar el control sin respuesta hasta desenchufar el equipo."
@@ -97,7 +97,7 @@
       "readyDesc": "Preparemos tu equipo para el técnico.",
       "codeRejectedTitle": "Código no aceptado",
       "codeInvalid": "Ese código no es correcto. Revísalo e inténtalo de nuevo.",
-      "codeExpired": "Ese código ha caducado.",
+      "codeExpired": "Ese código venció.",
       "codeUsedUp": "Ese código ya se usó.",
       "codeTooMany": "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
       "codeNoRequest": "Esta solicitud ya no está esperando el pago.",

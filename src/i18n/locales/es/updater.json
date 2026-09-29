@@ -70,7 +70,7 @@
       "installerOpened": "Se abrió el instalador de {{name}}",
       "permissionTitle": "Se necesita permiso",
       "installFailedTitle": "Falló la instalación",
-      "permissionDesc": "Activa «Instalar apps desconocidas» para Snow Media Center y vuelve a pulsar Instalar ahora.",
+      "permissionDesc": "Activa «Instalar apps desconocidas» para Snow Media Center y vuelve a presionar Instalar ahora.",
       "launchFailedTitle": "No se pudo abrir",
       "launchFailedDesc": "No se pudo abrir la app"
     },

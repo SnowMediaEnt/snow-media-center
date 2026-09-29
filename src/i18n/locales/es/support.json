@@ -6,7 +6,7 @@
     },
     "tabs": {
       "helpTab": "Ayuda",
-      "aiTab": "Chat IA",
+      "aiTab": "Chat con IA",
       "postsTab": "Novedades"
     },
     "cards": {
@@ -15,7 +15,7 @@
         "desc": "Un recorrido sencillo por cada pantalla"
       },
       "speedTest": {
-        "title": "Test de velocidad",
+        "title": "Prueba de velocidad",
         "desc": "Prueba tu velocidad de internet"
       },
       "guide": {
@@ -54,12 +54,12 @@
       "notInstalledTitle": "App no instalada",
       "notInstalledDesc": "{{name}} no está instalada en este dispositivo.",
       "openingTitle": "Abriendo {{name}}",
-      "openingDesc": "Toca «Forzar detención» y luego «Almacenamiento» → «Borrar caché». Pulsa Atrás al terminar.",
+      "openingDesc": "Toca «Forzar detención» y luego «Almacenamiento» → «Borrar caché». Presiona Atrás al terminar.",
       "appInfoFailedTitle": "No se pudo abrir la info de la app",
       "appInfoFailedDesc": "Abre Ajustes de Android → Apps → {{name}} manualmente."
     },
     "speedTest": {
-      "title": "Test de velocidad de internet",
+      "title": "Prueba de velocidad de internet",
       "startBtn": "Iniciar",
       "runAgainBtn": "Repetir",
       "testingBtn": "Probando…",
@@ -95,21 +95,21 @@
       "subtitle": "Tutoriales y guías de ayuda de Vimeo",
       "allTab": "Todos ({{count}})",
       "servicesTab": "Servicios ({{count}})",
-      "devicesTab": "Equipos ({{count}})",
+      "devicesTab": "Dispositivos ({{count}})",
       "watchBtn": "Ver video",
       "loading": "Cargando videos de soporte...",
       "loadError": "Error al cargar los videos: {{error}}",
       "empty": "No hay videos. Sube videos a tu cuenta de Vimeo para verlos aquí.",
-      "emptyDevice": "No hay videos de equipos. Etiqueta tus videos con: x96, FireTV u Older",
+      "emptyDevice": "No hay videos de dispositivos. Etiqueta tus videos con: x96, FireTV u Older",
       "emptyService": "No hay videos de servicios. Etiqueta tus videos con: Dreamstreams, Vibez TV, Plex o Support",
       "emptyAll": "No hay videos en tu cuenta de Vimeo.",
-      "closeHint": "Pulsa ESC/Atrás para cerrar | P/K para reproducir/pausar",
+      "closeHint": "Presiona ESC/Atrás para cerrar | P/K para reproducir/pausar",
       "closeBtn": "✕ Cerrar",
       "frameTitle": "Video de soporte"
     },
     "mail": {
       "heading": "Novedades de Snow Media Entertainment",
-      "notifOff": "Notificaciones desactivadas (Ajustes → UI)",
+      "notifOff": "Notificaciones desactivadas (Ajustes → Interfaz)",
       "checking": "Buscando novedades…",
       "emptyTitle": "Aún no hay nada",
       "emptyDesc": "Cuando Snow Media publique noticias, ofertas o eventos, aparecerán aquí, con fecha y marcadas hasta que las abras.",
@@ -124,7 +124,7 @@
         "hintClose": "Atrás Cerrar",
         "makingCode": "Creando código…",
         "scanTitle": "Escanea con tu teléfono",
-        "closeHint": "Pulsa OK o Atrás para cerrar"
+        "closeHint": "Presiona OK o Atrás para cerrar"
       },
       "link": {
         "open": "Abrir enlace",

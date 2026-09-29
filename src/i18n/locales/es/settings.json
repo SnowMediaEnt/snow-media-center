@@ -9,7 +9,7 @@
       "alerts": "Alertas de apps",
       "ai": "IA",
       "profiles": "Perfiles",
-      "remote": "Control móvil"
+      "remote": "Control celular"
     },
     "mediaManagerHeading": "Gestor de medios",
     "contentBar": {
@@ -35,15 +35,15 @@
     },
     "dashboardSize": {
       "title": "Panel grande",
-      "description": "Desactivado, el Panel cabe en una pantalla. Activado, todo es más grande y fácil de leer desde el sofá, y la página se desplaza."
+      "description": "Desactivado, el Panel cabe en una pantalla. Activado, todo es más grande y fácil de leer desde el sillón, y la página se desplaza."
     },
     "postNotify": {
       "title": "Notificaciones de publicaciones",
-      "description": "Activado, una publicación nueva de Snow Media muestra un contador en la tarjeta de Soporte y un aviso en el inicio. Desactivado, igual llega a Soporte → Publicaciones, en silencio."
+      "description": "Activado, una publicación nueva de Snow Media muestra un contador en la tarjeta de Soporte y un aviso en el inicio. Desactivado, igual llega a Soporte → Novedades, en silencio."
     },
     "deviceAlerts": {
       "title": "Alertas en este dispositivo",
-      "description": "Activado por defecto. Los avisos del servicio aparecen en pantalla incluso con Snow Media Center cerrado: pulsa OK en uno para abrir la app, o ciérralo y no volverá. Desactívalo para que las alertas solo se vean dentro de la app.",
+      "description": "Activado por defecto. Los avisos del servicio aparecen en pantalla incluso con Snow Media Center cerrado: presiona OK en uno para abrir la app, o ciérralo y no volverá. Desactívalo para que las alertas solo se vean dentro de la app.",
       "blocked": "Las notificaciones de esta app están desactivadas en los ajustes de tu dispositivo, así que no se mostrará nada hasta que las reactives allí."
     },
     "remote": {

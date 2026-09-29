@@ -135,7 +135,7 @@
       "gettingReadyRetry": "El retroceso se está preparando. Inténtalo de nuevo en unos segundos.",
       "needsLatestApp": "El retroceso necesita la última versión de Snow Media Center.",
       "watchingLive": "Estás viendo en vivo.",
-      "archiveStep": "El archivo de este canal avanza de minuto en minuto. Pulsa de nuevo o ve al directo.",
+      "archiveStep": "El archivo de este canal avanza de minuto en minuto. Presiona de nuevo o elige Ver en vivo.",
       "off": {
         "streams": "Tu plan permite 1 conexión, así que el retroceso solo funciona en canales con diferido.",
         "streamsUnknown": "Este equipo no sabe cuántas conexiones permite tu plan, así que el retroceso solo funciona en canales con diferido.",
@@ -165,7 +165,7 @@
       "onThisBox": "En este equipo",
       "usage": "Búfer de retroceso ahora: {{used}} · Libre: {{free}}",
       "usageWithBudget": "Búfer de retroceso ahora: {{used}} · Libre: {{free}} · Auto podría usar hasta {{budget}}",
-      "figuresInApp": "Las cifras se muestran en la app de tu TV box.",
+      "figuresInApp": "Las cifras se muestran en la app de tu equipo de TV.",
       "nearlyFull": "Este equipo está casi lleno: el retroceso en canales sin diferido no tendrá espacio.",
       "recordingsSeparate": "Las grabaciones son aparte (TV en vivo › Grabaciones) y el retroceso nunca las borra."
     }
