@@ -1,0 +1,25 @@
+# Item 3: Live TV B (Guide, Game Day, Recordings, Rewind settings, Live TV account screens)
+src/components/livetv/GuideSection.tsx
+src/components/livetv/GameDaySection.tsx
+src/components/GameReminderHost.tsx
+src/components/livetv/RecordDialog.tsx
+src/components/livetv/RecordingsScreen.tsx
+src/components/livetv/RewindSettingsScreen.tsx
+src/components/livetv/SettingsHub.tsx
+src/components/livetv/AccountInfoScreen.tsx
+src/components/livetv/AppearanceScreen.tsx
+src/components/livetv/BackupsSection.tsx
+src/components/livetv/HideCategoriesScreen.tsx
+src/components/livetv/SwitchAccountScreen.tsx
+src/components/livetv/CredentialsForm.tsx
+src/components/livetv/ClaimAccountCard.tsx
+src/components/livetv/ExpirationNoticeDialog.tsx
+src/components/livetv/RenewQR.tsx
+src/components/PlayerAccountCard.tsx
+src/lib/gameDay.ts
+src/lib/gameReminders.ts
+src/lib/liveRewind.ts
+src/lib/recording.ts
+src/lib/recordSchedule.ts
+src/lib/lineEmail.ts
+src/hooks/useLiveRewind.ts

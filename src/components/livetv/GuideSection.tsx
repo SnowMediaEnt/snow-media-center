@@ -58,6 +58,9 @@ import BufferingDiagnostics from './BufferingDiagnostics';
 import SnowLoader from '@/components/SnowLoader';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { voiceOwnsBack } from '@/lib/voiceUi';
+import i18n from '@/i18n';
+import { formatTime } from '@/i18n/format';
+import { useTranslation } from 'react-i18next';
 import {
   demoGetLiveCategories,
   demoGetLiveStreams,
@@ -115,15 +118,15 @@ const halfHourFloor = (t: number) => {
   return d.getTime();
 };
 
-// One formatter for the whole Guide. toLocaleTimeString with options builds a
-// new ICU formatter on every call — dozens per render on Chromium 66.
-const SLOT_FMT = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' });
-const formatSlot = (ms: number) => SLOT_FMT.format(ms);
+// formatTime keeps one cached formatter per language (toLocaleTimeString with
+// options builds a new ICU formatter on every call: dozens per render on Chromium 66).
+const formatSlot = (ms: number) => formatTime(ms);
 // Programme guides kept for this visit; the oldest go first past this.
 const EPG_CACHE_MAX = 300;
 
 // The Favorites chip, always first in the bar — where LiveSection's list puts
 // Favorites. Its rows come from the saved list, not from a category download.
+// The name here is only an id-like placeholder; the bar draws the translated word.
 const FAV_CHIP: XtreamCategory = { category_id: '__favorites__', category_name: 'Favorites' };
 
 // A saved favourite as a grid row: every field the rows, playback and the
@@ -143,7 +146,7 @@ const sameFavs = (a: Map<number, FavChannel>, b: Map<number, FavChannel>) =>
 const decodePrograms = (entries: XtreamEpgEntry[]): DecodedProgram[] =>
   entries
     .map(e => ({
-      title: decodeEpgText(e.title) || 'Program',
+      title: decodeEpgText(e.title) || i18n.t('guide.untitled'),
       start: parseEpgTime(e.start_timestamp || e.start),
       end: parseEpgTime(e.stop_timestamp || e.end),
       rs: e.start_timestamp || e.start || '',
@@ -153,6 +156,7 @@ const decodePrograms = (entries: XtreamEpgEntry[]): DecodedProgram[] =>
     .sort((a, b) => a.start - b.start);
 
 const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: _onNavigate }: Props) => {
+  const { t } = useTranslation();
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   // Index into the bar: 0 is Favorites, then the categories.
@@ -467,8 +471,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     const notice = native.engineNotice;
     if (!notice || notice === lastEngineNoticeRef.current) return;
     lastEngineNoticeRef.current = notice;
-    toast({ title: "MPV couldn't start on this box — using ExoPlayer" });
-  }, [native.engineNotice]);
+    toast({ title: t('guide.toast.mpvFallback') });
+  }, [native.engineNotice, t]);
   useEffect(() => {
     if (!nativeActive) return;
     document.documentElement.classList.add('snowplayer-fullscreen');
@@ -573,7 +577,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     const win = paddedWindow({ startUtcMs: p.startMs, endUtcMs: p.endMs, padBeforeMin: pad.beforeMin, padAfterMin: pad.afterMin });
     try {
       if (mode === 'over') {
-        toast({ title: 'That programme has finished', variant: 'destructive' });
+        toast({ title: t('guide.toast.finished'), variant: 'destructive' });
       } else if (mode === 'now') {
         const minutes = minutesUntil(win.endMs, now);
         const paused = await pauseRewindForRecording(target.plan);
@@ -585,7 +589,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           durationMin: minutes,
           maxSimultaneous: recordingCap(target.plan),
         });
-        toast({ title: `Recording ${target.ch.name}`, description: `Until ${endsAtLabel(minutes) ?? ''} · ${r.volumeLabel}. ${note}${paused ? ` ${REWIND_PAUSED_NOTE}` : ''}` });
+        toast({ title: t('guide.toast.recordingTitle', { name: target.ch.name }), description: t('guide.toast.recordingDesc', { time: endsAtLabel(minutes) ?? '', volume: r.volumeLabel, note, paused: paused ? ` ${REWIND_PAUSED_NOTE}` : '' }) });
       } else {
         const r = await SnowRecorder.schedule({
           streamId: target.ch.stream_id,
@@ -600,8 +604,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           maxConnections: target.plan,
         });
         toast({
-          title: `Scheduled: ${p.title}`,
-          description: `${target.ch.name}, ${paddedLabel(win.startMs, win.endMs)}. ${note}${r.exact ? '' : ' This box may start it late: see Live TV › Recordings.'}`,
+          title: t('guide.toast.scheduledTitle', { title: p.title }),
+          description: t(r.exact ? 'guide.toast.scheduledDesc' : 'guide.toast.scheduledDescLate', { channel: target.ch.name, times: paddedLabel(win.startMs, win.endMs), note }),
         });
       }
     } catch (e) {
@@ -610,13 +614,13 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         ? conflictMessage({ atMs: err.data.atMs, count: err.data.count ?? 1 })
         : (err?.message ?? '');
       toast({
-        title: mode === 'now' ? 'Recording did not start' : 'Could not schedule it',
+        title: mode === 'now' ? t('guide.toast.recordFailed') : t('guide.toast.scheduleFailed'),
         description: mode === 'now' && err?.code !== 'NO_SPACE' ? `${why}${why ? ' ' : ''}${note}` : why,
         variant: 'destructive',
       });
     }
     notifyRecordingsChanged();
-  }, [creds]);
+  }, [creds, t]);
 
   // ── D-pad ─────────────────────────────────────────────────────────────
   const focusZoneRef = useRef(focusZone);
@@ -812,21 +816,21 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     return (
       <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
         {!NATIVE_PLAYBACK && !DEMO && (
-          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
             <VideoPlayer src={streamUrl} volume={volume} muted={false} className="w-full h-full" />
           </Suspense>
         )}
         {DEMO && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 pointer-events-none">
             <p className="px-3 py-1 rounded-full bg-brand-gold/20 border border-brand-gold/40 text-brand-gold text-xs font-nunito font-semibold tracking-widest uppercase">
-              Demo mode — playback is disabled
+              {t('guide.demoNotice')}
             </p>
             <p className="mt-2 text-brand-ice/70 font-nunito text-sm max-w-md">{DEMO_DIALOG_MSG}</p>
           </div>
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-full max-w-md"><SnowLoader size="lg" label="Buffering…" /></div>
+            <div className="w-full max-w-md"><SnowLoader size="lg" label={t('guide.buffering')} /></div>
           </div>
         )}
         {NATIVE_PLAYBACK && !native.error && (
@@ -835,7 +839,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         {NATIVE_PLAYBACK && native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
             <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
-            <p className="font-quicksand font-semibold text-xl mb-1">Playback Error</p>
+            <p className="font-quicksand font-semibold text-xl mb-1">{t('guide.playbackError')}</p>
             <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
             <button
               onClick={() => native.retry()}
@@ -843,7 +847,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
               data-focused="true"
               className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold"
             >
-              <RotateCw className="w-4 h-4" /> Retry
+              <RotateCw className="w-4 h-4" /> {t('common.retry')}
             </button>
           </div>
         )}
@@ -859,7 +863,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           </div>
         </div>
         <div className="absolute bottom-4 right-6 px-3 py-2 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">
-          Vol {Math.round(volume * 100)}% · Back to exit
+          {t('guide.volumeBack', { pct: Math.round(volume * 100) })}
         </div>
       </div>
     );
@@ -878,7 +882,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       <div className={`flex-shrink-0 border-b border-white/10 bg-black/40 px-3 py-2 ${focusZone === 'category' && isActive ? 'bg-white/5' : ''}`}>
         {!catsReady ? (
           <div className="flex items-center gap-2 text-brand-ice/70 font-nunito text-sm px-2 py-1">
-            <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
+            <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> {t('guide.loadingCategories')}
           </div>
         ) : (
           <div ref={catBarRef} className="flex items-center gap-2 overflow-x-auto overflow-y-hidden whitespace-nowrap py-1 px-2 -mx-2">
@@ -899,12 +903,12 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                   `}
                 >
                   {isFav && <Star className="w-4 h-4 mr-1.5 text-brand-gold flex-shrink-0" />}
-                  {c.category_name}
+                  {isFav ? t('guide.favorites') : c.category_name}
                 </button>
               );
             })}
             {categories.length === 0 && (
-              <span className="flex-shrink-0 text-brand-ice/70 font-nunito text-sm px-2">No categories.</span>
+              <span className="flex-shrink-0 text-brand-ice/70 font-nunito text-sm px-2">{t('guide.noCategories')}</span>
             )}
           </div>
         )}
@@ -936,17 +940,17 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                   <h3 className="text-2xl font-quicksand font-bold text-white truncate">{ch.name}</h3>
                   {now ? (
                     <>
-                      <p className="mt-1 text-lg text-brand-ice/90 font-nunito truncate">Now: {now.title}</p>
+                      <p className="mt-1 text-lg text-brand-ice/90 font-nunito truncate">{t('guide.now', { title: now.title })}</p>
                       <p className="text-sm text-brand-ice/60 font-nunito">{formatSlot(now.start)} – {formatSlot(now.end)}</p>
                     </>
                   ) : (
-                    <p className="mt-1 text-base text-brand-ice/60 font-nunito">No programme information</p>
+                    <p className="mt-1 text-base text-brand-ice/60 font-nunito">{t('guide.noInfo')}</p>
                   )}
-                  {next && <p className="mt-2 text-base text-brand-ice/70 font-nunito truncate">Next: {next.title} · {formatSlot(next.start)}</p>}
-                  <p className="mt-2 text-xs text-brand-ice/45 font-nunito">OK to watch full screen</p>
+                  {next && <p className="mt-2 text-base text-brand-ice/70 font-nunito truncate">{t('guide.next', { title: next.title, time: formatSlot(next.start) })}</p>}
+                  <p className="mt-2 text-xs text-brand-ice/45 font-nunito">{t('guide.okFullScreen')}</p>
                 </>
               ) : (
-                <p className="text-base text-brand-ice/60 font-nunito">Pick a channel to preview it here.</p>
+                <p className="text-base text-brand-ice/60 font-nunito">{t('guide.pickChannel')}</p>
               )}
             </div>
           </div>
@@ -962,8 +966,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           className="flex-shrink-0 border-r border-white/10 flex items-center justify-between px-3 text-xs font-nunito text-brand-ice/70"
           style={{ width: CHANNEL_COL_WIDTH }}
         >
-          <span>Channel</span>
-          <span className={canGoEarlier ? 'text-brand-gold' : 'opacity-50'}>◀ earlier</span>
+          <span className="min-w-0 truncate">{t('guide.channelHeader')}</span>
+          <span className={`min-w-0 truncate ${canGoEarlier ? 'text-brand-gold' : 'opacity-50'}`}>{t('guide.earlier')}</span>
         </div>
         <div className="flex-1 relative">
           {slotStarts.map((s, i) => (
@@ -991,11 +995,11 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       >
         {listLoading && channels.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm gap-2">
-            <Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading channels…
+            <Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> {t('guide.loadingChannels')}
           </div>
         ) : channels.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">
-            {onFavorites ? 'No favorites yet. In Live TV, hold OK on a channel and choose Add to Favorites.' : 'No channels in this category.'}
+            {onFavorites ? t('guide.noFavorites') : t('guide.noChannels')}
           </div>
         ) : (
           <div style={{ height: totalRowsSize, position: 'relative', width: '100%' }}>
@@ -1045,12 +1049,12 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                     <div className="flex-1 relative">
                       {!programs && (
                         <div className="absolute inset-0 flex items-center justify-center text-brand-ice/70 font-nunito text-xs">
-                          <Loader2 className="w-3 h-3 animate-spin mr-2" /> EPG…
+                          <Loader2 className="w-3 h-3 animate-spin mr-2" /> {t('guide.epgLoading')}
                         </div>
                       )}
                       {programs && visible.length === 0 && (
                         <div className="absolute inset-0 flex items-center px-3 text-brand-ice/70 font-nunito text-xs">
-                          No listings
+                          {t('guide.noListings')}
                         </div>
                       )}
                       {visible.map((p, i) => {
@@ -1080,7 +1084,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                             {scheduled && (
                               <span
                                 data-scheduled-dot
-                                aria-label="Scheduled to record"
+                                aria-label={t('guide.scheduledDot')}
                                 className="absolute top-1 right-1 rounded-full bg-red-500"
                                 style={{ width: 8, height: 8 }}
                               />
@@ -1103,7 +1107,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
 
       {/* Hint bar */}
       <div className="flex-shrink-0 border-t border-white/10 bg-black/40 px-3 py-2 text-xs font-nunito text-brand-ice/60">
-        ◀ ▶ shift time · ▲ ▼ channel · OK to play{SCHEDULE_CAPABLE && !kidsLevel() ? ' · hold OK to record' : ''} · Back to exit
+        {SCHEDULE_CAPABLE && !kidsLevel() ? t('guide.hintRecord') : t('guide.hint')}
       </div>
       {recordFor && (
         <RecordDialog

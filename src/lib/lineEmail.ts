@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { XtreamCreds } from '@/lib/xtream';
+import i18n from '@/i18n';
 
 /**
  * Mail a customer the streaming login they just received.
@@ -28,20 +29,15 @@ export interface EmailLineOutcome {
   message?: string;
 }
 
-const MESSAGES: Record<string, string> = {
-  not_deployed: 'Email is not switched on for this server yet. Your details are still on screen.',
-  auth_required: 'Email is not configured correctly on the server. Your details are still on screen.',
-  invalid_email: 'That email address does not look right.',
-  missing_credentials: 'This service has no login details yet.',
-  invalid_credentials: 'The panel did not recognise this login, so nothing was sent.',
-  panel_unreachable: 'Could not reach the streaming server just now. Your details are still on screen.',
-  rate_limited: 'That has been sent a few times already. Try again in a few minutes.',
-  email_unavailable: 'Email is not switched on for this server yet.',
-  send_failed: 'The email could not be sent. Your details are still on screen.',
-};
+// The server's error codes, each with a message key (liveAccount.email.<code>).
+const CODES = new Set([
+  'not_deployed', 'auth_required', 'invalid_email', 'missing_credentials', 'invalid_credentials',
+  'panel_unreachable', 'rate_limited', 'email_unavailable', 'send_failed',
+]);
 
+/** The sentence for a code, in the app's language (translated when it is asked for). */
 const friendly = (code: string): string =>
-  MESSAGES[code] ?? 'The email could not be sent. Your details are still on screen.';
+  i18n.t(CODES.has(code) ? `liveAccount.email.${code}` : 'liveAccount.email.send_failed');
 
 /** Marks a line as already mailed, so re-entering a screen does not send again. */
 const sentKey = (host: string, username: string) =>

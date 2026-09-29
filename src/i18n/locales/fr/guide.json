@@ -1,0 +1,38 @@
+{
+  "guide": {
+    "untitled": "Programme",
+    "favorites": "Favoris",
+    "buffering": "Mise en mémoire tampon…",
+    "demoNotice": "Mode démo — la lecture est désactivée",
+    "playbackError": "Erreur de lecture",
+    "volumeBack": "Vol {{pct}} % · Retour pour quitter",
+    "loadingCategories": "Chargement des catégories…",
+    "noCategories": "Aucune catégorie.",
+    "now": "Maintenant : {{title}}",
+    "noInfo": "Aucune information sur le programme",
+    "next": "Ensuite : {{title}} · {{time}}",
+    "okFullScreen": "OK pour le plein écran",
+    "pickChannel": "Choisissez une chaîne pour l'aperçu.",
+    "channelHeader": "Chaîne",
+    "earlier": "◀ plus tôt",
+    "loadingChannels": "Chargement des chaînes…",
+    "noFavorites": "Aucun favori pour le moment. Dans TV en direct, maintenez OK sur une chaîne et choisissez Ajouter aux favoris.",
+    "noChannels": "Aucune chaîne dans cette catégorie.",
+    "epgLoading": "EPG…",
+    "noListings": "Aucun programme",
+    "scheduledDot": "Enregistrement programmé",
+    "hint": "◀ ▶ décaler l'heure · ▲ ▼ chaîne · OK pour lire · Retour pour quitter",
+    "hintRecord": "◀ ▶ décaler l'heure · ▲ ▼ chaîne · OK pour lire · maintenez OK pour enregistrer · Retour pour quitter",
+    "toast": {
+      "mpvFallback": "MPV n'a pas pu démarrer sur ce boîtier — ExoPlayer est utilisé",
+      "finished": "Ce programme est terminé",
+      "recordingTitle": "Enregistrement de {{name}}",
+      "recordingDesc": "Jusqu'à {{time}} · {{volume}}. {{note}}{{paused}}",
+      "scheduledTitle": "Programmé : {{title}}",
+      "scheduledDesc": "{{channel}}, {{times}}. {{note}}",
+      "scheduledDescLate": "{{channel}}, {{times}}. {{note}} Ce boîtier peut la démarrer en retard : voir TV en direct › Enregistrements.",
+      "recordFailed": "L'enregistrement n'a pas démarré",
+      "scheduleFailed": "Impossible de le programmer"
+    }
+  }
+}

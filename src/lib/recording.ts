@@ -2,8 +2,12 @@
 // The recording itself is native (RecorderPlugin / RecordingService).
 
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
+import i18n from '@/i18n';
 
-/** The Record dialog's lengths, minutes; 0 = until I stop it. */
+/**
+ * The Record dialog's lengths, minutes; 0 = until I stop it. `label` is the English fallback;
+ * the dialog shows the translated name by id (recordings.dialog.duration.<id>).
+ */
 export const RECORD_DURATIONS: Array<{ id: string; label: string; minutes: number }> = [
   { id: '30', label: '30 min', minutes: 30 },
   { id: '60', label: '1 hour', minutes: 60 },
@@ -27,8 +31,8 @@ export function stepCustom(minutes: number, dir: 1 | -1): number {
 export function formatMinutes(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
-  if (h === 0) return `${m} min`;
-  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+  if (h === 0) return i18n.t('recordings.units.min', { n: m });
+  return m === 0 ? i18n.t('recordings.units.hour', { n: h }) : i18n.t('recordings.units.hourMin', { h, m });
 }
 
 /** Free space below this gets a warning in the dialog and the list. */
@@ -47,15 +51,20 @@ export const MAX_SIMULTANEOUS_RECORDINGS = 2;
 export function extraStreamNote(maxConnections: number | null | undefined): string {
   const n = Math.floor(Number(maxConnections));
   return Number.isFinite(n) && n >= 1
-    ? `Recording uses one more stream on your line (your plan allows ${n} at once).`
-    : 'Recording uses one more stream on your line.';
+    ? i18n.t('recordings.note.extraStreamPlan', { count: n })
+    : i18n.t('recordings.note.extraStream');
 }
 
 /** A plan with this many streams holds the picture, the rewind buffer and a recording at once. */
 export const STREAMS_FOR_REWIND_AND_RECORDING = 4;
 
-/** Said after a recording starts and the rewind buffer had to give way. */
-export const REWIND_PAUSED_NOTE = 'Rewind paused while recording…';
+/** Said after a recording starts and the rewind buffer had to give way (in the app's language). */
+export const rewindPausedNote = (): string => i18n.t('recordings.note.rewindPaused');
+/**
+ * Older call sites put this constant straight into a template string. It turns into the
+ * translated text at that moment (toString), so they keep working and follow the language.
+ */
+export const REWIND_PAUSED_NOTE = { toString: rewindPausedNote };
 
 /**
  * Before a recording opens its connection: drop the rewind buffer unless the

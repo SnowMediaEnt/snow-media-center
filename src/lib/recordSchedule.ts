@@ -11,6 +11,7 @@
 import { SnowRecorder, hasRecorder } from '@/capacitor/SnowRecorder';
 import { deviceUtcOffsetMinutes, formatBytes } from '@/lib/liveRewind';
 import { MAX_SIMULTANEOUS_RECORDINGS } from '@/lib/recording';
+import i18n from '@/i18n';
 
 const MIN = 60_000;
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
@@ -178,7 +179,7 @@ export const recordingCap = (maxConnections: number | null | undefined): number 
 
 /** "You already have 2 recordings at 20:00. Cancel one first." */
 export const conflictMessage = (c: Conflict): string =>
-  `You already have ${c.count} recording${c.count === 1 ? '' : 's'} at ${clockLabel(c.atMs)}. Cancel one first.`;
+  i18n.t('recordings.note.conflict', { count: c.count, time: clockLabel(c.atMs) });
 
 /** Recordings running now, as windows that never merge with anything (they hold a stream until they end). */
 export function busyFromJobs(jobs: Array<{ id: string; startedAt: number; endsAt: number }>, now: number): SchedLike[] {
@@ -226,7 +227,7 @@ export const estimateBytes = (minutes: number): number => Math.round((Math.max(0
 /** "1 h 07", "45 min". */
 export function formatHm(min: number): string {
   const m = Math.max(0, Math.round(min));
-  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${pad2(m % 60)}`;
+  return m < 60 ? i18n.t('recordings.units.min', { n: m }) : i18n.t('recordings.units.hourPad', { h: Math.floor(m / 60), m: pad2(m % 60) });
 }
 
 /** A recording stops before its drive has less than this free: 1 GB on the box, 200 MB on a USB drive (RecordingStore.kt). */
@@ -239,7 +240,7 @@ export const recordFloorBytes = (removable: boolean): number => (removable ? 200
  */
 export function spaceWarning(minutes: number, freeBytes: number, floorBytes: number): string | null {
   return estimateBytes(minutes) > Math.max(0, freeBytes - floorBytes)
-    ? `Not enough free space for about ${formatHm(minutes)} (${formatBytes(Math.max(0, freeBytes - floorBytes))} usable).`
+    ? i18n.t('recordings.note.noSpace', { length: formatHm(minutes), usable: formatBytes(Math.max(0, freeBytes - floorBytes)) })
     : null;
 }
 
@@ -277,13 +278,13 @@ export function updateGuardNote(
   schedules: Array<Pick<SchedLike, 'startUtcMs' | 'endUtcMs' | 'padBeforeMin' | 'padAfterMin' | 'status'>>,
   now: number,
 ): string | null {
-  if (jobs.length > 0) return 'A recording is running. Updating now will stop it.';
+  if (jobs.length > 0) return i18n.t('recordings.note.updateRunning');
   const soon = schedules.some((s) => {
     if (s.status !== undefined && s.status !== 'scheduled') return false;
     const w = paddedWindow(s);
     return w.endMs > now && w.startMs <= now + IMMINENT_MS;
   });
-  return soon ? 'A recording is scheduled to start soon. Updating now will stop it.' : null;
+  return soon ? i18n.t('recordings.note.updateSoon') : null;
 }
 
 /**

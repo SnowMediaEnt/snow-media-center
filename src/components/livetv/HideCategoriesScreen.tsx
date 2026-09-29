@@ -11,6 +11,7 @@ import {
 } from '@/lib/xtream';
 import { buildLines, lineKey, lineLabel, loadHiddenCategories, saveHiddenCategories } from '@/lib/liveLines';
 import { trackEvent } from '@/lib/analytics';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   onBack: () => void;
@@ -30,6 +31,7 @@ interface Row {
  * per line.
  */
 const HideCategoriesScreen = memo(({ onBack }: Props) => {
+  const { t } = useTranslation();
   const [lines, setLines] = useState<XtreamCreds[]>([]);
   const [cats, setCats] = useState<Map<string, XtreamCategory[]>>(new Map());
   const [hidden, setHidden] = useState<Map<string, Set<string>>>(new Map());
@@ -144,10 +146,10 @@ const HideCategoriesScreen = memo(({ onBack }: Props) => {
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
       <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
-        <BackButton onClick={onBack} label="Back" data-player-header-btn="" focused={focusIdx === 0} />
+        <BackButton onClick={onBack} label={t('common.back')} data-player-header-btn="" focused={focusIdx === 0} />
         <div className="flex items-center gap-2">
           <ListFilter className="w-7 h-7 text-brand-gold" />
-          <h1 className="text-2xl font-quicksand font-bold text-white">Hide Categories</h1>
+          <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.hideCategories.title')}</h1>
         </div>
         {loading && <Loader2 className="w-5 h-5 animate-spin text-brand-gold ml-2" />}
       </div>
@@ -155,11 +157,10 @@ const HideCategoriesScreen = memo(({ onBack }: Props) => {
       <div ref={listRef} className="flex-1 overflow-auto p-6 flex items-start justify-center">
         <div className="w-full max-w-2xl space-y-2">
           <p className="text-brand-ice/80 font-nunito mb-4">
-            Press OK on a category to hide it from the Player. Hidden categories stay on your service;
-            they just stop taking up room here. Press OK again to bring one back.
+            {t('liveAccount.hideCategories.intro')}
           </p>
           {!loading && lines.length === 0 && (
-            <p className="text-white/70 text-sm text-center py-6">Sign in to the Player first.</p>
+            <p className="text-white/70 text-sm text-center py-6">{t('liveAccount.hideCategories.signInFirst')}</p>
           )}
           {rows.map((r, i) => {
             if (r.kind === 'header') {
@@ -168,12 +169,13 @@ const HideCategoriesScreen = memo(({ onBack }: Props) => {
                   <Badge className="bg-brand-gold/25 text-brand-gold border border-brand-gold/40 text-sm">{lineLabel(r.line)}</Badge>
                   <span className="text-white/60 text-sm font-nunito truncate">{r.line.username}</span>
                   <span className="ml-auto text-white/50 text-xs font-nunito">
-                    {(hidden.get(r.key)?.size ?? 0) > 0 ? `${hidden.get(r.key)!.size} hidden` : 'nothing hidden'}
+                    {(hidden.get(r.key)?.size ?? 0) > 0 ? t('liveAccount.hideCategories.hiddenCount', { count: hidden.get(r.key)!.size }) : t('liveAccount.hideCategories.nothingHidden')}
                   </span>
                 </div>
               );
             }
             const focused = focusedRow === i;
+            const isCat = r.kind === 'cat';
             const isHidden = r.kind === 'cat' && !!r.cat && (hidden.get(r.key)?.has(String(r.cat.category_id)) ?? false);
             return (
               <div
@@ -191,11 +193,11 @@ const HideCategoriesScreen = memo(({ onBack }: Props) => {
                   ? <Eye className="w-5 h-5 text-brand-ice shrink-0" />
                   : isHidden ? <EyeOff className="w-5 h-5 text-rose-300 shrink-0" /> : <Eye className="w-5 h-5 text-emerald-300 shrink-0" />}
                 <span className={`flex-1 font-nunito truncate ${isHidden ? 'line-through text-white/60' : ''}`}>
-                  {r.kind === 'all' ? 'Show every category on this line' : r.cat!.category_name}
+                  {r.kind === 'all' ? t('liveAccount.hideCategories.showAll') : r.cat!.category_name}
                 </span>
-                {r.kind === 'cat' && (
+                {isCat && (
                   <span className={`text-xs font-nunito px-2 py-1 rounded-lg ${isHidden ? 'bg-rose-500/20 text-rose-200' : 'bg-white/10 text-brand-ice/70'}`}>
-                    {isHidden ? 'Hidden' : 'Shown'}
+                    {isHidden ? t('liveAccount.hideCategories.hiddenChip') : t('liveAccount.hideCategories.shownChip')}
                   </span>
                 )}
               </div>

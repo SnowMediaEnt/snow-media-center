@@ -16,6 +16,7 @@ import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { stepVolume } from '@/utils/volume';
+import { useTranslation } from 'react-i18next';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -37,6 +38,10 @@ interface Props {
 }
 
 const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Props) => {
+  const { t } = useTranslation();
+  // The key handler below is added once; it reads the current translator from here.
+  const tRef = useRef(t);
+  tRef.current = t;
   const [playing, setPlaying] = useState<BackupStream | null>(null);
   // Paused while a stream plays: the 60 s safety poll waits until you stop.
   const { live, vod, loading, refresh } = useBackupStreams(serverLabel ?? null, !!playing);
@@ -116,7 +121,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
   const doRefresh = useCallback(() => {
     refreshRef.current();
     if (!DEMO) { try { trackEvent('backup_refresh', 'player', {}); } catch { /* ignore */ } }
-    toast({ title: 'Updated', description: 'Backup list refreshed.' });
+    toast({ title: tRef.current('liveAccount.backups.refreshedTitle'), description: tRef.current('liveAccount.backups.refreshedDesc') });
   }, []);
 
   // Clamp focus when shelves appear/disappear (rows can shrink on refresh).
@@ -221,7 +226,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
     return (
       <div className={`fixed inset-0 z-[60] text-white ${nativeActive ? 'bg-transparent' : 'bg-black'}`}>
         {!nativeActive && (
-          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
             <VideoPlayer
               src={playing.url}
               volume={volume}
@@ -230,21 +235,21 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
                 if (!DEMO) {
                   try { trackEvent('player_error', 'player', { kind: 'backup', channel_or_title: playing.title, server: serverLabel ?? null, message: msg.slice(0, 200) }); } catch { /* ignore */ }
                 }
-                toast({ title: 'Playback failed', description: 'This backup stream could not be played.' });
+                toast({ title: t('liveAccount.backups.playFailedTitle'), description: t('liveAccount.backups.playFailedDesc') });
               }}
             />
           </Suspense>
         )}
         {nativeActive && native.buffering && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-full max-w-md"><SnowLoader size="lg" label="Buffering…" /></div>
+            <div className="w-full max-w-md"><SnowLoader size="lg" label={t('liveAccount.backups.buffering')} /></div>
           </div>
         )}
         {nativeActive && !native.error && <BufferingDiagnostics buffering={native.buffering} className="mt-12" />}
         {nativeActive && native.error && (
           <div className="absolute inset-x-0 bottom-10 flex justify-center pointer-events-none">
             <div className="px-4 py-2 rounded-xl bg-black/70 border border-red-400/40 text-sm font-nunito">
-              Stream error — OK to retry, Back to stop.
+              {t('liveAccount.backups.streamError')}
             </div>
           </div>
         )}
@@ -254,7 +259,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
           </div>
         )}
         {isPaused && (
-          <div className="absolute top-4 right-4 px-3 py-1 rounded-lg bg-black/60 text-sm font-nunito">Paused</div>
+          <div className="absolute top-4 right-4 px-3 py-1 rounded-lg bg-black/60 text-sm font-nunito">{t('liveAccount.backups.paused')}</div>
         )}
       </div>
     );
@@ -272,10 +277,10 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
       <div className="flex items-center justify-between gap-4 px-6 pt-4 pb-6 flex-shrink-0">
         <div className="min-w-0">
           <h2 className="text-2xl font-quicksand font-bold flex items-center gap-2">
-            <LifeBuoy className="w-6 h-6 text-brand-gold" /> Backups
+            <LifeBuoy className="w-6 h-6 text-brand-gold" /> {t('liveAccount.backups.title')}
           </h2>
           <p className="text-brand-ice/70 font-nunito text-sm mt-1">
-            Streams posted by Snow Media. Press Refresh if something was just added.
+            {t('liveAccount.backups.subtitle')}
           </p>
         </div>
         <button
@@ -289,7 +294,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
               : 'bg-slate-900/70 border-white/10'
           }`}
         >
-          <RefreshCw className="w-4 h-4" /> Refresh
+          <RefreshCw className="w-4 h-4" /> <span className="min-w-0 truncate">{t('liveAccount.backups.refreshBtn')}</span>
         </button>
       </div>
 
@@ -297,14 +302,14 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
       <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 space-y-6">
         {loading && live.length === 0 && vod.length === 0 && (
           <div className="h-full flex items-center justify-center">
-            <div className="w-full max-w-sm"><SnowLoader size="md" label="Loading backups…" /></div>
+            <div className="w-full max-w-sm"><SnowLoader size="md" label={t('liveAccount.backups.loading')} /></div>
           </div>
         )}
 
         {live.length > 0 && (
           <section>
             <h3 className="text-xl font-quicksand font-semibold mb-4 flex items-center gap-2">
-              <Radio className="w-5 h-5 text-brand-gold" /> Live
+              <Radio className="w-5 h-5 text-brand-gold" /> {t('liveAccount.backups.liveHeading')}
             </h3>
             <div className="flex gap-4 overflow-x-auto py-2 px-2 -mx-2">
               {live.map((s, i) => (
@@ -316,7 +321,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
                   className={`${cardCls(shelfFocused('live', i))} w-64 py-3 px-5`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="px-2 py-1 rounded-lg text-xs font-bold font-nunito bg-red-600/80">LIVE</span>
+                    <span className="px-2 py-1 rounded-lg text-xs font-bold font-nunito bg-red-600/80">{t('liveAccount.backups.liveChip')}</span>
                     {s.server_label && (
                       <span className="text-xs text-brand-ice/70 font-nunito truncate">{s.server_label}</span>
                     )}
@@ -332,7 +337,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
         {vod.length > 0 && (
           <section>
             <h3 className="text-xl font-quicksand font-semibold mb-4 flex items-center gap-2">
-              <Film className="w-5 h-5 text-brand-gold" /> Movies &amp; Series
+              <Film className="w-5 h-5 text-brand-gold" /> {t('liveAccount.backups.vodHeading')}
             </h3>
             <div className="flex gap-4 overflow-x-auto py-2 px-2 -mx-2">
               {vod.map((s, i) => (
@@ -365,7 +370,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
         {!loading && live.length === 0 && vod.length === 0 && (
           <div className="h-full flex items-center justify-center text-center px-8">
             <p className="text-brand-ice/70 font-nunito text-xl max-w-[62%]">
-              No backups right now. When Snow Media posts one it shows up here automatically.
+              {t('liveAccount.backups.empty')}
             </p>
           </div>
         )}

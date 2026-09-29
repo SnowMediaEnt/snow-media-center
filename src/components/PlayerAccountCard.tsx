@@ -6,6 +6,8 @@ import { Tv, Calendar, KeyRound, Users, LogOut } from 'lucide-react';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { clearPlayerAccount, clearCreds, expDateToMs } from '@/lib/xtream';
 import { useToast } from '@/hooks/use-toast';
+import { formatDate } from '@/i18n/format';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Read-only summary of the locally-stored Xtream player account, plus a
@@ -23,6 +25,7 @@ interface Props {
 }
 
 const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
+  const { t } = useTranslation();
   const { account, state, days } = usePlayerAccount();
   const { toast } = useToast();
 
@@ -30,8 +33,8 @@ const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
 
   const expMs = expDateToMs(account.expDate);
   const expLabel = expMs
-    ? new Date(expMs).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-    : 'No expiration on file';
+    ? formatDate(expMs)
+    : t('liveAccount.playerCard.noExpiration');
 
   const daysColor =
     state.severity === 'critical'
@@ -44,7 +47,7 @@ const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
     ? '—'
     : state.show
       ? state.label
-      : `${days} days left`;
+      : t('liveAccount.account.daysLeft', { count: days });
 
   const serverBadgeColor = account.serverLabel.toLowerCase().includes('vibez')
     ? 'bg-fuchsia-600/30 text-fuchsia-100 border-fuchsia-400/40'
@@ -53,16 +56,16 @@ const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
   const handleSignOut = async () => {
     await clearCreds();
     await clearPlayerAccount();
-    toast({ title: 'Player signed out', description: 'You can sign back in from the Player.' });
+    toast({ title: t('liveAccount.playerCard.signedOutTitle'), description: t('liveAccount.playerCard.signedOutDesc') });
   };
 
   const rows: Array<[typeof KeyRound, string, ReactNode]> = [
-    [KeyRound, 'Username', <span className="font-medium truncate">{account.username}</span>],
-    [KeyRound, 'Password', <span className="font-mono tracking-widest">••••••••</span>],
-    [Calendar, 'Expires', <span className="font-medium">{expLabel}</span>],
-    [Calendar, 'Days left', <span className={`font-semibold ${daysColor}`}>{daysLabel}</span>],
-    [Tv, 'Status', <span className="font-medium capitalize">{account.status || 'Unknown'}</span>],
-    [Users, 'Connections', <span className="font-medium">{account.activeCons ?? 0}{account.maxConnections != null ? ` / ${account.maxConnections}` : ''}</span>],
+    [KeyRound, t('liveAccount.account.username'), <span className="font-medium truncate">{account.username}</span>],
+    [KeyRound, t('liveAccount.account.password'), <span className="font-mono tracking-widest">••••••••</span>],
+    [Calendar, t('liveAccount.account.expires'), <span className="font-medium">{expLabel}</span>],
+    [Calendar, t('liveAccount.playerCard.daysLeftLabel'), <span className={`font-semibold ${daysColor}`}>{daysLabel}</span>],
+    [Tv, t('liveAccount.account.status'), <span className="font-medium capitalize">{account.status || t('liveAccount.account.statusUnknown')}</span>],
+    [Users, t('liveAccount.account.connections'), <span className="font-medium">{account.activeCons ?? 0}{account.maxConnections != null ? ` / ${account.maxConnections}` : ''}</span>],
   ];
 
   if (compact) {
@@ -71,7 +74,7 @@ const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
         <div className="flex items-center gap-2 flex-wrap mb-2">
           <Badge className={`border ${serverBadgeColor}`}>{account.serverLabel}</Badge>
           {account.isTrial && (
-            <Badge className="bg-amber-500/30 text-amber-100 border border-amber-400/40">Trial</Badge>
+            <Badge className="bg-amber-500/30 text-amber-100 border border-amber-400/40">{t('liveAccount.account.trial')}</Badge>
           )}
         </div>
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 items-center">
@@ -84,7 +87,7 @@ const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button variant="white" size="sm" onClick={handleSignOut} className="tv-focusable h-9">
-            <LogOut className="w-4 h-4 mr-2" /> Sign out of player
+            <LogOut className="w-4 h-4 mr-2" /> {t('liveAccount.playerCard.signOutBtn')}
           </Button>
           {actions}
         </div>
@@ -98,14 +101,14 @@ const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
         <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-lg font-bold text-white">Player Account</h3>
+            <h3 className="text-lg font-bold text-white">{t('liveAccount.playerCard.title')}</h3>
             <Badge className={`border ${serverBadgeColor}`}>{account.serverLabel}</Badge>
             {account.isTrial && (
-              <Badge className="bg-amber-500/30 text-amber-100 border border-amber-400/40">Trial</Badge>
+              <Badge className="bg-amber-500/30 text-amber-100 border border-amber-400/40">{t('liveAccount.account.trial')}</Badge>
             )}
           </div>
           <p className="text-sm text-white/70 mt-1">
-            Signed in to your IPTV panel — used by the Player section.
+            {t('liveAccount.playerCard.subtitle')}
           </p>
         </div>
       </div>
@@ -127,7 +130,7 @@ const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
           onClick={handleSignOut}
           className="tv-focusable"
         >
-          <LogOut className="w-4 h-4 mr-2" /> Sign out of player
+          <LogOut className="w-4 h-4 mr-2" /> {t('liveAccount.playerCard.signOutBtn')}
         </Button>
       </div>
     </Card>

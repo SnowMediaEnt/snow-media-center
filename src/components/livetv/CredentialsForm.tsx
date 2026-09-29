@@ -27,6 +27,7 @@ import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { isDemo } from '@/lib/demoMode';
 import { readPending } from '@/components/getstarted/pending';
 import { isNativePlatform } from '@/utils/platform';
+import { useTranslation } from 'react-i18next';
 
 // Sign-up for someone with no account yet: DreamStreams end to end on the TV,
 // Vibez handed off to their site. Loaded only when the viewer presses it.
@@ -50,6 +51,7 @@ interface Props {
 }
 
 const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, onNeedProfile }: Props) => {
+  const { t } = useTranslation();
   const [username, setUsername] = useState(initial?.username || '');
   const [password, setPassword] = useState(initial?.password || '');
   const [testing, setTesting] = useState(false);
@@ -118,7 +120,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!username || !password) {
-      toast({ title: 'Missing info', description: 'Please enter your username and password.', variant: 'destructive' });
+      toast({ title: t('liveAccount.credentials.missingTitle'), description: t('liveAccount.credentials.missingDesc'), variant: 'destructive' });
       return;
     }
     setTesting(true);
@@ -128,8 +130,8 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
       const result = await authenticateRouted(username, password, (s) => setProbingServer(s));
       if (!result.ok || !result.creds) {
         toast({
-          title: 'Could not sign in',
-          description: result.error || 'Invalid username or password.',
+          title: t('liveAccount.credentials.failedTitle'),
+          description: result.error || t('liveAccount.credentials.invalid'),
           variant: 'destructive',
         });
         return;
@@ -166,10 +168,10 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
           void tryPlayerBridge(result.creds.username, result.creds.password).then((r) => {
             if (r.ok) {
               toast({
-                title: 'Account loaded',
+                title: t('liveAccount.credentials.loadedTitle'),
                 description: r.emailMasked
-                  ? `Also signed into your Snow Media account (${r.emailMasked}).`
-                  : 'Also signed into your Snow Media account.',
+                  ? t('liveAccount.credentials.loadedDescEmail', { email: r.emailMasked })
+                  : t('liveAccount.credentials.loadedDesc'),
               });
             } else if (r.reason === 'not_linked') {
               onNeedProfile?.();
@@ -185,12 +187,12 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
           });
         } catch { /* ignore */ }
       }
-      toast({ title: 'Connected', description: `Signed in to ${result.server?.label}.` });
+      toast({ title: t('liveAccount.credentials.connectedTitle'), description: t('liveAccount.credentials.connectedDesc', { server: result.server?.label }) });
       onSaved(result.creds);
     } catch (err) {
       toast({
-        title: 'Could not connect',
-        description: (err as Error).message || 'Please check your credentials and try again.',
+        title: t('liveAccount.credentials.connectFailedTitle'),
+        description: (err as Error).message || t('liveAccount.credentials.connectFailedDesc'),
         variant: 'destructive',
       });
     } finally {
@@ -206,7 +208,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
           vibezEnabled={vibezOn}
           onDone={(c) => {
             setChildOpen(false);
-            toast({ title: 'Connected', description: `Signed in to ${c.serverLabel || 'your service'}.` });
+            toast({ title: t('liveAccount.credentials.connectedTitle'), description: c.serverLabel ? t('liveAccount.credentials.connectedDesc', { server: c.serverLabel }) : t('liveAccount.credentials.connectedYourService') });
             onSaved(c);
           }}
           onCancel={() => setChildOpen(false)}
@@ -226,21 +228,21 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
             <Tv className="w-8 h-8 text-brand-gold" />
           </div>
           <div>
-            <h2 className="text-2xl font-quicksand font-bold text-white">Sign in to Player</h2>
+            <h2 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.credentials.title')}</h2>
             <p className="text-brand-ice/70 font-nunito text-sm">
-              Use your subscription username & password
+              {t('liveAccount.credentials.subtitle')}
             </p>
           </div>
         </div>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="lt-user" className="text-brand-ice font-nunito">Username</Label>
+            <Label htmlFor="lt-user" className="text-brand-ice font-nunito">{t('liveAccount.credentials.username')}</Label>
             <Input
               id="lt-user"
               {...focusProps('cf-user')}
-              placeholder="Username"
-              aria-label="Username"
+              placeholder={t('liveAccount.credentials.username')}
+              aria-label={t('liveAccount.credentials.username')}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="rounded-xl h-12 bg-black/30 text-white border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -252,13 +254,13 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="lt-pass" className="text-brand-ice font-nunito">Password</Label>
+            <Label htmlFor="lt-pass" className="text-brand-ice font-nunito">{t('liveAccount.credentials.password')}</Label>
             <Input
               id="lt-pass"
               {...focusProps('cf-pass')}
               type="password"
-              placeholder="Password"
-              aria-label="Password"
+              placeholder={t('liveAccount.credentials.password')}
+              aria-label={t('liveAccount.credentials.password')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="rounded-xl h-12 bg-black/30 text-white border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -272,7 +274,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
           <div className="mt-4 flex items-center gap-3 text-brand-ice/90 font-nunito text-sm">
             <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />
             <span>
-              {probingServer ? `Checking ${probingServer.label}…` : 'Connecting…'}
+              {probingServer ? t('liveAccount.credentials.checking', { server: probingServer.label }) : t('liveAccount.credentials.connecting')}
             </span>
           </div>
         )}
@@ -286,7 +288,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
             className="flex-1 rounded-xl h-12 transition-transform duration-150 ease-out"
           >
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            {testing ? 'Signing in…' : 'Sign In'}
+            <span className="min-w-0 truncate">{testing ? t('liveAccount.credentials.signingIn') : t('liveAccount.credentials.signIn')}</span>
           </Button>
           {onCancel && (
             <Button
@@ -297,7 +299,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
               disabled={testing}
               className="rounded-xl h-12 transition-transform duration-150 ease-out"
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
           )}
         </div>
@@ -312,13 +314,12 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
             className="w-full mt-3 rounded-xl h-12 transition-transform duration-150 ease-out"
           >
             <Sparkles className="w-4 h-4 mr-2 text-brand-gold" />
-            {pending ? `Finish setting up ${pending.label}` : 'New here? Get started'}
+            <span className="min-w-0 truncate">{pending ? t('liveAccount.credentials.finishSetup', { label: pending.label }) : t('liveAccount.credentials.getStarted')}</span>
           </Button>
         )}
 
         <p className="text-brand-ice/60 text-xs font-nunito mt-4">
-          Email usernames connect to Vibez; all other usernames connect to Dreamstreams.
-          Your credentials are stored only on this device.
+          {t('liveAccount.credentials.note')}
         </p>
       </form>
     </div>

@@ -1,0 +1,61 @@
+{
+  "gameDay": {
+    "title": "Game Day",
+    "allChip": "Alle",
+    "loading": "Heutige Spiele werden geladen…",
+    "loadError": "Die Spiele konnten nicht geladen werden. Prüfe deine Internetverbindung und versuche es in einer Minute erneut.",
+    "empty": "Gerade keine großen Spiele — schau später wieder vorbei.",
+    "liveDot": "● LIVE {{detail}}",
+    "liveDetail": "LIVE {{detail}}",
+    "findingChannels": "Deine Sender werden gesucht…",
+    "reportedDown": "Derzeit als gestört gemeldet",
+    "notInChannelsOn": "{{networks}} — nicht in deinen Sendern",
+    "streamingOnly": "{{networks}} (nur Streaming)",
+    "notInChannels": "Nicht in deinen Sendern",
+    "watchBtn": "Ansehen",
+    "remindBtn": "Erinnern",
+    "reminderOnBtn": "Erinnerung an",
+    "browse": "{{name}} in Live-TV durchsuchen",
+    "zoneHeading": "Zone-Sender — alle Spiele der Liga, nicht nur dieses",
+    "checkingGuide": "Guide wird geprüft…",
+    "none": "Derzeit nicht in deinen Sendern. Drücke Zurück, um zu den Spielen zurückzukehren.",
+    "noneOn": "Derzeit nicht in deinen Sendern — läuft auf {{networks}}. Drücke Zurück, um zu den Spielen zurückzukehren.",
+    "tvNetworks": "TV: {{networks}}",
+    "tomorrow": "Morgen",
+    "tomorrowAt": "Morgen {{time}}",
+    "dayAt": "{{day}} {{time}}",
+    "days": {
+      "sun": "So",
+      "mon": "Mo",
+      "tue": "Di",
+      "wed": "Mi",
+      "thu": "Do",
+      "fri": "Fr",
+      "sat": "Sa"
+    },
+    "link": {
+      "game": "Spielsender",
+      "network": "Nationales TV",
+      "local": "Lokal & regional",
+      "team": "Teamsender",
+      "league": "Ligasender",
+      "zone": "Zone-Sender"
+    },
+    "guide": {
+      "note": "Guide: {{text}}",
+      "otherGame": "Guide: anderes Spiel — {{name}}"
+    },
+    "toast": {
+      "setTitle": "Erinnerung gesetzt",
+      "removedTitle": "Erinnerung entfernt",
+      "setDesc": "Wir blenden es auf dem Fernseher ein, wenn {{name}} beginnt."
+    },
+    "reminder": {
+      "ariaLabel": "Spiel beginnt",
+      "startingNow": "{{league}} · Beginnt jetzt",
+      "on": "Auf {{where}}",
+      "watchBtn": "Ansehen",
+      "dismissBtn": "Schließen"
+    }
+  }
+}

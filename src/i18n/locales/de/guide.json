@@ -1,0 +1,38 @@
+{
+  "guide": {
+    "untitled": "Programm",
+    "favorites": "Favoriten",
+    "buffering": "Puffern…",
+    "demoNotice": "Demo-Modus — Wiedergabe deaktiviert",
+    "playbackError": "Wiedergabefehler",
+    "volumeBack": "Lautst. {{pct}} % · Zurück zum Beenden",
+    "loadingCategories": "Kategorien werden geladen…",
+    "noCategories": "Keine Kategorien.",
+    "now": "Jetzt: {{title}}",
+    "noInfo": "Keine Programminfos",
+    "next": "Danach: {{title}} · {{time}}",
+    "okFullScreen": "OK für Vollbild",
+    "pickChannel": "Wähle einen Sender für die Vorschau.",
+    "channelHeader": "Sender",
+    "earlier": "◀ früher",
+    "loadingChannels": "Sender werden geladen…",
+    "noFavorites": "Noch keine Favoriten. Halte in Live-TV OK auf einem Sender gedrückt und wähle Zu Favoriten hinzufügen.",
+    "noChannels": "Keine Sender in dieser Kategorie.",
+    "epgLoading": "EPG…",
+    "noListings": "Keine Einträge",
+    "scheduledDot": "Zur Aufnahme geplant",
+    "hint": "◀ ▶ Zeit verschieben · ▲ ▼ Sender · OK zum Abspielen · Zurück zum Beenden",
+    "hintRecord": "◀ ▶ Zeit verschieben · ▲ ▼ Sender · OK zum Abspielen · OK halten zum Aufnehmen · Zurück zum Beenden",
+    "toast": {
+      "mpvFallback": "MPV konnte auf diesem Gerät nicht starten — ExoPlayer wird verwendet",
+      "finished": "Diese Sendung ist beendet",
+      "recordingTitle": "Nimmt {{name}} auf",
+      "recordingDesc": "Bis {{time}} · {{volume}}. {{note}}{{paused}}",
+      "scheduledTitle": "Geplant: {{title}}",
+      "scheduledDesc": "{{channel}}, {{times}}. {{note}}",
+      "scheduledDescLate": "{{channel}}, {{times}}. {{note}} Dieses Gerät startet sie evtl. verspätet: siehe Live-TV › Aufnahmen.",
+      "recordFailed": "Aufnahme nicht gestartet",
+      "scheduleFailed": "Konnte nicht geplant werden"
+    }
+  }
+}
