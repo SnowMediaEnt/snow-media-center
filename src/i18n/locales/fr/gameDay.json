@@ -18,6 +18,8 @@
     "browse": "Parcourir {{name}} dans TV en direct",
     "zoneHeading": "Chaînes Zone — tous les matchs de la ligue, pas seulement celui-ci",
     "checkingGuide": "Vérification du guide…",
+    "serviceTag": "Sur {{service}}",
+    "playingOn": "Lecture sur {{service}}",
     "none": "Absent de vos chaînes pour le moment. Appuyez sur Retour pour revenir aux matchs.",
     "noneOn": "Absent de vos chaînes pour le moment — diffusé sur {{networks}}. Appuyez sur Retour pour revenir aux matchs.",
     "tvNetworks": "TV : {{networks}}",

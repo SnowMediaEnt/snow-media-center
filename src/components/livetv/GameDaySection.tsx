@@ -29,8 +29,8 @@ import {
   kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames, type Game, type GameChannel, type SportsChannel,
 } from '@/lib/gameDay';
 import { GAME_REMINDERS_EVENT, hasReminder, toggleReminder } from '@/lib/gameReminders';
-import { buildLines } from '@/lib/liveLines';
-import { loadSavedAccounts, serverDisplayName, type XtreamCreds } from '@/lib/xtream';
+import { buildLines, lineKey } from '@/lib/liveLines';
+import { SERVERS, loadSavedAccounts, serverDisplayName, type XtreamCreds } from '@/lib/xtream';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { useTranslation } from 'react-i18next';
 
@@ -63,6 +63,25 @@ interface Picker { gameId: string; focus: number; moved: boolean; scanning: bool
 const pickKey = (it: PickItem): string => (it.kind === 'link'
   ? `l|${it.link.line.host}|${it.link.line.username}|${it.link.stream.stream_id}`
   : `b|${it.line.host}|${it.line.username}|${it.categoryId}`);
+
+/** The service a line belongs to, as the viewer reads it ("DreamStreams",
+ *  "Vibez"). The active line may carry no label of its own, so the host
+ *  finds it; a line of neither kind shows its host. Only a name: never the
+ *  login. */
+const serviceName = (line: XtreamCreds): string => {
+  const label = line.serverLabel || SERVERS.find((s) => s.host === line.host)?.label;
+  return label ? serverDisplayName(label) : line.host.replace(/^https?:\/\//, '');
+};
+
+/** Small pill with the service name, shown only when the box has more than one line. */
+const ServiceTag = ({ name, label, onLight }: { name: string; label: string; onLight: boolean }) => (
+  <span
+    aria-label={label}
+    className={`ml-2 shrink-0 max-w-[7rem] truncate rounded-full px-2 py-0.5 text-xs font-bold leading-none ${onLight ? 'bg-brand-navy text-white' : 'bg-brand-ice/20 text-brand-ice'}`}
+  >
+    {name}
+  </span>
+);
 
 const TeamCell = ({ name, logo, score, live }: { name: string; logo: string | null; score: string | null; live: boolean }) => (
   <div className="flex items-center min-w-0">
@@ -184,14 +203,21 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     // kind; zone channels (RedZone, "MLB Zone": every game of the league,
     // never just this one) always after, in their own group — never mixed
     // in with the team links.
-    const byScore = (a: GameChannel, b: GameChannel) => b.score - a.score || Number(isDown(a)) - Number(isDown(b));
-    const main = merged.filter((l) => l.via !== 'zone').sort(byScore);
-    const zone = merged.filter((l) => l.via === 'zone').sort(byScore);
+    // Same quality and both working: the active line first, then the other
+    // lines in the order Live TV lists them. The original position settles
+    // the rest (an old WebView's sort is not stable).
+    const rank = new Map(lines.map((l, i) => [lineKey(l), i]));
+    const rankOf = (c: GameChannel) => rank.get(lineKey(c.line)) ?? lines.length;
+    const sorted = (list: GameChannel[]) => list.map((l, i) => ({ l, i }))
+      .sort((a, b) => b.l.score - a.l.score || Number(isDown(a.l)) - Number(isDown(b.l)) || rankOf(a.l) - rankOf(b.l) || a.i - b.i)
+      .map((x) => x.l);
+    const main = sorted(merged.filter((l) => l.via !== 'zone'));
+    const zone = sorted(merged.filter((l) => l.via === 'zone'));
     const items: PickItem[] = [...main, ...zone].map((link) => ({ kind: 'link', link, down: isDown(link) }));
     const own = pickerRow.game.league === 'ppv' ? new Set(pickerRow.found.map(channelKey)) : undefined;
     for (const c of channels ? leagueCategories(pickerRow.game, channels, 2, own) : []) items.push({ kind: 'browse', ...c });
     return items;
-  }, [picker, pickerRow, channels, isDown]);
+  }, [picker, pickerRow, channels, isDown, lines]);
   const firstZoneIdx = useMemo(
     () => pickItems.findIndex((it) => it.kind === 'link' && it.link.via === 'zone'),
     [pickItems],
@@ -243,6 +269,12 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     setPicker(null);
     if (item.kind === 'link') {
       const { line, stream } = item.link;
+      // Live TV shows every line at once, so a link from another line plays
+      // on that line as it is: the active account is not switched.
+      const others = stateRef.current.lines;
+      if (others.length > 1 && lineKey(line) !== lineKey(others[0])) {
+        toast({ title: t('gameDay.playingOn', { service: serviceName(line) }) });
+      }
       handLiveDeeplink({
         host: line.host, username: line.username, streamId: stream.stream_id,
         name: stream.name, icon: stream.stream_icon || undefined,
@@ -252,7 +284,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
       handLiveCategory({ host: item.line.host, username: item.line.username, categoryId: item.categoryId });
     }
     onWatch(gameId);
-  }, [onWatch]);
+  }, [onWatch, toast, t]);
 
   // A kickoff reminder with no channel asked for this game's list.
   useEffect(() => {
@@ -301,8 +333,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
   }, [picker]);
 
   const lastBack = useRef(0);
-  const stateRef = useRef({ zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems });
-  stateRef.current = { zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems };
+  const stateRef = useRef({ zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems, lines });
+  stateRef.current = { zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems, lines };
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
@@ -359,6 +391,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     return () => window.removeEventListener('keydown', handler, true);
   }, [isActive, onExitLeft, onExitUp, openPicker, closePicker, activate, remind]);
 
+  // More than one signed-in line: each link says which service it is on.
+  const multi = lines.length > 1;
   const focusedRow = isActive && zone === 'rows' && !picker ? rowIdx : -1;
 
   return (
@@ -435,6 +469,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
                   <div className="flex items-center min-w-0">
                     {r.channelDown && <AlertTriangle className="w-4 h-4 text-amber-400 mr-1 shrink-0" aria-label={t('gameDay.reportedDown')} />}
                     <span className={`truncate text-sm ${r.channelDown ? 'text-amber-300' : 'text-white/90'}`}>{r.channel.stream.name}</span>
+                    {multi && <ServiceTag name={serviceName(r.channel.line)} label={t('gameDay.serviceTag', { service: serviceName(r.channel.line) })} onLight={false} />}
                     {r.more > 0 && <span className="ml-1 text-xs text-white/50 shrink-0">+{r.more}</span>}
                   </div>
                 ) : (
@@ -504,11 +539,14 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
                       ? <AlertTriangle className="w-5 h-5 mr-3 shrink-0 text-amber-500" aria-label={t('gameDay.reportedDown')} />
                       : <Play className="w-5 h-5 mr-3 shrink-0" />}
                     <span className="flex-1 min-w-0">
-                      <span className="block truncate font-semibold">{link.stream.name}</span>
+                      <span className="flex items-center min-w-0">
+                        <span className="truncate font-semibold">{link.stream.name}</span>
+                        {multi && <ServiceTag name={serviceName(link.line)} label={t('gameDay.serviceTag', { service: serviceName(link.line) })} onLight={focused} />}
+                      </span>
                       {link.note && <span className={`block truncate text-xs ${focused ? 'text-black/60' : 'text-white/50'}`}>{link.note}</span>}
                     </span>
                     <span className={`ml-3 shrink-0 text-xs font-bold uppercase tracking-wide ${focused ? 'text-black/60' : 'text-brand-ice/70'}`}>
-                      {t(`gameDay.link.${link.via}`, { defaultValue: LINK_LABELS[link.via] })}{lines.length > 1 && link.line.serverLabel ? ` · ${serverDisplayName(link.line.serverLabel)}` : ''}
+                      {t(`gameDay.link.${link.via}`, { defaultValue: LINK_LABELS[link.via] })}
                     </span>
                   </button>
                 </div>

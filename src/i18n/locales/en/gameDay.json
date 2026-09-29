@@ -18,6 +18,8 @@
     "browse": "Browse {{name}} in Live TV",
     "zoneHeading": "Zone channels — every game of the league, not just this one",
     "checkingGuide": "Checking the guide…",
+    "serviceTag": "On {{service}}",
+    "playingOn": "Playing on {{service}}",
     "none": "Not in your channels right now. Press Back to return to the games.",
     "noneOn": "Not in your channels right now — it's on {{networks}}. Press Back to return to the games.",
     "tvNetworks": "TV: {{networks}}",

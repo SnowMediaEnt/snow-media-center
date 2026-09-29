@@ -18,6 +18,8 @@
     "browse": "{{name}} in Live-TV durchsuchen",
     "zoneHeading": "Zone-Sender – alle Spiele der Liga, nicht nur dieses",
     "checkingGuide": "Guide wird geprüft…",
+    "serviceTag": "Auf {{service}}",
+    "playingOn": "Wiedergabe auf {{service}}",
     "none": "Derzeit nicht in deinen Sendern. Drücke Zurück, um zu den Spielen zurückzukehren.",
     "noneOn": "Derzeit nicht in deinen Sendern – läuft auf {{networks}}. Drücke Zurück, um zu den Spielen zurückzukehren.",
     "tvNetworks": "TV: {{networks}}",

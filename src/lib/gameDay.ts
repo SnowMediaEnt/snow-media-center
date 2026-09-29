@@ -198,13 +198,15 @@ export async function loadSportsChannels(lines: XtreamCreds[]): Promise<SportsCh
   if (channelsCache && channelsCache.key === key && Date.now() - channelsCache.at < CHANNELS_TTL_MS) return channelsCache.list;
   const fresh = { maxAgeMs: CHANNELS_TTL_MS };
   const out: SportsChannel[] = [];
+  let failed = false;
   const add = (line: XtreamCreds, stream: XtreamLiveStream, catName: string) => {
     const c = sportsChannel(line, stream, catName);
     if (c) out.push(c);
   };
   for (const line of lines) {
     let cats: XtreamCategory[] = [];
-    try { cats = await getLiveCategories(line); } catch { continue; }
+    // A line that will not answer leaves the others' channels as they are.
+    try { cats = await getLiveCategories(line); } catch { failed = true; continue; }
     const catName = new Map(cats.map((c) => [String(c.category_id), String(c.category_name ?? '')]));
     const weight = new Map(cats.map((c) => [String(c.category_id), categoryWeight(c.category_name)]));
     if (!lowMemory()) {
@@ -234,7 +236,8 @@ export async function loadSportsChannels(lines: XtreamCreds[]): Promise<SportsCh
       for (const { c, l } of lists) for (const s of l) add(line, s, String(c.category_name ?? ''));
     }
   }
-  channelsCache = { key, at: Date.now(), list: out };
+  // A list missing a line is not kept: the next read asks that line again.
+  if (!failed) channelsCache = { key, at: Date.now(), list: out };
   return out;
 }
 

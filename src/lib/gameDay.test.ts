@@ -496,6 +496,23 @@ describe('gameDay', () => {
     expect(streams).toHaveBeenCalledTimes(2);
   });
 
+  it('a line that will not load leaves the other line\'s channels, and is asked again next time', async () => {
+    const { loadSportsChannels } = await import('./gameDay');
+    const other = { host: 'https://strmz.xyz', username: 'v', password: 'p' } as never;
+    vi.mocked(xtream.getLiveCategories).mockReset();
+    vi.mocked(xtream.getLiveCategories)
+      .mockRejectedValueOnce(new Error('down'))
+      .mockResolvedValue([{ category_id: '1', category_name: 'MLB ZONE' }] as never);
+    const streams = vi.mocked(xtream.getLiveStreams);
+    streams.mockReset();
+    streams.mockResolvedValue([{ stream_id: 5, name: 'MLB 07: Mets vs Braves', category_id: '1' }] as never);
+    const first = await loadSportsChannels([line, other]);
+    expect(first.map((c) => c.line)).toEqual([other]);
+    // Not kept: the failed line is tried again, and both now answer.
+    const second = await loadSportsChannels([line, other]);
+    expect(second.map((c) => c.line)).toEqual([line, other]);
+  });
+
   it("on a box short of memory reads the leagues' categories first", async () => {
     document.documentElement.classList.add('native-low-memory');
     const { loadSportsChannels } = await import('./gameDay');

@@ -18,6 +18,8 @@
     "browse": "Explorar {{name}} en TV en vivo",
     "zoneHeading": "Canales Zone — todos los partidos de la liga, no solo este",
     "checkingGuide": "Revisando la guía…",
+    "serviceTag": "En {{service}}",
+    "playingOn": "Reproduciendo en {{service}}",
     "none": "No está en tus canales por ahora. Presiona Atrás para volver a los partidos.",
     "noneOn": "No está en tus canales por ahora — está en {{networks}}. Presiona Atrás para volver a los partidos.",
     "tvNetworks": "TV: {{networks}}",
