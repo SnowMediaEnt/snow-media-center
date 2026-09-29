@@ -33,12 +33,12 @@
           "linkBtn": "Bring mich hin"
         },
         "s1": {
-          "title": "Wähle deinen Look: Classic, Compact oder Vibez.",
+          "title": "Wähle deinen Look: Klassisch, Kompakt oder Vibez.",
           "line2": "Live-TV fragt dich beim ersten Mal. Ändern kannst du es jederzeit unter Player-Einstellungen → Darstellung."
         },
         "s2": {
           "title": "Wähle eine Kategorie, dann einen Sender.",
-          "line2": "In Compact liegen die Kategorien einen Druck nach LINKS. Zurück von den Sendern führt zu den Kategorien."
+          "line2": "In Kompakt liegen die Kategorien einen Tastendruck nach LINKS. Zurück von den Sendern führt zu den Kategorien."
         },
         "s3": {
           "title": "Bleib auf einem Sender und er läuft in der Vorschau. Mit OK geht es in den Vollbildmodus.",
@@ -68,11 +68,11 @@
           "line2": "Noch nicht angemeldet? Drücke „Mit Live-TV verbinden“. Ein eigenes Plex-Konto brauchst du nicht."
         },
         "s2": {
-          "title": "Das Menü links: Start, Entdecken, deine Mediatheken, Suche, Anfrage.",
+          "title": "Das Menü links: Start, Entdecken, deine Mediatheken, Suchen, Anfragen.",
           "line2": "OK auf einem Poster öffnet die Titelseite – dann drücke Abspielen."
         },
         "s3": {
-          "title": "Weißt du nicht, was du schauen sollst? Entdecken hat Geheimtipps, Überrasch mich, Genres und Jahrzehnte.",
+          "title": "Weißt du nicht, was du schauen sollst? Entdecken hat Versteckte Perlen, Überrasch mich, Genres und Jahrzehnte.",
           "line2": "Start zeigt, was du geschaut hast, Neuzugänge und Meistgesehenes."
         },
         "s4": {
@@ -80,10 +80,10 @@
           "line2": "Zurückholen kannst du sie unter Einstellungen → Ausgeblendet."
         },
         "s5": {
-          "title": "Untertitel nötig? Öffne das Untertitel-Menü und wähle \"Get subtitles…\"."
+          "title": "Untertitel nötig? Öffne das Untertitel-Menü und wähle „Untertitel holen…“."
         },
         "s6": {
-          "title": "Kein Ton? Öffne das Ton-Menü und drücke \"Fix audio\".",
+          "title": "Kein Ton? Öffne das Ton-Menü und drücke „Ton reparieren“.",
           "line2": "Das behebt den Ton, ohne deinen Film neu zu starten."
         }
       },
@@ -108,7 +108,7 @@
           "line2": "Drei Tabs: Hilfe, KI-Chat und Beiträge."
         },
         "s1": {
-          "title": "Der Geschwindigkeitstest prüft, ob dein Internet für Streaming schnell genug ist."
+          "title": "Der Speedtest prüft, ob dein Internet für Streaming schnell genug ist."
         },
         "s2": {
           "title": "Der Fernseher pausiert ständig? Öffne die Buffering-Hilfe – sie führt dich durch einfache Lösungen.",
@@ -120,9 +120,9 @@
           "linkBtn": "Tickets öffnen"
         },
         "s4": {
-          "title": "Das Gerät ist langsam oder voll? Der Gerätereiniger schafft Platz.",
+          "title": "Das Gerät ist langsam oder voll? Der Geräte-Cleaner schafft Platz.",
           "line2": "Er leert den Cache jeder App, schließt Hintergrund-Apps und listet Apps auf, die niemand öffnet.",
-          "linkBtn": "Reiniger öffnen"
+          "linkBtn": "Cleaner öffnen"
         },
         "s5": {
           "title": "Der KI-Chat antwortet sofort – und kann Dinge für dich erledigen.",
@@ -147,16 +147,16 @@
           "line2": "Snow Gems kaufen: Wähle ein Paket, scanne den Code mit dem Handy und zahle dort – die Gems landen von selbst auf deinem Konto."
         },
         "s2": {
-          "title": "Die Game Lounge: Blackjack, Roulette, Slots, Plinko, Dice, Video Poker, Trivia und der Daily Spin.",
+          "title": "Die Spielelounge: Blackjack, Roulette, Slots, Plinko, Dice, Video Poker, Trivia und der Daily Spin.",
           "line2": "Spiele um Snow Coins und steige in der Rangliste auf. Nie echtes Geld.",
-          "linkBtn": "Game Lounge öffnen"
+          "linkBtn": "Spielelounge öffnen"
         }
       },
       "extras": {
         "title": "Einstellungen & Extras",
-        "subtitle": "Mach es zu deinem",
+        "subtitle": "Ganz nach deinem Geschmack",
         "s0": {
-          "title": "Ändere dein Hintergrundbild unter Einstellungen → Medien.",
+          "title": "Ändere dein Hintergrundbild unter Einstellungen → Medien-Manager.",
           "line2": "Lade dein eigenes hoch oder beschreibe eins und lass die KI es erstellen.",
           "linkBtn": "Bring mich hin"
         },
@@ -168,7 +168,7 @@
           "title": "Gespeicherte Konten merkt sich deine Anmeldungen, damit du sie nie neu eintippen musst."
         }
       },
-      "title": "SMC verwenden",
+      "title": "SMC-Anleitung",
       "pickTopic": "Wähle ein Thema – mit Zurück kannst du jederzeit gehen.",
       "slideCount_one": "{{count}} Folie",
       "slideCount_other": "{{count}} Folien",
@@ -189,7 +189,7 @@
         "intro": "Wähle die App, die ruckelt, und drücke Weiter.",
         "step1": "Nur ein Sender oder Titel? Melde ihn, dann beheben wir es an der Quelle.",
         "step2": "Force Stop, dann Clear Cache, dann mit Zurück hierher zurückkehren.",
-        "step3": "Ziel: 15 Mbps oder mehr auf diesem Gerät.",
+        "step3": "Ziel: 15 Mbit/s oder mehr auf diesem Gerät.",
         "step4": "Installieren, anmelden, Quick Connect, dann erneut testen.",
         "summary": "Sende diese Ergebnisse an den Support, falls es weiter ruckelt."
       },
@@ -214,7 +214,7 @@
       "nextBtn": "Weiter",
       "goBackBtn": "Zurück",
       "skipVpnBtn": "VPN weglassen",
-      "sendingBtn": "Sendet…",
+      "sendingBtn": "Wird gesendet…",
       "sendAnywayBtn": "Trotzdem senden",
       "stillBufferingBtn": "Ruckelt weiter",
       "openAppBtn": "{{app}} öffnen",
@@ -223,7 +223,7 @@
         "openedSettingsTitle": "App-Einstellungen geöffnet",
         "openedSettingsDesc": "Tippe auf Force Stop, dann Storage → Clear Cache. Danach Zurück drücken.",
         "webOnlyTitle": "In der installierten App öffnen",
-        "webOnlyDesc": "Diese Aktion funktioniert nur in der installierten Snow Media Center App.",
+        "webOnlyDesc": "Diese Aktion funktioniert nur in der installierten Snow-Media-Center-App.",
         "cantOpenSettingsTitle": "Einstellungen konnten nicht geöffnet werden",
         "cantLaunchTitle": "App konnte nicht gestartet werden",
         "ticketSubmittedTitle": "Ticket gesendet",
@@ -244,18 +244,18 @@
         "invalidSpeedTitle": "Ungültiges Tempo",
         "invalidSpeedDesc": "Gib eine Zahl wie 25 ein.",
         "speedLowTitle": "Das Tempo ist zu niedrig",
-        "speedLowDesc": "Unter 15 Mbps ruckelt es. Probiere 5-GHz-WLAN, geh näher heran oder nutze Ethernet.",
+        "speedLowDesc": "Unter 15 Mbit/s ruckelt es. Probiere 5-GHz-WLAN, geh näher heran oder nutze Ethernet.",
         "vpnNotInStoreTitle": "VPN nicht im Shop",
         "vpnNotInStoreDesc": "Nutze stattdessen den Downloader-Code.",
         "switchVpnServerTitle": "VPN-Server wechseln",
-        "switchVpnServerDesc": "Wähle die nächste Stadt bzw. den nächsten Server und teste erneut auf 15+ Mbps.",
-        "getSpeedFirstTitle": "Erst auf 15+ Mbps kommen",
+        "switchVpnServerDesc": "Wähle die nächste Stadt bzw. den nächsten Server und teste erneut auf 15+ Mbit/s.",
+        "getSpeedFirstTitle": "Erst auf 15+ Mbit/s kommen",
         "getSpeedFirstDesc": "Wechsle Stadt bzw. Server des VPN und teste das Tempo erneut.",
         "awesomeTitle": "Klasse!",
         "awesomeDesc": "Wahrscheinlich Drosselung durch den Anbieter – lass das VPN beim Streamen an.",
         "openAppManually": "Öffne die Streaming-App manuell.",
         "enterSpeedTitle": "Gib dein Download-Tempo ein",
-        "enterSpeedDesc": "Tippe die Mbps von oben ein und mach weiter."
+        "enterSpeedDesc": "Tippe die Mbit/s von oben ein und mach weiter."
       },
       "anon": {
         "title": "Meldung ohne Anmeldung senden?",
@@ -286,7 +286,7 @@
         "androidTv": "Android TV / Google TV",
         "androidPhone": "Android-Handy oder -Tablet",
         "setTop": "Set-Top-Box (X96 / T95 / usw.)",
-        "other": "Andere"
+        "other": "Sonstiges"
       },
       "report": {
         "title": "Sender oder Titel melden",
@@ -308,7 +308,7 @@
         "title": "{{app}} auffrischen",
         "lead": "Den Cache der App zu leeren behebt viel Ruckeln. Du wirst nicht abgemeldet und nichts wird gelöscht.",
         "kidsNote": "Bitte einen Erwachsenen, diesen Teil zu übernehmen. In den Geräteeinstellungen für {{app}}: <0>Force Stop</0>, dann <1>Storage → Clear Cache</1>.",
-        "openSettingsBtn": "{{app}}-Einstellungen",
+        "openSettingsBtn": "{{app}}-Einstellungen öffnen",
         "item1": "Wähle <0>Force Stop</0> (Beenden erzwingen)",
         "item2": "Gehe zu <0>Storage → Clear Cache</0> (Cache leeren), nicht Clear Data",
         "item3": "Drücke auf deiner Fernbedienung <0>Zurück</0>, um hierher zu kommen",
@@ -319,10 +319,10 @@
       },
       "step3": {
         "title": "Internettempo testen",
-        "lead": "Streaming braucht auf diesem Gerät mindestens 15 Mbps Download. Starte den Test hier oder gib das Ergebnis eines anderen Speedtests ein.",
+        "lead": "Streaming braucht auf diesem Gerät mindestens 15 Mbit/s Download. Starte den Test hier oder gib das Ergebnis eines anderen Speedtests ein.",
         "runBtn": "Speedtest starten",
         "typeLabel": "Oder gib dein Download-Tempo ein",
-        "mbps": "Mbps",
+        "mbps": "Mbit/s",
         "yourSpeed": "Dein Tempo",
         "good": "Gut fürs Streaming. Drücke Weiter.",
         "tooSlow": "Zu langsam für flüssiges Streaming. Probiere 5-GHz-WLAN, stelle das Gerät näher an den Router oder nutze ein Ethernet-Kabel und teste dann erneut.",
@@ -337,8 +337,8 @@
         "withVpn": "Mit verbundenem VPN",
         "test1": "1. Teste dein Tempo erneut",
         "runVpnBtn": "Speedtest mit aktivem VPN",
-        "speedOk": "15 Mbps oder mehr",
-        "speedLow": "Unter 15 Mbps",
+        "speedOk": "15 Mbit/s oder mehr",
+        "speedLow": "Unter 15 Mbit/s",
         "speedLowSub": "Wähle eine nähere VPN-Stadt und teste erneut",
         "test2": "2. Probiere deinen Stream",
         "test2In": "2. Probiere deinen Stream in {{app}}",
@@ -358,7 +358,7 @@
         "found": "Das haben wir gefunden",
         "kidsNote": "Ruckelt es noch? Zeig diesen Bildschirm einem Erwachsenen. Er kann ihn über sein Profil an den Support senden.",
         "sendBtn": "An Support senden",
-        "startOverBtn": "Von vorn",
+        "startOverBtn": "Von vorn beginnen",
         "whatYouTried": "Das hast du versucht"
       },
       "diag": {
@@ -374,7 +374,7 @@
         },
         "slow": {
           "title": "Dein Internet ist auf diesem Gerät zu langsam",
-          "b1": "Das Tempo auf dem Streaming-Gerät liegt unter 15 Mbps ({{speed}} Mbps).",
+          "b1": "Das Tempo auf dem Streaming-Gerät liegt unter 15 Mbit/s ({{speed}} Mbit/s).",
           "b2": "Wechsle zu 5-GHz-WLAN, geh näher heran oder probiere Ethernet.",
           "b3": "Starte Modem/Router neu und teste das Tempo erneut."
         },
@@ -382,12 +382,12 @@
           "title": "Behoben: Dein Anbieter hat dich ausgebremst",
           "b1": "Wenn das VPN hilft, hat dein Anbieter den Streaming-Verkehr vermutlich gedrosselt (besonders zu Stoßzeiten).",
           "b2": "Lass das VPN beim Streamen an und nutze einen nahen, schnellen Server.",
-          "b3": "Wenn das Tempo mit VPN sinkt, wähle die nächste VPN-Stadt bzw. den nächsten Server und teste erneut (15+ Mbps)."
+          "b3": "Wenn das Tempo mit VPN sinkt, wähle die nächste VPN-Stadt bzw. den nächsten Server und teste erneut (15+ Mbit/s)."
         },
         "still": {
           "title": "Ruckelt weiter: Lass uns den Support einschalten",
-          "b1": "Wiederhole den Speedtest näher am Router (15+ Mbps).",
-          "b2": "Probiere das VPN mit einer anderen nahen Stadt bzw. einem anderen Server und teste das Tempo erneut (15+ Mbps).",
+          "b1": "Wiederhole den Speedtest näher am Router (15+ Mbit/s).",
+          "b2": "Probiere das VPN mit einer anderen nahen Stadt bzw. einem anderen Server und teste das Tempo erneut (15+ Mbit/s).",
           "b3": "Drücke An Support senden, dann machen wir mit deinen Ergebnissen weiter."
         }
       },
@@ -399,7 +399,7 @@
         "everything": "Alles",
         "cacheFixed": "Cache leeren hat geholfen",
         "speed": "Tempo",
-        "speedValue": "{{speed}} Mbps",
+        "speedValue": "{{speed}} Mbit/s",
         "vpn": "VPN",
         "vpnSpeed": "Tempo mit VPN 15+",
         "vpnFixed": "VPN hat geholfen"

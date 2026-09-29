@@ -4,7 +4,7 @@
     "subtitle": "Gibt Speicher und Arbeitsspeicher auf dieser Box frei. Du wirst nirgends abgemeldet.",
     "backLabel": "Zurück zum Support",
     "checkAgainBtn": "Erneut prüfen",
-    "notNative": "Der Cleaner funktioniert nur in der installierten Snow Media Center-App auf deiner TV-Box.",
+    "notNative": "Der Cleaner funktioniert nur in der installierten Snow-Media-Center-App auf deiner TV-Box.",
     "storage": {
       "title": "Speicher",
       "free": "{{size}} frei",
@@ -15,7 +15,7 @@
     "memory": {
       "title": "Arbeitsspeicher",
       "low": "Der Box fehlt gerade Arbeitsspeicher.",
-      "hint": "Hintergrund-Apps zu schließen gibt mehr frei."
+      "hint": "Wenn du Hintergrund-Apps schließt, wird mehr frei."
     },
     "phase": {
       "junk": "Übrig gebliebene Dateien werden gelöscht…",
@@ -29,7 +29,7 @@
     "all": {
       "title": "Diese Box aufräumen",
       "desc": "Übrige Dateien, Hintergrund-Apps, dann alle App-Caches",
-      "descReach": "Übrige Dateien, Hintergrund-Apps, dann alle App-Caches – etwa {{size}} zu holen"
+      "descReach": "Übrige Dateien, Hintergrund-Apps, dann alle App-Caches – etwa {{size}} lassen sich freigeben"
     },
     "caches": {
       "title": "App-Caches leeren",
@@ -58,14 +58,14 @@
     "lastClean": "Letzte Bereinigung: {{when}}",
     "fire": {
       "title": "Fire TV leert Caches immer nur für eine App",
-      "body": "Fire TV hat keine Einstellung, mit der eine andere App Caches für dich leeren kann. Deshalb führt dich der Cleaner für jede App zur eigenen Seite von Fire TV. Wähle unten eine App, wähle auf der geöffneten Seite <1>Cache leeren</1> und drücke dann Zurück, um direkt hierher zurückzukehren. Übrige Dateien und Hintergrund-Apps werden weiterhin mit einem Klick bereinigt.",
+      "body": "Fire TV hat keine Einstellung, mit der eine andere App Caches für dich leeren kann. Deshalb führt dich der Cleaner für jede App zur eigenen Seite von Fire TV. Wähle unten eine App, wähle auf der geöffneten Seite <1>Cache leeren</1> und drücke dann Zurück, um direkt hierher zurückzukehren. Übrige Dateien und Hintergrund-Apps werden weiterhin mit einem Tastendruck bereinigt.",
       "openListBtn": "App-Liste von Fire TV öffnen",
       "cacheSize": "{{size}} Cache",
       "cacheHidden": "Die Cache-Größe ist auf Fire TV verborgen",
       "clearCacheBtn": "Cache leeren"
     },
     "gate": {
-      "title": "Ein Schalter zum Einschalten",
+      "title": "Ein Schalter muss noch an",
       "body": "Android erlaubt es keiner App, den Cache einer anderen von allein zu leeren. Suche in der geöffneten Liste <1>Snow Media Cache Cleaner</1> und schalte ihn ein – komm dann hierher zurück und tippe auf Aufräumen. Er tippt nur auf „Cache leeren“, nie auf „Daten löschen“, und du kannst ihn jederzeit wieder ausschalten. Alles andere auf diesem Bildschirm funktioniert auch ohne ihn.",
       "openBtn": "Bedienungshilfen öffnen"
     },
@@ -111,7 +111,7 @@
       "fireCachesTitle": "Auf Fire TV werden Caches einzeln pro App geleert",
       "fireCachesDesc": "Wähle weiter unten in der Liste eine App und wähle auf der geöffneten Seite Cache leeren.",
       "turnOnTitle": "Schalte zuerst die Cache-Bereinigung ein",
-      "turnOnDesc": "Schalte Snow Media Cache Cleaner unter Bedienungshilfen ein. Die Taste unten auf diesem Bildschirm öffnet diese Liste.",
+      "turnOnDesc": "Schalte Snow Media Cache Cleaner unter Bedienungshilfen ein. Die Schaltfläche unten auf diesem Bildschirm öffnet diese Liste.",
       "clearFailedTitle": "Caches konnten nicht geleert werden",
       "openListTitle": "App-Liste konnte nicht geöffnet werden",
       "openListDesc": "Gehe auf dem Fire-TV-Startbildschirm zu Einstellungen → Anwendungen → Installierte Anwendungen verwalten, wähle eine App und dann Cache leeren.",

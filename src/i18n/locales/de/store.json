@@ -1,7 +1,7 @@
 {
   "store": {
     "header": {
-      "title": "Snow Media Shop",
+      "title": "Snow Media Store",
       "subtitle": "Wähle aus, was du willst, und scanne dann den QR-Code mit deinem Handy, um zu bezahlen"
     },
     "tabs": {
@@ -64,7 +64,7 @@
       "bundleDreamstreams": "{{device}} + 1 Jahr DreamStreams ({{connections}} Verbindungen)",
       "bundleVibeztv": "{{device}} + 1 Jahr VibezTV (9 Verbindungen)",
       "plexIncluded": "PLEX inklusive",
-      "trialIncluded": "Inklusive 1 Monat Service-Test",
+      "trialIncluded": "Inklusive 1 Monat Testzugang",
       "includedFree": "Kostenlos inklusive"
     },
     "duration": {

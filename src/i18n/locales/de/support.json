@@ -2,12 +2,12 @@
   "support": {
     "header": {
       "title": "Support",
-      "subtitle": "Hol dir Hilfe, chatte mit der KI oder lies die News von Snow Media"
+      "subtitle": "Hol dir Hilfe, chatte mit der KI oder lies die Beiträge von Snow Media"
     },
     "tabs": {
       "helpTab": "Hilfe",
       "aiTab": "KI-Chat",
-      "postsTab": "Posts"
+      "postsTab": "Beiträge"
     },
     "cards": {
       "howTo": {
@@ -19,7 +19,7 @@
         "desc": "Teste deine Internetgeschwindigkeit"
       },
       "guide": {
-        "title": "Buffering-Guide",
+        "title": "Buffering-Hilfe",
         "desc": "Schritt für Schritt gegen Ruckeln"
       },
       "videos": {
@@ -29,11 +29,11 @@
       "tickets": {
         "title": "Ticket senden",
         "descNew": "Neue Antwort vom Support",
-        "desc": "Kontaktiere den Snow Media Support"
+        "desc": "Kontaktiere den Snow-Media-Support"
       },
       "remote": {
         "title": "Fernzugriff",
-        "desc": "Ein Techniker repariert deine Box live — $25"
+        "desc": "Ein Techniker repariert deine Box live – $25"
       },
       "cleaner": {
         "title": "Geräte-Cleaner",
@@ -41,12 +41,12 @@
       },
       "apps": {
         "title": "Haupt-Apps",
-        "desc": "Apps und Streaming-Tools laden"
+        "desc": "Apps und Streaming-Tools herunterladen"
       }
     },
     "toast": {
       "launchUnavailableTitle": "Start nicht möglich",
-      "launchUnavailableDesc": "Apps starten funktioniert nur auf Android.",
+      "launchUnavailableDesc": "Das Starten von Apps funktioniert nur unter Android.",
       "launchFailedTitle": "Start fehlgeschlagen",
       "launchFailedDesc": "{{name}} konnte nicht gestartet werden.",
       "appInfoUnavailableTitle": "App-Info nicht verfügbar",
@@ -61,8 +61,8 @@
     "speedTest": {
       "title": "Internet-Speedtest",
       "startBtn": "Starten",
-      "runAgainBtn": "Nochmal",
-      "testingBtn": "Teste…",
+      "runAgainBtn": "Erneut testen",
+      "testingBtn": "Wird getestet…",
       "phase": {
         "idle": "Bereit",
         "ping": "Latenz wird gemessen…",
@@ -84,7 +84,7 @@
         "poor": "Unter den empfohlenen 15 Mbit/s für HD-Streaming – es wird ruckeln. Probiere ein Kabel, geh näher an den Router oder kontaktiere deinen Anbieter."
       },
       "failed": "Speedtest fehlgeschlagen: {{error}}. Prüfe deine Internetverbindung und versuche es erneut.",
-      "powered": "Powered by Cloudflares weltweitem Speedtest-Netzwerk",
+      "powered": "Bereitgestellt über das weltweite Speedtest-Netzwerk von Cloudflare",
       "errors": {
         "pingFailed": "Ping fehlgeschlagen",
         "generic": "Speedtest fehlgeschlagen"
@@ -108,16 +108,16 @@
       "frameTitle": "Support-Video"
     },
     "mail": {
-      "heading": "Posts von Snow Media Entertainment",
-      "notifOff": "Benachrichtigungen aus (Einstellungen → UI)",
-      "checking": "Suche nach Posts…",
+      "heading": "Beiträge von Snow Media Entertainment",
+      "notifOff": "Benachrichtigungen aus (Einstellungen → Oberfläche)",
+      "checking": "Beiträge werden gesucht…",
       "emptyTitle": "Noch nichts da",
-      "emptyDesc": "Wenn Snow Media News, Angebote oder Events postet, landen sie hier – mit Datum und markiert, bis du sie öffnest.",
+      "emptyDesc": "Wenn Snow Media Neuigkeiten, Angebote oder Events veröffentlicht, landen sie hier – mit Datum und markiert, bis du sie öffnest.",
       "newChip": "Neu",
       "reader": {
         "okToScan": "OK zum Scannen",
         "shopNow": "Jetzt kaufen",
-        "empty": "Dieser Post hat keinen Inhalt zum Anzeigen.",
+        "empty": "Dieser Beitrag hat keinen Inhalt zum Anzeigen.",
         "hintScroll": "Scrollen",
         "hintPick": "Link wählen ({{current}} von {{total}})",
         "hintScan": "OK Mit dem Handy scannen",
@@ -134,8 +134,8 @@
         "productFallback": "Produkt"
       },
       "toast": {
-        "newPosts_one": "Neuer Post von Snow Media",
-        "newPosts_other": "{{count}} neue Posts von Snow Media"
+        "newPosts_one": "Neuer Beitrag von Snow Media",
+        "newPosts_other": "{{count}} neue Beiträge von Snow Media"
       }
     }
   }

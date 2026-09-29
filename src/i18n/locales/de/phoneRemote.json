@@ -15,7 +15,7 @@
     },
     "request": {
       "title": "Dieses Handy erlauben?",
-      "text": "{{device}} hat den Code dieses Fernsehers eingegeben und möchte Fernbedienung für Snow Media Center sein.",
+      "text": "{{device}} hat den Code dieses Fernsehers eingegeben und möchte Snow Media Center fernsteuern.",
       "hint": "Erlaube es nur, wenn es dein Handy ist oder das von jemandem im Raum.",
       "allowBtn": "Erlauben",
       "denyBtn": "Nicht erlauben",
@@ -27,12 +27,12 @@
       "offToastDesc": "Schalte sie jederzeit unter Einstellungen → Handy-Fernbedienung wieder ein.",
       "readyTitle": "Deine Handy-Tastatur ist bereit",
       "readyText": "Tippe auf der Handy-Fernbedienung und es erscheint hier.",
-      "title": "Tippe mit deinem Handy",
+      "title": "Tippe auf deinem Handy",
       "lastTime": "Das war das letzte Mal. Schalte sie unter Einstellungen → Handy-Fernbedienung wieder ein.",
       "showsMore_one": "Wird noch {{count}} Mal angezeigt. An oder aus unter Einstellungen → Handy-Fernbedienung.",
       "showsMore_other": "Wird noch {{count}} Mal angezeigt. An oder aus unter Einstellungen → Handy-Fernbedienung.",
       "onOff": "An oder aus unter Einstellungen → Handy-Fernbedienung.",
-      "dontShowBtn": "Nicht mehr zeigen"
+      "dontShowBtn": "Nicht mehr anzeigen"
     }
   }
 }
