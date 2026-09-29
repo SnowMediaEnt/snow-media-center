@@ -1,6 +1,9 @@
 import { memo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { Tv, Star, Radio, AlertTriangle } from 'lucide-react';
+import i18n from '@/i18n';
+import { formatTime } from '@/i18n/format';
 import type { XtreamLiveStream, EpgNowNext } from '@/lib/xtream';
+import { channelRowLabels, type ChannelRowLabels } from './channelRowLabels';
 
 interface Props {
   channel: XtreamLiveStream;
@@ -17,18 +20,19 @@ interface Props {
   /** classic: the tall 84px row · compact: the slim 60px row · tile: a logo
    *  tile for the grid layout, name underneath. */
   variant?: 'classic' | 'compact' | 'tile';
+  /** The row's words, translated once by the list (channelRowLabels) instead of once per row. */
+  labels?: ChannelRowLabels;
 }
 
 // One channel in the list, in whichever shape the layout asks for. Each
 // shape's height must stay in step with the slot LiveSection gives it (see
 // rowHeightFor there) — the D-pad scroll math is written against the slot.
-// One shared formatter: toLocaleTimeString with options builds a new one per
-// call, twice per row per render on Chromium 66.
-const TIME_FMT = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' });
+// Times come from formatTime (i18n/format.ts), which keeps one formatter per
+// language: toLocaleTimeString with options builds a new one per call, twice
+// per row per render on Chromium 66.
 
-const DOWN_LABEL = 'Reported down right now';
-
-const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isDown = false, nowNext, onSelect, onActivate, onLongPress, variant = 'compact' }: Props) => {
+const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isDown = false, nowNext, onSelect, onActivate, onLongPress, variant = 'compact', labels }: Props) => {
+  const L = labels ?? channelRowLabels(i18n.t.bind(i18n));
   const [iconError, setIconError] = useState(false);
   const [iconLoaded, setIconLoaded] = useState(false);
   const showIcon = channel.stream_icon && !iconError;
@@ -48,7 +52,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
     if (lpTimerRef.current) { window.clearTimeout(lpTimerRef.current); lpTimerRef.current = null; }
   };
 
-  const formatTime = (ms?: number) => (ms ? TIME_FMT.format(ms) : '');
+  const clock = (ms?: number) => (ms ? formatTime(ms) : '');
   const now = nowNext?.now;
   const progress = (() => {
     if (!now) return 0;
@@ -111,11 +115,11 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
             <Tv className="w-10 h-10 text-black/40" />
           )}
           {isPlaying && (
-            <span className="absolute top-1.5 left-1.5 text-xs px-1.5 py-0.5 rounded-md bg-brand-gold text-black font-nunito font-bold leading-4">LIVE</span>
+            <span className="absolute top-1.5 left-1.5 text-xs px-1.5 py-0.5 rounded-md bg-brand-gold text-black font-nunito font-bold leading-4">{L.live}</span>
           )}
           {isFavorite && <Star className="absolute top-1.5 right-1.5 w-4 h-4 text-brand-gold fill-brand-gold" />}
           {isDown && (
-            <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/70 p-0.5" title={DOWN_LABEL} aria-label={DOWN_LABEL}>
+            <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/70 p-0.5" title={L.down} aria-label={L.down}>
               <AlertTriangle className="w-4 h-4 text-amber-400" />
             </span>
           )}
@@ -151,13 +155,13 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
         {logo('w-14 h-14', 'w-7 h-7')}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            {isDown && <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" aria-label={DOWN_LABEL} />}
+            {isDown && <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" aria-label={L.down} />}
             <span className={`font-quicksand font-semibold truncate ${isFocused ? 'text-white' : 'text-brand-ice'}`}>
               {channel.name}
             </span>
             {isPlaying && (
               <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-brand-gold/30 text-brand-gold font-nunito font-semibold flex-shrink-0">
-                <Radio className="w-3 h-3 animate-pulse" /> ON AIR
+                <Radio className="w-3 h-3 animate-pulse" /> {L.onAir}
               </span>
             )}
             <Star
@@ -167,7 +171,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
             />
           </div>
           {isDown ? (
-            <p className="text-xs text-amber-300 truncate font-nunito mt-1">{DOWN_LABEL} — we&apos;re on it</p>
+            <p className="text-xs text-amber-300 truncate font-nunito mt-1">{L.downNote}</p>
           ) : now ? (
             <>
               <p className="text-xs text-brand-ice/70 truncate font-nunito mt-1">{now.title}</p>
@@ -176,12 +180,12 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
                   <div className="h-full bg-brand-gold/80 rounded-full" style={{ width: `${progress}%` }} />
                 </div>
                 <span className="text-xs text-brand-ice/70 font-nunito tabular-nums flex-shrink-0">
-                  {formatTime(now.start)}–{formatTime(now.end)}
+                  {clock(now.start)}–{clock(now.end)}
                 </span>
               </div>
             </>
           ) : (
-            <p className="text-xs text-brand-ice/60 truncate font-nunito mt-1 italic">No information</p>
+            <p className="text-xs text-brand-ice/60 truncate font-nunito mt-1 italic">{L.noInfo}</p>
           )}
         </div>
       </div>
@@ -207,19 +211,19 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
-          {isDown && <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" aria-label={DOWN_LABEL} />}
+          {isDown && <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" aria-label={L.down} />}
           <span className={`font-quicksand font-semibold text-base truncate ${isFocused ? 'text-white' : 'text-white/90'}`}>
             {channel.name}
           </span>
           {isPlaying && (
             <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-brand-gold text-black font-nunito font-bold flex-shrink-0 leading-4">
-              <Radio className="w-3 h-3" /> LIVE
+              <Radio className="w-3 h-3" /> {L.live}
             </span>
           )}
           {isFavorite && <Star className="w-3.5 h-3.5 text-brand-gold fill-brand-gold flex-shrink-0" />}
         </div>
         <p className={`text-xs font-nunito truncate ${isDown ? 'text-amber-300' : now ? 'text-brand-ice/75' : 'text-brand-ice/50 italic'}`}>
-          {isDown ? DOWN_LABEL : now ? now.title : 'No information'}
+          {isDown ? L.down : now ? now.title : L.noInfo}
         </p>
       </div>
 

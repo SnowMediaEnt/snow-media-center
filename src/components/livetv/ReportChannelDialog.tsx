@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, AlertTriangle, Star, StarOff, Flag, X, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
@@ -34,13 +35,21 @@ interface Props {
   onClose: () => void;
 }
 
+// The choices are values the ticket text and the logic use, so they stay English;
+// the buttons show t(CHOICE_KEY[choice]).
 type Choice = 'Channel down' | 'Channel buffering' | 'No audio' | 'Other';
 const CHOICES: Choice[] = ['Channel down', 'Channel buffering', 'No audio', 'Other'];
+const CHOICE_KEY: Record<Choice, string> = {
+  'Channel down': 'live.report.choiceDown',
+  'Channel buffering': 'live.report.choiceBuffering',
+  'No audio': 'live.report.choiceNoAudio',
+  'Other': 'live.report.choiceOther',
+};
 
 // Buffering is the one reason with two answers: most of the time the guide
 // fixes it on the spot, and when it does not, the report still has to reach
 // us. Both are offered; neither is assumed.
-const BUFFERING_OPTIONS = ['Open the buffering guide', 'Submit a ticket'] as const;
+const BUFFERING_OPTIONS = ['live.report.openGuide', 'live.report.submitTicket'] as const;
 
 type Step = 'menu' | 'reasons' | 'buffering' | 'other';
 
@@ -63,6 +72,7 @@ const ReportChannelDialog = memo(({
   onClearDown,
   onClose,
 }: Props) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [refreshing, setRefreshing] = useState(false);
   const canRefresh = !!isFavorite && !!onRefreshFavorite;
@@ -72,22 +82,23 @@ const ReportChannelDialog = memo(({
     try {
       const r = await onRefreshFavorite();
       toast(r === 'fixed'
-        ? { title: 'Channel refreshed', description: 'The favourite now points at the current link.' }
+        ? { title: t('live.report.refreshedTitle'), description: t('live.report.refreshedDesc') }
         : r === 'same'
-          ? { title: 'Already current', description: 'This favourite already points at the channel the service carries now.' }
+          ? { title: t('live.report.alreadyCurrentTitle'), description: t('live.report.alreadyCurrentDesc') }
           : r === 'missing'
-            ? { title: 'Not on the service any more', description: 'No channel with this name was found. Remove it from favourites and pick its replacement.' }
-            : { title: 'Could not refresh', description: 'The service did not answer. Try again in a moment.' });
+            ? { title: t('live.report.missingTitle'), description: t('live.report.missingDesc') }
+            : { title: t('live.report.refreshFailedTitle'), description: t('live.report.refreshFailedDesc') });
     } finally {
       setRefreshing(false);
       onClose();
     }
-  }, [onRefreshFavorite, refreshing, toast, onClose]);
+  }, [onRefreshFavorite, refreshing, toast, onClose, t]);
   const { user } = useAuth();
   const { account } = usePlayerAccount();
   const { createTicket } = useSupportTickets(user);
 
   const [step, setStep] = useState<Step>(initialChoice === 'Other' ? 'other' : initialChoice ? 'reasons' : 'menu');
+  const atStep = (s: Step) => step === s;
   // Focus index:
   //   menu:   the row in menuItems, top to bottom
   //   reasons: 0..3 = CHOICES, 4 = Cancel
@@ -102,6 +113,7 @@ const ReportChannelDialog = memo(({
   // don't accept any activation until the user RELEASES the button once.
   const armedRef = useRef(false);
 
+  // The ticket text below is for the support staff, so it stays in English.
   const buildMessage = useCallback(
     (choice: Choice, otherNote: string) => {
       const trimmedNote = otherNote.trim();
@@ -133,14 +145,14 @@ const ReportChannelDialog = memo(({
   const menuItems: Array<{ id: string; label: string; icon: typeof Flag; run: () => void }> = [
     ...(downAtOpen && onClearDown ? [{
       id: 'clear',
-      label: "It's working now — remove ⚠️",
+      label: t('live.report.clearWarning'),
       icon: CheckCircle2,
-      run: () => { onClearDown(); toast({ title: 'Thanks!', description: 'The warning is gone for everyone.' }); onClose(); },
+      run: () => { onClearDown(); toast({ title: t('live.report.thanksTitle'), description: t('live.report.thanksDesc') }); onClose(); },
     }] : []),
-    { id: 'report', label: 'Report Channel', icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } },
-    { id: 'fav', label: isFavorite ? 'Remove from Favorites' : 'Add to Favorites', icon: isFavorite ? StarOff : Star, run: () => { onToggleFavorite?.(); onClose(); } },
-    ...(canRefresh ? [{ id: 'refresh', label: refreshing ? 'Refreshing…' : 'Refresh channel link', icon: RefreshCw, run: () => { void refreshNow(); } }] : []),
-    { id: 'cancel', label: 'Cancel', icon: X, run: onClose },
+    { id: 'report', label: t('live.report.reportChannel'), icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } },
+    { id: 'fav', label: isFavorite ? t('live.report.removeFavorite') : t('live.report.addFavorite'), icon: isFavorite ? StarOff : Star, run: () => { onToggleFavorite?.(); onClose(); } },
+    ...(canRefresh ? [{ id: 'refresh', label: refreshing ? t('live.report.refreshing') : t('live.report.refreshLink'), icon: RefreshCw, run: () => { void refreshNow(); } }] : []),
+    { id: 'cancel', label: t('common.cancel'), icon: X, run: onClose },
   ];
   const menuItemsRef = useRef(menuItems);
   menuItemsRef.current = menuItems;
@@ -153,7 +165,7 @@ const ReportChannelDialog = memo(({
       try {
         // Demo mode: acknowledge, but never file a real report/ticket.
         if (isDemo()) {
-          toast({ title: 'Live demo', description: DEMO_DIALOG_MSG });
+          toast({ title: t('live.toast.liveDemoTitle'), description: DEMO_DIALOG_MSG });
           onClose();
           return;
         }
@@ -172,19 +184,19 @@ const ReportChannelDialog = memo(({
           if (error) throw error;
         }
         try { trackEvent('ticket_create', 'support', { source: 'player_report', has_user: !!user }); } catch { void 0; }
-        toast({ title: 'Report sent — thanks!' });
+        toast({ title: t('live.report.sentTitle') });
         onClose();
       } catch (e) {
         submittedRef.current = false;
         setSubmitting(false);
         toast({
-          title: 'Could not send report',
-          description: (e as Error)?.message || 'Please try again, or email support@snowmediaent.com.',
+          title: t('live.report.failedTitle'),
+          description: (e as Error)?.message || t('live.report.failedDesc'),
           variant: 'destructive',
         });
       }
     },
-    [createTicket, buildMessage, channelName, onClose, onReportedDown, submitting, toast, user],
+    [createTicket, buildMessage, channelName, onClose, onReportedDown, submitting, toast, user, t],
   );
 
   const onPick = useCallback(
@@ -354,10 +366,10 @@ const ReportChannelDialog = memo(({
   }, [step, focusIdx]);
 
   const title =
-    step === 'menu' ? 'Channel Options'
-    : step === 'reasons' ? 'Report a problem'
-    : step === 'buffering' ? 'Channel buffering'
-    : 'Describe the problem';
+    step === 'menu' ? t('live.report.menuTitle')
+    : step === 'reasons' ? t('live.report.reasonsTitle')
+    : step === 'buffering' ? t('live.report.bufferingTitle')
+    : t('live.report.otherTitle');
 
   return (
     <div
@@ -378,7 +390,7 @@ const ReportChannelDialog = memo(({
           </h2>
         </div>
 
-        {step === 'menu' && (
+        {atStep('menu') && (
           <div className="space-y-2">
             {menuItems.map((item, i, all) => {
               const focused = focusIdx === i;
@@ -399,15 +411,15 @@ const ReportChannelDialog = memo(({
                       : 'bg-white/5 hover:bg-white/10'
                   }`}
                 >
-                  <Icon className="w-5 h-5 text-brand-gold" />
-                  {item.label}
+                  <Icon className="w-5 h-5 text-brand-gold flex-shrink-0" />
+                  <span className="min-w-0 truncate">{item.label}</span>
                 </button>
               );
             })}
           </div>
         )}
 
-        {step === 'reasons' && (
+        {atStep('reasons') && (
           <div className="space-y-2">
             {CHOICES.map((c, i) => {
               const focused = focusIdx === i;
@@ -425,7 +437,7 @@ const ReportChannelDialog = memo(({
                       : 'bg-white/5 hover:bg-white/10'
                   }`}
                 >
-                  {c}
+                  {t(CHOICE_KEY[c])}
                 </button>
               );
             })}
@@ -442,21 +454,21 @@ const ReportChannelDialog = memo(({
                   : 'bg-white/5 hover:bg-white/10'
               }`}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         )}
 
-        {step === 'buffering' && (
+        {atStep('buffering') && (
           <div className="space-y-2">
             <p className="text-sm text-brand-ice/80 font-nunito mb-3">
-              The guide fixes most buffering in a few minutes. If it does not, send us a ticket and we will look at the channel.
+              {t('live.report.bufferingBody')}
             </p>
-            {BUFFERING_OPTIONS.map((label, i) => {
+            {BUFFERING_OPTIONS.map((labelKey, i) => {
               const focused = focusIdx === i;
               return (
                 <button
-                  key={label}
+                  key={labelKey}
                   type="button"
                   data-focused={focused ? 'true' : 'false'}
                   onMouseEnter={() => setFocusIdx(i)}
@@ -469,7 +481,7 @@ const ReportChannelDialog = memo(({
                   }`}
                 >
                   {i === 1 && submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {label}
+                  {t(labelKey)}
                 </button>
               );
             })}
@@ -485,15 +497,15 @@ const ReportChannelDialog = memo(({
                   : 'bg-white/5 hover:bg-white/10'
               }`}
             >
-              Back
+              {t('common.back')}
             </button>
           </div>
         )}
 
-        {step === 'other' && (
+        {atStep('other') && (
           <div className="space-y-3">
             <label className="block text-sm text-brand-ice/80 font-nunito">
-              Describe the problem (optional)
+              {t('live.report.describeLabel')}
             </label>
             <textarea
               ref={inputRef}
@@ -501,7 +513,7 @@ const ReportChannelDialog = memo(({
               onChange={(e) => setNote(e.target.value)}
               rows={3}
               maxLength={500}
-              placeholder="What went wrong?"
+              placeholder={t('live.report.placeholder')}
               data-focused={focusIdx === 0 ? 'true' : 'false'}
               onFocus={() => setFocusIdx(0)}
               className="tv-ring w-full rounded-xl bg-black/40 text-white border border-white/20 px-3 py-2 font-nunito text-sm resize-none focus:outline-none"
@@ -520,7 +532,7 @@ const ReportChannelDialog = memo(({
                 }`}
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Send
+                {t('live.report.sendBtn')}
               </button>
               <button
                 type="button"
@@ -534,14 +546,14 @@ const ReportChannelDialog = memo(({
                     : 'bg-white/5'
                 }`}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
         )}
 
         <p className="mt-4 text-xs text-brand-ice/60 font-nunito">
-          Long-press OK or press the Menu key on a channel to open this.
+          {t('live.report.footer')}
         </p>
       </div>
     </div>

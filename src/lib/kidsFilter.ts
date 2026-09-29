@@ -16,10 +16,12 @@ import { isAdultLabel, isAdultPlexItem, isAdultTitle, isFlaggedAdult } from '@/l
 
 export type KidsLevel = 'little' | 'kids' | 'teen';
 
-export const KIDS_LEVELS: Array<{ id: KidsLevel; label: string; hint: string }> = [
-  { id: 'little', label: 'Little kids', hint: 'G and TV-Y / TV-G' },
-  { id: 'kids', label: 'Kids', hint: 'Up to PG and TV-PG' },
-  { id: 'teen', label: 'Teens', hint: 'Up to PG-13 and TV-14' },
+// `label` and `hint` are the English words, kept until the profile screens are converted;
+// screens show t(labelKey) and t(hintKey).
+export const KIDS_LEVELS: Array<{ id: KidsLevel; label: string; hint: string; labelKey: string; hintKey: string }> = [
+  { id: 'little', label: 'Little kids', hint: 'G and TV-Y / TV-G', labelKey: 'live.kidsLevels.littleLabel', hintKey: 'live.kidsLevels.littleHint' },
+  { id: 'kids', label: 'Kids', hint: 'Up to PG and TV-PG', labelKey: 'live.kidsLevels.kidsLabel', hintKey: 'live.kidsLevels.kidsHint' },
+  { id: 'teen', label: 'Teens', hint: 'Up to PG-13 and TV-14', labelKey: 'live.kidsLevels.teenLabel', hintKey: 'live.kidsLevels.teenHint' },
 ];
 
 // As Plex writes them (country-prefixed ones in lower case, "gb/12A"): the

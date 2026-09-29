@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { ArrowLeft, Film, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   getVodCategories,
@@ -55,6 +56,10 @@ const GRID_COLS = 5;
 const DEMO = isDemo();
 
 const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex }: Props) => {
+  const { t } = useTranslation();
+  // Plex and All Movies are ours to translate; the rest are the provider's category names.
+  const catLabel = (c: { id: string; name: string }): string =>
+    c.id === PLEX_ID ? t('live.vod.plexTitle') : c.id === ALL_ID ? t('live.vod.allMovies') : c.name;
   const hasPlex = !!onOpenPlex;
   const onOpenPlexRef = useRef(onOpenPlex);
   useEffect(() => { onOpenPlexRef.current = onOpenPlex; }, [onOpenPlex]);
@@ -142,8 +147,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
 
   const visibleCategories = useMemo(() => {
     const base: { id: string; name: string; count?: number }[] = [
-      ...(hasPlex ? [{ id: PLEX_ID, name: 'Plex' }] : []),
-      { id: ALL_ID, name: 'All Movies', count: moviesByCat.get(ALL_ID)?.length ?? counts.total ?? undefined },
+      ...(hasPlex ? [{ id: PLEX_ID, name: '' }] : []),
+      { id: ALL_ID, name: '', count: moviesByCat.get(ALL_ID)?.length ?? counts.total ?? undefined },
     ];
     for (const c of categories) {
       const key = String(c.category_id);
@@ -523,7 +528,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
         <p className="font-nunito text-white/90 text-base leading-relaxed">{DEMO_DIALOG_MSG}</p>
         <button type="button" autoFocus onClick={() => setDemoNotice(false)}
           className="mt-6 px-6 py-3 rounded-xl bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
-          OK
+          {t('common.ok')}
         </button>
       </div>
     </div>
@@ -533,7 +538,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
   if (playing) {
     return (
       <div className="fixed inset-0 z-[60] bg-black">
-        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
+        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
           <VideoPlayer
             src={playing.url}
             volume={volume}
@@ -559,7 +564,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
     return (
       <div className="flex-1 min-h-0 flex flex-col text-white bg-black/40">
         <div className={`${BACK_ROW} flex-shrink-0 px-8 pt-8 mb-4`}>
-          <BackButton onClick={() => { setPane('grid'); setSelectedMovie(null); }} label="Back" />
+          <BackButton onClick={() => { setPane('grid'); setSelectedMovie(null); }} label={t('common.back')} />
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
         <div className="flex gap-8 max-w-4xl">
@@ -580,7 +585,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
               <Loader2 className="w-6 h-6 animate-spin text-brand-gold" />
             ) : (
               <p className="text-brand-ice/90 font-nunito leading-relaxed max-w-3xl mb-6">
-                {info?.plot || 'No description available.'}
+                {info?.plot || t('live.vod.noDescription')}
               </p>
             )}
             <Button
@@ -591,7 +596,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
               className="tv-ring tv-ring-contrast h-12 rounded-xl text-xl px-8 transition-transform duration-150 ease-out scale-105 z-10"
             >
               <Play className="w-5 h-5 mr-2 fill-current" />
-              Play Movie
+              {t('live.vod.playMovieBtn')}
             </Button>
           </div>
         </div>
@@ -611,7 +616,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
           className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${searchFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
         >
           <Search className="w-4 h-4" />
-          {searchOpen ? 'Close search' : 'Search movies'}
+          <span className="min-w-0 truncate">{searchOpen ? t('live.list.closeSearchBtn') : t('live.vod.searchMoviesBtn')}</span>
         </button>
         {searchOpen && (
           <input
@@ -624,7 +629,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
               else if (e.key === 'ArrowUp') { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
               else if (e.key === 'Escape')  { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
             }}
-            placeholder="Type to search…"
+            placeholder={t('live.list.searchPlaceholder')}
             className="w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-3 font-nunito text-base focus:outline-none focus:ring-2 focus:ring-brand-gold"
           />
         )}
@@ -632,7 +637,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
           <div className="space-y-1">
             {categoriesLoading && categories.length === 0 && (
               <div className="px-3 py-2 text-brand-ice/70 font-nunito text-sm flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
+                <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> {t('live.list.loadingCategories')}
               </div>
             )}
             {visibleCategories.map((c, i) => {
@@ -658,7 +663,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
                   `}
                 >
                   {c.id === PLEX_ID && <Film className="w-4 h-4 text-brand-gold flex-shrink-0" />}
-                  <span className="flex-1 truncate">{c.name}</span>
+                  <span className="flex-1 truncate">{catLabel(c)}</span>
                   {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                   {!isLoadingThis && c.count != null && c.count > 0 && (
                     <span className={`text-xs tabular-nums px-2 py-1 rounded-lg flex-shrink-0 ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
@@ -678,9 +683,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
           <div className="h-full flex items-center justify-center">
             <div className="max-w-md text-center rounded-3xl border border-brand-gold/30 bg-black/40 px-10 py-10">
               <Film className="w-14 h-14 text-brand-gold mx-auto mb-4" />
-              <h3 className="text-2xl font-quicksand font-bold text-white mb-2">Plex</h3>
+              <h3 className="text-2xl font-quicksand font-bold text-white mb-2">{t('live.vod.plexTitle')}</h3>
               <p className="text-brand-ice/85 font-nunito leading-relaxed">
-                All your movies and TV shows. Press OK to open Plex.
+                {t('live.vod.plexBody')}
               </p>
             </div>
           </div>
@@ -694,11 +699,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
           <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito">
             {searchOpen
               ? (searchQuery
-                  ? (allMoviesLoading ? 'Loading movie catalog…' : 'No movies match your search.')
-                  : (allMoviesLoading ? 'Loading movie catalog…' : 'Type to search all movies.'))
+                  ? (allMoviesLoading ? t('live.vod.loadingCatalog') : t('live.vod.noMatch'))
+                  : (allMoviesLoading ? t('live.vod.loadingCatalog') : t('live.vod.typeToSearch')))
               : currentCat?.id === ALL_ID && !allOptedInRef.current
-                ? 'Press OK to load every movie.'
-                : 'No movies in this category.'}
+                ? t('live.vod.pressOkLoadAll')
+                : t('live.vod.noMovies')}
           </div>
 
         ) : (

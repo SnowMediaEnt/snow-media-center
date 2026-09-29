@@ -17,6 +17,7 @@ export const MS_SLOT_IDS: MultiScreenId[] = ['ms1', 'ms2', 'ms3', 'ms4'];
 export interface SlotState {
   url: string | null;
   buffering: boolean;
+  /** A code, not text: 'unavailable'. MultiScreenSection shows the words in the viewer's language. */
   error: string | null;
   retries: number;
   bufferingSince: number | null;
@@ -124,7 +125,7 @@ export function useMultiScreenPlayers(): Api {
           // its own, and every load() here restarts that count: one fresh
           // start, not 5 × 20 more connections from a dead tile.
           if (cur.retries >= MAX_RETRIES || (data?.code === 'RECONNECT_EXHAUSTED' && cur.retries >= 1)) {
-            updateSlot(sid, { error: 'Stream unavailable', buffering: false });
+            updateSlot(sid, { error: 'unavailable', buffering: false });
             return;
           }
           const attempt = cur.retries + 1;
@@ -216,7 +217,7 @@ export function useMultiScreenPlayers(): Api {
         try { await SnowPlayer.setVolume({ volume: 0, screenId }); } catch { /* ignore */ }
       }
     } catch (e) {
-      updateSlot(screenId, { error: 'Stream unavailable', buffering: false });
+      updateSlot(screenId, { error: 'unavailable', buffering: false });
     }
   }, [updateSlot]);
 

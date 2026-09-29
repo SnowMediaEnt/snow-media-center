@@ -1,5 +1,6 @@
 import { memo, useEffect } from 'react';
 import { AlertTriangle, Info, AlertOctagon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import type { PlayerServerAlert } from '@/hooks/usePlayerServerAlert';
 
@@ -17,6 +18,7 @@ const sevStyle = (s: PlayerServerAlert['severity']) =>
     : { Icon: Info, ring: 'border-blue-500/60', glow: 'shadow-[0_0_40px_rgba(59,130,246,0.2)]', color: 'text-blue-200' };
 
 const PlayerServerAlertDialog = memo(({ alert, serverLabel, onDismiss }: Props) => {
+  const { t } = useTranslation();
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -38,7 +40,7 @@ const PlayerServerAlertDialog = memo(({ alert, serverLabel, onDismiss }: Props) 
       <div className={`w-full max-w-lg rounded-3xl bg-slate-900/95 border-2 ${ring} p-8 text-center`}>
         <div className="flex justify-center mb-4"><Icon className={`w-14 h-14 ${color}`} /></div>
         <div className="text-xs uppercase tracking-wide text-brand-ice/70 font-nunito mb-2">
-          {serverLabel} • Service notice
+          {t('live.serverAlert.notice', { server: serverLabel })}
         </div>
         <h2 className="text-2xl font-quicksand font-bold text-white mb-3">{alert.title}</h2>
         <p className="text-brand-ice/90 font-nunito whitespace-pre-wrap mb-6">{alert.message}</p>
@@ -49,7 +51,7 @@ const PlayerServerAlertDialog = memo(({ alert, serverLabel, onDismiss }: Props) 
           data-focused="true"
           className="tv-ring tv-ring-contrast h-12 rounded-xl px-8 text-base font-semibold scale-105 z-10 transition-transform duration-150 ease-out"
         >
-          Got it
+          {t('live.serverAlert.gotItBtn')}
         </Button>
       </div>
     </div>

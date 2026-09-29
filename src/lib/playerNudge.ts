@@ -14,10 +14,10 @@ export const setPlayerNudgeOff = (off: boolean): void => {
   } catch { /* private mode: it just shows again next time */ }
 };
 
-/** The benefits, short enough to read from the couch. */
+/** The benefits, short enough to read from the couch. Translation keys: the dialog calls t() when it draws. */
 export const PLAYER_BENEFITS: string[] = [
-  'Live TV, the Guide, VOD and Multi-Screen, all in one place',
-  'Plex built in and faster, with Continue Watching and search',
-  'Favorites, Backups when a channel is down, and remote Play/Pause',
-  'Always up to date with Snow Media Center, nothing else to install',
+  'live.playerNudge.benefit1',
+  'live.playerNudge.benefit2',
+  'live.playerNudge.benefit3',
+  'live.playerNudge.benefit4',
 ];
