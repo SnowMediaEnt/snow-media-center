@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import i18n from '@/i18n';
 import { toBillingError, billingErrorText, type BillingErrorInfo } from '@/lib/billing';
 
 /** Layout classes shared by every billing screen (matches the Player's sub-screens). */
@@ -53,11 +54,11 @@ export function useBillingErrorHandler(opts: { onAuthLost?: () => void; block?: 
   const { toast } = useToast();
   const optsRef = useRef(opts);
   useEffect(() => { optsRef.current = opts; }, [opts]);
-  return useCallback((e: unknown, title = 'Billing'): BillingErrorInfo => {
+  return useCallback((e: unknown, title = i18n.t('billing.errors.defaultTitle')): BillingErrorInfo => {
     const err = toBillingError(e);
     if (err.isAuthError) {
       optsRef.current.onAuthLost?.();
-      toast({ title: 'Please sign in again', description: 'Your billing sign-in expired.', variant: 'destructive' });
+      toast({ title: i18n.t('billing.errors.signInAgainTitle'), description: i18n.t('billing.errors.signInExpiredDesc'), variant: 'destructive' });
       return err;
     }
     if (err.code === 'rate_limited') optsRef.current.block?.(err.retryAfter ?? 30);
@@ -99,4 +100,14 @@ export function useFocusRecovery(
     });
     return () => cancelAnimationFrame(raf);
   });
+}
+
+/**
+ * Heading of the payment sheet. Built from the plan name at draw time (never stored),
+ * so it follows the language; "kind" is 'renew' for a renewal, anything else is a purchase.
+ */
+export function payTitle(kind: string, planName: string | null | undefined): string {
+  const renew = kind === 'renew';
+  if (planName) return i18n.t(renew ? 'billing.pay.renewTitle' : 'billing.pay.payForTitle', { plan: planName });
+  return i18n.t(renew ? 'billing.pay.renewYourPlan' : 'billing.pay.payForYourPlan');
 }

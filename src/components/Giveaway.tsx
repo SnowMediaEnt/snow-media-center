@@ -11,7 +11,8 @@
 // unreachable in the embedded website demo.
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   ArrowLeft,
   Gift,
@@ -34,6 +35,7 @@ import { isDemo } from '@/lib/demoMode';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { formatDate, formatNumber } from '@/i18n/format';
 
 interface GiveawayInfo {
   id: string;
@@ -74,22 +76,16 @@ interface MySummary {
   my_entries?: MyEntry[];
 }
 
-const ENTRY_TYPE_LABELS: Record<string, string> = {
-  account_creation: 'New account bonus',
-  renewal: 'Service renewal',
-  device_purchase: 'Device purchase',
-  facebook_review: 'Facebook review',
-};
+// The entry types the server sends. Anything new is shown as its own name with the underscores removed.
+const ENTRY_TYPES = ['account_creation', 'renewal', 'device_purchase', 'facebook_review'];
 
-const entryTypeLabel = (t: string) => ENTRY_TYPE_LABELS[t] ?? t.replace(/_/g, ' ');
+const entryTypeLabel = (t: TFunction, type: string) =>
+  ENTRY_TYPES.includes(type) ? t(`giveaway.main.entryType.${type}`) : type.replace(/_/g, ' ');
 
 const fmtDate = (iso: string | null | undefined) => {
   if (!iso) return null;
-  try {
-    return format(new Date(iso), 'MMM d, yyyy');
-  } catch {
-    return null;
-  }
+  const label = formatDate(iso);
+  return label || null;
 };
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
@@ -103,6 +99,7 @@ const parseIso = (iso: string | null): number | null => {
 /** Big DAYS/HRS/MIN gold tiles counting to the giveaway deadline.
  *  30s pausable refresh — no per-second churn on weak boxes. */
 const GiveawayCountdown = ({ giveaway }: { giveaway: GiveawayInfo }) => {
+  const { t } = useTranslation();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => setPausableInterval(() => setNow(Date.now()), 30000), []);
 
@@ -110,7 +107,7 @@ const GiveawayCountdown = ({ giveaway }: { giveaway: GiveawayInfo }) => {
 
   const closedLine = (
     <div className="mt-5 text-center">
-      <p className="text-xl font-bold text-amber-200">Entries closed</p>
+      <p className="text-xl font-bold text-amber-200">{t('giveaway.main.entriesClosed')}</p>
     </div>
   );
 
@@ -126,25 +123,25 @@ const GiveawayCountdown = ({ giveaway }: { giveaway: GiveawayInfo }) => {
 
   const totalMins = Math.max(0, Math.floor(diff / 60000));
   const tiles = [
-    { v: Math.floor(totalMins / 1440), l: 'DAYS' },
-    { v: Math.floor((totalMins % 1440) / 60), l: 'HRS' },
-    { v: totalMins % 60, l: 'MIN' },
+    { v: Math.floor(totalMins / 1440), id: 'days', l: t('giveaway.main.tileDays') },
+    { v: Math.floor((totalMins % 1440) / 60), id: 'hrs', l: t('giveaway.main.tileHrs') },
+    { v: totalMins % 60, id: 'min', l: t('giveaway.main.tileMin') },
   ];
   return (
     <div className="mt-5 text-center">
       {/* margin-based spacing (ml-3) instead of flex gap — Chrome 66 safe */}
       <div className="flex justify-center">
-        {tiles.map((t, i) => (
+        {tiles.map((tile, i) => (
           <div
-            key={t.l}
+            key={tile.id}
             className={`min-w-[84px] rounded-xl border-2 border-amber-400/60 bg-gradient-to-b from-amber-500/30 to-yellow-900/40 px-4 py-3${i > 0 ? ' ml-3' : ''}`}
           >
-            <div className="text-4xl font-bold text-amber-200 leading-none tabular-nums">{pad2(t.v)}</div>
-            <div className="text-xs font-semibold tracking-widest text-amber-300/80 mt-1">{t.l}</div>
+            <div className="text-4xl font-bold text-amber-200 leading-none tabular-nums">{pad2(tile.v)}</div>
+            <div className="text-xs font-semibold tracking-widest text-amber-300/80 mt-1">{tile.l}</div>
           </div>
         ))}
       </div>
-      <p className="text-amber-200/80 text-sm mt-2">{preStart ? 'Starts in' : 'until entries close'}</p>
+      <p className="text-amber-200/80 text-sm mt-2">{preStart ? t('giveaway.main.startsIn') : t('giveaway.main.untilClose')}</p>
     </div>
   );
 };
@@ -253,6 +250,7 @@ const MarkdownLite = ({ text, className }: { text: string; className?: string })
 };
 
 const Giveaway = ({ onBack }: { onBack: () => void }) => {
+  const { t } = useTranslation();
   const demo = isDemo();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -308,11 +306,11 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
       }
     } catch (e) {
       console.warn('[Giveaway] load failed:', e);
-      setLoadError('Could not load the giveaway right now. Please try again.');
+      setLoadError(t('giveaway.main.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, t]);
 
   useEffect(() => {
     if (!demo) void load();
@@ -338,8 +336,8 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
     if (!giveaway || claiming) return;
     if (!fbName.trim()) {
       toast({
-        title: 'Facebook name needed',
-        description: 'Enter the Facebook name you left the review with.',
+        title: t('giveaway.main.fbNameNeededTitle'),
+        description: t('giveaway.main.fbNameNeededDesc'),
         variant: 'destructive',
       });
       return;
@@ -355,26 +353,26 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
       const res = data as { ok?: boolean; error?: string } | null;
       if (res?.ok) {
         toast({
-          title: 'Entry submitted',
-          description: 'Your Facebook review is pending review — entries are added once approved.',
+          title: t('giveaway.main.entrySubmittedTitle'),
+          description: t('giveaway.main.entrySubmittedDesc'),
         });
         setFbName('');
         setReviewUrl('');
         void load();
       } else if (res?.error === 'already_claimed') {
-        toast({ title: 'Already claimed', description: 'You already submitted a Facebook review for this giveaway.' });
+        toast({ title: t('giveaway.main.alreadyClaimedTitle'), description: t('giveaway.main.alreadyClaimedDesc') });
       } else if (res?.error === 'giveaway_not_active') {
-        toast({ title: 'Giveaway closed', description: 'This giveaway is no longer accepting entries.', variant: 'destructive' });
+        toast({ title: t('giveaway.main.closedTitle'), description: t('giveaway.main.closedDesc'), variant: 'destructive' });
       } else {
-        toast({ title: 'Could not submit', description: 'Please try again in a moment.', variant: 'destructive' });
+        toast({ title: t('giveaway.main.submitFailedTitle'), description: t('giveaway.main.submitFailedDesc'), variant: 'destructive' });
       }
     } catch (e) {
       console.warn('[Giveaway] claim failed:', e);
-      toast({ title: 'Could not submit', description: 'Please try again in a moment.', variant: 'destructive' });
+      toast({ title: t('giveaway.main.submitFailedTitle'), description: t('giveaway.main.submitFailedDesc'), variant: 'destructive' });
     } finally {
       setClaiming(false);
     }
-  }, [giveaway, claiming, fbName, reviewUrl, toast, load]);
+  }, [giveaway, claiming, fbName, reviewUrl, toast, load, t]);
 
   // D-pad navigation (Games.tsx index pattern; Back is owned by Index.tsx).
   useEffect(() => {
@@ -438,14 +436,14 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
     if (!giveaway) return null;
     switch (giveaway.status) {
       case 'active':
-        return <span className="rounded-full bg-emerald-500/20 border border-emerald-400/50 px-3 py-1 text-emerald-200 text-sm font-semibold">Active now</span>;
+        return <span className="rounded-full bg-emerald-500/20 border border-emerald-400/50 px-3 py-1 text-emerald-200 text-sm font-semibold">{t('giveaway.main.statusActive')}</span>;
       case 'paused':
-        return <span className="rounded-full bg-amber-500/20 border border-amber-400/50 px-3 py-1 text-amber-200 text-sm font-semibold">Paused</span>;
+        return <span className="rounded-full bg-amber-500/20 border border-amber-400/50 px-3 py-1 text-amber-200 text-sm font-semibold">{t('giveaway.main.statusPaused')}</span>;
       case 'ended':
-        return <span className="rounded-full bg-slate-500/20 border border-slate-400/50 px-3 py-1 text-slate-200 text-sm font-semibold">Ended — drawing soon</span>;
+        return <span className="rounded-full bg-slate-500/20 border border-slate-400/50 px-3 py-1 text-slate-200 text-sm font-semibold">{t('giveaway.main.statusEndedSoon')}</span>;
       case 'drawn':
       case 'announced':
-        return <span className="rounded-full bg-yellow-500/20 border border-yellow-400/50 px-3 py-1 text-yellow-200 text-sm font-semibold">Winners drawn</span>;
+        return <span className="rounded-full bg-yellow-500/20 border border-yellow-400/50 px-3 py-1 text-yellow-200 text-sm font-semibold">{t('giveaway.main.statusDrawn')}</span>;
       default:
         return null;
     }
@@ -461,7 +459,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
         <div className={BACK_ROW}>
           <BackButton
             onClick={onBack}
-            label="Back to Home"
+            label={t('common.backToHome')}
             data-giveaway-focus={0}
             focused={focusIndex === 0}
           />
@@ -475,14 +473,14 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
           <Card className="bg-slate-800/60 border-slate-600 p-8 text-center">
             <p className="text-lg text-slate-200 mb-4">{loadError}</p>
             <Button onClick={() => void load()} variant="outline" className="bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30">
-              Retry
+              {t('common.retry')}
             </Button>
           </Card>
         ) : !giveaway ? (
           <Card className="bg-slate-800/60 border-slate-600 p-8 text-center">
             <Gift className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-            <h2 className="text-2xl font-bold mb-2">No giveaway right now</h2>
-            <p className="text-slate-300">Check back soon — new giveaways are announced on the home screen.</p>
+            <h2 className="text-2xl font-bold mb-2">{t('giveaway.main.noGiveaway')}</h2>
+            <p className="text-slate-300">{t('giveaway.main.checkBack')}</p>
           </Card>
         ) : (
           <>
@@ -510,10 +508,10 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
                   )}
                   {(startLabel || endLabel) && (
                     <p className="text-slate-300 text-sm">
-                      {startLabel && `Starts ${startLabel}`}
+                      {startLabel && t('giveaway.main.startsOn', { date: startLabel })}
                       {startLabel && endLabel && ' · '}
-                      {endLabel && `Ends ${endLabel}`}
-                      {giveaway.winner_count > 0 && ` · ${giveaway.winner_count} winner${giveaway.winner_count === 1 ? '' : 's'}`}
+                      {endLabel && t('giveaway.main.endsOn', { date: endLabel })}
+                      {giveaway.winner_count > 0 && ` · ${t('giveaway.main.winnerCount', { count: giveaway.winner_count })}`}
                     </p>
                   )}
                 </div>
@@ -527,12 +525,12 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
               <Card className="bg-slate-800/60 border-slate-600 p-6 mb-6">
                 <div className="flex items-center gap-3 mb-4">
                   <Ticket className="w-6 h-6 text-blue-300" />
-                  <h2 className="text-2xl font-bold">Your entries</h2>
-                  <span className="ml-auto text-3xl font-bold text-amber-300">{myTotal}</span>
+                  <h2 className="text-2xl font-bold">{t('giveaway.main.yourEntries')}</h2>
+                  <span className="ml-auto text-3xl font-bold text-amber-300">{formatNumber(myTotal)}</span>
                 </div>
                 {myEntries.length === 0 ? (
                   <p className="text-slate-300">
-                    No entries yet. Renew a service, buy a device, or claim the Facebook review bonus below.
+                    {t('giveaway.main.noEntries')}
                   </p>
                 ) : (
                   <ul className="space-y-2">
@@ -545,12 +543,12 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
                         ) : (
                           <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
                         )}
-                        <span className="font-medium">{entryTypeLabel(e.entry_type)}</span>
+                        <span className="font-medium">{entryTypeLabel(t, e.entry_type)}</span>
                         {e.source_reference && (
                           <span className="text-slate-400 text-sm truncate">{e.source_reference}</span>
                         )}
                         <span className="ml-auto font-bold">
-                          {e.status === 'pending' ? 'Pending' : e.status === 'valid' ? `+${e.entry_count}` : 'Void'}
+                          {e.status === 'pending' ? t('giveaway.main.entryPending') : e.status === 'valid' ? `+${e.entry_count}` : t('giveaway.main.entryVoid')}
                         </span>
                       </li>
                     ))}
@@ -564,17 +562,17 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
               <Card className="bg-slate-800/60 border-slate-600 p-6 mb-6">
                 <div className="flex items-center gap-3 mb-3">
                   <Facebook className="w-6 h-6 text-blue-400" />
-                  <h2 className="text-2xl font-bold">Facebook review bonus</h2>
+                  <h2 className="text-2xl font-bold">{t('giveaway.main.fbBonusTitle')}</h2>
                 </div>
                 <p className="text-slate-300 mb-4">
-                  Left us a review on Facebook? Claim your bonus entry — it appears once an admin approves it.
+                  {t('giveaway.main.fbBonusDesc')}
                 </p>
                 <div className="space-y-3">
                   <Input
                     ref={fbNameRef}
                     value={fbName}
                     onChange={(ev) => setFbName(ev.target.value)}
-                    placeholder="Your Facebook name"
+                    placeholder={t('giveaway.main.fbNamePlaceholder')}
                     data-giveaway-focus={1}
                     className={`bg-black/30 border-white/20 text-white text-lg transition-all duration-200 ${focusCls(1)}`}
                   />
@@ -582,7 +580,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
                     ref={reviewUrlRef}
                     value={reviewUrl}
                     onChange={(ev) => setReviewUrl(ev.target.value)}
-                    placeholder="Link to your review (optional)"
+                    placeholder={t('giveaway.main.reviewUrlPlaceholder')}
                     data-giveaway-focus={2}
                     className={`bg-black/30 border-white/20 text-lg transition-all duration-200 ${focusCls(2)}`}
                   />
@@ -594,7 +592,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
                     className={`bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white transition-all duration-200 ${focusCls(3)}`}
                   >
                     {claiming ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Facebook className="w-5 h-5 mr-2" />}
-                    Claim bonus entry
+                    {t('giveaway.main.claimBtn')}
                   </Button>
                 </div>
               </Card>
@@ -603,7 +601,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
             {/* Signed-out CTA */}
             {signInSlot && (
               <Card className="bg-slate-800/60 border-slate-600 p-6 mb-6 text-center">
-                <p className="text-lg text-slate-200 mb-4">Sign in to see your entries and claim bonuses.</p>
+                <p className="text-lg text-slate-200 mb-4">{t('giveaway.main.signInPrompt')}</p>
                 <Button
                   onClick={() => navigate('/auth')}
                   size="lg"
@@ -611,7 +609,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
                   className={`bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 ${focusCls(1)}`}
                 >
                   <LogIn className="w-5 h-5 mr-2" />
-                  Sign In
+                  {t('common.signInAction')}
                 </Button>
               </Card>
             )}
@@ -621,7 +619,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
               <Card className="bg-slate-900 text-white bg-gradient-to-br from-yellow-600/20 to-amber-900/20 border-yellow-500/40 p-6 mb-6">
                 <div className="flex items-center gap-3 mb-4">
                   <Trophy className="w-6 h-6 text-yellow-300" />
-                  <h2 className="text-2xl font-bold">Winners</h2>
+                  <h2 className="text-2xl font-bold">{t('giveaway.main.winners')}</h2>
                 </div>
                 <ul className="space-y-2">
                   {winners.map((w) => (
@@ -640,7 +638,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
             {/* Rules */}
             {giveaway.rules_md && (
               <Card className="bg-slate-800/40 border-slate-700 p-6">
-                <h3 className="text-lg font-semibold mb-2 text-slate-200">How to enter</h3>
+                <h3 className="text-lg font-semibold mb-2 text-slate-200">{t('giveaway.main.howToEnter')}</h3>
                 <MarkdownLite text={giveaway.rules_md} className="text-slate-300 text-sm" />
               </Card>
             )}
@@ -661,12 +659,12 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
             >
               <Trophy className="w-6 h-6 text-yellow-300 flex-shrink-0" />
               <span className="flex-1">
-                <span className="block text-xl font-quicksand font-semibold text-white/90">Previous giveaways</span>
+                <span className="block text-xl font-quicksand font-semibold text-white/90">{t('giveaway.main.previousGiveaways')}</span>
                 <span className="block text-sm text-brand-ice/70 font-nunito">
-                  {history.length} past giveaway{history.length === 1 ? '' : 's'} · see who won
+                  {t('giveaway.main.pastCount', { count: history.length })}
                 </span>
               </span>
-              <span className="text-sm text-brand-ice/70 font-nunito">{historyOpen ? 'Hide' : 'Show'}</span>
+              <span className="text-sm text-brand-ice/70 font-nunito">{historyOpen ? t('giveaway.main.hide') : t('giveaway.main.show')}</span>
             </button>
 
             {historyOpen && (
@@ -690,9 +688,9 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
                           <div className="flex items-center gap-3 flex-wrap">
                             <h3 className="text-xl font-quicksand font-semibold text-white/90 truncate">{g.name}</h3>
                             {g.status === 'drawn' || g.status === 'announced' ? (
-                              <span className="rounded-full bg-yellow-500/20 border border-yellow-400/50 px-3 py-1 text-yellow-200 text-xs font-semibold">Winners drawn</span>
+                              <span className="rounded-full bg-yellow-500/20 border border-yellow-400/50 px-3 py-1 text-yellow-200 text-xs font-semibold">{t('giveaway.main.statusDrawn')}</span>
                             ) : g.status === 'ended' ? (
-                              <span className="rounded-full bg-slate-500/20 border border-slate-400/50 px-3 py-1 text-slate-200 text-xs font-semibold">Ended</span>
+                              <span className="rounded-full bg-slate-500/20 border border-slate-400/50 px-3 py-1 text-slate-200 text-xs font-semibold">{t('giveaway.main.statusEnded')}</span>
                             ) : (
                               <span className="rounded-full bg-emerald-500/20 border border-emerald-400/50 px-3 py-1 text-emerald-200 text-xs font-semibold">{g.status}</span>
                             )}
@@ -709,7 +707,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
                               ))}
                             </ul>
                           ) : (
-                            <p className="mt-3 text-sm text-brand-ice/70 font-nunito">Winners not announced.</p>
+                            <p className="mt-3 text-sm text-brand-ice/70 font-nunito">{t('giveaway.main.notAnnounced')}</p>
                           )}
                         </div>
                       </div>

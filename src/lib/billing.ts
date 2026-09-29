@@ -16,6 +16,8 @@ import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { signInWithPlayerCredentials } from '@/lib/playerLogin';
 import { SmcBilling } from '@/capacitor/SmcBilling';
 import { trackEvent } from '@/lib/analytics';
+import i18n from '@/i18n';
+import { formatCurrency, formatDate as formatShortDate, formatDateTime as formatShortDateTime } from '@/i18n/format';
 import type { BillingCredentials, BillingPlan, BillingService } from '@/capacitor/SmcBilling';
 
 /** The customer-facing billing site, for the cases the app cannot handle itself. */
@@ -51,7 +53,7 @@ export function toBillingError(e: unknown): BillingErrorInfo {
   const retryAfterRaw = details?.retry_after;
   const retryAfter = typeof retryAfterRaw === 'number' ? retryAfterRaw : (typeof retryAfterRaw === 'string' ? parseInt(retryAfterRaw, 10) || null : null);
   const field = typeof details?.field === 'string' ? (details.field as string) : null;
-  const message = typeof err.message === 'string' && err.message ? err.message : 'Something went wrong. Please try again.';
+  const message = typeof err.message === 'string' && err.message ? err.message : i18n.t('billing.errors.generic');
   return {
     code,
     message,
@@ -69,21 +71,22 @@ export function toBillingError(e: unknown): BillingErrorInfo {
  * text assumes a website the viewer is not looking at.
  */
 export function billingErrorText(err: BillingErrorInfo): string {
+  const t = i18n.t.bind(i18n);
   switch (err.code) {
-    case 'network': return 'Could not reach the billing server. Check the internet connection and try again.';
-    case 'bad_response': return 'The billing server sent an unexpected reply. Please try again in a minute.';
-    case 'invalid_app_key': return 'This version of the app can no longer talk to billing. Please update the app.';
-    case 'two_factor_required': return `This account uses two-factor sign-in. Please log in at ${BILLING_SITE.replace('https://', '')} instead.`;
-    case 'account_closed': return 'This billing account is closed. Contact support if you think that is a mistake.';
-    case 'invalid_credentials': return 'Wrong email or password.';
-    case 'trial_already_used': return 'Trial already used. Pick a plan instead.';
-    case 'not_renewable': return 'This service cannot be renewed here. Choose a plan instead.';
-    case 'plan_unavailable': return 'That plan is no longer available. The list has been refreshed.';
-    case 'provisioning_failed': return 'Your order was created but the panel is slow. Check My Account in a minute.';
-    case 'rate_limited': return err.retryAfter ? `Too many attempts. Please wait ${err.retryAfter} seconds.` : 'Too many attempts. Please wait a moment.';
+    case 'network': return t('billing.errors.network');
+    case 'bad_response': return t('billing.errors.badResponse');
+    case 'invalid_app_key': return t('billing.errors.invalidAppKey');
+    case 'two_factor_required': return t('billing.errors.twoFactorRequired', { site: BILLING_SITE.replace('https://', '') });
+    case 'account_closed': return t('billing.errors.accountClosed');
+    case 'invalid_credentials': return t('billing.errors.invalidCredentials');
+    case 'trial_already_used': return t('billing.errors.trialAlreadyUsed');
+    case 'not_renewable': return t('billing.errors.notRenewable');
+    case 'plan_unavailable': return t('billing.errors.planUnavailable');
+    case 'provisioning_failed': return t('billing.errors.provisioningFailed');
+    case 'rate_limited': return err.retryAfter ? t('billing.errors.rateLimitedSeconds', { count: err.retryAfter }) : t('billing.errors.rateLimited');
     case 'invalid_token':
     case 'token_expired':
-    case 'missing_token': return 'Please sign in again.';
+    case 'missing_token': return t('billing.errors.signInAgain');
     default: return err.message;
   }
 }
@@ -95,7 +98,7 @@ export function formatMoney(amount: number | null | undefined, currency: string 
   if (amount === null || amount === undefined || Number.isNaN(amount)) return '—';
   const cur = (currency || 'USD').toUpperCase();
   try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+    return formatCurrency(amount, cur);
   } catch {
     return `${cur} ${amount.toFixed(2)}`;
   }
@@ -103,13 +106,12 @@ export function formatMoney(amount: number | null | undefined, currency: string 
 
 /** "1 month", "3 months", "12 months" — the group headings on the plan screen. */
 export function termLabel(months: number): string {
-  if (!months || months <= 0) return 'Other';
-  if (months === 12) return '12 months';
-  return months === 1 ? '1 month' : `${months} months`;
+  if (!months || months <= 0) return i18n.t('billing.plans.termOther');
+  return i18n.t('billing.plans.termMonths', { count: months });
 }
 
 export function connectionsLabel(n: number): string {
-  return n === 1 ? '1 connection' : `${n} connections`;
+  return i18n.t('billing.plans.connections', { count: n });
 }
 
 const parseDate = (iso: string | null | undefined): Date | null => {
@@ -121,17 +123,17 @@ const parseDate = (iso: string | null | undefined): Date | null => {
 
 export function formatDate(iso: string | null | undefined): string {
   const d = parseDate(iso);
-  return d ? d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+  return d ? formatShortDate(d) : '—';
 }
 
 export function formatDateTime(iso: string | null | undefined): string {
   const d = parseDate(iso);
-  return d ? d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  return d ? formatShortDateTime(d) : '—';
 }
 
 // ── plans / services ────────────────────────────────────────────────────────
 
-export interface PlanGroup { term: number; label: string; plans: BillingPlan[] }
+export interface PlanGroup { term: number; plans: BillingPlan[] }
 
 /** Only orderable plans, grouped by term (1, 3, 6, 12 months …), cheapest first within a group. */
 export function groupPlans(plans: BillingPlan[]): PlanGroup[] {
@@ -146,7 +148,6 @@ export function groupPlans(plans: BillingPlan[]): PlanGroup[] {
     .sort((a, b) => (a[0] || 999) - (b[0] || 999))
     .map(([term, list]) => ({
       term,
-      label: termLabel(term),
       plans: list.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity) || a.connections - b.connections),
     }));
 }
@@ -155,11 +156,12 @@ export type ServiceChip = { label: string; className: string };
 
 export function serviceStatusChip(status: string): ServiceChip {
   const s = (status || '').toLowerCase();
-  if (s === 'active') return { label: 'Active', className: 'bg-emerald-600/30 text-emerald-100 border-emerald-400/40' };
-  if (s === 'pending') return { label: 'Pending', className: 'bg-amber-600/30 text-amber-100 border-amber-400/40' };
-  if (s === 'suspended') return { label: 'Suspended', className: 'bg-orange-600/30 text-orange-100 border-orange-400/40' };
-  if (s === 'terminated' || s === 'cancelled') return { label: s === 'terminated' ? 'Terminated' : 'Cancelled', className: 'bg-red-600/30 text-red-100 border-red-400/40' };
-  return { label: status || 'Unknown', className: 'bg-slate-600/40 text-slate-100 border-slate-400/40' };
+  const t = i18n.t.bind(i18n);
+  if (s === 'active') return { label: t('billing.status.active'), className: 'bg-emerald-600/30 text-emerald-100 border-emerald-400/40' };
+  if (s === 'pending') return { label: t('billing.status.pending'), className: 'bg-amber-600/30 text-amber-100 border-amber-400/40' };
+  if (s === 'suspended') return { label: t('billing.status.suspended'), className: 'bg-orange-600/30 text-orange-100 border-orange-400/40' };
+  if (s === 'terminated' || s === 'cancelled') return { label: s === 'terminated' ? t('billing.status.terminated') : t('billing.status.cancelled'), className: 'bg-red-600/30 text-red-100 border-red-400/40' };
+  return { label: status || t('billing.status.unknown'), className: 'bg-slate-600/40 text-slate-100 border-slate-400/40' };
 }
 
 /** RENEW is offered only here (trial, terminated/cancelled or free → 409 not_renewable). */
@@ -270,7 +272,7 @@ export async function applyServiceToPlayer(
 ): Promise<ApplyResult> {
   const server = serverForHost(c.host);
   const creds = normalizeCreds({ host: server.host, username: c.username, password: c.password, output: 'm3u8', serverLabel: server.label });
-  if (!creds.username || !creds.password) return { ok: false, error: 'This service has no login details yet.' };
+  if (!creds.username || !creds.password) return { ok: false, error: i18n.t('billing.apply.noLogin') };
 
   let info: { user_info?: XtreamUserInfo } | null = null;
   let probed = false;
@@ -286,10 +288,10 @@ export async function applyServiceToPlayer(
   if (probed) {
     const auth = ui?.auth;
     const authed = auth === 1 || auth === '1' || auth === true;
-    if (!authed) return { ok: false, error: 'The panel did not accept these login details yet. Please try again in a minute.' };
+    if (!authed) return { ok: false, error: i18n.t('billing.apply.notAccepted') };
   }
-  if (!probed && opts.requireProbe) return { ok: false, error: 'The panel could not be reached.' };
-  if (opts.shouldSave && !opts.shouldSave()) return { ok: false, error: 'Cancelled.' };
+  if (!probed && opts.requireProbe) return { ok: false, error: i18n.t('billing.apply.unreachable') };
+  if (opts.shouldSave && !opts.shouldSave()) return { ok: false, error: i18n.t('billing.apply.cancelled') };
 
   await saveCreds(creds);
   // Signed in again: a later empty Player may sign itself in from the account.

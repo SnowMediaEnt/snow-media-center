@@ -1,11 +1,12 @@
 import { memo, useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { ShoppingCart, Loader2, Users } from 'lucide-react';
 import { useTVFocus } from '@/hooks/useTVFocus';
 import { useToast } from '@/hooks/use-toast';
 import { BackButton } from '@/components/ui/BackButton';
 import { SmcBilling, type BillingOrderResult, type BillingPlan } from '@/capacitor/SmcBilling';
-import { formatMoney, groupPlans, connectionsLabel, toBillingError, type PlanGroup } from '@/lib/billing';
+import { formatMoney, groupPlans, connectionsLabel, termLabel, toBillingError, type PlanGroup } from '@/lib/billing';
 import { BODY, HEADER, SCREEN, focusAttrs, scaleIf, useRateLimit, useBillingErrorHandler, useFocusRecovery } from './shared';
 import { Spinner, RateLimitNote } from './SharedUi';
 
@@ -29,6 +30,7 @@ const BuyPlanScreen = memo(({ onBack, onOrdered, onAuthLost }: Props) => {
   const [diagnosis, setDiagnosis] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [ordering, setOrdering] = useState<number | null>(null);
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { blocked, secondsLeft, block } = useRateLimit();
   const handleError = useBillingErrorHandler({ onAuthLost, block });
@@ -51,10 +53,12 @@ const BuyPlanScreen = memo(({ onBack, onOrdered, onAuthLost }: Props) => {
         const blocked = all.filter((p) => !p.trial && !p.orderable).length;
         setDiagnosis(
           all.length === 0
-            ? 'The billing server returned no plans at all.'
+            ? t('billing.buy.diagnosisNone')
             : blocked > 0
-              ? `${all.length} plan${all.length === 1 ? '' : 's'} came back, but ${blocked === 1 ? 'it is' : 'none are'} marked orderable, so ${blocked === 1 ? 'it cannot' : 'they cannot'} be bought from the app. Check the products in WHMCS.`
-              : 'The only plans available are trials, which cannot be bought.',
+              ? (blocked === 1
+                ? t('billing.buy.diagnosisOne', { count: all.length })
+                : t('billing.buy.diagnosisMany', { total: all.length }))
+              : t('billing.buy.diagnosisTrialsOnly'),
         );
       } else {
         setDiagnosis(null);
@@ -62,12 +66,12 @@ const BuyPlanScreen = memo(({ onBack, onOrdered, onAuthLost }: Props) => {
       setGroups(g);
       return g;
     } catch (e) {
-      const err = handleError(e, 'Could not load plans');
-      if (!err.isAuthError) setLoadError('Could not load the plans. Press Back and try again.');
+      const err = handleError(e, t('billing.buy.loadFailedTitle'));
+      if (!err.isAuthError) setLoadError(t('billing.buy.loadError'));
       setGroups([]);
       return [];
     }
-  }, [handleError]);
+  }, [handleError, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -84,16 +88,16 @@ const BuyPlanScreen = memo(({ onBack, onOrdered, onAuthLost }: Props) => {
     try {
       const order = await SmcBilling.order({ planId: plan.id });
       if (order.reused) {
-        toast({ title: 'Continuing your earlier order', description: `You already started ${plan.name}; picking up where you left off.` });
+        toast({ title: t('billing.buy.continuingTitle'), description: t('billing.buy.continuingDesc', { plan: plan.name }) });
       }
       onOrdered(order, plan);
     } catch (e) {
       const err = toBillingError(e);
       if (err.code === 'plan_unavailable') {
-        handleError(e, 'Plan unavailable');
+        handleError(e, t('billing.buy.planUnavailableTitle'));
         void load();
       } else {
-        handleError(e, 'Could not place the order');
+        handleError(e, t('billing.buy.orderFailedTitle'));
       }
     } finally {
       setOrdering(null);
@@ -104,10 +108,10 @@ const BuyPlanScreen = memo(({ onBack, onOrdered, onAuthLost }: Props) => {
     <div ref={containerRef} className={SCREEN}>
       <div className={HEADER}>
         <div className="flex items-center gap-3">
-          <BackButton onClick={onBack} label="Back" data-player-header-btn="" focused={currentFocusId === 'back'} data-tv-focus-id="back" />
+          <BackButton onClick={onBack} label={t('common.back')} data-player-header-btn="" focused={currentFocusId === 'back'} data-tv-focus-id="back" />
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-7 h-7 text-brand-gold" />
-            <h1 className="text-2xl font-quicksand font-bold text-white">Buy a plan</h1>
+            <h1 className="text-2xl font-quicksand font-bold text-white">{t('billing.buy.title')}</h1>
           </div>
         </div>
         <RateLimitNote secondsLeft={secondsLeft} />
@@ -115,17 +119,17 @@ const BuyPlanScreen = memo(({ onBack, onOrdered, onAuthLost }: Props) => {
 
       <div className={BODY}>
         <div className="w-full max-w-5xl space-y-8">
-          {groups === null && <Spinner label="Loading plans…" />}
+          {groups === null && <Spinner label={t('billing.buy.loading')} />}
           {loadError && <p className="text-red-200 font-nunito">{loadError}</p>}
           {groups && groups.length === 0 && !loadError && (
             <div className="space-y-2">
-              <p className="text-brand-ice/90 font-nunito">No plans are available right now.</p>
+              <p className="text-brand-ice/90 font-nunito">{t('billing.buy.noPlans')}</p>
               {diagnosis && <p className="text-brand-ice/60 font-nunito text-sm">{diagnosis}</p>}
             </div>
           )}
           {groups?.map((g) => (
             <section key={g.term}>
-              <h2 className="text-lg font-quicksand font-semibold text-brand-ice mb-3">{g.label}</h2>
+              <h2 className="text-lg font-quicksand font-semibold text-brand-ice mb-3">{termLabel(g.term)}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {g.plans.map((p) => {
                   const id = `plan-${p.id}`;
@@ -151,7 +155,7 @@ const BuyPlanScreen = memo(({ onBack, onOrdered, onAuthLost }: Props) => {
                         ) : (
                           <div className="text-right shrink-0">
                             <div className="text-2xl font-quicksand font-bold text-brand-gold">{formatMoney(p.price, p.currency)}</div>
-                            <div className="text-xs text-brand-ice/60 font-nunito">per {g.label}</div>
+                            <div className="text-xs text-brand-ice/60 font-nunito">{t('billing.buy.perTerm', { term: termLabel(g.term) })}</div>
                           </div>
                         )}
                       </div>

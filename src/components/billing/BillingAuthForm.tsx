@@ -1,4 +1,5 @@
 import { memo, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,6 +48,7 @@ const splitName = (first: string, last: string): { firstName: string; lastName: 
  * resolves with the client only.
  */
 const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', heading, onSuccess, onCancel }: Props) => {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
@@ -92,11 +94,11 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
 
   const validate = (): string | null => {
     const e = email.trim();
-    if (!e || !e.includes('@')) return 'Enter the email address for your billing account.';
-    if (!password) return 'Enter your password.';
+    if (!e || !e.includes('@')) return t('billing.auth.errEmail');
+    if (!password) return t('billing.auth.errPassword');
     if (register) {
-      if (password.length < MIN_PASSWORD) return `Password must be at least ${MIN_PASSWORD} characters.`;
-      if (!first.trim()) return 'Enter your first name.';
+      if (password.length < MIN_PASSWORD) return t('billing.auth.errPasswordShort', { min: MIN_PASSWORD });
+      if (!first.trim()) return t('billing.auth.errFirstName');
     }
     return null;
   };
@@ -105,7 +107,7 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
     e?.preventDefault();
     if (busy || blocked) return;
     const problem = validate();
-    if (problem) { toast({ title: 'Missing info', description: problem, variant: 'destructive' }); return; }
+    if (problem) { toast({ title: t('billing.auth.missingInfoTitle'), description: problem, variant: 'destructive' }); return; }
     setBusy(true);
     setNote(null);
     setFieldError(null);
@@ -130,15 +132,15 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
       if (info.code === 'email_exists') {
         // The spec's rule: switch to sign-in with the email kept.
         setMode('login');
-        setNote('That email already has a billing account. Sign in with its password.');
+        setNote(t('billing.auth.emailExistsNote'));
       } else if (info.code === 'validation_error' && info.field) {
         setFieldError({ field: info.field, message: info.message });
       } else if (info.code === 'two_factor_required') {
-        setNote(`This account uses two-factor sign-in, which the app cannot do. Sign in at ${BILLING_SITE.replace('https://', '')} on a phone or computer.`);
+        setNote(t('billing.auth.twoFactorNote', { site: BILLING_SITE.replace('https://', '') }));
       } else if (info.code === 'rate_limited') {
         block(info.retryAfter ?? 30);
       } else {
-        toast({ title: register ? 'Could not create the account' : 'Could not sign in', description: billingErrorText(info), variant: 'destructive' });
+        toast({ title: register ? t('billing.auth.createFailedTitle') : t('billing.auth.signInFailedTitle'), description: billingErrorText(info), variant: 'destructive' });
       }
     } finally {
       setBusy(false);
@@ -157,10 +159,10 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
           </div>
           <div>
             <h2 className="text-2xl font-quicksand font-bold text-white">
-              {register ? 'Create a billing account' : 'Sign in to billing'}
+              {register ? t('billing.auth.createTitle') : t('billing.auth.signInTitle')}
             </h2>
             <p className="text-brand-ice/70 font-nunito text-sm">
-              {heading ?? 'Your Dreamstreams billing account — plans, renewals and trials.'}
+              {heading ?? t('billing.auth.defaultHeading')}
             </p>
           </div>
         </div>
@@ -171,23 +173,23 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="ba-email" className="text-brand-ice font-nunito">Email</Label>
+            <Label htmlFor="ba-email" className="text-brand-ice font-nunito">{t('billing.auth.emailLabel')}</Label>
             {/* The placeholder is not decoration here: Fire TV opens a
                 full-screen keyboard that hides the form, and the field's
                 placeholder is the only label it shows. Without one you cannot
                 tell which box you are typing into. */}
             <Input id="ba-email" type="email" inputMode="email" autoComplete="off" disabled={busy}
-              placeholder="Email address" aria-label="Email address"
+              placeholder={t('billing.auth.emailPlaceholder')} aria-label={t('billing.auth.emailPlaceholder')}
               value={email} onChange={(e) => setEmail(e.target.value)} className={INPUT}
               {...focusAttrs(currentFocusId, 'ba-email')} />
             {fieldNote('email')}
           </div>
           <div className="space-y-2">
             <Label htmlFor="ba-pass" className="text-brand-ice font-nunito">
-              Password{register ? ` (at least ${MIN_PASSWORD} characters)` : ''}
+              {register ? t('billing.auth.passwordLabelRegister', { min: MIN_PASSWORD }) : t('billing.auth.passwordLabel')}
             </Label>
             <Input id="ba-pass" type="password" autoComplete="off" disabled={busy} data-tv-allow-enter="true"
-              placeholder={register ? `Password — at least ${MIN_PASSWORD} characters` : 'Password'} aria-label="Password"
+              placeholder={register ? t('billing.auth.passwordPlaceholderRegister', { min: MIN_PASSWORD }) : t('billing.auth.passwordLabel')} aria-label={t('billing.auth.passwordLabel')}
               value={password} onChange={(e) => setPassword(e.target.value)} className={INPUT}
               {...focusAttrs(currentFocusId, 'ba-pass')} />
             {fieldNote('password')}
@@ -195,17 +197,17 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
           {register && (
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="ba-first" className="text-brand-ice font-nunito">First name</Label>
+                <Label htmlFor="ba-first" className="text-brand-ice font-nunito">{t('billing.auth.firstName')}</Label>
                 <Input id="ba-first" autoComplete="off" disabled={busy} value={first}
-                  placeholder="First name" aria-label="First name"
+                  placeholder={t('billing.auth.firstName')} aria-label={t('billing.auth.firstName')}
                   onChange={(e) => setFirst(e.target.value)} className={INPUT}
                   {...focusAttrs(currentFocusId, 'ba-first')} />
                 {fieldNote('first_name')}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="ba-last" className="text-brand-ice font-nunito">Last name <span className="text-brand-ice/50">(optional)</span></Label>
+                <Label htmlFor="ba-last" className="text-brand-ice font-nunito">{t('billing.auth.lastName')} <span className="text-brand-ice/50">{t('billing.auth.optionalTag')}</span></Label>
                 <Input id="ba-last" autoComplete="off" disabled={busy} value={last}
-                  placeholder="Last name (optional)" aria-label="Last name, optional"
+                  placeholder={t('billing.auth.lastNamePlaceholder')} aria-label={t('billing.auth.lastNameAria')}
                   onChange={(e) => setLast(e.target.value)} className={INPUT}
                   {...focusAttrs(currentFocusId, 'ba-last')} />
                 {fieldNote('last_name')}
@@ -219,7 +221,7 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
           {busy && (
             <div className="flex items-center gap-3 text-brand-ice/90 font-nunito text-sm">
               <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />
-              <span>{register ? 'Creating your account…' : 'Signing in…'}</span>
+              <span>{register ? t('billing.auth.creating') : t('billing.auth.signingIn')}</span>
             </div>
           )}
         </div>
@@ -228,22 +230,22 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
           <Button type="submit" variant="gold" disabled={busy || blocked}
             className={`${BTN_GOLD} flex-1 ${scaleIf(currentFocusId, 'ba-submit')}`}
             {...focusAttrs(currentFocusId, 'ba-submit')}>
-            {register ? 'Create account' : 'Sign in'}
+            {register ? t('billing.auth.createAccountBtn') : t('common.signInAction')}
           </Button>
           <Button type="button" variant="white" disabled={busy} onClick={switchMode}
             className={`${BTN} ${scaleIf(currentFocusId, 'ba-switch')}`}
             {...focusAttrs(currentFocusId, 'ba-switch')}>
-            {register ? 'I have an account' : 'Create account'}
+            {register ? t('billing.auth.haveAccountBtn') : t('billing.auth.createAccountBtn')}
           </Button>
           <Button type="button" variant="white" disabled={busy} onClick={onCancel}
             className={`${BTN} ${scaleIf(currentFocusId, 'ba-cancel')}`}
             {...focusAttrs(currentFocusId, 'ba-cancel')}>
-            Cancel
+            {t('common.cancel')}
           </Button>
         </div>
 
         <p className="text-brand-ice/60 text-xs font-nunito mt-4">
-          This is your billing account, not your streaming username. Your password is sent only to the billing server and is never stored on this device.
+          {t('billing.auth.footnote')}
         </p>
       </form>
     </div>

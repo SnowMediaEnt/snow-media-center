@@ -10,13 +10,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2, Pencil, Gift, BellRing, Check, Tv, LogIn, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
+import { formatCurrency, formatDate } from '@/i18n/format';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { isDemo } from '@/lib/demoMode';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import UserServicesEditor from '@/components/UserServicesEditor';
+import UserServicesEditor, { deviceTypeLabel } from '@/components/UserServicesEditor';
 import { useMyUserServices, daysUntil } from '@/hooks/useUserServices';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
@@ -41,6 +43,7 @@ interface UserDashboardProps {
 }
 
 const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGames, onGiveaway }: UserDashboardProps) => {
+  const { t } = useTranslation();
   const { enabled: giveawayEnabled } = useFeatureFlag('giveaway_enabled', false);
   const giveawayOn = giveawayEnabled && !isDemo();
   // Billing account section (plans / renew / trial) — flag + native plugin.
@@ -98,12 +101,12 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         body: {},
       });
       if (error) throw error;
-      toast({ title: 'Account deleted', description: 'Your account has been permanently deleted.' });
+      toast({ title: t('account.dashboard.deletedTitle'), description: t('account.dashboard.deletedDesc') });
       await signOut();
       onViewChange('home');
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Could not delete your account.';
-      toast({ title: 'Deletion failed', description: msg, variant: 'destructive' });
+      const msg = e instanceof Error ? e.message : t('account.dashboard.deleteErrorFallback');
+      toast({ title: t('account.dashboard.deleteFailedTitle'), description: msg, variant: 'destructive' });
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
@@ -326,7 +329,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     const { error } = await signOut();
     if (error) {
       toast({
-        title: "Error signing out",
+        title: t('account.dashboard.signOutErrorTitle'),
         description: error.message,
         variant: "destructive",
       });
@@ -335,8 +338,8 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
       // (and is not quietly signed back in from the account on file).
       await signOutPlayer();
       toast({
-        title: "Signed out",
-        description: "Signed out of your account and Live TV.",
+        title: t('account.dashboard.signedOutTitle'),
+        description: t('account.dashboard.signedOutDesc'),
       });
       onViewChange('home');
     }
@@ -366,7 +369,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
       <div className="tv-safe min-h-dvh text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold mx-auto mb-4"></div>
-          <p className="text-xl text-brand-ice">Loading your dashboard...</p>
+          <p className="text-xl text-brand-ice">{t('account.dashboard.loading')}</p>
         </div>
       </div>
     );
@@ -380,25 +383,25 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         <div className={BACK_ROW}>
           <BackButton
             onClick={() => onViewChange('home')}
-            label="Back to Home"
+            label={t('common.backToHome')}
             focused={focusedElement === 0}
           />
         </div>
         <div className="max-w-4xl mx-auto pb-24">
           <div className="text-center mt-4 mb-8">
-            <h1 className="text-3xl font-quicksand font-bold text-white mb-2 text-shadow-strong">My Account</h1>
+            <h1 className="text-3xl font-quicksand font-bold text-white mb-2 text-shadow-strong">{t('account.dashboard.title')}</h1>
             <p className="text-xl text-brand-ice font-nunito">
               {playerAccount
-                ? `Signed in to ${playerAccount.serverLabel} as ${playerAccount.username}`
-                : 'You are not signed in yet.'}
+                ? t('account.dashboard.signedInAs', { server: playerAccount.serverLabel, username: playerAccount.username })
+                : t('account.dashboard.notSignedIn')}
             </p>
           </div>
 
           {/* Player Account — Dreamstreams / Vibez streaming login (local, same store the Player uses) */}
           <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6 mb-6">
-            <h2 className="text-2xl font-quicksand font-bold text-white mb-1">Player Account</h2>
+            <h2 className="text-2xl font-quicksand font-bold text-white mb-1">{t('account.dashboard.playerTitle')}</h2>
             <p className="text-brand-ice/75 text-sm mb-4">
-              Your Dreamstreams / Vibez streaming login — the same one the Player uses.
+              {t('account.dashboard.playerDesc')}
             </p>
             {!playerAccount ? (
               <Button
@@ -410,7 +413,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${guestRing(1)}`}
               >
                 <Tv className="w-5 h-5 mr-2" />
-                Sign in with Dreamstreams / Vibez
+                {t('account.dashboard.signInDsBtn')}
               </Button>
             ) : (
               <div className="space-y-4">
@@ -418,7 +421,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 {claimDone ? (
                   <p className="text-sm text-emerald-400 flex items-center gap-2">
                     <Check className="w-4 h-4" />
-                    Reminders are linked to {claimedEmail || 'your email'}
+                    {claimedEmail ? t('account.dashboard.remindersLinked', { email: claimedEmail }) : t('account.dashboard.remindersLinkedNoEmail')}
                   </p>
                 ) : (
                   <Button
@@ -430,7 +433,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                     className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${guestRing(1)}`}
                   >
                     <BellRing className="w-5 h-5 mr-2" />
-                    Link email for renewal reminders
+                    {t('account.dashboard.linkEmailBtn')}
                   </Button>
                 )}
               </div>
@@ -440,9 +443,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           {/* Billing account — Dreamstreams plans, renewals and the free trial */}
           {billingOn && (
             <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6 mb-6">
-              <h2 className="text-2xl font-quicksand font-bold text-white mb-1">Billing &amp; subscription</h2>
+              <h2 className="text-2xl font-quicksand font-bold text-white mb-1">{t('account.dashboard.billingTitle')}</h2>
               <p className="text-brand-ice/75 text-sm mb-4">
-                See your Dreamstreams plan, renew, buy a plan, redeem a gift code, or link a billing account to this device.
+                {t('account.dashboard.billingDescGuest')}
               </p>
               <Button
                 variant="gold"
@@ -453,17 +456,16 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${guestRing(2)}`}
               >
                 <CreditCard className="w-5 h-5 mr-2" />
-                {playerAccount ? 'Link a billing account' : 'Open billing account'}
+                {playerAccount ? t('account.dashboard.linkBillingBtn') : t('account.dashboard.openBillingBtn')}
               </Button>
             </Card>
           )}
 
           {/* Website account — optional Snow Media WEBSITE account (Supabase) */}
           <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6">
-            <h2 className="text-2xl font-quicksand font-bold text-white mb-1">Website account</h2>
+            <h2 className="text-2xl font-quicksand font-bold text-white mb-1">{t('account.dashboard.websiteTitle')}</h2>
             <p className="text-brand-ice/75 text-sm mb-4">
-              Optional Snow Media WEBSITE account (email &amp; password) for purchases, support
-              tickets, messages and Snow Gems. This is not your streaming login.
+              {t('account.dashboard.websiteDesc')}
             </p>
             <div className="flex flex-wrap gap-4">
               <Button
@@ -475,7 +477,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${guestRing(3)}`}
               >
                 <LogIn className="w-5 h-5 mr-2" />
-                Sign in
+                {t('common.signInAction')}
               </Button>
               <Button
                 variant="white"
@@ -486,7 +488,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 className={`tv-ring min-h-12 rounded-xl transition-transform duration-150 ease-out ${guestRing(4)}`}
               >
                 <UserPlus className="w-5 h-5 mr-2" />
-                Create free account
+                {t('account.dashboard.createFreeBtn')}
               </Button>
             </div>
           </Card>
@@ -502,8 +504,8 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 // Slot 1 disappears once the claim is done — park focus on Back.
                 setFocusedElement(0);
                 toast({
-                  title: "You're all set",
-                  description: email ? `Your Snow Media account is ready (${email}).` : 'Saved. Add an email any time to get a Snow Media account.',
+                  title: t('account.dashboard.allSetTitle'),
+                  description: email ? t('account.dashboard.allSetDescEmail', { email }) : t('account.dashboard.allSetDescNoEmail'),
                 });
               }
             }}
@@ -546,13 +548,13 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         <div className="justify-self-start">
         <BackButton
           onClick={() => onViewChange('home')}
-          label="Back to Home"
+          label={t('common.backToHome')}
           focused={focusedElement === 0}
         />
         </div>
         <div className="min-w-0 text-center">
-          <h1 className={`${sz.h1} font-quicksand font-bold text-white text-shadow-strong leading-tight`}>Your Dashboard</h1>
-          <p className={`${sz.sub} text-brand-ice font-nunito truncate`}>Welcome back, <span className="text-brand-gold font-semibold">{profile?.full_name || user?.email}</span></p>
+          <h1 className={`${sz.h1} font-quicksand font-bold text-white text-shadow-strong leading-tight`}>{t('account.dashboard.yourDashboard')}</h1>
+          <p className={`${sz.sub} text-brand-ice font-nunito truncate`}><Trans i18nKey="account.dashboard.welcomeBack" values={{ name: profile?.full_name || user?.email || '' }} components={[<span key="name" className="text-brand-gold font-semibold" />]} /></p>
         </div>
         <Button
           onClick={handleSignOut}
@@ -563,7 +565,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           }`}
         >
           <LogOut className="w-4 h-4 mr-2" />
-          Sign Out
+          {t('account.dashboard.signOutBtn')}
         </Button>
       </div>
 
@@ -571,9 +573,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         {/* Stat tiles: icon in a fixed box on the left, label over value. */}
         <div className={`grid grid-cols-3 ${sz.gap} ${sz.rowGap}`}>
           {([
-            { label: 'Available Snow Gems', value: profile?.credits?.toFixed(2) || '0.00', Icon: Wallet, bg: '[background:var(--gradient-gold)]', dark: true },
-            { label: 'Total Spent', value: `$${profile?.total_spent?.toFixed(2) || '0.00'}`, Icon: CreditCard, bg: '[background:var(--gradient-blue)]', dark: false },
-            { label: 'Transactions', value: String(transactions.length), Icon: History, bg: '[background:var(--gradient-purple)]', dark: false },
+            { label: t('account.dashboard.availableGems'), value: profile?.credits?.toFixed(2) || '0.00', Icon: Wallet, bg: '[background:var(--gradient-gold)]', dark: true },
+            { label: t('account.dashboard.totalSpent'), value: formatCurrency(profile?.total_spent ?? 0, 'USD'), Icon: CreditCard, bg: '[background:var(--gradient-blue)]', dark: false },
+            { label: t('account.dashboard.transactions'), value: String(transactions.length), Icon: History, bg: '[background:var(--gradient-purple)]', dark: false },
           ] as const).map(({ label, value, Icon, bg, dark }) => (
             <Card key={label} className={`relative overflow-hidden border-0 shadow-xl ${bg} ${sz.stat}`}>
               <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
@@ -594,10 +596,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             icon carries the tile's colour so the pairing still reads. */}
         <div className={`grid ${giveawayOn ? 'grid-cols-4' : 'grid-cols-3'} ${sz.gap} ${sz.rowGap}`}>
           {([
-            { idx: 2, label: 'Purchase Snow Gems', Icon: Plus, tint: 'text-brand-gold', onClick: onCreditStore, show: true },
-            { idx: 3, label: 'Community Chat', Icon: MessageCircle, tint: 'text-sky-300', onClick: onCommunityChat, show: true },
-            { idx: 4, label: 'Game Lounge', Icon: Gamepad2, tint: 'text-fuchsia-300', onClick: onGames, show: true },
-            { idx: 5, label: 'Giveaway', Icon: Gift, tint: 'text-brand-gold', onClick: onGiveaway, show: giveawayOn },
+            { idx: 2, label: t('account.dashboard.purchaseGemsBtn'), Icon: Plus, tint: 'text-brand-gold', onClick: onCreditStore, show: true },
+            { idx: 3, label: t('account.dashboard.communityChatBtn'), Icon: MessageCircle, tint: 'text-sky-300', onClick: onCommunityChat, show: true },
+            { idx: 4, label: t('account.dashboard.gameLoungeBtn'), Icon: Gamepad2, tint: 'text-fuchsia-300', onClick: onGames, show: true },
+            { idx: 5, label: t('account.dashboard.giveawayBtn'), Icon: Gift, tint: 'text-brand-gold', onClick: onGiveaway, show: giveawayOn },
           ] as const).filter((a) => a.show).map(({ idx, label, Icon, tint, onClick }) => (
             <Button
               key={label}
@@ -624,7 +626,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 focusedElement === TAB_BASE ? 'scale-[1.02] z-10' : ''
               }`}
             >
-              Overview
+              {t('account.dashboard.overviewTab')}
             </TabsTrigger>
             <TabsTrigger 
               value="credits" 
@@ -633,31 +635,31 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 focusedElement === TAB_BASE + 1 ? 'scale-[1.02] z-10' : ''
               }`}
             >
-              Snow Gems
+              {t('account.dashboard.gemsTab')}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-0">
             <Card className={`bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl ${sz.card}`}>
-              <h2 className={`${sz.h2} font-quicksand font-bold text-white`}>Account Overview</h2>
+              <h2 className={`${sz.h2} font-quicksand font-bold text-white`}>{t('account.dashboard.accountOverview')}</h2>
               {/* Compact: the sections sit in a three-column grid of small
                   panels so the whole overview fits one screen. Large: they
                   stack with rules between them, as before. */}
               <div className={large ? '' : 'grid grid-cols-12 gap-3 items-start'}>
               <div className={large ? 'grid grid-cols-1 md:grid-cols-2 gap-6' : `${sz.sec} col-span-3`}>
                 <div className={sz.stack}>
-                  <h3 className={sz.h3}>Profile Information</h3>
+                  <h3 className={sz.h3}>{t('account.dashboard.profileInfo')}</h3>
                   <div className={sz.lines}>
-                    <p className="text-white/85"><span className="font-medium text-brand-ice">Name:</span> {profile?.full_name || 'Not set'}</p>
-                    <p className="text-white/85"><span className="font-medium text-brand-ice">Email:</span> {profile?.email || user?.email}</p>
-                    <p className="text-white/85"><span className="font-medium text-brand-ice">Username:</span> {profile?.username || 'Not set'}</p>
+                    <p className="text-white/85"><span className="font-medium text-brand-ice">{t('account.dashboard.nameLabel')}</span> {profile?.full_name || t('account.dashboard.notSet')}</p>
+                    <p className="text-white/85"><span className="font-medium text-brand-ice">{t('account.dashboard.emailLabel')}</span> {profile?.email || user?.email}</p>
+                    <p className="text-white/85"><span className="font-medium text-brand-ice">{t('account.dashboard.usernameLabel')}</span> {profile?.username || t('account.dashboard.notSet')}</p>
                   </div>
                 </div>
                 <div className={sz.stack}>
-                  <h3 className={sz.h3}>Account Stats</h3>
+                  <h3 className={sz.h3}>{t('account.dashboard.accountStats')}</h3>
                   <div className={sz.lines}>
-                    <p className="text-white/85"><span className="font-medium text-brand-ice">Member Since:</span> {new Date(profile?.created_at || '').toLocaleDateString()}</p>
-                    <p className="text-white/85"><span className="font-medium text-brand-ice">Total Snow Gems Used:</span> {profile?.total_spent?.toFixed(2) || '0.00'}</p>
+                    <p className="text-white/85"><span className="font-medium text-brand-ice">{t('account.dashboard.memberSince')}</span> {formatDate(profile?.created_at || '')}</p>
+                    <p className="text-white/85"><span className="font-medium text-brand-ice">{t('account.dashboard.totalGemsUsed')}</span> {profile?.total_spent?.toFixed(2) || '0.00'}</p>
                   </div>
                 </div>
               </div>
@@ -665,11 +667,11 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               {/* Player Account, with Billing under it in the compact grid */}
               <div className={large ? 'contents' : 'col-span-5 space-y-3'}>
               <div className={sz.sec} data-dash-focus={focusedElement === CLAIM_IDX ? 'true' : 'false'}>
-                <h3 className={`${sz.h3} ${large ? 'mb-5' : 'mb-2'}`}>Player Account</h3>
+                <h3 className={`${sz.h3} ${large ? 'mb-5' : 'mb-2'}`}>{t('account.dashboard.playerTitle')}</h3>
                 {!playerAccount ? (
                   <div className="space-y-3">
                     <p className="text-brand-ice/75 text-sm">
-                      Sign in with your Dreamstreams or Vibez login to see your streaming account here. This also signs you in to the Player.
+                      {t('account.dashboard.playerDescSignedOut')}
                     </p>
                     {!isDemo() && (
                       <Button
@@ -682,7 +684,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                         }`}
                       >
                         <Tv className="w-5 h-5 mr-2" />
-                        Sign in with Dreamstreams / Vibez
+                        {t('account.dashboard.signInDsBtn')}
                       </Button>
                     )}
                   </div>
@@ -694,7 +696,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                       {(claimDone ? (
                       <p className="text-sm text-emerald-400 flex items-center gap-2">
                         <Check className="w-4 h-4" />
-                        Reminders are linked to {claimedEmail || 'your email'}
+                        {claimedEmail ? t('account.dashboard.remindersLinked', { email: claimedEmail }) : t('account.dashboard.remindersLinkedNoEmail')}
                       </p>
                     ) : (
                       <Button
@@ -707,7 +709,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                         }`}
                       >
                         <BellRing className="w-5 h-5 mr-2" />
-                        Link email for renewal reminders
+                        {t('account.dashboard.linkEmailBtn')}
                       </Button>
                     ))}
                     </div>
@@ -715,7 +717,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                     <PlayerAccountCard compact actions={(claimDone ? (
                       <p className="text-sm text-emerald-400 flex items-center gap-2">
                         <Check className="w-4 h-4" />
-                        Reminders are linked to {claimedEmail || 'your email'}
+                        {claimedEmail ? t('account.dashboard.remindersLinked', { email: claimedEmail }) : t('account.dashboard.remindersLinkedNoEmail')}
                       </p>
                     ) : (
                       <Button
@@ -728,7 +730,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                         }`}
                       >
                         <BellRing className="w-5 h-5 mr-2" />
-                        Link email for renewal reminders
+                        {t('account.dashboard.linkEmailBtn')}
                       </Button>
                     ))} />
                   )
@@ -738,9 +740,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               {/* Billing account — Dreamstreams plans, renewals, trial */}
               {billingOn && (
                 <div className={sz.sec} data-dash-focus={focusedElement === BILLING_IDX ? 'true' : 'false'}>
-                  <h3 className={`${sz.h3} mb-2`}>Billing &amp; subscription</h3>
+                  <h3 className={`${sz.h3} mb-2`}>{t('account.dashboard.billingTitle')}</h3>
                   <p className={`text-brand-ice/75 text-sm ${large ? 'mb-4' : 'mb-2'}`}>
-                    Your Dreamstreams plan: renew, buy a plan, redeem a gift code, or link a billing account to this device.
+                    {t('account.dashboard.billingDesc')}
                   </p>
                   <Button
                     variant="gold"
@@ -752,7 +754,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                     }`}
                   >
                     <CreditCard className="w-5 h-5 mr-2" />
-                    {playerAccount ? 'Link a billing account' : 'Open billing account'}
+                    {playerAccount ? t('account.dashboard.linkBillingBtn') : t('account.dashboard.openBillingBtn')}
                   </Button>
                 </div>
               )}
@@ -762,7 +764,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               <div className={large ? 'contents' : 'col-span-4 space-y-3'}>
               <div className={sz.sec} data-dash-focus={focusedElement === EDIT_IDX ? 'true' : 'false'}>
                 <div className={`flex items-center justify-between ${large ? 'mb-6' : 'mb-2'}`}>
-                  <h3 className={sz.h3}>My Devices & Services</h3>
+                  <h3 className={sz.h3}>{t('account.dashboard.devicesServicesTitle')}</h3>
                   <Button
                     onClick={() => setShowServicesEditor(true)}
                     data-focused={focusedElement === EDIT_IDX ? 'true' : 'false'}
@@ -771,37 +773,37 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                     }`}
                     size="sm"
                   >
-                    <Pencil className="w-4 h-4 mr-1" /> Edit
+                    <Pencil className="w-4 h-4 mr-1" /> {t('account.dashboard.editBtn')}
                   </Button>
                 </div>
                 <div className={large ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-2'}>
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-brand-gold/90 mb-1">Devices</p>
+                    <p className="text-xs uppercase tracking-wide text-brand-gold/90 mb-1">{t('account.dashboard.devices')}</p>
                     {myDevices.length === 0 ? (
-                      <p className="text-brand-ice/75 text-sm">No devices added yet.</p>
+                      <p className="text-brand-ice/75 text-sm">{t('account.dashboard.noDevices')}</p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {myDevices.map(d => (
-                          <Badge key={d.id} className="px-3 py-1 bg-brand-ice/15 text-white border border-brand-ice/30">{d.device_type}</Badge>
+                          <Badge key={d.id} className="px-3 py-1 bg-brand-ice/15 text-white border border-brand-ice/30">{deviceTypeLabel(t, d.device_type)}</Badge>
                         ))}
                       </div>
                     )}
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-brand-gold/90 mb-1">Services</p>
+                    <p className="text-xs uppercase tracking-wide text-brand-gold/90 mb-1">{t('account.dashboard.services')}</p>
                     {myServices.length === 0 ? (
-                      <p className="text-brand-ice/75 text-sm">No services tracked yet.</p>
+                      <p className="text-brand-ice/75 text-sm">{t('account.dashboard.noServices')}</p>
                     ) : (
                       <ul className="space-y-1">
                         {myServices.map(s => {
                           const days = daysUntil(s.expiration_date);
-                          let label = 'No date';
+                          let label = t('account.dashboard.noDate');
                           let cls = 'text-slate-400';
                           if (days !== null) {
-                            if (days < 0) { label = `Expired ${Math.abs(days)}d ago`; cls = 'text-red-400'; }
-                            else if (days === 0) { label = 'Expires today'; cls = 'text-amber-400'; }
-                            else if (days <= 7) { label = `In ${days} days`; cls = 'text-amber-400'; }
-                            else { label = `${days}d left`; cls = 'text-emerald-400'; }
+                            if (days < 0) { label = t('account.dashboard.expiredAgo', { count: Math.abs(days) }); cls = 'text-red-400'; }
+                            else if (days === 0) { label = t('account.dashboard.expiresToday'); cls = 'text-amber-400'; }
+                            else if (days <= 7) { label = t('account.dashboard.inDays', { count: days }); cls = 'text-amber-400'; }
+                            else { label = t('account.dashboard.daysLeft', { count: days }); cls = 'text-emerald-400'; }
                           }
                           return (
                             <li key={s.id} className="text-sm text-white/85 flex justify-between gap-2">
@@ -819,9 +821,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
               <div className={`${sz.sec} ${large ? '' : 'flex items-center justify-between gap-3'}`} data-dash-focus={focusedElement === DELETE_IDX ? 'true' : 'false'}>
                 <div className="min-w-0">
-                  <h3 className={`${sz.h3} !text-red-300 ${large ? 'mb-2' : 'mb-0.5'}`}>Danger Zone</h3>
+                  <h3 className={`${sz.h3} !text-red-300 ${large ? 'mb-2' : 'mb-0.5'}`}>{t('account.dashboard.dangerZone')}</h3>
                   <p className={`text-brand-ice/75 ${large ? 'text-sm mb-4' : 'text-xs'}`}>
-                    {large ? 'Permanently delete your Snow Media app account and all associated data.' : 'Delete your app account and its data.'}
+                    {large ? t('account.dashboard.dangerDescLarge') : t('account.dashboard.dangerDescShort')}
                   </p>
                 </div>
                 <Button
@@ -833,7 +835,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   }`}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
-                  {large ? 'Delete My Account' : 'Delete'}
+                  {large ? t('account.dashboard.deleteMyAccountBtn') : t('common.delete')}
                 </Button>
               </div>
               </div>
@@ -845,11 +847,11 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6">
               <h2 className="text-2xl font-quicksand font-bold text-white mb-4 flex items-center">
                 <Sparkles className="w-6 h-6 mr-2 text-brand-gold" />
-                Snow Gems & AI Usage
+                {t('account.dashboard.gemsAndUsage')}
               </h2>
               
               {transactions.length === 0 ? (
-                <p className="text-brand-ice/75 text-center py-8">No Snow Gem transactions yet</p>
+                <p className="text-brand-ice/75 text-center py-8">{t('account.dashboard.noTransactions')}</p>
               ) : (
                 <div className="space-y-3">
                   {transactions.map((transaction) => (
@@ -866,7 +868,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                         <div>
                           <p className="text-white font-medium">{transaction.description}</p>
                           <p className="text-brand-ice/75 text-sm">
-                            {new Date(transaction.created_at).toLocaleDateString()}
+                            {formatDate(transaction.created_at)}
                           </p>
                         </div>
                       </div>
@@ -876,8 +878,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                           transaction.transaction_type === 'deduction' ? 'text-red-400' :
                           'text-blue-400'
                         }`}>
-                          {transaction.transaction_type === 'deduction' ? '-' : '+'}
-                          {transaction.amount.toFixed(2)} Snow Gems
+                          {t('account.dashboard.gemsSigned', { sign: transaction.transaction_type === 'deduction' ? '-' : '+', amount: transaction.amount.toFixed(2) })}
                         </p>
                         <Badge 
                           variant="secondary" 
@@ -887,7 +888,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                             'bg-blue-600'
                           } text-white px-3 py-1`}
                         >
-                          {transaction.transaction_type}
+                          {t(`account.dashboard.txType.${transaction.transaction_type}`, { defaultValue: transaction.transaction_type })}
                         </Badge>
                       </div>
                     </div>
@@ -918,8 +919,8 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             setClaimOpen(false);
             if (outcome === 'done') {
               toast({
-                title: "You're all set",
-                description: email ? `Your Snow Media account is ready (${email}).` : 'Saved. Add an email any time to get a Snow Media account.',
+                title: t('account.dashboard.allSetTitle'),
+                description: email ? t('account.dashboard.allSetDescEmail', { email }) : t('account.dashboard.allSetDescNoEmail'),
               });
             }
           }}
@@ -932,23 +933,21 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
         <AlertDialogContent className="rounded-3xl sm:rounded-3xl bg-gradient-to-br from-brand-navy to-slate-950 border-red-500/50 text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl text-white">Delete your account?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl text-white">{t('account.dashboard.deleteConfirmTitle')}</AlertDialogTitle>
             <AlertDialogDescription className="text-brand-ice/80">
-              This permanently removes your Snow Media app account, profile, Snow Gems,
-              chats, support tickets and media. This cannot be undone. Your separate
-              Streaming player account is not affected.
+              {t('account.dashboard.deleteConfirmDesc')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting} className="min-h-12 px-5 rounded-xl bg-white/10 text-white border-brand-ice/30 hover:bg-white/20">
-              Cancel
+              {t('common.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               disabled={deleting}
               onClick={handleDeleteAccount}
               className="min-h-12 px-5 rounded-xl bg-red-600 hover:bg-red-700 text-white"
             >
-              {deleting ? 'Deleting…' : 'Yes, delete my account'}
+              {deleting ? t('account.dashboard.deleting') : t('account.dashboard.yesDeleteBtn')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
