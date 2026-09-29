@@ -5,7 +5,7 @@
       "subtitle": "Choisissez ce que vous voulez, puis scannez le QR avec votre téléphone pour payer"
     },
     "tabs": {
-      "buildTab": "Créer ma config",
+      "buildTab": "Créer une config",
       "devicesTab": "Appareils",
       "servicesTab": "Services",
       "accessoriesTab": "Accessoires"
@@ -30,7 +30,7 @@
       "fromPrice": "à partir de {{price}}",
       "pricingOnRequest": "Prix sur demande",
       "empty": "Rien ici pour le moment.",
-      "bestValueBadge": "Meilleur rapport"
+      "bestValueBadge": "Meilleure offre"
     },
     "summary": {
       "title": "Votre configuration",
@@ -55,10 +55,10 @@
       "alt": "Code QR de paiement",
       "scan": "Scannez avec votre téléphone pour payer",
       "linkedTo": "Votre commande sera liée à <1>{{email}}</1>.",
-      "noAccountYet": "Vous n'avez pas encore de compte sur le site ? Créez-en un au paiement avec la même adresse e-mail : vous pourrez ensuite vous connecter à SMC avec (Mon Compte, en haut de l'Accueil) pour suivre vos achats, identifiants de service et tickets d'assistance au même endroit.",
-      "createAccount": "Créez votre compte au paiement, puis connectez-vous à SMC avec (Mon Compte, en haut de l'Accueil).",
+      "noAccountYet": "Vous n'avez pas encore de compte sur le site ? Créez-en un au paiement avec la même adresse e-mail : vous pourrez ensuite vous connecter à SMC avec (Mon compte, en haut de l'accueil) pour suivre vos achats, identifiants de service et tickets d'assistance au même endroit.",
+      "createAccount": "Créez votre compte au paiement, puis connectez-vous à SMC avec (Mon compte, en haut de l'accueil).",
       "createAccountWhy": "C'est ainsi que vos achats, identifiants de service et tickets d'assistance apparaissent sur cet appareil.",
-      "loginsInTicket": "Vos identifiants de service vous sont envoyés dans un ticket d'assistance, directement ici dans l'app.",
+      "loginsInTicket": "Vos identifiants de service vous sont envoyés dans un ticket d'assistance, directement ici dans l'appli.",
       "close": "Appuyez sur OK ou Retour pour fermer"
     },
     "quote": {

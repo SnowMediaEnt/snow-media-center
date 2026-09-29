@@ -30,7 +30,7 @@
       "recordingDesc": "Jusqu'à {{time}} · {{volume}}. {{note}}{{paused}}",
       "scheduledTitle": "Programmé : {{title}}",
       "scheduledDesc": "{{channel}}, {{times}}. {{note}}",
-      "scheduledDescLate": "{{channel}}, {{times}}. {{note}} Ce boîtier peut la démarrer en retard : voir TV en direct › Enregistrements.",
+      "scheduledDescLate": "{{channel}}, {{times}}. {{note}} Ce boîtier peut le démarrer en retard : voir TV en direct › Enregistrements.",
       "recordFailed": "L'enregistrement n'a pas démarré",
       "scheduleFailed": "Impossible de le programmer"
     }

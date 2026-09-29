@@ -4,8 +4,8 @@
     <string name="rec_notif_title_programme">Enregistrement de %1$s (%2$s)</string>
     <string name="rec_notif_title_channel">Enregistrement de %1$s</string>
     <string name="rec_notif_text_starting">Démarrage</string>
-    <string name="rec_notif_text_until">Jusqu\'à %1$s · utilise 1 flux de votre ligne</string>
-    <string name="rec_notif_text_until_stopped">Jusqu\'à l\'arrêt · utilise 1 flux de votre ligne</string>
+    <string name="rec_notif_text_until">Jusqu\'à %1$s · utilise 1 connexion de votre ligne</string>
+    <string name="rec_notif_text_until_stopped">Jusqu\'à l\'arrêt · utilise 1 connexion de votre ligne</string>
     <string name="rec_channel_name">Enregistrements</string>
     <string name="rec_channel_desc">S\'affiche pendant l\'enregistrement d\'une chaîne.</string>
     <string name="rec_notif_stop">Arrêter</string>
@@ -25,7 +25,7 @@
     <string name="sched_reason_other_line">TV en direct est connectée à une autre ligne.</string>
     <string name="sched_reason_no_space">Pas assez d\'espace libre.</string>
     <string name="sched_reason_usb_gone">La clé USB n\'était pas connectée.</string>
-    <string name="sched_reason_blocked">Le boîtier a bloqué un démarrage programmé. Autorisez Alarmes et rappels pour SMC.</string>
+    <string name="sched_reason_blocked">Le boîtier a bloqué un démarrage programmé. Autorisez « Alarmes et rappels » pour SMC.</string>
     <string name="sched_reason_missed">Le boîtier était éteint ou SMC a été arrêté de force.</string>
     <string name="sched_reason_start_failed">L\'enregistrement n\'a pas pu démarrer.</string>
     <string name="alert_channel_name">Alertes Snow Media</string>
@@ -44,7 +44,7 @@
     <string name="billing_bad_response">Le serveur de facturation a envoyé une réponse inattendue (%1$s).</string>
     <string name="billing_cancelled">Arrêté.</string>
     <string name="billing_http_401">Veuillez vous reconnecter.</string>
-    <string name="billing_http_403">Ce compte ne peut pas être utilisé depuis l\'application.</string>
+    <string name="billing_http_403">Ce compte ne peut pas être utilisé depuis l\'appli.</string>
     <string name="billing_http_404">Cet élément est introuvable.</string>
     <string name="billing_http_429">Trop de tentatives. Veuillez patienter un instant.</string>
     <string name="billing_http_5xx">Le serveur de facturation a rencontré un problème. Réessayez dans une minute.</string>
@@ -64,9 +64,9 @@
         <item quantity="other">Enregistrement de %d chaînes</item>
     </plurals>
     <plurals name="rec_notif_text_streams">
-        <item quantity="one">Utilise %d flux de votre ligne</item>
-        <item quantity="many">Utilise %d flux de votre ligne</item>
-        <item quantity="other">Utilise %d flux de votre ligne</item>
+        <item quantity="one">Utilise %d connexion de votre ligne</item>
+        <item quantity="many">Utilise %d connexions de votre ligne</item>
+        <item quantity="other">Utilise %d connexions de votre ligne</item>
     </plurals>
     <plurals name="sched_reason_too_many">
         <item quantity="one">%d enregistrement était déjà en cours.</item>

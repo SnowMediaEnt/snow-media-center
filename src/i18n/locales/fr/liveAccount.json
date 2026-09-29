@@ -11,10 +11,10 @@
       "playback": "Lecture",
       "signOut": "Se déconnecter",
       "demoTitle": "Démo en direct",
-      "demoDesc": "La démo est préchargée avec un compte de démonstration — la connexion et le changement de compte fonctionnent dans l'application installée."
+      "demoDesc": "La démo est préchargée avec un compte de démonstration : la connexion et le changement de compte fonctionnent dans l'appli installée."
     },
     "renewQr": {
-      "qrAlt": "QR code de renouvellement",
+      "qrAlt": "Code QR de renouvellement",
       "scan": "Scannez avec votre téléphone pour renouveler — <1>{{username}}</1>"
     },
     "expiry": {
@@ -45,9 +45,9 @@
       "catalog": "Catalogue",
       "created": "Créé le",
       "server": "Serveur",
-      "showPasswordBtn": "Voir mot de passe",
+      "showPasswordBtn": "Voir le mot de passe",
       "hidePasswordBtn": "Masquer mot de passe",
-      "changeCredentialsBtn": "Modifier identifiants",
+      "changeCredentialsBtn": "Modifier les identifiants",
       "renewBtn": "Renouveler",
       "daysLeft_one": "{{count}} jour restant",
       "daysLeft_other": "{{count}} jours restants",
@@ -88,8 +88,8 @@
       },
       "liveLayoutDesc": {
         "classic": "Catégories à côté d'une longue liste de chaînes, aperçu au-dessus",
-        "compact": "Liste de chaînes étroite, catégories à une pression, grand aperçu",
-        "grid": "Catégories à côté d'un mur de logos de chaînes, OK lance la lecture (pas d'aperçu)"
+        "compact": "Liste de chaînes fine, catégories à un appui, grand aperçu",
+        "grid": "Catégories à côté d'un mur de logos de chaînes, OK lance la lecture (sans aperçu)"
       },
       "fontScale": {
         "sm": "Petit",
@@ -193,12 +193,12 @@
       "title": "Terminez votre compte Snow Media",
       "promptBody": "Votre identifiant TV en direct <1>{{username}}</1> est aussi votre identifiant Snow Media. Ajoutez votre nom et un e-mail ou un téléphone, et votre compte est prêt : rappels de renouvellement, Mon compte, assistance et boutique, sans second mot de passe.",
       "enterBtn": "Saisir ici",
-      "scanBtn": "Scannez le QR avec le téléphone",
+      "scanBtn": "Scanner le QR avec votre téléphone",
       "notNowBtn": "Plus tard",
-      "qrAlt": "QR code pour réclamer votre compte sur votre téléphone",
+      "qrAlt": "Code QR pour réclamer votre compte sur votre téléphone",
       "qrBody": "Scannez avec votre téléphone pour réclamer <1>{{username}}</1> — cet écran se met à jour tout seul quand vous avez terminé.",
-      "preparing": "Préparation de votre QR code…",
-      "qrExpired": "Ce QR code a expiré. Générez-en un nouveau pour continuer.",
+      "preparing": "Préparation de votre code QR…",
+      "qrExpired": "Ce code QR a expiré. Générez-en un nouveau pour continuer.",
       "qrError": "Impossible de joindre le serveur. Générez-en un nouveau pour continuer.",
       "newQrBtn": "Nouveau QR",
       "manualBody": "Pour <1>{{username}}</1>. E-mail ou téléphone, au moins un. Appuyez sur Suivant sur le clavier pour descendre.",
@@ -211,7 +211,7 @@
       "errEmailInUse": "Cet e-mail a déjà un compte Snow Media. Connectez-vous-y une fois depuis Mon compte, ou utilisez un autre e-mail ici.",
       "errVerify": "Nous n'avons pas pu vérifier la connexion TV en direct de ce boîtier pour le moment — réessayez dans une minute.",
       "errRateLimited": "Trop de tentatives — patientez quelques minutes puis réessayez.",
-      "errGeneric": "Une erreur s'est produite — essayez l'option QR code.",
+      "errGeneric": "Une erreur s'est produite — essayez l'option code QR.",
       "errNetwork": "Problème de connexion — vérifiez votre réseau et réessayez."
     },
     "email": {

@@ -9,12 +9,12 @@
       "alerts": "Alertes d'applis",
       "ai": "IA",
       "profiles": "Profils",
-      "remote": "Télécommande"
+      "remote": "Télécommande mobile"
     },
     "mediaManagerHeading": "Gestionnaire de médias",
     "contentBar": {
       "title": "Barre de contenu",
-      "description": "Affiche les titres tendances Plex et le sport en direct sur l'écran d'accueil. Désactivez-la sur les appareils lents pour une expérience plus fluide.",
+      "description": "Affiche les titres tendance Plex et le sport en direct sur l'écran d'accueil. Désactivez-la sur les appareils lents pour une expérience plus fluide.",
       "aria": "Activer la barre de contenu d'accueil"
     },
     "player": {
@@ -24,7 +24,7 @@
     },
     "language": {
       "title": "Langue",
-      "description": "Choisissez la langue de l'application. La couverture des traductions est encore en cours d'extension."
+      "description": "Choisissez la langue de l'appli. Les traductions sont encore en cours d'ajout."
     },
     "aiTier": {
       "titleFree": "Snow AI : Gratuit",
@@ -38,8 +38,8 @@
       "description": "Désactivé, le Tableau de bord tient sur un écran. Activé, tout est plus grand et plus lisible depuis le canapé, et la page défile."
     },
     "postNotify": {
-      "title": "Notifications des publications",
-      "description": "Activé, une nouvelle publication de Snow Media affiche un compteur sur la carte Assistance et une alerte sur l'accueil. Désactivé, elle arrive quand même dans Assistance → Publications, discrètement."
+      "title": "Notifications des actus",
+      "description": "Activé, une nouvelle actu de Snow Media affiche un compteur sur la carte Assistance et une alerte sur l'accueil. Désactivé, elle arrive quand même dans Assistance → Actus, discrètement."
     },
     "deviceAlerts": {
       "title": "Alertes sur cet appareil",
@@ -50,7 +50,7 @@
       "title": "Utilisez votre téléphone comme télécommande",
       "step1": "Scannez le code QR avec l'appareil photo de votre téléphone, ou allez sur <1>snowmediaent.com/remote</1>",
       "step2": "Saisissez le code affiché ici, puis choisissez Autoriser sur la TV",
-      "step3": "Naviguez, sélectionnez, revenez, lecture/pause, écrivez et parlez, depuis votre téléphone",
+      "step3": "Naviguez, sélectionnez, revenez en arrière, lancez ou mettez en pause, écrivez et parlez, depuis votre téléphone",
       "connected_one": "📱 {{count}} téléphone connecté en ce moment.",
       "connected_many": "📱 {{count}} téléphones connectés en ce moment.",
       "connected_other": "📱 {{count}} téléphones connectés en ce moment.",
@@ -64,8 +64,8 @@
     "profiles": {
       "kidsTag": "Enfants",
       "pinTag": "PIN",
-      "watchingTag": "en cours",
-      "switchTitle": "Changer qui regarde",
+      "watchingTag": "actif",
+      "switchTitle": "Changer de profil",
       "switchDesc": "Choisissez un autre profil. Chacun a sa propre liste Reprendre la lecture, Ma liste, ses favoris et son écran d'accueil.",
       "manageTitle": "Ajouter ou modifier des profils",
       "manageDesc": "Ajoutez quelqu'un (jusqu'à 8 profils), créez un profil Enfants, renommez, changez la couleur ou ajoutez un code PIN."

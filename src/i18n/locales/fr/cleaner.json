@@ -32,7 +32,7 @@
       "descReach": "Fichiers résiduels, applis en arrière-plan, puis tous les caches : environ {{size}} à récupérer"
     },
     "caches": {
-      "title": "Vider les caches",
+      "title": "Vider les caches des applis",
       "fireList": "Ouvre la liste des applis de Fire TV",
       "count_one": "{{count}} appli",
       "count_many": "{{count}} applis",
@@ -70,7 +70,7 @@
     "gate": {
       "title": "Un réglage à activer",
       "body": "Android ne permet à aucune appli de vider seule le cache d’une autre. Dans la liste qui s’ouvre, trouvez <1>Snow Media Cache Cleaner</1> et activez-le, puis revenez ici et appuyez sur Nettoyer. Il n’appuie que sur « Vider le cache », jamais sur « Effacer les données », et vous pouvez le désactiver à tout moment. Tout le reste de cet écran fonctionne sans lui.",
-      "openBtn": "Ouvrir les réglages d’accessibilité"
+      "openBtn": "Ouvrir les paramètres d’accessibilité"
     },
     "unused": {
       "title": "Applis que personne n’ouvre",
@@ -82,7 +82,7 @@
     "removeBtn": "Supprimer",
     "check": {
       "title": "À vérifier",
-      "desc": "Des applis qui ne viennent pas d’une boutique, et des applis impossibles à ouvrir. La plupart sont inoffensives : un sideload voulu, ou un utilitaire installé par une autre appli. Les pubs et pop-ups dont on accuse son boîtier viennent souvent de l’une d’elles.",
+      "desc": "Des applis qui ne viennent pas d’une boutique, et des applis impossibles à ouvrir. La plupart sont inoffensives : une appli installée à votre demande, ou un utilitaire installé par une autre appli. Les pubs et pop-ups dont on accuse son boîtier viennent souvent de l’une d’elles.",
       "none": "Rien d’inattendu n’est installé.",
       "sideloaded": "Installée hors d’une boutique",
       "noWay": "Impossible de l’ouvrir",
@@ -102,7 +102,7 @@
     "lines": {
       "fireCaches": "caches : choisissez une appli dans la liste Fire TV ci-dessous pour vider son cache",
       "noCaches": "aucun cache d’appli à vider",
-      "cachesDone": "caches vidés sur {{done}} applis sur {{total}}",
+      "cachesDone": "caches vidés pour {{done}} applis sur {{total}}",
       "cachesRoot_one": "caches vidés sur {{count}} appli",
       "cachesRoot_many": "caches vidés sur {{count}} applis",
       "cachesRoot_other": "caches vidés sur {{count}} applis",

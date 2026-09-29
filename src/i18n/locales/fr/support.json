@@ -19,8 +19,8 @@
         "desc": "Testez votre débit internet"
       },
       "guide": {
-        "title": "Guide de buffering",
-        "desc": "Solutions pas à pas"
+        "title": "Guide anti-coupures",
+        "desc": "Solutions pas à pas aux coupures"
       },
       "videos": {
         "title": "Vidéos d’assistance",
@@ -33,7 +33,7 @@
       },
       "remote": {
         "title": "Accès à distance",
-        "desc": "Un technicien répare votre boîtier en direct — $25"
+        "desc": "Un technicien répare votre boîtier en direct — 25 $"
       },
       "cleaner": {
         "title": "Nettoyeur d’appareil",
@@ -62,7 +62,7 @@
       "title": "Test de débit internet",
       "startBtn": "Démarrer",
       "runAgainBtn": "Relancer",
-      "testingBtn": "Test…",
+      "testingBtn": "Test en cours…",
       "phase": {
         "idle": "Prêt",
         "ping": "Mesure de la latence…",
@@ -109,7 +109,7 @@
     },
     "mail": {
       "heading": "Actus de Snow Media Entertainment",
-      "notifOff": "Notifications désactivées (Paramètres → UI)",
+      "notifOff": "Notifications désactivées (Paramètres → Interface)",
       "checking": "Recherche d’actus…",
       "emptyTitle": "Rien pour l’instant",
       "emptyDesc": "Quand Snow Media publie des actus, des offres ou des événements, ils arrivent ici, datés et signalés jusqu’à ce que vous les ouvriez.",

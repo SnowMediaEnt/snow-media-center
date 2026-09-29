@@ -25,9 +25,9 @@
     "form": {
       "subtitle": "Dites-nous ce qui ne va pas : un technicien prend le contrôle de votre boîtier et le répare avec vous. {{price}} par session.",
       "issueLabel": "Quel est le problème ?",
-      "issuePlaceholder": "p. ex. la TV en direct saccade toutes les quelques minutes sur toutes les chaînes",
+      "issuePlaceholder": "p. ex. la TV en direct coupe toutes les deux ou trois minutes sur toutes les chaînes",
       "needsLabel": "Que dois-je faire pour vous ? <1>(facultatif)</1>",
-      "needsPlaceholder": "p. ex. vérifier mes réglages et rendre la lecture fluide",
+      "needsPlaceholder": "p. ex. vérifier mes paramètres et rendre la lecture fluide",
       "contactLabel": "Meilleur moyen de vous joindre",
       "contactPlaceholder": "E-mail ou numéro de téléphone",
       "saving": "Enregistrement...",
@@ -54,7 +54,7 @@
       "app": {
         "title": "Installez l’appli d’assistance",
         "body": "L’appli Snow Support partage votre écran avec le technicien. Installez-la, appuyez sur Revérifier, et cette étape passe à Terminé.",
-        "installBtn": "Installer l’appli",
+        "installBtn": "Installer l’appli d’assistance",
         "downloading": "Téléchargement...",
         "recheckBtn": "Revérifier",
         "rechecking": "Vérification..."
@@ -71,7 +71,7 @@
         "title": "Activez le service d’accessibilité Snow Support",
         "why": "C’est ce qui permet aux clics du technicien d’agir réellement sur votre boîtier.",
         "how": "Trouvez <1>Snow Support</1> dans la liste et passez-le sur <1>Activé</1>. Revenez ensuite confirmer.",
-        "openBtn": "Ouvrir les réglages d’accessibilité",
+        "openBtn": "Ouvrir les paramètres d’accessibilité",
         "important": "<1>Important :</1> l’étape 2 (Affichage par-dessus les autres applis) doit être terminée d’abord ; l’activer avant l’autorisation de superposition peut rendre la télécommande inactive jusqu’à débranchement du boîtier."
       }
     },

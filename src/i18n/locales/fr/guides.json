@@ -33,7 +33,7 @@
           "linkBtn": "M'y emmener"
         },
         "s1": {
-          "title": "Choisissez votre style : Classic, Compact ou Vibez.",
+          "title": "Choisissez votre style : Classique, Compact ou Vibez.",
           "line2": "TV en direct vous le demande la première fois. Changez-le à tout moment dans Paramètres du lecteur → Apparence."
         },
         "s2": {
@@ -53,7 +53,7 @@
         },
         "s6": {
           "title": "Une chaîne ne marche pas ? Maintenez OK dessus.",
-          "line2": "Signalez un problème, ajoutez-la aux Favoris ou actualisez un favori dont le lien a changé. Les signalements nous arrivent directement."
+          "line2": "Signalez un problème, ajoutez-la aux favoris ou actualisez un favori dont le lien a changé. Les signalements nous arrivent directement."
         }
       },
       "movies": {
@@ -68,7 +68,7 @@
           "line2": "Pas encore connecté ? Appuyez sur Se connecter avec TV en direct. Vous n'avez pas besoin de votre propre compte Plex."
         },
         "s2": {
-          "title": "Le menu de gauche : Accueil, Découvrir, vos bibliothèques, Recherche, Demande.",
+          "title": "Le menu de gauche : Accueil, Découvrir, vos bibliothèques, Rechercher, Demander.",
           "line2": "OK sur une affiche ouvre la page du titre ; appuyez ensuite sur Lire."
         },
         "s3": {
@@ -80,10 +80,10 @@
           "line2": "Retrouvez-la dans Paramètres → Masqués."
         },
         "s5": {
-          "title": "Besoin de sous-titres ? Ouvrez le menu Sous-titres et choisissez \"Get subtitles…\"."
+          "title": "Besoin de sous-titres ? Ouvrez le menu Sous-titres et choisissez « Obtenir des sous-titres… »."
         },
         "s6": {
-          "title": "Pas de son ? Ouvrez le menu Audio et appuyez sur \"Fix audio\".",
+          "title": "Pas de son ? Ouvrez le menu Audio et appuyez sur « Réparer le son ».",
           "line2": "Cela répare le son sans relancer votre film."
         }
       },
@@ -92,26 +92,26 @@
         "subtitle": "Obtenez et gérez vos applis",
         "s0": {
           "title": "Applis principales réunit toutes les applis supplémentaires dont vous pouvez avoir besoin, dans un seul endroit sûr.",
-          "line2": "Retrouvez-la dans Assistance → Applis principales.",
+          "line2": "Retrouvez-les dans Assistance → Applis principales.",
           "linkBtn": "M'y emmener"
         },
         "s1": {
           "title": "Appuyez sur OK sur une appli, puis sur Télécharger pour l'installer.",
-          "line2": "Déjà installée ? Il est simplement écrit Ouvrir."
+          "line2": "Déjà installée ? Le bouton indique simplement Lancer."
         }
       },
       "support": {
         "title": "Assistance",
-        "subtitle": "Aide, IA et Publications",
+        "subtitle": "Aide, IA et Actus",
         "s0": {
           "title": "Bloqué ? L'assistance est là pour vous.",
-          "line2": "Trois onglets : Aide, Chat IA et Publications."
+          "line2": "Trois onglets : Aide, Chat IA et Actus."
         },
         "s1": {
           "title": "Le test de débit vérifie que votre internet est assez rapide pour le streaming."
         },
         "s2": {
-          "title": "La TV se met souvent en pause ? Ouvrez le Guide de mise en mémoire tampon : il vous guide vers des solutions simples.",
+          "title": "La TV se met souvent en pause ? Ouvrez le Guide anti-coupures : il vous guide vers des solutions simples.",
           "linkBtn": "L'ouvrir"
         },
         "s3": {
@@ -120,7 +120,7 @@
           "linkBtn": "Ouvrir les tickets"
         },
         "s4": {
-          "title": "L'appareil est lent ou plein ? Le Nettoyeur d'appareil fait de la place.",
+          "title": "Le boîtier est lent ou plein ? Le Nettoyeur d'appareil fait de la place.",
           "line2": "Il vide le cache de chaque appli, ferme les applis en arrière-plan et liste celles que personne n'ouvre.",
           "linkBtn": "Ouvrir le nettoyeur"
         },
@@ -129,9 +129,9 @@
           "line2": "Demandez-lui d'ouvrir un écran, de changer l'apparence de TV en direct, de signaler une chaîne, d'installer une appli ou de vous créer un fond d'écran."
         },
         "s6": {
-          "title": "Publications : chaque e-mail que nous envoyons arrive aussi ici.",
+          "title": "Actus : chaque e-mail que nous envoyons arrive aussi ici.",
           "line2": "Datées, marquées Nouveau jusqu'à ce que vous les ouvriez, lisibles en plein écran. Les liens deviennent un code à scanner avec votre téléphone.",
-          "linkBtn": "Voir publications"
+          "linkBtn": "Voir les actus"
         }
       },
       "account": {
@@ -147,9 +147,9 @@
           "line2": "Achetez des Snow Gems : choisissez un pack, scannez le code avec votre téléphone et payez sur place ; les gems arrivent seuls sur votre compte."
         },
         "s2": {
-          "title": "Le Game Lounge : Blackjack, Roulette, Slots, Plinko, Dice, Video Poker, Trivia et le Daily Spin.",
+          "title": "Le Salon de jeux : Blackjack, Roulette, Slots, Plinko, Dice, Video Poker, Trivia et le Daily Spin.",
           "line2": "Jouez pour des Snow Coins et grimpez au classement. Jamais d'argent réel.",
-          "linkBtn": "Ouvrir le Game Lounge"
+          "linkBtn": "Ouvrir le salon"
         }
       },
       "extras": {
@@ -162,7 +162,7 @@
         },
         "s1": {
           "title": "Paramètres → Interface contient les interrupteurs.",
-          "line2": "Barre de contenu activée ou non, grand tableau de bord, notifications de publications et alertes sur cet appareil."
+          "line2": "Barre de contenu activée ou non, grand tableau de bord, notifications des actus et alertes sur cet appareil."
         },
         "s2": {
           "title": "Comptes enregistrés mémorise vos connexions pour ne jamais les retaper."
@@ -189,8 +189,8 @@
       "hints": {
         "intro": "Choisissez l'appli qui coupe, puis appuyez sur Suivant.",
         "step1": "Une seule chaîne ou un seul titre ? Signalez-le et nous le réglons à la source.",
-        "step2": "Force Stop, puis Clear Cache, puis appuyez sur Retour pour revenir ici.",
-        "step3": "Visez 15 Mbps ou plus sur cet appareil.",
+        "step2": "Forcer l'arrêt, puis Vider le cache, puis appuyez sur Retour pour revenir ici.",
+        "step3": "Visez 15 Mbit/s ou plus sur cet appareil.",
         "step4": "Installez, connectez-vous, Quick Connect, puis testez à nouveau.",
         "summary": "Envoyez ces résultats à l'assistance si ça coupe encore."
       },
@@ -201,8 +201,8 @@
         "summary": "Ça coupe encore ? Montrez ceci à un adulte."
       },
       "yourApp": "votre appli",
-      "backToPlayerBtn": "Retour au lecteur",
-      "title": "Corriger le buffering",
+      "backToPlayerBtn": "Retour au Lecteur",
+      "title": "Corriger les coupures",
       "stepOf": "Étape {{current}} sur {{total}} · {{label}}",
       "progressAria": "Progression",
       "skipToVpnTitle": "Vous avez déjà essayé un VPN ? Passez directement à l'étape VPN.",
@@ -221,14 +221,14 @@
       "openAppBtn": "Ouvrir {{app}}",
       "qrAlt": "Code QR",
       "toast": {
-        "openedSettingsTitle": "Réglages de l'appli ouverts",
-        "openedSettingsDesc": "Touchez Force Stop, puis Storage → Clear Cache. Appuyez sur Retour ensuite.",
+        "openedSettingsTitle": "Paramètres de l'appli ouverts",
+        "openedSettingsDesc": "Touchez Forcer l'arrêt, puis Stockage → Vider le cache. Appuyez sur Retour ensuite.",
         "webOnlyTitle": "Ouvrez dans l'appli installée",
         "webOnlyDesc": "Cette action ne fonctionne que dans l'appli Snow Media Center installée.",
-        "cantOpenSettingsTitle": "Impossible d'ouvrir les réglages",
+        "cantOpenSettingsTitle": "Impossible d'ouvrir les paramètres",
         "cantLaunchTitle": "Impossible de lancer l'appli",
         "ticketSubmittedTitle": "Ticket envoyé",
-        "ticketSubmittedDesc": "Ouverture de Assistance → Tickets.",
+        "ticketSubmittedDesc": "Ouverture d'Assistance → Tickets.",
         "cantSubmitTitle": "Impossible d'envoyer le ticket",
         "unknownError": "Erreur inconnue",
         "enterTitleTitle": "Saisissez un titre",
@@ -239,24 +239,24 @@
         "reportSentDesc": "Merci ! La prochaine fois, connectez-vous pour le suivre sur votre compte.",
         "cantSendReportTitle": "Impossible d'envoyer le signalement",
         "openAndroidSettingsTitle": "Ouvrez Paramètres Android → Applications",
-        "openAndroidSettingsDesc": "Trouvez l'appli, puis touchez Force Stop et Clear Cache.",
+        "openAndroidSettingsDesc": "Trouvez l'appli, puis touchez Forcer l'arrêt et Vider le cache.",
         "greatTitle": "Parfait !",
         "greatDesc": "Ravi que ce soit réglé.",
         "invalidSpeedTitle": "Débit invalide",
         "invalidSpeedDesc": "Saisissez un nombre comme 25.",
         "speedLowTitle": "Le débit est trop faible",
-        "speedLowDesc": "En dessous de 15 Mbps, ça coupera. Essayez le Wi-Fi 5 GHz, rapprochez-vous ou utilisez Ethernet.",
+        "speedLowDesc": "En dessous de 15 Mbit/s, ça coupera. Essayez le Wi-Fi 5 GHz, rapprochez-vous ou utilisez Ethernet.",
         "vpnNotInStoreTitle": "VPN absent de la boutique",
         "vpnNotInStoreDesc": "Utilisez plutôt le code Downloader.",
         "switchVpnServerTitle": "Changez de serveur VPN",
-        "switchVpnServerDesc": "Choisissez la ville ou le serveur le plus proche, puis retestez : 15+ Mbps.",
-        "getSpeedFirstTitle": "Atteignez d'abord 15+ Mbps",
+        "switchVpnServerDesc": "Choisissez la ville ou le serveur le plus proche, puis retestez : 15+ Mbit/s.",
+        "getSpeedFirstTitle": "Atteignez d'abord 15+ Mbit/s",
         "getSpeedFirstDesc": "Changez de ville ou de serveur VPN, puis retestez le débit.",
         "awesomeTitle": "Génial !",
         "awesomeDesc": "Probablement un bridage du fournisseur : gardez le VPN activé pendant la lecture.",
         "openAppManually": "Ouvrez l'appli de streaming manuellement.",
         "enterSpeedTitle": "Saisissez votre débit de téléchargement",
-        "enterSpeedDesc": "Saisissez les Mbps affichés plus haut, puis continuez."
+        "enterSpeedDesc": "Saisissez les Mbit/s affichés plus haut, puis continuez."
       },
       "anon": {
         "title": "Envoyer le signalement sans vous connecter ?",
@@ -267,7 +267,7 @@
         "title": "Connectez-vous pour envoyer un ticket",
         "body1": "Il faut un compte pour envoyer un ticket afin que notre équipe puisse <0>vous répondre</0> et que vous puissiez suivre la conversation.",
         "body2": "Connectez-vous ou créez un compte gratuit pour envoyer votre ticket et recevoir des réponses.",
-        "signInBtn": "Connexion"
+        "signInBtn": "Se connecter"
       },
       "vpnSkip": {
         "title": "Passer l'étape VPN ?",
@@ -308,10 +308,10 @@
       "step2": {
         "title": "Actualiser {{app}}",
         "lead": "Vider le cache de l'appli règle beaucoup de coupures. Cela ne vous déconnecte pas et ne supprime rien.",
-        "kidsNote": "Demandez à un adulte de faire cette partie. Dans les réglages du boîtier pour {{app}} : <0>Force Stop</0>, puis <1>Storage → Clear Cache</1>.",
-        "openSettingsBtn": "Réglages de {{app}}",
-        "item1": "Choisissez <0>Force Stop</0> (Forcer l'arrêt)",
-        "item2": "Allez dans <0>Storage → Clear Cache</0> (Vider le cache), pas Clear Data",
+        "kidsNote": "Demandez à un adulte de faire cette partie. Dans les paramètres du boîtier pour {{app}} : <0>Forcer l'arrêt</0>, puis <1>Stockage → Vider le cache</1>.",
+        "openSettingsBtn": "Ouvrir les paramètres de {{app}}",
+        "item1": "Choisissez <0>Forcer l'arrêt</0>",
+        "item2": "Allez dans <0>Stockage → Vider le cache</0> (pas Effacer les données)",
         "item3": "Appuyez sur <0>Retour</0> sur votre télécommande pour revenir ici",
         "notInstalled": "{{app}} ne semble pas installée sur cet appareil. Installez-la d'abord depuis Applis principales.",
         "question": "Est-ce que cela a réglé les coupures ?",
@@ -320,10 +320,10 @@
       },
       "step3": {
         "title": "Testez votre débit internet",
-        "lead": "Le streaming demande au moins 15 Mbps en téléchargement sur cet appareil. Lancez le test ici ou saisissez le résultat d'un autre test de débit.",
+        "lead": "Le streaming demande au moins 15 Mbit/s en téléchargement sur cet appareil. Lancez le test ici ou saisissez le résultat d'un autre test de débit.",
         "runBtn": "Lancer le test",
         "typeLabel": "Ou saisissez votre débit de téléchargement",
-        "mbps": "Mbps",
+        "mbps": "Mbit/s",
         "yourSpeed": "Votre débit",
         "good": "Suffisant pour le streaming. Appuyez sur Suivant.",
         "tooSlow": "Trop lent pour un streaming fluide. Essayez le Wi-Fi 5 GHz, rapprochez le boîtier du routeur ou utilisez un câble Ethernet, puis testez à nouveau.",
@@ -338,8 +338,8 @@
         "withVpn": "Avec le VPN connecté",
         "test1": "1. Testez à nouveau votre débit",
         "runVpnBtn": "Tester le débit avec le VPN activé",
-        "speedOk": "15 Mbps ou plus",
-        "speedLow": "Moins de 15 Mbps",
+        "speedOk": "15 Mbit/s ou plus",
+        "speedLow": "Moins de 15 Mbit/s",
         "speedLowSub": "Choisissez une ville VPN plus proche, puis retestez",
         "test2": "2. Essayez votre flux",
         "test2In": "2. Essayez votre flux dans {{app}}",
@@ -371,11 +371,11 @@
         "cacheFixed": {
           "title": "Réglé : vider le cache a suffi",
           "b1": "Vider le cache et redémarrer rafraîchit l'appli et la connexion.",
-          "b2": "Si cela se reproduit, refaites d'abord l'étape Force Stop + Clear Cache."
+          "b2": "Si cela se reproduit, refaites d'abord l'étape Forcer l'arrêt + Vider le cache."
         },
         "slow": {
           "title": "Votre internet est trop lent sur cet appareil",
-          "b1": "Le débit sur l'appareil de streaming est inférieur à 15 Mbps ({{speed}} Mbps).",
+          "b1": "Le débit sur l'appareil de streaming est inférieur à 15 Mbit/s ({{speed}} Mbit/s).",
           "b2": "Passez au Wi-Fi 5 GHz, rapprochez-vous ou essayez Ethernet.",
           "b3": "Redémarrez le modem/routeur et retestez le débit."
         },
@@ -383,12 +383,12 @@
           "title": "Réglé : votre fournisseur vous ralentissait",
           "b1": "Si le VPN règle le problème, votre FAI bridait probablement le trafic de streaming (surtout aux heures de pointe).",
           "b2": "Gardez le VPN activé pendant le streaming et utilisez un serveur proche et rapide.",
-          "b3": "Si le débit baisse avec le VPN, choisissez la ville ou le serveur le plus proche et retestez (15+ Mbps)."
+          "b3": "Si le débit baisse avec le VPN, choisissez la ville ou le serveur le plus proche et retestez (15+ Mbit/s)."
         },
         "still": {
           "title": "Ça coupe encore : passons par l'assistance",
-          "b1": "Refaites le test de débit plus près du routeur (15+ Mbps).",
-          "b2": "Essayez le VPN avec une autre ville ou un autre serveur proche et retestez le débit (15+ Mbps).",
+          "b1": "Refaites le test de débit plus près du routeur (15+ Mbit/s).",
+          "b2": "Essayez le VPN avec une autre ville ou un autre serveur proche et retestez le débit (15+ Mbit/s).",
           "b3": "Appuyez sur Envoyer à l'assistance et nous reprendrons à partir de vos résultats."
         }
       },
@@ -400,7 +400,7 @@
         "everything": "Tout",
         "cacheFixed": "Vider le cache a réglé le problème",
         "speed": "Débit",
-        "speedValue": "{{speed}} Mbps",
+        "speedValue": "{{speed}} Mbit/s",
         "vpn": "VPN",
         "vpnSpeed": "Débit avec VPN 15+",
         "vpnFixed": "Le VPN a réglé le problème"

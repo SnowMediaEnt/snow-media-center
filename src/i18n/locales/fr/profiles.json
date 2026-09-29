@@ -8,7 +8,7 @@
     },
     "pick": {
       "title": "Qui regarde ?",
-      "introSingle": "Chacun à la maison peut avoir son propre profil : son Reprendre la lecture, sa liste, ses favoris et son écran d'accueil. Les profils enfants n'affichent que ce qui convient à leur âge."
+      "introSingle": "Chacun à la maison peut avoir son propre profil, avec ses listes Reprendre la lecture et Ma liste, ses favoris et son écran d'accueil. Les profils enfants n'affichent que ce qui convient à leur âge."
     },
     "manage": {
       "title": "Gérer les profils",
@@ -28,13 +28,13 @@
       "kidsLabel": "Profil enfant",
       "levelOff": "Désactivé",
       "levelOffHint": "Tout",
-      "levelLittle": "Petits enfants",
+      "levelLittle": "Tout-petits",
       "levelLittleHint": "G et TV-Y / TV-G",
       "levelKids": "Enfants",
       "levelKidsHint": "Jusqu'à PG et TV-PG",
       "levelTeen": "Ados",
       "levelTeenHint": "Jusqu'à PG-13 et TV-14",
-      "kidsInfo": "Les profils enfants voient les titres Plex jusqu'à cette classification, des chaînes TV en direct adaptées à leur âge et leur propre Kids Game Lounge. Le Game Lounge adulte, la Boutique, les Applis principales, les Paramètres, les tickets et l'Accès à distance restent masqués. Leur IA est tout public et n'aide que pour les émissions, films, chaînes et jeux pour enfants.",
+      "kidsInfo": "Les profils enfants voient les titres Plex jusqu'à cette classification, des chaînes TV en direct adaptées à leur âge et leur propre Salon de jeux enfants. Le Salon de jeux pour adultes, la Boutique, les Applis principales, les Paramètres, les tickets et l'Accès à distance restent masqués. Leur IA est tout public et n'aide que pour les émissions, films, chaînes et jeux pour enfants.",
       "pinLabel": "Code PIN",
       "changePinBtn": "Changer le PIN",
       "addPinBtn": "Ajouter un PIN",
@@ -101,7 +101,7 @@
     "intro": {
       "dialogLabel": "Profils",
       "title": "Nouveau : des profils pour tous",
-      "pointEveryone": "Chacun à la maison a sa propre configuration : son Reprendre la lecture, sa liste, ses favoris et son écran d'accueil.",
+      "pointEveryone": "Chacun à la maison a sa propre configuration, avec ses listes Reprendre la lecture et Ma liste, ses favoris et son écran d'accueil.",
       "pointKids": "Les profils enfants n'affichent que des films, émissions et chaînes pour enfants selon l'âge choisi, plus une section de jeux pour enfants (bientôt).",
       "pointSafety": "La sécurité partout : films, émissions, chaînes TV en direct et IA restent adaptés à l'âge. Ajoutez un PIN à n'importe quel profil si vous le souhaitez.",
       "hint": "Configurez-les à tout moment dans Paramètres → Profils, ou avec le bouton de profil en haut de l'Accueil.",
