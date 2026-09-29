@@ -12,7 +12,10 @@
 // A game: league, teams (names, short names, logos sized for a TV row),
 // start time, state (pre | in), the live detail ("Q3 5:32") and score, the TV
 // networks carrying it nationally, and the local / regional ones (RSNs) with
-// the team whose market they serve. Finished games are left out.
+// the team whose market they serve. Finished games are left out. A playoff
+// game says so (`postseason`, and ESPN's `round`: "AL Wild Card - Game 1"):
+// it is on national TV only, so the box drops the teams' and league's own
+// channels for it unless their guide has it.
 //
 // Sports without two teams are events: a fight card (UFC), a race session
 // (F1, NASCAR, IndyCar: the race, qualifying and sprint, not practice), a golf
@@ -87,6 +90,8 @@ interface Game {
   /** Events only (no teams): the event's own name, the race session, and the
    *  circuit, course or venue with its city. */
   event?: string; session?: string; places?: string[];
+  /** Playoff games only: set, with ESPN's name for the round when it has one. */
+  postseason?: boolean; round?: string;
 }
 
 let cache: { at: number; games: Game[] } | null = null;
@@ -182,6 +187,9 @@ async function fetchLeague(l: { id: string; label: string; path: string; kind: K
       const away = team(cs.find((c: Any) => c?.homeAway === 'away') ?? cs[1]);
       // A fight card is one event: its name, not its first bout.
       const isCard = l.kind === 'card';
+      // The playoffs: ESPN's season type 3 ("post-season").
+      const post = Number(e?.season?.type) === 3 || e?.season?.slug === 'post-season';
+      const round = post ? text(comp?.notes?.[0]?.headline) : '';
       out.push({
         id: `${l.id}:${e.id}`,
         league: l.id,
@@ -194,6 +202,7 @@ async function fetchLeague(l: { id: string; label: string; path: string; kind: K
         away: isCard ? null : away,
         ...broadcastsOf(comp),
         ...(isCard ? { event: String(e.name ?? '') } : {}),
+        ...(post ? { postseason: true, ...(round ? { round } : {}) } : {}),
       });
     }
     // Keep the ones on TV first when a league lists a lot (college).

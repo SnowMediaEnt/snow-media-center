@@ -60,6 +60,32 @@ const BOARDS: Record<string, unknown> = {
       }],
     }],
   },
+  'baseball/mlb': {
+    events: [{
+      // A playoff game: ESPN's season type 3, with the round in the notes.
+      id: 'b1', date: iso(NOW + 4 * H), season: { type: 3, slug: 'post-season' },
+      status: { type: { state: 'pre', shortDetail: '4:08 PM' } },
+      competitions: [{
+        notes: [{ type: 'event', headline: 'AL Wild Card - Game 1' }],
+        competitors: [
+          { homeAway: 'home', team: { displayName: 'Chicago White Sox', shortDisplayName: 'White Sox', abbreviation: 'CHW', location: 'Chicago' } },
+          { homeAway: 'away', team: { displayName: 'Boston Red Sox', shortDisplayName: 'Red Sox', abbreviation: 'BOS', location: 'Boston' } },
+        ],
+        broadcasts: [{ market: 'national', names: ['NBC', 'Peacock'] }],
+      }],
+    }, {
+      // A regular-season game.
+      id: 'b2', date: iso(NOW + 2 * H), season: { type: 2, slug: 'regular-season' },
+      status: { type: { state: 'pre', shortDetail: '2:05 PM' } },
+      competitions: [{
+        competitors: [
+          { homeAway: 'home', team: { displayName: 'New York Yankees', shortDisplayName: 'Yankees', abbreviation: 'NYY', location: 'New York' } },
+          { homeAway: 'away', team: { displayName: 'Baltimore Orioles', shortDisplayName: 'Orioles', abbreviation: 'BAL', location: 'Baltimore' } },
+        ],
+        broadcasts: [{ market: 'national', names: ['FS1'] }],
+      }],
+    }],
+  },
 };
 const EVENT_BOARDS = ['racing/f1', 'racing/nascar-premier', 'racing/irl', 'golf/pga', 'golf/lpga', 'tennis/atp', 'tennis/wta'];
 
@@ -117,8 +143,18 @@ describe('game-day', () => {
     expect(asked.every((u) => u.startsWith('https://site.web.api.espn.com/'))).toBe(true);
   });
 
+  it('marks a playoff game, with its round; a regular-season game has neither', async () => {
+    const out = await call({ op: 'list' });
+    const by = Object.fromEntries((out.games ?? []).map((g) => [g.id, g]));
+    expect(by['mlb:b1']).toMatchObject({ league: 'mlb', name: 'Red Sox @ White Sox', postseason: true, round: 'AL Wild Card - Game 1' });
+    expect(by['mlb:b1'].networks).toEqual(expect.arrayContaining(['NBC']));
+    expect(by['mlb:b2']).toMatchObject({ league: 'mlb', name: 'Orioles @ Yankees' });
+    expect(by['mlb:b2']).not.toHaveProperty('postseason');
+    expect(by['mlb:b2']).not.toHaveProperty('round');
+  });
+
   it('counts every league in its check', async () => {
     const out = await call({ op: 'check' });
-    expect(out.counts).toMatchObject({ f1: 1, nascar: 0, indycar: 0, pga: 1, lpga: 0, atp: 1, wta: 0, laliga: 1, seriea: 0, ufl: 0, mlb: 0 });
+    expect(out.counts).toMatchObject({ f1: 1, nascar: 0, indycar: 0, pga: 1, lpga: 0, atp: 1, wta: 0, laliga: 1, seriea: 0, ufl: 0, mlb: 2 });
   });
 });
