@@ -759,11 +759,6 @@ const EDITS_TIMEOUT_MS = 4_000;
 const MAX_EDITS = 1000;
 const NO_EDITS: GameEdit[] = [];
 
-// game_day_channel_edits is newer than the generated client types.
-type EditsDb = {
-  from: (table: string) => { select: (cols: string) => { order: (col: string) => PromiseLike<{ data: unknown; error: unknown }> } };
-};
-
 let editsCache: { at: number; edits: GameEdit[] } | null = null;
 let editsInflight: Promise<GameEdit[]> | null = null;
 
@@ -799,7 +794,7 @@ async function readGameEdits(): Promise<GameEdit[] | null> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const query = (supabase as unknown as EditsDb)
+    const query = supabase
       .from('game_day_channel_edits')
       .select('game_id,service,stream_id,channel_name,action,sort')
       .order('sort');
