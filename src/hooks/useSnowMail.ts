@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
 import { toast } from '@/hooks/use-toast';
+import i18n from '@/i18n';
 import {
   getMailState, markMailRead, subscribeMail, unreadMail, useMailNotify,
   type MailState, type SnowMail,
@@ -33,7 +34,7 @@ export function useSnowMail(opts: Options = {}) {
     if (!notify || fresh.length === 0) return;
     const newest = fresh[0];
     toast({
-      title: fresh.length === 1 ? 'New post from Snow Media' : `${fresh.length} new posts from Snow Media`,
+      title: i18n.t('support.mail.toast.newPosts', { count: fresh.length }),
       description: newest.subject,
     });
   }, [opts.announce, state, notify, toast]);

@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -13,6 +14,7 @@ interface SupportVideosProps {
 }
 
 const SupportVideos = ({ onBack }: SupportVideosProps) => {
+  const { t } = useTranslation();
   const { videos, loading, error } = useVimeoVideos();
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [focusedElement, setFocusedElement] = useState<'back' | 'tab-0' | 'tab-1' | 'tab-2' | string>('back');
@@ -250,7 +252,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
               className="w-full bg-green-600 hover:bg-green-700 text-white"
             >
               <Play className="w-4 h-4 mr-2" />
-              Watch Video
+              {t('support.videos.watchBtn')}
             </Button>
           </div>
         </Card>
@@ -263,7 +265,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
       <div className="tv-scroll-container tv-safe flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto mb-4" />
-          <p className="text-xl text-blue-200">Loading support videos...</p>
+          <p className="text-xl text-blue-200">{t('support.videos.loading')}</p>
         </div>
       </div>
     );
@@ -274,8 +276,8 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
       <div className="tv-scroll-container tv-safe flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <p className="text-xl text-red-400 mb-4">Error loading videos: {error}</p>
-          <BackButton onClick={onBack} label="Back to Home" />
+          <p className="text-xl text-red-400 mb-4">{t('support.videos.loadError', { error })}</p>
+          <BackButton onClick={onBack} label={t('common.backToHome')} />
         </div>
       </div>
     );
@@ -289,23 +291,24 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
           <div className="flex items-center w-full justify-between">
             <BackButton
               onClick={onBack}
-              label="Back to Home"
+              label={t('common.backToHome')}
               focused={focusedElement === 'back'}
             />
 
             <div className="invisible">
+              {/* i18n-ignore: hidden spacer that only holds the Back button's row width */}
               <Button variant="gold" size="lg">Placeholder</Button>
             </div>
           </div>
           <div className="text-center mt-4">
-            <h1 className="text-4xl font-bold text-white mb-2">Support Videos</h1>
-            <p className="text-xl text-blue-200">Help tutorials and guides from Vimeo</p>
+            <h1 className="text-4xl font-bold text-white mb-2">{t('support.videos.title')}</h1>
+            <p className="text-xl text-blue-200">{t('support.videos.subtitle')}</p>
           </div>
         </div>
 
         {videos.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-xl text-slate-400">No videos found. Upload some videos to your Vimeo account to see them here.</p>
+            <p className="text-xl text-slate-400">{t('support.videos.empty')}</p>
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -314,26 +317,26 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
                 value="all" 
                 className={`text-white data-[state=active]:bg-brand-gold text-center ${focusedElement === 'tab-0' ? 'ring-2 ring-brand-ice' : ''}`}
               >
-                All ({allVideos.length})
+                {t('support.videos.allTab', { count: allVideos.length })}
               </TabsTrigger>
               <TabsTrigger 
                 value="service" 
                 className={`text-white data-[state=active]:bg-brand-gold text-center ${focusedElement === 'tab-1' ? 'ring-2 ring-brand-ice' : ''}`}
               >
-                Services ({serviceVideos.length})
+                {t('support.videos.servicesTab', { count: serviceVideos.length })}
               </TabsTrigger>
               <TabsTrigger 
                 value="device" 
                 className={`text-white data-[state=active]:bg-brand-gold text-center ${focusedElement === 'tab-2' ? 'ring-2 ring-brand-ice' : ''}`}
               >
-                Devices ({deviceVideos.length})
+                {t('support.videos.devicesTab', { count: deviceVideos.length })}
               </TabsTrigger>
             </TabsList>
             
             <TabsContent value="device" className="mt-0">
               {deviceVideos.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-xl text-slate-400">No device videos found. Tag your videos with: x96, FireTV, or Older</p>
+                  <p className="text-xl text-slate-400">{t('support.videos.emptyDevice')}</p>
                 </div>
               ) : (
                 renderVideoGrid(deviceVideos)
@@ -343,7 +346,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
             <TabsContent value="service" className="mt-0">
               {serviceVideos.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-xl text-slate-400">No service videos found. Tag your videos with: Dreamstreams, Vibez TV, Plex, or Support</p>
+                  <p className="text-xl text-slate-400">{t('support.videos.emptyService')}</p>
                 </div>
               ) : (
                 renderVideoGrid(serviceVideos)
@@ -353,7 +356,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
             <TabsContent value="all" className="mt-0">
               {allVideos.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-xl text-slate-400">No videos found in your Vimeo account.</p>
+                  <p className="text-xl text-slate-400">{t('support.videos.emptyAll')}</p>
                 </div>
               ) : (
                 renderVideoGrid(allVideos)
@@ -368,7 +371,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
             <div className="relative w-full h-full">
               <div className="absolute top-4 right-4 z-50 flex gap-2">
                 <div className="bg-black/80 text-white px-3 py-1 rounded text-sm">
-                  Press ESC/Back to Close | P/K to Play/Pause
+                  {t('support.videos.closeHint')}
                 </div>
                 <Button 
                   onClick={handleCloseVideo}
@@ -376,7 +379,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
                   size="sm"
                   className="bg-black/50 border-white/20 text-white hover:bg-black/80"
                 >
-                  ✕ Close
+                  {t('support.videos.closeBtn')}
                 </Button>
               </div>
               {selectedVideo && (
@@ -386,7 +389,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
                   frameBorder="0"
                   allow="autoplay; fullscreen; picture-in-picture"
                   allowFullScreen
-                  title="Support Video"
+                  title={t('support.videos.frameTitle')}
                 />
               )}
             </div>

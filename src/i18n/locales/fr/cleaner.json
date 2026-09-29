@@ -1,0 +1,139 @@
+{
+  "cleaner": {
+    "title": "Nettoyeur d’appareil",
+    "subtitle": "Libère de l’espace et de la mémoire sur ce boîtier. Aucune de vos connexions n’est fermée.",
+    "backLabel": "Retour à l’assistance",
+    "checkAgainBtn": "Revérifier",
+    "notNative": "Le nettoyeur ne fonctionne que dans l’appli Snow Media Center installée sur votre boîtier TV.",
+    "storage": {
+      "title": "Stockage",
+      "free": "{{size}} libres",
+      "used": "{{used}} sur {{total}} utilisés",
+      "reading": "Lecture…",
+      "nearlyFull": "Ce boîtier est presque plein. C’est ce qui fait échouer les mises à jour avec « Appli non installée » et saccader les flux : nettoyez-le et réessayez."
+    },
+    "memory": {
+      "title": "Mémoire",
+      "low": "Le boîtier manque de mémoire en ce moment.",
+      "hint": "Fermer les applis en arrière-plan en libère plus."
+    },
+    "phase": {
+      "junk": "Suppression des fichiers résiduels…",
+      "memory": "Fermeture des applis en arrière-plan…",
+      "caches": "Vidage des caches : {{done}} sur {{total}}",
+      "working": "Traitement de {{app}} : les Paramètres s’ouvrent et se ferment seuls. Ne touchez pas à la télécommande.",
+      "settingsOpens": "Les Paramètres vont s’ouvrir seuls. Ne touchez pas à la télécommande avant leur retour."
+    },
+    "stopBtn": "Arrêter",
+    "done": "Terminé",
+    "all": {
+      "title": "Nettoyer ce boîtier",
+      "desc": "Fichiers résiduels, applis en arrière-plan, puis tous les caches",
+      "descReach": "Fichiers résiduels, applis en arrière-plan, puis tous les caches : environ {{size}} à récupérer"
+    },
+    "caches": {
+      "title": "Vider les caches",
+      "fireList": "Ouvre la liste des applis de Fire TV",
+      "count_one": "{{count}} appli",
+      "count_many": "{{count}} applis",
+      "count_other": "{{count}} applis",
+      "countSize_one": "{{count}} appli · {{size}}",
+      "countSize_many": "{{count}} applis · {{size}}",
+      "countSize_other": "{{count}} applis · {{size}}"
+    },
+    "background": {
+      "title": "Fermer les applis en arrière-plan",
+      "desc": "Libère de la mémoire pour le lecteur"
+    },
+    "junk": {
+      "title": "Supprimer les installateurs résiduels",
+      "count_one": "{{count}} fichier · {{size}}",
+      "count_many": "{{count}} fichiers · {{size}}",
+      "count_other": "{{count}} fichiers · {{size}}",
+      "none": "Rien de résiduel"
+    },
+    "usage": {
+      "onTitle": "L’utilisation des applis est activée",
+      "offTitle": "Afficher la taille des applis",
+      "onDesc": "Les tailles et dates de dernière utilisation sont visibles",
+      "offDesc": "Nécessaire pour trouver les applis inutilisées"
+    },
+    "lastClean": "Dernier nettoyage : {{when}}",
+    "fire": {
+      "title": "Fire TV vide les caches une appli à la fois",
+      "body": "Fire TV n’a aucun réglage permettant à une autre appli de vider les caches à votre place ; le Nettoyeur vous mène donc à la page propre à Fire TV pour chaque appli. Choisissez une appli ci-dessous, sélectionnez <1>Vider le cache</1> sur la page qui s’ouvre, puis appuyez sur Retour pour revenir ici. Les fichiers résiduels et les applis en arrière-plan sont toujours nettoyés en un appui.",
+      "openListBtn": "Ouvrir la liste des applis Fire TV",
+      "cacheSize": "{{size}} de cache",
+      "cacheHidden": "La taille du cache est masquée sur Fire TV",
+      "clearCacheBtn": "Vider le cache"
+    },
+    "gate": {
+      "title": "Un réglage à activer",
+      "body": "Android ne permet à aucune appli de vider seule le cache d’une autre. Dans la liste qui s’ouvre, trouvez <1>Snow Media Cache Cleaner</1> et activez-le, puis revenez ici et appuyez sur Nettoyer. Il n’appuie que sur « Vider le cache », jamais sur « Effacer les données », et vous pouvez le désactiver à tout moment. Tout le reste de cet écran fonctionne sans lui.",
+      "openBtn": "Ouvrir les réglages d’accessibilité"
+    },
+    "unused": {
+      "title": "Applis que personne n’ouvre",
+      "needUsage": "Activez l’utilisation des applis ci-dessus et ce boîtier listera ce qui n’a pas été ouvert depuis {{days}} jours, avec la place prise par chacune.",
+      "none": "Tout ce qui est installé ici est utilisé. Rien à supprimer.",
+      "more": "{{count}} de plus, les plus petites d’abord : nettoyez les grosses et revérifiez."
+    },
+    "detailsBtn": "Détails",
+    "removeBtn": "Supprimer",
+    "check": {
+      "title": "À vérifier",
+      "desc": "Des applis qui ne viennent pas d’une boutique, et des applis impossibles à ouvrir. La plupart sont inoffensives : un sideload voulu, ou un utilitaire installé par une autre appli. Les pubs et pop-ups dont on accuse son boîtier viennent souvent de l’une d’elles.",
+      "none": "Rien d’inattendu n’est installé.",
+      "sideloaded": "Installée hors d’une boutique",
+      "noWay": "Impossible de l’ouvrir",
+      "more": "{{count}} autres non affichées."
+    },
+    "age": {
+      "never": "jamais ouverte",
+      "today": "utilisée aujourd’hui",
+      "yesterday": "utilisée hier",
+      "days_one": "utilisée pour la dernière fois il y a {{count}} jour",
+      "days_many": "utilisée pour la dernière fois il y a {{count}} jours",
+      "days_other": "utilisée pour la dernière fois il y a {{count}} jours",
+      "months_one": "utilisée pour la dernière fois il y a environ {{count}} mois",
+      "months_many": "utilisée pour la dernière fois il y a environ {{count}} mois",
+      "months_other": "utilisée pour la dernière fois il y a environ {{count}} mois"
+    },
+    "lines": {
+      "fireCaches": "caches : choisissez une appli dans la liste Fire TV ci-dessous pour vider son cache",
+      "noCaches": "aucun cache d’appli à vider",
+      "cachesDone": "caches vidés sur {{done}} applis sur {{total}}",
+      "cachesRoot_one": "caches vidés sur {{count}} appli",
+      "cachesRoot_many": "caches vidés sur {{count}} applis",
+      "cachesRoot_other": "caches vidés sur {{count}} applis",
+      "junkRemoved": "{{size}} de fichiers résiduels supprimés",
+      "memoryFreed": "{{size}} de mémoire libérés",
+      "askedToStop_one": "{{count}} appli invitée à arrêter son travail en arrière-plan",
+      "askedToStop_many": "{{count}} applis invitées à arrêter leur travail en arrière-plan",
+      "askedToStop_other": "{{count}} applis invitées à arrêter leur travail en arrière-plan",
+      "noJunk": "aucun fichier résiduel à supprimer",
+      "stopped": "arrêté"
+    },
+    "toast": {
+      "fireCachesTitle": "Sur Fire TV, les caches se vident une appli à la fois",
+      "fireCachesDesc": "Choisissez une appli dans la liste plus bas et sélectionnez Vider le cache sur la page qui s’ouvre.",
+      "turnOnTitle": "Activez d’abord le nettoyage des caches",
+      "turnOnDesc": "Activez Snow Media Cache Cleaner dans Accessibilité. Le bouton en bas de cet écran ouvre cette liste.",
+      "clearFailedTitle": "Impossible de vider les caches",
+      "openListTitle": "Impossible d’ouvrir la liste des applis",
+      "openListDesc": "Sur l’écran d’accueil Fire TV, allez dans Paramètres → Applications → Gérer les applications installées, choisissez une appli, puis Vider le cache.",
+      "backgroundFailedTitle": "Impossible de fermer les applis en arrière-plan",
+      "removedTitle": "Supprimée",
+      "removedDesc": "{{name}} a disparu.",
+      "keptTitle": "Conservée",
+      "keptDesc": "{{name}} est toujours installée.",
+      "removeFailedTitle": "Impossible de la supprimer",
+      "appInfoFailedTitle": "Impossible d’ouvrir les infos de l’appli",
+      "byHandTitle": "Ouvrez-le manuellement",
+      "byHandDesc": "Paramètres Android → Accessibilité → Snow Media Cache Cleaner.",
+      "noUsageTitle": "Ce boîtier n’a pas d’écran d’utilisation",
+      "noUsageDesc": "Le vidage des caches et la fermeture en arrière-plan fonctionnent toujours. Les tailles et dates de dernière utilisation resteront masquées.",
+      "usageFailedTitle": "Impossible d’ouvrir cet écran"
+    }
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "support": {
+    "header": {
+      "title": "Soporte",
+      "subtitle": "Obtén ayuda, chatea con la IA o ponte al día con las novedades de Snow Media"
+    },
+    "tabs": {
+      "helpTab": "Ayuda",
+      "aiTab": "Chat IA",
+      "postsTab": "Novedades"
+    },
+    "cards": {
+      "howTo": {
+        "title": "Cómo usar SMC",
+        "desc": "Un recorrido sencillo por cada pantalla"
+      },
+      "speedTest": {
+        "title": "Test de velocidad",
+        "desc": "Prueba tu velocidad de internet"
+      },
+      "guide": {
+        "title": "Guía de buffering",
+        "desc": "Soluciones paso a paso"
+      },
+      "videos": {
+        "title": "Videos de soporte",
+        "desc": "Tutoriales y guías paso a paso"
+      },
+      "tickets": {
+        "title": "Enviar un ticket",
+        "descNew": "Nueva respuesta de Soporte",
+        "desc": "Contacta al soporte de Snow Media"
+      },
+      "remote": {
+        "title": "Acceso remoto",
+        "desc": "Un técnico arregla tu equipo en vivo — $25"
+      },
+      "cleaner": {
+        "title": "Limpiador del equipo",
+        "desc": "Libera espacio y memoria"
+      },
+      "apps": {
+        "title": "Apps principales",
+        "desc": "Descarga apps y herramientas de streaming"
+      }
+    },
+    "toast": {
+      "launchUnavailableTitle": "No se puede abrir",
+      "launchUnavailableDesc": "Abrir apps solo funciona en Android.",
+      "launchFailedTitle": "No se pudo abrir",
+      "launchFailedDesc": "No se pudo abrir {{name}}.",
+      "appInfoUnavailableTitle": "Info de la app no disponible",
+      "appInfoUnavailableDesc": "Solo funciona en dispositivos Android.",
+      "notInstalledTitle": "App no instalada",
+      "notInstalledDesc": "{{name}} no está instalada en este dispositivo.",
+      "openingTitle": "Abriendo {{name}}",
+      "openingDesc": "Toca «Forzar detención» y luego «Almacenamiento» → «Borrar caché». Pulsa Atrás al terminar.",
+      "appInfoFailedTitle": "No se pudo abrir la info de la app",
+      "appInfoFailedDesc": "Abre Ajustes de Android → Apps → {{name}} manualmente."
+    },
+    "speedTest": {
+      "title": "Test de velocidad de internet",
+      "startBtn": "Iniciar",
+      "runAgainBtn": "Repetir",
+      "testingBtn": "Probando…",
+      "phase": {
+        "idle": "Listo",
+        "ping": "Midiendo la latencia…",
+        "download": "Probando la velocidad de descarga…",
+        "upload": "Probando la velocidad de subida…",
+        "done": "Prueba completa",
+        "error": "La prueba falló"
+      },
+      "download": "Descarga",
+      "upload": "Subida",
+      "mbps": "Mbps",
+      "ping": "Ping",
+      "jitter": "Jitter",
+      "ms": "{{value}} ms",
+      "verdict": {
+        "title": "Veredicto para streaming",
+        "excellent": "Excelente: tu conexión ({{speed}} Mbps) reproduce 4K sin cortes.",
+        "good": "Bien para streaming en HD. Para 4K estable necesitas al menos 25 Mbps.",
+        "poor": "Menos de los 15 Mbps recomendados para HD: habrá cortes. Prueba con cable, acércate al router o contacta a tu proveedor."
+      },
+      "failed": "La prueba de velocidad falló: {{error}}. Revisa tu conexión a internet e inténtalo de nuevo.",
+      "powered": "Con la red global de pruebas de velocidad de Cloudflare",
+      "errors": {
+        "pingFailed": "El ping falló",
+        "generic": "La prueba de velocidad falló"
+      }
+    },
+    "videos": {
+      "title": "Videos de soporte",
+      "subtitle": "Tutoriales y guías de ayuda de Vimeo",
+      "allTab": "Todos ({{count}})",
+      "servicesTab": "Servicios ({{count}})",
+      "devicesTab": "Equipos ({{count}})",
+      "watchBtn": "Ver video",
+      "loading": "Cargando videos de soporte...",
+      "loadError": "Error al cargar los videos: {{error}}",
+      "empty": "No hay videos. Sube videos a tu cuenta de Vimeo para verlos aquí.",
+      "emptyDevice": "No hay videos de equipos. Etiqueta tus videos con: x96, FireTV u Older",
+      "emptyService": "No hay videos de servicios. Etiqueta tus videos con: Dreamstreams, Vibez TV, Plex o Support",
+      "emptyAll": "No hay videos en tu cuenta de Vimeo.",
+      "closeHint": "Pulsa ESC/Atrás para cerrar | P/K para reproducir/pausar",
+      "closeBtn": "✕ Cerrar",
+      "frameTitle": "Video de soporte"
+    },
+    "mail": {
+      "heading": "Novedades de Snow Media Entertainment",
+      "notifOff": "Notificaciones desactivadas (Ajustes → UI)",
+      "checking": "Buscando novedades…",
+      "emptyTitle": "Aún no hay nada",
+      "emptyDesc": "Cuando Snow Media publique noticias, ofertas o eventos, aparecerán aquí, con fecha y marcadas hasta que las abras.",
+      "newChip": "Nuevo",
+      "reader": {
+        "okToScan": "OK para escanear",
+        "shopNow": "Comprar ahora",
+        "empty": "Esta publicación no tiene contenido para mostrar.",
+        "hintScroll": "Desplazar",
+        "hintPick": "Elige un enlace ({{current}} de {{total}})",
+        "hintScan": "OK Escanéalo con tu teléfono",
+        "hintClose": "Atrás Cerrar",
+        "makingCode": "Creando código…",
+        "scanTitle": "Escanea con tu teléfono",
+        "closeHint": "Pulsa OK o Atrás para cerrar"
+      },
+      "link": {
+        "open": "Abrir enlace",
+        "watch": "Ver video",
+        "survey": "Responder la encuesta",
+        "shop": "Comprar {{name}}",
+        "productFallback": "Producto"
+      },
+      "toast": {
+        "newPosts_one": "Nueva publicación de Snow Media",
+        "newPosts_many": "{{count}} publicaciones nuevas de Snow Media",
+        "newPosts_other": "{{count}} publicaciones nuevas de Snow Media"
+      }
+    }
+  }
+}

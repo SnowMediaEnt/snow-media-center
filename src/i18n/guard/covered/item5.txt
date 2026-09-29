@@ -1,0 +1,15 @@
+# Files converted by work item 5 (Support and tickets).
+src/components/Support.tsx
+src/components/SupportTicketSystem.tsx
+src/components/support
+src/components/SnowMailPanel.tsx
+src/components/SnowMailReader.tsx
+src/components/DeviceCleaner.tsx
+src/components/SpeedTest.tsx
+src/components/SupportVideos.tsx
+src/components/RemoteSupport.tsx
+src/hooks/useSupportTickets.ts
+src/hooks/useSnowMail.ts
+src/hooks/useUnreadTickets.ts
+src/lib/snowMail.ts
+src/lib/supportAttachments.ts

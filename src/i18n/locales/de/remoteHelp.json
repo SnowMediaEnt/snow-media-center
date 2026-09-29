@@ -1,0 +1,118 @@
+{
+  "remoteHelp": {
+    "title": "Fernzugriff",
+    "chip": {
+      "done": "Erledigt",
+      "notYet": "Noch nicht"
+    },
+    "header": {
+      "waived": "Zahlung erlassen – alles bereit ✓",
+      "paid": "Bezahlt ✓ – Bestellung Nr. {{number}}"
+    },
+    "blocked": {
+      "title": "Fernzugriff ist auf Fire-TV-Geräten nicht verfügbar",
+      "body": "Fire OS blockiert die Bedienungshilfen, die ein Techniker zur Steuerung deines Geräts braucht. Wir helfen dir stattdessen gern per Support-Ticket.",
+      "ticketsBtn": "Support-Tickets öffnen"
+    },
+    "notNative": {
+      "paid": "✅ Deine Fernsitzung ist bezahlt und bereit. Du siehst das in einem Webbrowser – die Einrichtung für den Techniker läuft in der App.",
+      "paidNext": "Öffne auf der Box, die Hilfe braucht, die <1>Snow Media Center-App</1> (nicht einen Browser) und gehe zu Support → Fernzugriff. Deine bezahlte Anfrage wird automatisch fortgesetzt – nichts muss neu eingegeben werden.",
+      "unpaid": "Du siehst das in einem Webbrowser. Die Einrichtung für den Techniker läuft in der Snow Media Center-<1>App</1> – öffne auf der Box, die Hilfe braucht, die App selbst und gehe zu Support → Fernzugriff."
+    },
+    "noauth": {
+      "body": "Melde dich in deinem Snow Media-Konto an, um eine Fernzugriff-Sitzung anzufordern. Nutze die Anmelden-Taste auf dem Startbildschirm und komm dann hierher zurück."
+    },
+    "form": {
+      "subtitle": "Sag uns, was nicht stimmt – ein Techniker übernimmt die Steuerung deiner Box und behebt es mit dir. {{price}} pro Sitzung.",
+      "issueLabel": "Was ist das Problem?",
+      "issuePlaceholder": "z. B. Live-TV ruckelt alle paar Minuten auf allen Sendern",
+      "needsLabel": "Was soll ich für dich tun? <1>(optional)</1>",
+      "needsPlaceholder": "z. B. Meine Einstellungen prüfen und die Streams flüssig zum Laufen bringen",
+      "contactLabel": "Am besten erreichbar über",
+      "contactPlaceholder": "E-Mail oder Telefonnummer",
+      "saving": "Wird gespeichert...",
+      "continueBtn": "Weiter zur Zahlung – {{price}}"
+    },
+    "pay": {
+      "title": "Bezahle deine Sitzung",
+      "subtitle": "Anfrage gespeichert. Bezahle mit dem Handy – kein Eintippen von Kartennummern mit der Fernbedienung.",
+      "scan": "Scanne den QR-Code mit dem Handy, um {{price}} zu bezahlen. Dieser Bildschirm geht von selbst weiter, sobald deine Zahlung ankommt.",
+      "showQrBtn": "Zahlungs-QR-Code anzeigen",
+      "codeLabel": "Hast du einen Code von Snow Media?",
+      "codeHint": "Gib ihn hier ein und der Zahlungsschritt entfällt.",
+      "codePlaceholder": "Code eingeben",
+      "checking": "Wird geprüft…",
+      "useCodeBtn": "Code nutzen",
+      "dialogTitle": "{{price}} bezahlen – Fernwartung",
+      "dialogDesc": "Scanne mit dem Handy, um die Fernwartungs-Sitzung zu bezahlen. Dieser Bildschirm geht automatisch weiter, sobald die Zahlung ankommt.",
+      "guestTitle": "Gast-Checkout – kein Konto nötig",
+      "guestBody": "Du kannst als Gast bezahlen – kein Konto nötig. Schließe die Zahlung auf dem Handy ab und dieser Bildschirm geht von selbst weiter.",
+      "confirmedLabel": "Ich habe bezahlt"
+    },
+    "setup": {
+      "stepOf": "Einrichtung – Schritt {{step}} von 3",
+      "app": {
+        "title": "Installiere die Support-App",
+        "body": "Die Snow Support-App teilt deinen Bildschirm mit dem Techniker. Installiere sie, tippe auf Erneut prüfen, und dieser Schritt wird auf Erledigt gesetzt.",
+        "installBtn": "Support-App installieren",
+        "downloading": "Wird heruntergeladen...",
+        "recheckBtn": "Erneut prüfen",
+        "rechecking": "Wird geprüft..."
+      },
+      "overlay": {
+        "title": "„Über anderen Apps einblenden“ erlauben",
+        "why": "Mit dieser Berechtigung wird der Zeiger des Technikers auf deinem Bildschirm angezeigt.",
+        "how": "Eine App-Liste öffnet sich – suche <1>Snow Support</1> und schalte <1>„Anzeige über anderen Apps zulassen“</1> ein. Komm dann zurück und bestätige."
+      },
+      "openSettingsBtn": "Einstellungen öffnen",
+      "confirmBtn": "Habe ich eingeschaltet",
+      "continueBtn": "Weiter",
+      "a11y": {
+        "title": "Schalte den Snow Support-Bedienungshilfendienst ein",
+        "why": "Damit lösen die Klicks des Technikers auf deiner Box wirklich etwas aus.",
+        "how": "Suche <1>Snow Support</1> in der Liste und stelle es auf <1>An</1>. Komm dann zurück und bestätige.",
+        "openBtn": "Bedienungshilfen öffnen",
+        "important": "<1>Wichtig:</1> Schritt 2 (Über anderen Apps einblenden) muss zuerst erledigt sein – wenn du dies vor der Überlagerungs-Berechtigung einschaltest, reagiert die Fernbedienung möglicherweise nicht mehr, bis die Box vom Strom getrennt wird."
+      }
+    },
+    "ready": {
+      "title": "Alles bereit",
+      "subtitle": "Wie es weitergeht",
+      "point1": "Der Techniker kann deinen Bildschirm sehen und deine Box steuern.",
+      "point2": "Ein roter Rahmen bleibt die ganze Zeit sichtbar, damit du immer weißt, dass die Sitzung aktiv ist.",
+      "point3": "Du kannst die Sitzung jederzeit beenden.",
+      "startBtn": "Fernwartung starten",
+      "starting": "Wird gestartet..."
+    },
+    "started": {
+      "title": "Sitzung gestartet",
+      "body1": "Die Snow Support-App ist geöffnet und übernimmt ab hier – sie zeigt einen 6-stelligen Code und bittet dich, die Bildschirmfreigabe zu bestätigen.",
+      "body2": "Gib den Code an deinen Techniker weiter und bestätige die Abfrage. Denk daran: Der rote Rahmen zeigt, dass die Sitzung läuft, und du kannst sie jederzeit beenden."
+    },
+    "toast": {
+      "saveFailedTitle": "Anfrage konnte nicht gespeichert werden",
+      "saveFailedDesc": "Prüfe deine Internetverbindung und versuche es erneut.",
+      "waivedTitle": "Zahlung erlassen – alles bereit",
+      "receivedTitle": "Zahlung erhalten",
+      "readyDesc": "Machen wir deine Box bereit für den Techniker.",
+      "codeRejectedTitle": "Code nicht akzeptiert",
+      "codeInvalid": "Dieser Code stimmt nicht. Prüfe ihn und versuche es erneut.",
+      "codeExpired": "Dieser Code ist abgelaufen.",
+      "codeUsedUp": "Dieser Code wurde bereits verwendet.",
+      "codeTooMany": "Zu viele Versuche. Warte ein paar Minuten und versuche es dann erneut.",
+      "codeNoRequest": "Diese Anfrage wartet nicht mehr auf eine Zahlung.",
+      "codeSignedOut": "Melde dich an, um einen Code zu nutzen.",
+      "tryAgain": "Bitte versuche es erneut.",
+      "codeCheckFailedTitle": "Code konnte nicht geprüft werden",
+      "notYetTitle": "Zahlung noch nicht eingegangen",
+      "notYetDesc": "Nach dem Bezahlen kann es eine Minute dauern. Lass diesen Bildschirm geöffnet.",
+      "installFailedTitle": "Installation fehlgeschlagen",
+      "installFailedDesc": "Die Support-App konnte nicht installiert werden.",
+      "settingsFailedTitle": "Einstellungen konnten nicht geöffnet werden",
+      "overlayManual": "Öffne manuell die Android-Einstellungen → Apps → Spezieller App-Zugriff → Über anderen Apps einblenden.",
+      "a11yManual": "Öffne manuell die Android-Einstellungen → Bedienungshilfen.",
+      "startFailedTitle": "Konnte nicht gestartet werden",
+      "startFailedDesc": "Öffne stattdessen die Snow Support-App aus deiner App-Liste."
+    }
+  }
+}
