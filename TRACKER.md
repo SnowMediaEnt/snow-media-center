@@ -53,6 +53,7 @@ Status: building · ready to test · still broken · done.
 | 31 | Live TV hold-OK: short channel menu (Favorite, Report, Record…) instead of the full Record dialog | feature | ready to test (build 51) | |
 | 32 | Game Day: hold OK on a link to report a channel down | feature | ready to test (build 51) | |
 | 33 | Player bar: Report button while a live channel plays | feature | ready to test (build 51) | |
+| 34 | Game Day applies the owner's channel picks from the admin app/Hub (add first + "Picked by Snow Media", hide, down ⚠️ last) | feature | ready to test (build 52) | |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner

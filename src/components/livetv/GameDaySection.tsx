@@ -22,14 +22,21 @@
 // on a channel opens Live TV's short menu (ReportChannelDialog) to report it:
 // the report names the line and stream of that link, and "channel down" puts
 // the ⚠️ on it for the other boxes. A short press plays when OK is let go.
+//
+// The owner's picks (lib/gameDay, read with the games) are laid over each
+// game's channels last of all: an added channel goes first with a "Picked by
+// Snow Media" line, a hidden one is gone (from the row's Watch pick and a
+// reminder too), one marked down goes last with the ⚠️. A read that fails
+// leaves the lists as the matching made them.
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bell, BellRing, FolderOpen, Loader2, Play, Trophy, X } from 'lucide-react';
+import { AlertTriangle, Bell, BellRing, FolderOpen, Loader2, Play, Star, Trophy, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
 import { isChannelDown, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import {
-  CHANNELS_TTL_MS, LINK_LABELS, cardChannels, channelKey, channelsForGame, checkGuides, fetchGames, isPpvFight, isStreamingOnly,
-  kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames, type Game, type GameChannel, type SportsChannel,
+  CHANNELS_TTL_MS, LINK_LABELS, PICKED_LABEL, applyChannelEdits, cardChannels, channelKey, channelsForGame, checkGuides, fetchGameEdits, fetchGames,
+  isPpvFight, isStreamingOnly, kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames,
+  type Game, type GameChannel, type GameEdit, type SportsChannel,
 } from '@/lib/gameDay';
 import { GAME_REMINDERS_EVENT, hasReminder, toggleReminder } from '@/lib/gameReminders';
 import { buildLines, lineKey } from '@/lib/liveLines';
@@ -107,6 +114,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   const { toast } = useToast();
   const [lines, setLines] = useState<XtreamCreds[]>([creds]);
   const [games, setGames] = useState<Game[] | null>(null);
+  // The owner's picks for the games (none until read, and none if the read fails).
+  const [edits, setEdits] = useState<GameEdit[]>([]);
   const [error, setError] = useState(false);
   const [channels, setChannels] = useState<SportsChannel[] | null>(null);
   const [league, setLeague] = useState('all');
@@ -129,13 +138,21 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     return () => { alive = false; };
   }, [creds]);
 
-  // The games, fresh every few minutes while this is on screen.
+  // The games, fresh every few minutes while this is on screen. The owner's
+  // picks are read alongside, and never waited for: a slow or failed read
+  // leaves the lists as the matching made them.
   useEffect(() => {
     if (!isActive) return;
     let alive = true;
-    const load = (force: boolean) => fetchGames(force)
-      .then((g) => { if (alive) { setGames(g); setError(false); } })
-      .catch(() => { if (alive) setError(true); });
+    const load = (force: boolean) => {
+      void fetchGameEdits(force).then(
+        (e) => { if (alive) setEdits((old) => (old === e || (!old.length && !e.length) ? old : e)); },
+        () => undefined,
+      );
+      return fetchGames(force)
+        .then((g) => { if (alive) { setGames(g); setError(false); } })
+        .catch(() => { if (alive) setError(true); });
+    };
     void load(false);
     const id = window.setInterval(() => { void load(true); }, REFRESH_MS);
     return () => { alive = false; window.clearInterval(id); };
@@ -164,7 +181,10 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   }, []);
 
   const down = useDownChannels(lines, isActive);
-  const isDown = useCallback((c: GameChannel) => isChannelDown(down, c.line.host, c.stream.stream_id), [down]);
+  // Reported down by the boxes (what the report menu clears)…
+  const crowdDown = useCallback((c: GameChannel) => isChannelDown(down, c.line.host, c.stream.stream_id), [down]);
+  // …or marked down by the owner for this game: the same to the list.
+  const isDown = useCallback((c: GameChannel) => !!c.ownerDown || crowdDown(c), [crowdDown]);
 
   // Today's PPV events, from the box's PPV channels' own names (a UFC card
   // the scoreboard has is shown once, as its game).
@@ -180,23 +200,30 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     return [{ id: 'all', label: t('gameDay.allChip') }, ...(ppv.length ? [{ id: 'ppv', label: 'PPV' }] : []), ...[...seen].map(([id, label]) => ({ id, label }))];
   }, [allGames, ppv.length, t]);
 
-  const rows = useMemo(() => {
-    // "All": every game, and of PPV the fights; the rest of PPV under PPV.
-    const list = allGames
-      .filter((g) => (league === 'all' ? g.league !== 'ppv' || isPpvFight(g) : g.league === league))
-      .slice(0, lowMemory() ? 40 : 80);
-    return list.map((g) => {
-      const found = g.league === 'ppv' ? (ppvLinks.get(g.id) ?? []) : channels ? channelsForGame(g, channels) : [];
-      const pick = found.find((c) => !isDown(c)) ?? found[0] ?? null;
-      // Worked out here, not on every key press: a formatter per row per
-      // press is slow on an old box.
-      const when = kickoffParts(g.start);
-      const tv = g.networks.filter((n) => !isStreamingOnly(n));
-      return { game: g, found, channel: pick, channelDown: !!pick && isDown(pick), more: Math.max(0, found.length - 1), when, tv };
-    });
+  // "All": every game, and of PPV the fights; the rest of PPV under PPV.
+  const shown = useMemo(() => allGames
+    .filter((g) => (league === 'all' ? g.league !== 'ppv' || isPpvFight(g) : g.league === league))
+    .slice(0, lowMemory() ? 40 : 80), [allGames, league]);
+  // What the matching finds for each (the slow part: not done again when the
+  // owner's picks or the down list change).
+  const matched = useMemo(
+    () => shown.map((g) => (g.league === 'ppv' ? (ppvLinks.get(g.id) ?? []) : channels ? channelsForGame(g, channels) : [])),
+    [shown, channels, ppvLinks],
+  );
+  const rows = useMemo(() => shown.map((g, i) => {
+    const auto = matched[i] ?? [];
+    // The owner's picks go over what the matching found, last of all: the
+    // row's Watch pick, a reminder's channel and the list all start from this.
+    const found = applyChannelEdits(g, auto, edits, lines, channels ?? []);
+    const pick = found.find((c) => !isDown(c)) ?? found[0] ?? null;
+    // Worked out here, not on every key press: a formatter per row per
+    // press is slow on an old box.
+    const when = kickoffParts(g.start);
+    const tv = g.networks.filter((n) => !isStreamingOnly(n));
+    return { game: g, auto, found, channel: pick, channelDown: !!pick && isDown(pick), more: Math.max(0, found.length - 1), when, tv };
     // t: the kickoff day and time are drawn in the app's language, so a language change recomputes them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allGames, league, channels, isDown, ppvLinks, t]);
+  }), [shown, matched, edits, lines, channels, isDown, t]);
 
   // A focus that fell off the list (games arrived, a league filter) comes back.
   useEffect(() => {
@@ -209,7 +236,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     if (!picker || !pickerRow) return [];
     // Each channel once, best source first, always with its current name
     // (never one a guide check cached before the last channel-list refresh).
-    const merged = mergeLinks([picker.extra, pickerRow.found], channels ?? []);
+    // The matching's own links: the owner's picks come after the arranging.
+    const merged = mergeLinks([picker.extra, pickerRow.auto], channels ?? []);
     // Best first, a channel reported down after the working ones of its
     // kind; zone channels (RedZone, "MLB Zone": every game of the league,
     // never just this one) always after, in their own group — never mixed
@@ -224,14 +252,20 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
       .map((x) => x.l);
     const main = sorted(merged.filter((l) => l.via !== 'zone'));
     const zone = sorted(merged.filter((l) => l.via === 'zone'));
-    const items: PickItem[] = [...main, ...zone].map((link) => ({ kind: 'link', link, down: isDown(link) }));
+    // The owner's picks, last of all: what they add goes first, what they
+    // hide is gone (even if the guide brought it back), what they mark down
+    // goes last.
+    const arranged = applyChannelEdits(pickerRow.game, [...main, ...zone], edits, lines, channels ?? []);
+    const items: PickItem[] = arranged.map((link) => ({ kind: 'link', link, down: isDown(link) }));
     const own = pickerRow.game.league === 'ppv' ? new Set(pickerRow.found.map(channelKey)) : undefined;
     for (const c of channels ? leagueCategories(pickerRow.game, channels, 2, own) : []) items.push({ kind: 'browse', ...c });
     return items;
-  }, [picker, pickerRow, channels, isDown, lines]);
+  }, [picker, pickerRow, channels, isDown, lines, edits]);
   const firstLinkIdx = pickItems.findIndex((it) => it.kind === 'link');
+  // Where the zone group starts: a zone channel the owner picked is up with
+  // the picks, not in it.
   const firstZoneIdx = useMemo(
-    () => pickItems.findIndex((it) => it.kind === 'link' && it.link.via === 'zone'),
+    () => pickItems.findIndex((it) => it.kind === 'link' && it.link.via === 'zone' && !it.link.picked),
     [pickItems],
   );
 
@@ -250,7 +284,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     const lay = (extra: GameChannel[], done: boolean) => setPicker((p) => (p && p.gameId === gameId
       ? { ...p, extra, scanning: !done, focus: extra.length && !p.moved ? 0 : p.focus }
       : p));
-    void checkGuides(r.game, channels, r.found, games ?? [], Date.now(), (partial) => lay(partial, false))
+    void checkGuides(r.game, channels, r.auto, games ?? [], Date.now(), (partial) => lay(partial, false))
       .then((extra) => lay(extra, true))
       .catch(() => setPicker((p) => (p && p.gameId === gameId ? { ...p, scanning: false } : p)));
   }, [rows, channels, isDown, games]);
@@ -593,6 +627,12 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                         <span className="truncate font-semibold">{link.stream.name}</span>
                         {multi && <ServiceTag name={serviceName(link.line)} label={t('gameDay.serviceTag', { service: serviceName(link.line) })} onLight={focused} />}
                       </span>
+                      {link.picked && (
+                        <span className={`flex items-center min-w-0 text-xs font-bold ${focused ? 'text-amber-700' : 'text-brand-gold'}`}>
+                          <Star className="w-3 h-3 mr-1 shrink-0" />
+                          <span className="truncate">{t('gameDay.link.picked', { defaultValue: PICKED_LABEL })}</span>
+                        </span>
+                      )}
                       {link.note && <span className={`block truncate text-xs ${focused ? 'text-black/60' : 'text-white/50'}`}>{link.note}</span>}
                     </span>
                     <span className={`ml-3 shrink-0 text-xs font-bold uppercase tracking-wide ${focused ? 'text-black/60' : 'text-brand-ice/70'}`}>
@@ -625,7 +665,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
             categoryName={pickerRow ? `Game Day: ${pickerRow.game.name}` : 'Game Day'}
             serviceLabel={multi ? serviceName(reportFor.line) : undefined}
             onReportedDown={() => signalChannel(reportFor.line.host, reportFor.stream.stream_id, reportFor.stream.name, 'down')}
-            isDown={isDown(reportFor)}
+            isDown={crowdDown(reportFor)}
             onClearDown={() => signalChannel(reportFor.line.host, reportFor.stream.stream_id, reportFor.stream.name, 'clear')}
             onOpenBufferingGuide={() => {
               setReportFor(null);

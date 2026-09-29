@@ -25,6 +25,8 @@ vi.mock('@/lib/gameDay', async (orig) => {
       chan(l, 100 + i, 'NFL 01: Bears vs Packers', 'NFL'),
     ]),
     checkGuides: () => Promise.resolve([]),
+    // The owner's picks table is not asked in these tests.
+    fetchGameEdits: async () => [],
   };
 });
 vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/xtream')>()), loadSavedAccounts: async () => saved.list }));

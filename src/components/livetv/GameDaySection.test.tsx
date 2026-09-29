@@ -40,6 +40,8 @@ vi.mock('@/lib/gameDay', async (orig) => {
       real.sportsChannel(line as never, { stream_id: 22, name: `PPV EVENT 13: Big Fight vs. Other Guy (${eastern(4)})`, category_id: 50 } as never, 'PAY-PER-VIEW 2')!,
     ],
     checkGuides: () => (guide.answer ? guide.answer() : Promise.resolve([])),
+    // The owner's picks table is not asked in these tests.
+    fetchGameEdits: async () => [],
   };
 });
 vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/xtream')>()), loadSavedAccounts: async () => [] }));

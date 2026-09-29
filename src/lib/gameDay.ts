@@ -31,6 +31,13 @@
 // Game Day's PPV list (ppvGames).
 // Streaming-only services (MLB.tv, ESPN+, Peacock …) are never links: no line
 // carries them as a channel.
+//
+// The owner's picks: the Snow Media admin app can, for one game, add a channel
+// (first in its list, "Picked by Snow Media"), hide one, or mark one down
+// (last, ⚠️). They are rows of the public game_day_channel_edits table, read
+// with the games (fetchGameEdits) and laid over whatever the matching found,
+// last of all (applyChannelEdits), so no matching rule can drop a pick. A read
+// that fails leaves every list exactly as the matching made it.
 import { supabase } from '@/integrations/supabase/client';
 import {
   decodeEpgText, getLiveCategories, getLiveStreams, getShortEpg, parseEpgTime,
@@ -78,8 +85,11 @@ export interface SportsChannel {
   leagues: string[];
 }
 
-/** A link for one game. */
-export interface GameChannel { line: XtreamCreds; stream: XtreamLiveStream; score: number; via: LinkKind; note?: string }
+/** A link for one game. `picked`: the owner added it for this game;
+ *  `ownerDown`: the owner marked it down for this game (applyChannelEdits). */
+export interface GameChannel {
+  line: XtreamCreds; stream: XtreamLiveStream; score: number; via: LinkKind; note?: string; picked?: boolean; ownerDown?: boolean;
+}
 
 const GAMES_TTL_MS = 3 * 60_000;
 /** How old this box's channel list may get: event channels are renamed for
@@ -721,6 +731,204 @@ export function mergeLinks(sources: GameChannel[][], channels: SportsChannel[]):
   return out;
 }
 
+// ── the owner's picks ──────────────────────────────────────────────────────
+
+/** One row of the owner's game_day_channel_edits: for the game `game_id`, on
+ *  the panel `service` (its hostname alone: "dstreams.xyz"), the channel
+ *  `stream_id` is added, hidden or marked down. `sort` orders the added ones. */
+export interface GameEdit {
+  game_id: string; service: string; stream_id: number; channel_name: string; action: 'add' | 'hide' | 'down'; sort: number;
+}
+
+/** English for the label on a channel the owner added (the screen translates it). */
+export const PICKED_LABEL = 'Picked by Snow Media';
+
+/** The panel a line is on, by its hostname alone, however the line spells it:
+ *  "http://dstreams.xyz:8080" and "dstreams.xyz:2083" are both "dstreams.xyz".
+ *  The owner's picks name their service this way (never with a port). */
+export function serviceOf(line: string | { host?: string | null } | null | undefined): string {
+  const host = typeof line === 'string' ? line : line?.host;
+  return String(host ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/[:/].*$/, '');
+}
+
+/** The same login on the same panel, whichever port a line names. */
+const loginOf = (line: XtreamCreds): string => `${serviceOf(line)}|${String(line?.username ?? '').trim().toLowerCase()}`;
+
+/** A read that is stuck is given up on after this long: nothing waits for it. */
+const EDITS_TIMEOUT_MS = 4_000;
+const MAX_EDITS = 1000;
+const NO_EDITS: GameEdit[] = [];
+
+// game_day_channel_edits is newer than the generated client types.
+type EditsDb = {
+  from: (table: string) => { select: (cols: string) => { order: (col: string) => PromiseLike<{ data: unknown; error: unknown }> } };
+};
+
+let editsCache: { at: number; edits: GameEdit[] } | null = null;
+let editsInflight: Promise<GameEdit[]> | null = null;
+
+const wholeNumber = (v: unknown): number => (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '') ? Number(v) : NaN);
+
+/** A row of the table as an edit (null for one that cannot be used). */
+const cleanEdit = (row: unknown): GameEdit | null => {
+  const r = (row ?? {}) as Record<string, unknown>;
+  const action = r.action;
+  if (action !== 'add' && action !== 'hide' && action !== 'down') return null;
+  const gameId = typeof r.game_id === 'string' || typeof r.game_id === 'number' ? String(r.game_id).trim() : '';
+  const service = serviceOf(typeof r.service === 'string' ? r.service : '');
+  const streamId = wholeNumber(r.stream_id);
+  if (!gameId || !service || !Number.isInteger(streamId) || streamId <= 0) return null;
+  const sort = wholeNumber(r.sort);
+  return {
+    game_id: gameId, service, stream_id: streamId, action,
+    channel_name: typeof r.channel_name === 'string' ? r.channel_name.trim().slice(0, 120) : '',
+    sort: Number.isFinite(sort) ? sort : 0,
+  };
+};
+
+const sameEdits = (a: GameEdit[], b: GameEdit[]): boolean => a.length === b.length && a.every((x, i) => {
+  const y = b[i];
+  return x.game_id === y.game_id && x.service === y.service && x.stream_id === y.stream_id
+    && x.action === y.action && x.sort === y.sort && x.channel_name === y.channel_name;
+});
+
+/** The owner's rows, or null when they cannot be had: offline, no such table
+ *  on this database, an error, or no answer in a few seconds. Nothing is
+ *  logged: an unreadable table is not an outage. */
+async function readGameEdits(): Promise<GameEdit[] | null> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const query = (supabase as unknown as EditsDb)
+      .from('game_day_channel_edits')
+      .select('game_id,service,stream_id,channel_name,action,sort')
+      .order('sort');
+    const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), EDITS_TIMEOUT_MS); });
+    const { data, error } = await Promise.race([query, late]);
+    if (error || !Array.isArray(data)) return null;
+    const out: GameEdit[] = [];
+    for (const row of data.slice(0, MAX_EDITS)) {
+      const e = cleanEdit(row);
+      if (e) out.push(e);
+    }
+    return out;
+  } catch {
+    return null;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+/** The owner's picks, read with the games and kept as long as they are. Never
+ *  throws and never makes anything wait: a read that fails (or is too slow)
+ *  gives what the last good read gave, or nothing, and then every list is
+ *  just what the matching found. A read that finds the same rows hands back
+ *  the same list, so nothing is drawn again. */
+export function fetchGameEdits(force = false): Promise<GameEdit[]> {
+  if (!force && editsCache && Date.now() - editsCache.at < GAMES_TTL_MS) return Promise.resolve(editsCache.edits);
+  if (!editsInflight) {
+    editsInflight = (async () => {
+      try {
+        const fresh = await readGameEdits();
+        if (!fresh) return editsCache?.edits ?? NO_EDITS;
+        if (editsCache && sameEdits(editsCache.edits, fresh)) editsCache.at = Date.now();
+        else editsCache = { at: Date.now(), edits: fresh.length ? fresh : NO_EDITS };
+        return editsCache.edits;
+      } catch {
+        return editsCache?.edits ?? NO_EDITS;
+      } finally {
+        editsInflight = null;
+      }
+    })();
+  }
+  return editsInflight;
+}
+
+/** The owner's picks laid over a game's links, last of all — after the
+ *  matching, the guide and the ordering — so no rule of theirs can drop one:
+ *
+ *  - hide: every link to that channel (its panel and stream id) is gone from
+ *    this game's list;
+ *  - add: the channel goes first, in the owner's `sort` order, on each of the
+ *    box's lines on that panel (the stream as that line loaded it, or built
+ *    from the pick when it did not load it), once: the pick replaces the
+ *    matching's own link to the same channel;
+ *  - down: the channel stays but goes last, marked `ownerDown`, as one every
+ *    box has reported down.
+ *
+ *  Only rows for this game count. A hide beats an add or a down of the same
+ *  channel. The same list comes back untouched when nothing applies, or when
+ *  anything at all goes wrong. */
+export function applyChannelEdits(
+  game: Game, links: GameChannel[], edits: readonly GameEdit[] | null | undefined,
+  lines: readonly XtreamCreds[], channels: readonly SportsChannel[] = [],
+): GameChannel[] {
+  try {
+    const mine = (edits ?? []).filter((e) => e && String(e.game_id ?? '').trim() === game.id);
+    if (!mine.length) return links;
+    const rows = mine
+      .map((e, i) => {
+        const sort = Number(e.sort);
+        return { i, action: e.action, service: serviceOf(e.service), id: Number(e.stream_id), name: String(e.channel_name ?? '').trim(), sort: Number.isFinite(sort) ? sort : 0 };
+      })
+      .filter((e) => (e.action === 'add' || e.action === 'hide' || e.action === 'down') && !!e.service && Number.isInteger(e.id) && e.id > 0);
+    if (!rows.length) return links;
+
+    const channelAt = (service: string, id: number): string => `${service}|${id}`;
+    const setOf = (action: GameEdit['action']) => new Set(rows.filter((e) => e.action === action).map((e) => channelAt(e.service, e.id)));
+    const hidden = setOf('hide');
+    const down = setOf('down');
+    const linkAt = (l: GameChannel): string => channelAt(serviceOf(l.line), Number(l.stream?.stream_id));
+    const loginAt = (l: { line: XtreamCreds; stream: XtreamLiveStream }): string => `${loginOf(l.line)}|${Number(l.stream?.stream_id)}`;
+
+    const kept = links.filter((l) => !hidden.has(linkAt(l)));
+
+    // The owner's adds, in the owner's order (the position settles a tie: an
+    // old WebView's sort is not stable).
+    const adds = rows
+      .filter((e) => e.action === 'add' && !hidden.has(channelAt(e.service, e.id)))
+      .sort((a, b) => a.sort - b.sort || a.i - b.i);
+    const picks: GameChannel[] = [];
+    if (adds.length && lines.length) {
+      const wanted = new Set(adds.map((e) => channelAt(e.service, e.id)));
+      const loaded = new Map<string, XtreamLiveStream>();
+      for (const c of channels) {
+        if (wanted.has(channelAt(serviceOf(c.line), Number(c.stream?.stream_id)))) loaded.set(loginAt(c), c.stream);
+      }
+      const matched = new Map<string, GameChannel>(kept.map((l) => [loginAt(l), l]));
+      const seen = new Set<string>();
+      for (const e of adds) {
+        for (const line of lines) {
+          if (serviceOf(line) !== e.service) continue;
+          const k = `${loginOf(line)}|${e.id}`;
+          if (seen.has(k)) continue;
+          seen.add(k);
+          const auto = matched.get(k);
+          const stream = auto?.stream ?? loaded.get(k) ?? { stream_id: e.id, name: e.name || i18n.t('live.list.channelFallback') };
+          picks.push({
+            line, stream, score: 100, via: auto?.via ?? 'game', ...(auto?.note ? { note: auto.note } : {}),
+            // A pick that is also down is a down channel first.
+            ...(down.has(channelAt(e.service, e.id)) ? {} : { picked: true }),
+          });
+        }
+      }
+    }
+    const picked = new Set(picks.map(loginAt));
+    const rest = kept.filter((l) => !picked.has(loginAt(l)));
+
+    const front: GameChannel[] = [];
+    const back: GameChannel[] = [];
+    for (const l of [...picks, ...rest]) {
+      if (down.has(linkAt(l))) back.push({ ...l, ownerDown: true });
+      else front.push(l);
+    }
+    if (kept.length === links.length && !picks.length && !back.length) return links;
+    return [...front, ...back];
+  } catch {
+    return links;
+  }
+}
+
 /** The categories of the game's league on this box (for a fight card, the
  *  PPV and event ones too), for "Browse in Live TV". For a PPV event, the
  *  categories of its own channels (`only`: their link keys). */
@@ -1016,4 +1224,4 @@ export function kickoffLabel(start: string, now = new Date()): string {
 }
 
 /** Tests only. */
-export function __resetGameDayForTests(): void { gamesCache = null; channelsCache = null; guideCache.clear(); }
+export function __resetGameDayForTests(): void { gamesCache = null; channelsCache = null; guideCache.clear(); editsCache = null; editsInflight = null; }

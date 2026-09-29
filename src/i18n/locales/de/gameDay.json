@@ -41,7 +41,8 @@
       "local": "Lokal & regional",
       "team": "Teamsender",
       "league": "Ligasender",
-      "zone": "Zone-Sender"
+      "zone": "Zone-Sender",
+      "picked": "Von Snow Media ausgewählt"
     },
     "guide": {
       "note": "Guide: {{text}}",

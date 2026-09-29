@@ -41,7 +41,8 @@
       "local": "Local & regional",
       "team": "Team channel",
       "league": "League channel",
-      "zone": "Zone channel"
+      "zone": "Zone channel",
+      "picked": "Picked by Snow Media"
     },
     "guide": {
       "note": "Guide: {{text}}",
