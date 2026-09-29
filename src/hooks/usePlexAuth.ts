@@ -11,9 +11,10 @@ import { clearPlexImageCache, rekeyPlexImageCache } from '@/components/livetv/Pl
 import { runAfter } from '@/utils/idle';
 import { isDemo } from '@/lib/demoMode';
 import { demoConn } from '@/lib/plexDemo';
+import i18n from '@/i18n';
 import { loadCreds } from '@/lib/xtream';
 import {
-  fetchProviderPlexToken, providerLinkMessage, markPlexProviderLinked, isPlexProviderLinked, isProviderServer,
+  fetchProviderPlexToken, providerLinkMessage, inactiveLineMessage, markPlexProviderLinked, isPlexProviderLinked, isProviderServer,
   providerLineInactive,
 } from '@/lib/plexProvider';
 
@@ -250,7 +251,7 @@ export function usePlexAuth() {
       }
       const servers = await getPlexServers(accountToken, { fresh: true });
       if (!servers.length) {
-        setError('No Plex Media Server is linked to this Plex account.');
+        setError(i18n.t('plex.authErrors.noServer'));
         setStatus('unreachable');
         return 'failed';
       }
@@ -277,11 +278,11 @@ export function usePlexAuth() {
           setConn(c); setStatus('ready'); return 'ok';
         }
       }
-      setError(`Signed in — found ${ordered.length} server${ordered.length === 1 ? '' : 's'} (${ordered.map((s) => s.name).join(', ')}) but none are reachable from this device right now. Check the server is online and Remote Access is enabled, then tap Retry.`);
+      setError(i18n.t('plex.authErrors.noneReachable', { count: ordered.length, names: ordered.map((s) => s.name).join(', ') }));
       setStatus('unreachable');
       return 'failed';
     } catch (e) {
-      const msg = (e as Error).message || 'Failed to reach Plex.';
+      const msg = (e as Error).message || i18n.t('plex.authErrors.failedToReach');
       setError(msg);
       setStatus('unreachable');
       // plex.tv answered 401: the token is dead, not the network.
@@ -362,7 +363,7 @@ export function usePlexAuth() {
           // reportAuthFailure). Any other failure may be passing, so it is
           // not remembered and the next failed request can try again.
           authRepairTokenRef.current = r.token;
-          setProviderNote('Plex rejected the provider token. Ask your provider to refresh it.');
+          setProviderNote(i18n.t('plex.authErrors.tokenRejected'));
           setStatus(fallback);
           return false;
         }
@@ -398,7 +399,7 @@ export function usePlexAuth() {
     if (!inactive || cancelledRef.current) return false;
     await resetLocal();
     await markPlexProviderLinked(false);
-    setProviderNote(`Your Live TV subscription is ${inactive}. Renew it to keep Plex.`);
+    setProviderNote(inactiveLineMessage(inactive));
     setStatus('signed-out');
     return true;
   }, [resetLocal]);
@@ -585,7 +586,7 @@ export function usePlexAuth() {
           clearPoll();
           startingRef.current = false;
           setPinCode(null);
-          setError('That sign-in code expired. Choose Try again to get a new one.');
+          setError(i18n.t('plex.authErrors.codeExpired'));
           setStatus('error');
           return;
         }
@@ -613,7 +614,7 @@ export function usePlexAuth() {
       pollRef.current = window.setTimeout(() => { void poll(); }, 2500);
     } catch (e) {
       startingRef.current = false;
-      setError((e as Error).message || 'Could not start Plex sign-in.');
+      setError((e as Error).message || i18n.t('plex.authErrors.couldNotStart'));
       setStatus('error');
     }
   }, [discover]);

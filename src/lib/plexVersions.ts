@@ -7,6 +7,7 @@
 // server is clearly too slow for the 4K file say so and start the 1080p one
 // instead. The viewer can always pick 4K anyway, and change it in the
 // player's Quality menu.
+import i18n from '@/i18n';
 import { formatMbps } from '@/lib/bufferDiagnostics';
 import { plexDirectUrl, resolutionLabel, type PlexVersion } from '@/lib/plex';
 
@@ -38,8 +39,8 @@ export function sortVersions(list: PlexVersion[]): PlexVersion[] {
 /** What a version is called on a button: "4K", or "1080p · 8 Mb/s" when two
  *  versions share a resolution. */
 export function versionName(v: PlexVersion, all: PlexVersion[]): string {
-  const base = v.label || 'Original';
-  const twin = all.some((o) => o.id !== v.id && (o.label || 'Original') === base);
+  const base = v.label || i18n.t('plex.versions.original');
+  const twin = all.some((o) => o.id !== v.id && (o.label || '') === (v.label || ''));
   return twin && v.bitrateKbps ? `${base} · ${formatMbps(v.bitrateKbps)}` : base;
 }
 
@@ -86,8 +87,8 @@ export function speedVerdict(v: PlexVersion | null | undefined, haveKbps: number
  * its average is what "more in busy scenes" stands for).
  */
 export function speedWarning(v: PlexVersion, verdict: SpeedVerdict): string {
-  const what = v.label ? `This ${v.label} file` : 'This file';
-  return `${what} averages ~${mbps(verdict.fileKbps)} Mb/s, more in busy scenes; this TV measured ~${mbps(verdict.haveKbps)} Mb/s from the Plex server`;
+  const params = { label: v.label, file: mbps(verdict.fileKbps), have: mbps(verdict.haveKbps) };
+  return v.label ? i18n.t('plex.versions.speedWarning', params) : i18n.t('plex.versions.speedWarningNoLabel', params);
 }
 const mbps = (kbps: number): string => (kbps >= 10000 ? String(Math.round(kbps / 1000)) : (Math.round(kbps / 100) / 10).toFixed(1).replace(/\.0$/, ''));
 

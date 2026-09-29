@@ -5,6 +5,7 @@
 // job covers the app-closed case with a system notification.
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { PartyPopper } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { checkRequests, hasPendingRequests, type ReadyRequest } from '@/lib/overseerr';
@@ -24,6 +25,7 @@ let unshown: ReadyRequest[] = [];
 interface Props { onWatch: () => void }
 
 const RequestReadyDialog = ({ onWatch }: Props) => {
+  const { t } = useTranslation();
   const [ready, setReady] = useState<ReadyRequest[]>([]);
   const [focus, setFocus] = useState<'watch' | 'ok'>('watch');
   const watchRef = useRef<HTMLButtonElement>(null);
@@ -61,8 +63,8 @@ const RequestReadyDialog = ({ onWatch }: Props) => {
   useEffect(() => {
     if (!open) return;
     setFocus('watch');
-    const t = setTimeout(() => watchRef.current?.focus(), 50);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => watchRef.current?.focus(), 50);
+    return () => clearTimeout(timer);
   }, [open]);
 
   useEffect(() => {
@@ -86,7 +88,9 @@ const RequestReadyDialog = ({ onWatch }: Props) => {
   if (!open) return null;
   const first = ready[0];
   const names = ready.map((r) => r.title);
-  const line = names.length === 1 ? `${names[0]} is ready to watch.` : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are ready to watch.`;
+  const line = names.length === 1
+    ? t('plex.ready.one', { title: names[0] })
+    : t('plex.ready.many', { titles: t('plex.ready.list', { first: names.slice(0, -1).join(', '), last: names[names.length - 1] }) });
   const ring = (f: 'watch' | 'ok') => (focus === f ? 'ring-4 ring-brand-ice scale-105' : '');
 
   return (
@@ -99,17 +103,17 @@ const RequestReadyDialog = ({ onWatch }: Props) => {
           <DialogHeader className="text-left">
             <div className="flex items-center gap-2 mb-1">
               <PartyPopper className="w-6 h-6 text-brand-gold" />
-              <DialogTitle className="text-2xl text-white">Your request is on Plex</DialogTitle>
+              <DialogTitle className="text-2xl text-white">{t('plex.ready.title')}</DialogTitle>
             </div>
             <DialogDescription className="text-slate-300 text-base">{line}</DialogDescription>
           </DialogHeader>
         </div>
         <div className="grid grid-cols-2 gap-3 mt-2">
           <Button ref={watchRef} variant="gold" onClick={() => { dismiss(); onWatch(); }} onFocus={() => setFocus('watch')} className={`h-12 text-base font-semibold ${ring('watch')}`}>
-            Watch in Plex
+            <span className="min-w-0 truncate">{t('plex.ready.watchBtn')}</span>
           </Button>
           <Button ref={okRef} variant="outline" onClick={dismiss} onFocus={() => setFocus('ok')} className={`h-12 text-base bg-slate-800 border-slate-600 text-white hover:bg-slate-700 ${ring('ok')}`}>
-            OK
+            {t('common.ok')}
           </Button>
         </div>
       </DialogContent>

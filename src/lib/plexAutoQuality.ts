@@ -25,6 +25,7 @@
 import { PLEX_QUALITY_PRESETS, type PlexRoute, type PlexVersion } from '@/lib/plex';
 import type { DiagSnapshot } from '@/lib/bufferDiagnostics';
 import { sortVersions } from '@/lib/plexVersions';
+import i18n from '@/i18n';
 
 /** Automatic steps never go below this preset. */
 export const AUTO_FLOOR_PRESET = '720-3';
@@ -74,6 +75,8 @@ export interface QualityStep {
   presetKey: string;
   /** The file played as-is (originals only). */
   versionId?: string;
+  /** Preset steps: the preset's label. File steps: the file's resolution
+   *  ("4K"), or '' when it has none. Never shown as it is: see stepName. */
   label: string;
   /** Bitrate of the step, kbps (unknown for a file without one). */
   kbps?: number;
@@ -83,9 +86,13 @@ export interface QualityStep {
  *  "original quality". */
 export function stepName(step: QualityStep): string {
   if (step.presetKey !== 'original') return step.label;
-  const name = step.label.replace(' (original)', '');
-  return !name || name === 'Original' ? 'original quality' : name;
+  return step.label || i18n.t('plex.quality.originalQuality');
 }
+
+/** A preset's name for a menu. The plain "original" preset is worded here
+ *  (its English label lives in plex.ts); the converted ones are numbers only. */
+export const qualityPresetLabel = (p: { key: string; label: string }): string =>
+  (p.key === 'original' ? i18n.t('plex.quality.originalDirect') : p.label);
 
 /** The lowest preset automatic quality goes to on this route. */
 export const floorPresetFor = (route?: PlexRoute | null): string => (route === 'relay' ? RELAY_PRESET : AUTO_FLOOR_PRESET);
@@ -102,8 +109,8 @@ const presetKbps = (key: string): number | undefined => PLEX_QUALITY_PRESETS.fin
 export function buildQualityLadder(versions: PlexVersion[], fileKbps?: number, floor: string = AUTO_FLOOR_PRESET): QualityStep[] {
   const files = sortVersions(versions).sort((a, b) => (b.bitrateKbps ?? 0) - (a.bitrateKbps ?? 0));
   const steps: QualityStep[] = files.length > 1
-    ? files.map((v) => ({ key: `original@${v.id}`, presetKey: 'original', versionId: v.id, label: `${v.label || 'Original'} (original)`, kbps: v.bitrateKbps }))
-    : [{ key: 'original', presetKey: 'original', versionId: files[0]?.id, label: 'Original', kbps: files[0]?.bitrateKbps ?? fileKbps }];
+    ? files.map((v) => ({ key: `original@${v.id}`, presetKey: 'original', versionId: v.id, label: v.label || '', kbps: v.bitrateKbps }))
+    : [{ key: 'original', presetKey: 'original', versionId: files[0]?.id, label: '', kbps: files[0]?.bitrateKbps ?? fileKbps }];
   const known = steps.map((s) => s.kbps).filter((k): k is number => !!k && k > 0);
   const lightest = known.length ? Math.min(...known) : undefined;
   const ceiling = lightest ? lightest * 0.8 : 8000;
@@ -376,19 +383,19 @@ export interface AutoPreview {
  * under a pick off the ladder) when the speed allows.
  */
 export function autoQualityNote(ladder: QualityStep[], index: number, preview: AutoPreview): string {
-  if (preview.keepsFile) return 'Auto quality: keeps the original — your internet is fast enough for it';
-  if (preview.next) return `Auto quality: will lower to ${stepName(preview.next)} if it keeps stalling`;
+  if (preview.keepsFile) return i18n.t('plex.quality.autoKeepsFile');
+  if (preview.next) return i18n.t('plex.quality.autoWillLower', { step: stepName(preview.next) });
   const pick = preview.manualKey;
-  if (!pick) return 'Auto quality: already at its lowest step';
+  if (!pick) return i18n.t('plex.quality.autoLowest');
   // Best first; under the floor (-1) is past the end.
   const pos = (i: number): number => (i < 0 ? ladder.length : i);
   // The highest step raising may reach: the pick, or the one just under it.
   const up = Math.ceil(pos(ladderIndex(ladder, pick)));
   if (pos(index) <= up) {
-    const label = PLEX_QUALITY_PRESETS.find((p) => p.key === pick)?.label ?? pick;
-    return `Auto quality off for this title (you picked ${label})`;
+    const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === pick);
+    return i18n.t('plex.quality.autoOff', { pick: preset ? qualityPresetLabel(preset) : pick });
   }
-  return `Auto quality: at its lowest step (goes back up to ${stepName(ladder[up])} when the speed allows)`;
+  return i18n.t('plex.quality.autoAtLowest', { step: stepName(ladder[up]) });
 }
 
 /**

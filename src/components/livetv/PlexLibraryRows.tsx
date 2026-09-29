@@ -27,6 +27,8 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import PlexPosterTile from './PlexPosterTile';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { focusBackdrop } from '@/lib/plexBackdrop';
 import { revealPlexRail } from '@/lib/plexReveal';
 import { isDemo } from '@/lib/demoMode';
@@ -91,6 +93,7 @@ const PlexLibraryRows = memo(({
   isActive, isCurrent, base, token, libKey, libTitle, sectionType,
   onOpen, onExitToTabs, watchNonce = 0, serverResume = false,
 }: PlexLibraryRowsProps) => {
+  const { t } = useTranslation();
   const specs = useMemo(() => libraryRowSpecs(sectionType), [sectionType]);
 
   // Seed synchronously from the hub cache so a revisit paints with no flash.
@@ -188,30 +191,30 @@ const PlexLibraryRows = memo(({
   }, [zone, metaTried, base, token, libKey]);
 
   const sortOptions = useMemo(
-    () => availableSorts(meta?.sorts ?? []).map((x) => ({ key: x.key, title: x.title })),
-    [meta],
+    () => availableSorts(meta?.sorts ?? [], (key, options) => t(key, options)).map((x) => ({ key: x.key, title: x.title })),
+    [meta, t],
   );
 
   const chips = useMemo(() => {
     const out: Array<{ id: string; label: string; set: boolean }> = [];
     out.push({
       id: 'sort',
-      label: `Sort: ${sortOptions.find((o) => o.key === filters.sort)?.title ?? 'Default'}`,
+      label: t('plex.library.sortChip', { value: sortOptions.find((o) => o.key === filters.sort)?.title ?? t('plex.library.defaultValue') }),
       set: !!filters.sort,
     });
     if (!meta || findFilter(meta.filters, 'genre')) {
-      out.push({ id: 'genre', label: `Genre: ${filters.genre?.title ?? 'All'}`, set: !!filters.genre });
+      out.push({ id: 'genre', label: t('plex.library.genreChip', { value: filters.genre?.title ?? t('plex.library.allValue') }), set: !!filters.genre });
     }
     if (!meta || findFilter(meta.filters, 'year') || findFilter(meta.filters, 'decade')) {
-      out.push({ id: 'year', label: `Year: ${filters.year?.title ?? 'All'}`, set: !!filters.year });
+      out.push({ id: 'year', label: t('plex.library.yearChip', { value: filters.year?.title ?? t('plex.library.allValue') }), set: !!filters.year });
     }
     if (!meta || findFilter(meta.filters, 'contentRating')) {
-      out.push({ id: 'contentRating', label: `Rated: ${filters.contentRating?.title ?? 'All'}`, set: !!filters.contentRating });
+      out.push({ id: 'contentRating', label: t('plex.library.ratedChip', { value: filters.contentRating?.title ?? t('plex.library.allValue') }), set: !!filters.contentRating });
     }
-    out.push({ id: 'unwatched', label: `Unwatched: ${filters.unwatched ? 'On' : 'Off'}`, set: filters.unwatched });
-    if (filtering) out.push({ id: 'clear', label: 'Clear', set: false });
+    out.push({ id: 'unwatched', label: t('plex.library.unwatchedChip', { value: filters.unwatched ? t('plex.library.on') : t('plex.library.off') }), set: filters.unwatched });
+    if (filtering) out.push({ id: 'clear', label: t('plex.library.clearChip'), set: false });
     return out;
-  }, [meta, filters, sortOptions, filtering]);
+  }, [meta, filters, sortOptions, filtering, t]);
 
   // Chip focus by stable id — the Clear chip appears and disappears, and the
   // rest appear only once the vocabulary resolves, so an index would drift.
@@ -437,7 +440,7 @@ const PlexLibraryRows = memo(({
   // Open a chip's menu, fetching its vocabulary once.
   const openMenu = useCallback(async (chip: string) => {
     if (chip === 'sort') {
-      const opts: PlexFilterValue[] = [{ key: '', title: 'Default order' }, ...sortOptions];
+      const opts: PlexFilterValue[] = [{ key: '', title: i18n.t('plex.library.defaultOrder') }, ...sortOptions];
       setMenu({ chip, options: opts, idx: Math.max(0, opts.findIndex((o) => o.key === filters.sort)) });
       return;
     }
@@ -447,7 +450,7 @@ const PlexLibraryRows = memo(({
     // buildLibraryQuery never sees it because applyMenuChoice deletes the
     // whole field instead of storing it.
     const withAll = (opts: PlexFilterValue[]): PlexFilterValue[] =>
-      [{ key: '', title: 'All' }, ...opts];
+      [{ key: '', title: i18n.t('plex.library.allValue') }, ...opts];
 
     const cached = values[chip];
     if (cached) {
@@ -737,7 +740,7 @@ const PlexLibraryRows = memo(({
             </div>
           );
         })}
-        <span className="ml-auto text-xs text-brand-ice/50 font-nunito">◀ ▶ pick · OK opens · ▼ list</span>
+        <span className="ml-auto text-xs text-brand-ice/50 font-nunito">{t('plex.library.barHint')}</span>
       </div>
 
       {/* FILTER MENU. Capped and scrollable, and the focused row scrolls itself
@@ -748,13 +751,13 @@ const PlexLibraryRows = memo(({
         <div className="plex-rail rounded-plex-lg bg-black/90 border border-white/15 p-2 max-h-[60vh] overflow-y-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">
-              {chips.find((c) => c.id === menu.chip)?.label ?? 'Choose'}
+              {chips.find((c) => c.id === menu.chip)?.label ?? t('plex.library.choose')}
             </p>
-            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+            <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.library.menuHint')}</span>
           </div>
           {menu.options.length === 0 ? (
             <div className="px-3 py-3 text-sm font-nunito text-brand-ice/60">
-              Nothing to choose here for this library.
+              {t('plex.library.nothingToChoose')}
             </div>
           ) : (
             <div className="space-y-1">
@@ -788,21 +791,21 @@ const PlexLibraryRows = memo(({
         <div>
           <div className="flex items-baseline justify-between mb-3">
             <div className="text-base font-quicksand font-semibold text-white/90">
-              {describeFilters(filters, sortTitle) || 'Filtered'}
+              {describeFilters(filters, sortTitle) || t('plex.library.filtered')}
             </div>
             {results ? (
               <div className="text-sm font-nunito text-brand-ice/60">
                 {results.items.length < results.total
-                  ? `${results.items.length} of ${results.total} titles`
-                  : `${results.total} ${results.total === 1 ? 'title' : 'titles'}`}
+                  ? t('plex.library.titlesOf', { shown: results.items.length, count: results.total })
+                  : t('plex.library.titleCount', { count: results.total })}
               </div>
             ) : null}
           </div>
           {resultsLoading && !results ? (
-            <div className="text-brand-ice/70 font-nunito text-sm px-2">Searching {libTitle}…</div>
+            <div className="text-brand-ice/70 font-nunito text-sm px-2">{t('plex.library.searching', { lib: libTitle })}</div>
           ) : (results?.items.length ?? 0) === 0 ? (
             <div className="text-brand-ice/70 font-nunito text-sm px-2">
-              Nothing matches that. Press Up and change a filter, or pick Clear.
+              {t('plex.library.noMatch')}
             </div>
           ) : (
             <div className="grid grid-cols-7 gap-x-3 gap-y-5">
@@ -827,8 +830,8 @@ const PlexLibraryRows = memo(({
       {rows.length === 0 && (
         <div className="plex-rail text-brand-ice/70 font-nunito text-sm px-2">
           {allSettled
-            ? `Nothing to show in ${libTitle} yet. Use Sort above to browse everything.`
-            : `Loading ${libTitle}…`}
+            ? t('plex.library.nothingYet', { lib: libTitle })
+            : t('plex.library.loading', { lib: libTitle })}
         </div>
       )}
 
@@ -840,7 +843,7 @@ const PlexLibraryRows = memo(({
         if (ri < mountFrom || ri > mountTo) {
           return (
             <div key={r.spec.id} data-plex-row={r.spec.id} className="plex-rail">
-              <div className="plex-rail-head font-quicksand">{r.spec.title}</div>
+              <div className="plex-rail-head font-quicksand">{t(r.spec.titleKey)}</div>
               <div className="h-[212px]" aria-hidden="true" />
             </div>
           );
@@ -848,7 +851,7 @@ const PlexLibraryRows = memo(({
 
         return (
           <div key={r.spec.id} data-plex-row={r.spec.id} className="plex-rail">
-            <div className="plex-rail-head font-quicksand">{r.spec.title}</div>
+            <div className="plex-rail-head font-quicksand">{t(r.spec.titleKey)}</div>
             <div className="flex gap-3 overflow-x-auto py-2 px-2 -mx-2">
               {r.items.slice(0, railCount(ri)).map((it, ci) => (
                 <PlexPosterTile

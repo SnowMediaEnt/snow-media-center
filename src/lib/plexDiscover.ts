@@ -18,8 +18,29 @@ const AFTER = '%3E%3E';
 
 export interface DiscoverRow {
   id: string;
+  /** Heading text that is not ours to translate (a genre, a streaming service,
+   *  a holiday row the Hub named). Ignored when `titleKey` is set. */
   title: string;
+  /** Heading in our own words: a translation key, translated when drawn, so
+   *  a row kept in the cache follows the language. */
+  titleKey?: string;
+  titleParams?: Record<string, string | number>;
   items: PlexItem[];
+}
+
+/** A row from its id and the title that was kept with it (the cache keeps only
+ *  ids and one text per row). The fixed rows get their heading in the app's
+ *  language; genres and services keep the name they came with. */
+export function discoverRow(id: string, kept: string, items: PlexItem[]): DiscoverRow {
+  if (id === 'byw') return { id, title: kept, titleKey: 'plex.discover.because', titleParams: { title: kept }, items };
+  if (id === 'gems') return { id, title: kept, titleKey: 'plex.discover.gems', items };
+  if (id === 'random') return { id, title: kept, titleKey: 'plex.discover.random', items };
+  if (id === 'again') return { id, title: kept, titleKey: 'plex.discover.again', items };
+  if (id.startsWith('decade:')) {
+    const d = Number(id.slice(7));
+    return { id, title: kept, ...decadeHeading(d), items };
+  }
+  return { id, title: kept, items };
 }
 
 export const DISCOVER_RAIL_CAP = 40;
@@ -83,7 +104,7 @@ const fetchAcross = async (
  * (Similar, Same director …) for that title, flattened. Nothing to show
  * until something has been watched.
  */
-export async function becauseYouWatched(base: string, token: string): Promise<{ title: string; items: PlexItem[] } | null> {
+export async function becauseYouWatched(base: string, token: string): Promise<{ watched: string; items: PlexItem[] } | null> {
   const viewer = await currentViewer();
   const last = loadWatchHistory(viewer).find((e) => e.kind === 'plex' && e.plex?.ratingKey);
   if (!last?.plex) return null;
@@ -91,7 +112,7 @@ export async function becauseYouWatched(base: string, token: string): Promise<{ 
   if (!items.length) return null;
   // An episode's history entry carries the show as its title, which is the
   // name that reads right here.
-  return { title: `Because you watched ${last.title}`, items };
+  return { watched: last.title, items };
 }
 
 /** Well rated and never played here. The rating bound keeps unrated titles
@@ -161,7 +182,10 @@ export const genreRow = (base: string, token: string, libraries: PlexLibrary[], 
  *  bounds (python-plexapi __gte / __lte). The rows for decades the server
  *  has nothing from come back empty and are dropped. */
 export const DECADES = [2010, 2000, 1990, 1980, 1970] as const;
-export const decadeTitle = (d: number) => (d >= 2000 ? `${d}s Movies` : `'${String(d).slice(2)}s Movies`);
+/** "2010s Movies" / "'70s Movies", as a heading key and its values. */
+export const decadeHeading = (d: number): Pick<DiscoverRow, 'titleKey' | 'titleParams'> => (d >= 2000
+  ? { titleKey: 'plex.discover.decadeNew', titleParams: { decade: d } }
+  : { titleKey: 'plex.discover.decadeOld', titleParams: { decade: String(d).slice(2) } });
 export const decadeRow = (base: string, token: string, libraries: PlexLibrary[], decade: number) =>
   fetchAcross(base, token, libraries.filter((l) => l.type === 'movie'), () =>
     `type=1&year>=${decade}&year<=${decade + 9}&sort=random`);

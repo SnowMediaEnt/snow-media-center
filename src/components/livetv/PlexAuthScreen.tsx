@@ -1,4 +1,5 @@
 import { memo, useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Loader2, Tv, AlertTriangle, LogIn, WifiOff, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PlexStatus } from '@/hooks/usePlexAuth';
@@ -28,8 +29,14 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
   // A Kids profile gets one button on each: it signs nothing in or out (no
   // own-server code, no Sign out of Plex, no way to the Live TV sign-in).
   // Only the household's line links Plex, as it does on its own.
+  const { t } = useTranslation();
   const kids = !!kidsLevel();
   const [focusIdx, setFocusIdx] = useState(0);
+  const isSignedOut = status === 'signed-out';
+  const isLinking = status === 'linking';
+  const isConnecting = status === 'connecting';
+  const isUnreachable = status === 'unreachable';
+  const isError = status === 'error';
   const twoButtons = !kids && (status === 'unreachable' || (status === 'signed-out' && (providerAvailable || !!onNeedLiveTV)));
 
   useEffect(() => { setFocusIdx(0); }, [status, providerAvailable]);
@@ -77,31 +84,31 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
     <div className="min-h-screen flex items-center justify-center p-8 text-white">
       <div className="w-full max-w-lg rounded-3xl bg-slate-900/90 border border-white/10 p-8 text-center shadow-2xl">
         <div className="w-16 h-16 rounded-2xl bg-brand-gold/20 flex items-center justify-center mx-auto mb-5">
-          {status === 'unreachable' ? <WifiOff className="w-9 h-9 text-brand-gold" /> : status === 'error' ? <AlertTriangle className="w-9 h-9 text-brand-gold" /> : <Tv className="w-9 h-9 text-brand-gold" />}
+          {isUnreachable ? <WifiOff className="w-9 h-9 text-brand-gold" /> : isError ? <AlertTriangle className="w-9 h-9 text-brand-gold" /> : <Tv className="w-9 h-9 text-brand-gold" />}
         </div>
 
-        {(status === 'signed-out' && providerAvailable) && (
+        {(isSignedOut && providerAvailable) && (
           <>
-            <h2 className="text-2xl font-quicksand font-bold mb-2">Connect your Plex</h2>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">{t('plex.auth.connectTitle')}</h2>
             <p className={`text-brand-ice/80 font-nunito ${kids && !providerNote ? 'mb-6' : 'mb-2'}`}>
-              Plex comes with your Live TV account. Press <span className="text-brand-gold font-semibold">Connect with Live TV</span> and this device links itself. Snow Media members never need a code.
+              <Trans i18nKey="plex.auth.connectBody" components={{ 1: <span className="text-brand-gold font-semibold" /> }} />
             </p>
             {providerNote ? (
               <p className="text-brand-gold/90 font-nunito text-sm mb-6 max-w-sm mx-auto">{providerNote}</p>
             ) : kids ? null : (
               <p className="text-brand-ice/70 font-nunito text-sm mb-6">
-                The second button is only for people who run their own Plex server.
+                {t('plex.auth.secondButtonNote')}
               </p>
             )}
             <div className="flex items-center justify-center gap-3">
               <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onLinkWithProvider}
                 className={`tv-ring tv-ring-contrast relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 0 ? 'scale-105 z-10' : ''}`}>
-                <LogIn className="w-4 h-4 mr-2" /> Connect with Live TV
+                <LogIn className="w-4 h-4 mr-2 shrink-0" /> <span className="min-w-0 truncate">{t('plex.auth.connectBtn')}</span>
               </Button>
               {!kids && (
                 <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onStartLink}
                   className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}>
-                  I run my own Plex server
+                  <span className="min-w-0 truncate">{t('plex.auth.ownServerBtn')}</span>
                 </Button>
               )}
             </div>
@@ -109,103 +116,103 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
         )}
 
         {/* Kids, no line on the box: who to ask, and Back. */}
-        {(status === 'signed-out' && !providerAvailable && kids) && (
+        {(isSignedOut && !providerAvailable && kids) && (
           <>
-            <h2 className="text-2xl font-quicksand font-bold mb-2">Ask a grown-up to sign in to Live TV</h2>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">{t('plex.auth.kidsTitle')}</h2>
             <p className="text-brand-ice/80 font-nunito mb-6">
-              Plex comes with Live TV. Once a grown-up has signed in, Plex connects here on its own.
+              {t('plex.auth.kidsBody')}
             </p>
             <Button variant="gold" data-focused="true" onClick={onCancel}
               className="tv-ring tv-ring-contrast relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out scale-105 z-10">
-              <ArrowLeft className="w-4 h-4 mr-2" /> Back
+              <ArrowLeft className="w-4 h-4 mr-2 shrink-0" /> <span className="min-w-0 truncate">{t('common.back')}</span>
             </Button>
           </>
         )}
 
-        {(status === 'signed-out' && !providerAvailable && !kids) && (
+        {(isSignedOut && !providerAvailable && !kids) && (
           <>
-            <h2 className="text-2xl font-quicksand font-bold mb-2">Sign into Live TV first</h2>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">{t('plex.auth.signInFirstTitle')}</h2>
             <p className="text-brand-ice/80 font-nunito mb-2">
-              Plex comes with your Live TV account. Sign into Live TV in the Player, then come back here and Plex connects on its own. Snow Media members never need a code.
+              {t('plex.auth.signInFirstBody')}
             </p>
             <p className="text-brand-ice/70 font-nunito text-sm mb-6">
-              The second button is only for people who run their own Plex server.
+              {t('plex.auth.secondButtonNote')}
             </p>
             <div className="flex items-center justify-center gap-3">
               {onNeedLiveTV && (
                 <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onNeedLiveTV}
                   className={`tv-ring tv-ring-contrast relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 0 ? 'scale-105 z-10' : ''}`}>
-                  <LogIn className="w-4 h-4 mr-2" /> Sign into Live TV
+                  <LogIn className="w-4 h-4 mr-2 shrink-0" /> <span className="min-w-0 truncate">{t('plex.auth.signInLiveTvBtn')}</span>
                 </Button>
               )}
               <Button variant={onNeedLiveTV ? 'white' : 'gold'} data-focused={focusIdx === (onNeedLiveTV ? 1 : 0) ? 'true' : 'false'} onClick={onStartLink}
                 className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${onNeedLiveTV ? '' : 'tv-ring-contrast'} ${focusIdx === (onNeedLiveTV ? 1 : 0) ? 'scale-105 z-10' : ''}`}>
-                I run my own Plex server
+                <span className="min-w-0 truncate">{t('plex.auth.ownServerBtn')}</span>
               </Button>
             </div>
           </>
         )}
 
-        {status === 'linking' && (
+        {isLinking && (
           <>
-            <h2 className="text-2xl font-quicksand font-bold mb-2">Link this device</h2>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">{t('plex.auth.linkTitle')}</h2>
             <p className="text-brand-ice/70 font-nunito mb-4">
-              On your phone or computer, go to <span className="text-brand-gold font-semibold">plex.tv/link</span> and enter this code:
+              <Trans i18nKey="plex.auth.linkBody" components={{ 1: <span className="text-brand-gold font-semibold" /> }} />
             </p>
             <div className="text-5xl font-quicksand font-black tracking-[0.3em] text-white bg-black/40 rounded-2xl py-6 mb-4 select-all">
               {pinCode || '····'}
             </div>
             <div className="flex items-center justify-center gap-2 text-brand-ice/70 font-nunito text-sm mb-3">
-              <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Waiting for you to sign in…
+              <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> {t('plex.auth.waiting')}
             </div>
             <p className="text-brand-ice/70 font-nunito text-sm mb-6 max-w-sm mx-auto">
-              Enter it signed into the Plex account that owns your server. Codes expire in about 10 minutes.
-              <span className="block mt-2 text-brand-gold/90">Snow Media member? You do not need a code. Press Cancel and use Connect with Live TV.</span>
+              {t('plex.auth.linkNote')}
+              <span className="block mt-2 text-brand-gold/90">{t('plex.auth.memberNote')}</span>
             </p>
             <Button variant="white" autoFocus data-focused="true" onClick={onCancel} className="tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out scale-105 z-10">
-              Cancel
+              {t('common.cancel')}
             </Button>
           </>
         )}
 
-        {status === 'connecting' && (
+        {isConnecting && (
           <>
-            <h2 className="text-2xl font-quicksand font-bold mb-2">Connecting…</h2>
-            <p className="text-brand-ice/70 font-nunito mb-4">Finding your Plex server.</p>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">{t('plex.auth.connectingTitle')}</h2>
+            <p className="text-brand-ice/70 font-nunito mb-4">{t('plex.auth.connectingBody')}</p>
             <Loader2 className="w-8 h-8 animate-spin text-brand-gold mx-auto" />
           </>
         )}
 
-        {status === 'unreachable' && (
+        {isUnreachable && (
           <>
-            <h2 className="text-2xl font-quicksand font-bold mb-2">Can't reach your Plex server</h2>
-            <p className={`text-brand-ice/80 font-nunito text-sm ${kids ? 'mb-6' : 'mb-4'}`}>{error || 'Your Plex server did not respond.'}</p>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">{t('plex.auth.unreachableTitle')}</h2>
+            <p className={`text-brand-ice/80 font-nunito text-sm ${kids ? 'mb-6' : 'mb-4'}`}>{error || t('plex.auth.unreachableFallback')}</p>
             {!kids && (
               <p className="text-brand-ice/70 font-nunito text-sm mb-6 max-w-sm mx-auto">
-                Wrong account? If you signed in with your personal Plex account by mistake, sign out and choose Connect with Live TV instead.
+                {t('plex.auth.wrongAccount')}
               </p>
             )}
             <div className="flex items-center justify-center gap-3">
               <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onRetry}
                 className={`tv-ring tv-ring-contrast relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 0 ? 'scale-105 z-10' : ''}`}>
-                Retry connection
+                <span className="min-w-0 truncate">{t('plex.auth.retryBtn')}</span>
               </Button>
               {!kids && (
                 <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onSignOut}
                   className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}>
-                  Sign out of Plex
+                  <span className="min-w-0 truncate">{t('plex.auth.signOutBtn')}</span>
                 </Button>
               )}
             </div>
           </>
         )}
 
-        {status === 'error' && (
+        {isError && (
           <>
-            <h2 className="text-2xl font-quicksand font-bold mb-2">Plex connection problem</h2>
-            <p className="text-brand-ice/80 font-nunito text-sm mb-6">{error || 'Something went wrong.'}</p>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">{t('plex.auth.errorTitle')}</h2>
+            <p className="text-brand-ice/80 font-nunito text-sm mb-6">{error || t('plex.auth.errorFallback')}</p>
             <Button variant="gold" autoFocus data-focused="true" onClick={kids ? onRetry : onStartLink} className="tv-ring tv-ring-contrast relative h-12 rounded-xl px-8 transition-transform duration-150 ease-out scale-105 z-10">
-              Try again
+              {t('common.tryAgain')}
             </Button>
           </>
         )}
