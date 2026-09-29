@@ -45,7 +45,7 @@
       "launchingDesc": "{{name}} wird geöffnet...",
       "launchFailedTitle": "Start fehlgeschlagen",
       "launchFailedDesc": "{{name}} konnte nicht gestartet werden. Ist die App installiert?",
-      "exitTitle": "Drücke nochmal Zurück zum Beenden",
+      "exitTitle": "Zum Beenden erneut Zurück drücken",
       "exitDesc": "Drücke die Zurück-Taste noch einmal, um die App zu schließen",
       "installTitle": "{{name}} installieren",
       "installDesc": "Haupt-Apps werden geöffnet, damit du sie herunterladen kannst.",
@@ -64,7 +64,7 @@
       "demoTitle": "Live-Demo"
     },
     "badges": {
-      "trendingChip": "TRENDS",
+      "trendingChip": "ANGESAGT",
       "continueChip": "WEITER",
       "liveChip": "LIVE",
       "forYouChip": "FÜR DICH"
@@ -79,7 +79,7 @@
     "clock": {
       "updateTitle": "Update verfügbar: v{{version}}",
       "updateTitleShort": "Update verfügbar",
-      "updateAria": "Update verfügbar — öffne Einstellungen → Updates"
+      "updateAria": "Update verfügbar – öffne Einstellungen → Updates"
     },
     "notFound": {
       "title": "Hoppla! Seite nicht gefunden",
@@ -103,7 +103,7 @@
       "supportVideosTitle": "Support-Videos",
       "supportVideosDesc": "Schritt-für-Schritt-Videos zu Geräten und Diensten.",
       "chatTitle": "Chat & Community",
-      "chatDesc": "Sende Tickets für Hilfe oder Fragen — auch KI-Chat verfügbar.",
+      "chatDesc": "Sende Tickets für Hilfe oder Fragen – auch KI-Chat verfügbar.",
       "signInNote": "Melde dich mit deinem Konto von <1>snowmediaent.com</1> an oder erstelle ein neues, um Käufe und Snow Gems im Blick zu behalten.",
       "whatsNew": "Neu in v{{version}}",
       "scrollHint": "▲ ▼ scrollen · OK schließen",

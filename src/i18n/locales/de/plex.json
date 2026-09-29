@@ -5,7 +5,7 @@
       "connectBody": "Plex ist in deinem Live-TV-Konto enthalten. Drücke <1>Mit Live-TV verbinden</1> und dieses Gerät verbindet sich von selbst. Snow-Media-Mitglieder brauchen nie einen Code.",
       "secondButtonNote": "Die zweite Schaltfläche ist nur für Leute mit eigenem Plex-Server.",
       "connectBtn": "Mit Live-TV verbinden",
-      "ownServerBtn": "Ich habe einen eigenen Server",
+      "ownServerBtn": "Ich habe einen eigenen Plex-Server",
       "kidsTitle": "Bitte einen Erwachsenen, sich bei Live-TV anzumelden",
       "kidsBody": "Plex ist in Live-TV enthalten. Sobald sich ein Erwachsener angemeldet hat, verbindet sich Plex hier von selbst.",
       "signInFirstTitle": "Melde dich zuerst bei Live-TV an",
@@ -16,8 +16,8 @@
       "waiting": "Warte auf deine Anmeldung…",
       "linkNote": "Gib ihn mit dem Plex-Konto ein, dem dein Server gehört. Codes laufen nach etwa 10 Minuten ab.",
       "memberNote": "Snow-Media-Mitglied? Du brauchst keinen Code. Drücke Abbrechen und nutze Mit Live-TV verbinden.",
-      "connectingTitle": "Verbinde…",
-      "connectingBody": "Suche deinen Plex-Server.",
+      "connectingTitle": "Wird verbunden…",
+      "connectingBody": "Dein Plex-Server wird gesucht.",
       "unreachableTitle": "Plex-Server nicht erreichbar",
       "unreachableFallback": "Dein Plex-Server hat nicht geantwortet.",
       "wrongAccount": "Falsches Konto? Falls du dich versehentlich mit deinem privaten Plex-Konto angemeldet hast, melde dich ab und wähle stattdessen Mit Live-TV verbinden.",
@@ -85,9 +85,9 @@
       "minMax": "(min {{min}}, max {{max}})"
     },
     "buffering": {
-      "checking": "Prüfe…",
+      "checking": "Wird geprüft…",
       "headline": "Puffert…",
-      "measuring": "Messe deine Verbindung…",
+      "measuring": "Deine Verbindung wird gemessen…",
       "backToNormal": "Wieder normal",
       "timer": "Puffert · {{seconds}} s",
       "now": "Jetzt",
@@ -143,7 +143,7 @@
       "confirmTitle": "{{title}} anfragen?",
       "confirmShow": "Alle Staffeln werden angefragt.",
       "confirmMovie": "Der Film kommt in die Anfrage-Warteschlange.",
-      "requestingBtn": "Frage an…",
+      "requestingBtn": "Wird angefragt…",
       "requestBtn": "Anfragen"
     },
     "episode": {
@@ -173,7 +173,7 @@
         "subsFailed": "Untertitel konnten nicht geladen werden.",
         "fixingAudio": "Ton wird repariert – nur der Ton wird umgewandelt…",
         "screenFormat": "Bildformat: {{format}}",
-        "switching": "Wechsle zu {{name}}…"
+        "switching": "Wechsel zu {{name}}…"
       },
       "osdlUnreachable": "OpenSubtitles ist nicht erreichbar.",
       "upNext": "Als Nächstes",
@@ -197,7 +197,7 @@
       "menuHintSlider": "◀ ▶ · OK · Zurück",
       "noTracks": "Keine Spuren",
       "fixAudio": "Ton reparieren (kein Ton?)",
-      "volumeBoost": "{{pct}}% · Verstärkt",
+      "volumeBoost": "{{pct}} % · Verstärkt",
       "format": {
         "fit": "Einpassen",
         "zoom": "Zoom",
@@ -211,7 +211,7 @@
         "fill": "Füllt den Bildschirm, Form egal"
       },
       "yourSpeed": "Deine Geschwindigkeit:",
-      "searching": "Suche…",
+      "searching": "Wird gesucht…",
       "noSubs": "Keine Untertitel gefunden.",
       "connection": "Verbindung:",
       "subsOff": "Aus",
@@ -228,13 +228,13 @@
       "timeLeft": "noch {{time}}",
       "watched": "✓ Gesehen",
       "speedFine": "deine Geschwindigkeit reicht dafür",
-      "speedChecking": "prüfe deine Geschwindigkeit…",
+      "speedChecking": "Geschwindigkeit wird geprüft…",
       "browseBtn": "Folgen ansehen",
-      "checkingBtn": "Prüfe Tempo…",
+      "checkingBtn": "Tempo wird geprüft…",
       "playNamedBtn": "{{name}} abspielen",
       "play": "Abspielen",
-      "resumeBtn": "Weiter {{time}}",
-      "inListBtn": "In Meiner Liste",
+      "resumeBtn": "Fortsetzen {{time}}",
+      "inListBtn": "In meiner Liste",
       "listBtn": "Meine Liste",
       "ratingOutOf": "/10 Bewertung",
       "critics": "Kritiker",
@@ -263,9 +263,9 @@
         "aired": "Kürzlich ausgestrahlt",
         "added": "Kürzlich hinzugefügt",
         "unwatchedMovies": "Noch nicht gesehen",
-        "unwatchedShows": "Noch nicht fertig",
+        "unwatchedShows": "Nicht zu Ende geschaut",
         "top": "Am besten bewertet",
-        "again": "Nochmal ansehen"
+        "again": "Noch mal ansehen"
       },
       "episodeCode": "S{{season}} F{{episode}}",
       "unwatched": "Ungesehen",
@@ -283,7 +283,7 @@
       "sortChip": "Sortierung: {{value}}",
       "genreChip": "Genre: {{value}}",
       "yearChip": "Jahr: {{value}}",
-      "ratedChip": "FSK: {{value}}",
+      "ratedChip": "Freigabe: {{value}}",
       "unwatchedChip": "Ungesehen: {{value}}",
       "clearChip": "Löschen",
       "defaultValue": "Standard",
@@ -296,10 +296,10 @@
       "menuHint": "▲▼ · OK · Zurück",
       "nothingToChoose": "Hier gibt es für diese Mediathek nichts auszuwählen.",
       "filtered": "Gefiltert",
-      "searching": "Suche in {{lib}}…",
+      "searching": "{{lib}} wird durchsucht…",
       "noMatch": "Nichts passt dazu. Drücke Hoch und ändere einen Filter oder wähle Löschen.",
       "nothingYet": "In {{lib}} gibt es noch nichts zu sehen. Nutze oben die Sortierung, um alles zu durchstöbern.",
-      "loading": "Lade {{lib}}…",
+      "loading": "{{lib}} wird geladen…",
       "titlesOf_one": "{{shown}} von {{count}} Titel",
       "titlesOf_other": "{{shown}} von {{count}} Titeln",
       "titleCount_one": "{{count}} Titel",
@@ -320,11 +320,11 @@
       "again": "Wiederentdecken",
       "decadeNew": "Filme der {{decade}}er",
       "decadeOld": "Filme der {{decade}}er",
-      "finding": "Suche etwas zum Anschauen…",
+      "finding": "Wir suchen etwas zum Anschauen…",
       "nothing": "Noch nichts zu entdecken – dieser Server hat keine Mediatheken."
     },
     "seasonal": {
-      "gathering": "Sammle die {{season}}-Kollektion…",
+      "gathering": "{{season}}-Kollektion wird zusammengestellt…",
       "none": "Von der {{season}}-Kollektion ist noch nichts auf diesem Server."
     },
     "menu": {
@@ -352,7 +352,7 @@
       "movieNotOnPlex": "Film · noch nicht auf Plex",
       "confirmShow": "Frag es an, und alle Staffeln werden zu Plex hinzugefügt, meist innerhalb weniger Stunden. Wir sagen dir Bescheid, wenn es bereit ist.",
       "confirmMovie": "Frag ihn an, und er wird zu Plex hinzugefügt, meist innerhalb weniger Stunden. Wir sagen dir Bescheid, wenn er bereit ist.",
-      "sendingBtn": "Sende…",
+      "sendingBtn": "Wird gesendet…",
       "requestedChip": "Angefragt",
       "beingAddedChip": "Wird hinzugefügt",
       "partlyChip": "Teils auf Plex",
@@ -384,7 +384,7 @@
       "showHide": "Mediatheken ein- / ausblenden",
       "hidden": "Ausgeblendet",
       "visible": "Sichtbar",
-      "confirmSignOut": "Drücke nochmal OK zum Abmelden – zum erneuten Anmelden brauchst du einen neuen Code"
+      "confirmSignOut": "Drücke noch einmal OK zum Abmelden – zum erneuten Anmelden brauchst du einen neuen Code"
     },
     "check": {
       "title": "Weiterschauen-Check",
@@ -449,7 +449,7 @@
       "aLowerQuality": "eine niedrigere Qualität",
       "sessionSoundOnly": "Ton wird umgewandelt (Bild unverändert)",
       "sessionOriginal": "Umwandlung in Originalqualität",
-      "connecting": "Verbinde mit Plex…",
+      "connecting": "Verbindung zu Plex…",
       "gettingReady": "Plex wird vorbereitet…",
       "serverLine": "Plex · {{name}}",
       "stillPreparing": "Noch in Vorbereitung…",
@@ -458,7 +458,7 @@
       "transcoding": "Umwandlung",
       "route": "Route: {{route}}",
       "menuHint": "▶ zu den Reihen · OK halten blendet eine Mediathek aus · Zurück beendet",
-      "finding": "Suche „{{title}}“ auf Plex…"
+      "finding": "„{{title}}“ wird auf Plex gesucht…"
     },
     "provider": {
       "authFailed": "Das Panel hat deine Live-TV-Anmeldung abgelehnt. Melde dich erneut bei Live-TV an und komm dann zurück.",
@@ -483,8 +483,8 @@
       "tokenRejected": "Plex hat das Token des Anbieters abgelehnt. Bitte deinen Anbieter, es zu erneuern.",
       "codeExpired": "Dieser Anmeldecode ist abgelaufen. Wähle Erneut versuchen, um einen neuen zu bekommen.",
       "couldNotStart": "Plex-Anmeldung konnte nicht gestartet werden.",
-      "noneReachable_one": "Angemeldet – {{count}} Server gefunden ({{names}}), aber er ist von diesem Gerät gerade nicht erreichbar. Prüfe, ob der Server online und der Fernzugriff aktiviert ist, und tippe auf Erneut versuchen.",
-      "noneReachable_other": "Angemeldet – {{count}} Server gefunden ({{names}}), aber keiner ist von diesem Gerät gerade erreichbar. Prüfe, ob der Server online und der Fernzugriff aktiviert ist, und tippe auf Erneut versuchen."
+      "noneReachable_one": "Angemeldet – {{count}} Server gefunden ({{names}}), aber er ist von diesem Gerät gerade nicht erreichbar. Prüfe, ob der Server online und der Fernzugriff aktiviert ist, und tippe auf Erneut verbinden.",
+      "noneReachable_other": "Angemeldet – {{count}} Server gefunden ({{names}}), aber keiner ist von diesem Gerät gerade erreichbar. Prüfe, ob der Server online und der Fernzugriff aktiviert ist, und tippe auf Erneut verbinden."
     },
     "stall": {
       "needs": "Dieses Video braucht etwa {{speed}}.",
@@ -508,7 +508,7 @@
       "quickDetail": "Es braucht etwa {{need}}.",
       "convertingHeadline": "Der Plex-Server wandelt dieses Video um",
       "convertingDetail": "Es kann ein paar Sekunden dauern, bis er Vorsprung hat.",
-      "checking": "Prüfe, was der Plex-Server sendet."
+      "checking": "Wir prüfen, was der Plex-Server sendet."
     }
   }
 }

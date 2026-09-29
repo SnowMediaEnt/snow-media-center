@@ -1,7 +1,7 @@
 {
   "common": {
     "signIn": "Mein Konto",
-    "dashboard": "Übersicht",
+    "dashboard": "Dashboard",
     "settings": "Einstellungen",
     "admin": "Admin",
     "back": "Zurück",
@@ -16,7 +16,7 @@
     "yes": "Ja",
     "no": "Nein",
     "loading": "Wird geladen…",
-    "tryAgain": "Versuch es erneut",
+    "tryAgain": "Erneut versuchen",
     "signInAction": "Anmelden",
     "signOut": "Abmelden",
     "relative": {

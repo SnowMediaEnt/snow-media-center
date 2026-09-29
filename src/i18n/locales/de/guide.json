@@ -2,8 +2,8 @@
   "guide": {
     "untitled": "Programm",
     "favorites": "Favoriten",
-    "buffering": "Puffern…",
-    "demoNotice": "Demo-Modus — Wiedergabe deaktiviert",
+    "buffering": "Wird gepuffert…",
+    "demoNotice": "Demo-Modus – Wiedergabe deaktiviert",
     "playbackError": "Wiedergabefehler",
     "volumeBack": "Lautst. {{pct}} % · Zurück zum Beenden",
     "loadingCategories": "Kategorien werden geladen…",
@@ -24,9 +24,9 @@
     "hint": "◀ ▶ Zeit verschieben · ▲ ▼ Sender · OK zum Abspielen · Zurück zum Beenden",
     "hintRecord": "◀ ▶ Zeit verschieben · ▲ ▼ Sender · OK zum Abspielen · OK halten zum Aufnehmen · Zurück zum Beenden",
     "toast": {
-      "mpvFallback": "MPV konnte auf diesem Gerät nicht starten — ExoPlayer wird verwendet",
+      "mpvFallback": "MPV konnte auf diesem Gerät nicht starten – ExoPlayer wird verwendet",
       "finished": "Diese Sendung ist beendet",
-      "recordingTitle": "Nimmt {{name}} auf",
+      "recordingTitle": "{{name}} wird aufgenommen",
       "recordingDesc": "Bis {{time}} · {{volume}}. {{note}}{{paused}}",
       "scheduledTitle": "Geplant: {{title}}",
       "scheduledDesc": "{{channel}}, {{times}}. {{note}}",

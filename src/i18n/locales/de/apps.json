@@ -27,7 +27,7 @@
       "iconAlt": "Symbol von {{name}}"
     },
     "contextMenu": {
-      "removePinBtn": "Pin entfernen",
+      "removePinBtn": "App lösen",
       "pinAppBtn": "App anheften",
       "maxPinnedBtn": "Max. 5 angeheftet"
     },

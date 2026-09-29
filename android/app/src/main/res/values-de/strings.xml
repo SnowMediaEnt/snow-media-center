@@ -4,8 +4,8 @@
     <string name="rec_notif_title_programme">Aufnahme: %1$s (%2$s)</string>
     <string name="rec_notif_title_channel">Aufnahme: %1$s</string>
     <string name="rec_notif_text_starting">Startet</string>
-    <string name="rec_notif_text_until">Bis %1$s · nutzt 1 Stream deiner Leitung</string>
-    <string name="rec_notif_text_until_stopped">Bis du sie stoppst · nutzt 1 Stream deiner Leitung</string>
+    <string name="rec_notif_text_until">Bis %1$s · nutzt 1 Stream deines Zugangs</string>
+    <string name="rec_notif_text_until_stopped">Bis du sie stoppst · nutzt 1 Stream deines Zugangs</string>
     <string name="rec_channel_name">Aufnahmen</string>
     <string name="rec_channel_desc">Wird angezeigt, solange ein Sender aufgenommen wird.</string>
     <string name="rec_notif_stop">Stopp</string>
@@ -22,10 +22,10 @@
     <string name="sched_late_text">Die Box war um %1$s aus. Aufnahme bis %2$s.</string>
     <string name="sched_usb_title">Aufnahme auf dieser Box: %1$s</string>
     <string name="sched_reason_no_login">Melde dich bei Live-TV an, um aufzunehmen.</string>
-    <string name="sched_reason_other_line">Live-TV ist mit einer anderen Leitung angemeldet.</string>
+    <string name="sched_reason_other_line">Live-TV ist mit einem anderen Zugang angemeldet.</string>
     <string name="sched_reason_no_space">Nicht genug freier Speicher.</string>
     <string name="sched_reason_usb_gone">Der USB-Speicher war nicht verbunden.</string>
-    <string name="sched_reason_blocked">Die Box hat einen geplanten Start blockiert. Erlaube Wecker und Erinnerungen für SMC.</string>
+    <string name="sched_reason_blocked">Die Box hat einen geplanten Start blockiert. Erlaube „Wecker und Erinnerungen“ für SMC.</string>
     <string name="sched_reason_missed">Die Box war aus oder SMC wurde beendet.</string>
     <string name="sched_reason_start_failed">Die Aufnahme konnte nicht starten.</string>
     <string name="alert_channel_name">Meldungen von Snow Media</string>
@@ -34,11 +34,11 @@
     <string name="alert_plex_request_fallback">Deine Anfrage</string>
     <string name="alert_plex_ready">%1$s ist bereit zum Ansehen. Öffne den Player, dann Plex.</string>
     <string name="widget_open_app">Öffne Snow Media Center für Neuigkeiten.</string>
-    <string name="widget_not_signed_in">Nicht angemeldet — öffnen, um deine Leitung hinzuzufügen</string>
-    <string name="widget_line_fallback">Deine Leitung</string>
-    <string name="widget_trial">Test · %1$s</string>
+    <string name="widget_not_signed_in">Nicht angemeldet – öffnen, um deinen Zugang hinzuzufügen</string>
+    <string name="widget_line_fallback">Dein Zugang</string>
+    <string name="widget_trial">Testzugang · %1$s</string>
     <string name="widget_active">%1$s · aktiv</string>
-    <string name="widget_expired">%1$s · abgelaufen — verlängere, um weiterzuschauen</string>
+    <string name="widget_expired">%1$s · abgelaufen – verlängere, um weiterzuschauen</string>
     <string name="widget_expires_today">%1$s · läuft heute ab</string>
     <string name="billing_network">Der Abrechnungsserver ist nicht erreichbar. Prüfe deine Internetverbindung und versuche es erneut.</string>
     <string name="billing_bad_response">Der Abrechnungsserver hat eine unerwartete Antwort gesendet (%1$s).</string>
@@ -63,8 +63,8 @@
         <item quantity="other">Aufnahme von %d Sendern</item>
     </plurals>
     <plurals name="rec_notif_text_streams">
-        <item quantity="one">Nutzt %d Stream deiner Leitung</item>
-        <item quantity="other">Nutzt %d Streams deiner Leitung</item>
+        <item quantity="one">Nutzt %d Stream deines Zugangs</item>
+        <item quantity="other">Nutzt %d Streams deines Zugangs</item>
     </plurals>
     <plurals name="sched_reason_too_many">
         <item quantity="one">Es lief bereits %d Aufnahme.</item>

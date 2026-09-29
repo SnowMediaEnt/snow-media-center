@@ -9,7 +9,7 @@
       "alerts": "App-Hinweise",
       "ai": "KI",
       "profiles": "Profile",
-      "remote": "Handy-Steuerung"
+      "remote": "Handy-Fernbedienung"
     },
     "mediaManagerHeading": "Medien-Manager",
     "contentBar": {
@@ -29,27 +29,27 @@
     "aiTier": {
       "titleFree": "Snow AI: Kostenlos",
       "titlePremium": "Snow AI: Premium",
-      "descPremium": "Kostenlos ist inklusive. Premium nutzt das stärkste Modell für KI-Chat und Sprachbefehle — {{gems}} Snow Gems pro Nachricht. Wechsle jederzeit zum Vergleichen.",
+      "descPremium": "Kostenlos ist inklusive. Premium nutzt das stärkste Modell für KI-Chat und Sprachbefehle – {{gems}} Snow Gems pro Nachricht. Wechsle jederzeit zum Vergleichen.",
       "descSignIn": "Kostenlos ist inklusive. Melde dich an, um Premium zu testen, das stärkste Modell (bezahlt mit Snow Gems).",
       "aria": "Snow AI Premium"
     },
     "dashboardSize": {
-      "title": "Große Übersicht",
-      "description": "Aus: Die Übersicht passt auf einen Bildschirm. An: Alles ist größer und vom Sofa aus besser lesbar, und die Seite scrollt."
+      "title": "Großes Dashboard",
+      "description": "Aus: Das Dashboard passt auf einen Bildschirm. An: Alles ist größer und vom Sofa aus besser lesbar, und die Seite scrollt."
     },
     "postNotify": {
-      "title": "Benachrichtigungen zu Beiträgen",
+      "title": "Beitragsbenachrichtigungen",
       "description": "An: Ein neuer Beitrag von Snow Media zeigt eine Zahl auf der Support-Karte und einen Hinweis auf dem Startbildschirm. Aus: Er landet trotzdem leise unter Support → Beiträge."
     },
     "deviceAlerts": {
-      "title": "Benachrichtigungen auf diesem Gerät",
+      "title": "Hinweise auf diesem Gerät",
       "description": "Standardmäßig an. Dienst-Hinweise erscheinen auf dem Bildschirm, auch wenn Snow Media Center geschlossen ist – drücke OK, um die App zu öffnen, oder schließe den Hinweis, dann bleibt er weg. Schalte das aus, damit Hinweise nur in der App erscheinen.",
       "blocked": "Benachrichtigungen sind für diese App in den Geräteeinstellungen ausgeschaltet, daher wird nichts angezeigt, bis du sie dort wieder einschaltest."
     },
     "remote": {
       "title": "Nutze dein Handy als Fernbedienung",
       "step1": "Scanne den QR-Code mit der Handykamera oder gehe zu <1>snowmediaent.com/remote</1>",
-      "step2": "Gib den hier angezeigten Code ein und wähle am TV „Erlauben“",
+      "step2": "Gib den hier angezeigten Code ein und wähle am Fernseher „Erlauben“",
       "step3": "Navigieren, auswählen, zurück, Wiedergabe/Pause, tippen und sprechen – direkt vom Handy",
       "connected_one": "📱 {{count}} Handy ist jetzt verbunden.",
       "connected_other": "📱 {{count}} Handys sind jetzt verbunden.",
@@ -57,7 +57,7 @@
       "none": "Noch kein Handy gekoppelt.",
       "stayPaired": "Gekoppelte Handys bleiben gekoppelt; jeder Code gilt nur einmal.",
       "typingHintTitle": "QR-Code beim Tippen anzeigen",
-      "typingHintDesc": "Eine kleine Karte bietet die Handytastatur an, sobald am TV ein Textfeld offen ist.",
+      "typingHintDesc": "Eine kleine Karte bietet die Handytastatur an, sobald am Fernseher ein Textfeld offen ist.",
       "unpairBtn": "Alle Handys trennen"
     },
     "profiles": {
@@ -65,7 +65,7 @@
       "pinTag": "PIN",
       "watchingTag": "schaut",
       "switchTitle": "Wechseln, wer schaut",
-      "switchDesc": "Wähle ein anderes Profil. Jedes hat sein eigenes Weiterschauen, seine Merkliste, Favoriten und seinen Startbildschirm.",
+      "switchDesc": "Wähle ein anderes Profil. Jedes hat sein eigenes Weiterschauen, seine eigene Liste, Favoriten und seinen Startbildschirm.",
       "manageTitle": "Profile hinzufügen oder bearbeiten",
       "manageDesc": "Füge jemanden hinzu (bis zu 8 Profile), erstelle ein Kinderprofil, benenne um, ändere die Farbe oder füge eine PIN hinzu."
     },
@@ -84,7 +84,7 @@
       "playerDesc": "Änderung gilt für alle Geräte.",
       "updateFailTitle": "Aktualisierung fehlgeschlagen",
       "unpairedTitle": "Handys getrennt",
-      "unpairedDesc": "Koppele erneut mit dem neuen Code."
+      "unpairedDesc": "Kopple erneut mit dem neuen Code."
     }
   }
 }

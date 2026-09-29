@@ -16,11 +16,11 @@
     },
     "notNative": {
       "paid": "✅ Deine Fernsitzung ist bezahlt und bereit. Du siehst das in einem Webbrowser – die Einrichtung für den Techniker läuft in der App.",
-      "paidNext": "Öffne auf der Box, die Hilfe braucht, die <1>Snow Media Center-App</1> (nicht einen Browser) und gehe zu Support → Fernzugriff. Deine bezahlte Anfrage wird automatisch fortgesetzt – nichts muss neu eingegeben werden.",
-      "unpaid": "Du siehst das in einem Webbrowser. Die Einrichtung für den Techniker läuft in der Snow Media Center-<1>App</1> – öffne auf der Box, die Hilfe braucht, die App selbst und gehe zu Support → Fernzugriff."
+      "paidNext": "Öffne auf der Box, die Hilfe braucht, die <1>Snow-Media-Center-App</1> (nicht einen Browser) und gehe zu Support → Fernzugriff. Deine bezahlte Anfrage wird automatisch fortgesetzt – nichts muss neu eingegeben werden.",
+      "unpaid": "Du siehst das in einem Webbrowser. Die Einrichtung für den Techniker läuft in der Snow-Media-Center-<1>App</1> – öffne auf der Box, die Hilfe braucht, die App selbst und gehe zu Support → Fernzugriff."
     },
     "noauth": {
-      "body": "Melde dich in deinem Snow Media-Konto an, um eine Fernzugriff-Sitzung anzufordern. Nutze die Anmelden-Taste auf dem Startbildschirm und komm dann hierher zurück."
+      "body": "Melde dich in deinem Snow-Media-Konto an, um eine Fernzugriff-Sitzung anzufordern. Nutze die Schaltfläche „Anmelden“ auf dem Startbildschirm und komm dann hierher zurück."
     },
     "form": {
       "subtitle": "Sag uns, was nicht stimmt – ein Techniker übernimmt die Steuerung deiner Box und behebt es mit dir. {{price}} pro Sitzung.",
@@ -53,7 +53,7 @@
       "stepOf": "Einrichtung – Schritt {{step}} von 3",
       "app": {
         "title": "Installiere die Support-App",
-        "body": "Die Snow Support-App teilt deinen Bildschirm mit dem Techniker. Installiere sie, tippe auf Erneut prüfen, und dieser Schritt wird auf Erledigt gesetzt.",
+        "body": "Die Snow-Support-App teilt deinen Bildschirm mit dem Techniker. Installiere sie, tippe auf Erneut prüfen, und dieser Schritt wird auf Erledigt gesetzt.",
         "installBtn": "Support-App installieren",
         "downloading": "Wird heruntergeladen...",
         "recheckBtn": "Erneut prüfen",
@@ -65,10 +65,10 @@
         "how": "Eine App-Liste öffnet sich – suche <1>Snow Support</1> und schalte <1>„Anzeige über anderen Apps zulassen“</1> ein. Komm dann zurück und bestätige."
       },
       "openSettingsBtn": "Einstellungen öffnen",
-      "confirmBtn": "Habe ich eingeschaltet",
+      "confirmBtn": "Ist eingeschaltet",
       "continueBtn": "Weiter",
       "a11y": {
-        "title": "Schalte den Snow Support-Bedienungshilfendienst ein",
+        "title": "Schalte den Bedienungshilfendienst von Snow Support ein",
         "why": "Damit lösen die Klicks des Technikers auf deiner Box wirklich etwas aus.",
         "how": "Suche <1>Snow Support</1> in der Liste und stelle es auf <1>An</1>. Komm dann zurück und bestätige.",
         "openBtn": "Bedienungshilfen öffnen",
@@ -86,14 +86,14 @@
     },
     "started": {
       "title": "Sitzung gestartet",
-      "body1": "Die Snow Support-App ist geöffnet und übernimmt ab hier – sie zeigt einen 6-stelligen Code und bittet dich, die Bildschirmfreigabe zu bestätigen.",
+      "body1": "Die Snow-Support-App ist geöffnet und übernimmt ab hier – sie zeigt einen 6-stelligen Code und bittet dich, die Bildschirmfreigabe zu bestätigen.",
       "body2": "Gib den Code an deinen Techniker weiter und bestätige die Abfrage. Denk daran: Der rote Rahmen zeigt, dass die Sitzung läuft, und du kannst sie jederzeit beenden."
     },
     "toast": {
       "saveFailedTitle": "Anfrage konnte nicht gespeichert werden",
       "saveFailedDesc": "Prüfe deine Internetverbindung und versuche es erneut.",
       "waivedTitle": "Zahlung erlassen – alles bereit",
-      "receivedTitle": "Zahlung erhalten",
+      "receivedTitle": "Zahlung eingegangen",
       "readyDesc": "Machen wir deine Box bereit für den Techniker.",
       "codeRejectedTitle": "Code nicht akzeptiert",
       "codeInvalid": "Dieser Code stimmt nicht. Prüfe ihn und versuche es erneut.",
@@ -112,7 +112,7 @@
       "overlayManual": "Öffne manuell die Android-Einstellungen → Apps → Spezieller App-Zugriff → Über anderen Apps einblenden.",
       "a11yManual": "Öffne manuell die Android-Einstellungen → Bedienungshilfen.",
       "startFailedTitle": "Konnte nicht gestartet werden",
-      "startFailedDesc": "Öffne stattdessen die Snow Support-App aus deiner App-Liste."
+      "startFailedDesc": "Öffne stattdessen die Snow-Support-App aus deiner App-Liste."
     }
   }
 }
