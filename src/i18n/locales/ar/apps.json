@@ -11,8 +11,8 @@
       "launchBtn": "تشغيل",
       "notInstalledBtn": "غير مثبّت",
       "downloadBtn": "تنزيل",
-      "unpinTitle": "فك تثبيت التطبيق",
-      "pinTitle": "ثبّت التطبيق للوصول السريع",
+      "unpinTitle": "إزالة الاختصار",
+      "pinTitle": "أضف اختصارًا للوصول السريع",
       "forceStopBtn": "إيقاف إجباري",
       "forceStopHint": "يفتح معلومات التطبيق في النظام – المس إيقاف إجباري",
       "clearCacheBtn": "مسح الذاكرة المؤقتة",
@@ -27,27 +27,27 @@
       "iconAlt": "أيقونة {{name}}"
     },
     "contextMenu": {
-      "removePinBtn": "فك التثبيت",
-      "pinAppBtn": "تثبيت التطبيق",
-      "maxPinnedBtn": "الحد الأقصى 5"
+      "removePinBtn": "إزالة الاختصار",
+      "pinAppBtn": "إضافة اختصار",
+      "maxPinnedBtn": "5 اختصارات كحد أقصى"
     },
     "pinned": {
-      "title": "التطبيقات المثبّتة",
+      "title": "اختصارات التطبيقات",
       "launchHint": "المس للتشغيل · اضغط مطولًا للتغيير",
       "downloadHint": "غير مثبّتة: المس للتنزيل · اضغط مطولًا للتغيير",
       "installBtn": "تثبيت",
       "addBtn": "إضافة",
-      "changeTitle": "تغيير التطبيق المثبّت",
-      "selectTitle": "اختر التطبيقات للتثبيت",
-      "pinnedLabel": "مثبّت",
+      "changeTitle": "تغيير الاختصار",
+      "selectTitle": "اختر تطبيقات للاختصارات",
+      "pinnedLabel": "في الاختصارات",
       "tapToInstall": "المس للتثبيت",
-      "canPinMore_zero": "لا يمكنك تثبيت المزيد من التطبيقات",
-      "canPinMore_one": "يمكنك تثبيت تطبيق واحد آخر",
-      "canPinMore_two": "يمكنك تثبيت تطبيقين آخرين",
-      "canPinMore_few": "يمكنك تثبيت {{count}} تطبيقات أخرى",
-      "canPinMore_many": "يمكنك تثبيت {{count}} تطبيقًا آخر",
-      "canPinMore_other": "يمكنك تثبيت {{count}} تطبيق آخر",
-      "maxReached": "الحد الأقصى 4 تطبيقات مثبّتة. فك تثبيت أحدها لإضافة المزيد."
+      "canPinMore_zero": "لا يمكنك إضافة المزيد من الاختصارات",
+      "canPinMore_one": "يمكنك إضافة تطبيق واحد آخر",
+      "canPinMore_two": "يمكنك إضافة تطبيقين آخرين",
+      "canPinMore_few": "يمكنك إضافة {{count}} تطبيقات أخرى",
+      "canPinMore_many": "يمكنك إضافة {{count}} تطبيقًا آخر",
+      "canPinMore_other": "يمكنك إضافة {{count}} تطبيق آخر",
+      "maxReached": "الحد الأقصى 4 اختصارات. أزل أحدها لإضافة غيره."
     },
     "retired": {
       "title": "{{app}} أصبح الآن في المشغّل",
@@ -99,12 +99,12 @@
       "forceStopFailedTitle": "فشل الإيقاف الإجباري",
       "clearCacheTitle": "المس «التخزين» ← «مسح الذاكرة المؤقتة»",
       "clearCacheFailedTitle": "فشل فتح قائمة الذاكرة المؤقتة",
-      "pinnedTitle": "تم تثبيت التطبيق! 📌",
-      "pinnedDesc": "تمت إضافة {{name}} إلى تطبيقاتك المثبّتة.",
-      "pinFailedTitle": "تعذّر تثبيت التطبيق",
-      "pinFailedDesc": "يمكن تثبيت 4 تطبيقات كحد أقصى.",
-      "unpinnedTitle": "تم فك تثبيت التطبيق",
-      "unpinnedDesc": "تمت إزالة {{name}} من التطبيقات المثبّتة."
+      "pinnedTitle": "تمت إضافة الاختصار! 📌",
+      "pinnedDesc": "تمت إضافة {{name}} إلى اختصاراتك.",
+      "pinFailedTitle": "تعذّرت إضافة الاختصار",
+      "pinFailedDesc": "يمكن إضافة 4 اختصارات كحد أقصى.",
+      "unpinnedTitle": "تمت إزالة الاختصار",
+      "unpinnedDesc": "تمت إزالة {{name}} من الاختصارات."
     }
   }
 }

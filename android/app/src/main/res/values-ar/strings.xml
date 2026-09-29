@@ -1,11 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="rec_notif_title_none">جارٍ التسجيل</string>
-    <string name="rec_notif_title_programme">تسجيل %1$s (%2$s)</string>
-    <string name="rec_notif_title_channel">تسجيل %1$s</string>
+    <string name="rec_notif_title_programme">جارٍ تسجيل %1$s (%2$s)</string>
+    <string name="rec_notif_title_channel">جارٍ تسجيل %1$s</string>
     <string name="rec_notif_text_starting">جارٍ البدء</string>
-    <string name="rec_notif_text_until">حتى %1$s · يستخدم بثًا واحدًا من خطك</string>
-    <string name="rec_notif_text_until_stopped">حتى توقفه · يستخدم بثًا واحدًا من خطك</string>
+    <string name="rec_notif_text_until">حتى %1$s · يستخدم عملية بث واحدة من خطك</string>
+    <string name="rec_notif_text_until_stopped">حتى توقفه · يستخدم عملية بث واحدة من خطك</string>
     <string name="rec_channel_name">التسجيلات</string>
     <string name="rec_channel_desc">يظهر أثناء تسجيل قناة.</string>
     <string name="rec_notif_stop">إيقاف</string>
@@ -59,17 +59,17 @@
     <string name="player_err_audio">فشل مفكّك الصوت</string>
     <string name="voice_speak_now">تحدّث الآن</string>
     <plurals name="rec_notif_title_channels">
-        <item quantity="zero">تسجيل %d قناة</item>
-        <item quantity="one">تسجيل قناة واحدة</item>
-        <item quantity="two">تسجيل قناتين</item>
-        <item quantity="few">تسجيل %d قنوات</item>
-        <item quantity="many">تسجيل %d قناة</item>
-        <item quantity="other">تسجيل %d قناة</item>
+        <item quantity="zero">جارٍ تسجيل %d قناة</item>
+        <item quantity="one">جارٍ تسجيل قناة واحدة</item>
+        <item quantity="two">جارٍ تسجيل قناتين</item>
+        <item quantity="few">جارٍ تسجيل %d قنوات</item>
+        <item quantity="many">جارٍ تسجيل %d قناة</item>
+        <item quantity="other">جارٍ تسجيل %d قناة</item>
     </plurals>
     <plurals name="rec_notif_text_streams">
         <item quantity="zero">يستخدم %d عملية بث من خطك</item>
-        <item quantity="one">يستخدم بثًا واحدًا من خطك</item>
-        <item quantity="two">يستخدم بثّين من خطك</item>
+        <item quantity="one">يستخدم عملية بث واحدة من خطك</item>
+        <item quantity="two">يستخدم عمليتي بث من خطك</item>
         <item quantity="few">يستخدم %d عمليات بث من خطك</item>
         <item quantity="many">يستخدم %d عملية بث من خطك</item>
         <item quantity="other">يستخدم %d عملية بث من خطك</item>
@@ -80,7 +80,7 @@
         <item quantity="two">كان تسجيلان قيد التشغيل بالفعل.</item>
         <item quantity="few">كانت %d تسجيلات قيد التشغيل بالفعل.</item>
         <item quantity="many">كان %d تسجيلًا قيد التشغيل بالفعل.</item>
-        <item quantity="other">كان %d تسجيلًا قيد التشغيل بالفعل.</item>
+        <item quantity="other">كان %d تسجيل قيد التشغيل بالفعل.</item>
     </plurals>
     <plurals name="widget_days_left">
         <item quantity="zero">%1$s · متبقٍ %2$d يوم</item>

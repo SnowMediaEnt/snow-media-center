@@ -2,7 +2,7 @@
   "voice": {
     "input": {
       "askPrompt": "اسأل Snow Media AI",
-      "fireTvNoMicRemote": "لا تتيح أجهزة تحكم Fire TV الميكروفون للتطبيقات، استخدم زر الصوت في جهاز التحكم على الهاتف.",
+      "fireTvNoMicRemote": "لا تتيح أجهزة تحكم Fire TV الميكروفون للتطبيقات، استخدم زر الصوت في التحكم عبر الهاتف.",
       "fireTvNoMicType": "لا تتيح أجهزة تحكم Fire TV الميكروفون للتطبيقات، يُرجى كتابة رسالتك.",
       "micPermissionTitle": "مطلوب إذن الميكروفون",
       "micPermissionTurnOn": "فعّل الميكروفون لتطبيق Snow Media Center ثم حاول مرة أخرى.",
@@ -35,13 +35,13 @@
       "voiceBtn": "صوت"
     },
     "host": {
-      "opening": "فتح {{where}}…",
-      "findingChannel": "البحث عن {{name}}…",
-      "searchingPlex": "البحث عن {{query}} في Plex…",
-      "findingOnPlex": "البحث عن {{query}} في Plex…",
-      "lookingForApp": "البحث عن {{name}}…",
-      "findingInMainApps": "البحث عن {{name}} في التطبيقات الرئيسية…",
-      "openingReport": "فتح بلاغ عن {{name}}، اضغط موافق لإرساله.",
+      "opening": "جارٍ فتح {{where}}…",
+      "findingChannel": "جارٍ البحث عن {{name}}…",
+      "searchingPlex": "جارٍ البحث عن {{query}} في Plex…",
+      "findingOnPlex": "جارٍ البحث عن {{query}} في Plex…",
+      "lookingForApp": "جارٍ البحث عن {{name}}…",
+      "findingInMainApps": "جارٍ البحث عن {{name}} في التطبيقات الرئيسية…",
+      "openingReport": "جارٍ فتح بلاغ عن {{name}}، اضغط موافق لإرساله.",
       "grownUpScreen": "{{what}}: يلزم شخص بالغ، بدّل الملف الشخصي أولاً.",
       "grownUpApps": "فتح التطبيقات الأخرى يحتاج إلى شخص بالغ، بدّل الملف الشخصي أولاً.",
       "grownUpInstall": "تثبيت التطبيقات يحتاج إلى شخص بالغ، بدّل الملف الشخصي أولاً.",
@@ -53,7 +53,7 @@
       "thinking": "جارٍ التفكير…",
       "premiumUnavailable": "Snow AI Premium غير متاح حاليًا، بدّل إلى المجاني من الإعدادات ← الواجهة.",
       "assistantBusy": "المساعد مشغول الآن. حاول مرة أخرى بعد قليل.",
-      "didntGetThat": "عذرًا، لم أفهم ذلك. جرّب \"put on ESPN\" أو \"open Plex\".",
+      "didntGetThat": "عذرًا، لم أفهم ذلك. جرّب «شغّل ESPN» أو «افتح Plex».",
       "cantReach": "تعذّر الوصول إلى المساعد. تحقق من اتصال الإنترنت وحاول مرة أخرى.",
       "stoppedListening": "توقف الاستماع.",
       "voiceDidntWork": "لم يعمل الصوت على هذا الجهاز.",

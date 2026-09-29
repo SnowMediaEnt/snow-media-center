@@ -1,12 +1,12 @@
 {
   "giveaway": {
     "main": {
-      "entriesClosed": "انتهى التسجيل",
+      "entriesClosed": "أُغلق باب المشاركة",
       "tileDays": "أيام",
       "tileHrs": "ساعات",
       "tileMin": "دقائق",
       "startsIn": "يبدأ خلال",
-      "untilClose": "حتى انتهاء التسجيل",
+      "untilClose": "حتى إغلاق باب المشاركة",
       "loadError": "تعذر تحميل السحب حاليًا. يرجى المحاولة مرة أخرى.",
       "fbNameNeededTitle": "اسم فيسبوك مطلوب",
       "fbNameNeededDesc": "أدخل اسم فيسبوك الذي كتبت به التقييم.",
@@ -63,9 +63,9 @@
       "notAnnounced": "لم يُعلن عن الفائزين."
     },
     "promo": {
-      "fallbackText": "سحب جديد قد بدأ!",
+      "fallbackText": "بدأ سحب جديد!",
       "maybeEntered": "ربما تشارك بالفعل، تحقق من مشاركاتك!",
-      "endsIn_zero": "⏳ ينتهي خلال {{count}} أيام",
+      "endsIn_zero": "⏳ ينتهي خلال {{count}} يوم",
       "endsIn_one": "⏳ ينتهي خلال يوم",
       "endsIn_two": "⏳ ينتهي خلال يومين",
       "endsIn_few": "⏳ ينتهي خلال {{count}} أيام",
