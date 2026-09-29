@@ -16,12 +16,14 @@ import { Card } from '@/components/ui/card';
 import { openGameDayGame, playLiveChannel, type Navigate } from '@/lib/appActions';
 import { dueReminders, markFired, type GameReminder } from '@/lib/gameReminders';
 import { kidsLevel } from '@/lib/kidsFilter';
+import { useTranslation } from 'react-i18next';
 
 const CHECK_MS = 20_000;
 const isBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || e.keyCode === 4 || e.keyCode === 27;
 const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23;
 
 const GameReminderHost = ({ navigate, blocked = false }: { navigate: Navigate; /** "Who's watching?" is up. */ blocked?: boolean }) => {
+  const { t } = useTranslation();
   const [current, setCurrent] = useState<GameReminder | null>(null);
   const [focus, setFocus] = useState<0 | 1>(0);
   const focusRef = useRef(focus); focusRef.current = focus;
@@ -85,17 +87,17 @@ const GameReminderHost = ({ navigate, blocked = false }: { navigate: Navigate; /
   const where = current.channel?.name ?? (current.networks.length ? current.networks.join(', ') : null);
   const btn = (i: 0 | 1) => `tv-ring rounded-xl px-6 py-3 text-lg font-semibold ${focus === i ? 'bg-white text-black' : 'bg-white/10 text-white'}`;
   return (
-    <div className="fixed inset-0 z-[170] bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" data-state="open" aria-label="Game starting">
+    <div className="fixed inset-0 z-[170] bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" data-state="open" aria-label={t('gameDay.reminder.ariaLabel')}>
       <Card className="w-full max-w-xl bg-gradient-to-br from-blue-900 to-slate-900 border-brand-gold/50 p-7 shadow-2xl text-white">
         <div className="flex items-center mb-3">
           <Trophy className="w-7 h-7 text-brand-gold mr-3" />
-          <span className="text-sm uppercase tracking-widest text-brand-ice/80">{current.leagueLabel} · Starting now</span>
+          <span className="text-sm uppercase tracking-widest text-brand-ice/80">{t('gameDay.reminder.startingNow', { league: current.leagueLabel })}</span>
         </div>
         <h2 className="text-3xl font-bold mb-2">{current.title}</h2>
-        {where && <p className="text-lg text-white/80 mb-6">On {where}</p>}
+        {where && <p className="text-lg text-white/80 mb-6">{t('gameDay.reminder.on', { where })}</p>}
         <div className="flex">
-          <button type="button" data-focused={focus === 0 ? 'true' : 'false'} className={`${btn(0)} mr-3`} onClick={() => close(true)}>Watch</button>
-          <button type="button" data-focused={focus === 1 ? 'true' : 'false'} className={btn(1)} onClick={() => close(false)}>Dismiss</button>
+          <button type="button" data-focused={focus === 0 ? 'true' : 'false'} className={`${btn(0)} mr-3`} onClick={() => close(true)}>{t('gameDay.reminder.watchBtn')}</button>
+          <button type="button" data-focused={focus === 1 ? 'true' : 'false'} className={btn(1)} onClick={() => close(false)}>{t('gameDay.reminder.dismissBtn')}</button>
         </div>
       </Card>
     </div>

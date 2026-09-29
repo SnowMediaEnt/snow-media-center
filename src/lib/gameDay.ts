@@ -37,6 +37,8 @@ import {
   type XtreamCategory, type XtreamCreds, type XtreamEpgEntry, type XtreamLiveStream,
 } from '@/lib/xtream';
 import { cleanChannelName, normalizeSpeech } from '@/lib/voiceCommands';
+import i18n from '@/i18n';
+import { formatTime } from '@/i18n/format';
 
 export interface GameTeam { name: string; short: string; abbr: string; location: string; logo: string | null; score: string | null }
 export interface GameLocal { name: string; market: 'home' | 'away' }
@@ -52,6 +54,7 @@ export interface Game {
 }
 
 export type LinkKind = 'game' | 'network' | 'local' | 'team' | 'league' | 'zone';
+// English names; the screen shows the translated ones by kind (gameDay.link.<kind>).
 export const LINK_LABELS: Record<LinkKind, string> = {
   game: 'Game channel', network: 'National TV', local: 'Local & regional', team: 'Team channel', league: 'League channel',
   // A whip-around channel ("NFL RedZone", "MLB Zone"): every game of the
@@ -889,7 +892,7 @@ const guideNote = (e: Listing, g: Game): string => {
   const title = e.title.trim();
   const more = listingHas(` ${normalizeSpeech(title)} `, g) ? '' : e.description.trim();
   const s = more ? `${title} — ${more}` : title;
-  return `Guide: ${s.length > 140 ? `${s.slice(0, 139)}…` : s}`;
+  return i18n.t('gameDay.guide.note', { text: s.length > 140 ? `${s.slice(0, 139)}…` : s });
 };
 
 /** What the guide says about a game's channels, as links to lay over the
@@ -968,7 +971,7 @@ export async function checkGuides(
       for (const e of around) {
         const text = listingText(e);
         const other = others.find((g) => listingHas(text, g));
-        if (other) return { ...cand.was, score: 20, note: `Guide: another game — ${other.name}` };
+        if (other) return { ...cand.was, score: 20, note: i18n.t('gameDay.guide.otherGame', { name: other.name }) };
       }
       return null;
     }));
@@ -981,28 +984,32 @@ export async function checkGuides(
 
 // ── kickoff ────────────────────────────────────────────────────────────────
 
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+/** "Sat" in the app's language (Intl weekday names are not used: short TV names are set by hand). */
+const weekdayShort = (d: Date): string => i18n.t(`gameDay.days.${WEEKDAY_KEYS[d.getDay()]}`);
+
 /** The day ('' for today, "Tomorrow", "Sat") and the time, apart: a narrow
  *  column shows them on two lines. */
 export function kickoffParts(start: string, now = new Date()): { day: string; time: string } {
   const d = new Date(start);
   if (Number.isNaN(d.getTime())) return { day: '', time: '' };
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const time = formatTime(d);
   const day = (x: Date) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
   if (day(d) === day(now)) return { day: '', time };
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  return { day: day(d) === day(tomorrow) ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short' }), time };
+  return { day: day(d) === day(tomorrow) ? i18n.t('gameDay.tomorrow') : weekdayShort(d), time };
 }
 
 /** "7:30 PM", or "Tomorrow 1:00 PM". */
 export function kickoffLabel(start: string, now = new Date()): string {
   const d = new Date(start);
   if (Number.isNaN(d.getTime())) return '';
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const time = formatTime(d);
   const day = (x: Date) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
   if (day(d) === day(now)) return time;
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  if (day(d) === day(tomorrow)) return `Tomorrow ${time}`;
-  return `${d.toLocaleDateString([], { weekday: 'short' })} ${time}`;
+  if (day(d) === day(tomorrow)) return i18n.t('gameDay.tomorrowAt', { time });
+  return i18n.t('gameDay.dayAt', { day: weekdayShort(d), time });
 }
 
 /** Tests only. */

@@ -19,11 +19,13 @@
 //
 // Addresses carry the line's credentials. This file never logs one.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { SnowPlayer, type TimeshiftStatus } from '@/capacitor/SnowPlayer';
 import { toast } from '@/hooks/use-toast';
 import { authenticate, type XtreamCreds, type XtreamLiveStream } from '@/lib/xtream';
 import {
-  HARD_CAP_MB, LINE_CHECK_SETTLE_MS, LINE_RECHECK_MS, LINE_RETRY_MS, LINE_TAKEN_MESSAGE, REWIND_SETTINGS_EVENT,
+  HARD_CAP_MB, LINE_CHECK_SETTLE_MS, LINE_RECHECK_MS, LINE_RETRY_MS, REWIND_SETTINGS_EVENT,
   buildTimeshiftUrl, captureRefused, catchupDays, catchupDurationMin, deviceUtcOffsetMinutes, floorMinute,
   lineTakenByOthers, loadRewindSettings, maxRewindMinutes, parseLineUsage, rewindChannelKey,
   serverUtcOffsetMinutes, type LineUsage, type RewindOffReason, type RewindSettings,
@@ -165,6 +167,7 @@ export const CATCHUP_RESUME_AFTER_MS = 60_000;
 const CATCHUP_LIVE_SLACK_MS = 30_000;
 
 export function useLiveRewind({ active, directUrl, line, stream, watching, engine = 'exo', maxConnections = null, activeRecordings = 0 }: Args): LiveRewind {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<RewindSettings>(loadRewindSettings);
   useEffect(() => {
     const on = () => setSettings(loadRewindSettings());
@@ -290,7 +293,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
     } catch { /* older app: the wipe below still runs */ }
     if (checkTokenRef.current !== token) return;
     setLineCheck({ token, gate: 'full', taken: true });
-    try { toast({ title: LINE_TAKEN_MESSAGE }); } catch { /* ignore */ }
+    try { toast({ title: i18n.t('recordings.rewind.off.lineTaken') }); } catch { /* ignore */ }
   }, []);
 
   // While the buffer runs: ask the panel again, at most every 60 s, and give the
@@ -413,10 +416,10 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
         const st = await SnowPlayer.timeshiftSeek({ deltaSec: -sec });
         setStatus(st);
         if (st.mode === 'buffer') return null;
-        if (st.state === 'unavailable') return st.reason || 'Rewind is not available on this channel.';
-        return 'Rewind is getting ready. Try again in a few seconds.';
+        if (st.state === 'unavailable') return st.reason || t('recordings.rewind.notAvailable');
+        return t('recordings.rewind.gettingReadyRetry');
       } catch {
-        return 'Rewind needs the latest Snow Media Center app.';
+        return t('recordings.rewind.needsLatestApp');
       }
     }
     if (kind === 'catchup') {
@@ -432,7 +435,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
       return null;
     }
     return null;
-  }, [kind, days, playCatchupFrom]);
+  }, [kind, days, playCatchupFrom, t]);
 
   const goLive = useCallback(async () => {
     if (kind === 'buffer') {
@@ -448,14 +451,14 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
         const before = status?.mode;
         const st = await SnowPlayer.timeshiftSeek({ deltaSec: sec });
         setStatus(st);
-        return before !== 'buffer' && st.mode === 'live' ? 'You are watching live.' : null;
+        return before !== 'buffer' && st.mode === 'live' ? t('recordings.rewind.watchingLive') : null;
       } catch {
         return null;
       }
     }
     if (kind === 'catchup') {
       const c = cuRef.current;
-      if (!c) return 'You are watching live.';
+      if (!c) return t('recordings.rewind.watchingLive');
       const target = headMs() + sec * 1000;
       if (target >= Date.now() - CATCHUP_LIVE_SLACK_MS) { setCu(null); return null; }
       if (cuDurRef.current > 0) {
@@ -463,10 +466,10 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
         return null;
       }
       if (floorMinute(target) > c.startMs) { await playCatchupFrom(target); return null; }
-      return 'This channel\'s archive moves a minute at a time. Press again, or Go live.';
+      return t('recordings.rewind.archiveStep');
     }
     return null;
-  }, [kind, status, playCatchupFrom]);
+  }, [kind, status, playCatchupFrom, t]);
 
   const onEnded = useCallback(() => { if (cuRef.current) setCu(null); }, []);
 
@@ -478,7 +481,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
         availableSec: st.availableSec,
         behindSec: st.mode === 'buffer' ? st.behindSec : 0,
         archiveDays: 0,
-        note: st.state === 'unavailable' ? (st.reason || 'Rewind is not available on this channel.') : undefined,
+        note: st.state === 'unavailable' ? (st.reason || t('recordings.rewind.notAvailable')) : undefined,
       };
     }
     if (kind === 'catchup') {
@@ -486,7 +489,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
       return { availableSec: days * 86_400, behindSec: behind, archiveDays: days };
     }
     return null;
-  }, [kind, status, cu, cuPos, days]);
+  }, [kind, status, cu, cuPos, days, t]);
 
   return { kind, offReason, playUrl, info, rewind, forward, goLive, onPausedChange, onEnded };
 }

@@ -1,0 +1,223 @@
+{
+  "liveAccount": {
+    "hub": {
+      "title": "Einstellungen",
+      "myAccount": "Mein Konto",
+      "accountInfo": "Kontoinfos",
+      "switchAccount": "Konto wechseln",
+      "hideCategories": "Kategorien ausblenden",
+      "appearance": "Darstellung",
+      "rewind": "Zurückspulen & Aufnahme",
+      "playback": "Wiedergabe",
+      "signOut": "Abmelden",
+      "demoTitle": "Live-Demo",
+      "demoDesc": "Die Demo ist mit einem Demo-Konto vorgeladen — Anmeldung und Kontowechsel funktionieren in der installierten App."
+    },
+    "renewQr": {
+      "qrAlt": "QR-Code zur Verlängerung",
+      "scan": "Scanne mit deinem Handy zum Verlängern — <1>{{username}}</1>"
+    },
+    "expiry": {
+      "titleExpired": "Dein {{serverLabel}}-Abo ist ABGELAUFEN",
+      "titleToday": "Dein {{serverLabel}}-Abo läuft HEUTE ab",
+      "titleDays_one": "Dein {{serverLabel}}-Abo läuft in {{count}} Tag ab",
+      "titleDays_other": "Dein {{serverLabel}}-Abo läuft in {{count}} Tagen ab",
+      "bodyExpired": "Melde dich bei Snow Media, um zu verlängern und den Zugang wiederherzustellen. Du kannst im Shop verlängern oder den Support kontaktieren.",
+      "bodySoon": "Melde dich bei Snow Media, um zu verlängern und den Zugang nicht zu verlieren. Du kannst im Shop verlängern oder den Support kontaktieren.",
+      "renewTitle": "Verlängere dein Abo",
+      "renewBtn": "Jetzt verlängern",
+      "gotItBtn": "OK, verstanden"
+    },
+    "account": {
+      "title": "Konto",
+      "noAccount": "Kein Player-Konto auf diesem Gerät.",
+      "username": "Benutzername",
+      "password": "Passwort",
+      "status": "Status",
+      "statusUnknown": "Unbekannt",
+      "statusExpired": "Abgelaufen",
+      "statusActive": "Aktiv",
+      "expires": "Läuft ab",
+      "trial": "Testphase",
+      "connections": "Verbindungen",
+      "connectionsValue": "{{active}} aktiv / {{max}} erlaubt",
+      "catalog": "Katalog",
+      "created": "Erstellt",
+      "server": "Server",
+      "showPasswordBtn": "Passwort zeigen",
+      "hidePasswordBtn": "Passwort verbergen",
+      "changeCredentialsBtn": "Zugangsdaten ändern",
+      "renewBtn": "Verlängern",
+      "daysLeft_one": "Noch {{count}} Tag",
+      "daysLeft_other": "Noch {{count}} Tage",
+      "countChannels_one": "{{num}} Sender",
+      "countChannels_other": "{{num}} Sender",
+      "countMovies_one": "{{num}} Film",
+      "countMovies_other": "{{num}} Filme",
+      "countSeries_one": "{{num}} Serie",
+      "countSeries_other": "{{num}} Serien"
+    },
+    "playerCard": {
+      "title": "Player-Konto",
+      "subtitle": "Bei deinem IPTV-Panel angemeldet — wird vom Player-Bereich genutzt.",
+      "noExpiration": "Kein Ablaufdatum hinterlegt",
+      "daysLeftLabel": "Verbleibende Tage",
+      "signOutBtn": "Vom Player abmelden",
+      "signedOutTitle": "Player abgemeldet",
+      "signedOutDesc": "Du kannst dich im Player wieder anmelden."
+    },
+    "appearance": {
+      "title": "Darstellung",
+      "groupLayout": "Live-TV-Layout",
+      "groupTextSize": "Textgröße",
+      "groupFont": "Schriftart",
+      "groupAccent": "Akzentfarbe",
+      "groupBackground": "Hintergrund",
+      "groupTextColor": "Textfarbe",
+      "tryHint": "Wähle ein anderes, um es auf dem Live-TV-Bildschirm zu testen.",
+      "resetBtn": "Zurücksetzen",
+      "liveLayout": {
+        "classic": "Klassisch",
+        "compact": "Kompakt",
+        "grid": "Vibez"
+      },
+      "liveLayoutDesc": {
+        "classic": "Kategorien neben einer hohen Senderliste, Vorschau darüber",
+        "compact": "Schmale Senderliste, Kategorien einen Tastendruck entfernt, große Vorschau",
+        "grid": "Kategorien neben einer Wand aus Senderlogos, OK spielt ab (keine Vorschau)"
+      },
+      "fontScale": {
+        "sm": "Klein",
+        "md": "Mittel",
+        "lg": "Groß",
+        "xl": "XL"
+      },
+      "fontFamily": {
+        "nunito": "Nunito (Standard)",
+        "montserrat": "Montserrat",
+        "system": "System"
+      },
+      "accent": {
+        "gold": "Gold",
+        "ice": "Eis",
+        "purple": "Lila",
+        "emerald": "Smaragd",
+        "crimson": "Karmesin",
+        "amber": "Bernstein"
+      },
+      "bg": {
+        "default": "Schnee (Standard)",
+        "white": "Weiß",
+        "snow": "Schnee",
+        "charcoal": "Anthrazit",
+        "navy": "Marineblau",
+        "midnight": "Mitternacht"
+      },
+      "text": {
+        "charcoal": "Anthrazit",
+        "black": "Schwarz",
+        "white": "Weiß",
+        "ice": "Eis"
+      }
+    },
+    "backups": {
+      "title": "Backups",
+      "subtitle": "Von Snow Media bereitgestellte Streams. Drücke Aktualisieren, wenn gerade etwas hinzugekommen ist.",
+      "refreshBtn": "Aktualisieren",
+      "loading": "Backups werden geladen…",
+      "buffering": "Puffern…",
+      "liveHeading": "Live",
+      "liveChip": "LIVE",
+      "vodHeading": "Filme & Serien",
+      "empty": "Derzeit keine Backups. Sobald Snow Media eines bereitstellt, erscheint es hier automatisch.",
+      "streamError": "Stream-Fehler — OK zum Wiederholen, Zurück zum Beenden.",
+      "paused": "Pausiert",
+      "refreshedTitle": "Aktualisiert",
+      "refreshedDesc": "Backup-Liste aktualisiert.",
+      "playFailedTitle": "Wiedergabe fehlgeschlagen",
+      "playFailedDesc": "Dieser Backup-Stream konnte nicht abgespielt werden."
+    },
+    "hideCategories": {
+      "title": "Kategorien ausblenden",
+      "intro": "Drücke OK auf einer Kategorie, um sie im Player auszublenden. Ausgeblendete Kategorien bleiben bei deinem Dienst; sie nehmen hier nur keinen Platz mehr weg. Drücke erneut OK, um sie zurückzuholen.",
+      "signInFirst": "Melde dich zuerst im Player an.",
+      "hiddenCount_one": "{{count}} ausgeblendet",
+      "hiddenCount_other": "{{count}} ausgeblendet",
+      "nothingHidden": "nichts ausgeblendet",
+      "showAll": "Alle Kategorien dieser Leitung anzeigen",
+      "hiddenChip": "Ausgeblendet",
+      "shownChip": "Sichtbar"
+    },
+    "switch": {
+      "title": "Konto wechseln",
+      "none": "Noch keine gespeicherten Konten. Füge unten eines hinzu.",
+      "addBtn": "Weiteres Konto hinzufügen",
+      "failedTitle": "Kontowechsel fehlgeschlagen",
+      "failedDesc": "Anmeldung fehlgeschlagen. Das gespeicherte Passwort ist möglicherweise veraltet.",
+      "networkError": "Netzwerkfehler.",
+      "switchedTitle": "Konto gewechselt",
+      "switchedDesc": "Angemeldet als {{username}}."
+    },
+    "credentials": {
+      "title": "Beim Player anmelden",
+      "subtitle": "Nutze Benutzername und Passwort deines Abos",
+      "username": "Benutzername",
+      "password": "Passwort",
+      "checking": "{{server}} wird geprüft…",
+      "connecting": "Verbinde…",
+      "signIn": "Anmelden",
+      "signingIn": "Anmeldung läuft…",
+      "getStarted": "Neu hier? Los geht's",
+      "finishSetup": "Richte {{label}} fertig ein",
+      "note": "Benutzernamen mit E-Mail verbinden sich mit Vibez; alle anderen mit DreamStreams. Deine Zugangsdaten werden nur auf diesem Gerät gespeichert.",
+      "missingTitle": "Angaben fehlen",
+      "missingDesc": "Bitte gib Benutzername und Passwort ein.",
+      "failedTitle": "Anmeldung nicht möglich",
+      "invalid": "Ungültiger Benutzername oder ungültiges Passwort.",
+      "loadedTitle": "Konto geladen",
+      "loadedDescEmail": "Du bist außerdem in deinem Snow-Media-Konto angemeldet ({{email}}).",
+      "loadedDesc": "Du bist außerdem in deinem Snow-Media-Konto angemeldet.",
+      "connectedTitle": "Verbunden",
+      "connectedDesc": "Bei {{server}} angemeldet.",
+      "connectedYourService": "Bei deinem Dienst angemeldet.",
+      "connectFailedTitle": "Verbindung fehlgeschlagen",
+      "connectFailedDesc": "Prüfe deine Zugangsdaten und versuche es erneut."
+    },
+    "claim": {
+      "title": "Schließe dein Snow-Media-Konto ab",
+      "promptBody": "Dein Live-TV-Login <1>{{username}}</1> ist dein Snow-Media-Login. Gib deinen Namen und eine E-Mail oder Telefonnummer an, und dein Konto ist eingerichtet: Verlängerungserinnerungen, Mein Konto, Support und Shop, ohne zweites Passwort.",
+      "enterBtn": "Hier eingeben",
+      "scanBtn": "QR mit dem Handy scannen",
+      "notNowBtn": "Nicht jetzt",
+      "qrAlt": "QR-Code, um dein Konto auf dem Handy zu bestätigen",
+      "qrBody": "Scanne mit deinem Handy, um <1>{{username}}</1> zu bestätigen — dieser Bildschirm aktualisiert sich von selbst, wenn du fertig bist.",
+      "preparing": "QR-Code wird vorbereitet…",
+      "qrExpired": "Dieser QR-Code ist abgelaufen. Erstelle einen neuen, um fortzufahren.",
+      "qrError": "Server nicht erreichbar. Erstelle einen neuen, um fortzufahren.",
+      "newQrBtn": "Neuer QR",
+      "manualBody": "Für <1>{{username}}</1>. E-Mail oder Telefon, mindestens eines. Drücke auf der Tastatur Weiter, um nach unten zu gehen.",
+      "namePlaceholder": "Dein Name",
+      "emailPlaceholder": "E-Mail (für dein Snow-Media-Konto)",
+      "phonePlaceholder": "Telefon (optional)",
+      "savingBtn": "Speichern…",
+      "errBadEmail": "Diese E-Mail sieht nicht richtig aus — prüfe sie und versuche es erneut.",
+      "errNeedContact": "Gib eine E-Mail oder Telefonnummer an, damit wir dich erreichen können.",
+      "errEmailInUse": "Diese E-Mail hat bereits ein Snow-Media-Konto. Melde dich einmal unter Mein Konto an oder nutze hier eine andere E-Mail.",
+      "errVerify": "Wir konnten die Live-TV-Anmeldung dieses Geräts gerade nicht prüfen — versuche es in einer Minute erneut.",
+      "errRateLimited": "Zu viele Versuche — warte ein paar Minuten und versuche es erneut.",
+      "errGeneric": "Etwas ist schiefgelaufen — probiere die QR-Option.",
+      "errNetwork": "Verbindungsproblem — prüfe dein Netzwerk und versuche es erneut."
+    },
+    "email": {
+      "not_deployed": "E-Mail ist auf diesem Server noch nicht aktiviert. Deine Daten sind weiterhin auf dem Bildschirm.",
+      "auth_required": "E-Mail ist auf dem Server nicht richtig eingerichtet. Deine Daten sind weiterhin auf dem Bildschirm.",
+      "invalid_email": "Diese E-Mail-Adresse sieht nicht richtig aus.",
+      "missing_credentials": "Dieser Dienst hat noch keine Zugangsdaten.",
+      "invalid_credentials": "Das Panel hat diese Anmeldung nicht erkannt, daher wurde nichts gesendet.",
+      "panel_unreachable": "Der Streaming-Server war gerade nicht erreichbar. Deine Daten sind weiterhin auf dem Bildschirm.",
+      "rate_limited": "Das wurde schon mehrmals gesendet. Versuche es in ein paar Minuten erneut.",
+      "email_unavailable": "E-Mail ist auf diesem Server noch nicht aktiviert.",
+      "send_failed": "Die E-Mail konnte nicht gesendet werden. Deine Daten sind weiterhin auf dem Bildschirm."
+    }
+  }
+}

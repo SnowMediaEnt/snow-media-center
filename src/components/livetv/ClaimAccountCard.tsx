@@ -14,6 +14,7 @@ import {
   markClaimDone,
 } from '@/lib/accountClaim';
 import type { PlayerAccount } from '@/lib/xtream';
+import { Trans, useTranslation } from 'react-i18next';
 
 export type ClaimCloseOutcome = 'notnow' | 'back' | 'done';
 
@@ -40,6 +41,7 @@ const FOCUSED_CLS = 'scale-105 z-10';
  * 7-day dismissal (handled by the caller via the outcome).
  */
 const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<View>('prompt');
   const [focusIdx, setFocusIdx] = useState(0);
 
@@ -54,6 +56,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [manualBusy, setManualBusy] = useState(false);
+  // A translation key, not text: it is translated when drawn, so it follows the language.
   const [manualError, setManualError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -148,11 +151,11 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
     const em = email.trim().toLowerCase();
     const ph = phone.trim();
     if (em && !EMAIL_RE.test(em)) {
-      setManualError("That email doesn't look right — check it and try again.");
+      setManualError('liveAccount.claim.errBadEmail');
       return;
     }
     if (!em && !ph) {
-      setManualError('Add an email or a phone number so we can reach you.');
+      setManualError('liveAccount.claim.errNeedContact');
       return;
     }
     setManualBusy(true);
@@ -171,18 +174,18 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
         return;
       }
       if (res.reason === 'email_in_use') {
-        setManualError('That email already has a Snow Media account. Sign into it once from My Account, or use a different email here.');
+        setManualError('liveAccount.claim.errEmailInUse');
       } else if (res.reason === 'bad_email') {
-        setManualError("That email doesn't look right — check it and try again.");
+        setManualError('liveAccount.claim.errBadEmail');
       } else if (res.reason === 'auth_failed' || res.reason === 'panel_unreachable') {
-        setManualError("We couldn't verify this box's Live TV sign-in right now — please try again in a minute.");
+        setManualError('liveAccount.claim.errVerify');
       } else if (res.reason === 'rate_limited') {
-        setManualError('Too many attempts — please wait a few minutes and try again.');
+        setManualError('liveAccount.claim.errRateLimited');
       } else {
-        setManualError('Something went wrong — please try the QR option.');
+        setManualError('liveAccount.claim.errGeneric');
       }
     } catch {
-      setManualError('Connection problem — check your network and try again.');
+      setManualError('liveAccount.claim.errNetwork');
     } finally {
       setManualBusy(false);
     }
@@ -290,16 +293,21 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
   // Keep DOM focus in sync with the D-pad cursor.
   useEffect(() => {
     if (!open) return;
-    const t = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       if (view === 'manual' && focusIdx < FIELD_COUNT) {
         fieldRefs[focusIdx].current?.focus({ preventScroll: true });
         return;
       }
       document.getElementById(`claim-${view}-btn-${focusIdx}`)?.focus({ preventScroll: true });
     }, 50);
-    return () => window.clearTimeout(t);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, view, focusIdx, qrState]);
+
+  const isPrompt = view === 'prompt';
+  const isQr = view === 'qr';
+  const isManual = view === 'manual';
+  const qrRetry = qrState === 'expired' || qrState === 'error';
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onCloseRef.current('back'); }}>
@@ -309,14 +317,14 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
         <div className="px-6 py-4 border-b border-brand-gold/40 flex items-center gap-3 bg-gradient-to-r from-brand-gold/30 via-yellow-500/20 to-brand-gold/30">
           <BellRing className="w-6 h-6 text-brand-gold" />
           <h2 className="text-2xl font-quicksand font-bold text-white leading-tight tracking-tight">
-            Finish your Snow Media account
+            {t('liveAccount.claim.title')}
           </h2>
         </div>
 
-        {view === 'prompt' && (
+        {isPrompt && (
           <>
             <p className="px-6 py-6 text-base font-medium text-slate-100 leading-relaxed">
-              Your Live TV login <span className="font-semibold text-white break-all">{account.username}</span> is your Snow Media login. Add your name and an email or phone, and your account is set up for you: renewal reminders, My Account, support and the store, with no second password.
+              <Trans i18nKey="liveAccount.claim.promptBody" values={{ username: account.username }} components={{ 1: <span className="font-semibold text-white break-all" /> }} />
             </p>
             <div className="px-6 py-4 border-t border-brand-gold/30 bg-slate-950/60 flex justify-center gap-3 flex-wrap">
               <Button
@@ -326,7 +334,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 onClick={openManual}
                 className={`h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === 0 ? FOCUSED_CLS : ''}`}
               >
-                <Keyboard className="w-4 h-4 mr-2" /> Enter it here
+                <Keyboard className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('liveAccount.claim.enterBtn')}</span>
               </Button>
               <Button
                 variant="white"
@@ -335,7 +343,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 onClick={() => { setView('qr'); setFocusIdx(0); }}
                 className={`h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${focusIdx === 1 ? FOCUSED_CLS : ''}`}
               >
-                <QrCode className="w-4 h-4 mr-2" /> Scan QR with your phone
+                <QrCode className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('liveAccount.claim.scanBtn')}</span>
               </Button>
               <Button
                 variant="white"
@@ -344,39 +352,39 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 onClick={() => onCloseRef.current('notnow')}
                 className={`h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${focusIdx === 2 ? FOCUSED_CLS : ''}`}
               >
-                Not now
+                <span className="min-w-0 truncate">{t('liveAccount.claim.notNowBtn')}</span>
               </Button>
             </div>
           </>
         )}
 
-        {view === 'qr' && (
+        {isQr && (
           <div className="px-6 py-6 flex flex-col items-center gap-4">
             {qrState === 'ready' && qrUrl ? (
               <>
                 <div className="bg-white p-3 rounded-xl shadow-lg">
                   <img
                     src={qrUrl}
-                    alt="QR code to claim your account on your phone"
+                    alt={t('liveAccount.claim.qrAlt')}
                     className="w-[min(42vh,15rem)] h-[min(42vh,15rem)]"
                   />
                 </div>
                 <p className="text-sm text-white/80 text-center leading-relaxed">
-                  Scan with your phone to claim <span className="font-semibold text-white break-all">{account.username}</span> — this screen updates itself when you finish.
+                  <Trans i18nKey="liveAccount.claim.qrBody" values={{ username: account.username }} components={{ 1: <span className="font-semibold text-white break-all" /> }} />
                 </p>
               </>
             ) : qrState === 'loading' ? (
               <div className="py-12 flex flex-col items-center gap-3">
                 <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
-                <p className="text-white/70 text-sm">Preparing your QR code…</p>
+                <p className="text-white/70 text-sm">{t('liveAccount.claim.preparing')}</p>
               </div>
             ) : (
               <p className="py-6 text-sm text-white/80 text-center leading-relaxed">
-                {qrState === 'expired' ? 'That QR code expired.' : "Couldn't reach the server."} Make a new one to keep going.
+                {qrState === 'expired' ? t('liveAccount.claim.qrExpired') : t('liveAccount.claim.qrError')}
               </p>
             )}
             <div className="flex justify-center gap-3">
-              {(qrState === 'expired' || qrState === 'error') && (
+              {qrRetry && (
                 <Button
                   variant="gold"
                   id="claim-qr-btn-0"
@@ -384,7 +392,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                   onClick={() => void startQrSession()}
                   className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === 0 ? FOCUSED_CLS : ''}`}
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" /> Make new QR
+                  <RefreshCw className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('liveAccount.claim.newQrBtn')}</span>
                 </Button>
               )}
               <Button
@@ -394,16 +402,16 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 onClick={backToPrompt}
                 className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${focusIdx === ((qrState === 'expired' || qrState === 'error') ? 1 : 0) ? FOCUSED_CLS : ''}`}
               >
-                Back
+                {t('common.back')}
               </Button>
             </div>
           </div>
         )}
 
-        {view === 'manual' && (
+        {isManual && (
           <div className="px-6 py-5 flex flex-col gap-3">
             <p className="text-sm text-white/80 leading-relaxed">
-              For <span className="font-semibold text-white break-all">{account.username}</span>. Email or phone, at least one. Press Next on the keyboard to move down.
+              <Trans i18nKey="liveAccount.claim.manualBody" values={{ username: account.username }} components={{ 1: <span className="font-semibold text-white break-all" /> }} />
             </p>
             <Input
               ref={nameRef}
@@ -411,7 +419,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
+              placeholder={t('liveAccount.claim.namePlaceholder')}
               autoComplete="off"
               enterKeyHint="next"
               disabled={manualBusy}
@@ -424,7 +432,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email (for your Snow Media account)"
+              placeholder={t('liveAccount.claim.emailPlaceholder')}
               autoComplete="off"
               enterKeyHint="next"
               disabled={manualBusy}
@@ -438,14 +446,14 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
               inputMode="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="Phone (optional)"
+              placeholder={t('liveAccount.claim.phonePlaceholder')}
               autoComplete="off"
               enterKeyHint="done"
               disabled={manualBusy}
               data-focused={focusIdx === 2 ? 'true' : 'false'}
               className="tv-ring h-12 rounded-xl bg-black/30 text-white border-white/20"
             />
-            {manualError && <p className="text-red-300 text-sm leading-relaxed">{manualError}</p>}
+            {manualError && <p className="text-red-300 text-sm leading-relaxed">{t(manualError)}</p>}
             <div className="flex justify-center gap-3 pt-1">
               <Button
                 variant="gold"
@@ -456,7 +464,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === SAVE_IDX ? FOCUSED_CLS : ''}`}
               >
                 {manualBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                {manualBusy ? 'Saving…' : 'Save'}
+                <span className="min-w-0 truncate">{manualBusy ? t('liveAccount.claim.savingBtn') : t('common.save')}</span>
               </Button>
               <Button
                 variant="white"
@@ -466,7 +474,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 disabled={manualBusy}
                 className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${focusIdx === BACK_IDX ? FOCUSED_CLS : ''}`}
               >
-                Back
+                {t('common.back')}
               </Button>
             </div>
           </div>

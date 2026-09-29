@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { isDemo } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import { useBillingEnabled } from '@/hooks/useBillingEnabled';
+import { useTranslation } from 'react-i18next';
 
 // Demo latch (?demo=1) — account actions are inert; the demo account is fixed.
 const DEMO = isDemo();
@@ -34,7 +35,7 @@ interface Props {
 type View = 'menu' | 'billing' | 'account' | 'switch' | 'categories' | 'appearance' | 'rewind' | 'playback';
 type MenuId = 'billing' | 'account' | 'switch' | 'categories' | 'appearance' | 'rewind' | 'playback' | 'signout';
 
-interface MenuItem { id: MenuId; label: string; icon: typeof Tv; }
+interface MenuItem { id: MenuId; labelKey: string; icon: typeof Tv; }
 
 const fallback = (
   <div className="min-h-screen flex items-center justify-center text-white bg-black/70">
@@ -43,6 +44,7 @@ const fallback = (
 );
 
 const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials, onSwitchAccount, onTryLayout }: Props) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<View>(initialView ?? 'menu');
   const [menuIdx, setMenuIdx] = useState(1); // start on first list row (skip Back)
   const menuIdxRef = useRef(menuIdx);
@@ -52,23 +54,23 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
   const MENU: MenuItem[] = useMemo(() => [
     // "My Account" = the billing account (plans, renewals, trial). Account
     // Info below stays the panel line's details.
-    ...(billingOn ? [{ id: 'billing' as MenuId, label: 'My Account', icon: CreditCard }] : []),
-    { id: 'account',    label: 'Account Info',      icon: KeyRound },
-    { id: 'switch',     label: 'Switch Account',    icon: Users },
-    { id: 'categories', label: 'Hide Categories',   icon: ListFilter },
-    { id: 'appearance', label: 'Appearance',        icon: Palette },
-    { id: 'rewind',     label: 'Rewind & recording', icon: History },
-    { id: 'playback',   label: 'Playback',          icon: Gauge },
-    { id: 'signout',    label: 'Sign Out',          icon: LogOut },
+    ...(billingOn ? [{ id: 'billing' as MenuId, labelKey: 'liveAccount.hub.myAccount', icon: CreditCard }] : []),
+    { id: 'account',    labelKey: 'liveAccount.hub.accountInfo',  icon: KeyRound },
+    { id: 'switch',     labelKey: 'liveAccount.hub.switchAccount', icon: Users },
+    { id: 'categories', labelKey: 'liveAccount.hub.hideCategories', icon: ListFilter },
+    { id: 'appearance', labelKey: 'liveAccount.hub.appearance',   icon: Palette },
+    { id: 'rewind',     labelKey: 'liveAccount.hub.rewind',       icon: History },
+    { id: 'playback',   labelKey: 'liveAccount.hub.playback',     icon: Gauge },
+    { id: 'signout',    labelKey: 'liveAccount.hub.signOut',      icon: LogOut },
   ], [billingOn]);
 
   const { toast } = useToast();
   const demoNote = useCallback(() => {
     toast({
-      title: 'Live demo',
-      description: 'The demo is pre-loaded with a demo account — sign-in and account switching work in the installed app.',
+      title: t('liveAccount.hub.demoTitle'),
+      description: t('liveAccount.hub.demoDesc'),
     });
-  }, [toast]);
+  }, [toast, t]);
 
   const activate = useCallback((id: MenuId) => {
     // Demo: Account Info / Switch Account / Sign Out are
@@ -181,13 +183,13 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
       <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
         <BackButton
           onClick={onBack}
-          label="Back"
+          label={t('common.back')}
           data-player-header-btn=""
           focused={menuIdx === 0}
         />
         <div className="flex items-center gap-2">
           <Tv className="w-7 h-7 text-brand-gold" />
-          <h1 className="text-2xl font-quicksand font-bold text-white">Settings</h1>
+          <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.hub.title')}</h1>
         </div>
       </div>
 
@@ -204,7 +206,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
                 className={`tv-ring flex items-center gap-4 rounded-xl px-5 py-4 bg-slate-900/70 border border-white/10 cursor-pointer ${focused ? 'scale-[1.02] z-10' : ''}`}
               >
                 <Icon className="w-6 h-6 text-brand-gold shrink-0" />
-                <span className="text-xl font-quicksand font-semibold">{m.label}</span>
+                <span className="text-xl font-quicksand font-semibold min-w-0 truncate">{t(m.labelKey)}</span>
               </div>
             );
           })}

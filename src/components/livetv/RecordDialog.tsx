@@ -27,6 +27,7 @@ import {
   CUSTOM_DEFAULT, RECORD_DURATIONS, endsAtLabel, extraStreamNote, formatMinutes, isLowSpace, stepCustom,
 } from '@/lib/recording';
 import { formatBytes } from '@/lib/liveRewind';
+import { useTranslation } from 'react-i18next';
 import {
   clockLabel, conflictMessage, loadPadding, minutesUntil, paddedLabel, paddedWindow, programmeMode, recordFloorBytes,
   recordingCap, scheduleConflict, spaceWarning, type ProgrammeChoice, type RecordPadding, type SchedLike,
@@ -40,7 +41,10 @@ export interface RecordChoice {
   programme?: ProgrammeChoice;
 }
 
-/** Said on a one-stream plan too: the picture being watched is the one stream. */
+/**
+ * Said on a one-stream plan too: the picture being watched is the one stream. This is the English
+ * text (the tests compare against it); the dialog shows i18n 'recordings.dialog.oneStream'.
+ */
 export const ONE_STREAM_WARNING = 'While it records, watching TV may stop the picture or the recording.';
 
 interface Props {
@@ -67,12 +71,16 @@ interface Props {
 
 type Row = 'what' | 'dest' | 'dur' | 'custom' | 'start' | 'stop' | 'more' | 'cancel';
 
-const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+// Message keys for the length chips (RECORD_DURATIONS keeps the English names as a fallback).
+const DUR_KEYS: Record<string, string> = {
+  '30': 'min30', '60': 'hour1', '120': 'hour2', '180': 'hour3', custom: 'custom', open: 'open',
+};
 
 const RecordDialog = memo(({
   channelName, maxConnections = null, programme = null, padding, programmes, streamId = 0, existing, activeJob,
   onStart, onStop, onMore, onClose,
 }: Props) => {
+  const { t } = useTranslation();
   const progMode = !!programmes && !activeJob;
   const [volumes, setVolumes] = useState<RecordVolume[] | null>(null);
   const [volIdx, setVolIdx] = useState(0);
@@ -82,7 +90,7 @@ const RecordDialog = memo(({
   const untilMs = programme && programme.endMs > now ? programme.endMs + pad.afterMin * 60_000 : 0;
   const durations = useMemo(
     () => (untilMs
-      ? [{ id: 'programme', label: `This programme (until ${clockLabel(untilMs)})`, minutes: minutesUntil(untilMs, now) }, ...RECORD_DURATIONS]
+      ? [{ id: 'programme', label: '', minutes: minutesUntil(untilMs, now) }, ...RECORD_DURATIONS]
       : RECORD_DURATIONS),
     [untilMs, now],
   );
@@ -123,6 +131,7 @@ const RecordDialog = memo(({
     )
     : null;
   const space = prog && vol ? spaceWarning(progMinutes, vol.freeBytes, recordFloorBytes(vol.removable)) : null;
+  const isOver = mode === 'over';
   const canStart = !!vol && (!progMode || (!!prog && mode !== 'over' && !conflict));
 
   // Keys — the dialog owns the remote while open. OK is ignored until it is
@@ -203,6 +212,9 @@ const RecordDialog = memo(({
       selected ? (rowFocused ? 'bg-brand-gold text-brand-navy font-bold' : 'bg-white/25 text-white font-semibold') : 'text-brand-ice/80'}`;
 
   const ends = dur.id === 'programme' ? clockLabel(untilMs) : endsAtLabel(minutes);
+  const durLabel = (d: { id: string; label: string }) => (d.id === 'programme'
+    ? t('recordings.dialog.duration.programme', { time: clockLabel(untilMs) })
+    : t(`recordings.dialog.duration.${DUR_KEYS[d.id] ?? 'custom'}`, { defaultValue: d.label }));
   const started = activeJob ? new Date(activeJob.startedAt) : null;
   const oneStream = maxConnections === 1;
 
@@ -212,24 +224,27 @@ const RecordDialog = memo(({
         <div className="flex items-center mb-2">
           <Circle className="w-5 h-5 mr-2 fill-red-500 text-red-500 flex-shrink-0" />
           <h2 className="flex-1 min-w-0 truncate text-2xl font-quicksand font-bold">
-            {activeJob ? `Recording ${channelName}` : progMode ? `Record a programme on ${channelName}` : `Record ${channelName}`}
+            {activeJob ? t('recordings.dialog.titleActive', { channel: channelName }) : progMode ? t('recordings.dialog.titleProgramme', { channel: channelName }) : t('recordings.dialog.title', { channel: channelName })}
           </h2>
         </div>
 
         {activeJob ? (
           <p className="mb-2 text-base font-nunito text-brand-ice/80">
-            Recording since {started ? `${pad2(started.getHours())}:${pad2(started.getMinutes())}` : '…'}
-            {activeJob.endsAt > 0 ? `, until ${pad2(new Date(activeJob.endsAt).getHours())}:${pad2(new Date(activeJob.endsAt).getMinutes())}` : ', until you stop it'}
-            {activeJob.bytes > 0 ? ` · ${formatBytes(activeJob.bytes)} so far` : ''}
+            {t(
+              activeJob.endsAt > 0
+                ? (activeJob.bytes > 0 ? 'recordings.dialog.runningUntilSize' : 'recordings.dialog.runningUntil')
+                : (activeJob.bytes > 0 ? 'recordings.dialog.runningOpenSize' : 'recordings.dialog.runningOpen'),
+              { since: started ? clockLabel(started.getTime()) : '…', until: activeJob.endsAt > 0 ? clockLabel(activeJob.endsAt) : '', size: formatBytes(activeJob.bytes) },
+            )}
           </p>
         ) : null}
 
         <div className="space-y-2">
           {rows.includes('what') && (
             <div data-record-row="what" data-focused={focusRow === 'what' ? 'true' : 'false'} className={rowCls('what')}>
-              <p className="text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold mb-1">What</p>
+              <p className="text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold mb-1">{t('recordings.dialog.what')}</p>
               {programmes!.length === 0 && (
-                <p className="text-base font-nunito text-amber-300">No programme listings for this channel yet.</p>
+                <p className="text-base font-nunito text-amber-300">{t('recordings.dialog.noListings')}</p>
               )}
               {programmes!.map((p, i) => {
                 const picked = i === Math.min(progIdx, programmes!.length - 1);
@@ -243,7 +258,7 @@ const RecordDialog = memo(({
                   >
                     <span className="tabular-nums mr-3 flex-shrink-0">{clockLabel(p.startMs)}–{clockLabel(p.endMs)}</span>
                     <span className="truncate">{p.title}</span>
-                    {p.scheduled && <Circle className="ml-auto w-3 h-3 flex-shrink-0 fill-red-500 text-red-500" aria-label="Already scheduled" />}
+                    {p.scheduled && <Circle className="ml-auto w-3 h-3 flex-shrink-0 fill-red-500 text-red-500" aria-label={t('recordings.dialog.alreadyScheduled')} />}
                   </p>
                 );
               })}
@@ -251,36 +266,36 @@ const RecordDialog = memo(({
           )}
           {rows.includes('dest') && (
             <div data-record-row="dest" data-focused={focusRow === 'dest' ? 'true' : 'false'} className={rowCls('dest')}>
-              <p className="text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold mb-1">Save to</p>
-              {volumes === null && <p className="text-base font-nunito text-brand-ice/70">Looking for drives…</p>}
+              <p className="text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold mb-1">{t('recordings.dialog.saveTo')}</p>
+              {volumes === null && <p className="text-base font-nunito text-brand-ice/70">{t('recordings.dialog.lookingForDrives')}</p>}
               {volumes && volumes.length === 0 && (
-                <p className="text-base font-nunito text-amber-300">No storage is available for recordings on this box.</p>
+                <p className="text-base font-nunito text-amber-300">{t('recordings.dialog.noStorage')}</p>
               )}
               {volumes && volumes.map((v, i) => (
                 <span key={v.id} className={chip(i === volIdx, focusRow === 'dest')}>
                   {v.removable ? <Usb className="inline w-4 h-4 mr-1 -mt-0.5" /> : <HardDrive className="inline w-4 h-4 mr-1 -mt-0.5" />}
-                  {v.label} · {formatBytes(v.freeBytes)} free
+                  {t('recordings.dialog.volumeFree', { label: v.label, size: formatBytes(v.freeBytes) })}
                 </span>
               ))}
               {vol && isLowSpace(vol.freeBytes) && (
                 <p className="mt-1 text-sm font-nunito text-amber-300 flex items-center">
-                  <AlertTriangle className="w-4 h-4 mr-1 flex-shrink-0" /> Less than 2 GB free: a long recording may stop early.
+                  <AlertTriangle className="w-4 h-4 mr-1 flex-shrink-0" /> {t('recordings.dialog.lowSpace')}
                 </p>
               )}
             </div>
           )}
           {rows.includes('dur') && (
             <div data-record-row="dur" data-focused={focusRow === 'dur' ? 'true' : 'false'} className={rowCls('dur')}>
-              <p className="text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold mb-1">How long</p>
+              <p className="text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold mb-1">{t('recordings.dialog.howLong')}</p>
               {durations.map((d, i) => (
-                <span key={d.id} className={chip(i === durIdx, focusRow === 'dur')}>{d.label}</span>
+                <span key={d.id} className={chip(i === durIdx, focusRow === 'dur')}>{durLabel(d)}</span>
               ))}
             </div>
           )}
           {rows.includes('custom') && (
             <div data-record-row="custom" data-focused={focusRow === 'custom' ? 'true' : 'false'} className={rowCls('custom')}>
               <p className="text-lg font-nunito">
-                <span className="text-brand-ice/70 mr-2">Custom length</span>
+                <span className="text-brand-ice/70 mr-2">{t('recordings.dialog.customLength')}</span>
                 <span className="font-quicksand font-bold tabular-nums">◀ {formatMinutes(custom)} ▶</span>
               </p>
             </div>
@@ -291,15 +306,15 @@ const RecordDialog = memo(({
               <Info className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-brand-gold" />
               <p className="text-sm font-nunito text-brand-ice/90">
                 {extraStreamNote(maxConnections)}
-                {oneStream ? ` ${ONE_STREAM_WARNING}` : ''}
+                {oneStream ? ` ${t('recordings.dialog.oneStream')}` : ''}
               </p>
             </div>
           )}
-          {progMode && (conflict || space || mode === 'over') && (
+          {progMode && (conflict || space || isOver) && (
             <div className="px-1">
-              {mode === 'over' && (
+              {isOver && (
                 <p data-record-over className="text-sm font-nunito text-amber-300 flex items-center">
-                  <AlertTriangle className="w-4 h-4 mr-1 flex-shrink-0" /> That programme has finished.
+                  <AlertTriangle className="w-4 h-4 mr-1 flex-shrink-0" /> {t('recordings.dialog.finished')}
                 </p>
               )}
               {conflict && (
@@ -322,33 +337,33 @@ const RecordDialog = memo(({
               className={`${rowCls('start')} flex items-center ${canStart ? '' : 'opacity-50'}`}
             >
               <Circle className="w-5 h-5 mr-3 fill-red-500 text-red-500 flex-shrink-0" />
-              <span className="text-lg font-quicksand font-bold">{progMode ? 'Record this programme' : 'Start recording'}</span>
+              <span className="text-lg font-quicksand font-bold">{progMode ? t('recordings.dialog.recordProgrammeAction') : t('recordings.dialog.startAction')}</span>
               <span className="ml-auto text-base font-nunito tabular-nums text-brand-ice/70">
                 {progMode
-                  ? (win ? (mode === 'now' ? `now \u2192 ${clockLabel(win.endMs)}` : paddedLabel(win.startMs, win.endMs)) : '')
-                  : ends ? `until ${ends}` : 'until you stop it'}
+                  ? (win ? (mode === 'now' ? t('recordings.dialog.nowUntil', { time: clockLabel(win.endMs) }) : paddedLabel(win.startMs, win.endMs)) : '')
+                  : ends ? t('recordings.dialog.untilTime', { time: ends }) : t('recordings.dialog.untilStop')}
               </span>
             </div>
           )}
           {rows.includes('stop') && (
             <div data-record-row="stop" data-focused={focusRow === 'stop' ? 'true' : 'false'} className={`${rowCls('stop')} flex items-center`}>
               <Square className="w-5 h-5 mr-3 fill-current flex-shrink-0" />
-              <span className="text-lg font-quicksand font-bold">Stop recording</span>
+              <span className="text-lg font-quicksand font-bold">{t('recordings.dialog.stopAction')}</span>
             </div>
           )}
           {rows.includes('more') && (
             <div data-record-row="more" data-focused={focusRow === 'more' ? 'true' : 'false'} className={`${rowCls('more')} flex items-center`}>
               <MoreHorizontal className="w-5 h-5 mr-3 flex-shrink-0" />
-              <span className="text-lg font-nunito">More options…</span>
-              <span className="ml-3 text-sm font-nunito text-brand-ice/60">favorite, report</span>
+              <span className="text-lg font-nunito">{t('recordings.dialog.moreAction')}</span>
+              <span className="ml-3 text-sm font-nunito text-brand-ice/60">{t('recordings.dialog.moreHint')}</span>
             </div>
           )}
           <div data-record-row="cancel" data-focused={focusRow === 'cancel' ? 'true' : 'false'} className={`${rowCls('cancel')} flex items-center`}>
             <X className="w-5 h-5 mr-3 flex-shrink-0" />
-            <span className="text-lg font-nunito">Cancel</span>
+            <span className="text-lg font-nunito">{t('common.cancel')}</span>
           </div>
         </div>
-        <p className="mt-2 text-xs font-nunito text-brand-ice/60">▲▼ choose · ◀▶ change · OK · Back closes. Recordings are under Live TV › Recordings.</p>
+        <p className="mt-2 text-xs font-nunito text-brand-ice/60">{t('recordings.dialog.hint')}</p>
       </div>
     </div>
   );

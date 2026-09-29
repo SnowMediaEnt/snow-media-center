@@ -1,0 +1,61 @@
+{
+  "gameDay": {
+    "title": "Game Day",
+    "allChip": "All",
+    "loading": "Getting today's games…",
+    "loadError": "Couldn't load the games. Check the internet connection and try again in a minute.",
+    "empty": "No big games on right now — check back later.",
+    "liveDot": "● LIVE {{detail}}",
+    "liveDetail": "LIVE {{detail}}",
+    "findingChannels": "Finding your channels…",
+    "reportedDown": "Reported down right now",
+    "notInChannelsOn": "{{networks}} — not in your channels",
+    "streamingOnly": "{{networks}} (streaming only)",
+    "notInChannels": "Not in your channels",
+    "watchBtn": "Watch",
+    "remindBtn": "Remind me",
+    "reminderOnBtn": "Reminder on",
+    "browse": "Browse {{name}} in Live TV",
+    "zoneHeading": "Zone channels — every game of the league, not just this one",
+    "checkingGuide": "Checking the guide…",
+    "none": "Not in your channels right now. Press Back to return to the games.",
+    "noneOn": "Not in your channels right now — it's on {{networks}}. Press Back to return to the games.",
+    "tvNetworks": "TV: {{networks}}",
+    "tomorrow": "Tomorrow",
+    "tomorrowAt": "Tomorrow {{time}}",
+    "dayAt": "{{day}} {{time}}",
+    "days": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    },
+    "link": {
+      "game": "Game channel",
+      "network": "National TV",
+      "local": "Local & regional",
+      "team": "Team channel",
+      "league": "League channel",
+      "zone": "Zone channel"
+    },
+    "guide": {
+      "note": "Guide: {{text}}",
+      "otherGame": "Guide: another game — {{name}}"
+    },
+    "toast": {
+      "setTitle": "Reminder set",
+      "removedTitle": "Reminder removed",
+      "setDesc": "We'll pop up on the TV when {{name}} starts."
+    },
+    "reminder": {
+      "ariaLabel": "Game starting",
+      "startingNow": "{{league}} · Starting now",
+      "on": "On {{where}}",
+      "watchBtn": "Watch",
+      "dismissBtn": "Dismiss"
+    }
+  }
+}

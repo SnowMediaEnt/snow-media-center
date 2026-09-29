@@ -1,0 +1,61 @@
+{
+  "gameDay": {
+    "title": "Game Day",
+    "allChip": "Tous",
+    "loading": "Chargement des matchs du jour…",
+    "loadError": "Impossible de charger les matchs. Vérifiez votre connexion internet et réessayez dans une minute.",
+    "empty": "Aucun grand match en ce moment — revenez plus tard.",
+    "liveDot": "● EN DIRECT {{detail}}",
+    "liveDetail": "EN DIRECT {{detail}}",
+    "findingChannels": "Recherche de vos chaînes…",
+    "reportedDown": "Signalé en panne actuellement",
+    "notInChannelsOn": "{{networks}} — absent de vos chaînes",
+    "streamingOnly": "{{networks}} (streaming uniquement)",
+    "notInChannels": "Absent de vos chaînes",
+    "watchBtn": "Regarder",
+    "remindBtn": "Me rappeler",
+    "reminderOnBtn": "Rappel activé",
+    "browse": "Parcourir {{name}} dans TV en direct",
+    "zoneHeading": "Chaînes Zone — tous les matchs de la ligue, pas seulement celui-ci",
+    "checkingGuide": "Vérification du guide…",
+    "none": "Absent de vos chaînes pour le moment. Appuyez sur Retour pour revenir aux matchs.",
+    "noneOn": "Absent de vos chaînes pour le moment — diffusé sur {{networks}}. Appuyez sur Retour pour revenir aux matchs.",
+    "tvNetworks": "TV : {{networks}}",
+    "tomorrow": "Demain",
+    "tomorrowAt": "Demain {{time}}",
+    "dayAt": "{{day}} {{time}}",
+    "days": {
+      "sun": "Dim",
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mer",
+      "thu": "Jeu",
+      "fri": "Ven",
+      "sat": "Sam"
+    },
+    "link": {
+      "game": "Chaîne du match",
+      "network": "TV nationale",
+      "local": "Local et régional",
+      "team": "Chaîne de l'équipe",
+      "league": "Chaîne de la ligue",
+      "zone": "Chaîne Zone"
+    },
+    "guide": {
+      "note": "Guide : {{text}}",
+      "otherGame": "Guide : un autre match — {{name}}"
+    },
+    "toast": {
+      "setTitle": "Rappel activé",
+      "removedTitle": "Rappel supprimé",
+      "setDesc": "Une alerte s'affichera sur la TV au début de {{name}}."
+    },
+    "reminder": {
+      "ariaLabel": "Le match commence",
+      "startingNow": "{{league}} · Commence maintenant",
+      "on": "Sur {{where}}",
+      "watchBtn": "Regarder",
+      "dismissBtn": "Ignorer"
+    }
+  }
+}

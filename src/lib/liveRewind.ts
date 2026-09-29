@@ -17,6 +17,7 @@
 // one, and nothing may.
 import type { XtreamCreds, XtreamLiveStream } from '@/lib/xtream';
 import type { TimeshiftStatus } from '@/capacitor/SnowPlayer';
+import i18n from '@/i18n';
 
 export type MaxRewind = 'auto' | 10 | 30 | 60;
 
@@ -32,6 +33,7 @@ export const REWIND_SETTINGS_KEY = 'smc-live-rewind-v1';
 export const REWIND_SETTINGS_EVENT = 'smc-live-rewind:changed';
 
 export const DEFAULT_REWIND_SETTINGS: RewindSettings = { enabled: true, maxRewind: 'auto' };
+// `label` is the English fallback; RewindSettingsScreen shows the translated name by id.
 export const MAX_REWIND_CHOICES: Array<{ id: MaxRewind; label: string }> = [
   { id: 'auto', label: 'Auto' },
   { id: 10, label: '10 min' },
@@ -172,12 +174,12 @@ export function formatSpan(sec: number): string {
 
 /** "-12:30 available", or "up to 3 days" for an archive. */
 export function availableLabel(sec: number, archiveDays = 0): string {
-  if (archiveDays > 0) return `Catch-up: up to ${archiveDays} day${archiveDays === 1 ? '' : 's'} back`;
-  return sec >= 1 ? `-${formatSpan(sec)} available` : 'Rewind is getting ready';
+  if (archiveDays > 0) return i18n.t('recordings.rewind.catchupUpTo', { count: archiveDays });
+  return sec >= 1 ? i18n.t('recordings.rewind.available', { span: formatSpan(sec) }) : i18n.t('recordings.rewind.gettingReady');
 }
 
 /** Where the viewer is: "LIVE" or "-0:45". */
-export const behindLabel = (behindSec: number): string => (behindSec >= 1 ? `-${formatSpan(behindSec)}` : 'LIVE');
+export const behindLabel = (behindSec: number): string => (behindSec >= 1 ? `-${formatSpan(behindSec)}` : i18n.t('recordings.rewind.liveLabel'));
 
 /** "1.2 GB", "350 MB". */
 export function formatBytes(b: number): string {
@@ -212,21 +214,24 @@ export type RewindOffReason =
   /** The buffer was running and gave its stream back: another device needed it. */
   | 'line-taken';
 
-/** The toast when the buffer gives its stream back mid-watch. */
+/**
+ * The toast when the buffer gives its stream back mid-watch. This constant is the English
+ * text (the tests compare against it); the app shows i18n 'recordings.rewind.off.lineTaken'.
+ */
 export const LINE_TAKEN_MESSAGE = 'Rewind turned off: another device is using your line\'s streams.';
 
 /** What to tell the viewer who asks for rewind while it is off. */
 export function rewindOffMessage(reason: RewindOffReason | null): string {
   switch (reason) {
-    case 'streams': return 'Your plan allows 1 stream, so rewind works only on channels with catch-up.';
-    case 'streams-unknown': return 'This box can\'t tell how many streams your plan allows, so rewind works only on channels with catch-up.';
-    case 'recording': return 'Rewind is paused while recording (your plan\'s streams are in use).';
-    case 'engine': return 'Rewind needs the ExoPlayer engine. Change it under Live TV settings › Playback.';
-    case 'line-checking': return 'Rewind is checking your line for a free stream. Try again in a few seconds.';
-    case 'line-full': return 'Rewind is off: another device is using your line\'s streams. It tries again on the next channel.';
-    case 'line-unknown': return 'Rewind is off: this box couldn\'t check that your line has a free stream. It tries again on the next channel.';
-    case 'line-taken': return LINE_TAKEN_MESSAGE;
-    default: return 'Rewind is off. Turn on Rewind live TV in Live TV settings.';
+    case 'streams': return i18n.t('recordings.rewind.off.streams');
+    case 'streams-unknown': return i18n.t('recordings.rewind.off.streamsUnknown');
+    case 'recording': return i18n.t('recordings.rewind.off.recording');
+    case 'engine': return i18n.t('recordings.rewind.off.engine');
+    case 'line-checking': return i18n.t('recordings.rewind.off.lineChecking');
+    case 'line-full': return i18n.t('recordings.rewind.off.lineFull');
+    case 'line-unknown': return i18n.t('recordings.rewind.off.lineUnknown');
+    case 'line-taken': return i18n.t('recordings.rewind.off.lineTaken');
+    default: return i18n.t('recordings.rewind.off.disabled');
   }
 }
 
