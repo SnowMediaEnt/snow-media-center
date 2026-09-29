@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Users, Sparkles, Smartphone } from 'lucide-react';
 import { useTVFocus, type TVFocusNavigationMap } from '@/hooks/useTVFocus';
@@ -7,7 +8,8 @@ import { BODY, HEADER, SCREEN } from '@/components/billing/shared';
 import { focusAttrs, scaleIf, useFocusRecovery } from '@/components/billing/shared';
 import { formatMoney } from '@/lib/billing';
 import type { SignupLink, SignupOffers } from '@/lib/signupLinks';
-import { connectionsText, termText } from '@/lib/signupLinks';
+import { connectionsLabel, termLabel } from './tierText';
+import i18n from '@/i18n';
 
 interface Props {
   offers: SignupOffers;
@@ -18,7 +20,7 @@ interface Props {
 /** A price of 0 is an offer, not an amount — say so rather than printing $0.00. */
 const priceText = (l: SignupLink): string | null => {
   if (l.price === null) return null;
-  return l.price === 0 ? 'Free' : formatMoney(l.price, l.currency);
+  return l.price === 0 ? i18n.t('getStarted.plans.free') : formatMoney(l.price, l.currency);
 };
 
 /**
@@ -31,6 +33,7 @@ const priceText = (l: SignupLink): string | null => {
  * since the hosted page is what actually charges.
  */
 const VibezPlanGrid = memo(({ offers, onPick, onBack }: Props) => {
+  const { t } = useTranslation();
   // The trial sits in its own full-width card ABOVE the plan grid, so pure
   // spatial navigation could walk down out of it and never find a way back —
   // the card is wider than any grid cell, so nothing below scores it as the
@@ -82,11 +85,11 @@ const VibezPlanGrid = memo(({ offers, onPick, onBack }: Props) => {
     <div ref={containerRef} className={SCREEN}>
       <div className={HEADER}>
         <div className="flex items-center gap-3">
-          <BackButton onClick={onBack} label="Back" data-player-header-btn="" focused={currentFocusId === 'back'} data-tv-focus-id="back" />
+          <BackButton onClick={onBack} label={t('common.back')} data-player-header-btn="" focused={currentFocusId === 'back'} data-tv-focus-id="back" />
           <div>
-            <h1 className="text-2xl font-quicksand font-bold text-white leading-tight">Get started with Vibez</h1>
+            <h1 className="text-2xl font-quicksand font-bold text-white leading-tight">{t('getStarted.plans.title')}</h1>
             <p className="text-xs text-brand-ice/70 font-nunito flex items-center gap-1">
-              <Smartphone className="w-3 h-3" /> You finish this on your phone — about 5 minutes
+              <Smartphone className="w-3 h-3" /> {t('getStarted.plans.subtitle')}
             </p>
           </div>
         </div>
@@ -104,22 +107,22 @@ const VibezPlanGrid = memo(({ offers, onPick, onBack }: Props) => {
                 <div className="flex items-center gap-3">
                   <Smartphone className="w-7 h-7 text-brand-gold shrink-0" />
                   <div className="min-w-0">
-                    <div className="text-xl font-quicksand font-bold text-white leading-tight">See plans and sign up</div>
+                    <div className="text-xl font-quicksand font-bold text-white leading-tight">{t('getStarted.plans.seePlans')}</div>
                     <div className="text-brand-ice/80 font-nunito text-sm">
-                      Scan with your phone, pick a package there, and pay. Then come back and enter the login they email you.
+                      {t('getStarted.plans.seePlansDesc')}
                     </div>
                   </div>
                 </div>
               </Card>
 
               <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
-                <div className="text-xs uppercase tracking-wide text-white/60 mb-3">What Vibez offers</div>
+                <div className="text-xs uppercase tracking-wide text-white/60 mb-3">{t('getStarted.plans.whatOffers')}</div>
                 <ul className="space-y-2">
                   {[...(offers.trial ? [offers.trial] : []), ...offers.plans].map((l) => (
                     <li key={l.id} className="flex items-baseline justify-between gap-4 text-white font-nunito">
                       <span className="min-w-0">
-                        {l.kind === 'trial' ? 'Trial' : (l.label ?? termText(l.termMonths) ?? 'Plan')}
-                        {l.connections ? <span className="text-brand-ice/60"> · {connectionsText(l.connections)}</span> : null}
+                        {l.kind === 'trial' ? t('getStarted.plans.trial') : (l.label ?? (termLabel(l.termMonths) || t('getStarted.plans.plan')))}
+                        {l.connections ? <span className="text-brand-ice/60"> · {connectionsLabel(l.connections)}</span> : null}
                         {l.kind === 'trial' && l.label ? <span className="text-brand-ice/60"> · {l.label}</span> : null}
                       </span>
                       <span className="shrink-0 font-quicksand font-bold text-brand-gold">{priceText(l) ?? ''}</span>
@@ -140,15 +143,15 @@ const VibezPlanGrid = memo(({ offers, onPick, onBack }: Props) => {
                 <div className="flex items-center gap-3 min-w-0">
                   <Sparkles className="w-7 h-7 text-brand-gold shrink-0" />
                   <div className="min-w-0">
-                    <div className="text-xl font-quicksand font-bold text-white leading-tight">Trial</div>
+                    <div className="text-xl font-quicksand font-bold text-white leading-tight">{t('getStarted.plans.trial')}</div>
                     <div className="text-brand-ice/80 font-nunito text-sm">
-                      {[offers.trial.label, 'no card needed'].filter(Boolean).join(' · ')}
-                      {offers.trial.connections ? ` · ${connectionsText(offers.trial.connections)}` : ''}
+                      {offers.trial.label ? t('getStarted.plans.trialSubLabel', { label: offers.trial.label }) : t('getStarted.plans.noCard')}
+                      {offers.trial.connections ? ` · ${connectionsLabel(offers.trial.connections)}` : ''}
                     </div>
                   </div>
                 </div>
                 <div className="text-2xl font-quicksand font-bold text-brand-gold shrink-0">
-                  {priceText(offers.trial) ?? 'Free'}
+                  {priceText(offers.trial) ?? t('getStarted.plans.free')}
                 </div>
               </div>
             </Card>
@@ -167,17 +170,17 @@ const VibezPlanGrid = memo(({ offers, onPick, onBack }: Props) => {
                     {...focusAttrs(currentFocusId, id)}
                   >
                     <div className="text-xl font-quicksand font-bold text-white leading-tight">
-                      {p.label ?? termText(p.termMonths) ?? 'Plan'}
+                      {p.label ?? (termLabel(p.termMonths) || t('getStarted.plans.plan'))}
                     </div>
                     <div className="flex items-center gap-2 text-brand-ice/80 font-nunito text-sm mt-1">
                       <Users className="w-4 h-4" />
-                      {connectionsText(p.connections) || 'Streaming plan'}
+                      {connectionsLabel(p.connections) || t('getStarted.plans.streamingPlan')}
                     </div>
                     <div className="mt-4">
                       {price ? (
                         <span className="text-3xl font-quicksand font-bold text-brand-gold">{price}</span>
                       ) : (
-                        <span className="text-sm text-brand-ice/60 font-nunito">Price shown on the next screen</span>
+                        <span className="text-sm text-brand-ice/60 font-nunito">{t('getStarted.plans.priceNext')}</span>
                       )}
                     </div>
                   </Card>

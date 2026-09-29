@@ -5,6 +5,7 @@ import { waitForStorageReady } from '@/utils/storage';
 import { Capacitor } from '@capacitor/core';
 import { trackEvent } from '@/lib/analytics';
 import { markWebsiteSignedOut, clearWebsiteSignedOut } from '@/lib/websiteSession';
+import i18n from '@/i18n';
 
 const APP_CONFIRMATION_REDIRECT_URL = 'snowmedia://sso';
 
@@ -121,7 +122,7 @@ export const useAuth = () => {
       return { error, data };
     } catch (error) {
       console.error('[Auth] SignUp error:', error);
-      return { error: { message: 'Failed to create account.' } as AuthError, data: null };
+      return { error: { message: i18n.t('auth.errors.createFailed') } as AuthError, data: null };
     }
   };
 
@@ -138,7 +139,7 @@ export const useAuth = () => {
       });
       
       const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Login request timed out after 20 seconds')), 20000)
+        setTimeout(() => reject(new Error(i18n.t('auth.errors.loginTimeout'))), 20000)
       );
       
       const { error, data } = await Promise.race([loginPromise, timeoutPromise]);
@@ -156,7 +157,7 @@ export const useAuth = () => {
       const msg = error instanceof Error ? error.message : String(error);
       console.error('[Auth] SignIn exception:', msg);
       console.error('[Auth] Exception details:', error instanceof Error ? JSON.stringify(error, Object.getOwnPropertyNames(error)) : String(error));
-      return { error: { message: `Login failed: ${msg}` } as AuthError };
+      return { error: { message: i18n.t('auth.errors.loginFailed', { message: msg }) } as AuthError };
     }
   };
 

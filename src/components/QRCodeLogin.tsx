@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -11,6 +12,7 @@ interface QRCodeLoginProps {
 }
 
 const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
+  const { t } = useTranslation();
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [loginToken, setLoginToken] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -79,16 +81,16 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
       startPolling(token);
       
       toast({
-        title: "✅ QR Code Generated",
-        description: "Scan to sign in with your Snow Media Ent account",
+        title: t('auth.qrCode.generatedTitle'),
+        description: t('auth.qrCode.generatedDesc'),
       });
       
     } catch (error) {
       console.error('Error generating QR code:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      const errorMessage = error instanceof Error ? error.message : t('auth.qrCode.unknownError');
       toast({
-        title: "QR Code Error",
-        description: `Failed to generate QR code: ${errorMessage}`,
+        title: t('auth.qrCode.errorTitle'),
+        description: t('auth.qrCode.errorDesc', { error: errorMessage }),
         variant: "destructive",
       });
     } finally {
@@ -119,8 +121,8 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
           
           if (!sessionError && sessionData.session) {
             toast({
-              title: "Success!",
-              description: "You've been signed in via QR code",
+              title: t('auth.qrCode.signedInTitle'),
+              description: t('auth.qrCode.signedInDesc'),
             });
             onSuccess();
           }
@@ -134,8 +136,8 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
     setTimeout(() => {
       clearInterval(interval);
       toast({
-        title: "QR Code Expired",
-        description: "Please generate a new QR code to continue",
+        title: t('auth.qrCode.expiredTitle'),
+        description: t('auth.qrCode.expiredDesc'),
         variant: "destructive",
       });
     }, 300000);
@@ -149,9 +151,9 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
     <div className="space-y-6">
       <div className="text-center">
         <QrCode className="w-8 h-8 mx-auto mb-2 text-blue-400" />
-        <h3 className="text-lg font-semibold text-white mb-2">QR Code Login</h3>
+        <h3 className="text-lg font-semibold text-white mb-2">{t('auth.qrCode.title')}</h3>
         <p className="text-sm text-blue-200">
-          Scan to sign in with your existing Snow Media Ent account
+          {t('auth.qrCode.subtitle')}
         </p>
       </div>
 
@@ -159,23 +161,23 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
         {loading ? (
           <div className="flex flex-col items-center space-y-4 py-8">
             <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
-            <p className="text-white/60">Generating QR code...</p>
+            <p className="text-white/60">{t('auth.qrCode.generating')}</p>
           </div>
         ) : qrCodeUrl ? (
           <div className="space-y-4">
             <div className="bg-white p-4 rounded-lg inline-block">
               <img 
                 src={qrCodeUrl} 
-                alt="QR Code for login" 
+                alt={t('auth.qrCode.imageAlt')} 
                 className="w-64 h-64 mx-auto"
               />
             </div>
             <div className="space-y-2">
               <p className="text-sm text-white/80">
-                Scan this QR code with your phone's camera
+                {t('auth.qrCode.scanHint')}
               </p>
               <p className="text-xs text-white/60">
-                QR code expires in 5 minutes
+                {t('auth.qrCode.expiresNote')}
               </p>
             </div>
           </div>
@@ -183,7 +185,7 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
           <div className="flex flex-col items-center space-y-4 py-8">
             <AlertTriangle className="w-8 h-8 text-yellow-400" />
             <p className="text-yellow-200 text-center">
-              QR code not generated yet
+              {t('auth.qrCode.notGenerated')}
             </p>
           </div>
         )}
@@ -196,12 +198,12 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
         className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20"
       >
         <RefreshCw className="w-4 h-4 mr-2" />
-        Generate New QR Code
+        {t('auth.qrCode.generateBtn')}
       </Button>
 
       <div className="text-center">
         <p className="text-xs text-white/60">
-          QR code opens this app’s secure login page
+          {t('auth.qrCode.footer')}
         </p>
       </div>
     </div>

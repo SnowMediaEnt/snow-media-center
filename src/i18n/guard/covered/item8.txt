@@ -1,0 +1,12 @@
+# Files converted by work item 8 (Auth and Profiles).
+src/pages/Auth.tsx
+src/pages/ClaimAccount.tsx
+src/pages/QRLogin.tsx
+src/pages/SsoConsume.tsx
+src/pages/Welcome.tsx
+src/components/QRCodeLogin.tsx
+src/components/AccountChooser.tsx
+src/components/getstarted
+src/components/profiles
+src/lib/profilesUi.ts
+src/hooks/useAuth.ts

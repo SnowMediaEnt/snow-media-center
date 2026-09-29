@@ -1,0 +1,80 @@
+{
+  "getStarted": {
+    "flow": {
+      "oneMoment": "One moment…",
+      "unavailableTitle": "Sign-up is not available here",
+      "unavailableDesc": "New accounts cannot be created on this device right now. If you already have a username and password, press Back and sign in.",
+      "backToSignInBtn": "Back to sign in"
+    },
+    "ds": {
+      "subtitle": "Try it free first, or start a plan now.",
+      "trialTitle": "Trial",
+      "trialSub": "24 hours · no card needed",
+      "trialDesc": "We create your login and sign the Player in straight away.",
+      "buyTitle": "Buy a plan",
+      "buySub": "Pick a length and pay now",
+      "buyDesc": "Pay on this TV or with your phone, then the Player signs in by itself."
+    },
+    "chooser": {
+      "title": "Get started",
+      "subtitle": "Pick a service and we will set you up.",
+      "dsSub": "Set up on this TV · about a minute",
+      "dsDesc": "Start a free 24-hour trial or buy a plan right here. Your login is created for you and the Player signs in on its own.",
+      "vibezSub": "Finish on your phone · about 5 minutes",
+      "vibezDesc": "Vibez sign-up happens on their website. Scan a code with your phone, pay there, and they email you a login — then type it in here.",
+      "haveLoginBtn": "I already have a login"
+    },
+    "plans": {
+      "title": "Get started with Vibez",
+      "subtitle": "You finish this on your phone — about 5 minutes",
+      "free": "Free",
+      "seePlans": "See plans and sign up",
+      "seePlansDesc": "Scan with your phone, pick a package there, and pay. Then come back and enter the login they email you.",
+      "whatOffers": "What Vibez offers",
+      "trial": "Trial",
+      "plan": "Plan",
+      "noCard": "no card needed",
+      "trialSubLabel": "{{label}} · no card needed",
+      "streamingPlan": "Streaming plan",
+      "priceNext": "Price shown on the next screen"
+    },
+    "tier": {
+      "month_one": "{{count}} month",
+      "month_other": "{{count}} months",
+      "year": "1 year",
+      "connections_one": "{{count}} connection",
+      "connections_other": "{{count}} connections",
+      "plan": "Plan"
+    },
+    "handoff": {
+      "title": "Finish on your phone",
+      "intro": "{{label}} — Vibez sign-up happens on their website. Scan this with your phone, pay, and they will email you a username and password. Then come back here.",
+      "qrAlt": "Vibez sign-up QR code",
+      "orType": "Or type this in a browser",
+      "nothingChanges": "Nothing on this TV changes until you come back and enter the login they send you.",
+      "haveLoginBtn": "I have my login — continue",
+      "openBtn": "Open on this TV"
+    },
+    "signIn": {
+      "title": "Enter your Vibez login",
+      "intro": "Use the username and password Vibez emailed you after paying.",
+      "introResumed": "Use the username and password Vibez emailed you for {{label}}.",
+      "usernameLabel": "Username",
+      "usernamePlaceholder": "Username from Vibez",
+      "usernameAria": "Vibez username",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Password from Vibez",
+      "passwordAria": "Vibez password",
+      "checking": "Checking with Vibez…",
+      "forgetBtn": "I did not buy anything",
+      "missingTitle": "Missing info",
+      "missingDesc": "Enter the username and password Vibez emailed you.",
+      "couldNotTitle": "Could not sign in",
+      "tryAgainDesc": "Please try again.",
+      "unreachableTitle": "Could not reach Vibez",
+      "unreachableDesc": "We could not check that login just now. Check the connection and try again.",
+      "connectedTitle": "Connected",
+      "connectedDesc": "Signed in to Vibez as {{username}}."
+    }
+  }
+}

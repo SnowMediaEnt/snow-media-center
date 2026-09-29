@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -48,6 +49,7 @@ const Auth = () => {
   const navigate = useNavigate();
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -97,7 +99,7 @@ const Auth = () => {
   const handleForgotPassword = async () => {
     const email = loginForm.email.trim();
     if (!email) {
-      toast({ title: 'Enter your email first', description: 'We need an address to send the reset link to.', variant: 'destructive' });
+      toast({ title: t('auth.toast.enterEmailTitle'), description: t('auth.toast.enterEmailDesc'), variant: 'destructive' });
       return;
     }
     setLoading(true);
@@ -108,13 +110,13 @@ const Auth = () => {
       if (error) throw error;
       setResetSent(true);
       toast({
-        title: 'Reset link sent',
-        description: `Check ${email} for a link to set a new password. It works on your phone or computer.`,
+        title: t('auth.toast.resetSentTitle'),
+        description: t('auth.toast.resetSentDesc', { email }),
       });
     } catch (e) {
       toast({
-        title: 'Could not send the reset link',
-        description: (e as Error)?.message || 'Please try again in a moment.',
+        title: t('auth.toast.resetFailTitle'),
+        description: (e as Error)?.message || t('auth.toast.tryAgainDesc'),
         variant: 'destructive',
       });
     } finally {
@@ -299,10 +301,10 @@ const Auth = () => {
         const bridged = await signInWithPlayerCredentials(loginForm.email, loginForm.password);
         if (bridged.ok) {
           toast({
-            title: 'Welcome back!',
+            title: t('auth.toast.welcomeBackTitle'),
             description: bridged.emailMasked
-              ? `Signed in with your streaming login (${bridged.emailMasked}).`
-              : 'Signed in with your streaming login.',
+              ? t('auth.toast.streamingSignedInMasked', { masked: bridged.emailMasked })
+              : t('auth.toast.streamingSignedIn'),
           });
           markPostAuthView();
           navigate('/');
@@ -311,9 +313,8 @@ const Auth = () => {
         }
         if (bridged.reason === 'not_linked') {
           toast({
-            title: 'Login failed',
-            description:
-              'That streaming login works, but Snow Media has no email on file for it yet. Create your Snow Media account with your email below, or message Snow Media in Support so it can be added.',
+            title: t('auth.toast.loginFailedTitle'),
+            description: t('auth.toast.notLinkedDesc'),
             variant: 'destructive',
           });
           setLoading(false);
@@ -321,8 +322,8 @@ const Auth = () => {
         }
 
         toast({
-          title: "Login failed",
-          description: error.message || "Invalid email or password.",
+          title: t('auth.toast.loginFailedTitle'),
+          description: error.message || t('auth.toast.invalidCredsDesc'),
           variant: "destructive",
         });
         setLoading(false);
@@ -337,23 +338,23 @@ const Auth = () => {
       if (session) {
         console.log('[Auth Page] Session confirmed for:', session.user?.email);
         toast({
-          title: "Welcome back!",
-          description: "Successfully logged in.",
+          title: t('auth.toast.welcomeBackTitle'),
+          description: t('auth.toast.loggedInDesc'),
         });
         markPostAuthView();
         navigate('/');
       } else {
         console.warn('[Auth Page] No session after login');
         toast({
-          title: "Login issue",
-          description: "Please check your email to confirm your account.",
+          title: t('auth.toast.loginIssueTitle'),
+          description: t('auth.toast.loginIssueDesc'),
         });
       }
     } catch (error) {
       console.error('[Auth Page] Login exception:', error);
       toast({
-        title: "Login failed",
-        description: "An unexpected error occurred. Please try again.",
+        title: t('auth.toast.loginFailedTitle'),
+        description: t('auth.toast.unexpectedLoginDesc'),
         variant: "destructive",
       });
     } finally {
@@ -366,8 +367,8 @@ const Auth = () => {
 
     if (signupForm.password !== signupForm.confirmPassword) {
       toast({
-        title: "Password mismatch",
-        description: "Passwords do not match.",
+        title: t('auth.toast.passwordMismatchTitle'),
+        description: t('auth.toast.passwordMismatchDesc'),
         variant: "destructive",
       });
       return;
@@ -375,8 +376,8 @@ const Auth = () => {
 
     if (signupForm.password.length < 6) {
       toast({
-        title: "Password too short",
-        description: "Password must be at least 6 characters long.",
+        title: t('auth.toast.passwordShortTitle'),
+        description: t('auth.toast.passwordShortDesc'),
         variant: "destructive",
       });
       return;
@@ -395,8 +396,8 @@ const Auth = () => {
         const msg = (error.message || '').toLowerCase();
         if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('user already')) {
           toast({
-            title: "Account already exists",
-            description: "This email is already registered. Please sign in instead, or use 'Forgot password' to reset it.",
+            title: t('auth.toast.existsTitle'),
+            description: t('auth.toast.existsDesc'),
             variant: "destructive",
           });
           setLoginForm((prev) => ({ ...prev, email: signupForm.email }));
@@ -404,7 +405,7 @@ const Auth = () => {
           setStep('password');
         } else {
           toast({
-            title: "Signup failed",
+            title: t('auth.toast.signupFailedTitle'),
             description: error.message,
             variant: "destructive",
           });
@@ -414,27 +415,32 @@ const Auth = () => {
         // Auto-confirm / confirmations disabled → session exists immediately.
         if (data?.session) {
           toast({
-            title: "Account created!",
-            description: "You're signed in.",
+            title: t('auth.toast.accountCreatedTitle'),
+            description: t('auth.toast.accountCreatedSignedIn'),
           });
         } else {
           toast({
-            title: "Account created!",
-            description: "Check your email to confirm your account.",
+            title: t('auth.toast.accountCreatedTitle'),
+            description: t('auth.toast.accountCreatedCheckEmail'),
           });
         }
       }
     } catch (error) {
       console.error('[Auth] Signup error:', error);
       toast({
-        title: "Signup failed",
-        description: "An unexpected error occurred.",
+        title: t('auth.toast.signupFailedTitle'),
+        description: t('auth.toast.unexpectedSignupDesc'),
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
+
+  // Named here so the screen below reads as plain layout.
+  const onEmailStep = step === 'email';
+  const onPasswordStep = step === 'password';
+  const onCreateStep = step === 'create';
 
   return (
     <div
@@ -455,7 +461,7 @@ const Auth = () => {
               navigate('/');
             }
           }}
-          label="Back to Home"
+          label={t('common.backToHome')}
           focused={focusedElement === 'back'}
         />
       </div>
@@ -464,26 +470,26 @@ const Auth = () => {
 
 
 
-        {step === 'email' && (
+        {onEmailStep && (
           <div className="text-center mb-3">
             <h1 className="text-3xl font-bold leading-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
               Snow Media Center
             </h1>
-            <p className="text-base text-blue-200">Your Snow Media account</p>
+            <p className="text-base text-blue-200">{t('auth.page.tagline')}</p>
           </div>
         )}
 
         <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/50 backdrop-blur-sm p-5">
           {/* ===== STEP 1: EMAIL ===== */}
-          {step === 'email' && (
+          {onEmailStep && (
             <div className="space-y-3">
               <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3">
-                This is your Snow Media WEBSITE account — purchases, support tickets, messages and your profile. It is NOT your streaming login, and your streaming service keeps working either way. For Dreamstreams / Vibez, press Back and pick "Sign in with Dreamstreams / Vibez".
+                {t('auth.page.websiteNotice')}
               </p>
 
 
               <div>
-                <Label htmlFor="auth-email" className="text-white">Email</Label>
+                <Label htmlFor="auth-email" className="text-white">{t('auth.page.emailLabel')}</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                   <Input
@@ -491,7 +497,7 @@ const Auth = () => {
                     type="email"
                     value={loginForm.email}
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                    placeholder="Enter your email"
+                    placeholder={t('auth.page.emailPlaceholder')}
                     className={`pl-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
                       focusedElement === 'email' ? 'ring-4 ring-blue-400/60' : ''
                     }`}
@@ -512,9 +518,9 @@ const Auth = () => {
                 {checking ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Checking…
+                    {t('auth.page.checking')}
                   </span>
-                ) : 'Continue'}
+                ) : t('auth.page.continueBtn')}
               </Button>
 
               <Button
@@ -526,20 +532,20 @@ const Auth = () => {
                   focusedElement === 'skip' ? 'ring-4 ring-white/60' : ''
                 }`}
               >
-                Skip — continue as guest
+                <span className="min-w-0 truncate">{t('auth.page.skipBtn')}</span>
               </Button>
             </div>
           )}
 
           {/* ===== STEP 2: PASSWORD ===== */}
-          {step === 'password' && (
+          {onPasswordStep && (
             <form onSubmit={handleLogin} className="space-y-3">
               <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3">
-                Welcome back! Enter your password to sign in.
+                {t('auth.page.welcomeBackNote')}
               </p>
 
               <div>
-                <Label className="text-white">Email</Label>
+                <Label className="text-white">{t('auth.page.emailLabel')}</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                   <Input
@@ -552,7 +558,7 @@ const Auth = () => {
               </div>
 
               <div>
-                <Label htmlFor="login-password" className="text-white">Password</Label>
+                <Label htmlFor="login-password" className="text-white">{t('auth.page.passwordLabel')}</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                   <Input
@@ -560,7 +566,7 @@ const Auth = () => {
                     type={showLoginPassword ? "text" : "password"}
                     value={loginForm.password}
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                    placeholder="Enter your password"
+                    placeholder={t('auth.page.passwordPlaceholder')}
                     className={`pl-10 pr-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
                       focusedElement === 'password' ? 'ring-4 ring-blue-400/60' : ''
                     }`}
@@ -587,9 +593,9 @@ const Auth = () => {
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Signing In...
+                    {t('auth.page.signingIn')}
                   </span>
-                ) : 'Sign In'}
+                ) : t('auth.page.signInSubmit')}
               </Button>
 
               <button
@@ -601,7 +607,7 @@ const Auth = () => {
                   focusedElement === 'forgot' ? 'ring-4 ring-white/60 rounded' : ''
                 }`}
               >
-                {resetSent ? 'Check your email for the reset link' : 'Forgot your password?'}
+                {resetSent ? t('auth.page.resetSentNote') : t('auth.page.forgotLink')}
               </button>
 
               <button
@@ -612,23 +618,23 @@ const Auth = () => {
                   focusedElement === 'change-email' ? 'ring-4 ring-white/60 rounded' : ''
                 }`}
               >
-                Use a different email
+                {t('auth.page.changeEmailLink')}
               </button>
             </form>
           )}
 
           {/* ===== STEP 3: CREATE ===== */}
-          {step === 'create' && (
+          {onCreateStep && (
             <form onSubmit={handleSignup} className="space-y-2.5">
               <div>
-                <h2 className="text-base font-semibold text-white mb-1.5">Create your free website account</h2>
+                <h2 className="text-base font-semibold text-white mb-1.5">{t('auth.page.createTitle')}</h2>
                 <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3">
-                  No account found for {signupForm.email || loginForm.email}. A free WEBSITE account gets you your purchases, in-app support replies and your profile — it will not touch your Dreamstreams / VibezTV login.
+                  {t('auth.page.noAccount', { email: signupForm.email || loginForm.email })}
                 </p>
               </div>
 
               <div>
-                <Label htmlFor="signup-name" className="text-white">Full Name (optional)</Label>
+                <Label htmlFor="signup-name" className="text-white">{t('auth.page.fullNameLabel')}</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                   <Input
@@ -636,7 +642,7 @@ const Auth = () => {
                     type="text"
                     value={signupForm.fullName}
                     onChange={(e) => setSignupForm({ ...signupForm, fullName: e.target.value })}
-                    placeholder="Enter your full name"
+                    placeholder={t('auth.page.fullNamePlaceholder')}
                     className={`pl-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
                       focusedElement === 'name' ? 'ring-4 ring-blue-400/60' : ''
                     }`}
@@ -645,7 +651,7 @@ const Auth = () => {
               </div>
 
               <div>
-                <Label htmlFor="signup-password" className="text-white">Password <span className="text-blue-300/80 font-normal">(6+ characters)</span></Label>
+                <Label htmlFor="signup-password" className="text-white">{t('auth.page.passwordLabel')} <span className="text-blue-300/80 font-normal">{t('auth.page.passwordHint')}</span></Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                   <Input
@@ -653,7 +659,7 @@ const Auth = () => {
                     type={showSignupPassword ? "text" : "password"}
                     value={signupForm.password}
                     onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                    placeholder="Create a password"
+                    placeholder={t('auth.page.createPasswordPlaceholder')}
                     className={`pl-10 pr-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
                       focusedElement === 'password' ? 'ring-4 ring-blue-400/60' : ''
                     }`}
@@ -670,7 +676,7 @@ const Auth = () => {
               </div>
 
               <div>
-                <Label htmlFor="signup-confirm" className="text-white">Confirm Password</Label>
+                <Label htmlFor="signup-confirm" className="text-white">{t('auth.page.confirmLabel')}</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                   <Input
@@ -678,7 +684,7 @@ const Auth = () => {
                     type={showConfirmPassword ? "text" : "password"}
                     value={signupForm.confirmPassword}
                     onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
-                    placeholder="Confirm your password"
+                    placeholder={t('auth.page.confirmPlaceholder')}
                     className={`pl-10 pr-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
                       focusedElement === 'confirm' ? 'ring-4 ring-blue-400/60' : ''
                     }`}
@@ -705,9 +711,9 @@ const Auth = () => {
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating Account...
+                    {t('auth.page.creating')}
                   </span>
-                ) : 'Create Account'}
+                ) : t('auth.page.createBtn')}
               </Button>
 
               <Button
@@ -719,7 +725,7 @@ const Auth = () => {
                   focusedElement === 'skip' ? 'ring-4 ring-white/60' : ''
                 }`}
               >
-                Skip — continue as guest
+                <span className="min-w-0 truncate">{t('auth.page.skipBtn')}</span>
               </Button>
             </form>
           )}

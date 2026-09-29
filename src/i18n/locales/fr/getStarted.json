@@ -1,0 +1,82 @@
+{
+  "getStarted": {
+    "flow": {
+      "oneMoment": "Un instant…",
+      "unavailableTitle": "L'inscription n'est pas disponible ici",
+      "unavailableDesc": "Impossible de créer de nouveaux comptes sur cet appareil pour le moment. Si vous avez déjà un nom d'utilisateur et un mot de passe, appuyez sur Retour et connectez-vous.",
+      "backToSignInBtn": "Retour à la connexion"
+    },
+    "ds": {
+      "subtitle": "Essayez d'abord gratuitement, ou choisissez un forfait maintenant.",
+      "trialTitle": "Essai",
+      "trialSub": "24 heures · sans carte",
+      "trialDesc": "Nous créons votre identifiant et connectons le Lecteur tout de suite.",
+      "buyTitle": "Acheter un forfait",
+      "buySub": "Choisissez une durée et payez",
+      "buyDesc": "Payez sur cette TV ou avec votre téléphone, puis le Lecteur se connecte tout seul."
+    },
+    "chooser": {
+      "title": "Commencer",
+      "subtitle": "Choisissez un service et nous nous occupons du reste.",
+      "dsSub": "Configuration sur cette TV · environ une minute",
+      "dsDesc": "Lancez un essai gratuit de 24 heures ou achetez un forfait ici même. Votre identifiant est créé pour vous et le Lecteur se connecte seul.",
+      "vibezSub": "À terminer sur votre téléphone · environ 5 minutes",
+      "vibezDesc": "L'inscription à Vibez se fait sur leur site. Scannez un code avec votre téléphone, payez là-bas, et ils vous envoient un identifiant par e-mail ; saisissez-le ensuite ici.",
+      "haveLoginBtn": "J'ai déjà un identifiant"
+    },
+    "plans": {
+      "title": "Commencer avec Vibez",
+      "subtitle": "Vous terminez sur votre téléphone — environ 5 minutes",
+      "free": "Gratuit",
+      "seePlans": "Voir les forfaits et s'inscrire",
+      "seePlansDesc": "Scannez avec votre téléphone, choisissez un forfait là-bas et payez. Revenez ensuite saisir l'identifiant reçu par e-mail.",
+      "whatOffers": "Ce que propose Vibez",
+      "trial": "Essai",
+      "plan": "Forfait",
+      "noCard": "sans carte",
+      "trialSubLabel": "{{label}} · sans carte",
+      "streamingPlan": "Forfait streaming",
+      "priceNext": "Prix affiché à l'écran suivant"
+    },
+    "tier": {
+      "month_one": "{{count}} mois",
+      "month_many": "{{count}} mois",
+      "month_other": "{{count}} mois",
+      "year": "1 an",
+      "connections_one": "{{count}} connexion",
+      "connections_many": "{{count}} connexions",
+      "connections_other": "{{count}} connexions",
+      "plan": "Forfait"
+    },
+    "handoff": {
+      "title": "Terminez sur votre téléphone",
+      "intro": "{{label}} — l'inscription à Vibez se fait sur leur site. Scannez ceci avec votre téléphone, payez, et ils vous enverront un nom d'utilisateur et un mot de passe par e-mail. Revenez ensuite ici.",
+      "qrAlt": "Code QR d'inscription Vibez",
+      "orType": "Ou saisissez ceci dans un navigateur",
+      "nothingChanges": "Rien ne change sur cette TV tant que vous n'êtes pas revenu saisir l'identifiant reçu.",
+      "haveLoginBtn": "J'ai mon identifiant : continuer",
+      "openBtn": "Ouvrir sur cette TV"
+    },
+    "signIn": {
+      "title": "Saisissez votre identifiant Vibez",
+      "intro": "Utilisez le nom d'utilisateur et le mot de passe que Vibez vous a envoyés par e-mail après le paiement.",
+      "introResumed": "Utilisez le nom d'utilisateur et le mot de passe que Vibez vous a envoyés par e-mail pour {{label}}.",
+      "usernameLabel": "Nom d'utilisateur",
+      "usernamePlaceholder": "Nom d'utilisateur Vibez",
+      "usernameAria": "Nom d'utilisateur Vibez",
+      "passwordLabel": "Mot de passe",
+      "passwordPlaceholder": "Mot de passe Vibez",
+      "passwordAria": "Mot de passe Vibez",
+      "checking": "Vérification auprès de Vibez…",
+      "forgetBtn": "Je n'ai rien acheté",
+      "missingTitle": "Informations manquantes",
+      "missingDesc": "Saisissez le nom d'utilisateur et le mot de passe envoyés par Vibez.",
+      "couldNotTitle": "Connexion impossible",
+      "tryAgainDesc": "Veuillez réessayer.",
+      "unreachableTitle": "Vibez injoignable",
+      "unreachableDesc": "Nous n'avons pas pu vérifier cet identifiant à l'instant. Vérifiez la connexion et réessayez.",
+      "connectedTitle": "Connecté",
+      "connectedDesc": "Connecté à Vibez en tant que {{username}}."
+    }
+  }
+}

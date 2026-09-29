@@ -10,6 +10,7 @@
 // than one profile (they already found it).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
+import { useTranslation } from 'react-i18next';
 import { Baby, ShieldCheck, UsersRound } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { INTENT_KEYS } from '@/lib/appActions';
@@ -20,16 +21,18 @@ import { activeProfile, loadProfiles, markProfilesIntroSeen, profilesIntroSeen }
 const WELCOME_KEY = 'smc-welcome-shown-version';
 const MIN_DELAY_MS = 4500;
 
+// Keys, not text: the words are looked up when the popup is drawn.
 const POINTS = [
-  { icon: UsersRound, text: 'Everyone in the house gets their own setup — their own Continue Watching, My List, favourites and home screen.' },
-  { icon: Baby, text: 'Kids profiles show only kids movies, shows and channels for the age you pick, plus a kids games section (coming soon).' },
-  { icon: ShieldCheck, text: 'Safety everywhere: movies, shows, Live TV channels and the AI all stay age-appropriate. Add a PIN to any profile if you like.' },
+  { icon: UsersRound, textKey: 'profiles.intro.pointEveryone' },
+  { icon: Baby, textKey: 'profiles.intro.pointKids' },
+  { icon: ShieldCheck, textKey: 'profiles.intro.pointSafety' },
 ];
 
 const isBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || e.keyCode === 4 || e.keyCode === 27;
 const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23 || e.keyCode === 66;
 
 const ProfilesIntroPopup = ({ onSetUp }: { onSetUp: () => void }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [focus, setFocus] = useState<0 | 1>(0); // 0 Set up profiles · 1 Maybe later
   const focusRef = useRef(focus); focusRef.current = focus;
@@ -101,26 +104,26 @@ const ProfilesIntroPopup = ({ onSetUp }: { onSetUp: () => void }) => {
   const btn = (i: 0 | 1) =>
     `tv-ring rounded-xl px-6 py-3 text-lg font-semibold ${focus === i ? 'bg-white text-black' : 'bg-white/10 text-white'}`;
   return (
-    <div className="fixed inset-0 z-[120] bg-black/85 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Profiles">
+    <div className="fixed inset-0 z-[120] bg-black/85 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={t('profiles.intro.dialogLabel')}>
       <Card className="w-full max-w-2xl bg-gradient-to-br from-blue-900 to-slate-900 border-blue-500/40 p-7 shadow-2xl text-white">
         <div className="flex items-center mb-4">
           <UsersRound className="w-7 h-7 text-brand-gold mr-3" />
-          <h2 className="text-3xl font-bold">New: profiles for everyone</h2>
+          <h2 className="text-3xl font-bold">{t('profiles.intro.title')}</h2>
         </div>
         <ul className="space-y-3 mb-6">
-          {POINTS.map(({ icon: Icon, text }) => (
-            <li key={text} className="flex items-start">
+          {POINTS.map(({ icon: Icon, textKey }) => (
+            <li key={textKey} className="flex items-start">
               <Icon className="w-6 h-6 text-brand-gold mr-3 mt-0.5 shrink-0" />
-              <span className="text-lg text-white/90">{text}</span>
+              <span className="text-lg text-white/90">{t(textKey)}</span>
             </li>
           ))}
         </ul>
         <p className="text-sm text-white/60 mb-5">
-          Set them up any time under Settings → Profiles, or with the profile button at the top of Home.
+          {t('profiles.intro.hint')}
         </p>
         <div className="flex">
-          <button type="button" data-focused={focus === 0 ? 'true' : 'false'} className={`${btn(0)} mr-3`} onClick={() => close(true)}>Set up profiles</button>
-          <button type="button" data-focused={focus === 1 ? 'true' : 'false'} className={btn(1)} onClick={() => close(false)}>Maybe later</button>
+          <button type="button" data-focused={focus === 0 ? 'true' : 'false'} className={`${btn(0)} mr-3`} onClick={() => close(true)}>{t('profiles.intro.setUpBtn')}</button>
+          <button type="button" data-focused={focus === 1 ? 'true' : 'false'} className={btn(1)} onClick={() => close(false)}>{t('profiles.intro.laterBtn')}</button>
         </div>
       </Card>
     </div>

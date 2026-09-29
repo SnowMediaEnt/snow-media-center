@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import QRCode from 'qrcode';
 import { Browser } from '@capacitor/browser';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { focusAttrs, scaleIf, useFocusRecovery } from '@/components/billing/shar
 import type { SignupLink } from '@/lib/signupLinks';
 import { linkLabel } from '@/lib/signupLinks';
 import { writePending } from './pending';
+import { tierLabel } from './tierText';
 
 interface Props {
   link: SignupLink;
@@ -39,6 +41,7 @@ const QR_OPTS = { width: 360, margin: 2, color: { dark: '#0f172a', light: '#ffff
  * panel account number from the couch.
  */
 const VibezHandoff = memo(({ link, onHaveLogin, onBack }: Props) => {
+  const { t } = useTranslation();
   const [qr, setQr] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const openedRef = useRef(false);
@@ -90,16 +93,15 @@ const VibezHandoff = memo(({ link, onHaveLogin, onBack }: Props) => {
     <div ref={containerRef} className={SCREEN}>
       <div className="flex-1 flex items-center justify-center p-6">
         <Card className={`${CARD} w-full max-w-4xl p-8`}>
-          <h2 className="text-2xl font-quicksand font-bold text-white">Finish on your phone</h2>
+          <h2 className="text-2xl font-quicksand font-bold text-white">{t('getStarted.handoff.title')}</h2>
           <p className="text-brand-ice/80 font-nunito mt-1">
-            {linkLabel(link)} — Vibez sign-up happens on their website. Scan this with your phone,
-            pay, and they will email you a username and password. Then come back here.
+            {t('getStarted.handoff.intro', { label: tierLabel(link) })}
           </p>
 
           <div className="mt-6 flex flex-col md:flex-row gap-6 items-center">
             <div className="bg-white p-3 rounded-xl shadow-lg shrink-0">
               {qr ? (
-                <img src={qr} alt="Vibez sign-up QR code" className="w-[min(42vh,13rem)] h-[min(42vh,13rem)]" />
+                <img src={qr} alt={t('getStarted.handoff.qrAlt')} className="w-[min(42vh,13rem)] h-[min(42vh,13rem)]" />
               ) : (
                 <div className="w-[min(42vh,13rem)] h-[min(42vh,13rem)] flex items-center justify-center">
                   <Loader2 className="w-10 h-10 text-slate-700 animate-spin" />
@@ -107,12 +109,12 @@ const VibezHandoff = memo(({ link, onHaveLogin, onBack }: Props) => {
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs uppercase tracking-wide text-white/60 mb-1">Or type this in a browser</div>
+              <div className="text-xs uppercase tracking-wide text-white/60 mb-1">{t('getStarted.handoff.orType')}</div>
               <div className="text-sm text-white font-mono break-all rounded-xl bg-black/30 border border-white/10 px-4 py-3">
                 {link.url}
               </div>
               <p className="text-brand-ice/60 text-xs font-nunito mt-3">
-                Nothing on this TV changes until you come back and enter the login they send you.
+                {t('getStarted.handoff.nothingChanges')}
               </p>
             </div>
           </div>
@@ -120,17 +122,17 @@ const VibezHandoff = memo(({ link, onHaveLogin, onBack }: Props) => {
           <div className="flex flex-wrap gap-3 mt-8">
             <Button variant="gold" onClick={onHaveLogin}
               className={`${BTN_GOLD} ${scaleIf(currentFocusId, 'vh-continue')}`} {...focusAttrs(currentFocusId, 'vh-continue')}>
-              <KeyRound className="w-4 h-4 mr-2" />
-              I have my login — continue
+              <KeyRound className="w-4 h-4 mr-2 shrink-0" />
+              <span className="min-w-0 truncate">{t('getStarted.handoff.haveLoginBtn')}</span>
             </Button>
             <Button variant="white" disabled={opening} onClick={() => { void open(); }}
               className={`${BTN} ${scaleIf(currentFocusId, 'vh-open')}`} {...focusAttrs(currentFocusId, 'vh-open')}>
               {opening ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ExternalLink className="w-4 h-4 mr-2" />}
-              Open on this TV
+              <span className="min-w-0 truncate">{t('getStarted.handoff.openBtn')}</span>
             </Button>
             <Button variant="white" onClick={onBack}
               className={`${BTN} ${scaleIf(currentFocusId, 'vh-back')}`} {...focusAttrs(currentFocusId, 'vh-back')}>
-              <ArrowLeft className="w-4 h-4 mr-2" /> Back
+              <ArrowLeft className="w-4 h-4 mr-2" /> {t('common.back')}
             </Button>
           </div>
         </Card>
