@@ -1,0 +1,95 @@
+{
+  "store": {
+    "header": {
+      "title": "Snow Media Store",
+      "subtitle": "Pick what you want, then scan the QR with your phone to pay"
+    },
+    "tabs": {
+      "buildTab": "Build a setup",
+      "devicesTab": "Devices",
+      "servicesTab": "Services",
+      "accessoriesTab": "Accessories"
+    },
+    "loading": "Loading the store…",
+    "loadError": "The store didn't load. Check your connection and try again — or visit <1>snowmediaent.com</1> on your phone.",
+    "build": {
+      "pickService": "Pick your service",
+      "options": "Options",
+      "connections": "Connections",
+      "connectionsOption_one": "{{count}} connection",
+      "connectionsOption_other": "{{count}} connections",
+      "nineIncluded": "9 connections included.",
+      "duration": "Duration",
+      "addDevice": "Add a device?",
+      "ownDevice": "I have my own device",
+      "ownDeviceDesc": "Works on Android and Apple devices you already own.",
+      "model": "Model"
+    },
+    "shelf": {
+      "fromPrice": "from {{price}}",
+      "pricingOnRequest": "Pricing on request",
+      "empty": "Nothing here right now.",
+      "bestValueBadge": "Best value"
+    },
+    "summary": {
+      "title": "Your setup",
+      "askUs": "Ask us",
+      "total": "Total",
+      "contactUs": "Contact us",
+      "returning": "Returning customers: <1>{{price}}</1>",
+      "goYearly": "Go yearly and save with bundle pricing.",
+      "checkoutBtn": "Check out on your phone",
+      "openSiteBtn": "Open snowmediaent.com on this device",
+      "hint": "▲ ▼ ◀ ▶ choose · OK select · Back"
+    },
+    "detail": {
+      "backTo": "◀ Back to {{section}}",
+      "contactPricing": "Contact us for pricing",
+      "creditPack": "Credit pack",
+      "buyBtn": "Buy with your phone",
+      "openSiteBtn": "Open on this device",
+      "hint": "◀ ▶ choose · OK select · Back to list"
+    },
+    "qr": {
+      "alt": "Checkout QR code",
+      "scan": "Scan with your phone to check out",
+      "linkedTo": "Your order links to <1>{{email}}</1>.",
+      "noAccountYet": "Don't have a website account yet? Create one at checkout with that same email — then you can sign into SMC with it (My Account, top of Home) to track purchases, service logins and support tickets in one place.",
+      "createAccount": "Create your account at checkout, then sign into SMC with it (My Account, top of Home).",
+      "createAccountWhy": "That's how purchases, service logins and support tickets show up on this device.",
+      "loginsInTicket": "Service logins are sent to you in a support ticket right here in the app.",
+      "close": "Press OK or Back to close"
+    },
+    "quote": {
+      "bundleDreamstreams": "{{device}} + 1 Year DreamStreams ({{connections}} connections)",
+      "bundleVibeztv": "{{device}} + 1 Year VibezTV (9 connections)",
+      "plexIncluded": "PLEX included",
+      "trialIncluded": "Includes 1-month service trial",
+      "includedFree": "Included free"
+    },
+    "duration": {
+      "day_one": "{{count}} day",
+      "day_other": "{{count}} days",
+      "week_one": "{{count}} week",
+      "week_other": "{{count}} weeks",
+      "month_one": "{{count}} month",
+      "month_other": "{{count}} months",
+      "year_one": "{{count}} year",
+      "year_other": "{{count}} years"
+    },
+    "services": {
+      "dreamstreamsLabel": "DreamStreams",
+      "vibeztvLabel": "VibezTV",
+      "plexLabel": "Just PLEX",
+      "dreamstreamsBlurb": "Live TV, every sports package, PPV and events. PLEX included free.",
+      "vibeztvBlurb": "Premium live TV with 9 connections. PLEX included free.",
+      "plexBlurb": "Movies & shows hub only — no live TV."
+    },
+    "toast": {
+      "qrFailedTitle": "Could not build the QR code",
+      "qrFailedDesc": "Please try again.",
+      "noBrowserTitle": "No browser on this device",
+      "noBrowserDesc": "Scan the QR code with your phone instead."
+    }
+  }
+}

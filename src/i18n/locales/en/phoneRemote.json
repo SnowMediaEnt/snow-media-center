@@ -1,0 +1,38 @@
+{
+  "phoneRemote": {
+    "kinds": {
+      "iphone": "An iPhone",
+      "ipad": "An iPad",
+      "androidPhone": "An Android phone",
+      "androidTablet": "An Android tablet",
+      "phoneOrComputer": "A phone or computer",
+      "phone": "A phone"
+    },
+    "pairing": {
+      "failed": "Couldn't get a pairing code — check the internet connection.",
+      "qrAlt": "QR code to pair your phone",
+      "orGoTo": "or go to <1>snowmediaent.com/remote</1>"
+    },
+    "request": {
+      "title": "Allow this phone?",
+      "text": "{{device}} entered this TV's code and wants to be a remote for Snow Media Center.",
+      "hint": "Allow it only if it's your phone, or the phone of someone in the room.",
+      "allowBtn": "Allow",
+      "denyBtn": "Don't allow",
+      "unreachable": "Couldn't reach Snow Media Center's server. Try pairing again from the phone.",
+      "allowed": "Phone allowed. It can control this TV now."
+    },
+    "typing": {
+      "offToastTitle": "Phone keyboard card off",
+      "offToastDesc": "Turn it back on any time in Settings → Phone Remote.",
+      "readyTitle": "Your phone keyboard is ready",
+      "readyText": "Type on the phone remote and it appears here.",
+      "title": "Type on your phone",
+      "lastTime": "This was the last time. Turn it back on in Settings → Phone Remote.",
+      "showsMore_one": "Shows {{count}} more time. On or off in Settings → Phone Remote.",
+      "showsMore_other": "Shows {{count}} more times. On or off in Settings → Phone Remote.",
+      "onOff": "On or off in Settings → Phone Remote.",
+      "dontShowBtn": "Don't show again"
+    }
+  }
+}

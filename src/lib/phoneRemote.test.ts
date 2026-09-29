@@ -202,13 +202,24 @@ describe('what the phone is told about the TV’s text box', () => {
 });
 
 describe('pairing codes on the box', () => {
+  it('puts the TV’s language in the QR address, and follows a language change', async () => {
+    const m = await load();
+    const { default: i18n } = await import('@/i18n');
+    await i18n.changeLanguage('fr');
+    m.holdPairing();
+    expect((await m.getPairingCode()).url).toBe('https://snowmediaent.com/remote?c=BCDFGHJK&lang=fr');
+    await i18n.changeLanguage('de');
+    expect((await m.getPairingCode()).url).toBe('https://snowmediaent.com/remote?c=BCDFGHJK&lang=de');
+    await i18n.changeLanguage('en');
+  });
+
   it('times the code on the box’s own clock, whatever the server’s says', async () => {
     const m = await load();
     m.holdPairing();
     const before = Date.now();
     const p = await m.getPairingCode();
     expect(p.code).toBe('BCDFGHJK');
-    expect(p.url).toBe('https://snowmediaent.com/remote?c=BCDFGHJK');
+    expect(p.url).toBe('https://snowmediaent.com/remote?c=BCDFGHJK&lang=en');
     expect(p.expiresAt).toBeGreaterThanOrEqual(before + 600_000);
     expect(p.expiresAt).toBeLessThanOrEqual(Date.now() + 600_000);
     expect(m.formatPairingCode(p.code)).toBe('BCDF-GHJK');

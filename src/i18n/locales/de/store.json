@@ -1,0 +1,95 @@
+{
+  "store": {
+    "header": {
+      "title": "Snow Media Shop",
+      "subtitle": "Wähle aus, was du willst, und scanne dann den QR-Code mit deinem Handy, um zu bezahlen"
+    },
+    "tabs": {
+      "buildTab": "Setup erstellen",
+      "devicesTab": "Geräte",
+      "servicesTab": "Dienste",
+      "accessoriesTab": "Zubehör"
+    },
+    "loading": "Shop wird geladen…",
+    "loadError": "Der Shop wurde nicht geladen. Prüfe deine Verbindung und versuche es erneut – oder besuche <1>snowmediaent.com</1> auf deinem Handy.",
+    "build": {
+      "pickService": "Wähle deinen Dienst",
+      "options": "Optionen",
+      "connections": "Verbindungen",
+      "connectionsOption_one": "{{count}} Verbindung",
+      "connectionsOption_other": "{{count}} Verbindungen",
+      "nineIncluded": "9 Verbindungen inklusive.",
+      "duration": "Laufzeit",
+      "addDevice": "Gerät hinzufügen?",
+      "ownDevice": "Ich habe ein eigenes Gerät",
+      "ownDeviceDesc": "Funktioniert auf Android- und Apple-Geräten, die du schon hast.",
+      "model": "Modell"
+    },
+    "shelf": {
+      "fromPrice": "ab {{price}}",
+      "pricingOnRequest": "Preis auf Anfrage",
+      "empty": "Im Moment ist hier nichts.",
+      "bestValueBadge": "Bestes Angebot"
+    },
+    "summary": {
+      "title": "Dein Setup",
+      "askUs": "Frag uns",
+      "total": "Gesamt",
+      "contactUs": "Kontaktiere uns",
+      "returning": "Bestandskunden: <1>{{price}}</1>",
+      "goYearly": "Wechsle zu jährlich und spare mit dem Paketpreis.",
+      "checkoutBtn": "Mit dem Handy bezahlen",
+      "openSiteBtn": "snowmediaent.com auf diesem Gerät öffnen",
+      "hint": "▲ ▼ ◀ ▶ wählen · OK auswählen · Zurück"
+    },
+    "detail": {
+      "backTo": "◀ Zurück zu {{section}}",
+      "contactPricing": "Kontaktiere uns für den Preis",
+      "creditPack": "Guthabenpaket",
+      "buyBtn": "Mit dem Handy kaufen",
+      "openSiteBtn": "Auf diesem Gerät öffnen",
+      "hint": "◀ ▶ wählen · OK auswählen · Zurück zur Liste"
+    },
+    "qr": {
+      "alt": "QR-Code zur Kasse",
+      "scan": "Scanne mit deinem Handy, um zu bezahlen",
+      "linkedTo": "Deine Bestellung wird mit <1>{{email}}</1> verknüpft.",
+      "noAccountYet": "Noch kein Konto auf der Website? Erstelle beim Bezahlen eins mit derselben E-Mail-Adresse – dann kannst du dich damit bei SMC anmelden (Mein Konto, oben auf dem Startbildschirm) und Käufe, Service-Zugänge und Support-Tickets an einem Ort verfolgen.",
+      "createAccount": "Erstelle beim Bezahlen dein Konto und melde dich dann damit bei SMC an (Mein Konto, oben auf dem Startbildschirm).",
+      "createAccountWhy": "So erscheinen Käufe, Service-Zugänge und Support-Tickets auf diesem Gerät.",
+      "loginsInTicket": "Service-Zugänge bekommst du in einem Support-Ticket direkt hier in der App.",
+      "close": "Drücke OK oder Zurück zum Schließen"
+    },
+    "quote": {
+      "bundleDreamstreams": "{{device}} + 1 Jahr DreamStreams ({{connections}} Verbindungen)",
+      "bundleVibeztv": "{{device}} + 1 Jahr VibezTV (9 Verbindungen)",
+      "plexIncluded": "PLEX inklusive",
+      "trialIncluded": "Inklusive 1 Monat Service-Test",
+      "includedFree": "Kostenlos inklusive"
+    },
+    "duration": {
+      "day_one": "{{count}} Tag",
+      "day_other": "{{count}} Tage",
+      "week_one": "{{count}} Woche",
+      "week_other": "{{count}} Wochen",
+      "month_one": "{{count}} Monat",
+      "month_other": "{{count}} Monate",
+      "year_one": "{{count}} Jahr",
+      "year_other": "{{count}} Jahre"
+    },
+    "services": {
+      "dreamstreamsLabel": "DreamStreams",
+      "vibeztvLabel": "VibezTV",
+      "plexLabel": "Nur PLEX",
+      "dreamstreamsBlurb": "Live-TV, alle Sportpakete, PPV und Events. PLEX kostenlos inklusive.",
+      "vibeztvBlurb": "Premium-Live-TV mit 9 Verbindungen. PLEX kostenlos inklusive.",
+      "plexBlurb": "Nur der Bereich für Filme und Sendungen – kein Live-TV."
+    },
+    "toast": {
+      "qrFailedTitle": "QR-Code konnte nicht erstellt werden",
+      "qrFailedDesc": "Bitte versuche es erneut.",
+      "noBrowserTitle": "Kein Browser auf diesem Gerät",
+      "noBrowserDesc": "Scanne stattdessen den QR-Code mit deinem Handy."
+    }
+  }
+}

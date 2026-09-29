@@ -1,0 +1,38 @@
+{
+  "phoneRemote": {
+    "kinds": {
+      "iphone": "Ein iPhone",
+      "ipad": "Ein iPad",
+      "androidPhone": "Ein Android-Handy",
+      "androidTablet": "Ein Android-Tablet",
+      "phoneOrComputer": "Ein Handy oder Computer",
+      "phone": "Ein Handy"
+    },
+    "pairing": {
+      "failed": "Kopplungscode konnte nicht abgerufen werden – prüfe die Internetverbindung.",
+      "qrAlt": "QR-Code zum Koppeln deines Handys",
+      "orGoTo": "oder geh auf <1>snowmediaent.com/remote</1>"
+    },
+    "request": {
+      "title": "Dieses Handy erlauben?",
+      "text": "{{device}} hat den Code dieses Fernsehers eingegeben und möchte Fernbedienung für Snow Media Center sein.",
+      "hint": "Erlaube es nur, wenn es dein Handy ist oder das von jemandem im Raum.",
+      "allowBtn": "Erlauben",
+      "denyBtn": "Nicht erlauben",
+      "unreachable": "Der Server von Snow Media Center ist nicht erreichbar. Versuche, vom Handy aus erneut zu koppeln.",
+      "allowed": "Handy erlaubt. Es kann diesen Fernseher jetzt steuern."
+    },
+    "typing": {
+      "offToastTitle": "Handy-Tastaturkarte aus",
+      "offToastDesc": "Schalte sie jederzeit unter Einstellungen → Handy-Fernbedienung wieder ein.",
+      "readyTitle": "Deine Handy-Tastatur ist bereit",
+      "readyText": "Tippe auf der Handy-Fernbedienung und es erscheint hier.",
+      "title": "Tippe mit deinem Handy",
+      "lastTime": "Das war das letzte Mal. Schalte sie unter Einstellungen → Handy-Fernbedienung wieder ein.",
+      "showsMore_one": "Wird noch {{count}} Mal angezeigt. An oder aus unter Einstellungen → Handy-Fernbedienung.",
+      "showsMore_other": "Wird noch {{count}} Mal angezeigt. An oder aus unter Einstellungen → Handy-Fernbedienung.",
+      "onOff": "An oder aus unter Einstellungen → Handy-Fernbedienung.",
+      "dontShowBtn": "Nicht mehr zeigen"
+    }
+  }
+}

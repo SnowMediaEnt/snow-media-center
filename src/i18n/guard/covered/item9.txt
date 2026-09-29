@@ -1,0 +1,10 @@
+src/components/InstallApps.tsx
+src/components/PinnedAppsPopup.tsx
+src/components/AppContextMenu.tsx
+src/components/RetiredAppDialog.tsx
+src/lib/retiredApps.ts
+src/components/StoreScreen.tsx
+src/lib/store.ts
+src/components/remote
+src/lib/phoneRemote.ts
+web/phone-remote/PhoneRemotePage.tsx

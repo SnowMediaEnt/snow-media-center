@@ -1,0 +1,100 @@
+{
+  "store": {
+    "header": {
+      "title": "Tienda Snow Media",
+      "subtitle": "Elige lo que quieras y escanea el QR con tu teléfono para pagar"
+    },
+    "tabs": {
+      "buildTab": "Armar configuración",
+      "devicesTab": "Dispositivos",
+      "servicesTab": "Servicios",
+      "accessoriesTab": "Accesorios"
+    },
+    "loading": "Cargando la tienda…",
+    "loadError": "La tienda no cargó. Revisa tu conexión e inténtalo de nuevo, o visita <1>snowmediaent.com</1> en tu teléfono.",
+    "build": {
+      "pickService": "Elige tu servicio",
+      "options": "Opciones",
+      "connections": "Conexiones",
+      "connectionsOption_one": "{{count}} conexión",
+      "connectionsOption_many": "{{count}} conexiones",
+      "connectionsOption_other": "{{count}} conexiones",
+      "nineIncluded": "Incluye 9 conexiones.",
+      "duration": "Duración",
+      "addDevice": "¿Agregar un dispositivo?",
+      "ownDevice": "Ya tengo mi propio dispositivo",
+      "ownDeviceDesc": "Funciona en los dispositivos Android y Apple que ya tienes.",
+      "model": "Modelo"
+    },
+    "shelf": {
+      "fromPrice": "desde {{price}}",
+      "pricingOnRequest": "Precio a consultar",
+      "empty": "Por ahora no hay nada aquí.",
+      "bestValueBadge": "Mejor valor"
+    },
+    "summary": {
+      "title": "Tu configuración",
+      "askUs": "Consúltanos",
+      "total": "Total",
+      "contactUs": "Contáctanos",
+      "returning": "Clientes que regresan: <1>{{price}}</1>",
+      "goYearly": "Elige el plan anual y ahorra con el precio del paquete.",
+      "checkoutBtn": "Pagar con tu teléfono",
+      "openSiteBtn": "Abrir snowmediaent.com en este dispositivo",
+      "hint": "▲ ▼ ◀ ▶ elegir · OK seleccionar · Atrás"
+    },
+    "detail": {
+      "backTo": "◀ Volver a {{section}}",
+      "contactPricing": "Contáctanos para conocer el precio",
+      "creditPack": "Paquete de créditos",
+      "buyBtn": "Comprar con tu teléfono",
+      "openSiteBtn": "Abrir en este dispositivo",
+      "hint": "◀ ▶ elegir · OK seleccionar · Atrás a la lista"
+    },
+    "qr": {
+      "alt": "Código QR de pago",
+      "scan": "Escanea con tu teléfono para pagar",
+      "linkedTo": "Tu pedido se vincula a <1>{{email}}</1>.",
+      "noAccountYet": "¿Aún no tienes cuenta en el sitio web? Crea una al pagar con ese mismo correo; así podrás iniciar sesión en SMC con ella (Mi Cuenta, arriba en Inicio) y ver compras, accesos de servicio y tickets de soporte en un solo lugar.",
+      "createAccount": "Crea tu cuenta al pagar y luego inicia sesión en SMC con ella (Mi Cuenta, arriba en Inicio).",
+      "createAccountWhy": "Así es como las compras, los accesos de servicio y los tickets de soporte aparecen en este dispositivo.",
+      "loginsInTicket": "Los accesos de servicio te llegan en un ticket de soporte aquí mismo, en la app.",
+      "close": "Pulsa OK o Atrás para cerrar"
+    },
+    "quote": {
+      "bundleDreamstreams": "{{device}} + 1 año de DreamStreams ({{connections}} conexiones)",
+      "bundleVibeztv": "{{device}} + 1 año de VibezTV (9 conexiones)",
+      "plexIncluded": "PLEX incluido",
+      "trialIncluded": "Incluye prueba del servicio por 1 mes",
+      "includedFree": "Incluido gratis"
+    },
+    "duration": {
+      "day_one": "{{count}} día",
+      "day_many": "{{count}} días",
+      "day_other": "{{count}} días",
+      "week_one": "{{count}} semana",
+      "week_many": "{{count}} semanas",
+      "week_other": "{{count}} semanas",
+      "month_one": "{{count}} mes",
+      "month_many": "{{count}} meses",
+      "month_other": "{{count}} meses",
+      "year_one": "{{count}} año",
+      "year_many": "{{count}} años",
+      "year_other": "{{count}} años"
+    },
+    "services": {
+      "dreamstreamsLabel": "DreamStreams",
+      "vibeztvLabel": "VibezTV",
+      "plexLabel": "Solo PLEX",
+      "dreamstreamsBlurb": "TV en vivo, todos los paquetes deportivos, PPV y eventos. PLEX incluido gratis.",
+      "vibeztvBlurb": "TV en vivo premium con 9 conexiones. PLEX incluido gratis.",
+      "plexBlurb": "Solo el centro de películas y programas, sin TV en vivo."
+    },
+    "toast": {
+      "qrFailedTitle": "No se pudo crear el código QR",
+      "qrFailedDesc": "Inténtalo de nuevo.",
+      "noBrowserTitle": "No hay navegador en este dispositivo",
+      "noBrowserDesc": "Escanea el código QR con tu teléfono."
+    }
+  }
+}

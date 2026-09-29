@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -52,6 +53,7 @@ const PinnedAppsPopup = ({
   onFocusChange,
   onExitFocus
 }: PinnedAppsPopupProps) => {
+  const { t } = useTranslation();
   const [showAppSelector, setShowAppSelector] = useState(false);
   const [editingSlotIndex, setEditingSlotIndex] = useState<number | null>(null);
   const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
@@ -145,10 +147,10 @@ const PinnedAppsPopup = ({
   // Auto-focus first item when selector opens (once)
   useEffect(() => {
     if (showAppSelector) {
-      const t = setTimeout(() => {
+      const timer = setTimeout(() => {
         selectorButtonsRef.current[0]?.focus();
       }, 80);
-      return () => clearTimeout(t);
+      return () => clearTimeout(timer);
     }
   }, [showAppSelector]);
 
@@ -333,7 +335,7 @@ const PinnedAppsPopup = ({
           {/* Header */}
           <div className="flex items-center gap-2 mb-6">
             <Pin className="w-5 h-5 text-brand-gold" />
-            <span className="text-base font-semibold text-white">Pinned Apps</span>
+            <span className="text-base font-semibold text-white">{t('apps.pinned.title')}</span>
             <Badge variant="secondary" className="bg-brand-gold/20 text-brand-gold border-brand-gold/30 text-xs">
               {pinnedApps.length}/4
             </Badge>
@@ -409,7 +411,7 @@ const PinnedAppsPopup = ({
                         }
                       }
                     }}
-                    title={installed ? 'Tap to launch · Hold to change' : 'Not installed — tap to download · Hold to change'}
+                    title={installed ? t('apps.pinned.launchHint') : t('apps.pinned.downloadHint')}
                     data-focused={isFocused ? 'true' : 'false'}
                     className={`
                       home-focus-surface
@@ -423,7 +425,7 @@ const PinnedAppsPopup = ({
                       <div className={`relative w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform ${installed ? '' : 'grayscale opacity-60'}`}>
                         <img 
                           src={pinnedApp.icon || iconFallback(pinnedApp.name)} 
-                          alt={`${pinnedApp.name} icon`}
+                          alt={t('apps.common.iconAlt', { name: pinnedApp.name })}
                           className="w-full h-full object-contain p-1"
                           loading="lazy"
                           decoding="async"
@@ -439,7 +441,7 @@ const PinnedAppsPopup = ({
                         )}
                       </div>
                       <span className={`text-sm text-center font-medium line-clamp-1 w-full ${installed ? 'text-white' : 'text-amber-200/90'}`}>
-                        {installed ? pinnedApp.name : 'Install'}
+                        {installed ? pinnedApp.name : t('apps.pinned.installBtn')}
                       </span>
                     </div>
                   </button>
@@ -469,7 +471,7 @@ const PinnedAppsPopup = ({
                         <Plus className="w-6 h-6 text-slate-500 group-hover:text-brand-gold transition-colors" />
                       </div>
                       <span className="text-sm text-slate-400 group-hover:text-brand-gold transition-colors">
-                        Add
+                        {t('apps.pinned.addBtn')}
                       </span>
                     </div>
                   </button>
@@ -489,7 +491,7 @@ const PinnedAppsPopup = ({
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Pin className="w-5 h-5 text-brand-gold" />
-              {editingSlotIndex !== null ? 'Change Pinned App' : 'Select Apps to Pin'}
+              {editingSlotIndex !== null ? t('apps.pinned.changeTitle') : t('apps.pinned.selectTitle')}
             </DialogTitle>
           </DialogHeader>
           <div
@@ -551,7 +553,7 @@ const PinnedAppsPopup = ({
                     <div className={`relative w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden ${installedOnDevice ? '' : 'grayscale opacity-60'}`}>
                       <img
                         src={app.icon || iconFallback(app.name)}
-                        alt={`${app.name} icon`}
+                        alt={t('apps.common.iconAlt', { name: app.name })}
                         className="w-full h-full object-contain p-1"
                         loading="lazy"
                         decoding="async"
@@ -572,11 +574,11 @@ const PinnedAppsPopup = ({
                       </span>
                       {isAppPinned ? (
                         <span className="text-xs text-brand-gold flex items-center gap-1">
-                          <Check className="w-3 h-3" /> Pinned
+                          <Check className="w-3 h-3" /> {t('apps.pinned.pinnedLabel')}
                         </span>
                       ) : !installedOnDevice ? (
                         <span className="text-xs text-amber-300/90 flex items-center gap-1">
-                          <Download className="w-3 h-3" /> Tap to install
+                          <Download className="w-3 h-3" /> {t('apps.pinned.tapToInstall')}
                         </span>
                       ) : null}
                     </div>
@@ -588,8 +590,8 @@ const PinnedAppsPopup = ({
           </div>
           <p className="text-xs text-brand-ice/60 text-center mt-4">
             {canPinMore 
-              ? `You can pin ${4 - pinnedApps.length} more app${4 - pinnedApps.length !== 1 ? 's' : ''}`
-              : 'Maximum 4 apps pinned. Unpin one to add more.'
+              ? t('apps.pinned.canPinMore', { count: 4 - pinnedApps.length })
+              : t('apps.pinned.maxReached')
             }
           </p>
         </DialogContent>

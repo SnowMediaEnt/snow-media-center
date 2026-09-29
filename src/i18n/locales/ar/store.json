@@ -1,0 +1,115 @@
+{
+  "store": {
+    "header": {
+      "title": "متجر Snow Media",
+      "subtitle": "اختر ما تريد ثم امسح رمز QR بهاتفك للدفع"
+    },
+    "tabs": {
+      "buildTab": "ابنِ إعدادك",
+      "devicesTab": "الأجهزة",
+      "servicesTab": "الخدمات",
+      "accessoriesTab": "الملحقات"
+    },
+    "loading": "جارٍ تحميل المتجر…",
+    "loadError": "لم يتم تحميل المتجر. تحقق من اتصالك وحاول مرة أخرى، أو زُر <1>snowmediaent.com</1> على هاتفك.",
+    "build": {
+      "pickService": "اختر خدمتك",
+      "options": "الخيارات",
+      "connections": "الاتصالات",
+      "connectionsOption_zero": "بدون اتصالات",
+      "connectionsOption_one": "اتصال واحد",
+      "connectionsOption_two": "اتصالان",
+      "connectionsOption_few": "{{count}} اتصالات",
+      "connectionsOption_many": "{{count}} اتصالًا",
+      "connectionsOption_other": "{{count}} اتصال",
+      "nineIncluded": "تشمل 9 اتصالات.",
+      "duration": "المدة",
+      "addDevice": "إضافة جهاز؟",
+      "ownDevice": "لدي جهازي الخاص",
+      "ownDeviceDesc": "يعمل على أجهزة Android وApple التي تملكها بالفعل.",
+      "model": "الطراز"
+    },
+    "shelf": {
+      "fromPrice": "ابتداءً من {{price}}",
+      "pricingOnRequest": "السعر عند الطلب",
+      "empty": "لا يوجد شيء هنا حاليًا.",
+      "bestValueBadge": "أفضل قيمة"
+    },
+    "summary": {
+      "title": "إعدادك",
+      "askUs": "اسألنا",
+      "total": "الإجمالي",
+      "contactUs": "تواصل معنا",
+      "returning": "العملاء العائدون: <1>{{price}}</1>",
+      "goYearly": "اختر الاشتراك السنوي ووفّر بسعر الباقة.",
+      "checkoutBtn": "الدفع من هاتفك",
+      "openSiteBtn": "افتح snowmediaent.com على هذا الجهاز",
+      "hint": "▲ ▼ ◀ ▶ للاختيار · OK للتحديد · رجوع"
+    },
+    "detail": {
+      "backTo": "◀ العودة إلى {{section}}",
+      "contactPricing": "تواصل معنا لمعرفة السعر",
+      "creditPack": "باقة الرصيد",
+      "buyBtn": "اشترِ من هاتفك",
+      "openSiteBtn": "افتح على هذا الجهاز",
+      "hint": "◀ ▶ للاختيار · OK للتحديد · رجوع إلى القائمة"
+    },
+    "qr": {
+      "alt": "رمز QR للدفع",
+      "scan": "امسح الرمز بهاتفك لإتمام الدفع",
+      "linkedTo": "سيُربط طلبك بـ <1>{{email}}</1>.",
+      "noAccountYet": "ليس لديك حساب على الموقع بعد؟ أنشئ حسابًا عند الدفع بنفس البريد الإلكتروني، ثم سجّل الدخول إلى SMC به (حسابي، أعلى الصفحة الرئيسية) لتتابع المشتريات وبيانات دخول الخدمة وتذاكر الدعم في مكان واحد.",
+      "createAccount": "أنشئ حسابك عند الدفع ثم سجّل الدخول إلى SMC به (حسابي، أعلى الصفحة الرئيسية).",
+      "createAccountWhy": "بهذه الطريقة تظهر المشتريات وبيانات دخول الخدمة وتذاكر الدعم على هذا الجهاز.",
+      "loginsInTicket": "تصلك بيانات دخول الخدمة في تذكرة دعم هنا داخل التطبيق مباشرة.",
+      "close": "اضغط OK أو رجوع للإغلاق"
+    },
+    "quote": {
+      "bundleDreamstreams": "{{device}} + سنة من DreamStreams ({{connections}} اتصالات)",
+      "bundleVibeztv": "{{device}} + سنة من VibezTV (9 اتصالات)",
+      "plexIncluded": "PLEX مشمول",
+      "trialIncluded": "يشمل تجربة الخدمة لمدة شهر",
+      "includedFree": "مشمول مجانًا"
+    },
+    "duration": {
+      "day_zero": "{{count}} يوم",
+      "day_one": "يوم واحد",
+      "day_two": "يومان",
+      "day_few": "{{count}} أيام",
+      "day_many": "{{count}} يومًا",
+      "day_other": "{{count}} يوم",
+      "week_zero": "{{count}} أسبوع",
+      "week_one": "أسبوع واحد",
+      "week_two": "أسبوعان",
+      "week_few": "{{count}} أسابيع",
+      "week_many": "{{count}} أسبوعًا",
+      "week_other": "{{count}} أسبوع",
+      "month_zero": "{{count}} شهر",
+      "month_one": "شهر واحد",
+      "month_two": "شهران",
+      "month_few": "{{count}} أشهر",
+      "month_many": "{{count}} شهرًا",
+      "month_other": "{{count}} شهر",
+      "year_zero": "{{count}} سنة",
+      "year_one": "سنة واحدة",
+      "year_two": "سنتان",
+      "year_few": "{{count}} سنوات",
+      "year_many": "{{count}} سنة",
+      "year_other": "{{count}} سنة"
+    },
+    "services": {
+      "dreamstreamsLabel": "DreamStreams",
+      "vibeztvLabel": "VibezTV",
+      "plexLabel": "PLEX فقط",
+      "dreamstreamsBlurb": "بث مباشر وجميع باقات الرياضة وPPV والفعاليات. PLEX مشمول مجانًا.",
+      "vibeztvBlurb": "بث مباشر مميز مع 9 اتصالات. PLEX مشمول مجانًا.",
+      "plexBlurb": "مركز الأفلام والبرامج فقط، بدون بث مباشر."
+    },
+    "toast": {
+      "qrFailedTitle": "تعذّر إنشاء رمز QR",
+      "qrFailedDesc": "يرجى المحاولة مرة أخرى.",
+      "noBrowserTitle": "لا يوجد متصفح على هذا الجهاز",
+      "noBrowserDesc": "امسح رمز QR بهاتفك بدلًا من ذلك."
+    }
+  }
+}
