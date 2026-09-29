@@ -23,16 +23,21 @@ export const STORE_ANON_KEY = 'sb_publishable_P5-WG9FerWWVyep8jdv11w_o08HCaLy';
 
 export type ServiceSlug = 'dreamstreams' | 'vibeztv' | 'plex';
 export const SERVICES: ServiceSlug[] = ['dreamstreams', 'vibeztv', 'plex'];
-export const SERVICE_LABELS: Record<ServiceSlug, string> = {
-  dreamstreams: 'DreamStreams',
-  vibeztv: 'VibezTV',
-  plex: 'Just PLEX',
+// Text keys, not text: the screen calls t() with them when it draws (a constant
+// translated here would go stale when the language changes).
+export const SERVICE_LABEL_KEYS: Record<ServiceSlug, string> = {
+  dreamstreams: 'store.services.dreamstreamsLabel',
+  vibeztv: 'store.services.vibeztvLabel',
+  plex: 'store.services.plexLabel',
 };
-export const SERVICE_BLURBS: Record<ServiceSlug, string> = {
-  dreamstreams: 'Live TV, every sports package, PPV and events. PLEX included free.',
-  vibeztv: 'Premium live TV with 9 connections. PLEX included free.',
-  plex: 'Movies & shows hub only — no live TV.',
+export const SERVICE_BLURB_KEYS: Record<ServiceSlug, string> = {
+  dreamstreams: 'store.services.dreamstreamsBlurb',
+  vibeztv: 'store.services.vibeztvBlurb',
+  plex: 'store.services.plexBlurb',
 };
+
+/** A text for the screen to translate: `t(key, params)`. Product names and catalog labels stay plain strings. */
+export interface TextRef { key: string; params?: Record<string, string | number> }
 
 export interface Variant {
   label: string;
@@ -74,7 +79,10 @@ export interface ShelfItem {
   product: StoreProduct;
   title: string;
   blurb: string | null;
+  /** The badge the Hub wrote (Store → display), if any. */
   badge: string | null;
+  /** Featured with no Hub badge: the screen shows its own "Best value". */
+  bestValue: boolean;
   image: string | null;
   group: 'device' | 'service' | 'accessory' | 'digital';
   sort: number;
@@ -155,7 +163,8 @@ export function buildShelf(products: StoreProduct[], overrides: DisplayOverride[
       product: p,
       title: o?.title?.trim() || p.name,
       blurb: o?.blurb?.trim() || p.description,
-      badge: o?.badge?.trim() || (p.featured ? 'Best value' : null),
+      badge: o?.badge?.trim() || null,
+      bestValue: !o?.badge?.trim() && p.featured,
       image: o?.image_url?.trim() || p.image_url,
       group,
       sort: o ? o.sort : p.sort,
@@ -179,9 +188,19 @@ export function bundleKey(service: ServiceSlug, connections: string | null, dura
   return null;
 }
 
-export function bundleLabel(service: ServiceSlug, connections: string | null): string {
-  if (service === 'dreamstreams') return `1 Year DreamStreams (${connections} connections)`;
-  return '1 Year VibezTV (9 connections)';
+/** "<device> + 1 Year <service> (N connections)" as one sentence, so each language orders it its own way. */
+function bundleName(service: ServiceSlug, connections: string | null, device: string): TextRef {
+  if (service === 'dreamstreams') return { key: 'store.quote.bundleDreamstreams', params: { device, connections: connections ?? '' } };
+  return { key: 'store.quote.bundleVibeztv', params: { device } };
+}
+
+/**
+ * How a catalog duration ("1 month", "12 months") reads on screen. The catalog value itself is
+ * also what pricing matches on, so it is never changed; an unknown shape shows as it is.
+ */
+export function durationText(duration: string): string | TextRef {
+  const m = /^\s*(\d+)\s*(day|week|month|year)s?\s*$/i.exec(duration);
+  return m ? { key: `store.duration.${m[2].toLowerCase()}`, params: { count: Number(m[1]) } } : duration;
 }
 
 export function durationsFor(service: ServiceSlug, plan?: StoreProduct): string[] {
@@ -221,7 +240,7 @@ export function findServiceVariant(plan: StoreProduct | undefined, service: Serv
 }
 
 export interface SetupQuote {
-  lines: Array<{ name: string; detail: string | null; price: number; free?: boolean }>;
+  lines: Array<{ name: string | TextRef; detail: string | TextRef | null; price: number; free?: boolean }>;
   total: number;
   isBundle: boolean;
   serviceTbd: boolean;
@@ -259,25 +278,25 @@ export function quoteSetup(input: {
   let total = 0;
   if (isBundle && device && bundleVariant) {
     total = bundleVariant.price;
-    lines.push({ name: `${deviceName} + ${bundleLabel(service, connections)}`, detail: 'PLEX included', price: total });
+    lines.push({ name: bundleName(service, connections, deviceName), detail: { key: 'store.quote.plexIncluded' }, price: total });
     cart.push({ productId: device.id, variantLabel: bundleVariant.label, qty: 1 });
   } else {
     if (device) {
-      lines.push({ name: deviceName, detail: 'Includes 1-month service trial', price: devicePrice });
+      lines.push({ name: deviceName, detail: { key: 'store.quote.trialIncluded' }, price: devicePrice });
       total += devicePrice;
       cart.push({ productId: device.id, variantLabel: deviceOnlyVariant?.label, qty: 1 });
     }
     if (plan) {
       lines.push({
         name: plan.name,
-        detail: serviceVariant?.label ?? duration,
+        detail: serviceVariant?.label ?? durationText(duration),
         price: serviceTbd ? 0 : servicePrice,
       });
       if (!serviceTbd) total += servicePrice;
       if (serviceVariant && !serviceTbd) cart.push({ productId: plan.id, variantLabel: serviceVariant.label, qty: 1 });
     }
   }
-  if (service !== 'plex') lines.push({ name: 'PLEX', detail: 'Included free', price: 0, free: true });
+  if (service !== 'plex') lines.push({ name: 'PLEX', detail: { key: 'store.quote.includedFree' }, price: 0, free: true });
 
   const returningPrice = !isBundle ? serviceVariant?.returning_price : undefined;
   const returningTotal = returningPrice !== undefined && !serviceTbd ? total - servicePrice + returningPrice : null;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { takeIntent, INTENT_KEYS, openScreen } from '@/lib/appActions';
-import { retiredAppFor } from '@/lib/retiredApps';
+import { retiredAppFor, retiredWhereLabel } from '@/lib/retiredApps';
 import RetiredAppDialog from '@/components/RetiredAppDialog';
 import PlayerNudgeDialog from '@/components/PlayerNudgeDialog';
 import { playerNudgeOff } from '@/lib/playerNudge';
@@ -37,7 +38,7 @@ interface InstallAppsProps {
 }
 
 const InstallApps = ({ onBack, onNavigateToChat, onNavigate }: InstallAppsProps) => {
-  const { toast } = useToast();
+  const { t } = useTranslation();
   const { apps, loading, error } = useAppData();
 
   // Early returns MUST happen before any other hooks
@@ -46,7 +47,7 @@ const InstallApps = ({ onBack, onNavigateToChat, onNavigate }: InstallAppsProps)
       <div className="tv-scroll-container tv-safe flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-ice mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading apps...</p>
+          <p className="text-white text-lg">{t('apps.list.loading')}</p>
         </div>
       </div>
     );
@@ -56,8 +57,8 @@ const InstallApps = ({ onBack, onNavigateToChat, onNavigate }: InstallAppsProps)
     return (
       <div className="tv-scroll-container tv-safe flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-400 text-lg mb-4">Error loading apps: {error}</p>
-          <BackButton onClick={onBack} label="Back to Home" />
+          <p className="text-red-400 text-lg mb-4">{t('apps.list.loadError', { error })}</p>
+          <BackButton onClick={onBack} label={t('common.backToHome')} />
         </div>
       </div>
     );
@@ -86,6 +87,7 @@ interface ContextMenuState {
 }
 
 const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { onBack: () => void; apps: AppData[]; onNavigateToChat?: () => void; onNavigate?: (view: string) => void }) => {
+  const { t } = useTranslation();
   const [appStatuses, setAppStatuses] = useState<Map<string, { installed: boolean }>>(new Map());
   const [focusedElement, setFocusedElement] = useState<FocusType>('back');
   const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
@@ -199,7 +201,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
           (async () => {
             await refreshDeviceApps();
             refreshAllStatuses();
-            toast({ title: 'Refreshing…', description: 'Re-scanning installed apps.' });
+            toast({ title: t('apps.toast.refreshingTitle'), description: t('apps.toast.refreshingDesc') });
           })();
         } else if (focusedElement === 'tab-0') setActiveTab('featured');
         else if (focusedElement === 'tab-1') setActiveTab('all');
@@ -210,7 +212,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
         else if (focusedElement.startsWith('launch-') && currentApp) attemptLaunch(currentApp);
         else if (focusedElement.startsWith('forcestop-') && currentApp) handleForceStop(currentApp);
         else if (focusedElement.startsWith('settings-') && currentApp) {
-          toast({ title: "Tap 'Storage' → 'Clear data'", description: `Opening ${currentApp.name} system info…` });
+          toast({ title: t('apps.toast.clearDataTitle'), description: t('apps.toast.systemInfoDesc', { name: currentApp.name }) });
           handleOpenAppSettings(currentApp);
         } else if (focusedElement.startsWith('cache-') && currentApp) handleAutoClearCache(currentApp);
         else if (focusedElement.startsWith('uninstall-') && currentApp) handleUninstall(currentApp);
@@ -371,7 +373,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, retiredApp, nudgeApp, contextMenu.app, downloadingApp, toast, expandedAppId]);
+  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, retiredApp, nudgeApp, contextMenu.app, downloadingApp, toast, t, expandedAppId]);
 
   // Scroll focused element into view
   useEffect(() => {
@@ -433,8 +435,8 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
         const cached = await findCachedApk(app.name, app.version);
         if (cached) {
           toast({
-            title: 'Ready to install',
-            description: `${app.name} was already downloaded — tap Install.`,
+            title: t('apps.toast.readyToInstallTitle'),
+            description: t('apps.toast.readyToInstallDesc', { name: app.name }),
           });
           setPrefetchedPath(cached);
           setDownloadingApp(app);
@@ -447,9 +449,9 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
       let url = app.downloadUrl!;
       if (!url.startsWith('http://') && !url.startsWith('https://')) url = `https://${url}`;
       window.open(url, '_blank');
-      toast({ title: "Download Started", description: `${app.name} download opened in browser.` });
+      toast({ title: t('apps.toast.downloadStartedTitle'), description: t('apps.toast.downloadStartedDesc', { name: app.name }) });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const handleDownload = useCallback(async (app: AppData, opts: { skipRetiredNotice?: boolean } = {}) => {
     // Dreamstreams, VibezTV and Plex are inside the Player now. Say so, and
@@ -460,8 +462,8 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
     }
     if (!app.downloadUrl) {
       toast({
-        title: "Download Error",
-        description: "No download URL available for this app",
+        title: t('apps.toast.downloadErrorTitle'),
+        description: t('apps.toast.downloadErrorDesc'),
         variant: "destructive",
       });
       return;
@@ -490,7 +492,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
 
     // Warnings only fire on launch — go straight to download here.
     startDownload(app);
-  }, [toast, checkInstallStatus, getAlertForApp, startDownload]);
+  }, [toast, t, checkInstallStatus, getAlertForApp, startDownload]);
 
   const retiredInfo = retiredApp ? retiredAppFor(retiredApp.name) : null;
   const openPlayerFor = useCallback(() => {
@@ -498,8 +500,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
     setRetiredApp(null);
     if (!info) return;
     if (onNavigate) openScreen(info.screen, onNavigate);
-    else toast({ title: 'Open the Player', description: `From the main page, open Player → ${info.where}.` });
-  }, [retiredApp, onNavigate, toast]);
+    else {
+      toast({
+        title: t('apps.toast.openPlayerTitle'),
+        description: t('apps.toast.openPlayerDesc', { where: retiredWhereLabel(info) }),
+      });
+    }
+  }, [retiredApp, onNavigate, toast, t]);
 
   // The assistant's "install X": find it in the list and start the download.
   useEffect(() => {
@@ -509,24 +516,24 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
     const q = want.trim().toLowerCase();
     const app = apps.find((a) => a.name.toLowerCase() === q)
       ?? apps.find((a) => a.name.toLowerCase().includes(q) || q.includes(a.name.toLowerCase()));
-    if (!app) { toast({ title: 'App not found', description: `Couldn't find "${want}" in Main Apps.` }); return; }
-    const t = setTimeout(() => { void handleDownload(app); }, 350);
-    return () => clearTimeout(t);
-  }, [apps, handleDownload, toast]);
+    if (!app) { toast({ title: t('apps.toast.notFoundTitle'), description: t('apps.toast.notFoundDesc', { name: want }) }); return; }
+    const timer = setTimeout(() => { void handleDownload(app); }, 350);
+    return () => clearTimeout(timer);
+  }, [apps, handleDownload, toast, t]);
 
   const offerInstall = (app: AppData) => {
     if (app.downloadUrl) {
       toast({
-        title: `${app.name} isn't installed`,
-        description: "Tap Download & Install to get it now.",
+        title: t('apps.toast.offerInstallTitle', { name: app.name }),
+        description: t('apps.toast.offerInstallDesc'),
         action: (
-          <ToastAction altText="Download and install" onClick={() => handleDownload(app)}>
-            Download & Install
+          <ToastAction altText={t('apps.toast.downloadInstallAlt')} onClick={() => handleDownload(app)}>
+            {t('apps.toast.downloadInstallBtn')}
           </ToastAction>
         ),
       });
     } else {
-      toast({ title: "Not installed", description: `${app.name} isn't installed and no download is available.`, variant: "destructive" });
+      toast({ title: t('apps.toast.notInstalledTitle'), description: t('apps.toast.notInstalledDesc', { name: app.name }), variant: "destructive" });
     }
   };
 
@@ -595,14 +602,14 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
       await AppManager.launch({ packageName });
       
       toast({
-        title: "Launching App",
-        description: `Opening ${app.name}...`,
+        title: t('apps.toast.launchingTitle'),
+        description: t('apps.toast.launchingDesc', { name: app.name }),
       });
     } catch (error) {
       console.error('Launch error:', error);
       if (isWebUnsupportedError(error)) {
         toast({
-          title: "Launch Failed",
+          title: t('apps.toast.launchFailedTitle'),
           description: WEB_UNSUPPORTED_MSG,
           variant: "destructive",
         });
@@ -645,8 +652,8 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
       await AppManager.openAppSettings({ packageName });
 
       toast({
-        title: "Tap 'Uninstall'",
-        description: `Opening ${app.name} App Info — tap Uninstall there.`,
+        title: t('apps.toast.uninstallTitle'),
+        description: t('apps.toast.uninstallDesc', { name: app.name }),
       });
       // Force a fresh device enumeration so a removed app stops showing as
       // installed once the user returns from App Info.
@@ -658,10 +665,10 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
       const friendly = isWebUnsupportedError(error)
         ? WEB_UNSUPPORTED_MSG
         : msg.includes('Package not installed')
-          ? `${app.name} is not installed on this device.`
-          : `Could not open ${app.name} App Info.`;
+          ? t('apps.toast.notOnDevice', { name: app.name })
+          : t('apps.toast.couldNotOpenInfo', { name: app.name });
       toast({
-        title: "Uninstall Menu Failed",
+        title: t('apps.toast.uninstallFailedTitle'),
         description: friendly,
         variant: "destructive",
       });
@@ -675,16 +682,16 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
       await AppManager.openAppSettings({ packageName });
 
       toast({
-        title: "Opening App Settings",
-        description: `${app.name} settings opened`,
+        title: t('apps.toast.settingsOpenedTitle'),
+        description: t('apps.toast.settingsOpenedDesc', { name: app.name }),
       });
     } catch (error) {
       console.error('App settings error:', error);
       const friendly = isWebUnsupportedError(error)
         ? WEB_UNSUPPORTED_MSG
-        : `Could not open ${app.name} settings.`;
+        : t('apps.toast.couldNotOpenSettings', { name: app.name });
       toast({
-        title: "Settings Failed",
+        title: t('apps.toast.settingsFailedTitle'),
         description: friendly,
         variant: "destructive",
       });
@@ -706,17 +713,17 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
       }
       await AppManager.openAppSettings({ packageName });
       toast({
-        title: "Tap 'Force Stop'",
-        description: `Opening ${app.name} system info…`,
+        title: t('apps.toast.forceStopTitle'),
+        description: t('apps.toast.systemInfoDesc', { name: app.name }),
       });
     } catch (err) {
       toast({
-        title: 'Force Stop Failed',
-        description: isWebUnsupportedError(err) ? WEB_UNSUPPORTED_MSG : `Could not open ${app.name} App Info.`,
+        title: t('apps.toast.forceStopFailedTitle'),
+        description: isWebUnsupportedError(err) ? WEB_UNSUPPORTED_MSG : t('apps.toast.couldNotOpenInfo', { name: app.name }),
         variant: 'destructive',
       });
     }
-  }, [resolvePackageName, isPackageInstalled, toast]);
+  }, [resolvePackageName, isPackageInstalled, toast, t]);
 
   /** Opens App Info so the user can manually clear this app's cache. */
   const handleAutoClearCache = useCallback(async (app: AppData) => {
@@ -733,22 +740,22 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
       }
       await AppManager.openAppSettings({ packageName });
       toast({
-        title: "Tap 'Storage' → 'Clear cache'",
-        description: `Opening ${app.name} system info…`,
+        title: t('apps.toast.clearCacheTitle'),
+        description: t('apps.toast.systemInfoDesc', { name: app.name }),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
       toast({
-        title: 'Clear Cache Menu Failed',
+        title: t('apps.toast.clearCacheFailedTitle'),
         description: isWebUnsupportedError(err)
           ? WEB_UNSUPPORTED_MSG
           : msg.includes('Package not installed')
-            ? `${app.name} is not installed on this device.`
-            : `Could not open ${app.name} App Info.`,
+            ? t('apps.toast.notOnDevice', { name: app.name })
+            : t('apps.toast.couldNotOpenInfo', { name: app.name }),
         variant: 'destructive',
       });
     }
-  }, [resolvePackageName, isPackageInstalled, toast]);
+  }, [resolvePackageName, isPackageInstalled, toast, t]);
 
   /** Walks every installed app from our catalog and auto-clears each one's cache. */
 
@@ -790,13 +797,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
     
     if (success) {
       toast({
-        title: "App Pinned! 📌",
-        description: `${app.name} added to your pinned apps.`,
+        title: t('apps.toast.pinnedTitle'),
+        description: t('apps.toast.pinnedDesc', { name: app.name }),
       });
     } else {
       toast({
-        title: "Cannot Pin App",
-        description: "Maximum of 4 apps can be pinned.",
+        title: t('apps.toast.pinFailedTitle'),
+        description: t('apps.toast.pinFailedDesc'),
         variant: "destructive",
       });
     }
@@ -805,8 +812,8 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
   const handleUnpinApp = (appId: string, appName: string) => {
     unpinApp(appId);
     toast({
-      title: "App Unpinned",
-      description: `${appName} removed from pinned apps.`,
+      title: t('apps.toast.unpinnedTitle'),
+      description: t('apps.toast.unpinnedDesc', { name: appName }),
     });
   };
 
@@ -857,7 +864,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                 <div className="w-11 h-11 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
                   <img 
                     src={app.icon || '/icons/default.png'} 
-                    alt={`${app.name} icon`}
+                    alt={t('apps.common.iconAlt', { name: app.name })}
                     className="w-full h-full object-cover"
                     loading="eager"
                     decoding="async"
@@ -878,7 +885,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                       <Badge className="bg-brand-gold/20 text-brand-gold border border-brand-gold/30 text-[10px] px-1.5 py-0">📌</Badge>
                     )}
                     {app.featured && (
-                      <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0">Featured</Badge>
+                      <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0">{t('apps.list.featuredBadge')}</Badge>
                     )}
                   </div>
                   <p className="text-slate-400 text-xs line-clamp-1">{app.description}</p>
@@ -896,7 +903,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                       className="flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 bg-primary hover:bg-primary/80 text-primary-foreground"
                     >
                       <Play className="w-4 h-4 mr-1" />
-                      Launch
+                      {t('apps.list.launchBtn')}
                     </Button>
                   ) : (
                     <Button
@@ -904,7 +911,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                       tabIndex={-1}
                       className="flex-shrink-0 h-9 px-3 text-xs font-medium transition-all duration-200 bg-slate-600/40 hover:bg-slate-600/50 text-brand-ice/70 border-0"
                     >
-                      Not installed
+                      {t('apps.list.notInstalledBtn')}
                     </Button>
                   )
                 )}
@@ -929,7 +936,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                         ? 'text-brand-gold hover:text-red-400 hover:bg-red-500/20' 
                         : 'text-slate-400 hover:text-brand-gold hover:bg-brand-gold/20'
                     }`}
-                    title={appIsPinned ? 'Unpin app' : 'Pin app for quick access'}
+                    title={appIsPinned ? t('apps.list.unpinTitle') : t('apps.list.pinTitle')}
                   >
                     <Pin className={`w-5 h-5 ${appIsPinned ? 'fill-current' : ''}`} />
                   </Button>
@@ -949,7 +956,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                     className={`w-full h-9 text-sm transition-all duration-200 ${isFocused(`download-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-brand-ice hover:bg-brand-ice/80 ${isFocused(`download-${app.id}`) ? 'text-slate-900' : 'text-white'}`}
                   >
                     <Download className="w-4 h-4 mr-2" />
-                    Download
+                    {t('apps.list.downloadBtn')}
                   </Button>
                 )}
                 
@@ -962,7 +969,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                       className={`w-full h-9 text-sm transition-all duration-200 ${isFocused(`launch-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-primary hover:bg-primary/80 ${isFocused(`launch-${app.id}`) ? 'text-slate-900' : 'text-primary-foreground'}`}
                     >
                       <Play className="w-4 h-4 mr-2" />
-                      Launch
+                      {t('apps.list.launchBtn')}
                     </Button>
                     
                     <div className="grid grid-cols-2 gap-1.5">
@@ -971,11 +978,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                         data-focused={isFocused(`forcestop-${app.id}`) ? 'true' : 'false'}
                         onClick={() => handleForceStop(app)}
                         variant="outline"
-                        className={`h-8 text-xs transition-all duration-200 ${isFocused(`forcestop-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
-                        title="Opens system App Info – tap Force Stop"
+                        className={`min-w-0 h-8 text-xs transition-all duration-200 ${isFocused(`forcestop-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
+                        title={t('apps.list.forceStopHint')}
                       >
                         <StopCircle className="w-4 h-4 mr-1" />
-                        Force Stop
+                        <span className="min-w-0 truncate">{t('apps.list.forceStopBtn')}</span>
                       </Button>
 
                       <Button
@@ -983,11 +990,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                         data-focused={isFocused(`cache-${app.id}`) ? 'true' : 'false'}
                         onClick={() => handleAutoClearCache(app)}
                         variant="outline"
-                        className={`h-8 text-xs transition-all duration-200 ${isFocused(`cache-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
-                        title="Auto-taps Storage → Clear cache (no data loss). Requires Accessibility permission once."
+                        className={`min-w-0 h-8 text-xs transition-all duration-200 ${isFocused(`cache-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
+                        title={t('apps.list.clearCacheHint')}
                       >
                         <Settings className="w-4 h-4 mr-1" />
-                        Clear Cache
+                        <span className="min-w-0 truncate">{t('apps.list.clearCacheBtn')}</span>
                       </Button>
 
                       <Button
@@ -995,17 +1002,17 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                         data-focused={isFocused(`settings-${app.id}`) ? 'true' : 'false'}
                         onClick={() => {
                           toast({
-                            title: "Tap 'Storage' → 'Clear data'",
-                            description: `Opening ${app.name} system info…`,
+                            title: t('apps.toast.clearDataTitle'),
+                            description: t('apps.toast.systemInfoDesc', { name: app.name }),
                           });
                           handleOpenAppSettings(app);
                         }}
                         variant="outline"
-                        className={`h-8 text-xs transition-all duration-200 ${isFocused(`settings-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
-                        title="Opens system App Info – tap Storage → Clear data"
+                        className={`min-w-0 h-8 text-xs transition-all duration-200 ${isFocused(`settings-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
+                        title={t('apps.list.clearDataHint')}
                       >
                         <Settings className="w-4 h-4 mr-1" />
-                        Clear Data
+                        <span className="min-w-0 truncate">{t('apps.list.clearDataBtn')}</span>
                       </Button>
 
 
@@ -1014,10 +1021,10 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                         data-focused={isFocused(`uninstall-${app.id}`) ? 'true' : 'false'}
                         onClick={() => handleUninstall(app)}
                         variant="outline"
-                        className={`h-8 text-xs transition-all duration-200 ${isFocused(`uninstall-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
+                        className={`min-w-0 h-8 text-xs transition-all duration-200 ${isFocused(`uninstall-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
                       >
                         <Trash2 className="w-4 h-4 mr-1" />
-                        Uninstall
+                        <span className="min-w-0 truncate">{t('apps.list.uninstallBtn')}</span>
                       </Button>
                     </div>
                   </>
@@ -1042,7 +1049,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
           <div className="flex items-center w-full justify-between">
           <BackButton
             onClick={onBack}
-            label="Back to Home"
+            label={t('common.backToHome')}
             focused={isFocused('back')}
           />
             <Button
@@ -1052,22 +1059,22 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                 await refreshDeviceApps();
                 refreshAllStatuses();
                 toast({
-                  title: 'Refreshing…',
-                  description: `Re-scanning device. Found ${deviceApps.length} installed apps.`,
+                  title: t('apps.toast.refreshingTitle'),
+                  description: t('apps.toast.refreshedDesc', { count: deviceApps.length }),
                 });
               }}
               variant="outline"
               size="lg"
               className={`bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30 transition-all duration-200 ${focusRing('refresh')}`}
-              title="Re-check installed apps"
+              title={t('apps.list.refreshHint')}
             >
               <RefreshCw className="w-5 h-5 mr-2" />
-              Refresh
+              {t('apps.list.refreshBtn')}
             </Button>
           </div>
           <div className="text-center mt-4">
-            <h1 className="text-4xl font-bold text-white mb-2">Main Apps</h1>
-            <p className="text-xl text-blue-200">Download, Install & Launch APKs</p>
+            <h1 className="text-4xl font-bold text-white mb-2">{t('apps.list.title')}</h1>
+            <p className="text-xl text-blue-200">{t('apps.list.subtitle')}</p>
           </div>
         </div>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1078,7 +1085,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
               value="featured" 
               className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-0')}`}
             >
-              Featured ({getCategoryApps('featured').length})
+              {t('apps.list.featuredTab', { num: getCategoryApps('featured').length })}
             </TabsTrigger>
             <TabsTrigger 
               data-focus-id="tab-1"
@@ -1086,7 +1093,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
               value="all" 
               className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-1')}`}
             >
-              All ({getCategoryApps('all').length})
+              {t('apps.list.allTab', { num: getCategoryApps('all').length })}
             </TabsTrigger>
           </TabsList>
           

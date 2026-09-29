@@ -2,6 +2,7 @@
 // runs out, when a phone has used it, and after "Unpair all phones". Used by
 // Settings → Phone Remote and the "type on your phone" card.
 import { memo, useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import QRCode from 'qrcode';
 import { Loader2 } from 'lucide-react';
 import { PHONE_REMOTE_EVENT, formatPairingCode, getPairingCode, holdPairing, pairingRound, releasePairingListener, type PairingCode } from '@/lib/phoneRemote';
@@ -14,6 +15,7 @@ interface Props {
 }
 
 const PairingQR = memo(({ size = 220, compact = false }: Props) => {
+  const { t, i18n } = useTranslation();
   const [pairing, setPairing] = useState<PairingCode | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -44,28 +46,28 @@ const PairingQR = memo(({ size = 220, compact = false }: Props) => {
       })
       .catch(() => { if (alive) setFailed(true); });
     return () => { alive = false; };
-  }, [tick, round, size]);
+  }, [tick, round, size, i18n.language]);
 
   // A new code a little before this one runs out (timed on this box's clock,
   // never longer than a code lives).
   useEffect(() => {
     if (!pairing) return;
     const wait = Math.min(10 * 60_000, Math.max(10_000, pairing.expiresAt - Date.now() - 15_000));
-    const t = window.setTimeout(() => setTick((n) => n + 1), wait);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setTick((n) => n + 1), wait);
+    return () => window.clearTimeout(timer);
   }, [pairing]);
 
   if (failed) {
-    return <p className={`${compact ? 'text-xs' : 'text-sm'} text-amber-300`}>Couldn't get a pairing code — check the internet connection.</p>;
+    return <p className={`${compact ? 'text-xs' : 'text-sm'} text-amber-300`}>{t('phoneRemote.pairing.failed')}</p>;
   }
   if (!pairing || !qr) {
     return <div className="flex items-center justify-center" style={{ width: size, height: size }}><Loader2 className="w-6 h-6 animate-spin text-white/70" /></div>;
   }
   return (
     <div className={`flex ${compact ? 'items-center' : 'flex-col items-center'}`}>
-      <img src={qr} alt="QR code to pair your phone" width={size} height={size} className="rounded-lg bg-white" />
+      <img src={qr} alt={t('phoneRemote.pairing.qrAlt')} width={size} height={size} className="rounded-lg bg-white" />
       <div className={compact ? 'ml-3' : 'mt-3 text-center'}>
-        <div className={`${compact ? 'text-xs' : 'text-sm'} text-white/70`}>or go to <span className="font-semibold text-white">snowmediaent.com/remote</span></div>
+        <div className={`${compact ? 'text-xs' : 'text-sm'} text-white/70`}><Trans i18nKey="phoneRemote.pairing.orGoTo" components={{ 1: <span className="font-semibold text-white" /> }} /></div>
         <div className={`${compact ? 'text-2xl' : 'text-4xl'} font-bold tracking-[0.12em] text-brand-gold tabular-nums whitespace-nowrap`}>{formatPairingCode(pairing.code)}</div>
       </div>
     </div>

@@ -7,6 +7,7 @@
 // that entered a code (here or in Settings) raises.
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Smartphone } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import PhoneRequestPrompt from '@/components/remote/PhoneRequestPrompt';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -28,6 +29,7 @@ const qrSize = (): number => {
 };
 
 const PhoneTypingHint = () => {
+  const { t } = useTranslation();
   const [typing, setTyping] = useState(false);
   const [, setTick] = useState(0);
 
@@ -66,7 +68,7 @@ const PhoneTypingHint = () => {
   const hideForGood = () => {
     setTypingHintEnabled(false);
     setCard(null);
-    toast({ title: 'Phone keyboard card off', description: 'Turn it back on any time in Settings → Phone Remote.' });
+    toast({ title: t('phoneRemote.typing.offToastTitle'), description: t('phoneRemote.typing.offToastDesc') });
   };
 
   const connected = connectedPhones() > 0;
@@ -82,17 +84,17 @@ const PhoneTypingHint = () => {
         >
           <div className="flex items-center mb-2">
             <Smartphone className="w-5 h-5 text-brand-gold mr-2" />
-            <span className="font-semibold">{connected ? 'Your phone keyboard is ready' : 'Type on your phone'}</span>
+            <span className="font-semibold">{connected ? t('phoneRemote.typing.readyTitle') : t('phoneRemote.typing.title')}</span>
           </div>
           {connected
-            ? <p className="text-sm text-white/70 max-w-[16rem]">Type on the phone remote and it appears here.</p>
+            ? <p className="text-sm text-white/70 max-w-[16rem]">{t('phoneRemote.typing.readyText')}</p>
             : <Suspense fallback={null}><PairingQR size={qrSize()} compact /></Suspense>}
           <p className="mt-2 text-xs text-white/60 max-w-[16rem]">
             {last
-              ? 'This was the last time. Turn it back on in Settings → Phone Remote.'
+              ? t('phoneRemote.typing.lastTime')
               : card.shown > 0
-                ? `Shows ${left} more time${left === 1 ? '' : 's'}. On or off in Settings → Phone Remote.`
-                : 'On or off in Settings → Phone Remote.'}
+                ? t('phoneRemote.typing.showsMore', { count: left })
+                : t('phoneRemote.typing.onOff')}
           </p>
           {!last && (
             <button
@@ -102,7 +104,7 @@ const PhoneTypingHint = () => {
               onClick={hideForGood}
               className="pointer-events-auto mt-2 rounded-lg border border-white/25 px-3 py-1 text-xs font-semibold text-white/85 hover:bg-white/10"
             >
-              Don&apos;t show again
+              {t('phoneRemote.typing.dontShowBtn')}
             </button>
           )}
         </div>

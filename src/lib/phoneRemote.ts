@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AppManager } from '@/capacitor/AppManager';
 import { getDeviceId, trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
+import { getAppLanguage } from '@/i18n';
 
 const STORE_KEY = 'smc-phone-remote-v1';
 const HINT_KEY = 'smc-phone-remote-typing-hint';
@@ -269,6 +270,16 @@ const onVisibility = () => { if (!offScreen()) sendFieldState('hello'); };
 export interface PhoneRequest { rid: string; device: string; at: number }
 /** What the edge function may say about the phone (see pairing.ts). */
 const PHONE_KINDS = ['An iPhone', 'An iPad', 'An Android phone', 'An Android tablet', 'A phone or computer'];
+/** The English kind the server sends is a value to match, never shown as it is: this is its text key. */
+const PHONE_KIND_KEYS: Record<string, string> = {
+  'An iPhone': 'phoneRemote.kinds.iphone',
+  'An iPad': 'phoneRemote.kinds.ipad',
+  'An Android phone': 'phoneRemote.kinds.androidPhone',
+  'An Android tablet': 'phoneRemote.kinds.androidTablet',
+  'A phone or computer': 'phoneRemote.kinds.phoneOrComputer',
+};
+/** Text key for a request's `device` ("An iPhone", ...), for t() at the moment it is drawn. */
+export const phoneKindKey = (device: string): string => PHONE_KIND_KEYS[device] ?? 'phoneRemote.kinds.phone';
 const REQUEST_TTL_MS = 2 * 60_000;
 let requests: PhoneRequest[] = [];
 const answered = new Set<string>();
@@ -429,12 +440,17 @@ function scheduleRelease(): void {
   }, RELEASE_AFTER_MS);
 }
 
+/** The QR address: the phone page reads the code from ?c= and this TV's language from ?lang=. */
+const pairingUrl = (code: string): string => `${REMOTE_URL}?c=${code}&lang=${getAppLanguage()}`;
+
 /** A code (and QR address) for pairing a phone; listens while a QR shows it. */
 export function getPairingCode(): Promise<PairingCode> {
   const s = load();
   if (shown && s?.secret === shown.secret && shown.code.expiresAt - Date.now() > REUSE_MIN_LEFT_MS) {
     if (holders > 0) listen(shown.secret);
-    return Promise.resolve(shown.code);
+    // The language may have changed since this code was made: the address follows it.
+    const url = pairingUrl(shown.code.code);
+    return Promise.resolve(url === shown.code.url ? shown.code : { ...shown.code, url });
   }
   if (inflight) return inflight;
   const e = epoch;
@@ -451,7 +467,7 @@ export function getPairingCode(): Promise<PairingCode> {
     // Timed on this box's own clock: the server's clock and the box's may
     // disagree by hours.
     const ttl = Number(r.expires_in) > 0 ? Number(r.expires_in) * 1000 : CODE_TTL_MS;
-    const pc: PairingCode = { code, url: `${REMOTE_URL}?c=${code}`, expiresAt: Date.now() + ttl };
+    const pc: PairingCode = { code, url: pairingUrl(code), expiresAt: Date.now() + ttl };
     shown = { secret, code: pc };
     // Nobody shows it any more (the QR came and went while this was on its
     // way): keep the code for a QR that comes back, but don't listen, and
