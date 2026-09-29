@@ -1,0 +1,28 @@
+{
+  "settings": {
+    "title": "Einstellungen",
+    "subtitle": "Passe dein Snow Media Center an",
+    "tabs": {
+      "media": "Medien-Manager",
+      "ui": "Oberfläche",
+      "updates": "Updates",
+      "alerts": "App-Hinweise",
+      "ai": "KI"
+    },
+    "mediaManagerHeading": "Medien-Manager",
+    "contentBar": {
+      "title": "Inhaltsleiste",
+      "description": "Zeigt angesagte Plex-Titel und Live-Sport auf dem Startbildschirm. Auf langsameren Geräten für ein flüssigeres Erlebnis deaktivieren.",
+      "aria": "Inhaltsleiste auf dem Startbildschirm umschalten"
+    },
+    "player": {
+      "title": "Player (Live-TV)",
+      "description": "Globaler Schalter für den Player-Bereich (Live-TV, Filme und Serien). Wenn deaktiviert, wird die Player-Kachel auf allen Geräten ausgeblendet.",
+      "aria": "Player-Bereich global umschalten"
+    },
+    "language": {
+      "title": "Sprache",
+      "description": "App-Sprache wählen. Die Übersetzungsabdeckung wird noch erweitert."
+    }
+  }
+}

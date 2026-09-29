@@ -1,0 +1,33 @@
+{
+  "home": {
+    "tagline": "Dein Premium-Streaming-Erlebnis",
+    "mainApps": {
+      "title": "Haupt-Apps",
+      "description": "APKs und Streaming-Tools herunterladen"
+    },
+    "support": {
+      "title": "Support",
+      "description": "Hilfe, KI-Chat und Community"
+    },
+    "store": {
+      "title": "Snow Media Store",
+      "description": "Offiziellen Store besuchen"
+    },
+    "giveaway": {
+      "title": "Gewinnspiel",
+      "description": "Mach mit und gewinne Preise"
+    },
+    "player": {
+      "title": "Player",
+      "description": "Live-TV, Filme und Serien"
+    },
+    "liveTv": {
+      "title": "Live-TV",
+      "description": "Sender, Guide & Game Day"
+    },
+    "plex": {
+      "title": "Plex",
+      "description": "Filme & Serien"
+    }
+  }
+}

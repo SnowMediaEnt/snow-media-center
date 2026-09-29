@@ -1,0 +1,6 @@
+# Files converted by work item 0 (core). One path per line: a file, or a folder (all .ts/.tsx inside,
+# tests excluded). Each work item adds its own <item>.txt next to this one.
+src/i18n/index.ts
+src/i18n/format.ts
+src/i18n/nativeLanguage.ts
+src/main.tsx

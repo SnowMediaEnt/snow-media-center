@@ -1053,3 +1053,12 @@ html.smc-quiet .home-watermark, html.smc-quiet .news-ticker { visibility: hidden
 .mail-prose a { color: #a1d5dc; text-decoration: underline; }
 .mail-prose img { max-width: 100%; border-radius: 1rem; margin: 0.5rem 0 1.1rem; }
 .mail-prose blockquote { border-left: 4px solid rgba(195,170,114,0.6); padding-left: 1rem; color: rgba(255,255,255,0.7); margin: 0 0 1.1rem; }
+
+/* Arabic is text only: the page stays left to right (no mirrored layout). Paragraph text still
+   reads right to left, so its punctuation lands on the correct side. Written out selector by
+   selector: Chrome 66 does not know :is(). */
+html[lang="ar"] p,
+html[lang="ar"] li,
+html[lang="ar"] [data-i18n-block] {
+  unicode-bidi: plaintext;
+}
