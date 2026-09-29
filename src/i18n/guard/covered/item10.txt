@@ -1,0 +1,3 @@
+# Work item 10: AI/Plex language, native text. (nativeLanguage.ts is listed by core.txt.)
+src/lib/plex.ts
+src/capacitor/SnowNotify.ts

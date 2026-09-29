@@ -1,0 +1,36 @@
+{
+  "plexApi": {
+    "serverFallback": "Plex Server",
+    "libraryFallback": "Library",
+    "seasonFallback": "Season {{index}}",
+    "route": {
+      "relay": "Plex Relay (speed-capped by Plex)",
+      "lan": "Home network",
+      "direct": "Direct to server",
+      "unknown": "Unknown route",
+      "customAddress": "custom address ({{host}})",
+      "httpUnencrypted": "http (unencrypted)"
+    },
+    "quality": {
+      "original": "Original (direct)"
+    },
+    "screenFormat": {
+      "fit": {
+        "label": "Fit",
+        "hint": "Whole picture, correct shape"
+      },
+      "zoom": {
+        "label": "Zoom",
+        "hint": "Fills the screen, edges cropped"
+      },
+      "wide": {
+        "label": "Wide 16:9",
+        "hint": "Force widescreen"
+      },
+      "fill": {
+        "label": "Stretch",
+        "hint": "Fills the screen, shape ignored"
+      }
+    }
+  }
+}

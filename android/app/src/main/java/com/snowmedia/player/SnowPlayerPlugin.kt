@@ -21,6 +21,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
+import androidx.annotation.StringRes
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
@@ -66,7 +67,9 @@ import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.snowmedia.AppLocale
 import com.snowmedia.BuildConfig
+import com.snowmedia.R
 import com.snowmedia.dvr.StorageBudget
 import com.snowmedia.dvr.TimeshiftLimits
 import com.snowmedia.dvr.TimeshiftManager
@@ -585,7 +588,7 @@ class SnowPlayerPlugin : Plugin() {
                 "playerError",
                 JSObject().put("screenId", screenId)
                     .put("code", "RECONNECT_EXHAUSTED")
-                    .put("message", "The stream keeps dropping. Try again."),
+                    .put("message", localized(R.string.player_err_stream_dropping)),
             )
             return
         }
@@ -653,22 +656,30 @@ class SnowPlayerPlugin : Plugin() {
      * with an address in it gives way to a plain one.
      */
     private fun exhaustedMessage(error: PlaybackException, url: String): String {
-        val server = if (isPlexStream(Uri.parse(url))) "The Plex server" else "The server"
+        val plex = isPlexStream(Uri.parse(url))
         return when (error.errorCode) {
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
             PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
-            -> "The server stopped responding. Try again."
+            -> localized(R.string.player_err_server_stopped)
             PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
                 val status = httpStatusOf(error)
-                if (status != null) "$server refused this file (HTTP $status)." else "$server refused this file."
+                when {
+                    status != null && plex -> localized(R.string.player_err_plex_refused_status, status)
+                    status != null -> localized(R.string.player_err_refused_status, status)
+                    plex -> localized(R.string.player_err_plex_refused)
+                    else -> localized(R.string.player_err_refused)
+                }
             }
             PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND,
             PlaybackException.ERROR_CODE_IO_NO_PERMISSION,
-            -> "$server refused this file."
-            else -> error.message?.takeIf { it.isNotBlank() && !it.contains("://") } ?: "Playback error"
+            -> localized(if (plex) R.string.player_err_plex_refused else R.string.player_err_refused)
+            else -> error.message?.takeIf { it.isNotBlank() && !it.contains("://") } ?: localized(R.string.player_err_playback)
         }
     }
+
+    /** A message for the WebView in the app's language (strings.xml, AppLocale), not the box's. */
+    private fun localized(@StringRes id: Int, vararg args: Any): String = AppLocale.string(context, id, *args)
 
     /** The HTTP status behind ERROR_CODE_IO_BAD_HTTP_STATUS: the data
      *  source's own exception, somewhere down the cause chain. */
@@ -1074,7 +1085,7 @@ class SnowPlayerPlugin : Plugin() {
                     releaseWifiIfStopped(s)
                     notifyListeners(
                         "playerError",
-                        JSObject().put("screenId", screenId).put("code", "AUDIO_DECODE").put("message", error.message ?: "Audio decoder failed"),
+                        JSObject().put("screenId", screenId).put("code", "AUDIO_DECODE").put("message", error.message ?: localized(R.string.player_err_audio)),
                     )
                     return
                 }
@@ -1109,7 +1120,7 @@ class SnowPlayerPlugin : Plugin() {
                     )
                     return
                 }
-                notifyListeners("playerError", JSObject().put("screenId", screenId).put("code", error.errorCodeName).put("message", error.message ?: "Playback error"))
+                notifyListeners("playerError", JSObject().put("screenId", screenId).put("code", error.errorCodeName).put("message", error.message ?: localized(R.string.player_err_playback)))
             }
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                 notifyListeners("tracksChanged", JSObject().put("screenId", screenId))

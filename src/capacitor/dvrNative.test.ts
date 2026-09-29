@@ -28,6 +28,7 @@ import rearmReceiver from '../../android/app/src/main/java/com/snowmedia/dvr/Rec
 import xtream from '../lib/xtream.ts?raw';
 import widget from '../../android/app/src/main/java/com/snowmedia/widget/SmcNewsWidget.kt?raw';
 import activity from '../../android/app/src/main/java/com/snowmedia/MainActivity.kt?raw';
+import strings from '../../android/app/src/main/res/values/strings.xml?raw';
 import manifest from '../../android/app/src/main/AndroidManifest.xml?raw';
 import iconXml from '../../android/app/src/main/res/drawable/ic_stat_snow.xml?raw';
 
@@ -190,8 +191,12 @@ describe('recordings', () => {
 
   it('the notification says a recording uses a stream on the line, with a Stop button', () => {
     const n = body(service, 'private fun buildNotification(): Notification');
-    expect(n).toContain('stream on your line');
-    expect(n).toContain('.addAction(0, "Stop", stop)');
+    // The words are in strings.xml (AppLocale, the app's saved language), not in the code.
+    expect(n).toContain('R.plurals.rec_notif_text_streams');
+    expect(n).toContain('R.string.rec_notif_text_until');
+    expect(strings).toContain('stream on your line');
+    expect(n).toContain('.addAction(0, AppLocale.string(this, R.string.rec_notif_stop), stop)');
+    expect(strings).toContain('<string name="rec_notif_stop">Stop</string>');
   });
 });
 
@@ -239,7 +244,8 @@ describe("SMC's recorder rules", () => {
     expect(store).toContain('const val BOX_MIN_FREE_BYTES = 1L shl 30');
     expect(store).toContain('const val USB_MIN_FREE_BYTES = 200L * 1024L * 1024L');
     expect(store).toContain('fun minFreeBytes(removable: Boolean): Long = if (removable) USB_MIN_FREE_BYTES else BOX_MIN_FREE_BYTES');
-    expect(service).toContain('if (free < job.minFreeBytes) job.stop("The drive is full")');
+    expect(service).toContain('if (free < job.minFreeBytes) job.stop(REASON_DRIVE_FULL)');
+    expect(service).toContain('private const val REASON_DRIVE_FULL = "The drive is full"');
     // The volume the plugin picked decides which floor, and a start with no room is refused.
     expect(body(recorder, 'fun start(call: PluginCall)')).toContain('.putExtra(RecordingService.EXTRA_REMOVABLE, vol.removable)');
     expect(body(recorder, 'fun start(call: PluginCall)')).toContain('RecordingStore.minFreeBytes(vol.removable)');
@@ -352,7 +358,7 @@ describe('scheduled recordings never keep or log a login', () => {
   });
 
   it('notifications name the channel and the programme only', () => {
-    expect(body(scheduler, 'fun label(s: Sched): String')).toContain('s.programmeTitle');
+    expect(body(scheduler, 'fun label(ctx: Context, s: Sched): String')).toContain('s.programmeTitle');
     for (const fn of ['fun miss(', 'fun fail(', 'fun startedLate(']) {
       const b = body(scheduler, fn);
       expect(b).not.toMatch(/\burl\b|password|username|host|userTag/i);

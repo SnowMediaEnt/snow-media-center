@@ -1,9 +1,86 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Snow Media Center</string>
-    <string name="title_activity_main">Snow Media Center</string>
-    <string name="package_name">app.lovable.f44324110df840aea0a1fb97cafa76e7</string>
-    <string name="custom_url_scheme">app.lovable.f44324110df840aea0a1fb97cafa76e7</string>
-    <string name="cache_clear_service_summary">Snow Media Cache Cleaner</string>
-    <string name="cache_clear_service_desc">Lets Snow Media Center automatically tap "Storage → Clear cache" inside the system Settings app for one or more installed apps. This service NEVER taps "Clear data" — your logins and app settings are safe. Used only when you press "Clear Cache" or "Clear All Caches" inside Snow Media Center.</string>
+<!-- The app's own native text. English here; values-es, -fr, -de and -ar carry the same keys (src/i18n/nativeStrings.test.ts checks it).
+     Read it through AppLocale (the app's saved language), never through the box's language. -->
+    <string name="app_name" translatable="false">Snow Media Center</string>
+    <string name="title_activity_main" translatable="false">Snow Media Center</string>
+    <string name="package_name" translatable="false">app.lovable.f44324110df840aea0a1fb97cafa76e7</string>
+    <string name="custom_url_scheme" translatable="false">app.lovable.f44324110df840aea0a1fb97cafa76e7</string>
+    <!-- Shown by Android itself in its Accessibility settings, in the box's own language: kept English (CacheClearService matches Android's English "Clear cache" text). -->
+    <string name="cache_clear_service_summary" translatable="false">Snow Media Cache Cleaner</string>
+    <string name="cache_clear_service_desc" translatable="false">Lets Snow Media Center automatically tap "Storage → Clear cache" inside the system Settings app for one or more installed apps. This service NEVER taps "Clear data" — your logins and app settings are safe. Used only when you press "Clear Cache" or "Clear All Caches" inside Snow Media Center.</string>
+    <string name="rec_notif_title_none">Recording</string>
+    <string name="rec_notif_title_programme">Recording %1$s (%2$s)</string>
+    <string name="rec_notif_title_channel">Recording %1$s</string>
+    <string name="rec_notif_text_starting">Starting</string>
+    <string name="rec_notif_text_until">Until %1$s · uses 1 stream on your line</string>
+    <string name="rec_notif_text_until_stopped">Until you stop it · uses 1 stream on your line</string>
+    <string name="rec_channel_name">Recordings</string>
+    <string name="rec_channel_desc">Shows while a channel is being recorded.</string>
+    <string name="rec_notif_stop">Stop</string>
+    <string name="rec_ended_title">Recording of %1$s stopped</string>
+    <string name="rec_reason_drive_full">The drive is full</string>
+    <string name="rec_reason_unsupported">This channel can\'t be recorded</string>
+    <string name="rec_reason_drive_removed">The drive was removed</string>
+    <string name="rec_reason_write_failed">The recording could not be written</string>
+    <string name="sched_default_title">Recording</string>
+    <string name="sched_missed_title">Missed recording: %1$s</string>
+    <string name="sched_missed_text">%1$s–%2$s. %3$s</string>
+    <string name="sched_failed_title">Scheduled recording didn\'t start: %1$s</string>
+    <string name="sched_late_title">Started late: %1$s</string>
+    <string name="sched_late_text">The box was off at %1$s. Recording until %2$s.</string>
+    <string name="sched_usb_title">Recording on this box: %1$s</string>
+    <string name="sched_reason_no_login">Sign in to Live TV to record.</string>
+    <string name="sched_reason_other_line">Live TV is signed in to a different line.</string>
+    <string name="sched_reason_no_space">Not enough free space.</string>
+    <string name="sched_reason_usb_gone">The USB drive wasn\'t connected.</string>
+    <string name="sched_reason_blocked">The box blocked a timed start. Allow Alarms &amp; reminders for SMC.</string>
+    <string name="sched_reason_missed">The box was off or SMC was force-stopped.</string>
+    <string name="sched_reason_start_failed">The recording could not start.</string>
+    <string name="alert_channel_name">Snow Media alerts</string>
+    <string name="alert_channel_desc">Service notices, outages and announcements from Snow Media.</string>
+    <string name="alert_plex_title">Now on Plex</string>
+    <string name="alert_plex_request_fallback">Your request</string>
+    <string name="alert_plex_ready">%1$s is ready to watch. Open the Player, then Plex.</string>
+    <string name="widget_open_app">Open Snow Media Center for the latest.</string>
+    <string name="widget_not_signed_in">Not signed in — open to add your line</string>
+    <string name="widget_line_fallback">Your line</string>
+    <string name="widget_trial">Trial · %1$s</string>
+    <string name="widget_active">%1$s · active</string>
+    <string name="widget_expired">%1$s · expired — renew to keep watching</string>
+    <string name="widget_expires_today">%1$s · expires today</string>
+    <string name="billing_network">Could not reach the billing server. Check the internet connection and try again.</string>
+    <string name="billing_bad_response">The billing server sent an unexpected reply (%1$s).</string>
+    <string name="billing_cancelled">Stopped.</string>
+    <string name="billing_http_401">Please sign in again.</string>
+    <string name="billing_http_403">This account cannot be used from the app.</string>
+    <string name="billing_http_404">That item was not found.</string>
+    <string name="billing_http_429">Too many attempts. Please wait a moment.</string>
+    <string name="billing_http_5xx">The billing server had a problem. Please try again in a minute.</string>
+    <string name="billing_request_failed">Request failed (%1$d).</string>
+    <string name="player_err_stream_dropping">The stream keeps dropping. Try again.</string>
+    <string name="player_err_server_stopped">The server stopped responding. Try again.</string>
+    <string name="player_err_refused">The server refused this file.</string>
+    <string name="player_err_refused_status">The server refused this file (HTTP %1$d).</string>
+    <string name="player_err_plex_refused">The Plex server refused this file.</string>
+    <string name="player_err_plex_refused_status">The Plex server refused this file (HTTP %1$d).</string>
+    <string name="player_err_playback">Playback error</string>
+    <string name="player_err_audio">Audio decoder failed</string>
+    <string name="voice_speak_now">Speak now</string>
+    <plurals name="rec_notif_title_channels">
+        <item quantity="one">Recording %d channel</item>
+        <item quantity="other">Recording %d channels</item>
+    </plurals>
+    <plurals name="rec_notif_text_streams">
+        <item quantity="one">Uses %d stream on your line</item>
+        <item quantity="other">Uses %d streams on your line</item>
+    </plurals>
+    <plurals name="sched_reason_too_many">
+        <item quantity="one">%d recording was already running.</item>
+        <item quantity="other">%d recordings were already running.</item>
+    </plurals>
+    <plurals name="widget_days_left">
+        <item quantity="one">%1$s · %2$d day left</item>
+        <item quantity="other">%1$s · %2$d days left</item>
+    </plurals>
 </resources>

@@ -148,11 +148,15 @@ export function emptyPlayerStats(): PlayerStats {
  */
 export type ScreenFormat = 'fit' | 'fill' | 'zoom' | 'wide';
 
-export const SCREEN_FORMATS: Array<{ id: ScreenFormat; label: string; hint: string }> = [
-  { id: 'fit',  label: 'Fit',       hint: 'Whole picture, correct shape' },
-  { id: 'zoom', label: 'Zoom',      hint: 'Fills the screen, edges cropped' },
-  { id: 'wide', label: 'Wide 16:9', hint: 'Force widescreen' },
-  { id: 'fill', label: 'Stretch',   hint: 'Fills the screen, shape ignored' },
+/**
+ * `label` and `hint` are the English words (tests and older callers read them). The screen shows
+ * t(labelKey) and t(hintKey) instead: the words in the app's language, plexApi.screenFormat.*.
+ */
+export const SCREEN_FORMATS: Array<{ id: ScreenFormat; label: string; hint: string; labelKey: string; hintKey: string }> = [
+  { id: 'fit',  label: 'Fit',       hint: 'Whole picture, correct shape',    labelKey: 'plexApi.screenFormat.fit.label',  hintKey: 'plexApi.screenFormat.fit.hint' },
+  { id: 'zoom', label: 'Zoom',      hint: 'Fills the screen, edges cropped', labelKey: 'plexApi.screenFormat.zoom.label', hintKey: 'plexApi.screenFormat.zoom.hint' },
+  { id: 'wide', label: 'Wide 16:9', hint: 'Force widescreen',                labelKey: 'plexApi.screenFormat.wide.label', hintKey: 'plexApi.screenFormat.wide.hint' },
+  { id: 'fill', label: 'Stretch',   hint: 'Fills the screen, shape ignored', labelKey: 'plexApi.screenFormat.fill.label', hintKey: 'plexApi.screenFormat.fill.hint' },
 ];
 
 /** Where the choice is remembered, so it survives leaving the player. */

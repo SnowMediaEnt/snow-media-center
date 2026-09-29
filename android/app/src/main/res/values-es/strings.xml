@@ -1,0 +1,81 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="rec_notif_title_none">Grabando</string>
+    <string name="rec_notif_title_programme">Grabando %1$s (%2$s)</string>
+    <string name="rec_notif_title_channel">Grabando %1$s</string>
+    <string name="rec_notif_text_starting">Iniciando</string>
+    <string name="rec_notif_text_until">Hasta las %1$s · usa 1 transmisión de tu línea</string>
+    <string name="rec_notif_text_until_stopped">Hasta que la detengas · usa 1 transmisión de tu línea</string>
+    <string name="rec_channel_name">Grabaciones</string>
+    <string name="rec_channel_desc">Se muestra mientras se graba un canal.</string>
+    <string name="rec_notif_stop">Detener</string>
+    <string name="rec_ended_title">Se detuvo la grabación de %1$s</string>
+    <string name="rec_reason_drive_full">La unidad está llena</string>
+    <string name="rec_reason_unsupported">Este canal no se puede grabar</string>
+    <string name="rec_reason_drive_removed">Se quitó la unidad</string>
+    <string name="rec_reason_write_failed">No se pudo escribir la grabación</string>
+    <string name="sched_default_title">Grabación</string>
+    <string name="sched_missed_title">Grabación perdida: %1$s</string>
+    <string name="sched_missed_text">%1$s–%2$s. %3$s</string>
+    <string name="sched_failed_title">La grabación programada no se inició: %1$s</string>
+    <string name="sched_late_title">Inició tarde: %1$s</string>
+    <string name="sched_late_text">El equipo estaba apagado a las %1$s. Grabando hasta las %2$s.</string>
+    <string name="sched_usb_title">Grabando en este equipo: %1$s</string>
+    <string name="sched_reason_no_login">Inicia sesión en TV en vivo para grabar.</string>
+    <string name="sched_reason_other_line">TV en vivo tiene la sesión iniciada en otra línea.</string>
+    <string name="sched_reason_no_space">No hay suficiente espacio libre.</string>
+    <string name="sched_reason_usb_gone">La unidad USB no estaba conectada.</string>
+    <string name="sched_reason_blocked">El equipo bloqueó un inicio programado. Permite Alarmas y recordatorios para SMC.</string>
+    <string name="sched_reason_missed">El equipo estaba apagado o se forzó la detención de SMC.</string>
+    <string name="sched_reason_start_failed">No se pudo iniciar la grabación.</string>
+    <string name="alert_channel_name">Alertas de Snow Media</string>
+    <string name="alert_channel_desc">Avisos de servicio, cortes y anuncios de Snow Media.</string>
+    <string name="alert_plex_title">Ya en Plex</string>
+    <string name="alert_plex_request_fallback">Tu solicitud</string>
+    <string name="alert_plex_ready">Ya puedes ver %1$s. Abre el Reproductor y luego Plex.</string>
+    <string name="widget_open_app">Abre Snow Media Center para ver lo último.</string>
+    <string name="widget_not_signed_in">Sin sesión — ábrelo para añadir tu línea</string>
+    <string name="widget_line_fallback">Tu línea</string>
+    <string name="widget_trial">Prueba · %1$s</string>
+    <string name="widget_active">%1$s · activa</string>
+    <string name="widget_expired">%1$s · vencida — renueva para seguir viendo</string>
+    <string name="widget_expires_today">%1$s · vence hoy</string>
+    <string name="billing_network">No se pudo conectar con el servidor de pagos. Revisa tu conexión a internet e inténtalo de nuevo.</string>
+    <string name="billing_bad_response">El servidor de pagos envió una respuesta inesperada (%1$s).</string>
+    <string name="billing_cancelled">Detenido.</string>
+    <string name="billing_http_401">Inicia sesión de nuevo.</string>
+    <string name="billing_http_403">Esta cuenta no se puede usar desde la app.</string>
+    <string name="billing_http_404">No se encontró ese elemento.</string>
+    <string name="billing_http_429">Demasiados intentos. Espera un momento.</string>
+    <string name="billing_http_5xx">El servidor de pagos tuvo un problema. Inténtalo de nuevo en un minuto.</string>
+    <string name="billing_request_failed">La solicitud falló (%1$d).</string>
+    <string name="player_err_stream_dropping">La transmisión se sigue cortando. Inténtalo de nuevo.</string>
+    <string name="player_err_server_stopped">El servidor dejó de responder. Inténtalo de nuevo.</string>
+    <string name="player_err_refused">El servidor rechazó este archivo.</string>
+    <string name="player_err_refused_status">El servidor rechazó este archivo (HTTP %1$d).</string>
+    <string name="player_err_plex_refused">El servidor de Plex rechazó este archivo.</string>
+    <string name="player_err_plex_refused_status">El servidor de Plex rechazó este archivo (HTTP %1$d).</string>
+    <string name="player_err_playback">Error de reproducción</string>
+    <string name="player_err_audio">Falló el decodificador de audio</string>
+    <string name="voice_speak_now">Habla ahora</string>
+    <plurals name="rec_notif_title_channels">
+        <item quantity="one">Grabando %d canal</item>
+        <item quantity="many">Grabando %d canales</item>
+        <item quantity="other">Grabando %d canales</item>
+    </plurals>
+    <plurals name="rec_notif_text_streams">
+        <item quantity="one">Usa %d transmisión de tu línea</item>
+        <item quantity="many">Usa %d transmisiones de tu línea</item>
+        <item quantity="other">Usa %d transmisiones de tu línea</item>
+    </plurals>
+    <plurals name="sched_reason_too_many">
+        <item quantity="one">Ya había %d grabación en curso.</item>
+        <item quantity="many">Ya había %d grabaciones en curso.</item>
+        <item quantity="other">Ya había %d grabaciones en curso.</item>
+    </plurals>
+    <plurals name="widget_days_left">
+        <item quantity="one">%1$s · queda %2$d día</item>
+        <item quantity="many">%1$s · quedan %2$d días</item>
+        <item quantity="other">%1$s · quedan %2$d días</item>
+    </plurals>
+</resources>
