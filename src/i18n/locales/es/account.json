@@ -21,7 +21,7 @@
       "createFreeBtn": "Crear cuenta gratis",
       "allSetTitle": "Todo listo",
       "allSetDescEmail": "Tu cuenta de Snow Media está lista ({{email}}).",
-      "allSetDescNoEmail": "Guardado. Añade un correo cuando quieras para obtener una cuenta de Snow Media.",
+      "allSetDescNoEmail": "Guardado. Agrega un correo cuando quieras para obtener una cuenta de Snow Media.",
       "yourDashboard": "Tu panel",
       "welcomeBack": "Te damos la bienvenida de nuevo, <0>{{name}}</0>",
       "signOutBtn": "Cerrar sesión",
@@ -47,7 +47,7 @@
       "devicesServicesTitle": "Mis dispositivos y servicios",
       "editBtn": "Editar",
       "devices": "Dispositivos",
-      "noDevices": "Aún no has añadido dispositivos.",
+      "noDevices": "Aún no has agregado dispositivos.",
       "services": "Servicios",
       "noServices": "Aún no hay servicios registrados.",
       "noDate": "Sin fecha",
@@ -96,7 +96,7 @@
       "saveFailedTitle": "Error al guardar",
       "editTitle": "Editar {{name}}",
       "title": "Mis dispositivos y servicios",
-      "description": "Elige los dispositivos que tienes y añade la fecha de vencimiento de tu servicio IPTV. Te avisaremos 1 semana antes, el día del vencimiento, y mostraremos un aviso en las apps vinculadas si ya venció.",
+      "description": "Elige los dispositivos que tienes y agrega la fecha de vencimiento de tu servicio IPTV. Te avisaremos 1 semana antes, el día del vencimiento, y mostraremos un aviso en las apps vinculadas si ya venció.",
       "devicesYouOwn": "Dispositivos que tienes",
       "yourServices": "Tus servicios",
       "expirationLabel": "Fecha de vencimiento (para avisarte antes de que venza)",
@@ -125,7 +125,7 @@
       "expiredAgo_many": "{{name}} venció hace {{count}} días.",
       "expiredAgo_other": "{{name}} venció hace {{count}} días.",
       "expiringShort": "Servicio por vencer",
-      "manageBtn": "Gestionar"
+      "manageBtn": "Administrar"
     },
     "tiers": {
       "freeSample": "Esa fue tu muestra Premium gratis.",

@@ -61,15 +61,15 @@
     "lastClean": "Última limpieza: {{when}}",
     "fire": {
       "title": "Fire TV borra los cachés de una app a la vez",
-      "body": "Fire TV no tiene ningún ajuste que permita a otra app vaciar cachés por ti, así que el Limpiador te lleva a la página propia de Fire TV para cada app. Elige una app abajo, pulsa <1>Borrar caché</1> en la página que se abre y luego Atrás para volver aquí. Los archivos sobrantes y las apps en segundo plano se limpian igualmente de una sola vez.",
+      "body": "Fire TV no tiene ningún ajuste que permita a otra app vaciar cachés por ti, así que el Limpiador te lleva a la página propia de Fire TV para cada app. Elige una app abajo, presiona <1>Borrar caché</1> en la página que se abre y luego Atrás para volver aquí. Los archivos sobrantes y las apps en segundo plano se limpian igualmente de una sola vez.",
       "openListBtn": "Abrir la lista de apps de Fire TV",
       "cacheSize": "{{size}} de caché",
       "cacheHidden": "El tamaño del caché está oculto en Fire TV",
       "clearCacheBtn": "Borrar caché"
     },
     "gate": {
-      "title": "Un interruptor por activar",
-      "body": "Android no permite que una app vacíe por su cuenta el caché de otra. En la lista que se abre, busca <1>Snow Media Cache Cleaner</1> y actívalo; luego vuelve aquí y pulsa Limpiar. Solo toca «Borrar caché», nunca «Borrar datos», y puedes desactivarlo cuando quieras. Todo lo demás en esta pantalla funciona sin él.",
+      "title": "Solo falta activar un interruptor",
+      "body": "Android no permite que una app vacíe por su cuenta el caché de otra. En la lista que se abre, busca <1>Snow Media Cache Cleaner</1> y actívalo; luego vuelve aquí y presiona Limpiar. Solo toca «Borrar caché», nunca «Borrar datos», y puedes desactivarlo cuando quieras. Todo lo demás en esta pantalla funciona sin él.",
       "openBtn": "Abrir Ajustes de accesibilidad"
     },
     "unused": {
@@ -116,12 +116,12 @@
     },
     "toast": {
       "fireCachesTitle": "En Fire TV los cachés se borran de una app a la vez",
-      "fireCachesDesc": "Elige una app en la lista de más abajo y pulsa Borrar caché en la página que se abre.",
+      "fireCachesDesc": "Elige una app en la lista de más abajo y presiona Borrar caché en la página que se abre.",
       "turnOnTitle": "Activa primero la limpieza de cachés",
       "turnOnDesc": "Activa Snow Media Cache Cleaner en Accesibilidad. El botón al final de esta pantalla abre esa lista.",
       "clearFailedTitle": "No se pudieron borrar los cachés",
       "openListTitle": "No se pudo abrir la lista de apps",
-      "openListDesc": "En la pantalla de inicio de Fire TV ve a Ajustes → Aplicaciones → Administrar aplicaciones instaladas, elige una app y pulsa Borrar caché.",
+      "openListDesc": "En la pantalla de inicio de Fire TV ve a Ajustes → Aplicaciones → Administrar aplicaciones instaladas, elige una app y presiona Borrar caché.",
       "backgroundFailedTitle": "No se pudieron cerrar las apps en segundo plano",
       "removedTitle": "Quitada",
       "removedDesc": "{{name}} ya no está.",

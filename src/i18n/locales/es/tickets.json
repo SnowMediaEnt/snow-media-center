@@ -76,7 +76,7 @@
     },
     "account": {
       "title": "¿Crear una cuenta?",
-      "desc": "Usaremos <1>{{email}}</1> para que recibas las respuestas a tu ticket en la app. Define una contraseña (y un nombre opcional) abajo, o sáltate este paso.",
+      "desc": "Usaremos <1>{{email}}</1> para que recibas las respuestas a tu ticket en la app. Define una contraseña (y un nombre opcional) abajo, u omite este paso.",
       "nameLabel": "Nombre (opcional)",
       "namePlaceholder": "Tu nombre",
       "passwordLabel": "Contraseña",
@@ -130,7 +130,7 @@
         "shotFailedTitle": "No se pudo tomar la captura",
         "cannotRecordTitle": "No se puede grabar aquí",
         "nothingRecordedTitle": "No se grabó nada",
-        "nothingRecordedDesc": "Mantén pulsado el botón mientras hablas y luego suéltalo."
+        "nothingRecordedDesc": "Mantén presionado el botón mientras hablas y luego suéltalo."
       },
       "errors": {
         "empty": "Ese archivo quedó vacío; inténtalo de nuevo.",

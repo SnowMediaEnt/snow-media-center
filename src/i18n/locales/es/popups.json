@@ -26,13 +26,13 @@
       "todayTitle": "El servicio vence hoy",
       "todayMsg": "{{name}} vence hoy. Renueva para evitar interrupciones.",
       "tomorrowTitle": "El servicio vence mañana",
-      "tomorrowMsg": "{{name}} vence mañana. Renuévalo desde el Panel antes de que caduque.",
+      "tomorrowMsg": "{{name}} vence mañana. Renuévalo desde el Panel antes de que se corte.",
       "soonTitle_one": "El servicio vence en {{count}} día",
       "soonTitle_many": "El servicio vence en {{count}} días",
       "soonTitle_other": "El servicio vence en {{count}} días",
-      "soonMsg_one": "{{name}} vence en {{count}} día. Renuévalo desde el Panel antes de que caduque.",
-      "soonMsg_many": "{{name}} vence en {{count}} días. Renuévalo desde el Panel antes de que caduque.",
-      "soonMsg_other": "{{name}} vence en {{count}} días. Renuévalo desde el Panel antes de que caduque."
+      "soonMsg_one": "{{name}} vence en {{count}} día. Renuévalo desde el Panel antes de que se corte.",
+      "soonMsg_many": "{{name}} vence en {{count}} días. Renuévalo desde el Panel antes de que se corte.",
+      "soonMsg_other": "{{name}} vence en {{count}} días. Renuévalo desde el Panel antes de que se corte."
     }
   }
 }

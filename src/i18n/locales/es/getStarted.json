@@ -3,7 +3,7 @@
     "flow": {
       "oneMoment": "Un momento…",
       "unavailableTitle": "El registro no está disponible aquí",
-      "unavailableDesc": "Por ahora no se pueden crear cuentas nuevas en este dispositivo. Si ya tienes usuario y contraseña, pulsa Atrás e inicia sesión.",
+      "unavailableDesc": "Por ahora no se pueden crear cuentas nuevas en este dispositivo. Si ya tienes usuario y contraseña, presiona Atrás e inicia sesión.",
       "backToSignInBtn": "Volver a iniciar sesión"
     },
     "ds": {
