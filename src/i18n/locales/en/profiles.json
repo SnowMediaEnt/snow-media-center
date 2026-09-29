@@ -1,0 +1,108 @@
+{
+  "profiles": {
+    "header": "Profiles",
+    "kidsChip": "KIDS",
+    "pad": {
+      "digits": "{{filled}} of {{length}} digits",
+      "done": "Done"
+    },
+    "pick": {
+      "title": "Who's watching?",
+      "introSingle": "Everyone in the house can have their own profile — their own Continue Watching, My List, favourites and home screen. Kids profiles only show what's right for their age."
+    },
+    "manage": {
+      "title": "Manage profiles",
+      "subtitle": "Pick a profile to change it.",
+      "addProfile": "Add profile",
+      "doneBtn": "Done",
+      "manageBtn": "Manage profiles",
+      "bringBtn": "Add {{names}} from this box"
+    },
+    "edit": {
+      "addTitle": "Add a profile",
+      "editTitle": "Edit {{name}}",
+      "editTitleUnnamed": "Edit profile",
+      "nameLabel": "Name",
+      "namePlaceholder": "Their name",
+      "colorLabel": "Color",
+      "kidsLabel": "Kids profile",
+      "levelOff": "Off",
+      "levelOffHint": "Everything",
+      "levelLittle": "Little kids",
+      "levelLittleHint": "G and TV-Y / TV-G",
+      "levelKids": "Kids",
+      "levelKidsHint": "Up to PG and TV-PG",
+      "levelTeen": "Teens",
+      "levelTeenHint": "Up to PG-13 and TV-14",
+      "kidsInfo": "Kids profiles see Plex titles up to that rating, age-appropriate Live TV channels, and their own Kids Game Lounge. The adult Game Lounge, Store, Main Apps, Settings, tickets, and Remote Access stay hidden. Their AI is G-rated and helps only with kids shows, movies, channels, and games.",
+      "pinLabel": "PIN",
+      "changePinBtn": "Change PIN",
+      "addPinBtn": "Add a PIN",
+      "removePinBtn": "Remove PIN",
+      "signInForPin": "Sign in to your Snow Media account to add a PIN — that's how a forgotten one gets reset. Then Manage profiles brings this box's profiles to the account.",
+      "deleteBtn": "Delete profile",
+      "inUseNote": "This is the profile in use — switch to another one to delete it.",
+      "giveName": "Give the profile a name.",
+      "maxProfiles": "Up to {{max}} profiles."
+    },
+    "colors": {
+      "blue": "Blue",
+      "gold": "Gold",
+      "purple": "Purple",
+      "teal": "Teal",
+      "red": "Red",
+      "green": "Green",
+      "pink": "Pink",
+      "orange": "Orange"
+    },
+    "pin": {
+      "thisProfile": "this profile",
+      "unlockTitle": "Enter the PIN for {{name}}",
+      "grownupTitle": "Ask a grown-up",
+      "newTitle": "New PIN for {{name}}",
+      "confirmTitle": "Enter the new PIN again",
+      "grownupHint": "A grown-up's profile PIN opens this.",
+      "newHint": "Four numbers. Use the number keys on the remote, or the pad.",
+      "forgotBtn": "Forgot PIN?",
+      "signInAgainBtn": "Forgot it? Sign in again",
+      "waitTooMany_one": "Too many tries — wait {{count}} second.",
+      "waitTooMany_other": "Too many tries — wait {{count}} seconds.",
+      "wrong": "Wrong PIN. Try again.",
+      "wrongWait_one": "Wrong PIN. Too many tries — wait {{count}} second.",
+      "wrongWait_other": "Wrong PIN. Too many tries — wait {{count}} seconds.",
+      "notGrownUp": "That isn't a grown-up's PIN.",
+      "notGrownUpWait_one": "That isn't a grown-up's PIN. Too many tries — wait {{count}} second.",
+      "notGrownUpWait_other": "That isn't a grown-up's PIN. Too many tries — wait {{count}} seconds.",
+      "mismatch": "Those didn't match. Enter the new PIN again.",
+      "checking": "Checking…"
+    },
+    "forgot": {
+      "title": "Reset the PIN for {{name}}",
+      "sending": "Sending a reset code…",
+      "tooManyRequests": "Too many reset requests. Try again in an hour, or contact Snow Media support.",
+      "signedOut": "Sign in to your Snow Media account on this box to reset the PIN.",
+      "noPin": "This profile has no PIN any more — pick it again.",
+      "unreachable": "Couldn't reach Snow Media. Check the internet connection and try again.",
+      "emailed": "We emailed a 6-digit code to {{email}}. Enter it below.",
+      "emailedSupport": "We emailed a 6-digit code to {{email}}. Enter it below. Snow Media support has been told too — if the email doesn't come, they can reset it for you.",
+      "notEmailed": "We couldn't email a code to this account.",
+      "notEmailedSupport": "We couldn't email a code to this account. Snow Media support has been told too — if the email doesn't come, they can reset it for you.",
+      "wrongCode": "That code isn't right.",
+      "wrongCodeLeft_one": "That code isn't right. {{count}} try left.",
+      "wrongCodeLeft_other": "That code isn't right. {{count}} tries left.",
+      "expired": "That code has expired. Go back and ask for a new one.",
+      "tooManyCodes": "Too many wrong codes. Go back and ask for a new one.",
+      "unreachableShort": "Couldn't reach Snow Media. Try again."
+    },
+    "intro": {
+      "dialogLabel": "Profiles",
+      "title": "New: profiles for everyone",
+      "pointEveryone": "Everyone in the house gets their own setup — their own Continue Watching, My List, favourites and home screen.",
+      "pointKids": "Kids profiles show only kids movies, shows and channels for the age you pick, plus a kids games section (coming soon).",
+      "pointSafety": "Safety everywhere: movies, shows, Live TV channels and the AI all stay age-appropriate. Add a PIN to any profile if you like.",
+      "hint": "Set them up any time under Settings → Profiles, or with the profile button at the top of Home.",
+      "setUpBtn": "Set up profiles",
+      "laterBtn": "Maybe later"
+    }
+  }
+}

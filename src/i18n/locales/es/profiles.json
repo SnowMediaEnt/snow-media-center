@@ -1,0 +1,112 @@
+{
+  "profiles": {
+    "header": "Perfiles",
+    "kidsChip": "NIÑOS",
+    "pad": {
+      "digits": "{{filled}} de {{length}} dígitos",
+      "done": "Listo"
+    },
+    "pick": {
+      "title": "¿Quién está viendo?",
+      "introSingle": "Cada persona de la casa puede tener su propio perfil: su Seguir viendo, Mi lista, favoritos y pantalla de inicio. Los perfiles infantiles solo muestran lo adecuado para su edad."
+    },
+    "manage": {
+      "title": "Administrar perfiles",
+      "subtitle": "Elige un perfil para cambiarlo.",
+      "addProfile": "Agregar perfil",
+      "doneBtn": "Listo",
+      "manageBtn": "Administrar perfiles",
+      "bringBtn": "Agregar {{names}} de este equipo"
+    },
+    "edit": {
+      "addTitle": "Agregar un perfil",
+      "editTitle": "Editar {{name}}",
+      "editTitleUnnamed": "Editar perfil",
+      "nameLabel": "Nombre",
+      "namePlaceholder": "Su nombre",
+      "colorLabel": "Color",
+      "kidsLabel": "Perfil infantil",
+      "levelOff": "Desactivado",
+      "levelOffHint": "Todo",
+      "levelLittle": "Niños pequeños",
+      "levelLittleHint": "G y TV-Y / TV-G",
+      "levelKids": "Niños",
+      "levelKidsHint": "Hasta PG y TV-PG",
+      "levelTeen": "Adolescentes",
+      "levelTeenHint": "Hasta PG-13 y TV-14",
+      "kidsInfo": "Los perfiles infantiles ven títulos de Plex hasta esa clasificación, canales de TV en vivo adecuados para su edad y su propio Kids Game Lounge. El Game Lounge para adultos, la Tienda, las Apps principales, los Ajustes, los tickets y el Acceso remoto quedan ocultos. Su IA es apta para todo público y solo ayuda con programas, películas, canales y juegos infantiles.",
+      "pinLabel": "PIN",
+      "changePinBtn": "Cambiar PIN",
+      "addPinBtn": "Agregar PIN",
+      "removePinBtn": "Quitar PIN",
+      "signInForPin": "Inicia sesión en tu cuenta de Snow Media para agregar un PIN: así se restablece uno olvidado. Luego, Administrar perfiles lleva los perfiles de este equipo a la cuenta.",
+      "deleteBtn": "Eliminar perfil",
+      "inUseNote": "Este es el perfil en uso: cambia a otro para eliminarlo.",
+      "giveName": "Ponle un nombre al perfil.",
+      "maxProfiles": "Máximo {{max}} perfiles."
+    },
+    "colors": {
+      "blue": "Azul",
+      "gold": "Dorado",
+      "purple": "Morado",
+      "teal": "Turquesa",
+      "red": "Rojo",
+      "green": "Verde",
+      "pink": "Rosa",
+      "orange": "Naranja"
+    },
+    "pin": {
+      "thisProfile": "este perfil",
+      "unlockTitle": "Ingresa el PIN de {{name}}",
+      "grownupTitle": "Pide ayuda a un adulto",
+      "newTitle": "PIN nuevo para {{name}}",
+      "confirmTitle": "Ingresa el PIN nuevo otra vez",
+      "grownupHint": "Esto se abre con el PIN del perfil de un adulto.",
+      "newHint": "Cuatro números. Usa las teclas numéricas del control remoto, o el teclado en pantalla.",
+      "forgotBtn": "¿Olvidaste el PIN?",
+      "signInAgainBtn": "¿Lo olvidaste? Inicia sesión otra vez",
+      "waitTooMany_one": "Demasiados intentos: espera {{count}} segundo.",
+      "waitTooMany_many": "Demasiados intentos: espera {{count}} segundos.",
+      "waitTooMany_other": "Demasiados intentos: espera {{count}} segundos.",
+      "wrong": "PIN incorrecto. Inténtalo de nuevo.",
+      "wrongWait_one": "PIN incorrecto. Demasiados intentos: espera {{count}} segundo.",
+      "wrongWait_many": "PIN incorrecto. Demasiados intentos: espera {{count}} segundos.",
+      "wrongWait_other": "PIN incorrecto. Demasiados intentos: espera {{count}} segundos.",
+      "notGrownUp": "Ese no es el PIN de un adulto.",
+      "notGrownUpWait_one": "Ese no es el PIN de un adulto. Demasiados intentos: espera {{count}} segundo.",
+      "notGrownUpWait_many": "Ese no es el PIN de un adulto. Demasiados intentos: espera {{count}} segundos.",
+      "notGrownUpWait_other": "Ese no es el PIN de un adulto. Demasiados intentos: espera {{count}} segundos.",
+      "mismatch": "No coinciden. Ingresa el PIN nuevo otra vez.",
+      "checking": "Comprobando…"
+    },
+    "forgot": {
+      "title": "Restablecer el PIN de {{name}}",
+      "sending": "Enviando un código de restablecimiento…",
+      "tooManyRequests": "Demasiadas solicitudes de restablecimiento. Inténtalo dentro de una hora, o contacta al soporte de Snow Media.",
+      "signedOut": "Inicia sesión en tu cuenta de Snow Media en este equipo para restablecer el PIN.",
+      "noPin": "Este perfil ya no tiene PIN: elígelo otra vez.",
+      "unreachable": "No se pudo conectar con Snow Media. Revisa la conexión a internet e inténtalo de nuevo.",
+      "emailed": "Enviamos un código de 6 dígitos a {{email}}. Ingrésalo abajo.",
+      "emailedSupport": "Enviamos un código de 6 dígitos a {{email}}. Ingrésalo abajo. También avisamos al soporte de Snow Media: si el correo no llega, ellos pueden restablecerlo por ti.",
+      "notEmailed": "No pudimos enviar un código por correo a esta cuenta.",
+      "notEmailedSupport": "No pudimos enviar un código por correo a esta cuenta. También avisamos al soporte de Snow Media: si el correo no llega, ellos pueden restablecerlo por ti.",
+      "wrongCode": "Ese código no es correcto.",
+      "wrongCodeLeft_one": "Ese código no es correcto. Queda {{count}} intento.",
+      "wrongCodeLeft_many": "Ese código no es correcto. Quedan {{count}} intentos.",
+      "wrongCodeLeft_other": "Ese código no es correcto. Quedan {{count}} intentos.",
+      "expired": "Ese código venció. Vuelve atrás y pide uno nuevo.",
+      "tooManyCodes": "Demasiados códigos incorrectos. Vuelve atrás y pide uno nuevo.",
+      "unreachableShort": "No se pudo conectar con Snow Media. Inténtalo de nuevo."
+    },
+    "intro": {
+      "dialogLabel": "Perfiles",
+      "title": "Nuevo: perfiles para todos",
+      "pointEveryone": "Cada persona de la casa tiene su propia configuración: su Seguir viendo, Mi lista, favoritos y pantalla de inicio.",
+      "pointKids": "Los perfiles infantiles muestran solo películas, programas y canales para niños según la edad que elijas, además de una sección de juegos infantiles (próximamente).",
+      "pointSafety": "Seguridad en todas partes: las películas, los programas, los canales de TV en vivo y la IA se mantienen adecuados para la edad. Si quieres, agrega un PIN a cualquier perfil.",
+      "hint": "Configúralos cuando quieras en Ajustes → Perfiles, o con el botón de perfil en la parte superior del Inicio.",
+      "setUpBtn": "Configurar perfiles",
+      "laterBtn": "Quizás después"
+    }
+  }
+}

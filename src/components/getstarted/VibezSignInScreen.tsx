@@ -1,4 +1,5 @@
 import { memo, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,6 +34,7 @@ interface Props {
  * consults the username, so the line is checked against Vibez as intended.
  */
 const VibezSignInScreen = memo(({ onDone, onBack, resumedLabel }: Props) => {
+  const { t } = useTranslation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -60,14 +62,14 @@ const VibezSignInScreen = memo(({ onDone, onBack, resumedLabel }: Props) => {
     const u = username.trim();
     const p = password.trim();
     if (!u || !p) {
-      toast({ title: 'Missing info', description: 'Enter the username and password Vibez emailed you.', variant: 'destructive' });
+      toast({ title: t('getStarted.signIn.missingTitle'), description: t('getStarted.signIn.missingDesc'), variant: 'destructive' });
       return;
     }
     setBusy(true);
     try {
       const r = await applyServiceToPlayer({ host: VIBEZ_HOST, username: u, password: p }, 'vibez');
       if (r.ok === false) {
-        toast({ title: 'Could not sign in', description: r.error, variant: 'destructive' });
+        toast({ title: t('getStarted.signIn.couldNotTitle'), description: r.error, variant: 'destructive' });
         return;
       }
       // A hand-typed login on a flaky connection must not be saved unchecked.
@@ -76,17 +78,17 @@ const VibezSignInScreen = memo(({ onDone, onBack, resumedLabel }: Props) => {
       // so an unverified "success" would persist a typo as a real account.
       if (!r.probed) {
         toast({
-          title: 'Could not reach Vibez',
-          description: 'We could not check that login just now. Check the connection and try again.',
+          title: t('getStarted.signIn.unreachableTitle'),
+          description: t('getStarted.signIn.unreachableDesc'),
           variant: 'destructive',
         });
         return;
       }
       clearPending();
-      toast({ title: 'Connected', description: `Signed in to Vibez as ${r.creds.username}.` });
+      toast({ title: t('getStarted.signIn.connectedTitle'), description: t('getStarted.signIn.connectedDesc', { username: r.creds.username }) });
       onDone(r.creds);
     } catch (err) {
-      toast({ title: 'Could not sign in', description: (err as Error).message || 'Please try again.', variant: 'destructive' });
+      toast({ title: t('getStarted.signIn.couldNotTitle'), description: (err as Error).message || t('getStarted.signIn.tryAgainDesc'), variant: 'destructive' });
     } finally {
       setBusy(false);
     }
@@ -97,27 +99,27 @@ const VibezSignInScreen = memo(({ onDone, onBack, resumedLabel }: Props) => {
       <div className="flex-1 flex items-center justify-center p-6">
         <Card className={`${CARD} w-full max-w-xl p-8`}>
           <form onSubmit={submit}>
-            <h2 className="text-2xl font-quicksand font-bold text-white">Enter your Vibez login</h2>
+            <h2 className="text-2xl font-quicksand font-bold text-white">{t('getStarted.signIn.title')}</h2>
             <p className="text-brand-ice/80 font-nunito mt-1">
               {resumedLabel
-                ? `Use the username and password Vibez emailed you for ${resumedLabel}.`
-                : 'Use the username and password Vibez emailed you after paying.'}
+                ? t('getStarted.signIn.introResumed', { label: resumedLabel })
+                : t('getStarted.signIn.intro')}
             </p>
 
             <div className="space-y-4 mt-6">
               <div className="space-y-2">
-                <Label htmlFor="vs-user" className="text-brand-ice font-nunito">Username</Label>
+                <Label htmlFor="vs-user" className="text-brand-ice font-nunito">{t('getStarted.signIn.usernameLabel')}</Label>
                 {/* Fire TV's full-screen keyboard covers the form, and the
                     placeholder is the only label it shows. */}
                 <Input id="vs-user" autoComplete="off" disabled={busy} value={username}
-                  placeholder="Username from Vibez" aria-label="Vibez username"
+                  placeholder={t('getStarted.signIn.usernamePlaceholder')} aria-label={t('getStarted.signIn.usernameAria')}
                   onChange={(e) => setUsername(e.target.value)} className={INPUT}
                   {...focusAttrs(currentFocusId, 'vs-user')} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vs-pass" className="text-brand-ice font-nunito">Password</Label>
+                <Label htmlFor="vs-pass" className="text-brand-ice font-nunito">{t('getStarted.signIn.passwordLabel')}</Label>
                 <Input id="vs-pass" type="password" autoComplete="off" disabled={busy} data-tv-allow-enter="true"
-                  placeholder="Password from Vibez" aria-label="Vibez password"
+                  placeholder={t('getStarted.signIn.passwordPlaceholder')} aria-label={t('getStarted.signIn.passwordAria')}
                   value={password} onChange={(e) => setPassword(e.target.value)} className={INPUT}
                   {...focusAttrs(currentFocusId, 'vs-pass')} />
               </div>
@@ -126,24 +128,24 @@ const VibezSignInScreen = memo(({ onDone, onBack, resumedLabel }: Props) => {
             {busy && (
               <div className="mt-4 flex items-center gap-3 text-brand-ice/90 font-nunito text-sm">
                 <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />
-                <span>Checking with Vibez…</span>
+                <span>{t('getStarted.signIn.checking')}</span>
               </div>
             )}
 
             <div className="flex flex-wrap gap-3 mt-7">
               <Button type="submit" variant="gold" disabled={busy}
                 className={`${BTN_GOLD} flex-1 ${scaleIf(currentFocusId, 'vs-submit')}`} {...focusAttrs(currentFocusId, 'vs-submit')}>
-                <KeyRound className="w-4 h-4 mr-2" /> Sign in
+                <KeyRound className="w-4 h-4 mr-2" /> {t('common.signInAction')}
               </Button>
               <Button type="button" variant="white" disabled={busy} onClick={onBack}
                 className={`${BTN} ${scaleIf(currentFocusId, 'vs-back')}`} {...focusAttrs(currentFocusId, 'vs-back')}>
-                <ArrowLeft className="w-4 h-4 mr-2" /> Back
+                <ArrowLeft className="w-4 h-4 mr-2" /> {t('common.back')}
               </Button>
               {resumedLabel && (
                 <Button type="button" variant="white" disabled={busy}
                   onClick={() => { clearPending(); onBack(); }}
                   className={`${BTN} ${scaleIf(currentFocusId, 'vs-forget')}`} {...focusAttrs(currentFocusId, 'vs-forget')}>
-                  <Trash2 className="w-4 h-4 mr-2" /> I did not buy anything
+                  <Trash2 className="w-4 h-4 mr-2 shrink-0" /> <span className="min-w-0 truncate">{t('getStarted.signIn.forgetBtn')}</span>
                 </Button>
               )}
             </div>

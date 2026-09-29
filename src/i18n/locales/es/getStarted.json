@@ -1,0 +1,82 @@
+{
+  "getStarted": {
+    "flow": {
+      "oneMoment": "Un momento…",
+      "unavailableTitle": "El registro no está disponible aquí",
+      "unavailableDesc": "Por ahora no se pueden crear cuentas nuevas en este dispositivo. Si ya tienes usuario y contraseña, pulsa Atrás e inicia sesión.",
+      "backToSignInBtn": "Volver a iniciar sesión"
+    },
+    "ds": {
+      "subtitle": "Pruébalo gratis primero, o empieza un plan ya.",
+      "trialTitle": "Prueba",
+      "trialSub": "24 horas · sin tarjeta",
+      "trialDesc": "Creamos tu acceso y iniciamos sesión en el Reproductor al instante.",
+      "buyTitle": "Comprar un plan",
+      "buySub": "Elige la duración y paga ahora",
+      "buyDesc": "Paga en esta TV o con tu teléfono, y el Reproductor inicia sesión solo."
+    },
+    "chooser": {
+      "title": "Empezar",
+      "subtitle": "Elige un servicio y lo configuramos por ti.",
+      "dsSub": "Se configura en esta TV · cerca de un minuto",
+      "dsDesc": "Empieza una prueba gratis de 24 horas o compra un plan aquí mismo. Tu acceso se crea solo y el Reproductor inicia sesión por sí mismo.",
+      "vibezSub": "Termina en tu teléfono · cerca de 5 minutos",
+      "vibezDesc": "El registro de Vibez se hace en su sitio web. Escanea un código con tu teléfono, paga allí y te envían un acceso por correo; luego escríbelo aquí.",
+      "haveLoginBtn": "Ya tengo un acceso"
+    },
+    "plans": {
+      "title": "Empieza con Vibez",
+      "subtitle": "Lo terminas en tu teléfono: cerca de 5 minutos",
+      "free": "Gratis",
+      "seePlans": "Ver planes y registrarte",
+      "seePlansDesc": "Escanea con tu teléfono, elige un paquete allí y paga. Luego vuelve e ingresa el acceso que te envían por correo.",
+      "whatOffers": "Qué ofrece Vibez",
+      "trial": "Prueba",
+      "plan": "Plan",
+      "noCard": "sin tarjeta",
+      "trialSubLabel": "{{label}} · sin tarjeta",
+      "streamingPlan": "Plan de streaming",
+      "priceNext": "El precio se muestra en la siguiente pantalla"
+    },
+    "tier": {
+      "month_one": "{{count}} mes",
+      "month_many": "{{count}} meses",
+      "month_other": "{{count}} meses",
+      "year": "1 año",
+      "connections_one": "{{count}} conexión",
+      "connections_many": "{{count}} conexiones",
+      "connections_other": "{{count}} conexiones",
+      "plan": "Plan"
+    },
+    "handoff": {
+      "title": "Termina en tu teléfono",
+      "intro": "{{label}}: el registro de Vibez se hace en su sitio web. Escanea esto con tu teléfono, paga y te enviarán un usuario y contraseña por correo. Luego vuelve aquí.",
+      "qrAlt": "Código QR de registro de Vibez",
+      "orType": "O escribe esto en un navegador",
+      "nothingChanges": "Nada cambia en esta TV hasta que vuelvas e ingreses el acceso que te envían.",
+      "haveLoginBtn": "Ya tengo mi acceso: continuar",
+      "openBtn": "Abrir en esta TV"
+    },
+    "signIn": {
+      "title": "Ingresa tu acceso de Vibez",
+      "intro": "Usa el usuario y la contraseña que Vibez te envió por correo tras pagar.",
+      "introResumed": "Usa el usuario y la contraseña que Vibez te envió por correo para {{label}}.",
+      "usernameLabel": "Usuario",
+      "usernamePlaceholder": "Usuario de Vibez",
+      "usernameAria": "Usuario de Vibez",
+      "passwordLabel": "Contraseña",
+      "passwordPlaceholder": "Contraseña de Vibez",
+      "passwordAria": "Contraseña de Vibez",
+      "checking": "Comprobando con Vibez…",
+      "forgetBtn": "No compré nada",
+      "missingTitle": "Faltan datos",
+      "missingDesc": "Ingresa el usuario y la contraseña que Vibez te envió por correo.",
+      "couldNotTitle": "No se pudo iniciar sesión",
+      "tryAgainDesc": "Inténtalo de nuevo.",
+      "unreachableTitle": "No se pudo conectar con Vibez",
+      "unreachableDesc": "No pudimos comprobar ese acceso ahora. Revisa la conexión e inténtalo de nuevo.",
+      "connectedTitle": "Conectado",
+      "connectedDesc": "Sesión iniciada en Vibez como {{username}}."
+    }
+  }
+}

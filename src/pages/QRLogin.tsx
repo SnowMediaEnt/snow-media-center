@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -7,10 +8,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, CheckCircle, XCircle, Smartphone } from 'lucide-react';
 
 const QRLogin = () => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'expired'>('loading');
+  // A key of ours (translated when drawn) so the text follows the language.
   const [message, setMessage] = useState('');
   
   const token = searchParams.get('token');
@@ -18,7 +21,7 @@ const QRLogin = () => {
   useEffect(() => {
     if (!token) {
       setStatus('error');
-      setMessage('Invalid QR code - no token provided');
+      setMessage('auth.qrLogin.noToken');
       return;
     }
 
@@ -55,25 +58,25 @@ const QRLogin = () => {
       if (tokenError) {
         console.error('Token query error:', tokenError);
         setStatus('error');
-        setMessage('Error checking QR code validity');
+        setMessage('auth.qrLogin.checkError');
         return;
       }
 
       if (!tokenData) {
         setStatus('expired');
-        setMessage('QR code has expired or is invalid');
+        setMessage('auth.qrLogin.expiredOrInvalid');
         return;
       }
 
       if (tokenData.is_used) {
         setStatus('error');
-        setMessage('This QR code has already been used');
+        setMessage('auth.qrLogin.alreadyUsed');
         return;
       }
 
       if (new Date(tokenData.expires_at) < new Date()) {
         setStatus('expired');
-        setMessage('QR code has expired');
+        setMessage('auth.qrLogin.expired');
         return;
       }
 
@@ -84,16 +87,16 @@ const QRLogin = () => {
       if (updateError) throw updateError;
       if (!claimed) {
         setStatus('error');
-        setMessage('QR session could not be claimed (expired or already used).');
+        setMessage('auth.qrLogin.notClaimed');
         return;
       }
 
       setStatus('success');
-      setMessage('Successfully signed in! You can close this window.');
+      setMessage('auth.qrLogin.successMsg');
       
       toast({
-        title: "Success!",
-        description: "QR code authentication successful",
+        title: t('auth.qrLogin.toastSuccessTitle'),
+        description: t('auth.qrLogin.toastSuccessDesc'),
       });
 
       // Redirect to home after 3 seconds
@@ -104,11 +107,11 @@ const QRLogin = () => {
     } catch (error) {
       console.error('QR Login error:', error);
       setStatus('error');
-      setMessage('An error occurred during authentication');
+      setMessage('auth.qrLogin.errorMsg');
       
       toast({
-        title: "Authentication Error",
-        description: "Failed to process QR code login",
+        title: t('auth.qrLogin.toastErrorTitle'),
+        description: t('auth.qrLogin.toastErrorDesc'),
         variant: "destructive",
       });
     }
@@ -125,6 +128,12 @@ const QRLogin = () => {
         return <XCircle className="w-16 h-16 text-red-400" />;
     }
   };
+
+  const statusTitle =
+    status === 'loading' ? t('auth.qrLogin.authenticating')
+    : status === 'success' ? t('auth.qrLogin.success')
+    : status === 'error' ? t('auth.qrLogin.failed')
+    : t('auth.qrLogin.expiredTitle');
 
   const getStatusColor = () => {
     switch (status) {
@@ -144,7 +153,7 @@ const QRLogin = () => {
         <CardContent className="p-8 text-center space-y-6">
           <div className="flex items-center justify-center mb-4">
             <Smartphone className="w-8 h-8 text-blue-400 mr-2" />
-            <h1 className="text-2xl font-bold text-white">QR Code Login</h1>
+            <h1 className="text-2xl font-bold text-white">{t('auth.qrLogin.title')}</h1>
           </div>
           
           <div className="flex flex-col items-center space-y-4">
@@ -152,14 +161,11 @@ const QRLogin = () => {
             
             <div className="space-y-2">
               <h2 className={`text-lg font-semibold ${getStatusColor()}`}>
-                {status === 'loading' && 'Authenticating...'}
-                {status === 'success' && 'Success!'}
-                {status === 'error' && 'Authentication Failed'}
-                {status === 'expired' && 'QR Code Expired'}
+                {statusTitle}
               </h2>
               
               <p className="text-white/80 text-sm">
-                {message}
+                {message ? t(message) : ''}
               </p>
             </div>
           </div>
@@ -170,11 +176,11 @@ const QRLogin = () => {
                 onClick={() => navigate('/auth')}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               >
-                Go to Login Page
+                {t('auth.qrLogin.goLoginBtn')}
               </Button>
               
               <p className="text-xs text-white/60">
-                Make sure you're signed in before scanning QR codes
+                {t('auth.qrLogin.signedInReminder')}
               </p>
             </div>
           ) : status === 'success' ? (
@@ -183,11 +189,11 @@ const QRLogin = () => {
                 onClick={() => navigate('/')}
                 className="w-full bg-green-600 hover:bg-green-700 text-white"
               >
-                Go to Home
+                {t('auth.qrLogin.goHomeBtn')}
               </Button>
               
               <p className="text-xs text-white/60">
-                Redirecting automatically in 3 seconds...
+                {t('auth.qrLogin.redirecting')}
               </p>
             </div>
           ) : null}

@@ -1,4 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Loader2, Tv, Smartphone, ArrowLeft, Sparkles, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,7 @@ const fallback = (
  * would turn one remote press into two Backs.
  */
 const GetStartedFlow = memo(({ vibezEnabled, onDone, onCancel }: Props) => {
+  const { t } = useTranslation();
   const [step, setStep] = useState<Step>('resolve');
   const [offers, setOffers] = useState<SignupOffers | null>(null);
   // Whether BOTH services were on offer. Decides where Back goes from a
@@ -131,16 +133,16 @@ const GetStartedFlow = memo(({ vibezEnabled, onDone, onCancel }: Props) => {
     setPicked(link); setStep('handoff');
   }, []);
 
-  if (step === 'resolve') return <WaitScreen title="One moment…" onBack={onCancel} />;
+  if (step === 'resolve') return <WaitScreen title={t('getStarted.flow.oneMoment')} onBack={onCancel} />;
 
   if (step === 'unavailable') {
     return (
       <WaitScreen
         error
-        title="Sign-up is not available here"
-        detail="New accounts cannot be created on this device right now. If you already have a username and password, press Back and sign in."
+        title={t('getStarted.flow.unavailableTitle')}
+        detail={t('getStarted.flow.unavailableDesc')}
         onBack={onCancel}
-        backLabel="Back to sign in"
+        backLabel={t('getStarted.flow.backToSignInBtn')}
       />
     );
   }
@@ -220,6 +222,7 @@ export default GetStartedFlow;
 const DsChooser = memo(({ onTrial, onBuy, onBack }: {
   onTrial: () => void; onBuy: () => void; onBack: () => void;
 }) => {
+  const { t } = useTranslation();
   const { containerRef, currentFocusId, focusById } = useTVFocus({
     initialFocusId: 'ds-trial',
     onBack,
@@ -233,7 +236,7 @@ const DsChooser = memo(({ onTrial, onBuy, onBack }: {
         <div className="w-full max-w-4xl">
           <div className="text-center mb-6">
             <h1 className="text-3xl font-quicksand font-bold text-white">DreamStreams</h1>
-            <p className="text-brand-ice/80 font-nunito">Try it free first, or start a plan now.</p>
+            <p className="text-brand-ice/80 font-nunito">{t('getStarted.ds.subtitle')}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -247,12 +250,12 @@ const DsChooser = memo(({ onTrial, onBuy, onBack }: {
                   <Sparkles className="w-7 h-7 text-brand-gold" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-quicksand font-bold text-white leading-tight">Trial</h2>
-                  <p className="text-brand-gold font-nunito text-sm">24 hours · no card needed</p>
+                  <h2 className="text-xl font-quicksand font-bold text-white leading-tight">{t('getStarted.ds.trialTitle')}</h2>
+                  <p className="text-brand-gold font-nunito text-sm">{t('getStarted.ds.trialSub')}</p>
                 </div>
               </div>
               <p className="text-brand-ice/80 font-nunito text-sm leading-snug">
-                We create your login and sign the Player in straight away.
+                {t('getStarted.ds.trialDesc')}
               </p>
             </Card>
 
@@ -266,12 +269,12 @@ const DsChooser = memo(({ onTrial, onBuy, onBack }: {
                   <ShoppingCart className="w-7 h-7 text-sky-300" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-quicksand font-bold text-white leading-tight">Buy a plan</h2>
-                  <p className="text-sky-300 font-nunito text-sm">Pick a length and pay now</p>
+                  <h2 className="text-xl font-quicksand font-bold text-white leading-tight">{t('getStarted.ds.buyTitle')}</h2>
+                  <p className="text-sky-300 font-nunito text-sm">{t('getStarted.ds.buySub')}</p>
                 </div>
               </div>
               <p className="text-brand-ice/80 font-nunito text-sm leading-snug">
-                Pay on this TV or with your phone, then the Player signs in by itself.
+                {t('getStarted.ds.buyDesc')}
               </p>
             </Card>
           </div>
@@ -279,7 +282,7 @@ const DsChooser = memo(({ onTrial, onBuy, onBack }: {
           <div className="flex justify-center mt-6">
             <Button variant="white" onClick={onBack}
               className={`${BTN} ${scaleIf(currentFocusId, 'ds-back')}`} {...focusAttrs(currentFocusId, 'ds-back')}>
-              <ArrowLeft className="w-4 h-4 mr-2" /> Back
+              <ArrowLeft className="w-4 h-4 mr-2" /> {t('common.back')}
             </Button>
           </div>
         </div>
@@ -294,6 +297,7 @@ DsChooser.displayName = 'DreamstreamsChooser';
 const Chooser = memo(({ onDreamstreams, onVibez, onBack }: {
   onDreamstreams: () => void; onVibez: () => void; onBack: () => void;
 }) => {
+  const { t } = useTranslation();
   const { containerRef, currentFocusId, focusById } = useTVFocus({
     initialFocusId: 'gs-ds',
     onBack,
@@ -306,8 +310,8 @@ const Chooser = memo(({ onDreamstreams, onVibez, onBack }: {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-5xl">
           <div className="text-center mb-6">
-            <h1 className="text-3xl font-quicksand font-bold text-white">Get started</h1>
-            <p className="text-brand-ice/80 font-nunito">Pick a service and we will set you up.</p>
+            <h1 className="text-3xl font-quicksand font-bold text-white">{t('getStarted.chooser.title')}</h1>
+            <p className="text-brand-ice/80 font-nunito">{t('getStarted.chooser.subtitle')}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -322,12 +326,11 @@ const Chooser = memo(({ onDreamstreams, onVibez, onBack }: {
                 </div>
                 <div>
                   <h2 className="text-xl font-quicksand font-bold text-white leading-tight">DreamStreams</h2>
-                  <p className="text-brand-gold font-nunito text-sm">Set up on this TV · about a minute</p>
+                  <p className="text-brand-gold font-nunito text-sm">{t('getStarted.chooser.dsSub')}</p>
                 </div>
               </div>
               <p className="text-brand-ice/80 font-nunito text-sm leading-snug">
-                Start a free 24-hour trial or buy a plan right here. Your login is created for you
-                and the Player signs in on its own.
+                {t('getStarted.chooser.dsDesc')}
               </p>
             </Card>
 
@@ -342,12 +345,11 @@ const Chooser = memo(({ onDreamstreams, onVibez, onBack }: {
                 </div>
                 <div>
                   <h2 className="text-xl font-quicksand font-bold text-white leading-tight">Vibez</h2>
-                  <p className="text-sky-300 font-nunito text-sm">Finish on your phone · about 5 minutes</p>
+                  <p className="text-sky-300 font-nunito text-sm">{t('getStarted.chooser.vibezSub')}</p>
                 </div>
               </div>
               <p className="text-brand-ice/80 font-nunito text-sm leading-snug">
-                Vibez sign-up happens on their website. Scan a code with your phone, pay there, and
-                they email you a login — then type it in here.
+                {t('getStarted.chooser.vibezDesc')}
               </p>
             </Card>
           </div>
@@ -355,7 +357,7 @@ const Chooser = memo(({ onDreamstreams, onVibez, onBack }: {
           <div className="flex justify-center mt-6">
             <Button variant="white" onClick={onBack}
               className={`${BTN} ${scaleIf(currentFocusId, 'gs-back')}`} {...focusAttrs(currentFocusId, 'gs-back')}>
-              <ArrowLeft className="w-4 h-4 mr-2" /> I already have a login
+              <ArrowLeft className="w-4 h-4 mr-2 shrink-0" /> <span className="min-w-0 truncate">{t('getStarted.chooser.haveLoginBtn')}</span>
             </Button>
           </div>
         </div>

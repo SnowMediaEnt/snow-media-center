@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { App as CapApp } from '@capacitor/app';
 import { Card } from '@/components/ui/card';
 import { Tv, Globe, Loader2 } from 'lucide-react';
@@ -51,6 +52,7 @@ type BackFlagsWindow = Window & { __playerOwnsBack?: boolean; __overlayHandledBa
  *   Player). The on-screen Cancel button does the same.
  */
 const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const websiteUser = !!user;
@@ -175,7 +177,7 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
             className="absolute left-0 right-0 z-10 text-center text-brand-ice/80 font-nunito text-sm px-6 pointer-events-none"
             style={{ top: 'max(env(safe-area-inset-top, 0px), 4vh)' }}
           >
-            Dreamstreams / Vibez streaming login — this also signs you in to the Player.
+            {t('auth.chooser.playerCaption')}
           </p>
         )}
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
@@ -198,12 +200,12 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
     // unusually small panel — at these sizes there is nothing to scroll.
     <div className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
       <div className="flex items-center w-full justify-start mb-4">
-        <BackButton onClick={onBack} label="Back to Home" focused={focusIndex === 0} />
+        <BackButton onClick={onBack} label={t('common.backToHome')} focused={focusIndex === 0} />
       </div>
       <div className="max-w-6xl mx-auto px-4">
         <div className="text-center mb-5">
-          <h1 className="text-3xl font-bold text-white leading-tight">My Account</h1>
-          <p className="text-base text-blue-200">Choose how you want to sign in</p>
+          <h1 className="text-3xl font-bold text-white leading-tight">{t('common.signIn')}</h1>
+          <p className="text-base text-blue-200">{t('auth.chooser.subtitle')}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -219,14 +221,13 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
               <div className="w-11 h-11 shrink-0 rounded-xl bg-brand-gold/20 flex items-center justify-center">
                 <Tv className="w-6 h-6 text-brand-gold" />
               </div>
-              <h2 className="text-xl font-bold text-white leading-tight">Sign in with Dreamstreams / Vibez</h2>
+              <h2 className="text-xl font-bold text-white leading-tight">{t('auth.chooser.dsTitle')}</h2>
             </div>
             <p className="text-brand-ice/80 font-nunito text-sm leading-snug">
-              Your STREAMING login — the same username &amp; password you use in the Player.
-              Signs you into the Player too, and shows your subscription and expiry date here.
+              {t('auth.chooser.dsDesc')}
             </p>
             <p className="text-brand-ice/50 font-nunito text-xs mt-2">
-              Email usernames connect to Vibez, everything else to Dreamstreams.
+              {t('auth.chooser.dsNote')}
             </p>
           </Card>
 
@@ -242,14 +243,13 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
               <div className="w-11 h-11 shrink-0 rounded-xl bg-blue-500/20 flex items-center justify-center">
                 <Globe className="w-6 h-6 text-blue-300" />
               </div>
-              <h2 className="text-xl font-bold text-white leading-tight">Snow Media website account</h2>
+              <h2 className="text-xl font-bold text-white leading-tight">{t('auth.chooser.webTitle')}</h2>
             </div>
             <p className="text-slate-300 font-nunito text-sm leading-snug">
-              Your WEBSITE account — purchases, support tickets, messages and Snow Gems.
-              NOT your streaming login; your service keeps working either way.
+              {t('auth.chooser.webDesc')}
             </p>
             <p className="text-slate-500 font-nunito text-xs mt-2">
-              Sign in or create a free account.
+              {t('auth.chooser.webNote')}
             </p>
           </Card>
         </div>
