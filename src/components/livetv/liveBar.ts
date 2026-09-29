@@ -7,7 +7,7 @@ import i18n from '@/i18n';
 
 export type BarControlId =
   | 'prev' | 'rew' | 'play' | 'fwd' | 'golive' | 'next'
-  | 'rec' | 'cc' | 'audio' | 'vol' | 'stats';
+  | 'rec' | 'report' | 'cc' | 'audio' | 'vol' | 'stats';
 
 export interface LiveBarContext {
   /** The stream can seek (a live channel rarely can). */
@@ -21,12 +21,14 @@ export interface LiveBarContext {
 /**
  * The buttons, left to right. Stats is always last.
  * - Plain: previous channel, back 10 s, play/pause, forward 10 s, next channel,
- *   subtitles, audio, volume, stats. Back / forward stay in the row but are
+ *   report, subtitles, audio, volume, stats. Back / forward stay in the row but are
  *   greyed out unless the stream can seek (nothing changes for a bar without
  *   rewind).
  * - Rewind on: Go live joins after forward 10 s.
  * - Record on: Record follows next channel.
- * All eleven fit the 960 px screen (w-12 buttons, w-16 Play, about 680 px).
+ * - Report is always there (Kids and the demo too), right after Record, or
+ *   after next channel where there is no Record.
+ * All twelve fit the 960 px screen (w-12 buttons, w-16 Play, about 710 px).
  */
 export function liveBarOrder(ctx: Pick<LiveBarContext, 'rewind' | 'record'>): BarControlId[] {
   return [
@@ -34,6 +36,7 @@ export function liveBarOrder(ctx: Pick<LiveBarContext, 'rewind' | 'record'>): Ba
     ...(ctx.rewind ? (['golive'] as BarControlId[]) : []),
     'next',
     ...(ctx.record ? (['rec'] as BarControlId[]) : []),
+    'report',
     'cc', 'audio', 'vol', 'stats',
   ];
 }
@@ -78,6 +81,7 @@ export function liveBarLabel(id: BarControlId, s: LiveBarLabelState): string {
     case 'fwd': return t('live.bar.fwdLabel');
     case 'golive': return t('live.bar.goLiveLabel');
     case 'rec': return s.recording ? t('live.bar.stopRecLabel') : t('live.bar.recLabel');
+    case 'report': return t('live.bar.reportLabel');
     case 'play': return s.isPaused ? t('live.bar.playLabel') : t('live.bar.pauseLabel');
     case 'cc': return t('live.bar.ccLabel');
     case 'audio': return t('live.bar.audioLabel');

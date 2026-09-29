@@ -58,6 +58,7 @@
       "on": "Auf {{where}}",
       "watchBtn": "Ansehen",
       "dismissBtn": "Schließen"
-    }
+    },
+    "holdHint": "OK auf einem Sender halten, um ihn zu melden"
   }
 }

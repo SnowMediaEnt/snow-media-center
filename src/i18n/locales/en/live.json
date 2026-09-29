@@ -87,7 +87,8 @@
       "volHint": "◀ ▶ · OK · Back",
       "subsOff": "Off",
       "level": "Level",
-      "levelBoost": "{{pct}}% · Boost"
+      "levelBoost": "{{pct}}% · Boost",
+      "reportLabel": "Report channel"
     },
     "playback": {
       "title": "Playback",
@@ -274,7 +275,9 @@
       "missingTitle": "Not on the service any more",
       "missingDesc": "No channel with this name was found. Remove it from favourites and pick its replacement.",
       "refreshFailedTitle": "Could not refresh",
-      "refreshFailedDesc": "The service did not answer. Try again in a moment."
+      "refreshFailedDesc": "The service did not answer. Try again in a moment.",
+      "recordChannel": "Record…",
+      "stopRecording": "Recording — stop…"
     },
     "vod": {
       "allMovies": "All Movies",

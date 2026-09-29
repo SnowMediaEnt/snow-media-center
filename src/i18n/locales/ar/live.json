@@ -87,7 +87,8 @@
       "volHint": "◀ ▶ · موافق · رجوع",
       "subsOff": "إيقاف",
       "level": "المستوى",
-      "levelBoost": "{{pct}}% · تعزيز"
+      "levelBoost": "{{pct}}% · تعزيز",
+      "reportLabel": "الإبلاغ عن القناة"
     },
     "playback": {
       "title": "التشغيل",
@@ -278,7 +279,9 @@
       "missingTitle": "لم تعد متوفرة في الخدمة",
       "missingDesc": "لم يتم العثور على قناة بهذا الاسم. أزلها من المفضلة واختر بديلها.",
       "refreshFailedTitle": "تعذّر التحديث",
-      "refreshFailedDesc": "لم تستجب الخدمة. حاول مرة أخرى بعد قليل."
+      "refreshFailedDesc": "لم تستجب الخدمة. حاول مرة أخرى بعد قليل.",
+      "recordChannel": "تسجيل…",
+      "stopRecording": "جارٍ التسجيل — إيقاف…"
     },
     "vod": {
       "allMovies": "كل الأفلام",

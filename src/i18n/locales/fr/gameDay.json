@@ -58,6 +58,7 @@
       "on": "Sur {{where}}",
       "watchBtn": "Regarder",
       "dismissBtn": "Ignorer"
-    }
+    },
+    "holdHint": "Maintenez OK sur une chaîne pour la signaler"
   }
 }

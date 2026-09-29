@@ -18,12 +18,15 @@
 // Remote: Up/Down move through the games (Up from the first reaches the
 // league filters), Left/Right move between Watch and Remind me (Left from
 // Watch goes back to the side menu), OK presses, Back goes to the side menu.
-// In the channel list: Up/Down, OK plays, Back or Left closes it.
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+// In the channel list: Up/Down, OK plays, Back or Left closes it. A held OK
+// on a channel opens Live TV's short menu (ReportChannelDialog) to report it:
+// the report names the line and stream of that link, and "channel down" puts
+// the ⚠️ on it for the other boxes. A short press plays when OK is let go.
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Bell, BellRing, FolderOpen, Loader2, Play, Trophy, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
-import { isChannelDown, useDownChannels } from '@/lib/channelStatus';
+import { isChannelDown, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import {
   CHANNELS_TTL_MS, LINK_LABELS, cardChannels, channelKey, channelsForGame, checkGuides, fetchGames, isPpvFight, isStreamingOnly,
   kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames, type Game, type GameChannel, type SportsChannel,
@@ -34,6 +37,8 @@ import { SERVERS, loadSavedAccounts, serverDisplayName, type XtreamCreds } from 
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { useTranslation } from 'react-i18next';
 
+const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
+
 interface Props {
   creds: XtreamCreds;
   isActive: boolean;
@@ -42,12 +47,16 @@ interface Props {
   /** Show Live TV (a channel or a category has been handed over), for this
    *  game: Back from there comes back to its list. */
   onWatch: (gameId?: string) => void;
+  /** Opens another screen (the buffering guide, from the report menu). */
+  onNavigate?: (view: string) => void;
 }
 
 /** Set by a kickoff reminder's Watch when it had no channel: open this game's list. */
 export const GAMEDAY_OPEN_KEY = 'smc-gameday-open';
 
 const REFRESH_MS = 3 * 60_000;
+/** OK held this long on a channel opens its menu (the same as Live TV's list). */
+const HOLD_MS = 600;
 const lowMemory = () => { try { return document.documentElement.classList.contains('native-low-memory'); } catch { return false; } };
 const modalOpen = () => { try { return !!document.querySelector('[aria-modal="true"][data-state="open"]'); } catch { return false; } };
 const canRemind = (g: Game) => g.state !== 'in' && Date.parse(g.start) > Date.now();
@@ -93,7 +102,7 @@ const TeamCell = ({ name, logo, score, live }: { name: string; logo: string | nu
   </div>
 );
 
-const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }: Props) => {
+const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, onNavigate }: Props) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [lines, setLines] = useState<XtreamCreds[]>([creds]);
@@ -106,6 +115,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
   const [rowIdx, setRowIdx] = useState(0);
   const [action, setAction] = useState<0 | 1>(0);
   const [picker, setPicker] = useState<Picker | null>(null);
+  // The link a held OK is reporting: its own line and stream, whichever line the box is signed into first.
+  const [reportFor, setReportFor] = useState<GameChannel | null>(null);
   const [, setReminderTick] = useState(0);
   const [channelsTick, setChannelsTick] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -218,6 +229,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
     for (const c of channels ? leagueCategories(pickerRow.game, channels, 2, own) : []) items.push({ kind: 'browse', ...c });
     return items;
   }, [picker, pickerRow, channels, isDown, lines]);
+  const firstLinkIdx = pickItems.findIndex((it) => it.kind === 'link');
   const firstZoneIdx = useMemo(
     () => pickItems.findIndex((it) => it.kind === 'link' && it.link.via === 'zone'),
     [pickItems],
@@ -333,11 +345,22 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
   }, [picker]);
 
   const lastBack = useRef(0);
-  const stateRef = useRef({ zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems, lines });
-  stateRef.current = { zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems, lines };
+  const stateRef = useRef({ zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems, lines, reportFor });
+  stateRef.current = { zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems, lines, reportFor };
+  // OK on a channel in the list: let go soon = play, held = its menu.
+  const holdRef = useRef<{ timer: number | null; item: PickItem | null; fired: boolean }>({ timer: null, item: null, fired: false });
+  const clearHold = useCallback(() => {
+    const h = holdRef.current;
+    if (h.timer) window.clearTimeout(h.timer);
+    h.timer = null; h.item = null;
+  }, []);
+  useEffect(() => { if (!picker) clearHold(); }, [picker, clearHold]);
+  useEffect(() => clearHold, [clearHold]);
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
+      // The report menu owns the remote while it is open.
+      if (stateRef.current.reportFor) return;
       // A popup over the Player (kickoff reminder, voice) has the remote.
       if (modalOpen()) return;
       const el = e.target as HTMLElement | null;
@@ -363,7 +386,19 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
         if (e.key === 'ArrowUp') setPicker((p) => (p ? { ...p, moved: true, focus: Math.max(0, p.focus - 1) } : p));
         else if (e.key === 'ArrowDown') setPicker((p) => (p ? { ...p, moved: true, focus: Math.min(Math.max(0, n - 1), p.focus + 1) } : p));
         else if (e.key === 'ArrowLeft') closePicker();
-        else if (ok) { if (n) activate(st.pickItems[Math.min(st.picker.focus, n - 1)]); else closePicker(); }
+        else if (ok) {
+          const item = n ? st.pickItems[Math.min(st.picker.focus, n - 1)] : undefined;
+          const hold = holdRef.current;
+          if (!item) closePicker();
+          else if (item.kind === 'browse') activate(item);
+          else if (!hold.timer && !hold.fired) {
+            hold.item = item;
+            hold.timer = window.setTimeout(() => {
+              hold.timer = null; hold.item = null; hold.fired = true;
+              setReportFor(item.link);
+            }, HOLD_MS);
+          }
+        }
         return;
       }
       if (st.zone === 'chips') {
@@ -387,9 +422,24 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
       else if (e.key === 'ArrowRight') { if (row && canRemind(row.game)) setAction(1); }
       else if (ok) { if (st.action === 0) openPicker(st.rowIdx); else remind(st.rowIdx); }
     };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ' && e.keyCode !== 13 && e.keyCode !== 23) return;
+      const hold = holdRef.current;
+      // Let go before the hold: a short press, so play. After it, the menu is already open.
+      if (hold.timer) {
+        const item = hold.item;
+        clearHold();
+        activate(item ?? undefined);
+      }
+      hold.fired = false;
+    };
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, onExitUp, openPicker, closePicker, activate, remind]);
+    window.addEventListener('keyup', onUp, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', onUp, true);
+    };
+  }, [isActive, onExitLeft, onExitUp, openPicker, closePicker, activate, remind, clearHold]);
 
   // More than one signed-in line: each link says which service it is on.
   const multi = lines.length > 1;
@@ -561,7 +611,30 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch }:
               </div>
             )}
           </div>
+          {firstLinkIdx >= 0 && (
+            <p className="mt-2 shrink-0 text-xs font-nunito text-white/50">{t('gameDay.holdHint')}</p>
+          )}
         </div>
+      )}
+
+      {reportFor && (
+        <Suspense fallback={null}>
+          <ReportChannelDialog
+            channelName={reportFor.stream.name}
+            channelId={reportFor.stream.stream_id}
+            categoryName={pickerRow ? `Game Day: ${pickerRow.game.name}` : 'Game Day'}
+            serviceLabel={multi ? serviceName(reportFor.line) : undefined}
+            onReportedDown={() => signalChannel(reportFor.line.host, reportFor.stream.stream_id, reportFor.stream.name, 'down')}
+            isDown={isDown(reportFor)}
+            onClearDown={() => signalChannel(reportFor.line.host, reportFor.stream.stream_id, reportFor.stream.name, 'clear')}
+            onOpenBufferingGuide={() => {
+              setReportFor(null);
+              onNavigate?.('support');
+              setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+            }}
+            onClose={() => setReportFor(null)}
+          />
+        </Suspense>
       )}
     </div>
   );

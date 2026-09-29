@@ -1201,6 +1201,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
               onWatch={onGameDayWatch}
+              onNavigate={navigateViaRef}
             />
           </Suspense>
         )}

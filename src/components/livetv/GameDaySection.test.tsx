@@ -46,7 +46,8 @@ vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/x
 vi.mock('@/lib/channelStatus', () => ({ useDownChannels: () => new Set<string>(), isChannelDown: () => false }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
-const key = (k: string) => act(() => { fireEvent.keyDown(window, { key: k }); });
+// OK plays when it is let go (a held OK opens the channel's menu instead), so OK is pressed and released.
+const key = (k: string) => act(() => { fireEvent.keyDown(window, { key: k }); if (k === 'Enter') fireEvent.keyUp(window, { key: k }); });
 
 beforeEach(() => { sessionStorage.clear(); localStorage.clear(); Element.prototype.scrollIntoView = vi.fn(); guide.answer = null; });
 

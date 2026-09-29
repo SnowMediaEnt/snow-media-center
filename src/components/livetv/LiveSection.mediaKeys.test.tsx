@@ -159,11 +159,39 @@ describe('the bar without rewind or a recorder', () => {
   it('is the plain one, with Stats last', async () => {
     await watchNewsOne();
     expect(barButtons()).toEqual([
-      'Previous channel', 'Back 10s', 'Pause', 'Forward 10s', 'Next channel', 'Subtitles', 'Audio', expect.stringMatching(/^Volume \d+%$/), 'Stats',
+      'Previous channel', 'Back 10s', 'Pause', 'Forward 10s', 'Next channel', 'Report channel', 'Subtitles', 'Audio', expect.stringMatching(/^Volume \d+%$/), 'Stats',
     ]);
     expect(barButtons()).not.toContain('Go live');
     expect(barButtons()).not.toContain('Record');
     expect(document.querySelector('[data-rewind-timeline]')).toBeNull();
     expect(text()).toContain('LIVE');
+  });
+});
+
+describe('the Report button in the bar', () => {
+  const focusedBar = () => document.querySelector('[data-bar-control] button[data-focused="true"]')?.getAttribute('aria-label');
+
+  it('opens the report flow for the channel that is playing', async () => {
+    await watchNewsOne();
+    // The bar is up on Play; ▶ ▶ ▶ reaches Report (Forward, Next, Report).
+    expect(focusedBar()).toBe('Pause');
+    for (let i = 0; i < 3; i++) press('ArrowRight');
+    expect(focusedBar()).toBe('Report channel');
+    expect(document.querySelector('[data-testid="report"]')).toBeNull();
+    press('Enter');
+    await settle(10);
+    await until('[data-testid="report"]');
+    expect(document.querySelector('[data-testid="report"]')?.textContent).toBe('News One');
+  });
+
+  it('follows the channel: after CH+ it reports the new one', async () => {
+    await watchNewsOne();
+    await media('chup');
+    await settle(10);
+    expect(focusedBar()).toBe('Pause');
+    for (let i = 0; i < 3; i++) press('ArrowRight');
+    press('Enter');
+    await until('[data-testid="report"]');
+    expect(document.querySelector('[data-testid="report"]')?.textContent).toBe('News Two');
   });
 });

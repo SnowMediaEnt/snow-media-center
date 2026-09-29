@@ -1,9 +1,9 @@
-// Record a live channel (TRACKER 25): hold OK on a channel in the list, or the
-// Record button in the player bar. Where to save (the box, or a USB drive when
-// one is plugged in) and for how long, then Start. The recording runs in the
-// background (RecordingService). A channel already recording offers Stop
-// instead. "More options…" hands over to the existing channel menu (favourite,
-// report).
+// Record a live channel (TRACKER 25): "Record…" in the channel's short menu
+// (held OK on a channel in the list), or the Record button in the player bar.
+// Where to save (the box, or a USB drive when one is plugged in) and for how
+// long, then Start. The recording runs in the background (RecordingService).
+// A channel already recording offers Stop instead. "More options…" (onMore)
+// is optional and Live TV no longer uses it: the menu comes first now.
 //
 // Above Start it says, plainly, that a recording is one more stream on the
 // viewer's line (extraStreamNote): the same words as the start toast and the

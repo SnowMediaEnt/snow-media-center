@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import {
   SkipBack, SkipForward, Play, Pause, Rewind, FastForward,
-  Subtitles, AudioLines, Tv, Radio, Volume2, VolumeX, Gauge, Circle, History,
+  Subtitles, AudioLines, Tv, Radio, Volume2, VolumeX, Gauge, Circle, History, Flag,
 } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import { useTranslation } from 'react-i18next';
@@ -111,6 +111,7 @@ const PlayerControlBar = memo(({
       case 'fwd': return <FastForward className="w-6 h-6" />;
       case 'golive': return <Radio className="w-6 h-6" />;
       case 'rec': return <Circle className={`w-6 h-6 ${recording ? 'fill-red-500 text-red-500' : 'fill-red-600/80 text-red-400'}`} />;
+      case 'report': return <Flag className="w-6 h-6" />;
       case 'play': return isPaused ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />;
       case 'cc': return <Subtitles className="w-6 h-6" />;
       case 'audio': return <AudioLines className="w-6 h-6" />;

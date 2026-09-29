@@ -58,6 +58,7 @@
       "on": "On {{where}}",
       "watchBtn": "Watch",
       "dismissBtn": "Dismiss"
-    }
+    },
+    "holdHint": "Hold OK on a channel to report it"
   }
 }

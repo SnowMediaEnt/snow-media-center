@@ -87,7 +87,8 @@
       "volHint": "◀ ▶ · OK · Atrás",
       "subsOff": "Desactivados",
       "level": "Nivel",
-      "levelBoost": "{{pct}}% · Amplificado"
+      "levelBoost": "{{pct}}% · Amplificado",
+      "reportLabel": "Reportar canal"
     },
     "playback": {
       "title": "Reproducción",
@@ -275,7 +276,9 @@
       "missingTitle": "Ya no está en el servicio",
       "missingDesc": "No se encontró ningún canal con este nombre. Quítalo de favoritos y elige su reemplazo.",
       "refreshFailedTitle": "No se pudo actualizar",
-      "refreshFailedDesc": "El servicio no respondió. Inténtalo de nuevo en un momento."
+      "refreshFailedDesc": "El servicio no respondió. Inténtalo de nuevo en un momento.",
+      "recordChannel": "Grabar…",
+      "stopRecording": "Grabando — detener…"
     },
     "vod": {
       "allMovies": "Todas las películas",

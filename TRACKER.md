@@ -50,6 +50,9 @@ Status: building · ready to test · still broken · done.
 | 28 | Live TV sign-in: username capitals turned to lowercase (falls back to as-typed if the panel refuses) | feature | ready to test (build 48) | |
 | 29 | Every screen changes language (es/fr/de/ar; English default; Arabic text, screens stay left-to-right; AI + Plex follow the language) — plan: .claude/plan-i18n.md | feature | ready to test (build 49) | |
 | 30 | Game Day uses every signed-in Live TV line, with a service tag (DreamStreams/Vibez) on each link | feature | ready to test (build 50) | |
+| 31 | Live TV hold-OK: short channel menu (Favorite, Report, Record…) instead of the full Record dialog | feature | ready to test (build 51) | |
+| 32 | Game Day: hold OK on a link to report a channel down | feature | ready to test (build 51) | |
+| 33 | Player bar: Report button while a live channel plays | feature | ready to test (build 51) | |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner

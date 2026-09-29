@@ -58,6 +58,7 @@
       "on": "En {{where}}",
       "watchBtn": "Ver",
       "dismissBtn": "Descartar"
-    }
+    },
+    "holdHint": "Mantén OK en un canal para reportarlo"
   }
 }

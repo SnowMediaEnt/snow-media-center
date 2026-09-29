@@ -105,7 +105,7 @@ const DEMO = isDemo();
 // (an older build has none), never the demo. A Kids profile hides it too (see
 // recordOn in the component: the profile is only known at render).
 const RECORD_CAPABLE = NATIVE_PLAYBACK && !DEMO && hasRecorder();
-/** Hold OK this long on a channel for its options (Record; Report is under "More options"). */
+/** Hold OK this long on a channel for its short menu (Favorite, Report, Record…). */
 const HOLD_MS = 600;
 // Demo call-site swap (Plex pattern): fixtures answer every read in demo.
 const fetchLiveCategories = DEMO ? demoGetLiveCategories : getLiveCategories;
@@ -1691,12 +1691,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const ch = visibleChannelsRef.current[i];
     if (ch) activateChannelRef.current(ch);
   }, []);
-  // A channel's options: Record (Report is under its "More options…"), or
-  // Report straight away where recording isn't offered.
-  const openChannelOptions = useCallback((c: XtreamLiveStream) => {
-    if (recordOnRef.current) setRecordFor({ st: c, line: lineFor(c) });
-    else setReportFor(c);
-  }, [lineFor]);
+  // A held OK opens the channel's short menu (Favorite, Report, and Record…
+  // where recording is offered); Record… leads on to the recording options.
+  const openChannelOptions = useCallback((c: XtreamLiveStream) => { setReportFor(c); }, []);
   const openChannelOptionsRef = useRef(openChannelOptions);
   openChannelOptionsRef.current = openChannelOptions;
   const onRowLongPress = useCallback((i: number) => {
@@ -1871,6 +1868,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           else if (id === 'rec') {
             const st = playingStreamRef.current;
             if (st && !e.repeat && recordOnRef.current) setRecordFor({ st, line: playingLineRef.current });
+          }
+          else if (id === 'report') {
+            // The channel that is playing; the menu finds its line by the stream object.
+            const st = playingStreamRef.current;
+            if (st && !e.repeat) {
+              streamLineRef.current.set(st, playingLineRef.current);
+              setReportFor(st);
+            }
           }
           else if (id === 'play') {
             ctrl?.togglePlay();
@@ -2175,13 +2180,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           window.setTimeout(notifyRecordingsChanged, 1500);
         });
       }}
-      onMore={() => {
-        const { st, line } = recordFor;
-        // The report menu finds the channel's line by the stream object.
-        streamLineRef.current.set(st, line);
-        setRecordFor(null);
-        setReportFor(st);
-      }}
       onClose={closeRecordDialog}
     />
   ) : null;
@@ -2194,6 +2192,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         categoryName={searchOpen ? 'Search' : (currentCat?.isFav ? 'Favorites' : (currentCat?.name || ''))}
         isFavorite={isFav(reportFor)}
         onToggleFavorite={() => toggleFavorite(reportFor)}
+        onRecord={recordOn ? () => {
+          const st = reportFor;
+          // The recording options find the line by the stream object too.
+          setReportFor(null);
+          setRecordFor({ st, line: lineFor(st) });
+        } : undefined}
+        recording={!!jobFor(reportFor.name)}
         onRefreshFavorite={() => refreshFavorite(reportFor)}
         initialChoice={reportPreset?.choice}
         initialNote={reportPreset?.note}

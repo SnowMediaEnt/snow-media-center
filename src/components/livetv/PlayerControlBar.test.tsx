@@ -38,8 +38,8 @@ describe('the name under the highlighted button', () => {
     const { container } = render(bar({ focus: 'fwd' }));
     expect(shown(container)).toEqual([{ id: 'fwd', text: 'Forward 10s', hidden: false }]);
     // Every button keeps its line (hidden), so the row never jumps.
-    expect(names(container)).toHaveLength(11);
-    expect(container.querySelectorAll('[data-bar-name]')).toHaveLength(11);
+    expect(names(container)).toHaveLength(12);
+    expect(container.querySelectorAll('[data-bar-name]')).toHaveLength(12);
   });
 
   it('moves with the highlight', () => {
@@ -58,6 +58,8 @@ describe('the name under the highlighted button', () => {
     expect(shown(container)[0].text).toBe('Record');
     rerender(bar({ focus: 'rec', recording: true }));
     expect(shown(container)[0].text).toBe('Stop recording');
+    rerender(bar({ focus: 'report' }));
+    expect(shown(container)[0].text).toBe('Report channel');
     rerender(bar({ focus: 'vol', volume: 0.6 }));
     expect(shown(container)[0].text).toMatch(/^Volume \d+%$/);
   });
@@ -78,8 +80,18 @@ describe('the name under the highlighted button', () => {
   it('is aria-hidden: the buttons carry their own labels for screen readers', () => {
     const { container } = render(bar({ focus: 'next' }));
     for (const s of Array.from(container.querySelectorAll('[data-bar-name]'))) expect(s.getAttribute('aria-hidden')).toBe('true');
-    const ids: BarControlId[] = ['prev', 'rew', 'play', 'fwd', 'golive', 'next', 'rec', 'cc', 'audio', 'vol', 'stats'];
+    const ids: BarControlId[] = ['prev', 'rew', 'play', 'fwd', 'golive', 'next', 'rec', 'report', 'cc', 'audio', 'vol', 'stats'];
     expect(Array.from(container.querySelectorAll('[data-bar-control]')).map((c) => c.getAttribute('data-bar-control'))).toEqual(ids);
+  });
+
+  it('has a Report button next to Record, before cc / audio / vol / stats, with a flag icon and its name', () => {
+    const { container } = render(bar({ focus: 'report' }));
+    const ids = Array.from(container.querySelectorAll('[data-bar-control]')).map((c) => c.getAttribute('data-bar-control'));
+    expect(ids.slice(ids.indexOf('rec'), ids.indexOf('rec') + 3)).toEqual(['rec', 'report', 'cc']);
+    const btn = container.querySelector('[data-bar-control="report"] button')!;
+    expect(btn.getAttribute('aria-label')).toBe('Report channel');
+    expect(btn.getAttribute('data-focused')).toBe('true');
+    expect(btn.querySelector('svg')).toBeTruthy();
   });
 
   it('is on the plain bar too, Stats last', () => {

@@ -87,7 +87,8 @@
       "volHint": "◀ ▶ · OK · Retour",
       "subsOff": "Désactivés",
       "level": "Niveau",
-      "levelBoost": "{{pct}} % · Amplifié"
+      "levelBoost": "{{pct}} % · Amplifié",
+      "reportLabel": "Signaler la chaîne"
     },
     "playback": {
       "title": "Lecture",
@@ -275,7 +276,9 @@
       "missingTitle": "Plus disponible sur le service",
       "missingDesc": "Aucune chaîne portant ce nom n'a été trouvée. Retirez-la des favoris et choisissez son remplaçant.",
       "refreshFailedTitle": "Impossible d'actualiser",
-      "refreshFailedDesc": "Le service n'a pas répondu. Réessayez dans un instant."
+      "refreshFailedDesc": "Le service n'a pas répondu. Réessayez dans un instant.",
+      "recordChannel": "Enregistrer…",
+      "stopRecording": "Enregistrement — arrêter…"
     },
     "vod": {
       "allMovies": "Tous les films",

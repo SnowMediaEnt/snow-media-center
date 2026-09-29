@@ -87,7 +87,8 @@
       "volHint": "◀ ▶ · OK · Zurück",
       "subsOff": "Aus",
       "level": "Pegel",
-      "levelBoost": "{{pct}} % · Verstärkt"
+      "levelBoost": "{{pct}} % · Verstärkt",
+      "reportLabel": "Sender melden"
     },
     "playback": {
       "title": "Wiedergabe",
@@ -274,7 +275,9 @@
       "missingTitle": "Nicht mehr im Angebot",
       "missingDesc": "Es wurde kein Sender mit diesem Namen gefunden. Entferne ihn aus den Favoriten und wähle den Ersatz.",
       "refreshFailedTitle": "Aktualisierung nicht möglich",
-      "refreshFailedDesc": "Der Dienst hat nicht geantwortet. Versuche es gleich noch einmal."
+      "refreshFailedDesc": "Der Dienst hat nicht geantwortet. Versuche es gleich noch einmal.",
+      "recordChannel": "Aufnehmen…",
+      "stopRecording": "Aufnahme läuft — stoppen…"
     },
     "vod": {
       "allMovies": "Alle Filme",

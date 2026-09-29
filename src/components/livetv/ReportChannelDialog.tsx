@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle, Star, StarOff, Flag, X, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Loader2, AlertTriangle, Star, StarOff, Flag, X, RefreshCw, CheckCircle2, Circle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,7 +14,17 @@ interface Props {
   channelId?: number | string;
   categoryName?: string;
   isFavorite?: boolean;
+  /** Left out where a channel can't be a favourite from here (Game Day): the row is not shown. */
   onToggleFavorite?: () => void;
+  /**
+   * Live TV, where recording is offered: a "Record…" row. The caller closes
+   * this menu and opens the recording options (RecordDialog).
+   */
+  onRecord?: () => void;
+  /** The channel is recording now: the row says so, and the options offer Stop. */
+  recording?: boolean;
+  /** The service the channel is on ("Vibez"), when the box has more than one: goes into the ticket. */
+  serviceLabel?: string;
   /**
    * Favourite only. Looks the channel up again on the service by name and
    * re-points the favourite at its current stream, for the case where the
@@ -63,6 +73,9 @@ const ReportChannelDialog = memo(({
   categoryName,
   isFavorite,
   onToggleFavorite,
+  onRecord,
+  recording = false,
+  serviceLabel,
   onRefreshFavorite,
   onOpenBufferingGuide,
   initialChoice,
@@ -126,6 +139,7 @@ const ReportChannelDialog = memo(({
         `Issue: ${issue}`,
         '',
       ];
+      if (serviceLabel) lines.push(`Service: ${serviceLabel}`);
       if (channelId != null && String(channelId).length) lines.push(`Channel ID: ${channelId}`);
       if (account) {
         lines.push(`Player account: ${account.username}${account.serverLabel ? ' @ ' + account.serverLabel : ''}`);
@@ -133,7 +147,7 @@ const ReportChannelDialog = memo(({
       lines.push('Reported from the player.');
       return lines.join('\n');
     },
-    [channelId, channelName, categoryName, account],
+    [channelId, channelName, categoryName, account, serviceLabel],
   );
 
   // The Channel Options rows. "It's working now" leads when the channel
@@ -150,7 +164,8 @@ const ReportChannelDialog = memo(({
       run: () => { onClearDown(); toast({ title: t('live.report.thanksTitle'), description: t('live.report.thanksDesc') }); onClose(); },
     }] : []),
     { id: 'report', label: t('live.report.reportChannel'), icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } },
-    { id: 'fav', label: isFavorite ? t('live.report.removeFavorite') : t('live.report.addFavorite'), icon: isFavorite ? StarOff : Star, run: () => { onToggleFavorite?.(); onClose(); } },
+    ...(onToggleFavorite ? [{ id: 'fav', label: isFavorite ? t('live.report.removeFavorite') : t('live.report.addFavorite'), icon: isFavorite ? StarOff : Star, run: () => { onToggleFavorite(); onClose(); } }] : []),
+    ...(onRecord ? [{ id: 'record', label: recording ? t('live.report.stopRecording') : t('live.report.recordChannel'), icon: Circle, run: () => { onRecord(); } }] : []),
     ...(canRefresh ? [{ id: 'refresh', label: refreshing ? t('live.report.refreshing') : t('live.report.refreshLink'), icon: RefreshCw, run: () => { void refreshNow(); } }] : []),
     { id: 'cancel', label: t('common.cancel'), icon: X, run: onClose },
   ];
