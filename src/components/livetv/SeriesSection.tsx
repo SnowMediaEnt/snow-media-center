@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { ArrowLeft, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   getSeriesCategories,
@@ -50,6 +51,8 @@ const AUTOPLAY_KEY = 'snow-livetv-autoplay-next';
 const DEMO = isDemo();
 
 const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
+  const { t } = useTranslation();
+  const catLabel = (c: { id: string; name: string }): string => (c.id === ALL_ID ? t('live.series.allSeries') : c.name);
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [seriesByCat, setSeriesByCat] = useState<Map<string, XtreamSeries[]>>(new Map());
@@ -149,7 +152,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
 
   const visibleCategories = useMemo(() => {
     const base: { id: string; name: string; count?: number }[] = [
-      { id: ALL_ID, name: 'All Series', count: seriesByCat.get(ALL_ID)?.length ?? counts.total ?? undefined },
+      { id: ALL_ID, name: '', count: seriesByCat.get(ALL_ID)?.length ?? counts.total ?? undefined },
     ];
     for (const c of categories) {
       const key = String(c.category_id);
@@ -533,7 +536,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
         <p className="font-nunito text-white/90 text-base leading-relaxed">{DEMO_DIALOG_MSG}</p>
         <button type="button" autoFocus onClick={() => setDemoNotice(false)}
           className="mt-6 px-6 py-3 rounded-xl bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
-          OK
+          {t('common.ok')}
         </button>
       </div>
     </div>
@@ -543,7 +546,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   if (playing) {
     return (
       <div className="fixed inset-0 z-[60] bg-black">
-        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
+        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
           <VideoPlayer
             src={playing.url}
             volume={volume}
@@ -575,7 +578,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     return (
       <div className="flex-1 min-h-0 flex flex-col text-white bg-black/40">
         <div className={`${BACK_ROW} flex-shrink-0 px-6 pt-6 mb-4`}>
-          <BackButton onClick={() => { setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }} label="Back" />
+          <BackButton onClick={() => { setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }} label={t('common.back')} />
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
         <div className="flex gap-6 mb-6">
@@ -592,7 +595,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
               {info?.genre && <span>{info.genre}</span>}
             </div>
             {infoLoading ? <Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> : (
-              <p className="text-brand-ice/90 font-nunito leading-relaxed line-clamp-4">{info?.plot || 'No description available.'}</p>
+              <p className="text-brand-ice/90 font-nunito leading-relaxed line-clamp-4">{info?.plot || t('live.vod.noDescription')}</p>
             )}
             <div className="flex items-center gap-4 mt-4">
               <Button
@@ -603,7 +606,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                 disabled={!episodes.length}
               >
                 <Play className="w-4 h-4 mr-2 fill-current" />
-                Play S1·E1
+                <span className="min-w-0 truncate">{t('live.series.playFirstBtn')}</span>
               </Button>
               <label className="flex items-center gap-2 text-sm font-nunito text-brand-ice cursor-pointer">
                 <input
@@ -612,7 +615,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                   onChange={(e) => setAutoplayNext(e.target.checked)}
                   className="accent-brand-gold w-4 h-4"
                 />
-                Autoplay next episode
+                {t('live.series.autoplayNext')}
               </label>
             </div>
           </div>
@@ -621,9 +624,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
         <div className="flex gap-6">
           {/* Seasons */}
           <div className="w-44 flex-shrink-0">
-            <h4 className="font-quicksand font-semibold text-xl mb-2 text-white/90">Seasons</h4>
+            <h4 className="font-quicksand font-semibold text-xl mb-2 text-white/90">{t('live.series.seasons')}</h4>
             <div className="space-y-1">
-              {seasons.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">No seasons</p>}
+              {seasons.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">{t('live.series.noSeasons')}</p>}
               {seasons.map((s, i) => {
                 const focused = detailFocus === 'seasons' && seasonIdx === i;
                 const selected = seasonIdx === i;
@@ -640,7 +643,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                       text-brand-ice
                     `}
                   >
-                    {s.name || `Season ${s.season_number}`}
+                    {s.name || t('live.series.seasonN', { n: s.season_number })}
                   </div>
                 );
               })}
@@ -649,9 +652,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
 
           {/* Episodes */}
           <div className="flex-1 min-w-0">
-            <h4 className="font-quicksand font-semibold text-xl mb-2 text-white/90">Episodes</h4>
+            <h4 className="font-quicksand font-semibold text-xl mb-2 text-white/90">{t('live.series.episodes')}</h4>
             <div className="space-y-1 max-h-[55vh] overflow-y-auto px-2 -mx-2">
-              {episodes.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">No episodes</p>}
+              {episodes.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">{t('live.series.noEpisodes')}</p>}
               {episodes.map((ep, i) => {
                 const focused = detailFocus === 'episodes' && episodeIdx === i;
                 return (
@@ -666,7 +669,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                     `}
                   >
                     <span className="w-10 text-right font-quicksand font-bold text-brand-gold">{ep.episode_num}</span>
-                    <span className="flex-1 truncate font-nunito text-white">{ep.title || `Episode ${ep.episode_num}`}</span>
+                    <span className="flex-1 truncate font-nunito text-white">{ep.title || t('live.series.episodeN', { n: ep.episode_num })}</span>
                     {ep.info?.duration && <span className="text-xs text-brand-ice/70 font-nunito">{ep.info.duration}</span>}
                   </div>
                 );
@@ -689,7 +692,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
           className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${searchFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
         >
           <Search className="w-4 h-4" />
-          {searchOpen ? 'Close search' : 'Search series'}
+          <span className="min-w-0 truncate">{searchOpen ? t('live.list.closeSearchBtn') : t('live.series.searchSeriesBtn')}</span>
         </button>
         {searchOpen && (
           <input
@@ -702,7 +705,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
               else if (e.key === 'ArrowUp') { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
               else if (e.key === 'Escape')  { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
             }}
-            placeholder="Type to search…"
+            placeholder={t('live.list.searchPlaceholder')}
             className="w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-3 font-nunito text-base focus:outline-none focus:ring-2 focus:ring-brand-gold"
           />
         )}
@@ -710,7 +713,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
           <div className="space-y-1">
             {categoriesLoading && categories.length === 0 && (
               <div className="px-3 py-2 text-brand-ice/70 font-nunito text-sm flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
+                <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> {t('live.list.loadingCategories')}
               </div>
             )}
             {visibleCategories.map((c, i) => {
@@ -733,7 +736,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                     ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
                   `}
                 >
-                  <span className="flex-1 truncate">{c.name}</span>
+                  <span className="flex-1 truncate">{catLabel(c)}</span>
                   {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                   {!isLoadingThis && c.count != null && c.count > 0 && (
                     <span className={`text-xs tabular-nums px-2 py-1 rounded-lg flex-shrink-0 ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
@@ -758,9 +761,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
           <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito">
             {searchOpen
               ? (searchQuery
-                  ? (allSeriesLoading ? 'Loading series catalog…' : 'No series match your search.')
-                  : (allSeriesLoading ? 'Loading series catalog…' : 'Type to search all series.'))
-              : 'No series in this category.'}
+                  ? (allSeriesLoading ? t('live.series.loadingCatalog') : t('live.series.noMatch'))
+                  : (allSeriesLoading ? t('live.series.loadingCatalog') : t('live.series.typeToSearch')))
+              : t('live.series.noSeries')}
           </div>
 
         ) : (

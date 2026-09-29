@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef } from 'react';
 import { ArrowLeft, Tv } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
  * to buy here, only who to ask. OK or Back leaves.
  */
 const KidsAskGrownUp = memo(({ onBack }: Props) => {
+  const { t } = useTranslation();
   const backRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -46,11 +48,10 @@ const KidsAskGrownUp = memo(({ onBack }: Props) => {
           <Tv className="w-11 h-11 text-brand-gold" />
         </div>
         <h2 className="text-3xl font-quicksand font-bold mb-3">
-          Ask a grown-up to sign in to Live TV
+          {t('live.kidsAskGrownUp.title')}
         </h2>
         <p className="text-brand-ice/90 font-nunito text-lg leading-relaxed mb-8">
-          Live TV isn&apos;t set up on this TV yet. Once a grown-up has signed in,
-          your channels will be waiting right here.
+          {t('live.kidsAskGrownUp.body')}
         </p>
         <Button
           ref={backRef}
@@ -59,7 +60,7 @@ const KidsAskGrownUp = memo(({ onBack }: Props) => {
           data-focused="true"
           className="min-w-[160px] h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out scale-105 z-10"
         >
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
+          <ArrowLeft className="w-4 h-4 mr-2" /> {t('common.back')}
         </Button>
       </div>
     </div>

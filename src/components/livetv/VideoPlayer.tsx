@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, RotateCw } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { isFireTV } from '@/utils/platform';
 import { onMediaKey } from '@/lib/mediaKeys';
 import SnowLoader from '@/components/SnowLoader';
@@ -100,6 +102,9 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hlsRef = useRef<any>(null);
   const [loading, setLoading] = useState(false);
+  const { t } = useTranslation();
+  const isFullChrome = chrome === 'full';
+  // A translation key (live.videoPlayer.*), not text: the words are looked up when the error is drawn.
   const [fatal, setFatal] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
@@ -160,7 +165,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return hls.subtitleTracks.map((t: any, i: number) => ({
             id: i,
-            label: t.name || t.lang || `Sub ${i + 1}`,
+            label: t.name || t.lang || i18n.t('live.videoPlayer.subTrack', { n: i + 1 }),
             language: t.lang,
             active: i === cur,
           }));
@@ -171,7 +176,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
         for (let i = 0; i < v.textTracks.length; i++) {
           const t = v.textTracks[i];
           if (t.kind !== 'subtitles' && t.kind !== 'captions') continue;
-          out.push({ id: i, label: t.label || t.language || `Sub ${i + 1}`, language: t.language, active: t.mode === 'showing' });
+          out.push({ id: i, label: t.label || t.language || i18n.t('live.videoPlayer.subTrack', { n: i + 1 }), language: t.language, active: t.mode === 'showing' });
         }
         return out;
       },
@@ -195,7 +200,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return hls.audioTracks.map((t: any, i: number) => ({
             id: i,
-            label: t.name || t.lang || `Audio ${i + 1}`,
+            label: t.name || t.lang || i18n.t('live.videoPlayer.audioTrack', { n: i + 1 }),
             language: t.lang,
             active: i === cur,
           }));
@@ -207,7 +212,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
         const out: VideoTrackInfo[] = [];
         for (let i = 0; i < at.length; i++) {
           const t = at[i];
-          out.push({ id: i, label: t.label || t.language || `Audio ${i + 1}`, language: t.language, active: !!t.enabled });
+          out.push({ id: i, label: t.label || t.language || i18n.t('live.videoPlayer.audioTrack', { n: i + 1 }), language: t.language, active: !!t.enabled });
         }
         return out;
       },
@@ -563,9 +568,10 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
           const moved = video.currentTime > startCt + 0.1;
           if (!loadProgressed && !moved) {
             setLoading(false);
-            setFatal("This title's format may not be supported on this device.");
+            setFatal('live.videoPlayer.formatUnsupported');
             diagBuffering(false);
             try { endStream(); } catch { /* ignore */ }
+            // English on purpose: the message goes to analytics, not to the screen.
             onErrorRef.current?.("This title's format may not be supported on this device.");
             try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
           }
@@ -637,9 +643,10 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
           async () => {
             if (cancelled) return;
             setLoading(false);
-            setFatal('Stream unavailable on this device.');
+            setFatal('live.videoPlayer.unavailableDevice');
             diagBuffering(false);
             try { endStream(); } catch { /* ignore */ }
+            // English on purpose: analytics.
             onErrorRef.current?.('Stream unavailable on this device.');
             teardownEngine();
           },
@@ -655,7 +662,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
       if (cancelled) return;
       if (retriesRef.current >= maxRetries) {
         setLoading(false);
-        setFatal('Stream unavailable. Check your connection and try again.');
+        setFatal('live.videoPlayer.unavailableNetwork');
         diagBuffering(false);
         try { endStream(); } catch { /* ignore */ }
         return;
@@ -758,27 +765,27 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {chrome === 'minimal'
             ? <SnowLoader size="sm" className="max-w-[160px]" />
-            : <SnowLoader size="lg" label="Buffering…" className="max-w-md" />}
+            : <SnowLoader size="lg" label={t('live.player.buffering')} className="max-w-md" />}
         </div>
       )}
-      {chrome === 'full' && <BufferingDiagnostics />}
+      {isFullChrome && <BufferingDiagnostics />}
       {fatal && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
           <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
-          <p className="font-quicksand font-semibold mb-1">Playback Error</p>
-          <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{fatal}</p>
+          <p className="font-quicksand font-semibold mb-1">{t('live.player.playbackError')}</p>
+          <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{t(fatal)}</p>
           <button
             onClick={handleRetry}
             autoFocus
             className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60"
           >
-            <RotateCw className="w-4 h-4" /> Retry
+            <RotateCw className="w-4 h-4" /> {t('common.retry')}
           </button>
         </div>
       )}
       {!src && (
         <div className="absolute inset-0 flex items-center justify-center text-brand-ice/60 font-nunito">
-          Select a channel to preview
+          {t('live.videoPlayer.selectChannel')}
         </div>
       )}
     </div>

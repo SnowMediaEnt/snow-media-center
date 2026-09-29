@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { Tv, Film } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   onPick: (mode: 'live' | 'movies' | 'backups') => void;
@@ -7,11 +8,12 @@ interface Props {
 }
 
 const CARDS = [
-  { id: 'live' as const,   label: 'Live TV',        desc: 'Live channels & guide', icon: Tv },
-  { id: 'movies' as const, label: 'Plex',           desc: 'Movies & Series',       icon: Film },
+  { id: 'live' as const,   labelKey: 'live.modeChooser.liveLabel', descKey: 'live.modeChooser.liveDesc', icon: Tv },
+  { id: 'movies' as const, labelKey: 'live.modeChooser.plexLabel', descKey: 'live.modeChooser.plexDesc', icon: Film },
 ];
 
 const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
+  const { t } = useTranslation();
   // Backups is no longer offered here (it stays a section inside Live TV).
   const cards = CARDS;
   const [idx, setIdx] = useState(0);
@@ -41,7 +43,7 @@ const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
     <div className="min-h-screen flex flex-col items-center justify-center text-white p-8 bg-black/70">
       <div className="flex items-center gap-2 mb-8">
         <Tv className="w-8 h-8 text-brand-gold" />
-        <h1 className="text-3xl font-quicksand font-bold">Player</h1>
+        <h1 className="text-3xl font-quicksand font-bold">{t('live.modeChooser.title')}</h1>
       </div>
       <div className={`grid ${cards.length === 2 ? 'grid-cols-2 max-w-3xl' : 'grid-cols-3 max-w-4xl'} gap-6 w-full`}>
         {cards.map((c, i) => {
@@ -55,14 +57,14 @@ const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
                 <Icon className="w-11 h-11 text-brand-gold" />
               </div>
               <div>
-                <div className="text-2xl font-quicksand font-bold">{c.label}</div>
-                <div className="text-brand-ice/70 font-nunito text-sm mt-1">{c.desc}</div>
+                <div className="text-2xl font-quicksand font-bold">{t(c.labelKey)}</div>
+                <div className="text-brand-ice/70 font-nunito text-sm mt-1">{t(c.descKey)}</div>
               </div>
             </div>
           );
         })}
       </div>
-      <p className="mt-4 text-brand-ice/60 font-nunito text-xs">◀ ▶ choose · OK to open · Back to exit</p>
+      <p className="mt-4 text-brand-ice/60 font-nunito text-xs">{t('live.modeChooser.hint')}</p>
     </div>
   );
 });

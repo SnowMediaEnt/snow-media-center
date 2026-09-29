@@ -7,6 +7,7 @@
 // this never shows again; Player Settings → Appearance changes it later.
 import { useCallback, useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { LIVE_LAYOUTS, DEFAULT_LIVE_LAYOUT, saveLiveLayout, type LiveLayout } from '@/lib/liveLayout';
 import { trackEvent } from '@/lib/analytics';
 import LiveLayoutWire from './LiveLayoutWire';
@@ -19,6 +20,7 @@ const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCo
 const isBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
 
 const LiveLayoutChooser = ({ onDone }: Props) => {
+  const { t } = useTranslation();
   const [idx, setIdx] = useState(() => Math.max(0, LIVE_LAYOUTS.findIndex((l) => l.id === DEFAULT_LIVE_LAYOUT)));
 
   const finish = useCallback((layout: LiveLayout, how: 'picked' | 'default') => {
@@ -53,9 +55,9 @@ const LiveLayoutChooser = ({ onDone }: Props) => {
     // rail and its gold "Live TV" highlight glowed faintly through behind
     // this, which read as something moving behind the cards.
     <div className="fixed inset-0 z-[70] bg-[#070b16] text-white flex flex-col items-center justify-center px-12" data-live-layout-chooser>
-      <div className="text-xs uppercase tracking-[0.3em] text-brand-gold font-bold mb-2">Live TV</div>
-      <h1 className="text-4xl font-black leading-tight mb-2">Pick the look you like</h1>
-      <p className="text-lg text-white/65 mb-8">Three ways to browse channels. Same channels, same guide, your choice of screen.</p>
+      <div className="text-xs uppercase tracking-[0.3em] text-brand-gold font-bold mb-2">{t('live.layoutChooser.kicker')}</div>
+      <h1 className="text-4xl font-black leading-tight mb-2">{t('live.layoutChooser.title')}</h1>
+      <p className="text-lg text-white/65 mb-8">{t('live.layoutChooser.body')}</p>
 
       <div className="grid grid-cols-3 gap-6 w-full max-w-6xl">
         {LIVE_LAYOUTS.map((l, i) => {
@@ -77,23 +79,23 @@ const LiveLayoutChooser = ({ onDone }: Props) => {
               {picked && (
                 <div className="absolute -top-3 -right-3 z-10 flex items-center gap-1 rounded-full bg-brand-gold px-3 py-1 text-slate-900 shadow-lg">
                   <Check className="w-4 h-4" strokeWidth={3} />
-                  <span className="text-xs font-black uppercase tracking-wider">Selected</span>
+                  <span className="text-xs font-black uppercase tracking-wider">{t('live.layoutChooser.selectedChip')}</span>
                 </div>
               )}
               <LiveLayoutWire id={l.id} />
-              <div className={`mt-4 text-2xl font-extrabold ${picked ? 'text-brand-gold' : 'text-white/70'}`}>{l.label}</div>
-              <div className={`mt-1 text-base leading-snug ${picked ? 'text-white/80' : 'text-white/50'}`}>{l.desc}</div>
+              <div className={`mt-4 text-2xl font-extrabold ${picked ? 'text-brand-gold' : 'text-white/70'}`}>{t(l.labelKey)}</div>
+              <div className={`mt-1 text-base leading-snug ${picked ? 'text-white/80' : 'text-white/50'}`}>{t(l.descKey)}</div>
             </div>
           );
         })}
       </div>
 
       <div className="mt-8 text-base text-white/60 flex gap-8">
-        <span>◀ ▶ Choose</span>
-        <span>OK Keep it</span>
-        <span>Back Keep {LIVE_LAYOUTS.find((l) => l.id === DEFAULT_LIVE_LAYOUT)?.label}</span>
+        <span>{t('live.layoutChooser.hintChoose')}</span>
+        <span>{t('live.layoutChooser.hintKeep')}</span>
+        <span>{t('live.layoutChooser.hintBack', { name: t(`live.layouts.${DEFAULT_LIVE_LAYOUT}Label`) })}</span>
       </div>
-      <div className="mt-3 text-sm text-white/45">Change it any time under Player Settings → Appearance.</div>
+      <div className="mt-3 text-sm text-white/45">{t('live.layoutChooser.footer')}</div>
     </div>
   );
 };

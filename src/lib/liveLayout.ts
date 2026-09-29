@@ -9,12 +9,14 @@ export const LIVE_LAYOUT_EVENT = 'livetv:layout';
 const KEY = 'snow-livetv-layout';
 export const DEFAULT_LIVE_LAYOUT: LiveLayout = 'compact';
 
-export const LIVE_LAYOUTS: Array<{ id: LiveLayout; label: string; desc: string }> = [
-  { id: 'classic', label: 'Classic', desc: 'Categories beside a tall channel list, preview above it' },
-  { id: 'compact', label: 'Compact', desc: 'Slim channel list, categories one press away, big preview' },
+// `label` and `desc` are the English names, kept for the Appearance screen until it is
+// converted; the Live TV screens show t(labelKey) and t(descKey).
+export const LIVE_LAYOUTS: Array<{ id: LiveLayout; label: string; desc: string; labelKey: string; descKey: string }> = [
+  { id: 'classic', label: 'Classic', desc: 'Categories beside a tall channel list, preview above it', labelKey: 'live.layouts.classicLabel', descKey: 'live.layouts.classicDesc' },
+  { id: 'compact', label: 'Compact', desc: 'Slim channel list, categories one press away, big preview', labelKey: 'live.layouts.compactLabel', descKey: 'live.layouts.compactDesc' },
   // Shown as "Vibez": the layout Vibez viewers know. The id stays 'grid' so
   // boxes that already chose it keep it.
-  { id: 'grid', label: 'Vibez', desc: 'Categories beside a wall of channel logos, OK plays (no preview)' },
+  { id: 'grid', label: 'Vibez', desc: 'Categories beside a wall of channel logos, OK plays (no preview)', labelKey: 'live.layouts.gridLabel', descKey: 'live.layouts.gridDesc' },
 ];
 
 const isLayout = (v: unknown): v is LiveLayout => v === 'classic' || v === 'compact' || v === 'grid';

@@ -3,6 +3,7 @@
 // and how the D-pad steps along them. One place, so the bar that is drawn and
 // the key handler in LiveSection (which moves the highlight and acts on OK)
 // can't drift apart. Kept free of React so the rules can be tested alone.
+import i18n from '@/i18n';
 
 export type BarControlId =
   | 'prev' | 'rew' | 'play' | 'fwd' | 'golive' | 'next'
@@ -69,18 +70,19 @@ export interface LiveBarLabelState {
  * (Pause/Play, Stop recording, the volume level).
  */
 export function liveBarLabel(id: BarControlId, s: LiveBarLabelState): string {
+  const t = i18n.t.bind(i18n);
   switch (id) {
-    case 'prev': return 'Previous channel';
-    case 'next': return 'Next channel';
-    case 'rew': return 'Back 10s';
-    case 'fwd': return 'Forward 10s';
-    case 'golive': return 'Go live';
-    case 'rec': return s.recording ? 'Stop recording' : 'Record';
-    case 'play': return s.isPaused ? 'Play' : 'Pause';
-    case 'cc': return 'Subtitles';
-    case 'audio': return 'Audio';
-    case 'vol': return s.volumePct == null ? 'Volume' : `Volume ${Math.round(s.volumePct)}%`;
-    case 'stats': return s.statsOn ? 'Hide stats' : 'Stats';
+    case 'prev': return t('live.bar.prevLabel');
+    case 'next': return t('live.bar.nextLabel');
+    case 'rew': return t('live.bar.rewLabel');
+    case 'fwd': return t('live.bar.fwdLabel');
+    case 'golive': return t('live.bar.goLiveLabel');
+    case 'rec': return s.recording ? t('live.bar.stopRecLabel') : t('live.bar.recLabel');
+    case 'play': return s.isPaused ? t('live.bar.playLabel') : t('live.bar.pauseLabel');
+    case 'cc': return t('live.bar.ccLabel');
+    case 'audio': return t('live.bar.audioLabel');
+    case 'vol': return s.volumePct == null ? t('live.bar.volLabel') : t('live.bar.volLevelLabel', { pct: Math.round(s.volumePct) });
+    case 'stats': return s.statsOn ? t('live.bar.hideStatsLabel') : t('live.bar.statsLabel');
     default: return '';
   }
 }
