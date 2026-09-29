@@ -50,6 +50,13 @@ interface UseNativePlayerArgs {
    * browsing beside, where the screen behind must keep working.
    */
   background?: boolean;
+  /**
+   * The remote's Rewind / Fast-forward skip a non-live stream here (default,
+   * +30 / -10 s). false: the screen handles them itself. Live TV does: a
+   * catch-up programme plays with `live: false`, but its rewind belongs to
+   * useLiveRewind (TRACKER 25), not to a plain seek.
+   */
+  skipKeys?: boolean;
 }
 
 export interface NativeRect { x: number; y: number; width: number; height: number }
@@ -98,7 +105,7 @@ async function positionNow(): Promise<number> {
   } catch { return 0; }
 }
 
-export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true }: UseNativePlayerArgs): NativePlayerState {
+export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true }: UseNativePlayerArgs): NativePlayerState {
   const [buffering, setBuffering] = useState(false);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
@@ -482,7 +489,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // The remote's media buttons, for the stream being watched (not a preview
   // box). Play/Pause everywhere; Fast-forward / Rewind skip +30 / -10 s on
   // films and episodes. A live channel can't be skipped, so its section
-  // decides what those two do.
+  // decides what those two do (skipKeys false hands them over too).
   const controllerRef = useRef(controller);
   useEffect(() => { controllerRef.current = controller; }, [controller]);
   useEffect(() => {
@@ -493,7 +500,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
       if (k === 'playpause') c.togglePlay();
       else if (k === 'play') c.play();
       else if (k === 'pause') c.pause();
-      else if (!live && (k === 'ff' || k === 'rw')) {
+      else if (!live && skipKeys && (k === 'ff' || k === 'rw')) {
         void (async () => {
           try {
             const p = await SnowPlayer.getPosition();
@@ -506,7 +513,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         })();
       }
     });
-  }, [active, background, live]);
+  }, [active, background, live, skipKeys]);
 
   return useMemo(
     () => ({ controller, buffering, paused, error, audioWarning, engineNotice, retry, seekTo, getPosition }),

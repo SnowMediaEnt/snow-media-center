@@ -7,6 +7,14 @@
 //     currently-rendered virtual rows (never all channels at once).
 // Xtream has no bulk XMLTV endpoint that's safe on Fire TV — do NOT fetch
 // xmltv.php (freezes the WebView).
+//
+// Scheduled recordings (TRACKER 25.12): hold OK (600 ms, as in Live TV's list)
+// on a channel to open the Record dialog in programme mode, built from the
+// listings already loaded here. OK pressed briefly still plays; where holding
+// does nothing (a Kids profile, the demo, a build without the recorder) OK
+// acts at once as it always did. In the hold-capable case OK acts when it is
+// let go, so a hold can be told apart. Programmes that are scheduled carry a
+// small red dot.
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Loader2, Tv, AlertTriangle, RotateCw, Star } from 'lucide-react';
@@ -20,6 +28,8 @@ import {
   parseEpgTime,
   loadVolume,
   saveVolume,
+  loadPlayerAccount,
+  buildNativeLiveUrl,
   XTREAM_REFRESH_EVENT,
   type FavChannel,
   type XtreamCreds,
@@ -27,10 +37,20 @@ import {
   type XtreamLiveStream,
   type XtreamEpgEntry,
 } from '@/lib/xtream';
-import { loadFavoritesForLine } from '@/lib/favoritesSync';
+import { loadFavoritesForLine, lineKey } from '@/lib/favoritesSync';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
+import {
+  SnowRecorder, RECORDINGS_CHANGED_EVENT, hasRecorder, notifyRecordingsChanged, type RecordSchedule,
+} from '@/capacitor/SnowRecorder';
+import { panelOffset } from '@/hooks/useLiveRewind';
+import {
+  busyFromJobs, conflictMessage, loadPadding, minutesUntil, paddedLabel, paddedWindow, programmeChoices, programmeMode,
+  programmeTimeUtcMs, recordingCap, type ProgrammeChoice, type SchedLike,
+} from '@/lib/recordSchedule';
+import { REWIND_PAUSED_NOTE, endsAtLabel, extraStreamNote, pauseRewindForRecording, recordingFileName } from '@/lib/recording';
+import RecordDialog, { type RecordChoice } from './RecordDialog';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { usePlayerEngine } from '@/hooks/usePlayerEngine';
 import { toast } from '@/hooks/use-toast';
@@ -49,6 +69,9 @@ const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
 // Demo latch (?demo=1) — canned guide data, no provider contact, no <video>.
 const DEMO = isDemo();
+// Recording a programme needs the recorder plugin (owner's newer builds), the
+// native player and a real line; a Kids profile is checked when OK is held.
+const SCHEDULE_CAPABLE = NATIVE_PLAYBACK && !DEMO && hasRecorder();
 // Demo call-site swap (Plex pattern): fixtures answer every read in demo.
 const fetchLiveCategories = DEMO ? demoGetLiveCategories : getLiveCategories;
 const fetchLiveStreams = DEMO ? demoGetLiveStreams : getLiveStreams;
@@ -66,6 +89,13 @@ interface DecodedProgram {
   title: string;
   start: number;
   end: number;
+  /**
+   * The listing's own start / end: true UTC seconds, or the panel's clock as
+   * text. `start` / `end` above read the text as the box's local time; a
+   * recording needs the real moment (programmeTimeUtcMs, with the panel's offset).
+   */
+  rs: string;
+  re: string;
 }
 
 const ROW_HEIGHT = 72;
@@ -75,6 +105,8 @@ const WINDOW_MINUTES = 150; // 2.5 hours
 const SLOT_MINUTES = 30;
 const SLOTS = WINDOW_MINUTES / SLOT_MINUTES; // 5
 const EPG_MAX_CONCURRENT = 4;
+/** Hold OK this long for the channel's options (the same as Live TV's list). */
+const HOLD_MS = 600;
 
 const halfHourFloor = (t: number) => {
   const d = new Date(t);
@@ -114,6 +146,8 @@ const decodePrograms = (entries: XtreamEpgEntry[]): DecodedProgram[] =>
       title: decodeEpgText(e.title) || 'Program',
       start: parseEpgTime(e.start_timestamp || e.start),
       end: parseEpgTime(e.stop_timestamp || e.end),
+      rs: e.start_timestamp || e.start || '',
+      re: e.stop_timestamp || e.end || '',
     }))
     .filter(e => e.start > 0 && e.end > e.start)
     .sort((a, b) => a.start - b.start);
@@ -448,6 +482,142 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     setFullscreen(true);
   }, [channels]);
 
+  // ── Scheduled recordings ─────────────────────────────────────────────
+  // Hold OK: a timer started by the key going down; the key coming up before it
+  // fires is a press (play). enterFiredRef marks a hold that opened the dialog,
+  // so the release that follows is not also a press.
+  const enterTimerRef = useRef<number | null>(null);
+  const enterFiredRef = useRef(false);
+  const cancelEnterTimer = useCallback(() => {
+    if (enterTimerRef.current) { window.clearTimeout(enterTimerRef.current); enterTimerRef.current = null; }
+  }, []);
+  // The schedules set so far (red dots) and the panel's clock offset (a
+  // listing's text time is the panel's, and the dots and the dialog need real
+  // moments). Both are only looked at where recording is possible.
+  const [schedules, setSchedules] = useState<RecordSchedule[]>([]);
+  const [panelOff, setPanelOff] = useState<number | null>(null);
+  const panelOffRef = useRef<number | null>(null);
+  panelOffRef.current = panelOff;
+  useEffect(() => {
+    if (!SCHEDULE_CAPABLE || kidsLevel()) return;
+    let alive = true;
+    const read = () => {
+      SnowRecorder.listSchedules().then((r) => { if (alive) setSchedules(r.schedules); }).catch(() => { /* older app */ });
+    };
+    read();
+    window.addEventListener(RECORDINGS_CHANGED_EVENT, read);
+    panelOffset(creds).then((o) => { if (alive) setPanelOff(o); }).catch(() => { /* the box's own clock */ });
+    return () => { alive = false; window.removeEventListener(RECORDINGS_CHANGED_EVENT, read); };
+  }, [creds]);
+  // Start times (UTC ms) of the programmes still to be recorded, by channel.
+  const scheduledStarts = useMemo(() => {
+    const m = new Map<number, number[]>();
+    for (const sc of schedules) {
+      if (sc.status !== 'scheduled' && sc.status !== 'recording') continue;
+      const list = m.get(sc.streamId);
+      if (list) list.push(sc.startUtcMs); else m.set(sc.streamId, [sc.startUtcMs]);
+    }
+    return m;
+  }, [schedules]);
+
+  // The Record dialog in programme mode for one channel.
+  const [recordFor, setRecordFor] = useState<{
+    ch: XtreamLiveStream; programmes: ProgrammeChoice[]; existing: SchedLike[]; plan: number | null;
+  } | null>(null);
+  const recordForRef = useRef(recordFor);
+  recordForRef.current = recordFor;
+  const openingRef = useRef(false);
+  const openRecord = useCallback(async (ch: XtreamLiveStream) => {
+    if (!SCHEDULE_CAPABLE || kidsLevel() || openingRef.current) return;
+    openingRef.current = true;
+    try {
+      const [acc, sch, jobs] = await Promise.all([
+        loadPlayerAccount().catch(() => null),
+        SnowRecorder.listSchedules().then((r) => r.schedules).catch(() => [] as RecordSchedule[]),
+        SnowRecorder.active().then((r) => r.jobs).catch(() => []),
+      ]);
+      const off = panelOffRef.current ?? await panelOffset(creds).catch(() => null);
+      const starts = new Set(sch.filter((x) => x.streamId === ch.stream_id && (x.status === 'scheduled' || x.status === 'recording')).map((x) => x.startUtcMs));
+      const listed: ProgrammeChoice[] = [];
+      for (const p of epgCacheRef.current.get(ch.stream_id) ?? []) {
+        const startMs = programmeTimeUtcMs(p.rs, off);
+        const endMs = programmeTimeUtcMs(p.re, off);
+        if (startMs == null || endMs == null || endMs <= startMs) continue;
+        listed.push({ title: p.title, startMs, endMs, scheduled: [...starts].some((t) => Math.abs(t - startMs) < 60_000) });
+      }
+      const now = Date.now();
+      const existing: SchedLike[] = [
+        ...sch.filter((x) => x.status === 'scheduled' || x.status === 'recording'),
+        ...busyFromJobs(jobs, now),
+      ];
+      const plan = acc && lineKey(acc) === lineKey(creds) ? acc.maxConnections : null;
+      setRecordFor({ ch, programmes: programmeChoices(listed, windowStartRef.current, now), existing, plan });
+    } finally {
+      openingRef.current = false;
+    }
+  }, [creds]);
+  const openRecordRef = useRef(openRecord);
+  openRecordRef.current = openRecord;
+  const closeRecord = useCallback(() => { setRecordFor(null); enterFiredRef.current = false; }, []);
+
+  // A programme chosen in the dialog: the one on now records at once (until its
+  // end plus the "End late" padding); a later one is set with the native scheduler.
+  // The stream address is never sent for a schedule: it is rebuilt when it starts.
+  const startProgramme = useCallback(async (target: NonNullable<typeof recordFor>, choice: RecordChoice) => {
+    const p = choice.programme;
+    if (!p) return;
+    const pad = loadPadding();
+    const now = Date.now();
+    const mode = programmeMode(p, pad, now);
+    const note = extraStreamNote(target.plan);
+    const win = paddedWindow({ startUtcMs: p.startMs, endUtcMs: p.endMs, padBeforeMin: pad.beforeMin, padAfterMin: pad.afterMin });
+    try {
+      if (mode === 'over') {
+        toast({ title: 'That programme has finished', variant: 'destructive' });
+      } else if (mode === 'now') {
+        const minutes = minutesUntil(win.endMs, now);
+        const paused = await pauseRewindForRecording(target.plan);
+        const r = await SnowRecorder.start({
+          url: buildNativeLiveUrl(creds, target.ch.stream_id),
+          channel: target.ch.name,
+          fileName: recordingFileName(target.ch.name),
+          volumeId: choice.volumeId,
+          durationMin: minutes,
+          maxSimultaneous: recordingCap(target.plan),
+        });
+        toast({ title: `Recording ${target.ch.name}`, description: `Until ${endsAtLabel(minutes) ?? ''} · ${r.volumeLabel}. ${note}${paused ? ` ${REWIND_PAUSED_NOTE}` : ''}` });
+      } else {
+        const r = await SnowRecorder.schedule({
+          streamId: target.ch.stream_id,
+          host: creds.host,
+          channel: target.ch.name,
+          title: p.title,
+          startUtcMs: p.startMs,
+          endUtcMs: p.endMs,
+          padBeforeMin: pad.beforeMin,
+          padAfterMin: pad.afterMin,
+          volumeId: choice.volumeId,
+          maxConnections: target.plan,
+        });
+        toast({
+          title: `Scheduled: ${p.title}`,
+          description: `${target.ch.name}, ${paddedLabel(win.startMs, win.endMs)}. ${note}${r.exact ? '' : ' This box may start it late: see Live TV › Recordings.'}`,
+        });
+      }
+    } catch (e) {
+      const err = e as Error & { code?: string; data?: { atMs?: number; count?: number } };
+      const why = err?.code === 'CONFLICT' && err.data?.atMs != null
+        ? conflictMessage({ atMs: err.data.atMs, count: err.data.count ?? 1 })
+        : (err?.message ?? '');
+      toast({
+        title: mode === 'now' ? 'Recording did not start' : 'Could not schedule it',
+        description: mode === 'now' && err?.code !== 'NO_SPACE' ? `${why}${why ? ' ' : ''}${note}` : why,
+        variant: 'destructive',
+      });
+    }
+    notifyRecordingsChanged();
+  }, [creds]);
+
   // ── D-pad ─────────────────────────────────────────────────────────────
   const focusZoneRef = useRef(focusZone);
   const categoryIdxRef = useRef(categoryIdx);
@@ -487,6 +657,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         const target = e.target as HTMLElement;
         const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
         if (typing) return;
+        // The Record dialog owns the remote while it is open (it answers Back itself).
+        if (recordForRef.current) return;
         if ((e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) && !freshBack()) {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           return;
@@ -569,13 +741,38 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         } else if (e.key === 'ArrowRight') {
           setWindowStart(s => s + SLOT_MINUTES * 60_000);
         } else if (e.key === 'Enter' || e.key === ' ') {
-          playRow(rowIdxRef.current);
+          // Where holding OK does something (Kids, the demo and older builds excluded) OK acts
+          // when it is let go, so a hold can be told from a press; elsewhere it acts at once.
+          if (!SCHEDULE_CAPABLE || kidsLevel()) { playRow(rowIdxRef.current); return; }
+          if (e.repeat) return;
+          if (enterTimerRef.current || enterFiredRef.current) return;
+          enterTimerRef.current = window.setTimeout(() => {
+            enterTimerRef.current = null;
+            enterFiredRef.current = true;
+            const ch = channelsRef.current[rowIdxRef.current];
+            if (ch) void openRecordRef.current(ch);
+          }, HOLD_MS) as unknown as number;
         }
       } catch { /* ignore */ }
     };
+    // OK let go before the hold time: a press, so play. After a hold that opened the dialog the
+    // release is just consumed (the dialog arms itself on the same release).
+    const keyupHandler = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (enterTimerRef.current) {
+        cancelEnterTimer();
+        if (!fullscreenRef.current && !recordForRef.current && focusZoneRef.current === 'grid') playRow(rowIdxRef.current);
+      }
+      enterFiredRef.current = false;
+    };
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, onExitUp, playRow]);
+    window.addEventListener('keyup', keyupHandler, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', keyupHandler, true);
+      cancelEnterTimer();
+    };
+  }, [isActive, onExitLeft, onExitUp, playRow, cancelEnterTimer]);
 
   // Hardware Back (Capacitor)
   useEffect(() => {
@@ -588,6 +785,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           // The voice overlay's Back (it is up, or this press closed it).
           if (voiceOwnsBack()) return;
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+          if (recordForRef.current) return; // the Record dialog answers Back itself
           if (!freshBack()) return;
           if (fullscreenRef.current) { setFullscreen(false); return; }
           onExitLeft();
@@ -861,6 +1059,11 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                         const left = ((clampedStart - windowStart) / (WINDOW_MINUTES * 60_000)) * 100;
                         const width = ((clampedEnd - clampedStart) / (WINDOW_MINUTES * 60_000)) * 100;
                         const isNow = p.start <= nowTick && nowTick < p.end;
+                        const startsHere = scheduledStarts.get(ch.stream_id);
+                        const scheduled = !!startsHere && (() => {
+                          const at = programmeTimeUtcMs(p.rs, panelOff);
+                          return at != null && startsHere.some((t) => Math.abs(t - at) < 60_000);
+                        })();
                         return (
                           <div
                             key={i}
@@ -874,6 +1077,14 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                             <div className="text-xs font-nunito text-brand-ice/70 truncate leading-tight">
                               {formatSlot(p.start)}
                             </div>
+                            {scheduled && (
+                              <span
+                                data-scheduled-dot
+                                aria-label="Scheduled to record"
+                                className="absolute top-1 right-1 rounded-full bg-red-500"
+                                style={{ width: 8, height: 8 }}
+                              />
+                            )}
                           </div>
                         );
                       })}
@@ -892,8 +1103,19 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
 
       {/* Hint bar */}
       <div className="flex-shrink-0 border-t border-white/10 bg-black/40 px-3 py-2 text-xs font-nunito text-brand-ice/60">
-        ◀ ▶ shift time · ▲ ▼ channel · OK to play · Back to exit
+        ◀ ▶ shift time · ▲ ▼ channel · OK to play{SCHEDULE_CAPABLE && !kidsLevel() ? ' · hold OK to record' : ''} · Back to exit
       </div>
+      {recordFor && (
+        <RecordDialog
+          channelName={recordFor.ch.name}
+          maxConnections={recordFor.plan}
+          programmes={recordFor.programmes}
+          streamId={recordFor.ch.stream_id}
+          existing={recordFor.existing}
+          onStart={(choice) => { const t = recordFor; closeRecord(); void startProgramme(t, choice); }}
+          onClose={closeRecord}
+        />
+      )}
     </div>
   );
 });

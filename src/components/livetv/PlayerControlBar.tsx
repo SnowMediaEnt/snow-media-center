@@ -1,17 +1,20 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import {
   SkipBack, SkipForward, Play, Pause, Rewind, FastForward,
-  Subtitles, AudioLines, Tv, Radio, Volume2, VolumeX, Gauge,
+  Subtitles, AudioLines, Tv, Radio, Volume2, VolumeX, Gauge, Circle, History,
 } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import { volumeBar } from '@/utils/volume';
+import { availableLabel, behindLabel } from '@/lib/liveRewind';
+import { liveBarDisabled, liveBarLabel, type BarControlId } from './liveBar';
 
-export type BarControlId = 'prev' | 'rew' | 'play' | 'fwd' | 'next' | 'cc' | 'audio' | 'vol' | 'stats';
-
+export type { BarControlId } from './liveBar';
 
 
 interface Props {
   visible: boolean;
+  /** The buttons, left to right (liveBarOrder): the key handler uses the same list. */
+  order: BarControlId[];
   focus: BarControlId;
   isPaused: boolean;
   controller: VideoController | null;
@@ -38,6 +41,13 @@ interface Props {
   volume: number;
   /** Stats panel showing (PlayerStatsPanel) — a plain toggle, no menu of its own. */
   statsOn?: boolean;
+  /**
+   * Rewind live TV (TRACKER 25): how far back it goes and where the picture
+   * is. Null = rewind is off for this channel: the bar is the plain one.
+   */
+  rewind?: { availableSec: number; behindSec: number; archiveDays: number; note?: string } | null;
+  /** This channel is being recorded now. */
+  recording?: boolean;
 }
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
@@ -50,11 +60,11 @@ const fmtMs = (ms: number) => {
 };
 
 const PlayerControlBar = memo(({
-  visible, focus, isPaused, controller, tracksTick,
+  visible, order, focus, isPaused, controller, tracksTick,
   categoryName, channelLogo, channelNum, channelName,
   nowTitle, nowStart, nowEnd, nextTitle,
   subMenuOpen, audioMenuOpen, subMenuFocus, audioMenuFocus,
-  volMenuOpen, volume, statsOn = false,
+  volMenuOpen, volume, statsOn = false, rewind = null, recording = false,
 }: Props) => {
   // 1Hz clock + progress tick.
   const [now, setNow] = useState(() => Date.now());
@@ -81,17 +91,36 @@ const PlayerControlBar = memo(({
 
   if (!visible) return null;
 
-  const controls: { id: BarControlId; icon: JSX.Element; label: string; disabled?: boolean }[] = [
-    { id: 'prev',  icon: <SkipBack className="w-6 h-6" />,    label: 'Previous channel' },
-    { id: 'rew',   icon: <Rewind className="w-6 h-6" />,      label: 'Rewind 10s', disabled: !seekable },
-    { id: 'play',  icon: isPaused ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />, label: isPaused ? 'Play' : 'Pause' },
-    { id: 'fwd',   icon: <FastForward className="w-6 h-6" />, label: 'Forward 10s', disabled: !seekable },
-    { id: 'next',  icon: <SkipForward className="w-6 h-6" />, label: 'Next channel' },
-    { id: 'cc',    icon: <Subtitles className="w-6 h-6" />,   label: 'Subtitles', disabled: subs.length === 0 },
-    { id: 'audio', icon: <AudioLines className="w-6 h-6" />,  label: 'Audio',     disabled: auds.length <= 1 },
-    { id: 'vol',   icon: volIcon,                              label: 'Volume' },
-    { id: 'stats', icon: <Gauge className="w-6 h-6" />,        label: 'Stats' },
-  ];
+  // Rewind live TV: where the picture is against how far back it can go.
+  const rw = rewind;
+  const behind = rw ? rw.behindSec : 0;
+  const rewound = behind >= 1;
+  const rwPct = rw && rw.archiveDays === 0 && rw.availableSec > 0
+    ? Math.max(0, Math.min(100, ((rw.availableSec - behind) / rw.availableSec) * 100))
+    : 100;
+
+  const iconFor = (id: BarControlId): JSX.Element => {
+    switch (id) {
+      case 'prev': return <SkipBack className="w-6 h-6" />;
+      case 'next': return <SkipForward className="w-6 h-6" />;
+      case 'rew': return <Rewind className="w-6 h-6" />;
+      case 'fwd': return <FastForward className="w-6 h-6" />;
+      case 'golive': return <Radio className="w-6 h-6" />;
+      case 'rec': return <Circle className={`w-6 h-6 ${recording ? 'fill-red-500 text-red-500' : 'fill-red-600/80 text-red-400'}`} />;
+      case 'play': return isPaused ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />;
+      case 'cc': return <Subtitles className="w-6 h-6" />;
+      case 'audio': return <AudioLines className="w-6 h-6" />;
+      case 'vol': return volIcon;
+      default: return <Gauge className="w-6 h-6" />;
+    }
+  };
+  // The same rule the key handler in LiveSection uses to skip a button.
+  const controls = order.map((id) => ({
+    id,
+    icon: iconFor(id),
+    label: liveBarLabel(id, { isPaused, recording, statsOn, volumePct: volPct }),
+    disabled: liveBarDisabled(id, { seekable, rewind: !!rw, subtitles: subs.length, audios: auds.length }),
+  }));
 
 
   const renderButton = (c: typeof controls[number]) => {
@@ -99,6 +128,8 @@ const PlayerControlBar = memo(({
     // "Open" state: this button's popup menu is showing, so the eye should move
     // to the menu rows — the button drops to an outlined marker (no ring, no scale).
     const open = (c.id === 'cc' && subMenuOpen) || (c.id === 'audio' && audioMenuOpen) || (c.id === 'vol' && volMenuOpen) || (c.id === 'stats' && statsOn);
+    // A button that is "on": this channel is recording.
+    const on = c.id === 'rec' && recording;
     const base = 'tv-focusable home-focus-surface flex items-center justify-center rounded-full transition-transform duration-150';
     const size = c.id === 'play' ? 'w-16 h-16' : 'w-12 h-12';
     const visualState = open
@@ -107,30 +138,35 @@ const PlayerControlBar = memo(({
         ? 'bg-brand-gold text-brand-navy scale-110'
         : c.disabled
           ? 'bg-white/5 text-white/30'
-          : 'bg-white/10 text-white hover:bg-white/20';
-    const btn = (
-      <button
-        key={c.id}
-        type="button"
-        aria-label={c.label}
-        title={c.label}
-        data-focused={focused && !open ? 'true' : 'false'}
-        className={`${base} ${size} ${visualState}`}
-      >
-        {c.icon}
-      </button>
-    );
-    if (c.id === 'vol') {
-      return (
-        <div key="vol-wrap" className="flex flex-col items-center gap-1">
-          {btn}
-          {focused && (
-            <span className="text-xs font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
-          )}
+          : on
+            ? 'bg-white/15 text-brand-gold'
+            : 'bg-white/10 text-white hover:bg-white/20';
+    // Each button sits in a column as wide as itself: the name under the
+    // highlighted one may run past the column but never widens it. Every
+    // column has the name's line (invisible unless highlighted), so the row
+    // never jumps as the highlight moves.
+    return (
+      <div key={c.id} data-bar-control={c.id} className={`flex flex-col items-center flex-shrink-0 ${c.id === 'play' ? 'w-16' : 'w-12'}`}>
+        <div className="h-16 flex items-center justify-center">
+          <button
+            type="button"
+            aria-label={c.label}
+            title={c.label}
+            data-focused={focused && !open ? 'true' : 'false'}
+            className={`${base} ${size} ${visualState}`}
+          >
+            {c.icon}
+          </button>
         </div>
-      );
-    }
-    return btn;
+        <span
+          data-bar-name
+          aria-hidden="true"
+          className={`mt-1 h-4 whitespace-nowrap text-center text-sm leading-4 font-quicksand font-bold ${focused ? 'text-white' : 'invisible'}`}
+        >
+          {focused ? c.label : '.'}
+        </span>
+      </div>
+    );
   };
 
 
@@ -169,9 +205,20 @@ const PlayerControlBar = memo(({
               <h2 className="text-lg font-quicksand font-bold text-white truncate leading-tight">
                 {channelNum != null ? `${channelNum} · ` : ''}{channelName}
               </h2>
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-600 text-white text-xs font-bold tracking-wider">
-                <Radio className="w-3 h-3" /> LIVE
-              </span>
+              {rewound ? (
+                <span data-rewound className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/20 text-white text-xs font-bold tracking-wider tabular-nums">
+                  <History className="w-3 h-3" /> {behindLabel(behind)}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-600 text-white text-xs font-bold tracking-wider">
+                  <Radio className="w-3 h-3" /> LIVE
+                </span>
+              )}
+              {recording && (
+                <span data-rec-badge className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-600/25 text-red-300 text-xs font-bold">
+                  <Circle className="w-3 h-3 fill-red-500 text-red-500" /> REC
+                </span>
+              )}
             </div>
             {nowTitle && (
               <p className="text-brand-ice/90 font-nunito truncate">
@@ -204,6 +251,21 @@ const PlayerControlBar = memo(({
           )}
         </div>
 
+        {/* Rewind live TV: how far back it goes, and where the picture is */}
+        {rw && (
+          <div data-rewind-timeline className="max-w-6xl mx-auto mt-2 flex items-center pointer-events-auto">
+            <span className={`text-xs font-nunito tabular-nums flex-shrink-0 mr-3 ${rw.note ? 'text-amber-300' : 'text-brand-ice/80'}`}>
+              {rw.note ?? availableLabel(rw.availableSec, rw.archiveDays)}
+            </span>
+            <div className="flex-1 h-1.5 bg-white/15 rounded-full overflow-hidden">
+              <div className={`h-full ${rewound ? 'bg-white/70' : 'bg-red-500'}`} style={{ width: `${rwPct}%` }} />
+            </div>
+            <span className={`text-xs font-quicksand font-bold tabular-nums flex-shrink-0 ml-3 ${rewound ? 'text-white' : 'text-red-400'}`}>
+              {behindLabel(behind)}
+            </span>
+          </div>
+        )}
+
         {/* Centered control row, on its own dark pill */}
         <div className="max-w-6xl mx-auto mt-2 flex items-center justify-center pointer-events-auto">
           <div className="inline-flex items-center gap-2 rounded-full bg-black/80 border border-white/10 px-3 py-1.5">
@@ -213,7 +275,7 @@ const PlayerControlBar = memo(({
 
         {/* Hint */}
         <p className="text-center text-xs text-brand-ice/60 font-nunito mt-2 pointer-events-none">
-          Left / Right: select · Enter: activate · Up or Back: hide bar
+          Left / Right: select · Enter: activate · Up / Down: change channel · Back: hide bar
         </p>
       </div>
 

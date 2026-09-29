@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { compareEngines, readEngineSamples, recordEngineSample, sampleFromStats } from './engineCompare';
+import { compareEngines, readEngineSamples, recordEngineSample, sampleFromStats, shouldSampleEngines } from './engineCompare';
 import { emptyPlayerStats } from '@/capacitor/SnowPlayer';
 
 beforeEach(() => { localStorage.clear(); });
@@ -101,5 +101,15 @@ describe('compareEngines', () => {
     const [, mpv] = compareEngines();
     expect(mpv.samples).toBe(0);
     expect(mpv.medianFirstPictureMs).toBeNull();
+  });
+});
+
+describe('shouldSampleEngines', () => {
+  it('a customer build (no mpv) with the Stats panel closed never reads getStats for the comparison', () => {
+    expect(shouldSampleEngines(false, false)).toBe(false);
+  });
+  it('samples when mpv is in the build or the Stats panel is open', () => {
+    expect(shouldSampleEngines(true, false)).toBe(true);
+    expect(shouldSampleEngines(false, true)).toBe(true);
   });
 });

@@ -1,0 +1,1206 @@
+{
+  "_about": "Shared by ScheduleRulesTest.kt / LineCredsTest.kt (JVM) and recordSchedule.test.ts (vitest). Times are UTC ms on 2026-09-28. Edit both sides together.",
+  "padding": [
+    {
+      "name": "default 2 before / 5 after",
+      "startUtcMs": 1790625600000,
+      "endUtcMs": 1790629200000,
+      "padBeforeMin": 2,
+      "padAfterMin": 5,
+      "expect": {
+        "startMs": 1790625480000,
+        "endMs": 1790629500000
+      }
+    },
+    {
+      "name": "no padding",
+      "startUtcMs": 1790625600000,
+      "endUtcMs": 1790629200000,
+      "padBeforeMin": 0,
+      "padAfterMin": 0,
+      "expect": {
+        "startMs": 1790625600000,
+        "endMs": 1790629200000
+      }
+    },
+    {
+      "name": "widest padding",
+      "startUtcMs": 1790625600000,
+      "endUtcMs": 1790629200000,
+      "padBeforeMin": 10,
+      "padAfterMin": 30,
+      "expect": {
+        "startMs": 1790625000000,
+        "endMs": 1790631000000
+      }
+    },
+    {
+      "name": "capped at 12 hours from the padded start",
+      "startUtcMs": 1790582400000,
+      "endUtcMs": 1790636400000,
+      "padBeforeMin": 10,
+      "padAfterMin": 30,
+      "expect": {
+        "startMs": 1790581800000,
+        "endMs": 1790625000000
+      }
+    }
+  ],
+  "merge": [
+    {
+      "name": "back to back with default padding merge into one",
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 2,
+          "padAfterMin": 5,
+          "status": "scheduled"
+        },
+        {
+          "id": "b",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790629200000,
+          "endUtcMs": 1790632800000,
+          "padBeforeMin": 2,
+          "padAfterMin": 5,
+          "status": "scheduled"
+        }
+      ],
+      "expect": [
+        {
+          "streamId": 7,
+          "startMs": 1790625480000,
+          "endMs": 1790633100000,
+          "ids": [
+            "a",
+            "b"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "touching exactly merges",
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "b",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790629200000,
+          "endUtcMs": 1790632800000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "expect": [
+        {
+          "streamId": 7,
+          "startMs": 1790625600000,
+          "endMs": 1790632800000,
+          "ids": [
+            "a",
+            "b"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a gap keeps them apart",
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "b",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790631000000,
+          "endUtcMs": 1790634600000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "expect": [
+        {
+          "streamId": 7,
+          "startMs": 1790625600000,
+          "endMs": 1790629200000,
+          "ids": [
+            "a"
+          ]
+        },
+        {
+          "streamId": 7,
+          "startMs": 1790631000000,
+          "endMs": 1790634600000,
+          "ids": [
+            "b"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "another channel is never merged",
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "b",
+          "streamId": 8,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790629200000,
+          "endUtcMs": 1790632800000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "expect": [
+        {
+          "streamId": 7,
+          "startMs": 1790625600000,
+          "endMs": 1790629200000,
+          "ids": [
+            "a"
+          ]
+        },
+        {
+          "streamId": 8,
+          "startMs": 1790629200000,
+          "endMs": 1790632800000,
+          "ids": [
+            "b"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "another line is never merged",
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "b",
+          "streamId": 7,
+          "host": "http://other.example",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790629200000,
+          "endUtcMs": 1790632800000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "expect": [
+        {
+          "streamId": 7,
+          "startMs": 1790625600000,
+          "endMs": 1790629200000,
+          "ids": [
+            "a"
+          ]
+        },
+        {
+          "streamId": 7,
+          "startMs": 1790629200000,
+          "endMs": 1790632800000,
+          "ids": [
+            "b"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a merged job never runs past 12 hours",
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790582400000,
+          "endUtcMs": 1790600400000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "b",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790600400000,
+          "endUtcMs": 1790618400000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "c",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790618400000,
+          "endUtcMs": 1790636400000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "expect": [
+        {
+          "streamId": 7,
+          "startMs": 1790582400000,
+          "endMs": 1790618400000,
+          "ids": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "streamId": 7,
+          "startMs": 1790618400000,
+          "endMs": 1790636400000,
+          "ids": [
+            "c"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "input order does not matter",
+      "schedules": [
+        {
+          "id": "b",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790629200000,
+          "endUtcMs": 1790632800000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "a",
+          "streamId": 7,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "expect": [
+        {
+          "streamId": 7,
+          "startMs": 1790625600000,
+          "endMs": 1790632800000,
+          "ids": [
+            "a",
+            "b"
+          ]
+        }
+      ]
+    }
+  ],
+  "conflicts": [
+    {
+      "name": "nothing else scheduled",
+      "cap": 2,
+      "existing": [],
+      "candidate": {
+        "id": "n",
+        "streamId": 3,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790625600000,
+        "endUtcMs": 1790629200000,
+        "padBeforeMin": 0,
+        "padAfterMin": 0,
+        "status": "scheduled"
+      },
+      "expect": null
+    },
+    {
+      "name": "a third at the same time on a 2-stream limit",
+      "cap": 2,
+      "existing": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "b",
+          "streamId": 2,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "candidate": {
+        "id": "n",
+        "streamId": 3,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790627400000,
+        "endUtcMs": 1790631000000,
+        "padBeforeMin": 0,
+        "padAfterMin": 0,
+        "status": "scheduled"
+      },
+      "expect": {
+        "atMs": 1790627400000,
+        "count": 2
+      }
+    },
+    {
+      "name": "one ends exactly as the next starts: no overlap",
+      "cap": 2,
+      "existing": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "b",
+          "streamId": 2,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "candidate": {
+        "id": "n",
+        "streamId": 3,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790629200000,
+        "endUtcMs": 1790632800000,
+        "padBeforeMin": 0,
+        "padAfterMin": 0,
+        "status": "scheduled"
+      },
+      "expect": null
+    },
+    {
+      "name": "back to back on the same channel joins that job and needs no second stream",
+      "cap": 2,
+      "existing": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "b",
+          "streamId": 2,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790632800000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "candidate": {
+        "id": "n",
+        "streamId": 1,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790629200000,
+        "endUtcMs": 1790632800000,
+        "padBeforeMin": 0,
+        "padAfterMin": 0,
+        "status": "scheduled"
+      },
+      "expect": null
+    },
+    {
+      "name": "a 1-stream plan allows one",
+      "cap": 1,
+      "existing": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "candidate": {
+        "id": "n",
+        "streamId": 2,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790627400000,
+        "endUtcMs": 1790631000000,
+        "padBeforeMin": 0,
+        "padAfterMin": 0,
+        "status": "scheduled"
+      },
+      "expect": {
+        "atMs": 1790627400000,
+        "count": 1
+      }
+    },
+    {
+      "name": "padding makes neighbours overlap",
+      "cap": 1,
+      "existing": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 2,
+          "padAfterMin": 5,
+          "status": "scheduled"
+        }
+      ],
+      "candidate": {
+        "id": "n",
+        "streamId": 2,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790629200000,
+        "endUtcMs": 1790632800000,
+        "padBeforeMin": 2,
+        "padAfterMin": 5,
+        "status": "scheduled"
+      },
+      "expect": {
+        "atMs": 1790629080000,
+        "count": 1
+      }
+    },
+    {
+      "name": "finished, missed and failed ones do not count",
+      "cap": 1,
+      "existing": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "done"
+        },
+        {
+          "id": "b",
+          "streamId": 2,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "missed"
+        },
+        {
+          "id": "c",
+          "streamId": 4,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "failed"
+        }
+      ],
+      "candidate": {
+        "id": "n",
+        "streamId": 3,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790625600000,
+        "endUtcMs": 1790629200000,
+        "padBeforeMin": 0,
+        "padAfterMin": 0,
+        "status": "scheduled"
+      },
+      "expect": null
+    },
+    {
+      "name": "a clash later inside the window is found",
+      "cap": 2,
+      "existing": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790629200000,
+          "endUtcMs": 1790632800000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "b",
+          "streamId": 2,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790631000000,
+          "endUtcMs": 1790634600000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "candidate": {
+        "id": "n",
+        "streamId": 3,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790625600000,
+        "endUtcMs": 1790636400000,
+        "padBeforeMin": 0,
+        "padAfterMin": 0,
+        "status": "scheduled"
+      },
+      "expect": {
+        "atMs": 1790631000000,
+        "count": 2
+      }
+    },
+    {
+      "name": "the same schedule again does not clash with itself",
+      "cap": 1,
+      "existing": [
+        {
+          "id": "n",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "candidate": {
+        "id": "n",
+        "streamId": 1,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790625600000,
+        "endUtcMs": 1790629200000,
+        "padBeforeMin": 0,
+        "padAfterMin": 0,
+        "status": "scheduled"
+      },
+      "expect": null
+    }
+  ],
+  "fire": [
+    {
+      "name": "early (inexact alarm 5 minutes ahead)",
+      "schedule": {
+        "id": "a",
+        "streamId": 1,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790625600000,
+        "endUtcMs": 1790629200000,
+        "padBeforeMin": 2,
+        "padAfterMin": 5,
+        "status": "scheduled"
+      },
+      "now": 1790625180000,
+      "expect": "START"
+    },
+    {
+      "name": "on time",
+      "schedule": {
+        "id": "a",
+        "streamId": 1,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790625600000,
+        "endUtcMs": 1790629200000,
+        "padBeforeMin": 2,
+        "padAfterMin": 5,
+        "status": "scheduled"
+      },
+      "now": 1790625480000,
+      "expect": "START"
+    },
+    {
+      "name": "two minutes late is still on time",
+      "schedule": {
+        "id": "a",
+        "streamId": 1,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790625600000,
+        "endUtcMs": 1790629200000,
+        "padBeforeMin": 2,
+        "padAfterMin": 5,
+        "status": "scheduled"
+      },
+      "now": 1790625600000,
+      "expect": "START"
+    },
+    {
+      "name": "well into the programme starts late",
+      "schedule": {
+        "id": "a",
+        "streamId": 1,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790625600000,
+        "endUtcMs": 1790629200000,
+        "padBeforeMin": 2,
+        "padAfterMin": 5,
+        "status": "scheduled"
+      },
+      "now": 1790627400000,
+      "expect": "START_LATE"
+    },
+    {
+      "name": "a second before the padded end still starts late",
+      "schedule": {
+        "id": "a",
+        "streamId": 1,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790625600000,
+        "endUtcMs": 1790629200000,
+        "padBeforeMin": 2,
+        "padAfterMin": 5,
+        "status": "scheduled"
+      },
+      "now": 1790629499000,
+      "expect": "START_LATE"
+    },
+    {
+      "name": "at the padded end it is missed",
+      "schedule": {
+        "id": "a",
+        "streamId": 1,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790625600000,
+        "endUtcMs": 1790629200000,
+        "padBeforeMin": 2,
+        "padAfterMin": 5,
+        "status": "scheduled"
+      },
+      "now": 1790629500000,
+      "expect": "MISSED"
+    },
+    {
+      "name": "long after it is missed",
+      "schedule": {
+        "id": "a",
+        "streamId": 1,
+        "host": "http://h.example:8080",
+        "userTag": "aaaa1111bbbb2222",
+        "startUtcMs": 1790625600000,
+        "endUtcMs": 1790629200000,
+        "padBeforeMin": 2,
+        "padAfterMin": 5,
+        "status": "scheduled"
+      },
+      "now": 1790636400000,
+      "expect": "MISSED"
+    }
+  ],
+  "rearm": [
+    {
+      "name": "a future schedule is armed at its padded start",
+      "now": 1790627400000,
+      "busy": [],
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790632800000,
+          "endUtcMs": 1790636400000,
+          "padBeforeMin": 2,
+          "padAfterMin": 5,
+          "status": "scheduled"
+        }
+      ],
+      "expect": [
+        {
+          "id": "a",
+          "kind": "ARM",
+          "atMs": 1790632680000
+        }
+      ]
+    },
+    {
+      "name": "one in progress starts now, a few seconds ahead",
+      "now": 1790627400000,
+      "busy": [],
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 2,
+          "padAfterMin": 5,
+          "status": "scheduled"
+        }
+      ],
+      "expect": [
+        {
+          "id": "a",
+          "kind": "START_NOW",
+          "atMs": 1790627405000
+        }
+      ]
+    },
+    {
+      "name": "one that is over is marked missed",
+      "now": 1790627400000,
+      "busy": [],
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790618400000,
+          "endUtcMs": 1790622000000,
+          "padBeforeMin": 2,
+          "padAfterMin": 5,
+          "status": "scheduled"
+        }
+      ],
+      "expect": [
+        {
+          "id": "a",
+          "kind": "MARK_MISSED",
+          "atMs": 1790627400000
+        }
+      ]
+    },
+    {
+      "name": "a recording that is really running is left alone",
+      "now": 1790627400000,
+      "busy": [
+        "rec1"
+      ],
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "recording",
+          "recordingId": "rec1"
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "a recording that died (reboot) restarts while there is time left",
+      "now": 1790627400000,
+      "busy": [],
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "recording",
+          "recordingId": "rec1"
+        }
+      ],
+      "expect": [
+        {
+          "id": "a",
+          "kind": "RESTART",
+          "atMs": 1790627405000
+        }
+      ]
+    },
+    {
+      "name": "a recording that died with under a minute left is just done",
+      "now": 1790629170000,
+      "busy": [],
+      "schedules": [
+        {
+          "id": "a",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "recording",
+          "recordingId": "rec1"
+        }
+      ],
+      "expect": [
+        {
+          "id": "a",
+          "kind": "MARK_DONE",
+          "atMs": 1790629170000
+        }
+      ]
+    },
+    {
+      "name": "old finished entries go after 7 days, newer ones stay",
+      "now": 1790627400000,
+      "busy": [],
+      "schedules": [
+        {
+          "id": "old",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790589600000,
+          "endUtcMs": 1790593200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "done",
+          "finishedAtMs": 1789936200000
+        },
+        {
+          "id": "new",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790589600000,
+          "endUtcMs": 1790593200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "done",
+          "finishedAtMs": 1790454600000
+        },
+        {
+          "id": "miss",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790589600000,
+          "endUtcMs": 1790593200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "missed",
+          "finishedAtMs": 1790109000000
+        },
+        {
+          "id": "bad",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790589600000,
+          "endUtcMs": 1790593200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "failed",
+          "finishedAtMs": 1789849800000
+        }
+      ],
+      "expect": [
+        {
+          "id": "old",
+          "kind": "PURGE",
+          "atMs": 1790627400000
+        },
+        {
+          "id": "bad",
+          "kind": "PURGE",
+          "atMs": 1790627400000
+        }
+      ]
+    },
+    {
+      "name": "an entry with no finish time counts from its padded end",
+      "now": 1790627400000,
+      "busy": [],
+      "schedules": [
+        {
+          "id": "x",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1789849800000,
+          "endUtcMs": 1789853400000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "missed"
+        }
+      ],
+      "expect": [
+        {
+          "id": "x",
+          "kind": "PURGE",
+          "atMs": 1790627400000
+        }
+      ]
+    },
+    {
+      "name": "a mixed list is answered in order",
+      "now": 1790627400000,
+      "busy": [],
+      "schedules": [
+        {
+          "id": "late",
+          "streamId": 1,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790636400000,
+          "endUtcMs": 1790638200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "now",
+          "streamId": 2,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790625600000,
+          "endUtcMs": 1790629200000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        },
+        {
+          "id": "gone",
+          "streamId": 3,
+          "host": "http://h.example:8080",
+          "userTag": "aaaa1111bbbb2222",
+          "startUtcMs": 1790582400000,
+          "endUtcMs": 1790586000000,
+          "padBeforeMin": 0,
+          "padAfterMin": 0,
+          "status": "scheduled"
+        }
+      ],
+      "expect": [
+        {
+          "id": "late",
+          "kind": "ARM",
+          "atMs": 1790636400000
+        },
+        {
+          "id": "now",
+          "kind": "START_NOW",
+          "atMs": 1790627405000
+        },
+        {
+          "id": "gone",
+          "kind": "MARK_MISSED",
+          "atMs": 1790627400000
+        }
+      ]
+    }
+  ],
+  "urlEncode": [
+    {
+      "input": "abc",
+      "expect": "abc"
+    },
+    {
+      "input": "a b",
+      "expect": "a%20b"
+    },
+    {
+      "input": "p+q",
+      "expect": "p%2Bq"
+    },
+    {
+      "input": "~!*'()",
+      "expect": "~!*'()"
+    },
+    {
+      "input": "#%&/",
+      "expect": "%23%25%26%2F"
+    },
+    {
+      "input": "é",
+      "expect": "%C3%A9"
+    },
+    {
+      "input": "日本",
+      "expect": "%E6%97%A5%E6%9C%AC"
+    },
+    {
+      "input": "😀",
+      "expect": "%F0%9F%98%80"
+    },
+    {
+      "input": "a=b?c",
+      "expect": "a%3Db%3Fc"
+    },
+    {
+      "input": "@:;,$",
+      "expect": "%40%3A%3B%2C%24"
+    },
+    {
+      "input": "",
+      "expect": ""
+    },
+    {
+      "input": "Pa$$w0rd!",
+      "expect": "Pa%24%24w0rd!"
+    },
+    {
+      "input": "100%",
+      "expect": "100%25"
+    },
+    {
+      "input": "tab\there",
+      "expect": "tab%09here"
+    },
+    {
+      "input": "a b",
+      "expect": "a%C2%A0b"
+    },
+    {
+      "input": "[]{}<>\"\\^`|",
+      "expect": "%5B%5D%7B%7D%3C%3E%22%5C%5E%60%7C"
+    }
+  ],
+  "liveUrl": [
+    {
+      "host": "http://dstreams.xyz:8080",
+      "user": "user",
+      "pass": "pass",
+      "streamId": 1234,
+      "expect": "http://dstreams.xyz:8080/live/user/pass/1234.ts"
+    },
+    {
+      "host": "https://strmz.xyz/",
+      "user": "u s",
+      "pass": "p@ss!w+rd~*'()",
+      "streamId": 55,
+      "expect": "https://strmz.xyz/live/u%20s/p%40ss!w%2Brd~*'()/55.ts"
+    },
+    {
+      "host": "http://h:1",
+      "user": "jörg",
+      "pass": "日本語/#",
+      "streamId": 9,
+      "expect": "http://h:1/live/j%C3%B6rg/%E6%97%A5%E6%9C%AC%E8%AA%9E%2F%23/9.ts"
+    }
+  ],
+  "userTag": [
+    {
+      "host": "http://dstreams.xyz:8080",
+      "user": "alice",
+      "expect": "daada6be2de485f0"
+    },
+    {
+      "host": "https://strmz.xyz",
+      "user": "bob smith",
+      "expect": "cb4bd965e0ed12e9"
+    },
+    {
+      "host": "http://h:1",
+      "user": "jörg",
+      "expect": "368c17b126d570dd"
+    }
+  ]
+}

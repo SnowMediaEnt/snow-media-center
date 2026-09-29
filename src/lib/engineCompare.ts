@@ -46,6 +46,16 @@ export function sampleFromStats(stats: PlayerStats, minutes: number): EngineSamp
   };
 }
 
+/**
+ * getStats() reads Debug.getPss() on the UI thread, which stalls a slow box.
+ * A sample is only worth it when there is a second engine to compare with
+ * (the MPV build) or the viewer has the Stats panel open anyway; a customer
+ * build without MPV never takes one.
+ */
+export function shouldSampleEngines(mpvAvailable: boolean, statsShown: boolean): boolean {
+  return mpvAvailable || statsShown;
+}
+
 /** Keeps the last MAX_SAMPLES per engine. Never throws — a private window,
  *  cleared site data or a full quota all just mean this watch isn't recorded. */
 export function recordEngineSample(sample: EngineSample): void {
