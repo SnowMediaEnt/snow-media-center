@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import QRCode from 'qrcode';
 import { Browser } from '@capacitor/browser';
 import { Button } from '@/components/ui/button';
@@ -43,8 +44,10 @@ const QR_OPTS = { width: 360, margin: 2, color: { dark: '#0f172a', light: '#ffff
  * mints a new one.
  */
 const PaymentSheet = memo(({ invoiceId, initialUrl, amount, currency, title, onPaid, onClose, onAuthLost }: Props) => {
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<Phase>('opening');
   const [qr, setQr] = useState<string | null>(null);
+  // A translation key, not text: it is looked up when drawn, so it follows the language.
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const pollId = useRef(`invoice:${invoiceId}:${Date.now()}`).current;
@@ -73,18 +76,18 @@ const PaymentSheet = memo(({ invoiceId, initialUrl, amount, currency, title, onP
         onPaidRef.current(r.invoice);
       } else if (r.outcome === 'closed') {
         setPhase('closed');
-        setMessage('This invoice was cancelled. Nothing was charged.');
+        setMessage('billing.pay.invoiceCancelled');
       } else if (r.outcome === 'timeout') {
         setPhase('timeout');
-        setMessage('No payment has arrived yet. If you finished paying, press "Check again".');
+        setMessage('billing.pay.noPaymentYet');
       }
       // cancelled: the sheet is closing; say nothing.
     } catch (e) {
       if (!mountedRef.current) return;
-      const err = handleError(e, 'Could not check the payment');
-      if (!err.isAuthError) { setPhase('error'); setMessage('Could not check the payment. Try again in a moment.'); }
+      const err = handleError(e, t('billing.pay.checkFailedTitle'));
+      if (!err.isAuthError) { setPhase('error'); setMessage('billing.pay.checkFailed'); }
     }
-  }, [invoiceId, pollId, handleError]);
+  }, [invoiceId, pollId, handleError, t]);
 
   /** Open (Custom Tab) or show (QR) a link; then arrange for polling. */
   const present = useCallback(async (url: string) => {
@@ -95,7 +98,7 @@ const PaymentSheet = memo(({ invoiceId, initialUrl, amount, currency, title, onP
         await Browser.open({ url, presentationStyle: 'fullscreen' });
         if (!mountedRef.current) return;
         setPhase('tab');
-        setMessage('Finish the payment in the window that just opened. This screen updates by itself when the payment arrives.');
+        setMessage('billing.pay.finishInWindow');
         return;
       } catch {
         // The browser refused after all: fall through to the QR.
@@ -123,14 +126,14 @@ const PaymentSheet = memo(({ invoiceId, initialUrl, amount, currency, title, onP
           if (inv.status === 'paid') { setPhase('paid'); onPaidRef.current(inv); return null; }
         } catch { /* fall through */ }
         setPhase('closed');
-        setMessage('This invoice can no longer be paid. Nothing was charged.');
+        setMessage('billing.pay.notPayable');
         return null;
       }
-      const info = handleError(e, 'Could not open the payment page');
-      if (!info.isAuthError) { setPhase('error'); setMessage('Could not open the payment page. Try again in a moment.'); }
+      const info = handleError(e, t('billing.pay.openFailedTitle'));
+      if (!info.isAuthError) { setPhase('error'); setMessage('billing.pay.openFailed'); }
       return null;
     }
-  }, [invoiceId, handleError]);
+  }, [invoiceId, handleError, t]);
 
   // Open immediately on mount — once. StrictMode double-mounts in dev only.
   useEffect(() => {
@@ -194,18 +197,18 @@ const PaymentSheet = memo(({ invoiceId, initialUrl, amount, currency, title, onP
             <div className="min-w-0">
               <h2 className="text-2xl font-quicksand font-bold text-white">{title}</h2>
               <p className="text-brand-ice/80 font-nunito mt-1">
-                Invoice #{invoiceId} · <span className="font-semibold text-white">{formatMoney(amount, currency)}</span>
+                <Trans i18nKey="billing.pay.invoiceAmount" values={{ id: invoiceId, amount: formatMoney(amount, currency) }} components={[<span key="amount" className="font-semibold text-white" />]} />
               </p>
             </div>
-            {phase === 'paid' && <CheckCircle2 className="w-10 h-10 text-emerald-400 shrink-0" />}
-            {(phase === 'closed' || phase === 'error') && <XCircle className="w-10 h-10 text-red-400 shrink-0" />}
+            {phase === 'paid' ? <CheckCircle2 className="w-10 h-10 text-emerald-400 shrink-0" /> : null}
+            {(phase === 'closed' || phase === 'error') ? <XCircle className="w-10 h-10 text-red-400 shrink-0" /> : null}
           </div>
 
           <div className="mt-6 flex flex-col md:flex-row gap-6 items-center">
             {phase === 'qr' || (qr && !done) ? (
               <div className="bg-white p-3 rounded-xl shadow-lg shrink-0">
                 {qr ? (
-                  <img src={qr} alt="Payment QR code" className="w-[min(45vh,14rem)] h-[min(45vh,14rem)]" />
+                  <img src={qr} alt={t('billing.pay.qrAlt')} className="w-[min(45vh,14rem)] h-[min(45vh,14rem)]" />
                 ) : (
                   <div className="w-[min(45vh,14rem)] h-[min(45vh,14rem)] flex items-center justify-center">
                     <Loader2 className="w-10 h-10 text-slate-700 animate-spin" />
@@ -216,24 +219,24 @@ const PaymentSheet = memo(({ invoiceId, initialUrl, amount, currency, title, onP
             <div className="flex-1 min-w-0 space-y-3">
               {qr && !done && (
                 <p className="text-white font-nunito">
-                  Scan this with your phone to pay. This TV has no browser, so the payment page opens on the phone instead.
+                  {t('billing.pay.scanToPay')}
                 </p>
               )}
-              {phase === 'opening' && <p className="text-brand-ice/90 font-nunito">Opening the payment page…</p>}
-              {phase === 'paid' && <p className="text-emerald-200 font-nunito text-lg">Payment received. Thank you!</p>}
-              {message && <p className="text-brand-ice/90 font-nunito">{message}</p>}
-              {waiting && phase !== 'opening' && (
+              {phase === 'opening' ? <p className="text-brand-ice/90 font-nunito">{t('billing.pay.opening')}</p> : null}
+              {phase === 'paid' ? <p className="text-emerald-200 font-nunito text-lg">{t('billing.pay.received')}</p> : null}
+              {message && <p className="text-brand-ice/90 font-nunito">{t(message)}</p>}
+              {waiting && phase !== 'opening' ? (
                 <div className="flex items-center gap-3 text-brand-ice/90 font-nunito text-sm">
                   <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />
-                  <span>Waiting for the payment to arrive… (checks every few seconds for up to 2 minutes)</span>
+                  <span>{t('billing.pay.waiting')}</span>
                 </div>
-              )}
-              {phase === 'tab' && (
+              ) : null}
+              {phase === 'tab' ? (
                 <div className="flex items-center gap-3 text-brand-ice/90 font-nunito text-sm">
                   <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />
-                  <span>Waiting for you to finish in the browser…</span>
+                  <span>{t('billing.pay.waitingBrowser')}</span>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -243,7 +246,7 @@ const PaymentSheet = memo(({ invoiceId, initialUrl, amount, currency, title, onP
                 className={`${BTN_GOLD} ${scaleIf(currentFocusId, 'pay-check')}`}
                 {...focusAttrs(currentFocusId, 'pay-check')}>
                 <RefreshCw className={`w-4 h-4 mr-2 ${waiting ? 'animate-spin' : ''}`} />
-                {phase === 'timeout' ? 'Check again' : "I've paid — check now"}
+                {phase === 'timeout' ? t('billing.pay.checkAgainBtn') : t('billing.pay.paidCheckBtn')}
               </Button>
             )}
             {!done && (
@@ -251,19 +254,19 @@ const PaymentSheet = memo(({ invoiceId, initialUrl, amount, currency, title, onP
                 className={`${BTN} ${scaleIf(currentFocusId, 'pay-reopen')}`}
                 {...focusAttrs(currentFocusId, 'pay-reopen')}>
                 <ExternalLink className="w-4 h-4 mr-2" />
-                Open payment page again
+                {t('billing.pay.reopenBtn')}
               </Button>
             )}
             <Button variant="white" disabled={busy} onClick={close}
               className={`${BTN} ${scaleIf(currentFocusId, 'pay-cancel')}`}
               {...focusAttrs(currentFocusId, 'pay-cancel')}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              {done ? 'Back' : 'Not now'}
+              {done ? t('common.back') : t('billing.pay.notNowBtn')}
             </Button>
           </div>
           {!done && (
             <p className="text-brand-ice/60 text-xs font-nunito mt-4">
-              You can leave and come back: the invoice stays open under My Account as "Finish payment".
+              {t('billing.pay.leaveHint')}
             </p>
           )}
         </Card>

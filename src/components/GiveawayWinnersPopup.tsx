@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PartyPopper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -24,6 +25,7 @@ const plainify = (md: string) =>
     .trim();
 
 const GiveawayWinnersPopup = ({ giveaway, onDismiss }: Props) => {
+  const { t } = useTranslation();
   const okRef = useRef<HTMLButtonElement>(null);
   const mountedAtRef = useRef(Date.now());
   const [open, setOpen] = useState(false);
@@ -83,7 +85,7 @@ const GiveawayWinnersPopup = ({ giveaway, onDismiss }: Props) => {
         <div className="bg-gradient-to-r from-brand-gold/30 via-yellow-500/20 to-brand-gold/30 px-6 py-4 border-b border-brand-gold/40 flex items-center gap-3">
           <PartyPopper className="w-6 h-6 text-brand-gold drop-shadow" />
           <h2 className="text-2xl font-bold text-white leading-tight tracking-tight">
-            🎉 We have winners!
+            {t('giveaway.winners.title')}
           </h2>
         </div>
 
@@ -105,7 +107,7 @@ const GiveawayWinnersPopup = ({ giveaway, onDismiss }: Props) => {
 
           {giveaway.prizeDescription && (
             <p className="text-base text-slate-200">
-              <span className="text-slate-400">Prize: </span>
+              <span className="text-slate-400">{t('giveaway.winners.prizeLabel')} </span>
               {giveaway.prizeDescription}
             </p>
           )}
@@ -122,7 +124,7 @@ const GiveawayWinnersPopup = ({ giveaway, onDismiss }: Props) => {
             onClick={handleDismiss}
             className="min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 scale-100 focus:ring-brand-ice focus:scale-105 transition"
           >
-            Dismiss
+            {t('giveaway.winners.dismissBtn')}
           </Button>
         </div>
       </DialogContent>

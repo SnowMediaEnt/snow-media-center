@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Copy, Eye, EyeOff, KeyRound, Calendar, Loader2, CheckCircle2, Mail } from 'lucide-react';
@@ -35,6 +36,7 @@ interface Props {
  * call to action that signs the player in.
  */
 const CredentialsSheet = memo(({ title, subtitle, note, service, primaryLabel, onPrimary, secondaryLabel, onSecondary, busy, busyLabel, emailTo }: Props) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [showPwd, setShowPwd] = useState(false);
   const c = service.credentials;
@@ -77,16 +79,16 @@ const CredentialsSheet = memo(({ title, subtitle, note, service, primaryLabel, o
   });
   useFocusRecovery(containerRef, currentFocusId, focusById, 'cs-primary');
 
-  const copy = async (label: string, value: string) => {
+  const copy = async (kind: 'user' | 'pass', value: string) => {
     const ok = await copyText(value);
     toast(ok
-      ? { title: 'Copied', description: `${label} copied to the clipboard.` }
-      : { title: 'Copy not available', description: 'Write it down from the screen instead.', variant: 'destructive' });
+      ? { title: t('billing.creds.copiedTitle'), description: t(kind === 'user' ? 'billing.creds.usernameCopied' : 'billing.creds.passwordCopied') }
+      : { title: t('billing.creds.copyUnavailableTitle'), description: t('billing.creds.copyUnavailableDesc'), variant: 'destructive' });
   };
 
   const rows = c ? [
-    { id: 'user', label: 'Username', icon: KeyRound, value: c.username, copy: c.username },
-    { id: 'pass', label: 'Password', icon: KeyRound, value: showPwd ? c.password : '•'.repeat(Math.max(8, c.password.length)), copy: c.password },
+    { id: 'user' as const, label: t('billing.creds.username'), icon: KeyRound, value: c.username, copy: c.username },
+    { id: 'pass' as const, label: t('billing.creds.password'), icon: KeyRound, value: showPwd ? c.password : '•'.repeat(Math.max(8, c.password.length)), copy: c.password },
     // The server address is deliberately NOT shown. The app has already
     // signed the Player in with it, so it is noise on a TV — nobody is going
     // to type it. It stays in the email, where it is what someone needs to
@@ -119,15 +121,15 @@ const CredentialsSheet = memo(({ title, subtitle, note, service, primaryLabel, o
                     <div className="text-xs uppercase tracking-wide text-white/60">{r.label}</div>
                     <div className="text-lg text-white font-medium font-mono break-all">{r.value}</div>
                   </div>
-                  {r.id === 'pass' && (
+                  {r.id === 'pass' ? (
                     <Button variant="white" size="sm" onClick={() => setShowPwd((v) => !v)}
                       className={`${BTN} h-10 ${scaleIf(currentFocusId, 'cs-show')}`} {...focusAttrs(currentFocusId, 'cs-show')}>
                       {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </Button>
-                  )}
-                  <Button variant="white" size="sm" onClick={() => { void copy(r.label, r.copy); }}
+                  ) : null}
+                  <Button variant="white" size="sm" onClick={() => { void copy(r.id, r.copy); }}
                     className={`${BTN} h-10 ${scaleIf(currentFocusId, `cs-copy-${r.id}`)}`} {...focusAttrs(currentFocusId, `cs-copy-${r.id}`)}>
-                    <Copy className="w-4 h-4 mr-1" /> Copy
+                    <Copy className="w-4 h-4 mr-1" /> {t('billing.creds.copyBtn')}
                   </Button>
                 </div>
               );
@@ -135,7 +137,7 @@ const CredentialsSheet = memo(({ title, subtitle, note, service, primaryLabel, o
             <div className="flex items-center gap-3 rounded-xl bg-black/30 border border-white/10 px-4 py-3">
               <Calendar className="w-5 h-5 text-brand-ice shrink-0" />
               <div className="min-w-0 flex-1">
-                <div className="text-xs uppercase tracking-wide text-white/60">Expires</div>
+                <div className="text-xs uppercase tracking-wide text-white/60">{t('billing.creds.expires')}</div>
                 <div className="text-lg text-white font-medium">{formatDateTime(service.expires_at)}</div>
               </div>
             </div>
@@ -146,13 +148,13 @@ const CredentialsSheet = memo(({ title, subtitle, note, service, primaryLabel, o
               <Button variant="white" size="sm" disabled={busy || mail === 'sending'} onClick={() => { void sendEmail(); }}
                 className={`${BTN} h-11 ${scaleIf(currentFocusId, 'cs-email')}`} {...focusAttrs(currentFocusId, 'cs-email')}>
                 {mail === 'sending' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-                {mail === 'sent' ? 'Send again' : 'Email me my login'}
+                {mail === 'sent' ? t('billing.creds.sendAgainBtn') : t('billing.creds.emailMeBtn')}
               </Button>
               <span className="text-sm font-nunito text-brand-ice/80">
-                {mail === 'sent' && `Sent to ${emailTo}.`}
-                {mail === 'sending' && `Sending to ${emailTo}…`}
-                {mail === 'failed' && <span className="text-amber-200">{mailNote}</span>}
-                {mail === 'idle' && `We can send these to ${emailTo}.`}
+                {mail === 'sent' ? t('billing.creds.sentTo', { email: emailTo }) : null}
+                {mail === 'sending' ? t('billing.creds.sendingTo', { email: emailTo }) : null}
+                {mail === 'failed' ? <span className="text-amber-200">{mailNote}</span> : null}
+                {mail === 'idle' ? t('billing.creds.canSendTo', { email: emailTo }) : null}
               </span>
             </div>
           )}

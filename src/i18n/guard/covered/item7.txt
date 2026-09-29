@@ -1,0 +1,13 @@
+# Item 7: account, billing and giveaway.
+src/components/billing
+src/components/UserDashboard.tsx
+src/components/UserServicesEditor.tsx
+src/components/QRCheckoutDialog.tsx
+src/components/Giveaway.tsx
+src/components/GiveawayPromoPopup.tsx
+src/components/GiveawayWinnersPopup.tsx
+src/components/CreditStore.tsx
+src/components/ServiceExpirationBanner.tsx
+src/lib/billing.ts
+src/lib/aiTiers.ts
+src/lib/accountClaim.ts

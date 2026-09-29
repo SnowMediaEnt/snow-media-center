@@ -1,0 +1,71 @@
+{
+  "giveaway": {
+    "main": {
+      "entriesClosed": "Teilnahme beendet",
+      "tileDays": "TAGE",
+      "tileHrs": "STD",
+      "tileMin": "MIN",
+      "startsIn": "Beginnt in",
+      "untilClose": "bis zum Ende der Teilnahme",
+      "loadError": "Das Gewinnspiel konnte gerade nicht geladen werden. Bitte versuche es erneut.",
+      "fbNameNeededTitle": "Facebook-Name erforderlich",
+      "fbNameNeededDesc": "Gib den Facebook-Namen ein, mit dem du die Bewertung abgegeben hast.",
+      "entrySubmittedTitle": "Teilnahme eingereicht",
+      "entrySubmittedDesc": "Deine Facebook-Bewertung wird noch geprüft – die Teilnahmen werden nach der Freigabe hinzugefügt.",
+      "alreadyClaimedTitle": "Bereits eingelöst",
+      "alreadyClaimedDesc": "Du hast für dieses Gewinnspiel bereits eine Facebook-Bewertung eingereicht.",
+      "closedTitle": "Gewinnspiel beendet",
+      "closedDesc": "Dieses Gewinnspiel nimmt keine Teilnahmen mehr an.",
+      "submitFailedTitle": "Senden fehlgeschlagen",
+      "submitFailedDesc": "Bitte versuche es gleich noch einmal.",
+      "statusActive": "Jetzt aktiv",
+      "statusPaused": "Pausiert",
+      "statusEndedSoon": "Beendet – Ziehung folgt bald",
+      "statusDrawn": "Gewinner gezogen",
+      "statusEnded": "Beendet",
+      "noGiveaway": "Derzeit kein Gewinnspiel",
+      "checkBack": "Schau bald wieder vorbei – neue Gewinnspiele werden auf dem Startbildschirm angekündigt.",
+      "startsOn": "Beginnt am {{date}}",
+      "endsOn": "Endet am {{date}}",
+      "winnerCount_one": "{{count}} Gewinner",
+      "winnerCount_other": "{{count}} Gewinner",
+      "yourEntries": "Deine Teilnahmen",
+      "noEntries": "Noch keine Teilnahmen. Verlängere einen Dienst, kaufe ein Gerät oder hole dir unten den Bonus für die Facebook-Bewertung.",
+      "entryType": {
+        "account_creation": "Bonus für neues Konto",
+        "renewal": "Dienstverlängerung",
+        "device_purchase": "Gerätekauf",
+        "facebook_review": "Facebook-Bewertung"
+      },
+      "entryPending": "Ausstehend",
+      "entryVoid": "Ungültig",
+      "fbBonusTitle": "Bonus für Facebook-Bewertung",
+      "fbBonusDesc": "Hast du uns auf Facebook bewertet? Hol dir deine Bonus-Teilnahme – sie erscheint, sobald ein Admin sie freigibt.",
+      "fbNamePlaceholder": "Dein Facebook-Name",
+      "reviewUrlPlaceholder": "Link zu deiner Bewertung (optional)",
+      "claimBtn": "Bonuslos einlösen",
+      "signInPrompt": "Melde dich an, um deine Teilnahmen zu sehen und Boni einzulösen.",
+      "winners": "Gewinner",
+      "howToEnter": "So nimmst du teil",
+      "previousGiveaways": "Frühere Gewinnspiele",
+      "pastCount_one": "{{count}} früheres Gewinnspiel · sieh, wer gewonnen hat",
+      "pastCount_other": "{{count}} frühere Gewinnspiele · sieh, wer gewonnen hat",
+      "hide": "Ausblenden",
+      "show": "Anzeigen",
+      "notAnnounced": "Gewinner noch nicht bekannt gegeben."
+    },
+    "promo": {
+      "fallbackText": "Ein neues Gewinnspiel läuft!",
+      "maybeEntered": "Du bist vielleicht schon dabei – sieh dir deine Teilnahmen an!",
+      "endsIn_one": "⏳ Endet in {{count}} Tag",
+      "endsIn_other": "⏳ Endet in {{count}} Tagen",
+      "notNowBtn": "Nicht jetzt",
+      "viewBtn": "Gewinnspiel ansehen"
+    },
+    "winners": {
+      "title": "🎉 Wir haben Gewinner!",
+      "prizeLabel": "Preis:",
+      "dismissBtn": "Schließen"
+    }
+  }
+}

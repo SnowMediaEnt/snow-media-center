@@ -9,6 +9,8 @@
  * so the button can say so.
  */
 import { supabase } from '@/integrations/supabase/client';
+import i18n from '@/i18n';
+import { formatNumber } from '@/i18n/format';
 
 export type AiFeature = 'chat' | 'image';
 export type AiTier = 'free' | 'premium';
@@ -98,7 +100,7 @@ export async function premiumTrialUsed(feature: AiFeature): Promise<boolean> {
 /** A short line for a toast after a premium call. */
 export function describeReceipt(r: AiTierReceipt | null | undefined): string | null {
   if (!r || r.tier !== 'premium') return null;
-  if (r.trial_used) return 'That was your free Premium sample.';
-  if (r.charged_gems && r.charged_gems > 0) return `${r.charged_gems} Snow Gems used for Premium.`;
-  return 'Premium, no charge.';
+  if (r.trial_used) return i18n.t('account.tiers.freeSample');
+  if (r.charged_gems && r.charged_gems > 0) return i18n.t('account.tiers.gemsUsed', { amount: formatNumber(r.charged_gems) });
+  return i18n.t('account.tiers.noCharge');
 }

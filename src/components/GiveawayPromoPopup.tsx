@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Gift } from 'lucide-react';
@@ -21,6 +22,7 @@ const MIN_DELAY_MS = 3000;
  * only mounts this when the giveaway_enabled flag is on and demo mode is off.
  */
 const GiveawayPromoPopup = ({ onViewGiveaway }: { onViewGiveaway: () => void }) => {
+  const { t } = useTranslation();
   const giveaway = useActiveGiveaway(true);
   const [open, setOpen] = useState(false);
   const [focusIdx, setFocusIdx] = useState(0); // 0 = View Giveaway, 1 = Not now
@@ -160,14 +162,14 @@ const GiveawayPromoPopup = ({ onViewGiveaway }: { onViewGiveaway: () => void }) 
         )}
 
         <p className="text-sm text-white/90 mb-2">
-          {giveaway.description || giveaway.prize_description || 'A new giveaway is live!'}
+          {giveaway.description || giveaway.prize_description || t('giveaway.promo.fallbackText')}
         </p>
         <p className={`text-sm text-yellow-300/90 font-semibold ${daysLeft !== null ? 'mb-1' : 'mb-5'}`}>
-          You may already be entered — check your entries!
+          {t('giveaway.promo.maybeEntered')}
         </p>
         {daysLeft !== null && (
           <p className="text-sm text-white/80 mb-4">
-            ⏳ Ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}
+            {t('giveaway.promo.endsIn', { count: daysLeft })}
           </p>
         )}
 
@@ -180,7 +182,7 @@ const GiveawayPromoPopup = ({ onViewGiveaway }: { onViewGiveaway: () => void }) 
               focusIdx === 1 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
           >
-            Not now
+            {t('giveaway.promo.notNowBtn')}
           </Button>
           <Button
             data-gap-btn="view"
@@ -189,7 +191,7 @@ const GiveawayPromoPopup = ({ onViewGiveaway }: { onViewGiveaway: () => void }) 
               focusIdx === 0 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
           >
-            View Giveaway
+            {t('giveaway.promo.viewBtn')}
           </Button>
         </div>
       </Card>

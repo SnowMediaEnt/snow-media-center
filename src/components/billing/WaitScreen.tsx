@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft } from 'lucide-react';
@@ -20,7 +21,8 @@ interface Props {
  * screen underneath; without an onBack the Back key does nothing, which is
  * right while a trial is being provisioned.
  */
-const WaitScreen = memo(({ title, detail, onBack, backLabel = 'Back', error }: Props) => {
+const WaitScreen = memo(({ title, detail, onBack, backLabel, error }: Props) => {
+  const { t } = useTranslation();
   const { containerRef, currentFocusId } = useTVFocus({
     initialFocusId: 'wait-back',
     onBack: () => { onBack?.(); },
@@ -35,7 +37,7 @@ const WaitScreen = memo(({ title, detail, onBack, backLabel = 'Back', error }: P
           {onBack ? (
             <Button variant="white" onClick={onBack}
               className={`${BTN} mt-6 ${scaleIf(currentFocusId, 'wait-back')}`} {...focusAttrs(currentFocusId, 'wait-back')}>
-              <ArrowLeft className="w-4 h-4 mr-2" /> {backLabel}
+              <ArrowLeft className="w-4 h-4 mr-2" /> {backLabel ?? t('common.back')}
             </Button>
           ) : (
             <div className="sr-only" aria-hidden="true" {...focusAttrs(currentFocusId, 'wait-back')} />

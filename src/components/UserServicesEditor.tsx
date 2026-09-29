@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +19,21 @@ const DEVICE_OPTIONS: string[] = [
   'Android Phone or Tablet',
   'Other',
 ];
+
+// The English names above are what gets saved (customer_devices.device_type), so they are the
+// values; only what the viewer reads is translated.
+const DEVICE_LABEL_KEYS: Record<string, string> = {
+  'Amazon Fire TV / Firestick': 'account.services.deviceFireTv',
+  'Smart TV': 'account.services.deviceSmartTv',
+  'Android TV Box': 'account.services.deviceAndroidTv',
+  'Android Phone or Tablet': 'account.services.devicePhone',
+  Other: 'account.services.deviceOther',
+};
+
+/** The words to show for a saved device type (unknown types are shown as saved). */
+// eslint-disable-next-line react-refresh/only-export-components
+export const deviceTypeLabel = (t: TFunction, type: string): string =>
+  DEVICE_LABEL_KEYS[type] ? t(DEVICE_LABEL_KEYS[type]) : type;
 
 const SERVICE_OPTIONS: string[] = ['Dreamstreams', 'VibezTV', 'Plex'];
 
@@ -51,6 +68,7 @@ const formatDateEntry = (value: string) => {
 };
 
 const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, displayName, onSaved }: Props) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -79,13 +97,13 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
         setDevices((devRes.data as UserDevice[]) || []);
         setServices(((svcRes.data as CustomerServiceRow[]) || []).map(normalizeService));
       } catch (e: unknown) {
-        toast({ title: 'Could not load', description: getErrorMessage(e), variant: 'destructive' });
+        toast({ title: t('account.services.loadFailedTitle'), description: getErrorMessage(e), variant: 'destructive' });
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [open, userId, email, adminMode, toast]);
+  }, [open, userId, email, adminMode, toast, t]);
 
   const selectedDeviceTypes = useMemo(() => new Set(devices.map(d => d.device_type)), [devices]);
   const selectedServiceNames = useMemo(() => new Set(services.map(s => (s.service_name || '').toLowerCase())), [services]);
@@ -268,7 +286,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
         }
       }
 
-      toast({ title: 'Saved', description: 'Your devices and services were updated.' });
+      toast({ title: t('account.services.savedTitle'), description: t('account.services.savedDesc') });
       try {
         trackEvent('renewal_completed', 'renewals', {
           services: services.map((s) => ({
@@ -281,7 +299,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
       onSaved?.();
       onClose();
     } catch (e: unknown) {
-      toast({ title: 'Save failed', description: getErrorMessage(e), variant: 'destructive' });
+      toast({ title: t('account.services.saveFailedTitle'), description: getErrorMessage(e), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -292,21 +310,21 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
       <DialogContent className="max-w-2xl bg-slate-900 border-slate-700 text-white max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl text-white">
-            {adminMode ? `Edit ${displayName || email}` : 'My Devices & Services'}
+            {adminMode ? t('account.services.editTitle', { name: displayName || email }) : t('account.services.title')}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Pick the devices you own and add your IPTV service expiration date. We'll warn you 1 week before, on the due date, and pop a notice on tied apps if it's expired.
+            {t('account.services.description')}
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
-          <p className="text-slate-400 text-center py-8">Loading…</p>
+          <p className="text-slate-400 text-center py-8">{t('common.loading')}</p>
         ) : (
           <div className="space-y-6">
             {/* Devices */}
             <section>
               <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <Smartphone className="w-5 h-5 text-blue-300" /> Devices you own
+                <Smartphone className="w-5 h-5 text-blue-300" /> {t('account.services.devicesYouOwn')}
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {DEVICE_OPTIONS.map(d => {
@@ -324,7 +342,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                       } ${focusedIndex === DEVICE_OPTIONS.indexOf(d) ? focusClass : ''}`}
                     >
                       <Tv className="w-4 h-4 mr-2 flex-shrink-0" />
-                      <span className="whitespace-normal">{d}</span>
+                      <span className="whitespace-normal">{deviceTypeLabel(t, d)}</span>
                     </Button>
                   );
                 })}
@@ -335,7 +353,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
             <section>
               <div className="mb-3">
                 <h3 className="text-lg font-semibold flex items-center gap-2 mb-3">
-                  <Wifi className="w-5 h-5 text-green-300" /> Your Services
+                  <Wifi className="w-5 h-5 text-green-300" /> {t('account.services.yourServices')}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {SERVICE_OPTIONS.map(name => {
@@ -363,17 +381,17 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
               {services.length > 0 && (
                 <div className="space-y-2">
                   <Label className="text-xs text-slate-400 flex items-center gap-1">
-                    <Calendar className="w-3 h-3" /> Expiration date (so we can warn you before it expires)
+                    <Calendar className="w-3 h-3" /> {t('account.services.expirationLabel')}
                   </Label>
                   {services.map((s, index) => {
                     const inputIndex = firstDateIndex + index;
                     const days = daysUntil(s.expiration_date);
                     let statusBadge: React.ReactNode = null;
                     if (days !== null) {
-                      if (days < 0) statusBadge = <Badge className="bg-red-600 text-white">Expired {Math.abs(days)}d ago</Badge>;
-                      else if (days === 0) statusBadge = <Badge className="bg-amber-500 text-black">Expires today</Badge>;
-                      else if (days <= 7) statusBadge = <Badge className="bg-amber-500 text-black">In {days}d</Badge>;
-                      else statusBadge = <Badge className="bg-emerald-600 text-white">{days}d left</Badge>;
+                      if (days < 0) statusBadge = <Badge className="bg-red-600 text-white">{t('account.services.expiredAgo', { count: Math.abs(days) })}</Badge>;
+                      else if (days === 0) statusBadge = <Badge className="bg-amber-500 text-black">{t('account.services.expiresToday')}</Badge>;
+                      else if (days <= 7) statusBadge = <Badge className="bg-amber-500 text-black">{t('account.services.inDays', { count: days })}</Badge>;
+                      else statusBadge = <Badge className="bg-emerald-600 text-white">{t('account.services.daysLeft', { count: days })}</Badge>;
                     }
                     return (
                       <div key={s.id} className="flex items-center gap-2 rounded-md bg-slate-800/50 border border-slate-700 px-3 py-2">
@@ -382,7 +400,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                           ref={setFocusRef(inputIndex)}
                           type="text"
                           inputMode="numeric"
-                          placeholder="YYYY-MM-DD"
+                          placeholder="YYYY-MM-DD" /* i18n-ignore: the typed date format is fixed */
                           pattern="\d{4}-\d{2}-\d{2}"
                           value={s.expiration_date || ''}
                           onChange={(e) => updateService(s.id, { expiration_date: formatDateEntry(e.target.value) || null })}
@@ -401,11 +419,11 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
         <div className="flex justify-end gap-2 pt-4 border-t border-slate-700">
           <Button ref={setFocusRef(cancelIndex)} variant="outline" onClick={onClose} disabled={saving}
             className={`bg-slate-700 hover:bg-slate-600 border-slate-600 text-white outline-none focus:outline-none transition-all ${focusedIndex === cancelIndex ? 'scale-110 shadow-[0_0_20px_rgba(148,163,184,0.7)] z-10' : ''}`}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button ref={setFocusRef(saveIndex)} onClick={handleSave} disabled={saving || loading}
             className={`bg-blue-600 hover:bg-blue-700 outline-none focus:outline-none transition-all ${focusedIndex === saveIndex ? 'scale-110 shadow-[0_0_20px_rgba(96,165,250,0.8)] z-10' : ''}`}>
-            {saving ? 'Saving…' : 'Save changes'}
+            {saving ? t('account.services.saving') : t('account.services.saveBtn')}
           </Button>
         </div>
       </DialogContent>

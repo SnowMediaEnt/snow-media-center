@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
+import { Trans, useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, CreditCard, Gem, Gift, Loader2, RefreshCw, Sparkles, Star, Zap } from 'lucide-react';
@@ -10,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { formatCurrency, formatNumber } from '@/i18n/format';
 
 /**
  * The private page on snowmediaent.com that the QR opens. It is not linked
@@ -51,7 +53,7 @@ const PANEL = 'bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-95
 
 const iconFor = (index: number) => [Zap, CreditCard, Star, Gift][index] ?? Gem;
 
-const fmtMoney = (n: number) => `$${n.toFixed(2)}`;
+const fmtMoney = (n: number) => formatCurrency(n, 'USD');
 
 /**
  * Snow Gems store. Nothing is charged on the TV: the viewer picks a pack, the
@@ -61,6 +63,7 @@ const fmtMoney = (n: number) => `$${n.toFixed(2)}`;
  * This screen polls its own order and celebrates the moment they land.
  */
 const CreditStore = ({ onBack }: CreditStoreProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { profile, fetchProfile, fetchTransactions } = useUserProfile();
   const { toast } = useToast();
@@ -96,7 +99,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
         if (!cancelled) setPackages((data ?? []) as CreditPackage[]);
       } catch (e) {
         console.error('[CreditStore] packages:', e);
-        if (!cancelled) toast({ title: 'Could not load the packs', description: 'Please try again in a moment.', variant: 'destructive' });
+        if (!cancelled) toast({ title: t('billing.gems.packsFailedTitle'), description: t('billing.gems.tryAgainMoment'), variant: 'destructive' });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -116,7 +119,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
       } catch { /* no resume offer, nothing lost */ }
     })();
     return () => { cancelled = true; };
-  }, [user, toast]);
+  }, [user, toast, t]);
 
   // ---- starting an order ----------------------------------------------------
 
@@ -149,11 +152,11 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
       showCode(data as GemOrder);
     } catch (e) {
       console.error('[CreditStore] start order:', e);
-      toast({ title: 'Could not start the purchase', description: e instanceof Error ? e.message : 'Please try again.', variant: 'destructive' });
+      toast({ title: t('billing.gems.startFailedTitle'), description: e instanceof Error ? e.message : t('billing.gems.tryAgain'), variant: 'destructive' });
     } finally {
       setStarting(null);
     }
-  }, [user, starting, showCode, toast]);
+  }, [user, starting, showCode, toast, t]);
 
   // ---- the QR, and waiting for the phone --------------------------------------
 
@@ -192,7 +195,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
           const balance = typeof fresh?.credits === 'number' ? fresh.credits : null;
           setLanded({ credits: Number(data.credits), balance });
           setView('paid');
-          toast({ title: 'Snow Gems added', description: `${Number(data.credits).toLocaleString()} Snow Gems are on your account.` });
+          toast({ title: t('billing.gems.addedTitle'), description: t('billing.gems.addedDesc', { amount: formatNumber(Number(data.credits)) }) });
           try { trackEvent('gems_paid', 'store', { package: order.package_name, credits: Number(data.credits), price: order.price, order: data.order_number }); } catch { /* ignore */ }
         } else if (data.status === 'review') {
           setReview(true);
@@ -200,9 +203,9 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
       } catch { /* try again next tick */ }
     };
     void tick();
-    const t = window.setInterval(() => { void tick(); }, POLL_MS);
-    return () => { cancelled = true; window.clearInterval(t); };
-  }, [view, order, user?.id, fetchProfile, fetchTransactions, toast]);
+    const timer = window.setInterval(() => { void tick(); }, POLL_MS);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [view, order, user?.id, fetchProfile, fetchTransactions, toast, t]);
 
   const backToPacks = useCallback(() => {
     setView('packages');
@@ -220,8 +223,8 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
   // Land the highlight somewhere useful when the view changes.
   useEffect(() => {
     const id = view === 'qr' ? 'gems-qr-back' : view === 'paid' ? 'gems-done' : 'gems-back';
-    const t = window.setTimeout(() => focus.focusById(id), 80);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => focus.focusById(id), 80);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
@@ -238,18 +241,18 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
   if (view === 'paid' && landed) {
     return (
       <div ref={focus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
-        {header('Back to Dashboard', onBack, 'gems-done-back')}
+        {header(t('billing.gems.backToDashboard'), onBack, 'gems-done-back')}
         <div className="max-w-2xl mx-auto pb-16">
           <Card className={`${PANEL} p-8 text-center`}>
             <div className="w-20 h-20 rounded-full [background:var(--gradient-gold)] mx-auto mb-5 flex items-center justify-center shadow-xl">
               <Check className="w-10 h-10 text-black/80" />
             </div>
-            <h1 className="text-3xl font-quicksand font-bold mb-2">Snow Gems added</h1>
+            <h1 className="text-3xl font-quicksand font-bold mb-2">{t('billing.gems.addedTitle')}</h1>
             <p className="text-xl text-brand-ice mb-1">
-              <span className="text-brand-gold font-semibold">{landed.credits.toLocaleString()}</span> Snow Gems are on your account.
+              <Trans i18nKey="billing.gems.addedBody" values={{ amount: formatNumber(landed.credits) }} components={[<span key="amt" className="text-brand-gold font-semibold" />]} />
             </p>
             {landed.balance != null && (
-              <p className="text-white/70 mb-6">Your balance is now {landed.balance.toLocaleString()} Snow Gems.</p>
+              <p className="text-white/70 mb-6">{t('billing.gems.balanceNow', { amount: formatNumber(landed.balance) })}</p>
             )}
             <Button
               onClick={onBack}
@@ -257,7 +260,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
               data-tv-focus-id="gems-done"
               className="tv-ring tv-ring-contrast h-14 px-8 rounded-xl border-0 text-black font-semibold [background:var(--gradient-gold)] hover:brightness-110"
             >
-              <Sparkles className="w-5 h-5 mr-2" /> Done
+              <Sparkles className="w-5 h-5 mr-2" /> {t('billing.gems.doneBtn')}
             </Button>
           </Card>
         </div>
@@ -268,11 +271,11 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
   if (view === 'qr' && order) {
     return (
       <div ref={focus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
-        {header('Choose a different pack', backToPacks, 'gems-qr-back')}
+        {header(t('billing.gems.chooseDifferent'), backToPacks, 'gems-qr-back')}
         <div className="max-w-5xl mx-auto pb-16 grid gap-6 md:grid-cols-[auto_1fr] items-start">
           <div className="bg-white p-4 rounded-2xl shadow-xl justify-self-center">
             {qrDataUrl ? (
-              <img src={qrDataUrl} alt="Scan to pay for Snow Gems" className="w-[min(55vh,20rem)] h-[min(55vh,20rem)]" />
+              <img src={qrDataUrl} alt={t('billing.gems.qrAlt')} className="w-[min(55vh,20rem)] h-[min(55vh,20rem)]" />
             ) : (
               <div className="w-[min(55vh,20rem)] h-[min(55vh,20rem)] flex items-center justify-center">
                 <Loader2 className="w-10 h-10 text-brand-navy animate-spin" />
@@ -280,30 +283,29 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
             )}
           </div>
           <Card className={`${PANEL} p-6`}>
-            <p className="text-xs uppercase tracking-wide text-brand-gold/90 mb-1">Scan with your phone</p>
+            <p className="text-xs uppercase tracking-wide text-brand-gold/90 mb-1">{t('billing.gems.scanWithPhone')}</p>
             <h1 className="text-3xl font-quicksand font-bold mb-2">{order.package_name}</h1>
             <p className="text-2xl mb-4">
-              <span className="text-brand-gold font-bold">{fmtMoney(order.price)}</span>
-              <span className="text-brand-ice/80 text-lg"> for {Number(order.credits).toLocaleString()} Snow Gems</span>
+              <Trans i18nKey="billing.gems.priceFor" values={{ price: fmtMoney(order.price), amount: formatNumber(Number(order.credits)) }} components={[<span key="price" className="text-brand-gold font-bold" />, <span key="for" className="text-brand-ice/80 text-lg" />]} />
             </p>
             <ol className="space-y-2 text-white/85 mb-5">
-              <li className="flex gap-3"><span className="text-brand-gold font-bold">1.</span> Open your phone camera and point it at the code.</li>
-              <li className="flex gap-3"><span className="text-brand-gold font-bold">2.</span> Pay on the page that opens. It is only for this purchase.</li>
-              <li className="flex gap-3"><span className="text-brand-gold font-bold">3.</span> Leave this screen open. The gems land here by themselves.</li>
+              <li className="flex gap-3"><span className="text-brand-gold font-bold">1.</span> {t('billing.gems.step1')}</li>
+              <li className="flex gap-3"><span className="text-brand-gold font-bold">2.</span> {t('billing.gems.step2')}</li>
+              <li className="flex gap-3"><span className="text-brand-gold font-bold">3.</span> {t('billing.gems.step3')}</li>
             </ol>
             {expired ? (
               <div className="rounded-xl border border-amber-400/50 bg-amber-400/10 p-4 mb-4">
-                <p className="font-semibold text-amber-200">This code has expired.</p>
-                <p className="text-white/75 text-sm">Codes last 30 minutes. Pick the pack again for a fresh one. If you already paid, the gems still arrive.</p>
+                <p className="font-semibold text-amber-200">{t('billing.gems.expiredTitle')}</p>
+                <p className="text-white/75 text-sm">{t('billing.gems.expiredDesc')}</p>
               </div>
             ) : review ? (
               <div className="rounded-xl border border-brand-ice/30 bg-brand-ice/10 p-4 mb-4">
-                <p className="font-semibold">Payment received, being checked.</p>
-                <p className="text-white/75 text-sm">The amount did not match the pack, so a person is looking at it. Your gems will be added by hand.</p>
+                <p className="font-semibold">{t('billing.gems.reviewTitle')}</p>
+                <p className="text-white/75 text-sm">{t('billing.gems.reviewDesc')}</p>
               </div>
             ) : (
               <p className="flex items-center gap-2 text-brand-ice/80 mb-4">
-                <Loader2 className="w-4 h-4 animate-spin" /> Waiting for the payment…
+                <Loader2 className="w-4 h-4 animate-spin" /> {t('billing.gems.waiting')}
               </p>
             )}
             <div className="flex flex-wrap gap-3">
@@ -314,7 +316,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
                 data-tv-focus-id="gems-qr-change"
                 className="tv-ring h-12 rounded-xl border-brand-ice/30 bg-white/5 text-white"
               >
-                <ArrowLeft className="w-4 h-4 mr-2" /> Different pack
+                <ArrowLeft className="w-4 h-4 mr-2" /> {t('billing.gems.differentPackBtn')}
               </Button>
               {expired && (
                 <Button
@@ -326,7 +328,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
                   data-tv-focus-id="gems-qr-again"
                   className="tv-ring tv-ring-contrast h-12 rounded-xl border-0 text-black font-semibold [background:var(--gradient-gold)]"
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" /> New code
+                  <RefreshCw className="w-4 h-4 mr-2" /> {t('billing.gems.newCodeBtn')}
                 </Button>
               )}
             </div>
@@ -338,17 +340,17 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
 
   return (
     <div ref={focus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
-      {header('Back', onBack, 'gems-back')}
+      {header(t('common.back'), onBack, 'gems-back')}
       <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-4xl font-quicksand font-bold text-shadow-strong mb-1">Snow Gems</h1>
-            <p className="text-xl text-brand-ice">Pick a pack, scan the code with your phone, pay there. The gems land here.</p>
+            <h1 className="text-4xl font-quicksand font-bold text-shadow-strong mb-1">{t('billing.gems.title')}</h1>
+            <p className="text-xl text-brand-ice">{t('billing.gems.subtitle')}</p>
           </div>
           {profile && (
             <div className="rounded-2xl border border-brand-gold/50 bg-brand-gold/15 px-5 py-3">
-              <div className="text-xs uppercase tracking-wide text-brand-gold/90">Your balance</div>
-              <div className="text-2xl font-quicksand font-bold">{Number(profile.credits ?? 0).toLocaleString()} <span className="text-base font-normal text-brand-ice">Snow Gems</span></div>
+              <div className="text-xs uppercase tracking-wide text-brand-gold/90">{t('billing.gems.yourBalance')}</div>
+              <div className="text-2xl font-quicksand font-bold"><Trans i18nKey="billing.gems.balanceValue" values={{ amount: formatNumber(Number(profile.credits ?? 0)) }} components={[<span key="unit" className="text-base font-normal text-brand-ice" />]} /></div>
             </div>
           )}
         </div>
@@ -356,8 +358,8 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
         {pending && (
           <Card className={`${PANEL} p-5 mb-6 flex flex-wrap items-center justify-between gap-4`}>
             <div>
-              <p className="font-semibold">A code is still waiting: {pending.package_name} for {fmtMoney(pending.price)}</p>
-              <p className="text-brand-ice/75 text-sm">Show it again to finish paying, or pick a pack below to start over.</p>
+              <p className="font-semibold">{t('billing.gems.pendingTitle', { name: pending.package_name, price: fmtMoney(pending.price) })}</p>
+              <p className="text-brand-ice/75 text-sm">{t('billing.gems.pendingDesc')}</p>
             </div>
             <Button
               onClick={() => showCode(pending)}
@@ -365,7 +367,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
               data-tv-focus-id="gems-resume"
               className="tv-ring tv-ring-contrast h-12 rounded-xl border-0 text-black font-semibold [background:var(--gradient-gold)]"
             >
-              Show the code again
+              {t('billing.gems.showCodeBtn')}
             </Button>
           </Card>
         )}
@@ -377,7 +379,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
             ))
           ) : packages.length === 0 ? (
             <Card className={`${PANEL} p-6 md:col-span-2 lg:col-span-4 text-center text-brand-ice/80`}>
-              No packs are on sale right now.
+              {t('billing.gems.noPacks')}
             </Card>
           ) : (
             packages.map((pkg, index) => {
@@ -395,7 +397,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
                 >
                   {popular && (
                     <span className="absolute top-3 right-3 text-[11px] font-bold uppercase tracking-wide bg-brand-gold text-black px-2 py-1 rounded-full">
-                      Most popular
+                      {t('billing.gems.mostPopularChip')}
                     </span>
                   )}
                   <div className="w-14 h-14 rounded-2xl [background:var(--gradient-blue)] flex items-center justify-center mb-4 shadow-lg">
@@ -403,13 +405,13 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
                   </div>
                   <h2 className="text-xl font-quicksand font-bold">{pkg.name}</h2>
                   <p className="text-3xl font-quicksand font-bold text-brand-gold my-1">{fmtMoney(pkg.price)}</p>
-                  <p className="text-brand-ice mb-3">{Number(pkg.credits).toLocaleString()} Snow Gems</p>
+                  <p className="text-brand-ice mb-3">{t('billing.gems.gemsAmount', { amount: formatNumber(Number(pkg.credits)) })}</p>
                   {pkg.description && <p className="text-white/70 text-sm mb-3">{pkg.description}</p>}
                   <p className="text-xs text-white/55 mt-auto">
-                    ~{Math.floor(pkg.credits).toLocaleString()} AI images · ~{Math.floor(pkg.credits / 0.01).toLocaleString()} chats
+                    {t('billing.gems.approx', { images: formatNumber(Math.floor(pkg.credits)), chats: formatNumber(Math.floor(pkg.credits / 0.01)) })}
                   </p>
                   <span className="mt-4 inline-flex items-center justify-center h-11 rounded-xl border border-brand-gold/60 bg-brand-gold/15 text-brand-gold font-semibold">
-                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Buy with your phone'}
+                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : t('billing.gems.buyWithPhone')}
                   </span>
                 </button>
               );
@@ -419,12 +421,12 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
 
         {/* Focusable so Down from the last pack lands here and brings it on screen. */}
         <Card tabIndex={0} data-tv-focus-id="gems-info" className={`${PANEL} tv-ring p-6 mt-6`}>
-          <h3 className="text-lg font-quicksand font-semibold text-brand-gold mb-3">How Snow Gems work</h3>
+          <h3 className="text-lg font-quicksand font-semibold text-brand-gold mb-3">{t('billing.gems.howTitle')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-white/80">
-            <p>AI image: <strong className="text-white">1 Snow Gem</strong> each.</p>
-            <p>AI chat message: <strong className="text-white">0.01 Snow Gems</strong> each.</p>
-            <p>Gems never expire and there are no monthly fees.</p>
-            <p>Paying happens on your phone, on a page made for that one purchase.</p>
+            <p><Trans i18nKey="billing.gems.howImage" components={[<strong key="b" className="text-white" />]} /></p>
+            <p><Trans i18nKey="billing.gems.howChat" components={[<strong key="b" className="text-white" />]} /></p>
+            <p>{t('billing.gems.howNoExpire')}</p>
+            <p>{t('billing.gems.howPhone')}</p>
           </div>
         </Card>
       </div>
