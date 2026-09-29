@@ -1,0 +1,33 @@
+{
+  "home": {
+    "tagline": "تجربة البث المتميزة الخاصة بك",
+    "mainApps": {
+      "title": "التطبيقات الرئيسية",
+      "description": "تنزيل ملفات APK وأدوات البث"
+    },
+    "support": {
+      "title": "الدعم",
+      "description": "المساعدة ودردشة الذكاء الاصطناعي والمجتمع"
+    },
+    "store": {
+      "title": "متجر Snow Media",
+      "description": "زيارة المتجر الرسمي"
+    },
+    "giveaway": {
+      "title": "السحب",
+      "description": "شارك واربح جوائز"
+    },
+    "player": {
+      "title": "المشغل",
+      "description": "البث المباشر والأفلام والمسلسلات"
+    },
+    "liveTv": {
+      "title": "البث المباشر",
+      "description": "القنوات والدليل ويوم المباراة"
+    },
+    "plex": {
+      "title": "Plex",
+      "description": "أفلام ومسلسلات"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import "core-js/stable";
 import "core-js/stable/structured-clone";
-import './i18n';
+import { i18nReady } from './i18n';
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
@@ -88,10 +88,23 @@ const logStartupDiagnostics = async () => {
 // Render IMMEDIATELY — do not block first paint on storage probes.
 // The guard in index.html has already drawn its page on a WebView too old
 // to run this bundle; mounting the app over it would only white it out.
+const bootRendered = () => {
+  try { (window as unknown as { __SMC_BOOT__?: (stage: string) => void }).__SMC_BOOT__?.('render'); } catch { /* ignore */ }
+};
 if (!(window as unknown as { __smcWebViewTooOld?: boolean }).__smcWebViewTooOld) {
-createRoot(document.getElementById("root")!).render(<App />);
+  // The chosen language comes from the APK, so this is quick. English is bundled: if it is
+  // still loading after 1.5 s, draw the app in English and the text switches when it arrives.
+  const ready = Promise.race([
+    i18nReady,
+    new Promise((resolve) => window.setTimeout(resolve, 1500)),
+  ]).catch(() => undefined);
+  ready.then(() => {
+    createRoot(document.getElementById("root")!).render(<App />);
+    bootRendered();
+  });
+} else {
+  bootRendered();
 }
-try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('render'); } catch(e){}
 
 // Fire-and-forget diagnostics
 logStartupDiagnostics().catch((err) => {

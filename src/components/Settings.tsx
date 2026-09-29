@@ -868,14 +868,13 @@ const Settings = ({ onBack }: SettingsProps) => {
                           handleLanguageSelect(lang.code);
                         }}
                         tabIndex={0}
-                        dir={lang.code === 'ar' ? 'rtl' : 'ltr'}
                         className={`tv-ring flex items-center justify-between gap-2 px-4 py-3 rounded-md border text-base transition-all duration-150 ${focusRing(`ui-language-${lang.code}`)} ${
                           selected
                             ? 'bg-brand-gold/20 border-brand-gold text-white'
                             : 'bg-slate-800 border-slate-500/60 text-slate-100 hover:bg-slate-700'
                         }`}
                       >
-                        <span className="font-medium">{lang.nativeName}</span>
+                        <span dir="auto" className="font-medium">{lang.nativeName}</span>
                         {selected && <Check className="w-4 h-4 text-brand-gold shrink-0" />}
                       </button>
                     );
