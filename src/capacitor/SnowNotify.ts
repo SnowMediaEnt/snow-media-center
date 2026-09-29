@@ -36,6 +36,13 @@ export interface SnowNotifyPlugin {
   /** Plex requests from this box: while `pending`, the alert job also asks
    *  whether they have arrived and posts "Now on Plex" when they have. */
   watchRequests(options: { deviceKey: string; pending: boolean }): Promise<void>;
+  /**
+   * The language picked in SMC ('en' | 'es' | 'fr' | 'de' | 'ar'). The native side keeps it for
+   * every text it writes itself (notifications, the news widget, player and billing errors, the
+   * speech prompt), because those run while the WebView is not there. Rejects on an app build
+   * older than this method: callers ignore that.
+   */
+  setLanguage(options: { lang: string }): Promise<{ lang?: string }>;
 }
 
 const unavailable: SnowNotifyPlugin = {
@@ -44,6 +51,7 @@ const unavailable: SnowNotifyPlugin = {
   disable: async () => ({ enabled: false }),
   pollNow: async () => ({ enabled: false }),
   watchRequests: async () => undefined,
+  setLanguage: async () => ({}),
 };
 
 export const SnowNotify = registerPlugin<SnowNotifyPlugin>('SnowNotify', { web: unavailable });

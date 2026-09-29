@@ -10,6 +10,7 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.snowmedia.AppLocale
 import com.snowmedia.MainActivity
 import com.snowmedia.R
 
@@ -151,33 +152,64 @@ internal object RecordScheduler {
         ScheduleStore.update(ctx, s.id) { it.copy(status = ScheduleStatus.MISSED, reason = ScheduleReasons.MISSED, finishedAtMs = now) }
         cancel(ctx, s.id)
         notify(
-            ctx, s.id + "m", "Missed recording: ${label(s)}",
-            "${clock(s.startUtcMs)}–${clock(s.endUtcMs)}. ${ScheduleReasons.MISSED}",
+            ctx, s.id + "m", AppLocale.string(ctx, R.string.sched_missed_title, label(ctx, s)),
+            AppLocale.string(ctx, R.string.sched_missed_text, clock(ctx, s.startUtcMs), clock(ctx, s.endUtcMs), reasonText(ctx, ScheduleReasons.MISSED)),
         )
     }
 
     fun fail(ctx: Context, s: Sched, reason: String, now: Long = System.currentTimeMillis()) {
         ScheduleStore.update(ctx, s.id) { it.copy(status = ScheduleStatus.FAILED, reason = reason, finishedAtMs = now) }
         cancel(ctx, s.id)
-        notify(ctx, s.id + "f", "Scheduled recording didn't start: ${label(s)}", reason)
+        notify(ctx, s.id + "f", AppLocale.string(ctx, R.string.sched_failed_title, label(ctx, s)), reasonText(ctx, reason))
         RecorderPlugin.emitChanged()
     }
 
     fun startedLate(ctx: Context, s: Sched, endsAt: Long) {
         notify(
-            ctx, s.id + "l", "Started late: ${label(s)}",
-            "The box was off at ${clock(ScheduleRules.paddedStart(s))}. Recording until ${clock(endsAt)}.",
+            ctx, s.id + "l", AppLocale.string(ctx, R.string.sched_late_title, label(ctx, s)),
+            AppLocale.string(ctx, R.string.sched_late_text, clock(ctx, ScheduleRules.paddedStart(s)), clock(ctx, endsAt)),
         )
     }
 
+    /** A schedule set for a USB drive that was not there: the box's own storage took the recording instead. */
+    fun movedToBox(ctx: Context, s: Sched) {
+        notify(
+            ctx, s.id + "u", AppLocale.string(ctx, R.string.sched_usb_title, label(ctx, s)),
+            reasonText(ctx, ScheduleReasons.USB_GONE),
+        )
+    }
+
+    /**
+     * A reason as the notification shows it, in the app's language. The reasons are stored with the
+     * schedule (and shown by the Recordings screen) in the English of ScheduleReasons, so this
+     * only translates the notification; anything it does not know is shown as it is.
+     */
+    fun reasonText(ctx: Context, reason: String): String {
+        val id = when (reason) {
+            ScheduleReasons.NO_LOGIN -> R.string.sched_reason_no_login
+            ScheduleReasons.OTHER_LINE -> R.string.sched_reason_other_line
+            ScheduleReasons.NO_SPACE -> R.string.sched_reason_no_space
+            ScheduleReasons.USB_GONE -> R.string.sched_reason_usb_gone
+            ScheduleReasons.BLOCKED -> R.string.sched_reason_blocked
+            ScheduleReasons.MISSED -> R.string.sched_reason_missed
+            ScheduleReasons.START_FAILED -> R.string.sched_reason_start_failed
+            else -> null
+        }
+        if (id != null) return AppLocale.string(ctx, id)
+        val running = TOO_MANY.matchEntire(reason)?.groupValues?.get(1)?.toIntOrNull()
+        return if (running != null) AppLocale.plural(ctx, R.plurals.sched_reason_too_many, running) else reason
+    }
+
+    /** ScheduleReasons.tooMany(n) in words, to find n again. */
+    private val TOO_MANY = Regex("""(\d+) recordings? (?:was|were) already running\.""")
+
     /** "The News (CNN)": the programme and the channel, nothing about the line. */
-    fun label(s: Sched): String {
-        val title = s.programmeTitle.ifBlank { "Recording" }
+    fun label(ctx: Context, s: Sched): String {
+        val title = s.programmeTitle.ifBlank { AppLocale.string(ctx, R.string.sched_default_title) }
         return if (s.channelName.isBlank()) title else "$title (${s.channelName})"
     }
 
-    fun clock(ms: Long): String =
-        java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(ms))
+    fun clock(ctx: Context, ms: Long): String = AppLocale.clock(ctx, ms)
 
     /** One notification on the recordings channel; a box that has notifications off simply shows none (the screen has the status). */
     fun notify(ctx: Context, key: String, title: String, text: String) {

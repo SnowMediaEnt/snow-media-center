@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.snowmedia.AppLocale
+import com.snowmedia.R
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -105,14 +107,14 @@ class AlertPollWorker(context: Context, params: WorkerParameters) : Worker(conte
             val ready = res.optJSONArray("ready") ?: JSONArray()
             for (i in 0 until ready.length()) {
                 val o = ready.getJSONObject(i)
-                val title = o.optString("title").ifBlank { "Your request" }
+                val title = o.optString("title").ifBlank { AppLocale.string(applicationContext, R.string.alert_plex_request_fallback) }
                 val kind = if (o.optString("mediaType") == "tv") "tv" else "movie"
                 AlertNotifier.post(
                     applicationContext,
                     Alert(
                         id = "plexreq-$kind-${o.optInt("tmdbId")}",
-                        title = "Now on Plex",
-                        message = "$title is ready to watch. Open the Player, then Plex.",
+                        title = AppLocale.string(applicationContext, R.string.alert_plex_title),
+                        message = AppLocale.string(applicationContext, R.string.alert_plex_ready, title),
                         severity = "info",
                     ),
                 )

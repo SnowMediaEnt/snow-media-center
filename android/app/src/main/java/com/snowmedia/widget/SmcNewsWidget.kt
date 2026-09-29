@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import android.widget.RemoteViews
+import com.snowmedia.AppLocale
 import com.snowmedia.R
 import org.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
@@ -14,9 +15,6 @@ import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.concurrent.Executors
 
 /**
@@ -74,7 +72,7 @@ class SmcNewsWidget : AppWidgetProvider() {
                 return@execute // keep showing the cache rather than blanking out
             }
             if (items.isEmpty()) return@execute
-            val stamp = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
+            val stamp = AppLocale.clock(context, System.currentTimeMillis())
             prefs.edit()
                 .putString(KEY_ITEMS, items.joinToString("\n"))
                 .putString(KEY_UPDATED, stamp)
@@ -98,7 +96,7 @@ class SmcNewsWidget : AppWidgetProvider() {
         views.setTextColor(R.id.widget_status, status.color)
         views.setTextViewText(
             R.id.widget_headline_1,
-            items.getOrNull(0) ?: "Open Snow Media Center for the latest.",
+            items.getOrNull(0) ?: AppLocale.string(context, R.string.widget_open_app),
         )
         views.setTextViewText(R.id.widget_headline_2, items.getOrNull(1) ?: "")
         views.setTextViewText(R.id.widget_headline_3, items.getOrNull(2) ?: "")
@@ -186,17 +184,17 @@ class SmcNewsWidget : AppWidgetProvider() {
                 .getString(KEY_ACCOUNT, null)
         } catch (t: Throwable) {
             null
-        } ?: return AccountStatus("Not signed in — open to add your line", COLOR_MUTED)
+        } ?: return AccountStatus(AppLocale.string(context, R.string.widget_not_signed_in), COLOR_MUTED)
 
         return try {
             val o = JSONObject(raw)
-            val label = o.optString("serverLabel").ifBlank { "Your line" }
+            val label = o.optString("serverLabel").ifBlank { AppLocale.string(context, R.string.widget_line_fallback) }
             val trial = o.optBoolean("isTrial", false)
-            val prefix = if (trial) "Trial · $label" else label
+            val prefix = if (trial) AppLocale.string(context, R.string.widget_trial, label) else label
 
             // expDate is unix SECONDS, and null/absent when the panel omits it.
             val expSeconds = if (o.isNull("expDate")) 0L else o.optLong("expDate", 0L)
-            if (expSeconds <= 0L) return AccountStatus("$prefix · active", COLOR_GOLD)
+            if (expSeconds <= 0L) return AccountStatus(AppLocale.string(context, R.string.widget_active, prefix), COLOR_GOLD)
 
             // Compare against local midnight so "1 day left" flips at the date
             // boundary rather than on a rolling 24h window.
@@ -209,11 +207,10 @@ class SmcNewsWidget : AppWidgetProvider() {
             val days = Math.round((expSeconds * 1000.0 - midnight) / 86400000.0).toInt()
 
             when {
-                days < 0 -> AccountStatus("$prefix · expired — renew to keep watching", COLOR_RED)
-                days == 0 -> AccountStatus("$prefix · expires today", COLOR_RED)
-                days == 1 -> AccountStatus("$prefix · 1 day left", COLOR_RED)
-                days <= EXPIRY_WARN_DAYS -> AccountStatus("$prefix · $days days left", COLOR_RED)
-                else -> AccountStatus("$prefix · $days days left", COLOR_GOLD)
+                days < 0 -> AccountStatus(AppLocale.string(context, R.string.widget_expired, prefix), COLOR_RED)
+                days == 0 -> AccountStatus(AppLocale.string(context, R.string.widget_expires_today, prefix), COLOR_RED)
+                days <= EXPIRY_WARN_DAYS -> AccountStatus(AppLocale.plural(context, R.plurals.widget_days_left, days, prefix, days), COLOR_RED)
+                else -> AccountStatus(AppLocale.plural(context, R.plurals.widget_days_left, days, prefix, days), COLOR_GOLD)
             }
         } catch (t: Throwable) {
             Log.w(TAG, "account parse failed: ${t.message}")

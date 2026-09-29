@@ -1,6 +1,11 @@
 package com.snowmedia.notify
 
 import android.Manifest
+import android.appwidget.AppWidgetManager
+import android.app.NotificationManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationManagerCompat
@@ -12,6 +17,9 @@ import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import com.getcapacitor.annotation.Permission
 import com.getcapacitor.annotation.PermissionCallback
+import com.snowmedia.AppLocale
+import com.snowmedia.dvr.RecordingService
+import com.snowmedia.widget.SmcNewsWidget
 
 /**
  * Bridge for device alerts — notifications that reach the viewer when SMC is
@@ -34,6 +42,42 @@ private const val ALIAS_POST_NOTIFICATIONS = "postNotifications"
     ],
 )
 class SnowNotifyPlugin : Plugin() {
+
+    /** Loads with the app, before any other native text is needed: AppLocale learns the app's Context here. */
+    override fun load() {
+        AppLocale.attach(context)
+    }
+
+    /**
+     * The language picked in SMC ("en", "es", "fr", "de" or "ar"), saved for all native text (see
+     * AppLocale). The web side calls this at start and on every change. The channels are created
+     * again so their names change too, and the news widget is redrawn.
+     */
+    @PluginMethod
+    fun setLanguage(call: PluginCall) {
+        val lang = call.getString("lang")
+        if (lang == null || !AppLocale.setLanguage(context, lang)) {
+            call.reject("lang must be one of ${AppLocale.SUPPORTED.joinToString(", ")}")
+            return
+        }
+        try {
+            // Only channels that already exist are renamed; none is created just for this.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                if (mgr.getNotificationChannel(AlertNotifier.CHANNEL_ID) != null) AlertNotifier.ensureChannel(context)
+                if (mgr.getNotificationChannel(RecordingService.CHANNEL_ID) != null) RecordingService.ensureChannel(context)
+            }
+            val ids = AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, SmcNewsWidget::class.java))
+            if (ids.isNotEmpty()) {
+                context.sendBroadcast(
+                    Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+                        .setClass(context, SmcNewsWidget::class.java)
+                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids),
+                )
+            }
+        } catch (_: Throwable) { /* the language is saved; names and widget catch up next time */ }
+        call.resolve(JSObject().put("lang", lang))
+    }
 
     /** Whether this build can show notifications at all right now. */
     @PluginMethod

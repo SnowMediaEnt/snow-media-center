@@ -1,0 +1,36 @@
+{
+  "plexApi": {
+    "serverFallback": "خادم Plex",
+    "libraryFallback": "المكتبة",
+    "seasonFallback": "الموسم {{index}}",
+    "route": {
+      "relay": "Plex Relay (السرعة محدودة من Plex)",
+      "lan": "الشبكة المنزلية",
+      "direct": "مباشر إلى الخادم",
+      "unknown": "مسار غير معروف",
+      "customAddress": "عنوان مخصص ({{host}})",
+      "httpUnencrypted": "http (غير مشفّر)"
+    },
+    "quality": {
+      "original": "الأصلي (مباشر)"
+    },
+    "screenFormat": {
+      "fit": {
+        "label": "ملاءمة",
+        "hint": "الصورة كاملة بشكلها الصحيح"
+      },
+      "zoom": {
+        "label": "تكبير",
+        "hint": "يملأ الشاشة مع قص الأطراف"
+      },
+      "wide": {
+        "label": "عريض 16:9",
+        "hint": "فرض العرض الواسع"
+      },
+      "fill": {
+        "label": "تمديد",
+        "hint": "يملأ الشاشة دون مراعاة الشكل"
+      }
+    }
+  }
+}

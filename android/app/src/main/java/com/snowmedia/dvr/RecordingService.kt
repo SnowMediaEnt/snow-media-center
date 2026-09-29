@@ -17,6 +17,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.snowmedia.AppLocale
 import com.snowmedia.MainActivity
 import com.snowmedia.R
 import java.io.BufferedOutputStream
@@ -125,6 +126,7 @@ class RecordingService : Service() {
         val url = intent.getStringExtra(EXTRA_URL)
         val path = intent.getStringExtra(EXTRA_PATH)
         if (url == null || path == null) { release(id); failSchedules(id, ScheduleReasons.START_FAILED); return }
+        // Kept in English: this name is stored in the recordings index. The app always sends the real one.
         val channel = intent.getStringExtra(EXTRA_CHANNEL) ?: "Channel"
         val now = System.currentTimeMillis()
         // The end is a length from now, or (a scheduled start) a clock time.
@@ -220,21 +222,21 @@ class RecordingService : Service() {
                         if (sinceCheck > CHECK_EVERY_BYTES) {
                             sinceCheck = 0L
                             val free = StorageBudget.volumeOf(job.file.parentFile ?: job.file)?.first ?: Long.MAX_VALUE
-                            if (free < job.minFreeBytes) job.stop("The drive is full")
+                            if (free < job.minFreeBytes) job.stop(REASON_DRIVE_FULL)
                         }
                         if (job.endsAt > 0 && System.currentTimeMillis() >= job.endsAt) job.stop()
                     }
                 } catch (e: UnsupportedSourceException) {
-                    job.stop("This channel can't be recorded")
+                    job.stop(REASON_UNSUPPORTED)
                     break
                 } catch (e: DiskError) {
-                    job.stop(if (job.file.parentFile?.exists() == false) "The drive was removed" else "The recording could not be written")
+                    job.stop(if (job.file.parentFile?.exists() == false) REASON_DRIVE_REMOVED else REASON_WRITE_FAILED)
                     break
                 } catch (e: IOException) {
                     // Never the message: it can carry the address.
                     Log.w(TAG, "Recording connection dropped (${e.javaClass.simpleName})")
                     if (!job.stopped && e !is HttpStatusException && job.file.parentFile?.exists() == false) {
-                        job.stop("The drive was removed")
+                        job.stop(REASON_DRIVE_REMOVED)
                         break
                     }
                 }
@@ -249,7 +251,7 @@ class RecordingService : Service() {
             }
         } catch (t: Throwable) {
             Log.w(TAG, "Recording stopped (${t.javaClass.simpleName})")
-            job.stop("The recording could not be written")
+            job.stop(REASON_WRITE_FAILED)
         } finally {
             try { out?.close() } catch (_: IOException) { /* the drive went away */ }
             RecordingStore.finish(applicationContext, job.partId, System.currentTimeMillis())
@@ -326,17 +328,21 @@ class RecordingService : Service() {
         ensureChannel(this)
         val list = jobs.values.toList()
         val title = when (list.size) {
-            0 -> "Recording"
+            0 -> AppLocale.string(this, R.string.rec_notif_title_none)
             // A scheduled one names its programme too: "Recording The News (CNN)".
-            1 -> list[0].title?.takeIf { it.isNotBlank() }?.let { "Recording $it (${list[0].channel})" } ?: "Recording ${list[0].channel}"
-            else -> "Recording ${list.size} channels"
+            1 -> list[0].title?.takeIf { it.isNotBlank() }?.let { AppLocale.string(this, R.string.rec_notif_title_programme, it, list[0].channel) }
+                ?: AppLocale.string(this, R.string.rec_notif_title_channel, list[0].channel)
+            else -> AppLocale.plural(this, R.plurals.rec_notif_title_channels, list.size)
         }
         // Every recording is one more stream on the line: said in the
         // notification too, so it is never a surprise.
         val text = when (list.size) {
-            0 -> "Starting"
-            1 -> (if (list[0].endsAt > 0) "Until ${clock(list[0].endsAt)}" else "Until you stop it") + " \u00B7 uses 1 stream on your line"
-            else -> "Uses ${list.size} streams on your line"
+            0 -> AppLocale.string(this, R.string.rec_notif_text_starting)
+            1 -> {
+                if (list[0].endsAt > 0) AppLocale.string(this, R.string.rec_notif_text_until, clock(list[0].endsAt))
+                else AppLocale.string(this, R.string.rec_notif_text_until_stopped)
+            }
+            else -> AppLocale.plural(this, R.plurals.rec_notif_text_streams, list.size)
         }
         val open = PendingIntent.getActivity(
             this, 0,
@@ -356,7 +362,7 @@ class RecordingService : Service() {
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(open)
-            .addAction(0, "Stop", stop)
+            .addAction(0, AppLocale.string(this, R.string.rec_notif_stop), stop)
             .build()
     }
 
@@ -365,8 +371,8 @@ class RecordingService : Service() {
             val mgr = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val n = NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_snow)
-                .setContentTitle("Recording of ${job.channel} stopped")
-                .setContentText(why)
+                .setContentTitle(AppLocale.string(this, R.string.rec_ended_title, job.channel))
+                .setContentText(reasonText(why))
                 .setAutoCancel(true)
                 .build()
             mgr.notify(job.id.hashCode(), n)
@@ -377,8 +383,16 @@ class RecordingService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         else PendingIntent.FLAG_UPDATE_CURRENT
 
-    private fun clock(ms: Long): String =
-        java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(ms))
+    private fun clock(ms: Long): String = AppLocale.clock(this, ms)
+
+    /** An end reason as the notification shows it, in the app's language. The reason itself stays as stored (English). */
+    private fun reasonText(why: String): String = when (why) {
+        REASON_DRIVE_FULL -> AppLocale.string(this, R.string.rec_reason_drive_full)
+        REASON_UNSUPPORTED -> AppLocale.string(this, R.string.rec_reason_unsupported)
+        REASON_DRIVE_REMOVED -> AppLocale.string(this, R.string.rec_reason_drive_removed)
+        REASON_WRITE_FAILED -> AppLocale.string(this, R.string.rec_reason_write_failed)
+        else -> why
+    }
 
     // ---- keep the box awake while recording ----
 
@@ -427,6 +441,13 @@ class RecordingService : Service() {
         const val EXTRA_STREAM_ID = "streamId"
         const val EXTRA_LINE_KEY = "lineKey"
         const val CHANNEL_ID = "smc_recordings"
+
+        // Why a recording ended. Stored with the schedule and shown by the Recordings screen as
+        // written, so these stay English; the notification translates them (reasonText).
+        private const val REASON_DRIVE_FULL = "The drive is full"
+        private const val REASON_UNSUPPORTED = "This channel can't be recorded"
+        private const val REASON_DRIVE_REMOVED = "The drive was removed"
+        private const val REASON_WRITE_FAILED = "The recording could not be written"
         private const val NOTIFICATION_ID = 7301
         /** Recordings running at once: each is one more stream on the viewer's line. */
         const val MAX_SIMULTANEOUS = 2
@@ -467,13 +488,16 @@ class RecordingService : Service() {
 
         fun release(id: String) = synchronized(lock) { pending.remove(id); Unit }
 
+        /**
+         * Creates the channel, and renames it when the app's language changed: creating a channel
+         * that exists only updates its name and description, the viewer's own settings stay.
+         */
         fun ensureChannel(ctx: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
             val mgr = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (mgr.getNotificationChannel(CHANNEL_ID) != null) return
             mgr.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Recordings", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "Shows while a channel is being recorded."
+                NotificationChannel(CHANNEL_ID, AppLocale.string(ctx, R.string.rec_channel_name), NotificationManager.IMPORTANCE_LOW).apply {
+                    description = AppLocale.string(ctx, R.string.rec_channel_desc)
                     setShowBadge(false)
                 },
             )
