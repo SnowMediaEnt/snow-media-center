@@ -1,0 +1,118 @@
+{
+  "remoteHelp": {
+    "title": "Remote Access",
+    "chip": {
+      "done": "Done",
+      "notYet": "Not yet"
+    },
+    "header": {
+      "waived": "Payment waived — you're all set ✓",
+      "paid": "Paid ✓ — order #{{number}}"
+    },
+    "blocked": {
+      "title": "Remote Access isn't available on Fire TV devices",
+      "body": "Fire OS blocks the accessibility features a technician needs to control your device. We can still help you through a support ticket instead.",
+      "ticketsBtn": "Open Support Tickets"
+    },
+    "notNative": {
+      "paid": "✅ Your remote session is paid and ready. You're viewing this in a web browser — the technician setup runs inside the app.",
+      "paidNext": "On the box that needs help, open the <1>Snow Media Center app</1> (not a browser) and go to Support → Remote Access. Your paid request will pick up automatically — nothing to re-enter.",
+      "unpaid": "You're viewing this in a web browser. The technician setup runs inside the Snow Media Center <1>app</1> — on the box that needs help, open the app itself and go to Support → Remote Access."
+    },
+    "noauth": {
+      "body": "Sign in to your Snow Media account to request a Remote Access session. Use the Sign In button on the Home screen, then come back here."
+    },
+    "form": {
+      "subtitle": "Tell us what's wrong — a technician takes control of your box and fixes it with you. {{price}} per session.",
+      "issueLabel": "What's going wrong?",
+      "issuePlaceholder": "e.g. Live TV buffers every few minutes on all channels",
+      "needsLabel": "What do you need me to do? <1>(optional)</1>",
+      "needsPlaceholder": "e.g. Check my settings and get the streams playing smoothly",
+      "contactLabel": "Best way to reach you",
+      "contactPlaceholder": "Email or phone number",
+      "saving": "Saving...",
+      "continueBtn": "Continue to Payment — {{price}}"
+    },
+    "pay": {
+      "title": "Pay for your session",
+      "subtitle": "Request saved. Pay on your phone — no typing card numbers with the remote.",
+      "scan": "Scan the QR code with your phone to pay {{price}}. This screen moves on by itself the moment your payment arrives.",
+      "showQrBtn": "Show Payment QR Code",
+      "codeLabel": "Have a code from Snow Media?",
+      "codeHint": "Type it here and the payment step is skipped.",
+      "codePlaceholder": "Enter code",
+      "checking": "Checking…",
+      "useCodeBtn": "Use Code",
+      "dialogTitle": "Pay {{price}} — Remote Support",
+      "dialogDesc": "Scan with your phone to pay for the remote support session. This screen continues automatically once payment arrives.",
+      "guestTitle": "Guest checkout — no account needed",
+      "guestBody": "You can pay as a guest — no account needed. Finish the payment on your phone and this screen will continue on its own.",
+      "confirmedLabel": "I've Completed Payment"
+    },
+    "setup": {
+      "stepOf": "Setup — step {{step}} of 3",
+      "app": {
+        "title": "Install the Support app",
+        "body": "The Snow Support app is what shares your screen with the technician. Install it, press Recheck, and this step turns Done.",
+        "installBtn": "Install Support App",
+        "downloading": "Downloading...",
+        "recheckBtn": "Recheck",
+        "rechecking": "Checking..."
+      },
+      "overlay": {
+        "title": "Allow \"Display over other apps\"",
+        "why": "This permission is what draws the technician's pointer on your screen.",
+        "how": "A list of apps opens — find <1>Snow Support</1> and turn on <1>\"Allow display over other apps\"</1>. Then come back and confirm."
+      },
+      "openSettingsBtn": "Open Settings",
+      "confirmBtn": "I've turned it on",
+      "continueBtn": "Continue",
+      "a11y": {
+        "title": "Turn on the Snow Support accessibility service",
+        "why": "This is what lets the technician's clicks actually press things on your box.",
+        "how": "Find <1>Snow Support</1> in the list and switch it <1>On</1>. Then come back and confirm.",
+        "openBtn": "Open Accessibility Settings",
+        "important": "<1>Important:</1> step 2 (Display over other apps) must be Done first — turning this on before the overlay permission can leave the remote unresponsive until the box is unplugged."
+      }
+    },
+    "ready": {
+      "title": "You're all set",
+      "subtitle": "What happens next",
+      "point1": "The technician can see your screen and control your box.",
+      "point2": "A red border stays on screen the whole time so you always know it's active.",
+      "point3": "You can end the session whenever you want.",
+      "startBtn": "Start Remote Support",
+      "starting": "Starting..."
+    },
+    "started": {
+      "title": "Session started",
+      "body1": "The Snow Support app is open and takes it from here — it shows a 6-digit code and asks you to confirm screen sharing.",
+      "body2": "Give the code to your technician and accept the prompt. Remember: the red border means the session is live, and you can end it anytime."
+    },
+    "toast": {
+      "saveFailedTitle": "Could not save request",
+      "saveFailedDesc": "Check your internet connection and try again.",
+      "waivedTitle": "Payment waived — you're all set",
+      "receivedTitle": "Payment received",
+      "readyDesc": "Let's get your box ready for the technician.",
+      "codeRejectedTitle": "Code not accepted",
+      "codeInvalid": "That code isn't right. Check it and try again.",
+      "codeExpired": "That code has expired.",
+      "codeUsedUp": "That code has already been used.",
+      "codeTooMany": "Too many tries. Wait a few minutes, then try again.",
+      "codeNoRequest": "This request is not waiting for payment any more.",
+      "codeSignedOut": "Sign in to use a code.",
+      "tryAgain": "Please try again.",
+      "codeCheckFailedTitle": "Could not check the code",
+      "notYetTitle": "Payment not received yet",
+      "notYetDesc": "It can take a minute after checkout. Keep this screen open.",
+      "installFailedTitle": "Install failed",
+      "installFailedDesc": "Could not install the Support app.",
+      "settingsFailedTitle": "Could not open Settings",
+      "overlayManual": "Open Android Settings → Apps → Special app access → Display over other apps manually.",
+      "a11yManual": "Open Android Settings → Accessibility manually.",
+      "startFailedTitle": "Could not start",
+      "startFailedDesc": "Open the Snow Support app from your apps list instead."
+    }
+  }
+}

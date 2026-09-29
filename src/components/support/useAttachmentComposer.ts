@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import i18n from '@/i18n';
 import {
   canAttachScreenshot, canRecordVoice, captureScreenshot,
   startVoiceRecording, uploadAttachment, MAX_VOICE_MS,
@@ -30,11 +31,11 @@ export function useAttachmentComposer() {
     try {
       setDraft(await captureScreenshot());
       toast({
-        title: 'Screenshot attached',
-        description: 'Video does not appear in a screenshot — menus and errors do.',
+        title: i18n.t('tickets.attachment.toast.shotAttachedTitle'),
+        description: i18n.t('tickets.attachment.toast.shotAttachedDesc'),
       });
     } catch (e) {
-      toast({ title: 'Could not take a screenshot', description: (e as Error).message, variant: 'destructive' });
+      toast({ title: i18n.t('tickets.attachment.toast.shotFailedTitle'), description: (e as Error).message, variant: 'destructive' });
     } finally {
       setBusy(false);
     }
@@ -49,7 +50,7 @@ export function useAttachmentComposer() {
       setRecordingMs(0);
       tickRef.current = window.setInterval(() => setRecordingMs(Date.now() - startedAt), 250);
     } catch (e) {
-      toast({ title: 'Cannot record here', description: (e as Error).message, variant: 'destructive' });
+      toast({ title: i18n.t('tickets.attachment.toast.cannotRecordTitle'), description: (e as Error).message, variant: 'destructive' });
     }
   }, [toast]);
 
@@ -66,8 +67,8 @@ export function useAttachmentComposer() {
     if (!result) {
       // Either a mis-tap or a device whose mic hands back silence.
       toast({
-        title: 'Nothing was recorded',
-        description: 'Hold the button while you speak, then release.',
+        title: i18n.t('tickets.attachment.toast.nothingRecordedTitle'),
+        description: i18n.t('tickets.attachment.toast.nothingRecordedDesc'),
         variant: 'destructive',
       });
       return;

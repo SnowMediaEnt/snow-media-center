@@ -6,6 +6,7 @@
 // 'snow-mail:focus-list' event, and Up from the first row (or Back) hands it
 // back through 'support:focus-tab'.
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Newspaper, ChevronRight, BellOff } from 'lucide-react';
 import { useTVFocus, type TVFocusNavigationMap } from '@/hooks/useTVFocus';
 import { useSnowMail } from '@/hooks/useSnowMail';
@@ -13,6 +14,7 @@ import { mailDate, type SnowMail } from '@/lib/snowMail';
 import SnowMailReader from '@/components/SnowMailReader';
 
 const SnowMailPanel = () => {
+  const { t } = useTranslation();
   const { mails, loaded, readIds, markRead, notify } = useSnowMail();
   const [active, setActive] = useState(false);
   const [open, setOpen] = useState<SnowMail | null>(null);
@@ -72,15 +74,15 @@ const SnowMailPanel = () => {
       <div className="flex items-center justify-between mb-4 px-1">
         <div className="flex items-center gap-3 text-white/80">
           <Newspaper className="w-6 h-6 text-brand-gold" />
-          <span className="text-lg font-semibold">Posts from Snow Media Entertainment</span>
+          <span className="text-lg font-semibold">{t('support.mail.heading')}</span>
         </div>
         {!notify && (
-          <span className="flex items-center gap-2 text-sm text-white/50"><BellOff className="w-4 h-4" /> Notifications off (Settings → UI)</span>
+          <span className="flex items-center gap-2 text-sm text-white/50"><BellOff className="w-4 h-4" /> {t('support.mail.notifOff')}</span>
         )}
       </div>
 
       {!loaded && (
-        <div className="text-white/60 text-lg px-1 py-6">Checking for posts…</div>
+        <div className="text-white/60 text-lg px-1 py-6">{t('support.mail.checking')}</div>
       )}
 
       {loaded && mails.length === 0 && (
@@ -90,8 +92,8 @@ const SnowMailPanel = () => {
           className={`rounded-2xl border border-white/10 bg-white/[0.04] p-8 text-center outline-none ${focus.currentFocusId === 'mail-empty' && active ? 'ring-2 ring-brand-gold' : ''}`}
         >
           <Newspaper className="w-10 h-10 text-white/40 mx-auto mb-3" />
-          <div className="text-xl font-semibold text-white/80">Nothing here yet</div>
-          <div className="text-base text-white/55 mt-1">When Snow Media posts news, deals or event announcements, they land here — dated, and marked until you open them.</div>
+          <div className="text-xl font-semibold text-white/80">{t('support.mail.emptyTitle')}</div>
+          <div className="text-base text-white/55 mt-1">{t('support.mail.emptyDesc')}</div>
         </div>
       )}
 
@@ -120,7 +122,7 @@ const SnowMailPanel = () => {
                     <span className={`text-xl truncate ${unread ? 'font-extrabold' : 'font-semibold'}`}>{m.subject}</span>
                     {unread && (
                       <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider ${focused ? 'bg-slate-900 text-brand-gold' : 'bg-brand-gold text-slate-900'}`}>
-                        New
+                        {t('support.mail.newChip')}
                       </span>
                     )}
                   </div>

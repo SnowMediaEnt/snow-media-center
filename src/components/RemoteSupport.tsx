@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -34,6 +35,15 @@ const SUPPORT_APK_FILE = 'snow-support-latest.apk';
 const PAY_BASE_URL = 'https://snowmediaent.com/support-session';
 const PRICE_LABEL = '$25';
 const SETUP_STORAGE_KEY = 'smc-remote-setup-v1';
+/** Server reason codes from redeem_remote_support_code -> the message key to show. */
+const CODE_REASON_KEYS: Record<string, string> = {
+  invalid: 'remoteHelp.toast.codeInvalid',
+  expired: 'remoteHelp.toast.codeExpired',
+  used_up: 'remoteHelp.toast.codeUsedUp',
+  too_many: 'remoteHelp.toast.codeTooMany',
+  no_request: 'remoteHelp.toast.codeNoRequest',
+  signed_out: 'remoteHelp.toast.codeSignedOut',
+};
 // Parsed by AppManagerPlugin.openUrl via Intent.parseUri (intent:// scheme).
 const OVERLAY_SETTINGS_INTENT =
   'intent://#Intent;action=android.settings.action.MANAGE_OVERLAY_PERMISSION;end';
@@ -92,6 +102,7 @@ interface RemoteSupportProps {
 }
 
 const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
+  const { t } = useTranslation();
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
@@ -230,14 +241,14 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     } catch (err) {
       console.error('[RemoteSupport] submit failed:', err);
       toast({
-        title: 'Could not save request',
-        description: 'Check your internet connection and try again.',
+        title: t('remoteHelp.toast.saveFailedTitle'),
+        description: t('remoteHelp.toast.saveFailedDesc'),
         variant: 'destructive',
       });
     } finally {
       setSaving(false);
     }
-  }, [user, issue, needs, contact, saving, toast]);
+  }, [user, issue, needs, contact, saving, toast, t]);
 
   // ---------- Payment ----------
   const payUrl = useMemo(() => {
@@ -276,15 +287,15 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     toast(
       kind === 'comped'
         ? {
-            title: "Payment waived — you're all set",
-            description: "Let's get your box ready for the technician.",
+            title: t('remoteHelp.toast.waivedTitle'),
+            description: t('remoteHelp.toast.readyDesc'),
           }
         : {
-            title: 'Payment received',
-            description: "Let's get your box ready for the technician.",
+            title: t('remoteHelp.toast.receivedTitle'),
+            description: t('remoteHelp.toast.readyDesc'),
           },
     );
-  }, [toast]);
+  }, [toast, t]);
 
   // Auto-advance the moment the bridge flips the row to paid.
   useEffect(() => {
@@ -319,21 +330,14 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
         return;
       }
       try { trackEvent('remote_support_code', 'support', { ok: false, reason: res.reason ?? 'unknown' }); } catch { /* ignore */ }
-      const why: Record<string, string> = {
-        invalid: "That code isn't right. Check it and try again.",
-        expired: 'That code has expired.',
-        used_up: 'That code has already been used.',
-        too_many: 'Too many tries. Wait a few minutes, then try again.',
-        no_request: 'This request is not waiting for payment any more.',
-        signed_out: 'Sign in to use a code.',
-      };
-      toast({ title: 'Code not accepted', description: why[res.reason ?? ''] ?? 'Please try again.', variant: 'destructive' });
+      const whyKey = CODE_REASON_KEYS[res.reason ?? ''] ?? 'remoteHelp.toast.tryAgain';
+      toast({ title: t('remoteHelp.toast.codeRejectedTitle'), description: t(whyKey), variant: 'destructive' });
     } catch (err) {
-      toast({ title: 'Could not check the code', description: (err as Error).message || 'Please try again.', variant: 'destructive' });
+      toast({ title: t('remoteHelp.toast.codeCheckFailedTitle'), description: (err as Error).message || t('remoteHelp.toast.tryAgain'), variant: 'destructive' });
     } finally {
       setRedeeming(false);
     }
-  }, [code, redeeming, advanceAfterPayment, toast]);
+  }, [code, redeeming, advanceAfterPayment, toast, t]);
 
   // Manual fallback — the dialog's "I've completed payment" button.
   const handleConfirmPaid = useCallback(async () => {
@@ -343,8 +347,8 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
       const kind = await checkPaid();
       if (!kind) {
         toast({
-          title: 'Payment not received yet',
-          description: 'It can take a minute after checkout. Keep this screen open.',
+          title: t('remoteHelp.toast.notYetTitle'),
+          description: t('remoteHelp.toast.notYetDesc'),
         });
       } else {
         advanceAfterPayment(kind);
@@ -352,7 +356,7 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     } finally {
       setCheckingPayment(false);
     }
-  }, [checkingPayment, checkPaid, advanceAfterPayment, toast]);
+  }, [checkingPayment, checkPaid, advanceAfterPayment, toast, t]);
 
   // D-pad inside the QR dialog (it lives in a portal outside our container):
   // clamp arrows between its buttons, Back/Escape closes it.
@@ -427,14 +431,14 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     } catch (err) {
       console.error('[RemoteSupport] install failed:', err);
       toast({
-        title: 'Install failed',
-        description: err instanceof Error ? err.message : 'Could not install the Support app.',
+        title: t('remoteHelp.toast.installFailedTitle'),
+        description: err instanceof Error ? err.message : t('remoteHelp.toast.installFailedDesc'),
         variant: 'destructive',
       });
     } finally {
       setInstalling(false);
     }
-  }, [installing, toast]);
+  }, [installing, toast, t]);
 
   // ---------- Wizard: steps B / C (settings deep-links + user confirm) ----------
   const openOverlaySettings = useCallback(async () => {
@@ -443,12 +447,12 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     } catch (err) {
       console.error('[RemoteSupport] overlay settings failed:', err);
       toast({
-        title: 'Could not open Settings',
-        description: 'Open Android Settings → Apps → Special app access → Display over other apps manually.',
+        title: t('remoteHelp.toast.settingsFailedTitle'),
+        description: t('remoteHelp.toast.overlayManual'),
         variant: 'destructive',
       });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const openAccessibilitySettings = useCallback(async () => {
     try {
@@ -456,12 +460,12 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     } catch (err) {
       console.error('[RemoteSupport] accessibility settings failed:', err);
       toast({
-        title: 'Could not open Settings',
-        description: 'Open Android Settings → Accessibility manually.',
+        title: t('remoteHelp.toast.settingsFailedTitle'),
+        description: t('remoteHelp.toast.a11yManual'),
         variant: 'destructive',
       });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const confirmOverlay = useCallback(() => {
     const next = { ...setupFlags, overlay: true };
@@ -494,14 +498,14 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     } catch (err) {
       console.error('[RemoteSupport] launch failed:', err);
       toast({
-        title: 'Could not start',
-        description: 'Open the Snow Support app from your apps list instead.',
+        title: t('remoteHelp.toast.startFailedTitle'),
+        description: t('remoteHelp.toast.startFailedDesc'),
         variant: 'destructive',
       });
     } finally {
       setStarting(false);
     }
-  }, [starting, toast]);
+  }, [starting, toast, t]);
 
   // ---------- D-pad ----------
   const handleBack = useCallback(() => {
@@ -583,7 +587,7 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
       }`}
     >
       {done ? <CheckCircle2 className="w-6 h-6" /> : <span className="w-6 h-6 rounded-full border-2 border-current inline-block" />}
-      {done ? 'Done' : 'Not yet'}
+      {done ? t('remoteHelp.chip.done') : t('remoteHelp.chip.notYet')}
     </span>
   );
 
@@ -596,12 +600,12 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
       {subtitle && <p className="text-xl text-blue-200 mt-2">{subtitle}</p>}
       {request?.status === 'comped' ? (
         <p className="text-lg text-green-300 mt-2">
-          Payment waived — you're all set ✓
+          {t('remoteHelp.header.waived')}
         </p>
       ) : (
         request?.order_number && (
           <p className="text-lg text-green-300 mt-2">
-            Paid ✓ — order #{request.order_number}
+            {t('remoteHelp.header.paid', { number: request.order_number })}
           </p>
         )
       )}
@@ -609,7 +613,7 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
   );
 
   const backButton = (
-    <BackButton onClick={handleBack} label="Back" data-tv-focus-id="rs-back" />
+    <BackButton onClick={handleBack} label={t('common.back')} data-tv-focus-id="rs-back" />
   );
 
   const wizardShell = (
@@ -625,7 +629,7 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
         {backButton}
       </div>
       <div className="max-w-2xl mx-auto px-6 pb-24">
-        <Header title="Remote Access" subtitle={stepLabel} />
+        <Header title={t('remoteHelp.title')} subtitle={stepLabel} />
         <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
           <h2 className="text-3xl font-bold text-white">{title}</h2>
           <div className="text-xl text-slate-200 space-y-3">{reason}</div>
@@ -656,17 +660,16 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           {backButton}
         </div>
         <div className="max-w-2xl mx-auto px-6 pb-24">
-          <Header title="Remote Access" />
+          <Header title={t('remoteHelp.title')} />
           <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
             <div className="flex items-start gap-4">
               <ShieldAlert className="w-10 h-10 text-amber-400 shrink-0 mt-1" />
               <p className="text-2xl text-white font-medium">
-                Remote Access isn't available on Fire TV devices
+                {t('remoteHelp.blocked.title')}
               </p>
             </div>
             <p className="text-xl text-slate-300">
-              Fire OS blocks the accessibility features a technician needs to control
-              your device. We can still help you through a support ticket instead.
+              {t('remoteHelp.blocked.body')}
             </p>
             <Button
               onClick={onOpenTickets}
@@ -675,7 +678,7 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
               className={`${bigAction} bg-orange-700/60 border border-orange-400/70 text-white hover:bg-orange-600/70 w-full`}
             >
               <MessageCircle className="w-6 h-6 mr-3" />
-              Open Support Tickets
+              {t('remoteHelp.blocked.ticketsBtn')}
             </Button>
           </div>
         </div>
@@ -688,28 +691,24 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           {backButton}
         </div>
         <div className="max-w-2xl mx-auto px-6 pb-24">
-          <Header title="Remote Access" />
+          <Header title={t('remoteHelp.title')} />
           <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6">
             {request ? (
               <>
                 <p className="text-xl text-slate-200">
-                  ✅ Your remote session is paid and ready. You're viewing this in a
-                  web browser — the technician setup runs inside the app.
+                  {t('remoteHelp.notNative.paid')}
                 </p>
                 <p className="mt-3 text-slate-300">
-                  On the box that needs help, open the <b>Snow Media Center app</b>{' '}
-                  (not a browser) and go to Support → Remote Access. Your paid
-                  request will pick up automatically — nothing to re-enter.
+                  <Trans i18nKey="remoteHelp.notNative.paidNext" components={{ 1: <b /> }} />
                 </p>
               </>
             ) : (
               <p className="text-xl text-slate-200">
-                You're viewing this in a web browser. The technician setup runs
-                inside the Snow Media Center <b>app</b> — on the box that needs
-                help, open the app itself and go to Support → Remote Access.
+                <Trans i18nKey="remoteHelp.notNative.unpaid" components={{ 1: <b /> }} />
               </p>
             )}
             <p className="mt-4 text-xs font-mono text-slate-500 break-all">
+              {/* i18n-ignore: developer diagnostics line, not for customers */}
               {`platform=${getPlatform()} cap=${typeof (window as any).Capacitor} fn=${typeof (window as any).Capacitor?.isNativePlatform} bridge=${!!(window as any).androidBridge} ua=${(navigator.userAgent || '').slice(0, 80)}`}
             </p>
           </div>
@@ -723,11 +722,10 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           {backButton}
         </div>
         <div className="max-w-2xl mx-auto px-6 pb-24">
-          <Header title="Remote Access" />
+          <Header title={t('remoteHelp.title')} />
           <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6">
             <p className="text-xl text-slate-200">
-              Sign in to your Snow Media account to request a Remote Access session.
-              Use the Sign In button on the Home screen, then come back here.
+              {t('remoteHelp.noauth.body')}
             </p>
           </div>
         </div>
@@ -741,18 +739,18 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
         </div>
         <div className="max-w-2xl mx-auto px-6 pb-24">
           <Header
-            title="Remote Access"
-            subtitle={`Tell us what's wrong — a technician takes control of your box and fixes it with you. ${PRICE_LABEL} per session.`}
+            title={t('remoteHelp.title')}
+            subtitle={t('remoteHelp.form.subtitle', { price: PRICE_LABEL })}
           />
           <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
             <div>
               <label className="text-xl font-semibold text-white block mb-2">
-                What's going wrong? <span className="text-rose-400">*</span>
+                {t('remoteHelp.form.issueLabel')} <span className="text-rose-400">*</span>
               </label>
               <Textarea
                 value={issue}
                 onChange={(e) => setIssue(e.target.value)}
-                placeholder="e.g. Live TV buffers every few minutes on all channels"
+                placeholder={t('remoteHelp.form.issuePlaceholder')}
                 rows={4}
                 data-tv-focus-id="rs-issue"
                 className="bg-slate-700 border-slate-500 text-white text-xl placeholder:text-slate-400"
@@ -760,12 +758,12 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
             </div>
             <div>
               <label className="text-xl font-semibold text-white block mb-2">
-                What do you need me to do? <span className="text-slate-400 text-lg">(optional)</span>
+                <Trans i18nKey="remoteHelp.form.needsLabel" components={{ 1: <span className="text-slate-400 text-lg" /> }} />
               </label>
               <Textarea
                 value={needs}
                 onChange={(e) => setNeeds(e.target.value)}
-                placeholder="e.g. Check my settings and get the streams playing smoothly"
+                placeholder={t('remoteHelp.form.needsPlaceholder')}
                 rows={3}
                 data-tv-focus-id="rs-needs"
                 className="bg-slate-700 border-slate-500 text-white text-xl placeholder:text-slate-400"
@@ -773,12 +771,12 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
             </div>
             <div>
               <label className="text-xl font-semibold text-white block mb-2">
-                Best way to reach you
+                {t('remoteHelp.form.contactLabel')}
               </label>
               <Input
                 value={contact}
                 onChange={(e) => setContact(e.target.value)}
-                placeholder="Email or phone number"
+                placeholder={t('remoteHelp.form.contactPlaceholder')}
                 data-tv-focus-id="rs-contact"
                 className="bg-slate-700 border-slate-500 text-white text-xl h-14 placeholder:text-slate-400"
               />
@@ -791,9 +789,9 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
               className={`${bigAction} bg-rose-600 hover:bg-rose-700 text-white w-full justify-center`}
             >
               {saving ? (
-                <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> Saving...</>
+                <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> {t('remoteHelp.form.saving')}</>
               ) : (
-                <>Continue to Payment — {PRICE_LABEL}</>
+                <>{t('remoteHelp.form.continueBtn', { price: PRICE_LABEL })}</>
               )}
             </Button>
           </div>
@@ -807,13 +805,12 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           {backButton}
         </div>
         <div className="max-w-2xl mx-auto px-6 pb-24">
-          <Header title="Pay for your session" subtitle="Request saved. Pay on your phone — no typing card numbers with the remote." />
+          <Header title={t('remoteHelp.pay.title')} subtitle={t('remoteHelp.pay.subtitle')} />
           <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
             <div className="flex items-start gap-4">
               <Smartphone className="w-10 h-10 text-rose-400 shrink-0 mt-1" />
               <p className="text-xl text-slate-200">
-                Scan the QR code with your phone to pay {PRICE_LABEL}. This screen
-                moves on by itself the moment your payment arrives.
+                {t('remoteHelp.pay.scan', { price: PRICE_LABEL })}
               </p>
             </div>
             <Button
@@ -822,17 +819,17 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
               data-tv-focus-id="rs-show-qr"
               className={`${bigAction} bg-rose-600 hover:bg-rose-700 text-white w-full justify-center`}
             >
-              Show Payment QR Code
+              {t('remoteHelp.pay.showQrBtn')}
             </Button>
             <div className="border-t border-slate-600 pt-5">
               <label className="text-xl font-semibold text-white block mb-2">
-                Have a code from Snow Media?
+                {t('remoteHelp.pay.codeLabel')}
               </label>
-              <p className="text-slate-300 mb-3">Type it here and the payment step is skipped.</p>
+              <p className="text-slate-300 mb-3">{t('remoteHelp.pay.codeHint')}</p>
               <Input
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="Enter code"
+                placeholder={t('remoteHelp.pay.codePlaceholder')}
                 autoCapitalize="characters"
                 autoComplete="off"
                 spellCheck={false}
@@ -846,7 +843,7 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
                 data-tv-focus-id="rs-use-code"
                 className={`${bigAction} mt-3 bg-emerald-600 hover:bg-emerald-700 text-white w-full justify-center`}
               >
-                {redeeming ? (<><Loader2 className="w-6 h-6 mr-3 animate-spin" /> Checking…</>) : 'Use Code'}
+                {redeeming ? (<><Loader2 className="w-6 h-6 mr-3 animate-spin" /> {t('remoteHelp.pay.checking')}</>) : t('remoteHelp.pay.useCodeBtn')}
               </Button>
             </div>
           </div>
@@ -855,11 +852,10 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     );
   } else if (step === 'setup-app') {
     content = wizardShell(
-      'Setup — step 1 of 3',
-      'Install the Support app',
+      t('remoteHelp.setup.stepOf', { step: 1 }),
+      t('remoteHelp.setup.app.title'),
       <p>
-        The Snow Support app is what shares your screen with the technician.
-        Install it, press Recheck, and this step turns Done.
+        {t('remoteHelp.setup.app.body')}
       </p>,
       <StatusChip done={appInstalled} />,
       <>
@@ -871,9 +867,9 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           className={`${bigAction} bg-rose-600 hover:bg-rose-700 text-white`}
         >
           {installing ? (
-            <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> Downloading...</>
+            <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> {t('remoteHelp.setup.app.downloading')}</>
           ) : (
-            <><Download className="w-6 h-6 mr-3" /> Install Support App</>
+            <><Download className="w-6 h-6 mr-3" /> {t('remoteHelp.setup.app.installBtn')}</>
           )}
         </Button>
         <Button
@@ -884,25 +880,23 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           className={`${bigAction} bg-blue-600/20 border border-blue-400/50 text-white hover:bg-blue-600/30`}
         >
           {rechecking ? (
-            <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> Checking...</>
+            <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> {t('remoteHelp.setup.app.rechecking')}</>
           ) : (
-            <><RefreshCw className="w-6 h-6 mr-3" /> Recheck</>
+            <><RefreshCw className="w-6 h-6 mr-3" /> {t('remoteHelp.setup.app.recheckBtn')}</>
           )}
         </Button>
       </>,
     );
   } else if (step === 'setup-overlay') {
     content = wizardShell(
-      'Setup — step 2 of 3',
-      'Allow "Display over other apps"',
+      t('remoteHelp.setup.stepOf', { step: 2 }),
+      t('remoteHelp.setup.overlay.title'),
       <>
         <p>
-          This permission is what draws the technician's pointer on your screen.
+          {t('remoteHelp.setup.overlay.why')}
         </p>
         <p>
-          A list of apps opens — find <span className="font-semibold text-white">Snow Support</span> and
-          turn on <span className="font-semibold text-white">"Allow display over other apps"</span>.
-          Then come back and confirm.
+          <Trans i18nKey="remoteHelp.setup.overlay.how" components={{ 1: <span className="font-semibold text-white" /> }} />
         </p>
       </>,
       <StatusChip done={setupFlags.overlay} />,
@@ -914,7 +908,7 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           className={`${bigAction} bg-rose-600 hover:bg-rose-700 text-white`}
         >
           <Settings className="w-6 h-6 mr-3" />
-          Open Settings
+          {t('remoteHelp.setup.openSettingsBtn')}
         </Button>
         <Button
           onClick={confirmOverlay}
@@ -923,21 +917,20 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           className={`${bigAction} bg-green-600/25 border border-green-400/50 text-white hover:bg-green-600/40`}
         >
           <CheckCircle2 className="w-6 h-6 mr-3" />
-          {setupFlags.overlay ? 'Continue' : "I've turned it on"}
+          {setupFlags.overlay ? t('remoteHelp.setup.continueBtn') : t('remoteHelp.setup.confirmBtn')}
         </Button>
       </>,
     );
   } else if (step === 'setup-accessibility') {
     content = wizardShell(
-      'Setup — step 3 of 3',
-      'Turn on the Snow Support accessibility service',
+      t('remoteHelp.setup.stepOf', { step: 3 }),
+      t('remoteHelp.setup.a11y.title'),
       <>
         <p>
-          This is what lets the technician's clicks actually press things on your box.
+          {t('remoteHelp.setup.a11y.why')}
         </p>
         <p>
-          Find <span className="font-semibold text-white">Snow Support</span> in the list and
-          switch it <span className="font-semibold text-white">On</span>. Then come back and confirm.
+          <Trans i18nKey="remoteHelp.setup.a11y.how" components={{ 1: <span className="font-semibold text-white" /> }} />
         </p>
       </>,
       <StatusChip done={setupFlags.a11y} />,
@@ -949,7 +942,7 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           className={`${bigAction} bg-rose-600 hover:bg-rose-700 text-white`}
         >
           <Accessibility className="w-6 h-6 mr-3" />
-          Open Accessibility Settings
+          {t('remoteHelp.setup.a11y.openBtn')}
         </Button>
         <Button
           onClick={confirmA11y}
@@ -958,14 +951,12 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           className={`${bigAction} bg-green-600/25 border border-green-400/50 text-white hover:bg-green-600/40`}
         >
           <CheckCircle2 className="w-6 h-6 mr-3" />
-          {setupFlags.a11y ? 'Continue' : "I've turned it on"}
+          {setupFlags.a11y ? t('remoteHelp.setup.continueBtn') : t('remoteHelp.setup.confirmBtn')}
         </Button>
       </>,
       <div className="bg-amber-600/15 border border-amber-400/40 rounded-lg p-4">
         <p className="text-lg text-amber-200">
-          <span className="font-semibold">Important:</span> step 2 (Display over other
-          apps) must be Done first — turning this on before the overlay permission
-          can leave the remote unresponsive until the box is unplugged.
+          <Trans i18nKey="remoteHelp.setup.a11y.important" components={{ 1: <span className="font-semibold" /> }} />
         </p>
       </div>,
     );
@@ -976,20 +967,20 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           {backButton}
         </div>
         <div className="max-w-2xl mx-auto px-6 pb-24">
-          <Header title="You're all set" subtitle="What happens next" />
+          <Header title={t('remoteHelp.ready.title')} subtitle={t('remoteHelp.ready.subtitle')} />
           <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
             <ul className="text-xl text-slate-200 space-y-4">
               <li className="flex gap-3">
                 <CheckCircle2 className="w-6 h-6 text-green-400 shrink-0 mt-1" />
-                The technician can see your screen and control your box.
+                {t('remoteHelp.ready.point1')}
               </li>
               <li className="flex gap-3">
                 <CheckCircle2 className="w-6 h-6 text-green-400 shrink-0 mt-1" />
-                A red border stays on screen the whole time so you always know it's active.
+                {t('remoteHelp.ready.point2')}
               </li>
               <li className="flex gap-3">
                 <CheckCircle2 className="w-6 h-6 text-green-400 shrink-0 mt-1" />
-                You can end the session whenever you want.
+                {t('remoteHelp.ready.point3')}
               </li>
             </ul>
             <Button
@@ -1000,9 +991,9 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
               className={`${bigAction} bg-green-600 hover:bg-green-700 text-white w-full justify-center`}
             >
               {starting ? (
-                <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> Starting...</>
+                <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> {t('remoteHelp.ready.starting')}</>
               ) : (
-                <><Play className="w-6 h-6 mr-3" /> Start Remote Support</>
+                <><Play className="w-6 h-6 mr-3" /> {t('remoteHelp.ready.startBtn')}</>
               )}
             </Button>
           </div>
@@ -1017,15 +1008,13 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
           {backButton}
         </div>
         <div className="max-w-2xl mx-auto px-6 pb-24">
-          <Header title="Session started" />
+          <Header title={t('remoteHelp.started.title')} />
           <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-4">
             <p className="text-xl text-slate-200">
-              The Snow Support app is open and takes it from here — it shows a
-              6-digit code and asks you to confirm screen sharing.
+              {t('remoteHelp.started.body1')}
             </p>
             <p className="text-xl text-slate-200">
-              Give the code to your technician and accept the prompt. Remember: the
-              red border means the session is live, and you can end it anytime.
+              {t('remoteHelp.started.body2')}
             </p>
           </div>
         </div>
@@ -1044,15 +1033,15 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
         open={qrOpen}
         onOpenChange={setQrOpen}
         url={payUrl}
-        title={`Pay ${PRICE_LABEL} — Remote Support`}
-        description="Scan with your phone to pay for the remote support session. This screen continues automatically once payment arrives."
+        title={t('remoteHelp.pay.dialogTitle', { price: PRICE_LABEL })}
+        description={t('remoteHelp.pay.dialogDesc')}
         checkoutNotice={{
-          title: 'Guest checkout — no account needed',
-          body: 'You can pay as a guest — no account needed. Finish the payment on your phone and this screen will continue on its own.',
+          title: t('remoteHelp.pay.guestTitle'),
+          body: t('remoteHelp.pay.guestBody'),
         }}
         onConfirmPaid={handleConfirmPaid}
         confirming={checkingPayment}
-        confirmLabel="I've Completed Payment"
+        confirmLabel={t('remoteHelp.pay.confirmedLabel')}
       />
     </div>
   );

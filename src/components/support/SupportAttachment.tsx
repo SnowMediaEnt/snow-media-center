@@ -1,4 +1,5 @@
 import { memo, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ImageIcon, Loader2, Mic, AlertTriangle } from 'lucide-react';
 import { attachmentUrl } from '@/lib/supportAttachments';
 
@@ -23,6 +24,7 @@ const clock = (ms: number): string => {
  * somebody's screenshot.
  */
 const SupportAttachment = memo(({ path, kind, mime, durationMs }: Props) => {
+  const { t } = useTranslation();
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -39,7 +41,7 @@ const SupportAttachment = memo(({ path, kind, mime, durationMs }: Props) => {
     return (
       <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs font-nunito text-amber-200">
         <AlertTriangle className="h-4 w-4 shrink-0" />
-        This attachment could not be opened.
+        {t('tickets.attachment.failed')}
       </div>
     );
   }
@@ -48,7 +50,7 @@ const SupportAttachment = memo(({ path, kind, mime, durationMs }: Props) => {
     return (
       <div className="mt-2 flex items-center gap-2 text-xs font-nunito text-slate-400">
         <Loader2 className="h-4 w-4 animate-spin" />
-        {kind === 'audio' ? 'Loading voice message…' : 'Loading screenshot…'}
+        {kind === 'audio' ? t('tickets.attachment.loadingVoice') : t('tickets.attachment.loadingShot')}
       </div>
     );
   }
@@ -73,11 +75,11 @@ const SupportAttachment = memo(({ path, kind, mime, durationMs }: Props) => {
       target="_blank"
       rel="noreferrer"
       className="tv-ring mt-2 block w-fit overflow-hidden rounded-lg border border-white/10"
-      aria-label="Open screenshot full size"
+      aria-label={t('tickets.attachment.openFullAria')}
     >
-      <img src={url} alt="Screenshot attached to this message" className="max-h-64 w-auto object-contain" />
+      <img src={url} alt={t('tickets.attachment.shotAlt')} className="max-h-64 w-auto object-contain" />
       <span className="flex items-center gap-1 bg-black/50 px-2 py-1 text-[11px] font-nunito text-slate-300">
-        <ImageIcon className="h-3 w-3" /> {mime === 'image/png' ? 'Screenshot (PNG)' : 'Screenshot'}
+        <ImageIcon className="h-3 w-3" /> {mime === 'image/png' ? t('tickets.attachment.shotPng') : t('tickets.attachment.shot')}
       </span>
     </a>
   );

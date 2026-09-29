@@ -1,0 +1,143 @@
+{
+  "tickets": {
+    "list": {
+      "title": "Tickets",
+      "backToTickets": "Zurück zu Tickets",
+      "newBtn": "Neues Ticket",
+      "newChip": "Neu",
+      "created": "Erstellt: {{when}}",
+      "updated": "Zuletzt aktualisiert: {{when}}",
+      "emptyTitle": "Keine Support-Tickets",
+      "emptyUser": "Du hast noch keine Support-Tickets erstellt.",
+      "emptyChecking": "Dein Snow Media-Konto wird gesucht…",
+      "emptyPlayerOnly": "Deine Tickets liegen in deinem Snow Media-Webkonto, nicht in deinem Streaming-Login. Melde dich dort an, um sie zu sehen.",
+      "emptyGuest": "Du kannst ein Ticket ohne Konto senden, aber für Antworten musst du dich anmelden.",
+      "createFirstBtn": "Erstelle dein erstes Ticket",
+      "sendBtn": "Ticket senden",
+      "signIn": "Anmelden",
+      "confirmDelete": "Dieses Ticket löschen? Das kann nicht rückgängig gemacht werden."
+    },
+    "status": {
+      "active": "Aktiv",
+      "open": "Offen",
+      "inProgress": "In Bearbeitung",
+      "resolved": "Gelöst",
+      "closed": "Geschlossen"
+    },
+    "priority": {
+      "normal": "Normal",
+      "low": "Niedrig",
+      "high": "Hoch",
+      "urgent": "Dringend"
+    },
+    "ai": {
+      "historyTitle": "KI-Chatverlauf",
+      "lastFiveChip": "Letzte 5 gespeichert",
+      "askPlaceholder": "Frag die KI, was du willst...",
+      "newChatBtn": "Neuer Chat",
+      "empty": "Noch keine gespeicherten KI-Unterhaltungen. Starte oben eine.",
+      "lastMessage": "Letzte Nachricht: {{when}}",
+      "confirmDelete": "Diese KI-Unterhaltung löschen?",
+      "assistant": "KI-Assistent",
+      "historyAria": "KI-Unterhaltungsverlauf",
+      "typePlaceholder": "Schreib deine Nachricht...",
+      "you": "Du"
+    },
+    "ticket": {
+      "confirmDelete": "Dieses Ticket und alle Nachrichten löschen? Das kann nicht rückgängig gemacht werden.",
+      "closeBtn": "Ticket schließen",
+      "deleteBtn": "Ticket löschen",
+      "messages": "Nachrichten",
+      "historyAria": "Verlauf der Ticket-Unterhaltung",
+      "you": "Du",
+      "support": "Snow Media Support",
+      "replyPlaceholder": "Schreib deine Antwort...",
+      "voiceReady": "Sprachnachricht bereit zum Senden",
+      "shotReady": "Screenshot bereit zum Senden",
+      "removeBtn": "Entfernen",
+      "sendReplyBtn": "Antwort senden",
+      "attachShotBtn": "Screenshot anhängen",
+      "recordBtn": "Sprachnachricht aufnehmen",
+      "stopBtn": "Stopp ({{seconds}} s)",
+      "noMicNote": "Sprachnachrichten brauchen ein Mikrofon, das TV-Fernbedienungen nicht mit Apps teilen – die vom Support gesendeten kannst du trotzdem abspielen."
+    },
+    "create": {
+      "title": "Support-Ticket erstellen",
+      "cardTitle": "Neue Support-Anfrage",
+      "notSignedIn": "<1>Nicht angemeldet</1> – dein Ticket wird zugestellt, aber du kannst in der App keine Antworten erhalten. Melde dich an, um Antworten zu bekommen.",
+      "emailLabel": "Deine E-Mail <1>(optional)</1>",
+      "emailPlaceholder": "du@beispiel.com (leer lassen für anonymes Senden)",
+      "subjectLabel": "Betreff",
+      "subjectPlaceholder": "Kurze Beschreibung deines Problems...",
+      "messageLabel": "Nachricht",
+      "messagePlaceholder": "Beschreibe dein Problem ausführlich...",
+      "creating": "Wird erstellt...",
+      "createBtn": "Ticket erstellen"
+    },
+    "account": {
+      "title": "Konto erstellen?",
+      "desc": "Wir verwenden <1>{{email}}</1>, damit du Antworten auf dein Ticket in der App erhältst. Lege unten ein Passwort (und optional einen Namen) fest oder überspringe es.",
+      "nameLabel": "Name (optional)",
+      "namePlaceholder": "Dein Name",
+      "passwordLabel": "Passwort",
+      "passwordPlaceholder": "Mindestens 6 Zeichen",
+      "skipBtn": "Später",
+      "creating": "Wird erstellt...",
+      "createBtn": "Konto erstellen"
+    },
+    "toast": {
+      "restoredTitle": "Konto wiederhergestellt",
+      "restoredDescEmail": "Du bist in deinem Snow Media-Konto angemeldet ({{email}}). Deine Tickets sind wieder da.",
+      "restoredDesc": "Du bist in deinem Snow Media-Konto angemeldet. Deine Tickets sind wieder da.",
+      "invalidEmailTitle": "Ungültige E-Mail",
+      "invalidEmailDesc": "Gib eine gültige E-Mail ein oder lass das Feld leer, um anonym zu senden.",
+      "sentTitle": "Ticket gesendet",
+      "sentDescEmail": "Wir haben es erhalten. Erstelle ein Konto, um die Antwort in der App zu bekommen.",
+      "sentDescAnon": "Wir haben dein anonymes Ticket erhalten. Eine Antwort ist nicht möglich.",
+      "errorTitle": "Fehler",
+      "sendFailed": "Ticket konnte nicht gesendet werden. Bitte versuche es erneut.",
+      "passwordShortTitle": "Passwort zu kurz",
+      "passwordShortDesc": "Verwende mindestens 6 Zeichen.",
+      "accountCreatedTitle": "Konto erstellt",
+      "accountCreatedDesc": "Bestätige per E-Mail und melde dich dann an, um Antworten zu sehen.",
+      "accountFailedTitle": "Konto konnte nicht erstellt werden",
+      "accountFailedDesc": "Versuche es später erneut.",
+      "replyFailedTitle": "Konnte nicht gesendet werden",
+      "replyFailedDesc": "Bitte versuche es erneut.",
+      "successTitle": "Erfolg",
+      "loadTicketsFailed": "Support-Tickets konnten nicht geladen werden",
+      "loadMessagesFailed": "Nachrichten konnten nicht geladen werden",
+      "createdDesc": "Support-Ticket erfolgreich erstellt",
+      "createFailed": "Support-Ticket konnte nicht erstellt werden",
+      "messageFailed": "Nachricht konnte nicht gesendet werden",
+      "closedDesc": "Ticket wurde geschlossen",
+      "closeFailed": "Ticket konnte nicht geschlossen werden",
+      "deletedTitle": "Gelöscht",
+      "deletedDesc": "Ticket gelöscht",
+      "deleteFailed": "Ticket konnte nicht gelöscht werden"
+    },
+    "attachment": {
+      "failed": "Dieser Anhang konnte nicht geöffnet werden.",
+      "loadingVoice": "Sprachnachricht wird geladen…",
+      "loadingShot": "Screenshot wird geladen…",
+      "openFullAria": "Screenshot in voller Größe öffnen",
+      "shotAlt": "An diese Nachricht angehängter Screenshot",
+      "shotPng": "Screenshot (PNG)",
+      "shot": "Screenshot",
+      "toast": {
+        "shotAttachedTitle": "Screenshot angehängt",
+        "shotAttachedDesc": "Videos erscheinen nicht auf einem Screenshot – Menüs und Fehlermeldungen schon.",
+        "shotFailedTitle": "Screenshot konnte nicht erstellt werden",
+        "cannotRecordTitle": "Hier ist keine Aufnahme möglich",
+        "nothingRecordedTitle": "Es wurde nichts aufgenommen",
+        "nothingRecordedDesc": "Halte die Taste beim Sprechen gedrückt und lass dann los."
+      },
+      "errors": {
+        "empty": "Die Datei war leer – bitte versuche es erneut.",
+        "tooBig": "Die Datei ist zu groß zum Anhängen (Limit 10 MB).",
+        "uploadFailed": "Der Anhang konnte nicht hochgeladen werden.",
+        "noMic": "Dieses Gerät hat kein für Apps verfügbares Mikrofon."
+      }
+    }
+  }
+}

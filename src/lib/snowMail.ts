@@ -10,6 +10,8 @@
 // poll, however many components are listening.
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import i18n from '@/i18n';
+import { formatDate } from '@/i18n/format';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
 import { setPausableInterval } from '@/utils/pausableInterval';
 
@@ -87,7 +89,7 @@ export const parseBlocks = (raw: unknown): MailBlock[] => {
       type: r.type as MailBlockType,
       text: s(r.text), html: s(r.html), url: s(r.url), label: s(r.label),
       formSlug: s(r.formSlug), videoUrl: s(r.videoUrl), thumbnailUrl: s(r.thumbnailUrl),
-      product: p ? { name: s(p.name) ?? 'Product', price: typeof p.price === 'number' ? p.price : undefined, image_url: s(p.image_url), url: s(p.url) } : undefined,
+      product: p ? { name: s(p.name) ?? '', price: typeof p.price === 'number' ? p.price : undefined, image_url: s(p.image_url), url: s(p.url) } : undefined,
     });
   });
   return out;
@@ -103,10 +105,10 @@ const toMail = (r: MailRow): SnowMail => ({
 /** Where a block sends the reader. On a TV that becomes a QR code. */
 export const blockLink = (b: MailBlock): { url: string; label: string } | null => {
   switch (b.type) {
-    case 'button': return b.url ? { url: b.url, label: b.label || 'Open link' } : null;
-    case 'video': return b.videoUrl ? { url: b.videoUrl, label: b.label || 'Watch video' } : null;
-    case 'form': return b.formSlug ? { url: `${SITE_URL}/f/${encodeURIComponent(b.formSlug)}`, label: b.label || 'Take the survey' } : null;
-    case 'product': return b.product ? { url: b.product.url || `${SITE_URL}/plans`, label: `Shop ${b.product.name}` } : null;
+    case 'button': return b.url ? { url: b.url, label: b.label || i18n.t('support.mail.link.open') } : null;
+    case 'video': return b.videoUrl ? { url: b.videoUrl, label: b.label || i18n.t('support.mail.link.watch') } : null;
+    case 'form': return b.formSlug ? { url: `${SITE_URL}/f/${encodeURIComponent(b.formSlug)}`, label: b.label || i18n.t('support.mail.link.survey') } : null;
+    case 'product': return b.product ? { url: b.product.url || `${SITE_URL}/plans`, label: i18n.t('support.mail.link.shop', { name: b.product.name || i18n.t('support.mail.link.productFallback') }) } : null;
     default: return null;
   }
 };
@@ -246,14 +248,14 @@ export const mailDate = (iso: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const sameYear = d.getFullYear() === new Date().getFullYear();
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) });
+  return formatDate(d, sameYear ? 'short' : 'medium');
 };
 
 /** Full date for the reader header: "Wednesday, September 17, 2026". */
 export const mailLongDate = (iso: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  return formatDate(d, 'long');
 };
 
 /* ── the html block: see ./mailHtml (a strict allow-list, rebuilt, never passed through) ── */

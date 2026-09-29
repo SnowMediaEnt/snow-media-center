@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { UploadedAttachment } from '@/lib/supportAttachments';
 import { useToast } from '@/hooks/use-toast';
 import { User } from '@supabase/supabase-js';
+import i18n from '@/i18n';
 
 export interface SupportTicket {
   id: string;
@@ -54,8 +55,8 @@ export const useSupportTickets = (user: User | null) => {
     } catch (error) {
       console.error('Error fetching tickets:', error);
       toast({
-        title: "Error",
-        description: "Failed to load support tickets",
+        title: i18n.t('tickets.toast.errorTitle'),
+        description: i18n.t('tickets.toast.loadTicketsFailed'),
         variant: "destructive"
       });
     } finally {
@@ -91,8 +92,8 @@ export const useSupportTickets = (user: User | null) => {
     } catch (error) {
       console.error('Error fetching messages:', error);
       toast({
-        title: "Error",
-        description: "Failed to load messages",
+        title: i18n.t('tickets.toast.errorTitle'),
+        description: i18n.t('tickets.toast.loadMessagesFailed'),
         variant: "destructive"
       });
     }
@@ -142,8 +143,8 @@ export const useSupportTickets = (user: User | null) => {
       void opts;
 
       toast({
-        title: "Success",
-        description: "Support ticket created successfully"
+        title: i18n.t('tickets.toast.successTitle'),
+        description: i18n.t('tickets.toast.createdDesc')
       });
 
       await fetchTickets();
@@ -151,8 +152,8 @@ export const useSupportTickets = (user: User | null) => {
     } catch (error) {
       console.error('Error creating ticket:', error);
       toast({
-        title: "Error",
-        description: "Failed to create support ticket",
+        title: i18n.t('tickets.toast.errorTitle'),
+        description: i18n.t('tickets.toast.createFailed'),
         variant: "destructive"
       });
       throw error;
@@ -205,8 +206,8 @@ export const useSupportTickets = (user: User | null) => {
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
-        title: "Error",
-        description: "Failed to send message",
+        title: i18n.t('tickets.toast.errorTitle'),
+        description: i18n.t('tickets.toast.messageFailed'),
         variant: "destructive"
       });
       throw error;
@@ -248,8 +249,8 @@ export const useSupportTickets = (user: User | null) => {
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: "Ticket has been closed"
+        title: i18n.t('tickets.toast.successTitle'),
+        description: i18n.t('tickets.toast.closedDesc')
       });
 
       // Update local state
@@ -261,8 +262,8 @@ export const useSupportTickets = (user: User | null) => {
     } catch (error) {
       console.error('Error closing ticket:', error);
       toast({
-        title: "Error",
-        description: "Failed to close ticket",
+        title: i18n.t('tickets.toast.errorTitle'),
+        description: i18n.t('tickets.toast.closeFailed'),
         variant: "destructive"
       });
       throw error;
@@ -286,10 +287,10 @@ export const useSupportTickets = (user: User | null) => {
       if (error) throw error;
 
       setTickets(prev => prev.filter(t => t.id !== ticketId));
-      toast({ title: 'Deleted', description: 'Ticket deleted' });
+      toast({ title: i18n.t('tickets.toast.deletedTitle'), description: i18n.t('tickets.toast.deletedDesc') });
     } catch (error) {
       console.error('Error deleting ticket:', error);
-      toast({ title: 'Error', description: 'Failed to delete ticket', variant: 'destructive' });
+      toast({ title: i18n.t('tickets.toast.errorTitle'), description: i18n.t('tickets.toast.deleteFailed'), variant: 'destructive' });
       throw error;
     }
   };

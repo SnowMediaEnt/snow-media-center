@@ -1,0 +1,118 @@
+{
+  "remoteHelp": {
+    "title": "Accès à distance",
+    "chip": {
+      "done": "Terminé",
+      "notYet": "Pas encore"
+    },
+    "header": {
+      "waived": "Paiement offert : tout est prêt ✓",
+      "paid": "Payé ✓ — commande n° {{number}}"
+    },
+    "blocked": {
+      "title": "L’accès à distance n’est pas disponible sur les appareils Fire TV",
+      "body": "Fire OS bloque les fonctions d’accessibilité dont un technicien a besoin pour contrôler votre appareil. Nous pouvons quand même vous aider via un ticket d’assistance.",
+      "ticketsBtn": "Ouvrir les tickets"
+    },
+    "notNative": {
+      "paid": "✅ Votre session à distance est payée et prête. Vous êtes dans un navigateur web : la configuration pour le technicien se fait dans l’appli.",
+      "paidNext": "Sur le boîtier qui a besoin d’aide, ouvrez l’<1>appli Snow Media Center</1> (pas un navigateur) et allez dans Assistance → Accès à distance. Votre demande payée reprendra automatiquement : rien à ressaisir.",
+      "unpaid": "Vous êtes dans un navigateur web. La configuration pour le technicien se fait dans l’<1>appli</1> Snow Media Center : sur le boîtier qui a besoin d’aide, ouvrez l’appli elle-même et allez dans Assistance → Accès à distance."
+    },
+    "noauth": {
+      "body": "Connectez-vous à votre compte Snow Media pour demander une session d’accès à distance. Utilisez le bouton Se connecter de l’écran d’accueil, puis revenez ici."
+    },
+    "form": {
+      "subtitle": "Dites-nous ce qui ne va pas : un technicien prend le contrôle de votre boîtier et le répare avec vous. {{price}} par session.",
+      "issueLabel": "Quel est le problème ?",
+      "issuePlaceholder": "p. ex. la TV en direct saccade toutes les quelques minutes sur toutes les chaînes",
+      "needsLabel": "Que dois-je faire pour vous ? <1>(facultatif)</1>",
+      "needsPlaceholder": "p. ex. vérifier mes réglages et rendre la lecture fluide",
+      "contactLabel": "Meilleur moyen de vous joindre",
+      "contactPlaceholder": "E-mail ou numéro de téléphone",
+      "saving": "Enregistrement...",
+      "continueBtn": "Passer au paiement — {{price}}"
+    },
+    "pay": {
+      "title": "Payer votre session",
+      "subtitle": "Demande enregistrée. Payez sur votre téléphone : pas besoin de saisir un numéro de carte avec la télécommande.",
+      "scan": "Scannez le code QR avec votre téléphone pour payer {{price}}. Cet écran avance tout seul dès que votre paiement arrive.",
+      "showQrBtn": "Afficher le code QR de paiement",
+      "codeLabel": "Vous avez un code Snow Media ?",
+      "codeHint": "Saisissez-le ici et l’étape de paiement est ignorée.",
+      "codePlaceholder": "Saisir le code",
+      "checking": "Vérification…",
+      "useCodeBtn": "Appliquer",
+      "dialogTitle": "Payer {{price}} — Assistance à distance",
+      "dialogDesc": "Scannez avec votre téléphone pour payer la session d’assistance à distance. Cet écran continue automatiquement dès l’arrivée du paiement.",
+      "guestTitle": "Paiement en invité : aucun compte requis",
+      "guestBody": "Vous pouvez payer en invité, sans compte. Terminez le paiement sur votre téléphone et cet écran continuera tout seul.",
+      "confirmedLabel": "J’ai terminé le paiement"
+    },
+    "setup": {
+      "stepOf": "Configuration : étape {{step}} sur 3",
+      "app": {
+        "title": "Installez l’appli d’assistance",
+        "body": "L’appli Snow Support partage votre écran avec le technicien. Installez-la, appuyez sur Revérifier, et cette étape passe à Terminé.",
+        "installBtn": "Installer l’appli",
+        "downloading": "Téléchargement...",
+        "recheckBtn": "Revérifier",
+        "rechecking": "Vérification..."
+      },
+      "overlay": {
+        "title": "Autorisez « Affichage par-dessus les autres applis »",
+        "why": "Cette autorisation permet d’afficher le pointeur du technicien sur votre écran.",
+        "how": "Une liste d’applis s’ouvre : trouvez <1>Snow Support</1> et activez <1>« Autoriser l’affichage par-dessus les autres applis »</1>. Revenez ensuite confirmer."
+      },
+      "openSettingsBtn": "Ouvrir les Paramètres",
+      "confirmBtn": "Je l’ai activé",
+      "continueBtn": "Continuer",
+      "a11y": {
+        "title": "Activez le service d’accessibilité Snow Support",
+        "why": "C’est ce qui permet aux clics du technicien d’agir réellement sur votre boîtier.",
+        "how": "Trouvez <1>Snow Support</1> dans la liste et passez-le sur <1>Activé</1>. Revenez ensuite confirmer.",
+        "openBtn": "Ouvrir les réglages d’accessibilité",
+        "important": "<1>Important :</1> l’étape 2 (Affichage par-dessus les autres applis) doit être terminée d’abord ; l’activer avant l’autorisation de superposition peut rendre la télécommande inactive jusqu’à débranchement du boîtier."
+      }
+    },
+    "ready": {
+      "title": "Tout est prêt",
+      "subtitle": "La suite",
+      "point1": "Le technicien peut voir votre écran et contrôler votre boîtier.",
+      "point2": "Une bordure rouge reste affichée en permanence pour que vous sachiez toujours que la session est active.",
+      "point3": "Vous pouvez mettre fin à la session quand vous voulez.",
+      "startBtn": "Démarrer l’assistance",
+      "starting": "Démarrage..."
+    },
+    "started": {
+      "title": "Session démarrée",
+      "body1": "L’appli Snow Support est ouverte et prend le relais : elle affiche un code à 6 chiffres et vous demande de confirmer le partage d’écran.",
+      "body2": "Donnez le code à votre technicien et acceptez l’invite. Rappel : la bordure rouge signifie que la session est en cours, et vous pouvez y mettre fin à tout moment."
+    },
+    "toast": {
+      "saveFailedTitle": "Impossible d’enregistrer la demande",
+      "saveFailedDesc": "Vérifiez votre connexion internet et réessayez.",
+      "waivedTitle": "Paiement offert : tout est prêt",
+      "receivedTitle": "Paiement reçu",
+      "readyDesc": "Préparons votre boîtier pour le technicien.",
+      "codeRejectedTitle": "Code refusé",
+      "codeInvalid": "Ce code n’est pas correct. Vérifiez-le et réessayez.",
+      "codeExpired": "Ce code a expiré.",
+      "codeUsedUp": "Ce code a déjà été utilisé.",
+      "codeTooMany": "Trop d’essais. Attendez quelques minutes, puis réessayez.",
+      "codeNoRequest": "Cette demande n’attend plus de paiement.",
+      "codeSignedOut": "Connectez-vous pour utiliser un code.",
+      "tryAgain": "Veuillez réessayer.",
+      "codeCheckFailedTitle": "Impossible de vérifier le code",
+      "notYetTitle": "Paiement pas encore reçu",
+      "notYetDesc": "Cela peut prendre une minute après le paiement. Gardez cet écran ouvert.",
+      "installFailedTitle": "Échec de l’installation",
+      "installFailedDesc": "Impossible d’installer l’appli d’assistance.",
+      "settingsFailedTitle": "Impossible d’ouvrir les Paramètres",
+      "overlayManual": "Ouvrez manuellement Paramètres Android → Applications → Accès spécial des applis → Affichage par-dessus les autres applis.",
+      "a11yManual": "Ouvrez manuellement Paramètres Android → Accessibilité.",
+      "startFailedTitle": "Impossible de démarrer",
+      "startFailedDesc": "Ouvrez plutôt l’appli Snow Support depuis votre liste d’applis."
+    }
+  }
+}
