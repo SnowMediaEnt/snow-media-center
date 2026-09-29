@@ -48,10 +48,12 @@ Status: building · ready to test · still broken · done.
 
 | 26 | Player bar: name of the highlighted button shows under it (small line) | feature | ready to test (build 48) | |
 | 28 | Live TV sign-in: username capitals turned to lowercase (falls back to as-typed if the panel refuses) | feature | ready to test (build 48) | |
-| 29 | Every screen changes language (es/fr/de/ar; English default; Arabic text, screens stay left-to-right; AI + Plex follow the language) | feature | planning (architect) | |
-| 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand) | feature | planning (architect) | |
+| 29 | Every screen changes language (es/fr/de/ar; English default; Arabic text, screens stay left-to-right; AI + Plex follow the language) — plan: .claude/plan-i18n.md | feature | ready to test (build 49) | |
+| 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner
+- Redeploy snow-media-ai (AI answers in the chosen language) and publish the phone remote page (web/phone-remote).
+- APS: add SnowMediaEnt as collaborator on DJ341972/all-pro-streams, or we go through Lovable.
 - Migration 20260930070000 + notify-ticket/telegram-notify deploy: held until you decide.
 - snow-admin-app notify-admin header change: held until you decide.
 - Quiet Live TV sign-in: should it switch away from a different account already signed in? (currently: no)
