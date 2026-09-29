@@ -1,0 +1,19 @@
+# Item 1: Home, Settings, popups, Updater.
+src/pages/Index.tsx
+src/pages/NotFound.tsx
+src/components/HomeClock.tsx
+src/components/MediaBar.tsx
+src/components/MediaBarPrompt.tsx
+src/components/NewsTicker.tsx
+src/components/WelcomePopup.tsx
+src/components/Settings.tsx
+src/components/AppAlertDialog.tsx
+src/components/BroadcastAlertPopup.tsx
+src/components/PreEventStepsDialog.tsx
+src/hooks/useAppAlerts.ts
+src/hooks/usePreEventAlert.ts
+src/components/AppUpdater.tsx
+src/components/AutoUpdatePrompt.tsx
+src/components/DownloadProgress.tsx
+src/utils/updateCache.ts
+src/utils/downloadApk.ts

@@ -12,10 +12,10 @@ import android.os.Build
 import android.os.Debug
 import android.os.Handler
 import android.os.Looper
+import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import android.view.Gravity
-import android.graphics.Matrix
 import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
@@ -33,6 +33,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
+import androidx.media3.common.text.Cue
 import androidx.media3.common.util.Util
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
@@ -49,6 +50,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.LoadControl
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultAllocator
@@ -65,6 +67,11 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import com.snowmedia.BuildConfig
+import com.snowmedia.dvr.StorageBudget
+import com.snowmedia.dvr.TimeshiftLimits
+import com.snowmedia.dvr.TimeshiftManager
+import com.snowmedia.dvr.TimeshiftSession
+import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 import org.json.JSONObject
@@ -106,10 +113,9 @@ class SnowPlayerPlugin : Plugin() {
         var lastPositionMs: Long = 0L
         var reconnectAttempts: Int = 0
         var firstFrameSeen: Boolean = false
-        // Screen format. The picture is drawn into a MATCH_PARENT TextureView,
-        // which ExoPlayer stretches to fill — so WITHOUT a correction matrix
-        // every video is distorted unless it happens to match the panel. These
-        // three remember what to correct to, and applyFormat() does the work.
+        // Screen format. ExoPlayer stretches the picture to fill its
+        // TextureView, so the view is sized to the picture's shape. These
+        // three remember that shape, and applyFormat() does the work.
         var videoW: Int = 0
         var videoH: Int = 0
         var pixelRatio: Float = 1f
@@ -170,6 +176,22 @@ class SnowPlayerPlugin : Plugin() {
         var videoFormatText: String? = null
         var audioFormatOf: Format? = null
         var audioFormatText: String? = null
+        // Engine: "exo" (ExoPlayer, everything) or "mpv" (Live TV channels
+        // and the Live/Guide preview boxes only, owner test builds — see
+        // EngineChoice). `second` is the mpv engine once created for this
+        // process; the same object every time (MPVLib is a single instance
+        // for the whole app), left set even while this slot plays on exo.
+        var engine: String = EngineChoice.EXO
+        var second: SecondEngine? = null
+        // Time-to-first-picture and stalls since load(), for both engines
+        // (statsOf). Stalls count only after the first frame — the start-up
+        // wait is firstFrameMs, not a stall.
+        var loadStartWallMs: Long = 0L
+        var loadStartCpuMs: Long = 0L
+        var firstFrameMs: Long? = null
+        var stalls: Int = 0
+        var stallSec: Double = 0.0
+        var stallStartedAtMs: Long = 0L
     }
 
     private val slots = HashMap<String, PlayerSlot>()
@@ -178,6 +200,18 @@ class SnowPlayerPlugin : Plugin() {
     private var wifiLock: WifiManager.WifiLock? = null
     // Scratch for isCurrentItem (main thread only, like every player call).
     private val itemWindow = Timeline.Window()
+    // mpv, owner test builds only (see EngineChoice/BuildConfig.SMC_WITH_MPV).
+    // One instance for the whole app, created the first time any load() asks
+    // for it; `mpvInitFailed` marks it off for the rest of this process the
+    // first time creating or starting it throws (a missing native lib
+    // included) — never retried until the app restarts.
+    private var mpvEngine: SecondEngine? = null
+    private var mpvInitFailed = false
+    // Debug.getPss() is a process-wide, somewhat costly read; cached for 5 s
+    // (statsOf), same as a stats panel polling every second would otherwise
+    // pay for on every tick.
+    private var pssCacheMb: Long = -1L
+    private var pssCacheAtMs: Long = 0L
 
     companion object {
         private const val MAIN = "main"
@@ -220,6 +254,19 @@ class SnowPlayerPlugin : Plugin() {
         private const val PREBUFFER_TARGET_MS = PreBufferRule.TARGET_MS
         private const val PREBUFFER_TICK_MS = 500L
         private const val MIB = 1024L * 1024L
+        private const val KIB_PER_MIB = 1024L
+        private const val PSS_CACHE_MS = 5000L
+        // Rewind live TV (see tsSwitchToBuffer and friends).
+        private const val TS_TICK_MS = 1000L
+        /** Never closer than this to the end of the buffer: the next segment is still being written. */
+        private const val TS_HOLD_BACK_MS = 6000L
+        /** At the end of the buffer (within this) while playing: the capture has stalled. */
+        private const val TS_END_SLACK_MS = 1000L
+        private const val TS_MAX_LAG_MS = 30_000L
+        /** A live pause this long moves to the buffer (before the server drops the idle connection). */
+        private const val TS_PAUSE_TO_BUFFER_MS = 20_000L
+        private const val TS_RECOVER_GAP_MS = 10_000L
+        private const val TS_OLDEST_MARGIN_MS = 30_000L
     }
 
     private fun screenIdOf(call: PluginCall): String = call.getString("screenId") ?: MAIN
@@ -321,6 +368,12 @@ class SnowPlayerPlugin : Plugin() {
         s.framesDropped = 0L
         s.videoCounters = null
         s.framesSeen = false
+        s.firstFrameMs = null
+        s.stalls = 0
+        s.stallSec = 0.0
+        s.stallStartedAtMs = 0L
+        s.loadStartWallMs = SystemClock.elapsedRealtime()
+        s.loadStartCpuMs = Process.getElapsedCpuTime()
         if (url != s.statsUrl) {
             s.statsUrl = url
             s.restarts = 0
@@ -353,6 +406,10 @@ class SnowPlayerPlugin : Plugin() {
         s.videoFormatText = null
         s.audioFormatOf = null
         s.audioFormatText = null
+        s.firstFrameMs = null
+        s.stalls = 0
+        s.stallSec = 0.0
+        s.stallStartedAtMs = 0L
     }
 
     /**
@@ -380,6 +437,16 @@ class SnowPlayerPlugin : Plugin() {
         s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
         s.preBufferRunnable = null
         s.holding = false
+        openShutterIfReady(s)
+    }
+
+    /** Uncover the picture: this stream has drawn its first frame and is not
+     *  in its start-up hold (VideoFit.shutterOpen). The hold draws the first
+     *  frame paused; "Getting ready…" stays over black until the film starts,
+     *  or the viewer plays or pauses. The only place the shutter opens. */
+    private fun openShutterIfReady(s: PlayerSlot) {
+        if (s.currentUrl == null || !VideoFit.shutterOpen(s.firstFrameSeen, s.holding)) return
+        s.shutterView?.visibility = View.INVISIBLE
     }
 
     private fun schedulePositionTick(s: PlayerSlot) {
@@ -471,6 +538,7 @@ class SnowPlayerPlugin : Plugin() {
                 if (done) {
                     s.holding = false
                     p.playWhenReady = true
+                    openShutterIfReady(s)
                     s.preBufferRunnable = null
                     return
                 }
@@ -626,7 +694,14 @@ class SnowPlayerPlugin : Plugin() {
         val tv = TextureView(act)
         val fl = FrameLayout(act)
         fl.setBackgroundColor(Color.BLACK)
+        // Sized to the picture and centred by applyFormat (VideoFit): the
+        // letterbox bars are this box's black, never unpainted picture view.
         fl.addView(tv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
+        // A new box size (fullscreen, a tile, the first layout) fits the
+        // picture again. Posted: this runs inside the layout pass.
+        fl.addOnLayoutChangeListener { v, l, t, r, b, ol, ot, or, ob ->
+            if (r - l != or - ol || b - t != ob - ot) v.post { applyFormat(s) }
+        }
         // Above the picture, below the subtitles. Starts closed: nothing has
         // been drawn yet.
         val shutter = View(act)
@@ -932,6 +1007,16 @@ class SnowPlayerPlugin : Plugin() {
             }
 
             override fun onPlaybackStateChanged(state: Int) {
+                // Stalls/stallSec (statsOf), counted only after the first
+                // picture — the start-up wait is firstFrameMs, not a stall.
+                if (state == Player.STATE_BUFFERING && s.firstFrameSeen) {
+                    if (s.stallStartedAtMs == 0L) { s.stallStartedAtMs = SystemClock.elapsedRealtime(); s.stalls++ }
+                } else if (s.stallStartedAtMs != 0L) {
+                    s.stallSec += (SystemClock.elapsedRealtime() - s.stallStartedAtMs) / 1000.0
+                    s.stallStartedAtMs = 0L
+                }
+                // Rewind live TV: the buffer ran out; back to the channel itself.
+                if (state == Player.STATE_ENDED && screenId == MAIN && tsBuffer) { tsGoLive(s); return }
                 if (state == Player.STATE_ENDED && s.currentUrl != null) {
                     if (s.isLive) { reconnect(s, screenId, "live stream ended"); return }
                     notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", "ended"))
@@ -953,10 +1038,13 @@ class SnowPlayerPlugin : Plugin() {
                 reportPaused(s, screenId)
             }
             override fun onRenderedFirstFrame() {
-                // The new stream has drawn: uncover it. Only here — never on
-                // load or a state change — so no earlier frame can show.
-                if (s.currentUrl != null) s.shutterView?.visibility = View.INVISIBLE
+                // Time to first picture since load() — for both engines (statsOf).
+                if (s.firstFrameMs == null) s.firstFrameMs = SystemClock.elapsedRealtime() - s.loadStartWallMs
+                // The new stream has drawn: uncover it (once its start-up
+                // hold is over, see openShutterIfReady). Never on load or a
+                // state change, so no earlier frame can show.
                 s.firstFrameSeen = true
+                openShutterIfReady(s)
                 s.reconnectAttempts = 0
                 s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
                 s.watchdogRunnable = null
@@ -979,6 +1067,9 @@ class SnowPlayerPlugin : Plugin() {
                     val fmt = (error as? androidx.media3.exoplayer.ExoPlaybackException)?.rendererFormat
                     fmt?.sampleMimeType?.startsWith("audio/") == true
                 }
+                // Rewind live TV: an error while playing the local buffer is
+                // settled there (tsOnBufferError), never as a channel restart.
+                if (screenId == MAIN && tsBuffer) { tsOnBufferError(s, error); return }
                 if (isAudioTrack || isAudioDecoder) {
                     releaseWifiIfStopped(s)
                     notifyListeners(
@@ -1093,6 +1184,41 @@ class SnowPlayerPlugin : Plugin() {
         applyBoost(s)
     }
 
+    /** Apply any pendingRect captured before the surface existed. A slot
+     *  that is about to stream is ALWAYS visible; without a pendingRect
+     *  yet, default the container to fullscreen so it composites (a
+     *  later setRect resizes it). Prior INVISIBLE default caused
+     *  "tile is black but audio plays" when a degenerate rect dropped.
+     *  Either engine's load() (see there). */
+    private fun applyPendingRect(s: PlayerSlot, screenId: String) {
+        val pending = s.pendingRect
+        s.container?.let { c ->
+            c.visibility = View.VISIBLE
+            if (pending != null) {
+                val fs = pending[4] == 1
+                val lp = c.layoutParams
+                if (fs) {
+                    lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                    lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                    c.x = 0f; c.y = 0f
+                } else {
+                    lp.width = pending[2]
+                    lp.height = pending[3]
+                    c.x = pending[0].toFloat()
+                    c.y = pending[1].toFloat()
+                }
+                c.layoutParams = lp
+                c.requestLayout()
+            } else if (screenId != MAIN) {
+                val lp = c.layoutParams
+                lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                c.layoutParams = lp
+                c.x = 0f; c.y = 0f
+            }
+        }
+    }
+
     @PluginMethod
     fun load(call: PluginCall) {
         val url = call.getString("url")
@@ -1104,43 +1230,77 @@ class SnowPlayerPlugin : Plugin() {
         val startMs = if (startSec != null && startSec > 0.0) (startSec * 1000.0).toLong() else 0L
         val screenId = screenIdOf(call)
         val s = slotFor(screenId)
+        // mpv (owner test builds only): "engine" defaults to exo, and is only
+        // ever actually mpv for the main slot playing a live channel — see
+        // EngineChoice. Read here (pure) so the UI-thread block below has it.
+        val requestedEngine = call.getString("engine") ?: EngineChoice.EXO
         activity?.runOnUiThread {
-            if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
-            if (s.player == null) buildPlayer(s, screenId)
-            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            // Apply any pendingRect captured before the surface existed. A slot
-            // that is about to stream is ALWAYS visible; without a pendingRect
-            // yet, default the container to fullscreen so it composites (a
-            // later setRect resizes it). Prior INVISIBLE default caused
-            // "tile is black but audio plays" when a degenerate rect dropped.
-            val pending = s.pendingRect
-            s.container?.let { c ->
-                c.visibility = View.VISIBLE
-                if (pending != null) {
-                    val fs = pending[4] == 1
-                    val lp = c.layoutParams
-                    if (fs) {
-                        lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-                        lp.height = ViewGroup.LayoutParams.MATCH_PARENT
-                        c.x = 0f; c.y = 0f
-                    } else {
-                        lp.width = pending[2]
-                        lp.height = pending[3]
-                        c.x = pending[0].toFloat()
-                        c.y = pending[1].toFloat()
-                    }
-                    c.layoutParams = lp
-                    c.requestLayout()
-                } else if (screenId != MAIN) {
-                    val lp = c.layoutParams
-                    lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-                    lp.height = ViewGroup.LayoutParams.MATCH_PARENT
-                    c.layoutParams = lp
-                    c.x = 0f; c.y = 0f
+            val availability = EngineChoice.Availability(
+                inBuild = BuildConfig.SMC_WITH_MPV,
+                androidOk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O,
+                initFailed = mpvInitFailed,
+            )
+            val choice = EngineChoice.choose(requestedEngine, screenId, live, availability)
+            var engine = choice.engine
+            var fallbackReason = choice.fallbackReason
+            if (engine == EngineChoice.MPV) {
+                val second = secondEngineFor(screenId)
+                if (second == null) {
+                    engine = EngineChoice.EXO
+                    fallbackReason = EngineChoice.INIT_FAILED
+                } else {
+                    s.second = second
                 }
             }
+            if (fallbackReason != null) {
+                notifyListeners("engineFallback", JSObject().put("screenId", screenId).put("reason", fallbackReason))
+            }
+            // A change of engine tears the old one down first — its surface
+            // (a TextureView or mpv's SurfaceView) belongs to the engine that
+            // is leaving, not the one arriving.
+            if (engine != s.engine) {
+                if (s.engine == EngineChoice.MPV) s.second?.stop()
+                // The rect the WebView just set (a preview box) is where the
+                // new engine's picture goes too; stopSlot would forget it and
+                // the rebuilt box would come up fullscreen.
+                val keepRect = s.pendingRect
+                stopSlot(s)
+                releaseSlot(s)
+                s.pendingRect = keepRect
+                s.engine = engine
+            }
+            if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
+            if (engine == EngineChoice.MPV) {
+                val second = s.second ?: run { call.reject("mpv init failed"); return@runOnUiThread }
+                activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                applyPendingRect(s, screenId)
+                // mpv draws on its own SurfaceView (attach); ExoPlayer's
+                // TextureView has no player behind it while mpv owns the slot.
+                s.textureView?.visibility = View.INVISIBLE
+                second.attach(s.container!!)
+                applyFormat(s)
+                cancelTimers(s)
+                s.reportedPaused = false
+                s.currentUrl = url
+                s.currentSubtitles = null
+                s.isLive = live
+                s.lastPositionMs = startMs
+                s.firstFrameSeen = false
+                resetStats(s, url)
+                s.shutterView?.visibility = View.VISIBLE
+                second.load(url, live)
+                second.setVolume(s.volume)
+                schedulePositionTick(s)
+                call.resolve()
+                return@runOnUiThread
+            }
+            if (s.player == null) buildPlayer(s, screenId)
+            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            applyPendingRect(s, screenId)
             val p = s.player ?: run { call.reject("player init failed"); return@runOnUiThread }
             cancelTimers(s)
+            // A new stream on the main player is always the channel itself.
+            if (screenId == MAIN) tsReset()
             s.reportedPaused = false
             s.currentUrl = url
             s.currentSubtitles = subs
@@ -1191,7 +1351,12 @@ class SnowPlayerPlugin : Plugin() {
     fun play(call: PluginCall) {
         val s = slot(call)
         val screenId = screenIdOf(call)
-        activity?.runOnUiThread { releaseHold(s); s.player?.play(); reportPaused(s, screenId); call.resolve() }
+        activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) { s.second?.play(); call.resolve(); return@runOnUiThread }
+            // Rewind live TV: after a long pause the channel resumes from the
+            // buffer where it stopped (tsOnPlay); otherwise exactly as before.
+            releaseHold(s); if (!(screenId == MAIN && tsOnPlay(s))) s.player?.play(); reportPaused(s, screenId); call.resolve()
+        }
     }
 
     @PluginMethod
@@ -1200,7 +1365,13 @@ class SnowPlayerPlugin : Plugin() {
         val screenId = screenIdOf(call)
         // During the hold playWhenReady is already false, so no listener
         // event follows — reportPaused says it.
-        activity?.runOnUiThread { releaseHold(s); s.player?.pause(); reportPaused(s, screenId); call.resolve() }
+        activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) { s.second?.pause(); call.resolve(); return@runOnUiThread }
+            releaseHold(s); s.player?.pause(); reportPaused(s, screenId)
+            // Rewind live TV: a live channel with a buffer notes where it stopped.
+            if (screenId == MAIN) tsOnPause(s)
+            call.resolve()
+        }
     }
 
     @PluginMethod
@@ -1208,6 +1379,11 @@ class SnowPlayerPlugin : Plugin() {
         val pos = call.getDouble("position") ?: 0.0
         val s = slot(call)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) {
+                s.second?.seekTo(pos.coerceAtLeast(0.0))
+                call.resolve()
+                return@runOnUiThread
+            }
             val p = s.player
             if (p != null) {
                 val ms = (pos * 1000.0).toLong().coerceAtLeast(0L)
@@ -1222,6 +1398,11 @@ class SnowPlayerPlugin : Plugin() {
     fun getPosition(call: PluginCall) {
         val s = slot(call)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) {
+                val (pos, dur) = s.second?.position() ?: (0.0 to 0.0)
+                call.resolve(JSObject().put("position", pos).put("duration", dur).put("playing", !s.reportedPaused))
+                return@runOnUiThread
+            }
             val p = s.player
             val ret = JSObject()
             if (p == null) {
@@ -1253,6 +1434,16 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     private fun statsOf(s: PlayerSlot?): JSObject {
+        // mpv already builds this same shape (SecondEngine.stats) — only
+        // engine/cpuPct/pssMb, which know about neither engine specifically,
+        // are added here.
+        if (s != null && s.engine == EngineChoice.MPV && s.second != null) {
+            val o = s.second!!.stats()
+            o.put("engine", EngineChoice.MPV)
+            o.put("cpuPct", cpuPctSince(s)?.let { Math.round(it * 10.0) / 10.0 } ?: JSONObject.NULL)
+            o.put("pssMb", cachedPssMb())
+            return o
+        }
         val p = s?.player
         val o = JSObject()
         o.put(
@@ -1313,7 +1504,36 @@ class SnowPlayerPlugin : Plugin() {
         val rt = Runtime.getRuntime()
         o.put("javaHeapMb", (rt.totalMemory() - rt.freeMemory()) / MIB)
         o.put("nativeHeapMb", Debug.getNativeHeapAllocatedSize() / MIB)
+        o.put("engine", s?.engine ?: EngineChoice.EXO)
+        o.put("firstFrameMs", s?.firstFrameMs ?: JSONObject.NULL)
+        o.put("stalls", s?.stalls ?: 0)
+        o.put("stallSec", s?.let { Math.round(it.stallSec * 10.0) / 10.0 } ?: 0.0)
+        o.put("cpuPct", s?.let { cpuPctSince(it) }?.let { Math.round(it * 10.0) / 10.0 } ?: JSONObject.NULL)
+        o.put("pssMb", cachedPssMb())
         return o
+    }
+
+    /** CPU used by this whole process since load(), against wall time since
+     *  load() — the same figure for either engine (statsOf). Null before a
+     *  load() has run (loadStartWallMs still 0). */
+    private fun cpuPctSince(s: PlayerSlot): Double? {
+        if (s.loadStartWallMs <= 0L) return null
+        val wallMs = SystemClock.elapsedRealtime() - s.loadStartWallMs
+        if (wallMs <= 0L) return null
+        val cpuMs = Process.getElapsedCpuTime() - s.loadStartCpuMs
+        return cpuMs.toDouble() / wallMs.toDouble() * 100.0
+    }
+
+    /** Debug.getPss() is process-wide and not cheap; good for PSS_CACHE_MS.
+     *  It answers in KILOBYTES (smaps' Pss), not bytes: divided by MIB (build
+     *  46) a 300 MB process read as 0 MB on both engines. */
+    private fun cachedPssMb(): Long {
+        val now = SystemClock.elapsedRealtime()
+        if (pssCacheMb < 0L || now - pssCacheAtMs >= PSS_CACHE_MS) {
+            pssCacheMb = try { Debug.getPss() / KIB_PER_MIB } catch (e: Throwable) { pssCacheMb }
+            pssCacheAtMs = now
+        }
+        return pssCacheMb
     }
 
     /** What decodes a track: the decoder's own name ("c2.amlogic.hevc.decoder"),
@@ -1391,6 +1611,7 @@ class SnowPlayerPlugin : Plugin() {
 
     private fun stopSlot(s: PlayerSlot) {
         if (slots[MAIN] === s) releaseWifi()
+        if (slots[MAIN] === s) tsReset()
         s.currentUrl = null
         clearStats(s)
         s.currentSubtitles = null
@@ -1398,6 +1619,7 @@ class SnowPlayerPlugin : Plugin() {
         cancelTimers(s)
         s.reconnectAttempts = 0
         s.firstFrameSeen = false
+        if (s.engine == EngineChoice.MPV) s.second?.stop()
         s.player?.stop()
         s.player?.clearMediaItems()
         s.subtitleView?.setCues(emptyList())
@@ -1440,6 +1662,7 @@ class SnowPlayerPlugin : Plugin() {
         val s = slot(call)
         s.volume = v.coerceIn(0f, MAX_VOLUME)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) { s.second?.setVolume(s.volume); call.resolve(); return@runOnUiThread }
             s.player?.volume = s.volume.coerceAtMost(1f)
             applyBoost(s)
             call.resolve()
@@ -1475,6 +1698,7 @@ class SnowPlayerPlugin : Plugin() {
         val enabled = call.getBoolean("enabled", true) ?: true
         val s = slot(call)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) { s.second?.setAudioEnabled(enabled); call.resolve(); return@runOnUiThread }
             val p = s.player
             if (p != null) {
                 p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
@@ -1590,6 +1814,12 @@ class SnowPlayerPlugin : Plugin() {
     private fun listTracks(call: PluginCall, type: Int) {
         val s = slot(call)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) {
+                val mpvOut = JSArray()
+                s.second?.tracks(type)?.forEach { mpvOut.put(it) }
+                call.resolve(JSObject().put("tracks", mpvOut))
+                return@runOnUiThread
+            }
             val out = JSArray()
             val p = s.player
             if (p != null) {
@@ -1641,6 +1871,11 @@ class SnowPlayerPlugin : Plugin() {
         val id = call.getString("id")
         val s = slot(call)
         activity?.runOnUiThread {
+            if (s.engine == EngineChoice.MPV) {
+                if (id != null) s.second?.selectTrack(type, id)
+                call.resolve()
+                return@runOnUiThread
+            }
             val p = s.player
             if (p == null || id == null) { call.resolve(); return@runOnUiThread }
             if (id == "-1") {
@@ -1668,11 +1903,11 @@ class SnowPlayerPlugin : Plugin() {
      * invisible state into something a customer can read out.
      */
     /**
-     * Screen format. ExoPlayer draws into a MATCH_PARENT TextureView and
-     * stretches the picture to fill it, so the view is ALWAYS the full screen
-     * and the correction is a transform on top: scale the drawn content back to
-     * the shape it should be. Nothing here resizes the view, which keeps the
-     * subtitle layer and the touch/rect handling untouched.
+     * Screen format. ExoPlayer stretches the picture to fill its TextureView,
+     * so applyFormat sizes that view to the shape the picture should have and
+     * centres it in the black box (VideoFit). Only the picture view changes
+     * size: the box, the subtitle layer and the touch/rect handling stay as
+     * they are.
      *
      *   fit     letterbox / pillarbox — whole picture, correct shape. Default.
      *   fill    stretch to the panel, shape ignored. The old behaviour.
@@ -1701,49 +1936,28 @@ class SnowPlayerPlugin : Plugin() {
         call.resolve(JSObject().put("mode", slot(call).format))
     }
 
-    /** Recompute and apply the correction matrix. Safe to call at any time. */
+    /** Size the picture view to the picture in its black box (VideoFit).
+     *  Safe to call at any time; the box's layout listener calls it again
+     *  whenever the box changes size. */
     private fun applyFormat(s: PlayerSlot) {
-        val tv = s.textureView ?: return
-        val vw = tv.width
-        val vh = tv.height
-        // Before the first layout there is nothing to scale against; the
-        // listener and setRect both call this again once there is.
-        if (vw <= 0 || vh <= 0) return
-
-        if (s.format == FORMAT_FILL) {
-            // Identity — let it stretch, which is what "fill" means.
-            tv.setTransform(Matrix())
-            tv.invalidate()
-            return
-        }
-
-        // The picture's true shape. `wide` deliberately ignores what the stream
-        // says, which is the whole point of offering it.
-        val srcAspect = when {
-            s.format == FORMAT_WIDE -> 16f / 9f
-            s.videoW > 0 && s.videoH > 0 -> (s.videoW * s.pixelRatio) / s.videoH
-            else -> return   // nothing decoded yet
-        }
-        if (srcAspect <= 0f || !srcAspect.isFinite()) return
-
-        val viewAspect = vw.toFloat() / vh.toFloat()
-        // Fit shrinks the long axis to bring the shape back; zoom grows the
-        // short one until the frame is covered.
-        val scaleX: Float
-        val scaleY: Float
-        if (s.format == FORMAT_ZOOM) {
-            if (srcAspect > viewAspect) { scaleX = srcAspect / viewAspect; scaleY = 1f }
-            else { scaleX = 1f; scaleY = viewAspect / srcAspect }
-        } else {
-            if (srcAspect > viewAspect) { scaleX = 1f; scaleY = viewAspect / srcAspect }
-            else { scaleX = srcAspect / viewAspect; scaleY = 1f }
-        }
-
-        val m = Matrix()
-        // Pivot at the centre so the bars land evenly on both sides.
-        m.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
-        tv.setTransform(m)
-        tv.invalidate()
+        // mpv draws on its own view, which its MediaCodec output fills
+        // edge to edge just as ExoPlayer fills the TextureView — so it is
+        // sized the same way.
+        val v: View = (if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.textureView) ?: return
+        val box = s.container ?: return
+        // Before the first layout, or before anything is decoded, there is
+        // nothing to fit; the layout listener and onVideoSizeChanged come back.
+        val size = VideoFit.viewSize(s.format, box.width, box.height, s.videoW, s.videoH, s.pixelRatio) ?: return
+        // No matrix: the view itself has the picture's shape. A shrunken
+        // picture in a box-sized view left the bars unpainted (the band in
+        // bugs/plex-green-bar.md).
+        (v as? TextureView)?.setTransform(null)
+        val lp = v.layoutParams as? FrameLayout.LayoutParams ?: FrameLayout.LayoutParams(size[0], size[1])
+        if (lp.width == size[0] && lp.height == size[1] && lp.gravity == Gravity.CENTER) return
+        lp.width = size[0]
+        lp.height = size[1]
+        lp.gravity = Gravity.CENTER
+        v.layoutParams = lp
     }
 
     @PluginMethod
@@ -1765,7 +1979,423 @@ class SnowPlayerPlugin : Plugin() {
     @PluginMethod fun getSubtitleTracks(call: PluginCall) = listTracks(call, C.TRACK_TYPE_TEXT)
     @PluginMethod fun setSubtitleTrack(call: PluginCall) = selectTrack(call, C.TRACK_TYPE_TEXT)
 
+    /** Whether mpv is offered on this box right now, and why not when it
+     *  isn't (PlaybackScreen's disabled reason) — the same three EngineChoice
+     *  reports for a real load(): not-in-build, android-too-old, init-failed. */
+    @PluginMethod
+    fun getEngines(call: PluginCall) {
+        val availability = EngineChoice.Availability(
+            inBuild = BuildConfig.SMC_WITH_MPV,
+            androidOk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O,
+            initFailed = mpvInitFailed,
+        )
+        val reason = when {
+            !availability.inBuild -> EngineChoice.NOT_IN_BUILD
+            !availability.androidOk -> EngineChoice.ANDROID_TOO_OLD
+            availability.initFailed -> EngineChoice.INIT_FAILED
+            else -> null
+        }
+        val mpv = JSObject().put("available", reason == null)
+        if (reason != null) mpv.put("reason", reason)
+        call.resolve(JSObject().put("mpv", mpv))
+    }
+
+    /**
+     * mpv, for the whole app (MPVLib's API is static — one instance total).
+     * Reached through Class.forName so a customer build (SMC_WITH_MPV off,
+     * MpvEngine's class not even in the APK) never links MPVLib, even from
+     * this line: a missing class just throws ClassNotFoundException, caught
+     * below like any other failure to start it. `mpvInitFailed` then marks
+     * mpv off for the rest of this process — never retried until a restart.
+     */
+    private fun secondEngineFor(screenId: String): SecondEngine? {
+        mpvEngine?.let { return it }
+        if (mpvInitFailed) return null
+        val act = activity ?: return null
+        return try {
+            val cls = Class.forName("com.snowmedia.player.mpv.MpvEngine")
+            val ctor = cls.getConstructor(Context::class.java, Handler::class.java, SecondEngine.Callbacks::class.java)
+            val engine = ctor.newInstance(act.applicationContext, mainHandler, mpvCallbacks(screenId)) as SecondEngine
+            mpvEngine = engine
+            engine
+        } catch (e: Throwable) {
+            Log.w(TAG, "mpv did not start; playing on ExoPlayer (${e.javaClass.simpleName})")
+            mpvInitFailed = true
+            null
+        }
+    }
+
+    /** Bridges mpv's events back into the SAME slot fields ExoPlayer's own
+     *  Player.Listener updates, so statsOf and the JS events work the same
+     *  for either engine. mpv only ever plays on `screenId` = "main"
+     *  (EngineChoice), but nothing here assumes that. */
+    private fun mpvCallbacks(screenId: String): SecondEngine.Callbacks = object : SecondEngine.Callbacks {
+        override fun onState(state: String) {
+            notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", state))
+        }
+        override fun onPlaying(playing: Boolean) {
+            notifyListeners("playerState", JSObject().put("screenId", screenId).put("playing", playing))
+        }
+        override fun onPaused(paused: Boolean) {
+            val s = slotFor(screenId)
+            if (paused == s.reportedPaused) return
+            s.reportedPaused = paused
+            notifyListeners("playerState", JSObject().put("screenId", screenId).put("paused", paused))
+        }
+        override fun onFirstFrame() {
+            val s = slotFor(screenId)
+            s.firstFrameSeen = true
+            openShutterIfReady(s)
+        }
+        override fun onError(code: String, message: String) {
+            slotFor(screenId).lastError = code
+            notifyListeners("playerError", JSObject().put("screenId", screenId).put("code", code).put("message", message))
+        }
+        override fun onTracksChanged() {
+            notifyListeners("tracksChanged", JSObject().put("screenId", screenId))
+        }
+        override fun onVideoSize(width: Int, height: Int, pixelRatio: Float) {
+            val s = slotFor(screenId)
+            s.videoW = width
+            s.videoH = height
+            s.pixelRatio = pixelRatio
+            applyFormat(s)
+        }
+        override fun onBandwidth(kbps: Long) {
+            if (screenId != MAIN) return
+            val s = slotFor(screenId)
+            s.lastKbps = kbps
+            if (kbps > 0L) {
+                if (s.kbpsMin < 0L || kbps < s.kbpsMin) s.kbpsMin = kbps
+                if (kbps > s.kbpsMax) s.kbpsMax = kbps
+                s.kbpsSum += kbps
+                s.kbpsSamples++
+            }
+            notifyListeners("bandwidth", JSObject().put("screenId", screenId).put("kbps", kbps))
+        }
+        override fun onSubtitleText(text: String) {
+            val s = slotFor(screenId)
+            if (text.isBlank()) s.subtitleView?.setCues(emptyList())
+            else s.subtitleView?.setCues(listOf(Cue.Builder().setText(text).build()))
+        }
+    }
+
+    // ---- Rewind live TV (timeshift) -----------------------------------------
+    // Idle unless the WebView calls timeshiftStart for a full-screen channel:
+    // with no buffer every hook above returns at once and playback is exactly
+    // as before. The channel keeps playing straight from the provider; a
+    // second connection (TimeshiftManager) writes it to cacheDir/timeshift as
+    // a local HLS playlist. A long pause, or a rewind, moves the main player
+    // onto that playlist at the right moment; Go live (or forward past its
+    // end) loads the channel itself again. Positions exchanged with the
+    // WebView are "seconds behind live".
+    //
+    // ExoPlayer only. A channel playing on mpv (the owner-test engine) never
+    // gets a buffer: timeshiftStart does nothing there, and the buffer is
+    // never played on mpv's slot. The hooks are all in the ExoPlayer paths.
+
+    private var tsManager: TimeshiftManager? = null
+    /** The main player is playing the rewind buffer, not the channel. */
+    private var tsBuffer = false
+    /** A live pause with a buffer running: when (elapsedRealtime), and how far behind the channel's edge the picture was. */
+    private var tsPausedAt = 0L
+    private var tsPauseLagMs = 0L
+    /** Last time an error in the buffer was recovered from, so a failing buffer can't loop. */
+    private var tsRecoveredAt = 0L
+    private val tsWindow = Timeline.Window()
+    private val tsPauseRunnable = Runnable { tsPausedTooLong() }
+    private val tsTickRunnable = object : Runnable {
+        override fun run() {
+            tsTick()
+            if (tsBuffer) mainHandler.postDelayed(this, TS_TICK_MS)
+        }
+    }
+
+    private fun tsManager(): TimeshiftManager? {
+        tsManager?.let { return it }
+        val root = context?.cacheDir?.let { File(it, "timeshift") } ?: return null
+        // Left-overs of a run that was killed before it could wipe.
+        TimeshiftManager.wipeFolder(root)
+        return TimeshiftManager(root).also { tsManager = it }
+    }
+
+    /** Back to plain live playback bookkeeping (a new stream, a stop). */
+    private fun tsReset() {
+        tsBuffer = false
+        tsClearPause()
+        mainHandler.removeCallbacks(tsTickRunnable)
+    }
+
+    private fun tsClearPause() {
+        tsPausedAt = 0L
+        tsPauseLagMs = 0L
+        mainHandler.removeCallbacks(tsPauseRunnable)
+    }
+
+    /** How far behind its newest data a live player shows the picture (what it has read but not played). */
+    private fun tsLiveLag(p: ExoPlayer): Long =
+        (p.bufferedPosition - p.currentPosition).coerceIn(0L, TS_MAX_LAG_MS)
+
+    /** How far behind live the main player is while it plays the buffer; null when unknown. */
+    private fun tsBehindMs(snap: TimeshiftSession.Snapshot): Long? {
+        val p = slots[MAIN]?.player ?: return null
+        var windowStartAbs = snap.epochMs + snap.startMs
+        val tl = p.currentTimeline
+        if (!tl.isEmpty) {
+            tl.getWindow(p.currentMediaItemIndex, tsWindow)
+            // The playlist's own dates (#EXT-X-PROGRAM-DATE-TIME), so a
+            // window that has slid on since it was loaded is still exact.
+            if (tsWindow.windowStartTimeMs != C.TIME_UNSET) windowStartAbs = tsWindow.windowStartTimeMs
+        }
+        val playheadAbs = windowStartAbs + p.currentPosition.coerceAtLeast(0L)
+        return (snap.epochMs + snap.liveMs - playheadAbs).coerceAtLeast(0L)
+    }
+
+    /** Move the main player onto the buffer, [behindMs] behind live (clamped to what is there). */
+    private fun tsSwitchToBuffer(s: PlayerSlot, behindMs: Long, play: Boolean): Boolean {
+        val sess = tsManager?.current ?: return false
+        val snap = sess.snapshot() ?: return false
+        val p = s.player ?: return false
+        val ctx = context ?: return false
+        if (s.currentUrl == null || !s.isLive || s.engine != EngineChoice.EXO) return false
+        val startAbs = snap.epochMs + snap.startMs
+        val lastAbs = snap.epochMs + snap.endMs - TS_HOLD_BACK_MS
+        if (lastAbs <= startAbs) return false
+        val target = (snap.epochMs + snap.liveMs - behindMs).coerceIn(startAbs, lastAbs)
+        tsClearPause()
+        // Nothing of the channel's own connection may fire into the buffer.
+        s.reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.reconnectRunnable = null
+        s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.watchdogRunnable = null
+        tsBuffer = true
+        val item = MediaItem.Builder()
+            .setUri(Uri.fromFile(sess.playlist))
+            .setMimeType(MimeTypes.APPLICATION_M3U8)
+            // Never speed up or slow down to chase a "live edge": the viewer chose this moment.
+            .setLiveConfiguration(
+                MediaItem.LiveConfiguration.Builder().setMinPlaybackSpeed(1f).setMaxPlaybackSpeed(1f).build(),
+            )
+            .build()
+        val source = HlsMediaSource.Factory(DefaultDataSource.Factory(ctx)).createMediaSource(item)
+        // A live-style stream for the load control (not a film's budget or start), told before prepare().
+        s.loadControl?.beginStream(film = false)
+        p.setMediaSource(source, target - startAbs)
+        p.prepare()
+        p.playWhenReady = play
+        mainHandler.removeCallbacks(tsTickRunnable)
+        mainHandler.postDelayed(tsTickRunnable, TS_TICK_MS)
+        return true
+    }
+
+    /** Load the channel itself again (Go live). */
+    private fun tsGoLive(s: PlayerSlot) {
+        tsReset()
+        val url = s.currentUrl ?: return
+        val p = s.player ?: return
+        s.firstFrameSeen = false
+        s.loadControl?.beginStream(film = false)
+        p.setMediaItem(buildMediaItem(url, s.currentSubtitles))
+        p.prepare()
+        p.playWhenReady = true
+        scheduleWatchdog(s, MAIN)
+    }
+
+    /** Rewind (negative) or forward (positive) by [deltaMs]. */
+    private fun tsSeekBy(s: PlayerSlot, deltaMs: Long) {
+        val p = s.player ?: return
+        if (!tsBuffer) {
+            if (deltaMs >= 0) return // already live
+            val behind = if (tsPausedAt > 0L) SystemClock.elapsedRealtime() - tsPausedAt + tsPauseLagMs else tsLiveLag(p)
+            tsSwitchToBuffer(s, behind - deltaMs, play = p.playWhenReady)
+            return
+        }
+        val snap = tsManager?.current?.snapshot() ?: run { tsGoLive(s); return }
+        val behind = tsBehindMs(snap) ?: return
+        // Forward past the end of the buffer: the channel itself.
+        if (deltaMs > 0 && behind - deltaMs < (snap.liveMs - snap.endMs) + TS_HOLD_BACK_MS) { tsGoLive(s); return }
+        val dur = p.duration
+        var pos = (p.currentPosition + deltaMs).coerceAtLeast(0L)
+        if (dur != C.TIME_UNSET && dur > TS_HOLD_BACK_MS) pos = minOf(pos, dur - TS_HOLD_BACK_MS)
+        p.seekTo(pos)
+    }
+
+    /** pause() on the main player: a live channel with a buffer notes where it stopped. */
+    private fun tsOnPause(s: PlayerSlot) {
+        if (tsBuffer || !s.isLive || s.currentUrl == null) return
+        if (tsManager?.current?.alive != true) return
+        val p = s.player ?: return
+        tsPausedAt = SystemClock.elapsedRealtime()
+        tsPauseLagMs = tsLiveLag(p)
+        mainHandler.removeCallbacks(tsPauseRunnable)
+        mainHandler.postDelayed(tsPauseRunnable, TS_PAUSE_TO_BUFFER_MS)
+    }
+
+    /**
+     * play() on the main player. A short pause resumes the channel as before
+     * (the player still holds it in memory). A long one has normally moved
+     * to the buffer already (tsPausedTooLong); if that could not happen then,
+     * it is tried now. True when the buffer took over.
+     */
+    private fun tsOnPlay(s: PlayerSlot): Boolean {
+        if (tsPausedAt == 0L || tsBuffer) { tsClearPause(); return false }
+        val behind = SystemClock.elapsedRealtime() - tsPausedAt + tsPauseLagMs
+        tsClearPause()
+        if (behind < TS_PAUSE_TO_BUFFER_MS) return false
+        return tsSwitchToBuffer(s, behind, play = true)
+    }
+
+    /**
+     * Paused on a live channel for a while: move to the buffer (still paused)
+     * before the channel's idle connection is dropped by the server, whose
+     * reconnect would jump to live and play by itself.
+     */
+    private fun tsPausedTooLong() {
+        val s = slots[MAIN] ?: return
+        if (tsPausedAt == 0L || tsBuffer) return
+        // Playing again by other means (a reconnect resumes by itself): no longer a pause.
+        if (s.player?.playWhenReady != false) { tsClearPause(); return }
+        val behind = SystemClock.elapsedRealtime() - tsPausedAt + tsPauseLagMs
+        if (!tsSwitchToBuffer(s, behind, play = false)) {
+            // Nothing captured yet: try again shortly.
+            mainHandler.postDelayed(tsPauseRunnable, TS_PAUSE_TO_BUFFER_MS)
+        }
+    }
+
+    /** An error while playing the buffer. */
+    private fun tsOnBufferError(s: PlayerSlot, error: PlaybackException) {
+        val now = SystemClock.elapsedRealtime()
+        val snap = tsManager?.current?.snapshot()
+        // The part being watched was dropped (the buffer is full and slides
+        // on): carry on from a little after the oldest part left, once.
+        if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW && snap != null &&
+            now - tsRecoveredAt > TS_RECOVER_GAP_MS) {
+            tsRecoveredAt = now
+            val play = s.player?.playWhenReady ?: true
+            if (tsSwitchToBuffer(s, snap.liveMs - snap.startMs - TS_OLDEST_MARGIN_MS, play)) return
+        }
+        Log.w(TAG, "Rewind buffer error ${error.errorCodeName}; back to live")
+        tsGoLive(s)
+    }
+
+    /** Every second while the buffer plays: caught up with its end (the capture stalled) means back to live. */
+    private fun tsTick() {
+        if (!tsBuffer) return
+        val s = slots[MAIN] ?: return
+        val snap = tsManager?.current?.snapshot() ?: run { tsGoLive(s); return }
+        val p = s.player ?: return
+        val behind = tsBehindMs(snap) ?: return
+        if (p.playWhenReady && behind <= (snap.liveMs - snap.endMs) + TS_END_SLACK_MS) tsGoLive(s)
+    }
+
+    private fun tsStatus(): JSObject {
+        val o = JSObject()
+        val sess = tsManager?.current
+        val snap = sess?.snapshot()
+        o.put("state", sess?.state ?: "off")
+        o.put("mode", if (tsBuffer) "buffer" else "live")
+        o.put("availableSec", if (snap == null) 0.0 else (snap.liveMs - snap.startMs) / 1000.0)
+        val behind = if (tsBuffer && snap != null) tsBehindMs(snap) ?: 0L else 0L
+        o.put("behindSec", behind / 1000.0)
+        o.put("usedBytes", tsManager?.usedBytes() ?: 0L)
+        sess?.reason?.let { o.put("reason", it) }
+        return o
+    }
+
+    /** Start (or keep) the rewind buffer of the channel [key] from [url]. Never logged: the URL carries the line. */
+    @PluginMethod
+    fun timeshiftStart(call: PluginCall) {
+        val url = call.getString("url")
+        val key = call.getString("key")
+        if (url.isNullOrBlank() || key.isNullOrBlank()) { call.reject("url and key required"); return }
+        val maxMinutes = (call.getInt("maxMinutes") ?: 0).coerceAtLeast(0)
+        val capMb = (call.getInt("hardCapMb") ?: 4096).coerceAtLeast(64)
+        activity?.runOnUiThread {
+            // The buffer is ExoPlayer only: a channel on mpv gets none (status stays "off").
+            if (slots[MAIN]?.engine == EngineChoice.MPV) { call.resolve(); return@runOnUiThread }
+            val m = tsManager() ?: run { call.reject("no storage"); return@runOnUiThread }
+            m.start(key, url, TimeshiftLimits(maxMinutes * 60_000L, capMb.toLong() * MIB))
+            call.resolve()
+        }
+    }
+
+    /** Stop capturing and delete the buffer now. The player goes back to live first. */
+    @PluginMethod
+    fun timeshiftStop(call: PluginCall) {
+        activity?.runOnUiThread {
+            slots[MAIN]?.let { if (tsBuffer) tsGoLive(it) }
+            tsManager?.stop()
+            call.resolve()
+        }
+    }
+
+    /** Delete every rewind buffer now (leaving the player, sign-out). Recordings are elsewhere and untouched. */
+    @PluginMethod
+    fun timeshiftWipe(call: PluginCall) {
+        activity?.runOnUiThread {
+            slots[MAIN]?.let { if (tsBuffer) tsGoLive(it) }
+            tsReset()
+            tsManager?.wipeAll()
+            call.resolve()
+        } ?: run {
+            // No activity (closing): still clear the disk.
+            context?.cacheDir?.let { TimeshiftManager.wipeFolder(File(it, "timeshift")) }
+            call.resolve()
+        }
+    }
+
+    @PluginMethod
+    fun timeshiftStatus(call: PluginCall) {
+        activity?.runOnUiThread { call.resolve(tsStatus()) }
+    }
+
+    /** Rewind / forward by deltaSec (negative = back). Answers with the new status. */
+    @PluginMethod
+    fun timeshiftSeek(call: PluginCall) {
+        val delta = ((call.getDouble("deltaSec") ?: 0.0) * 1000.0).toLong()
+        activity?.runOnUiThread {
+            slots[MAIN]?.let { s -> if (s.currentUrl != null) tsSeekBy(s, delta) }
+            call.resolve(tsStatus())
+        }
+    }
+
+    @PluginMethod
+    fun timeshiftGoLive(call: PluginCall) {
+        activity?.runOnUiThread {
+            slots[MAIN]?.let { if (tsBuffer) tsGoLive(it) }
+            call.resolve(tsStatus())
+        }
+    }
+
+    /** Disk figures for Settings: what the buffer holds now, and the free / total space it is judged against. */
+    @PluginMethod
+    fun timeshiftUsage(call: PluginCall) {
+        activity?.runOnUiThread {
+            val vol = context?.cacheDir?.let { StorageBudget.volumeOf(it) }
+            call.resolve(
+                JSObject()
+                    .put("usedBytes", tsManager?.usedBytes() ?: 0L)
+                    .put("freeBytes", vol?.first ?: 0L)
+                    .put("totalBytes", vol?.second ?: 0L),
+            )
+        }
+    }
+
+    /**
+     * Home, another app over this one, the box going to sleep: the rewind
+     * buffer is wiped (owner rule). Recordings run in their own service and
+     * files, and carry on.
+     */
+    override fun handleOnStop() {
+        tsReset()
+        tsManager?.wipeAll()
+        super.handleOnStop()
+    }
+
     override fun handleOnDestroy() {
+        // The app is closing: the rewind buffer goes with it.
+        tsReset()
+        tsManager?.wipeAll()
         activity?.runOnUiThread {
             for (s in slots.values) {
                 cancelTimers(s)
@@ -1777,6 +2407,8 @@ class SnowPlayerPlugin : Plugin() {
             slots.clear()
             releaseWifi()
             wifiLock = null
+            mpvEngine?.release()
+            mpvEngine = null
         }
         super.handleOnDestroy()
     }

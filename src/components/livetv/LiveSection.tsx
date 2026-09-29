@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
-import { ChevronDown, ChevronRight, Loader2, Search, Star, Tv } from 'lucide-react';
+import { ChevronDown, ChevronRight, Film, Loader2, Search, Star, Tv } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   loadFavoritesData,
@@ -55,14 +55,22 @@ import { loadPlayerVolume, savePlayerVolume, stepVolume } from '@/utils/volume';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import ChannelRow from './ChannelRow';
-import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
+import PlayerControlBar from './PlayerControlBar';
+import { liveBarDisabled, liveBarOrder, moveBarFocus, type BarControlId } from './liveBar';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import SnowLoader from '@/components/SnowLoader';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import type { VideoController } from './VideoPlayer';
 import { AlertTriangle, RotateCw } from 'lucide-react';
-import { hasNativePlayer } from '@/capacitor/SnowPlayer';
+import { hasNativePlayer, SnowPlayer } from '@/capacitor/SnowPlayer';
+import { SnowRecorder, RECORDINGS_CHANGED_EVENT, hasRecorder, notifyRecordingsChanged, type RecordingJob } from '@/capacitor/SnowRecorder';
+import { programmeTimeUtcMs } from '@/lib/recordSchedule';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
+import { useLiveRewind, rewindOffMessage, panelOffset, type RewindOffReason } from '@/hooks/useLiveRewind';
+import { usePlayerAccount } from '@/hooks/usePlayerAccount';
+import { usePlayerEngine } from '@/hooks/usePlayerEngine';
+import { recordEngineSample, sampleFromStats, shouldSampleEngines } from '@/lib/engineCompare';
+import PlayerStatsPanel from './PlayerStatsPanel';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
@@ -70,9 +78,12 @@ import { channelForName } from '@/lib/voiceCommands';
 import { toast } from '@/hooks/use-toast';
 import { isChannelDown, isChannelFailure, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
+import RecordDialog, { type RecordChoice } from './RecordDialog';
 import { recordChannelWatch } from '@/lib/watchHistory';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { onMediaKey } from '@/lib/mediaKeys';
+import { createSkipQueue, MEDIA_SKIP_SEC } from '@/lib/skipQueue';
+import { MAX_SIMULTANEOUS_RECORDINGS, REWIND_PAUSED_NOTE, endsAtLabel, extraStreamNote, pauseRewindForRecording, recordingFileName } from '@/lib/recording';
 import {
   demoGetLiveCategories,
   demoGetLiveStreams,
@@ -81,10 +92,17 @@ import {
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
+const RecordingsScreen = lazy(() => import('./RecordingsScreen'));
 
 const NATIVE_PLAYBACK = hasNativePlayer();
 // Demo latch (?demo=1) — canned lineup, no provider contact, no <video> mount.
 const DEMO = isDemo();
+// Record live channels (TRACKER 25): the native app with the recorder plugin
+// (an older build has none), never the demo. A Kids profile hides it too (see
+// recordOn in the component: the profile is only known at render).
+const RECORD_CAPABLE = NATIVE_PLAYBACK && !DEMO && hasRecorder();
+/** Hold OK this long on a channel for its options (Record; Report is under "More options"). */
+const HOLD_MS = 600;
 // Demo call-site swap (Plex pattern): fixtures answer every read in demo.
 const fetchLiveCategories = DEMO ? demoGetLiveCategories : getLiveCategories;
 const fetchLiveStreams = DEMO ? demoGetLiveStreams : getLiveStreams;
@@ -459,7 +477,47 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [reportFor, setReportFor] = useState<XtreamLiveStream | null>(null);
   const reportForRef = useRef<XtreamLiveStream | null>(null);
   useEffect(() => { reportForRef.current = reportFor; }, [reportFor]);
-  // D-pad long-press (hold OK ~600ms) on a focused channel → open report.
+  // Record now (TRACKER 25): the dialog (hold OK on a channel, or Record in
+  // the player bar) owns the keyboard while open, like the report dialog. Not
+  // in Kids profiles, the demo, or a build without the recorder plugin.
+  const recordOn = RECORD_CAPABLE && !kidsLevel();
+  const recordOnRef = useRef(recordOn);
+  recordOnRef.current = recordOn;
+  const [recordFor, setRecordFor] = useState<{ st: XtreamLiveStream; line: XtreamCreds } | null>(null);
+  const recordForRef = useRef(recordFor);
+  recordForRef.current = recordFor;
+  // Live TV › Recordings: an entry under Search once there is something to
+  // list; the screen takes the section over (and the remote) while open.
+  const [recordingsOpen, setRecordingsOpen] = useState(false);
+  const recordingsOpenRef = useRef(recordingsOpen);
+  recordingsOpenRef.current = recordingsOpen;
+  const [recFocused, setRecFocused] = useState(false);
+  const recFocusedRef = useRef(recFocused);
+  recFocusedRef.current = recFocused;
+  const [hasRecordings, setHasRecordings] = useState(false);
+  // Schedules (set for later, or missed) give the Recordings entry a reason to show before any file exists.
+  const [hasSchedules, setHasSchedules] = useState(false);
+  const [recJobs, setRecJobs] = useState<RecordingJob[]>([]);
+  // Re-reads what is recorded and what is recording. The one place a
+  // "recordings changed" event lands: the screens fire it after a start, stop,
+  // rename or delete (notifyRecordingsChanged), and the native side's own
+  // 'recordingsChanged' event (a scheduled start, a recording that ended)
+  // fires the same event (SnowRecorder.ts).
+  const refreshRecordings = useCallback(() => {
+    if (!recordOnRef.current) return;
+    SnowRecorder.list().then((r) => setHasRecordings(r.recordings.length > 0)).catch(() => { /* older app */ });
+    SnowRecorder.listSchedules().then((r) => setHasSchedules(r.schedules.length > 0)).catch(() => { /* older app */ });
+    SnowRecorder.active().then((r) => setRecJobs(r.jobs)).catch(() => { /* older app */ });
+  }, []);
+  useEffect(() => {
+    if (!recordOn || !isActive) return;
+    refreshRecordings();
+    window.addEventListener(RECORDINGS_CHANGED_EVENT, refreshRecordings);
+    return () => window.removeEventListener(RECORDINGS_CHANGED_EVENT, refreshRecordings);
+  }, [recordOn, isActive, refreshRecordings]);
+  // D-pad long-press (hold OK ~600ms) on a focused channel → its options: the
+  // Record dialog (with the report menu under "More options…"), or the report
+  // menu straight away where recording isn't offered.
   const enterTimerRef = useRef<number | null>(null);
   const enterFiredRef = useRef(false);
   const cancelEnterTimer = useCallback(() => {
@@ -478,6 +536,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [volMenuOpen, setVolMenuOpen] = useState(false);
   const [subMenuFocus, setSubMenuFocus] = useState(-1); // -1 = Off
   const [audioMenuFocus, setAudioMenuFocus] = useState(0);
+  // Stats toggle (PlayerStatsPanel) — a plain on/off, no menu of its own.
+  const [statsShown, setStatsShown] = useState(false);
   // Slow-connection hint: set after ~25s of CONTINUOUS native buffering.
   const [slowConn, setSlowConn] = useState(false);
   const [tracksTick, setTracksTick] = useState(0);
@@ -503,6 +563,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setAudioMenuOpen(false);
     setVolMenuOpen(false);
   }, []);
+  // A fresh state next time fullscreen opens — the stats panel itself never
+  // renders once !fullscreen (below), so this only affects the toggle's
+  // remembered value.
+  useEffect(() => { if (!fullscreen) setStatsShown(false); }, [fullscreen]);
+
   // Reset bar state when entering fullscreen or switching channel.
   useEffect(() => {
     if (!fullscreen) return;
@@ -858,6 +923,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // the virtualized rows, so scrollTop math needs the wrapper's real offset.
   const channelListRef = useRef<HTMLDivElement | null>(null);
   const layout = useLiveLayout();
+  // Player engine (owner test builds only — PlaybackScreen). mpv only ever
+  // actually plays here: the main slot, live=true (EngineChoice); a preview
+  // box and fullscreen share the one useNativePlayer call below, so passing
+  // it through once covers both.
+  const { engine: playerEngine } = usePlayerEngine();
   // First time in Live TV on this box: pick a look before anything else.
   const [choosingLayout, setChoosingLayout] = useState(() => !DEMO && !hasLiveLayoutChoice());
   const choosingLayoutRef = useRef(choosingLayout);
@@ -1007,6 +1077,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // EPG lazy fetch with concurrency cap
   const epgKey = useCallback((st: XtreamLiveStream) => `${lineKey(lineFor(st))}:${st.stream_id}`, [lineFor]);
   const epgFor = useCallback((st: XtreamLiveStream | null | undefined) => (st ? epgCacheRef.current.get(epgKey(st)) : undefined), [epgKey]);
+  // The programme on now, with its true end (the panel's clock is not always the box's), for the
+  // "This programme (until …)" chip. It may arrive after the dialog opens.
+  const [recordProgramme, setRecordProgramme] = useState<{ title: string; endMs: number } | null>(null);
+  useEffect(() => {
+    const nn = recordFor ? epgFor(recordFor.st)?.now : undefined;
+    if (!recordFor || !nn) { setRecordProgramme(null); return; }
+    let alive = true;
+    void panelOffset(recordFor.line)
+      .then((off) => {
+        if (alive) setRecordProgramme({ title: nn.title, endMs: programmeTimeUtcMs(nn.endRaw, off) ?? nn.end });
+      })
+      .catch(() => { if (alive) setRecordProgramme({ title: nn.title, endMs: nn.end }); });
+    return () => { alive = false; };
+  }, [recordFor, epgFor]);
   // The queue only ever holds rows on screen (plus the focused channel). It
   // used to keep every row ever scrolled past and drained it to the end —
   // through fullscreen playback and after Live TV had closed — with the rows
@@ -1165,12 +1249,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => { previewChannelRef.current = previewChannel; }, [previewChannel]);
 
   const lastPlayRef = useRef<{ id: number; ts: number } | null>(null);
+  // The stream last handed to playChannel: keeps what the list said about it
+  // (its catch-up days) after the list itself has moved on.
+  const playedStreamRef = useRef<XtreamLiveStream | null>(null);
   const watchRecordTimerRef = useRef<number | null>(null);
   useEffect(() => () => { if (watchRecordTimerRef.current) window.clearTimeout(watchRecordTimerRef.current); }, []);
   // What is on screen right now, for the watch timer below.
   const watchingRef = useRef<{ channel: string; category: string } | null>(null);
   const playChannel = useCallback((stream: XtreamLiveStream) => {
     const line = lineFor(stream);
+    playedStreamRef.current = stream;
     setPlayingLine(line);
     setPlayingChannelId(stream.stream_id);
     setFullscreen(true);
@@ -1292,12 +1380,44 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // The preview: the dwelt-on channel, in the box, while this section has
   // the remote and the box is on screen. Same player, same stream URL as
   // fullscreen, so OK on the previewing channel only moves the picture.
-  const nativePreviewActive = NATIVE_PLAYBACK && !DEMO && isActive && !fullscreen && !!previewChannel;
+  const nativePreviewActive = NATIVE_PLAYBACK && !DEMO && isActive && !fullscreen && !!previewChannel && !recordingsOpen;
   // Vibez (strmz.xyz) is only reliable via the raw .ts container on Fire TV —
   // the shared buildNativeLiveUrl helper always swaps .m3u8→.ts. Dreamstreams
   // works on both.
-  const nativeUrl = !DEMO && nativeActive && playingChannelId
+  const directLiveUrl = !DEMO && nativeActive && playingChannelId
     ? buildNativeLiveUrl(playingLine, playingChannelId)
+    : null;
+
+  // Rewind live TV (TRACKER 25) for the full-screen channel. A catch-up
+  // channel plays the panel's archive address in place of the channel's (the
+  // address carries the line's login: it goes to SnowPlayer.load only); the
+  // on-box buffer is switched to inside the native player and changes nothing
+  // here. The buffer is a second stream on the line: the plan's stream count
+  // (known for the main line) and the running recordings decide if it runs.
+  const rewindStream = nativeActive && playingChannelId
+    ? (visibleChannels.find((st) => st.stream_id === playingChannelId && lineFor(st) === playingLine)
+      ?? (playedStreamRef.current?.stream_id === playingChannelId ? playedStreamRef.current : null)
+      ?? { stream_id: playingChannelId })
+    : null;
+  const { account: playerAccount } = usePlayerAccount();
+  const playingPlan = playerAccount && lineKey({ host: playerAccount.host, username: playerAccount.username }) === lineKey(playingLine)
+    ? playerAccount.maxConnections
+    : null;
+  const rewind = useLiveRewind({
+    active: nativeActive && !DEMO,
+    directUrl: directLiveUrl,
+    line: nativeActive ? playingLine : null,
+    stream: rewindStream,
+    watching: nativeActive && barVisible,
+    engine: playerEngine,
+    maxConnections: playingPlan,
+    activeRecordings: recJobs.length,
+  });
+  const rewindRef = useRef(rewind);
+  rewindRef.current = rewind;
+  const catchupUrl = nativeActive ? rewind.playUrl : null;
+  const nativeUrl = directLiveUrl
+    ? (catchupUrl ?? directLiveUrl)
     : nativePreviewActive && previewChannel
       ? buildNativeLiveUrl(lineFor(previewChannel), previewChannel.stream_id)
       : null;
@@ -1305,11 +1425,66 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     active: nativeActive || nativePreviewActive,
     url: nativeUrl,
     volume,
+    engine: playerEngine,
+    // A catch-up programme plays as a recording: it ends (back to live)
+    // instead of reconnecting.
+    live: !catchupUrl,
     rect: nativeActive ? undefined : previewRect,
     background: nativeActive,
     onTracksChanged: () => setTracksTick((t) => t + 1),
     onPlayStateChange: (p) => setIsPaused(p),
+    onEnded: rewind.onEnded,
+    // Rewind / Fast-forward go through the channel's rewind (below), not a
+    // plain seek of the catch-up stream.
+    skipKeys: false,
   });
+  const rewindPausedChange = rewind.onPausedChange;
+  useEffect(() => { rewindPausedChange(native.paused); }, [native.paused, rewindPausedChange]);
+
+  // A recording took the streams the buffer needs: say why the rewind row went.
+  const lastOffReasonRef = useRef<RewindOffReason | null>(null);
+  useEffect(() => {
+    const r = rewind.offReason;
+    if (r === 'recording' && lastOffReasonRef.current !== 'recording') {
+      try { toast({ title: rewindOffMessage('recording') }); } catch { /* ignore */ }
+    }
+    lastOffReasonRef.current = r;
+  }, [rewind.offReason]);
+
+  // mpv couldn't start on this box: told once per fallback, not on every
+  // render (useNativePlayer clears engineNotice on the next load).
+  const lastEngineNoticeRef = useRef<string | null>(null);
+  useEffect(() => {
+    const notice = native.engineNotice;
+    if (!notice || notice === lastEngineNoticeRef.current) return;
+    lastEngineNoticeRef.current = notice;
+    toast({ title: "MPV couldn't start on this box — using ExoPlayer" });
+  }, [native.engineNotice]);
+
+  // Engine comparison (PlaybackScreen's Compare table): one getStats() read
+  // 60 s into a Live channel on the main player, and again when it stops.
+  // Only when mpv is in this build or the Stats panel is open: the read takes
+  // the PSS on the UI thread, which a customer box does not need to pay for.
+  const mpvInBuildRef = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    void SnowPlayer.getEngines().then((r) => { if (alive) mpvInBuildRef.current = !!r?.mpv?.available; }).catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => {
+    if (!nativeActive) return;
+    const startedAt = Date.now();
+    const sample = (minutes: number) => {
+      if (!shouldSampleEngines(mpvInBuildRef.current, statsShownRef.current)) return;
+      void SnowPlayer.getStats().then((st) => recordEngineSample(sampleFromStats(st, minutes))).catch(() => undefined);
+    };
+    const t = window.setTimeout(() => sample(1), 60_000);
+    return () => {
+      window.clearTimeout(t);
+      const minutes = (Date.now() - startedAt) / 60_000;
+      if (minutes > 0) sample(minutes);
+    };
+  }, [nativeActive, playingChannelId]);
 
   // Slow-connection hint — arms a 25s timer while the native player is
   // CONTINUOUSLY buffering; "ready"/playing clears buffering and the hint.
@@ -1355,19 +1530,42 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     playChannel(visibleChannels[next]);
   }, [visibleChannels, playingChannelId, channelIdx, playChannel]);
 
-  // Remote media buttons while a channel is full screen. A live channel can't
-  // be skipped, so Fast-forward / Next go up a channel and Rewind / Previous
-  // go down one; Play/Pause is handled by the player itself.
+  // Remote media buttons while a channel is full screen. Rewind / Fast-forward
+  // move 10 s back / forward through the channel's rewind (the panel's
+  // catch-up or the on-box buffer), the same as the bar's Back 10s / Forward
+  // 10s; held, they keep going (the steps are added up, one at a time). A
+  // stream that seeks on its own is sought; else it says why there is no
+  // rewind. Changing channel is ▲▼, CH+ / CH- and Next / Previous.
+  // Play/Pause is handled by the player itself.
   const changeChannelRef = useRef(changeChannelInFullscreen);
   useEffect(() => { changeChannelRef.current = changeChannelInFullscreen; }, [changeChannelInFullscreen]);
+  const skipToastAtRef = useRef(0);
+  const liveSkip = useMemo(() => createSkipQueue(async (delta) => {
+    const say = (msg: string | null) => {
+      if (!msg || Date.now() - skipToastAtRef.current < 3000) return;
+      skipToastAtRef.current = Date.now();
+      try { toast({ title: msg }); } catch { /* ignore */ }
+    };
+    const rw = rewindRef.current;
+    if (rw.kind !== 'off') {
+      say(delta < 0 ? await rw.rewind(-delta) : await rw.forward(delta));
+      return;
+    }
+    const ctrl = videoControllerRef.current;
+    if (ctrl?.isSeekable()) { ctrl.seek(delta); return; }
+    say(rewindOffMessage(rw.offReason));
+  }), []);
   useEffect(() => {
     if (!isActive || !fullscreen) return;
-    return onMediaKey((k) => {
-      if (k === 'ff' || k === 'next') { changeChannelRef.current(+1); pokeBar(); }
-      else if (k === 'rw' || k === 'prev') { changeChannelRef.current(-1); pokeBar(); }
+    const off = onMediaKey((k) => {
+      if (k === 'ff') { liveSkip.push(+MEDIA_SKIP_SEC); pokeBar(); }
+      else if (k === 'rw') { liveSkip.push(-MEDIA_SKIP_SEC); pokeBar(); }
+      else if (k === 'next' || k === 'chup') { liveSkip.clear(); changeChannelRef.current(+1); pokeBar(); }
+      else if (k === 'prev' || k === 'chdown') { liveSkip.clear(); changeChannelRef.current(-1); pokeBar(); }
       else if (k === 'playpause' || k === 'play' || k === 'pause') pokeBar();
     });
-  }, [isActive, fullscreen, pokeBar]);
+    return () => { off(); liveSkip.clear(); };
+  }, [isActive, fullscreen, pokeBar, liveSkip]);
 
   // What the native player is showing: the full-screen channel, or the one
   // in the preview box.
@@ -1442,6 +1640,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
 
   // Refs for keyboard handler
+  const playingLineRef = useRef(playingLine);
+  playingLineRef.current = playingLine;
+  const playingStreamRef = useRef<XtreamLiveStream | null>(null);
+  // The Recordings entry under Search is on screen (once something is recorded).
+  const showRecEntry = recordOn && (hasRecordings || hasSchedules) && !searchOpen;
+  const recEntryRef = useRef(showRecEntry);
+  recEntryRef.current = showRecEntry;
+  // It went away (the last recording deleted) while highlighted: hand the highlight back.
+  useEffect(() => { if (!showRecEntry && recFocused) setRecFocused(false); }, [showRecEntry, recFocused]);
   const paneRef = useRef(pane);
   const categoryIdxRef = useRef(categoryIdx);
   const channelIdxRef = useRef(channelIdx);
@@ -1461,6 +1668,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const volMenuOpenRef = useRef(volMenuOpen);
   const subMenuFocusRef = useRef(subMenuFocus);
   const audioMenuFocusRef = useRef(audioMenuFocus);
+  const statsShownRef = useRef(statsShown);
+  useEffect(() => { statsShownRef.current = statsShown; }, [statsShown]);
 
   useEffect(() => { paneRef.current = pane; }, [pane]);
   useEffect(() => { categoryIdxRef.current = categoryIdx; }, [categoryIdx]);
@@ -1477,9 +1686,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const ch = visibleChannelsRef.current[i];
     if (ch) activateChannelRef.current(ch);
   }, []);
+  // A channel's options: Record (Report is under its "More options…"), or
+  // Report straight away where recording isn't offered.
+  const openChannelOptions = useCallback((c: XtreamLiveStream) => {
+    if (recordOnRef.current) setRecordFor({ st: c, line: lineFor(c) });
+    else setReportFor(c);
+  }, [lineFor]);
+  const openChannelOptionsRef = useRef(openChannelOptions);
+  openChannelOptionsRef.current = openChannelOptions;
   const onRowLongPress = useCallback((i: number) => {
     setChannelIdx(i);
-    setReportFor(visibleChannelsRef.current[i] ?? null);
+    const c = visibleChannelsRef.current[i];
+    if (c) openChannelOptionsRef.current(c);
+    else setReportFor(null);
   }, []);
   useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
   useEffect(() => { barVisibleRef.current = barVisible; }, [barVisible]);
@@ -1507,8 +1726,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
      try {
-      // Report dialog owns the keyboard while open.
-      if (reportForRef.current) return;
+      // The Report / Record dialogs and the Recordings screen own the keyboard while open.
+      if (reportForRef.current || recordForRef.current || recordingsOpenRef.current) return;
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
@@ -1588,6 +1807,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // --- Back ---
         if (isBack) {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+          if (statsShownRef.current) { setStatsShown(false); return; }
           if (barVisibleRef.current) { hideBarNow(); return; }
           setFullscreen(false);
           backToCallerRef.current?.();
@@ -1624,33 +1844,29 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         const subs = ctrl?.getSubtitleTracks() ?? [];
         const auds = ctrl?.getAudioTracks() ?? [];
         const seekable = !!ctrl?.isSeekable();
-        const order: BarControlId[] = ['prev', 'rew', 'play', 'fwd', 'next', 'cc', 'audio', 'vol'];
-        const isDisabled = (id: BarControlId): boolean => {
-          if (id === 'rew' || id === 'fwd') return !seekable;
-          if (id === 'cc') return subs.length === 0;
-          if (id === 'audio') return auds.length <= 1;
-          return false;
-        };
-        const moveFocus = (dir: 1 | -1) => {
-          const cur = order.indexOf(barFocusRef.current);
-          for (let step = 1; step <= order.length; step++) {
-            const next = cur + dir * step;
-            if (next < 0 || next >= order.length) return;
-            const cand = order[next];
-            if (!isDisabled(cand)) { setBarFocus(cand); return; }
-          }
-        };
+        const rewindOn = rewindRef.current.kind !== 'off';
+        // The same list and rule the bar itself draws from (liveBar.ts).
+        const order = liveBarOrder({ rewind: rewindOn, record: recordOnRef.current });
+        const isDisabled = (id: BarControlId): boolean =>
+          liveBarDisabled(id, { seekable, rewind: rewindOn, subtitles: subs.length, audios: auds.length });
 
-        if (e.key === 'ArrowLeft')  { moveFocus(-1); return; }
-        if (e.key === 'ArrowRight') { moveFocus(+1); return; }
+        if (e.key === 'ArrowLeft')  { setBarFocus(moveBarFocus(order, barFocusRef.current, -1, isDisabled)); return; }
+        if (e.key === 'ArrowRight') { setBarFocus(moveBarFocus(order, barFocusRef.current, +1, isDisabled)); return; }
         if (e.key === 'ArrowUp')    { changeChannelInFullscreen(-1); setBarFocus('play'); pokeBar(); return; }
         if (e.key === 'ArrowDown')  { changeChannelInFullscreen(+1); setBarFocus('play'); pokeBar(); return; }
         if (e.key === 'Enter' || e.key === ' ') {
           const id = barFocusRef.current;
           if (id === 'prev')  changeChannelInFullscreen(-1);
           else if (id === 'next') changeChannelInFullscreen(+1);
-          else if (id === 'rew')  { ctrl?.seek(-10); }
-          else if (id === 'fwd')  { ctrl?.seek(+10); }
+          // Back 10s / Forward 10s: through the channel's rewind when it has
+          // one, else a seek; held, the steps are added up (liveSkip).
+          else if (id === 'rew')  { liveSkip.push(-MEDIA_SKIP_SEC); }
+          else if (id === 'fwd')  { liveSkip.push(+MEDIA_SKIP_SEC); }
+          else if (id === 'golive') { void rewindRef.current.goLive(); }
+          else if (id === 'rec') {
+            const st = playingStreamRef.current;
+            if (st && !e.repeat && recordOnRef.current) setRecordFor({ st, line: playingLineRef.current });
+          }
           else if (id === 'play') {
             ctrl?.togglePlay();
             // optimistic — onPlayStateChange will reconcile
@@ -1674,6 +1890,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             setVolMenuOpen(true);
             setSubMenuOpen(false);
             setAudioMenuOpen(false);
+          }
+          else if (id === 'stats') {
+            setStatsShown((v) => !v);
           }
           return;
         }
@@ -1720,11 +1939,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const chans = visibleChannelsRef.current;
 
       if (paneRef.current === 'categories') {
+        // Recordings, between Search and the categories.
+        if (recFocusedRef.current) {
+          if (e.key === 'ArrowUp') { setRecFocused(false); setSearchFocused(true); return; }
+          if (e.key === 'ArrowDown') { setRecFocused(false); return; }
+          if (e.key === 'ArrowLeft') { onExitLeft(); return; }
+          if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') { setRecordingsOpen(true); return; }
+          return;
+        }
         if (searchFocusedRef.current) {
           if (e.key === 'ArrowUp')   { setSearchFocused(false); onExitUp?.(); return; }
           if (e.key === 'ArrowDown') {
             if (searchOpenRef.current && searchInputRef.current) { searchInputRef.current.focus(); return; }
-            setSearchFocused(false); return;
+            setSearchFocused(false);
+            if (recEntryRef.current) setRecFocused(true);
+            return;
           }
           if (e.key === 'ArrowLeft') { onExitLeft(); return; }
           if (e.key === 'Enter' || e.key === ' ') {
@@ -1741,7 +1970,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           setCategoryIdx(i => (i + 1) % Math.max(1, cats.length));
         }
         else if (e.key === 'ArrowUp') {
-          if (categoryIdxRef.current === 0) { setSearchFocused(true); return; }
+          if (categoryIdxRef.current === 0) {
+            if (recEntryRef.current) setRecFocused(true);
+            else setSearchFocused(true);
+            return;
+          }
           userMovedRef.current = true;
           setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
         }
@@ -1780,7 +2013,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         setPane('categories');
       }
       else if (e.key === 'Enter' || e.key === ' ') {
-        // D-pad long-press detection. Short press = play; long press (~600ms) = report.
+        // D-pad long-press detection. Short press = play; long press (~600ms) = the channel's options.
         // Ignore key repeats so holding doesn't restart the timer or re-fire play.
         if (e.repeat) return;
         if (enterTimerRef.current || enterFiredRef.current) return;
@@ -1789,13 +2022,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           enterTimerRef.current = null;
           enterFiredRef.current = true;
           const c = visibleChannelsRef.current[channelIdxRef.current];
-          if (c) setReportFor(c);
-        }, 600) as unknown as number;
+          if (c) openChannelOptionsRef.current(c);
+        }, HOLD_MS) as unknown as number;
       }
      } catch { /* ignore */ }
     };
     const keyupHandler = (e: KeyboardEvent) => {
-      if (reportForRef.current) return;
+      if (reportForRef.current || recordForRef.current || recordingsOpenRef.current) return;
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (paneRef.current !== 'channels' || fullscreenRef.current) {
         cancelEnterTimer();
@@ -1821,7 +2054,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       window.removeEventListener('keyup', guardedUp, true);
       cancelEnterTimer();
     };
-  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, toggleCollapsed]);
+  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, toggleCollapsed, liveSkip]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -1837,7 +2070,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if ((window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack) return;
           if (choosingLayoutRef.current) return; // the chooser answers Back itself
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
-          if (reportForRef.current) return;
+          if (reportForRef.current || recordForRef.current || recordingsOpenRef.current) return;
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (fullscreenRef.current) {
             if (barVisibleRef.current) hideBarNow();
@@ -1864,12 +2097,116 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (fav) { const st = favToStream(fav); streamLineRef.current.set(st, playingLine); return st; }
     return focusedChannel;
   })();
+  playingStreamRef.current = playingStream ?? null;
   const playingNowNext = epgFor(playingStream);
   const progress = (() => {
     if (!playingNowNext?.now) return 0;
     const { start, end } = playingNowNext.now;
     return Math.min(100, Math.max(0, ((Date.now() - start) / (end - start)) * 100));
   })();
+
+  // ── Record now ─────────────────────────────────────────────────────────────
+  const jobFor = (name: string | undefined): RecordingJob | null =>
+    (name ? recJobs.find((j) => j.channel === name) : undefined) ?? null;
+  /** Streams the plan allows on a line (known for the main line only). */
+  const planFor = (line: XtreamCreds): number | null =>
+    playerAccount && lineKey({ host: playerAccount.host, username: playerAccount.username }) === lineKey(line)
+      ? playerAccount.maxConnections
+      : null;
+  const startRecording = async (target: { st: XtreamLiveStream; line: XtreamCreds }, choice: RecordChoice) => {
+    const { st, line } = target;
+    const plan = planFor(line);
+    // A recording is one more stream on the line: said on every start, in the
+    // dialog, here, and in the error when the provider refuses (same words).
+    const note = extraStreamNote(plan);
+    try {
+      // The rewind buffer gives its stream up first, so the line never sees
+      // picture + buffer + recording together.
+      const paused = await pauseRewindForRecording(plan);
+      // Its own connection, like the player's; the address is never logged.
+      const r = await SnowRecorder.start({
+        url: buildNativeLiveUrl(line, st.stream_id),
+        channel: st.name,
+        fileName: recordingFileName(st.name),
+        volumeId: choice.volumeId,
+        durationMin: choice.durationMin,
+        // At most two at once, fewer on a smaller plan (each is a stream).
+        maxSimultaneous: Math.min(MAX_SIMULTANEOUS_RECORDINGS, plan && plan >= 1 ? plan : MAX_SIMULTANEOUS_RECORDINGS),
+      });
+      const until = endsAtLabel(choice.durationMin);
+      toast({ title: `Recording ${st.name}`, description: `${until ? `Until ${until}` : 'Until you stop it'} · ${r.volumeLabel}. ${note}${paused ? ` ${REWIND_PAUSED_NOTE}` : ''}` });
+    } catch (e) {
+      const err = e as Error & { code?: string };
+      const why = err?.message ?? '';
+      // A full drive has nothing to do with the line; every other refusal
+      // (the plan's limit, the provider saying no) carries the stream note.
+      toast({
+        title: 'Recording did not start',
+        description: err?.code === 'NO_SPACE' ? why : `${why}${why ? ' ' : ''}${note}`,
+        variant: 'destructive',
+      });
+    }
+    notifyRecordingsChanged();
+  };
+  const closeRecordDialog = () => { setRecordFor(null); enterFiredRef.current = false; };
+  const recordDialog = recordFor ? (
+    <RecordDialog
+      channelName={recordFor.st.name}
+      maxConnections={planFor(recordFor.line)}
+      programme={recordProgramme}
+      activeJob={jobFor(recordFor.st.name)}
+      onStart={(choice) => { const t = recordFor; closeRecordDialog(); void startRecording(t, choice); }}
+      onStop={(id) => {
+        closeRecordDialog();
+        void SnowRecorder.stop({ id }).catch(() => { /* ignore */ }).then(() => {
+          toast({ title: 'Recording stopped', description: 'It is in Live TV › Recordings.' });
+          window.setTimeout(notifyRecordingsChanged, 1500);
+        });
+      }}
+      onMore={() => {
+        const { st, line } = recordFor;
+        // The report menu finds the channel's line by the stream object.
+        streamLineRef.current.set(st, line);
+        setRecordFor(null);
+        setReportFor(st);
+      }}
+      onClose={closeRecordDialog}
+    />
+  ) : null;
+
+  const reportDialog = reportFor ? (
+    <Suspense fallback={null}>
+      <ReportChannelDialog
+        channelName={reportFor.name}
+        channelId={reportFor.stream_id}
+        categoryName={searchOpen ? 'Search' : (currentCat?.isFav ? 'Favorites' : (currentCat?.name || ''))}
+        isFavorite={isFav(reportFor)}
+        onToggleFavorite={() => toggleFavorite(reportFor)}
+        onRefreshFavorite={() => refreshFavorite(reportFor)}
+        initialChoice={reportPreset?.choice}
+        initialNote={reportPreset?.note}
+        onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down')}
+        isDown={isChannelDown(downSet, lineFor(reportFor).host, reportFor.stream_id)}
+        onClearDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'clear')}
+        onOpenBufferingGuide={() => {
+          setReportFor(null);
+          enterFiredRef.current = false;
+          onNavigate?.('support');
+          setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+        }}
+        onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
+      />
+    </Suspense>
+  ) : null;
+
+  // Live TV › Recordings takes the section over (the remote too).
+  if (recordingsOpen) {
+    return (
+      <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+        <RecordingsScreen active={isActive} onClose={() => { setRecordingsOpen(false); refreshRecordings(); }} />
+      </Suspense>
+    );
+  }
 
   if (fullscreen) {
     // Native path: chrome renders over a transparent layer so the ExoPlayer
@@ -1971,10 +2308,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             </button>
           </div>
         )}
+        {NATIVE_PLAYBACK && statsShown && <PlayerStatsPanel />}
         <PlayerControlBar
           visible={barVisible}
+          order={liveBarOrder({ rewind: rewind.kind !== 'off', record: recordOn })}
+          rewind={rewind.info}
+          recording={!!jobFor(playingStream?.name)}
           focus={barFocus}
           isPaused={isPaused}
+          statsOn={statsShown}
           controller={videoControllerRef.current}
           tracksTick={tracksTick}
           categoryName={currentCat?.name}
@@ -1998,6 +2340,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             Vol {Math.round(volume * 100)}%
           </div>
         )}
+        {reportDialog}
+        {recordDialog}
       </div>
     );
   }
@@ -2045,6 +2389,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             className="w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-3 font-nunito text-base focus:outline-none focus:ring-2 focus:ring-brand-gold"
           />
         )}
+        {showRecEntry && (
+          <button
+            onClick={() => setRecordingsOpen(true)}
+            data-focused={recFocused ? 'true' : 'false'}
+            className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${recFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
+          >
+            <Film className="w-4 h-4" />
+            Recordings
+            {recJobs.length > 0 && <span className="ml-auto w-2.5 h-2.5 rounded-full bg-red-500" aria-label="Recording now" />}
+          </button>
+        )}
         {!searchOpen && (
           <>
             {categoriesLoading && categories.length === 0 && (
@@ -2065,7 +2420,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   const i = vRow.index;
                   const c = visibleCategories[i];
                   if (!c) return null;
-                  const isFocused = isActive && pane === 'categories' && !searchFocused && categoryIdx === i;
+                  const isFocused = isActive && pane === 'categories' && !searchFocused && !recFocused && categoryIdx === i;
                   // The category whose channels are listed. Marked only while
                   // the viewer is over in that list — a thin gold bar, not a
                   // filled box — so there is never a second highlight on
@@ -2327,31 +2682,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
           <p className="flex-shrink-0 text-xs font-nunito text-brand-ice/55">OK full screen · Hold OK options · ◀ categories</p>
         </div>
-      {reportFor && (
-        <Suspense fallback={null}>
-          <ReportChannelDialog
-            channelName={reportFor.name}
-            channelId={reportFor.stream_id}
-            categoryName={searchOpen ? 'Search' : (currentCat?.isFav ? 'Favorites' : (currentCat?.name || ''))}
-            isFavorite={isFav(reportFor)}
-            onToggleFavorite={() => toggleFavorite(reportFor)}
-            onRefreshFavorite={() => refreshFavorite(reportFor)}
-            initialChoice={reportPreset?.choice}
-            initialNote={reportPreset?.note}
-            onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down')}
-            isDown={isChannelDown(downSet, lineFor(reportFor).host, reportFor.stream_id)}
-            onClearDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'clear')}
-            onOpenBufferingGuide={() => {
-              setReportFor(null);
-              enterFiredRef.current = false;
-              onNavigate?.('support');
-              setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
-            }}
-            onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
-          />
-
-        </Suspense>
-      )}
+      {reportDialog}
+      {recordDialog}
       </div>
     );
   }
@@ -2374,31 +2706,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           </div>
           {channelList}
         </div>
-      {reportFor && (
-        <Suspense fallback={null}>
-          <ReportChannelDialog
-            channelName={reportFor.name}
-            channelId={reportFor.stream_id}
-            categoryName={searchOpen ? 'Search' : (currentCat?.isFav ? 'Favorites' : (currentCat?.name || ''))}
-            isFavorite={isFav(reportFor)}
-            onToggleFavorite={() => toggleFavorite(reportFor)}
-            onRefreshFavorite={() => refreshFavorite(reportFor)}
-            initialChoice={reportPreset?.choice}
-            initialNote={reportPreset?.note}
-            onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down')}
-            isDown={isChannelDown(downSet, lineFor(reportFor).host, reportFor.stream_id)}
-            onClearDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'clear')}
-            onOpenBufferingGuide={() => {
-              setReportFor(null);
-              enterFiredRef.current = false;
-              onNavigate?.('support');
-              setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
-            }}
-            onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
-          />
-
-        </Suspense>
-      )}
+      {reportDialog}
+      {recordDialog}
       </div>
     );
   }
@@ -2448,31 +2757,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         </div>
         {channelList}
       </div>
-      {reportFor && (
-        <Suspense fallback={null}>
-          <ReportChannelDialog
-            channelName={reportFor.name}
-            channelId={reportFor.stream_id}
-            categoryName={searchOpen ? 'Search' : (currentCat?.isFav ? 'Favorites' : (currentCat?.name || ''))}
-            isFavorite={isFav(reportFor)}
-            onToggleFavorite={() => toggleFavorite(reportFor)}
-            onRefreshFavorite={() => refreshFavorite(reportFor)}
-            initialChoice={reportPreset?.choice}
-            initialNote={reportPreset?.note}
-            onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down')}
-            isDown={isChannelDown(downSet, lineFor(reportFor).host, reportFor.stream_id)}
-            onClearDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'clear')}
-            onOpenBufferingGuide={() => {
-              setReportFor(null);
-              enterFiredRef.current = false;
-              onNavigate?.('support');
-              setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
-            }}
-            onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
-          />
-
-        </Suspense>
-      )}
+      {reportDialog}
+      {recordDialog}
     </div>
   );
 

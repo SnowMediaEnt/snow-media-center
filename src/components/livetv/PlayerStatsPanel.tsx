@@ -25,8 +25,9 @@ const STATS_POLL_MS = 1000;
 
 export interface PlayerStatsPanelProps {
   /** What the server does with the file: "Direct play of the original file",
-   *  "Converting to 720p · 4 Mbps". */
-  session: string;
+   *  "Converting to 720p · 4 Mbps". Omitted for Live TV, which has no
+   *  session in that sense — the Engine card covers it instead. */
+  session?: string;
   /** The Plex server's name. */
   serverName?: string;
   /** The way to the server (plexRouteLabel): "Direct to server · https". */
@@ -49,6 +50,13 @@ const short = (kbps: number | null | undefined): string => (kbps != null && kbps
 const count = (n: number | null | undefined): string => (typeof n === 'number' && Number.isFinite(n) ? Math.round(n).toLocaleString('en-US') : '—');
 const text = (v: string | null | undefined): string => (v && v.trim() ? v : '—');
 const num = (n: number | null | undefined): n is number => typeof n === 'number' && Number.isFinite(n);
+
+const engineLabel = (e: PlayerStats['engine']): string => (e === 'mpv' ? 'mpv' : 'ExoPlayer');
+const stallsRow = (st: PlayerStats | null): string => {
+  if (!st) return '—';
+  return `${count(st.stalls)}${st.stalls > 0 ? ` (${st.stallSec.toFixed(1)} s)` : ''}`;
+};
+const cpuRow = (n: number | null | undefined): string => (num(n) ? `${n.toFixed(1)}%` : '—');
 
 function engineState(st: PlayerStats): string {
   if (st.state === 'ready') return st.playing ? 'Playing' : 'Paused';
@@ -121,15 +129,19 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, scre
         <p className="px-1 pb-1.5 text-[11px] text-brand-ice/70 leading-snug">This version of the app can&apos;t read the player&apos;s stats yet — update SMC to see them.</p>
       )}
       <div className="grid grid-cols-4 gap-1.5">
-        <Card title="Session" wide>
-          <Row>{session}</Row>
-          <Row label="Server">{text(serverName)}</Row>
-          <Row label="Route">{text(routeLabel)}</Row>
-        </Card>
-        <Card title="Engine">
-          <Row>{st ? engineState(st) : '—'}</Row>
+        {session != null && (
+          <Card title="Session" wide>
+            <Row>{session}</Row>
+            <Row label="Server">{text(serverName)}</Row>
+            <Row label="Route">{text(routeLabel)}</Row>
+          </Card>
+        )}
+        <Card title="Engine" wide={session == null}>
+          <Row>{engineLabel(st?.engine)} · {st ? engineState(st) : '—'}</Row>
           <Row label="Buffer">{ahead}</Row>
           <Row label="At">{at}</Row>
+          <Row label="First picture">{st && num(st.firstFrameMs) ? `${st.firstFrameMs} ms` : '—'}</Row>
+          <Row label="Stalls">{stallsRow(st)}</Row>
         </Card>
         <Card title="Bandwidth">
           <Row label="Now">{mbps(st?.nowKbps)}</Row>
@@ -152,6 +164,8 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, scre
           <Row label="Load">{text(st?.loadProfile)}</Row>
         </Card>
         <Card title="Memory">
+          <Row label="CPU">{cpuRow(st?.cpuPct)}</Row>
+          <Row label="Process">{memory(st?.pssMb)}</Row>
           <Row label="Java">{memory(st?.javaHeapMb)}</Row>
           <Row label="Native">{memory(st?.nativeHeapMb)}</Row>
         </Card>

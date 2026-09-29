@@ -92,9 +92,32 @@ describe('gameDay', () => {
     ];
     const got = channelsForGame(g, list);
     const by = Object.fromEntries(got.map((c) => [c.stream.stream_id, c.via]));
-    expect(by).toMatchObject({ 20: 'league', 21: 'team', 22: 'team', 23: 'local', 24: 'local', 26: 'local' });
+    // "MLB Zone" is the whip-around channel: every game, so its own kind,
+    // never labelled a team link.
+    expect(by).toMatchObject({ 20: 'zone', 21: 'team', 22: 'team', 23: 'local', 24: 'local', 26: 'local' });
     // Another league's New York team is not this game's.
     expect(by[25]).toBeUndefined();
+  });
+
+  it("a whip-around zone channel (RedZone, \"NFL Zone\") is its own kind, never a team link; one renamed for this game is still the game's", async () => {
+    const { channelsForGame } = await import('./gameDay');
+    const g = game({
+      league: 'nfl', leagueLabel: 'NFL',
+      home: team('Packers', 'Green Bay', 'Green Bay Packers'), away: team('Bears', 'Chicago', 'Chicago Bears'),
+      networks: ['FOX'],
+    });
+    const list = [
+      chans(700, 'NFL RedZone', 'NFL ZONE'),
+      chans(701, 'US| NFL Zone', 'US| SPORTS'),
+      chans(702, 'US| NFL Network', 'US| SPORTS'),
+      // Renamed for this game, like the doc's own "NBA ZONE 3": a real link.
+      chans(703, 'NFL ZONE 3: Bears vs Packers', 'NFL ZONE'),
+    ];
+    const by = Object.fromEntries(channelsForGame(g, list).map((c) => [c.stream.stream_id, c.via]));
+    expect(by[700]).toBe('zone');
+    expect(by[701]).toBe('zone');
+    expect(by[702]).toBe('league');
+    expect(by[703]).toBe('game');
   });
 
   it("matches ESPN's short regional names and skips team apps", async () => {
@@ -331,6 +354,31 @@ describe('gameDay', () => {
     expect(nameTimes('MLB 07: Yankees vs Red Sox')).toEqual([]);
   });
 
+  describe('mergeLinks', () => {
+    it("shows a link's current name from the channel list, never one a guide check cached earlier", async () => {
+      const { mergeLinks, sportsChannel } = await import('./gameDay');
+      const staleStream = { stream_id: 9, name: 'USA | A&E' } as never;
+      // The same stream, renamed since the guide check ran (a provider
+      // reusing an event channel for today's game).
+      const freshStream = { stream_id: 9, name: 'NFL 01: Bears vs Packers' } as never;
+      const extra = [{ line, stream: staleStream, score: 95, via: 'network', note: 'Guide: Bears at Packers' }] as never;
+      const found = [{ line, stream: freshStream, score: 60, via: 'team' }] as never;
+      const channels = [sportsChannel(line, freshStream, 'NFL')!];
+      const got = mergeLinks([extra, found], channels);
+      expect(got).toHaveLength(1);
+      // The guide's confirmation (score, note) stays; only the name is fresh.
+      expect(got[0]).toMatchObject({ score: 95, via: 'network', note: 'Guide: Bears at Packers' });
+      expect(got[0].stream.name).toBe('NFL 01: Bears vs Packers');
+    });
+
+    it('keeps a link as is when the channel list has nothing fresher for it', async () => {
+      const { mergeLinks } = await import('./gameDay');
+      const only = [{ line, stream: { stream_id: 1, name: 'US| FOX' } as never, score: 70, via: 'network' }] as never;
+      const got = mergeLinks([[], only], []);
+      expect(got[0].stream.name).toBe('US| FOX');
+    });
+  });
+
   describe('checkGuides', () => {
     const now = Date.parse('2026-09-24T22:00:00Z');
     const kick = now + 60 * 60_000;
@@ -366,6 +414,23 @@ describe('gameDay', () => {
       // needs no guide.
       expect(by[3]).toBeUndefined();
       expect(vi.mocked(xtream.getShortEpg).mock.calls.map((c) => c[1])).not.toContain(6);
+    });
+
+    it("never confirms a zone channel from its guide: its listing names every game at once, not just this one", async () => {
+      const { channelsForGame, checkGuides } = await import('./gameDay');
+      const g = mlb({ start: new Date(kick).toISOString(), networks: ['FOX'] });
+      const list = [...channels(), chans(9, 'MLB Zone', 'MLB ZONE')];
+      epg[1] = on('MLB Baseball', 'New York Yankees at Boston Red Sox. From Fenway Park.');
+      // The zone channel's own guide happens to name both of this game's
+      // teams too (it whips around every game airing right now) — that is
+      // never enough to make it this game's channel.
+      epg[9] = on('MLB Zone', 'Whip-around coverage: Yankees at Red Sox, Rays at Orioles, and more.');
+      const found = channelsForGame(g, list);
+      expect(found.find((c) => c.stream.stream_id === 9)).toMatchObject({ via: 'zone', score: 30 });
+      const got = await checkGuides(g, list, found, [g, rays], now);
+      expect(got.some((c) => c.stream.stream_id === 9)).toBe(false);
+      // The real network link is still confirmed as before.
+      expect(got.find((c) => c.stream.stream_id === 1)).toMatchObject({ score: 95, via: 'network' });
     });
 
     it('hands over what it has after each few lookups', async () => {

@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Smartphone, Video, MessageCircle, Sparkles } from 'lucide-react';
@@ -9,6 +10,10 @@ import { useVersion } from '@/hooks/useVersion';
  * here keyed by versionName. Users will see it once after upgrading.
  *
  * Keep entries SHORT and user-facing — no internal/code talk.
+ *
+ * The notes below are release notes written in English, like the changelog in
+ * update.json: they stay as written in every language. The heading, hints and
+ * buttons around them are translated.
  */
 const CHANGELOG: Record<string, string[]> = {
   '1.8.0': [
@@ -283,7 +288,11 @@ interface WelcomePopupProps {
   onOpenChange?: (open: boolean) => void;
 }
 
+// The brand slogan, the same in every language.
+const SLOGAN = 'Stay Streamin — Stay Dreamin';
+
 const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
+  const { t } = useTranslation();
   const { version, isLoading } = useVersion();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'first' | 'whatsnew'>('first');
@@ -396,46 +405,45 @@ const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
           <>
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-6 h-6 text-yellow-300" />
-              <h2 className="text-2xl font-bold text-white">Welcome to Snow Media Center</h2>
+              <h2 className="text-2xl font-bold text-white">{t('home.welcome.title')}</h2>
             </div>
             <p className="text-sm text-white/80 mb-4">
-              Here's what each section does:
+              {t('home.welcome.intro')}
             </p>
             <ul className="space-y-3 text-sm text-white/95">
               <li className="flex gap-3">
                 <Smartphone className="w-5 h-5 mt-0.5 text-cyan-300 flex-shrink-0" />
                 <div>
-                  <p className="font-semibold">Main Apps</p>
-                  <p className="text-white/75">Download all apps pertaining to Snow Media.</p>
+                  <p className="font-semibold">{t('home.mainApps.title')}</p>
+                  <p className="text-white/75">{t('home.welcome.mainAppsDesc')}</p>
                 </div>
               </li>
               <li className="flex gap-3">
                 <Video className="w-5 h-5 mt-0.5 text-purple-300 flex-shrink-0" />
                 <div>
-                  <p className="font-semibold">Support Videos</p>
-                  <p className="text-white/75">Step-by-step videos on devices and services.</p>
+                  <p className="font-semibold">{t('home.welcome.supportVideosTitle')}</p>
+                  <p className="text-white/75">{t('home.welcome.supportVideosDesc')}</p>
                 </div>
               </li>
               <li className="flex gap-3">
                 <MessageCircle className="w-5 h-5 mt-0.5 text-green-300 flex-shrink-0" />
                 <div>
-                  <p className="font-semibold">Chat &amp; Community</p>
+                  <p className="font-semibold">{t('home.welcome.chatTitle')}</p>
                   <p className="text-white/75">
-                    Submit tickets for help or questions — AI chat bot also available.
+                    {t('home.welcome.chatDesc')}
                   </p>
                 </div>
               </li>
             </ul>
             <div className="mt-4 bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/80">
-              Sign in with your <strong>snowmediaent.com</strong> account, or create a new one to
-              keep track of purchases and Snow Gems.
+              <Trans i18nKey="home.welcome.signInNote" components={{ 1: <strong /> }} />
             </div>
           </>
         ) : (
           <>
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-6 h-6 text-yellow-300" />
-              <h2 className="text-2xl font-bold text-white">What's New in v{version}</h2>
+              <h2 className="text-2xl font-bold text-white">{t('home.welcome.whatsNew', { version })}</h2>
             </div>
             <div data-welcome-scroll="true" className="max-h-[58vh] overflow-y-auto overscroll-contain pr-2">
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2.5 text-base leading-snug text-white/95 list-disc list-outside pl-5">
@@ -444,20 +452,20 @@ const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
                 ))}
               </ul>
             </div>
-            <p className="mt-3 text-xs text-white/50">{canScroll ? "▲ ▼ scroll · OK close" : "OK close"}</p>
+            <p className="mt-3 text-xs text-white/50">{canScroll ? t('home.welcome.scrollHint') : t('home.welcome.closeHint')}</p>
           </>
         )}
 
         <div className="mt-6 flex items-center justify-between gap-3">
           <p className="text-sm italic text-yellow-300/90 font-quicksand">
-            Stay Streamin — Stay Dreamin
+            {SLOGAN}
           </p>
           <Button
             data-welcome-primary="true"
             onClick={dismiss}
             className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-6 focus:ring-4 focus:ring-yellow-300 focus:scale-105 transition-all"
           >
-            {mode === 'first' ? "Let's go" : 'Got it'}
+            {mode === 'first' ? t('home.welcome.letsGoBtn') : t('popups.gotItBtn')}
           </Button>
         </div>
       </Card>

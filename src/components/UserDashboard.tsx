@@ -24,6 +24,7 @@ import PlayerAccountCard from '@/components/PlayerAccountCard';
 import ClaimAccountCard, { type ClaimCloseOutcome } from '@/components/livetv/ClaimAccountCard';
 import { claimDoneKey, isClaimDone } from '@/lib/accountClaim';
 import { useBillingEnabled } from '@/hooks/useBillingEnabled';
+import { signOutPlayer } from '@/lib/playerSignOut';
 
 // Billing account (plans, renewals, trial). Behind the billing_account flag.
 const BillingAccountScreen = lazy(() => import('@/components/billing/BillingAccountScreen'));
@@ -330,9 +331,12 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         variant: "destructive",
       });
     } else {
+      // The Dashboard's Sign out is the box's: the Live TV Player goes too
+      // (and is not quietly signed back in from the account on file).
+      await signOutPlayer();
       toast({
         title: "Signed out",
-        description: "You have been successfully signed out.",
+        description: "Signed out of your account and Live TV.",
       });
       onViewChange('home');
     }

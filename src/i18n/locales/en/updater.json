@@ -1,0 +1,93 @@
+{
+  "updater": {
+    "shared": {
+      "guardHint": "Choose Later to finish the recording first.",
+      "laterBtn": "Later",
+      "anywayBtn": "Update anyway"
+    },
+    "panel": {
+      "title": "App Updates",
+      "currentVersion": "Current Version:",
+      "availableTitle": "Update Available",
+      "availableVersion": "Available Version:",
+      "releaseDate": "Release Date:",
+      "changes": "Changes:",
+      "checkingBtn": "Checking...",
+      "checkBtn": "Check for Updates",
+      "downloadBtn": "Download v{{version}}"
+    },
+    "toast": {
+      "availableTitle": "Update Available",
+      "availableDesc": "Version {{version}} is available",
+      "noUpdatesTitle": "No Updates",
+      "noUpdatesDesc": "You're running the latest version",
+      "checkFailedTitle": "Update Check Failed",
+      "unknownError": "Unknown error",
+      "mismatchTitle": "Version mismatch",
+      "mismatchDesc": "Downloaded APK is v{{version}}. Opening installer…",
+      "cachedTitle": "Using cached update",
+      "downloadedTitle": "Update Downloaded",
+      "openingInstallerDesc": "Opening Android installer for v{{version}}…",
+      "installerOpenedTitle": "Installer Opened",
+      "installerOpenedDesc": "After Android finishes, reopen Snow Media Center to verify the new version.",
+      "downloadStartedTitle": "Download Started",
+      "downloadStartedDesc": "Version {{version}} download initiated",
+      "downloadFailedTitle": "Download Failed",
+      "tryAgain": "Please try again"
+    },
+    "prompt": {
+      "downloadingTitle": "Downloading update…",
+      "downloadingDesc": "Snow Media Center v{{version}} is downloading in the background.",
+      "failedTitle": "Update failed",
+      "failedDesc": "Please try again later",
+      "title": "Update available — v{{version}}",
+      "ready": "Ready to install. The update has already been downloaded.",
+      "readySized": "Ready to install ({{size}}). The update has already been downloaded.",
+      "whatsNew": "What's new",
+      "installingBtn": "Opening installer…",
+      "updateNowBtn": "Update now"
+    },
+    "download": {
+      "downloading": "Downloading...",
+      "pleaseWait": "Please wait",
+      "complete": "Download Complete!",
+      "sizeDownloaded": "{{size}} downloaded",
+      "navHint": "Use ↑↓ to navigate, Enter to select",
+      "installNowBtn": "Install Now",
+      "installLaterBtn": "Install Later (delete download)",
+      "installing": "Installing...",
+      "followPrompts": "Follow the prompts on your device",
+      "started": "Installation Started!",
+      "checkScreen": "Check your screen for install prompt",
+      "openAppBtn": "Open App",
+      "failed": "Download Failed",
+      "webOnly": "Downloads only work on Android devices",
+      "genericFail": "Download failed",
+      "installGenericFail": "Could not install APK",
+      "installErrorTitle": "Install Error",
+      "noFilePath": "No file path available",
+      "startedTitle": "Installation Started",
+      "installerOpened": "{{name}} installer opened",
+      "permissionTitle": "Permission Needed",
+      "installFailedTitle": "Install Failed",
+      "permissionDesc": "Enable 'Install unknown apps' for Snow Media Center, then tap Install Now again.",
+      "launchFailedTitle": "Launch Failed",
+      "launchFailedDesc": "Could not open the app"
+    },
+    "errors": {
+      "invalidData": "Invalid update data received",
+      "invalidInfo": "Invalid update information",
+      "androidOnly": "APK downloads are only available on Android devices",
+      "noPackageName": "APK has no package name",
+      "notInstallable": "The update server did not return an installable APK. {{detail}} Open {{url}} in a browser — if it downloads the app, the server is treating this device's request differently (hotlink protection or a bot rule).",
+      "wrongPackage": "Downloaded APK is for {{apk}}, not {{installed}}",
+      "downloadIncomplete": "Download incomplete: got {{got}} of {{expected}}. Check your connection and try again.",
+      "failedNoData": "Download failed: no data received (expected {{expected}}). {{detail}}",
+      "failedDropped": "Download failed: connection dropped at {{written}} of {{expected}} ({{percent}}%). {{detail}}",
+      "failedAfter": "Download failed after {{written}}. {{detail}}",
+      "failedPlain": "Download failed: {{detail}}",
+      "nativeError": "Native download error",
+      "headStatus": "(the server also answered HTTP {{status}} to a HEAD request for this URL)"
+    }
+  }
+}

@@ -607,7 +607,26 @@ export interface AuthProbeResult {
 }
 
 /** Authenticate against exactly one server routed by username format. */
+// Usernames are lowercase on the panels; people (and phone keyboards) type
+// capitals. Sign in with the lowercase name first; only if the panel says no
+// and the typed name had capitals, try it exactly as typed, so a line whose
+// name really has capitals still gets in.
 export async function authenticateRouted(
+  username: string,
+  password: string,
+  onProgress?: (server: XtreamServer) => void,
+): Promise<AuthProbeResult> {
+  const typed = username.trim();
+  const lower = typed.toLowerCase();
+  const first = await authenticateRoutedExact(lower, password, onProgress);
+  if (first.ok || first.authedButBlocked || lower === typed || first.error !== INVALID_LOGIN) return first;
+  const second = await authenticateRoutedExact(typed, password, onProgress);
+  return second.ok || second.authedButBlocked ? second : first;
+}
+
+const INVALID_LOGIN = 'Invalid username or password.';
+
+async function authenticateRoutedExact(
   username: string,
   password: string,
   onProgress?: (server: XtreamServer) => void,
@@ -669,7 +688,7 @@ export async function authenticateRouted(
       error: 'Your subscription is ' + status + '. Please renew to keep watching.',
     };
   }
-  return { ok: false, error: 'Invalid username or password.' };
+  return { ok: false, error: INVALID_LOGIN };
 }
 
 // --- Live -------------------------------------------------------------------
@@ -888,9 +907,15 @@ export function parseEpgTime(s: string | undefined): number {
   return Number.isFinite(t) ? t : 0;
 }
 
+/**
+ * `start` / `end` are the listing read as the BOX's local time when it has no
+ * timestamps (see parseEpgTime). `startRaw` / `endRaw` are the listing's own
+ * text or UTC timestamp, for callers that need the true UTC moment
+ * (programmeTimeUtcMs in recordSchedule.ts, which knows the panel's offset).
+ */
 export interface EpgNowNext {
-  now?: { title: string; start: number; end: number; description?: string };
-  next?: { title: string; start: number; end: number; description?: string };
+  now?: { title: string; start: number; end: number; description?: string; startRaw?: string; endRaw?: string };
+  next?: { title: string; start: number; end: number; description?: string; startRaw?: string; endRaw?: string };
 }
 
 export function pickNowNext(entries: XtreamEpgEntry[]): EpgNowNext {
@@ -901,6 +926,8 @@ export function pickNowNext(entries: XtreamEpgEntry[]): EpgNowNext {
       description: decodeEpgText(e.description),
       start: parseEpgTime(e.start_timestamp || e.start),
       end: parseEpgTime(e.stop_timestamp || e.end),
+      startRaw: e.start_timestamp || e.start,
+      endRaw: e.stop_timestamp || e.end,
     }))
     .filter(e => e.end > 0 && e.start > 0)
     .sort((a, b) => a.start - b.start);

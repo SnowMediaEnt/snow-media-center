@@ -245,6 +245,9 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
               onChange={(e) => setUsername(e.target.value)}
               className="rounded-xl h-12 bg-black/30 text-white border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
               autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               disabled={testing}
             />
           </div>

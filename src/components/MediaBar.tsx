@@ -1,4 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform } from '@/utils/platform';
@@ -62,13 +64,14 @@ const REFRESH_MS = 5 * 60 * 1000;
 const PAGE_SIZE = 8;
 const AUTO_ROTATE_MS = 30 * 1000;
 
-const SOURCE_BADGE: Record<string, { label: string; color: string } | null> = {
+// The label is a key, translated when the tile is drawn (a module-level t() would go stale).
+const SOURCE_BADGE: Record<string, { labelKey: string; color: string } | null> = {
   plex: null, // hidden per design
-  tmdb: { label: 'TRENDING', color: 'hsl(200 90% 55%)' },
+  tmdb: { labelKey: 'home.badges.trendingChip', color: 'hsl(200 90% 55%)' },
   sports: null,
-  history: { label: 'CONTINUE', color: 'hsl(39 31% 60%)' },
-  live: { label: 'LIVE', color: 'hsl(0 80% 55%)' },
-  foryou: { label: 'FOR YOU', color: 'hsl(189 37% 80%)' },
+  history: { labelKey: 'home.badges.continueChip', color: 'hsl(39 31% 60%)' },
+  live: { labelKey: 'home.badges.liveChip', color: 'hsl(0 80% 55%)' },
+  foryou: { labelKey: 'home.badges.forYouChip', color: 'hsl(189 37% 80%)' },
 };
 
 const notSports = (i: MediaItem) => i?.title && i.source !== 'sports';
@@ -166,7 +169,7 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
 
   if (!ratingKey || !playLink) {
     console.warn('[MediaBar] Missing ratingKey or playLink — cannot deep-link', logPayload);
-    toast({ title: "Can't open this item in Plex", description: 'Missing Plex item info.' });
+    toast({ title: i18n.t('home.toast.plexCantOpenTitle'), description: i18n.t('home.toast.plexCantOpenDesc') });
     return;
   }
 
@@ -175,13 +178,13 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
     return;
   }
 
-  toast({ title: 'Playing in Plex…', description: item.title });
+  toast({ title: i18n.t('home.toast.plexPlayingTitle'), description: item.title });
   try {
     const { AppManager } = await import('@/capacitor/AppManager');
     const { installed } = await AppManager.isInstalled({ packageName: PLEX_ANDROID_PACKAGE });
     console.info('[MediaBar] Plex installed check', { installed });
     if (!installed) {
-      toast({ title: 'Plex not installed', description: 'Install Plex to play this title.' });
+      toast({ title: i18n.t('home.toast.plexMissingTitle'), description: i18n.t('home.toast.plexMissingDesc') });
       return;
     }
 
@@ -190,7 +193,7 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
     await AppManager.openUrl({ url: playLink, packageName: PLEX_ANDROID_PACKAGE });
   } catch (err) {
     console.warn('[MediaBar] Plex native play failed — opening Plex Home', { ...logPayload, err, fallbackUsed: true });
-    toast({ title: "Couldn't start playback", description: 'Opening Plex instead.' });
+    toast({ title: i18n.t('home.toast.plexFailedTitle'), description: i18n.t('home.toast.plexFailedDesc') });
     try {
       const { AppManager } = await import('@/capacitor/AppManager');
       try { trackAppLaunch('Plex'); } catch { void 0; }
@@ -229,6 +232,7 @@ const BarPoster = memo(({ src, className }: { src: string; className: string }) 
 BarPoster.displayName = 'BarPoster';
 
 const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: Props) => {
+  const { t } = useTranslation();
   const cached = useMemo(readCache, []);
   const [items, setItems] = useState<MediaItem[]>(cached ?? []);
   // True once the feed has answered at all. Until then an empty bar shows
@@ -509,27 +513,27 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
       // flex-shrink-0: this is a flex item in the home column; without it the
       // bar is what gets squeezed when the page runs short of height and its
       // own overflow:hidden then crops the tiles.
-      className="relative z-10 flex-shrink-0 border-y border-primary/30"
-      style={{
-        backgroundColor: 'hsl(var(--brand-navy) / 0.95)',
-        contain: 'layout paint style',
-      }}
+      className="relative z-10 flex-shrink-0"
+      style={{ contain: 'layout paint style' }}
     >
-      <div className="flex items-stretch gap-3 py-3 px-2">
+      {/* Clean row: a plain heading over bare posters with the title under
+          each, no band behind it (the look the owner picked from the clone). */}
+      <h2 className="text-white/90 font-semibold text-sm tracking-wide px-12">{t('home.mediaBar.heading')}</h2>
+      <div className="flex items-stretch gap-2 pt-2 pb-2 px-1">
         <button
           type="button"
           onClick={goPrev}
           disabled={isEmpty || totalPages <= 1}
-          aria-label="Previous"
+          aria-label={t('home.mediaBar.prevLabel')}
           className="flex-shrink-0 flex items-center justify-center w-10 rounded-xl bg-black/40 hover:bg-black/70 text-white disabled:opacity-30 transition-transform duration-150 ease-out hover:scale-110"
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
 
-        <div className="flex-1 grid gap-3 min-w-0" style={{ gridTemplateColumns: `repeat(${PAGE_SIZE}, minmax(0, 1fr))` }}>
+        <div className="flex-1 grid gap-4 min-w-0" style={{ gridTemplateColumns: `repeat(${PAGE_SIZE}, minmax(0, 1fr))` }}>
           {isEmpty
             ? (loaded ? null : Array.from({ length: PAGE_SIZE }).map((_, i) => (
-                <div key={i} className="media-poster rounded-2xl bg-black/30 animate-pulse" />
+                <div key={i} className="media-poster rounded-xl bg-white/5 animate-pulse" />
               )))
             : currentPage.map((item, idx) => {
                 const badge = SOURCE_BADGE[item.source];
@@ -543,13 +547,13 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                     disabled={!clickable}
                     title={item.title}
                     data-focused={isFocused ? 'true' : 'false'}
-                    className={`tv-ring flex flex-col bg-black/40 border border-white/10 rounded-2xl overflow-hidden text-left min-w-0 transition-transform duration-200 ease-out ${
+                    className={`tv-ring flex flex-col rounded-xl text-left min-w-0 transition-transform duration-200 ease-out ${
                       isFocused
-                        ? 'scale-[1.08] z-10'
+                        ? 'scale-[1.05] z-10'
                         : ''
                     }`}
                   >
-                    <div className={`relative w-full flex-shrink-0 overflow-hidden media-poster ${item.channel ? 'bg-white/90' : 'bg-black/60'}`}>
+                    <div className={`relative w-full flex-shrink-0 overflow-hidden rounded-xl shadow-lg media-poster ${item.channel ? 'bg-white/90' : 'bg-white/5'}`}>
                       {item.poster && imagesReady ? (
                         <BarPoster
                           src={item.poster}
@@ -564,22 +568,17 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                       ) : null}
                       {badge && (
                         <span
-                          className="absolute top-2 left-2 text-xs font-bold tracking-wider px-2 py-1 rounded-lg"
+                          className="absolute top-2 left-2 text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded-md"
                           style={{ backgroundColor: badge.color, color: 'hsl(0 0% 10%)' }}
                         >
-                          {badge.label}
+                          {t(badge.labelKey)}
                         </span>
                       )}
                     </div>
-                    <div className="px-3 py-2 min-w-0 w-full media-tile-text">
-                      <span className="text-white text-sm font-semibold leading-tight line-clamp-1">
+                    <div className="pt-2 px-0.5 min-w-0 w-full media-tile-text">
+                      <span className="text-white/85 text-sm font-medium leading-tight line-clamp-1">
                         {item.title}
                       </span>
-                      {item.subtitle && (
-                        <span className="text-brand-ice/70 text-xs leading-tight line-clamp-1">
-                          {item.subtitle}
-                        </span>
-                      )}
                     </div>
                   </button>
                 );
@@ -590,8 +589,8 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
           type="button"
           onClick={goNext}
           disabled={isEmpty || totalPages <= 1}
-          aria-label="Next"
-          className="flex-shrink-0 flex items-center justify-center w-10 rounded-md bg-black/40 hover:bg-black/70 text-white disabled:opacity-30 transition-all hover:scale-110"
+          aria-label={t('home.mediaBar.nextLabel')}
+          className="flex-shrink-0 flex items-center justify-center w-10 rounded-xl bg-black/40 hover:bg-black/70 text-white disabled:opacity-30 transition-transform duration-150 ease-out hover:scale-110"
         >
           <ChevronRight className="w-6 h-6" />
         </button>
@@ -612,10 +611,11 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
         </div>
       )}
 
+
       <Dialog open={demoNotice} onOpenChange={(o) => { if (!o) setDemoNotice(false); }}>
         <DialogContent className="max-w-md sm:rounded-3xl">
           <DialogHeader>
-            <DialogTitle>Live demo</DialogTitle>
+            <DialogTitle>{t('home.mediaBar.demoTitle')}</DialogTitle>
           </DialogHeader>
           <p className="text-white/80 font-nunito text-sm leading-relaxed">{DEMO_DIALOG_MSG}</p>
           <DialogFooter>
@@ -624,7 +624,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
               className="h-12 px-6 rounded-xl text-base transition-transform duration-150 ease-out bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
               onClick={() => setDemoNotice(false)}
             >
-              Got it
+              {t('popups.gotItBtn')}
             </Button>
           </DialogFooter>
         </DialogContent>

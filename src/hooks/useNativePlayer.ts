@@ -22,6 +22,9 @@ interface UseNativePlayerArgs {
   live?: boolean;
   /** Sidecar subtitles passed at load. */
   subtitles?: SnowSubtitle[];
+  /** 'exo' (default) or 'mpv' — see SnowPlayer.SnowPlayerLoadOpts. A change
+   *  reloads, like `url`. Callers that don't pass it behave as before. */
+  engine?: 'exo' | 'mpv';
   /** Seconds to start at (a resumed film). Goes with load(); a retry or a
    *  return to the app picks up where the viewer is instead. */
   startPosition?: number;
@@ -47,6 +50,13 @@ interface UseNativePlayerArgs {
    * browsing beside, where the screen behind must keep working.
    */
   background?: boolean;
+  /**
+   * The remote's Rewind / Fast-forward skip a non-live stream here (default,
+   * +30 / -10 s). false: the screen handles them itself. Live TV does: a
+   * catch-up programme plays with `live: false`, but its rewind belongs to
+   * useLiveRewind (TRACKER 25), not to a plain seek.
+   */
+  skipKeys?: boolean;
 }
 
 export interface NativeRect { x: number; y: number; width: number; height: number }
@@ -61,6 +71,10 @@ export interface NativePlayerState {
   /** Set when the stream carries audio this device can't decode. NOT an error —
    *  video keeps playing, there is simply no sound. */
   audioWarning: { codecs: string; ffmpegAvailable: boolean } | null;
+  /** mpv was asked for and this box played on ExoPlayer instead — set once
+   *  per fallback so the caller can toast it; null once acknowledged (see
+   *  useNativePlayer's engineFallback listener) or before any fallback. */
+  engineNotice: string | null;
   retry: () => void;
   seekTo: (seconds: number) => Promise<void>;
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
@@ -91,11 +105,12 @@ async function positionNow(): Promise<number> {
   } catch { return 0; }
 }
 
-export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true }: UseNativePlayerArgs): NativePlayerState {
+export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true }: UseNativePlayerArgs): NativePlayerState {
   const [buffering, setBuffering] = useState(false);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
   const [audioWarning, setAudioWarning] = useState<{ codecs: string; ffmpegAvailable: boolean } | null>(null);
+  const [engineNotice, setEngineNotice] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
   const handleRef = useRef<NativeControllerHandle | null>(null);
@@ -192,6 +207,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     let errH: { remove?: () => void } | null = null;
     let audioH: { remove?: () => void } | null = null;
     let rateH: { remove?: () => void } | null = null;
+    let engineH: { remove?: () => void } | null = null;
     // Added after awaits: if the player went inactive in between, the cleanup
     // below has already run, so each handle removes itself as it arrives.
     let gone = false;
@@ -213,6 +229,13 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         rateH = keep(await SnowPlayer.addListener('bandwidth', (data) => {
           if (data.screenId && data.screenId !== 'main') return;
           if (typeof data.kbps === 'number') { try { diagPlayerRate(data.kbps); } catch { /* ignore */ } }
+        }));
+        if (gone) return;
+        // mpv was asked for and this box played on ExoPlayer instead — the
+        // caller toasts it once (LiveSection/GuideSection).
+        engineH = keep(await SnowPlayer.addListener('engineFallback', (data) => {
+          if (data.screenId && data.screenId !== 'main') return;
+          setEngineNotice(data.reason || 'unavailable');
         }));
         if (gone) return;
         stateH = keep(await SnowPlayer.addListener('playerState', (data) => {
@@ -262,6 +285,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
       try { errH?.remove?.(); } catch { /* ignore */ }
       try { audioH?.remove?.(); } catch { /* ignore */ }
       try { rateH?.remove?.(); } catch { /* ignore */ }
+      try { engineH?.remove?.(); } catch { /* ignore */ }
     };
   }, [active, maxRetries]);
 
@@ -276,6 +300,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     hiddenAtRef.current = null;
     // Codec support is per-stream — don't carry a warning to the next channel.
     setAudioWarning(null);
+    setEngineNotice(null);
   }, [active, url]);
 
   // Main load pipeline — runs on (active, url, retryNonce) changes.
@@ -290,6 +315,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     setPaused(false);
     handleRef.current?.resetPaused?.();
     setError(null);
+    setEngineNotice(null);
     clearRetryTimer();
     // Buffering diagnostics: ExoPlayer has no engine throughput stats, so the
     // module samples the stream host itself (VOD / opt-in) and probes general
@@ -323,7 +349,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         // Still a jump as far as automatic quality is concerned (playerSeek).
         if (start > 0) markSeek();
         jumped();
-        await SnowPlayer.load({ url, live, isLive: live, subtitles, ...(start > 0 ? { startPosition: start } : {}) });
+        await SnowPlayer.load({ url, live, isLive: live, subtitles, engine, ...(start > 0 ? { startPosition: start } : {}) });
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.setVolume({ volume: Math.min(MAX_VOLUME, Math.max(0, volume)) });
         if (cancelled || myNonce !== nonceRef.current) return;
@@ -347,7 +373,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     };
     // volume intentionally omitted — separate effect handles live volume changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, url, retryNonce]);
+  }, [active, url, retryNonce, engine]);
 
   // The picture's place on screen, applied in place while playing. Going
   // from a preview box to fullscreen and back is this alone: same stream,
@@ -463,7 +489,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // The remote's media buttons, for the stream being watched (not a preview
   // box). Play/Pause everywhere; Fast-forward / Rewind skip +30 / -10 s on
   // films and episodes. A live channel can't be skipped, so its section
-  // decides what those two do.
+  // decides what those two do (skipKeys false hands them over too).
   const controllerRef = useRef(controller);
   useEffect(() => { controllerRef.current = controller; }, [controller]);
   useEffect(() => {
@@ -474,7 +500,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
       if (k === 'playpause') c.togglePlay();
       else if (k === 'play') c.play();
       else if (k === 'pause') c.pause();
-      else if (!live && (k === 'ff' || k === 'rw')) {
+      else if (!live && skipKeys && (k === 'ff' || k === 'rw')) {
         void (async () => {
           try {
             const p = await SnowPlayer.getPosition();
@@ -487,10 +513,10 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         })();
       }
     });
-  }, [active, background, live]);
+  }, [active, background, live, skipKeys]);
 
   return useMemo(
-    () => ({ controller, buffering, paused, error, audioWarning, retry, seekTo, getPosition }),
-    [controller, buffering, paused, error, audioWarning, retry, seekTo, getPosition],
+    () => ({ controller, buffering, paused, error, audioWarning, engineNotice, retry, seekTo, getPosition }),
+    [controller, buffering, paused, error, audioWarning, engineNotice, retry, seekTo, getPosition],
   );
 }

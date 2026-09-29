@@ -1,0 +1,93 @@
+{
+  "updater": {
+    "shared": {
+      "guardHint": "اختر «لاحقًا» لإنهاء التسجيل أولًا.",
+      "laterBtn": "لاحقًا",
+      "anywayBtn": "التحديث على أي حال"
+    },
+    "panel": {
+      "title": "تحديثات التطبيق",
+      "currentVersion": "الإصدار الحالي:",
+      "availableTitle": "تحديث متاح",
+      "availableVersion": "الإصدار المتاح:",
+      "releaseDate": "تاريخ الإصدار:",
+      "changes": "التغييرات:",
+      "checkingBtn": "جارٍ الفحص...",
+      "checkBtn": "التحقق من التحديثات",
+      "downloadBtn": "تنزيل v{{version}}"
+    },
+    "toast": {
+      "availableTitle": "تحديث متاح",
+      "availableDesc": "الإصدار {{version}} متاح",
+      "noUpdatesTitle": "لا توجد تحديثات",
+      "noUpdatesDesc": "لديك أحدث إصدار",
+      "checkFailedTitle": "فشل البحث عن التحديثات",
+      "unknownError": "خطأ غير معروف",
+      "mismatchTitle": "الإصدار غير مطابق",
+      "mismatchDesc": "ملف APK الذي تم تنزيله هو v{{version}}. جارٍ فتح المثبّت…",
+      "cachedTitle": "استخدام التحديث المخزّن",
+      "downloadedTitle": "تم تنزيل التحديث",
+      "openingInstallerDesc": "جارٍ فتح مثبّت Android للإصدار v{{version}}…",
+      "installerOpenedTitle": "تم فتح المثبّت",
+      "installerOpenedDesc": "بعد أن ينتهي Android، أعد فتح Snow Media Center للتحقق من الإصدار الجديد.",
+      "downloadStartedTitle": "بدأ التنزيل",
+      "downloadStartedDesc": "بدأ تنزيل الإصدار {{version}}",
+      "downloadFailedTitle": "فشل التنزيل",
+      "tryAgain": "يرجى المحاولة مرة أخرى"
+    },
+    "prompt": {
+      "downloadingTitle": "جارٍ تنزيل التحديث…",
+      "downloadingDesc": "يجري تنزيل Snow Media Center v{{version}} في الخلفية.",
+      "failedTitle": "فشل التحديث",
+      "failedDesc": "يرجى المحاولة لاحقًا",
+      "title": "تحديث متاح — v{{version}}",
+      "ready": "جاهز للتثبيت. تم تنزيل التحديث بالفعل.",
+      "readySized": "جاهز للتثبيت ({{size}}). تم تنزيل التحديث بالفعل.",
+      "whatsNew": "الجديد",
+      "installingBtn": "جارٍ فتح المثبّت…",
+      "updateNowBtn": "حدّث الآن"
+    },
+    "download": {
+      "downloading": "جارٍ التنزيل...",
+      "pleaseWait": "يرجى الانتظار",
+      "complete": "اكتمل التنزيل!",
+      "sizeDownloaded": "تم تنزيل {{size}}",
+      "navHint": "استخدم ↑↓ للتنقل وEnter للاختيار",
+      "installNowBtn": "ثبّت الآن",
+      "installLaterBtn": "التثبيت لاحقًا (حذف التنزيل)",
+      "installing": "جارٍ التثبيت...",
+      "followPrompts": "اتبع التعليمات على جهازك",
+      "started": "بدأ التثبيت!",
+      "checkScreen": "راجع شاشتك لرسالة التثبيت",
+      "openAppBtn": "فتح التطبيق",
+      "failed": "فشل التنزيل",
+      "webOnly": "التنزيلات تعمل على أجهزة Android فقط",
+      "genericFail": "فشل التنزيل",
+      "installGenericFail": "تعذّر تثبيت ملف APK",
+      "installErrorTitle": "خطأ في التثبيت",
+      "noFilePath": "لا يوجد مسار للملف",
+      "startedTitle": "بدأ التثبيت",
+      "installerOpened": "تم فتح مثبّت {{name}}",
+      "permissionTitle": "الإذن مطلوب",
+      "installFailedTitle": "فشل التثبيت",
+      "permissionDesc": "فعّل «تثبيت التطبيقات غير المعروفة» لـ Snow Media Center ثم اضغط «ثبّت الآن» مرة أخرى.",
+      "launchFailedTitle": "فشل التشغيل",
+      "launchFailedDesc": "تعذّر فتح التطبيق"
+    },
+    "errors": {
+      "invalidData": "بيانات التحديث المستلمة غير صالحة",
+      "invalidInfo": "معلومات التحديث غير صالحة",
+      "androidOnly": "تنزيل ملفات APK متاح على أجهزة Android فقط",
+      "noPackageName": "ملف APK ليس له اسم حزمة",
+      "notInstallable": "لم يُرجع خادم التحديثات ملف APK قابلًا للتثبيت. {{detail}} افتح {{url}} في متصفح — إذا نزّل التطبيق فالخادم يعامل طلب هذا الجهاز بشكل مختلف (حماية من الروابط المباشرة أو قاعدة ضد الروبوتات).",
+      "wrongPackage": "ملف APK الذي تم تنزيله مخصص لـ {{apk}} وليس {{installed}}",
+      "downloadIncomplete": "التنزيل غير مكتمل: تم استلام {{got}} من {{expected}}. تحقق من اتصالك وحاول مرة أخرى.",
+      "failedNoData": "فشل التنزيل: لم يتم استلام أي بيانات (المتوقع {{expected}}). {{detail}}",
+      "failedDropped": "فشل التنزيل: انقطع الاتصال عند {{written}} من {{expected}} ({{percent}}%). {{detail}}",
+      "failedAfter": "فشل التنزيل بعد {{written}}. {{detail}}",
+      "failedPlain": "فشل التنزيل: {{detail}}",
+      "nativeError": "خطأ في التنزيل الأصلي",
+      "headStatus": "(أجاب الخادم أيضًا بـ HTTP {{status}} على طلب HEAD لهذا العنوان)"
+    }
+  }
+}

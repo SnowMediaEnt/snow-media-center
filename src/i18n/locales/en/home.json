@@ -1,0 +1,114 @@
+{
+  "home": {
+    "tagline": "Your Premium Streaming Experience",
+    "mainApps": {
+      "title": "Main Apps",
+      "description": "Download APKs & Streaming Tools"
+    },
+    "support": {
+      "title": "Support",
+      "description": "Help, AI Chat & Community"
+    },
+    "store": {
+      "title": "Snow Media Store",
+      "description": "Visit Official Store"
+    },
+    "player": {
+      "title": "Player",
+      "description": "Live TV, Movies & Series"
+    },
+    "giveaway": {
+      "title": "Giveaway",
+      "description": "Enter to Win Prizes"
+    },
+    "liveTv": {
+      "title": "Live TV",
+      "description": "Channels, Guide & Game Day"
+    },
+    "plex": {
+      "title": "Plex",
+      "description": "Movies & Shows",
+      "tag": "(VOD)"
+    },
+    "kidsLounge": {
+      "title": "Kids Game Lounge",
+      "description": "Play, learn & explore"
+    },
+    "header": {
+      "voiceLabel": "Voice",
+      "profileLabel": "Profile: {{name}}. Switch or add profiles",
+      "unreadReplies_one": "{{count}} unread support reply",
+      "unreadReplies_other": "{{count}} unread support replies"
+    },
+    "toast": {
+      "launchingTitle": "Launching App",
+      "launchingDesc": "Opening {{name}}...",
+      "launchFailedTitle": "Launch Failed",
+      "launchFailedDesc": "Could not launch {{name}}. Make sure it's installed.",
+      "exitTitle": "Press back again to exit",
+      "exitDesc": "Press the back button again to close the app",
+      "installTitle": "Install {{name}}",
+      "installDesc": "Opening Main Apps so you can download it.",
+      "plexCantOpenTitle": "Can't open this item in Plex",
+      "plexCantOpenDesc": "Missing Plex item info.",
+      "plexPlayingTitle": "Playing in Plex…",
+      "plexMissingTitle": "Plex not installed",
+      "plexMissingDesc": "Install Plex to play this title.",
+      "plexFailedTitle": "Couldn't start playback",
+      "plexFailedDesc": "Opening Plex instead."
+    },
+    "mediaBar": {
+      "heading": "Recommended",
+      "prevLabel": "Previous",
+      "nextLabel": "Next",
+      "demoTitle": "Live demo"
+    },
+    "badges": {
+      "trendingChip": "TRENDING",
+      "continueChip": "CONTINUE",
+      "liveChip": "LIVE",
+      "forYouChip": "FOR YOU"
+    },
+    "newsTicker": {
+      "loading": "Loading news feed...",
+      "fallback1": "🚀 New streaming app update available",
+      "fallback2": "📺 Live support available now - Chat with Snow Media",
+      "fallback3": "🎬 Fresh video tutorials added to Support section",
+      "fallback4": "💫 Snow Media Store updated with new content"
+    },
+    "clock": {
+      "updateTitle": "Update available: v{{version}}",
+      "updateTitleShort": "Update available",
+      "updateAria": "Update available — open Settings → Updates"
+    },
+    "notFound": {
+      "title": "Oops! Page not found",
+      "homeLink": "Return to Home"
+    },
+    "contentBarPrompt": {
+      "title": "Show the live content bar?",
+      "description": "It shows trending titles & live sports at the top of the home screen.",
+      "preview": "Preview",
+      "liveSub": "{{league}} · Live",
+      "continueSub": "Continue · {{episode}}",
+      "laggy": "On older or less powerful devices this may make things a little laggy.",
+      "notNowBtn": "Not now",
+      "turnOnBtn": "Turn it on",
+      "footer": "You can change this any time in Settings."
+    },
+    "welcome": {
+      "title": "Welcome to Snow Media Center",
+      "intro": "Here's what each section does:",
+      "mainAppsDesc": "Download all apps pertaining to Snow Media.",
+      "supportVideosTitle": "Support Videos",
+      "supportVideosDesc": "Step-by-step videos on devices and services.",
+      "chatTitle": "Chat & Community",
+      "chatDesc": "Submit tickets for help or questions — AI chat bot also available.",
+      "signInNote": "Sign in with your <1>snowmediaent.com</1> account, or create a new one to keep track of purchases and Snow Gems.",
+      "whatsNew": "What's New in v{{version}}",
+      "scrollHint": "▲ ▼ scroll · OK close",
+      "closeHint": "OK close",
+      "letsGoBtn": "Let's go"
+    }
+  }
+}

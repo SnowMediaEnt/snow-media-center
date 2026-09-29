@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Download, X, RefreshCw } from 'lucide-react';
@@ -10,6 +12,7 @@ import { robustFetch } from '@/utils/network';
 import { useVersion } from '@/hooks/useVersion';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { runAfter, runWhenIdle } from '@/utils/idle';
+import { recordingGuardNote } from '@/lib/recordSchedule';
 import {
   prepareSmcUpdate,
   installPreparedUpdate,
@@ -55,11 +58,16 @@ const isVersionNewer = (a: string, b: string): boolean => {
  *  prompt until home is back: the dialog owns every key, so it must not open
  *  over the Player, a game or the profile screens. */
 const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
+  const { t } = useTranslation();
   const { version: currentVersion, versionCode: currentVersionCode, isLoading } = useVersion();
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   const [prepared, setPrepared] = useState<PreparedUpdate | null>(null);
   const [open, setOpen] = useState(false);
   const [installing, setInstalling] = useState(false);
+  // A recording is running, or one starts within 30 minutes: installing ends the
+  // app's process and the recording with it, so the prompt says so and "Later"
+  // is the default (TRACKER 25.15).
+  const [guard, setGuard] = useState<string | null>(null);
   // Track which versionCode we've already prepared/prompted this session so the
   // hourly re-check doesn't restart the download or re-open the dialog.
   const handledRef = useRef<number | string | null>(null);
@@ -110,8 +118,8 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
       try {
         // Subtle, non-blocking hint. Don't steal focus.
         toast({
-          title: 'Downloading update…',
-          description: `Snow Media Center v${data.version} is downloading in the background.`,
+          title: i18n.t('updater.prompt.downloadingTitle'),
+          description: i18n.t('updater.prompt.downloadingDesc', { version: data.version }),
         });
         const result = await prepareSmcUpdate(data);
         if (cancelled) return;
@@ -261,6 +269,20 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
     };
   }, [open, installing, info?.version]);
 
+  // Ask when the prompt opens (and again when "Update now" is pressed: a recording may have started since).
+  useEffect(() => {
+    if (!open) { setGuard(null); return; }
+    let alive = true;
+    void recordingGuardNote().then((note) => { if (alive) setGuard(note); });
+    return () => { alive = false; };
+  }, [open]);
+  // The warning arrived after the prompt took focus: move the default to "Later".
+  useEffect(() => {
+    if (!open || !guard) return;
+    const t = setTimeout(() => document.querySelector<HTMLButtonElement>('[data-autoupdate-primary="true"]')?.focus(), 60);
+    return () => clearTimeout(t);
+  }, [open, guard]);
+
   const snooze = () => {
     if (info?.version) {
       try { localStorage.setItem(SNOOZE_KEY, info.version); } catch { /* ignore */ }
@@ -270,8 +292,12 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
     setOpen(false);
   };
 
-  const installNow = async () => {
+  const installNow = async (confirmed = false) => {
     if (!info || !prepared || installing) return;
+    if (!confirmed) {
+      const note = await recordingGuardNote();
+      if (note) { setGuard(note); return; }
+    }
     setInstalling(true);
     try {
       await installPreparedUpdate(prepared);
@@ -280,8 +306,8 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
     } catch (err) {
       console.error('[AutoUpdatePrompt] install failed', err);
       toast({
-        title: 'Update failed',
-        description: err instanceof Error ? err.message : 'Please try again later',
+        title: i18n.t('updater.prompt.failedTitle'),
+        description: err instanceof Error ? err.message : i18n.t('updater.prompt.failedDesc'),
         variant: 'destructive',
       });
     } finally {
@@ -314,36 +340,44 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
 
         <div className="flex items-center gap-2 mb-2">
           <RefreshCw className="w-6 h-6 text-cyan-300" />
-          <h2 className="text-xl font-bold text-white">Update available — v{info.version}</h2>
+          <h2 className="text-xl font-bold text-white">{t('updater.prompt.title', { version: info.version })}</h2>
         </div>
         <p className="text-sm text-white/80 mb-3">
-          Ready to install{info.size ? ` (${info.size})` : ''}. The update has already been downloaded.
+          {info.size ? t('updater.prompt.readySized', { size: info.size }) : t('updater.prompt.ready')}
         </p>
+
+        {guard && (
+          <div data-autoupdate-guard className="bg-amber-500/15 border border-amber-400/50 rounded-md p-3 mb-4">
+            <p className="text-sm font-semibold text-amber-200">{guard}</p>
+            <p className="text-xs text-white/80 mt-1">{t('updater.shared.guardHint')}</p>
+          </div>
+        )}
 
         {info.changelog && (
           <div className="bg-black/30 border border-white/10 rounded-md p-3 mb-4 max-h-48 overflow-auto">
-            <p className="text-xs uppercase tracking-wider text-cyan-300/80 mb-1">What's new</p>
+            <p className="text-xs uppercase tracking-wider text-cyan-300/80 mb-1">{t('updater.prompt.whatsNew')}</p>
             <p className="text-sm text-white/90 whitespace-pre-line">{info.changelog}</p>
           </div>
         )}
 
         <div className="flex gap-2 justify-end">
           <Button
+            data-autoupdate-primary={guard ? 'true' : undefined}
             onClick={snooze}
             variant="outline"
             disabled={installing}
             className="bg-white/5 border-white/20 text-white hover:bg-white/10 focus:ring-4 focus:ring-brand-gold focus:scale-105 transition-all"
           >
-            Later
+            {t('updater.shared.laterBtn')}
           </Button>
           <Button
-            data-autoupdate-primary="true"
-            onClick={installNow}
+            data-autoupdate-primary={guard ? undefined : 'true'}
+            onClick={() => { void installNow(!!guard); }}
             disabled={installing}
             className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 focus:ring-4 focus:ring-brand-gold focus:scale-105 transition-all"
           >
             <Download className="w-4 h-4 mr-2" />
-            {installing ? 'Opening installer…' : 'Update now'}
+            {installing ? t('updater.prompt.installingBtn') : guard ? t('updater.shared.anywayBtn') : t('updater.prompt.updateNowBtn')}
           </Button>
         </div>
       </Card>

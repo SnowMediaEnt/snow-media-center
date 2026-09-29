@@ -35,6 +35,7 @@ const STATS: PlayerStats = {
   audioDecoder: 'Passthrough', audioFormat: 'EAC3 8ch 48.0kHz',
   restarts: 1, lastRestartReason: 'server stopped responding', lastError: 'ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT', loadProfile: 'steady · 50 s / 128 MB',
   javaHeapMb: 61.4, nativeHeapMb: 142,
+  engine: 'exo', firstFrameMs: 340, stalls: 1, stallSec: 2.4, cpuPct: 18.2, pssMb: 210,
 };
 
 const wait = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
@@ -69,7 +70,8 @@ describe('the stats panel', () => {
       'c2.amlogic.hevc.decoder', 'HEVC 1920x804 23.98fps 21.6 Mb/s', 'Frames 89,210 · 0 dropped',
       'Passthrough', 'EAC3 8ch 48.0kHz',
       'Restarts 1 (last: server stopped responding)', 'Last error ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT', 'Load steady · 50 s / 128 MB',
-      'Java 61 MB', 'Native 142 MB',
+      'CPU 18.2%', 'Process 210 MB', 'Java 61 MB', 'Native 142 MB',
+      'ExoPlayer', 'First picture 340 ms', 'Stalls 1 (2.4 s)',
     ]) expect(text).toContain(part);
     expect(h.getStats).toHaveBeenCalledWith(undefined);
   });
@@ -79,6 +81,7 @@ describe('the stats panel', () => {
       ...STATS, state: 'buffering', playing: false, nowKbps: 0, avgKbps: null, minKbps: null, maxKbps: null,
       videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null, audioDecoder: null, audioFormat: null,
       restarts: 0, lastRestartReason: null, lastError: null, loadProfile: null, javaHeapMb: null, nativeHeapMb: null,
+      firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
     }));
     render(<PlayerStatsPanel session="Converting to 720p · 4 Mbps" />);
     await wait(0);

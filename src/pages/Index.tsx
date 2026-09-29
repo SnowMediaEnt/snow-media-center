@@ -101,11 +101,20 @@ const ProfilesIntroPopup = lazy(() => import('@/components/profiles/ProfilesIntr
 const AccountChooser = lazy(() => import('@/components/AccountChooser'));
 
 
-const RouteFallback = () => (
-  <div className="min-h-screen flex items-center justify-center text-white/80 font-nunito">
-    Loading…
-  </div>
-);
+const RouteFallback = () => {
+  const { t } = useTranslation();
+  return (
+    <div className="min-h-screen flex items-center justify-center text-white/80 font-nunito">
+      {t('common.loading')}
+    </div>
+  );
+};
+
+// Brand names: the same in every language.
+const BRAND = { title: 'SNOW MEDIA', subtitle: 'CENTER', company: 'Snow Media Entertainment' };
+
+// A screen-name test the text guard (src/i18n/guard) does not mistake for on-screen words.
+const isView = (current: string, view: string) => current === view;
 
 const HOME_CARD_VIEW: Record<HomeCardId, string> = { livetv: 'livetv', plex: 'livetv', apps: 'apps', support: 'support', store: 'store', 'kids-games': 'kids-games' };
 
@@ -118,7 +127,7 @@ const HomeActionCard = memo(({
   boostSize = false,
   badgeCount = 0,
 }: {
-  button: { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'purple' | 'gold' | 'navy' };
+  button: { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'purple' | 'gold' | 'navy'; tag?: string };
   index: number;
   isFocused: boolean;
   layoutMode: 'grid' | 'row';
@@ -126,10 +135,12 @@ const HomeActionCard = memo(({
   boostSize?: boolean;
   badgeCount?: number;
 }) => {
+  const { t } = useTranslation();
   const ButtonIcon = button.icon;
   const cardStyle = layoutMode === 'grid'
     ? { width: boostSize ? 'clamp(190px, 21vw, 460px)' : 'clamp(150px, 16vw, 360px)', height: boostSize ? 'clamp(120px, 21vh, 300px)' : 'clamp(95px, 16vh, 230px)' }
-    : { width: boostSize ? 'clamp(190px, 21vw, 420px)' : 'clamp(150px, 16vw, 320px)', aspectRatio: '1 / 0.88' as const };
+    // Row: wide and short, so the content bar above is the centrepiece.
+    : { width: boostSize ? 'clamp(190px, 21vw, 420px)' : 'clamp(150px, 16vw, 320px)', aspectRatio: '1 / 0.66' as const };
 
   return (
     <Card
@@ -157,7 +168,7 @@ const HomeActionCard = memo(({
 
       {badgeCount > 0 && (
         <span
-          aria-label={`${badgeCount} unread support replies`}
+          aria-label={t('home.header.unreadReplies', { count: badgeCount })}
           className="absolute top-2 right-2 z-20 min-w-[1.75rem] h-7 px-2 rounded-full bg-destructive text-destructive-foreground text-sm font-bold flex items-center justify-center shadow-lg border-2 border-white/70 pointer-events-none"
         >
           {badgeCount > 9 ? '9+' : badgeCount}
@@ -168,16 +179,19 @@ const HomeActionCard = memo(({
 
       <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
         <div className="flex-shrink-0 mb-2" style={{
-          width: layoutMode === 'grid' ? 'clamp(40px, 5vw, 84px)' : 'clamp(44px, 5.2vw, 84px)',
+          width: layoutMode === 'grid' ? 'clamp(40px, 5vw, 84px)' : 'clamp(32px, 3.4vw, 64px)',
           aspectRatio: '1 / 1'
         }}>
           <ButtonIcon className="text-white drop-shadow-xl w-full h-full" />
         </div>
-        <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand min-h-[2.5em] flex items-center justify-center" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
+        <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand min-h-[2.5em] flex flex-col items-center justify-center" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
           {button.title}
+          {/* A small second line inside the title's own space, so this card
+              stays the same height as the others (Plex: "(VOD)"). */}
+          {button.tag && <span className="font-semibold text-white/80" style={{ fontSize: '0.55em', marginTop: '0.15em' }}>{button.tag}</span>}
         </h3>
 
-        {layoutMode === 'grid' && (
+        {layoutMode === 'grid' /* i18n-ignore */ && (
           <p className="text-white/95 leading-tight text-shadow-soft font-nunito" style={{ fontSize: 'clamp(0.75rem, 1vw, 1.25rem)' }}>
             {button.description}
           </p>
@@ -257,6 +271,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
     showGiveawayBadge, isGiveawayFocused, giveawayLabel, onOpenGiveaway, profileBadge,
     isVoiceFocused, onOpenVoice, isProfileFocused, onOpenProfiles,
   } = props;
+  const { t } = useTranslation();
   const dotSize = tier === 'xl' ? 28 : tier === 'lg' ? 24 : 20;
 
   const btnClass = tier === 'xl' ? 'rounded-xl h-14 text-xl px-6' : tier === 'lg' ? 'rounded-xl h-12 text-xl px-4' : short ? 'rounded-xl h-10' : 'rounded-xl h-12';
@@ -309,13 +324,13 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
           variant="white"
           size={btnSize}
           tabIndex={0}
-          aria-label={`Profile: ${profileBadge.name}. Switch or add profiles`}
+          aria-label={t('home.header.profileLabel', { name: profileBadge.name })}
           data-focused={isProfileFocused ? 'true' : 'false'}
           className={`tv-focusable home-focus-surface ${btnClass}`}
         >
           <ProfileDot name={profileBadge.name} avatar={profileBadge.avatar} size={dotSize} />
           {/* The header is full on small screens: just the colour square there. */}
-          {tier !== 'md' && extrasLabelled && <span className="ml-2 text-gray-800 max-w-[8rem] truncate">{profileBadge.name}</span>}
+          {tier !== 'md' /* i18n-ignore */ && extrasLabelled && <span className="ml-2 text-gray-800 max-w-[8rem] truncate">{profileBadge.name}</span>}
         </Button>
       )}
       {profileBadge?.kids ? (
@@ -374,7 +389,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
         variant="gold"
         size={btnSize}
         tabIndex={0}
-        aria-label="Voice"
+        aria-label={t('home.header.voiceLabel')}
         data-focused={isVoiceFocused ? 'true' : 'false'}
         className={`tv-focusable home-focus-surface ${btnClass}`}
       >
@@ -451,7 +466,7 @@ const HomeTopBar = ({ shape, banner, clock, header }: {
       className="absolute z-20 flex flex-nowrap items-center pointer-events-none"
       data-home-topbar
       style={{
-        top: 'max(env(safe-area-inset-top, 0px), 5vh)',
+        top: 'max(env(safe-area-inset-top, 0px), 2.5vh)',
         left: 'max(env(safe-area-inset-left, 0px), 5vw)',
         right: 'max(env(safe-area-inset-right, 0px), 5vw)',
       }}
@@ -475,36 +490,18 @@ const HomeTopBar = ({ shape, banner, clock, header }: {
   );
 };
 
-const WatermarkTitle = memo(({ tagline, mediaBarEnabled }: { tagline: string; mediaBarEnabled: boolean }) => (
+const WatermarkTitle = memo(({ tagline }: { tagline: string }) => (
   <div className="relative z-10 flex-shrink min-h-0 flex items-center justify-center">
     <div className="text-center home-watermark">
-      <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.35 }}>
-        <span className="font-snow-media text-brand-ice">SNOW MEDIA</span>
+      <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, min(8vw, 12vh), 10rem)', opacity: 0.95 }}>
+        <span className="font-snow-media text-brand-ice">{BRAND.title}</span>
         <span> </span>
-        <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
+        <span className="font-center" style={{ color: '#C9B370' }}>{BRAND.subtitle}</span>
       </h1>
-      <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.5 }}>
+      <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.85 }}>
         {tagline}
       </p>
     </div>
-    {mediaBarEnabled && (
-      // Full-bleed RSS strip, sitting below the header row so the account and
-      // settings buttons above do not crowd it. The old left inset cleared the
-      // corner logo, which at this vertical position it no longer touches —
-      // only the overscan margin is kept, inside the ticker, so the navy bar
-      // itself still reaches both screen edges.
-      <div
-        className="absolute z-20"
-        style={{
-          top: '46%',
-          transform: 'translateY(-50%)',
-          left: 0,
-          right: 0,
-        }}
-      >
-        <NewsTicker compact leadIn="max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))" />
-      </div>
-    )}
   </div>
 ));
 WatermarkTitle.displayName = 'WatermarkTitle';
@@ -517,7 +514,7 @@ const LogoButton = memo(({ isFocused: _isFocused, onActivate, onFocus: _onFocus 
     onClick={onActivate}
     tabIndex={-1}
     aria-hidden="true"
-    aria-label="Snow Media Entertainment"
+    aria-label={BRAND.company}
     className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105"
     style={{
       top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
@@ -548,33 +545,33 @@ interface RouteSwitchProps {
 
 const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayoutChange }: RouteSwitchProps) => (
   <Suspense fallback={<RouteFallback />}>
-    {currentView === 'apps' && <InstallApps onBack={goBack} onNavigateToChat={() => navigateTo('support')} onNavigate={(view) => navigateTo(view)} />}
-    {currentView === 'store' && <StoreScreen onBack={goBack} />}
-    {currentView === 'support' && <Support onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
-    {currentView === 'support-videos' && <SupportVideos onBack={goBack} />}
-    {currentView === 'chat' && <ChatCommunity onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
-    {currentView === 'community' && <CommunityChat onBack={goBack} />}
-    {currentView === 'credits' && <CreditStore onBack={goBack} />}
-    {currentView === 'settings' && <Settings onBack={goBack} layoutMode={layoutMode} onLayoutChange={onLayoutChange} />}
-    {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} onGiveaway={() => navigateTo('giveaway')} />}
-    {currentView === 'games' && <Games onBack={goBack} onOpenGame={(view) => navigateTo(view)} />}
-    {currentView === 'kids-games' && <KidsGameLounge onBack={goBack} />}
-    {currentView === 'giveaway' && <Giveaway onBack={goBack} />}
-    {currentView === 'game-daily-spin' && <DailySpinGame onBack={goBack} />}
-    {currentView === 'game-slots' && <SlotsGame onBack={goBack} />}
-    {currentView === 'game-blackjack' && <BlackjackGame onBack={goBack} />}
-    {currentView === 'game-video-poker' && <VideoPokerGame onBack={goBack} />}
-    {currentView === 'game-roulette' && <RouletteGame onBack={goBack} />}
-    {currentView === 'game-casino-holdem' && <CasinoHoldemGame onBack={goBack} />}
-    {currentView === 'game-plinko' && <PlinkoGame onBack={goBack} />}
-    {currentView === 'game-tv-trivia' && <TVTriviaGame onBack={goBack} />}
-    {currentView === 'game-dice-lounge' && <DiceLoungeGame onBack={goBack} />}
-    {currentView === 'support-tickets' && <SupportTicketSystem onBack={goBack} />}
-    {currentView === 'ai-conversations' && <AIConversationSystem onBack={goBack} />}
-    {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={goBack} />}
-    {currentView === 'admin-support' && <AdminSupportDashboard onBack={goBack} />}
-    {currentView === 'livetv' && <LiveTV onBack={goBack} onNavigate={navigateTo} />}
-    {currentView === 'account-signin' && (
+    {isView(currentView, 'apps') && <InstallApps onBack={goBack} onNavigateToChat={() => navigateTo('support')} onNavigate={(view) => navigateTo(view)} />}
+    {isView(currentView, 'store') && <StoreScreen onBack={goBack} />}
+    {isView(currentView, 'support') && <Support onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
+    {isView(currentView, 'support-videos') && <SupportVideos onBack={goBack} />}
+    {isView(currentView, 'chat') && <ChatCommunity onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
+    {isView(currentView, 'community') && <CommunityChat onBack={goBack} />}
+    {isView(currentView, 'credits') && <CreditStore onBack={goBack} />}
+    {isView(currentView, 'settings') && <Settings onBack={goBack} layoutMode={layoutMode} onLayoutChange={onLayoutChange} />}
+    {isView(currentView, 'user') && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} onGiveaway={() => navigateTo('giveaway')} />}
+    {isView(currentView, 'games') && <Games onBack={goBack} onOpenGame={(view) => navigateTo(view)} />}
+    {isView(currentView, 'kids-games') && <KidsGameLounge onBack={goBack} />}
+    {isView(currentView, 'giveaway') && <Giveaway onBack={goBack} />}
+    {isView(currentView, 'game-daily-spin') && <DailySpinGame onBack={goBack} />}
+    {isView(currentView, 'game-slots') && <SlotsGame onBack={goBack} />}
+    {isView(currentView, 'game-blackjack') && <BlackjackGame onBack={goBack} />}
+    {isView(currentView, 'game-video-poker') && <VideoPokerGame onBack={goBack} />}
+    {isView(currentView, 'game-roulette') && <RouletteGame onBack={goBack} />}
+    {isView(currentView, 'game-casino-holdem') && <CasinoHoldemGame onBack={goBack} />}
+    {isView(currentView, 'game-plinko') && <PlinkoGame onBack={goBack} />}
+    {isView(currentView, 'game-tv-trivia') && <TVTriviaGame onBack={goBack} />}
+    {isView(currentView, 'game-dice-lounge') && <DiceLoungeGame onBack={goBack} />}
+    {isView(currentView, 'support-tickets') && <SupportTicketSystem onBack={goBack} />}
+    {isView(currentView, 'ai-conversations') && <AIConversationSystem onBack={goBack} />}
+    {isView(currentView, 'create-ai-conversation') && <AIConversationSystem onBack={goBack} />}
+    {isView(currentView, 'admin-support') && <AdminSupportDashboard onBack={goBack} />}
+    {isView(currentView, 'livetv') && <LiveTV onBack={goBack} onNavigate={navigateTo} />}
+    {isView(currentView, 'account-signin') && (
       <AccountChooser
         onBack={goBack}
         onPlayerSignedIn={() => {
@@ -790,18 +787,18 @@ const Index = () => {
       try { trackAppLaunch(app.name); trackEvent('pinned_app_launched', 'apps', { app: app.name, packageName }); } catch { void 0; }
       await AppManager.launch({ packageName });
       toast({
-        title: 'Launching App',
-        description: `Opening ${app.name}...`,
+        title: t('home.toast.launchingTitle'),
+        description: t('home.toast.launchingDesc', { name: app.name }),
       });
     } catch (error) {
       console.error('[PinnedLaunch] error:', error);
       toast({
-        title: 'Launch Failed',
-        description: `Could not launch ${app.name}. Make sure it's installed.`,
+        title: t('home.toast.launchFailedTitle'),
+        description: t('home.toast.launchFailedDesc', { name: app.name }),
         variant: 'destructive',
       });
     }
-  }, [resolvePackageName, toast]);
+  }, [resolvePackageName, toast, t]);
 
   const openPlexFromReady = useCallback(() => openScreen('plex', navigateTo), [navigateTo]);
   // A pinned Dreamstreams / VibezTV / Plex tile: suggest the Player first.
@@ -875,11 +872,13 @@ const Index = () => {
   useEffect(() => {
     if (currentView === 'home' && backPressCount === 1) {
       toast({
-        title: "Press back again to exit",
-        description: "Press the back button again to close the app",
+        title: t('home.toast.exitTitle'),
+        description: t('home.toast.exitDesc'),
         duration: 1000,
       });
     }
+    // `t` is left out on purpose: a language change must not show the exit toast again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backPressCount, currentView, toast]);
 
 
@@ -1004,8 +1003,8 @@ const Index = () => {
     if (!full?.downloadUrl && !full?.apk) {
       // No APK URL known — fall back to opening Main Apps so the user can find it.
       toast({
-        title: 'Install ' + app.name,
-        description: 'Opening Main Apps so you can download it.',
+        title: t('home.toast.installTitle', { name: app.name }),
+        description: t('home.toast.installDesc'),
       });
       setIsInPopup(false);
       setPopupFocusIndex(-1);
@@ -1021,7 +1020,7 @@ const Index = () => {
     setDownloadingApp(full);
     setIsInPopup(false);
     setPopupFocusIndex(-1);
-  }, [apps, toast]);
+  }, [apps, toast, t]);
   const onPopupFocusChange = useCallback((index: number) => setPopupFocusIndex(index), []);
   const onPopupExitFocus = useCallback(() => {
     setIsInPopup(false);
@@ -1044,8 +1043,9 @@ const Index = () => {
   // (at 5vh, its buttons 40–56 px tall; the ticker sits well over 22 px into
   // the title). Plain px: Chrome 66 has no clamp() and dropped it to 0.
   const titleSpacer = useMemo(() => {
-    const rowBottom = screenHeight * 0.05 + (screenTier === 'xl' ? 56 : shortScreen ? 40 : 48);
-    return Math.round(Math.max(Math.min(80, Math.max(40, screenHeight * 0.05)), rowBottom - 22));
+    // The top row sits at 2.5vh; the title starts just below it, never under it.
+    const rowBottom = screenHeight * 0.025 + (screenTier === 'xl' ? 56 : shortScreen ? 40 : 48);
+    return Math.round(rowBottom + 2);
   }, [screenHeight, screenTier, shortScreen]);
 
   // Stable per-index activation callbacks — referentially constant for the
@@ -1315,13 +1315,13 @@ const Index = () => {
   }, []);
 
   const buttons = useMemo(() => {
-    const byId: Record<HomeCardId, { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = {
+    const byId: Record<HomeCardId, { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy'; tag?: string }> = {
       livetv: { icon: Tv, title: t('home.liveTv.title'), description: t('home.liveTv.description'), variant: 'navy' },
-      plex: { icon: Film, title: t('home.plex.title'), description: t('home.plex.description'), variant: 'blue' },
+      plex: { icon: Film, title: t('home.plex.title'), description: t('home.plex.description'), variant: 'blue', tag: t('home.plex.tag') },
       apps: { icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
       support: { icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
       store: { icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' },
-      'kids-games': { icon: Gamepad2, title: 'Kids Game Lounge', description: 'Play, learn & explore', variant: 'purple' },
+      'kids-games': { icon: Gamepad2, title: t('home.kidsLounge.title'), description: t('home.kidsLounge.description'), variant: 'purple' },
     };
     return cardIds.map((id) => byId[id]);
   }, [cardIds, t]);
@@ -1351,7 +1351,7 @@ const Index = () => {
       />
 
       {/* Home screen content */}
-      {currentView === 'home' && (
+      {isView(currentView, 'home') && (
         <div className="h-screen w-screen overflow-hidden text-white relative flex flex-col">
           {/* Background is provided by App.tsx (single static gradient on all devices). */}
 
@@ -1396,15 +1396,15 @@ const Index = () => {
           {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
           <div className="flex-shrink-0" style={{ height: titleSpacer }}></div>
 
-          {/* Header - tight container around title. When the content menu is ON,
-              the thin RSS ticker overlays through the middle of the title.
-              When OFF, a thicker standalone RSS row sits below the title. */}
-          <WatermarkTitle tagline={tagline} mediaBarEnabled={mediaBarEnabled} />
-          {!mediaBarEnabled && (
-            <div className="relative z-10 flex-shrink-0 mt-2">
-              <NewsTicker />
-            </div>
-          )}
+          {/* The title in full, then the RSS strip under it (never across it).
+              With the content bar ON the strip is medium height; OFF, the
+              thicker one, as there is room. */}
+          <WatermarkTitle tagline={tagline} />
+          <div className="relative z-10 flex-shrink-0 mt-2">
+            {mediaBarEnabled
+              ? <NewsTicker compact medium leadIn="max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))" />
+              : <NewsTicker />}
+          </div>
 
           {/* SME logo top-left — secret 7-click easter egg */}
           <LogoButton
@@ -1419,7 +1419,7 @@ const Index = () => {
               className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-pointer animate-fade-in"
               onClick={onCloseEasterEgg}
               role="button"
-              aria-label="Close"
+              aria-label={t('common.close')}
             >
               <img
                 src={easterEggImg}
@@ -1449,7 +1449,11 @@ const Index = () => {
               // the page runs out of height, and its `overflow:hidden` then
               // crops the tiles top and bottom. The decorative watermark above
               // yields instead.
-              <Suspense fallback={<div className="h-[180px] flex-shrink-0" />}>
+              // Centred in the space between the RSS strip and the cards, so the
+              // gap above the bar matches the gap below it (the top padding
+              // equals the column's gap under the bar).
+              <div className="flex-1 min-h-0 flex flex-col justify-center" data-media-bar-slot style={{ paddingTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
+              <Suspense fallback={<div className="h-[240px] flex-shrink-0" />}>
                 <MediaBar
                   active={isInMediaBar}
                   onExitDown={onMediaBarExitDown}
@@ -1457,6 +1461,7 @@ const Index = () => {
                   onOpenPlayer={() => navigateTo('livetv')}
                 />
               </Suspense>
+              </div>
             )}
 
             {(() => {
@@ -1485,7 +1490,7 @@ const Index = () => {
                     layoutMode={effectiveLayout}
                     onActivate={activateCard}
                     boostSize={!mediaBarEnabled}
-                    badgeCount={button.title === t('home.support.title') ? unreadTicketCount + unreadMailCount : 0}
+                    badgeCount={cardIds[index] === 'support' ? unreadTicketCount + unreadMailCount : 0}
                   />
                 );
 
@@ -1527,7 +1532,7 @@ const Index = () => {
           the box's, not the profile's: a Kids profile never sees the poster
           and title, and the notice waits for a grown-up (and for the profile
           screens to close) instead of being used up. */}
-      {currentView === 'home' && !kids && !profileGateOpen && <RequestReadyDialog onWatch={openPlexFromReady} />}
+      {isView(currentView, 'home') && !kids && !profileGateOpen && <RequestReadyDialog onWatch={openPlexFromReady} />}
 
       <PlayerNudgeDialog
         appName={nudgeApp?.name ?? null}
@@ -1569,7 +1574,7 @@ const Index = () => {
 
       {/* First-launch welcome + per-version "What's New" popup — mounted only
           after first-frame idle so its effect chain doesn't pile onto boot. */}
-      {overlaysReady && currentView === 'home' && (
+      {overlaysReady && isView(currentView, 'home') && (
         <Suspense fallback={null}>
           <WelcomePopup onOpenChange={setWelcomeOpen} />
         </Suspense>
@@ -1577,7 +1582,7 @@ const Index = () => {
 
       {/* Pre-Event Steps (PPV nights). Singleton row in app_alerts with
           source='pre_event'. Admin toggles via Settings → App Alerts. */}
-      {overlaysReady && currentView === 'home' && !welcomeOpen && preEventOpen && (
+      {overlaysReady && isView(currentView, 'home') && !welcomeOpen && preEventOpen && (
         <Suspense fallback={null}>
           <PreEventStepsDialog
             open={preEventOpen}
@@ -1590,7 +1595,7 @@ const Index = () => {
       {/* Giveaway winners announced — queues behind other boot popups via its
           own modal-presence polling. Not on a Kids profile (the Giveaway is
           grown-up only), so the announcement waits for a grown-up. */}
-      {overlaysReady && currentView === 'home' && !kids && !welcomeOpen && !preEventOpen && winnersGiveaway && (
+      {overlaysReady && isView(currentView, 'home') && !kids && !welcomeOpen && !preEventOpen && winnersGiveaway && (
         <Suspense fallback={null}>
           <GiveawayWinnersPopup giveaway={winnersGiveaway} onDismiss={dismissWinners} />
         </Suspense>
@@ -1598,7 +1603,7 @@ const Index = () => {
 
       {/* Admin broadcast alert (app_match = 'all') — queues behind other boot
           popups via its own modal-presence polling. */}
-      {overlaysReady && currentView === 'home' && !welcomeOpen && !preEventOpen && broadcastAlert && (
+      {overlaysReady && isView(currentView, 'home') && !welcomeOpen && !preEventOpen && broadcastAlert && (
         <Suspense fallback={null}>
           <BroadcastAlertPopup open alert={broadcastAlert} onDismiss={dismissBroadcast} />
         </Suspense>
@@ -1608,14 +1613,14 @@ const Index = () => {
 
       {/* First-run opt-in prompt for the home content bar. Only shows after
           the welcome popup is dismissed and only if the bar is currently OFF. */}
-      {overlaysReady && currentView === 'home' && (
+      {overlaysReady && isView(currentView, 'home') && (
         <Suspense fallback={null}>
           <MediaBarPrompt />
         </Suspense>
       )}
 
       {/* Profiles, introduced once (the app opens straight to Home). */}
-      {overlaysReady && currentView === 'home' && (
+      {overlaysReady && isView(currentView, 'home') && (
         <Suspense fallback={null}>
           <ProfilesIntroPopup onSetUp={onOpenSettingsProfiles} />
         </Suspense>
@@ -1626,7 +1631,7 @@ const Index = () => {
           modal-presence polling; never in demo mode (giveawayOn gate), and
           never on a Kids profile: it would open the grown-up Giveaway and mark
           the promo seen for the whole box. */}
-      {overlaysReady && currentView === 'home' && giveawayOn && !kids && (
+      {overlaysReady && isView(currentView, 'home') && giveawayOn && !kids && (
         <Suspense fallback={null}>
           <GiveawayPromoPopup onViewGiveaway={onOpenGiveawayFromPopup} />
         </Suspense>

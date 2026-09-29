@@ -31,6 +31,7 @@ vi.mock('@/lib/gameDay', async (orig) => {
       real.sportsChannel(line as never, { stream_id: 9, name: 'NFL 01: Bears vs Packers' } as never, 'NFL')!,
       real.sportsChannel(line as never, { stream_id: 7, name: 'US| FOX 5 New York' } as never, 'US| LOCALS')!,
       real.sportsChannel(line as never, { stream_id: 3, name: 'USA | A&E' } as never, 'USA')!,
+      real.sportsChannel(line as never, { stream_id: 8, name: 'NFL RedZone' } as never, 'NFL ZONE')!,
       // The provider's PPV names: the event, then its date and time Eastern.
       real.sportsChannel(line as never, { stream_id: 21, name: `PPV EVENT 02: Dirt Track 100 at Fonda (${eastern(3)})`, category_id: 50 } as never, 'PAY-PER-VIEW 2')!,
       real.sportsChannel(line as never, { stream_id: 22, name: `PPV EVENT 13: Big Fight vs. Other Guy (${eastern(4)})`, category_id: 50 } as never, 'PAY-PER-VIEW 2')!,
@@ -66,6 +67,18 @@ describe('GameDaySection', () => {
     await key('ArrowRight');
     await key('Enter');
     expect(await screen.findByText('Reminder on')).toBeTruthy();
+  });
+
+  it("shows a whip-around zone channel (RedZone) in its own section, never as a team link", async () => {
+    const { default: GameDay } = await import('./GameDaySection');
+    const onWatch = vi.fn();
+    render(<GameDay creds={line as never} isActive onExitLeft={() => {}} onWatch={onWatch} />);
+    expect(await screen.findByText('NFL 01: Bears vs Packers')).toBeTruthy();
+    await key('Enter');
+    expect(await screen.findByText('NFL RedZone')).toBeTruthy();
+    expect(screen.getByText('Zone channels — every game of the league, not just this one')).toBeTruthy();
+    expect(screen.getByText('Zone channel')).toBeTruthy();
+    expect(screen.queryByText('Team channel')).toBeNull();
   });
 
   it("the guide's answer arriving later leaves the highlight on the channel it was on", async () => {

@@ -17,6 +17,7 @@ import com.getcapacitor.WebViewListener
 import com.snowmedia.appmanager.AppManagerPlugin
 import com.snowmedia.billing.SmcBillingPlugin
 import com.snowmedia.capture.SnowCapturePlugin
+import com.snowmedia.dvr.RecorderPlugin
 import com.snowmedia.notify.SnowNotifyPlugin
 import com.snowmedia.player.SnowPlayerPlugin
 import com.snowmedia.security.TamperGuard
@@ -32,6 +33,7 @@ class MainActivity : BridgeActivity() {
         registerPlugin(SnowNotifyPlugin::class.java)
         registerPlugin(SnowCapturePlugin::class.java)
         registerPlugin(SmcBillingPlugin::class.java)
+        registerPlugin(RecorderPlugin::class.java)
         bridgeBuilder.addWebViewListener(object : WebViewListener() {
             override fun onRenderProcessGone(webView: WebView, detail: RenderProcessGoneDetail): Boolean {
                 Log.e("SMC-WebView", "Renderer process gone. didCrash=${detail.didCrash()} priority=${detail.rendererPriorityAtExit()}")
@@ -90,6 +92,9 @@ class MainActivity : BridgeActivity() {
             KeyEvent.KEYCODE_MEDIA_REWIND -> "rw"
             KeyEvent.KEYCODE_MEDIA_NEXT -> "next"
             KeyEvent.KEYCODE_MEDIA_PREVIOUS -> "prev"
+            // CH+ / CH- on remotes that have them: change channel in Live TV.
+            KeyEvent.KEYCODE_CHANNEL_UP -> "chup"
+            KeyEvent.KEYCODE_CHANNEL_DOWN -> "chdown"
             // The remote's Search / voice key opens voice commands
             // (VoiceCommandHost). Boxes whose Assistant key is kept by the
             // system never send it; the home screen's mic button covers them.
@@ -99,8 +104,11 @@ class MainActivity : BridgeActivity() {
         val webView = if (blocked) null else bridge?.webView
         if (name == null || webView == null) return super.dispatchKeyEvent(event)
         // Act on the way down. Held Fast-forward / Rewind repeat like arrows
-        // do; a held Play/Pause must not toggle back and forth.
-        val toggles = name == "playpause" || name == "play" || name == "pause" || name == "search"
+        // do (the player adds the steps up); a held Play/Pause must not
+        // toggle back and forth, and a held CH+/CH- must not race through
+        // the line-up.
+        val toggles = name == "playpause" || name == "play" || name == "pause" || name == "search" ||
+            name == "chup" || name == "chdown"
         if (event.action == KeyEvent.ACTION_DOWN && !(toggles && event.repeatCount > 0)) {
             webView.evaluateJavascript(
                 "window.dispatchEvent(new CustomEvent('smc:mediakey',{detail:'$name'}))",

@@ -1,4 +1,6 @@
 import { useCallback, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Download, RefreshCw, CheckCircle, X } from 'lucide-react';
@@ -6,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { useVersion } from '@/hooks/useVersion';
+import { recordingGuardNote } from '@/lib/recordSchedule';
 
 interface UpdateInfo {
   version: string;
@@ -23,6 +26,7 @@ interface AppUpdaterProps {
 }
 
 const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
+  const { t } = useTranslation();
   const { version: detectedVersion, versionCode: detectedVersionCode } = useVersion();
   const [currentVersion, setCurrentVersion] = useState('1.0.0');
   const [currentVersionCode, setCurrentVersionCode] = useState(0);
@@ -38,6 +42,10 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  // A recording is running, or one starts within 30 minutes: installing ends the
+  // app's process and the recording with it. Said before anything is installed;
+  // "Later" is the default (TRACKER 25.15).
+  const [guard, setGuard] = useState<string | null>(null);
   const { toast } = useToast();
 
   const refreshInstalledVersion = useCallback(async () => {
@@ -86,11 +94,11 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           data = parsed;
         }
       } catch {
-        throw new Error('Invalid update data received');
+        throw new Error(i18n.t('updater.errors.invalidData'));
       }
       
       if (!data?.version || !data?.downloadUrl) {
-        throw new Error('Invalid update information');
+        throw new Error(i18n.t('updater.errors.invalidInfo'));
       }
       
       // Compare versions
@@ -102,16 +110,16 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
         
         if (autoCheck) {
           toast({
-            title: "Update Available",
-            description: `Version ${data.version} is available`,
+            title: i18n.t('updater.toast.availableTitle'),
+            description: i18n.t('updater.toast.availableDesc', { version: data.version }),
           });
         }
       } else {
         setUpdateAvailable(false);
         if (!autoCheck) {
           toast({
-            title: "No Updates",
-            description: "You're running the latest version",
+            title: i18n.t('updater.toast.noUpdatesTitle'),
+            description: i18n.t('updater.toast.noUpdatesDesc'),
           });
         }
       }
@@ -119,8 +127,8 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
       console.error('Update check failed:', error);
       if (!autoCheck) {
         toast({
-          title: "Update Check Failed",
-          description: error instanceof Error ? error.message : 'Unknown error',
+          title: i18n.t('updater.toast.checkFailedTitle'),
+          description: error instanceof Error ? error.message : i18n.t('updater.toast.unknownError'),
           variant: "destructive",
         });
       }
@@ -144,8 +152,13 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
     return false;
   };
 
-  const downloadUpdate = async () => {
+  const downloadUpdate = async (confirmed = false) => {
     if (!updateInfo) return;
+    if (!confirmed && isNativePlatform()) {
+      const note = await recordingGuardNote();
+      if (note) { setGuard(note); setFocusedElement(2); return; }
+    }
+    setGuard(null);
 
     setIsDownloading(true);
     setDownloadProgress(0);
@@ -171,21 +184,21 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
             `[AppUpdater] APK reports v${prepared.apkVersionName} but update.json lists v${updateInfo.version} — proceeding to installer anyway.`,
           );
           toast({
-            title: 'Version mismatch',
-            description: `Downloaded APK is v${prepared.apkVersionName}. Opening installer…`,
+            title: i18n.t('updater.toast.mismatchTitle'),
+            description: i18n.t('updater.toast.mismatchDesc', { version: prepared.apkVersionName }),
           });
         }
 
         toast({
-          title: prepared.fromCache ? 'Using cached update' : 'Update Downloaded',
-          description: `Opening Android installer for v${prepared.apkVersionName || updateInfo.version}…`,
+          title: prepared.fromCache ? i18n.t('updater.toast.cachedTitle') : i18n.t('updater.toast.downloadedTitle'),
+          description: i18n.t('updater.toast.openingInstallerDesc', { version: prepared.apkVersionName || updateInfo.version }),
         });
 
         await installPreparedUpdate(prepared);
 
         toast({
-          title: 'Installer Opened',
-          description: 'After Android finishes, reopen Snow Media Center to verify the new version.',
+          title: i18n.t('updater.toast.installerOpenedTitle'),
+          description: i18n.t('updater.toast.installerOpenedDesc'),
         });
       } else {
         // Web fallback - direct download
@@ -197,8 +210,8 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
         document.body.removeChild(link);
 
         toast({
-          title: 'Download Started',
-          description: `Version ${updateInfo.version} download initiated`,
+          title: i18n.t('updater.toast.downloadStartedTitle'),
+          description: i18n.t('updater.toast.downloadStartedDesc', { version: updateInfo.version }),
         });
 
         setCurrentVersion(updateInfo.version);
@@ -209,8 +222,8 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
     } catch (error) {
       console.error('Download failed:', error);
       toast({
-        title: 'Download Failed',
-        description: error instanceof Error ? error.message : 'Please try again',
+        title: i18n.t('updater.toast.downloadFailedTitle'),
+        description: error instanceof Error ? error.message : i18n.t('updater.toast.tryAgain'),
         variant: 'destructive',
       });
     } finally {
@@ -236,14 +249,18 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
       switch (event.key) {
         case 'ArrowLeft':
           if (focusedElement === 1 && updateAvailable) setFocusedElement(0);
+          else if (focusedElement === 3) setFocusedElement(2);
           break;
         case 'ArrowRight':
           if (focusedElement === 0 && updateAvailable) setFocusedElement(1);
+          else if (focusedElement === 2) setFocusedElement(3);
           break;
         case 'Enter':
         case ' ':
           if (focusedElement === 0) checkForUpdates();
           else if (focusedElement === 1 && updateAvailable) downloadUpdate();
+          else if (focusedElement === 2) setGuard(null);
+          else if (focusedElement === 3) downloadUpdate(true);
           break;
       }
     };
@@ -288,12 +305,12 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
       
       <div className="flex items-center gap-3 mb-4">
         <RefreshCw className="w-6 h-6 text-blue-200" />
-        <h2 className="text-2xl font-bold text-white">App Updates</h2>
+        <h2 className="text-2xl font-bold text-white">{t('updater.panel.title')}</h2>
       </div>
       
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <span className="text-blue-200">Current Version:</span>
+          <span className="text-blue-200">{t('updater.panel.currentVersion')}</span>
           <span className="text-white font-semibold">{currentVersion}</span>
         </div>
         
@@ -301,20 +318,20 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           <div className="bg-green-600/20 border border-green-500/50 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle className="w-5 h-5 text-green-400" />
-              <span className="text-green-400 font-semibold">Update Available</span>
+              <span className="text-green-400 font-semibold">{t('updater.panel.availableTitle')}</span>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-blue-200">Available Version:</span>
+                <span className="text-blue-200">{t('updater.panel.availableVersion')}</span>
                 <span className="text-green-400 font-semibold">{updateInfo.version}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-blue-200">Release Date:</span>
+                <span className="text-blue-200">{t('updater.panel.releaseDate')}</span>
                 <span className="text-white">{updateInfo.releaseDate}</span>
               </div>
               {updateInfo.changelog && (
                 <div>
-                  <span className="text-blue-200 block mb-1">Changes:</span>
+                  <span className="text-blue-200 block mb-1">{t('updater.panel.changes')}</span>
                   <p className="text-white text-sm bg-black/20 rounded p-2">{updateInfo.changelog}</p>
                 </div>
               )}
@@ -322,6 +339,41 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           </div>
         )}
         
+        {guard && (
+          <div data-app-updater-guard className="bg-amber-500/15 border border-amber-400/50 rounded-lg p-4">
+            <p className="text-amber-200 font-semibold">{guard}</p>
+            <p className="text-blue-100 text-sm mt-1">{t('updater.shared.guardHint')}</p>
+            <div className="flex gap-3 mt-3">
+              <Button
+                autoFocus
+                onClick={() => setGuard(null)}
+                onFocus={() => setFocusedElement(2)}
+                onBlur={() => setFocusedElement((prev) => (prev === 2 ? -1 : prev))}
+                variant="outline"
+                data-app-updater-btn="later"
+                data-focused={focusedElement === 2 ? 'true' : 'false'}
+                className={`tv-ring flex-1 bg-white/10 border-white/30 text-white hover:bg-white/20 transition-all duration-200 ${
+                  focusedElement === 2 ? 'scale-110 brightness-125 z-10' : ''
+                }`}
+              >
+                {t('updater.shared.laterBtn')}
+              </Button>
+              <Button
+                onClick={() => { void downloadUpdate(true); }}
+                onFocus={() => setFocusedElement(3)}
+                onBlur={() => setFocusedElement((prev) => (prev === 3 ? -1 : prev))}
+                data-app-updater-btn="anyway"
+                data-focused={focusedElement === 3 ? 'true' : 'false'}
+                className={`tv-ring flex-1 bg-green-600 hover:bg-green-700 text-white transition-all duration-200 ${
+                  focusedElement === 3 ? 'scale-110 brightness-125 z-10' : ''
+                }`}
+              >
+                {t('updater.shared.anywayBtn')}
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-3">
           {!updateAvailable && (
             <Button
@@ -337,14 +389,14 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
               }`}
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${isChecking ? 'animate-spin' : ''}`} />
-              {isChecking ? 'Checking...' : 'Check for Updates'}
+              <span className="min-w-0 truncate">{isChecking ? t('updater.panel.checkingBtn') : t('updater.panel.checkBtn')}</span>
             </Button>
           )}
 
           {updateAvailable && updateInfo && (
             <Button
               autoFocus
-              onClick={downloadUpdate}
+              onClick={() => { void downloadUpdate(); }}
               onFocus={() => setFocusedElement(1)}
               onBlur={() => setFocusedElement((prev) => (prev === 1 ? -1 : prev))}
               disabled={isDownloading}
@@ -355,7 +407,7 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
               }`}
             >
               <Download className="w-4 h-4 mr-2" />
-              {isDownloading ? `${downloadProgress}%` : `Download v${updateInfo.version}`}
+              <span className="min-w-0 truncate">{isDownloading ? `${downloadProgress}%` : t('updater.panel.downloadBtn', { version: updateInfo.version })}</span>
             </Button>
           )}
         </div>

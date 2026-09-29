@@ -67,6 +67,18 @@ if (localPropsFile.exists()) {
 }
 def billingAppKey = localProps['SMC_BILLING_APP_KEY'] ?: project.findProperty('SMC_BILLING_APP_KEY') ?: System.getenv('SMC_BILLING_APP_KEY') ?: ''
 def billingBaseUrl = localProps['SMC_BILLING_BASE_URL'] ?: project.findProperty('SMC_BILLING_BASE_URL') ?: 'https://billing.smcdreamstreams.store/smc/v1'
+
+// MPV (owner's TEST builds only — docs/players/mpv.md if one exists, or ask
+// the owner). Off by default: a customer build and an in-app update never
+// carry MPVLib or its native libraries, only the owner's own manual test
+// builds do, and only when this is turned on for that build:
+//
+//   SMC_WITH_MPV=true
+//
+// in android/local.properties, or -PSMC_WITH_MPV=true, or the env var of the
+// same name. BuildConfig.SMC_WITH_MPV is always defined (false when off), so
+// Kotlin that reads it compiles the same whether or not this is set.
+def mpvOn = (localProps['SMC_WITH_MPV'] ?: project.findProperty('SMC_WITH_MPV') ?: System.getenv('SMC_WITH_MPV') ?: 'false').toString().toBoolean()
 if (!billingAppKey) {
     logger.warn("\n#  SMC_BILLING_APP_KEY is not set in android/local.properties — billing account features will be disabled in this build.\n")
 }
@@ -105,7 +117,7 @@ android {
         applicationId "app.lovable.f44324110df840aea0a1fb97cafa76e7"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 43
+        versionCode 48
         versionName "1.8.0"
 
         // Never hardcode the key in Kotlin; see the block above.
@@ -113,6 +125,9 @@ android {
         buildConfigField "String", "SMC_BILLING_BASE_URL", "\"${billingBaseUrl}\""
         // The release certificate's fingerprint(s) for TamperGuard (see above).
         buildConfigField "String", "SMC_SIGNING_SHA256", "\"${signingSha256}\""
+        // MPV, owner test builds only (see the block above). Always defined
+        // so EngineChoice and SnowPlayerPlugin compile in every build.
+        buildConfigField "boolean", "SMC_WITH_MPV", "${mpvOn}"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         
@@ -158,6 +173,21 @@ android {
         buildConfig true
     }
 
+    if (mpvOn) {
+        // Only this build's source set carries com.snowmedia.player.mpv — a
+        // customer build's tree never sees these files, so it can never end
+        // up referencing MPVLib even by accident.
+        sourceSets {
+            main.java.srcDirs += 'src/mpv/java'
+        }
+        // MPVLib's own libmpv.aar and the FFmpeg decoder extension can both
+        // package libc++_shared.so; pickFirst keeps that from failing a test
+        // build (see the comment above SMC_WITH_MPV).
+        packagingOptions {
+            pickFirst 'lib/*/libc++_shared.so'
+        }
+    }
+
     testOptions {
         unitTests.all {
             // Fail loudly instead of hanging when a test waits on MockWebServer.
@@ -198,6 +228,11 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    // MPV, owner test builds only (SMC_WITH_MPV above). 0.5.1, not 1.0.0 —
+    // the 1.0.0 release needs Kotlin 2.2, and this project is on 1.9.22.
+    if (mpvOn) {
+        implementation "dev.jdtech.mpv:libmpv:0.5.1"
+    }
 }
 
 apply from: 'capacitor.build.gradle'

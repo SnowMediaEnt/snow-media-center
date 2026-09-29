@@ -27,6 +27,8 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Translation files parse faster as one string than as an object literal on slow boxes.
+  json: { stringify: true },
   esbuild: mode === 'production'
     ? { drop: ['console', 'debugger'] }
     : undefined,

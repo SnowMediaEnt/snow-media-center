@@ -1,0 +1,115 @@
+{
+  "home": {
+    "tagline": "Votre expérience de streaming premium",
+    "mainApps": {
+      "title": "Applis principales",
+      "description": "Téléchargez des APK et outils de streaming"
+    },
+    "support": {
+      "title": "Assistance",
+      "description": "Aide, chat IA et communauté"
+    },
+    "store": {
+      "title": "Boutique Snow Media",
+      "description": "Visitez la boutique officielle"
+    },
+    "giveaway": {
+      "title": "Tirage au sort",
+      "description": "Participez pour gagner des prix"
+    },
+    "player": {
+      "title": "Lecteur",
+      "description": "TV en direct, films et séries"
+    },
+    "liveTv": {
+      "title": "TV en direct",
+      "description": "Chaînes, guide et Game Day"
+    },
+    "plex": {
+      "title": "Plex",
+      "description": "Films et séries",
+      "tag": "(VOD)"
+    },
+    "kidsLounge": {
+      "title": "Espace jeux enfants",
+      "description": "Jouez, apprenez et explorez"
+    },
+    "header": {
+      "voiceLabel": "Voix",
+      "profileLabel": "Profil : {{name}}. Changer ou ajouter des profils",
+      "unreadReplies_one": "{{count}} réponse d'assistance non lue",
+      "unreadReplies_many": "{{count}} réponses d'assistance non lues",
+      "unreadReplies_other": "{{count}} réponses d'assistance non lues"
+    },
+    "toast": {
+      "launchingTitle": "Lancement de l'appli",
+      "launchingDesc": "Ouverture de {{name}}...",
+      "launchFailedTitle": "Échec du lancement",
+      "launchFailedDesc": "Impossible de lancer {{name}}. Vérifiez qu'elle est installée.",
+      "exitTitle": "Appuyez encore sur Retour pour quitter",
+      "exitDesc": "Appuyez de nouveau sur Retour pour fermer l'appli",
+      "installTitle": "Installer {{name}}",
+      "installDesc": "Ouverture des Applis principales pour la télécharger.",
+      "plexCantOpenTitle": "Impossible d'ouvrir dans Plex",
+      "plexCantOpenDesc": "Infos de l'élément Plex manquantes.",
+      "plexPlayingTitle": "Lecture dans Plex…",
+      "plexMissingTitle": "Plex n'est pas installé",
+      "plexMissingDesc": "Installez Plex pour lire ce titre.",
+      "plexFailedTitle": "Impossible de lancer la lecture",
+      "plexFailedDesc": "Ouverture de Plex à la place."
+    },
+    "mediaBar": {
+      "heading": "Recommandé",
+      "prevLabel": "Précédent",
+      "nextLabel": "Suivant",
+      "demoTitle": "Démo en direct"
+    },
+    "badges": {
+      "trendingChip": "TENDANCE",
+      "continueChip": "SUITE",
+      "liveChip": "DIRECT",
+      "forYouChip": "POUR VOUS"
+    },
+    "newsTicker": {
+      "loading": "Chargement des actualités...",
+      "fallback1": "🚀 Nouvelle mise à jour de l'appli disponible",
+      "fallback2": "📺 Assistance en direct disponible - Discutez avec Snow Media",
+      "fallback3": "🎬 De nouveaux tutoriels vidéo dans Assistance",
+      "fallback4": "💫 La boutique Snow Media a du nouveau contenu"
+    },
+    "clock": {
+      "updateTitle": "Mise à jour disponible : v{{version}}",
+      "updateTitleShort": "Mise à jour disponible",
+      "updateAria": "Mise à jour disponible — ouvrez Paramètres → Mises à jour"
+    },
+    "notFound": {
+      "title": "Oups ! Page introuvable",
+      "homeLink": "Retour à l'accueil"
+    },
+    "contentBarPrompt": {
+      "title": "Afficher la barre de contenu en direct ?",
+      "description": "Elle affiche les titres tendance et le sport en direct en haut de l'accueil.",
+      "preview": "Aperçu",
+      "liveSub": "{{league}} · Direct",
+      "continueSub": "Reprendre · {{episode}}",
+      "laggy": "Sur les appareils anciens ou moins puissants, l'affichage peut être un peu lent.",
+      "notNowBtn": "Plus tard",
+      "turnOnBtn": "Activer",
+      "footer": "Vous pouvez le modifier à tout moment dans Paramètres."
+    },
+    "welcome": {
+      "title": "Bienvenue dans Snow Media Center",
+      "intro": "Voici à quoi sert chaque section :",
+      "mainAppsDesc": "Téléchargez toutes les applis de Snow Media.",
+      "supportVideosTitle": "Vidéos d'assistance",
+      "supportVideosDesc": "Vidéos pas à pas sur les appareils et services.",
+      "chatTitle": "Chat et communauté",
+      "chatDesc": "Envoyez un ticket pour de l'aide ou des questions — chat IA aussi disponible.",
+      "signInNote": "Connectez-vous avec votre compte <1>snowmediaent.com</1> ou créez-en un pour suivre vos achats et vos Snow Gems.",
+      "whatsNew": "Nouveautés de la v{{version}}",
+      "scrollHint": "▲ ▼ défiler · OK fermer",
+      "closeHint": "OK fermer",
+      "letsGoBtn": "C'est parti"
+    }
+  }
+}

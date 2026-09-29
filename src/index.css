@@ -725,7 +725,7 @@ html.legacy-webview [data-home-card] {
   width: 21vw !important;
   min-width: 180px !important;
   height: auto !important;
-  min-height: 18vh !important;
+  min-height: 13vh !important;
   margin: 0 1.25% !important;
   flex: 0 0 auto !important;
   box-sizing: border-box !important;
@@ -768,7 +768,7 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
    was the top-LEFT, over the logo. Plain offsets here; the safe-area inset
    is 0 on every box that gets this class. */
 html.legacy-webview [data-home-topbar] {
-  top: 5vh !important;
+  top: 2.5vh !important;
   left: 5vw !important;
   right: 5vw !important;
 }
@@ -1002,7 +1002,21 @@ html.no-flex-gap .flex.flex-col.gap-3 > * + * { margin-top: 0.75rem; }
 
 /* MediaBar poster sizing — height fallback then clamp() for modern WebViews.
    Never rely on aspect-ratio (Chrome 88+) to establish poster height. */
-.media-poster { height: 120px; height: clamp(96px, 16vh, 180px); }
+.media-poster { height: 140px; height: clamp(110px, 28vh, 330px); }
+@media (min-height: 900px) { .media-poster { height: 31vh; max-height: 360px; } }
+/* Home RSS strip under the title (NewsTicker compact + medium). */
+.news-ticker-medium { height: 2.25rem; }
+@media (min-height: 900px) { .news-ticker-medium { height: 2.75rem; } }
+/* Short screens (960x540 WebViews): the title, strip, content bar and cards
+   must all fit one screen with nothing overlapping. */
+@media (max-height: 600px) {
+  .home-watermark h1, html.legacy-webview .home-watermark h1 { font-size: 3.25rem !important; }
+  .home-watermark p, html.legacy-webview .home-watermark p { font-size: 0.875rem !important; }
+  .media-poster { height: 118px; }
+  [data-home-card] > .relative.z-10 { padding: 0.5rem; }
+  [data-home-card] > .relative.z-10 > div:first-child { margin-bottom: 0.25rem; }
+  [data-media-bar] h2 { font-size: 0.75rem; }
+}
 /* Tile caption: title + subtitle, each ONE line. Pinned so every tile in the
    grid is the same height and the bar's total height is deterministic.
 
@@ -1013,7 +1027,7 @@ html.no-flex-gap .flex.flex-col.gap-3 > * + * { margin-top: 0.75rem; }
    bar overflowed its own `overflow:hidden` box: cut off top and bottom on a
    TV. `block` is now gone from those spans; this floor keeps the height
    stable even when a tile has no subtitle. */
-.media-tile-text { min-height: calc(1.25rem + 1rem + 1rem); }
+.media-tile-text { min-height: calc(1.25rem + 0.5rem); }
 /* Was max-height:40vh — on a 720px-tall WebView that cropped the tiles. The
    bar's height is deterministic now, so cap it well clear of real content and
    keep overflow hidden only as a last-resort guard. */
@@ -1039,3 +1053,12 @@ html.smc-quiet .home-watermark, html.smc-quiet .news-ticker { visibility: hidden
 .mail-prose a { color: #a1d5dc; text-decoration: underline; }
 .mail-prose img { max-width: 100%; border-radius: 1rem; margin: 0.5rem 0 1.1rem; }
 .mail-prose blockquote { border-left: 4px solid rgba(195,170,114,0.6); padding-left: 1rem; color: rgba(255,255,255,0.7); margin: 0 0 1.1rem; }
+
+/* Arabic is text only: the page stays left to right (no mirrored layout). Paragraph text still
+   reads right to left, so its punctuation lands on the correct side. Written out selector by
+   selector: Chrome 66 does not know :is(). */
+html[lang="ar"] p,
+html[lang="ar"] li,
+html[lang="ar"] [data-i18n-block] {
+  unicode-bidi: plaintext;
+}

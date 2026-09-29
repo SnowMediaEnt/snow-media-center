@@ -1,0 +1,38 @@
+{
+  "popups": {
+    "gotItBtn": "Compris",
+    "appAlert": {
+      "headsUp": "À noter à propos de <1>{{name}}</1> :",
+      "dismissBtn": "Ignorer",
+      "continueAnywayBtn": "Continuer quand même"
+    },
+    "preEvent": {
+      "okGotItBtn": "OK, compris",
+      "defaultHeadline": "PPV ce soir ! Suivez les étapes préparatoires AVANT l'heure de début.",
+      "step1": "Vérifiez que votre abonnement n'a pas expiré",
+      "step2": "Mettez à jour la playlist / les chaînes",
+      "step3": "Redémarrez le routeur et l'appareil",
+      "step4": "Ayez un VPN prêt",
+      "step5": "Profitez-en !"
+    },
+    "serviceAlert": {
+      "yourService": "Votre service",
+      "unknownTitle": "État du service inconnu",
+      "unknownMsg": "{{name}} : aucune date d'expiration. Ouvrez Tableau de bord → Modifier pour la mettre à jour.",
+      "expiredTitle": "Service expiré",
+      "expiredMsg_one": "{{name}} a expiré il y a {{count}} jour. Renouvelez avant de continuer.",
+      "expiredMsg_many": "{{name}} a expiré il y a {{count}} jours. Renouvelez avant de continuer.",
+      "expiredMsg_other": "{{name}} a expiré il y a {{count}} jours. Renouvelez avant de continuer.",
+      "todayTitle": "Le service expire aujourd'hui",
+      "todayMsg": "{{name}} expire aujourd'hui. Renouvelez pour éviter toute interruption.",
+      "tomorrowTitle": "Le service expire demain",
+      "tomorrowMsg": "{{name}} expire demain. Renouvelez-le depuis le Tableau de bord avant son expiration.",
+      "soonTitle_one": "Le service expire dans {{count}} jour",
+      "soonTitle_many": "Le service expire dans {{count}} jours",
+      "soonTitle_other": "Le service expire dans {{count}} jours",
+      "soonMsg_one": "{{name}} expire dans {{count}} jour. Renouvelez-le depuis le Tableau de bord avant son expiration.",
+      "soonMsg_many": "{{name}} expire dans {{count}} jours. Renouvelez-le depuis le Tableau de bord avant son expiration.",
+      "soonMsg_other": "{{name}} expire dans {{count}} jours. Renouvelez-le depuis le Tableau de bord avant son expiration."
+    }
+  }
+}

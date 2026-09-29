@@ -1,0 +1,118 @@
+{
+  "home": {
+    "tagline": "تجربة البث المتميزة الخاصة بك",
+    "mainApps": {
+      "title": "التطبيقات الرئيسية",
+      "description": "تنزيل ملفات APK وأدوات البث"
+    },
+    "support": {
+      "title": "الدعم",
+      "description": "المساعدة ودردشة الذكاء الاصطناعي والمجتمع"
+    },
+    "store": {
+      "title": "متجر Snow Media",
+      "description": "زيارة المتجر الرسمي"
+    },
+    "giveaway": {
+      "title": "السحب",
+      "description": "شارك واربح جوائز"
+    },
+    "player": {
+      "title": "المشغل",
+      "description": "البث المباشر والأفلام والمسلسلات"
+    },
+    "liveTv": {
+      "title": "البث المباشر",
+      "description": "القنوات والدليل ويوم المباراة"
+    },
+    "plex": {
+      "title": "Plex",
+      "description": "أفلام ومسلسلات",
+      "tag": "(عند الطلب)"
+    },
+    "kidsLounge": {
+      "title": "ركن ألعاب الأطفال",
+      "description": "العب وتعلّم واستكشف"
+    },
+    "header": {
+      "voiceLabel": "الأوامر الصوتية",
+      "profileLabel": "الملف الشخصي: {{name}}. تبديل الملفات أو إضافتها",
+      "unreadReplies_zero": "لا ردود دعم غير مقروءة",
+      "unreadReplies_one": "رد دعم واحد غير مقروء",
+      "unreadReplies_two": "ردّان للدعم غير مقروءين",
+      "unreadReplies_few": "{{count}} ردود دعم غير مقروءة",
+      "unreadReplies_many": "{{count}} رداً للدعم غير مقروء",
+      "unreadReplies_other": "{{count}} رد دعم غير مقروء"
+    },
+    "toast": {
+      "launchingTitle": "جارٍ تشغيل التطبيق",
+      "launchingDesc": "جارٍ فتح {{name}}...",
+      "launchFailedTitle": "فشل التشغيل",
+      "launchFailedDesc": "تعذّر تشغيل {{name}}. تأكد من تثبيته.",
+      "exitTitle": "اضغط رجوع مرة أخرى للخروج",
+      "exitDesc": "اضغط زر الرجوع مرة أخرى لإغلاق التطبيق",
+      "installTitle": "تثبيت {{name}}",
+      "installDesc": "جارٍ فتح التطبيقات الرئيسية لتتمكن من تنزيله.",
+      "plexCantOpenTitle": "تعذّر فتح هذا العنصر في Plex",
+      "plexCantOpenDesc": "معلومات عنصر Plex غير متوفرة.",
+      "plexPlayingTitle": "جارٍ التشغيل في Plex…",
+      "plexMissingTitle": "Plex غير مثبّت",
+      "plexMissingDesc": "ثبّت Plex لتشغيل هذا العنوان.",
+      "plexFailedTitle": "تعذّر بدء التشغيل",
+      "plexFailedDesc": "سيتم فتح Plex بدلاً من ذلك."
+    },
+    "mediaBar": {
+      "heading": "موصى به",
+      "prevLabel": "السابق",
+      "nextLabel": "التالي",
+      "demoTitle": "عرض تجريبي مباشر"
+    },
+    "badges": {
+      "trendingChip": "الرائج",
+      "continueChip": "متابعة",
+      "liveChip": "مباشر",
+      "forYouChip": "لك"
+    },
+    "newsTicker": {
+      "loading": "جارٍ تحميل الأخبار...",
+      "fallback1": "🚀 تحديث جديد للتطبيق متاح",
+      "fallback2": "📺 الدعم المباشر متاح الآن - تحدث مع Snow Media",
+      "fallback3": "🎬 دروس فيديو جديدة في قسم الدعم",
+      "fallback4": "💫 تم تحديث متجر Snow Media بمحتوى جديد"
+    },
+    "clock": {
+      "updateTitle": "تحديث متاح: v{{version}}",
+      "updateTitleShort": "تحديث متاح",
+      "updateAria": "تحديث متاح — افتح الإعدادات ← التحديثات"
+    },
+    "notFound": {
+      "title": "عذرًا! الصفحة غير موجودة",
+      "homeLink": "العودة إلى الرئيسية"
+    },
+    "contentBarPrompt": {
+      "title": "عرض شريط المحتوى المباشر؟",
+      "description": "يعرض العناوين الرائجة والرياضة المباشرة أعلى الشاشة الرئيسية.",
+      "preview": "معاينة",
+      "liveSub": "{{league}} · مباشر",
+      "continueSub": "متابعة · {{episode}}",
+      "laggy": "على الأجهزة القديمة أو الأقل قوة قد يصبح الأداء أبطأ قليلًا.",
+      "notNowBtn": "ليس الآن",
+      "turnOnBtn": "تشغيله",
+      "footer": "يمكنك تغيير هذا في أي وقت من الإعدادات."
+    },
+    "welcome": {
+      "title": "مرحبًا بك في Snow Media Center",
+      "intro": "إليك وظيفة كل قسم:",
+      "mainAppsDesc": "نزّل جميع تطبيقات Snow Media.",
+      "supportVideosTitle": "فيديوهات الدعم",
+      "supportVideosDesc": "فيديوهات خطوة بخطوة عن الأجهزة والخدمات.",
+      "chatTitle": "الدردشة والمجتمع",
+      "chatDesc": "أرسل تذاكر للمساعدة أو الأسئلة — الدردشة بالذكاء الاصطناعي متاحة أيضًا.",
+      "signInNote": "سجّل الدخول بحسابك على <1>snowmediaent.com</1> أو أنشئ حسابًا جديدًا لتتابع مشترياتك وSnow Gems.",
+      "whatsNew": "الجديد في الإصدار v{{version}}",
+      "scrollHint": "▲ ▼ تمرير · OK إغلاق",
+      "closeHint": "OK إغلاق",
+      "letsGoBtn": "هيا بنا"
+    }
+  }
+}

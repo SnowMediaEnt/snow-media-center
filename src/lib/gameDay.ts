@@ -51,9 +51,12 @@ export interface Game {
   event?: string; session?: string; places?: string[];
 }
 
-export type LinkKind = 'game' | 'network' | 'local' | 'team' | 'league';
+export type LinkKind = 'game' | 'network' | 'local' | 'team' | 'league' | 'zone';
 export const LINK_LABELS: Record<LinkKind, string> = {
   game: 'Game channel', network: 'National TV', local: 'Local & regional', team: 'Team channel', league: 'League channel',
+  // A whip-around channel ("NFL RedZone", "MLB Zone"): every game of the
+  // league at once, never just this one. Never a team link.
+  zone: 'Zone channel',
 };
 
 /** A channel on one of the box's lines, as Game Day sees it. */
@@ -614,6 +617,13 @@ const leagueOnly = (name: string, league: string): boolean => {
 
 /** A league's own channel: "MLB Zone", "NFL RedZone", "NBA TV", "NHL Network". */
 const LEAGUE_CHANNEL = /\b(zone|redzone|network|tv|extra innings|center ice|league pass|sunday ticket|season pass|multi ?view|mix|channel)\b/;
+/** A whip-around "zone" channel of `LEAGUE_CHANNEL` (RedZone, "MLB Zone",
+ *  "NBA Zone"): cuts between every game of the league, so it is never one
+ *  game's own channel — unlike "NFL Network" or "MLB TV", which the rest of
+ *  `LEAGUE_CHANNEL` also matches. A channel actually renamed for this game
+ *  ("NBA ZONE 3: Lakers @ Celtics") is caught earlier, by `eventScore`,
+ *  before this ever runs. */
+const ZONE_CHANNEL = /\b(zone|red ?zone)\b/;
 
 /** A numbered channel of a league with no game in its name ("MLB 05",
  *  "NBA Event 3"; for a fight card, "PPV 05" too). */
@@ -665,7 +675,7 @@ export function channelsForGame(game: Game, channels: SportsChannel[], limit = 1
     if (!score && leagueLinks < 4 && inLeague && leagueOwn && !isNumberedEvent(c, game.league)) {
       leagueLinks += 1;
       score = 30;
-      via = 'league';
+      via = ZONE_CHANNEL.test(c.name) ? 'zone' : 'league';
     }
     if (score > 0) found.push({ line: c.line, stream: c.stream, score, via });
   }
@@ -678,6 +688,29 @@ export function channelsForGame(game: Game, channels: SportsChannel[], limit = 1
     seen.add(k);
     out.push(f);
     if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/** Several lists of a game's links (its plain matches, what the guide
+ *  confirmed), combined, each channel once, best source first, but always
+ *  with its current name from `channels` — never a name a guide check
+ *  cached earlier: a channel's line-up entry can be renamed (a provider
+ *  reuses an event channel for the next game) between when the guide
+ *  confirmed a link and when the list is drawn, while the link keeps
+ *  playing the same stream either way. */
+export function mergeLinks(sources: GameChannel[][], channels: SportsChannel[]): GameChannel[] {
+  const fresh = new Map(channels.map((c) => [linkKey(c), c.stream]));
+  const seen = new Set<string>();
+  const out: GameChannel[] = [];
+  for (const list of sources) {
+    for (const l of list) {
+      const k = linkKey(l);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const stream = fresh.get(k);
+      out.push(stream && stream !== l.stream ? { ...l, stream } : l);
+    }
   }
   return out;
 }
@@ -902,6 +935,8 @@ export async function checkGuides(
   n = 0;
   for (const f of found) {
     if (n >= GUIDE_MAX.league) break;
+    // Never a 'zone' channel: its guide names every game of the league at
+    // once, so "the guide has this game" is never a real signal for it.
     if ((f.via === 'league' || f.via === 'team') && add(f, f.via, f)) n += 1;
   }
   if (game.home || game.away) {

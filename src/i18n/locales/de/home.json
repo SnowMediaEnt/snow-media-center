@@ -1,0 +1,114 @@
+{
+  "home": {
+    "tagline": "Dein Premium-Streaming-Erlebnis",
+    "mainApps": {
+      "title": "Haupt-Apps",
+      "description": "APKs und Streaming-Tools herunterladen"
+    },
+    "support": {
+      "title": "Support",
+      "description": "Hilfe, KI-Chat und Community"
+    },
+    "store": {
+      "title": "Snow Media Store",
+      "description": "Offiziellen Store besuchen"
+    },
+    "giveaway": {
+      "title": "Gewinnspiel",
+      "description": "Mach mit und gewinne Preise"
+    },
+    "player": {
+      "title": "Player",
+      "description": "Live-TV, Filme und Serien"
+    },
+    "liveTv": {
+      "title": "Live-TV",
+      "description": "Sender, Guide & Game Day"
+    },
+    "plex": {
+      "title": "Plex",
+      "description": "Filme & Serien",
+      "tag": "(VOD)"
+    },
+    "kidsLounge": {
+      "title": "Kinder-Spielelounge",
+      "description": "Spielen, lernen & entdecken"
+    },
+    "header": {
+      "voiceLabel": "Sprachsteuerung",
+      "profileLabel": "Profil: {{name}}. Profile wechseln oder hinzufügen",
+      "unreadReplies_one": "{{count}} ungelesene Support-Antwort",
+      "unreadReplies_other": "{{count}} ungelesene Support-Antworten"
+    },
+    "toast": {
+      "launchingTitle": "App wird gestartet",
+      "launchingDesc": "{{name}} wird geöffnet...",
+      "launchFailedTitle": "Start fehlgeschlagen",
+      "launchFailedDesc": "{{name}} konnte nicht gestartet werden. Ist die App installiert?",
+      "exitTitle": "Drücke nochmal Zurück zum Beenden",
+      "exitDesc": "Drücke die Zurück-Taste noch einmal, um die App zu schließen",
+      "installTitle": "{{name}} installieren",
+      "installDesc": "Haupt-Apps werden geöffnet, damit du sie herunterladen kannst.",
+      "plexCantOpenTitle": "In Plex nicht zu öffnen",
+      "plexCantOpenDesc": "Plex-Infos zum Titel fehlen.",
+      "plexPlayingTitle": "Wiedergabe in Plex…",
+      "plexMissingTitle": "Plex ist nicht installiert",
+      "plexMissingDesc": "Installiere Plex, um diesen Titel abzuspielen.",
+      "plexFailedTitle": "Wiedergabe konnte nicht starten",
+      "plexFailedDesc": "Stattdessen wird Plex geöffnet."
+    },
+    "mediaBar": {
+      "heading": "Empfohlen",
+      "prevLabel": "Zurück",
+      "nextLabel": "Weiter",
+      "demoTitle": "Live-Demo"
+    },
+    "badges": {
+      "trendingChip": "TRENDS",
+      "continueChip": "WEITER",
+      "liveChip": "LIVE",
+      "forYouChip": "FÜR DICH"
+    },
+    "newsTicker": {
+      "loading": "Nachrichten werden geladen...",
+      "fallback1": "🚀 Neues App-Update verfügbar",
+      "fallback2": "📺 Live-Support jetzt verfügbar - Chatte mit Snow Media",
+      "fallback3": "🎬 Neue Video-Tutorials im Support",
+      "fallback4": "💫 Der Snow Media Store hat neue Inhalte"
+    },
+    "clock": {
+      "updateTitle": "Update verfügbar: v{{version}}",
+      "updateTitleShort": "Update verfügbar",
+      "updateAria": "Update verfügbar — öffne Einstellungen → Updates"
+    },
+    "notFound": {
+      "title": "Hoppla! Seite nicht gefunden",
+      "homeLink": "Zurück zur Startseite"
+    },
+    "contentBarPrompt": {
+      "title": "Live-Inhaltsleiste anzeigen?",
+      "description": "Sie zeigt beliebte Titel und Live-Sport oben auf dem Startbildschirm.",
+      "preview": "Vorschau",
+      "liveSub": "{{league}} · Live",
+      "continueSub": "Weiter · {{episode}}",
+      "laggy": "Auf älteren oder schwächeren Geräten kann es etwas ruckeln.",
+      "notNowBtn": "Nicht jetzt",
+      "turnOnBtn": "Einschalten",
+      "footer": "Du kannst das jederzeit in den Einstellungen ändern."
+    },
+    "welcome": {
+      "title": "Willkommen bei Snow Media Center",
+      "intro": "Das macht jeder Bereich:",
+      "mainAppsDesc": "Lade alle Apps von Snow Media herunter.",
+      "supportVideosTitle": "Support-Videos",
+      "supportVideosDesc": "Schritt-für-Schritt-Videos zu Geräten und Diensten.",
+      "chatTitle": "Chat & Community",
+      "chatDesc": "Sende Tickets für Hilfe oder Fragen — auch KI-Chat verfügbar.",
+      "signInNote": "Melde dich mit deinem Konto von <1>snowmediaent.com</1> an oder erstelle ein neues, um Käufe und Snow Gems im Blick zu behalten.",
+      "whatsNew": "Neu in v{{version}}",
+      "scrollHint": "▲ ▼ scrollen · OK schließen",
+      "closeHint": "OK schließen",
+      "letsGoBtn": "Los geht's"
+    }
+  }
+}
