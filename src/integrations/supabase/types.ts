@@ -1975,6 +1975,60 @@ export type Database = {
         }
         Relationships: []
       }
+      game_day_channel_edits: {
+        Row: {
+          action: string
+          channel_name: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          game_id: string
+          game_name: string | null
+          game_start: string | null
+          id: string
+          league: string | null
+          note: string | null
+          service: string
+          sort: number
+          stream_id: number
+          updated_at: string
+        }
+        Insert: {
+          action: string
+          channel_name: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          game_id: string
+          game_name?: string | null
+          game_start?: string | null
+          id?: string
+          league?: string | null
+          note?: string | null
+          service: string
+          sort?: number
+          stream_id: number
+          updated_at?: string
+        }
+        Update: {
+          action?: string
+          channel_name?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          game_id?: string
+          game_name?: string | null
+          game_start?: string | null
+          id?: string
+          league?: string | null
+          note?: string | null
+          service?: string
+          sort?: number
+          stream_id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       game_leaderboard: {
         Row: {
           best_score: number
@@ -5009,6 +5063,21 @@ export type Database = {
       }
       admin_delete_posts: {
         Args: { p_mail_ids?: string[]; p_news_ids?: string[] }
+        Returns: Json
+      }
+      admin_game_day_clear: { Args: { p_id: string }; Returns: Json }
+      admin_game_day_set: {
+        Args: {
+          p_action: string
+          p_channel_name: string
+          p_game_id: string
+          p_game_name?: string
+          p_game_start?: string
+          p_league?: string
+          p_note?: string
+          p_service: string
+          p_stream_id: number
+        }
         Returns: Json
       }
       admin_gem_activity: {
