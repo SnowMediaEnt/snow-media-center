@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Volume2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -81,8 +82,9 @@ export const VoiceInput = ({
   disabled = false,
   className = '',
   autoStart = false,
-  prompt = 'Ask Snow Media AI',
+  prompt,
 }: VoiceInputProps) => {
+  const { t } = useTranslation();
   const [localVoiceState, setLocalVoiceState] = useState<VoiceState>('idle');
   const voiceStateRef = useRef<VoiceState>('idle');
   const mountedRef = useRef(true);
@@ -96,6 +98,8 @@ export const VoiceInput = ({
   const recordingTimeoutRef = useRef<number | null>(null);
   const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
   const { toast } = useToast();
+  // The line the Android speech dialog shows (the caller's, or the default).
+  const speechPrompt = prompt ?? t('voice.input.askPrompt');
 
   const currentVoiceState = localVoiceState;
 
@@ -121,8 +125,8 @@ export const VoiceInput = ({
   // The voice command overlay has no text box to type in; the phone remote's
   // Voice button works there.
   const fireTvNoMic = onVoiceError
-    ? 'Fire TV remotes don\'t expose the mic to apps — use the Voice button on the phone remote.'
-    : 'Fire TV remotes don\'t expose the mic to apps — please type your message.';
+    ? t('voice.input.fireTvNoMicRemote')
+    : t('voice.input.fireTvNoMicType');
 
   const failToast = (title: string, description: string) => {
     if (onVoiceError) onVoiceError(title, description);
@@ -193,22 +197,22 @@ export const VoiceInput = ({
       if (isNativePlatform()) {
         try {
           await AppManager.openAppSettings({ packageName: 'com.snowmedia' });
-          onVoiceError?.('Microphone permission needed', 'Turn on Microphone for Snow Media Center, then try again.');
+          onVoiceError?.(t('voice.input.micPermissionTitle'), t('voice.input.micPermissionTurnOn'));
         } catch (settingsError) {
           console.warn('openAppSettings failed', settingsError);
-          failToast('Microphone permission needed', 'Open Settings → Apps → Snow Media Center → Permissions and enable Microphone.');
+          failToast(t('voice.input.micPermissionTitle'), t('voice.input.micPermissionOpenSettings'));
         }
       } else {
-        failToast('Microphone permission needed', 'Allow microphone access in your browser, then try Voice again.');
+        failToast(t('voice.input.micPermissionTitle'), t('voice.input.micPermissionBrowser'));
       }
     } else if (code === 'NO_MICROPHONE_HARDWARE') {
-      failToast('No microphone available', 'This device does not expose a microphone to apps.');
+      failToast(t('voice.input.noMicTitle'), t('voice.input.noMicDesc'));
     } else if (code === 'VOICE_RECOGNIZER_BUSY') {
-      failToast('Voice is busy', 'Voice input was reset. Try again.');
+      failToast(t('voice.input.busyTitle'), t('voice.input.busyDesc'));
     } else if (code === 'EMPTY_SPEECH') {
-      failToast('No speech heard', 'I didn’t catch that, try again.');
+      failToast(t('voice.input.noSpeechTitle'), t('voice.input.noSpeechDesc'));
     } else {
-      failToast('Voice input failed', message || 'Could not start listening on this device. Try again.');
+      failToast(t('voice.input.failedTitle'), message || t('voice.input.failedDesc'));
     }
 
     cleanupAudioSession();
@@ -243,7 +247,7 @@ export const VoiceInput = ({
       // remote mic isn't accessible to MediaRecorder so we land here.
       if (audioBlob.size < MIN_AUDIO_BYTES) {
         if (isFireTV()) {
-          failToast("Voice isn't available on this device", fireTvNoMic);
+          failToast(t('voice.input.unavailableTitle'), fireTvNoMic);
           cleanupAudioSession();
           finishAfterErrorOrCancel('error');
           return;
@@ -256,7 +260,7 @@ export const VoiceInput = ({
       // would otherwise see "edge function returned a non-2xx status code".
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        failToast('Sign in to use voice', 'Voice input is a signed-in feature. Please sign in and try again.');
+        failToast(t('voice.input.signInTitle'), t('voice.input.signInDesc'));
         cleanupAudioSession();
         finishAfterErrorOrCancel('error');
         return;
@@ -281,7 +285,7 @@ export const VoiceInput = ({
       if (error) {
         // Translate the cryptic non-2xx into something actionable.
         if (isFireTV()) {
-          failToast("Voice isn't available on this device", fireTvNoMic);
+          failToast(t('voice.input.unavailableTitle'), fireTvNoMic);
           cleanupAudioSession();
           finishAfterErrorOrCancel('error');
           return;
@@ -339,7 +343,7 @@ export const VoiceInput = ({
       // clear message instead of the cryptic "non-2xx" later.
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        failToast('Sign in to use voice', 'Voice input is a signed-in feature. Please sign in and try again.');
+        failToast(t('voice.input.signInTitle'), t('voice.input.signInDesc'));
         cleanupAudioSession();
         finishAfterErrorOrCancel('error');
         return;
@@ -404,7 +408,7 @@ export const VoiceInput = ({
         stopFallbackRecording('timeout');
       }, FALLBACK_RECORDING_TIMEOUT_MS);
 
-      toast({ title: 'Listening…', description: 'Tap again to stop.' });
+      toast({ title: t('voice.input.listeningTitle'), description: t('voice.input.listeningDesc') });
     } catch (error) {
       await showVoiceError(getErrorCode(error), 'browser', error);
     }
@@ -419,7 +423,7 @@ export const VoiceInput = ({
   const startNativeThenFallback = async () => {
     const now = Date.now();
     if (now < cooldownUntilRef.current) {
-      toast({ title: 'Voice is resetting', description: 'Try again in a moment.' });
+      toast({ title: t('voice.input.resettingTitle'), description: t('voice.input.resettingDesc') });
       return;
     }
 
@@ -433,7 +437,7 @@ export const VoiceInput = ({
     console.log(`VOICE_NATIVE_AVAILABLE: ${available}`);
 
     if (!available) {
-      toast({ title: 'No speech recognizer', description: 'Using ElevenLabs voice fallback.' });
+      toast({ title: t('voice.input.noRecognizerTitle'), description: t('voice.input.noRecognizerDesc') });
       await startFallbackRecording('native_fallback');
       return;
     }
@@ -441,7 +445,7 @@ export const VoiceInput = ({
     nativePendingRef.current = true;
     transitionVoiceState('listening');
     try {
-      const result = await AppManager.startVoiceInput({ prompt });
+      const result = await AppManager.startVoiceInput({ prompt: speechPrompt });
       cooldownUntilRef.current = Date.now() + NATIVE_COOLDOWN_MS;
       nativePendingRef.current = false;
       const text = result.text?.trim() ?? '';
@@ -451,7 +455,7 @@ export const VoiceInput = ({
         // Fire TV Alexa often consumes the mic so the native recognizer hears nothing.
         // Auto-fall back to ElevenLabs recording instead of nagging the user.
         console.warn('VOICE_NATIVE_EMPTY → falling back to ElevenLabs recording');
-        toast({ title: 'Switching to backup mic', description: 'Listening again — speak now.' });
+        toast({ title: t('voice.input.backupMicTitle'), description: t('voice.input.backupMicDesc') });
         await startFallbackRecording('native_fallback');
         return;
       }
@@ -482,7 +486,7 @@ export const VoiceInput = ({
 
       if (shouldFallbackFromNativeError(code) || code === 'EMPTY_SPEECH') {
         console.warn(`VOICE_NATIVE_${code} → ElevenLabs fallback`);
-        toast({ title: 'Switching to backup mic', description: 'Listening again — speak now.' });
+        toast({ title: t('voice.input.backupMicTitle'), description: t('voice.input.backupMicDesc') });
         await startFallbackRecording('native_fallback');
         return;
       }
@@ -562,17 +566,17 @@ export const VoiceInput = ({
       {isListening ? (
         <>
           <MicOff className="w-4 h-4 mr-2 animate-pulse" />
-          Stop
+          {t('voice.input.stopBtn')}
         </>
       ) : isBusy ? (
         <>
           <Volume2 className="w-4 h-4 mr-2 animate-pulse" />
-          {currentVoiceState === 'speaking' ? 'Speaking...' : currentVoiceState === 'sending_to_ai' ? 'Sending...' : currentVoiceState === 'requesting_permission' ? 'Preparing...' : 'Processing...'}
+          {currentVoiceState === 'speaking' ? t('voice.input.speakingChip') : currentVoiceState === 'sending_to_ai' ? t('voice.input.sendingChip') : currentVoiceState === 'requesting_permission' ? t('voice.input.preparingChip') : t('voice.input.processingChip')}
         </>
       ) : (
         <>
           <Mic className="w-4 h-4 mr-2" />
-          Voice
+          {t('voice.input.voiceBtn')}
         </>
       )}
     </Button>

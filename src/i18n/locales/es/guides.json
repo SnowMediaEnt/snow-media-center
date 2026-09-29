@@ -1,0 +1,410 @@
+{
+  "guides": {
+    "howTo": {
+      "basics": {
+        "title": "Lo básico",
+        "subtitle": "Tu control remoto y la pantalla de inicio",
+        "s0": {
+          "title": "Muévete con las flechas. OK elige. Atrás vuelve.",
+          "line2": "Eso es el 90 % de todo, y no puedes romper nada."
+        },
+        "s1": {
+          "title": "Esta es tu pantalla de inicio.",
+          "line2": "Tarjetas grandes: TV en vivo, Plex, Soporte y la Tienda."
+        },
+        "s2": {
+          "title": "La barra de arriba es tuya.",
+          "line2": "Lo que estabas viendo, tus canales en vivo con lo que dan ahora y sugerencias según lo que ves. OK te lleva directo."
+        },
+        "s3": {
+          "title": "La línea que se desplaza arriba del todo son noticias nuestras.",
+          "line2": "Ahí salen ofertas, novedades y avisos."
+        },
+        "s4": {
+          "title": "Mi cuenta y Ajustes están en la esquina superior derecha."
+        }
+      },
+      "livetv": {
+        "title": "Reproductor: TV en vivo",
+        "subtitle": "Canales, diseños, guía y multipantalla",
+        "s0": {
+          "title": "Abre TV en vivo desde la pantalla de inicio.",
+          "line2": "Inicia sesión con los datos que te dio tu vendedor. Cada cuenta que agregues aparece en una sola lista.",
+          "linkBtn": "Llévame allí"
+        },
+        "s1": {
+          "title": "Elige tu estilo: Classic, Compact o Vibez.",
+          "line2": "TV en vivo te lo pregunta la primera vez. Cámbialo cuando quieras en Ajustes del reproductor → Apariencia."
+        },
+        "s2": {
+          "title": "Elige una categoría y luego un canal.",
+          "line2": "En Compact, las categorías están una pulsación a la IZQUIERDA. Atrás desde los canales lleva a las categorías."
+        },
+        "s3": {
+          "title": "Detente en un canal y se reproduce en el cuadro de vista previa. OK lo pasa a pantalla completa.",
+          "line2": "En Vibez, OK reproduce de inmediato. Mientras ves, OK muestra los controles; Arriba y Abajo cambian de canal."
+        },
+        "s4": {
+          "title": "La Guía muestra lo que dan ahora y lo que sigue."
+        },
+        "s5": {
+          "title": "Multipantalla reproduce 2 o 4 canales a la vez.",
+          "line2": "El sonido sigue al recuadro que resaltas."
+        },
+        "s6": {
+          "title": "¿Un canal no funciona? Mantén OK sobre él.",
+          "line2": "Reporta un problema, agrégalo a Favoritos o actualiza un favorito cuyo enlace cambió. Los reportes nos llegan directo."
+        }
+      },
+      "movies": {
+        "title": "Reproductor: Plex",
+        "subtitle": "Películas y series",
+        "s0": {
+          "title": "Abre Plex desde la pantalla de inicio.",
+          "linkBtn": "Llévame allí"
+        },
+        "s1": {
+          "title": "¿Ya iniciaste sesión en TV en vivo? Plex se conecta solo, sin códigos.",
+          "line2": "¿Aún no has iniciado sesión? Pulsa Conectar con TV en vivo. No necesitas tu propia cuenta de Plex."
+        },
+        "s2": {
+          "title": "El menú de la izquierda: Inicio, Descubrir, tus bibliotecas, Buscar y Solicitar.",
+          "line2": "OK sobre un póster abre la página del título; luego pulsa Reproducir."
+        },
+        "s3": {
+          "title": "¿No sabes qué ver? Descubrir tiene Joyas ocultas, Sorpréndeme, géneros y décadas.",
+          "line2": "Inicio muestra lo que estabas viendo, las novedades y lo más visto."
+        },
+        "s4": {
+          "title": "¿No quieres una biblioteca? Mantén OK sobre ella en el menú para ocultarla.",
+          "line2": "Recupérala en Ajustes → Ocultas."
+        },
+        "s5": {
+          "title": "¿Necesitas subtítulos? Abre el menú Subtítulos y elige \"Get subtitles…\"."
+        },
+        "s6": {
+          "title": "¿Sin sonido? Abre el menú Audio y pulsa \"Fix audio\".",
+          "line2": "Arregla el sonido sin reiniciar tu película."
+        }
+      },
+      "apps": {
+        "title": "Apps principales",
+        "subtitle": "Consigue y administra tus apps",
+        "s0": {
+          "title": "Apps principales tiene todas las apps extra que puedas necesitar, en un solo lugar seguro.",
+          "line2": "Encuéntrala en Soporte → Apps principales.",
+          "linkBtn": "Llévame allí"
+        },
+        "s1": {
+          "title": "Pulsa OK en una app y luego Descargar para instalarla.",
+          "line2": "¿Ya está instalada? Solo dice Abrir."
+        }
+      },
+      "support": {
+        "title": "Soporte",
+        "subtitle": "Ayuda, IA y Publicaciones",
+        "s0": {
+          "title": "¿Atascado? Soporte te ayuda.",
+          "line2": "Tres pestañas: Ayuda, Chat con IA y Publicaciones."
+        },
+        "s1": {
+          "title": "La prueba de velocidad revisa si tu internet es lo bastante rápido para hacer streaming."
+        },
+        "s2": {
+          "title": "¿La TV se pausa seguido? Abre la Guía de buffering: te lleva por soluciones fáciles.",
+          "linkBtn": "Abrirla"
+        },
+        "s3": {
+          "title": "Envía un ticket para hablar con una persona real.",
+          "line2": "Cuando respondamos, aparece un número en la tarjeta de Soporte.",
+          "linkBtn": "Abrir tickets"
+        },
+        "s4": {
+          "title": "¿El equipo va lento o sin espacio? El Limpiador del dispositivo lo libera.",
+          "line2": "Vacía la caché de cada app, cierra las apps en segundo plano y lista las que nadie abre.",
+          "linkBtn": "Abrir el limpiador"
+        },
+        "s5": {
+          "title": "El Chat con IA responde al instante y puede hacer cosas por ti.",
+          "line2": "Pídele que abra una pantalla, cambie el estilo de TV en vivo, reporte un canal, instale una app o te haga un fondo de pantalla."
+        },
+        "s6": {
+          "title": "Publicaciones: cada correo que enviamos también llega aquí.",
+          "line2": "Con fecha, marcadas como Nuevo hasta que las abres y legibles a pantalla completa. Los enlaces se convierten en un código que escaneas con tu teléfono.",
+          "linkBtn": "Ver publicaciones"
+        }
+      },
+      "account": {
+        "title": "Mi cuenta y Snow Gems",
+        "subtitle": "Panel, gems y juegos",
+        "s0": {
+          "title": "Mi cuenta es tu panel: todo en una sola pantalla.",
+          "line2": "Tu cuenta de streaming, dispositivos y servicios, y tus Snow Gems. ¿Lo prefieres más grande? Ajustes → Interfaz → Panel grande.",
+          "linkBtn": "Llévame allí"
+        },
+        "s1": {
+          "title": "Los Snow Gems dan poder a la IA Premium y a la generación de imágenes.",
+          "line2": "Compra Snow Gems: elige un paquete, escanea el código con tu teléfono y paga allí; los gems llegan solos a tu cuenta."
+        },
+        "s2": {
+          "title": "El Game Lounge: Blackjack, Roulette, Slots, Plinko, Dice, Video Poker, Trivia y el Daily Spin.",
+          "line2": "Juega por Snow Coins y sube en la clasificación. Nunca con dinero real.",
+          "linkBtn": "Abrir el Game Lounge"
+        }
+      },
+      "extras": {
+        "title": "Ajustes y extras",
+        "subtitle": "Hazlo tuyo",
+        "s0": {
+          "title": "Cambia tu fondo de pantalla en Ajustes → Medios.",
+          "line2": "Sube el tuyo o descríbelo y deja que la IA lo cree.",
+          "linkBtn": "Llévame allí"
+        },
+        "s1": {
+          "title": "Ajustes → Interfaz tiene los interruptores.",
+          "line2": "Barra de contenido sí o no, panel grande, notificaciones de publicaciones y alertas en este dispositivo."
+        },
+        "s2": {
+          "title": "Cuentas guardadas recuerda tus inicios de sesión para que no tengas que escribirlos otra vez."
+        }
+      },
+      "title": "Cómo usar SMC",
+      "pickTopic": "Elige un tema; pulsa Atrás cuando quieras para salir.",
+      "slideCount_one": "{{count}} diapositiva",
+      "slideCount_many": "{{count}} diapositivas",
+      "slideCount_other": "{{count}} diapositivas",
+      "slideOf": "Diapositiva {{current}} de {{total}}",
+      "doneBtn": "Listo",
+      "nextBtn": "Siguiente"
+    },
+    "buffering": {
+      "steps": {
+        "intro": "App",
+        "step1": "Uno o todos",
+        "step2": "Actualizar app",
+        "step3": "Velocidad",
+        "step4": "VPN",
+        "summary": "Resultados"
+      },
+      "hints": {
+        "intro": "Elige la app que se corta y pulsa Siguiente.",
+        "step1": "¿Solo un canal o título? Repórtalo y lo arreglamos en el origen.",
+        "step2": "Force Stop, luego Clear Cache y pulsa Atrás para volver aquí.",
+        "step3": "Busca 15 Mbps o más en este dispositivo.",
+        "step4": "Instala, inicia sesión, Quick Connect y prueba de nuevo.",
+        "summary": "Envía estos resultados a soporte si sigue cortándose."
+      },
+      "kidsHints": {
+        "step1": "¿Solo un canal o título? Dile a un adulto cuál.",
+        "step2": "Pídele a un adulto que borre la caché de la app.",
+        "step4": "Pídele a un adulto que configure una VPN.",
+        "summary": "¿Sigue cortándose? Muéstraselo a un adulto."
+      },
+      "yourApp": "tu app",
+      "backToPlayerBtn": "Volver al reproductor",
+      "title": "Arreglar buffering",
+      "stepOf": "Paso {{current}} de {{total}} · {{label}}",
+      "progressAria": "Progreso",
+      "skipToVpnTitle": "¿Ya probaste una VPN? Ve directo al paso de VPN.",
+      "skipToVpnBtn": "¿Ya probaste lo demás? Ve al paso de VPN",
+      "kidsOne": {
+        "title": "Díselo a un adulto",
+        "lead": "Cuando falla un solo canal o programa, se arregla en el origen. Dile a un adulto cuál: puede reportarlo desde su perfil."
+      },
+      "changeAnswerBtn": "Cambiar respuesta",
+      "nextBtn": "Siguiente",
+      "goBackBtn": "Volver",
+      "skipVpnBtn": "Omitir VPN",
+      "sendingBtn": "Enviando…",
+      "sendAnywayBtn": "Enviar igual",
+      "stillBufferingBtn": "Sigue cortándose",
+      "openAppBtn": "Abrir {{app}}",
+      "qrAlt": "Código QR",
+      "toast": {
+        "openedSettingsTitle": "Se abrieron los ajustes de la app",
+        "openedSettingsDesc": "Toca Force Stop y luego Storage → Clear Cache. Pulsa Atrás al terminar.",
+        "webOnlyTitle": "Ábrelo en la app instalada",
+        "webOnlyDesc": "Esta acción solo funciona dentro de la app Snow Media Center instalada.",
+        "cantOpenSettingsTitle": "No se pudieron abrir los ajustes",
+        "cantLaunchTitle": "No se pudo abrir la app",
+        "ticketSubmittedTitle": "Ticket enviado",
+        "ticketSubmittedDesc": "Abriendo Soporte → Tickets.",
+        "cantSubmitTitle": "No se pudo enviar el ticket",
+        "unknownError": "Error desconocido",
+        "enterTitleTitle": "Escribe un título",
+        "enterTitleDesc": "Escribe primero el nombre del canal, película o programa.",
+        "pickDeviceTitle": "Elige un dispositivo",
+        "pickDeviceDesc": "Dinos en qué dispositivo estás viendo.",
+        "reportSentTitle": "Reporte enviado",
+        "reportSentDesc": "¡Gracias! La próxima vez inicia sesión para seguirlo en tu cuenta.",
+        "cantSendReportTitle": "No se pudo enviar el reporte",
+        "openAndroidSettingsTitle": "Abre Ajustes de Android → Apps",
+        "openAndroidSettingsDesc": "Busca la app y toca Force Stop y Clear Cache.",
+        "greatTitle": "¡Genial!",
+        "greatDesc": "Nos alegra que quedara resuelto.",
+        "invalidSpeedTitle": "Velocidad no válida",
+        "invalidSpeedDesc": "Escribe un número como 25.",
+        "speedLowTitle": "La velocidad es muy baja",
+        "speedLowDesc": "Por debajo de 15 Mbps habrá cortes. Prueba Wi-Fi de 5 GHz, acércate o usa Ethernet.",
+        "vpnNotInStoreTitle": "La VPN no está en la tienda",
+        "vpnNotInStoreDesc": "Usa el código de Downloader.",
+        "switchVpnServerTitle": "Cambia el servidor de VPN",
+        "switchVpnServerDesc": "Elige la ciudad o servidor más cercano y vuelve a probar: 15+ Mbps.",
+        "getSpeedFirstTitle": "Primero sube la velocidad a 15+",
+        "getSpeedFirstDesc": "Cambia la ciudad o servidor de la VPN y vuelve a probar la velocidad.",
+        "awesomeTitle": "¡Excelente!",
+        "awesomeDesc": "Probablemente tu proveedor limitaba la velocidad: deja la VPN activa mientras ves.",
+        "openAppManually": "Abre la app de streaming manualmente.",
+        "enterSpeedTitle": "Escribe tu velocidad de descarga",
+        "enterSpeedDesc": "Escribe los Mbps que viste arriba y continúa."
+      },
+      "anon": {
+        "title": "¿Enviar el reporte sin iniciar sesión?",
+        "body1": "Tu reporte se enviará a soporte de Snow Media, pero <0>no</0> se guardará en tu cuenta.",
+        "body2": "Consejo: vuelve a la pantalla de inicio y toca primero <0>Iniciar sesión</0> para que tu ticket quede en tu cuenta y puedas seguir las respuestas."
+      },
+      "signInPrompt": {
+        "title": "Inicia sesión para enviar un ticket",
+        "body1": "Necesitas una cuenta para enviar un ticket de soporte, así nuestro equipo puede <0>responderte</0> y tú puedes seguir la conversación.",
+        "body2": "Inicia sesión o crea una cuenta gratis para enviar tu ticket y recibir respuestas.",
+        "signInBtn": "Entrar"
+      },
+      "vpnSkip": {
+        "title": "¿Omitir el paso de VPN?",
+        "body1": "Ojo: tu proveedor de internet puede ralentizarte en horas pico, o sin motivo claro. En 2026, la limitación del proveedor es la <0>causa n.º 1 de los cortes</0>.",
+        "body2": "Si nada ha funcionado hasta ahora, instalar y activar una VPN casi seguro lo arregla. Aun así puedes continuar si prefieres omitirlo por ahora."
+      },
+      "intro": {
+        "title": "¿Qué app se corta?",
+        "lead": "Repasaremos las soluciones habituales una por una. Esto es para las apps de streaming de Snow Media; si se corta Netflix, Disney+ o Hulu, suele ser otra cosa.",
+        "subLive": "TV en vivo, películas y programas",
+        "subPlex": "Tus películas y TV de Plex",
+        "otherLabel": "Otra / no estoy seguro",
+        "otherSub": "Cualquier otra app de streaming"
+      },
+      "device": {
+        "fireTv": "Amazon Fire TV / Firestick",
+        "androidTv": "Android TV / Google TV",
+        "androidPhone": "Teléfono o tablet Android",
+        "setTop": "Decodificador (X96 / T95 / etc.)",
+        "other": "Otro"
+      },
+      "report": {
+        "title": "Reporta el canal o título",
+        "lead": "Dinos exactamente qué se corta en <0>{{appLabel}}</0> y en qué dispositivo ves. Abriremos un ticket de soporte para arreglarlo en el origen.",
+        "nameLabel": "Nombre del canal, película o programa",
+        "namePlaceholder": "p. ej. ESPN HD, The Bear S03E01",
+        "deviceQuestion": "¿En qué dispositivo estás viendo?",
+        "sendBtn": "Enviar reporte"
+      },
+      "step1": {
+        "title": "¿Es un solo canal o todo?",
+        "lead": "Cuando falla un solo canal o título, tu internet suele estar bien: es el origen, y lo arreglamos de nuestro lado.",
+        "oneTitle": "Solo un canal o título",
+        "oneSub": "Repórtalo y lo arreglamos",
+        "allTitle": "Todo se corta",
+        "allSub": "Busquemos la causa juntos"
+      },
+      "step2": {
+        "title": "Actualizar {{app}}",
+        "lead": "Borrar la caché de la app arregla muchos cortes. No cierra tu sesión ni borra nada.",
+        "kidsNote": "Pídele a un adulto que haga esta parte. En los ajustes del equipo para {{app}}: <0>Force Stop</0> y luego <1>Storage → Clear Cache</1>.",
+        "openSettingsBtn": "Abrir ajustes de {{app}}",
+        "item1": "Elige <0>Force Stop</0> (Forzar detención)",
+        "item2": "Ve a <0>Storage → Clear Cache</0> (Borrar caché), no a Clear Data",
+        "item3": "Pulsa <0>Atrás</0> en tu control para volver aquí",
+        "notInstalled": "{{app}} no parece estar instalada en este dispositivo. Instálala primero desde Apps principales.",
+        "question": "¿Eso arregló los cortes?",
+        "fixedBtn": "Sí, quedó arreglado",
+        "stillSub": "Ahora probaremos la velocidad de tu internet"
+      },
+      "step3": {
+        "title": "Prueba la velocidad de tu internet",
+        "lead": "El streaming necesita al menos 15 Mbps de descarga en este dispositivo. Haz la prueba aquí o escribe un resultado de otra prueba de velocidad.",
+        "runBtn": "Probar velocidad",
+        "typeLabel": "O escribe tu velocidad de descarga",
+        "mbps": "Mbps",
+        "yourSpeed": "Tu velocidad",
+        "good": "Buena para streaming. Pulsa Siguiente.",
+        "tooSlow": "Muy lenta para ver sin cortes. Prueba Wi-Fi de 5 GHz, acerca el equipo al router o usa un cable Ethernet, y vuelve a probar.",
+        "emptyHint": "Haz la prueba y tu resultado aparecerá aquí."
+      },
+      "step4": {
+        "title": "Prueba una VPN",
+        "lead": "Los proveedores de internet suelen ralentizar el streaming, sobre todo por la noche. Una VPN se lo oculta y es la solución más común.",
+        "kidsNote": "Configurar una VPN es cosa de adultos. Pídele a uno que la instale y la active, y luego vuelve a probar tu transmisión.",
+        "installed": "Instalada",
+        "notInstalled": "No instalada",
+        "withVpn": "Con la VPN conectada",
+        "test1": "1. Prueba tu velocidad otra vez",
+        "runVpnBtn": "Probar velocidad con la VPN activa",
+        "speedOk": "15 Mbps o más",
+        "speedLow": "Menos de 15 Mbps",
+        "speedLowSub": "Elige una ciudad de VPN más cercana y prueba de nuevo",
+        "test2": "2. Prueba tu transmisión",
+        "test2In": "2. Prueba tu transmisión en {{app}}",
+        "vpnFixed": "La VPN lo arregló"
+      },
+      "vpn": {
+        "openBtn": "Abrir {{name}}",
+        "installBtn": "Instalar {{name}}",
+        "item1": "<0>Inicia sesión</0>: tu revendedor tiene los datos, o regístrate con el código QR",
+        "item2": "Elige <0>Quick Connect</0> y vuelve a probar tu transmisión",
+        "paidNote": "Una VPN es un servicio de pago: las gratuitas son muy lentas para streaming. <0>No</0> funciona con VibezTV.",
+        "needAccount": "¿Necesitas una cuenta?",
+        "scanToSignUp": "Escanea con tu teléfono para registrarte"
+      },
+      "summary": {
+        "sorted": "Resuelto",
+        "found": "Lo que encontramos",
+        "kidsNote": "¿Sigue cortándose? Muéstrale esta pantalla a un adulto. Puede enviarla a soporte desde su perfil.",
+        "sendBtn": "Enviar a soporte",
+        "startOverBtn": "Empezar de nuevo",
+        "whatYouTried": "Lo que probaste"
+      },
+      "diag": {
+        "oneOnly": {
+          "title": "Es ese canal o título",
+          "b1": "Si falla un solo canal o título, tu internet suele estar bien.",
+          "b2": "Envía a soporte el nombre exacto del canal o título para arreglarlo rápido."
+        },
+        "cacheFixed": {
+          "title": "Resuelto: borrar la caché lo arregló",
+          "b1": "Borrar la caché y reiniciar renueva la app y la conexión.",
+          "b2": "Si vuelve a pasar, repite primero el paso de Force Stop + Clear Cache."
+        },
+        "slow": {
+          "title": "Tu internet es muy lento en este dispositivo",
+          "b1": "La velocidad en el dispositivo de streaming es menor a 15 Mbps ({{speed}} Mbps).",
+          "b2": "Cambia a Wi-Fi de 5 GHz, acércate o prueba con Ethernet.",
+          "b3": "Reinicia el módem o router y vuelve a probar la velocidad."
+        },
+        "vpnFixed": {
+          "title": "Resuelto: tu proveedor te estaba ralentizando",
+          "b1": "Si la VPN funciona, es probable que tu proveedor ralentizara el tráfico de streaming (sobre todo en horas pico).",
+          "b2": "Deja la VPN activa mientras ves y usa un servidor cercano y rápido.",
+          "b3": "Si la velocidad baja con la VPN, elige la ciudad o servidor más cercano y vuelve a probar (15+ Mbps)."
+        },
+        "still": {
+          "title": "Sigue cortándose: que soporte lo revise",
+          "b1": "Vuelve a probar la velocidad más cerca del router (15+ Mbps).",
+          "b2": "Prueba la VPN con otra ciudad o servidor cercano y vuelve a probar la velocidad (15+ Mbps).",
+          "b3": "Pulsa Enviar a soporte y lo retomaremos con tus resultados."
+        }
+      },
+      "recap": {
+        "app": "App",
+        "other": "Otra",
+        "buffering": "Cortes",
+        "oneChannel": "Un canal o título",
+        "everything": "Todo",
+        "cacheFixed": "Borrar la caché lo arregló",
+        "speed": "Velocidad",
+        "speedValue": "{{speed}} Mbps",
+        "vpn": "VPN",
+        "vpnSpeed": "Velocidad con VPN 15+",
+        "vpnFixed": "La VPN lo arregló"
+      }
+    }
+  }
+}
