@@ -20,8 +20,14 @@
 //   team     a channel named after one of the teams, in that league
 //   league   the league's own channels ("MLB Zone", "NFL RedZone", "NBA TV")
 // The networks and locals do have a guide: as a game's list opens, it says
-// which of them has this game (and which has another one), and finds the
-// teams' cities' channels that have it (checkGuides).
+// which of them has this game (and which shows something else), and finds
+// the teams' cities' channels that have it (checkGuides). The guide has the
+// last word (arrangeLinks): a channel it shows with something else is
+// dropped, and a network only its name matched is listed apart, as not
+// confirmed. In the playoffs (national TV only) the zone channels are
+// dropped, and the teams', the locals' and the league's channels, and the
+// league's numbered feeds ("MLB 05"), are listed only when their guide has
+// the game.
 // Every sport the game-day function lists works the same way: the team
 // sports, fight cards, and events without teams (races, golf and tennis
 // tournaments), found by their name or their circuit, course or venue.
@@ -29,8 +35,12 @@
 // games: they are only ever a fight card's. What is on them comes from their
 // own names ("PPV EVENT 02: STSS Fonda 200 at Fonda (9.18 6:00 PM ET)"), as
 // Game Day's PPV list (ppvGames).
-// Streaming-only services (MLB.tv, ESPN+, Peacock …) are never links: no line
-// carries them as a channel.
+// Streaming services (Peacock, ESPN+, Prime Video …) are never a game's
+// channel by name alone. A line may carry them as numbered feeds ("US|
+// PEACOCK 02", "ESPN+ 07") whose names don't say what is on, but whose guide
+// does: the feeds of the game's own services, and of its networks' streaming
+// partners (NBC's Peacock, ESPN's ESPN+ …), are read as its list opens, and
+// listed only when their guide has the game (gameServices, checkGuides).
 //
 // The owner's picks: the Snow Media admin app can, for one game, add a channel
 // (first in its list, "Picked by Snow Media"), hide one, or mark one down
@@ -58,6 +68,10 @@ export interface Game {
    *  own name ("Italian GP"), the race session ("Race", "Qualifying"), and
    *  the circuit, course or venue with its city ("Monza"). */
   event?: string; session?: string; places?: string[];
+  /** A playoff game (older lists from the function never say): national TV
+   *  only, so the teams' and the league's own channels rarely have it.
+   *  `round`: ESPN's name for it ("AL Wild Card - Game 1"). */
+  postseason?: boolean; round?: string;
 }
 
 export type LinkKind = 'game' | 'network' | 'local' | 'team' | 'league' | 'zone';
@@ -83,12 +97,23 @@ export interface SportsChannel {
   cat: string;
   /** Leagues its name or category mention. */
   leagues: string[];
+  /** The streaming service it is a numbered feed of ("US| PEACOCK 02" →
+   *  'peacock'), worked out once, as the channel is read. */
+  service?: string;
 }
 
+/** What a game's guide check says about a link (checkGuides): 'yes' a
+ *  listing around kickoff has the game; 'other' the listings there show
+ *  something else; 'none' it can't tell (no listing, a failed lookup, or a
+ *  listing of the league that names no teams: "MLB Baseball"). */
+export type GuideVerdict = 'yes' | 'other' | 'none';
+
 /** A link for one game. `picked`: the owner added it for this game;
- *  `ownerDown`: the owner marked it down for this game (applyChannelEdits). */
+ *  `ownerDown`: the owner marked it down for this game (applyChannelEdits);
+ *  `guide`: what its guide said, when it was read. */
 export interface GameChannel {
   line: XtreamCreds; stream: XtreamLiveStream; score: number; via: LinkKind; note?: string; picked?: boolean; ownerDown?: boolean;
+  guide?: GuideVerdict;
 }
 
 const GAMES_TTL_MS = 3 * 60_000;
@@ -174,15 +199,68 @@ const EVENTS = /\b(ppv|pay per view|events?)\b/;
 /** Pay-per-view: fights, festivals and small races, never a league's games. */
 const PPV = /\b(ppv|pay ?per ?view)\b/;
 
+/** Streaming services, by id: `head`, how its name starts (normalised
+ *  words); `bare`, a name that is the service only right before a number
+ *  ("Prime 03", "Max 04"; never "Prime Ticket", "Cinemax" or "ActionMAX"). */
+const SERVICES: Array<{ id: string; head: string; bare?: string }> = [
+  { id: 'peacock', head: 'peacock(?: tv)?' },
+  { id: 'espnplus', head: 'espn ?\\+|espn plus' },
+  { id: 'prime', head: 'prime video|amazon prime(?: video)?|amazon', bare: 'prime' },
+  { id: 'apple', head: 'apple tv ?\\+|apple tv|apple' },
+  { id: 'netflix', head: 'netflix' },
+  { id: 'max', head: 'hbo max', bare: 'max' },
+  { id: 'paramount', head: 'paramount ?\\+|paramount plus' },
+  { id: 'dazn', head: 'dazn' },
+  { id: 'fubo', head: 'fubo ?tv|fubo' },
+  { id: 'foxone', head: 'fox ?one' },
+  { id: 'youtube', head: 'youtube(?: tv)?' },
+  { id: 'nflplus', head: 'nfl ?\\+|nfl plus' },
+  // The leagues' own passes.
+  { id: 'mlbtv', head: 'mlb ?tv|mlb extra innings|extra innings' },
+  { id: 'nbaleaguepass', head: 'nba league pass' },
+  { id: 'nhlcenterice', head: 'nhl center ice|center ice' },
+  { id: 'mlsseasonpass', head: 'mls season pass|season pass' },
+  { id: 'sundayticket', head: 'nfl sunday ticket|sunday ticket' },
+];
+const COUNTRY = '(?:(?:us|usa|uk|ca) )?';
+/** A word some feeds carry before their number: "PEACOCK EVENT 02". */
+const FEED_WORD = '(?: (?:events?|sports?|live|ppv|ch|channel|feed|premium))?';
+/** A numbered feed of each service, on a cleaned channel name ("peacock 02",
+ *  "espn+ event 07"); ESPN's own name only with a leading-zero number or an
+ *  event word ("ESPN 01", "ESPN EVENT 05": ESPN+ feeds, where "ESPN 2" is
+ *  ESPN2). */
+const SERVICE_FEEDS: Array<[string, RegExp]> = [
+  ...SERVICES.map((s): [string, RegExp] => [s.id, new RegExp(`^${COUNTRY}(?:(?:${s.head})${FEED_WORD}${s.bare ? `|${s.bare}` : ''}) \\d{1,3}(?: |$)`)]),
+  ['espnplus', new RegExp(`^${COUNTRY}espn (?:0\\d{1,2}|(?:events?|ppv) \\d{1,3})(?: |$)`)],
+];
+/** Each service as a game's networks name it ("Peacock", "ESPN+ PPV", "MLB.tv"). */
+const SERVICE_NAMES: Array<[string, RegExp]> = SERVICES.map((s): [string, RegExp] =>
+  [s.id, new RegExp(`^(?:${s.head})(?: |$)${s.bare ? `|^(?:${s.bare})$` : ''}`)]);
+/** A service named anywhere in some words: a category of its feeds ("US|
+ *  PEACOCK"), or a channel worth a closer look. */
+const SERVICE_WORD = new RegExp(`(?:^| )(?:${SERVICES.flatMap((s) => (s.bare ? [s.head, s.bare] : [s.head])).join('|')})(?= |$)`);
+/** A "24/7" channel loops one show: never a live feed. */
+const LOOP = /\b24\s*[/x-]\s*7\b/i;
+
+/** The streaming service a channel is a numbered feed of (none: undefined).
+ *  `name` is the cleaned name, `raw` the name as the line gives it. */
+const feedService = (raw: string, name: string): string | undefined => {
+  if (!/\d/.test(name) || LOOP.test(raw)) return undefined;
+  for (const [id, re] of SERVICE_FEEDS) if (re.test(name)) return id;
+  return undefined;
+};
+
 const normalise = (s: string): string => normalizeSpeech(String(s ?? '').replace(/[|:_/-]+/g, ' '));
 
 /** How much a category matters to Game Day: 3 for a league's ("MLB ZONE"),
- *  2 for sports and events ("US| SPORTS", "PPV"), 1 for networks, locals and
- *  general US categories (where ESPN and FOX often live), 0 for the rest. */
+ *  2 for sports, events and streaming services ("US| SPORTS", "PPV", "US|
+ *  PEACOCK"), 1 for networks, locals and general US categories (where ESPN
+ *  and FOX often live), 0 for the rest ("NETFLIX MOVIES" too). */
 export const categoryWeight = (name: string): number => {
   const n = normalise(name);
   if (NOT_SPORTS.test(n)) return 0;
-  return leaguesIn(n).length ? 3 : SPORT.test(n) ? 2 : NETWORK.test(n) ? 1 : 0;
+  if (leaguesIn(n).length) return 3;
+  return SPORT.test(n) || (SERVICE_WORD.test(n) && !LOOP.test(name)) ? 2 : NETWORK.test(n) ? 1 : 0;
 };
 
 const lowMemory = (): boolean => {
@@ -196,7 +274,7 @@ export function sportsChannel(line: XtreamCreds, stream: XtreamLiveStream, catNa
   if (!name) return null;
   const cat = normalise(catName);
   const words = normalise(raw);
-  return { line, stream, name, full: ` ${words} `, cat, leagues: leaguesIn(`${cat} ${words}`) };
+  return { line, stream, name, full: ` ${words} `, cat, leagues: leaguesIn(`${cat} ${words}`), service: feedService(raw, name) };
 }
 
 let channelsCache: { key: string; at: number; list: SportsChannel[] } | null = null;
@@ -228,6 +306,12 @@ export async function loadSportsChannels(lines: XtreamCreds[]): Promise<SportsCh
           const id = String(s.category_id ?? '');
           const n = normalise(String(s.name ?? ''));
           if ((weight.get(id) ?? 0) > 0 || SPORT.test(n) || leaguesIn(n).length) add(line, s, catName.get(id) ?? '');
+          else if (/\d/.test(n) && SERVICE_WORD.test(n)) {
+            // A streaming service's numbered feed ("PEACOCK 02"), whatever
+            // its category ("STREAMING"): kept when it is one.
+            const c = sportsChannel(line, s, catName.get(id) ?? '');
+            if (c?.service) out.push(c);
+          }
         }
         continue;
       }
@@ -259,6 +343,7 @@ const NETWORK_ALIASES: Record<string, string[]> = {
   espnews: ['espnews'], secn: ['sec network'], 'sec network': ['sec network'], accn: ['acc network'], 'acc network': ['acc network'],
   btn: ['big ten network', 'btn'], 'big ten network': ['big ten network', 'btn'],
   cbssn: ['cbs sports network', 'cbssn'], 'cbs sports network': ['cbs sports network', 'cbssn'],
+  nbcsn: ['nbcsn', 'nbc sports network'],
   'nfl net': ['nfl network'], nfln: ['nfl network'], 'nfl network': ['nfl network'],
   'mlb net': ['mlb network'], mlbn: ['mlb network'], 'mlb network': ['mlb network'],
   'nhl net': ['nhl network'], nhln: ['nhl network'], 'nhl network': ['nhl network'],
@@ -274,10 +359,42 @@ const NETWORK_ALIASES: Record<string, string[]> = {
   'nbc sports': ['nbc sports'], 'root sports': ['root sports'], altitude: ['altitude'], 'monumental sports': ['monumental'],
   sportsnet: ['sportsnet'], tsn: ['tsn'],
 };
-/** Streaming-only services no line carries as a channel. */
+/** Streaming services, never a channel by name: a line carries them, if at
+ *  all, as numbered feeds (found by their guide: gameServices). */
 const STREAMING_ONLY = /(espn\+|\bpeacock\b|prime video|\bprime\b|paramount\+|apple tv|\bmax\b|netflix|youtube|dazn app|nfl\+|mlb\.?tv|nba league pass|nhl\.?tv|nhl power play|mls season pass|espn app|\bstreaming\b|\b\w+\.tv\b)/i;
 
 export const isStreamingOnly = (network: string): boolean => STREAMING_ONLY.test(network);
+
+/** The streaming service a TV network's games are on too: NBC's on Peacock,
+ *  ESPN's on ESPN+ … */
+const PARTNERS: Record<string, string> = {
+  nbc: 'peacock', nbcsn: 'peacock', 'nbc sports network': 'peacock', usa: 'peacock', 'usa net': 'peacock', 'usa network': 'peacock', telemundo: 'peacock',
+  abc: 'espnplus', espn: 'espnplus', espn2: 'espnplus', 'espn 2': 'espnplus', espnu: 'espnplus', secn: 'espnplus', 'sec network': 'espnplus',
+  accn: 'espnplus', 'acc network': 'espnplus',
+  cbs: 'paramount', cbssn: 'paramount', 'cbs sports network': 'paramount',
+  tnt: 'max', tbs: 'max', trutv: 'max', 'tru tv': 'max',
+  fox: 'foxone', fs1: 'foxone', 'fox sports 1': 'foxone', fs2: 'foxone', 'fox sports 2': 'foxone', btn: 'foxone', 'big ten network': 'foxone',
+};
+
+/** The streaming service a game's network is ("Peacock", "ESPN+ PPV"), or
+ *  undefined for a TV network. */
+const networkService = (network: string): string | undefined => {
+  const n = normalizeSpeech(String(network ?? ''));
+  for (const [id, re] of SERVICE_NAMES) if (re.test(n)) return id;
+  return undefined;
+};
+
+/** The streaming services whose numbered feeds may have a game, in the order
+ *  to look: its own ("Peacock" in its networks), then its TV networks'
+ *  partners (NBC → Peacock, ESPN → ESPN+). */
+export function gameServices(game: Game): string[] {
+  const out: string[] = [];
+  const put = (s: string | undefined) => { if (s && !out.includes(s)) out.push(s); };
+  const nets = Array.isArray(game?.networks) ? game.networks : [];
+  for (const n of nets) put(networkService(n));
+  for (const n of nets) put(PARTNERS[normalizeSpeech(String(n ?? ''))]);
+  return out;
+}
 
 const aliasesFor = (network: string): string[] => {
   const k = normalizeSpeech(network).replace(/\s+/g, ' ');
@@ -318,6 +435,9 @@ const aliasWords = (a: string[], c: string[]): number => {
   return a.length;
 };
 
+/** The word before a numbered feed's number: "ESPN EVENT 05", "FOX EVENT 2". */
+const FEED_EVENT = /^(events?|ppv)$/;
+
 /** How well a channel name is a network: 90 exactly, 75 a feed of it
  *  ("FOX 32 Chicago", "ESPN HD"), 0 otherwise. */
 const networkScore = (a: Alias, channel: string, words: string[]): number => {
@@ -328,6 +448,9 @@ const networkScore = (a: Alias, channel: string, words: string[]): number => {
   const rest = words.slice(n);
   // "ESPN 2" is ESPN2; "FOX 5 New York" is a FOX station.
   if (rest.length === 1 && /^\d$/.test(rest[0])) return 0;
+  // A numbered feed is not the network: "ESPN 01", "ESPN EVENT 05".
+  if (rest.length === 1 && /^0\d{1,2}$/.test(rest[0])) return 0;
+  if (rest.length === 2 && FEED_EVENT.test(rest[0]) && /^\d{1,3}$/.test(rest[1])) return 0;
   return OTHER_NETWORK.has(rest[0]) ? 0 : 75;
 };
 
@@ -655,6 +778,8 @@ export function channelsForGame(game: Game, channels: SportsChannel[], limit = 1
   const nets = aliasList(game.networks);
   const locals = aliasList((game.locals ?? []).map((l) => l.name));
   const places = [...w.home.place, ...w.away.place, ...w.home.own, ...w.away.own, ...w.home.shortPlace, ...w.away.shortPlace];
+  // The playoffs are on national TV only: never the league's own channels.
+  const post = !!game.postseason;
   const found: GameChannel[] = [];
   let leagueLinks = 0;
   for (const c of channels) {
@@ -673,22 +798,25 @@ export function channelsForGame(game: Game, channels: SportsChannel[], limit = 1
     let score = 0;
     let via: LinkKind = 'team';
     if (!other && (has(c.full, w.home.own) || has(c.full, w.away.own))) score = inLeague ? 60 : 45;
-    const net = bestNetwork(nets, c.name);
+    // A streaming service's numbered feed ("ESPN 01", "FOX ONE 03") is never
+    // the network itself: its guide says what is on (checkGuides).
+    const net = c.service ? 0 : bestNetwork(nets, c.name);
     if (net > 0) {
       // A local station of a national network: the teams' own cities first.
       const s = net === 90 ? 70 : has(` ${c.name} `, places) ? 62 : 52;
       if (s > score) { score = s; via = 'network'; }
     }
-    const local = bestNetwork(locals, c.name);
+    const local = c.service ? 0 : bestNetwork(locals, c.name);
     if (local > 0) {
       const s = local === 90 ? 66 : 58;
       if (s > score) { score = s; via = 'local'; }
     }
     // A league's own channels; for an event, also a channel named for the
     // league and nothing else ("Sky Sports F1", "UFC Fight Pass"), not one
-    // named for another event ("NASCAR Cup: Talladega").
+    // named for another event ("NASCAR Cup: Talladega"). None in the
+    // playoffs: "MLB Zone" or "NBA TV" never has a playoff game.
     const leagueOwn = LEAGUE_CHANNEL.test(c.name) || (!!w.card && leagueOnly(c.name, game.league));
-    if (!score && leagueLinks < 4 && inLeague && leagueOwn && !isNumberedEvent(c, game.league)) {
+    if (!score && !post && leagueLinks < 4 && inLeague && leagueOwn && !isNumberedEvent(c, game.league)) {
       leagueLinks += 1;
       score = 30;
       via = ZONE_CHANNEL.test(c.name) ? 'zone' : 'league';
@@ -726,6 +854,59 @@ export function mergeLinks(sources: GameChannel[][], channels: SportsChannel[]):
       seen.add(k);
       const stream = fresh.get(k);
       out.push(stream && stream !== l.stream ? { ...l, stream } : l);
+    }
+  }
+  return out;
+}
+
+// ── what the guide leaves ──────────────────────────────────────────────────
+
+const leagueFeedRes = new Map<string, RegExp | null>();
+/** A league's numbered feed ("MLB 05: Tigers @ White Sox", "NBA ZONE 3"): its
+ *  out-of-market package (MLB.tv, League Pass …) renamed for the day's games,
+ *  which never carries a playoff game. */
+export function isLeagueFeed(link: { stream: XtreamLiveStream }, league: string): boolean {
+  let re = leagueFeedRes.get(league);
+  if (re === undefined) {
+    const words = LEAGUE_WORDS[league];
+    re = words ? new RegExp(`^(?:${words.source})(?: [a-z]+)? \\d{1,3}(?: |$)`) : null;
+    leagueFeedRes.set(league, re);
+  }
+  return !!re && re.test(cleanChannelName(String(link.stream?.name ?? '')));
+}
+
+/** A game's links in the groups its list shows, each in the order given. */
+export interface LinkGroups {
+  /** Named for the game or confirmed by its guide; in the regular season the
+   *  teams', locals' and league's channels too. */
+  main: GameChannel[];
+  /** Networks only their name matched: "Not confirmed by the guide". */
+  unconfirmed: GameChannel[];
+  /** Whip-around channels ("MLB Zone"): every game of the league at once. */
+  zone: GameChannel[];
+}
+
+/** A game's links as the guide leaves them. A channel whose guide shows
+ *  something else is dropped. A network only its name matched waits for the
+ *  guide (hidden while it is read: `scanning`), then is listed apart as not
+ *  confirmed. In the playoffs (national TV only) the zone channels are
+ *  dropped, and so are the teams', locals' and league's channels and the
+ *  league's numbered feeds ("MLB 05: …") unless their guide has the game
+ *  (hidden while it is read). Pure: the owner's picks go over the result. */
+export function arrangeLinks(game: Game, links: GameChannel[], scanning: boolean): LinkGroups {
+  const post = !!game.postseason;
+  const out: LinkGroups = { main: [], unconfirmed: [], zone: [] };
+  for (const l of links) {
+    if (l.guide === 'other') continue;
+    const yes = l.guide === 'yes';
+    if (l.via === 'zone') {
+      if (!post) out.zone.push(l);
+    } else if (yes || l.via === 'game') {
+      if (yes || !post || !isLeagueFeed(l, game.league)) out.main.push(l);
+    } else if (l.via === 'network') {
+      if (!scanning) out.unconfirmed.push(l);
+    } else if (!post) {
+      out.main.push(l);
     }
   }
   return out;
@@ -1067,9 +1248,11 @@ export const channelKey = linkKey;
 // ── the guide ──────────────────────────────────────────────────────────────
 
 /** Guide lookups for one game's list, four at a time: the networks and
- *  locals found, the league's numbered channels, the league's and teams' own
- *  channels found, and the teams' cities' channels. */
-const GUIDE_MAX = { found: 10, numbered: 8, league: 4, city: 6 };
+ *  locals found, in the playoffs the league's feeds named for the game, the
+ *  league's numbered channels, the numbered feeds of the game's streaming
+ *  services, the league's and teams' own channels found, and the teams'
+ *  cities' channels. */
+const GUIDE_MAX = { found: 10, leagueFeed: 4, numbered: 8, service: 8, league: 4, city: 6 };
 /** A game further off than this is past what a short guide covers. */
 const GUIDE_AHEAD_MS = 6 * 60 * 60_000;
 const guideCache = new Map<string, { at: number; from: SportsChannel[]; links: GameChannel[] }>();
@@ -1086,30 +1269,41 @@ const readGuide = (entries: XtreamEpgEntry[]): Listing[] => entries
 
 /** Whether a guide listing (spaced words) is a game: both teams, one of them
  *  by name (short codes are not enough here: "no" and "ne" are words), or a
- *  card's number or headliners. */
-const listingHas = (text: string, g: Game): boolean => {
-  if (!g.home && !g.away) return cardIn(text, cardWords(g)) && !otherSession(text, g);
+ *  card's number or headliners. The game's words are worked out once. */
+const listingMatcher = (g: Game): ((text: string) => boolean) => {
+  if (!g.home && !g.away) {
+    const card = cardWords(g);
+    return (text) => cardIn(text, card) && !otherSession(text, g);
+  }
   const w = gameWords(g);
-  const h = sideIn(text, w.home, false), a = sideIn(text, w.away, false);
-  return (h.strong && (a.strong || a.weak)) || (a.strong && h.weak);
+  return (text) => {
+    const h = sideIn(text, w.home, false), a = sideIn(text, w.away, false);
+    return (h.strong && (a.strong || a.weak)) || (a.strong && h.weak);
+  };
 };
 const listingText = (e: Listing): string => ` ${normalizeSpeech(`${e.title} ${e.description}`)} `;
 const guideNote = (e: Listing, g: Game): string => {
   const title = e.title.trim();
-  const more = listingHas(` ${normalizeSpeech(title)} `, g) ? '' : e.description.trim();
+  const more = listingMatcher(g)(` ${normalizeSpeech(title)} `) ? '' : e.description.trim();
   const s = more ? `${title} — ${more}` : title;
   return i18n.t('gameDay.guide.note', { text: s.length > 140 ? `${s.slice(0, 139)}…` : s });
 };
 
 /** What the guide says about a game's channels, as links to lay over the
- *  list: the networks and locals found by name that the guide shows with this
- *  game (first) or with another of today's games (last); the league's
- *  numbered channels ("MLB 07"), and the league's and teams' own channels,
- *  the guide shows with it (names are read too, by channelsForGame: a game
- *  may be in either); and the teams' cities' channels the guide shows with
- *  it. Looked at around kickoff (now, for a game under way); kept ten
- *  minutes. `onPartial` hears the links so far after each few lookups, so
- *  the list fills in as the answers come. */
+ *  list (arrangeLinks sorts them out). Each network, local, team and league
+ *  channel found by name comes back with the guide's verdict on it
+ *  (`guide`): 'yes' with score 95 and the listing as its note; 'other' when
+ *  the listings around kickoff show another game (of any league) or nothing
+ *  of its league, sport or teams ("SportsCenter", "College Football", a
+ *  film); 'none' with no listing, a lookup that failed, or a listing of its
+ *  league that names no teams ("MLB Baseball"). The channels no name found
+ *  come back only when their guide has the game: the league's numbered
+ *  channels ("MLB 07"), the numbered feeds of the game's streaming services
+ *  ("PEACOCK 02", any category: a feed is never a PPV card's), and the teams'
+ *  cities' channels. In the playoffs the league's feeds named for the game
+ *  ("MLB 05: …") are read too. Looked at around kickoff (now, for a game
+ *  under way); kept ten minutes. `onPartial` hears the links so far after
+ *  each few lookups, so the list fills in as the answers come. */
 export async function checkGuides(
   game: Game, channels: SportsChannel[], found: GameChannel[], games: Game[] = [], now = Date.now(),
   onPartial?: (links: GameChannel[]) => void,
@@ -1121,8 +1315,10 @@ export async function checkGuides(
   if (!live && !(start - now < GUIDE_AHEAD_MS)) return [];
   const at = live || !Number.isFinite(start) ? now : Math.max(now, start + 10 * 60_000);
 
-  // A channel named for the game says so already.
-  const seen = new Set<string>(found.filter((f) => f.via === 'game').map(linkKey));
+  // A channel named for the game says so already; in the playoffs, not a
+  // league's feed ("MLB 05: …"): those rarely carry a playoff game.
+  const leagueFeeds = game.postseason ? found.filter((f) => f.via === 'game' && isLeagueFeed(f, game.league)) : [];
+  const seen = new Set<string>(found.filter((f) => f.via === 'game' && !leagueFeeds.includes(f)).map(linkKey));
   const cands: Array<{ line: XtreamCreds; stream: XtreamLiveStream; via: LinkKind; was?: GameChannel }> = [];
   const add = (c: { line: XtreamCreds; stream: XtreamLiveStream }, via: LinkKind, was?: GameChannel): boolean => {
     const k = linkKey(c);
@@ -1137,9 +1333,29 @@ export async function checkGuides(
     if ((f.via === 'network' || f.via === 'local') && add(f, f.via, f)) n += 1;
   }
   n = 0;
+  for (const f of leagueFeeds) {
+    if (n >= GUIDE_MAX.leagueFeed) break;
+    if (add(f, 'game', f)) n += 1;
+  }
+  n = 0;
   for (const c of channels) {
     if (n >= GUIDE_MAX.numbered) break;
     if (isNumberedEvent(c, game.league) && add(c, 'game')) n += 1;
+  }
+  // The feeds of the game's streaming services, its own first, then its
+  // networks' partners (NBC's Peacock), in one pass over the channels.
+  const services = gameServices(game);
+  if (services.length) {
+    const feeds: SportsChannel[][] = services.map(() => []);
+    for (const c of channels) {
+      const i = c.service ? services.indexOf(c.service) : -1;
+      if (i >= 0 && feeds[i].length < GUIDE_MAX.service) feeds[i].push(c);
+    }
+    n = 0;
+    for (const c of feeds.flat()) {
+      if (n >= GUIDE_MAX.service) break;
+      if (add(c, 'game')) n += 1;
+    }
   }
   n = 0;
   for (const f of found) {
@@ -1148,8 +1364,8 @@ export async function checkGuides(
     // once, so "the guide has this game" is never a real signal for it.
     if ((f.via === 'league' || f.via === 'team') && add(f, f.via, f)) n += 1;
   }
-  if (game.home || game.away) {
-    const w = gameWords(game);
+  const w = game.home || game.away ? gameWords(game) : null;
+  if (w) {
     const city = [...w.home.place, ...w.away.place, ...w.home.shortPlace, ...w.away.shortPlace, ...w.home.own, ...w.away.own];
     n = 0;
     for (const c of channels) {
@@ -1158,7 +1374,21 @@ export async function checkGuides(
     }
   }
 
-  const others = games.filter((g) => g.id !== game.id && g.league === game.league);
+  const mine = listingMatcher(game);
+  // Today's other games, of any league: their words are worked out only when
+  // a listing needs them.
+  const others = games.filter((g) => g.id !== game.id);
+  let otherGames: Array<(text: string) => boolean> | null = null;
+  const namesOther = (text: string): boolean => (otherGames ??= others.map(listingMatcher)).some((isIt) => isIt(text));
+  const teams = w ? [...w.home.own, ...w.away.own, ...w.home.shortPlace, ...w.away.shortPlace] : [];
+  const ofThisGame = (text: string): boolean => leaguesIn(text).includes(game.league) || has(text, teams);
+  /** The verdict on a found channel whose listings around kickoff don't have the game. */
+  const without = (around: Listing[]): GuideVerdict => {
+    if (!around.length) return 'none';
+    const texts = around.map(listingText);
+    if (texts.some(namesOther)) return 'other';
+    return texts.some(ofThisGame) ? 'none' : 'other';
+  };
   const links: GameChannel[] = [];
   for (let i = 0; i < cands.length; i += 4) {
     const batch = await Promise.all(cands.slice(i, i + 4).map(async (cand): Promise<GameChannel | null> => {
@@ -1167,19 +1397,15 @@ export async function checkGuides(
         const { epg_listings } = await getShortEpg(cand.line, cand.stream.stream_id, 12);
         // What is on at kickoff, or starts within 45 minutes of it.
         around = readGuide(epg_listings ?? []).filter((e) => e.start <= at + 45 * 60_000 && e.end > at);
-      } catch { return null; }
+      } catch {
+        return cand.was ? { ...cand.was, guide: 'none' } : null;
+      }
       for (const e of around) {
-        if (listingHas(listingText(e), game)) {
-          return { line: cand.line, stream: cand.stream, score: 95, via: cand.via, note: guideNote(e, game) };
+        if (mine(listingText(e))) {
+          return { line: cand.line, stream: cand.stream, score: 95, via: cand.via, note: guideNote(e, game), guide: 'yes' };
         }
       }
-      if (!cand.was) return null;
-      for (const e of around) {
-        const text = listingText(e);
-        const other = others.find((g) => listingHas(text, g));
-        if (other) return { ...cand.was, score: 20, note: i18n.t('gameDay.guide.otherGame', { name: other.name }) };
-      }
-      return null;
+      return cand.was ? { ...cand.was, guide: without(around) } : null;
     }));
     for (const l of batch) if (l) links.push(l);
     if (onPartial && i + 4 < cands.length) onPartial(links.slice());

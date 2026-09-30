@@ -11,12 +11,14 @@
     "reportedDown": "Reportado como caído ahora",
     "notInChannelsOn": "{{networks}} — no está en tus canales",
     "streamingOnly": "{{networks}} (solo streaming)",
+    "checkOn": "{{networks}} — presiona Ver para revisar tu guía",
     "notInChannels": "No está en tus canales",
     "watchBtn": "Ver",
     "remindBtn": "Recuérdame",
     "reminderOnBtn": "Recordatorio activo",
     "browse": "Explorar {{name}} en TV en vivo",
     "zoneHeading": "Canales Zone — todos los partidos de la liga, no solo este",
+    "unconfirmedHeading": "Sin confirmar en la guía — puede que no tenga este partido",
     "checkingGuide": "Revisando la guía…",
     "serviceTag": "En {{service}}",
     "playingOn": "Reproduciendo en {{service}}",
@@ -45,8 +47,7 @@
       "picked": "Elegido por Snow Media"
     },
     "guide": {
-      "note": "Guía: {{text}}",
-      "otherGame": "Guía: otro partido — {{name}}"
+      "note": "Guía: {{text}}"
     },
     "toast": {
       "setTitle": "Recordatorio activado",

@@ -117,17 +117,20 @@ describe('Game Day with the owner\'s picks', () => {
   });
 
   it("a hidden channel is never the row's Watch pick or a reminder's channel", async () => {
+    world.saved = [{ id: 'a', ...vibez }];
     world.edits = [edit({ stream_id: 9, channel_name: 'NFL 01: Bears vs Packers', action: 'hide' })];
     await openFirstGame();
-    // CHI @ GB: with its own channel hidden, the row goes on to the FOX station.
-    expect((await screen.findAllByText('US| FOX 5 New York')).length).toBeGreaterThanOrEqual(2);
-    expect(screen.queryByText('NFL 01: Bears vs Packers')).toBeNull();
+    // CHI @ GB: with its own channel hidden on Dreamstreams, the row goes on
+    // to the same channel on Vibez (never to the FOX station, a guess until
+    // its guide is read).
+    expect(await screen.findByText('NFL 01: Bears vs Packers')).toBeTruthy();
+    expect(screen.queryByText('US| FOX 5 New York')).toBeNull();
     await key('ArrowRight');
     await key('Enter');
     expect(await screen.findByText('Reminder on')).toBeTruthy();
     const stored = JSON.parse(localStorage.getItem('smc-game-reminders-v1') || '[]');
     expect(stored).toHaveLength(1);
-    expect(stored[0].channel).toMatchObject({ streamId: 7, username: 'ds' });
+    expect(stored[0].channel).toMatchObject({ streamId: 9, username: 'vb' });
   });
 
   it('adds the pick on each line of its service only, and keeps the service tags', async () => {
@@ -137,8 +140,9 @@ describe('Game Day with the owner\'s picks', () => {
       edit({ service: 'strmz.xyz', stream_id: 512, channel_name: 'CBS Sports Vibez', action: 'add', sort: 2 }),
     ];
     await openFirstGame();
-    // Both lines' channels are in (+7 more on CHI @ GB) before the list is opened.
-    expect(await screen.findByText('+7')).toBeTruthy();
+    // Both lines' game channels and both picks are in (+3 more on CHI @ GB)
+    // before the list is opened; FOX 5 waits for its guide, RedZone for the list.
+    expect(await screen.findByText('+3')).toBeTruthy();
     await key('Enter');
     expect(await screen.findAllByText('Picked by Snow Media')).toHaveLength(2);
     expect(listed().slice(0, 2)).toEqual(['CBS Sports HD', 'CBS Sports Vibez']);

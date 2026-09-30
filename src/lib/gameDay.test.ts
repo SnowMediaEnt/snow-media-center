@@ -392,8 +392,8 @@ describe('gameDay', () => {
       chans(5, 'MLB 07', 'MLB ZONE'),
     ];
 
-    it("confirms the networks with the game at kickoff, flags one with another game, and finds the city's local that has it", async () => {
-      const { channelsForGame, checkGuides } = await import('./gameDay');
+    it("confirms the networks with the game at kickoff, drops one with another game, and finds the city's local that has it", async () => {
+      const { arrangeLinks, channelsForGame, checkGuides, mergeLinks } = await import('./gameDay');
       const g = mlb({ start: new Date(kick).toISOString(), networks: ['FOX'], locals: [{ name: 'YES', market: 'away' }] });
       const list = [...channels(), chans(6, 'MLB 08: Yankees vs Red Sox', 'MLB ZONE')];
       epg[1] = on('MLB Baseball', 'New York Yankees at Boston Red Sox. From Fenway Park.');
@@ -403,17 +403,23 @@ describe('gameDay', () => {
       const found = channelsForGame(g, list);
       const got = await checkGuides(g, list, found, [g, rays], now);
       const by = Object.fromEntries(got.map((c) => [c.stream.stream_id, c]));
-      expect(by[1]).toMatchObject({ score: 95, via: 'network' });
+      expect(by[1]).toMatchObject({ score: 95, via: 'network', guide: 'yes' });
       expect(by[1].note).toBe('Guide: MLB Baseball — New York Yankees at Boston Red Sox. From Fenway Park.');
-      expect(by[2]).toMatchObject({ score: 20, via: 'network', note: 'Guide: another game — Rays @ Orioles' });
-      expect(by[4]).toMatchObject({ score: 95, via: 'local', note: 'Guide: Yankees at Red Sox' });
+      // Another of today's games on FOX 25: the guide says so, with no note.
+      expect(by[2]).toMatchObject({ via: 'network', guide: 'other' });
+      expect(by[2].note).toBeUndefined();
+      expect(by[4]).toMatchObject({ score: 95, via: 'local', note: 'Guide: Yankees at Red Sox', guide: 'yes' });
       // A numbered league channel's guide counts too, even with a channel
       // named for the game: both are read.
-      expect(by[5]).toMatchObject({ score: 95, via: 'game' });
-      // No guide for YES: it stays as it was. The channel named for the game
-      // needs no guide.
-      expect(by[3]).toBeUndefined();
+      expect(by[5]).toMatchObject({ score: 95, via: 'game', guide: 'yes' });
+      // No guide for YES: the guide can't tell. The channel named for the
+      // game needs no guide.
+      expect(by[3]).toMatchObject({ via: 'local', guide: 'none' });
       expect(vi.mocked(xtream.getShortEpg).mock.calls.map((c) => c[1])).not.toContain(6);
+      // FOX 25 is dropped; YES stays with the game's channels (regular season).
+      const groups = arrangeLinks(g, mergeLinks([got, found], list), false);
+      expect(ids(groups.main).sort()).toEqual([1, 3, 4, 5, 6]);
+      expect(groups.unconfirmed).toEqual([]);
     });
 
     it("never confirms a zone channel from its guide: its listing names every game at once, not just this one", async () => {
@@ -459,6 +465,169 @@ describe('gameDay', () => {
       const g = mlb({ start: new Date(now + 20 * 60 * 60_000).toISOString() });
       expect(await checkGuides(g, channels(), [], [g], now)).toEqual([]);
       expect(xtream.getShortEpg).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('streaming services: numbered feeds, found by their guide', () => {
+    const now = Date.parse('2026-09-29T22:00:00Z');
+    const kick = now + 60 * 60_000;
+    const on = (title: string, description = '') => [{ title, description, start: kick - 5 * 60_000, end: kick + 3 * 60 * 60_000 }];
+    const sox = (over: Partial<Game> = {}): Game => game({
+      id: 'mlb:sox', league: 'mlb', leagueLabel: 'MLB', name: 'Tigers @ White Sox', start: new Date(kick).toISOString(),
+      home: team('White Sox', 'Chicago', 'Chicago White Sox', 'CHW'), away: team('Tigers', 'Detroit', 'Detroit Tigers', 'DET'), ...over,
+    });
+
+    it('tags a numbered feed of a streaming service once, as the channel is read', () => {
+      const feeds: Array<[string, string]> = [
+        ['US| PEACOCK 02', 'peacock'], ['PEACOCK EVENT 02', 'peacock'], ['ESPN+ 07', 'espnplus'], ['ESPN PLUS 07', 'espnplus'],
+        ['US| ESPN 01', 'espnplus'], ['PRIME VIDEO 03', 'prime'], ['APPLE TV 01', 'apple'], ['MAX 04', 'max'],
+        ['PARAMOUNT+ 05', 'paramount'], ['NBA LEAGUE PASS 03', 'nbaleaguepass'],
+      ];
+      for (const [name, service] of feeds) expect(chans(1, name).service, name).toBe(service);
+      for (const name of ['US| ActionMAX', 'US| MAX', 'FanDuel Sports Prime Ticket', 'NETFLIX 24/7: Stranger Things', 'US| ESPN HD', 'US| ESPN 2', 'US| FOX 32 Chicago']) {
+        expect(chans(1, name).service, name).toBeUndefined();
+      }
+    });
+
+    it("reads a service's category, and keeps its feeds from any category", async () => {
+      const { categoryWeight, loadSportsChannels } = await import('./gameDay');
+      expect(categoryWeight('PEACOCK')).toBe(2);
+      expect(categoryWeight('US| PEACOCK')).toBe(2);
+      expect(categoryWeight('NETFLIX MOVIES')).toBe(0);
+      vi.mocked(xtream.getLiveCategories).mockReset();
+      vi.mocked(xtream.getLiveCategories).mockResolvedValue([{ category_id: '9', category_name: 'STREAMING' }] as never);
+      const streams = vi.mocked(xtream.getLiveStreams);
+      streams.mockReset();
+      streams.mockResolvedValue([
+        { stream_id: 1, name: 'PEACOCK 02', category_id: '9' },
+        { stream_id: 2, name: 'Cooking Channel 2', category_id: '9' },
+        { stream_id: 3, name: 'NETFLIX 24/7: Stranger Things 3', category_id: '9' },
+      ] as never);
+      const got = await loadSportsChannels([line]);
+      expect(got.map((c) => [c.stream.name, c.service])).toEqual([['PEACOCK 02', 'peacock']]);
+    });
+
+    it("lists a game's services: its own first, then its networks' partners", async () => {
+      const { gameServices } = await import('./gameDay');
+      expect(gameServices(game({ networks: ['Peacock'] }))).toEqual(['peacock']);
+      expect(gameServices(game({ networks: ['NBC', 'ESPN+'] }))).toEqual(['espnplus', 'peacock']);
+      expect(gameServices(game({ networks: ['ESPN', 'TNT', 'CBS', 'FS1', 'NBCSN'] }))).toEqual(['espnplus', 'max', 'paramount', 'foxone', 'peacock']);
+      expect(gameServices(game({ networks: ['MLB.tv', 'Prime Video'] }))).toEqual(['mlbtv', 'prime']);
+      expect(gameServices(game({ networks: ['Prime Ticket', 'YES'] }))).toEqual([]);
+    });
+
+    it('finds PEACOCK 02 by its guide, for a game on Peacock or on NBC, and never looks there for a FOX game', async () => {
+      const { channelsForGame, checkGuides, __resetGameDayForTests } = await import('./gameDay');
+      const list = [chans(501, 'US| PEACOCK 01', 'US| PEACOCK'), chans(502, 'US| PEACOCK 02', 'US| PEACOCK'), chans(503, 'US| PEACOCK 03', 'US| PEACOCK')];
+      epg[501] = on('Premier League Soccer', 'Arsenal at Chelsea.');
+      epg[502] = on('MLB Baseball', 'Detroit Tigers at Chicago White Sox.');
+      for (const networks of [['Peacock'], ['NBC']]) {
+        __resetGameDayForTests();
+        const g = sox({ networks });
+        // Its name has nothing of the game: only its guide can say.
+        expect(channelsForGame(g, list)).toEqual([]);
+        const got = await checkGuides(g, list, [], [g], now);
+        expect(got.map((c) => [c.stream.stream_id, c.via, c.score, c.guide]), networks[0]).toEqual([[502, 'game', 95, 'yes']]);
+        expect(got[0].note).toBe('Guide: MLB Baseball — Detroit Tigers at Chicago White Sox.');
+      }
+      __resetGameDayForTests();
+      vi.mocked(xtream.getShortEpg).mockClear();
+      const fox = sox({ networks: ['FOX'] });
+      expect(await checkGuides(fox, list, channelsForGame(fox, list), [fox], now)).toEqual([]);
+      expect(xtream.getShortEpg).not.toHaveBeenCalled();
+    });
+
+    it('a numbered feed of a network is not the network; a station of it still is', async () => {
+      const { channelsForGame } = await import('./gameDay');
+      const got = channelsForGame(mlb({ networks: ['ESPN', 'FOX'] }), [
+        chans(601, 'US| ESPN 01', 'US| SPORTS'),
+        chans(602, 'US| ESPN EVENT 05', 'US| SPORTS'),
+        chans(603, 'US| FOX EVENT 2', 'US| SPORTS'),
+        chans(604, 'US| FOX 03', 'US| SPORTS'),
+        chans(605, 'US| FOX 32 Chicago', 'US| LOCALS'),
+        chans(606, 'US| ESPN HD', 'US| SPORTS'),
+      ]);
+      expect(Object.fromEntries(got.map((c) => [c.stream.stream_id, c.via]))).toEqual({ 605: 'network', 606: 'network' });
+    });
+
+    it('knows NBCSN by its long name', async () => {
+      const { channelsForGame } = await import('./gameDay');
+      const got = channelsForGame(mlb({ networks: ['NBCSN'] }), [
+        chans(610, 'US| NBC Sports Network HD', 'US| SPORTS'), chans(611, 'US| NBCSN', 'US| SPORTS'), chans(612, 'US| NBC Sports Boston', 'US| SPORTS'),
+      ]);
+      expect(Object.fromEntries(got.map((c) => [c.stream.stream_id, c.via]))).toEqual({ 610: 'network', 611: 'network' });
+    });
+
+    it("drops a network whose guide shows something else, and lists one it can't confirm apart", async () => {
+      const { arrangeLinks, channelsForGame, checkGuides, mergeLinks, __resetGameDayForTests } = await import('./gameDay');
+      const g = mlb({ start: new Date(kick).toISOString(), networks: ['ESPN'] });
+      const list = [chans(620, 'US| ESPN', 'US| SPORTS')];
+      const found = channelsForGame(g, list);
+      expect(found.map((c) => c.via)).toEqual(['network']);
+      // While the guide is being read, a network only its name matched is not shown.
+      expect(arrangeLinks(g, found, true)).toEqual({ main: [], unconfirmed: [], zone: [] });
+      const after = async (listing?: ReturnType<typeof on>) => {
+        __resetGameDayForTests();
+        delete epg[620];
+        if (listing) epg[620] = listing;
+        const extra = await checkGuides(g, list, found, [g], now);
+        return arrangeLinks(g, mergeLinks([extra, found], list), false);
+      };
+      // SportsCenter at kickoff: gone.
+      expect(await after(on('SportsCenter'))).toEqual({ main: [], unconfirmed: [], zone: [] });
+      // A listing of the league that names no teams, or no guide at all: apart, not confirmed.
+      for (const listing of [on('MLB Baseball'), undefined]) {
+        const got = await after(listing);
+        expect(ids(got.unconfirmed)).toEqual([620]);
+        expect(got.main).toEqual([]);
+      }
+      // The game itself: with the game's channels, confirmed.
+      const yes = await after(on('MLB Baseball', 'New York Yankees at Boston Red Sox.'));
+      expect(yes.main.map((c) => [c.stream.stream_id, c.score, c.guide])).toEqual([[620, 95, 'yes']]);
+      expect(yes.unconfirmed).toEqual([]);
+    });
+
+    describe('a White Sox game, on ESPN and Peacock, with the channels a line has for it', () => {
+      const box = () => [
+        chans(700, 'MLB Zone', 'MLB ZONE'),
+        chans(701, 'MLB: Chicago White Sox', 'MLB TEAMS'),
+        chans(702, 'US| ESPN', 'US| SPORTS'),
+        chans(703, 'US| PEACOCK 02', 'US| PEACOCK'),
+        chans(704, 'EVENT 03: Detroit Tigers @ Chicago White Sox', 'US| LIVE EVENTS'),
+        chans(705, 'MLB 05: Detroit Tigers @ Chicago White Sox', 'MLB ZONE'),
+      ];
+      const arranged = async (g: Game) => {
+        const { arrangeLinks, channelsForGame, checkGuides, mergeLinks } = await import('./gameDay');
+        const list = box();
+        epg[702] = on('SportsCenter');
+        epg[703] = on('MLB Baseball', 'AL Wild Card, Game 1: Detroit Tigers at Chicago White Sox.');
+        const found = channelsForGame(g, list);
+        const extra = await checkGuides(g, list, found, [g], now);
+        return { found, groups: arrangeLinks(g, mergeLinks([extra, found], list), false) };
+      };
+
+      it('in the playoffs lists the channel named for it and Peacock 02, nothing else', async () => {
+        const { found, groups } = await arranged(sox({ networks: ['ESPN', 'Peacock'], postseason: true, round: 'AL Wild Card - Game 1' }));
+        // No league or zone channel is even looked at.
+        expect(ids(found)).not.toContain(700);
+        expect(ids(groups.main).sort()).toEqual([703, 704]);
+        expect(groups.main.find((c) => c.stream.stream_id === 703)).toMatchObject({ via: 'game', score: 95, guide: 'yes' });
+        expect(groups.unconfirmed).toEqual([]);
+        expect(groups.zone).toEqual([]);
+        // The league's feed named for it asks its guide: listed once that has the game.
+        epg[705] = on('MLB Baseball', 'Detroit Tigers at Chicago White Sox.');
+        const { __resetGameDayForTests } = await import('./gameDay');
+        __resetGameDayForTests();
+        const again = await arranged(sox({ networks: ['ESPN', 'Peacock'], postseason: true }));
+        expect(ids(again.groups.main).sort()).toEqual([703, 704, 705]);
+      });
+
+      it('in the regular season keeps the team channel and the zone group, still drops ESPN and finds Peacock 02', async () => {
+        const { groups } = await arranged(sox({ networks: ['ESPN', 'Peacock'] }));
+        expect(ids(groups.main).sort()).toEqual([701, 703, 704, 705]);
+        expect(ids(groups.zone)).toEqual([700]);
+        expect(groups.unconfirmed).toEqual([]);
+      });
     });
   });
 

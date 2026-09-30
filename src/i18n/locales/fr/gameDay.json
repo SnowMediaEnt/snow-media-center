@@ -11,12 +11,14 @@
     "reportedDown": "Signalé en panne actuellement",
     "notInChannelsOn": "{{networks}} — absent de vos chaînes",
     "streamingOnly": "{{networks}} (streaming uniquement)",
+    "checkOn": "{{networks}} — appuyez sur Regarder pour vérifier votre guide",
     "notInChannels": "Absent de vos chaînes",
     "watchBtn": "Regarder",
     "remindBtn": "Me rappeler",
     "reminderOnBtn": "Rappel activé",
     "browse": "Parcourir {{name}} dans TV en direct",
     "zoneHeading": "Chaînes Zone — tous les matchs de la ligue, pas seulement celui-ci",
+    "unconfirmedHeading": "Non confirmé par le guide — ce match n'y est peut-être pas",
     "checkingGuide": "Vérification du guide…",
     "serviceTag": "Sur {{service}}",
     "playingOn": "Lecture sur {{service}}",
@@ -45,8 +47,7 @@
       "picked": "Choix de Snow Media"
     },
     "guide": {
-      "note": "Guide : {{text}}",
-      "otherGame": "Guide : un autre match — {{name}}"
+      "note": "Guide : {{text}}"
     },
     "toast": {
       "setTitle": "Rappel activé",

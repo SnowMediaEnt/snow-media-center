@@ -5,11 +5,18 @@
 //
 // Watch opens the game's channels: the event channels named for it, the
 // national and local networks, the teams' and the league's channels
-// (lib/gameDay), with the networks' and locals' guide checked as the list
-// opens, and the league's categories to browse in Live TV. Nothing is ever
-// guessed: a game on a streaming service only (MLB.tv, ESPN+ …) says so. The
-// channel names are read again every ten minutes while this is on screen:
-// providers rename their event channels for each day's games.
+// (lib/gameDay), with their guide checked as the list opens (and the guide
+// of the numbered feeds of its streaming services: "PEACOCK 02"), and the
+// league's categories to browse in Live TV. The guide has the last word
+// (arrangeLinks): a channel it shows with something else is gone, and a
+// network only its name matched is listed at the bottom, under "Not
+// confirmed by the guide". The row's Watch pick and a reminder's channel are
+// only ever a channel named for the game or one its guide confirmed (once
+// the list has been opened); with none, a row that may still find one says
+// "press Watch to check your guide", and a game on a streaming service this
+// box has no feeds of says "(streaming only)". The channel names are read
+// again every ten minutes while this is on screen: providers rename their
+// event channels for each day's games.
 //
 // PPV: the fights, festivals and small races on the box's PPV channels, read
 // from their names (no scoreboard lists them), under their own PPV filter;
@@ -34,8 +41,8 @@ import { useToast } from '@/hooks/use-toast';
 import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
 import { isChannelDown, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import {
-  CHANNELS_TTL_MS, LINK_LABELS, PICKED_LABEL, applyChannelEdits, cardChannels, channelKey, channelsForGame, checkGuides, fetchGameEdits, fetchGames,
-  isPpvFight, isStreamingOnly, kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames,
+  CHANNELS_TTL_MS, LINK_LABELS, PICKED_LABEL, applyChannelEdits, arrangeLinks, cardChannels, channelKey, channelsForGame, checkGuides, fetchGameEdits,
+  fetchGames, gameServices, isPpvFight, isStreamingOnly, kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames,
   type Game, type GameChannel, type GameEdit, type SportsChannel,
 } from '@/lib/gameDay';
 import { GAME_REMINDERS_EVENT, hasReminder, toggleReminder } from '@/lib/gameReminders';
@@ -68,9 +75,18 @@ const lowMemory = () => { try { return document.documentElement.classList.contai
 const modalOpen = () => { try { return !!document.querySelector('[aria-modal="true"][data-state="open"]'); } catch { return false; } };
 const canRemind = (g: Game) => g.state !== 'in' && Date.parse(g.start) > Date.now();
 
+/** Where a link sits in the list: with the game's channels, under "Not
+ *  confirmed by the guide", or under the zone channels' heading. */
+type LinkGroup = 'main' | 'unconfirmed' | 'zone';
 type PickItem =
-  | { kind: 'link'; link: GameChannel; down: boolean }
+  | { kind: 'link'; link: GameChannel; down: boolean; group: LinkGroup }
   | { kind: 'browse'; line: XtreamCreds; categoryId: string; name: string };
+
+/** Best first; the original position settles a tie (an old WebView's sort is not stable). */
+const byScore = (list: GameChannel[]): GameChannel[] => (list.length < 2 ? list : list
+  .map((l, i) => ({ l, i }))
+  .sort((a, b) => b.l.score - a.l.score || a.i - b.i)
+  .map((x) => x.l));
 
 /** `moved`: the viewer has moved in the list, so what the guide adds does
  *  not take the focus away. */
@@ -118,6 +134,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   const [edits, setEdits] = useState<GameEdit[]>([]);
   const [error, setError] = useState(false);
   const [channels, setChannels] = useState<SportsChannel[] | null>(null);
+  // What the guide said for each game whose list has been opened (by game
+  // id): a network it confirmed can then be the row's Watch pick.
+  const [guided, setGuided] = useState<Map<string, GameChannel[]>>(() => new Map());
   const [league, setLeague] = useState('all');
   const [zone, setZone] = useState<'chips' | 'rows'>('rows');
   const [chipIdx, setChipIdx] = useState(0);
@@ -173,6 +192,16 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the lines themselves
   }, [linesKey, channelsTick]);
+  // The guide's answers were read from one channel list: a new one (the
+  // ten-minute refresh) starts over.
+  useEffect(() => { setGuided((m) => (m.size ? new Map() : m)); }, [channels]);
+  // The streaming services this box has numbered feeds of ("PEACOCK 02"),
+  // worked out once per channel list.
+  const boxServices = useMemo(() => {
+    const out = new Set<string>();
+    for (const c of channels ?? []) if (c.service) out.add(c.service);
+    return out;
+  }, [channels]);
 
   useEffect(() => {
     const on = () => setReminderTick((t) => t + 1);
@@ -212,18 +241,25 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   );
   const rows = useMemo(() => shown.map((g, i) => {
     const auto = matched[i] ?? [];
-    // The owner's picks go over what the matching found, last of all: the
-    // row's Watch pick, a reminder's channel and the list all start from this.
-    const found = applyChannelEdits(g, auto, edits, lines, channels ?? []);
+    // What the guide said (once the game's list has been opened) over the names.
+    const checked = guided.get(g.id);
+    const groups = arrangeLinks(g, checked ? mergeLinks([checked, auto], channels ?? []) : auto, false);
+    // The row's Watch pick and a reminder's channel: a channel named for the
+    // game or confirmed by its guide, never a network only its name matched.
+    // The owner's picks go over them, last of all.
+    const found = applyChannelEdits(g, byScore(groups.main), edits, lines, channels ?? []);
     const pick = found.find((c) => !isDown(c)) ?? found[0] ?? null;
     // Worked out here, not on every key press: a formatter per row per
     // press is slow on an old box.
     const when = kickoffParts(g.start);
     const tv = g.networks.filter((n) => !isStreamingOnly(n));
-    return { game: g, auto, found, channel: pick, channelDown: !!pick && isDown(pick), more: Math.max(0, found.length - 1), when, tv };
+    // No pick, but the guide may still find one: a network its name matched,
+    // or a feed on this box of one of the game's streaming services.
+    const unsure = !pick && (groups.unconfirmed.length > 0 || gameServices(g).some((s) => boxServices.has(s)));
+    return { game: g, auto, found, channel: pick, channelDown: !!pick && isDown(pick), more: Math.max(0, found.length - 1), when, tv, unsure };
     // t: the kickoff day and time are drawn in the app's language, so a language change recomputes them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [shown, matched, edits, lines, channels, isDown, t]);
+  }), [shown, matched, guided, edits, lines, channels, boxServices, isDown, t]);
 
   // A focus that fell off the list (games arrived, a league filter) comes back.
   useEffect(() => {
@@ -236,38 +272,45 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     if (!picker || !pickerRow) return [];
     // Each channel once, best source first, always with its current name
     // (never one a guide check cached before the last channel-list refresh).
-    // The matching's own links: the owner's picks come after the arranging.
+    // The matching's own links and the guide's word on them: the owner's
+    // picks come after the arranging.
     const merged = mergeLinks([picker.extra, pickerRow.auto], channels ?? []);
-    // Best first, a channel reported down after the working ones of its
-    // kind; zone channels (RedZone, "MLB Zone": every game of the league,
-    // never just this one) always after, in their own group — never mixed
-    // in with the team links.
-    // Same quality and both working: the active line first, then the other
-    // lines in the order Live TV lists them. The original position settles
-    // the rest (an old WebView's sort is not stable).
+    // What the guide leaves, in three groups never mixed together: the
+    // game's channels; the networks it could not confirm (once it has been
+    // read); and the zone channels (RedZone, "MLB Zone": every game of the
+    // league, never just this one).
+    const groups = arrangeLinks(pickerRow.game, merged, picker.scanning);
+    // In each, best first, a channel reported down after the working ones of
+    // its kind. Same quality and both working: the active line first, then
+    // the other lines in the order Live TV lists them. The original position
+    // settles the rest (an old WebView's sort is not stable).
     const rank = new Map(lines.map((l, i) => [lineKey(l), i]));
     const rankOf = (c: GameChannel) => rank.get(lineKey(c.line)) ?? lines.length;
     const sorted = (list: GameChannel[]) => list.map((l, i) => ({ l, i }))
       .sort((a, b) => b.l.score - a.l.score || Number(isDown(a.l)) - Number(isDown(b.l)) || rankOf(a.l) - rankOf(b.l) || a.i - b.i)
       .map((x) => x.l);
-    const main = sorted(merged.filter((l) => l.via !== 'zone'));
-    const zone = sorted(merged.filter((l) => l.via === 'zone'));
-    // The owner's picks, last of all: what they add goes first, what they
-    // hide is gone (even if the guide brought it back), what they mark down
-    // goes last.
-    const arranged = applyChannelEdits(pickerRow.game, [...main, ...zone], edits, lines, channels ?? []);
-    const items: PickItem[] = arranged.map((link) => ({ kind: 'link', link, down: isDown(link) }));
+    const main = sorted(groups.main);
+    const unconfirmed = sorted(groups.unconfirmed);
+    const zone = sorted(groups.zone);
+    const unsure = new Set(unconfirmed.map(channelKey));
+    // The owner's picks, last of all: what they add goes first (even a
+    // channel the guide dropped), what they hide is gone (even if the guide
+    // brought it back), what they mark down goes last.
+    const arranged = applyChannelEdits(pickerRow.game, [...main, ...unconfirmed, ...zone], edits, lines, channels ?? []);
+    const items: PickItem[] = arranged.map((link) => ({
+      kind: 'link', link, down: isDown(link),
+      // A channel the owner picked is up with the picks, not in its group.
+      group: link.picked ? 'main' : unsure.has(channelKey(link)) ? 'unconfirmed' : link.via === 'zone' ? 'zone' : 'main',
+    }));
     const own = pickerRow.game.league === 'ppv' ? new Set(pickerRow.found.map(channelKey)) : undefined;
     for (const c of channels ? leagueCategories(pickerRow.game, channels, 2, own) : []) items.push({ kind: 'browse', ...c });
     return items;
   }, [picker, pickerRow, channels, isDown, lines, edits]);
   const firstLinkIdx = pickItems.findIndex((it) => it.kind === 'link');
-  // Where the zone group starts: a zone channel the owner picked is up with
-  // the picks, not in it.
-  const firstZoneIdx = useMemo(
-    () => pickItems.findIndex((it) => it.kind === 'link' && it.link.via === 'zone' && !it.link.picked),
-    [pickItems],
-  );
+  // Where the "Not confirmed by the guide" and the zone groups start (their
+  // headings go there).
+  const firstUnconfirmedIdx = useMemo(() => pickItems.findIndex((it) => it.kind === 'link' && it.group === 'unconfirmed'), [pickItems]);
+  const firstZoneIdx = useMemo(() => pickItems.findIndex((it) => it.kind === 'link' && it.group === 'zone'), [pickItems]);
 
   const openPicker = useCallback((i: number) => {
     const r = rows[i];
@@ -275,15 +318,20 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     const gameId = r.game.id;
     const first = r.found.findIndex((c) => !isDown(c));
     // A PPV event is its channel's name: no guide to ask.
-    const guided = r.game.league !== 'ppv';
-    setPicker({ gameId, focus: Math.max(0, first), moved: false, scanning: !!channels && guided, extra: [] });
-    if (!channels || !guided) return;
-    // What the networks' and locals' guide says (and, when no channel is
-    // named for the game, the league's numbered channels' guide).
+    const hasGuide = r.game.league !== 'ppv';
+    setPicker({ gameId, focus: Math.max(0, first), moved: false, scanning: !!channels && hasGuide, extra: [] });
+    if (!channels || !hasGuide) return;
+    // What the guide says of the channels found by name, and of the league's
+    // numbered channels and the game's streaming feeds no name found.
     // The list fills in as the answers come (a few lookups at a time).
-    const lay = (extra: GameChannel[], done: boolean) => setPicker((p) => (p && p.gameId === gameId
-      ? { ...p, extra, scanning: !done, focus: extra.length && !p.moved ? 0 : p.focus }
-      : p));
+    const lay = (extra: GameChannel[], done: boolean) => {
+      setPicker((p) => (p && p.gameId === gameId
+        ? { ...p, extra, scanning: !done, focus: extra.length && !p.moved ? 0 : p.focus }
+        : p));
+      // The whole answer stays with the game's row (until the channel list
+      // is read again): a network it confirmed can be the row's Watch pick.
+      if (done) setGuided((m) => (m.get(gameId) === extra ? m : new Map(m).set(gameId, extra)));
+    };
     void checkGuides(r.game, channels, r.auto, games ?? [], Date.now(), (partial) => lay(partial, false))
       .then((extra) => lay(extra, true))
       .catch(() => setPicker((p) => (p && p.gameId === gameId ? { ...p, scanning: false } : p)));
@@ -558,7 +606,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                   </div>
                 ) : (
                   <span className="text-xs text-white/50 truncate block">
-                    {tv.length ? t('gameDay.notInChannelsOn', { networks: tv.join(', ') }) : g.networks.length ? t('gameDay.streamingOnly', { networks: g.networks.join(', ') }) : t('gameDay.notInChannels')}
+                    {r.unsure
+                      ? t('gameDay.checkOn', { networks: g.networks.join(', ') })
+                      : tv.length ? t('gameDay.notInChannelsOn', { networks: tv.join(', ') }) : g.networks.length ? t('gameDay.streamingOnly', { networks: g.networks.join(', ') }) : t('gameDay.notInChannels')}
                   </span>
                 )}
               </div>
@@ -613,6 +663,11 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
               const { link } = item;
               return (
                 <div key={`l-${link.line.host}-${link.line.username}-${link.stream.stream_id}`}>
+                  {i === firstUnconfirmedIdx && (
+                    <div className="px-2 pt-1 pb-2 text-xs font-bold uppercase tracking-wide text-white/40">
+                      {t('gameDay.unconfirmedHeading')}
+                    </div>
+                  )}
                   {i === firstZoneIdx && (
                     <div className="px-2 pt-1 pb-2 text-xs font-bold uppercase tracking-wide text-white/40">
                       {t('gameDay.zoneHeading')}

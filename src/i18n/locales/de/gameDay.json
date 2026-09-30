@@ -11,12 +11,14 @@
     "reportedDown": "Gerade als ausgefallen gemeldet",
     "notInChannelsOn": "{{networks}} – nicht in deinen Sendern",
     "streamingOnly": "{{networks}} (nur Streaming)",
+    "checkOn": "{{networks}} – drücke Ansehen, um deinen Guide zu prüfen",
     "notInChannels": "Nicht in deinen Sendern",
     "watchBtn": "Ansehen",
     "remindBtn": "Erinnern",
     "reminderOnBtn": "Erinnerung an",
     "browse": "{{name}} in Live-TV durchsuchen",
     "zoneHeading": "Zone-Sender – alle Spiele der Liga, nicht nur dieses",
+    "unconfirmedHeading": "Nicht vom Guide bestätigt – zeigt dieses Spiel vielleicht nicht",
     "checkingGuide": "Guide wird geprüft…",
     "serviceTag": "Auf {{service}}",
     "playingOn": "Wiedergabe auf {{service}}",
@@ -45,8 +47,7 @@
       "picked": "Von Snow Media ausgewählt"
     },
     "guide": {
-      "note": "Guide: {{text}}",
-      "otherGame": "Guide: anderes Spiel – {{name}}"
+      "note": "Guide: {{text}}"
     },
     "toast": {
       "setTitle": "Erinnerung gesetzt",

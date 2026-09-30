@@ -11,12 +11,14 @@
     "reportedDown": "Reported down right now",
     "notInChannelsOn": "{{networks}} — not in your channels",
     "streamingOnly": "{{networks}} (streaming only)",
+    "checkOn": "{{networks}} — press Watch to check your guide",
     "notInChannels": "Not in your channels",
     "watchBtn": "Watch",
     "remindBtn": "Remind me",
     "reminderOnBtn": "Reminder on",
     "browse": "Browse {{name}} in Live TV",
     "zoneHeading": "Zone channels — every game of the league, not just this one",
+    "unconfirmedHeading": "Not confirmed by the guide — may not have this game",
     "checkingGuide": "Checking the guide…",
     "serviceTag": "On {{service}}",
     "playingOn": "Playing on {{service}}",
@@ -45,8 +47,7 @@
       "picked": "Picked by Snow Media"
     },
     "guide": {
-      "note": "Guide: {{text}}",
-      "otherGame": "Guide: another game — {{name}}"
+      "note": "Guide: {{text}}"
     },
     "toast": {
       "setTitle": "Reminder set",

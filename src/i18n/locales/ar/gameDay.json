@@ -11,12 +11,14 @@
     "reportedDown": "تم الإبلاغ عن تعطله حاليًا",
     "notInChannelsOn": "{{networks}} — غير متوفرة في قنواتك",
     "streamingOnly": "{{networks}} (بث عبر الإنترنت فقط)",
+    "checkOn": "{{networks}} — اضغط مشاهدة للتحقق من دليلك",
     "notInChannels": "غير متوفرة في قنواتك",
     "watchBtn": "مشاهدة",
     "remindBtn": "ذكّرني",
     "reminderOnBtn": "التذكير مفعّل",
     "browse": "تصفّح {{name}} في البث المباشر",
     "zoneHeading": "قنوات المنطقة — كل مباريات الدوري، وليس هذه فقط",
+    "unconfirmedHeading": "غير مؤكدة في الدليل — قد لا تعرض هذه المباراة",
     "checkingGuide": "جارٍ فحص الدليل…",
     "serviceTag": "على {{service}}",
     "playingOn": "التشغيل على {{service}}",
@@ -45,8 +47,7 @@
       "picked": "من اختيار Snow Media"
     },
     "guide": {
-      "note": "الدليل: {{text}}",
-      "otherGame": "الدليل: مباراة أخرى — {{name}}"
+      "note": "الدليل: {{text}}"
     },
     "toast": {
       "setTitle": "تم تعيين التذكير",
