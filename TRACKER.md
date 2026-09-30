@@ -60,6 +60,9 @@ Status: building · ready to test · still broken · done.
 | 38 | Every support ticket and channel report says the app version, build and box (Buffering Guide, Submit a Ticket, channel reports, AI Chat) | feature | ready to test (build 56) | |
 | 39 | Plex: auto quality follows what the server really delivers (not the speed test); a refused conversion gets a fresh session, not endless retries; stats show the HTTP code | bug | ready to test (build 56) | 2 |
 | 40 | Each SMC start (and resume after 30+ min) reports every saved Live TV line (host + username, never the password) as line_active; app_open carries device_model + form_factor, for the admin app | feature | ready to test (build 57) | |
+| 41 | How to use SMC rebuilt: real screenshots of every screen in all 5 languages, gold rings + numbered labels, 10 chapters incl. Game Day, recording, Language — plan: .claude/plan-howto.md | feature | ready to test (build 57) | |
+| 42 | Live TV Settings: the remote couldn't scroll down to Sign Out on smaller screens | bug | ready to test (build 57) | direct |
+| 43 | Recordings: the key hint at the bottom covered the last recording | bug | ready to test (build 57) | direct |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner
