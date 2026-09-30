@@ -3,170 +3,479 @@
     "howTo": {
       "basics": {
         "title": "Lo básico",
-        "subtitle": "Tu control remoto y la pantalla de inicio",
-        "s0": {
-          "title": "Muévete con las flechas. OK elige. Atrás vuelve.",
-          "line2": "Eso es el 90 % de todo, y no puedes romper nada."
+        "subtitle": "Tu control, tu celular y el Inicio",
+        "remote": {
+          "title": "Las flechas mueven. OK elige. Atrás vuelve.",
+          "line2": "Mantén OK sobre un canal o un título para ver más opciones. No puedes romper nada."
         },
-        "s1": {
-          "title": "Esta es tu pantalla de inicio.",
-          "line2": "Tarjetas grandes: TV en vivo, Plex, Soporte y la Tienda."
+        "phone": {
+          "title": "Usa tu celular como control remoto.",
+          "line2": "Ajustes → Control desde el celular. Escanea y elige Permitir en la TV. Tu celular también puede escribir y hablar.",
+          "linkBtn": "Llévame allí"
         },
-        "s2": {
-          "title": "La barra de arriba es tuya.",
-          "line2": "Lo que estabas viendo, tus canales en vivo con lo que dan ahora y sugerencias según lo que ves. OK te lleva directo."
+        "home": {
+          "title": "Este es el Inicio.",
+          "line2": "Los botones grandes: TV en vivo, Plex (VOD), Soporte y la Tienda."
         },
-        "s3": {
-          "title": "La línea que se desplaza arriba del todo son noticias nuestras.",
-          "line2": "Ahí salen ofertas, novedades y avisos."
+        "topbar": {
+          "title": "Arriba a la derecha: la fecha, la hora y tus botones.",
+          "line2": "Presiona Arriba desde los botones grandes para llegar."
         },
-        "s4": {
-          "title": "Mi cuenta y Ajustes están en la esquina superior derecha."
+        "dashVoice": {
+          "title": "El Panel es tu cuenta. Voz te deja hablar con SMC.",
+          "line2": "¿No has iniciado sesión? El botón dice Iniciar sesión."
+        },
+        "ticker": {
+          "title": "La franja que se desplaza trae noticias de Snow Media.",
+          "line2": "Ofertas, novedades y avisos."
+        },
+        "recommended": {
+          "title": "Recomendado: lo que dan y lo que puedes ver.",
+          "line2": "Presiona Arriba desde los botones grandes. Izquierda y Derecha desplazan; los puntos marcan la página."
         }
       },
       "livetv": {
-        "title": "Reproductor: TV en vivo",
-        "subtitle": "Canales, diseños, guía y multipantalla",
-        "s0": {
-          "title": "Abre TV en vivo desde la pantalla de inicio.",
-          "line2": "Inicia sesión con los datos que te dio tu vendedor. Cada cuenta que agregues aparece en una sola lista.",
+        "title": "TV en vivo",
+        "subtitle": "Inicio de sesión, canales y favoritos",
+        "open": {
+          "title": "Abre TV en vivo desde el Inicio.",
+          "line2": "Se abre donde lo dejaste.",
           "linkBtn": "Llévame allí"
         },
-        "s1": {
+        "signin": {
+          "title": "¿Primera vez? Inicia sesión con los datos de tu vendedor.",
+          "line2": "Los usuarios con correo se conectan a Vibez; los demás, a DreamStreams."
+        },
+        "services": {
+          "title": "¿Más de un servicio? Todos salen en una sola lista.",
+          "line2": "Agrega uno en Ajustes de TV en vivo → Cambiar de cuenta. Cada uno tiene su encabezado."
+        },
+        "layout": {
           "title": "Elige tu estilo: Clásico, Compacto o Vibez.",
-          "line2": "TV en vivo te lo pregunta la primera vez. Cámbialo cuando quieras en Ajustes del reproductor → Apariencia."
+          "line2": "TV en vivo te lo pregunta la primera vez. Cámbialo en Ajustes de TV en vivo → Apariencia."
         },
-        "s2": {
+        "menu": {
+          "title": "El menú de la izquierda: TV en vivo, Guía, Game Day, VOD, Multipantalla, Respaldos.",
+          "line2": "Presiona Izquierda para llegar."
+        },
+        "categories": {
           "title": "Elige una categoría y luego un canal.",
-          "line2": "En Compacto, las categorías están a la IZQUIERDA, a un botón de distancia. Atrás desde los canales lleva a las categorías."
+          "line2": "Favoritos está arriba de las categorías."
         },
-        "s3": {
-          "title": "Detente en un canal y se reproduce en el cuadro de vista previa. OK lo pasa a pantalla completa.",
-          "line2": "En Vibez, OK reproduce de inmediato. Mientras ves, OK muestra los controles; Arriba y Abajo cambian de canal."
+        "preview": {
+          "title": "Detente en un canal y se ve en la vista previa. OK lo pasa a pantalla completa.",
+          "line2": "En el estilo Vibez, OK reproduce de inmediato."
         },
-        "s4": {
-          "title": "La Guía muestra lo que dan ahora y lo que sigue."
+        "search": {
+          "title": "Buscar encuentra cualquier canal.",
+          "line2": "Abre Buscar arriba de la lista y escribe el nombre, o usa Voz."
         },
-        "s5": {
+        "holdMenu": {
+          "title": "Mantén OK sobre un canal para ver sus opciones.",
+          "line2": "Agrégalo a Favoritos, reporta un problema o grábalo."
+        },
+        "report": {
+          "title": "Los reportes llegan directo a Snow Media.",
+          "line2": "Canal caído, buffering, sin audio u otro. El ⚠️ aparece mientras lo arreglamos."
+        }
+      },
+      "watching": {
+        "title": "TV en vivo: mirar",
+        "subtitle": "Barra del reproductor, VOD, Multipantalla, ajustes",
+        "bar": {
+          "title": "Mientras ves, OK muestra la barra del reproductor.",
+          "line2": "Izquierda y Derecha te mueven por ella. El nombre sale bajo cada botón. Atrás la oculta."
+        },
+        "channels": {
+          "title": "Arriba y Abajo cambian de canal.",
+          "line2": "O usa los botones de canal de la barra."
+        },
+        "barButtons": {
+          "title": "Reportar, Subtítulos y Audio también están en la barra.",
+          "line2": "Salen en gris si el canal no tiene opciones."
+        },
+        "top": {
+          "title": "Arriba: Actualizar canales y Ajustes.",
+          "line2": "Actualizar canales trae la lista más nueva de tu servicio."
+        },
+        "settings": {
+          "title": "Ajustes de TV en vivo",
+          "line2": "Datos de la cuenta, cambiar de servicio, ocultar categorías, la apariencia, retroceso y cerrar sesión."
+        },
+        "vod": {
+          "title": "VOD: las películas de tu servicio.",
+          "line2": "Elige una categoría, OK sobre un póster y luego Ver película."
+        },
+        "multi": {
           "title": "Multipantalla reproduce 2 o 4 canales a la vez.",
-          "line2": "El sonido sigue al recuadro que resaltas."
+          "line2": "El sonido sigue a la pantalla que resaltas. Cada pantalla usa una conexión de tu plan."
         },
-        "s6": {
-          "title": "¿Un canal no funciona? Mantén OK sobre él.",
-          "line2": "Reporta un problema, agrégalo a Favoritos o actualiza un favorito cuyo enlace cambió. Los reportes nos llegan directo."
+        "backups": {
+          "title": "¿Un canal caído? Prueba Respaldos.",
+          "line2": "Señales que publica Snow Media. Presiona Actualizar si acaban de agregar algo."
+        }
+      },
+      "recording": {
+        "title": "Guía, retroceso y grabación",
+        "subtitle": "Retrocede, graba, programa",
+        "guide": {
+          "title": "La Guía muestra lo que dan ahora y lo que sigue.",
+          "line2": "OK sobre un canal lo reproduce. Los favoritos van primero."
+        },
+        "rewind": {
+          "title": "¿Te perdiste algo? Atrás 10 s retrocede la TV en vivo.",
+          "line2": "Ver en vivo vuelve al momento actual. Necesita una conexión libre en tu plan o un canal con retroceso."
+        },
+        "record": {
+          "title": "Graba desde la barra, o mantén OK sobre un canal → Grabar…",
+          "line2": "Elige cuánto tiempo y dónde: este equipo o una unidad USB."
+        },
+        "schedule": {
+          "title": "Mantén OK en la Guía para grabar un programa más tarde.",
+          "line2": "Un punto rojo marca los programas que se grabarán."
+        },
+        "recordings": {
+          "title": "Grabaciones: el botón sobre la lista de canales.",
+          "line2": "OK sobre una para verla, renombrarla o borrarla."
+        },
+        "settings": {
+          "title": "Ajustes de retroceso y grabación",
+          "line2": "Retroceso máximo, e iniciar antes / terminar después en los programas que programas."
+        }
+      },
+      "gameday": {
+        "title": "Game Day",
+        "subtitle": "Los partidos grandes de hoy y dónde verlos",
+        "list": {
+          "title": "Game Day lista los partidos grandes de hoy.",
+          "line2": "TV en vivo → Game Day. OK sobre un partido muestra dónde lo dan."
+        },
+        "links": {
+          "title": "Cada canal indica en qué servicio está.",
+          "line2": "«En DreamStreams» o «En Vibez». OK lo reproduce."
+        },
+        "picked": {
+          "title": "«Elegido por Snow Media» es nuestra recomendación.",
+          "line2": "El ⚠️ significa que alguien lo reportó caído, por eso va al final."
+        },
+        "unconfirmed": {
+          "title": "«Sin confirmar en la guía» puede que no dé este partido.",
+          "line2": "Prueba primero los canales de arriba."
+        },
+        "report": {
+          "title": "¿Un canal no funciona? Mantén OK sobre él para reportarlo.",
+          "line2": "Los reportes llegan directo a Snow Media."
+        },
+        "remind": {
+          "title": "Recuérdame muestra un aviso en la TV cuando empieza el partido."
         }
       },
       "movies": {
-        "title": "Reproductor: Plex",
+        "title": "Plex (VOD)",
         "subtitle": "Películas y series",
-        "s0": {
-          "title": "Abre Plex desde la pantalla de inicio.",
+        "open": {
+          "title": "Abre Plex (VOD) desde el Inicio.",
+          "line2": "Las Películas y Series de tu servicio están en el mismo menú.",
           "linkBtn": "Llévame allí"
         },
-        "s1": {
-          "title": "¿Ya iniciaste sesión en TV en vivo? Plex se conecta solo, sin códigos.",
-          "line2": "¿Aún no has iniciado sesión? Presiona Conectar con TV en vivo. No necesitas tu propia cuenta de Plex."
+        "connect": {
+          "title": "¿Ya entraste a TV en vivo? Plex se conecta solo.",
+          "line2": "Si te lo pide, presiona Conectar con TV en vivo. No necesitas cuenta de Plex."
         },
-        "s2": {
-          "title": "El menú de la izquierda: Inicio, Descubrir, tus bibliotecas, Buscar y Solicitar.",
-          "line2": "OK sobre un póster abre la página del título; luego presiona Reproducir."
+        "code": {
+          "title": "¿Tienes tu propio servidor Plex? Vincúlalo con un código.",
+          "line2": "Solo para tu propio servidor. Los miembros de Snow Media no lo necesitan."
         },
-        "s3": {
-          "title": "¿No sabes qué ver? Descubrir tiene Joyas ocultas, Sorpréndeme, géneros y décadas.",
-          "line2": "Inicio muestra lo que estabas viendo, las novedades y lo más visto."
+        "menu": {
+          "title": "El menú: Inicio, Descubrir, tus bibliotecas, Buscar y Solicitar.",
+          "line2": "Mantén OK sobre una biblioteca para ocultarla."
         },
-        "s4": {
-          "title": "¿No quieres una biblioteca? Mantén OK sobre ella en el menú para ocultarla.",
-          "line2": "Recupérala en Ajustes → Ocultas."
+        "home": {
+          "title": "Inicio muestra lo que estabas viendo y las novedades."
         },
-        "s5": {
-          "title": "¿Necesitas subtítulos? Abre el menú Subtítulos y elige «Buscar subtítulos…»."
+        "discover": {
+          "title": "¿No sabes qué ver? Prueba Descubrir.",
+          "line2": "Joyas ocultas, Sorpréndeme, géneros y décadas."
         },
-        "s6": {
-          "title": "¿Sin sonido? Abre el menú Audio y presiona «Arreglar audio».",
-          "line2": "Arregla el sonido sin reiniciar tu película."
+        "search": {
+          "title": "Buscar encuentra cualquier película o serie.",
+          "line2": "¿No está? Solicítala."
+        },
+        "detail": {
+          "title": "OK sobre un póster abre su página.",
+          "line2": "Reproduce o Reanuda, agrégala a Mi lista o explora los episodios."
+        },
+        "versions": {
+          "title": "Algunos títulos tienen más de una versión.",
+          "line2": "4K o 1080p: elige la que mejor se vea con tu internet."
+        },
+        "controls": {
+          "title": "OK muestra los controles.",
+          "line2": "Arriba va a la barra de progreso. Izquierda y Derecha saltan."
+        },
+        "skip": {
+          "title": "Saltar intro aparece al inicio de un episodio.",
+          "line2": "Presiona OK para saltarla."
+        },
+        "next": {
+          "title": "A continuación reproduce el siguiente episodio.",
+          "line2": "OK lo reproduce ya. Atrás sigue con el actual."
+        },
+        "subs": {
+          "title": "¿Necesitas subtítulos? Abre Subtítulos → «Buscar subtítulos…»."
+        },
+        "audio": {
+          "title": "¿Sin sonido? Abre Audio → Arreglar audio.",
+          "line2": "Arregla el sonido sin reiniciar."
         }
       },
       "apps": {
-        "title": "Apps principales",
-        "subtitle": "Consigue y administra tus apps",
-        "s0": {
-          "title": "Apps principales tiene todas las apps extra que puedas necesitar, en un solo lugar seguro.",
-          "line2": "Encuéntrala en Soporte → Apps principales.",
+        "title": "Apps principales y Tienda",
+        "subtitle": "Consigue apps y equipos",
+        "where": {
+          "title": "Apps principales está en Soporte.",
+          "line2": "Todas las apps extra que puedas necesitar, en un solo lugar seguro.",
           "linkBtn": "Llévame allí"
         },
-        "s1": {
-          "title": "Presiona OK en una app y luego Descargar para instalarla.",
-          "line2": "¿Ya está instalada? Solo dice Abrir."
+        "pick": {
+          "title": "Elige una app y presiona OK."
+        },
+        "download": {
+          "title": "Presiona Descargar para instalarla.",
+          "line2": "¿Ya está instalada? Dice Abrir."
+        },
+        "store": {
+          "title": "La Tienda de Snow Media.",
+          "line2": "Elige algo y escanea el código con tu celular para comprarlo allí.",
+          "linkBtn": "Llévame allí"
         }
       },
       "support": {
         "title": "Soporte",
-        "subtitle": "Ayuda, IA y Novedades",
-        "s0": {
-          "title": "¿Algo no funciona? Soporte te ayuda.",
-          "line2": "Tres pestañas: Ayuda, Chat con IA y Novedades."
+        "subtitle": "Ayuda, Chat con IA y Novedades",
+        "tabs": {
+          "title": "Soporte tiene tres pestañas: Ayuda, Chat con IA y Novedades."
         },
-        "s1": {
-          "title": "La prueba de velocidad revisa si tu internet es lo bastante rápido para hacer streaming."
+        "ai": {
+          "title": "El Chat con IA responde al instante y puede hacer cosas por ti.",
+          "line2": "Abrir una pantalla, reportar un canal, instalar una app, crear un fondo de pantalla."
         },
-        "s2": {
-          "title": "¿La TV se pausa seguido? Abre la Guía de buffering: te lleva por soluciones fáciles.",
-          "linkBtn": "Abrirla"
+        "voice": {
+          "title": "Voz: el micrófono del Inicio, o el botón de micrófono de tu control.",
+          "line2": "Di un canal, una película o «abre la Guía»."
         },
-        "s3": {
-          "title": "Envía un ticket para hablar con una persona real.",
-          "line2": "Cuando respondamos, aparece un número en la tarjeta de Soporte.",
+        "tickets": {
+          "title": "Enviar un ticket llega a una persona real.",
+          "line2": "Aparece un número en el botón de Soporte cuando respondemos.",
           "linkBtn": "Abrir tickets"
         },
-        "s4": {
-          "title": "¿El equipo va lento o sin espacio? El Limpiador del equipo lo libera.",
-          "line2": "Vacía el caché de cada app, cierra las apps en segundo plano y lista las que nadie abre.",
-          "linkBtn": "Abrir el limpiador"
+        "speed": {
+          "title": "La prueba de velocidad revisa tu internet.",
+          "line2": "Unos 25 Mb/s o más sirven para 4K."
         },
-        "s5": {
-          "title": "El Chat con IA responde al instante y puede hacer cosas por ti.",
-          "line2": "Pídele que abra una pantalla, cambie el estilo de TV en vivo, reporte un canal, instale una app o te haga un fondo de pantalla."
+        "buffering": {
+          "title": "¿La TV se pausa seguido? La Guía de buffering te lleva por las soluciones.",
+          "linkBtn": "Abrirla"
         },
-        "s6": {
-          "title": "Novedades: cada correo que enviamos también llega aquí.",
-          "line2": "Con fecha, marcadas como Nuevo hasta que las abres y legibles a pantalla completa. Los enlaces se convierten en un código que escaneas con tu teléfono.",
+        "videos": {
+          "title": "Videos de soporte: videos cortos para aprender."
+        },
+        "posts": {
+          "title": "Novedades: noticias y ofertas de Snow Media.",
+          "line2": "Las nuevas llevan la marca Nuevo. Los enlaces se vuelven un código para escanear.",
           "linkBtn": "Ver novedades"
+        },
+        "more": {
+          "title": "Acceso remoto y Limpiador del equipo.",
+          "line2": "Un técnico puede arreglar tu equipo en vivo. El limpiador libera espacio y memoria.",
+          "linkBtn": "Abrir el limpiador"
         }
       },
       "account": {
         "title": "Mi cuenta y Snow Gems",
-        "subtitle": "Panel, gems y juegos",
-        "s0": {
-          "title": "Mi cuenta es tu panel: todo en una sola pantalla.",
-          "line2": "Tu cuenta de streaming, dispositivos y servicios, y tus Snow Gems. ¿Lo prefieres más grande? Ajustes → Interfaz → Panel grande.",
+        "subtitle": "Panel, gems y cerrar sesión",
+        "dashboard": {
+          "title": "El Panel: tu cuenta en una sola pantalla.",
+          "line2": "Ábrelo con Panel, arriba en el Inicio.",
           "linkBtn": "Llévame allí"
         },
-        "s1": {
-          "title": "Los Snow Gems activan la IA Premium y la generación de imágenes.",
-          "line2": "Compra Snow Gems: elige un paquete, escanea el código con tu teléfono y paga allí; los gems llegan solos a tu cuenta."
+        "gems": {
+          "title": "Los Snow Gems pagan la IA Premium y la generación de imágenes."
         },
-        "s2": {
-          "title": "La Sala de juegos: Blackjack, Roulette, Slots, Plinko, Dice, Video Poker, Trivia y el Daily Spin.",
-          "line2": "Juega por Snow Coins y sube en la clasificación. Nunca con dinero real.",
+        "buyGems": {
+          "title": "Compra gems: elige un paquete y escanea el código con tu celular.",
+          "line2": "Llegan solos a tu cuenta.",
+          "linkBtn": "Llévame allí"
+        },
+        "payGems": {
+          "title": "Escanea el código con tu celular y paga ahí.",
+          "linkBtn": "Llévame allí"
+        },
+        "signOut": {
+          "title": "Cerrar sesión está en el Panel.",
+          "line2": "Saca este equipo de tu cuenta de Snow Media y de TV en vivo."
+        },
+        "lounge": {
+          "title": "La Sala de juegos: cartas, tragamonedas, trivia y el Daily Spin.",
+          "line2": "Juega por Snow Coins. Nunca con dinero real.",
           "linkBtn": "Abrir la Sala de juegos"
         }
       },
       "extras": {
-        "title": "Ajustes y extras",
-        "subtitle": "Hazlo tuyo",
-        "s0": {
-          "title": "Cambia tu fondo de pantalla en Ajustes → Gestor de medios.",
-          "line2": "Sube el tuyo o descríbelo y deja que la IA lo cree.",
+        "title": "Ajustes",
+        "subtitle": "Idioma, apariencia y perfiles",
+        "language": {
+          "title": "Cambia el idioma: Ajustes → Interfaz → Idioma.",
+          "line2": "Cambian todas las pantallas y botones, y también las respuestas del asistente de IA, TV en vivo y Plex. Los nombres de canales y programas los da el proveedor.",
           "linkBtn": "Llévame allí"
         },
-        "s1": {
-          "title": "Ajustes → Interfaz tiene los interruptores.",
-          "line2": "Barra de contenido sí o no, panel grande, notificaciones de publicaciones y alertas en este dispositivo."
+        "wallpaper": {
+          "title": "Cambia tu fondo de pantalla en Ajustes → Gestor de medios.",
+          "line2": "Sube el tuyo o descríbelo y la IA lo crea."
         },
-        "s2": {
-          "title": "Cuentas guardadas recuerda tus inicios de sesión para que no tengas que escribirlos otra vez."
+        "switches": {
+          "title": "Ajustes → Interfaz tiene los interruptores.",
+          "line2": "La fila Recomendado, el Panel grande y los avisos."
+        },
+        "profiles": {
+          "title": "Cada persona puede tener su propio perfil.",
+          "line2": "Con su propio Seguir viendo, Mi lista y favoritos. Cambia con el botón de perfil del Inicio."
+        },
+        "kids": {
+          "title": "Los perfiles infantiles solo muestran lo que va con su edad.",
+          "line2": "Agrega un PIN para que los niños no abran los perfiles de adultos."
+        },
+        "updates": {
+          "title": "¿Hay una actualización? Ajustes → Actualizaciones la instala.",
+          "line2": "El Inicio muestra «Actualización disponible» bajo el reloj."
         }
+      },
+      "labels": {
+        "ageLevel": "Nivel de edad",
+        "aiChat": "Chat con IA",
+        "appearance": "Apariencia",
+        "apps": "Apps",
+        "askAnything": "Pregunta lo que quieras",
+        "audio": "Audio",
+        "back": "Atrás",
+        "back10": "Atrás 10 s",
+        "backups": "Señales de respaldo",
+        "buttonName": "Nombre del botón",
+        "cast": "Reparto",
+        "categories": "Categorías",
+        "chDown": "Canal −",
+        "chUp": "Canal +",
+        "channels": "Canales",
+        "cleaner": "Limpiador del equipo",
+        "continueWatching": "Seguir viendo",
+        "controls": "Controles",
+        "dashboard": "Panel",
+        "dateTime": "Fecha y hora",
+        "devices": "Equipos y servicios",
+        "download": "Descargar",
+        "favorite": "Favorito",
+        "favorites": "Favoritos",
+        "fixAudio": "Arreglar audio",
+        "freeSpace": "Espacio libre",
+        "gameLounge": "Sala de juegos",
+        "getSubs": "Buscar subtítulos",
+        "goHere": "Ve aquí desde tu celular",
+        "goLive": "Ver en vivo",
+        "help": "Ayuda",
+        "hideCategories": "Ocultar categorías",
+        "holdToReport": "Mantén OK y reporta",
+        "howFar": "Cuánto retroceder",
+        "howLong": "Cuánto tiempo",
+        "ideas": "Ideas",
+        "language": "Idioma",
+        "leagues": "Ligas",
+        "liveAccount": "Cuenta de TV en vivo",
+        "liveTv": "TV en vivo",
+        "mainApps": "Apps principales",
+        "manage": "Administrar",
+        "mayNotHave": "Puede que no lo dé",
+        "menu": "Menú",
+        "more": "Más",
+        "move": "Mover",
+        "movies": "Películas",
+        "myList": "Mi lista",
+        "newArrivals": "Nuevo",
+        "newTicket": "Nuevo ticket",
+        "news": "Noticias",
+        "nextEpisode": "Siguiente episodio",
+        "nowNext": "Ahora y después",
+        "okHold": "OK · mantén para más",
+        "okPlays": "OK lo reproduce",
+        "orCode": "O escribe este código",
+        "ourPick": "Elegido por Snow Media",
+        "pages": "Páginas",
+        "password": "Contraseña",
+        "pickLayout": "Elige un diseño",
+        "pickOne": "Elige uno",
+        "pickPack": "Elige un paquete",
+        "pickShow": "Elige un programa",
+        "pin": "PIN",
+        "play": "Reproducir",
+        "playerBar": "Barra del reproductor",
+        "plexVod": "Películas y series",
+        "postAlerts": "Avisos de novedades",
+        "posts": "Novedades",
+        "pressThis": "Presiona esto",
+        "preview": "Vista previa",
+        "products": "Productos",
+        "profiles": "Perfiles",
+        "recommendedRow": "Fila Recomendado",
+        "record": "Grabar",
+        "recordIt": "Grábalo",
+        "refresh": "Actualizar",
+        "remindMe": "Recuérdame",
+        "remoteAccess": "Acceso remoto",
+        "report": "Reportar",
+        "reportedDown": "⚠️ Reportado caído",
+        "results": "Resultados",
+        "rewindSettings": "Retroceso y grabación",
+        "saveTo": "Dónde guardar",
+        "scanPhone": "Escanea con tu celular",
+        "scanToPay": "Escanea para pagar",
+        "scheduled": "Programadas",
+        "seekBar": "Barra de progreso",
+        "serviceAlerts": "Avisos del servicio",
+        "settings": "Ajustes",
+        "signIn": "Iniciar sesión",
+        "signOut": "Cerrar sesión",
+        "skipIntro": "Saltar intro",
+        "snowGems": "Snow Gems",
+        "start": "Iniciar",
+        "steps": "Pasos",
+        "subtitles": "Subtítulos",
+        "switchAccount": "Cambiar de cuenta",
+        "talkNow": "Habla ahora",
+        "todaysGames": "Partidos de hoy",
+        "typeHere": "Escribe aquí",
+        "typeOrTalk": "Escribe o habla",
+        "updateChannels": "Actualizar canales",
+        "updates": "Actualizaciones",
+        "username": "Usuario",
+        "version": "Versión",
+        "videos": "Videos",
+        "voice": "Voz",
+        "wallpaper": "Fondo de pantalla",
+        "whatsOn": "Qué dan",
+        "whatsWrong": "Elige qué falla",
+        "whereOn": "Dónde lo dan",
+        "whichService": "Qué servicio",
+        "whoWatching": "¿Quién está viendo?",
+        "yourCode": "Tu código",
+        "yourRecordings": "Tus grabaciones",
+        "yourServices": "Tus servicios",
+        "yourTickets": "Tus tickets"
+      },
+      "remote": {
+        "ok": "Presiona OK",
+        "holdOk": "Mantén OK",
+        "back": "Presiona Atrás",
+        "upDown": "Arriba / Abajo",
+        "leftRight": "Izquierda / Derecha"
       },
       "title": "Cómo usar SMC",
       "pickTopic": "Elige un tema; presiona Atrás cuando quieras para salir.",

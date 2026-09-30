@@ -2,6 +2,8 @@
   "gameDay": {
     "title": "Game Day",
     "allChip": "Tous",
+    "chipIntl": "International",
+    "chipSoccer": "Plus de foot",
     "loading": "Chargement des matchs du jour…",
     "loadError": "Impossible de charger les matchs. Vérifiez votre connexion internet et réessayez dans une minute.",
     "empty": "Aucun grand match en ce moment — revenez plus tard.",

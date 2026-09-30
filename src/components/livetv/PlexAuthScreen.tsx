@@ -101,12 +101,12 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
               </p>
             )}
             <div className="flex items-center justify-center gap-3">
-              <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onLinkWithProvider}
+              <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onLinkWithProvider} data-howto="plexauth.connect"
                 className={`tv-ring tv-ring-contrast relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 0 ? 'scale-105 z-10' : ''}`}>
                 <LogIn className="w-4 h-4 mr-2 shrink-0" /> <span className="min-w-0 truncate">{t('plex.auth.connectBtn')}</span>
               </Button>
               {!kids && (
-                <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onStartLink}
+                <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onStartLink} data-howto="plexauth.ownServer"
                   className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}>
                   <span className="min-w-0 truncate">{t('plex.auth.ownServerBtn')}</span>
                 </Button>
@@ -145,7 +145,7 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
                   <LogIn className="w-4 h-4 mr-2 shrink-0" /> <span className="min-w-0 truncate">{t('plex.auth.signInLiveTvBtn')}</span>
                 </Button>
               )}
-              <Button variant={onNeedLiveTV ? 'white' : 'gold'} data-focused={focusIdx === (onNeedLiveTV ? 1 : 0) ? 'true' : 'false'} onClick={onStartLink}
+              <Button variant={onNeedLiveTV ? 'white' : 'gold'} data-focused={focusIdx === (onNeedLiveTV ? 1 : 0) ? 'true' : 'false'} onClick={onStartLink} data-howto="plexauth.ownServer"
                 className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${onNeedLiveTV ? '' : 'tv-ring-contrast'} ${focusIdx === (onNeedLiveTV ? 1 : 0) ? 'scale-105 z-10' : ''}`}>
                 <span className="min-w-0 truncate">{t('plex.auth.ownServerBtn')}</span>
               </Button>
@@ -156,10 +156,10 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
         {isLinking && (
           <>
             <h2 className="text-2xl font-quicksand font-bold mb-2">{t('plex.auth.linkTitle')}</h2>
-            <p className="text-brand-ice/70 font-nunito mb-4">
+            <p className="text-brand-ice/70 font-nunito mb-4" data-howto="plexauth.url">
               <Trans i18nKey="plex.auth.linkBody" components={{ 1: <span className="text-brand-gold font-semibold" /> }} />
             </p>
-            <div className="text-5xl font-quicksand font-black tracking-[0.3em] text-white bg-black/40 rounded-2xl py-6 mb-4 select-all">
+            <div className="text-5xl font-quicksand font-black tracking-[0.3em] text-white bg-black/40 rounded-2xl py-6 mb-4 select-all" data-howto="plexauth.code">
               {pinCode || '····'}
             </div>
             <div className="flex items-center justify-center gap-2 text-brand-ice/70 font-nunito text-sm mb-3">

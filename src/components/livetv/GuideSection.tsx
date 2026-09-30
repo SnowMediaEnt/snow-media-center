@@ -879,7 +879,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   return (
     <div data-native-clear className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden bg-black/30">
       {/* Category selector row */}
-      <div className={`flex-shrink-0 border-b border-white/10 bg-black/40 px-3 py-2 ${focusZone === 'category' && isActive ? 'bg-white/5' : ''}`}>
+      <div data-howto="guide.categories" className={`flex-shrink-0 border-b border-white/10 bg-black/40 px-3 py-2 ${focusZone === 'category' && isActive ? 'bg-white/5' : ''}`}>
         {!catsReady ? (
           <div className="flex items-center gap-2 text-brand-ice/70 font-nunito text-sm px-2 py-1">
             <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> {t('guide.loadingCategories')}
@@ -1032,6 +1032,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                   `}>
                     {/* Channel cell */}
                     <div
+                      data-howto="guide.channels"
                       className="flex-shrink-0 flex items-center gap-2 px-3 border-r border-white/10 overflow-hidden"
                       style={{ width: CHANNEL_COL_WIDTH }}
                     >
@@ -1046,7 +1047,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                       </div>
                     </div>
                     {/* Program lane */}
-                    <div className="flex-1 relative">
+                    <div className="flex-1 relative" data-howto="guide.grid">
                       {!programs && (
                         <div className="absolute inset-0 flex items-center justify-center text-brand-ice/70 font-nunito text-xs">
                           <Loader2 className="w-3 h-3 animate-spin mr-2" /> {t('guide.epgLoading')}

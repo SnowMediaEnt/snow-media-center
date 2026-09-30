@@ -139,6 +139,9 @@ export async function fetchGames(force = false): Promise<Game[]> {
 /** League words, by league id (as the game-day function names them). PPV and
  *  event channels are no league's: a PPV channel shows a baseball game as
  *  often as a fight. */
+// A bare "friendly" is also "family friendly": only the soccer word for it counts.
+const FRIENDLY = /\b((?:international|intl|fifa|soccer|football|national team)s? friendl(?:y|ies)|friendl(?:y|ies) (?:match|game)s?)\b/;
+const NATIONS_LEAGUE = /\b(nations league)\b/;
 const LEAGUE_WORDS: Record<string, RegExp> = {
   nfl: /\b(nfl|red ?zone|sunday ticket)\b/,
   ncaaf: /\b(ncaaf|ncaa football|college football|cfb|sec network|acc network|big ten network|btn)\b/,
@@ -158,6 +161,40 @@ const LEAGUE_WORDS: Record<string, RegExp> = {
   ligue1: /\b(ligue 1|ligue1)\b/,
   ucl: /\b(ucl|champions league)\b/,
   uel: /\b(uel|europa league)\b/,
+  // National teams and the rest of the soccer calendar. Words shared by
+  // several competitions name all of them ("Friendly" is the men's and the
+  // women's; "Nations League" the UEFA and the CONCACAF one).
+  friendly: FRIENDLY,
+  friendlyw: FRIENDLY,
+  wcq: /\b(wcq|world cup qualif\w*|wc qualif\w*)\b/,
+  unl: NATIONS_LEAGUE,
+  cnl: NATIONS_LEAGUE,
+  euroq: /\b(euro qualif\w*|euros? 20\d\d qualif\w*)\b/,
+  euro: /\b(uefa euro|euro 20\d\d|european championship)\b/,
+  weuro: /\b(womens euro|weuro)\b/,
+  wc: /\b(fifa world cup|world cup)\b/,
+  wwc: /\b(womens world cup|wwc)\b/,
+  copa: /\b(copa america)\b/,
+  gold: /\b(gold cup)\b/,
+  uecl: /\b(uecl|conference league)\b/,
+  facup: /\b(fa cup)\b/,
+  efl: /\b(carabao|efl cup|league cup)\b/,
+  champ: /\b(efl championship|english championship)\b/,
+  wsl: /\b(wsl|womens super league)\b/,
+  delrey: /\b(copa del rey)\b/,
+  coppa: /\b(coppa italia)\b/,
+  dfb: /\b(dfb ?pokal)\b/,
+  ned: /\b(eredivisie)\b/,
+  por: /\b(primeira liga|liga portugal)\b/,
+  sco: /\b(scottish premiership|scottish premier league|spfl)\b/,
+  bra: /\b(brasileirao|brasileiro)\b/,
+  leaguescup: /\b(leagues cup)\b/,
+  cccl: /\b(concacaf champions)\b/,
+  cwc: /\b(club world cup|cwc)\b/,
+  liberta: /\b(libertadores)\b/,
+  sudamer: /\b(sudamericana)\b/,
+  wncaab: /\b(wncaab|womens college basketball|ncaa womens basketball)\b/,
+  ncaah: /\b(ncaah|college hockey|ncaa hockey)\b/,
   ufc: /\b(ufc|fight night)\b/,
   f1: /\b(f1|formula ?1|formula one)\b/,
   nascar: /\b(nascar)\b/,
@@ -167,12 +204,30 @@ const LEAGUE_WORDS: Record<string, RegExp> = {
   atp: /\b(atp)\b/,
   wta: /\b(wta)\b/,
 };
-const SOCCER_LEAGUES = ['mls', 'nwsl', 'ligamx', 'epl', 'laliga', 'seriea', 'bundesliga', 'ligue1', 'ucl', 'uel'];
+/** National-team competitions: the teams are countries ("USA", "CZE"). */
+const INTERNATIONAL_LEAGUES = ['friendly', 'friendlyw', 'wcq', 'unl', 'cnl', 'euroq', 'euro', 'weuro', 'wc', 'wwc', 'copa', 'gold'];
+/** Club competitions besides the big leagues' chips. */
+const MORE_SOCCER_LEAGUES = [
+  'uecl', 'facup', 'efl', 'champ', 'wsl', 'delrey', 'coppa', 'dfb', 'ned', 'por', 'sco', 'bra', 'leaguescup', 'cccl', 'cwc', 'liberta', 'sudamer',
+];
+const SOCCER_LEAGUES = [
+  'mls', 'nwsl', 'ligamx', 'epl', 'laliga', 'seriea', 'bundesliga', 'ligue1', 'ucl', 'uel', ...INTERNATIONAL_LEAGUES, ...MORE_SOCCER_LEAGUES,
+];
+
+/** The chip a league is filed under in Game Day. The big leagues have their
+ *  own; national teams share "International" and the other soccer
+ *  competitions "More Soccer", so the chip row stays short. `labelKey` is the
+ *  translated name of a shared chip; a league of its own has its `label`. */
+export function chipOf(g: { league: string; leagueLabel: string }): { id: string; label: string; labelKey?: string } {
+  if (INTERNATIONAL_LEAGUES.includes(g.league)) return { id: 'chip:intl', label: 'International', labelKey: 'gameDay.chipIntl' };
+  if (MORE_SOCCER_LEAGUES.includes(g.league)) return { id: 'chip:soccer', label: 'More Soccer', labelKey: 'gameDay.chipSoccer' };
+  return { id: g.league, label: g.leagueLabel };
+}
 /** A sport's word stands for its leagues ("Baseball" → MLB). */
 const SPORT_LEAGUES: Array<[RegExp, string[]]> = [
   [/\bbaseball\b/, ['mlb']],
-  [/\bhockey\b/, ['nhl']],
-  [/\bbasketball\b/, ['nba', 'wnba', 'ncaab']],
+  [/\bhockey\b/, ['nhl', 'ncaah']],
+  [/\bbasketball\b/, ['nba', 'wnba', 'ncaab', 'wncaab']],
   [/\bfootball\b/, ['nfl', 'ncaaf', 'ufl']],
   [/\b(soccer|futbol|futebol)\b/, SOCCER_LEAGUES],
   [/\b(mma|boxing|fights?)\b/, ['ufc']],
@@ -351,6 +406,12 @@ const NETWORK_ALIASES: Record<string, string[]> = {
   trutv: ['trutv', 'tru tv'], golf: ['golf channel'], tnt: ['tnt'], tbs: ['tbs'], abc: ['abc'],
   cbs: ['cbs'], nbc: ['nbc'], fox: ['fox'], espn: ['espn'], 'espn deportes': ['espn deportes'], univision: ['univision'],
   telemundo: ['telemundo'], 'fox deportes': ['fox deportes'], tudn: ['tudn'], unimas: ['unimas'],
+  // Soccer's other homes.
+  universo: ['universo', 'nbc universo'], 'nbc universo': ['nbc universo', 'universo'],
+  'cbs golazo network': ['cbs golazo network', 'cbs sports golazo network', 'golazo network', 'cbs golazo', 'golazo'],
+  'cbs sports golazo network': ['cbs sports golazo network', 'cbs golazo network', 'golazo network', 'cbs golazo', 'golazo'],
+  golazo: ['golazo network', 'cbs golazo network', 'golazo'],
+  'tnt sports': ['tnt sports', 'tnt'], 'bein sports': ['bein sports', 'bein'], 'fox soccer plus': ['fox soccer plus'],
   // Regional sports networks go by several names.
   'bally sports': ['bally sports', 'fanduel sports', 'fanduel sn'], 'fanduel sn': ['fanduel sports', 'fanduel sn', 'bally sports'],
   'fanduel sports': ['fanduel sports', 'fanduel sn', 'bally sports'],
@@ -361,7 +422,7 @@ const NETWORK_ALIASES: Record<string, string[]> = {
 };
 /** Streaming services, never a channel by name: a line carries them, if at
  *  all, as numbered feeds (found by their guide: gameServices). */
-const STREAMING_ONLY = /(espn\+|\bpeacock\b|prime video|\bprime\b|paramount\+|apple tv|\bmax\b|netflix|youtube|dazn app|nfl\+|mlb\.?tv|nba league pass|nhl\.?tv|nhl power play|mls season pass|espn app|\bstreaming\b|\b\w+\.tv\b)/i;
+const STREAMING_ONLY = /(espn\+|\bpeacock\b|prime video|\bprime\b|paramount\+|apple tv|\bmax\b|netflix|youtube|dazn app|nfl\+|mlb\.?tv|nba league pass|nhl\.?tv|nhl power play|mls season pass|espn app|fox one|\bvix\b|espn unlimited|\bstreaming\b|\b\w+\.tv\b)/i;
 
 export const isStreamingOnly = (network: string): boolean => STREAMING_ONLY.test(network);
 
@@ -369,6 +430,8 @@ export const isStreamingOnly = (network: string): boolean => STREAMING_ONLY.test
  *  ESPN's on ESPN+ … */
 const PARTNERS: Record<string, string> = {
   nbc: 'peacock', nbcsn: 'peacock', 'nbc sports network': 'peacock', usa: 'peacock', 'usa net': 'peacock', 'usa network': 'peacock', telemundo: 'peacock',
+  universo: 'peacock', 'nbc universo': 'peacock',
+  'cbs golazo network': 'paramount', 'cbs sports golazo network': 'paramount', golazo: 'paramount',
   abc: 'espnplus', espn: 'espnplus', espn2: 'espnplus', 'espn 2': 'espnplus', espnu: 'espnplus', secn: 'espnplus', 'sec network': 'espnplus',
   accn: 'espnplus', 'acc network': 'espnplus',
   cbs: 'paramount', cbssn: 'paramount', 'cbs sports network': 'paramount',
@@ -482,6 +545,52 @@ const TEAM_NICKNAMES: Record<string, string[]> = {
   'manchester united': ['man utd', 'man united'], 'manchester city': ['man city'], 'tottenham hotspur': ['spurs'],
   'wolverhampton wanderers': ['wolves'],
 };
+/** National teams as providers write them (by ESPN's name, normalised): more
+ *  names for the team alone ("usmnt", the Spanish-language name) — and `duo`,
+ *  names that count only next to the other team, never alone: "USA" is also
+ *  "USA Network". A national team's ESPN code ("CZE") is a duo name too. */
+const NATIONAL_TEAMS: Record<string, { own?: string[]; duo?: string[] }> = {
+  'united states': { own: ['usmnt', 'uswnt', 'united states of america', 'estados unidos', 'ee uu', 'eeuu'], duo: ['usa', 'u s a', 'team usa'] },
+  usa: { own: ['usmnt', 'uswnt', 'united states', 'estados unidos'] },
+  czechia: { own: ['czech republic', 'czech', 'chequia', 'republica checa'] },
+  'czech republic': { own: ['czechia', 'czech', 'chequia', 'republica checa'] },
+  england: { own: ['inglaterra', 'three lions'] },
+  'south korea': { own: ['korea republic', 'korea', 'corea del sur'] },
+  'korea republic': { own: ['south korea', 'korea', 'corea del sur'] },
+  'ivory coast': { own: ['cote d ivoire'] },
+  'ir iran': { own: ['iran'] },
+  turkiye: { own: ['turkey', 'turquia'] },
+  turkey: { own: ['turkiye', 'turquia'] },
+  netherlands: { own: ['holland', 'paises bajos', 'oranje'] },
+  'united arab emirates': { duo: ['uae'] },
+  ireland: { own: ['republic of ireland', 'irlanda'] },
+  'republic of ireland': { own: ['ireland', 'irlanda'] },
+  'bosnia and herzegovina': { own: ['bosnia', 'bosnia herzegovina'] },
+  'north macedonia': { own: ['macedonia'] },
+  'cape verde': { own: ['cabo verde'] },
+  'dr congo': { own: ['congo dr', 'congo'] },
+  'china pr': { own: ['china'] },
+  mexico: { own: ['el tri'] },
+  brazil: { own: ['brasil', 'selecao'] },
+  germany: { own: ['deutschland', 'alemania'] },
+  spain: { own: ['espana'] },
+  italy: { own: ['italia', 'azzurri'] },
+  france: { own: ['francia'] },
+  japan: { own: ['japon'] },
+  belgium: { own: ['belgica'] },
+  switzerland: { own: ['suiza'] },
+  croatia: { own: ['croacia'] },
+  morocco: { own: ['marruecos'] },
+  scotland: { own: ['escocia'] },
+  wales: { own: ['gales'] },
+  denmark: { own: ['dinamarca'] },
+  sweden: { own: ['suecia'] },
+  norway: { own: ['noruega'] },
+  poland: { own: ['polonia'] },
+  greece: { own: ['grecia'] },
+  'south africa': { own: ['sudafrica'] },
+  'saudi arabia': { own: ['arabia saudita', 'arabia saudi'] },
+};
 /** Short codes that are also words ("NO" for New Orleans). */
 const NOT_A_CODE = new Set(['no', 'at', 'vs', 'in', 'on', 'or', 'is', 'it', 'as', 'of', 'to', 'tv', 'hd', 'sd', 'us', 'uk', 'the']);
 
@@ -492,20 +601,30 @@ const NOT_A_CODE = new Set(['no', 'at', 'vs', 'in', 'on', 'or', 'is', 'it', 'as'
  *  which is a place too: `shortPlace`, which names the team only next to the
  *  other one ("Tennessee vs Florida"), never alone ("FanDuel Sports Florida",
  *  "NBC 6 Miami"). */
-interface TeamWords { own: string[]; shortPlace: string[]; place: string[]; code: string[] }
-const teamWords = (t: GameTeam | null): TeamWords => {
-  if (!t) return { own: [], shortPlace: [], place: [], code: [] };
+interface TeamWords { own: string[]; shortPlace: string[]; place: string[]; code: string[]; duo: string[] }
+const teamWords = (t: GameTeam | null, national = false): TeamWords => {
+  if (!t) return { own: [], shortPlace: [], place: [], code: [], duo: [] };
   const clean = (ws: string[]) => [...new Set(ws.map((w) => normalizeSpeech(String(w ?? ''))).filter((w) => w.length >= 3))];
   const loc = clean([t.location]);
   const shortPlace = clean([t.short]).filter((w) => loc.some((l) => l === w || ` ${l} `.includes(` ${w} `) || ` ${w} `.includes(` ${l} `)));
   const names = clean([t.short, t.name]);
-  const own = [...new Set([...names, ...names.flatMap((w) => TEAM_NICKNAMES[w] ?? [])])].filter((w) => !shortPlace.includes(w));
+  const known = national ? clean([t.name, t.short, t.location]).map((n) => NATIONAL_TEAMS[n]).filter(Boolean) : [];
+  const duo = [...new Set([...known.flatMap((k) => k.duo ?? [])])];
+  const ownAll = [...new Set([...names, ...names.flatMap((w) => TEAM_NICKNAMES[w] ?? []), ...known.flatMap((k) => k.own ?? [])])];
+  // "USA" (a name ESPN may give as the short one) is a team next to the other
+  // team only.
+  const own = ownAll.filter((w) => !shortPlace.includes(w) && !(national && duo.includes(w)) && !(national && w === 'usa'));
+  if (national && ownAll.includes('usa')) duo.push('usa');
   const code = normalizeSpeech(String(t.abbr ?? ''));
+  const okCode = /^[a-z0-9]{2,4}$/.test(code) && !NOT_A_CODE.has(code);
+  // A country's code ("CZE vs ENG") is enough next to the other country's.
+  if (national && okCode) duo.push(code);
   return {
     own: spaced(own),
     shortPlace: spaced(shortPlace),
     place: spaced(loc.filter((w) => !own.includes(w) && !shortPlace.includes(w))),
-    code: /^[a-z0-9]{2,4}$/.test(code) && !NOT_A_CODE.has(code) ? spaced([code]) : [],
+    code: okCode ? spaced([code]) : [],
+    duo: spaced([...new Set(duo)]),
   };
 };
 
@@ -513,7 +632,7 @@ interface Side { strong: boolean; weak: boolean }
 /** How a spaced text names a team: by its own name, its school or (on a
  *  channel of its league) its short code — strongly; by its city — weakly. */
 const sideIn = (text: string, w: TeamWords, codes: boolean): Side => ({
-  strong: has(text, w.own) || has(text, w.shortPlace) || (codes && has(text, w.code)),
+  strong: has(text, w.own) || has(text, w.shortPlace) || (codes && has(text, w.code)) || has(text, w.duo),
   weak: has(text, w.place),
 });
 
@@ -692,7 +811,8 @@ const gameWhen = (start: string): When | null => {
 
 interface GameWords { home: TeamWords; away: TeamWords; card: Card | null; when: When | null }
 const gameWords = (g: Game): GameWords => {
-  const home = teamWords(g.home), away = teamWords(g.away);
+  const national = INTERNATIONAL_LEAGUES.includes(g.league);
+  const home = teamWords(g.home, national), away = teamWords(g.away, national);
   // A city both teams share tells neither apart (Yankees vs Mets).
   const shared = home.place.filter((p) => away.place.includes(p));
   if (shared.length) {

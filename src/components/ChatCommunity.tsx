@@ -2075,6 +2075,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 placeholder={t('ai.chat.askPlaceholder')}
                 enterKeyHint="done"
                 data-focus-id="ai-input"
+                data-howto="ai.input"
                 className={`bg-black/40 border-white/20 text-white text-lg py-3 flex-1 transition-all duration-200 rounded-lg placeholder:text-white/45 ${isFocused('ai-input') ? 'ring-4 ring-brand-ice' : ''}`}
                 disabled={aiLoading}
                 onKeyPress={(e) => {

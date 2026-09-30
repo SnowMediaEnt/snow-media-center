@@ -3,170 +3,479 @@
     "howTo": {
       "basics": {
         "title": "The Basics",
-        "subtitle": "Your remote + the Home screen",
-        "s0": {
-          "title": "Move with the arrows. OK picks. Back goes back.",
-          "line2": "That's 90% of everything — you can't break anything."
+        "subtitle": "Your remote, your phone and Home",
+        "remote": {
+          "title": "Arrows move. OK picks. Back goes back.",
+          "line2": "Hold OK on a channel or a title for more options. You can't break anything."
         },
-        "s1": {
-          "title": "This is your Home screen.",
-          "line2": "Big cards: Live TV, Plex, Support and the Store."
+        "phone": {
+          "title": "Use your phone as a remote.",
+          "line2": "Settings → Phone Remote. Scan, then pick Allow on the TV. Your phone can type and talk too.",
+          "linkBtn": "Take me there"
         },
-        "s2": {
-          "title": "The bar up top is yours.",
-          "line2": "What you were watching, your live channels with what's on now, and picks based on what you watch. OK jumps straight in."
+        "home": {
+          "title": "This is Home.",
+          "line2": "The big buttons: Live TV, Plex (VOD), Support and the Store."
         },
-        "s3": {
-          "title": "The scrolling line at the very top is news from us.",
-          "line2": "Deals, updates and heads-ups show there."
+        "topbar": {
+          "title": "Top right: the date, the time and your buttons.",
+          "line2": "Press Up from the big buttons to reach them."
         },
-        "s4": {
-          "title": "My Account and Settings live in the top-right corner."
+        "dashVoice": {
+          "title": "Dashboard is your account. Voice lets you talk to SMC.",
+          "line2": "Not signed in? The button says Sign In."
+        },
+        "ticker": {
+          "title": "The scrolling strip is news from Snow Media.",
+          "line2": "Deals, updates and heads-ups."
+        },
+        "recommended": {
+          "title": "Recommended: what's on and what to watch.",
+          "line2": "Press Up from the big buttons. Left and Right scroll; the dots show the page."
         }
       },
       "livetv": {
-        "title": "Player — Live TV",
-        "subtitle": "Channels, layouts, guide & multi-screen",
-        "s0": {
-          "title": "Open Live TV from the Home screen.",
-          "line2": "Sign in with the details your seller gave you. Every account you add shows in one list.",
+        "title": "Live TV",
+        "subtitle": "Sign in, channels and favorites",
+        "open": {
+          "title": "Open Live TV from Home.",
+          "line2": "It opens where you left off.",
           "linkBtn": "Take me there"
         },
-        "s1": {
+        "signin": {
+          "title": "First time? Sign in with the details from your seller.",
+          "line2": "Email usernames connect to Vibez; all others to DreamStreams."
+        },
+        "services": {
+          "title": "More than one service? They all show in one list.",
+          "line2": "Add one under Live TV Settings → Switch Account. Each has its own heading."
+        },
+        "layout": {
           "title": "Pick your look: Classic, Compact or Vibez.",
-          "line2": "Live TV asks the first time. Change it any time under Player Settings → Appearance."
+          "line2": "Live TV asks the first time. Change it in Live TV Settings → Appearance."
         },
-        "s2": {
+        "menu": {
+          "title": "The menu on the left: Live TV, Guide, Game Day, VOD, Multi-Screen, Backups.",
+          "line2": "Press Left to reach it."
+        },
+        "categories": {
           "title": "Pick a category, then a channel.",
-          "line2": "In Compact, the categories are one press to the LEFT. Back from the channels goes to the categories."
+          "line2": "Favorites is at the top of the categories."
         },
-        "s3": {
-          "title": "Rest on a channel and it plays in the preview box. OK goes full screen.",
-          "line2": "In Vibez, OK plays right away. While watching, OK shows the controls; Up and Down change the channel."
+        "preview": {
+          "title": "Rest on a channel and it plays in the preview. OK goes full screen.",
+          "line2": "In the Vibez look, OK plays right away."
         },
-        "s4": {
-          "title": "The Guide shows what's on now and what's next."
+        "search": {
+          "title": "Search finds any channel.",
+          "line2": "Open Search above the list and type the name, or just use Voice."
         },
-        "s5": {
+        "holdMenu": {
+          "title": "Hold OK on a channel for its options.",
+          "line2": "Add it to Favorites, report a problem, or record it."
+        },
+        "report": {
+          "title": "Reports come straight to Snow Media.",
+          "line2": "Channel down, buffering, no audio or other. ⚠️ shows while we fix it."
+        }
+      },
+      "watching": {
+        "title": "Live TV: watching",
+        "subtitle": "The player bar, VOD, Multi-Screen, settings",
+        "bar": {
+          "title": "While watching, OK shows the player bar.",
+          "line2": "Left and Right move along it. The name shows under each button. Back hides it."
+        },
+        "channels": {
+          "title": "Up and Down change the channel.",
+          "line2": "Or use the channel buttons on the bar."
+        },
+        "barButtons": {
+          "title": "Report, Subtitles and Audio are on the bar too.",
+          "line2": "Greyed out when the channel has no choice."
+        },
+        "top": {
+          "title": "At the top: Update Channels and Settings.",
+          "line2": "Update Channels gets the newest list from your service."
+        },
+        "settings": {
+          "title": "Live TV Settings",
+          "line2": "Account info, switch service, hide categories, the look, rewind and sign out."
+        },
+        "vod": {
+          "title": "VOD: your service's movies.",
+          "line2": "Pick a category, OK on a poster, then Play Movie."
+        },
+        "multi": {
           "title": "Multi-Screen plays 2 or 4 channels at once.",
-          "line2": "The sound follows the tile you highlight."
+          "line2": "The sound follows the screen you highlight. Each screen uses one stream of your plan."
         },
-        "s6": {
-          "title": "Channel not working? Hold OK on it.",
-          "line2": "Report a problem, add it to Favorites, or refresh a favorite whose link changed. Reports come straight to us."
+        "backups": {
+          "title": "Channel down? Try Backups.",
+          "line2": "Streams posted by Snow Media. Press Refresh if something was just added."
+        }
+      },
+      "recording": {
+        "title": "Guide, rewind & recording",
+        "subtitle": "Go back, record, schedule",
+        "guide": {
+          "title": "The Guide shows what's on now and next.",
+          "line2": "OK on a channel plays it. Favorites come first."
+        },
+        "rewind": {
+          "title": "Missed something? Back 10s rewinds live TV.",
+          "line2": "Go live jumps back to now. It needs a free stream on your plan, or a channel with catch-up."
+        },
+        "record": {
+          "title": "Record from the bar, or hold OK on a channel → Record…",
+          "line2": "Pick how long and where: this box or a USB drive."
+        },
+        "schedule": {
+          "title": "Hold OK in the Guide to record a show later.",
+          "line2": "A red dot marks shows that will record."
+        },
+        "recordings": {
+          "title": "Recordings: the button above the channel list.",
+          "line2": "OK on one to play, rename or delete it."
+        },
+        "settings": {
+          "title": "Rewind & recording settings",
+          "line2": "Max rewind, and start early / end late for shows you schedule."
+        }
+      },
+      "gameday": {
+        "title": "Game Day",
+        "subtitle": "Today's big games and where they're on",
+        "list": {
+          "title": "Game Day lists today's big games.",
+          "line2": "Live TV → Game Day. OK on a game shows where it's on."
+        },
+        "links": {
+          "title": "Each channel says which service it's on.",
+          "line2": "\"On DreamStreams\" or \"On Vibez\". OK plays it."
+        },
+        "picked": {
+          "title": "\"Picked by Snow Media\" is our pick.",
+          "line2": "⚠️ means someone reported it down, so it's listed last."
+        },
+        "unconfirmed": {
+          "title": "\"Not confirmed by the guide\" may not show this game.",
+          "line2": "Try the channels above it first."
+        },
+        "report": {
+          "title": "Channel not working? Hold OK on it to report it.",
+          "line2": "Reports come straight to Snow Media."
+        },
+        "remind": {
+          "title": "Remind me pops up on the TV when the game starts."
         }
       },
       "movies": {
-        "title": "Player — Plex",
-        "subtitle": "Movies & Series",
-        "s0": {
-          "title": "Open Plex from the Home screen.",
+        "title": "Plex (VOD)",
+        "subtitle": "Movies & shows",
+        "open": {
+          "title": "Open Plex (VOD) from Home.",
+          "line2": "Your service's Movies and Series are in the same menu.",
           "linkBtn": "Take me there"
         },
-        "s1": {
-          "title": "Signed into Live TV? Plex connects by itself — no code to send.",
-          "line2": "Not signed in yet? Press Connect with Live TV. You don't need your own Plex account."
+        "connect": {
+          "title": "Signed into Live TV? Plex connects by itself.",
+          "line2": "If asked, press Connect with Live TV. No Plex account needed."
         },
-        "s2": {
-          "title": "The menu down the left: Home, Discover, your libraries, Search, Request.",
-          "line2": "OK on a poster opens the title page — then press Play."
+        "code": {
+          "title": "Run your own Plex server? Link it with a code.",
+          "line2": "Only for your own server. Snow Media members don't need it."
         },
-        "s3": {
-          "title": "Not sure what to watch? Discover has Hidden Gems, Surprise Me, genres and decades.",
-          "line2": "Home shows what you were watching, new arrivals and Most Watched."
+        "menu": {
+          "title": "The menu: Home, Discover, your libraries, Search, Request.",
+          "line2": "Hold OK on a library to hide it."
         },
-        "s4": {
-          "title": "Don't want a library? Hold OK on it in the menu to hide it.",
-          "line2": "Bring it back under Settings → Hidden."
+        "home": {
+          "title": "Home shows what you were watching and what's new."
         },
-        "s5": {
-          "title": "Need subtitles? Open the Subtitles menu and pick 'Get subtitles…'."
+        "discover": {
+          "title": "Not sure what to watch? Try Discover.",
+          "line2": "Hidden Gems, Surprise Me, genres and decades."
         },
-        "s6": {
-          "title": "No sound? Open the Audio menu and press 'Fix audio'.",
-          "line2": "It fixes the sound without restarting your movie."
+        "search": {
+          "title": "Search finds any movie or show.",
+          "line2": "Not there? Request it."
+        },
+        "detail": {
+          "title": "OK on a poster opens its page.",
+          "line2": "Play or Resume, add it to My List, or browse episodes."
+        },
+        "versions": {
+          "title": "Some titles come in more than one version.",
+          "line2": "4K or 1080p: pick the one that plays best on your internet."
+        },
+        "controls": {
+          "title": "OK shows the controls.",
+          "line2": "Up goes to the seek bar. Left and Right jump."
+        },
+        "skip": {
+          "title": "Skip Intro shows at the start of an episode.",
+          "line2": "Press OK to skip it."
+        },
+        "next": {
+          "title": "Up next plays the next episode.",
+          "line2": "OK plays it now. Back keeps watching."
+        },
+        "subs": {
+          "title": "Need subtitles? Open Subtitles → \"Get subtitles…\"."
+        },
+        "audio": {
+          "title": "No sound? Open Audio → Fix audio.",
+          "line2": "It fixes the sound without restarting."
         }
       },
       "apps": {
-        "title": "Main Apps",
-        "subtitle": "Get & manage your apps",
-        "s0": {
-          "title": "Main Apps has every extra app you might need — all in one safe place.",
-          "line2": "Find it in Support → Main Apps.",
+        "title": "Main Apps & Store",
+        "subtitle": "Get apps and devices",
+        "where": {
+          "title": "Main Apps is in Support.",
+          "line2": "Every extra app you might need, in one safe place.",
           "linkBtn": "Take me there"
         },
-        "s1": {
-          "title": "Press OK on an app, then Download to install it.",
-          "line2": "Already installed? It just says Launch."
+        "pick": {
+          "title": "Pick an app and press OK."
+        },
+        "download": {
+          "title": "Press Download to install it.",
+          "line2": "Already installed? It says Launch."
+        },
+        "store": {
+          "title": "The Snow Media Store.",
+          "line2": "Pick something, then scan the code with your phone to buy it there.",
+          "linkBtn": "Take me there"
         }
       },
       "support": {
         "title": "Support",
-        "subtitle": "Help, AI and Posts",
-        "s0": {
-          "title": "Stuck? Support has your back.",
-          "line2": "Three tabs: Help, AI Chat and Posts."
+        "subtitle": "Help, AI Chat and Posts",
+        "tabs": {
+          "title": "Support has three tabs: Help, AI Chat and Posts."
         },
-        "s1": {
-          "title": "Speed Test checks if your internet is fast enough for streaming."
+        "ai": {
+          "title": "AI Chat answers right away, and can do things for you.",
+          "line2": "Open a screen, report a channel, install an app, make a wallpaper."
         },
-        "s2": {
-          "title": "TV keeps pausing? Open the Buffering Guide — it walks you through easy fixes.",
-          "linkBtn": "Open it"
+        "voice": {
+          "title": "Voice: the mic on Home, or your remote's mic button.",
+          "line2": "Say a channel, a movie, or \"open the Guide\"."
         },
-        "s3": {
-          "title": "Submit a Ticket to reach a real person.",
-          "line2": "A count shows on the Support card when we answer.",
+        "tickets": {
+          "title": "Submit a Ticket reaches a real person.",
+          "line2": "A number shows on the Support button when we reply.",
           "linkBtn": "Open tickets"
         },
-        "s4": {
-          "title": "Box running slow or out of space? Device Cleaner frees it up.",
-          "line2": "It empties every app's cache, closes background apps, and lists apps nobody opens.",
-          "linkBtn": "Open the cleaner"
+        "speed": {
+          "title": "Speedtest checks your internet.",
+          "line2": "About 25 Mb/s or more is good for 4K."
         },
-        "s5": {
-          "title": "AI Chat answers instantly — and can do things for you.",
-          "line2": "Ask it to open a screen, change your Live TV look, report a channel, install an app, or make you a wallpaper."
+        "buffering": {
+          "title": "TV keeps pausing? The Buffering Guide walks you through the fixes.",
+          "linkBtn": "Open it"
         },
-        "s6": {
-          "title": "Posts: every email we send lands here too.",
-          "line2": "Dated, marked New until you open it, readable full screen. Links become a code you scan with your phone.",
+        "videos": {
+          "title": "Support Videos: short how-to videos."
+        },
+        "posts": {
+          "title": "Posts: news and deals from Snow Media.",
+          "line2": "New ones are marked New. Links become a code to scan.",
           "linkBtn": "Open Posts"
+        },
+        "more": {
+          "title": "Remote Access and Device Cleaner.",
+          "line2": "A technician can fix your box live. The cleaner frees space and memory.",
+          "linkBtn": "Open the cleaner"
         }
       },
       "account": {
         "title": "My Account & Snow Gems",
-        "subtitle": "Dashboard, gems & games",
-        "s0": {
-          "title": "My Account is your Dashboard — everything on one screen.",
-          "line2": "Your streaming account, devices and services, and your Snow Gems. Prefer it bigger? Settings → UI → Large dashboard.",
+        "subtitle": "Dashboard, gems, sign out",
+        "dashboard": {
+          "title": "The Dashboard: your account on one screen.",
+          "line2": "Open it with Dashboard at the top of Home.",
           "linkBtn": "Take me there"
         },
-        "s1": {
-          "title": "Snow Gems power Premium AI and Image Gen.",
-          "line2": "Purchase Snow Gems: pick a pack, scan the code with your phone, pay there — the gems land on your account by themselves."
+        "gems": {
+          "title": "Snow Gems pay for Premium AI and Image Gen."
         },
-        "s2": {
-          "title": "The Game Lounge: Blackjack, Roulette, Slots, Plinko, Dice, Video Poker, Trivia and the Daily Spin.",
-          "line2": "Play for Snow Coins and climb the leaderboard. Never real money.",
+        "buyGems": {
+          "title": "Buy gems: pick a pack and scan the code with your phone.",
+          "line2": "They land on your account by themselves.",
+          "linkBtn": "Take me there"
+        },
+        "payGems": {
+          "title": "Scan the code with your phone and pay there.",
+          "linkBtn": "Take me there"
+        },
+        "signOut": {
+          "title": "Sign Out is on the Dashboard.",
+          "line2": "It signs this box out of your Snow Media account and Live TV."
+        },
+        "lounge": {
+          "title": "The Game Lounge: cards, slots, trivia and the Daily Spin.",
+          "line2": "Play for Snow Coins. Never real money.",
           "linkBtn": "Open the lounge"
         }
       },
       "extras": {
-        "title": "Settings & Extras",
-        "subtitle": "Make it yours",
-        "s0": {
-          "title": "Change your wallpaper under Settings → Media Manager.",
-          "line2": "Upload your own, or describe one and let AI make it.",
+        "title": "Settings",
+        "subtitle": "Language, looks and profiles",
+        "language": {
+          "title": "Change the language: Settings → UI → Language.",
+          "line2": "Every screen and button changes, and so do the AI assistant's answers, Live TV and Plex. Channel and programme names come from the provider.",
           "linkBtn": "Take me there"
         },
-        "s1": {
-          "title": "Settings → UI has the switches.",
-          "line2": "Content bar on or off, Large dashboard, Post notifications, and alerts on this device."
+        "wallpaper": {
+          "title": "Change your wallpaper in Settings → Media Manager.",
+          "line2": "Upload your own, or describe one and AI makes it."
         },
-        "s2": {
-          "title": "Saved Accounts remembers your sign-ins so you never retype them."
+        "switches": {
+          "title": "Settings → UI has the switches.",
+          "line2": "The Recommended row, Large dashboard, and alerts."
+        },
+        "profiles": {
+          "title": "Everyone can have their own profile.",
+          "line2": "Their own Continue Watching, My List and favorites. Switch with the profile button on Home."
+        },
+        "kids": {
+          "title": "Kids profiles only show what fits their age.",
+          "line2": "Add a PIN so kids can't open the grown-up profiles."
+        },
+        "updates": {
+          "title": "Update available? Settings → Updates installs it.",
+          "line2": "Home shows \"Update available\" under the clock."
         }
+      },
+      "labels": {
+        "ageLevel": "Age level",
+        "aiChat": "AI Chat",
+        "appearance": "Appearance",
+        "apps": "Apps",
+        "askAnything": "Ask anything",
+        "audio": "Audio",
+        "back": "Back",
+        "back10": "Back 10s",
+        "backups": "Backup streams",
+        "buttonName": "Button name",
+        "cast": "Cast",
+        "categories": "Categories",
+        "chDown": "Channel −",
+        "chUp": "Channel +",
+        "channels": "Channels",
+        "cleaner": "Device Cleaner",
+        "continueWatching": "Continue Watching",
+        "controls": "Controls",
+        "dashboard": "Dashboard",
+        "dateTime": "Date & time",
+        "devices": "Devices & services",
+        "download": "Download",
+        "favorite": "Favorite",
+        "favorites": "Favorites",
+        "fixAudio": "Fix audio",
+        "freeSpace": "Free space",
+        "gameLounge": "Game Lounge",
+        "getSubs": "Get subtitles",
+        "goHere": "Go here on your phone",
+        "goLive": "Go live",
+        "help": "Help",
+        "hideCategories": "Hide Categories",
+        "holdToReport": "Hold OK to report",
+        "howFar": "How far back",
+        "howLong": "How long",
+        "ideas": "Ideas",
+        "language": "Language",
+        "leagues": "Leagues",
+        "liveAccount": "Live TV account",
+        "liveTv": "Live TV",
+        "mainApps": "Main Apps",
+        "manage": "Manage",
+        "mayNotHave": "May not have it",
+        "menu": "Menu",
+        "more": "More",
+        "move": "Move",
+        "movies": "Movies",
+        "myList": "My List",
+        "newArrivals": "New",
+        "newTicket": "New ticket",
+        "news": "News",
+        "nextEpisode": "Next episode",
+        "nowNext": "Now & next",
+        "okHold": "OK · hold for more",
+        "okPlays": "OK plays it",
+        "orCode": "Or type this code",
+        "ourPick": "Picked by Snow Media",
+        "pages": "Pages",
+        "password": "Password",
+        "pickLayout": "Pick a layout",
+        "pickOne": "Pick one",
+        "pickPack": "Pick a pack",
+        "pickShow": "Pick a show",
+        "pin": "PIN",
+        "play": "Play",
+        "playerBar": "Player bar",
+        "plexVod": "Movies & shows",
+        "postAlerts": "Post alerts",
+        "posts": "Posts",
+        "pressThis": "Press this",
+        "preview": "Preview",
+        "products": "Products",
+        "profiles": "Profiles",
+        "recommendedRow": "Recommended row",
+        "record": "Record",
+        "recordIt": "Record it",
+        "refresh": "Refresh",
+        "remindMe": "Remind me",
+        "remoteAccess": "Remote Access",
+        "report": "Report",
+        "reportedDown": "⚠️ Reported down",
+        "results": "Results",
+        "rewindSettings": "Rewind & recording",
+        "saveTo": "Where to save",
+        "scanPhone": "Scan with your phone",
+        "scanToPay": "Scan to pay",
+        "scheduled": "Scheduled",
+        "seekBar": "Seek bar",
+        "serviceAlerts": "Service alerts",
+        "settings": "Settings",
+        "signIn": "Sign in",
+        "signOut": "Sign Out",
+        "skipIntro": "Skip Intro",
+        "snowGems": "Snow Gems",
+        "start": "Start",
+        "steps": "Steps",
+        "subtitles": "Subtitles",
+        "switchAccount": "Switch Account",
+        "talkNow": "Talk now",
+        "todaysGames": "Today's games",
+        "typeHere": "Type here",
+        "typeOrTalk": "Type or talk",
+        "updateChannels": "Update Channels",
+        "updates": "Updates",
+        "username": "Username",
+        "version": "Version",
+        "videos": "Videos",
+        "voice": "Voice",
+        "wallpaper": "Wallpaper",
+        "whatsOn": "What's on",
+        "whatsWrong": "Pick what's wrong",
+        "whereOn": "Where it's on",
+        "whichService": "Which service",
+        "whoWatching": "Who's watching",
+        "yourCode": "Your code",
+        "yourRecordings": "Your recordings",
+        "yourServices": "Your services",
+        "yourTickets": "Your tickets"
+      },
+      "remote": {
+        "ok": "Press OK",
+        "holdOk": "Hold OK",
+        "back": "Press Back",
+        "upDown": "Up / Down",
+        "leftRight": "Left / Right"
       },
       "title": "How to use SMC",
       "pickTopic": "Pick a topic — press Back anytime to leave.",

@@ -241,7 +241,7 @@ const RecordDialog = memo(({
 
         <div className="space-y-2">
           {rows.includes('what') && (
-            <div data-record-row="what" data-focused={focusRow === 'what' ? 'true' : 'false'} className={rowCls('what')}>
+            <div data-record-row="what" data-howto="rec.programmes" data-focused={focusRow === 'what' ? 'true' : 'false'} className={rowCls('what')}>
               <p className="text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold mb-1">{t('recordings.dialog.what')}</p>
               {programmes!.length === 0 && (
                 <p className="text-base font-nunito text-amber-300">{t('recordings.dialog.noListings')}</p>
@@ -265,7 +265,7 @@ const RecordDialog = memo(({
             </div>
           )}
           {rows.includes('dest') && (
-            <div data-record-row="dest" data-focused={focusRow === 'dest' ? 'true' : 'false'} className={rowCls('dest')}>
+            <div data-record-row="dest" data-howto="rec.saveTo" data-focused={focusRow === 'dest' ? 'true' : 'false'} className={rowCls('dest')}>
               <p className="text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold mb-1">{t('recordings.dialog.saveTo')}</p>
               {volumes === null && <p className="text-base font-nunito text-brand-ice/70">{t('recordings.dialog.lookingForDrives')}</p>}
               {volumes && volumes.length === 0 && (
@@ -285,7 +285,7 @@ const RecordDialog = memo(({
             </div>
           )}
           {rows.includes('dur') && (
-            <div data-record-row="dur" data-focused={focusRow === 'dur' ? 'true' : 'false'} className={rowCls('dur')}>
+            <div data-record-row="dur" data-howto="rec.length" data-focused={focusRow === 'dur' ? 'true' : 'false'} className={rowCls('dur')}>
               <p className="text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold mb-1">{t('recordings.dialog.howLong')}</p>
               {durations.map((d, i) => (
                 <span key={d.id} className={chip(i === durIdx, focusRow === 'dur')}>{durLabel(d)}</span>
@@ -332,6 +332,7 @@ const RecordDialog = memo(({
           {rows.includes('start') && (
             <div
               data-record-row="start"
+              data-howto="rec.start"
               data-focused={focusRow === 'start' ? 'true' : 'false'}
               data-disabled={canStart ? 'false' : 'true'}
               className={`${rowCls('start')} flex items-center ${canStart ? '' : 'opacity-50'}`}

@@ -12,7 +12,7 @@ import { getPlexMetadata as _getPlexMetadata, getPlexSeasons as _getPlexSeasons,
   getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, resolutionLabel, findPlexCopies,
   type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson, type PlexVersion } from '@/lib/plex';
 import { cachedPlexSpeed, defaultVersion, is4k, measurePlexSpeed, sortVersions, speedVerdict, speedWarning, startVersion, versionName } from '@/lib/plexVersions';
-import { isDemo } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { demoGetMetadata, demoGetSeasons, demoGetEpisodes, demoGetActorItems } from '@/lib/plexDemo';
 import PlexImage from './PlexImage';
 import { isNativePlatform } from '@/utils/platform';
@@ -47,6 +47,8 @@ type DetailZone = 'buttons' | 'versions' | 'cast';
 // Demo mode reads everything from the pre-built, scrubbed catalog instead of
 // a live PMS. Always false on native.
 const DEMO = isDemo();
+/** The How-to guide's hooks on the buttons (data-howto; literals, so its check finds them). */
+const DETAIL_HOWTO: Record<string, string> = { play: 'detail.play', mylist: 'detail.myList' };
 const getPlexMetadata = DEMO ? demoGetMetadata : _getPlexMetadata;
 const getPlexSeasons = DEMO ? demoGetSeasons : _getPlexSeasons;
 const getPlexEpisodes = DEMO ? demoGetEpisodes : _getPlexEpisodes;
@@ -402,7 +404,8 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   };
 
   // My List is for movies and shows (an episode's show is what gets saved).
-  const canList = !isEpisode && !isDemo();
+  // The How-to pictures (developer build only) show the button a real box has.
+  const canList = !isEpisode && (!isDemo() || isHowtoCapture());
   const listed = canList && isFavorite(current.ratingKey);
   const detailButtons: Array<{ id: string; label: string }> = useMemo(() => {
     const b: Array<{ id: string; label: string }> = [];
@@ -773,6 +776,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       key={b.id}
                       type="button"
                       data-focused={focused ? 'true' : 'false'}
+                      data-howto={DETAIL_HOWTO[b.id]}
                       onClick={() => { setZone('buttons'); setBtn(i); activateDetail(b.id); }}
                       className={`tv-ring tv-ring-contrast inline-flex items-center gap-2 h-10 px-4 rounded-lg font-quicksand font-semibold text-sm border ${focused ? 'bg-brand-gold text-brand-navy border-transparent scale-105 z-10' : 'bg-white/10 text-white border-white/15'}`}>
                       {buttonIcon(b.id, listed)}
@@ -796,7 +800,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
               {/* Versions: ▼ from the buttons, ◀ ▶, OK picks (Play starts it). */}
               {multi && (
-                <div className="mt-3">
+                <div className="mt-3" data-howto="detail.version">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-plex-cap text-brand-ice/70 font-nunito mr-1">{t('plex.detail.versionLabel')}</span>
                     {versions.map((v, i) => {
@@ -827,7 +831,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               )}
 
               {/* Cast row — horizontal, D-pad scrollable, focus zone 'cast'. */}
-              <div className="mt-6">
+              <div className="mt-6" data-howto="detail.cast">
                 <div className="plex-rail-head font-quicksand">{t('plex.detail.cast')}</div>
                 {metaLoading || !castReady ? (
                   <div className="flex gap-3 py-2 px-2 -mx-2">

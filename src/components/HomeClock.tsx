@@ -50,6 +50,7 @@ const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
   return (
     <div
       data-home-clock
+      data-howto="home.clock"
       style={{ maxWidth: 'min(80vw, 32rem)' }}
     >
       <div className="bg-black/80 rounded-full border border-white/20 shadow-lg flex items-center gap-3 px-4 py-2 sm:gap-4 sm:px-5 md:gap-5 md:px-6 md:py-2.5 whitespace-nowrap overflow-hidden">

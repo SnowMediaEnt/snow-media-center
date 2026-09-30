@@ -2,6 +2,7 @@
 // The recording runs in an Android foreground service with its own
 // connection; files go to the app's folder on the box or on a USB drive.
 import { registerPlugin, Capacitor, type PluginListenerHandle } from '@capacitor/core';
+import { isHowtoCapture } from '@/lib/demoMode';
 
 export interface RecordVolume {
   /** "box" for the box itself, the volume's id for a USB drive / SD card. */
@@ -118,17 +119,34 @@ export interface SnowRecorderPlugin {
 
 const unavailable = async (): Promise<never> => { throw new Error('Recording needs the Snow Media Center app on a TV box.'); };
 
+// The How-to guide's pictures (developer build only): made-up recordings,
+// schedules and drives, so the Recordings screen and the Record dialog look as
+// they do on a box. Each branch starts with `import.meta.env.DEV`, which the
+// production build reads as false, so the branch and the fixtures file are
+// dropped from the APK and the website.
 const webFallback: SnowRecorderPlugin = {
-  async getVolumes() { return { volumes: [] }; },
+  async getVolumes() {
+    if (import.meta.env.DEV && isHowtoCapture()) return { volumes: (await import('@/howto/stageFixtures')).stageVolumes() };
+    return { volumes: [] };
+  },
   start: unavailable,
   async stop() {},
   async active() { return { jobs: [] }; },
-  async list() { return { recordings: [], volumes: [] }; },
+  async list() {
+    if (import.meta.env.DEV && isHowtoCapture()) {
+      const f = await import('@/howto/stageFixtures');
+      return { recordings: f.stageRecordings(), volumes: f.stageVolumes() };
+    }
+    return { recordings: [], volumes: [] };
+  },
   rename: unavailable,
   remove: unavailable,
   schedule: unavailable,
   async cancelSchedule() {},
-  async listSchedules() { return { schedules: [] }; },
+  async listSchedules() {
+    if (import.meta.env.DEV && isHowtoCapture()) return { schedules: (await import('@/howto/stageFixtures')).stageSchedules() };
+    return { schedules: [] };
+  },
   async exactAlarmStatus() { return { canExact: true, canOpenSettings: false }; },
   async openExactAlarmSettings() {},
   async addListener() { return { remove: async () => {} }; },

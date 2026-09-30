@@ -59,7 +59,7 @@ const LiveLayoutChooser = ({ onDone }: Props) => {
       <h1 className="text-4xl font-black leading-tight mb-2">{t('live.layoutChooser.title')}</h1>
       <p className="text-lg text-white/65 mb-8">{t('live.layoutChooser.body')}</p>
 
-      <div className="grid grid-cols-3 gap-6 w-full max-w-6xl">
+      <div className="grid grid-cols-3 gap-6 w-full max-w-6xl" data-howto="live.layoutCards">
         {LIVE_LAYOUTS.map((l, i) => {
           const picked = i === idx;
           return (

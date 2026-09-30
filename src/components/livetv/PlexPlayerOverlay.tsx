@@ -576,7 +576,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   // while that is open; it steps aside while a menu is up.
   const promptEl = active && prompt && (!visible || menu === 'none') ? (
     <div className={`absolute right-12 ${visible ? 'bottom-44' : 'bottom-12'} z-30 pointer-events-none animate-fade-in`}>
-      <div className="rounded-2xl bg-black/85 border-2 border-brand-gold px-6 py-4 max-w-md">
+      <div className="rounded-2xl bg-black/85 border-2 border-brand-gold px-6 py-4 max-w-md" data-howto={isNextPrompt ? 'pp.upNext' : 'pp.skip'}>
         {isNextPrompt && (
           <p className="text-xs uppercase tracking-wider text-brand-gold font-nunito mb-1">
             {prompt.countdown != null ? t('plex.player.upNextIn', { seconds: prompt.countdown }) : t('plex.player.upNext')}
@@ -652,6 +652,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <div
             className={`relative rounded-full ${scrubbing ? 'h-2.5 bg-white/25' : 'h-1.5 bg-white/15'}`}
             data-focused={scrubbing ? 'true' : 'false'}
+            data-howto="pp.seek"
             aria-label={t('plex.player.seekBar')}
           >
             <div className="h-full rounded-full bg-brand-gold" style={{ width: `${pct}%` }} />
@@ -672,14 +673,14 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             </span>
             <span>{dur > 0 ? fmtTime(dur) : ''}</span>
           </div>
-          <div className="mt-4 flex items-center justify-center gap-3">
+          <div className="mt-4 flex items-center justify-center gap-3" data-howto="pp.controls">
             <button type="button" data-focused={row === 'seek-10' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek-10')}`} aria-label={t('plex.player.back10')}><Rewind className="w-6 h-6" /></button>
             <button type="button" data-focused={row === 'play' ? 'true' : 'false'} className={`${btnBase} w-16 h-16 ${focusVis('play')}`} aria-label={t('plex.player.playPause')}>
               {(paused ?? pollPaused) ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />}
             </button>
             <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label={t('plex.player.forward30')}><FastForward className="w-6 h-6" /></button>
-            <button type="button" data-focused={btnFocused('audio')} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label={t('plex.player.audio')}><AudioLines className="w-6 h-6" /></button>
-            <button type="button" data-focused={btnFocused('subs')} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label={t('plex.player.subtitles')}><Subtitles className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('audio')} data-howto="pp.audio" className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label={t('plex.player.audio')}><AudioLines className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('subs')} data-howto="pp.subs" className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label={t('plex.player.subtitles')}><Subtitles className="w-6 h-6" /></button>
             <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label={t('plex.player.quality')}><Gauge className="w-6 h-6" /></button>
             <button type="button" data-focused={btnFocused('format')} className={`${btnBase} w-12 h-12 ${focusVis('format')}`} aria-label={t('plex.player.screenFormat')}><Maximize className="w-6 h-6" /></button>
             <div className="flex flex-col items-center gap-1">
@@ -726,7 +727,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
                 <span className="truncate">{a.label}</span>{a.active && <span className="text-brand-gold text-xs">●</span>}
               </div>
             ))}
-            <div data-focused={menuIdx === auds.length ? 'true' : 'false'}
+            <div data-focused={menuIdx === auds.length ? 'true' : 'false'} data-howto="pp.fixAudio"
               className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === auds.length ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-gold'}`}>
               <VolumeX className="w-3.5 h-3.5" />
               <span className="truncate">{t('plex.player.fixAudio')}</span>
@@ -809,7 +810,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           </div>
           <div className="space-y-1">
             {subsList.map((r, i) => (
-              <div key={`${r.id}-${r.label}-${i}`} data-focused={menuIdx === i ? 'true' : 'false'}
+              <div key={`${r.id}-${r.label}-${i}`} data-focused={menuIdx === i ? 'true' : 'false'} data-howto={r.id === -2 ? 'pp.getSubs' : undefined}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : r.id === -2 ? 'text-brand-gold' : 'text-brand-ice/90'}`}>
                 <span className="truncate">{r.label}</span>{r.active && <span className="text-brand-gold text-xs">●</span>}
               </div>

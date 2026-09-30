@@ -1,19 +1,71 @@
-import { VolumeX } from 'lucide-react';
-import { TUTORIAL_SHOTS, SPOT_RECTS } from '@/data/tutorialShots';
+import type { ReactNode } from 'react';
+import { Tv, VolumeX } from 'lucide-react';
+import type { ShotId } from '@/data/howtoContract';
 
 interface TutorialArtProps {
-  screen: string;
+  /** Which screen is meant; drawn with the closest old schematic. */
+  shot?: ShotId;
+  /** Old drawing name, kept until the guide screen (item C) passes `shot`. */
+  screen?: string;
+  /** One region to light up: an old region name or a new highlight id. */
   highlight?: string;
+  /** Drawn on top of the frame (the remote-hint chip). */
+  children?: ReactNode;
 }
 
 /**
- * Schematic "TV screen" mocks used by the How-to-use-SMC tutorial.
- * Chrome 66 floor: no CSS aspect-ratio, no `inset` shorthand, no flex `gap`.
+ * Schematic "TV screen" mocks: only the fallback of the How-to-use-SMC guide,
+ * for a screen that has no picture yet. Sits in a 16:9 frame like the pictures.
+ * Chrome 66 floor: no CSS aspect-ratio (padding-top frame), no `inset`, no flex `gap`.
  */
 
-// Chrome 66 has no clamp(): the inline clamp is dropped as invalid and the
-// h-[150px] utility class below acts as the plain-px fallback.
-const ART_HEIGHT: React.CSSProperties = { height: 'clamp(110px, 22vh, 210px)' };
+/** New shot id -> the old drawing that looks most like it. */
+function drawingFor(shot: ShotId): string | null {
+  if (shot === 'remote') return 'remote';
+  if (shot === 'home' || shot === 'home-bar') return 'home';
+  if (shot === 'live-list' || shot === 'live-search') return 'livetv';
+  if (shot === 'live-player') return 'controls';
+  if (shot === 'guide') return 'guide';
+  if (shot === 'multi') return 'multiscreen';
+  if (shot.indexOf('plex-') === 0) return 'plex-grid';
+  if (shot.indexOf('support-') === 0) return 'support';
+  if (shot.indexOf('settings-') === 0) return 'settings';
+  if (shot.indexOf('apps') === 0) return 'apps';
+  if (shot === 'store' || shot === 'gems') return 'store';
+  return null;
+}
+
+/** New highlight ids -> the old region names the drawings know. */
+const REGION: Record<string, string> = {
+  'home.cards': 'cards',
+  'home.cardLivetv': 'cards',
+  'home.cardPlex': 'cards',
+  'home.cardSupport': 'cards',
+  'home.cardStore': 'cards',
+  'home.ticker': 'ticker',
+  'home.recommended': 'contentbar',
+  'home.recTile': 'contentbar',
+  'home.clock': 'header',
+  'home.profile': 'header',
+  'home.dashboard': 'header',
+  'home.settings': 'header',
+  'home.voice': 'header',
+  'live.sections': 'sidebar',
+  'live.preview': 'preview',
+  'live.channels': 'list',
+  'bar.root': 'bar',
+  'guide.grid': 'grid',
+  'multi.layouts': 'tiles',
+  'apps.grid': 'grid',
+  'store.grid': 'grid',
+  'plexauth.code': 'code',
+  'sup.aiTab': 'ai-tab',
+  'sup.howto': 'howto',
+  'sup.speed': 'speedtest',
+  'sup.guide': 'guide-card',
+  'sup.videos': 'videos',
+  'sup.tickets': 'tickets',
+};
 
 const PARENT: Record<string, string> = {
   'player-card': 'cards',
@@ -22,9 +74,9 @@ const PARENT: Record<string, string> = {
   pin: 'grid',
 };
 
-export default function TutorialArt({ screen, highlight }: TutorialArtProps) {
-  const shot = TUTORIAL_SHOTS[screen];
-  const rect = shot && highlight ? SPOT_RECTS[screen]?.[highlight] : undefined;
+export default function TutorialArt({ shot, screen, highlight: highlightId, children }: TutorialArtProps) {
+  const drawing = screen ?? (shot ? drawingFor(shot) : null);
+  const highlight = highlightId ? REGION[highlightId] ?? highlightId : undefined;
 
   // Region wrapper: gold ring + glow when highlighted, dimmed when something else is.
   const R = (name: string, className: string, children?: React.ReactNode, style?: React.CSSProperties) => {
@@ -55,7 +107,7 @@ export default function TutorialArt({ screen, highlight }: TutorialArtProps) {
   const box = 'rounded-sm bg-white/15';
 
   const body = (() => {
-    switch (screen) {
+    switch (drawing) {
       case 'remote':
         return (
           <div className="w-full h-full flex items-center justify-center">
@@ -417,64 +469,16 @@ export default function TutorialArt({ screen, highlight }: TutorialArtProps) {
     }
   })();
 
-  const photo = shot ? (
-    <div className="relative w-full h-full">
-      <img src={shot} alt="" className="absolute top-0 left-0 w-full h-full object-cover" />
-      {rect ? (
-        <>
-          <div
-            className="absolute bg-black/70"
-            style={{ top: '0%', left: '0%', width: '100%', height: `${rect.top}%` }}
-          />
-          <div
-            className="absolute bg-black/70"
-            style={{
-              top: `${rect.top + rect.height}%`,
-              left: '0%',
-              width: '100%',
-              height: `${100 - rect.top - rect.height}%`,
-            }}
-          />
-          <div
-            className="absolute bg-black/70"
-            style={{
-              top: `${rect.top}%`,
-              left: '0%',
-              width: `${rect.left}%`,
-              height: `${rect.height}%`,
-            }}
-          />
-          <div
-            className="absolute bg-black/70"
-            style={{
-              top: `${rect.top}%`,
-              left: `${rect.left + rect.width}%`,
-              width: `${100 - rect.left - rect.width}%`,
-              height: `${rect.height}%`,
-            }}
-          />
-          <div
-            className="absolute border-2 border-brand-gold rounded-lg shadow-[0_0_18px_4px_hsl(45_93%_58%/0.45)] animate-pulse"
-            style={{
-              top: `${rect.top}%`,
-              left: `${rect.left}%`,
-              width: `${rect.width}%`,
-              height: `${rect.height}%`,
-              backgroundColor: 'transparent',
-            }}
-          />
-        </>
-      ) : null}
-    </div>
-  ) : null;
-
   return (
-    <div
-      className="w-full max-w-xl mx-auto h-[150px] rounded-2xl border border-white/15 bg-[#0b1220] overflow-hidden"
-      style={ART_HEIGHT}
-      aria-hidden="true"
-    >
-      {shot ? photo : body}
+    <div className="relative w-full" style={{ paddingTop: '56.25%' }} aria-hidden="true" data-testid="howto-schematic">
+      <div className="absolute top-0 left-0 right-0 bottom-0 rounded-xl border border-white/15 bg-[#0b1220] overflow-hidden">
+        {body ?? (
+          <div className="w-full h-full flex items-center justify-center">
+            <Tv className="w-12 h-12 text-white/25" />
+          </div>
+        )}
+        {children}
+      </div>
     </div>
   );
 }

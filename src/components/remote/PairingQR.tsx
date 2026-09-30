@@ -65,8 +65,8 @@ const PairingQR = memo(({ size = 220, compact = false }: Props) => {
   }
   return (
     <div className={`flex ${compact ? 'items-center' : 'flex-col items-center'}`}>
-      <img src={qr} alt={t('phoneRemote.pairing.qrAlt')} width={size} height={size} className="rounded-lg bg-white" />
-      <div className={compact ? 'ml-3' : 'mt-3 text-center'}>
+      <img src={qr} alt={t('phoneRemote.pairing.qrAlt')} width={size} height={size} className="rounded-lg bg-white" data-howto="set.remoteQr" />
+      <div className={compact ? 'ml-3' : 'mt-3 text-center'} data-howto="set.remoteCode">
         <div className={`${compact ? 'text-xs' : 'text-sm'} text-white/70`}><Trans i18nKey="phoneRemote.pairing.orGoTo" components={{ 1: <span className="font-semibold text-white" /> }} /></div>
         <div className={`${compact ? 'text-2xl' : 'text-4xl'} font-bold tracking-[0.12em] text-brand-gold tabular-nums whitespace-nowrap`}>{formatPairingCode(pairing.code)}</div>
       </div>

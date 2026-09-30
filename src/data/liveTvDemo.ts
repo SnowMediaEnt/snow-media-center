@@ -25,6 +25,14 @@ import type {
   XtreamCreds,
   FavChannel,
 } from '@/lib/xtream';
+import { isHowtoCapture } from '@/lib/demoMode';
+
+// The How-to guide's screenshot run (developer build only, see demoMode):
+// Game Day's picture needs a game this line-up carries. The production build
+// reads DEV as false, so the extra channels below never ship.
+const HOWTO_LINEUP = import.meta.env.DEV && (() => {
+  try { return isHowtoCapture(); } catch { return false; }
+})();
 
 /**
  * Presented as the signed-in account in demo mode. The `demo://` host is a
@@ -33,13 +41,15 @@ import type {
  */
 // Frozen sentinel: in-memory only, NEVER written to storage. The neutral
 // 'DEMO ACCOUNT' serverLabel must not match any real provider name so server
-// outage alerts never surface inside the demo.
+// outage alerts never surface inside the demo. The How-to pictures name the
+// service the way a customer's box does ("DreamStreams"); every network read
+// is answered from fixtures there.
 export const DEMO_LIVE_CREDS: XtreamCreds = Object.freeze({
   host: 'demo://livetv',
   username: 'DEMO ACCOUNT',
   password: 'demo',
   output: 'm3u8',
-  serverLabel: 'DEMO ACCOUNT',
+  serverLabel: HOWTO_LINEUP ? 'Dreamstreams' : 'DEMO ACCOUNT',
 });
 
 // ── deterministic helpers ───────────────────────────────────────────────────
@@ -116,6 +126,19 @@ export const DEMO_LIVE_CATEGORIES: XtreamCategory[] = [
   { category_id: 'demo-intl',  category_name: 'International' },
 ];
 
+/**
+ * How-to pictures only: Game Day's first game (made-up teams, see the
+ * capture fixtures in scripts/howto) is on an event channel named for it,
+ * and on a network whose guide says nothing (listed as "Not confirmed by the
+ * guide"). Stream ids 10061 and 10062.
+ */
+const HOWTO_GAME_DAY_CHANNELS: Array<[number, string, string]> = [
+  [209, 'NFL 01: Harbor City Gulls vs Iron Valley Miners', 'demo-sports'],
+  [210, 'Metro Sports Net', 'demo-sports'],
+];
+/** The network above: no guide listings, so Game Day can't confirm it. */
+const HOWTO_NO_GUIDE = new Set(['Metro Sports Net']);
+
 // [channel number, name, category_id]
 const CHANNEL_TABLE: Array<[number, string, string]> = [
   // News
@@ -186,6 +209,8 @@ const CHANNEL_TABLE: Array<[number, string, string]> = [
   [806, 'Nordika', 'demo-intl'],
   [807, 'Balkan Beats', 'demo-intl'],
   [808, 'Le Monde Francais', 'demo-intl'],
+  // How-to pictures only (appended, so every other stream id stays the same).
+  ...(HOWTO_LINEUP ? HOWTO_GAME_DAY_CHANNELS : []),
 ];
 
 export const DEMO_CHANNELS: XtreamLiveStream[] = CHANNEL_TABLE.map(([num, name, cat], i) => ({
@@ -203,7 +228,7 @@ export const DEMO_CHANNELS: XtreamLiveStream[] = CHANNEL_TABLE.map(([num, name, 
 
 const EPG_POOLS: Record<string, string[]> = {
   'demo-news': ['Morning Headlines', 'World Report', 'The Briefing Room', 'Market Open', 'Weather Desk', 'Evening Digest', 'Nightcap News', 'Press Review'],
-  'demo-sports': ['Matchday Live', 'The Warm-Up', 'Full-Time Analysis', 'SportsCenter Tonight', 'The Replay Booth', 'Pre-Game Show', 'Highlights Hour'],
+  'demo-sports': ['Matchday Live', 'The Warm-Up', 'Full-Time Analysis', 'Sports Desk Tonight', 'The Replay Booth', 'Pre-Game Show', 'Highlights Hour'],
   'demo-moviech': ['Feature Presentation', 'Matinee Movie', 'Classic Cinema', 'Late Night Feature', "Director's Cut", 'Sunday Premiere'],
   'demo-ent': ['The Morning Mix', 'Talk of the Town', 'Game Night', 'The Variety Hour', 'Celebrity Circuit', 'Encore Presentation'],
   'demo-kids': ['Cartoon Crew', 'Story Time', 'Science Squad', 'Sing-Along Hour', 'Adventure Club', 'Craft Time'],
@@ -228,6 +253,7 @@ const b64 = (s: string): string => {
  */
 export const demoGetShortEpg = (streamId: number, limit = 10): XtreamEpgEntry[] => {
   const ch = DEMO_CHANNELS.find(c => c.stream_id === streamId);
+  if (HOWTO_LINEUP && ch && HOWTO_NO_GUIDE.has(ch.name)) return [];
   const pool = EPG_POOLS[ch?.category_id ?? ''] ?? EPG_POOLS['demo-ent'];
   const nowMs = Date.now();
   // Anchor one hour back so both "now" and "next" fall inside the window

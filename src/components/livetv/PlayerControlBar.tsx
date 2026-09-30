@@ -52,6 +52,12 @@ interface Props {
   recording?: boolean;
 }
 
+/** The How-to guide's hooks on the buttons (data-howto; literals, so its check finds them). */
+const BAR_HOWTO: Record<BarControlId, string | undefined> = {
+  prev: 'bar.prev', rew: 'bar.rew', play: 'bar.play', fwd: 'bar.fwd', golive: 'bar.golive', next: 'bar.next',
+  rec: 'bar.rec', report: 'bar.report', cc: 'bar.cc', audio: 'bar.audio', vol: 'bar.vol', stats: undefined,
+};
+
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
 const fmtMs = (ms: number) => {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
@@ -151,7 +157,7 @@ const PlayerControlBar = memo(({
     // column has the name's line (invisible unless highlighted), so the row
     // never jumps as the highlight moves.
     return (
-      <div key={c.id} data-bar-control={c.id} className={`flex flex-col items-center flex-shrink-0 ${c.id === 'play' ? 'w-16' : 'w-12'}`}>
+      <div key={c.id} data-bar-control={c.id} data-howto={BAR_HOWTO[c.id]} className={`flex flex-col items-center flex-shrink-0 ${c.id === 'play' ? 'w-16' : 'w-12'}`}>
         <div className="h-16 flex items-center justify-center">
           <button
             type="button"
@@ -165,6 +171,7 @@ const PlayerControlBar = memo(({
         </div>
         <span
           data-bar-name
+          data-howto={focused ? 'bar.label' : undefined}
           aria-hidden="true"
           className={`mt-1 h-4 whitespace-nowrap text-center text-sm leading-4 font-quicksand font-bold ${focused ? 'text-white' : 'invisible'}`}
         >
@@ -197,9 +204,9 @@ const PlayerControlBar = memo(({
       {/* Kept tight: the bar sits over the programme, so every row is as
           short as it can be, and the controls get their own dark pill so
           they read against any picture. */}
-      <div className="absolute left-0 right-0 bottom-0 z-10 px-8 pt-8 pb-3 bg-gradient-to-t from-black/95 via-black/85 to-transparent animate-fade-in pointer-events-none">
+      <div data-howto="bar.root" className="absolute left-0 right-0 bottom-0 z-10 px-8 pt-8 pb-3 bg-gradient-to-t from-black/95 via-black/85 to-transparent animate-fade-in pointer-events-none">
         {/* Top row: logo + meta + LIVE */}
-        <div className="flex items-start gap-3 max-w-6xl mx-auto pointer-events-auto">
+        <div className="flex items-start gap-3 max-w-6xl mx-auto pointer-events-auto" data-howto="bar.channel">
           <div className="w-12 h-12 rounded-xl bg-black/60 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/10">
             {channelLogo
               ? <img src={channelLogo} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
@@ -258,7 +265,7 @@ const PlayerControlBar = memo(({
 
         {/* Rewind live TV: how far back it goes, and where the picture is */}
         {rw && (
-          <div data-rewind-timeline className="max-w-6xl mx-auto mt-2 flex items-center pointer-events-auto">
+          <div data-rewind-timeline data-howto="bar.timeline" className="max-w-6xl mx-auto mt-2 flex items-center pointer-events-auto">
             <span className={`text-xs font-nunito tabular-nums flex-shrink-0 mr-3 ${rw.note ? 'text-amber-300' : 'text-brand-ice/80'}`}>
               {rw.note ?? availableLabel(rw.availableSec, rw.archiveDays)}
             </span>

@@ -41,7 +41,7 @@ import { useToast } from '@/hooks/use-toast';
 import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
 import { isChannelDown, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import {
-  CHANNELS_TTL_MS, LINK_LABELS, PICKED_LABEL, applyChannelEdits, arrangeLinks, cardChannels, channelKey, channelsForGame, checkGuides, fetchGameEdits,
+  CHANNELS_TTL_MS, LINK_LABELS, PICKED_LABEL, applyChannelEdits, arrangeLinks, cardChannels, channelKey, channelsForGame, checkGuides, chipOf, fetchGameEdits,
   fetchGames, gameServices, isPpvFight, isStreamingOnly, kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames,
   type Game, type GameChannel, type GameEdit, type SportsChannel,
 } from '@/lib/gameDay';
@@ -106,9 +106,10 @@ const serviceName = (line: XtreamCreds): string => {
 };
 
 /** Small pill with the service name, shown only when the box has more than one line. */
-const ServiceTag = ({ name, label, onLight }: { name: string; label: string; onLight: boolean }) => (
+const ServiceTag = ({ name, label, onLight, howto }: { name: string; label: string; onLight: boolean; howto?: string }) => (
   <span
     aria-label={label}
+    data-howto={howto}
     className={`ml-2 shrink-0 max-w-[7rem] truncate rounded-full px-2 py-0.5 text-xs font-bold leading-none ${onLight ? 'bg-brand-navy text-white' : 'bg-brand-ice/20 text-brand-ice'}`}
   >
     {name}
@@ -225,13 +226,13 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
 
   const leagues = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const g of allGames) if (g.league !== 'ppv' && !seen.has(g.league)) seen.set(g.league, g.leagueLabel);
+    for (const g of allGames) if (g.league !== 'ppv') { const c = chipOf(g); if (!seen.has(c.id)) seen.set(c.id, c.labelKey ? t(c.labelKey) : c.label); }
     return [{ id: 'all', label: t('gameDay.allChip') }, ...(ppv.length ? [{ id: 'ppv', label: 'PPV' }] : []), ...[...seen].map(([id, label]) => ({ id, label }))];
   }, [allGames, ppv.length, t]);
 
   // "All": every game, and of PPV the fights; the rest of PPV under PPV.
   const shown = useMemo(() => allGames
-    .filter((g) => (league === 'all' ? g.league !== 'ppv' || isPpvFight(g) : g.league === league))
+    .filter((g) => (league === 'all' ? g.league !== 'ppv' || isPpvFight(g) : chipOf(g).id === league))
     .slice(0, lowMemory() ? 40 : 80), [allGames, league]);
   // What the matching finds for each (the slow part: not done again when the
   // owner's picks or the down list change).
@@ -532,7 +533,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
       <div className="flex items-center mb-3">
         <Trophy className="w-6 h-6 text-brand-gold mr-2" />
         <h2 className="font-quicksand font-bold text-2xl mr-4">{t('gameDay.title')}</h2>
-        <div className="flex flex-wrap items-center">
+        <div className="flex flex-wrap items-center" data-howto="gd.chips">
           {leagues.map((l, i) => {
             const focused = isActive && zone === 'chips' && chipIdx === i && !picker;
             const on = league === l.id;
@@ -574,6 +575,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
               key={g.id}
               data-gd-row={i}
               data-focused={focused ? 'true' : 'false'}
+              data-howto="gd.game"
               className={`tv-ring flex items-center rounded-xl px-3 py-2 mb-2 ${focused ? 'bg-brand-gold/20' : 'bg-white/5'}`}
             >
               <div className="w-28 shrink-0 mr-3">
@@ -624,6 +626,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                   type="button"
                   onClick={() => { setRowIdx(i); remind(i); }}
                   aria-pressed={reminded}
+                  data-howto={i === 0 ? 'gd.remind' : undefined}
                   className={`rounded-lg px-3 py-2 text-sm font-semibold flex items-center ${focused && action === 1 ? 'bg-white text-black' : reminded ? 'bg-brand-gold/30 text-brand-gold' : 'bg-white/10 text-white'}`}
                 >
                   {reminded ? <BellRing className="w-4 h-4 mr-1 shrink-0" /> : <Bell className="w-4 h-4 mr-1 shrink-0" />}
@@ -648,7 +651,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
             {pickerRow.game.leagueLabel} · {pickerRow.game.state === 'in' ? t('gameDay.liveDetail', { detail: pickerRow.game.detail }) : kickoffLabel(pickerRow.game.start)}
             {pickerRow.game.networks.length > 0 && ` · ${t('gameDay.tvNetworks', { networks: pickerRow.game.networks.join(', ') })}`}
           </p>
-          <div ref={pickRef} className="flex-1 overflow-y-auto pr-1">
+          <div ref={pickRef} className="flex-1 overflow-y-auto pr-1" data-howto="gd.links">
             {pickItems.map((item, i) => {
               const focused = picker.focus === i;
               const base = `tv-ring flex items-center rounded-xl px-4 py-3 mb-2 w-full text-left ${focused ? 'bg-white text-black' : 'bg-white/5 text-white'}`;
@@ -664,7 +667,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
               return (
                 <div key={`l-${link.line.host}-${link.line.username}-${link.stream.stream_id}`}>
                   {i === firstUnconfirmedIdx && (
-                    <div className="px-2 pt-1 pb-2 text-xs font-bold uppercase tracking-wide text-white/40">
+                    <div className="px-2 pt-1 pb-2 text-xs font-bold uppercase tracking-wide text-white/40" data-howto="gd.unconfirmed">
                       {t('gameDay.unconfirmedHeading')}
                     </div>
                   )}
@@ -673,17 +676,17 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                       {t('gameDay.zoneHeading')}
                     </div>
                   )}
-                  <button type="button" data-gd-pick={i} data-focused={focused ? 'true' : 'false'} className={base} onClick={() => activate(item)}>
+                  <button type="button" data-gd-pick={i} data-focused={focused ? 'true' : 'false'} data-howto={item.down ? 'gd.down' : undefined} className={base} onClick={() => activate(item)}>
                     {item.down
                       ? <AlertTriangle className="w-5 h-5 mr-3 shrink-0 text-amber-500" aria-label={t('gameDay.reportedDown')} />
                       : <Play className="w-5 h-5 mr-3 shrink-0" />}
                     <span className="flex-1 min-w-0">
                       <span className="flex items-center min-w-0">
                         <span className="truncate font-semibold">{link.stream.name}</span>
-                        {multi && <ServiceTag name={serviceName(link.line)} label={t('gameDay.serviceTag', { service: serviceName(link.line) })} onLight={focused} />}
+                        {multi && <ServiceTag name={serviceName(link.line)} label={t('gameDay.serviceTag', { service: serviceName(link.line) })} onLight={focused} howto={i === firstLinkIdx ? 'gd.serviceTag' : undefined} />}
                       </span>
                       {link.picked && (
-                        <span className={`flex items-center min-w-0 text-xs font-bold ${focused ? 'text-amber-700' : 'text-brand-gold'}`}>
+                        <span data-howto="gd.picked" className={`flex items-center min-w-0 text-xs font-bold ${focused ? 'text-amber-700' : 'text-brand-gold'}`}>
                           <Star className="w-3 h-3 mr-1 shrink-0" />
                           <span className="truncate">{t('gameDay.link.picked', { defaultValue: PICKED_LABEL })}</span>
                         </span>
@@ -707,7 +710,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
             )}
           </div>
           {firstLinkIdx >= 0 && (
-            <p className="mt-2 shrink-0 text-xs font-nunito text-white/50">{t('gameDay.holdHint')}</p>
+            <p className="mt-2 shrink-0 text-xs font-nunito text-white/50" data-howto="gd.holdHint">{t('gameDay.holdHint')}</p>
           )}
         </div>
       )}
