@@ -467,3 +467,8 @@ Owns `src/data/tutorialContent.ts`, `src/components/HowToGuide.tsx`, `src/compon
 1. **Picture size in the APK.** 48 pictures × 5 languages at 1024×576 WebP ≈ 9 MB. *Recommended: yes.* Other choices: 896×504 (≈ 7 MB, slightly softer), or English pictures only with translated labels (≈ 1.8 MB).
 2. **What the posters in the pictures show.** *Recommended: made-up titles with drawn artwork* in the Plex, VOD and Recommended pictures. Then no studio artwork ships inside our APK, and no real account data can leak. The other choice is the real demo catalog posters: they look richer, but the artwork belongs to the studios.
 3. **In-app billing** ("My Account" in Live TV Settings, "Buy a plan"). *Recommended: leave it out of the guide this round* (the demo can't show it). Add a slide when billing is switched on for customers.
+
+### Owner answers (final)
+1. Picture size: **yes, ~9 MB**, 1024×576 WebP in all 5 languages.
+2. Posters: **made-up titles with drawn artwork**.
+3. In-app billing: **left out of the guide** this round.
