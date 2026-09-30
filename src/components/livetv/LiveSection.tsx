@@ -75,7 +75,7 @@ import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { usePlayerEngine } from '@/hooks/usePlayerEngine';
 import { recordEngineSample, sampleFromStats, shouldSampleEngines } from '@/lib/engineCompare';
 import PlayerStatsPanel from './PlayerStatsPanel';
-import { isDemo, demoDialogMsg } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture, demoDialogMsg } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import { channelForName } from '@/lib/voiceCommands';
@@ -101,6 +101,9 @@ const RecordingsScreen = lazy(() => import('./RecordingsScreen'));
 const NATIVE_PLAYBACK = hasNativePlayer();
 // Demo latch (?demo=1) — canned lineup, no provider contact, no <video> mount.
 const DEMO = isDemo();
+// The How-to pictures (developer build only): a second service, the layout
+// chooser and the Recordings entry, as a real box shows them.
+const HOWTO = isHowtoCapture();
 // Record live channels (TRACKER 25): the native app with the recorder plugin
 // (an older build has none), never the demo. A Kids profile hides it too (see
 // recordOn in the component: the profile is only known at render).
@@ -215,7 +218,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const saved = DEMO ? [] : await loadSavedAccounts().catch(() => []);
+      const saved = DEMO && !HOWTO ? [] : await loadSavedAccounts().catch(() => []);
       if (!cancelled) { linesSettledRef.current = true; setLines(buildLines(creds, saved)); }
     };
     void load();
@@ -934,7 +937,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // it through once covers both.
   const { engine: playerEngine } = usePlayerEngine();
   // First time in Live TV on this box: pick a look before anything else.
-  const [choosingLayout, setChoosingLayout] = useState(() => !DEMO && !hasLiveLayoutChoice());
+  const [choosingLayout, setChoosingLayout] = useState(() => (!DEMO || HOWTO) && !hasLiveLayoutChoice());
   const choosingLayoutRef = useRef(choosingLayout);
   choosingLayoutRef.current = choosingLayout;
   const cols = layout === 'grid' ? GRID_COLS : 1;
@@ -1649,7 +1652,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   playingLineRef.current = playingLine;
   const playingStreamRef = useRef<XtreamLiveStream | null>(null);
   // The Recordings entry under Search is on screen (once something is recorded).
-  const showRecEntry = recordOn && (hasRecordings || hasSchedules) && !searchOpen;
+  const showRecEntry = ((recordOn && (hasRecordings || hasSchedules)) || HOWTO) && !searchOpen;
   const recEntryRef = useRef(showRecEntry);
   recEntryRef.current = showRecEntry;
   // It went away (the last recording deleted) while highlighted: hand the highlight back.
@@ -2385,6 +2388,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
+          data-howto="live.searchBtn"
           className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${searchFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
         >
           <Search className="w-4 h-4" />
@@ -2402,6 +2406,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               else if (e.key === 'Escape')  { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
             }}
             placeholder={t('live.list.searchPlaceholder')}
+            data-howto="live.searchBox"
             className="w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-3 font-nunito text-base focus:outline-none focus:ring-2 focus:ring-brand-gold"
           />
         )}
@@ -2409,6 +2414,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           <button
             onClick={() => setRecordingsOpen(true)}
             data-focused={recFocused ? 'true' : 'false'}
+            data-howto="live.recordingsBtn"
             className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${recFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
           >
             <Film className="w-4 h-4" />
@@ -2426,6 +2432,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             {visibleCategories.length > 0 && (
               <div
                 ref={categoriesListRef}
+                data-howto="live.categories"
                 style={{
                   height: categoryVirtualizer.getTotalSize(),
                   position: 'relative',
@@ -2449,6 +2456,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       key={c.id}
                       data-cat-idx={i}
                       data-focused={isFocused ? 'true' : 'false'}
+                      data-howto={c.isHeader ? 'live.lineGroup' : c.isFav && c.lineKey === activeKey ? 'live.favorites' : undefined}
                       onClick={() => {
                         userMovedRef.current = true;
                         setCategoryIdx(i);
@@ -2502,7 +2510,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // ── the channel list / grid, virtualized by row ────────────────────────
   const rowVariant: 'classic' | 'compact' | 'tile' = layout === 'grid' ? 'tile' : layout;
   const channelList = (
-    <div ref={scrollParentRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3">
+    <div ref={scrollParentRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3" data-howto="live.channels">
       {channelsLoading && visibleChannels.length === 0 ? (
         <div className="space-y-1">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -2638,14 +2646,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
         {/* Stage: the preview, then what is on now and next */}
         <div className="flex-1 min-w-0 flex flex-col p-5 gap-3 overflow-hidden">
-          <div ref={previewBoxRef} className={`relative w-full aspect-video max-h-[56%] rounded-2xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
+          <div ref={previewBoxRef} data-howto="live.preview" className={`relative w-full aspect-video max-h-[56%] rounded-2xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
             {previewBox}
           </div>
 
         {/* The highlighted channel, under the preview rather than over it so
             it never fights the preview's own controls. */}
         {focusedChannel && (
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0" data-howto="live.nowNext">
             <div className="flex items-center gap-2">
               <h3 className="text-xl font-quicksand font-bold text-white truncate">{focusedChannel.name}</h3>
               {isFav(focusedChannel) && <Star className="w-4 h-4 text-brand-gold fill-brand-gold flex-shrink-0" />}
@@ -2736,10 +2744,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       {categoriesPane}
       <div data-native-clear className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
         <div data-native-clear className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
-          <div ref={previewBoxRef} className={`w-64 aspect-video rounded-xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
+          <div ref={previewBoxRef} data-howto="live.preview" className={`w-64 aspect-video rounded-xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
             {previewBox}
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0" data-howto="live.nowNext">
             {focusedChannel ? (
               <>
                 <div className="flex items-center gap-2">

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { trackEvent } from '@/lib/analytics';
-import { isDemo } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -914,10 +914,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             <BackButton onClick={onBack} label={t('common.back')} data-tv-focus-id="list-back" />
             <h1 className="text-3xl font-bold">{t('tickets.list.title')}</h1>
           </div>
-          {!isDemo() && (
+          {/* The How-to pictures (developer build only) show the button a real box has; creating stays off in the demo. */}
+          {(!isDemo() || isHowtoCapture()) && (
             <Button 
               onClick={() => setView('create')}
               data-tv-focus-id="new-ticket"
+              data-howto="tickets.new"
               className="bg-blue-600 hover:bg-blue-700 "
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -926,7 +928,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
           )}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" data-howto="tickets.list">
           {tickets.map((ticket, index) => {
             const ticketActive = isTicketActive(ticket);
             return (
@@ -1001,10 +1003,11 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       : t('tickets.list.emptyGuest')}
               </p>
               <div className="flex items-center justify-center gap-2 flex-wrap">
-                {!isDemo() && (
+                {(!isDemo() || isHowtoCapture()) && (
                   <Button
                     onClick={() => setView('create')}
                     data-tv-focus-id="empty-create-ticket"
+                    data-howto="tickets.new"
                     className="bg-blue-600 hover:bg-blue-700 "
                   >
                     <Plus className="h-4 w-4 mr-2" />

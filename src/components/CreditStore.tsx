@@ -273,7 +273,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
       <div ref={focus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
         {header(t('billing.gems.chooseDifferent'), backToPacks, 'gems-qr-back')}
         <div className="max-w-5xl mx-auto pb-16 grid gap-6 md:grid-cols-[auto_1fr] items-start">
-          <div className="bg-white p-4 rounded-2xl shadow-xl justify-self-center">
+          <div className="bg-white p-4 rounded-2xl shadow-xl justify-self-center" data-howto="gems.qr">
             {qrDataUrl ? (
               <img src={qrDataUrl} alt={t('billing.gems.qrAlt')} className="w-[min(55vh,20rem)] h-[min(55vh,20rem)]" />
             ) : (
@@ -372,7 +372,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8" data-howto="gems.packs">
           {loading ? (
             [...Array(4)].map((_, i) => (
               <Card key={i} className={`${PANEL} p-6 animate-pulse h-72`} />

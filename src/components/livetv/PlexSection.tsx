@@ -627,7 +627,7 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
   return (
     <div>
       {rows.map((r, ri) => (
-        <div key={r.id} data-plex-row={r.id} className="plex-rail" ref={(el) => { railBoxRefs.current[r.id] = el; }}>
+        <div key={r.id} data-plex-row={r.id} data-howto={r.id === 'continue' ? 'plex.continue' : r.id === 'added' ? 'plex.recent' : undefined} className="plex-rail" ref={(el) => { railBoxRefs.current[r.id] = el; }}>
           <div className="plex-rail-head font-quicksand">{r.titleKey ? t(r.titleKey, r.titleParams) : r.title}</div>
           {(ri < row - RAIL_ROWS_SPAN || ri > row + RAIL_ROWS_SPAN) ? (
             <div aria-hidden="true" style={{ height: railHRef.current || RAIL_H_FALLBACK }} />
@@ -1104,7 +1104,11 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
   if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> {t('plex.discover.finding')}</div>;
   if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">{t('plex.discover.nothing')}</div>;
 
-  return <RailBrowser isActive={isActive} base={base} token={token} rows={rows} onPlay={onPlay} onExitToTabs={onExitToTabs} onFocusChange={handleFocus} />;
+  return (
+    <div data-howto="plex.discover">
+      <RailBrowser isActive={isActive} base={base} token={token} rows={rows} onPlay={onPlay} onExitToTabs={onExitToTabs} onFocusChange={handleFocus} />
+    </div>
+  );
 });
 DiscoverPanel.displayName = 'DiscoverPanel';
 /** Streaming-service rows load while the highlight is this close to the end. */
@@ -1683,7 +1687,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   }, [commit]);
   return (
     <div>
-      <div data-focused={isActive && zone === 'input' ? 'true' : 'false'} className="tv-ring mb-4 flex items-center gap-2 px-4 py-3 rounded-plex-md bg-black/40 border border-white/10">
+      <div data-focused={isActive && zone === 'input' ? 'true' : 'false'} data-howto="plex.searchBox" className="tv-ring mb-4 flex items-center gap-2 px-4 py-3 rounded-plex-md bg-black/40 border border-white/10">
         <SearchIcon className="w-4 h-4 text-brand-ice/60" />
         <input
           ref={inputRef}
@@ -1726,7 +1730,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       {results.length === 0 ? (
         showChips || reqItems.length ? null : <div className="text-brand-ice/70 font-nunito text-sm text-center py-6">{query.trim() ? (loading ? t('plex.player.searching') : t('plex.search.noResults')) : t('plex.search.typeToSearch')}</div>
       ) : (
-        <div className="mb-4 grid grid-cols-6 gap-x-3 gap-y-5">
+        <div className="mb-4 grid grid-cols-6 gap-x-3 gap-y-5" data-howto="plex.results">
           {Array.from({ length: rows * COLS }).map((_, idx) => {
             const it = results[idx];
             if (!it) return <div key={idx} />;
@@ -4465,6 +4469,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           again with the highlight on the open entry (exitToMenu). */}
       <div
         onClick={() => { if (menuCollapsed) exitToMenu(); }}
+        data-howto="plex.menu"
         className={`relative flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col pb-2 overflow-y-auto overflow-x-hidden ${menuCollapsed ? 'w-14 cursor-pointer' : 'w-56'}`}
         // Plex fills the screen with no header above it, so the top of this
         // column is the top of the panel — and a TV's overscan takes the

@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import { formatCurrency, formatDate } from '@/i18n/format';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
-import { isDemo } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
@@ -559,6 +559,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         </div>
         <Button
           onClick={handleSignOut}
+          data-howto="dash.signOut"
           variant="outline"
           data-focused={focusedElement === 1 ? 'true' : 'false'}
           className={`tv-ring justify-self-end ${sz.hdrBtn} rounded-xl bg-red-600/30 border-red-400/60 text-white hover:bg-red-600/50 transition-transform duration-150 ease-out ${
@@ -578,7 +579,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             { label: t('account.dashboard.totalSpent'), value: formatCurrency(profile?.total_spent ?? 0, 'USD'), Icon: CreditCard, bg: '[background:var(--gradient-blue)]', dark: false },
             { label: t('account.dashboard.transactions'), value: String(transactions.length), Icon: History, bg: '[background:var(--gradient-purple)]', dark: false },
           ] as const).map(({ label, value, Icon, bg, dark }) => (
-            <Card key={label} className={`relative overflow-hidden border-0 shadow-xl ${bg} ${sz.stat}`}>
+            <Card key={label} data-howto={Icon === Wallet ? 'dash.gems' : undefined} className={`relative overflow-hidden border-0 shadow-xl ${bg} ${sz.stat}`}>
               <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
               <div className="relative z-10 flex items-center gap-3 min-w-0">
                 <div className={`${sz.statIconBox} shrink-0 rounded-xl flex items-center justify-center ${dark ? 'bg-black/15' : 'bg-white/15'}`}>
@@ -607,6 +608,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               onClick={onClick}
               variant="outline"
               data-focused={focusedElement === idx ? 'true' : 'false'}
+              data-howto={idx === 4 ? 'dash.games' : undefined}
               className={`tv-ring ${sz.btn} w-full rounded-xl bg-white/[0.07] border-white/15 text-white font-semibold hover:bg-white/[0.14] transition-transform duration-150 ease-out ${
                 focusedElement === idx ? 'scale-[1.03] z-10' : ''
               }`}
@@ -667,14 +669,15 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
               {/* Player Account, with Billing under it in the compact grid */}
               <div className={large ? 'contents' : 'col-span-5 space-y-3'}>
-              <div className={sz.sec} data-dash-focus={focusedElement === CLAIM_IDX ? 'true' : 'false'}>
+              <div className={sz.sec} data-dash-focus={focusedElement === CLAIM_IDX ? 'true' : 'false'} data-howto="dash.player">
                 <h3 className={`${sz.h3} ${large ? 'mb-5' : 'mb-2'}`}>{t('account.dashboard.playerTitle')}</h3>
                 {!playerAccount ? (
                   <div className="space-y-3">
                     <p className="text-brand-ice/75 text-sm">
                       {t('account.dashboard.playerDescSignedOut')}
                     </p>
-                    {!isDemo() && (
+                    {/* The How-to pictures (developer build only) show the button a real box has. */}
+                    {(!isDemo() || isHowtoCapture()) && (
                       <Button
                         variant="gold"
                         size="lg"
@@ -763,7 +766,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
               {/* My Devices & Services, with the Danger Zone under it in the compact grid */}
               <div className={large ? 'contents' : 'col-span-4 space-y-3'}>
-              <div className={sz.sec} data-dash-focus={focusedElement === EDIT_IDX ? 'true' : 'false'}>
+              <div className={sz.sec} data-dash-focus={focusedElement === EDIT_IDX ? 'true' : 'false'} data-howto="dash.services">
                 <div className={`flex items-center justify-between ${large ? 'mb-6' : 'mb-2'}`}>
                   <h3 className={sz.h3}>{t('account.dashboard.devicesServicesTitle')}</h3>
                   <Button

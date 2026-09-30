@@ -98,7 +98,7 @@ const SnowMailPanel = () => {
       )}
 
       {mails.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2" data-howto="posts.list">
           {mails.map((m) => {
             const unread = !readIds.has(m.id);
             const id = `mail-${m.id}`;

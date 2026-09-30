@@ -66,13 +66,16 @@ const LayoutTrialPrompt = lazy(() => import('./livetv/LayoutTrialPrompt'));
 const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
 const MultiScreenSection = lazy(() => import('./livetv/MultiScreenSection'));
 const BackupsSection = lazy(() => import('./livetv/BackupsSection'));
-import { isDemo } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { DEMO_LIVE_CREDS } from '@/data/liveTvDemo';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 // Demo latch (?demo=1) — module scope like PlexSection. Every demo behavior
 // below lives behind this flag so non-demo sessions stay byte-for-byte equal.
 const DEMO = isDemo();
+// The How-to pictures (developer build only) show the Settings button and hub a
+// real box has; the hub still answers account items with the demo note.
+const HOWTO = isHowtoCapture();
 
 
 interface Props {
@@ -669,7 +672,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const showCredsForm = !DEMO && mode === 'live' && (!creds || accountFormOpen);
   // Demo: the settings hub exposes sign-out / change-credentials / switch-account,
   // none of which apply to a fixed demo account — never mount it.
-  const showSettings = !DEMO && !kidsLevel() && !!creds && settingsOpen && !accountFormOpen;
+  const showSettings = (!DEMO || HOWTO) && !kidsLevel() && !!creds && settingsOpen && !accountFormOpen;
 
   const onSwitchAccount = useCallback((c: XtreamCreds) => {
     if (DEMO) return; // demo account is fixed
@@ -694,7 +697,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   // [Back, Update, Settings] — Settings is hidden in demo and on a Kids
   // profile (it holds sign-out, the line's password and billing), so 2 there.
-  const HEADER_COUNT = DEMO || kidsLevel() ? 2 : 3;
+  const HEADER_COUNT = (DEMO && !HOWTO) || kidsLevel() ? 2 : 3;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -787,7 +790,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           const idx = headerIdxRef.current;
           if (idx === 0) leaveMode();
           else if (idx === 1) refreshChannels();
-          else if (idx === 2 && !DEMO && !kidsLevel()) setSettingsOpen(true);
+          else if (idx === 2 && (!DEMO || HOWTO) && !kidsLevel()) setSettingsOpen(true);
         }
         return;
       }
@@ -1095,6 +1098,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             label={t('common.back')}
             className="h-10 rounded-lg"
             data-player-header-btn=""
+            data-howto="live.back"
             focused={pane === 'header' && headerIdx === 0}
           />
           <div className="flex items-center gap-2">
@@ -1114,6 +1118,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onClick={refreshChannels}
             disabled={isRefreshing}
             aria-label={t('live.shell.updateChannelsBtn')}
+            data-howto="live.updateChannels"
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
             className={`tv-ring h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 1 ? 'scale-105 z-10' : ''}`}
           >
@@ -1122,11 +1127,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           </Button>
           {/* Demo: no settings entry point — the demo account is fixed and
               the hub only exposes credential management. */}
-          {!DEMO && !kidsLevel() && (
+          {(!DEMO || HOWTO) && !kidsLevel() && (
             <Button
               variant="gold"
               size="sm"
               onClick={() => setSettingsOpen(true)}
+              data-howto="live.settingsBtn"
               data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
               className={`tv-ring tv-ring-contrast h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 2 ? 'scale-105 z-10' : ''}`}
             >
@@ -1143,6 +1149,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Pane 1 — Sections */}
         <div data-player-chrome=""
+          data-howto="live.sections"
           onClick={() => { if (pane !== 'sections') setPane('sections'); }}
           className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 overflow-hidden ${pane === 'sections' ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
         >

@@ -530,7 +530,7 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
         <h1 className="text-2xl font-quicksand font-bold mr-4">{t('recordings.list.title')}</h1>
         <div className="flex-1 min-w-0 text-right truncate">
           {volumes.map((v) => (
-            <span key={v.id} className={`ml-4 text-sm font-nunito ${isLowSpace(v.freeBytes) ? 'text-amber-300' : 'text-brand-ice/70'}`}>
+            <span key={v.id} data-howto="recs.drive" className={`ml-4 text-sm font-nunito ${isLowSpace(v.freeBytes) ? 'text-amber-300' : 'text-brand-ice/70'}`}>
               {v.removable ? <Usb className="inline w-4 h-4 mr-1 -mt-0.5" /> : <HardDrive className="inline w-4 h-4 mr-1 -mt-0.5" />}
               {t(isLowSpace(v.freeBytes) ? 'recordings.list.driveFreeLow' : 'recordings.list.driveFree', { label: v.label, size: formatBytes(v.freeBytes) })}
             </span>
@@ -614,7 +614,7 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
               );
             }
             return (
-              <div key={row.key}>
+              <div key={row.key} data-howto={row.kind === 'rec' ? 'recs.list' : row.kind === 'sched' ? 'recs.scheduled' : undefined}>
                 {head && <p data-recordings-heading className="text-xs uppercase tracking-wide font-quicksand font-bold text-brand-gold leading-none pb-1 pt-1">{head}</p>}
                 {inner}
               </div>

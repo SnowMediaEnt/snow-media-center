@@ -41,6 +41,9 @@ interface Props {
   isActive: boolean;
   onExitLeft: () => void;
   onExitUp: () => void;
+  /** The How-to stage (developer build only): draw the layout picker without
+   *  the native player. Keys stay off, so nothing native is ever called. */
+  previewOnly?: boolean;
 }
 
 interface TileState {
@@ -102,7 +105,7 @@ const layoutNeighbor = (layout: Layout, idx: number, dir: 'up' | 'down' | 'left'
   return n === idx ? null : n;
 };
 
-const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
+const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previewOnly = false }: Props) => {
   const { t } = useTranslation();
   const native = hasNativePlayer();
   // usePlayerAccount already re-reads on playerAccountRefresh; a second
@@ -633,7 +636,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
   }, [isActive, native]);
 
   // ── Render ─────────────────────────────────────────────────────────────
-  if (!native) {
+  if (!native && !previewOnly) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="max-w-md text-center p-6 rounded-2xl bg-black/60 border border-white/10">
@@ -659,7 +662,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Prop
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 gap-8">
         <h2 className="text-2xl font-quicksand font-bold text-white">{t('live.multi.pickLayout')}</h2>
-        <div className="flex gap-4">
+        <div className="flex gap-4" data-howto="multi.layouts">
           {cards.map((c, i) => {
             const overplan = maxCon !== null && c.need > maxCon;
             const focused = pickerIdx === i;

@@ -207,7 +207,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
   const { deviceVideos, serviceVideos, allVideos } = categorizeVideos();
 
   const renderVideoGrid = (videoList: typeof videos) => (
-    <div className="grid grid-cols-2 gap-6">
+    <div className="grid grid-cols-2 gap-6" data-howto="videos.grid">
       {videoList.map((video) => (
         <Card 
           key={video.id} 

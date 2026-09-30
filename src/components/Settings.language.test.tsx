@@ -9,7 +9,7 @@ vi.mock('@/hooks/useActiveProfile', () => ({
   useActiveProfile: () => ({ profile: { id: flags.kidsLevel ? 'kid' : 'main', name: flags.kidsLevel ? 'Kid' : 'Main', avatar: 'blue', kidsLevel: flags.kidsLevel, pinHash: null, position: 0, t: 0 } }),
 }));
 vi.mock('@/hooks/useAdminRole', () => ({ useAdminRole: () => ({ isAdmin: flags.admin }) }));
-vi.mock('@/lib/demoMode', () => ({ isDemo: () => flags.demo }));
+vi.mock('@/lib/demoMode', () => ({ isDemo: () => flags.demo, isHowtoCapture: () => false }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }));
 vi.mock('@/hooks/useMediaBarEnabled', () => ({ useMediaBarEnabled: () => [true, vi.fn()] }));
 vi.mock('@/hooks/useDeviceAlerts', () => ({ useDeviceAlerts: () => ({ supported: false, status: { enabled: false }, busy: false, setEnabled: vi.fn() }) }));

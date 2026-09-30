@@ -269,6 +269,7 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
           <Button
             ref={startBtnRef}
             data-focus-id="speedtest-start"
+            data-howto="speed.start"
             data-focused={focused === 'start' ? 'true' : undefined}
             onClick={runTest}
             disabled={isRunning}

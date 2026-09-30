@@ -609,7 +609,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
   return (
     <div className="flex-1 min-h-0 flex">
       {/* Pane 2 — Categories */}
-      <div ref={catScrollRef} className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
+      <div ref={catScrollRef} data-howto="vod.categories" className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
@@ -678,7 +678,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
       </div>
 
       {/* Pane 3 — Grid (virtualized by row) */}
-      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 bg-black/30">
+      <div ref={gridScrollRef} data-howto="vod.grid" className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 bg-black/30">
         {!searchOpen && currentCat?.id === PLEX_ID ? (
           <div className="h-full flex items-center justify-center">
             <div className="max-w-md text-center rounded-3xl border border-brand-gold/30 bg-black/40 px-10 py-10">

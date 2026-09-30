@@ -153,6 +153,7 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
                   {t('ai.conversations.yourMessage')}
                 </label>
                 <Input
+                  data-howto="ai.input"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder={t('ai.conversations.askPlaceholder')}

@@ -462,6 +462,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="help"
               data-support-tv-focus-id="tab-help"
+              data-howto="sup.helpTab"
               className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <HelpCircle className="w-5 h-5 mr-2" />
@@ -470,6 +471,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="ai"
               data-support-tv-focus-id="tab-ai"
+              data-howto="sup.aiTab"
               className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <Brain className="w-5 h-5 mr-2" />
@@ -479,6 +481,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="mail"
               data-support-tv-focus-id="tab-mail"
+              data-howto="sup.postsTab"
               className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <Newspaper className="w-5 h-5 mr-2" />
@@ -507,6 +510,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-howto"
+                data-howto="sup.howto"
                 className="bg-emerald-700/60 border-emerald-400/70 text-white hover:bg-emerald-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <GraduationCap className="w-7 h-7 row-span-2 self-center justify-self-center" />
@@ -521,6 +525,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-speedtest"
+                data-howto="sup.speed"
                 className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <Gauge className="w-7 h-7 row-span-2 self-center justify-self-center" />
@@ -535,6 +540,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-guide"
+                data-howto="sup.guide"
                 className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <LifeBuoy className="w-7 h-7 row-span-2 self-center justify-self-center" />
@@ -549,6 +555,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-videos"
+                data-howto="sup.videos"
                 className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <Video className="w-7 h-7 row-span-2 self-center justify-self-center" />
@@ -564,6 +571,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-tickets"
+                data-howto="sup.tickets"
                 className="relative bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <MessageCircle className="w-7 h-7 row-span-2 self-center justify-self-center" />
@@ -587,6 +595,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-remote"
+                data-howto="sup.remote"
                 className="bg-rose-700/60 border-rose-400/70 text-white hover:bg-rose-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <MonitorSmartphone className="w-7 h-7 row-span-2 self-center justify-self-center" />
@@ -603,6 +612,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-cleaner"
+                data-howto="sup.cleaner"
                 className="bg-sky-700/60 border-sky-400/70 text-white hover:bg-sky-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <Sparkles className="w-7 h-7 row-span-2 self-center justify-self-center" />
@@ -620,6 +630,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-apps"
+                data-howto="sup.apps"
                 className="bg-indigo-700/60 border-indigo-400/70 text-white hover:bg-indigo-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
                 <Smartphone className="w-7 h-7 row-span-2 self-center justify-self-center" />

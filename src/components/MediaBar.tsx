@@ -510,6 +510,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       data-media-bar
+      data-howto="home.recommended"
       // flex-shrink-0: this is a flex item in the home column; without it the
       // bar is what gets squeezed when the page runs short of height and its
       // own overflow:hidden then crops the tiles.
@@ -525,6 +526,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
           onClick={goPrev}
           disabled={isEmpty || totalPages <= 1}
           aria-label={t('home.mediaBar.prevLabel')}
+          data-howto="home.recArrows"
           className="flex-shrink-0 flex items-center justify-center w-10 rounded-xl bg-black/40 hover:bg-black/70 text-white disabled:opacity-30 transition-transform duration-150 ease-out hover:scale-110"
         >
           <ChevronLeft className="w-6 h-6" />
@@ -547,6 +549,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                     disabled={!clickable}
                     title={item.title}
                     data-focused={isFocused ? 'true' : 'false'}
+                    data-howto={isFocused ? 'home.recTile' : undefined}
                     className={`tv-ring flex flex-col rounded-xl text-left min-w-0 transition-transform duration-200 ease-out ${
                       isFocused
                         ? 'scale-[1.05] z-10'
@@ -590,6 +593,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
           onClick={goNext}
           disabled={isEmpty || totalPages <= 1}
           aria-label={t('home.mediaBar.nextLabel')}
+          data-howto="home.recArrows"
           className="flex-shrink-0 flex items-center justify-center w-10 rounded-xl bg-black/40 hover:bg-black/70 text-white disabled:opacity-30 transition-transform duration-150 ease-out hover:scale-110"
         >
           <ChevronRight className="w-6 h-6" />
@@ -597,7 +601,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
       </div>
 
       {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-1 pb-2">
+        <div className="flex justify-center items-center gap-1 pb-2" data-howto="home.recDots">
           <span className="text-xs text-white/50 mr-2">∞</span>
           {Array.from({ length: Math.min(totalPages, 12) }).map((_, i) => (
             <span

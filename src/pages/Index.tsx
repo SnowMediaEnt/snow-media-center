@@ -117,6 +117,8 @@ const BRAND = { title: 'SNOW MEDIA', subtitle: 'CENTER', company: 'Snow Media En
 const isView = (current: string, view: string) => current === view;
 
 const HOME_CARD_VIEW: Record<HomeCardId, string> = { livetv: 'livetv', plex: 'livetv', apps: 'apps', support: 'support', store: 'store', 'kids-games': 'kids-games' };
+/** The How-to guide's hooks on the cards (data-howto; literals, so its check finds them). */
+const HOME_CARD_HOWTO: Partial<Record<HomeCardId, string>> = { livetv: 'home.cardLivetv', plex: 'home.cardPlex', support: 'home.cardSupport', store: 'home.cardStore' };
 
 const HomeActionCard = memo(({
   button,
@@ -326,6 +328,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
           tabIndex={0}
           aria-label={t('home.header.profileLabel', { name: profileBadge.name })}
           data-focused={isProfileFocused ? 'true' : 'false'}
+          data-howto="home.profile"
           className={`tv-focusable home-focus-surface ${btnClass}`}
         >
           <ProfileDot name={profileBadge.name} avatar={profileBadge.avatar} size={dotSize} />
@@ -340,6 +343,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
           size={btnSize}
           tabIndex={0}
           data-focused={isAuthFocused ? 'true' : 'false'}
+          data-howto="home.dashboard"
           className={`tv-focusable home-focus-surface ${btnClass}`}
         >
           <ProfileDot name={profileBadge.name} avatar={profileBadge.avatar} size={dotSize} />
@@ -353,6 +357,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
           tabIndex={0}
           aria-label={labelled ? undefined : dashboardLabel}
           data-focused={isAuthFocused ? 'true' : 'false'}
+          data-howto="home.dashboard"
           className={`tv-focusable home-focus-surface ${btnClass}`}
         >
           <User className={`${labelled ? 'mr-2 ' : ''}text-gray-800 ${iconClass}`} />
@@ -366,6 +371,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
           tabIndex={0}
           aria-label={labelled ? undefined : signInLabel}
           data-focused={isAuthFocused ? 'true' : 'false'}
+          data-howto="home.dashboard"
           className={`tv-focusable home-focus-surface ${btnClass}`}
         >
           <LogIn className={`${labelled ? 'mr-2 text-gray-400' : 'text-gray-800'} ${iconClass}`} />
@@ -379,6 +385,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
         tabIndex={0}
         aria-label={labelled ? undefined : settingsLabel}
         data-focused={isSettingsFocused ? 'true' : 'false'}
+        data-howto="home.settings"
         className={`tv-focusable home-focus-surface ${btnClass}`}
       >
         <SettingsIcon className={`${labelled ? 'mr-2 ' : ''}${iconClass}`} />
@@ -391,6 +398,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
         tabIndex={0}
         aria-label={t('home.header.voiceLabel')}
         data-focused={isVoiceFocused ? 'true' : 'false'}
+        data-howto="home.voice"
         className={`tv-focusable home-focus-surface ${btnClass}`}
       >
         <Mic className={iconClass} />
@@ -1400,7 +1408,7 @@ const Index = () => {
               With the content bar ON the strip is medium height; OFF, the
               thicker one, as there is room. */}
           <WatermarkTitle tagline={tagline} />
-          <div className="relative z-10 flex-shrink-0 mt-2">
+          <div className="relative z-10 flex-shrink-0 mt-2" data-howto="home.ticker">
             {mediaBarEnabled
               ? <NewsTicker compact medium leadIn="max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))" />
               : <NewsTicker />}
@@ -1470,6 +1478,7 @@ const Index = () => {
               return (
             <div 
               className="justify-center items-stretch w-full mx-auto flex flex-nowrap"
+              data-howto="home.cards"
               style={{ 
                 gap: 'clamp(2rem, 5vw, 6rem)',
                 maxWidth: '95vw'
@@ -1497,7 +1506,7 @@ const Index = () => {
                 // Wrap the Main Apps card with the pinned apps popup
                 if (index === appsCardIdx) {
                   return (
-                    <div key={index} className="relative h-full">
+                    <div key={index} className="relative h-full" data-howto={HOME_CARD_HOWTO[cardIds[index]]}>
                       <PinnedAppsPopup
                         pinnedApps={pinnedApps}
                         apps={apps}
@@ -1519,7 +1528,7 @@ const Index = () => {
                   );
                 }
                 
-                return <div key={index} className="h-full">{cardContent}</div>;
+                return <div key={index} className="h-full" data-howto={HOME_CARD_HOWTO[cardIds[index]]}>{cardContent}</div>;
               })}
             </div>
               );
