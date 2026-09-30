@@ -59,6 +59,7 @@ Status: building · ready to test · still broken · done.
 | 37 | Game Day: missing soccer (internationals like USA vs Chile, Europe's leagues and cups) and other sports added | bug | ready to test (build 55) | 1 |
 | 38 | Every support ticket and channel report says the app version, build and box (Buffering Guide, Submit a Ticket, channel reports, AI Chat) | feature | ready to test (build 56) | |
 | 39 | Plex: auto quality follows what the server really delivers (not the speed test); a refused conversion gets a fresh session, not endless retries; stats show the HTTP code | bug | ready to test (build 56) | 2 |
+| 40 | Each SMC start (and resume after 30+ min) reports every saved Live TV line (host + username, never the password) as line_active; app_open carries device_model + form_factor, for the admin app | feature | ready to test (build 57) | |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner
