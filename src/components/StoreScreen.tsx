@@ -499,7 +499,7 @@ const StoreScreen = memo(({ onBack }: Props) => {
           currentItems.length === 0 ? (
             <p className="text-center text-brand-ice/70 py-16 font-nunito text-base">{t('store.shelf.empty')}</p>
           ) : (
-            <div className="grid grid-cols-3 gap-4 max-w-5xl mx-auto p-1">
+            <div className="grid grid-cols-3 gap-4 max-w-5xl mx-auto p-1" data-howto="store.grid">
               {currentItems.map((it) => {
                 const key = `item:${it.product.id}`;
                 return (

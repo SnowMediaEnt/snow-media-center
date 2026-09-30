@@ -43,6 +43,11 @@ const fallback = (
   </div>
 );
 
+/** The How-to guide's hooks on the menu rows (data-howto; literals, so its check finds them). */
+const HUB_HOWTO: Partial<Record<MenuId, string>> = {
+  switch: 'hub.switch', categories: 'hub.hideCats', appearance: 'hub.appearance', rewind: 'hub.rewind', signout: 'hub.signOut',
+};
+
 const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials, onSwitchAccount, onTryLayout }: Props) => {
   const { t } = useTranslation();
   const [view, setView] = useState<View>(initialView ?? 'menu');
@@ -202,6 +207,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
               <div
                 key={m.id}
                 data-focused={focused ? 'true' : 'false'}
+                data-howto={HUB_HOWTO[m.id]}
                 onClick={() => { setMenuIdx(i + 1); activate(m.id); }}
                 className={`tv-ring flex items-center gap-4 rounded-xl px-5 py-4 bg-slate-900/70 border border-white/10 cursor-pointer ${focused ? 'scale-[1.02] z-10' : ''}`}
               >

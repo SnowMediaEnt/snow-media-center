@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,6 +25,11 @@ bootProfilesSync();
 // fallback) so it never competes with the boot/render path on weak boxes.
 onFirstInteraction(() => { try { initAnalytics(); } catch { /* noop */ } });
 runWhenIdle(() => { try { initAnalytics(); } catch { /* noop */ } }, 3500);
+
+// The How-to guide's picture stage (scripts/howto): developer build only. The
+// production build reads DEV as false, so neither the route nor the page's
+// code is in the APK or on the website.
+const HowToStage = import.meta.env.DEV ? lazy(() => import("@/howto/HowToStage")) : null;
 
 
 
@@ -137,6 +142,9 @@ const App = () => {
               <Route path="/claim" element={<ClaimAccount />} />
               <Route path="/admin/knowledge" element={<AdminKnowledge />} />
               <Route path="/welcome" element={<Welcome />} />
+              {HowToStage && (
+                <Route path="/howto-stage" element={<Suspense fallback={null}><HowToStage /></Suspense>} />
+              )}
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

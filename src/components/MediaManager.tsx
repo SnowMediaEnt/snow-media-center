@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 /** A Kids profile's backgrounds are kept child-friendly by the server. */
 const kidsBody = (): { kids_level?: string } => { const l = kidsLevel(); return l ? { kids_level: l } : {}; };
 import { Button } from '@/components/ui/button';
-import { isDemo } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1033,9 +1033,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           </div>
         )}
 
-        {/* AI Generation Section — hidden in the website demo (uploads stay). */}
-        {!isDemo() && (
-        <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6 mb-6">
+        {/* AI Generation Section — hidden in the website demo (uploads stay).
+            The How-to pictures (developer build only) show it, as a box does. */}
+        {(!isDemo() || isHowtoCapture()) && (
+        <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6 mb-6" data-howto="set.wallpaper">
           <h2 className="text-2xl font-bold text-white mb-4">{t('media.generate.title')}</h2>
           {kids && (
             <div className="flex items-start rounded-lg bg-emerald-500/15 border border-emerald-300/40 p-3 mb-4">
@@ -1196,7 +1197,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         )}
 
         {/* Upload Section */}
-        <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 mb-8">
+        <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 mb-8" data-howto="set.wallpaper">
           <h2 className="text-2xl font-bold text-white mb-4">{t('media.upload.title')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-4">
             <div data-focus-id="asset-type">

@@ -237,7 +237,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
         </div>
 
         <div className="space-y-4">
-          <div className="space-y-2">
+          <div className="space-y-2" data-howto="signin.username">
             <Label htmlFor="lt-user" className="text-brand-ice font-nunito">{t('liveAccount.credentials.username')}</Label>
             <Input
               id="lt-user"
@@ -255,7 +255,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
               disabled={testing}
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2" data-howto="signin.password">
             <Label htmlFor="lt-pass" className="text-brand-ice font-nunito">{t('liveAccount.credentials.password')}</Label>
             <Input
               id="lt-pass"
@@ -287,6 +287,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
             type="submit"
             variant="gold"
             {...focusProps('cf-submit')}
+            data-howto="signin.submit"
             disabled={testing}
             className="flex-1 rounded-xl h-12 transition-transform duration-150 ease-out"
           >
@@ -321,7 +322,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
           </Button>
         )}
 
-        <p className="text-brand-ice/60 text-xs font-nunito mt-4">
+        <p className="text-brand-ice/60 text-xs font-nunito mt-4" data-howto="signin.note">
           {t('liveAccount.credentials.note')}
         </p>
       </form>

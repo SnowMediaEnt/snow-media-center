@@ -1007,7 +1007,7 @@ const BufferingGuide = ({
           </div>
           <span className="w-[120px] hidden sm:block" aria-hidden="true" />
         </div>
-        <ol className="max-w-5xl mx-auto mt-2 grid grid-cols-6 gap-2" aria-label={t('guides.buffering.progressAria')}>
+        <ol className="max-w-5xl mx-auto mt-2 grid grid-cols-6 gap-2" aria-label={t('guides.buffering.progressAria')} data-howto="bg.steps">
           {STEPS.map((k, i) => {
             const done = i < stepIndex;
             const current = i === stepIndex;

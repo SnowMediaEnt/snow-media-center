@@ -132,10 +132,11 @@ Avatar.displayName = 'ProfileAvatar';
 
 interface FocusProps { focus: string; setFocus: (id: string) => void }
 
-const Btn = ({ id, focus, setFocus, onPress, children, className = '', disabled = false }: FocusProps & { id: string; onPress: () => void; children: React.ReactNode; className?: string; disabled?: boolean }) => (
+const Btn = ({ id, focus, setFocus, onPress, children, className = '', disabled = false, howto }: FocusProps & { id: string; onPress: () => void; children: React.ReactNode; className?: string; disabled?: boolean; howto?: string }) => (
   <button
     type="button"
     data-pf={id}
+    data-howto={howto}
     {...(disabled ? { 'data-pf-disabled': '' } : {})}
     data-focused={focus === id ? 'true' : 'false'}
     onClick={() => { if (!disabled) { setFocus(id); onPress(); } }}
@@ -503,7 +504,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
         : null;
     body = (
       <>
-        <div className="flex flex-wrap justify-center">
+        <div className="flex flex-wrap justify-center" data-howto="prof.list">
           {profiles.map((p) => {
             const id = `${managing ? 'm' : 'p'}-${p.id}`;
             return (
@@ -512,6 +513,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
                 type="button"
                 data-pf={id}
                 data-focused={focus === id ? 'true' : 'false'}
+                data-howto={p.kidsLevel ? 'prof.kids' : undefined}
                 onClick={() => { setFocus(id); if (managing) openEdit(p); else choose(p); }}
                 className="flex flex-col items-center m-4 rounded-2xl p-2 outline-none"
               >
@@ -548,7 +550,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
         <div className="flex flex-wrap justify-center mt-8">
           {managing
             ? <Btn id="done" {...fp} onPress={() => pop(`p-${current.id}`)}>{t('profiles.manage.doneBtn')}</Btn>
-            : <Btn id="manage" {...fp} onPress={openManage}><span className="inline-flex items-center"><Pencil className="w-5 h-5 mr-2" />{t('profiles.manage.manageBtn')}</span></Btn>}
+            : <Btn id="manage" howto="prof.manage" {...fp} onPress={openManage}><span className="inline-flex items-center"><Pencil className="w-5 h-5 mr-2" />{t('profiles.manage.manageBtn')}</span></Btn>}
           {/* Made on this box before signing in: the account's list doesn't have them. */}
           {toBring.length > 0 && profiles.length < MAX_PROFILES && (
             <Btn id="bring" {...fp} className="ml-4" onPress={() => { const first = toBring[0].id; if (bringBoxProfiles() > 0) setFocus(`m-${first}`); }}>
@@ -618,7 +620,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
         {!isMain && (
           <>
             <div className="text-white/70 text-sm mb-2">{t('profiles.edit.kidsLabel')}</div>
-            <div className="flex flex-wrap mb-2">
+            <div className="flex flex-wrap mb-2" data-howto="prof.kidsLevel">
               {[{ id: null as KidsLevel | null }, ...KIDS_LEVELS].map((k) => {
                 const id = `k-${k.id ?? 'off'}`;
                 const on = draft.kidsLevel === k.id;
@@ -649,7 +651,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
             <div className="flex flex-wrap items-center mb-6">
               {pinsAvailable() ? (
                 <>
-                  <Btn id="pin" {...fp} className="mr-3" onPress={() => screen.id && push({ kind: 'pin', purpose: 'new', profileId: screen.id }, 'pad-1')}>
+                  <Btn id="pin" howto="prof.pinBtn" {...fp} className="mr-3" onPress={() => screen.id && push({ kind: 'pin', purpose: 'new', profileId: screen.id }, 'pad-1')}>
                     <span className="inline-flex items-center"><Lock className="w-5 h-5 mr-2" />{p?.pinHash ? t('profiles.edit.changePinBtn') : t('profiles.edit.addPinBtn')}</span>
                   </Btn>
                   {p?.pinHash && <Btn id="pin-off" {...fp} onPress={() => { if (screen.id) setPin(screen.id, null); }}>{t('profiles.edit.removePinBtn')}</Btn>}

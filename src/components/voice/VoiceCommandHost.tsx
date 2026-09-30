@@ -424,7 +424,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
         style={{ backgroundColor: 'rgba(7, 27, 58, 0.96)' }}
       >
         <div className="flex items-center">
-          <div className="mr-5 flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-gold/90">
+          <div className="mr-5 flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-gold/90" data-howto="voice.mic">
             <Mic className={`h-8 w-8 text-black ${phase.kind === 'listening' ? 'animate-pulse' : ''}`} />
           </div>
           <div className="min-w-0 flex-1">

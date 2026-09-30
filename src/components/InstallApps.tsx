@@ -826,7 +826,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
     // between collapsed cards is handled by the spatial fallback in the keydown
     // effect, which reads real bounding boxes — so left/right/up/down all work
     // on the grid without a hard-coded index map.
-    <div className="grid gap-3 items-start pb-10 px-2 md:grid-cols-2 2xl:grid-cols-3">
+    <div className="grid gap-3 items-start pb-10 px-2 md:grid-cols-2 2xl:grid-cols-3" data-howto="apps.grid">
       {categoryApps.map((app) => {
         const status = appStatuses.get(app.id) || { installed: false };
         const isInstalled = status.installed;
@@ -952,6 +952,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                   <Button 
                     data-focus-id={`download-${app.id}`}
                     data-focused={isFocused(`download-${app.id}`) ? 'true' : 'false'}
+                    data-howto="apps.download"
                     onClick={() => handleDownload(app)}
                     className={`w-full h-9 text-sm transition-all duration-200 ${isFocused(`download-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-brand-ice hover:bg-brand-ice/80 ${isFocused(`download-${app.id}`) ? 'text-slate-900' : 'text-white'}`}
                   >
@@ -965,6 +966,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat, onNavigate }: { on
                     <Button 
                       data-focus-id={`launch-${app.id}`}
                       data-focused={isFocused(`launch-${app.id}`) ? 'true' : 'false'}
+                      data-howto="apps.download"
                       onClick={() => attemptLaunch(app)}
                       className={`w-full h-9 text-sm transition-all duration-200 ${isFocused(`launch-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-primary hover:bg-primary/80 ${isFocused(`launch-${app.id}`) ? 'text-slate-900' : 'text-primary-foreground'}`}
                     >

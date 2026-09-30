@@ -63,6 +63,9 @@ const BUFFERING_OPTIONS = ['live.report.openGuide', 'live.report.submitTicket'] 
 
 type Step = 'menu' | 'reasons' | 'buffering' | 'other';
 
+/** The How-to guide's hooks on the menu rows (data-howto; literals, so its check finds them). */
+const MENU_HOWTO: Record<string, string> = { report: 'menu.report', fav: 'menu.favorite', record: 'menu.record' };
+
 /**
  * D-pad / focus-trapped dialog: Channel Options → Report → reason → submit.
  * Owns its own keyboard while mounted.
@@ -416,6 +419,7 @@ const ReportChannelDialog = memo(({
                   key={item.id}
                   type="button"
                   data-focused={focused ? 'true' : 'false'}
+                  data-howto={MENU_HOWTO[item.id]}
                   onMouseEnter={() => setFocusIdx(i)}
                   onClick={() => item.run()}
                   className={`tv-ring w-full text-left px-4 py-3 rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center gap-3 ${
@@ -435,7 +439,7 @@ const ReportChannelDialog = memo(({
         )}
 
         {atStep('reasons') && (
-          <div className="space-y-2">
+          <div className="space-y-2" data-howto="report.reasons">
             {CHOICES.map((c, i) => {
               const focused = focusIdx === i;
               return (

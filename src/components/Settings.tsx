@@ -7,7 +7,7 @@ import { useDashboardSize, saveDashboardSize } from '@/lib/dashboardSize';
 import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { isDemo } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone } from 'lucide-react';
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors, loadProfiles, profileName, PROFILES_EVENT } from '@/lib/profiles';
@@ -74,7 +74,8 @@ const Settings = ({ onBack }: SettingsProps) => {
   // The language picker is for everyone: admin or not, Kids profile or not, demo too.
   const kids = !!currentProfile.kidsLevel;
   const isAdmin = hasAdminRole && !demo && !kids;
-  const showUpdates = !demo && !kids;
+  // The How-to pictures show the tab a real box has (developer build only).
+  const showUpdates = (!demo || isHowtoCapture()) && !kids;
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   const dashboardSize = useDashboardSize();
   const mailNotify = useMailNotify();
@@ -562,7 +563,7 @@ const Settings = ({ onBack }: SettingsProps) => {
       <div className="max-w-6xl mx-auto pb-16">
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${tabColsClass} bg-slate-800/50 border-slate-600`}>
+          <TabsList className={`grid w-full ${tabColsClass} bg-slate-800/50 border-slate-600`} data-howto="set.tabs">
             <TabsTrigger
               {...settingsFocusAttrs('tab-media')}
               onFocus={() => setFocusedElement('tab-media')}
@@ -604,6 +605,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 {...settingsFocusAttrs('tab-updates')}
                 onFocus={() => setFocusedElement('tab-updates')}
                 value="updates"
+                data-howto="set.updatesTab"
                 className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-updates')}`}
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
@@ -689,6 +691,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               aria-pressed={mediaBarEnabled}
               onFocus={() => setFocusedElement('ui-content-bar-toggle')}
               onClick={() => setMediaBarEnabledState(!mediaBarEnabled)}
+              data-howto="set.contentBar"
               className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-content-bar-toggle')}`}
             >
               <div className="flex items-start justify-between gap-4">
@@ -746,6 +749,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               aria-pressed={mailNotify}
               onFocus={() => setFocusedElement('ui-mail-notify-toggle')}
               onClick={() => saveMailNotify(!mailNotify)}
+              data-howto="set.postNotify"
               className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-mail-notify-toggle')}`}
             >
               <div className="flex items-start justify-between gap-4">
@@ -767,7 +771,8 @@ const Settings = ({ onBack }: SettingsProps) => {
               </div>
             </Card>
 
-            {deviceAlerts.supported && (
+            {/* The How-to pictures show the card a box has (on the web it can't do anything). */}
+            {(deviceAlerts.supported || isHowtoCapture()) && (
               <Card
                 {...settingsFocusAttrs('ui-device-alerts-toggle')}
                 tabIndex={0}
@@ -775,6 +780,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 aria-pressed={deviceAlerts.status.enabled}
                 onFocus={() => setFocusedElement('ui-device-alerts-toggle')}
                 onClick={() => void toggleDeviceAlerts(!deviceAlerts.status.enabled)}
+                data-howto="set.alerts"
                 className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-device-alerts-toggle')}`}
               >
                 <div className="flex items-start justify-between gap-4">
@@ -835,7 +841,7 @@ const Settings = ({ onBack }: SettingsProps) => {
             )}
 
             {/* Everyone can pick a language: admin or not, Kids profile or not, demo too. */}
-            <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+            <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6" data-howto="set.language">
               <div className="flex items-start gap-3 mb-4">
                 <Languages className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                 <div className="flex-1">
@@ -881,7 +887,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 </div>
                 <div className="flex-1 min-w-[16rem]">
                   <h3 className="text-xl font-bold text-white mb-1">{t('settings.remote.title')}</h3>
-                  <ol className="text-white/80 space-y-0.5 mb-2 list-decimal pl-5">
+                  <ol className="text-white/80 space-y-0.5 mb-2 list-decimal pl-5" data-howto="set.remoteSteps">
                     <li><Trans i18nKey="settings.remote.step1" components={{ 1: <span className="font-semibold text-white" /> }} /></li>
                     <li>{t('settings.remote.step2')}</li>
                     <li>{t('settings.remote.step3')}</li>

@@ -286,6 +286,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
         <button
           type="button"
           data-focus-key="refresh:0"
+          data-howto="backups.refresh"
           data-focused={shelfFocused('refresh', 0) ? 'true' : 'false'}
           onClick={doRefresh}
           className={`tv-focusable tv-ring flex items-center gap-2 px-4 py-3 rounded-xl border font-nunito font-semibold transition-transform duration-150 ease-out flex-shrink-0 ${
@@ -299,7 +300,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
       </div>
 
       {/* Shelves */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 space-y-6" data-howto="backups.list">
         {loading && live.length === 0 && vod.length === 0 && (
           <div className="h-full flex items-center justify-center">
             <div className="w-full max-w-sm"><SnowLoader size="md" label={t('liveAccount.backups.loading')} /></div>
