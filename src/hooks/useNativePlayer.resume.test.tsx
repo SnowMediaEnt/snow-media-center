@@ -189,6 +189,16 @@ describe('useNativePlayer — where a film starts and resumes', () => {
     await waitFor(() => expect(h.result.current.error).toEqual(refused));
   });
 
+  it('a conversion the Plex server turned down (PLEX_TRANSCODE_HTTP): the error at once, with its status, never the same session again', async () => {
+    const h = mount({ url: FILM, live: false });
+    await waitFor(() => expect(loads()).toHaveLength(1));
+    await waitFor(() => expect(listeners.get('playerError')?.length).toBe(1));
+    fire('playerError', { code: 'PLEX_TRANSCODE_HTTP', message: 'The Plex server refused this file (HTTP 503).', httpStatus: 503 });
+    await waitFor(() => expect(h.result.current.error).toEqual({ code: 'PLEX_TRANSCODE_HTTP', message: 'The Plex server refused this file (HTTP 503).', httpStatus: 503 }));
+    await new Promise((r) => { setTimeout(r, 1500); });
+    expect(loads()).toHaveLength(1);
+  });
+
   it('a new title starts at its own start position, not at the last one\'s place', async () => {
     const h = mount({ url: FILM, live: false, startPosition: 60 });
     await waitFor(() => expect(loads()).toHaveLength(1));
@@ -279,6 +289,24 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(uhdRule).toContain('fun isUhd(width: Int, height: Int): Boolean = height >= MIN_HEIGHT || width >= MIN_WIDTH');
     // A released player lets its control go; tiles never have one.
     expect(body('private fun releaseSlot(')).toContain('s.loadControl = null');
+  });
+
+  it('a Plex conversion answered with an HTTP error: the same session twice at most, then the WebView, with the status', () => {
+    expect(plugin).toContain('private const val TRANSCODE_HTTP_TRIES = 2');
+    const err = plugin.slice(plugin.indexOf('override fun onPlayerError('), plugin.indexOf('override fun onTracksChanged('));
+    const block = err.slice(err.indexOf('val failedUrl = s.currentUrl'), err.indexOf('val vodSpent'));
+    expect(block).toMatch(/code == PlaybackException\.ERROR_CODE_IO_BAD_HTTP_STATUS &&\s*isPlexTranscode\(Uri\.parse\(failedUrl\)\)/);
+    expect(block).toMatch(/s\.transcodeHttpFails\+\+\s*if \(s\.transcodeHttpFails < TRANSCODE_HTTP_TRIES && s\.reconnectAttempts < MAX_RECONNECTS\) \{\s*reconnect\(s, screenId, httpRestartReason\(error, httpStatus\)\)\s*return/);
+    expect(block).toContain('.put("code", "PLEX_TRANSCODE_HTTP")');
+    expect(block).toContain('if (httpStatus != null) ev.put("httpStatus", httpStatus)');
+    // Never an address: the message is exhaustedMessage's (status only).
+    expect(block).toContain('.put("message", exhaustedMessage(error, failedUrl))');
+    expect(block).not.toMatch(/Log\./);
+    // Before the audio-decode check? No: after it, so a codec failure keeps its own path.
+    expect(err.indexOf('"AUDIO_DECODE"')).toBeLessThan(err.indexOf('val failedUrl = s.currentUrl'));
+    // Counted per load: a fresh session (a new load) starts over, and so does a stop.
+    expect(body('fun load(call: PluginCall)')).toMatch(/s\.reconnectAttempts = 0\s*s\.transcodeHttpFails = 0/);
+    expect(body('private fun stopSlot(')).toContain('s.transcodeHttpFails = 0');
   });
 
   it('a film gives up after MAX_VOD_RECONNECTS: a failed server as RECONNECT_EXHAUSTED, anything else by its own name', () => {
@@ -376,7 +404,9 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     const releaseAt = err.lastIndexOf('releaseWifiIfStopped(s)');
     expect(releaseAt).toBeGreaterThan(reconnectAt);
     expect(releaseAt).toBeLessThan(err.indexOf('"RECONNECT_EXHAUSTED"'));
-    expect(err.slice(0, reconnectAt).match(/releaseWifiIfStopped/g)).toHaveLength(1);
+    // Before it: the audio-decode stop and a Plex conversion's HTTP error stop (PLEX_TRANSCODE_HTTP).
+    expect(err.slice(0, reconnectAt).match(/releaseWifiIfStopped/g)).toHaveLength(2);
+    expect(err).toMatch(/releaseWifiIfStopped\(s\)\s*val ev = JSObject\(\)\.put\("screenId", screenId\)\s*\.put\("code", "PLEX_TRANSCODE_HTTP"\)/);
     // The plugin's own give-up (a channel's 20, or a Backups film's watchdog).
     expect(body('private fun reconnect(')).toMatch(/if \(s\.reconnectAttempts >= MAX_RECONNECTS\) \{\s*releaseWifiIfStopped\(s\)\s*notifyListeners\(/);
   });

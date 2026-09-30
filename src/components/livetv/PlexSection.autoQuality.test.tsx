@@ -627,8 +627,23 @@ describe('a resume (build 39 on the owner\'s TV): the start is not a reason to l
     await waitFor(() => expect(isTranscode(lastUrl())).toBe(true));
   });
 
-  it('with the internet check far above what the file needs, stalls alone keep the file, and the card says so', async () => {
-    // The internet check (a download from Cloudflare) reads fast.
+  it('with the server seen sending the file twice over, stalls alone keep the file, and the card says so', async () => {
+    await resumedDune();
+    // Its start filled flat out at 30 Mb/s (a 10 Mb/s file).
+    await report(30000);
+    await wait(31_000);
+    stallBoth();
+    await wait(3_000);
+    await waitFor(() => expect(screen.getByText('Auto quality: keeps the original — the Plex server has sent it fast enough')).toBeTruthy());
+    act(() => { diagSetBuffering(false); });
+    setBuffering(false);
+    await stall(); await stall(); await stall();
+    await wait(1_000);
+    expect(h.urls.filter(isTranscode)).toHaveLength(0);
+    expect(toastTitles().filter((t) => t.startsWith('Lowered'))).toHaveLength(0);
+  });
+
+  it('a quick internet check far above what the file needs is no such proof: stalls still lower it', async () => {
     h.fetch.mockImplementation(async (u: unknown) => (String(u).includes('speed.cloudflare.com')
       ? new Response(new Uint8Array(1 << 20), { status: 200 })
       : new Response('', { status: 200 })));
@@ -636,11 +651,58 @@ describe('a resume (build 39 on the owner\'s TV): the start is not a reason to l
     await wait(31_000);
     stallBoth();
     await wait(3_000);
-    await waitFor(() => expect(screen.getByText(/keeps the original/)).toBeTruthy());
+    expect(screen.queryByText(/keeps the original/)).toBeNull();
     act(() => { diagSetBuffering(false); });
     setBuffering(false);
     await stall(); await stall(); await stall();
-    await wait(1_000);
+    await waitFor(() => expect(isTranscode(lastUrl())).toBe(true));
+  });
+});
+
+describe('a customer\'s box: the quick check fast, the Plex server slow (automatic quality follows the server)', () => {
+  const report = async (kbps: number, after = 3_000) => { await wait(after); act(() => { recordPlayerRate(kbps); }); };
+  const stallBoth = () => { setBuffering(true); act(() => { diagSetBuffering(true); }); };
+  const playOn = () => { act(() => { diagSetBuffering(false); }); setBuffering(false); };
+  /** A 12 Mb/s film (the customer's), well past its start; the quick internet check reads fast. */
+  async function playing12() {
+    h.part.mockImplementation(async () => ({ partKey: '/library/parts/7/file.mkv', bitrateKbps: 12000, versions: [] }));
+    h.fetch.mockImplementation(async (u: unknown) => (String(u).includes('speed.cloudflare.com')
+      ? new Response(new Uint8Array(1 << 20), { status: 200 })
+      : new Response('', { status: 200 })));
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); markPlaybackStart(); });
+    await wait(31_000);
+  }
+  /** Two short stalls (7 s), one rate report inside each, `between` while it plays on. */
+  async function twoStalls(inside: [number, number], between: [number, number]) {
+    stallBoth();
+    await report(inside[0]);
+    await wait(4_000);
+    playOn();
+    await report(between[0]);
+    await report(between[1]);
+    stallBoth();
+    await report(inside[1]);
+    await wait(4_000);
+  }
+
+  it('delivered 1.4-5.7 Mb/s of a 12 Mb/s file: steps down to what the server carries, and never says the internet is fast enough', async () => {
+    await playing12();
+    await twoStalls([1400, 3000], [5700, 2000]);
+    await waitFor(() => expect(isTranscode(lastUrl())).toBe(true));
+    // The best it got was 5.7 Mb/s: 720p · 4 Mbps fits it with headroom.
+    expect(cap(lastUrl())).toBe('4000');
+    expect(toastTitles()).toContain('Lowered to 720p · 4 Mbps for your speed');
+    expect(screen.queryByText(/fast enough/)).toBeNull();
+  });
+
+  it('delivered healthy: no change', async () => {
+    await playing12();
+    await twoStalls([30000, 42000], [12000, 12000]);
+    await stall(); await stall(); await stall();
+    await wait(4_000);
     expect(h.urls.filter(isTranscode)).toHaveLength(0);
     expect(toastTitles().filter((t) => t.startsWith('Lowered'))).toHaveLength(0);
   });
@@ -715,5 +777,96 @@ describe('a 4K film (bugs/plex-4k.md): the start is not a reason to leave it, no
     await wait(6_000);
     expect(on1080()).toBe(false);
     expect(toastTitles().filter((t) => t.startsWith('Lowered'))).toHaveLength(0);
+  });
+});
+
+describe('a conversion the Plex server answers with an HTTP error status', () => {
+  // The native player tried that session twice, then says so with the status.
+  const convertFail = (status: number | null = 503) => act(() => {
+    h.native = { ...h.native, error: { code: 'PLEX_TRANSCODE_HTTP', message: `The Plex server refused this file (HTTP ${status}).`, ...(status ? { httpStatus: status } : {}) } as NativeState['error'] };
+    h.kick?.();
+  });
+  // A new stream clears the error (useNativePlayer).
+  const cleared = () => act(() => { h.native = { ...h.native, error: null }; h.kick?.(); });
+  const decisions = () => h.fetch.mock.calls.map((c) => String(c[0])).filter((u) => u.includes('/video/:/transcode/universal/decision?'));
+  async function converting720() {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { h.pickQuality?.('720-4', 600); });
+    await waitFor(() => expect(cap(lastUrl())).toBe('4000'));
+    await started();
+  }
+
+  it('a fresh session (new id, decision first), then another quality, then a plain message with the status; never the same session again', async () => {
+    await converting720();
+    const first = lastUrl();
+    convertFail();
+    // 1. A fresh session of the same quality: a new id, asked for with a decision call first.
+    await waitFor(() => expect(lastUrl()).not.toBe(first));
+    const fresh = lastUrl();
+    expect(isTranscode(fresh)).toBe(true);
+    expect(cap(fresh)).toBe('4000');
+    expect(sessionOf(fresh)).not.toBe(sessionOf(first));
+    expect(fresh).toContain('X-Plex-Platform=Android');
+    expect(decisions()).toHaveLength(1);
+    expect(decisions()[0]).toContain(`session=${sessionOf(fresh)}`);
+    expect(toastTitles()).toContain("The Plex server couldn't prepare this");
+    expect(screen.queryByText('Playback Error')).toBeNull();
+    cleared();
+    await started();
+    // 2. That one too: another quality (nothing measured: one step lighter).
+    convertFail();
+    await waitFor(() => expect(cap(lastUrl())).toBe('3000'));
+    const other = lastUrl();
+    expect(sessionOf(other)).not.toBe(sessionOf(fresh));
+    expect(h.toast.mock.calls.map((c) => String((c[0] as { description?: string }).description ?? ''))).toContain('Playing 720p · 3 Mbps instead. Change it any time under Quality.');
+    cleared();
+    await started();
+    // 3. And that one: the message, with the status. No more sessions.
+    convertFail();
+    await waitFor(() => expect(screen.getByText("The Plex server couldn't prepare this video (it may be busy). Try again in a minute or pick another quality.")).toBeTruthy());
+    expect(screen.getByText('HTTP 503')).toBeTruthy();
+    await wait(5_000);
+    expect(lastUrl()).toBe(other);
+    // Every session was its own.
+    const sessions = h.urls.filter(isTranscode).map(sessionOf);
+    expect(new Set(sessions).size).toBe(sessions.length);
+    // Retry: a fresh session again, never the one that failed.
+    fireEvent.click(screen.getByText('Retry'));
+    await waitFor(() => expect(lastUrl()).not.toBe(other));
+    expect(sessionOf(lastUrl())).not.toBe(sessionOf(other));
+    expect(cap(lastUrl())).toBe('3000');
+  });
+
+  it('a fresh session the server turns down at its decision goes straight to another quality', async () => {
+    await converting720();
+    h.fetch.mockImplementation(async (u: unknown) => (String(u).includes('/transcode/universal/decision?')
+      ? new Response('', { status: 503 })
+      : new Response('', { status: 200 })));
+    const first = lastUrl();
+    convertFail();
+    await waitFor(() => expect(cap(lastUrl())).toBe('3000'));
+    expect(h.urls.filter(isTranscode).filter((u) => cap(u) === '4000')).toEqual([first]);
+    expect(decisions()).toHaveLength(1);
+  });
+
+  it('with the rate measured from the server carrying the file, the other quality is the file as it is', async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); recordPlayerRate(40000); });
+    act(() => { h.pickQuality?.('720-4', 600); });
+    await waitFor(() => expect(cap(lastUrl())).toBe('4000'));
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); recordPlayerRate(40000); });
+    const first = lastUrl();
+    convertFail();
+    await waitFor(() => expect(lastUrl()).not.toBe(first));
+    expect(cap(lastUrl())).toBe('4000');
+    cleared();
+    convertFail();
+    await waitFor(() => expect(isTranscode(lastUrl())).toBe(false));
+    expect(lastUrl()).toContain('/library/parts/7/file.mkv');
   });
 });

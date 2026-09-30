@@ -107,6 +107,9 @@ interface Props {
    *  does with the file ("Direct play of the original file", "Converting to
    *  720p · 4 Mbps"), the server's name and what the video needs, kbps. */
   statsSession?: string;
+  /** The HTTP status the last conversion of this title was turned down
+   *  with, for the stats panel (a fresh session's own stats start over). */
+  httpStatus?: number | null;
   serverName?: string;
   needKbps?: number;
 }
@@ -125,7 +128,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused, statsSession, serverName, needKbps }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused, statsSession, serverName, needKbps, httpStatus }: Props) => {
   // The Quality menu: every version as it is (when there are several), then
   // the converted presets. `selected` is the entry now in effect.
   const { t } = useTranslation();
@@ -598,7 +601,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   // Mounted only while open (and the player is up): closed, it neither
   // polls the player nor draws anything.
   const statsEl = active && statsOpen ? (
-    <PlayerStatsPanel session={statsSession ?? ''} serverName={serverName} routeLabel={routeLabel} needKbps={needKbps} />
+    <PlayerStatsPanel session={statsSession ?? ''} serverName={serverName} routeLabel={routeLabel} needKbps={needKbps} httpStatus={httpStatus} />
   ) : null;
 
   if (!visible) return statsEl ? <>{promptEl}{statsEl}</> : promptEl;

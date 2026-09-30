@@ -14,7 +14,7 @@ const KEYS: Array<keyof PlayerStats> = [
   'nowKbps', 'avgKbps', 'minKbps', 'maxKbps',
   'videoDecoder', 'videoFormat', 'renderedFrames', 'droppedFrames',
   'audioDecoder', 'audioFormat',
-  'restarts', 'lastRestartReason', 'lastError', 'loadProfile',
+  'restarts', 'lastRestartReason', 'lastError', 'httpStatus', 'loadProfile',
   'javaHeapMb', 'nativeHeapMb',
   'engine', 'firstFrameMs', 'stalls', 'stallSec', 'cpuPct', 'pssMb',
 ];
@@ -30,7 +30,7 @@ describe('SnowPlayer.getStats — web / no native player', () => {
       nowKbps: null, avgKbps: null, minKbps: null, maxKbps: null,
       videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null,
       audioDecoder: null, audioFormat: null,
-      restarts: 0, lastRestartReason: null, lastError: null, loadProfile: null,
+      restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null,
       javaHeapMb: null, nativeHeapMb: null,
       engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
     });
@@ -110,6 +110,15 @@ describe('SnowPlayerPlugin.kt — mpv (owner test builds only)', () => {
 describe('SnowPlayerPlugin.kt — getStats', () => {
   const stats = body('private fun statsOf(');
 
+  it('the HTTP status behind the last error is a number from the data source, set with lastError', () => {
+    expect(stats).toContain('o.put("httpStatus", s?.lastHttpStatus ?: JSONObject.NULL)');
+    const err = plugin.slice(plugin.indexOf('override fun onPlayerError('), plugin.indexOf('override fun onTracksChanged('));
+    expect(err).toContain('val httpStatus = if (code == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) httpStatusOf(error) else null');
+    expect(err.indexOf('s.lastHttpStatus = httpStatus')).toBeLessThan(err.indexOf('notifyListeners('));
+    // A new title (and a stop) starts without one.
+    expect(body('private fun resetStats(')).toContain('s.lastHttpStatus = null');
+  });
+
   it('sends exactly the PlayerStats fields', () => {
     const sent = [...stats.matchAll(/o\.put\(\s*"([A-Za-z]+)"/g)].map((m) => m[1]);
     expect([...new Set(sent)].sort()).toEqual([...KEYS].sort());
@@ -183,7 +192,12 @@ describe('SnowPlayerPlugin.kt — getStats', () => {
     expect(rc).toMatch(/s\.reconnectAttempts\+\+\s*s\.restarts\+\+\s*s\.lastRestartReason = reason/);
     expect(plugin).toContain('reconnect(s, screenId, "no picture in 8 s")');
     expect(plugin).toContain('reconnect(s, screenId, "live stream ended")');
-    expect(plugin).toMatch(/ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,\s*PlaybackException\.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,\s*-> "server stopped responding"\s*else -> "stream error " \+ error\.errorCodeName\.removePrefix\("ERROR_CODE_"\)/);
+    expect(plugin).toMatch(/ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,\s*PlaybackException\.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,\s*-> "server stopped responding"\s*else -> httpRestartReason\(error, httpStatus\)/);
+    // "stream error IO_BAD_HTTP_STATUS · HTTP 503": the code name and the status, never the address.
+    const why = body('private fun httpRestartReason(');
+    expect(why).toContain('val base = "stream error " + error.errorCodeName.removePrefix("ERROR_CODE_")');
+    expect(why).toContain('return if (httpStatus != null) "$base · HTTP $httpStatus" else base');
+    expect(why).not.toMatch(/url|uri|dataSpec/i);
     // The error behind a restart or a stop, before anything is sent.
     expect(plugin).toMatch(/override fun onPlayerError\(error: PlaybackException\) \{\s*val code = error\.errorCode\s*(\/\/[^\n]*\s*)*s\.lastError = error\.errorCodeName\s*val isAudioTrack/);
   });

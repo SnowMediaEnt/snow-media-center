@@ -102,6 +102,10 @@ export interface PlayerStats {
    *  a RECONNECT_EXHAUSTED, ERROR_CODE_IO_BAD_HTTP_STATUS is a server that
    *  refused the file, not one that stopped answering. */
   lastError: string | null;
+  /** The HTTP status behind a lastError of ERROR_CODE_IO_BAD_HTTP_STATUS
+   *  (e.g. 503), when the server sent one; null otherwise. Older builds
+   *  leave it out. */
+  httpStatus?: number | null;
   /** How far ahead the player reads, e.g. "steady · 50 s / 128 MB, 20 s floor",
    *  or for mpv "mpv · cache 32 MB · 10 s ahead". */
   loadProfile: string | null;
@@ -130,7 +134,7 @@ export function emptyPlayerStats(): PlayerStats {
     nowKbps: null, avgKbps: null, minKbps: null, maxKbps: null,
     videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null,
     audioDecoder: null, audioFormat: null,
-    restarts: 0, lastRestartReason: null, lastError: null, loadProfile: null,
+    restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null,
     javaHeapMb: null, nativeHeapMb: null,
     engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
   };
@@ -240,8 +244,14 @@ export interface SnowPlayerPlugin {
        *  20 restarts in a row, a film or episode after 3). A film's message
        *  then says how its server failed: "The server stopped responding.
        *  Try again." or "The Plex server refused this file (HTTP 404)."
-       *  Never a URL. */
+       *  Never a URL.
+       *  PLEX_TRANSCODE_HTTP: a Plex conversion the server answered with an
+       *  HTTP error status twice in a row (the same session is not tried a
+       *  third time). */
       code?: string; message?: string;
+      /** playerError: the HTTP status behind it, when the server answered
+       *  with one (a number only). Older builds never send it. */
+      httpStatus?: number | null;
       /** playerState: paused on purpose (viewer or system). `playing` also
        *  drops on every stall; this does not. Older builds never send it. */
       paused?: boolean;

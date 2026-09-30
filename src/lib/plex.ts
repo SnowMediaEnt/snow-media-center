@@ -865,7 +865,7 @@ export function plexTranscodeUrl(
   base: string,
   ratingKey: string,
   token: string,
-  opts?: { maxVideoBitrateKbps?: number; videoResolution?: string; mediaIndex?: number },
+  opts?: { maxVideoBitrateKbps?: number; videoResolution?: string; mediaIndex?: number; identify?: boolean },
 ): string {
   const path = encodeURIComponent(`/library/metadata/${ratingKey}`);
   const cid = encodeURIComponent(getPlexClientId());
@@ -883,7 +883,62 @@ export function plexTranscodeUrl(
     + `&mediaIndex=${opts?.mediaIndex && opts.mediaIndex > 0 ? Math.floor(opts.mediaIndex) : 0}&partIndex=0&X-Plex-Client-Identifier=${cid}&X-Plex-Token=${encodeURIComponent(token)}`;
   if (opts?.maxVideoBitrateKbps) url += `&maxVideoBitrate=${opts.maxVideoBitrateKbps}`;
   if (opts?.videoResolution) url += `&videoResolution=${encodeURIComponent(opts.videoResolution)}`;
+  // `identify`: named the way Plex's own players name themselves (product,
+  // version, platform, device), matching the headers the decision call for
+  // the same session goes out with (plexTranscodeDecision). Only for a fresh
+  // session after the plain one was turned down: the plain start has always
+  // converted on the owner's server, and naming the platform decides which
+  // conversion profile the server uses.
+  if (opts?.identify) {
+    const h = plexHeaders();
+    url += `&${PLEX_CLIENT_PARAMS.filter((k) => k !== 'X-Plex-Client-Identifier').map((k) => `${k}=${encodeURIComponent(h[k])}`).join('&')}`;
+  }
   return url;
+}
+
+/** What the server said to a conversion's decision call. */
+export interface PlexTranscodeDecision {
+  /** The server turned the session down: an HTTP error status, or a decision
+   *  code that says it can't convert (2000 and up). */
+  refused: boolean;
+  /** The HTTP status when it answered with an error one. */
+  httpStatus: number | null;
+  /** Plex's own decision code (generalDecisionCode, else the transcode one). */
+  code: number | null;
+}
+
+/** The decision address for a conversion's start address (same session, same
+ *  parameters), or null when `startUrl` is not one. */
+export function plexTranscodeDecisionUrl(startUrl: string): string | null {
+  const at = startUrl.indexOf('/video/:/transcode/universal/start.m3u8?');
+  if (at < 0) return null;
+  return `${startUrl.slice(0, at)}/video/:/transcode/universal/decision?${startUrl.slice(at + '/video/:/transcode/universal/start.m3u8?'.length)}`;
+}
+
+/**
+ * Asks the server, before a fresh conversion starts, whether it will convert
+ * this session — as Plex's own apps do before they request the playlist, with
+ * the same session id. Never throws and never logs (the address carries the
+ * token). Null when it can't be told (no answer in time, an address that is
+ * not a conversion): the start goes ahead then.
+ */
+export async function plexTranscodeDecision(startUrl: string, token: string, timeoutMs = 8000): Promise<PlexTranscodeDecision | null> {
+  const url = plexTranscodeDecisionUrl(startUrl);
+  if (!url) return null;
+  try {
+    const data = await plexReqRaw<{ MediaContainer?: { generalDecisionCode?: unknown; transcodeDecisionCode?: unknown } }>('GET', url, token, timeoutMs);
+    const mc = data?.MediaContainer;
+    const num = (v: unknown): number | null => {
+      const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
+      return Number.isFinite(n) ? n : null;
+    };
+    const code = num(mc?.generalDecisionCode) ?? num(mc?.transcodeDecisionCode);
+    return { refused: code != null && code >= 2000, httpStatus: null, code };
+  } catch (e) {
+    const m = /Plex HTTP (\d{3})/.exec(e instanceof Error ? e.message : '');
+    const status = m ? Number(m[1]) : null;
+    return status != null && status >= 400 ? { refused: true, httpStatus: status, code: null } : null;
+  }
 }
 
 /** User-selectable quality presets. `original` means direct-play — no transcode. */

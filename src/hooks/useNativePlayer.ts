@@ -68,7 +68,9 @@ export interface NativePlayerState {
   /** Paused on purpose — by any remote, the phone, or the system. Unlike the
    *  controller's play state this stays false through a stall. */
   paused: boolean;
-  error: { code?: string; message: string } | null;
+  /** `httpStatus`: the HTTP status the server answered with, when that is
+   *  what failed (a number, never the address). */
+  error: { code?: string; message: string; httpStatus?: number | null } | null;
   /** Set when the stream carries audio this device can't decode. NOT an error —
    *  video keeps playing, there is simply no sound. */
   audioWarning: { codecs: string; ffmpegAvailable: boolean } | null;
@@ -109,7 +111,7 @@ async function positionNow(): Promise<number> {
 export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true }: UseNativePlayerArgs): NativePlayerState {
   const [buffering, setBuffering] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [error, setError] = useState<{ code?: string; message: string } | null>(null);
+  const [error, setError] = useState<{ code?: string; message: string; httpStatus?: number | null } | null>(null);
   const [audioWarning, setAudioWarning] = useState<{ codecs: string; ffmpegAvailable: boolean } | null>(null);
   const [engineNotice, setEngineNotice] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -258,6 +260,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           try { diagEnd(); } catch { /* ignore */ }
           const msg = data.message || i18n.t('live.player.playbackError');
           const code = data.code;
+          const httpStatus = typeof data.httpStatus === 'number' && data.httpStatus > 0 ? data.httpStatus : null;
           // AUDIO_DECODE is a codec-init failure — auto-retrying the same URL
           // won't fix it. Surface immediately so the caller (PlexSection) can
           // fall back to a server-side transcode.
@@ -267,9 +270,13 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           // fresh start, not maxRetries × that many more connections to a
           // dead stream.
           // Counted per outage: playback resuming clears it.
-          if (code === 'AUDIO_DECODE' || retriesRef.current >= maxRetries
+          // PLEX_TRANSCODE_HTTP: the Plex server answered a conversion with an
+          // error status twice. Loading the identical session again gets the
+          // same answer; the caller (PlexSection) starts a fresh session or
+          // another quality instead.
+          if (code === 'AUDIO_DECODE' || code === 'PLEX_TRANSCODE_HTTP' || retriesRef.current >= maxRetries
             || (code === 'RECONNECT_EXHAUSTED' && exhaustRetriedRef.current)) {
-            setError({ code, message: msg });
+            setError(httpStatus ? { code, message: msg, httpStatus } : { code, message: msg });
             return;
           }
           retriesRef.current += 1;

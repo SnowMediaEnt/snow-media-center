@@ -5,7 +5,9 @@
 // itself was sent by the server, not only the quick internet check (a 256 KB
 // download from Cloudflare, which rarely reads the 120-160 Mb/s a 60-80 Mb/s
 // file needed); and once that proves the line, stalls alone never take a 4K
-// file off to the 1080p file either. 1080p keeps the 1.7.9 rules.
+// file off to the 1080p file either. Since then the quick check counts for
+// no file at all (a customer's read 42.5 Mb/s while the server sent 1.4-5.7):
+// the player's own windows from the server are what prove a line, 1080p too.
 import { describe, expect, it } from 'vitest';
 import { mediaVersions } from './plex';
 import {
@@ -36,9 +38,12 @@ describe('a 4K file: what says the line is fast enough', () => {
     expect(lineClearFor(60000, { uhd: true, serverKbps: 200000, relay: true })).toBe(false);
   });
 
-  it('for anything else only the internet check counts, as in 1.7.9', () => {
-    expect(lineClearFor(21600, { internetKbps: 40000, serverKbps: 200000 })).toBe(false);
-    expect(lineClearFor(21600, { internetKbps: 21600 * INTERNET_CLEAR_FACTOR })).toBe(true);
+  it('for any file the player\'s own best window counts, and the quick internet check never does', () => {
+    expect(lineClearFor(21600, { internetKbps: 40000, serverKbps: 200000 })).toBe(true);
+    expect(lineClearFor(21600, { internetKbps: 21600 * INTERNET_CLEAR_FACTOR })).toBe(false);
+    expect(lineClearFor(21600, { internetKbps: 500000, serverKbps: 30000 })).toBe(false);
+    // Starving now: not clear, whatever the server once managed.
+    expect(lineClearFor(21600, { serverKbps: 200000, starvedKbps: 9000 })).toBe(false);
   });
 
   it('once the line is proven, a 4K file is not left for the 1080p file on stalls alone', () => {
@@ -49,7 +54,8 @@ describe('a 4K file: what says the line is fast enough', () => {
     expect(lineClearForFile(ladder, at4k, toFile, { uhd: true, serverKbps: 70000 })).toBe(false);
     // A 1080p title with a lighter file keeps the 1.7.9 rule: a lighter file is always allowed.
     expect(lineClearForFile(ladder, at4k, toFile, { internetKbps: 500000 })).toBe(false);
-    expect(lineClearForFile(hd, 0, hd[1], { internetKbps: 21600 * INTERNET_CLEAR_FACTOR })).toBe(true);
+    expect(lineClearForFile(hd, 0, hd[1], { serverKbps: 21600 * INTERNET_CLEAR_FACTOR })).toBe(true);
+    expect(lineClearForFile(hd, 0, hd[1], { internetKbps: 21600 * INTERNET_CLEAR_FACTOR })).toBe(false);
   });
 
   it('AutoQuality: three stalls after the start keep a 4K file whose line is proven, and still drop one whose line is not', () => {
