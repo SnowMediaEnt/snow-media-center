@@ -6,8 +6,8 @@
 //
 //   POST {} (or {op:'list'})   anyone (verify_jwt=false)
 //   → { ok, games: Game[], at }
-//   POST {op:'check'}          games per league in the last build (from the
-//                              cache: it never calls ESPN itself)
+//   POST {op:'check'}          games per league in the list (the same
+//                              four-minute copy as a box's)
 //
 // A game: league, teams (names, short names, logos sized for a TV row),
 // start time, state (pre | in), the live detail ("Q3 5:32") and score, the TV
@@ -19,7 +19,7 @@
 //
 // National teams (friendlies, World Cup and Euro qualifiers, the Nations
 // Leagues, the tournaments) and the other soccer cups and leagues are asked
-// once for the whole window (`range`), with the televised games first.
+// like the big leagues (one request a day), with the televised games first.
 //
 // Sports without two teams are events: a fight card (UFC), a race session
 // (F1, NASCAR, IndyCar: the race, qualifying and sprint, not practice), a golf
@@ -37,11 +37,11 @@ const json = (body: unknown, status = 200) =>
  *  (by date), or events whose sessions or rounds run over several days (the
  *  current ones, no date). */
 type Kind = 'teams' | 'card' | 'racing' | 'golf' | 'tennis';
-/** `range`: one request for today and tomorrow (ESPN's `dates=A-B`) instead of
- *  one a day, for the many small competitions that are mostly empty; `cap`:
- *  the most games kept (default MAX_PER_LEAGUE). Several entries may share an
- *  id (the World Cup qualifiers of each confederation are one "WC Qualifier"). */
-interface League { id: string; label: string; path: string; kind: Kind; range?: boolean; cap?: number }
+/** `cap`: the most games kept per request (default MAX_PER_LEAGUE). Several
+ *  entries may share an id (the World Cup qualifiers of each confederation are
+ *  one "WC Qualifier"). A scoreboard is asked one day at a time: ESPN answers
+ *  HTTP 400 to a date range (`dates=A-B`). */
+interface League { id: string; label: string; path: string; kind: Kind; cap?: number }
 /** National-team competitions keep this many games. */
 const INTL_CAP = 24;
 const LEAGUES: League[] = [
@@ -69,39 +69,39 @@ const LEAGUES: League[] = [
   // Leagues and the big tournaments. Every country plays each international
   // window, so the televised games (and the USA's) come first and the rest are
   // capped.
-  { id: 'friendly', label: 'Friendly', path: 'soccer/fifa.friendly', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'friendlyw', label: "Women's Friendly", path: 'soccer/fifa.friendly.w', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'wcq', label: 'WC Qualifier', path: 'soccer/fifa.worldq.uefa', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'wcq', label: 'WC Qualifier', path: 'soccer/fifa.worldq.conmebol', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'wcq', label: 'WC Qualifier', path: 'soccer/fifa.worldq.concacaf', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'unl', label: 'UEFA Nations League', path: 'soccer/uefa.nations', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'cnl', label: 'CONCACAF Nations League', path: 'soccer/concacaf.nations.league', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'euroq', label: 'Euro Qualifier', path: 'soccer/uefa.euroq', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'euro', label: 'UEFA Euro', path: 'soccer/uefa.euro', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'weuro', label: "Women's Euro", path: 'soccer/uefa.weuro', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'wc', label: 'World Cup', path: 'soccer/fifa.world', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'wwc', label: "Women's World Cup", path: 'soccer/fifa.wwc', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'copa', label: 'Copa América', path: 'soccer/conmebol.america', kind: 'teams', range: true, cap: INTL_CAP },
-  { id: 'gold', label: 'Gold Cup', path: 'soccer/concacaf.gold', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'friendly', label: 'Friendly', path: 'soccer/fifa.friendly', kind: 'teams', cap: INTL_CAP },
+  { id: 'friendlyw', label: "Women's Friendly", path: 'soccer/fifa.friendly.w', kind: 'teams', cap: INTL_CAP },
+  { id: 'wcq', label: 'WC Qualifier', path: 'soccer/fifa.worldq.uefa', kind: 'teams', cap: INTL_CAP },
+  { id: 'wcq', label: 'WC Qualifier', path: 'soccer/fifa.worldq.conmebol', kind: 'teams', cap: INTL_CAP },
+  { id: 'wcq', label: 'WC Qualifier', path: 'soccer/fifa.worldq.concacaf', kind: 'teams', cap: INTL_CAP },
+  { id: 'unl', label: 'UEFA Nations League', path: 'soccer/uefa.nations', kind: 'teams', cap: INTL_CAP },
+  { id: 'cnl', label: 'CONCACAF Nations League', path: 'soccer/concacaf.nations.league', kind: 'teams', cap: INTL_CAP },
+  { id: 'euroq', label: 'Euro Qualifier', path: 'soccer/uefa.euroq', kind: 'teams', cap: INTL_CAP },
+  { id: 'euro', label: 'UEFA Euro', path: 'soccer/uefa.euro', kind: 'teams', cap: INTL_CAP },
+  { id: 'weuro', label: "Women's Euro", path: 'soccer/uefa.weuro', kind: 'teams', cap: INTL_CAP },
+  { id: 'wc', label: 'World Cup', path: 'soccer/fifa.world', kind: 'teams', cap: INTL_CAP },
+  { id: 'wwc', label: "Women's World Cup", path: 'soccer/fifa.wwc', kind: 'teams', cap: INTL_CAP },
+  { id: 'copa', label: 'Copa América', path: 'soccer/conmebol.america', kind: 'teams', cap: INTL_CAP },
+  { id: 'gold', label: 'Gold Cup', path: 'soccer/concacaf.gold', kind: 'teams', cap: INTL_CAP },
   // More clubs: Europe's other cups and leagues, the Americas' cups, the
   // English second tier and women's game.
-  { id: 'uecl', label: 'Conference League', path: 'soccer/uefa.europa.conf', kind: 'teams', range: true },
-  { id: 'facup', label: 'FA Cup', path: 'soccer/eng.fa', kind: 'teams', range: true },
-  { id: 'efl', label: 'Carabao Cup', path: 'soccer/eng.league_cup', kind: 'teams', range: true },
-  { id: 'champ', label: 'Championship', path: 'soccer/eng.2', kind: 'teams', range: true },
-  { id: 'wsl', label: 'WSL', path: 'soccer/eng.w.1', kind: 'teams', range: true },
-  { id: 'delrey', label: 'Copa del Rey', path: 'soccer/esp.copa_del_rey', kind: 'teams', range: true },
-  { id: 'coppa', label: 'Coppa Italia', path: 'soccer/ita.coppa_italia', kind: 'teams', range: true },
-  { id: 'dfb', label: 'DFB-Pokal', path: 'soccer/ger.dfb_pokal', kind: 'teams', range: true },
-  { id: 'ned', label: 'Eredivisie', path: 'soccer/ned.1', kind: 'teams', range: true },
-  { id: 'por', label: 'Liga Portugal', path: 'soccer/por.1', kind: 'teams', range: true },
-  { id: 'sco', label: 'Scottish Premiership', path: 'soccer/sco.1', kind: 'teams', range: true },
-  { id: 'bra', label: 'Brasileirão', path: 'soccer/bra.1', kind: 'teams', range: true },
-  { id: 'leaguescup', label: 'Leagues Cup', path: 'soccer/concacaf.leagues.cup', kind: 'teams', range: true },
-  { id: 'cccl', label: 'CONCACAF Champions Cup', path: 'soccer/concacaf.champions', kind: 'teams', range: true },
-  { id: 'cwc', label: 'Club World Cup', path: 'soccer/fifa.cwc', kind: 'teams', range: true },
-  { id: 'liberta', label: 'Copa Libertadores', path: 'soccer/conmebol.libertadores', kind: 'teams', range: true },
-  { id: 'sudamer', label: 'Copa Sudamericana', path: 'soccer/conmebol.sudamericana', kind: 'teams', range: true },
+  { id: 'uecl', label: 'Conference League', path: 'soccer/uefa.europa.conf', kind: 'teams' },
+  { id: 'facup', label: 'FA Cup', path: 'soccer/eng.fa', kind: 'teams' },
+  { id: 'efl', label: 'Carabao Cup', path: 'soccer/eng.league_cup', kind: 'teams' },
+  { id: 'champ', label: 'Championship', path: 'soccer/eng.2', kind: 'teams' },
+  { id: 'wsl', label: 'WSL', path: 'soccer/eng.w.1', kind: 'teams' },
+  { id: 'delrey', label: 'Copa del Rey', path: 'soccer/esp.copa_del_rey', kind: 'teams' },
+  { id: 'coppa', label: 'Coppa Italia', path: 'soccer/ita.coppa_italia', kind: 'teams' },
+  { id: 'dfb', label: 'DFB-Pokal', path: 'soccer/ger.dfb_pokal', kind: 'teams' },
+  { id: 'ned', label: 'Eredivisie', path: 'soccer/ned.1', kind: 'teams' },
+  { id: 'por', label: 'Liga Portugal', path: 'soccer/por.1', kind: 'teams' },
+  { id: 'sco', label: 'Scottish Premiership', path: 'soccer/sco.1', kind: 'teams' },
+  { id: 'bra', label: 'Brasileirão', path: 'soccer/bra.1', kind: 'teams' },
+  { id: 'leaguescup', label: 'Leagues Cup', path: 'soccer/concacaf.leagues.cup', kind: 'teams' },
+  { id: 'cccl', label: 'CONCACAF Champions Cup', path: 'soccer/concacaf.champions', kind: 'teams' },
+  { id: 'cwc', label: 'Club World Cup', path: 'soccer/fifa.cwc', kind: 'teams' },
+  { id: 'liberta', label: 'Copa Libertadores', path: 'soccer/conmebol.libertadores', kind: 'teams' },
+  { id: 'sudamer', label: 'Copa Sudamericana', path: 'soccer/conmebol.sudamericana', kind: 'teams' },
   { id: 'ufc', label: 'UFC', path: 'mma/ufc', kind: 'card' },
   { id: 'f1', label: 'F1', path: 'racing/f1', kind: 'racing' },
   { id: 'nascar', label: 'NASCAR', path: 'racing/nascar-premier', kind: 'racing' },
@@ -415,12 +415,7 @@ async function build(): Promise<Game[]> {
   const lists = await inTurn(LEAGUES.flatMap((l): Array<() => Promise<Game[]>> => (
     l.kind === 'racing' || l.kind === 'golf' || l.kind === 'tennis'
       ? [() => fetchEvents(l)]
-      // One request for the window (from yesterday until 5 AM, for the late
-      // games still on), not one a day: the small competitions are mostly
-      // empty. A game that should have started hours ago is not listed.
-      : l.range
-        ? [() => fetchLeague(l, `${yesterday ?? dates[0]}-${dates[1]}`).then((gs) => gs.filter((g) => g.state === 'in' || Date.parse(g.start) >= now.getTime() - 3 * 60 * 60_000))]
-        : [
+      : [
         ...dates.map((d) => () => fetchLeague(l, d)),
         ...(yesterday ? [() => fetchLeague(l, yesterday).then((gs) => gs.filter((g) => g.state === 'in'))] : []),
       ])));
@@ -437,29 +432,38 @@ async function build(): Promise<Game[]> {
   return games;
 }
 
+/** The list, from the kept copy when it is under four minutes old, else built
+ *  (once, whoever asks meanwhile). A failed round (every league empty) keeps
+ *  the last good list; with none, it's tried again in a minute rather than four. */
+async function current(): Promise<{ at: number; games: Game[] }> {
+  if (!cache || Date.now() - cache.at > CACHE_MS) {
+    building ??= build().finally(() => { building = null; });
+    const games = await building;
+    cache = games.length
+      ? { at: Date.now(), games }
+      : { at: Date.now() - CACHE_MS + 60_000, games: cache?.games ?? [] };
+  }
+  return cache;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   let op = '';
   try { op = String((await req.clone().json())?.op ?? ''); } catch { /* no body */ }
-  // {op:'check'}: games per league in the last build. From the cache only:
-  // anyone can call this, and it must never become a way to hammer ESPN.
-  if (op === 'check') {
-    const counts: Record<string, number> = {};
-    for (const l of LEAGUES) counts[l.id] = 0;
-    for (const g of cache?.games ?? []) counts[g.league] = (counts[g.league] ?? 0) + 1;
-    return json({ ok: true, at: cache ? new Date(cache.at).toISOString() : null, counts });
-  }
   try {
-    if (!cache || Date.now() - cache.at > CACHE_MS) {
-      building ??= build().finally(() => { building = null; });
-      const games = await building;
-      // A failed round (every league empty) keeps the last good list; with
-      // none, it's tried again in a minute rather than four.
-      cache = games.length
-        ? { at: Date.now(), games }
-        : { at: Date.now() - CACHE_MS + 60_000, games: cache?.games ?? [] };
+    const { at, games } = await current();
+    // {op:'check'}: games per league in the list. Each instance of the
+    // function keeps its own copy, so a check that only read the copy came
+    // back empty from an instance no box had asked yet: it goes through the
+    // same four-minute copy as a box does, so it is never more than one build
+    // in four minutes.
+    if (op === 'check') {
+      const counts: Record<string, number> = {};
+      for (const l of LEAGUES) counts[l.id] = 0;
+      for (const g of games) counts[g.league] = (counts[g.league] ?? 0) + 1;
+      return json({ ok: true, at: new Date(at).toISOString(), counts });
     }
-    return json({ ok: true, games: cache.games, at: new Date(cache.at).toISOString() });
+    return json({ ok: true, games, at: new Date(at).toISOString() });
   } catch (e) {
     console.error('[game-day] error:', (e as Error).message);
     return json({ ok: false, reason: 'error', games: cache?.games ?? [] });

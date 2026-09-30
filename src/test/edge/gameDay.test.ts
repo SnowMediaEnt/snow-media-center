@@ -120,15 +120,9 @@ const BOARDS: Record<string, unknown> = {
       },
     ],
   },
-  // A game that should have started hours ago and never did: not listed.
+  // A cup game, on ESPN+.
   'soccer/eng.fa': {
     events: [{
-      id: 'x1', date: iso(NOW - 6 * H), status: { type: { state: 'pre', shortDetail: '6:00 AM' } },
-      competitions: [{ competitors: [
-        { homeAway: 'home', team: { displayName: 'Leeds United', shortDisplayName: 'Leeds', abbreviation: 'LEE', location: 'Leeds' } },
-        { homeAway: 'away', team: { displayName: 'Derby County', shortDisplayName: 'Derby', abbreviation: 'DER', location: 'Derby' } },
-      ] }],
-    }, {
       id: 'x2', date: iso(NOW + 6 * H), status: { type: { state: 'pre', shortDetail: '2:00 PM' } },
       competitions: [{ competitors: [
         { homeAway: 'home', team: { displayName: 'Leeds United', shortDisplayName: 'Leeds', abbreviation: 'LEE', location: 'Leeds' } },
@@ -169,6 +163,8 @@ const asked: string[] = [];
 const fetchMock = vi.fn(async (url: string) => {
   asked.push(url);
   const path = /\/sports\/(.+)\/scoreboard/.exec(url)?.[1] ?? '';
+  // ESPN answers HTTP 400 to a date range (dates=A-B): only one day, or none, works.
+  if (/[?&]dates=\d+-\d+/.test(url)) return new Response('{"code":400,"message":"Failed to get events endpoint."}', { status: 400 });
   return new Response(JSON.stringify(BOARDS[path] ?? { events: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 });
 
@@ -252,14 +248,14 @@ describe('game-day', () => {
     expect(women).toContain('friendlyw:usa');
   });
 
-  it('asks an international or cup competition once for the whole window, and drops a game long past its start', async () => {
-    const friendly = asked.filter((u) => u.includes('/sports/soccer/fifa.friendly/scoreboard'));
-    expect(friendly.length).toBeGreaterThan(0);
-    expect(friendly.every((u) => u.includes('dates=20260927-20260928'))).toBe(true);
+  it('asks every league one day at a time, never a date range (ESPN answers those with HTTP 400)', async () => {
+    expect(asked.some((u) => /dates=\d+-\d+/.test(u))).toBe(false);
+    for (const path of ['soccer/fifa.friendly', 'soccer/uefa.nations', 'soccer/eng.fa', 'hockey/mens-college-hockey']) {
+      const days = new Set(asked.filter((u) => u.includes(`/sports/${path}/scoreboard`)).map((u) => /dates=(\d{8})(?:&|$)/.exec(u)?.[1]));
+      expect([...days].sort(), path).toEqual(['20260927', '20260928']);
+    }
     const out = await call({ op: 'list' });
-    const ids = (out.games ?? []).map((g) => g.id);
-    expect(ids).toContain('facup:x2');
-    expect(ids).not.toContain('facup:x1');
+    expect((out.games ?? []).map((g) => g.id)).toContain('facup:x2');
   });
 
   it('does not try the second ESPN host for a competition it has no scoreboard for (404)', async () => {
@@ -272,8 +268,21 @@ describe('game-day', () => {
     vi.setSystemTime(NOW + 6 * 60_000); // past the 4-minute cache
     await call({ op: 'list' });
     fetchMock.mockImplementation(before!);
-    expect(seen.filter((u) => u.includes('/sports/soccer/uefa.nations/scoreboard'))).toHaveLength(1);
+    // One request a day, each on the first host only.
+    const nations = seen.filter((u) => u.includes('/sports/soccer/uefa.nations/scoreboard'));
+    expect(nations).toHaveLength(2);
+    expect(nations.every((u) => u.startsWith('https://site.web.api.espn.com/'))).toBe(true);
     vi.setSystemTime(NOW);
+  });
+
+  it('the check counts from an instance no box has asked yet (it builds the list itself)', async () => {
+    vi.resetModules();
+    const fresh = await loadEdgeFunction('game-day');
+    const res = await fresh(new Request('http://fn.test/game-day', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'check' }) }));
+    const out = await res.json() as { ok: boolean; at: string | null; counts: Record<string, number> };
+    expect(out.ok).toBe(true);
+    expect(out.at).not.toBeNull();
+    expect(out.counts).toMatchObject({ friendly: 2, unl: 1, facup: 1, laliga: 1, mlb: 2, pga: 1 });
   });
 
   it('counts every league in its check', async () => {
