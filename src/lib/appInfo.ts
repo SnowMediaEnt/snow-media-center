@@ -10,6 +10,21 @@ export const parseDeviceInfo = (): { model: string | null; android: string | nul
   return { model, android };
 };
 
+/**
+ * tv / phone / tablet, from the WebView UA. SMC is a remote-only TV app, so
+ * an Android UA with nothing that says "phone" or "tablet" (most streaming
+ * boxes: onn, Chromecast, Mi Box, Shield) counts as a TV.
+ */
+export const parseFormFactor = (
+  ua: string = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '',
+): 'tv' | 'phone' | 'tablet' => {
+  if (/Android TV|GoogleTV|Google TV|BRAVIA|SmartTV|\bAFT[A-Z0-9]+\b|Fire ?TV|FireOS|\bTV\b/i.test(ua)) return 'tv';
+  // Fire tablets (KFxxxx), Samsung Tab, or any Android UA that is not "Mobile" but says tablet.
+  if (/\bKF[A-Z]{2,}\b|Tablet|\bSM-T\d|\bTab\b/i.test(ua)) return 'tablet';
+  if (/Mobile/i.test(ua)) return 'phone';
+  return 'tv';
+};
+
 /** Never wait long on the native call: a ticket must not be held up by it. */
 const VERSION_WAIT_MS = 2500;
 
