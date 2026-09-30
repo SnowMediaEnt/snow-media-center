@@ -5,8 +5,10 @@
 // lowered it to a conversion ("Lowered to 1080p · 12 Mbps for your speed")
 // on a line whose internet check read 184 Mb/s against the 21.6 the file
 // needs, and that conversion never started. Starting (or restarting after
-// a jump) is not the connection failing, and with the internet plainly fast
-// enough, stalls alone never leave the file for a conversion.
+// a jump) is not the connection failing, and with a line the player has seen
+// the Plex server carry the file twice over, stalls alone never leave the
+// file for a conversion. The quick internet check no longer proves that: it
+// kept a customer's 12 Mb/s file that the server sent at 1.4-5.7 Mb/s.
 import { describe, expect, it } from 'vitest';
 import {
   AutoQuality, StallCounter, autoQualityNote, buildQualityLadder, inJumpGrace,
@@ -55,18 +57,27 @@ describe('the start of playback is not a stall', () => {
   });
 });
 
-describe('a fast internet: stalls alone never leave the file for a conversion', () => {
-  const clear = { internetKbps: 184000 };
-  it('three stalls in five minutes, internet check 184 Mb/s against a 21.6 Mb/s file: stays on the file', () => {
+describe('a proven line: stalls alone never leave the file for a conversion', () => {
+  // The player's own best window from the server this title (its start fill).
+  const clear = { internetKbps: 184000, serverKbps: 84000 };
+  it('three stalls in five minutes, the server seen sending 84 Mb/s of a 21.6 Mb/s file: stays on the file', () => {
     const aq = new AutoQuality(0);
     expect(aq.onStall(1 * MIN, 0, film, 0, 12000, clear)).toBeNull();
     expect(aq.onStall(2 * MIN, 0, film, 0, 12000, clear)).toBeNull();
     expect(aq.onStall(3 * MIN, 0, film, 0, 12000, clear)).toBeNull();
   });
 
-  it('a slow internet check still lowers on stalls', () => {
+  it('a quick internet check alone proves nothing: it still lowers on stalls', () => {
     const aq = new AutoQuality(0);
-    const slow = { internetKbps: 21600 * INTERNET_CLEAR_FACTOR - 1 };
+    const quick = { internetKbps: 184000 };
+    aq.onStall(1 * MIN, 0, film, 0, 12000, quick);
+    aq.onStall(2 * MIN, 0, film, 0, 12000, quick);
+    expect(aq.onStall(3 * MIN, 0, film, 0, 12000, quick)?.step.presetKey).not.toBe('original');
+  });
+
+  it('a line not seen at twice the file still lowers on stalls', () => {
+    const aq = new AutoQuality(0);
+    const slow = { serverKbps: 21600 * INTERNET_CLEAR_FACTOR - 1 };
     aq.onStall(1 * MIN, 0, film, 0, 12000, slow);
     aq.onStall(2 * MIN, 0, film, 0, 12000, slow);
     expect(aq.onStall(3 * MIN, 0, film, 0, 12000, slow)?.step.presetKey).not.toBe('original');
@@ -74,7 +85,7 @@ describe('a fast internet: stalls alone never leave the file for a conversion', 
 
   it('on the Plex Relay the internet check says nothing about the relay', () => {
     const aq = new AutoQuality(0);
-    const relay = { internetKbps: 184000, relay: true };
+    const relay = { serverKbps: 184000, relay: true };
     aq.onStall(1 * MIN, 0, film, 0, 12000, relay);
     aq.onStall(2 * MIN, 0, film, 0, 12000, relay);
     expect(aq.onStall(3 * MIN, 0, film, 0, 12000, relay)?.direction).toBe('down');
@@ -87,7 +98,7 @@ describe('a fast internet: stalls alone never leave the file for a conversion', 
     ];
     const ladder = buildQualityLadder(versions as never);
     const aq = new AutoQuality(0);
-    const ctx = { internetKbps: 184000 };
+    const ctx = { serverKbps: 184000 };
     aq.onStall(1 * MIN, 0, ladder, 0, 30000, ctx);
     aq.onStall(2 * MIN, 0, ladder, 0, 30000, ctx);
     expect(aq.onStall(3 * MIN, 0, ladder, 0, 30000, ctx)?.step.key).toBe('original@b');
@@ -95,9 +106,11 @@ describe('a fast internet: stalls alone never leave the file for a conversion', 
 
   it("the card's line says so instead of promising a drop", () => {
     const aq = new AutoQuality(0);
-    const p = aq.preview(film, 0, 12000, { internetKbps: 184000 });
+    const p = aq.preview(film, 0, 12000, { serverKbps: 84000 });
     expect(p.next).toBeNull();
-    expect(autoQualityNote(film, 0, p)).toMatch(/keeps the original/i);
+    expect(autoQualityNote(film, 0, p)).toBe('Auto quality: keeps the original — the Plex server has sent it fast enough');
     expect(aq.preview(film, 0, 12000).next?.presetKey).not.toBe('original');
+    // The quick check alone: no such promise.
+    expect(aq.preview(film, 0, 12000, { internetKbps: 184000 }).keepsFile).toBeFalsy();
   });
 });

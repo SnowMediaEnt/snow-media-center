@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false }, CapacitorHttp: {} }));
 
 import {
-  getPlexClientId, getPlexServers, plexDirectUrl, plexTranscodeUrl,
+  getPlexClientId, getPlexServers, plexDirectUrl, plexTranscodeDecision, plexTranscodeDecisionUrl, plexTranscodeUrl,
   PLEX_DEVICE, PLEX_PRODUCT, PLEX_VERSION,
 } from './plex';
 import { transcodeStopUrl } from './plexAutoQuality';
@@ -76,5 +76,36 @@ describe('plexTranscodeUrl', () => {
       `${BASE}/video/:/transcode/universal/stop?session=${session}`
       + `&X-Plex-Client-Identifier=${encodeURIComponent(getPlexClientId())}&X-Plex-Token=tok%2B1`,
     );
+  });
+});
+
+describe('a fresh conversion session after one was turned down', () => {
+  it('is named like Plex\'s own players (not the plain start), and its decision call has the same session', () => {
+    const plain = plexTranscodeUrl(BASE, '42', 'tok', { maxVideoBitrateKbps: 4000, videoResolution: '1280x720' });
+    expect(query(plain).get('X-Plex-Platform')).toBeNull();
+    const fresh = plexTranscodeUrl(BASE, '42', 'tok', { maxVideoBitrateKbps: 4000, videoResolution: '1280x720', identify: true });
+    const q = query(fresh);
+    expect(q.get('X-Plex-Platform')).toBe('Android');
+    expect(q.get('X-Plex-Product')).toBe(PLEX_PRODUCT);
+    expect(q.get('X-Plex-Device')).toBe(PLEX_DEVICE);
+    expect(q.getAll('X-Plex-Client-Identifier')).toEqual([getPlexClientId()]);
+    expect(q.get('session')).not.toBe(query(plain).get('session'));
+    const decision = plexTranscodeDecisionUrl(fresh) ?? '';
+    expect(decision.startsWith(`${BASE}/video/:/transcode/universal/decision?`)).toBe(true);
+    expect(query(decision).toString()).toBe(q.toString());
+    expect(plexTranscodeDecisionUrl(plexDirectUrl(BASE, PART, 'tok'))).toBeNull();
+  });
+
+  it('the decision: an error status or a "can\'t convert" code is a refusal; no answer is not', async () => {
+    const fresh = plexTranscodeUrl(BASE, '42', 'tok', { identify: true });
+    const answer = (r: () => Promise<Response>) => vi.stubGlobal('fetch', vi.fn(r));
+    answer(async () => new Response('', { status: 503 }));
+    expect(await plexTranscodeDecision(fresh, 'tok')).toEqual({ refused: true, httpStatus: 503, code: null });
+    answer(async () => new Response(JSON.stringify({ MediaContainer: { generalDecisionCode: 1001 } }), { status: 200 }));
+    expect(await plexTranscodeDecision(fresh, 'tok')).toEqual({ refused: false, httpStatus: null, code: 1001 });
+    answer(async () => new Response(JSON.stringify({ MediaContainer: { generalDecisionCode: 2000 } }), { status: 200 }));
+    expect((await plexTranscodeDecision(fresh, 'tok'))?.refused).toBe(true);
+    answer(async () => { throw new TypeError('Failed to fetch'); });
+    expect(await plexTranscodeDecision(fresh, 'tok')).toBeNull();
   });
 });

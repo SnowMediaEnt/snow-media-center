@@ -37,6 +37,9 @@ export interface PlayerStatsPanelProps {
   routeLabel?: string;
   /** What the video needs, kbps. */
   needKbps?: number;
+  /** An HTTP status the caller knows of for this title (a conversion the
+   *  server turned down), shown when the player's own stats have none. */
+  httpStatus?: number | null;
   /** Player slot; the main one when left out. */
   screenId?: string;
 }
@@ -82,7 +85,7 @@ const Row = ({ label, children }: { label?: string; children: ReactNode }) => (
   </p>
 );
 
-const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, screenId }: PlayerStatsPanelProps) => {
+const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, screenId, httpStatus }: PlayerStatsPanelProps) => {
   const { t } = useTranslation();
   const [stats, setStats] = useState<PlayerStats | null>(null);
   // An app built before getStats existed rejects the call.
@@ -121,6 +124,13 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, scre
   const ahead = st && num(st.bufferedAheadSec) ? t('plex.stats.ahead', { value: st.bufferedAheadSec.toFixed(1) }) : '—';
   const at = st && num(st.positionSec) ? `${clock(st.positionSec)}${num(st.durationSec) && st.durationSec > 0 ? ` / ${clock(st.durationSec)}` : ''}` : '—';
   const memory = (mb: number | null | undefined) => (num(mb) ? `${Math.round(mb)} MB` : '—');
+  // The HTTP status behind the last error ("HTTP 503"): the player's own, else
+  // the one the caller kept (a fresh session's stats start over).
+  const status = num(st?.httpStatus) && st.httpStatus > 0 ? st.httpStatus : (num(httpStatus) && httpStatus > 0 ? httpStatus : null);
+  const http = status ? t('plex.stats.httpStatus', { code: status }) : null;
+  const lastError = st?.lastError
+    ? (http ? `${st.lastError} · ${http}` : st.lastError)
+    : (http ?? (st ? t('plex.stats.none') : '—'));
 
   return (
     <div
@@ -166,7 +176,7 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, scre
         </Card>
         <Card title={t('plex.stats.player')}>
           <Row label={t('plex.stats.restarts')}>{restarts}</Row>
-          <Row label={t('plex.stats.lastError')}>{st ? (st.lastError || t('plex.stats.none')) : '—'}</Row>
+          <Row label={t('plex.stats.lastError')}>{lastError}</Row>
           <Row label={t('plex.stats.load')}>{text(st?.loadProfile)}</Row>
         </Card>
         <Card title={t('plex.stats.memory')}>

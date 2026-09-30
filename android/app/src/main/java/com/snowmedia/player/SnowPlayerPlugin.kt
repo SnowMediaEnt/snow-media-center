@@ -115,6 +115,10 @@ class SnowPlayerPlugin : Plugin() {
         var isLive: Boolean = true
         var lastPositionMs: Long = 0L
         var reconnectAttempts: Int = 0
+        // A Plex conversion the server answered with an error status, in this
+        // load: the same session is tried again once, then JS is told
+        // (PLEX_TRANSCODE_HTTP) and starts a fresh one instead.
+        var transcodeHttpFails: Int = 0
         var firstFrameSeen: Boolean = false
         // Screen format. ExoPlayer stretches the picture to fill its
         // TextureView, so the view is sized to the picture's shape. These
@@ -160,6 +164,9 @@ class SnowPlayerPlugin : Plugin() {
         var restarts: Int = 0
         var lastRestartReason: String? = null
         var lastError: String? = null
+        // The HTTP status behind the last ERROR_CODE_IO_BAD_HTTP_STATUS (a
+        // number only, never the address), with lastError; null otherwise.
+        var lastHttpStatus: Int? = null
         // Frames of this load: the decoder sessions that have ended, plus
         // the running one's own counters (see the analytics listener).
         var framesRendered: Long = 0L
@@ -244,6 +251,12 @@ class SnowPlayerPlugin : Plugin() {
         // went silent (5 took about 24), about 2 after a refusal. A picture
         // in between starts the count over.
         private const val MAX_VOD_RECONNECTS = 3
+        // A Plex conversion the server answers with an HTTP error status: the
+        // same session is loaded this many times in all, then the WebView
+        // starts a fresh session (a new id and decision) or another quality.
+        // Restarting the identical session again and again got the same
+        // error each time (a customer's box: 6 restarts, "Buffer 0.0 s").
+        private const val TRANSCODE_HTTP_TRIES = 2
         private const val RECONNECT_DELAY_MS = 500L
         private const val FIRST_FRAME_TIMEOUT_MS = 8000L
         private const val POSITION_TICK_MS = 5000L
@@ -382,6 +395,7 @@ class SnowPlayerPlugin : Plugin() {
             s.restarts = 0
             s.lastRestartReason = null
             s.lastError = null
+            s.lastHttpStatus = null
         }
     }
 
@@ -403,6 +417,7 @@ class SnowPlayerPlugin : Plugin() {
         s.restarts = 0
         s.lastRestartReason = null
         s.lastError = null
+        s.lastHttpStatus = null
         s.videoDecoderName = null
         s.audioDecoderName = null
         s.videoFormatOf = null
@@ -691,6 +706,14 @@ class SnowPlayerPlugin : Plugin() {
             t = t.cause
         }
         return null
+    }
+
+    /** What the stats panel shows as the last restart for an error: its code
+     *  name, and the HTTP status when there is one ("stream error
+     *  IO_BAD_HTTP_STATUS · HTTP 503"). Never the address. */
+    private fun httpRestartReason(error: PlaybackException, httpStatus: Int?): String {
+        val base = "stream error " + error.errorCodeName.removePrefix("ERROR_CODE_")
+        return if (httpStatus != null) "$base · HTTP $httpStatus" else base
     }
 
     private fun ensureSurface(s: PlayerSlot): Boolean {
@@ -1078,6 +1101,10 @@ class SnowPlayerPlugin : Plugin() {
                     val fmt = (error as? androidx.media3.exoplayer.ExoPlaybackException)?.rendererFormat
                     fmt?.sampleMimeType?.startsWith("audio/") == true
                 }
+                // Its HTTP status, a number only (the address carries the
+                // token); with lastError, before anything is sent.
+                val httpStatus = if (code == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) httpStatusOf(error) else null
+                s.lastHttpStatus = httpStatus
                 // Rewind live TV: an error while playing the local buffer is
                 // settled there (tsOnBufferError), never as a channel restart.
                 if (screenId == MAIN && tsBuffer) { tsOnBufferError(s, error); return }
@@ -1087,6 +1114,28 @@ class SnowPlayerPlugin : Plugin() {
                         "playerError",
                         JSObject().put("screenId", screenId).put("code", "AUDIO_DECODE").put("message", error.message ?: localized(R.string.player_err_audio)),
                     )
+                    return
+                }
+                // A Plex conversion the server answered with an error status
+                // (a busy or confused transcoder): the same session once more,
+                // then the WebView is told, with the status, and starts a
+                // fresh session or another quality (PlexSection). Not the
+                // identical session over and over.
+                val failedUrl = s.currentUrl
+                if (failedUrl != null && !s.isLive && code == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS &&
+                    isPlexTranscode(Uri.parse(failedUrl))
+                ) {
+                    s.transcodeHttpFails++
+                    if (s.transcodeHttpFails < TRANSCODE_HTTP_TRIES && s.reconnectAttempts < MAX_RECONNECTS) {
+                        reconnect(s, screenId, httpRestartReason(error, httpStatus))
+                        return
+                    }
+                    releaseWifiIfStopped(s)
+                    val ev = JSObject().put("screenId", screenId)
+                        .put("code", "PLEX_TRANSCODE_HTTP")
+                        .put("message", exhaustedMessage(error, failedUrl))
+                    if (httpStatus != null) ev.put("httpStatus", httpStatus)
+                    notifyListeners("playerError", ev)
                     return
                 }
                 // A film or episode stops after MAX_VOD_RECONNECTS in a row.
@@ -1103,7 +1152,7 @@ class SnowPlayerPlugin : Plugin() {
                         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
                         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
                         -> "server stopped responding"
-                        else -> "stream error " + error.errorCodeName.removePrefix("ERROR_CODE_")
+                        else -> httpRestartReason(error, httpStatus)
                     }
                     reconnect(s, screenId, reason)
                     return
@@ -1116,7 +1165,8 @@ class SnowPlayerPlugin : Plugin() {
                         "playerError",
                         JSObject().put("screenId", screenId)
                             .put("code", "RECONNECT_EXHAUSTED")
-                            .put("message", exhaustedMessage(error, url)),
+                            .put("message", exhaustedMessage(error, url))
+                            .put("httpStatus", httpStatus ?: JSONObject.NULL),
                     )
                     return
                 }
@@ -1318,6 +1368,7 @@ class SnowPlayerPlugin : Plugin() {
             s.isLive = live
             s.lastPositionMs = startMs
             s.reconnectAttempts = 0
+            s.transcodeHttpFails = 0
             s.firstFrameSeen = false
             resetStats(s, url)
             // A film or episode holds the Wi-Fi lock (see holdWifi); a
@@ -1511,6 +1562,7 @@ class SnowPlayerPlugin : Plugin() {
         o.put("restarts", s?.restarts ?: 0)
         o.put("lastRestartReason", s?.lastRestartReason ?: JSONObject.NULL)
         o.put("lastError", s?.lastError ?: JSONObject.NULL)
+        o.put("httpStatus", s?.lastHttpStatus ?: JSONObject.NULL)
         o.put("loadProfile", s?.let { loadProfileOf(it) } ?: JSONObject.NULL)
         val rt = Runtime.getRuntime()
         o.put("javaHeapMb", (rt.totalMemory() - rt.freeMemory()) / MIB)
@@ -1629,6 +1681,7 @@ class SnowPlayerPlugin : Plugin() {
         s.lastPositionMs = 0L
         cancelTimers(s)
         s.reconnectAttempts = 0
+        s.transcodeHttpFails = 0
         s.firstFrameSeen = false
         if (s.engine == EngineChoice.MPV) s.second?.stop()
         s.player?.stop()
