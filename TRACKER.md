@@ -56,6 +56,7 @@ Status: building · ready to test · still broken · done.
 | 34 | Game Day applies the owner's channel picks from the admin app/Hub (add first + "Picked by Snow Media", hide, down ⚠️ last) | feature | ready to test (build 52) | |
 | 35 | Game Day finds streaming feeds (Peacock 02 etc.) by guide; networks/team/zone channels only when the guide confirms (playoffs) | bug | ready to test (build 53) | direct |
 | 36 | Sign-in screens: after the password, the keyboard closes and the remote lands on Sign in | bug | ready to test (build 54) | 1 |
+| 37 | Game Day: missing soccer (internationals like USA vs Chile, Europe's leagues and cups) and other sports added | bug | ready to test (build 55) | 1 |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner

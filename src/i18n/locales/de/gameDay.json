@@ -2,6 +2,8 @@
   "gameDay": {
     "title": "Game Day",
     "allChip": "Alle",
+    "chipIntl": "International",
+    "chipSoccer": "Weiterer Fußball",
     "loading": "Heutige Spiele werden geladen…",
     "loadError": "Die Spiele konnten nicht geladen werden. Prüfe deine Internetverbindung und versuche es in einer Minute erneut.",
     "empty": "Gerade keine großen Spiele – schau später wieder vorbei.",

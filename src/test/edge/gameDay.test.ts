@@ -60,6 +60,82 @@ const BOARDS: Record<string, unknown> = {
       }],
     }],
   },
+  // National teams: an international window's friendlies (one on TV, the
+  // USA's, and a small one not) and a Nations League night.
+  'soccer/fifa.friendly': {
+    events: [{
+      id: 'f0', date: iso(NOW + 3 * H), status: { type: { state: 'pre', shortDetail: '11:00 AM' } },
+      competitions: [{
+        competitors: [
+          { homeAway: 'home', team: { displayName: 'Andorra', shortDisplayName: 'Andorra', abbreviation: 'AND', location: 'Andorra' } },
+          { homeAway: 'away', team: { displayName: 'Malta', shortDisplayName: 'Malta', abbreviation: 'MLT', location: 'Malta' } },
+        ],
+      }],
+    }, {
+      id: 'f1', date: iso(NOW + 5 * H), status: { type: { state: 'pre', shortDetail: '1:00 PM' } },
+      competitions: [{
+        competitors: [
+          { homeAway: 'home', team: { displayName: 'United States', shortDisplayName: 'USA', abbreviation: 'USA', location: 'United States' } },
+          { homeAway: 'away', team: { displayName: 'Chile', shortDisplayName: 'Chile', abbreviation: 'CHI', location: 'Chile' } },
+        ],
+        broadcasts: [{ market: 'national', names: ['TNT', 'truTV'] }, { market: 'national', names: ['Universo'] }],
+      }],
+    }],
+  },
+  'soccer/uefa.nations': {
+    events: [{
+      id: 'n1', date: iso(NOW + 8 * H), status: { type: { state: 'pre', shortDetail: '3:45 PM' } },
+      competitions: [{
+        competitors: [
+          { homeAway: 'home', team: { displayName: 'Czechia', shortDisplayName: 'Czechia', abbreviation: 'CZE', location: 'Czechia' } },
+          { homeAway: 'away', team: { displayName: 'England', shortDisplayName: 'England', abbreviation: 'ENG', location: 'England' } },
+        ],
+        broadcasts: [{ market: 'national', names: ['FS1'] }, { market: 'national', names: ['Fox One'] }],
+      }],
+    }],
+  },
+  // Thirty small games with no TV, the USA's (no TV yet) and one on TV, last.
+  'soccer/fifa.friendly.w': {
+    events: [
+      ...Array.from({ length: 30 }, (_, i) => ({
+        id: `s${i}`, date: iso(NOW + (2 + i * 0.1) * H), status: { type: { state: 'pre', shortDetail: '' } },
+        competitions: [{ competitors: [
+          { homeAway: 'home', team: { displayName: `Home ${i}`, shortDisplayName: `Home ${i}`, abbreviation: `H${i}` } },
+          { homeAway: 'away', team: { displayName: `Away ${i}`, shortDisplayName: `Away ${i}`, abbreviation: `A${i}` } },
+        ] }],
+      })),
+      {
+        id: 'usa', date: iso(NOW + 9 * H), status: { type: { state: 'pre', shortDetail: '' } },
+        competitions: [{ competitors: [
+          { homeAway: 'home', team: { displayName: 'United States', shortDisplayName: 'USA', abbreviation: 'USA' } },
+          { homeAway: 'away', team: { displayName: 'Japan', shortDisplayName: 'Japan', abbreviation: 'JPN' } },
+        ] }],
+      },
+      {
+        id: 'tv', date: iso(NOW + 10 * H), status: { type: { state: 'pre', shortDetail: '' } },
+        competitions: [{ competitors: [
+          { homeAway: 'home', team: { displayName: 'England', shortDisplayName: 'England', abbreviation: 'ENG' } },
+          { homeAway: 'away', team: { displayName: 'Spain', shortDisplayName: 'Spain', abbreviation: 'ESP' } },
+        ], broadcasts: [{ market: 'national', names: ['ESPN2'] }] }],
+      },
+    ],
+  },
+  // A game that should have started hours ago and never did: not listed.
+  'soccer/eng.fa': {
+    events: [{
+      id: 'x1', date: iso(NOW - 6 * H), status: { type: { state: 'pre', shortDetail: '6:00 AM' } },
+      competitions: [{ competitors: [
+        { homeAway: 'home', team: { displayName: 'Leeds United', shortDisplayName: 'Leeds', abbreviation: 'LEE', location: 'Leeds' } },
+        { homeAway: 'away', team: { displayName: 'Derby County', shortDisplayName: 'Derby', abbreviation: 'DER', location: 'Derby' } },
+      ] }],
+    }, {
+      id: 'x2', date: iso(NOW + 6 * H), status: { type: { state: 'pre', shortDetail: '2:00 PM' } },
+      competitions: [{ competitors: [
+        { homeAway: 'home', team: { displayName: 'Leeds United', shortDisplayName: 'Leeds', abbreviation: 'LEE', location: 'Leeds' } },
+        { homeAway: 'away', team: { displayName: 'Derby County', shortDisplayName: 'Derby', abbreviation: 'DER', location: 'Derby' } },
+      ], broadcasts: [{ market: 'national', names: ['ESPN+'] }] }],
+    }],
+  },
   'baseball/mlb': {
     events: [{
       // A playoff game: ESPN's season type 3, with the round in the notes.
@@ -153,8 +229,55 @@ describe('game-day', () => {
     expect(by['mlb:b2']).not.toHaveProperty('round');
   });
 
+  it('lists national-team games (USA vs Chile, Czechia vs England) with their networks, TV games first', async () => {
+    const out = await call({ op: 'list' });
+    const by = Object.fromEntries((out.games ?? []).map((g) => [g.id, g]));
+    expect(by['friendly:f1']).toMatchObject({
+      league: 'friendly', leagueLabel: 'Friendly', name: 'Chile @ USA', state: 'pre', networks: ['TNT', 'truTV', 'Universo'],
+      home: { name: 'United States', short: 'USA', abbr: 'USA' }, away: { name: 'Chile', abbr: 'CHI' },
+    });
+    expect(by['unl:n1']).toMatchObject({
+      league: 'unl', leagueLabel: 'UEFA Nations League', name: 'England @ Czechia', networks: ['FS1', 'Fox One'],
+      home: { abbr: 'CZE' }, away: { abbr: 'ENG' },
+    });
+    // The small game is listed too (by kickoff), while there is room.
+    expect((out.games ?? []).filter((g) => g.league === 'friendly').map((g) => g.id)).toEqual(['friendly:f0', 'friendly:f1']);
+  });
+
+  it('keeps the televised games and the USA\'s when a window lists more than the cap', async () => {
+    const out = await call({ op: 'list' });
+    const women = (out.games ?? []).filter((g) => g.league === 'friendlyw').map((g) => g.id);
+    expect(women).toHaveLength(24);
+    expect(women).toContain('friendlyw:tv');
+    expect(women).toContain('friendlyw:usa');
+  });
+
+  it('asks an international or cup competition once for the whole window, and drops a game long past its start', async () => {
+    const friendly = asked.filter((u) => u.includes('/sports/soccer/fifa.friendly/scoreboard'));
+    expect(friendly.length).toBeGreaterThan(0);
+    expect(friendly.every((u) => u.includes('dates=20260927-20260928'))).toBe(true);
+    const out = await call({ op: 'list' });
+    const ids = (out.games ?? []).map((g) => g.id);
+    expect(ids).toContain('facup:x2');
+    expect(ids).not.toContain('facup:x1');
+  });
+
+  it('does not try the second ESPN host for a competition it has no scoreboard for (404)', async () => {
+    const before = fetchMock.getMockImplementation();
+    const seen: string[] = [];
+    fetchMock.mockImplementation(async (url: string) => {
+      seen.push(url);
+      return new Response('{}', { status: 404 });
+    });
+    vi.setSystemTime(NOW + 6 * 60_000); // past the 4-minute cache
+    await call({ op: 'list' });
+    fetchMock.mockImplementation(before!);
+    expect(seen.filter((u) => u.includes('/sports/soccer/uefa.nations/scoreboard'))).toHaveLength(1);
+    vi.setSystemTime(NOW);
+  });
+
   it('counts every league in its check', async () => {
     const out = await call({ op: 'check' });
-    expect(out.counts).toMatchObject({ f1: 1, nascar: 0, indycar: 0, pga: 1, lpga: 0, atp: 1, wta: 0, laliga: 1, seriea: 0, ufl: 0, mlb: 2 });
+    expect(out.counts).toMatchObject({ f1: 1, nascar: 0, indycar: 0, pga: 1, lpga: 0, atp: 1, wta: 0, laliga: 1, seriea: 0, ufl: 0, mlb: 2, friendly: 2, unl: 1, facup: 1, wcq: 0, wc: 0 });
   });
 });

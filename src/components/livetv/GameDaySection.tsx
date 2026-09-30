@@ -41,7 +41,7 @@ import { useToast } from '@/hooks/use-toast';
 import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
 import { isChannelDown, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import {
-  CHANNELS_TTL_MS, LINK_LABELS, PICKED_LABEL, applyChannelEdits, arrangeLinks, cardChannels, channelKey, channelsForGame, checkGuides, fetchGameEdits,
+  CHANNELS_TTL_MS, LINK_LABELS, PICKED_LABEL, applyChannelEdits, arrangeLinks, cardChannels, channelKey, channelsForGame, checkGuides, chipOf, fetchGameEdits,
   fetchGames, gameServices, isPpvFight, isStreamingOnly, kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames,
   type Game, type GameChannel, type GameEdit, type SportsChannel,
 } from '@/lib/gameDay';
@@ -225,13 +225,13 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
 
   const leagues = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const g of allGames) if (g.league !== 'ppv' && !seen.has(g.league)) seen.set(g.league, g.leagueLabel);
+    for (const g of allGames) if (g.league !== 'ppv') { const c = chipOf(g); if (!seen.has(c.id)) seen.set(c.id, c.labelKey ? t(c.labelKey) : c.label); }
     return [{ id: 'all', label: t('gameDay.allChip') }, ...(ppv.length ? [{ id: 'ppv', label: 'PPV' }] : []), ...[...seen].map(([id, label]) => ({ id, label }))];
   }, [allGames, ppv.length, t]);
 
   // "All": every game, and of PPV the fights; the rest of PPV under PPV.
   const shown = useMemo(() => allGames
-    .filter((g) => (league === 'all' ? g.league !== 'ppv' || isPpvFight(g) : g.league === league))
+    .filter((g) => (league === 'all' ? g.league !== 'ppv' || isPpvFight(g) : chipOf(g).id === league))
     .slice(0, lowMemory() ? 40 : 80), [allGames, league]);
   // What the matching finds for each (the slow part: not done again when the
   // owner's picks or the down list change).

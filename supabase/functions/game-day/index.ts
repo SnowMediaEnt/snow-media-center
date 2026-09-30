@@ -17,6 +17,10 @@
 // it is on national TV only, so the box drops the teams' and league's own
 // channels for it unless their guide has it.
 //
+// National teams (friendlies, World Cup and Euro qualifiers, the Nations
+// Leagues, the tournaments) and the other soccer cups and leagues are asked
+// once for the whole window (`range`), with the televised games first.
+//
 // Sports without two teams are events: a fight card (UFC), a race session
 // (F1, NASCAR, IndyCar: the race, qualifying and sprint, not practice), a golf
 // tournament, a tennis tournament. They carry no teams; `event` is their
@@ -33,15 +37,24 @@ const json = (body: unknown, status = 200) =>
  *  (by date), or events whose sessions or rounds run over several days (the
  *  current ones, no date). */
 type Kind = 'teams' | 'card' | 'racing' | 'golf' | 'tennis';
-const LEAGUES: Array<{ id: string; label: string; path: string; kind: Kind }> = [
+/** `range`: one request for today and tomorrow (ESPN's `dates=A-B`) instead of
+ *  one a day, for the many small competitions that are mostly empty; `cap`:
+ *  the most games kept (default MAX_PER_LEAGUE). Several entries may share an
+ *  id (the World Cup qualifiers of each confederation are one "WC Qualifier"). */
+interface League { id: string; label: string; path: string; kind: Kind; range?: boolean; cap?: number }
+/** National-team competitions keep this many games. */
+const INTL_CAP = 24;
+const LEAGUES: League[] = [
   { id: 'nfl', label: 'NFL', path: 'football/nfl', kind: 'teams' },
   { id: 'ncaaf', label: 'College Football', path: 'football/college-football', kind: 'teams' },
   { id: 'ufl', label: 'UFL', path: 'football/ufl', kind: 'teams' },
   { id: 'nba', label: 'NBA', path: 'basketball/nba', kind: 'teams' },
   { id: 'wnba', label: 'WNBA', path: 'basketball/wnba', kind: 'teams' },
   { id: 'ncaab', label: 'College Basketball', path: 'basketball/mens-college-basketball', kind: 'teams' },
+  { id: 'wncaab', label: "Women's College Basketball", path: 'basketball/womens-college-basketball', kind: 'teams' },
   { id: 'mlb', label: 'MLB', path: 'baseball/mlb', kind: 'teams' },
   { id: 'nhl', label: 'NHL', path: 'hockey/nhl', kind: 'teams' },
+  { id: 'ncaah', label: 'College Hockey', path: 'hockey/mens-college-hockey', kind: 'teams' },
   { id: 'mls', label: 'MLS', path: 'soccer/usa.1', kind: 'teams' },
   { id: 'nwsl', label: 'NWSL', path: 'soccer/usa.nwsl', kind: 'teams' },
   { id: 'ligamx', label: 'Liga MX', path: 'soccer/mex.1', kind: 'teams' },
@@ -52,6 +65,43 @@ const LEAGUES: Array<{ id: string; label: string; path: string; kind: Kind }> = 
   { id: 'ligue1', label: 'Ligue 1', path: 'soccer/fra.1', kind: 'teams' },
   { id: 'ucl', label: 'Champions League', path: 'soccer/uefa.champions', kind: 'teams' },
   { id: 'uel', label: 'Europa League', path: 'soccer/uefa.europa', kind: 'teams' },
+  // National teams, men and women: friendlies, qualifiers, the Nations
+  // Leagues and the big tournaments. Every country plays each international
+  // window, so the televised games (and the USA's) come first and the rest are
+  // capped.
+  { id: 'friendly', label: 'Friendly', path: 'soccer/fifa.friendly', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'friendlyw', label: "Women's Friendly", path: 'soccer/fifa.friendly.w', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'wcq', label: 'WC Qualifier', path: 'soccer/fifa.worldq.uefa', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'wcq', label: 'WC Qualifier', path: 'soccer/fifa.worldq.conmebol', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'wcq', label: 'WC Qualifier', path: 'soccer/fifa.worldq.concacaf', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'unl', label: 'UEFA Nations League', path: 'soccer/uefa.nations', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'cnl', label: 'CONCACAF Nations League', path: 'soccer/concacaf.nations.league', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'euroq', label: 'Euro Qualifier', path: 'soccer/uefa.euroq', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'euro', label: 'UEFA Euro', path: 'soccer/uefa.euro', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'weuro', label: "Women's Euro", path: 'soccer/uefa.weuro', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'wc', label: 'World Cup', path: 'soccer/fifa.world', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'wwc', label: "Women's World Cup", path: 'soccer/fifa.wwc', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'copa', label: 'Copa América', path: 'soccer/conmebol.america', kind: 'teams', range: true, cap: INTL_CAP },
+  { id: 'gold', label: 'Gold Cup', path: 'soccer/concacaf.gold', kind: 'teams', range: true, cap: INTL_CAP },
+  // More clubs: Europe's other cups and leagues, the Americas' cups, the
+  // English second tier and women's game.
+  { id: 'uecl', label: 'Conference League', path: 'soccer/uefa.europa.conf', kind: 'teams', range: true },
+  { id: 'facup', label: 'FA Cup', path: 'soccer/eng.fa', kind: 'teams', range: true },
+  { id: 'efl', label: 'Carabao Cup', path: 'soccer/eng.league_cup', kind: 'teams', range: true },
+  { id: 'champ', label: 'Championship', path: 'soccer/eng.2', kind: 'teams', range: true },
+  { id: 'wsl', label: 'WSL', path: 'soccer/eng.w.1', kind: 'teams', range: true },
+  { id: 'delrey', label: 'Copa del Rey', path: 'soccer/esp.copa_del_rey', kind: 'teams', range: true },
+  { id: 'coppa', label: 'Coppa Italia', path: 'soccer/ita.coppa_italia', kind: 'teams', range: true },
+  { id: 'dfb', label: 'DFB-Pokal', path: 'soccer/ger.dfb_pokal', kind: 'teams', range: true },
+  { id: 'ned', label: 'Eredivisie', path: 'soccer/ned.1', kind: 'teams', range: true },
+  { id: 'por', label: 'Liga Portugal', path: 'soccer/por.1', kind: 'teams', range: true },
+  { id: 'sco', label: 'Scottish Premiership', path: 'soccer/sco.1', kind: 'teams', range: true },
+  { id: 'bra', label: 'Brasileirão', path: 'soccer/bra.1', kind: 'teams', range: true },
+  { id: 'leaguescup', label: 'Leagues Cup', path: 'soccer/concacaf.leagues.cup', kind: 'teams', range: true },
+  { id: 'cccl', label: 'CONCACAF Champions Cup', path: 'soccer/concacaf.champions', kind: 'teams', range: true },
+  { id: 'cwc', label: 'Club World Cup', path: 'soccer/fifa.cwc', kind: 'teams', range: true },
+  { id: 'liberta', label: 'Copa Libertadores', path: 'soccer/conmebol.libertadores', kind: 'teams', range: true },
+  { id: 'sudamer', label: 'Copa Sudamericana', path: 'soccer/conmebol.sudamericana', kind: 'teams', range: true },
   { id: 'ufc', label: 'UFC', path: 'mma/ufc', kind: 'card' },
   { id: 'f1', label: 'F1', path: 'racing/f1', kind: 'racing' },
   { id: 'nascar', label: 'NASCAR', path: 'racing/nascar-premier', kind: 'racing' },
@@ -77,7 +127,7 @@ const ESPN_HOSTS = ['https://site.web.api.espn.com', 'https://site.api.espn.com'
 /** College scoreboards list dozens of small games; keep the televised ones. */
 const MAX_PER_LEAGUE = 40;
 /** ESPN requests in flight at once, per build. */
-const MAX_PARALLEL = 8;
+const MAX_PARALLEL = 12;
 /** Tennis lists every tournament of the week, most of them small: the big
  *  ones only (the Slams, the 1000s, the finals and the team cups). */
 const BIG_TENNIS = /(australian open|roland garros|french open|wimbledon|us open|indian wells|bnp paribas open|miami open|monte.?carlo|madrid|internazionali|italian open|rome|canadian open|national bank open|omnium banque nationale|rogers cup|cincinnati|western & southern|shanghai|rolex paris|paris masters|china open|wuhan|dubai duty free|qatar totalenergies|guadalajara|atp finals|wta finals|nitto|next gen|laver cup|davis cup|billie jean king cup|united cup|olympic)/i;
@@ -164,6 +214,8 @@ async function fetchScoreboard(l: { id: string; path: string }, date?: string): 
       if (res.ok) return await res.json();
       console.error(`[game-day] ${l.id} ${date ?? 'current'} ${host}: HTTP ${res.status}`);
       await res.body?.cancel();
+      // A competition ESPN has no scoreboard for is the same on its other host.
+      if (res.status === 404) return null;
     } catch (e) {
       console.error(`[game-day] ${l.id} ${date ?? 'current'} ${host}: ${(e as Error).name} ${(e as Error).message}`);
     } finally {
@@ -173,7 +225,7 @@ async function fetchScoreboard(l: { id: string; path: string }, date?: string): 
   return null;
 }
 
-async function fetchLeague(l: { id: string; label: string; path: string; kind: Kind }, date: string): Promise<Game[]> {
+async function fetchLeague(l: League, date: string): Promise<Game[]> {
   try {
     const data = await fetchScoreboard(l, date);
     if (!data) return [];
@@ -205,9 +257,11 @@ async function fetchLeague(l: { id: string; label: string; path: string; kind: K
         ...(post ? { postseason: true, ...(round ? { round } : {}) } : {}),
       });
     }
-    // Keep the ones on TV first when a league lists a lot (college).
-    out.sort((a, b) => Number(b.networks.length > 0) - Number(a.networks.length > 0));
-    return out.slice(0, MAX_PER_LEAGUE);
+    // Keep the ones on TV first when a league lists a lot (college, the
+    // internationals), then the USA's games.
+    const rank = (g: Game) => (g.networks.length > 0 ? 0 : g.home?.abbr === 'USA' || g.away?.abbr === 'USA' ? 1 : 2);
+    out.sort((a, b) => rank(a) - rank(b));
+    return out.slice(0, l.cap ?? MAX_PER_LEAGUE);
   } catch (e) {
     console.error(`[game-day] ${l.id} ${date}: ${(e as Error).message}`);
     return [];
@@ -247,7 +301,7 @@ const sessionOf = (c: Any): string => {
 
 /** A league of events: its current events (no date), each session, round or
  *  day still to come or under way. */
-async function fetchEvents(l: { id: string; label: string; path: string; kind: Kind }): Promise<Game[]> {
+async function fetchEvents(l: League): Promise<Game[]> {
   try {
     const data = await fetchScoreboard(l);
     if (!data) return [];
@@ -361,7 +415,12 @@ async function build(): Promise<Game[]> {
   const lists = await inTurn(LEAGUES.flatMap((l): Array<() => Promise<Game[]>> => (
     l.kind === 'racing' || l.kind === 'golf' || l.kind === 'tennis'
       ? [() => fetchEvents(l)]
-      : [
+      // One request for the window (from yesterday until 5 AM, for the late
+      // games still on), not one a day: the small competitions are mostly
+      // empty. A game that should have started hours ago is not listed.
+      : l.range
+        ? [() => fetchLeague(l, `${yesterday ?? dates[0]}-${dates[1]}`).then((gs) => gs.filter((g) => g.state === 'in' || Date.parse(g.start) >= now.getTime() - 3 * 60 * 60_000))]
+        : [
         ...dates.map((d) => () => fetchLeague(l, d)),
         ...(yesterday ? [() => fetchLeague(l, yesterday).then((gs) => gs.filter((g) => g.state === 'in'))] : []),
       ])));

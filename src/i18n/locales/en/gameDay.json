@@ -2,6 +2,8 @@
   "gameDay": {
     "title": "Game Day",
     "allChip": "All",
+    "chipIntl": "International",
+    "chipSoccer": "More Soccer",
     "loading": "Getting today's games…",
     "loadError": "Couldn't load the games. Check the internet connection and try again in a minute.",
     "empty": "No big games on right now — check back later.",
