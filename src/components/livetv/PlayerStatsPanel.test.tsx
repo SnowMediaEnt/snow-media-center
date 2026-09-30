@@ -96,6 +96,31 @@ describe('the stats panel', () => {
     expect(text).not.toContain('null');
   });
 
+  it('a conversion the server answered with an HTTP error: the status is shown with the error', async () => {
+    h.getStats.mockImplementation(async () => ({
+      ...STATS, state: 'buffering', playing: false, bufferedAheadSec: 0, nowKbps: 0,
+      restarts: 1, lastRestartReason: 'stream error IO_BAD_HTTP_STATUS · HTTP 503', lastError: 'ERROR_CODE_IO_BAD_HTTP_STATUS', httpStatus: 503,
+    }));
+    render(<PlayerStatsPanel session="Converting to 720p · 4 Mbps" />);
+    await wait(0);
+    const text = panel()?.textContent ?? '';
+    expect(text).toContain('Last error ERROR_CODE_IO_BAD_HTTP_STATUS · HTTP 503');
+    expect(text).toContain('Restarts 1 (last: stream error IO_BAD_HTTP_STATUS · HTTP 503)');
+  });
+
+  it('a fresh session starts its stats over: the status the app kept is still shown', async () => {
+    h.getStats.mockImplementation(async () => ({ ...STATS, lastError: null, restarts: 0, lastRestartReason: null }));
+    render(<PlayerStatsPanel session="Converting to 720p · 4 Mbps" httpStatus={503} />);
+    await wait(0);
+    expect(panel()?.textContent ?? '').toContain('Last error HTTP 503');
+    // An older app (no status at all): as before.
+    h.getStats.mockImplementation(async () => ({ ...STATS, lastError: 'ERROR_CODE_IO_BAD_HTTP_STATUS' }));
+    const { container } = render(<PlayerStatsPanel session="x" />);
+    await wait(0);
+    expect(container.textContent).toContain('Last error ERROR_CODE_IO_BAD_HTTP_STATUS');
+    expect(container.textContent).not.toContain('HTTP 503');
+  });
+
   it('an app too old to answer says so instead of breaking', async () => {
     h.getStats.mockImplementation(async () => { throw new Error('not implemented'); });
     render(<PlayerStatsPanel session="Direct play of the original file" serverName="Snow Media P2" />);

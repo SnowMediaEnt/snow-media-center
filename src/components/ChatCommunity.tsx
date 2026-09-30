@@ -22,6 +22,7 @@ import { formatDateTime, formatDate, formatTime } from '@/i18n/format';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 import { getDeviceId, trackEvent } from '@/lib/analytics';
+import { withAppInfo } from '@/lib/appInfo';
 import { loadAiTiers, getPreferredTier, setPreferredTier, premiumTrialUsed, describeReceipt, type AiTier, type AiTierPair } from '@/lib/aiTiers';
 import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
@@ -584,7 +585,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       return;
     }
     try {
-      const ticketId = await createTicket(newSubject, newMessage);
+      const ticketId = await createTicket(newSubject, await withAppInfo(newMessage));
       setNewSubject('');
       setNewMessage('');
       setShowNewTicketForm(false);

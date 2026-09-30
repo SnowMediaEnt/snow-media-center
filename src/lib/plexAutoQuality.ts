@@ -13,8 +13,14 @@
 // first load never count) drop it to the step that fits the steady speed,
 // not one step at a time. Sooner only on proof: a file played as it is that
 // is plainly bigger than what the server sends flat out during a stall (see
-// stallEvidence). The steady rate between stalls only sizes a drop; with the
+// stallEvidence), or playback that keeps stalling while the best the Plex
+// server delivered over a sustained window is clearly short of what it needs
+// (starvedKbps). The steady rate between stalls only sizes a drop; with the
 // buffer being topped up it is the video's own bitrate, not the line's.
+// What the Plex server actually delivers is what counts: the quick internet
+// check (a download from a test server) may seed a start, but it never keeps
+// a stalling stream where it is (a 42.5 Mb/s check, 1.4-5.7 Mb/s from the
+// server and a 12 Mb/s file buffered for good that way).
 // Up: once the speed has stayed comfortably above the next step up for a
 // minute and a half without a stall, one step at a time, never above what the
 // viewer started with, at most every 2 minutes. A raise that stalls within 2
@@ -23,7 +29,7 @@
 // an off switch: lowering still happens below it, raising never goes above
 // it. Picking Original sets no ceiling at all. Every title starts afresh.
 import { PLEX_QUALITY_PRESETS, type PlexRoute, type PlexVersion } from '@/lib/plex';
-import type { DiagSnapshot } from '@/lib/bufferDiagnostics';
+import { formatMbps, type DiagSnapshot } from '@/lib/bufferDiagnostics';
 import { sortVersions } from '@/lib/plexVersions';
 import i18n from '@/i18n';
 
@@ -48,12 +54,27 @@ export const SEEK_GRACE_MS = 5_000;
  */
 export const START_GRACE_MS = 30_000;
 /**
- * The internet check at this many times what the file needs: the line is
- * plainly fast enough, so stalls alone (a server that pauses, a slow start
- * at a resume point) never leave the file for a conversion. Only proof that
- * the server itself can't send the file fast enough does (onSlowFile).
+ * The player's own best window from the Plex server at this many times what
+ * the file needs: the line is plainly fast enough, so stalls alone (a server
+ * that pauses, a slow start at a resume point) never leave the file for a
+ * conversion. Only proof that the server itself can't send the file fast
+ * enough does (onSlowFile, starvedKbps). (The name is historical: the quick
+ * internet check no longer counts for this.)
  */
 export const INTERNET_CLEAR_FACTOR = 2;
+/** The window playback is judged over for starving (starvedKbps). */
+export const STARVED_WINDOW_MS = 2 * 60_000;
+/** Starving: the best the server delivered in that window is under this
+ *  share of what the stream needs ("clearly below"). */
+export const STARVED_FACTOR = 0.8;
+/** Stalls in the window it takes (after the start and seeks); a file whose
+ *  line was proven (lineClearFor) takes one more: its buffer is there for the
+ *  server's slow spells. */
+export const STARVED_STALLS = 2;
+/** Rate reports with data in the window it takes, and of those, taken while
+ *  stalled (when the player downloads flat out). */
+export const STARVED_REPORTS = 4;
+export const STARVED_STALLED_REPORTS = 2;
 /** A step must fit the speed this many times over. */
 export const SPEED_HEADROOM = 1.3;
 /** The steady speed a drop is sized to: the last minute. */
@@ -171,12 +192,16 @@ export function raiseTarget(ladder: QualityStep[], index: number, ceilingIndex: 
   return k && k * SPEED_HEADROOM <= steadyKbps ? ladder[up] : null;
 }
 
+/** One of the player's rate reports (bufferDiagnostics.getPlayerRates):
+ *  `stalled` when playback was stalled as it was taken. */
+export interface RateReport { t: number; kbps: number; stalled?: boolean }
+
 /**
  * The steady speed from the player's rate reports: the median of those in
  * the last `windowMs` that saw data flowing (a full buffer reports 0 while
  * the player waits). Null with fewer than two.
  */
-export function steadyKbps(rates: Array<{ t: number; kbps: number }>, now: number, windowMs: number): number | null {
+export function steadyKbps(rates: RateReport[], now: number, windowMs: number): number | null {
   const v = rates.filter((r) => now - r.t <= windowMs && r.kbps > 0).map((r) => r.kbps).sort((a, b) => a - b);
   if (v.length < 2) return null;
   const mid = Math.floor(v.length / 2);
@@ -192,13 +217,42 @@ export const RATE_TICK_MS = 3_000;
 export const EVIDENCE_REPORTS = 2;
 
 /**
+ * Playback starving on the stream it plays: over the last STARVED_WINDOW_MS
+ * (since `since`, the last quality change, and outside the first half minute
+ * after a start or a seek) it stalled at least `minStalls` times (`stalls`,
+ * their start times), and the BEST window the player was sent in that time
+ * is still under STARVED_FACTOR of `needKbps`. The best window, not the
+ * average: a line too slow for the stream is too slow in every one, and a
+ * buffer topped up at the video's own (quieter) bitrate never reads as a
+ * slow line then. At least STARVED_STALLED_REPORTS of them were taken while
+ * stalled, when the player downloads as fast as it is sent (a server that
+ * pauses reports 0, which counts as no data). Returns that best rate, kbps,
+ * or null when it is not starving (or can't be told yet).
+ */
+export function starvedKbps(
+  rates: RateReport[], now: number, needKbps: number | undefined,
+  opts: { since?: number; stalls?: number[]; lastStartAt?: number; lastSeekAt?: number; minStalls?: number } = {},
+): number | null {
+  if (!needKbps || needKbps <= 0) return null;
+  const from = Math.max(opts.since ?? 0, now - STARVED_WINDOW_MS);
+  const counts = (t: number): boolean => t > from && t <= now && !inJumpGrace(t, opts.lastSeekAt ?? 0, opts.lastStartAt ?? 0);
+  const stalls = (opts.stalls ?? []).filter(counts).length;
+  if (stalls < (opts.minStalls ?? STARVED_STALLS)) return null;
+  const data = rates.filter((r) => r.kbps > 0 && counts(r.t));
+  if (data.length < STARVED_REPORTS) return null;
+  if (data.filter((r) => r.stalled).length < STARVED_STALLED_REPORTS) return null;
+  const best = Math.max(...data.map((r) => r.kbps));
+  return best < needKbps * STARVED_FACTOR ? best : null;
+}
+
+/**
  * What to size a drop by, kbps: the highest of the player's steady download
  * rate over the last minute, its rate during the stall under way (from
  * `stallStart`) and a fresh read of the file (`readKbps`). Never evidence
  * that a stream can't keep up — see stallEvidence for that. Null when none
  * is known.
  */
-export function dropSizeKbps(rates: Array<{ t: number; kbps: number }>, now: number, opts: { stallStart?: number; readKbps?: number | null } = {}): number | null {
+export function dropSizeKbps(rates: RateReport[], now: number, opts: { stallStart?: number; readKbps?: number | null } = {}): number | null {
   const seen: number[] = [];
   const steady = steadyKbps(rates, now, DROP_WINDOW_MS);
   if (steady) seen.push(steady);
@@ -235,7 +289,7 @@ export interface StallEvidence {
  * (nothing arrived, so nothing was measured), and pauses never count.
  */
 export function stallEvidence(
-  rates: Array<{ t: number; kbps: number }>, stallStart: number, now: number, readKbps?: number | null,
+  rates: RateReport[], stallStart: number, now: number, readKbps?: number | null,
   opts: { needWindows?: boolean } = {},
 ): StallEvidence {
   const upTo = rates.filter((r) => r.t <= now);
@@ -313,37 +367,44 @@ export class StallCounter {
   reset(): void { this.times = []; }
 }
 
-export type AutoReason = 'stalls' | 'undo-raise' | 'slow-file' | 'slow-start' | 'speed';
+export type AutoReason = 'stalls' | 'undo-raise' | 'slow-file' | 'slow-start' | 'speed' | 'starved';
 export type AutoMove = { step: QualityStep; direction: 'down' | 'up'; reason: AutoReason };
 
 /** What a stall is judged with, besides its time. */
 export interface StallContext {
   /** When playback last began (START_GRACE_MS), 0 if unknown. */
   lastStartAt?: number;
-  /** The general internet check, kbps (INTERNET_CLEAR_FACTOR). */
+  /** The last seek (SEEK_GRACE_MS), 0 if unknown. */
+  lastSeekAt?: number;
+  /** The general internet check, kbps. Only ever a hint: it never keeps a
+   *  stalling stream where it is (see the top of this file). */
   internetKbps?: number | null;
-  /** On the Plex Relay: the internet check says nothing about the relay. */
+  /** On the Plex Relay. */
   relay?: boolean;
   /** A 4K file played as it is (bugs/plex-4k.md). */
   uhd?: boolean;
   /** The fastest the player itself has been sent this title by the server,
    *  kbps (its best 3 s window: while it fills its buffer it downloads flat
-   *  out). Counts for a 4K file only. */
+   *  out), for a file played as it is. */
   serverKbps?: number | null;
+  /** Playback is starving (starvedKbps): the best the server delivered over
+   *  the last stalls, kbps. The line is then not clear, whatever it once
+   *  managed. */
+  starvedKbps?: number | null;
 }
 
 /**
  * The line is plainly fast enough for a file of `kbps` (INTERNET_CLEAR_FACTOR
- * times its bitrate), off the relay: the internet check says so, or, for a
- * 4K file, what the player itself was sent by the server. The internet check
- * is a 256 KB download from Cloudflare that rarely reads the 120-160 Mb/s a
- * 60-80 Mb/s file needs; the player's own windows while it fills its start
- * are the server and the line as they are.
+ * times its bitrate), off the relay: what the player itself was sent by the
+ * Plex server (its best window) says so, and playback is not starving now.
+ * Never the quick internet check: a download from a test server says nothing
+ * about the way to this Plex server (a customer's read 42.5 Mb/s while the
+ * server sent 1.4-5.7 Mb/s of a 12 Mb/s file, which then buffered for good).
  */
 export function lineClearFor(kbps: number | undefined, ctx: StallContext = {}): boolean {
   if (ctx.relay || !kbps) return false;
-  const seen = Math.max(ctx.internetKbps ?? 0, ctx.uhd ? (ctx.serverKbps ?? 0) : 0);
-  return seen >= kbps * INTERNET_CLEAR_FACTOR;
+  if (ctx.starvedKbps != null && ctx.starvedKbps > 0) return false;
+  return (ctx.serverKbps ?? 0) >= kbps * INTERNET_CLEAR_FACTOR;
 }
 
 /**
@@ -369,8 +430,11 @@ export interface AutoPreview {
   next: QualityStep | null;
   /** The viewer's own pick for this title (a preset key), if any. */
   manualKey: string | null;
-  /** Stalls alone won't leave the file: the internet is fast enough. */
+  /** Stalls alone won't leave the file: the server has sent it fast enough. */
   keepsFile?: boolean;
+  /** Playback is starving: the best the server delivered lately, kbps. The
+   *  drop to `next` comes within seconds. */
+  starvedKbps?: number | null;
 }
 
 /**
@@ -384,6 +448,9 @@ export interface AutoPreview {
  */
 export function autoQualityNote(ladder: QualityStep[], index: number, preview: AutoPreview): string {
   if (preview.keepsFile) return i18n.t('plex.quality.autoKeepsFile');
+  if (preview.next && preview.starvedKbps) {
+    return i18n.t('plex.quality.autoLowersStarved', { step: stepName(preview.next), speed: formatMbps(preview.starvedKbps) });
+  }
   if (preview.next) return i18n.t('plex.quality.autoWillLower', { step: stepName(preview.next) });
   const pick = preview.manualKey;
   if (!pick) return i18n.t('plex.quality.autoLowest');
@@ -414,6 +481,8 @@ export class AutoQuality {
   private manual: string | null = null;
   private failed: Set<string>;
   private waitedFor: string | null = null;
+  /** When each stall of the stream playing now began (starved). */
+  private stallTimes: number[] = [];
 
   /** `failed`: converted steps that already failed to start for this title
    *  (a replay of it keeps them). */
@@ -434,6 +503,7 @@ export class AutoQuality {
     this.raisedAt = 0;
     this.waitedFor = null;
     this.stalls.reset();
+    this.stallTimes = [];
   }
 
   /** The viewer's pick for this title, or null. */
@@ -466,6 +536,8 @@ export class AutoQuality {
     const lastStartAt = ctx.lastStartAt ?? 0;
     if (this.stalls.isSeek(at, lastSeekAt, lastStartAt)) return null;
     this.lastStallAt = at;
+    this.stallTimes = this.stallTimes.filter((t) => at - t < STARVED_WINDOW_MS);
+    this.stallTimes.push(at);
     if (this.raisedAt && at - this.raisedAt < RAISE_PROBATION_MS) {
       const back = index >= 0 ? ladder[Math.floor(index) + 1] : undefined;
       this.raisedAt = 0;
@@ -480,12 +552,46 @@ export class AutoQuality {
   }
 
   /**
+   * Is the stream playing now starving (starvedKbps)? Its stalls since the
+   * last change, the player's `rates` since then; a line proven for it
+   * (`ctx`, without starving) takes one stall more. The best rate delivered,
+   * kbps, or null.
+   */
+  starved(rates: RateReport[], now: number, needKbps: number | undefined, ctx: StallContext = {}): number | null {
+    const proven = lineClearFor(needKbps, { ...ctx, starvedKbps: null });
+    return starvedKbps(rates, now, needKbps, {
+      since: this.lastChangeAt, stalls: this.stallTimes, lastStartAt: ctx.lastStartAt, lastSeekAt: ctx.lastSeekAt,
+      minStalls: proven ? STARVED_STALLS + 1 : STARVED_STALLS,
+    });
+  }
+
+  /**
+   * Playback keeps stalling and the Plex server delivers clearly less than
+   * this stream needs (`starvedKbps`, see starved): drop now to the step that
+   * fits what it delivers, with headroom, whatever the quick internet check
+   * says. Raising then waits (RAISE_BACKOFF_MS): the rate that starved it was
+   * measured, a short read that says otherwise may not hold.
+   */
+  onStarved(at: number, ladder: QualityStep[], index: number, starvedKbps: number | null): AutoMove | null {
+    if (!starvedKbps || starvedKbps <= 0) return null;
+    const move = this.drop(ladder, index, starvedKbps, 'starved');
+    if (move) this.raiseBlockedUntil = Math.max(this.raiseBlockedUntil, at + RAISE_BACKOFF_MS);
+    return move;
+  }
+
+  /**
    * The file played as-is is plainly bigger than what the server sends flat
    * out during a stall (the caller decides, from stallEvidence only): drop
    * now to what fits `sizeKbps`, without waiting for more stalls.
    */
   onSlowFile(ladder: QualityStep[], index: number, sizeKbps: number | null): AutoMove | null {
     return this.drop(ladder, index, sizeKbps, 'slow-file');
+  }
+
+  /** A converted step the server turned down (convertRecoveryStep): not
+   *  tried again for this title, by automatic quality either. */
+  convertFailed(key: string): void {
+    if (key && key !== 'original' && key.indexOf('original@') !== 0) this.failed.add(key);
   }
 
   /** The server won't convert this title at all: every converted step in
@@ -528,6 +634,12 @@ export class AutoQuality {
 
   /** What a drop from `index` would go to now, and the viewer's pick. */
   preview(ladder: QualityStep[], index: number, speedKbps: number | null, ctx: StallContext = {}): AutoPreview {
+    const starved = ctx.starvedKbps && ctx.starvedKbps > 0 ? ctx.starvedKbps : null;
+    // Starving: the drop is sized by what the server delivers, and it comes.
+    if (starved) {
+      const next = dropTarget(ladder, index, starved);
+      return next ? { next, manualKey: this.manual, starvedKbps: starved } : { next: null, manualKey: this.manual };
+    }
     const next = dropTarget(ladder, index, speedKbps);
     if (lineClearForFile(ladder, index, next, ctx)) return { next: null, manualKey: this.manual, keepsFile: true };
     return { next, manualKey: this.manual };
@@ -562,12 +674,92 @@ export class AutoQuality {
     this.lastChangeAt = at;
     this.raisedAt = move.direction === 'up' ? at : 0;
     this.stalls.reset();
+    this.stallTimes = [];
   }
 
   private drop(ladder: QualityStep[], index: number, speedKbps: number | null, reason: AutoReason): AutoMove | null {
     const step = dropTarget(ladder, index, speedKbps);
     return step ? { step, direction: 'down', reason } : null;
   }
+}
+
+// ── a conversion the server answers with an HTTP error ──────────────────────
+//
+// The native player tries the same session twice (TRANSCODE_HTTP_TRIES in
+// SnowPlayerPlugin), then reports PLEX_TRANSCODE_HTTP with the status. From
+// there, never the identical session again: a FRESH session (a new id, with
+// a decision call first); if that is turned down too, ANOTHER quality — the
+// file as it is when the rate measured from the server carries it, else a
+// lighter conversion; then a plain message with the status. Capped per title.
+
+/** Recoveries (fresh sessions and other qualities) per title, in all. */
+export const CONVERT_RECOVERY_MAX = 4;
+/** A session that has played this long since the last recovery starts a new
+ *  outage: a fresh session is tried first again. */
+export const CONVERT_RECOVERY_RESET_MS = 3 * 60_000;
+
+export interface ConvertRecovery {
+  /** 0: nothing tried yet, 1: a fresh session was started, 2: another
+   *  quality was tried (or none could be), 3: gave up. */
+  stage: number;
+  /** Recoveries started for this title. */
+  total: number;
+  /** When the last one started, ms (0: never). */
+  lastAt: number;
+}
+
+export const freshConvertRecovery = (): ConvertRecovery => ({ stage: 0, total: 0, lastAt: 0 });
+
+/**
+ * What to do about a conversion the server turned down, at `now`: a
+ * 'fresh' session, 'other' quality, or 'give-up'. `played`: the session that
+ * just failed had got playing (a new outage once it has played for a while).
+ * Moves `r` on.
+ */
+export function convertRecoveryStep(r: ConvertRecovery, now: number, played: boolean): 'fresh' | 'other' | 'give-up' {
+  if (r.stage > 0 && r.stage < 3 && played && r.lastAt > 0 && now - r.lastAt >= CONVERT_RECOVERY_RESET_MS) r.stage = 0;
+  if (r.total >= CONVERT_RECOVERY_MAX || r.stage >= 2) {
+    r.stage = 3;
+    return 'give-up';
+  }
+  r.total += 1;
+  r.lastAt = now;
+  if (r.stage === 0) {
+    r.stage = 1;
+    return 'fresh';
+  }
+  r.stage = 2;
+  return 'other';
+}
+
+/**
+ * The quality to try after a fresh conversion session was turned down too
+ * (`failedKey`, at `index` on `ladder`): the file as it is (the best one the
+ * rate measured from the Plex server, `measuredKbps`, carries with headroom;
+ * with `directAnyway`, the lightest file whatever the rate), else the next
+ * lighter conversion that has not failed, sized to that rate when it is
+ * known. Null when there is nothing else to try.
+ */
+export function convertAlternative(
+  ladder: QualityStep[], index: number, failedKey: string,
+  opts: { measuredKbps?: number | null; files?: boolean; directAnyway?: boolean; failed?: Iterable<string> } = {},
+): QualityStep | null {
+  const failed = new Set(opts.failed ?? []);
+  failed.add(failedKey);
+  const measured = opts.measuredKbps && opts.measuredKbps > 0 ? opts.measuredKbps : null;
+  if (opts.files !== false) {
+    const files = ladder.filter((st) => st.presetKey === 'original');
+    const fits = files.find((st) => !!measured && !!st.kbps && st.kbps * SPEED_HEADROOM <= measured);
+    if (fits) return fits;
+    if (opts.directAnyway && files.length) return files[files.length - 1];
+  }
+  const from = index < 0 ? ladder.length : Math.floor(index) + 1;
+  const lower = ladder.slice(from).filter((st) => st.presetKey !== 'original' && !failed.has(st.key));
+  if (!lower.length) return null;
+  // Sized like a drop: the best that fits the rate, else the lightest; one
+  // step when the rate is not known.
+  if (measured) return lower.find((st) => !!st.kbps && st.kbps * SPEED_HEADROOM <= measured) ?? lower[lower.length - 1];
+  return lower[0];
 }
 
 // ── ending a converting session ─────────────────────────────────────────────

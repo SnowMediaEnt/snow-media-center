@@ -37,6 +37,7 @@ import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 
 import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
+import { withAppInfo } from '@/lib/appInfo';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { overlayAboveOwnsBack } from '@/lib/overlayBack';
 import { MessageSquare } from 'lucide-react';
@@ -892,7 +893,7 @@ const BufferingGuide = ({
       const ts = new Date().toLocaleString();
       const subject = overrideSubject ?? `Buffering Walkthrough Results — ${ts}`;
       const body = overrideBody ?? `${supportScript}\n\nSaved: ${ts}`;
-      await createTicket(subject, body);
+      await createTicket(subject, await withAppInfo(body));
       toast({
         title: t('guides.buffering.toast.ticketSubmittedTitle'),
         description: t('guides.buffering.toast.ticketSubmittedDesc'),
@@ -929,7 +930,7 @@ const BufferingGuide = ({
     const appLabel = state.appType ? APP_LABELS[state.appType] : 'streaming app';
     const subject = `Broken channel/title in ${appLabel}: ${title}`;
     const body = [
-      `App: ${appLabel}`,
+      `Streaming app: ${appLabel}`,
       `Device: ${reportDevice}`,
       `Channel / Title: ${title}`,
       `Reported: ${ts}`,
@@ -960,7 +961,7 @@ const BufferingGuide = ({
       const { error } = await supabase.functions.invoke('report-channel', {
         body: {
           subject: `[Anonymous Report] ${report.subject}`,
-          message: `${report.body}\n\nSent from the Buffering Guide without an account.`,
+          message: await withAppInfo(`${report.body}\n\nSent from the Buffering Guide without an account.`),
         },
       });
       if (error) throw error;

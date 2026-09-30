@@ -26,6 +26,7 @@ import { AppManager } from '@/capacitor/AppManager';
 import { downloadApkToCache } from '@/utils/downloadApk';
 import QRCheckoutDialog from '@/components/QRCheckoutDialog';
 import { trackEvent } from '@/lib/analytics';
+import { parseDeviceInfo } from '@/lib/appInfo';
 import type { Tables } from '@/integrations/supabase/types';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
@@ -81,16 +82,6 @@ const loadSetupFlags = (): SetupFlags => {
 
 const saveSetupFlags = (flags: SetupFlags) => {
   try { localStorage.setItem(SETUP_STORAGE_KEY, JSON.stringify(flags)); } catch { /* ignore */ }
-};
-
-/** Best-effort device model / Android version from the WebView UA. */
-const parseDeviceInfo = (): { model: string | null; android: string | null } => {
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
-  const android = /Android\s+([\d.]+)/i.exec(ua)?.[1] ?? null;
-  let model: string | null = null;
-  const m = /Android\s+[\d.]+;\s*([^;)]+?)(?:\s+Build\/|\s*\)|;|\s*$)/i.exec(ua);
-  if (m && m[1]) model = m[1].trim() || null;
-  return { model, android };
 };
 
 /** A comped (free) session is treated exactly like a paid one customer-side. */

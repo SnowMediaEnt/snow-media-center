@@ -51,6 +51,15 @@ const runFetch = async (): Promise<void> => {
   return inflight;
 };
 
+/** Resolves once the shared version lookup has finished (used outside React,
+ *  e.g. to stamp a support ticket). Never rejects. */
+export const loadVersion = async (): Promise<{ version: string; versionCode: number }> => {
+  if (!hasFetched) {
+    try { await runFetch(); } catch { /* keep the defaults */ }
+  }
+  return { version: snap.version, versionCode: snap.versionCode };
+};
+
 export const useVersion = () => {
   const [s, setS] = useState<VersionSnap>(snap);
   useEffect(() => {

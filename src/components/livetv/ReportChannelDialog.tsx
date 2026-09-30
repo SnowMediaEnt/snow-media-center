@@ -7,6 +7,7 @@ import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
 import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
+import { withAppInfo } from '@/lib/appInfo';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 
 interface Props {
@@ -189,7 +190,8 @@ const ReportChannelDialog = memo(({
         }
         if (choice === 'Channel down') { try { onReportedDown?.(); } catch { /* ignore */ } }
         const subject = `Channel issue: ${channelName}`;
-        const message = buildMessage(choice, otherNote);
+        // App version, build and device lead the message; the report's own fields follow as they were.
+        const message = await withAppInfo(buildMessage(choice, otherNote));
         if (user) {
           await createTicket(subject, message, { discordKind: 'channel_report' });
         } else {

@@ -257,7 +257,9 @@ interface State {
   probeMs: number | null;
   hostKbps: number | null;
   hostMs: number | null;
-  playerRates: Sample[];
+  /** `stalled`: taken while playback was stalled (the player then
+   *  downloads as fast as it is sent). */
+  playerRates: Array<Sample & { stalled?: boolean }>;
   held: ClassifyResult | null;
   holdUntil: number;
   reported: Set<Verdict>;
@@ -683,7 +685,9 @@ export function recordPlayerRate(kbps: number): void {
   if (!state.active) return;
   if (!Number.isFinite(kbps) || kbps < 0 || kbps > 5_000_000) return;
   const t = now();
-  state.playerRates.push({ t, kbps });
+  // Taken mid-stall: automatic quality's proof of what the server delivers
+  // when the player pulls flat out (plexAutoQuality.starvedKbps).
+  state.playerRates.push(state.buffering ? { t, kbps, stalled: true } : { t, kbps });
   const cutoff = t - PLAYER_RATE_WINDOW_MS;
   while (state.playerRates.length > 1 && state.playerRates[0].t < cutoff) state.playerRates.shift();
   // Only the card shows it, and only mid-stall; no re-render otherwise.
@@ -706,10 +710,11 @@ export function getPlayerSpeedKbps(): number | null {
 /**
  * The player's own download-rate reports of the last 3 minutes (oldest
  * first, a copy): what automatic quality reads the steady speed from.
+ * `stalled` marks one taken while playback was stalled.
  */
-export function getPlayerRates(): Array<{ t: number; kbps: number }> {
+export function getPlayerRates(): Array<{ t: number; kbps: number; stalled?: boolean }> {
   if (!state.active) return [];
-  return state.playerRates.map((r) => ({ t: r.t, kbps: r.kbps }));
+  return state.playerRates.map((r) => (r.stalled ? { t: r.t, kbps: r.kbps, stalled: true } : { t: r.t, kbps: r.kbps }));
 }
 
 /** hls.bandwidthEstimate (bits per second). */

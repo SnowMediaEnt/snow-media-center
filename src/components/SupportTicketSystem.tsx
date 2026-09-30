@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { trackEvent } from '@/lib/analytics';
+import { withAppInfo } from '@/lib/appInfo';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -371,7 +372,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       const contactLine = hasEmail
         ? `Contact email: ${email}`
         : 'Anonymous guest — no contact email provided.';
-      const combinedMessage = `${newMessage}\n\n${contactLine}`;
+      const combinedMessage = await withAppInfo(`${newMessage}\n\n${contactLine}`);
       try {
         const { error } = await supabase.functions.invoke('report-channel', {
           body: {
@@ -410,7 +411,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
 
     try {
-      const ticketId = await createTicket(newSubject, newMessage);
+      const ticketId = await createTicket(newSubject, await withAppInfo(newMessage));
       try { trackEvent('ticket_create', 'support', { subject_len: newSubject.length, has_user: true }); } catch { void 0; }
       setNewSubject('');
       setNewMessage('');
