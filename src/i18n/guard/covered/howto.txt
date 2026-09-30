@@ -1,0 +1,3 @@
+# How-to guide (plan-howto.md): the picture view with its labels, and the chapters. One path per line.
+src/components/howto
+src/data/tutorialContent.ts
