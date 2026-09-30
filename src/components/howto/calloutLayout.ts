@@ -6,6 +6,10 @@
 //  - the ring is the rect grown by 0.8%, kept inside the frame;
 //  - the label sits below the ring if the ring ends above 70% of the height,
 //    else above if it starts below 30%, else to the right, else to the left;
+//    when that spot would cover a ring (its own or another's) or a label
+//    already placed, the first other side that covers none is taken, else
+//    one that covers only its own ring (stacked rows: a label below the
+//    first row would hide the second);
 //  - a label is never wider than 38% of the frame and always stays inside 1..99%;
 //  - two labels never sit on each other: the later one moves down (up if it sits
 //    above its ring, or at the bottom edge). A pointer then stretches so it still
@@ -58,6 +62,10 @@ export const RING_GROW = 0.8;
 export const LABEL_MAX_WIDTH = 38;
 export const EDGE_MIN = 1;
 export const EDGE_MAX = 99;
+/** A label pushed against the right edge keeps this much spare width, in
+ *  percent: its max width is rounded to 2 decimals, and a hair less than
+ *  the text needs wraps it onto a second line. */
+const FIT_SLACK = 0.05;
 /** Room between labels, in percent. */
 const LABEL_MARGIN = 1;
 /** Pointer arrow length in px: the least gap between a label and its ring. */
@@ -123,6 +131,8 @@ export function spotlightHoles(rings: Box[]): Box[] {
   return holes;
 }
 
+const SIDES: Side[] = ['below', 'above', 'right', 'left'];
+
 function pickSide(ring: Box, size: LabelSize, gapX: number): Side {
   if (ring.top + ring.height < 70) return 'below';
   if (ring.top > 30) return 'above';
@@ -168,30 +178,47 @@ export function layoutCallouts(items: CalloutInput[], options: LayoutOptions = {
   const gapX = ARROW_PX / (frame.width / 100);
   const gapY = ARROW_PX / (frame.height / 100);
 
+  const rings = list.map((item) => growRing(item.rect));
+  const boxes: Box[] = [];
   const placed = list.map((item, i) => {
-    const ring = growRing(item.rect);
+    const ring = rings[i];
     const size = options.sizes?.[i] ?? estimateLabelSize(item.chars ?? 14, frame, numbered);
     const width = Math.min(size.width, LABEL_MAX_WIDTH);
     const height = size.height;
     const base = item.anchor ?? ring;
-    const side = item.side ?? pickSide(base, { width, height }, gapX);
     const cx = ring.left + ring.width / 2;
     const cy = ring.top + ring.height / 2;
-    let left: number;
-    let top: number;
-    if (side === 'below' || side === 'above') {
-      left = cx - width / 2;
-      top = side === 'below' ? base.top + base.height + gapY : base.top - gapY - height;
-    } else {
-      left = side === 'right' ? base.left + base.width + gapX : base.left - gapX - width;
-      top = cy - height / 2;
-    }
-    const box: Box = {
-      left: keepIn(left, EDGE_MIN, EDGE_MAX - width),
-      top: keepIn(top, EDGE_MIN, EDGE_MAX - height),
-      width,
-      height,
+    const boxAt = (s: Side): Box => {
+      let left: number;
+      let top: number;
+      if (s === 'below' || s === 'above') {
+        left = cx - width / 2;
+        top = s === 'below' ? base.top + base.height + gapY : base.top - gapY - height;
+      } else {
+        left = s === 'right' ? base.left + base.width + gapX : base.left - gapX - width;
+        top = cy - height / 2;
+      }
+      return {
+        left: keepIn(left, EDGE_MIN, EDGE_MAX - width - FIT_SLACK),
+        top: keepIn(top, EDGE_MIN, EDGE_MAX - height),
+        width,
+        height,
+      };
     };
+    const preferred = item.side ?? pickSide(base, { width, height }, gapX);
+    let side = preferred;
+    let box = boxAt(preferred);
+    // A forced side stays; otherwise a spot that hides nothing beats the
+    // rule's, and a spot on its own ring beats one on another's ring.
+    const free = (b: Box, ownOk: boolean) => !rings.some((r, j) => (ownOk && j === i ? false : overlaps(b, r, 0)))
+      && !boxes.some((o) => overlaps(b, o, LABEL_MARGIN))
+      && !avoid.some((a) => overlaps(b, a, LABEL_MARGIN));
+    if (!item.side && !free(box, false)) {
+      const found = [false, true].reduce<Side | null>((got, ownOk) => got
+        ?? [preferred, ...SIDES.filter((x) => x !== preferred)].find((x) => free(boxAt(x), ownOk)) ?? null, null);
+      if (found) { side = found; box = boxAt(found); }
+    }
+    boxes.push(box);
     return { ring, box, side };
   });
 

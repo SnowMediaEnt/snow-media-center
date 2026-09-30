@@ -184,13 +184,13 @@
         }
       },
       "live-settings": {
-        "bytes": 11982,
+        "bytes": 12138,
         "rects": {
-          "hub.appearance": [20, 47.41, 60, 11.48],
-          "hub.hideCats": [20, 33.7, 60, 11.48],
-          "hub.rewind": [20, 61.11, 60, 11.48],
-          "hub.signOut": [20, 88.52, 60, 11.48],
-          "hub.switch": [20, 20, 60, 11.48]
+          "hub.appearance": [20, 46.11, 60, 11.48],
+          "hub.hideCats": [20, 32.41, 60, 11.48],
+          "hub.rewind": [20, 59.81, 60, 11.48],
+          "hub.signOut": [20, 87.22, 60, 11.48],
+          "hub.switch": [19.4, 18.59, 61.2, 11.71]
         }
       },
       "live-signin": {
@@ -203,7 +203,7 @@
         }
       },
       "multi": {
-        "bytes": 22372,
+        "bytes": 12992,
         "rects": {
           "multi.layouts": [15.89, 46.39, 73.33, 29.63]
         }
@@ -231,8 +231,10 @@
         }
       },
       "plex-discover": {
-        "bytes": 12136,
-        "rects": {}
+        "bytes": 37208,
+        "rects": {
+          "plex.discover": [30.83, 14.05, 66.67, 85.95]
+        }
       },
       "plex-home": {
         "bytes": 32334,
@@ -294,7 +296,7 @@
         }
       },
       "recordings": {
-        "bytes": 32216,
+        "bytes": 25250,
         "rects": {
           "recs.drive": [62.81, 15.56, 35.1, 3.52],
           "recs.list": [7.19, 56.48, 90.73, 42.22],
@@ -321,11 +323,17 @@
           "set.remoteSteps": [38.69, 39.54, 54.12, 22.96]
         }
       },
+      "settings-switches": {
+        "bytes": 24664,
+        "rects": {
+          "set.alerts": [5, 76.02, 90, 22.59],
+          "set.contentBar": [5, 0, 90, 21.94],
+          "set.postNotify": [2.75, 49.9, 94.5, 23.72]
+        }
+      },
       "settings-ui": {
         "bytes": 22980,
         "rects": {
-          "set.contentBar": [5, 29.72, 90, 22.59],
-          "set.postNotify": [5, 80.83, 90, 19.17],
           "set.tabs": [5, 19.35, 90, 7.41],
           "set.updatesTab": [76.75, 20.09, 17.83, 5.93]
         }
@@ -578,13 +586,13 @@
         }
       },
       "live-settings": {
-        "bytes": 12762,
+        "bytes": 13086,
         "rects": {
-          "hub.appearance": [20, 47.41, 60, 11.48],
-          "hub.hideCats": [20, 33.7, 60, 11.48],
-          "hub.rewind": [20, 61.11, 60, 11.48],
-          "hub.signOut": [20, 88.52, 60, 11.48],
-          "hub.switch": [20, 20, 60, 11.48]
+          "hub.appearance": [20, 46.11, 60, 11.48],
+          "hub.hideCats": [20, 32.41, 60, 11.48],
+          "hub.rewind": [20, 59.81, 60, 11.48],
+          "hub.signOut": [20, 87.22, 60, 11.48],
+          "hub.switch": [19.4, 18.59, 61.2, 11.71]
         }
       },
       "live-signin": {
@@ -597,7 +605,7 @@
         }
       },
       "multi": {
-        "bytes": 23672,
+        "bytes": 14178,
         "rects": {
           "multi.layouts": [15.89, 46.39, 73.33, 29.63]
         }
@@ -625,8 +633,10 @@
         }
       },
       "plex-discover": {
-        "bytes": 12896,
-        "rects": {}
+        "bytes": 37966,
+        "rects": {
+          "plex.discover": [30.83, 14.05, 66.67, 85.95]
+        }
       },
       "plex-home": {
         "bytes": 33300,
@@ -688,7 +698,7 @@
         }
       },
       "recordings": {
-        "bytes": 33594,
+        "bytes": 26324,
         "rects": {
           "recs.drive": [60.69, 15.56, 37.22, 3.52],
           "recs.list": [7.19, 56.48, 90.73, 42.22],
@@ -715,11 +725,17 @@
           "set.remoteSteps": [38.69, 39.54, 54.12, 22.96]
         }
       },
+      "settings-switches": {
+        "bytes": 28716,
+        "rects": {
+          "set.alerts": [5, 76.02, 90, 23.98],
+          "set.contentBar": [5, 0, 90, 21.94],
+          "set.postNotify": [2.75, 49.9, 94.5, 23.72]
+        }
+      },
       "settings-ui": {
         "bytes": 25652,
         "rects": {
-          "set.contentBar": [5, 29.72, 90, 22.59],
-          "set.postNotify": [5, 80.83, 90, 19.17],
           "set.tabs": [5, 19.35, 90, 7.41],
           "set.updatesTab": [76.75, 20.09, 17.83, 5.93]
         }
@@ -972,13 +988,13 @@
         }
       },
       "live-settings": {
-        "bytes": 14212,
+        "bytes": 14264,
         "rects": {
-          "hub.appearance": [20, 47.41, 60, 11.48],
-          "hub.hideCats": [20, 33.7, 60, 11.48],
-          "hub.rewind": [20, 61.11, 60, 11.48],
-          "hub.signOut": [20, 88.52, 60, 11.48],
-          "hub.switch": [20, 20, 60, 11.48]
+          "hub.appearance": [20, 46.11, 60, 11.48],
+          "hub.hideCats": [20, 32.41, 60, 11.48],
+          "hub.rewind": [20, 59.81, 60, 11.48],
+          "hub.signOut": [20, 87.22, 60, 11.48],
+          "hub.switch": [19.4, 18.59, 61.2, 11.71]
         }
       },
       "live-signin": {
@@ -991,7 +1007,7 @@
         }
       },
       "multi": {
-        "bytes": 23982,
+        "bytes": 13936,
         "rects": {
           "multi.layouts": [15.89, 46.39, 73.33, 29.63]
         }
@@ -1019,8 +1035,10 @@
         }
       },
       "plex-discover": {
-        "bytes": 13540,
-        "rects": {}
+        "bytes": 38718,
+        "rects": {
+          "plex.discover": [30.83, 14.05, 66.67, 85.95]
+        }
       },
       "plex-home": {
         "bytes": 33796,
@@ -1082,7 +1100,7 @@
         }
       },
       "recordings": {
-        "bytes": 34482,
+        "bytes": 27146,
         "rects": {
           "recs.drive": [59.94, 15.56, 37.98, 3.52],
           "recs.list": [7.19, 56.48, 90.73, 42.22],
@@ -1109,11 +1127,17 @@
           "set.remoteSteps": [40.79, 39.54, 52.02, 22.96]
         }
       },
+      "settings-switches": {
+        "bytes": 28238,
+        "rects": {
+          "set.alerts": [5, 76.02, 90, 22.59],
+          "set.contentBar": [5, 0, 90, 21.94],
+          "set.postNotify": [2.75, 49.9, 94.5, 23.72]
+        }
+      },
       "settings-ui": {
         "bytes": 26030,
         "rects": {
-          "set.contentBar": [5, 29.72, 90, 22.59],
-          "set.postNotify": [5, 80.83, 90, 19.17],
           "set.tabs": [5, 19.35, 90, 7.41],
           "set.updatesTab": [76.75, 20.09, 17.83, 5.93]
         }
@@ -1366,13 +1390,13 @@
         }
       },
       "live-settings": {
-        "bytes": 13436,
+        "bytes": 13772,
         "rects": {
-          "hub.appearance": [20, 47.41, 60, 11.48],
-          "hub.hideCats": [20, 33.7, 60, 11.48],
-          "hub.rewind": [20, 61.11, 60, 11.48],
-          "hub.signOut": [20, 88.52, 60, 11.48],
-          "hub.switch": [20, 20, 60, 11.48]
+          "hub.appearance": [20, 46.11, 60, 11.48],
+          "hub.hideCats": [20, 32.41, 60, 11.48],
+          "hub.rewind": [20, 59.81, 60, 11.48],
+          "hub.signOut": [20, 87.22, 60, 11.48],
+          "hub.switch": [19.4, 18.59, 61.2, 11.71]
         }
       },
       "live-signin": {
@@ -1385,7 +1409,7 @@
         }
       },
       "multi": {
-        "bytes": 24368,
+        "bytes": 14966,
         "rects": {
           "multi.layouts": [15.89, 46.39, 73.33, 29.63]
         }
@@ -1413,8 +1437,10 @@
         }
       },
       "plex-discover": {
-        "bytes": 13366,
-        "rects": {}
+        "bytes": 38790,
+        "rects": {
+          "plex.discover": [30.83, 14.05, 66.67, 85.95]
+        }
       },
       "plex-home": {
         "bytes": 33770,
@@ -1476,7 +1502,7 @@
         }
       },
       "recordings": {
-        "bytes": 33390,
+        "bytes": 26410,
         "rects": {
           "recs.drive": [63.69, 15.56, 34.23, 3.52],
           "recs.list": [7.19, 56.48, 90.73, 42.22],
@@ -1503,11 +1529,17 @@
           "set.remoteSteps": [38.69, 39.54, 54.12, 27.41]
         }
       },
+      "settings-switches": {
+        "bytes": 28872,
+        "rects": {
+          "set.alerts": [5, 76.02, 90, 23.98],
+          "set.contentBar": [5, 0, 90, 21.94],
+          "set.postNotify": [2.75, 49.9, 94.5, 23.72]
+        }
+      },
       "settings-ui": {
         "bytes": 25640,
         "rects": {
-          "set.contentBar": [5, 29.72, 90, 22.59],
-          "set.postNotify": [5, 80.83, 90, 19.17],
           "set.tabs": [5, 19.35, 90, 7.41],
           "set.updatesTab": [76.75, 20.09, 17.83, 5.93]
         }
@@ -1760,13 +1792,13 @@
         }
       },
       "live-settings": {
-        "bytes": 10452,
+        "bytes": 10544,
         "rects": {
-          "hub.appearance": [20, 47.41, 60, 11.48],
-          "hub.hideCats": [20, 33.7, 60, 11.48],
-          "hub.rewind": [20, 61.11, 60, 11.48],
-          "hub.signOut": [20, 88.52, 60, 11.48],
-          "hub.switch": [20, 20, 60, 11.48]
+          "hub.appearance": [20, 46.11, 60, 11.48],
+          "hub.hideCats": [20, 32.41, 60, 11.48],
+          "hub.rewind": [20, 59.81, 60, 11.48],
+          "hub.signOut": [20, 87.22, 60, 11.48],
+          "hub.switch": [19.4, 18.59, 61.2, 11.71]
         }
       },
       "live-signin": {
@@ -1779,7 +1811,7 @@
         }
       },
       "multi": {
-        "bytes": 20900,
+        "bytes": 11868,
         "rects": {
           "multi.layouts": [15.89, 46.39, 73.33, 29.63]
         }
@@ -1807,8 +1839,10 @@
         }
       },
       "plex-discover": {
-        "bytes": 11796,
-        "rects": {}
+        "bytes": 36330,
+        "rects": {
+          "plex.discover": [30.83, 14.05, 66.67, 85.95]
+        }
       },
       "plex-home": {
         "bytes": 31598,
@@ -1870,7 +1904,7 @@
         }
       },
       "recordings": {
-        "bytes": 30898,
+        "bytes": 24504,
         "rects": {
           "recs.drive": [61.31, 15.56, 36.61, 3.52],
           "recs.list": [7.19, 56.48, 90.73, 42.22],
@@ -1897,11 +1931,17 @@
           "set.remoteSteps": [38.69, 39.54, 54.12, 14.07]
         }
       },
+      "settings-switches": {
+        "bytes": 24866,
+        "rects": {
+          "set.alerts": [5, 72.31, 90, 22.59],
+          "set.contentBar": [5, 0, 90, 21.94],
+          "set.postNotify": [2.75, 46.19, 94.5, 23.72]
+        }
+      },
       "settings-ui": {
         "bytes": 22954,
         "rects": {
-          "set.contentBar": [5, 29.72, 90, 22.59],
-          "set.postNotify": [5, 77.13, 90, 22.59],
           "set.tabs": [5, 19.35, 90, 7.41],
           "set.updatesTab": [76.75, 20.09, 17.83, 5.93]
         }

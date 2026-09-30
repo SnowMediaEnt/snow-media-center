@@ -44,7 +44,7 @@ import {
   setPlexImageFocus, preloadImages, plexPhotoTranscodeUrl, POSTER_TILE_W, POSTER_TILE_H,
   type PlexLibrary, type PlexItem, type PlexEpisode, type PlexPlayInfo, plexRouteLabel,
   setPlexPlaybackActive } from '@/lib/plex';
-import { isDemo, demoDialogMsg } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture, demoDialogMsg } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
 import { peekPlexVoice, pickPlexVoiceMatch, plexVoiceQuery, plexVoiceSearchTexts, PLEX_VOICE_EVENT, PLEX_VOICE_KEY, type PlexVoiceIntent } from '@/lib/plexVoice';
@@ -970,6 +970,27 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
 
   const libKeysSig = libraries.map((l) => `${l.type}:${l.key}`).join(',');
   useEffect(() => {
+    // How-to pictures only (developer build, ?demo=1&howto=1): the demo has
+    // no Discover, so the picture fills it from the made-up capture catalog.
+    // `import.meta.env.DEV` first, so the APK and the website drop it.
+    if (import.meta.env.DEV && isHowtoCapture() && libraries.length) {
+      let cancelled = false;
+      void Promise.all(libraries.map((l) => getPlexLibraryItems(base, token, l.key)
+        .then((p) => p.items).catch(() => [] as PlexItem[])))
+        .then((lists) => {
+          if (cancelled) return;
+          const all = lists.flat();
+          const genre = (g: string) => all.filter((it) => it.genres?.includes(g));
+          setRows([
+            discoverRow('gems', '', all.slice().reverse()),
+            discoverRow('random', '', all.filter((_, i) => i % 2 === 0)),
+            discoverRow('genre:drama', 'Drama', genre('Drama')),
+            discoverRow('genre:action', 'Action', genre('Action')),
+          ].filter((r) => r.items.length > 0));
+          setLoading(false);
+        });
+      return () => { cancelled = true; };
+    }
     if (DEMO || !libraries.length) { setLoading(false); return; }
     const cached = getCachedDiscover(base);
     if (cached.length) { setRows(cached); setLoading(false); setBaseDone(true); return; }

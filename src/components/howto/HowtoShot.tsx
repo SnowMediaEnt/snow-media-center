@@ -10,6 +10,7 @@ import {
   DEFAULT_FRAME,
   LABEL_FONT_PX,
   LABEL_LINE_PX,
+  LABEL_MAX_WIDTH,
   layoutCallouts,
   spotlightHoles,
   type Box,
@@ -77,7 +78,16 @@ function Spotlight({ items, frame, avoid }: { items: LabelItem[]; frame: FrameSi
     const next = items.map((_, i) => {
       const el = nodes.current[i];
       if (!el || !el.offsetWidth || !el.offsetHeight) return sizes[i];
-      const size = { width: (el.offsetWidth / frame.width) * 100, height: (el.offsetHeight / frame.height) * 100 };
+      // Its own size, wherever it sits now: a label near the right edge is
+      // squeezed (and wraps), and laying out from that size kept it wrapped.
+      const { left, maxWidth } = el.style;
+      el.style.left = '0';
+      el.style.maxWidth = LABEL_MAX_WIDTH + '%';
+      // +1 px: offsetWidth is rounded, and a label given a hair less than it
+      // needs wraps.
+      const size = { width: ((el.offsetWidth + 1) / frame.width) * 100, height: (el.offsetHeight / frame.height) * 100 };
+      el.style.left = left;
+      el.style.maxWidth = maxWidth;
       const old = sizes[i];
       if (old && Math.abs(old.width - size.width) <= 0.3 && Math.abs(old.height - size.height) <= 0.3) return old;
       changed = true;

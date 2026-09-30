@@ -86,10 +86,25 @@ describe('layoutCallouts', () => {
   });
 
   it('moves the later of two colliding labels down, or up at the bottom edge', () => {
-    const [a, b] = layoutCallouts([{ rect: [40, 10, 20, 20] }, { rect: [40, 10, 20, 20] }]);
+    // Sides forced, so no other side is tried first.
+    const [a, b] = layoutCallouts([{ rect: [40, 10, 20, 20], side: 'below' }, { rect: [40, 10, 20, 20], side: 'below' }]);
     expect(b.label.top).toBeGreaterThan(a.label.top);
-    const [c, d] = layoutCallouts([{ rect: [40, 60, 20, 30] }, { rect: [40, 60, 20, 30] }]);
+    const [c, d] = layoutCallouts([{ rect: [40, 60, 20, 30], side: 'above' }, { rect: [40, 60, 20, 30], side: 'above' }]);
     expect(d.label.top).toBeLessThan(c.label.top);
+  });
+
+  it('takes another side when the rule\'s spot would cover a ring (stacked menu rows)', () => {
+    // Three rows one under the other, as in the hold-OK menu: a label below the
+    // first row would sit on the second.
+    const rows: ShotRect[] = [[30, 40, 45, 7], [30, 48, 45, 7], [30, 56, 45, 7]];
+    const out = layoutCallouts(rows.map((rect) => ({ rect, chars: 10 })));
+    for (const c of out) {
+      for (const r of out) expect(touch(c.label, r.ring)).toBe(false);
+      expect(inside(c.label)).toBe(true);
+    }
+    for (let i = 0; i < out.length; i++) {
+      for (let j = i + 1; j < out.length; j++) expect(touch(out[i].label, out[j].label)).toBe(false);
+    }
   });
 
   it('points from the label edge that faces the ring, and stretches when the label moved away', () => {
@@ -98,7 +113,7 @@ describe('layoutCallouts', () => {
     expect(a.pointer!.edge).toBe('top');
     expect(a.pointer!.offset).toBeGreaterThanOrEqual(10);
     expect(a.pointer!.offset).toBeLessThanOrEqual(90);
-    const [b, c] = layoutCallouts([{ rect: [40, 10, 20, 20] }, { rect: [40, 10, 20, 20] }]);
+    const [b, c] = layoutCallouts([{ rect: [40, 10, 20, 20], side: 'below' }, { rect: [40, 10, 20, 20], side: 'below' }]);
     expect(c.pointer!.length).toBeGreaterThan(b.pointer!.length);
   });
 

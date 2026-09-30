@@ -64,10 +64,14 @@ const DrawnStill = ({ art, wide }: { art: string; wide?: boolean }) => (
   </div>
 );
 
+// Solid, close to Live TV's own dark (black/70 over the wallpaper), so the
+// channel list in the picture behind doesn't show through the screen on top.
+const LIVE_CONTENT_BG = '#0e0c14';
+
 const LiveContent = ({ bg, children }: { bg: string | null; children: React.ReactNode }) => (bg ? (
   <div className="relative w-full h-screen overflow-hidden text-white">
     <Backdrop src={bg} />
-    <div className="absolute flex bg-black/70" style={{ top: LIVE_CONTENT.top, left: LIVE_CONTENT.left, right: 0, bottom: 0 }}>
+    <div className="absolute flex" style={{ top: LIVE_CONTENT.top, left: LIVE_CONTENT.left, right: 0, bottom: 0, backgroundColor: LIVE_CONTENT_BG }}>
       {children}
     </div>
   </div>

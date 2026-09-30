@@ -11,7 +11,8 @@
 //             { wait: 1500 }          let it load
 //             { waitFor: 'css' }      until that is on screen
 //             { press, until, arg, max }  press until until(arg) is true in the page
-//             { scrollTo: 'css' }     scroll that into view (only where the remote can't)
+//             { scrollTo: 'css' }     scroll that into view (only where the remote can't);
+//                                     block: 'start' puts it at the top, margin px below it (less if negative)
 //           or a function (lang) => keys, for a path that depends on the language
 //   ready   on screen when the picture can be taken (a data-howto hook)
 //   bg      stage shots: the shot whose picture is drawn behind the dialog
@@ -70,9 +71,12 @@ export const RECIPES = [
   // Right goes into the posters (the first category's load waits for that).
   { id: 'vod', start: 'home', keys: [...liveSection(3), { wait: 1000 }, 'ArrowRight', { wait: 2500 }], ready: `${hook('vod.grid')} img`, settle: 800 },
   // Up from the side menu reaches the header: Back, Update Channels, Settings.
-  // The menu is a little taller than the screen and does not scroll with the
-  // highlight, so it is scrolled to bring Sign out on screen.
-  { id: 'live-settings', start: 'home', keys: [...LIVE, 'ArrowLeft', 'ArrowUp', 'ArrowRight*2', 'Enter', { wait: 1500 }, { scrollTo: hook('hub.signOut') }], ready: hook('hub.switch') },
+  // The menu is a little taller than the screen and follows the highlight:
+  // down to Sign Out brings it on screen, then back up to Switch Account.
+  { id: 'live-settings', start: 'home', keys: [...LIVE, 'ArrowLeft', 'ArrowUp', 'ArrowRight*2', 'Enter', { wait: 1500 },
+    { press: 'ArrowDown', until: () => document.querySelector('[data-howto="hub.signOut"]')?.getAttribute('data-focused') === 'true', max: 10 },
+    { press: 'ArrowUp', until: () => document.querySelector('[data-howto="hub.switch"]')?.getAttribute('data-focused') === 'true', max: 8 },
+    { wait: 600 }], ready: hook('hub.switch') },
 
   // ── Plex ──
   { id: 'plex-connect', start: 'stage', keys: [{ wait: 800 }], ready: hook('plexauth.connect') },
@@ -114,7 +118,14 @@ export const RECIPES = [
 
   // ── Settings and profiles ──
   // Settings opens on Media Manager; Down reaches the tabs: Media Manager, UI, Profiles, Phone Remote.
-  { id: 'settings-ui', start: 'home', keys: [...SETTINGS, 'ArrowDown', 'ArrowRight', { wait: 1000 }], ready: hook('set.contentBar') },
+  { id: 'settings-ui', start: 'home', keys: [...SETTINGS, 'ArrowDown', 'ArrowRight', { wait: 1000 }], ready: hook('set.updatesTab') },
+  // Down the UI tab to Post notifications (the page follows the highlight).
+  // The Alerts card below it is only drawn for the picture on the web (it
+  // can't be picked there), so the page is scrolled to bring the three
+  // switches on screen, Content Bar at the top.
+  { id: 'settings-switches', start: 'home', keys: [...SETTINGS, 'ArrowDown', 'ArrowRight', { wait: 800 },
+    { press: 'ArrowDown', until: () => !!document.querySelector('[data-settings-focus="ui-mail-notify-toggle"][data-focused="true"]'), max: 12 },
+    { wait: 800 }, { scrollTo: hook('set.contentBar'), block: 'start', margin: -30 }, { wait: 600 }], ready: hook('set.alerts') },
   {
     id: 'settings-language', start: 'home',
     keys: (lang) => [...SETTINGS, 'ArrowDown', 'ArrowRight', { wait: 800 },

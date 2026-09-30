@@ -206,7 +206,13 @@ async function runSteps(page, steps, debugDir, lang) {
       await sleep(250);
     } else if (s.scrollTo) {
       // Not a key: for a list the remote can't scroll (said so in the recipe).
-      await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: 'end' }), s.scrollTo);
+      // `block: 'start'` puts it at the top, `margin` px below the edge.
+      await page.evaluate(({ sel, block, margin }) => {
+        const el = document.querySelector(sel);
+        if (!el) return;
+        el.style.scrollMarginTop = `${margin}px`;
+        el.scrollIntoView({ block });
+      }, { sel: s.scrollTo, block: s.block ?? 'end', margin: s.margin ?? 0 });
       await sleep(300);
     } else if (s.press) {
       for (let i = 0; i < (s.max ?? 20); i++) {

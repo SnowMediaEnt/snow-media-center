@@ -276,7 +276,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     slides: [
       slide('extras', 'language', Languages, 'settings-language', [h('set.language', 'language')], { line2: true, link: { kind: 'view', view: 'settings' } }),
       slide('extras', 'wallpaper', Palette, 'settings-media', [h('set.wallpaper', 'wallpaper')], { line2: true }),
-      slide('extras', 'switches', ToggleRight, 'settings-ui', [h('set.contentBar', 'recommendedRow'), h('set.postNotify', 'postAlerts'), h('set.alerts', 'serviceAlerts')], { line2: true }),
+      slide('extras', 'switches', ToggleRight, 'settings-switches', [h('set.contentBar', 'recommendedRow'), h('set.postNotify', 'postAlerts'), h('set.alerts', 'serviceAlerts')], { line2: true }),
       slide('extras', 'profiles', Users, 'profiles-pick', [h('prof.list', 'profiles'), h('prof.manage', 'manage')], { line2: true }),
       slide('extras', 'kids', Baby, 'profile-edit', [h('prof.kidsLevel', 'ageLevel'), h('prof.pinBtn', 'pin')], { line2: true }),
       slide('extras', 'updates', Download, 'settings-ui', [h('set.updatesTab', 'updates')], { line2: true }),

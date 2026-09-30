@@ -8,6 +8,7 @@ import { isDemo } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import { useBillingEnabled } from '@/hooks/useBillingEnabled';
 import { useTranslation } from 'react-i18next';
+import { keepInView } from '@/utils/keepInView';
 
 // Demo latch (?demo=1) — account actions are inert; the demo account is fixed.
 const DEMO = isDemo();
@@ -54,6 +55,17 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
   const [menuIdx, setMenuIdx] = useState(1); // start on first list row (skip Back)
   const menuIdxRef = useRef(menuIdx);
   useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
+
+  // Follow the highlight down the menu: at 960×540 Sign Out sits below the
+  // fold, and the remote highlight moved there without the menu scrolling.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node || view !== 'menu') return;
+    if (menuIdx <= 1) { node.scrollTop = 0; return; }
+    const el = node.querySelector<HTMLElement>('[data-focused="true"]');
+    if (el) keepInView(node, el, 24);
+  }, [menuIdx, view]);
 
   const billingOn = useBillingEnabled();
   const MENU: MenuItem[] = useMemo(() => [
@@ -198,7 +210,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
+      <div ref={scrollRef} className="flex-1 overflow-auto p-6 flex items-start justify-center">
         <div className="w-full max-w-xl space-y-3">
           {MENU.map((m, i) => {
             const Icon = m.icon;

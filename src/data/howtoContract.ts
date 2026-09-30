@@ -57,7 +57,8 @@ export const HOWTO_SHOTS = {
   'speedtest': ['speed.start'], // Support → Speedtest (before Start)
   'buffering': ['bg.steps'], // Support → Buffering Guide, step 1
   'videos': ['videos.grid'], // Support → Support Videos
-  'settings-ui': ['set.tabs', 'set.updatesTab', 'set.contentBar', 'set.postNotify', 'set.alerts'], // Settings → UI (top)
+  'settings-ui': ['set.tabs', 'set.updatesTab'], // Settings → UI (top)
+  'settings-switches': ['set.contentBar', 'set.postNotify', 'set.alerts'], // Settings → UI, scrolled to the switches
   'settings-language': ['set.language'], // Settings → UI, scrolled to Language, current language focused
   'settings-media': ['set.wallpaper'], // Settings → Media Manager
   'profiles-pick': ['prof.list', 'prof.kids', 'prof.manage'], // "Who's watching?" (Me, Sam, Kids profile with PIN)
