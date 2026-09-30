@@ -122,9 +122,12 @@ async function supabase(route, req, url, ctx) {
   if (m) {
     const table = m[1];
     if (method !== 'GET' && method !== 'HEAD') {
-      // Writes succeed and change nothing.
+      // Writes succeed and change nothing. A new row gets the fields in
+      // fixtures/rest/<table>.insert.json (an id, a status), as the database would.
       let body = [];
       try { const b = req.postDataJSON(); body = Array.isArray(b) ? b : b ? [b] : []; } catch { /* no body */ }
+      const extra = method === 'POST' ? readFixture(`rest/${table}.insert`)?.json : null;
+      if (extra) body = body.map((row) => ({ ...row, ...extra }));
       const single = /vnd\.pgrst\.object/.test(req.headers().accept ?? '');
       return json(route, single ? body[0] ?? null : body, 201);
     }

@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "game_id": "howto-nfl-1",
+    "service": "demo",
+    "stream_id": 10061,
+    "channel_name": "NFL 01: Harbor City Gulls vs Iron Valley Miners",
+    "action": "add",
+    "sort": 1
+  },
+  {
+    "game_id": "howto-nfl-1",
+    "service": "demo",
+    "stream_id": 10010,
+    "channel_name": "Arena Sports Extra",
+    "action": "add",
+    "sort": 2
+  },
+  {
+    "game_id": "howto-nfl-1",
+    "service": "demo",
+    "stream_id": 10010,
+    "channel_name": "Arena Sports Extra",
+    "action": "down",
+    "sort": 3
+  }
+]

@@ -11,6 +11,7 @@
 //             { wait: 1500 }          let it load
 //             { waitFor: 'css' }      until that is on screen
 //             { press, until, arg, max }  press until until(arg) is true in the page
+//             { scrollTo: 'css' }     scroll that into view (only where the remote can't)
 //           or a function (lang) => keys, for a path that depends on the language
 //   ready   on screen when the picture can be taken (a data-howto hook)
 //   bg      stage shots: the shot whose picture is drawn behind the dialog
@@ -37,8 +38,9 @@ const liveSection = (n) => [...LIVE, 'ArrowLeft', ...(n ? [`ArrowDown*${n}`] : [
 // Support Videos, Submit a Ticket | Remote Access, Device Cleaner | Main Apps.
 const helpCard = (row, col) => [...SUPPORT, `ArrowDown*${row + 2}`, ...(col ? ['ArrowRight'] : []), 'Enter', { wait: 2500 }];
 
-/** The language names on Settings → UI → Language, as each language writes its own. */
-const LANG_NAMES = { en: 'English', es: 'Español', fr: 'Français', de: 'Deutsch', ar: 'العربية' };
+/** From English to each language on Settings → UI → Language: the tiles go
+ *  one after another (English, Español, Français, Deutsch, العربية); Right is the next. */
+const LANG_PATH = { en: [], es: ['ArrowRight'], fr: ['ArrowRight*2'], de: ['ArrowRight*3'], ar: ['ArrowRight*4'] };
 
 export const RECIPES = [
   // ── Home ──
@@ -52,10 +54,10 @@ export const RECIPES = [
   // Classic, both services, the Sports category, the second channel focused.
   { id: 'live-list', start: 'home', keys: [...LIVE, 'ArrowDown', 'ArrowRight', 'ArrowDown', { wait: 2000 }], ready: hook('live.channels'), settle: 600 },
   // Up from the first category reaches Search above the list.
-  { id: 'live-search', start: 'home', keys: [...LIVE, 'ArrowUp*3', 'Enter', { wait: 600 }, { type: 'sum' }, { wait: 1500 }], ready: hook('live.searchBox') },
+  { id: 'live-search', start: 'home', keys: [...LIVE, { press: 'ArrowUp', until: () => !!document.querySelector('[data-howto="live.searchBtn"][data-focused="true"]'), max: 12 }, 'Enter', { wait: 600 }, { type: 'sum' }, { wait: 1500 }], ready: hook('live.searchBox') },
   { id: 'live-holdmenu', start: 'stage', bg: 'live-list', keys: [{ wait: 800 }], ready: hook('menu.report') },
-  // The same dialog; OK on "Report a problem" shows the reasons.
-  { id: 'live-report', start: 'stage', bg: 'live-list', keys: [{ wait: 800 }, 'ArrowDown', 'Enter', { wait: 800 }], ready: hook('report.reasons') },
+  // The same dialog; OK on "Report a problem" (OK, OK) shows the reasons.
+  { id: 'live-report', start: 'stage', bg: 'live-list', keys: [{ wait: 800 }, 'Enter', { wait: 400 }, 'Enter', { wait: 800 }], ready: hook('report.reasons') },
   { id: 'live-player', start: 'stage', keys: [{ wait: 1000 }], ready: hook('bar.rec') },
   { id: 'live-record', start: 'stage', bg: 'live-list', keys: [{ wait: 800 }], ready: hook('rec.start') },
   { id: 'guide', start: 'home', keys: [...liveSection(1), { wait: 1000 }], ready: hook('guide.grid') },
@@ -63,11 +65,14 @@ export const RECIPES = [
   { id: 'recordings', start: 'stage', bg: 'live-list', keys: [{ wait: 1200 }], ready: hook('recs.list') },
   { id: 'gameday', start: 'home', keys: [...liveSection(2), { wait: 1500 }], ready: hook('gd.game') },
   { id: 'gameday-game', start: 'home', keys: [...liveSection(2), { wait: 1500 }, 'Enter', { wait: 3500 }], ready: hook('gd.links') },
-  { id: 'multi', start: 'stage', keys: [{ wait: 800 }], ready: hook('multi.layouts') },
+  { id: 'multi', start: 'stage', bg: 'live-list', keys: [{ wait: 800 }], ready: hook('multi.layouts') },
   { id: 'backups', start: 'home', keys: [...liveSection(5), { wait: 1000 }], ready: hook('backups.list') },
-  { id: 'vod', start: 'home', keys: [...liveSection(3), { wait: 3000 }], ready: hook('vod.grid'), settle: 800 },
+  // Right goes into the posters (the first category's load waits for that).
+  { id: 'vod', start: 'home', keys: [...liveSection(3), { wait: 1000 }, 'ArrowRight', { wait: 2500 }], ready: `${hook('vod.grid')} img`, settle: 800 },
   // Up from the side menu reaches the header: Back, Update Channels, Settings.
-  { id: 'live-settings', start: 'home', keys: [...LIVE, 'ArrowLeft', 'ArrowUp', 'ArrowRight*2', 'Enter', { wait: 1500 }], ready: hook('hub.switch') },
+  // The menu is a little taller than the screen and does not scroll with the
+  // highlight, so it is scrolled to bring Sign out on screen.
+  { id: 'live-settings', start: 'home', keys: [...LIVE, 'ArrowLeft', 'ArrowUp', 'ArrowRight*2', 'Enter', { wait: 1500 }, { scrollTo: hook('hub.signOut') }], ready: hook('hub.switch') },
 
   // ── Plex ──
   { id: 'plex-connect', start: 'stage', keys: [{ wait: 800 }], ready: hook('plexauth.connect') },
@@ -80,16 +85,20 @@ export const RECIPES = [
   { id: 'plex-detail', start: 'home', keys: [...PLEX, 'ArrowRight', { wait: 800 }, 'ArrowRight', 'ArrowDown', 'Enter', { wait: 3000 }], ready: hook('detail.play'), settle: 600 },
   { id: 'plex-player', start: 'stage', keys: [{ wait: 1000 }], ready: hook('pp.skip') },
   { id: 'plex-upnext', start: 'stage', keys: [{ wait: 1000 }], ready: hook('pp.upNext') },
-  { id: 'plex-subs', start: 'stage', keys: [{ wait: 1000 }], ready: hook('pp.getSubs') },
-  { id: 'plex-audio', start: 'stage', keys: [{ wait: 1000 }], ready: hook('pp.fixAudio') },
+  // The control bar is up: Subtitles is 3 to the right, Audio 2.
+  { id: 'plex-subs', start: 'stage', keys: [{ wait: 1000 }, 'ArrowRight*3', 'Enter', { wait: 800 }], ready: hook('pp.getSubs') },
+  { id: 'plex-audio', start: 'stage', keys: [{ wait: 1000 }, 'ArrowRight*2', 'Enter', { wait: 800 }], ready: hook('pp.fixAudio') },
 
   // ── Main Apps, Store, account ──
   // Main Apps opens on Featured; Down reaches the tabs, Right is All.
-  { id: 'apps', start: 'home', keys: [...helpCard(3, 1), 'ArrowDown', 'ArrowRight', { wait: 1000 }], ready: hook('apps.grid') },
-  { id: 'apps-detail', start: 'home', keys: [...helpCard(3, 1), 'ArrowDown', 'ArrowRight', { wait: 800 }, 'ArrowDown', 'Enter', { wait: 1500 }], ready: hook('apps.download') },
-  { id: 'store', start: 'home', keys: ['ArrowRight*3', 'Enter', { wait: 3000 }], ready: hook('store.grid') },
+  { id: 'apps', start: 'home', keys: [...helpCard(3, 1), 'ArrowDown', 'ArrowRight', 'Enter', { wait: 1000 }], ready: hook('apps.grid') },
+  { id: 'apps-detail', start: 'home', keys: [...helpCard(3, 1), 'ArrowDown', 'ArrowRight', 'Enter', { wait: 800 }, 'ArrowDown', 'Enter', { wait: 1500 }], ready: hook('apps.download') },
+  // The Store opens on "Build a setup"; Right, OK is the Devices shelf.
+  { id: 'store', start: 'home', keys: ['ArrowRight*3', 'Enter', { wait: 3000 }, 'ArrowRight', 'Enter', { wait: 1500 }], ready: hook('store.grid') },
   // Dashboard: Down reaches Purchase Snow Gems.
   { id: 'gems', start: 'home', keys: [...DASHBOARD, 'ArrowDown', 'Enter', { wait: 2500 }], ready: hook('gems.packs') },
+  // OK on a pack shows its pay code.
+  { id: 'gems-qr', start: 'home', keys: [...DASHBOARD, 'ArrowDown', 'Enter', { wait: 2500 }, 'ArrowDown', 'Enter', { wait: 2500 }], ready: hook('gems.qr') },
   { id: 'dashboard', start: 'home', keys: [...DASHBOARD], ready: hook('dash.player') },
 
   // ── Support ──
@@ -109,22 +118,25 @@ export const RECIPES = [
   {
     id: 'settings-language', start: 'home',
     keys: (lang) => [...SETTINGS, 'ArrowDown', 'ArrowRight', { wait: 800 },
-      // Down the UI tab until the current language has the focus.
-      { press: 'ArrowDown', until: (name) => (document.activeElement?.textContent ?? '').trim().startsWith(name), arg: LANG_NAMES[lang], max: 25 },
+      // Down the UI tab to the language grid (English first), then to the current language.
+      { press: 'ArrowDown', until: () => !!document.querySelector('[data-settings-focus^="ui-language-"][data-focused="true"]'), max: 25 },
+      ...LANG_PATH[lang],
+      { waitFor: `[data-settings-focus="ui-language-${lang}"][data-focused="true"]` },
       { wait: 600 }],
     ready: hook('set.language'),
   },
   { id: 'settings-media', start: 'home', keys: [...SETTINGS, 'ArrowDown', { wait: 1500 }], ready: hook('set.wallpaper') },
   { id: 'profiles-pick', start: 'home', seed: { pick: true }, startReady: 'body', keys: [{ wait: 3000 }], ready: hook('prof.list') },
   // Manage profiles → Kids → its PIN (1234, see seed.mjs) → the editor.
-  { id: 'profile-edit', start: 'home', seed: { pick: true }, startReady: 'body', keys: [{ wait: 3000 }, 'ArrowDown', 'Enter', { wait: 1500 }, 'ArrowRight*2', 'Enter', { wait: 1500 }, { type: '1234' }, { wait: 2000 }], ready: hook('prof.kidsLevel') },
+  { id: 'profile-edit', start: 'home', seed: { pick: true }, startReady: 'body', keys: [{ wait: 3000 }, 'ArrowDown', 'Enter', { wait: 1500 }, 'ArrowRight*2', 'Enter', { wait: 1500 }, { type: '1234' }, { wait: 2000 },
+    // The PIN button sits just under the fold; the highlight stays on the name.
+    { scrollTo: hook('prof.pinBtn') }, { wait: 400 }], ready: hook('prof.kidsLevel') },
 ];
 
-/** --review: open the guide from Support, then walk every chapter and slide. */
+/** --review: open the guide from Support (How to use SMC), open chapter n, then Right through its slides. */
 export const REVIEW_GUIDE = {
   open: [...SUPPORT, 'ArrowDown*2', 'Enter', { wait: 1500 }],
   maxChapters: 10,
-  openChapter: (n) => ['ArrowUp*12', ...(n ? [`ArrowDown*${n}`] : []), 'Enter', { wait: 800 }],
+  openChapter: (n) => [...(n ? [`ArrowDown*${n}`] : []), 'Enter', { wait: 800 }],
   next: ['ArrowRight'],
-  backToChapters: ['ArrowLeft*20', 'Escape', { wait: 600 }],
 };

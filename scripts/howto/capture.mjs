@@ -91,7 +91,7 @@ async function arabicFontCss(page) {
 const FREEZE_CSS = `
   *, *::before, *::after { animation-play-state: paused !important; transition-duration: 0s !important;
     transition-delay: 0s !important; caret-color: transparent !important; }
-  [data-sonner-toaster], [data-radix-toast-viewport], ol[tabindex="-1"][class*="toast"], .toaster { display: none !important; }
+  [data-sonner-toaster], .toaster, [role="region"][aria-label^="Notifications"], li[role="status"][data-state] { display: none !important; }
 `;
 
 // ── measuring ────────────────────────────────────────────────────────────────
@@ -204,6 +204,10 @@ async function runSteps(page, steps, debugDir, lang) {
     } else if (s.waitFor) {
       await page.waitForSelector(s.waitFor, { state: 'visible', timeout: s.timeout ?? 15000 });
       await sleep(250);
+    } else if (s.scrollTo) {
+      // Not a key: for a list the remote can't scroll (said so in the recipe).
+      await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: 'end' }), s.scrollTo);
+      await sleep(300);
     } else if (s.press) {
       for (let i = 0; i < (s.max ?? 20); i++) {
         if (await page.evaluate(s.until, s.arg ?? null)) break;
@@ -311,28 +315,30 @@ async function reviewGuide(browser, base, langs, notes) {
   for (const lang of langs) {
     mkdirSync(join(dir, lang), { recursive: true });
     const context = await newContext(browser, base, lang, notes);
-    const page = await context.newPage();
-    await page.addInitScript(initScript(seedFor(lang)));
-    await page.goto(`${base}/?demo=1&howto=1`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector(START_READY.home, { state: 'visible', timeout: 30000 });
-    await sleep(1500);
-    await runSteps(page, REVIEW_GUIDE.open);
-    const fontCss = lang === 'ar' ? await arabicFontCss(page) : '';
-    if (fontCss) await page.addStyleTag({ content: fontCss });
+    let fontCss = '';
     let n = 0;
+    // A fresh page per chapter: the guide opens on its chapter list every time.
     for (let chapter = 0; chapter < REVIEW_GUIDE.maxChapters; chapter++) {
-      await runSteps(page, REVIEW_GUIDE.openChapter(chapter));
+      const page = await context.newPage();
+      await page.addInitScript(initScript(seedFor(lang)));
+      await page.goto(`${base}/?demo=1&howto=1`, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector(START_READY.home, { state: 'visible', timeout: 30000 });
+      await sleep(1500);
+      if (lang === 'ar' && !fontCss) fontCss = await arabicFontCss(page);
+      if (fontCss) await page.addStyleTag({ content: fontCss });
+      await runSteps(page, REVIEW_GUIDE.open, null, lang);
+      await runSteps(page, REVIEW_GUIDE.openChapter(chapter), null, lang);
       let prev = '';
       for (let slide = 0; slide < 20; slide++) {
         await sleep(700);
-        const sig = await page.evaluate(() => document.body.innerText.slice(0, 400));
+        const sig = await page.evaluate(() => document.body.innerText);
         if (sig === prev) break;
         prev = sig;
         await page.screenshot({ path: join(dir, lang, `${String(chapter).padStart(2, '0')}-${String(slide).padStart(2, '0')}.png`), scale: 'css' });
         n++;
-        await runSteps(page, REVIEW_GUIDE.next);
+        await runSteps(page, REVIEW_GUIDE.next, null, lang);
       }
-      await runSteps(page, REVIEW_GUIDE.backToChapters);
+      await page.close();
     }
     log(`review ${lang}: ${n} slide pictures in out/guide/${lang}/`);
     await context.close();

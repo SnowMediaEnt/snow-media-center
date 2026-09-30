@@ -64,15 +64,16 @@ export function seedFor(lang, opts = {}) {
     'smc-media-bar-prompt-seen': '1',
     'smc-profiles-intro-seen': '1',
     'snow-media-bar-enabled': '1',
-    'smc-phone-remote-typing-hint-shown': '99',
+    // No "Type on your phone" card over the search boxes.
+    'smc-phone-remote-typing-hint': '0',
     [`sb-${supabaseRef()}-auth-token`]: JSON.stringify(session),
     [`smc-profiles-v1:${acc}`]: JSON.stringify(PROFILES),
     [`smc-profiles-pulled:${acc}`]: '1',
     [`smc-last-profile:${acc}`]: 'main',
-    // Two services in one list: the demo line and a second one on the demo host.
+    // A second service beside the demo line (which Live TV adds itself), so
+    // Live TV shows two services in one list. The host must not be demo://.
     'snow-livetv-saved-accounts-v1': JSON.stringify([
-      { id: 'demo://livetv::demo account', serverLabel: 'DreamStreams', host: 'demo://livetv', username: 'DEMO ACCOUNT', password: 'demo', output: 'm3u8', addedAt: 1 },
-      { id: 'demo://vibez::demo vibez', serverLabel: 'Vibez', host: 'demo://vibez', username: 'DEMO VIBEZ', password: 'demo', output: 'm3u8', addedAt: 2 },
+      { id: 'http://vibez.demo::demo-vibez', serverLabel: 'Vibez', host: 'http://vibez.demo', username: 'demo-vibez', password: 'demo', output: 'm3u8', addedAt: 1 },
     ]),
   };
   if (opts.layout !== false) local['snow-livetv-layout'] = 'classic';

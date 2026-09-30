@@ -92,6 +92,99 @@
       "ratingKey": "2006",
       "librarySectionID": "2",
       "metadataType": 2
+    },
+    {
+      "id": "plex-1003",
+      "source": "plex",
+      "kind": "movie",
+      "title": "Midnight at Juniper Lake",
+      "subtitle": "2025 · Thriller",
+      "poster": "https://img.example.com/poster/midnight-at-juniper-lake.svg",
+      "ratingKey": "1003",
+      "librarySectionID": "1",
+      "metadataType": 1,
+      "duration": 6840000
+    },
+    {
+      "id": "plex-2003",
+      "source": "plex",
+      "kind": "show",
+      "title": "The Wild Coast",
+      "subtitle": "2023 · Documentary",
+      "poster": "https://img.example.com/poster/the-wild-coast.svg",
+      "ratingKey": "2003",
+      "librarySectionID": "2",
+      "metadataType": 2
+    },
+    {
+      "id": "plex-1007",
+      "source": "plex",
+      "kind": "movie",
+      "title": "A Year of Small Wonders",
+      "subtitle": "2023 · Comedy",
+      "poster": "https://img.example.com/poster/a-year-of-small-wonders.svg",
+      "ratingKey": "1007",
+      "librarySectionID": "1",
+      "metadataType": 1,
+      "duration": 6840000
+    },
+    {
+      "id": "plex-1010",
+      "source": "plex",
+      "kind": "movie",
+      "title": "Velvet Thunder",
+      "subtitle": "2024 · Music",
+      "poster": "https://img.example.com/poster/velvet-thunder.svg",
+      "ratingKey": "1010",
+      "librarySectionID": "1",
+      "metadataType": 1,
+      "duration": 6120000
+    },
+    {
+      "id": "plex-2007",
+      "source": "plex",
+      "kind": "show",
+      "title": "Tiny Chefs",
+      "subtitle": "2024 · Kids",
+      "poster": "https://img.example.com/poster/tiny-chefs.svg",
+      "ratingKey": "2007",
+      "librarySectionID": "2",
+      "metadataType": 2
+    },
+    {
+      "id": "plex-1013",
+      "source": "plex",
+      "kind": "movie",
+      "title": "Northbound",
+      "subtitle": "2024 · Adventure",
+      "poster": "https://img.example.com/poster/northbound.svg",
+      "ratingKey": "1013",
+      "librarySectionID": "1",
+      "metadataType": 1,
+      "duration": 5400000
+    },
+    {
+      "id": "plex-1004",
+      "source": "plex",
+      "kind": "movie",
+      "title": "Paper Lanterns",
+      "subtitle": "2023 · Drama",
+      "poster": "https://img.example.com/poster/paper-lanterns.svg",
+      "ratingKey": "1004",
+      "librarySectionID": "1",
+      "metadataType": 1,
+      "duration": 7560000
+    },
+    {
+      "id": "plex-2008",
+      "source": "plex",
+      "kind": "show",
+      "title": "Summit Rescue",
+      "subtitle": "2023 · Action",
+      "poster": "https://img.example.com/poster/summit-rescue.svg",
+      "ratingKey": "2008",
+      "librarySectionID": "2",
+      "metadataType": 2
     }
   ]
 }
