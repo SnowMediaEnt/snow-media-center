@@ -139,7 +139,7 @@ function Spotlight({ items, frame, avoid }: { items: LabelItem[]; frame: FrameSi
               {c.badge}
             </span>
           )}
-          <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textAlign: 'left' }}>{items[i].text}</span>
+          <span dir="auto" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textAlign: 'start' }}>{items[i].text}</span>
           {c.pointer && <Pointer edge={c.pointer.edge} offset={c.pointer.offset} length={c.pointer.length} />}
         </div>
       ))}

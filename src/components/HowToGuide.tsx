@@ -213,11 +213,13 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
   }, [view, slideIdx, backToChapters, onClose]);
 
   return (
+    // Solid (the Buffering Guide's dark): at 95% black the Support screen
+    // underneath read through as part of the slide.
     <div
       ref={rootRef}
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-[100] bg-black/95 flex flex-col [&_button:focus]:outline-none [&_button:focus-visible]:outline-none [&_button:focus]:ring-0 [&_button:focus]:scale-[1.04] [&_button:focus]:shadow-[0_0_28px_6px_hsl(45_93%_58%/0.55)] [&_button:focus]:border-yellow-300 [&_button:focus]:z-10 [&_button]:transition-all [&_button]:duration-150"
+      className="fixed inset-0 z-[100] bg-[#060d18] flex flex-col [&_button:focus]:outline-none [&_button:focus-visible]:outline-none [&_button:focus]:ring-0 [&_button:focus]:scale-[1.04] [&_button:focus]:shadow-[0_0_28px_6px_hsl(45_93%_58%/0.55)] [&_button:focus]:border-yellow-300 [&_button:focus]:z-10 [&_button]:transition-all [&_button]:duration-150"
     >
       {/* i18n-ignore: state check, not text */}
       {view === 'chapters' && (
@@ -310,11 +312,13 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                 <div className="w-8 h-8 rounded-lg bg-brand-gold/20 flex items-center justify-center mb-2">
                   {(() => { const I = slide.icon; return <I className="w-4 h-4 text-brand-gold" />; })()}
                 </div>
-                <h2 className="text-2xl font-quicksand font-bold text-white leading-snug">
+                {/* dir="auto": Arabic lines read right to left (their full stops and
+                    quote marks land on the right side); the layout stays left to right. */}
+                <h2 dir="auto" style={{ textAlign: 'start' }} className="text-2xl font-quicksand font-bold text-white leading-snug">
                   {t(slide.titleKey)}
                 </h2>
                 {slide.line2Key && (
-                  <p className="text-base text-brand-ice/80 font-nunito leading-relaxed mt-2">
+                  <p dir="auto" style={{ textAlign: 'start' }} className="text-base text-brand-ice/80 font-nunito leading-relaxed mt-2">
                     {t(slide.line2Key)}
                   </p>
                 )}

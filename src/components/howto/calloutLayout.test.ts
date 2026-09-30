@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ShotRect } from '@/data/howtoContract';
 import { REMOTE_BODY, REMOTE_RECTS, REMOTE_SIDES } from './RemoteDiagram';
-import { EDGE_MAX, EDGE_MIN, LABEL_MAX_WIDTH, growRing, layoutCallouts, spotlightHoles, type Box } from './calloutLayout';
+import { DEFAULT_FRAME, EDGE_MAX, EDGE_MIN, LABEL_MAX_WIDTH, growRing, layoutCallouts, pointerArea, spotlightHoles, type Box } from './calloutLayout';
 
 const inside = (b: Box) =>
   b.left >= EDGE_MIN - 0.001 && b.top >= EDGE_MIN - 0.001 && b.left + b.width <= EDGE_MAX + 0.001 && b.top + b.height <= EDGE_MAX + 0.001;
@@ -93,15 +93,50 @@ describe('layoutCallouts', () => {
     expect(d.label.top).toBeLessThan(c.label.top);
   });
 
+  it('never runs a pointer through another label (three neighbouring buttons on a bar)', () => {
+    // Report, Subtitles and Audio on the Live TV player bar, low in the picture:
+    // stacked above each other, the upper label's pointer crossed the lower label.
+    for (const y of [78, 82, 60]) {
+      const buttons: ShotRect[] = [[46.4, y, 4.6, 7], [51.2, y, 4.6, 7], [56, y, 4.6, 7]];
+      const out = layoutCallouts(buttons.map((rect, i) => ({ rect, chars: [6, 10, 5][i] })));
+      out.forEach((c, i) => {
+        expect(inside(c.label)).toBe(true);
+        for (const r of out) expect(touch(c.label, r.ring)).toBe(false);
+        const stem = pointerArea(c.label, c.pointer, DEFAULT_FRAME);
+        out.forEach((o, j) => {
+          if (j === i) return;
+          expect(touch(c.label, o.label)).toBe(false);
+          if (stem) expect(touch(stem, o.label)).toBe(false);
+        });
+      });
+    }
+  });
+
+  it('keeps a label off a neighbouring highlight that only touches its own (two panes side by side)', () => {
+    // Record dialog: "How long" and "Where to save" boxes one above the other;
+    // VOD: the categories column next to the poster grid.
+    const cases: ShotRect[][] = [
+      [[14.69, 36.67, 70.63, 20.74], [14.69, 21.11, 70.63, 14.07]],
+      [[5, 10.56, 26.67, 89.44], [31.67, 10.56, 68.33, 89.44]],
+    ];
+    for (const rects of cases) {
+      const out = layoutCallouts(rects.map((rect) => ({ rect, chars: 12 })));
+      out.forEach((c, i) => out.forEach((o, j) => { if (j !== i) expect(touch(c.label, o.ring)).toBe(false); }));
+    }
+  });
+
   it('takes another side when the rule\'s spot would cover a ring (stacked menu rows)', () => {
     // Three rows one under the other, as in the hold-OK menu: a label below the
     // first row would sit on the second.
     const rows: ShotRect[] = [[30, 40, 45, 7], [30, 48, 45, 7], [30, 56, 45, 7]];
     const out = layoutCallouts(rows.map((rect) => ({ rect, chars: 10 })));
-    for (const c of out) {
+    out.forEach((c, i) => {
       for (const r of out) expect(touch(c.label, r.ring)).toBe(false);
       expect(inside(c.label)).toBe(true);
-    }
+      // Nor does a pointer cross the next row's ring on its way.
+      const stem = pointerArea(c.label, c.pointer, DEFAULT_FRAME);
+      out.forEach((o, j) => { if (stem && j !== i) expect(touch(stem, o.ring)).toBe(false); });
+    });
     for (let i = 0; i < out.length; i++) {
       for (let j = i + 1; j < out.length; j++) expect(touch(out[i].label, out[j].label)).toBe(false);
     }

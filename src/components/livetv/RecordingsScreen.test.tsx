@@ -322,3 +322,41 @@ describe('exact-alarm banner', () => {
     expect(document.querySelector('[data-recordings-banner]')).toBeNull();
   });
 });
+
+describe('the key hint never covers a row', () => {
+  // At 960x540 the list pane is 300 px tall; each row is 64 px with 8 px
+  // between, drawn from the pane's scroll position.
+  const PANE_TOP = 100;
+  const PANE_H = 300;
+  const realRect = HTMLElement.prototype.getBoundingClientRect;
+  const box = (top: number, height: number) =>
+    ({ top, bottom: top + height, height, left: 0, right: 600, width: 600, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+  beforeEach(() => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 540 });
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const pane = document.querySelector('[data-recordings-list]') as HTMLElement | null;
+      if (pane && this === pane) return box(PANE_TOP, PANE_H);
+      if (pane && this.hasAttribute('data-recording-row')) {
+        const shown = Array.from(pane.querySelectorAll('[data-recording-row]'));
+        return box(PANE_TOP + shown.indexOf(this) * 72 - pane.scrollTop, 64);
+      }
+      return realRect.call(this);
+    };
+  });
+  afterEach(() => { HTMLElement.prototype.getBoundingClientRect = realRect; });
+
+  it('the hint sits outside the list, and the list follows the highlight down and back up', async () => {
+    h.items = Array.from({ length: 5 }, (_, n) => rec({ id: `r${n}`, name: `Show ${n}`, path: `/r/${n}.ts`, playUrl: `file:///r/${n}.ts` }));
+    await open();
+    const pane = document.querySelector('[data-recordings-list]') as HTMLElement;
+    const hint = document.querySelector('[data-recordings-hint]') as HTMLElement;
+    expect(pane.contains(hint)).toBe(false);
+    for (let n = 0; n < 4; n++) key('ArrowDown');
+    const last = document.querySelector('[data-recording-row="4"]') as HTMLElement;
+    expect(last.getAttribute('data-focused')).toBe('true');
+    expect(pane.scrollTop).toBeGreaterThan(0);
+    expect(last.getBoundingClientRect().bottom).toBeLessThanOrEqual(PANE_TOP + PANE_H);
+    for (let n = 0; n < 4; n++) key('ArrowUp');
+    expect(pane.scrollTop).toBe(0);
+  });
+});

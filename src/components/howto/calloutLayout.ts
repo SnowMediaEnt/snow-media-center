@@ -10,6 +10,10 @@
 //    already placed, the first other side that covers none is taken, else
 //    one that covers only its own ring (stacked rows: a label below the
 //    first row would hide the second);
+//  - screenshots: every combination of spots is weighed, and the cheapest
+//    wins. A pointer through another label almost never happens (neighbours
+//    on a bar stand side by side instead), and labels and pointers stay off
+//    other rings where they can;
 //  - a label is never wider than 38% of the frame and always stays inside 1..99%;
 //  - two labels never sit on each other: the later one moves down (up if it sits
 //    above its ring, or at the bottom edge). A pointer then stretches so it still
@@ -179,12 +183,21 @@ export function layoutCallouts(items: CalloutInput[], options: LayoutOptions = {
   const gapY = ARROW_PX / (frame.height / 100);
 
   const rings = list.map((item) => growRing(item.rect));
+  const labelSizes = list.map((item, i) => {
+    const size = options.sizes?.[i] ?? estimateLabelSize(item.chars ?? 14, frame, numbered);
+    return { width: Math.min(size.width, LABEL_MAX_WIDTH), height: size.height };
+  });
+  // Screenshots: search for spots where no label, ring or pointer gets in
+  // another's way. The drawn remote forces its sides, and keeps the simple rules.
+  const searched = list.some((it) => it.side || it.anchor)
+    ? null
+    : searchLayout(rings, labelSizes, avoid, frame, gapX, gapY);
+  if (searched) return searched.map((p, i) => finish(p, i, numbered, frame));
+
   const boxes: Box[] = [];
   const placed = list.map((item, i) => {
     const ring = rings[i];
-    const size = options.sizes?.[i] ?? estimateLabelSize(item.chars ?? 14, frame, numbered);
-    const width = Math.min(size.width, LABEL_MAX_WIDTH);
-    const height = size.height;
+    const { width, height } = labelSizes[i];
     const base = item.anchor ?? ring;
     const cx = ring.left + ring.width / 2;
     const cy = ring.top + ring.height / 2;
@@ -247,7 +260,13 @@ export function layoutCallouts(items: CalloutInput[], options: LayoutOptions = {
     if (!moved) break;
   }
 
-  return placed.map((p, i) => ({
+  return placed.map((p, i) => finish(p, i, numbered, frame));
+}
+
+interface Placed { ring: Box; box: Box; side: Side }
+
+function finish(p: Placed, i: number, numbered: boolean, frame: FrameSize): Callout {
+  return {
     ring: p.ring,
     badge: numbered ? i + 1 : null,
     label: {
@@ -259,5 +278,148 @@ export function layoutCallouts(items: CalloutInput[], options: LayoutOptions = {
       side: p.side,
     },
     pointer: pointerFor(p.ring, p.box, frame),
-  }));
+  };
+}
+
+/** The area a label's pointer covers (stem and arrow head), in percent; null
+ *  when the label sits on its ring and has none. */
+export function pointerArea(label: Box, pointer: Callout['pointer'], frame: FrameSize): Box | null {
+  if (!pointer) return null;
+  const pxX = frame.width / 100;
+  const pxY = frame.height / 100;
+  const len = pointer.length;
+  if (pointer.edge === 'top' || pointer.edge === 'bottom') {
+    const x = label.left + (pointer.offset / 100) * label.width;
+    const h = len / pxY;
+    const top = pointer.edge === 'top' ? label.top - h : label.top + label.height;
+    return { left: x - ARROW_PX / pxX, top, width: (2 * ARROW_PX) / pxX, height: h };
+  }
+  const y = label.top + (pointer.offset / 100) * label.height;
+  const w = len / pxX;
+  const left = pointer.edge === 'left' ? label.left - w : label.left + label.width;
+  return { left, top: y - ARROW_PX / pxY, width: w, height: (2 * ARROW_PX) / pxY };
+}
+
+// Where along the label its ring may sit (0.5: centred), tried in this order.
+// Moving a label along lets two neighbours stand side by side (one above-left,
+// one above-right) instead of stacking, where one pointer would cross the other label.
+const ALONG_H = [0.5, 0.75, 0.25, 0.88, 0.12];
+const ALONG_V = [0.5, 0.2, 0.8];
+
+// What a spot costs. Labels never overlap each other or leave the frame, and
+// a pointer always ends on its ring; everything else is weighed, so the least
+// bad layout wins when no perfect one exists.
+const COST = {
+  /** A pointer through another label: only when nothing else fits. */
+  pointerOnLabel: 1000,
+  /** A label over another highlight (one that doesn't hold this one). */
+  onOtherRing: 50,
+  /** A pointer across another highlight's ring. */
+  pointerOnRing: 40,
+  /** A label over its own highlight. */
+  onOwnRing: 30,
+  /** A label over the highlight that holds this one (a button in a bar). */
+  onParentRing: 20,
+  /** One label height further out than the nearest spot. */
+  further: 2,
+  /** Per step down the list of spots (the rule's side first). */
+  order: 0.5,
+} as const;
+
+type Spot = Placed & { pointer: Box | null; cost: number };
+
+/**
+ * The cheapest layout of every label: sides in the rule's order, each moved
+ * along its ring or one label height further out. A pointer that runs through
+ * another label or across another ring counts against a spot, as does a label
+ * over a ring. Every combination is weighed (at most 3 labels, ~26 spots each).
+ */
+function searchLayout(
+  rings: Box[], sizes: LabelSize[], avoid: Box[], frame: FrameSize, gapX: number, gapY: number,
+): Placed[] | null {
+  const spots: Spot[][] = rings.map((ring, i) => {
+    const { width, height } = sizes[i];
+    const cx = ring.left + ring.width / 2;
+    const cy = ring.top + ring.height / 2;
+    const clampBox = (left: number, top: number): Box => ({
+      left: keepIn(left, EDGE_MIN, EDGE_MAX - width - FIT_SLACK),
+      top: keepIn(top, EDGE_MIN, EDGE_MAX - height),
+      width,
+      height,
+    });
+    const preferred = pickSide(ring, { width, height }, gapX);
+    const raw: Array<{ side: Side; box: Box; extra: number }> = [];
+    for (const side of [preferred, ...SIDES.filter((x) => x !== preferred)]) {
+      if (side === 'below' || side === 'above') {
+        for (const further of [0, 1]) {
+          const lift = further * (height + LABEL_MARGIN);
+          const top = side === 'below' ? ring.top + ring.height + gapY + lift : ring.top - gapY - height - lift;
+          for (const f of ALONG_H) raw.push({ side, box: clampBox(cx - f * width, top), extra: further * COST.further });
+        }
+      } else {
+        const left = side === 'right' ? ring.left + ring.width + gapX : ring.left - gapX - width;
+        for (const f of ALONG_V) raw.push({ side, box: clampBox(left, cy - f * height), extra: 0 });
+      }
+    }
+    const out: Spot[] = [];
+    raw.forEach(({ side, box, extra }, n) => {
+      if (avoid.some((a) => overlaps(box, a, LABEL_MARGIN))) return;
+      const pointer = pointerArea(box, pointerFor(ring, box, frame), frame);
+      if (pointer && !meetsRing(ring, side, pointer)) return;
+      let cost = n * COST.order + extra;
+      rings.forEach((r, j) => {
+        const nested = j !== i && holds(r, ring);
+        if (overlaps(box, r, 0)) cost += j === i ? COST.onOwnRing : nested ? COST.onParentRing : COST.onOtherRing;
+        if (pointer && j !== i && !nested && overlaps(pointer, r, 0)) cost += COST.pointerOnRing;
+      });
+      out.push({ ring, side, box, pointer, cost });
+    });
+    return out.sort((x, y) => x.cost - y.cost);
+  });
+  if (spots.some((list) => list.length === 0)) return null;
+
+  let best: Spot[] | null = null;
+  let bestCost = Infinity;
+  const chosen: Spot[] = [];
+  const place = (i: number, sum: number) => {
+    if (sum >= bestCost) return;
+    if (i === rings.length) { best = chosen.slice(); bestCost = sum; return; }
+    for (const c of spots[i]) {
+      if (sum + c.cost >= bestCost) break; // sorted: the rest cost more
+      let extra = 0;
+      let ok = true;
+      for (const o of chosen) {
+        if (overlaps(c.box, o.box, LABEL_MARGIN)) { ok = false; break; }
+        if (c.pointer && overlaps(c.pointer, o.box, 0)) extra += COST.pointerOnLabel;
+        if (o.pointer && overlaps(o.pointer, c.box, 0)) extra += COST.pointerOnLabel;
+      }
+      if (!ok) continue;
+      chosen.push(c);
+      place(i + 1, sum + c.cost + extra);
+      chosen.pop();
+    }
+  };
+  place(0, 0);
+  const found: Spot[] | null = best;
+  return found ? found.map(({ ring, box, side }) => ({ ring, box: { ...box }, side })) : null;
+}
+
+/** `outer` holds `inner` (a bar and one of its buttons): it is the bigger one
+ *  and has the other's centre inside. Rings that only touch (two rows one
+ *  above the other) don't. */
+function holds(outer: Box, inner: Box): boolean {
+  const cx = inner.left + inner.width / 2;
+  const cy = inner.top + inner.height / 2;
+  return outer.width * outer.height > inner.width * inner.height
+    && cx > outer.left && cx < outer.left + outer.width && cy > outer.top && cy < outer.top + outer.height;
+}
+
+/** The pointer ends on its ring, not beside it (a label moved far along). */
+function meetsRing(ring: Box, side: Side, pointer: Box): boolean {
+  if (side === 'below' || side === 'above') {
+    const x = pointer.left + pointer.width / 2;
+    return x >= ring.left && x <= ring.left + ring.width;
+  }
+  const y = pointer.top + pointer.height / 2;
+  return y >= ring.top && y <= ring.top + ring.height;
 }

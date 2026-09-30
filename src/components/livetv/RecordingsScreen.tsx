@@ -40,6 +40,7 @@ import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard
 import { toast } from '@/hooks/use-toast';
 import i18n from '@/i18n';
 import { useTranslation } from 'react-i18next';
+import { keepInView } from '@/utils/keepInView';
 
 interface Props {
   onClose: () => void;
@@ -334,6 +335,17 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
     return out;
   }, [schedules, items, alarmsLate]);
   const safeFocus = Math.min(focus, Math.max(0, rows.length - 1));
+  // The list gets the space between the title and the key hint and no more:
+  // five rows with their group headings are taller than that at 960x540, and
+  // the last one used to run under the hint. It follows the highlight instead.
+  const listRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = listRef.current;
+    if (!node) return;
+    if (safeFocus === listWindow(rows.length, safeFocus, ROWS_SHOWN).start) { node.scrollTop = 0; return; }
+    const el = node.querySelector<HTMLElement>(`[data-recording-row="${safeFocus}"]`);
+    if (el) keepInView(node, el, 8);
+  }, [safeFocus, rows.length]);
 
   const actionsFor = (row: MenuTarget['row']): Action[] => {
     if (row.kind === 'sched') return ['cancelSchedule', 'cancel'];
@@ -545,7 +557,7 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
         </p>
       )}
 
-      <div className="flex-1 min-h-0">
+      <div ref={listRef} data-recordings-list className="flex-1 min-h-0 overflow-hidden">
         {win.start > 0 && <p className="text-center text-brand-ice/50 text-sm leading-none pb-1">▲</p>}
         <div className="space-y-2">
           {rows.slice(win.start, win.end).map((row, j) => {
@@ -621,10 +633,10 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
             );
           })}
         </div>
-        {win.end < rows.length && <p className="text-center text-brand-ice/50 text-sm leading-none pt-1">▼</p>}
       </div>
+      {win.end < rows.length && <p className="flex-shrink-0 text-center text-brand-ice/50 text-sm leading-none pt-1">▼</p>}
 
-      <p className="mt-2 text-sm font-nunito text-brand-ice/60">{t('recordings.list.hint')}</p>
+      <p data-recordings-hint className="flex-shrink-0 mt-2 text-sm font-nunito text-brand-ice/60">{t('recordings.list.hint')}</p>
 
       {menu && (
         <div data-recording-menu className="fixed left-0 top-0 w-full h-full z-[90] flex items-center justify-center bg-black/75">

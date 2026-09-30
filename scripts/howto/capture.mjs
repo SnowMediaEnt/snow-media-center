@@ -108,8 +108,17 @@ async function measure(page) {
       if (cs.display === 'none' || cs.visibility === 'hidden') continue;
       const r = el.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) continue;
-      const l = Math.max(0, r.left); const t = Math.max(0, r.top);
-      const rr = Math.min(W, r.right); const b = Math.min(H, r.bottom);
+      let l = Math.max(0, r.left); let t = Math.max(0, r.top);
+      let rr = Math.min(W, r.right); let b = Math.min(H, r.bottom);
+      // Only the part on screen: a row half out of its scrolling list is cut
+      // where the list cuts it (the ring would run over what is below it).
+      for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        const ps = getComputedStyle(p);
+        if (ps.overflowX === 'visible' && ps.overflowY === 'visible') continue;
+        const c = p.getBoundingClientRect();
+        if (ps.overflowX !== 'visible') { l = Math.max(l, c.left); rr = Math.min(rr, c.right); }
+        if (ps.overflowY !== 'visible') { t = Math.max(t, c.top); b = Math.min(b, c.bottom); }
+      }
       if (rr <= l || b <= t) continue;
       const cur = boxes[id];
       boxes[id] = cur

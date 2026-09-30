@@ -15,23 +15,23 @@
         },
         "home": {
           "title": "Voici l'Accueil.",
-          "line2": "Les grands boutons : TV en direct, Plex (VOD), Assistance et la Boutique."
+          "line2": "Les grands boutons : TV en direct, Plex (VOD), Assistance et la Boutique."
         },
         "topbar": {
-          "title": "En haut à droite : la date, l'heure et vos boutons.",
+          "title": "En haut à droite : la date, l'heure et vos boutons.",
           "line2": "Appuyez sur Haut depuis les grands boutons pour les atteindre."
         },
         "dashVoice": {
           "title": "Le Tableau de bord, c'est votre compte. Voix vous laisse parler à SMC.",
-          "line2": "Pas connecté ? Le bouton indique Se connecter."
+          "line2": "Pas connecté ? Le bouton indique Se connecter."
         },
         "ticker": {
           "title": "Le bandeau défilant, ce sont les actualités de Snow Media.",
           "line2": "Offres, nouveautés et infos importantes."
         },
         "recommended": {
-          "title": "Recommandations : ce qui passe et ce qu'il y a à voir.",
-          "line2": "Appuyez sur Haut depuis les grands boutons. Gauche et Droite font défiler ; les points indiquent la page."
+          "title": "Recommandations : ce qui passe et ce qu'il y a à voir.",
+          "line2": "Appuyez sur Haut depuis les grands boutons. Gauche et Droite font défiler ; les points indiquent la page."
         }
       },
       "livetv": {
@@ -43,19 +43,19 @@
           "linkBtn": "M'y emmener"
         },
         "signin": {
-          "title": "Première fois ? Connectez-vous avec les identifiants de votre vendeur.",
-          "line2": "Les identifiants e-mail se connectent à Vibez ; tous les autres à DreamStreams."
+          "title": "Première fois ? Connectez-vous avec les identifiants de votre vendeur.",
+          "line2": "Les identifiants e-mail se connectent à Vibez ; tous les autres à DreamStreams."
         },
         "services": {
-          "title": "Plusieurs services ? Ils apparaissent tous dans une seule liste.",
+          "title": "Plusieurs services ? Ils apparaissent tous dans une seule liste.",
           "line2": "Ajoutez-en un dans Paramètres de TV en direct → Changer de compte. Chacun a son titre."
         },
         "layout": {
-          "title": "Choisissez votre style : Classique, Compact ou Vibez.",
+          "title": "Choisissez votre style : Classique, Compact ou Vibez.",
           "line2": "TV en direct vous le demande la première fois. Changez-le dans Paramètres de TV en direct → Apparence."
         },
         "menu": {
-          "title": "Le menu de gauche : TV en direct, Guide, Game Day, VOD, Multi-écran, Secours.",
+          "title": "Le menu de gauche : TV en direct, Guide, Game Day, VOD, Multi-écran, Secours.",
           "line2": "Appuyez sur Gauche pour l'atteindre."
         },
         "categories": {
@@ -80,7 +80,7 @@
         }
       },
       "watching": {
-        "title": "TV en direct : regarder",
+        "title": "TV en direct : regarder",
         "subtitle": "Barre du lecteur, VOD, multi-écran, paramètres",
         "bar": {
           "title": "Pendant la lecture, OK affiche la barre du lecteur.",
@@ -95,7 +95,7 @@
           "line2": "Grisés quand la chaîne n'a pas de choix."
         },
         "top": {
-          "title": "En haut : Actualiser les chaînes et Paramètres.",
+          "title": "En haut : Actualiser les chaînes et Paramètres.",
           "line2": "Actualiser les chaînes récupère la liste la plus récente de votre service."
         },
         "settings": {
@@ -103,7 +103,7 @@
           "line2": "Infos du compte, changer de service, masquer des catégories, l'apparence, le retour en arrière et la déconnexion."
         },
         "vod": {
-          "title": "VOD : les films de votre service.",
+          "title": "VOD : les films de votre service.",
           "line2": "Choisissez une catégorie, OK sur une affiche, puis Lire le film."
         },
         "multi": {
@@ -111,7 +111,7 @@
           "line2": "Le son suit l'écran sélectionné. Chaque écran utilise un flux de votre offre."
         },
         "backups": {
-          "title": "Une chaîne en panne ? Essayez Secours.",
+          "title": "Une chaîne en panne ? Essayez Secours.",
           "line2": "Des flux publiés par Snow Media. Appuyez sur Actualiser si un flux vient d'être ajouté."
         }
       },
@@ -123,19 +123,19 @@
           "line2": "OK sur une chaîne la lance. Les favoris passent en premier."
         },
         "rewind": {
-          "title": "Vous avez raté quelque chose ? Reculer 10 s rembobine la TV en direct.",
+          "title": "Vous avez raté quelque chose ? Reculer 10 s rembobine la TV en direct.",
           "line2": "Revenir en direct ramène au présent. Il faut un flux libre dans votre offre, ou une chaîne avec rattrapage."
         },
         "record": {
           "title": "Enregistrez depuis la barre, ou maintenez OK sur une chaîne → Enregistrer…",
-          "line2": "Choisissez la durée et l'endroit : ce boîtier ou une clé USB."
+          "line2": "Choisissez la durée et l'endroit : ce boîtier ou une clé USB."
         },
         "schedule": {
           "title": "Maintenez OK dans le Guide pour enregistrer une émission plus tard.",
           "line2": "Un point rouge marque les émissions qui seront enregistrées."
         },
         "recordings": {
-          "title": "Enregistrements : le bouton au-dessus de la liste des chaînes.",
+          "title": "Enregistrements : le bouton au-dessus de la liste des chaînes.",
           "line2": "OK sur un enregistrement pour le lire, le renommer ou le supprimer."
         },
         "settings": {
@@ -152,18 +152,18 @@
         },
         "links": {
           "title": "Chaque chaîne indique sur quel service elle se trouve.",
-          "line2": "« Sur DreamStreams » ou « Sur Vibez ». OK la lance."
+          "line2": "« Sur DreamStreams » ou « Sur Vibez ». OK la lance."
         },
         "picked": {
-          "title": "« Choix de Snow Media » est notre sélection.",
-          "line2": "Le ⚠️ signifie que quelqu'un l'a signalée en panne : elle passe en dernier."
+          "title": "« Choix de Snow Media » est notre sélection.",
+          "line2": "Le ⚠️ signifie que quelqu'un l'a signalée en panne : elle passe en dernier."
         },
         "unconfirmed": {
-          "title": "« Non confirmé par le guide » : le match n'y est peut-être pas.",
+          "title": "« Non confirmé par le guide » : le match n'y est peut-être pas.",
           "line2": "Essayez d'abord les chaînes au-dessus."
         },
         "report": {
-          "title": "Une chaîne ne marche pas ? Maintenez OK dessus pour la signaler.",
+          "title": "Une chaîne ne marche pas ? Maintenez OK dessus pour la signaler.",
           "line2": "Les signalements arrivent directement chez Snow Media."
         },
         "remind": {
@@ -179,27 +179,27 @@
           "linkBtn": "M'y emmener"
         },
         "connect": {
-          "title": "Connecté à TV en direct ? Plex se connecte tout seul.",
+          "title": "Connecté à TV en direct ? Plex se connecte tout seul.",
           "line2": "Si on vous le demande, appuyez sur Se connecter avec TV en direct. Pas besoin de compte Plex."
         },
         "code": {
-          "title": "Vous avez votre propre serveur Plex ? Liez-le avec un code.",
+          "title": "Vous avez votre propre serveur Plex ? Liez-le avec un code.",
           "line2": "Seulement pour votre propre serveur. Les membres Snow Media n'en ont pas besoin."
         },
         "menu": {
-          "title": "Le menu : Accueil, Découvrir, vos bibliothèques, Rechercher, Demander.",
+          "title": "Le menu : Accueil, Découvrir, vos bibliothèques, Rechercher, Demander.",
           "line2": "Maintenez OK sur une bibliothèque pour la masquer."
         },
         "home": {
           "title": "Accueil affiche ce que vous regardiez et les nouveautés."
         },
         "discover": {
-          "title": "Pas sûr de quoi regarder ? Essayez Découvrir.",
+          "title": "Pas sûr de quoi regarder ? Essayez Découvrir.",
           "line2": "Pépites cachées, Surprenez-moi, genres et décennies."
         },
         "search": {
           "title": "Rechercher trouve n'importe quel film ou série.",
-          "line2": "Il n'y est pas ? Demandez-le."
+          "line2": "Il n'y est pas ? Demandez-le."
         },
         "detail": {
           "title": "OK sur une affiche ouvre sa page.",
@@ -207,7 +207,7 @@
         },
         "versions": {
           "title": "Certains titres existent en plusieurs versions.",
-          "line2": "4K ou 1080p : choisissez celle qui passe le mieux avec votre internet."
+          "line2": "4K ou 1080p : choisissez celle qui passe le mieux avec votre internet."
         },
         "controls": {
           "title": "OK affiche les commandes.",
@@ -222,10 +222,10 @@
           "line2": "OK le lance tout de suite. Retour continue l'épisode en cours."
         },
         "subs": {
-          "title": "Besoin de sous-titres ? Ouvrez Sous-titres → « Obtenir des sous-titres… »."
+          "title": "Besoin de sous-titres ? Ouvrez Sous-titres → « Obtenir des sous-titres… »."
         },
         "audio": {
-          "title": "Pas de son ? Ouvrez Audio → Réparer le son.",
+          "title": "Pas de son ? Ouvrez Audio → Réparer le son.",
           "line2": "Cela répare le son sans redémarrer."
         }
       },
@@ -242,7 +242,7 @@
         },
         "download": {
           "title": "Appuyez sur Télécharger pour l'installer.",
-          "line2": "Déjà installée ? Le bouton indique Lancer."
+          "line2": "Déjà installée ? Le bouton indique Lancer."
         },
         "store": {
           "title": "La Boutique Snow Media.",
@@ -254,15 +254,15 @@
         "title": "Assistance",
         "subtitle": "Aide, Chat IA et Actus",
         "tabs": {
-          "title": "L'Assistance a trois onglets : Aide, Chat IA et Actus."
+          "title": "L'Assistance a trois onglets : Aide, Chat IA et Actus."
         },
         "ai": {
           "title": "Le Chat IA répond tout de suite et peut agir pour vous.",
           "line2": "Ouvrir un écran, signaler une chaîne, installer une appli, créer un fond d'écran."
         },
         "voice": {
-          "title": "Voix : le micro de l'Accueil, ou le bouton micro de votre télécommande.",
-          "line2": "Dites une chaîne, un film, ou « ouvre le Guide »."
+          "title": "Voix : le micro de l'Accueil, ou le bouton micro de votre télécommande.",
+          "line2": "Dites une chaîne, un film, ou « ouvre le Guide »."
         },
         "tickets": {
           "title": "Envoyer un ticket vous met en contact avec une vraie personne.",
@@ -274,14 +274,14 @@
           "line2": "Environ 25 Mb/s ou plus, c'est bien pour la 4K."
         },
         "buffering": {
-          "title": "La TV se met souvent en pause ? Le Guide anti-coupures vous guide vers les solutions.",
+          "title": "La TV se met souvent en pause ? Le Guide anti-coupures vous guide vers les solutions.",
           "linkBtn": "L'ouvrir"
         },
         "videos": {
-          "title": "Vidéos d'assistance : de courtes vidéos pratiques."
+          "title": "Vidéos d'assistance : de courtes vidéos pratiques."
         },
         "posts": {
-          "title": "Actus : nouvelles et offres de Snow Media.",
+          "title": "Actus : nouvelles et offres de Snow Media.",
           "line2": "Les nouvelles sont marquées Nouveau. Les liens deviennent un code à scanner.",
           "linkBtn": "Voir les actus"
         },
@@ -295,7 +295,7 @@
         "title": "Mon compte et Snow Gems",
         "subtitle": "Tableau de bord, gems, déconnexion",
         "dashboard": {
-          "title": "Le Tableau de bord : votre compte sur un seul écran.",
+          "title": "Le Tableau de bord : votre compte sur un seul écran.",
           "line2": "Ouvrez-le avec Tableau de bord, en haut de l'Accueil.",
           "linkBtn": "M'y emmener"
         },
@@ -303,7 +303,7 @@
           "title": "Les Snow Gems paient l'IA Premium et la génération d'images."
         },
         "buyGems": {
-          "title": "Achetez des gems : choisissez un pack et scannez le code avec votre téléphone.",
+          "title": "Achetez des gems : choisissez un pack et scannez le code avec votre téléphone.",
           "line2": "Elles arrivent toutes seules sur votre compte.",
           "linkBtn": "M'y emmener"
         },
@@ -316,7 +316,7 @@
           "line2": "Cela déconnecte ce boîtier de votre compte Snow Media et de TV en direct."
         },
         "lounge": {
-          "title": "Le Salon de jeux : cartes, machines à sous, quiz et le Daily Spin.",
+          "title": "Le Salon de jeux : cartes, machines à sous, quiz et le Daily Spin.",
           "line2": "Jouez pour des Snow Coins. Jamais d'argent réel.",
           "linkBtn": "Ouvrir le salon"
         }
@@ -325,7 +325,7 @@
         "title": "Paramètres",
         "subtitle": "Langue, apparence et profils",
         "language": {
-          "title": "Changez la langue : Paramètres → Interface → Langue.",
+          "title": "Changez la langue : Paramètres → Interface → Langue.",
           "line2": "Tous les écrans et boutons changent, ainsi que les réponses de l'assistant IA, TV en direct et Plex. Les noms des chaînes et émissions viennent du fournisseur.",
           "linkBtn": "M'y emmener"
         },
@@ -346,8 +346,8 @@
           "line2": "Ajoutez un code PIN pour que les enfants n'ouvrent pas les profils adultes."
         },
         "updates": {
-          "title": "Mise à jour disponible ? Paramètres → Mises à jour l'installe.",
-          "line2": "L'Accueil affiche « Mise à jour disponible » sous l'horloge."
+          "title": "Mise à jour disponible ? Paramètres → Mises à jour l'installe.",
+          "line2": "L'Accueil affiche « Mise à jour disponible » sous l'horloge."
         }
       },
       "labels": {
@@ -383,7 +383,7 @@
         "goLive": "Revenir en direct",
         "help": "Aide",
         "hideCategories": "Masquer des catégories",
-        "holdToReport": "Maintenez OK : signaler",
+        "holdToReport": "Maintenez OK : signaler",
         "howFar": "Jusqu'où reculer",
         "howLong": "Durée",
         "ideas": "Idées",
@@ -464,7 +464,7 @@
         "whatsWrong": "Choisissez le problème",
         "whereOn": "Où le voir",
         "whichService": "Quel service",
-        "whoWatching": "Qui regarde ?",
+        "whoWatching": "Qui regarde ?",
         "yourCode": "Votre code",
         "yourRecordings": "Vos enregistrements",
         "yourServices": "Vos services",
@@ -478,7 +478,7 @@
         "leftRight": "Gauche / Droite"
       },
       "title": "Utiliser SMC",
-      "pickTopic": "Choisissez un sujet ; appuyez sur Retour à tout moment pour quitter.",
+      "pickTopic": "Choisissez un sujet ; appuyez sur Retour à tout moment pour quitter.",
       "slideCount_one": "{{count}} diapositive",
       "slideCount_many": "{{count}} diapositives",
       "slideCount_other": "{{count}} diapositives",

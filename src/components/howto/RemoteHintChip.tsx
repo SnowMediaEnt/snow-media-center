@@ -78,7 +78,7 @@ export default function RemoteHintChip({ hint }: { hint: RemoteHint }) {
       }}
     >
       <HintIcon hint={hint} />
-      <span style={{ marginLeft: '8px' }}>{t(HINT_KEY[hint])}</span>
+      <span dir="auto" style={{ marginLeft: '8px' }}>{t(HINT_KEY[hint])}</span>
     </div>
   );
 }
