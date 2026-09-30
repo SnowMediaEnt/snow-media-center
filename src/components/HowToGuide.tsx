@@ -7,8 +7,7 @@ import { TUTORIAL_CHAPTERS, type TutorialChapter, type TutorialDeepLink } from '
 import { trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { kidsBlockedView } from '@/lib/kidsGameNavigation';
-import TutorialArt from '@/components/TutorialArt';
-
+import HowtoShot from '@/components/howto/HowtoShot';
 
 interface HowToGuideProps {
   onClose: () => void;
@@ -273,7 +272,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
       {view === 'slides' && chapter && slide && (
         <>
           {/* Header */}
-          <div className="px-6 pt-6 pb-3 tv-safe">
+          <div className="px-6 pt-3 pb-2 tv-safe">
             <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
               <Button
                 onClick={onClose}
@@ -299,37 +298,32 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
             </div>
           </div>
 
-          {/* Content — flex column that centers when there's room and can never clip */}
-          <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center overflow-y-auto overscroll-contain px-6 pb-4">
-            <div className="max-w-2xl w-full mx-auto">
-              {slide.art ? (
-                <>
-                  <div className="w-full">
-                    <TutorialArt screen={slide.art.screen} highlight={slide.art.highlight} />
-                  </div>
-                  <div className="w-8 h-8 rounded-lg bg-brand-gold/20 flex items-center justify-center mt-2 mb-1 mx-auto">
-                    {(() => { const I = slide.icon; return <I className="w-4 h-4 text-brand-gold" />; })()}
-                  </div>
-                </>
-              ) : (
-                <div className="w-20 h-20 rounded-3xl bg-brand-gold/20 flex items-center justify-center mb-8 mx-auto">
-                  {(() => { const I = slide.icon; return <I className="w-10 h-10 text-brand-gold" />; })()}
+          {/* Content: the picture on the left, the words on the right. A flex column with
+              auto margins centres the slide when there is room and lets it scroll from the
+              top when a long language does not fit (justify-center would clip the top). */}
+          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain px-6 pb-2">
+            <div className="w-full max-w-5xl mx-auto my-auto flex flex-row items-center">
+              <div className="flex-shrink-0" style={{ width: '62%' }}>
+                <HowtoShot art={slide.art} titleKey={slide.titleKey} />
+              </div>
+              <div className="flex-1 min-w-0 pl-5 text-left">
+                <div className="w-8 h-8 rounded-lg bg-brand-gold/20 flex items-center justify-center mb-2">
+                  {(() => { const I = slide.icon; return <I className="w-4 h-4 text-brand-gold" />; })()}
                 </div>
-              )}
-              <h2 className={`${slide.art ? 'text-xl sm:text-2xl mb-1' : 'text-3xl'} font-quicksand font-bold text-white leading-snug`}>
-                {t(slide.titleKey)}
-              </h2>
-              {slide.line2Key && (
-                <p className={`text-brand-ice/80 font-nunito leading-relaxed ${slide.art ? 'text-sm sm:text-base mt-1' : 'text-lg mt-4'}`}>
-                  {t(slide.line2Key)}
-                </p>
-              )}
+                <h2 className="text-2xl font-quicksand font-bold text-white leading-snug">
+                  {t(slide.titleKey)}
+                </h2>
+                {slide.line2Key && (
+                  <p className="text-base text-brand-ice/80 font-nunito leading-relaxed mt-2">
+                    {t(slide.line2Key)}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
-
           {/* Footer */}
-          <div className="px-6 pb-8 pt-4 tv-safe">
+          <div className="px-6 pt-2 pb-4 tv-safe">
             <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
               <Button
                 ref={(el) => { footerRefs.current[0] = el; }}
