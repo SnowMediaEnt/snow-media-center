@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { completeAccountClaim, getClaimSession, type ClaimSessionSnapshot } from '@/lib/accountClaim';
 import { BellRing, CheckCircle, Loader2, XCircle } from 'lucide-react';
 import { formatDate } from '@/i18n/format';
+import { onFieldActionKey } from '@/utils/fieldEnter';
 
 // `value` is what gets saved with the claim (always English); `labelKey` is only
 // what the phone shows. Brand names have no key and are shown as they are.
@@ -295,6 +296,8 @@ const ClaimAccount = () => {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      onKeyDown={(e) => { onFieldActionKey(e); }}
+                      enterKeyHint="next"
                       placeholder={t('auth.claim.emailPlaceholder')}
                       autoComplete="email"
                       className="bg-black/30 text-white border-white/20"
@@ -309,6 +312,8 @@ const ClaimAccount = () => {
                       minLength={6}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={(e) => { onFieldActionKey(e); }}
+                      enterKeyHint={showName ? 'next' : 'done'}
                       placeholder={mode === 'create' ? t('auth.claim.passwordCreatePlaceholder') : t('auth.claim.passwordPlaceholder')}
                       autoComplete={mode === 'create' ? 'new-password' : 'current-password'}
                       className="bg-black/30 text-white border-white/20"
@@ -327,6 +332,8 @@ const ClaimAccount = () => {
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
+                    onKeyDown={(e) => { onFieldActionKey(e); }}
+                    enterKeyHint="done"
                     placeholder={t('auth.claim.namePlaceholder')}
                     autoComplete="name"
                     className="bg-black/30 text-white border-white/20"

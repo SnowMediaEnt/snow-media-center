@@ -93,8 +93,9 @@ const isTextInput = (el: HTMLElement | null): el is HTMLInputElement | HTMLTextA
 // NOT keyCode 66: in Android that is KEYCODE_ENTER, but in the DOM it is the
 // letter B — matching it would swallow every 'b' the viewer types. 23 is
 // unassigned in the DOM, so it is safe to read as DPAD_CENTER.
+// 'Go' / 'Done' / 'Next' are how a few TV keyboards name their action key.
 const isEnterKey = (e: KeyboardEvent) =>
-  e.key === 'Enter' || e.key === 'Select'
+  e.key === 'Enter' || e.key === 'Select' || e.key === 'Go' || e.key === 'Done' || e.key === 'Next'
   || e.code === 'Enter' || e.code === 'NumpadEnter'
   || e.keyCode === 13 || e.keyCode === 23;
 
@@ -397,7 +398,17 @@ export const useTVFocus = ({
       const id = getId(managed);
       if (id !== currentIdRef.current) focusById(id);
     };
+    // Typing in a field proves its keyboard is up, whatever else was reported
+    // (a keyboardDidHide fired while the keyboard moved from one field to the
+    // next, a field the platform focused itself, a tap): the action key after
+    // it is the keyboard's "done here", not OK. Without this the password
+    // field's Done just re-asked for the keyboard and it never closed.
+    const onInput = (event: Event) => {
+      const el = event.target as HTMLElement | null;
+      if (ownsField(el)) openedRef.current = el;
+    };
     root?.addEventListener('focusin', onFocusIn);
+    root?.addEventListener('input', onInput);
     let stopHide: (() => void) | null = null;
     let cancelled = false;
     void (async () => {
@@ -415,6 +426,7 @@ export const useTVFocus = ({
     return () => {
       cancelled = true;
       root?.removeEventListener('focusin', onFocusIn);
+      root?.removeEventListener('input', onInput);
       stopHide?.();
       openedRef.current = null;
     };

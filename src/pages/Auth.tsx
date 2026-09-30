@@ -23,6 +23,7 @@ const PASSWORD_RESET_REDIRECT = 'https://snowmediaent.com/auth';
 import { trackEvent } from '@/lib/analytics';
 import { signInWithPlayerCredentials, looksLikeEmail } from '@/lib/playerLogin';
 import { BackButton } from '@/components/ui/BackButton';
+import { onFieldActionKey } from '@/utils/fieldEnter';
 
 type Step = 'email' | 'password' | 'create';
 type FocusEl =
@@ -36,6 +37,19 @@ type FocusEl =
   | 'forgot'
   | 'name'
   | 'confirm';
+
+// Which highlight a field or button belongs to, so the keyboard's action key
+// (Next / Done) can move the ring along with the focus it moves.
+const FOCUS_FOR_ID: Record<string, FocusEl> = {
+  'auth-email': 'email',
+  'auth-continue': 'continue',
+  'login-password': 'password',
+  'login-submit': 'submit',
+  'signup-name': 'name',
+  'signup-password': 'password',
+  'signup-confirm': 'confirm',
+  'signup-submit': 'submit',
+};
 
 const markPostAuthView = () => {
   try {
@@ -78,6 +92,16 @@ const Auth = () => {
 
   // TV remote navigation with focus handling
   const [focusedElement, setFocusedElement] = useState<FocusEl>('email');
+
+  // The keyboard's Done / Go / Next on a field: on to the next field, or after
+  // the last one close the keyboard and land on the form's button. It never
+  // submits — the button is the viewer's to press.
+  const onFieldKey = (buttonId?: string) => (e: React.KeyboardEvent<HTMLInputElement>) => {
+    onFieldActionKey(e, {
+      buttonId,
+      onLand: (el) => { const f = FOCUS_FOR_ID[el.id]; if (f) setFocusedElement(f); },
+    });
+  };
 
   const handleSkip = () => {
     try {
@@ -497,6 +521,8 @@ const Auth = () => {
                     type="email"
                     value={loginForm.email}
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                    onKeyDown={onFieldKey('auth-continue')}
+                    enterKeyHint="go"
                     placeholder={t('auth.page.emailPlaceholder')}
                     className={`pl-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
                       focusedElement === 'email' ? 'ring-4 ring-blue-400/60' : ''
@@ -566,6 +592,8 @@ const Auth = () => {
                     type={showLoginPassword ? "text" : "password"}
                     value={loginForm.password}
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    onKeyDown={onFieldKey()}
+                    enterKeyHint="done"
                     placeholder={t('auth.page.passwordPlaceholder')}
                     className={`pl-10 pr-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
                       focusedElement === 'password' ? 'ring-4 ring-blue-400/60' : ''
@@ -574,6 +602,7 @@ const Auth = () => {
                   />
                   <button
                     type="button"
+                    tabIndex={-1}
                     onClick={() => setShowLoginPassword(!showLoginPassword)}
                     className="absolute right-3 top-3 text-blue-600 hover:text-blue-700 z-10"
                   >
@@ -642,6 +671,8 @@ const Auth = () => {
                     type="text"
                     value={signupForm.fullName}
                     onChange={(e) => setSignupForm({ ...signupForm, fullName: e.target.value })}
+                    onKeyDown={onFieldKey()}
+                    enterKeyHint="next"
                     placeholder={t('auth.page.fullNamePlaceholder')}
                     className={`pl-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
                       focusedElement === 'name' ? 'ring-4 ring-blue-400/60' : ''
@@ -659,6 +690,8 @@ const Auth = () => {
                     type={showSignupPassword ? "text" : "password"}
                     value={signupForm.password}
                     onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
+                    onKeyDown={onFieldKey()}
+                    enterKeyHint="next"
                     placeholder={t('auth.page.createPasswordPlaceholder')}
                     className={`pl-10 pr-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
                       focusedElement === 'password' ? 'ring-4 ring-blue-400/60' : ''
@@ -667,6 +700,7 @@ const Auth = () => {
                   />
                   <button
                     type="button"
+                    tabIndex={-1}
                     onClick={() => setShowSignupPassword(!showSignupPassword)}
                     className="absolute right-3 top-3 text-blue-600 hover:text-blue-700 z-10"
                   >
@@ -684,6 +718,8 @@ const Auth = () => {
                     type={showConfirmPassword ? "text" : "password"}
                     value={signupForm.confirmPassword}
                     onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
+                    onKeyDown={onFieldKey()}
+                    enterKeyHint="done"
                     placeholder={t('auth.page.confirmPlaceholder')}
                     className={`pl-10 pr-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
                       focusedElement === 'confirm' ? 'ring-4 ring-blue-400/60' : ''
@@ -692,6 +728,7 @@ const Auth = () => {
                   />
                   <button
                     type="button"
+                    tabIndex={-1}
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-3 top-3 text-blue-600 hover:text-blue-700 z-10"
                   >
