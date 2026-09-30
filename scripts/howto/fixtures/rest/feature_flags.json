@@ -1,0 +1,10 @@
+[
+  {
+    "key": "player_enabled",
+    "enabled": true
+  },
+  {
+    "key": "giveaway_enabled",
+    "enabled": false
+  }
+]

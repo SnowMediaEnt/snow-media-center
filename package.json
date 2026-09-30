@@ -11,6 +11,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "preview": "vite preview",
+    "howto:capture": "node scripts/howto/capture.mjs",
+    "howto:check": "node scripts/howto/check.mjs",
     "postinstall": "node scripts/fix-gradle-wrapper.mjs && node scripts/check-swc-binding.mjs"
   },
   "dependencies": {

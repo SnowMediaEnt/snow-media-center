@@ -1,0 +1,82 @@
+[
+  {
+    "id": "mail-1",
+    "campaign_id": "camp-1",
+    "subject": "Game Day is here",
+    "preheader": "Every big game this weekend, and where to watch it.",
+    "blocks": [
+      {
+        "id": "b1",
+        "type": "heading",
+        "text": "Game Day is here"
+      },
+      {
+        "id": "b2",
+        "type": "paragraph",
+        "text": "Every big game this weekend, and where to watch it."
+      }
+    ],
+    "hero_image": "https://img.example.com/backdrop/game-day-is-here.svg",
+    "sent_at": "2026-10-04T12:00:00Z"
+  },
+  {
+    "id": "mail-2",
+    "campaign_id": "camp-2",
+    "subject": "New movies in Plex this week",
+    "preheader": "Ten new titles, picked by Snow Media.",
+    "blocks": [
+      {
+        "id": "b1",
+        "type": "heading",
+        "text": "New movies in Plex this week"
+      },
+      {
+        "id": "b2",
+        "type": "paragraph",
+        "text": "Ten new titles, picked by Snow Media."
+      }
+    ],
+    "hero_image": "https://img.example.com/backdrop/new-movies-in-plex-this-week.svg",
+    "sent_at": "2026-10-03T12:00:00Z"
+  },
+  {
+    "id": "mail-3",
+    "campaign_id": "camp-3",
+    "subject": "Weekend deal: 20% off Snow Gems",
+    "preheader": "Only until Sunday night.",
+    "blocks": [
+      {
+        "id": "b1",
+        "type": "heading",
+        "text": "Weekend deal: 20% off Snow Gems"
+      },
+      {
+        "id": "b2",
+        "type": "paragraph",
+        "text": "Only until Sunday night."
+      }
+    ],
+    "hero_image": "https://img.example.com/backdrop/weekend-deal-20-off-snow-gems.svg",
+    "sent_at": "2026-10-02T12:00:00Z"
+  },
+  {
+    "id": "mail-4",
+    "campaign_id": "camp-4",
+    "subject": "Tip: use your phone as a remote",
+    "preheader": "Settings → Phone Remote. Scan and go.",
+    "blocks": [
+      {
+        "id": "b1",
+        "type": "heading",
+        "text": "Tip: use your phone as a remote"
+      },
+      {
+        "id": "b2",
+        "type": "paragraph",
+        "text": "Settings → Phone Remote. Scan and go."
+      }
+    ],
+    "hero_image": "https://img.example.com/backdrop/tip-use-your-phone-as-a-remote.svg",
+    "sent_at": "2026-10-01T12:00:00Z"
+  }
+]

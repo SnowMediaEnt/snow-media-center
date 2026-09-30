@@ -1,0 +1,3034 @@
+{
+  "libraries": [
+    {
+      "key": "1",
+      "title": "Movies",
+      "type": "movie"
+    },
+    {
+      "key": "2",
+      "title": "TV Shows",
+      "type": "show"
+    }
+  ],
+  "home": {
+    "continueWatching": [
+      {
+        "ratingKey": "2001103",
+        "title": "Crossroads",
+        "type": "episode",
+        "thumb": "https://img.example.com/poster/maple-street-mysteries.svg",
+        "art": "https://img.example.com/backdrop/maple-street-mysteries.svg",
+        "year": 2024,
+        "summary": "A made-up mystery series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 8.2,
+        "contentRating": "TV-PG",
+        "genres": [
+          "Mystery"
+        ],
+        "addedAt": 1790942400000,
+        "grandparentTitle": "Maple Street Mysteries",
+        "parentIndex": 1,
+        "index": 3,
+        "duration": 2520000,
+        "viewOffset": 1080000,
+        "lastViewedAt": 1791075600000
+      },
+      {
+        "ratingKey": "1003",
+        "title": "Midnight at Juniper Lake",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/midnight-at-juniper-lake.svg",
+        "art": "https://img.example.com/backdrop/midnight-at-juniper-lake.svg",
+        "year": 2025,
+        "summary": "A made-up thriller story for the Snow Media Center guide.",
+        "duration": 6840000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.8,
+        "contentRating": "PG-13",
+        "genres": [
+          "Thriller"
+        ],
+        "addedAt": 1790683200000,
+        "viewOffset": 3060000,
+        "lastViewedAt": 1791068400000
+      },
+      {
+        "ratingKey": "1008",
+        "title": "The Last Lighthouse Keeper",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/the-last-lighthouse-keeper.svg",
+        "art": "https://img.example.com/backdrop/the-last-lighthouse-keeper.svg",
+        "year": 2024,
+        "summary": "A made-up drama story for the Snow Media Center guide.",
+        "duration": 7560000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 8,
+        "contentRating": "PG",
+        "genres": [
+          "Drama"
+        ],
+        "addedAt": 1790251200000,
+        "viewOffset": 1320000,
+        "lastViewedAt": 1790982000000
+      }
+    ],
+    "recentlyAdded": [
+      {
+        "ratingKey": "1001",
+        "title": "Starfall Harbor",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/starfall-harbor.svg",
+        "art": "https://img.example.com/backdrop/starfall-harbor.svg",
+        "year": 2025,
+        "summary": "A made-up sci-fi story for the Snow Media Center guide.",
+        "duration": 5400000,
+        "videoResolution": "4k",
+        "librarySectionID": "1",
+        "rating": 8.1,
+        "contentRating": "PG-13",
+        "genres": [
+          "Sci-Fi"
+        ],
+        "addedAt": 1790856000000
+      },
+      {
+        "ratingKey": "2002",
+        "title": "Deep Space Diner",
+        "type": "show",
+        "thumb": "https://img.example.com/poster/deep-space-diner.svg",
+        "art": "https://img.example.com/backdrop/deep-space-diner.svg",
+        "year": 2025,
+        "summary": "A made-up comedy series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 7.9,
+        "contentRating": "TV-14",
+        "genres": [
+          "Comedy"
+        ],
+        "addedAt": 1790856000000
+      },
+      {
+        "ratingKey": "1006",
+        "title": "Snowline Express",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/snowline-express.svg",
+        "art": "https://img.example.com/backdrop/snowline-express.svg",
+        "year": 2025,
+        "summary": "A made-up action story for the Snow Media Center guide.",
+        "duration": 6120000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.6,
+        "contentRating": "PG-13",
+        "genres": [
+          "Action"
+        ],
+        "addedAt": 1790424000000
+      },
+      {
+        "ratingKey": "1009",
+        "title": "Neon Orchard",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/neon-orchard.svg",
+        "art": "https://img.example.com/backdrop/neon-orchard.svg",
+        "year": 2025,
+        "summary": "A made-up sci-fi story for the Snow Media Center guide.",
+        "duration": 5400000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.3,
+        "contentRating": "PG-13",
+        "genres": [
+          "Sci-Fi"
+        ],
+        "addedAt": 1790164800000
+      },
+      {
+        "ratingKey": "2004",
+        "title": "Kingdom of Clocks",
+        "type": "show",
+        "thumb": "https://img.example.com/poster/kingdom-of-clocks.svg",
+        "art": "https://img.example.com/backdrop/kingdom-of-clocks.svg",
+        "year": 2025,
+        "summary": "A made-up fantasy series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 7.8,
+        "contentRating": "TV-14",
+        "genres": [
+          "Fantasy"
+        ],
+        "addedAt": 1790683200000
+      },
+      {
+        "ratingKey": "1012",
+        "title": "Echoes of Ember Hill",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/echoes-of-ember-hill.svg",
+        "art": "https://img.example.com/backdrop/echoes-of-ember-hill.svg",
+        "year": 2025,
+        "summary": "A made-up mystery story for the Snow Media Center guide.",
+        "duration": 7560000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.7,
+        "contentRating": "PG-13",
+        "genres": [
+          "Mystery"
+        ],
+        "addedAt": 1789905600000
+      },
+      {
+        "ratingKey": "1015",
+        "title": "Rocket Soup",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/rocket-soup.svg",
+        "art": "https://img.example.com/backdrop/rocket-soup.svg",
+        "year": 2025,
+        "summary": "A made-up animation story for the Snow Media Center guide.",
+        "duration": 6840000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.9,
+        "contentRating": "G",
+        "genres": [
+          "Animation"
+        ],
+        "addedAt": 1789646400000
+      },
+      {
+        "ratingKey": "2006",
+        "title": "Night Shift at Pine General",
+        "type": "show",
+        "thumb": "https://img.example.com/poster/night-shift-at-pine-general.svg",
+        "art": "https://img.example.com/backdrop/night-shift-at-pine-general.svg",
+        "year": 2025,
+        "summary": "A made-up drama series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 7.6,
+        "contentRating": "TV-14",
+        "genres": [
+          "Drama"
+        ],
+        "addedAt": 1790510400000
+      },
+      {
+        "ratingKey": "1002",
+        "title": "The Copper Kite",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/the-copper-kite.svg",
+        "art": "https://img.example.com/backdrop/the-copper-kite.svg",
+        "year": 2024,
+        "summary": "A made-up family story for the Snow Media Center guide.",
+        "duration": 6120000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.4,
+        "contentRating": "PG",
+        "genres": [
+          "Family"
+        ],
+        "addedAt": 1790769600000
+      },
+      {
+        "ratingKey": "1005",
+        "title": "Iron Meadow",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/iron-meadow.svg",
+        "art": "https://img.example.com/backdrop/iron-meadow.svg",
+        "year": 2024,
+        "summary": "A made-up western story for the Snow Media Center guide.",
+        "duration": 5400000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 6.9,
+        "contentRating": "PG-13",
+        "genres": [
+          "Western"
+        ],
+        "addedAt": 1790510400000
+      }
+    ]
+  },
+  "itemsByLibrary": {
+    "1": [
+      {
+        "ratingKey": "1001",
+        "title": "Starfall Harbor",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/starfall-harbor.svg",
+        "art": "https://img.example.com/backdrop/starfall-harbor.svg",
+        "year": 2025,
+        "summary": "A made-up sci-fi story for the Snow Media Center guide.",
+        "duration": 5400000,
+        "videoResolution": "4k",
+        "librarySectionID": "1",
+        "rating": 8.1,
+        "contentRating": "PG-13",
+        "genres": [
+          "Sci-Fi"
+        ],
+        "addedAt": 1790856000000
+      },
+      {
+        "ratingKey": "1002",
+        "title": "The Copper Kite",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/the-copper-kite.svg",
+        "art": "https://img.example.com/backdrop/the-copper-kite.svg",
+        "year": 2024,
+        "summary": "A made-up family story for the Snow Media Center guide.",
+        "duration": 6120000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.4,
+        "contentRating": "PG",
+        "genres": [
+          "Family"
+        ],
+        "addedAt": 1790769600000
+      },
+      {
+        "ratingKey": "1003",
+        "title": "Midnight at Juniper Lake",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/midnight-at-juniper-lake.svg",
+        "art": "https://img.example.com/backdrop/midnight-at-juniper-lake.svg",
+        "year": 2025,
+        "summary": "A made-up thriller story for the Snow Media Center guide.",
+        "duration": 6840000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.8,
+        "contentRating": "PG-13",
+        "genres": [
+          "Thriller"
+        ],
+        "addedAt": 1790683200000
+      },
+      {
+        "ratingKey": "1004",
+        "title": "Paper Lanterns",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/paper-lanterns.svg",
+        "art": "https://img.example.com/backdrop/paper-lanterns.svg",
+        "year": 2023,
+        "summary": "A made-up drama story for the Snow Media Center guide.",
+        "duration": 7560000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.1,
+        "contentRating": "PG",
+        "genres": [
+          "Drama"
+        ],
+        "addedAt": 1790596800000
+      },
+      {
+        "ratingKey": "1005",
+        "title": "Iron Meadow",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/iron-meadow.svg",
+        "art": "https://img.example.com/backdrop/iron-meadow.svg",
+        "year": 2024,
+        "summary": "A made-up western story for the Snow Media Center guide.",
+        "duration": 5400000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 6.9,
+        "contentRating": "PG-13",
+        "genres": [
+          "Western"
+        ],
+        "addedAt": 1790510400000
+      },
+      {
+        "ratingKey": "1006",
+        "title": "Snowline Express",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/snowline-express.svg",
+        "art": "https://img.example.com/backdrop/snowline-express.svg",
+        "year": 2025,
+        "summary": "A made-up action story for the Snow Media Center guide.",
+        "duration": 6120000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.6,
+        "contentRating": "PG-13",
+        "genres": [
+          "Action"
+        ],
+        "addedAt": 1790424000000
+      },
+      {
+        "ratingKey": "1007",
+        "title": "A Year of Small Wonders",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/a-year-of-small-wonders.svg",
+        "art": "https://img.example.com/backdrop/a-year-of-small-wonders.svg",
+        "year": 2023,
+        "summary": "A made-up comedy story for the Snow Media Center guide.",
+        "duration": 6840000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7,
+        "contentRating": "PG",
+        "genres": [
+          "Comedy"
+        ],
+        "addedAt": 1790337600000
+      },
+      {
+        "ratingKey": "1008",
+        "title": "The Last Lighthouse Keeper",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/the-last-lighthouse-keeper.svg",
+        "art": "https://img.example.com/backdrop/the-last-lighthouse-keeper.svg",
+        "year": 2024,
+        "summary": "A made-up drama story for the Snow Media Center guide.",
+        "duration": 7560000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 8,
+        "contentRating": "PG",
+        "genres": [
+          "Drama"
+        ],
+        "addedAt": 1790251200000
+      },
+      {
+        "ratingKey": "1009",
+        "title": "Neon Orchard",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/neon-orchard.svg",
+        "art": "https://img.example.com/backdrop/neon-orchard.svg",
+        "year": 2025,
+        "summary": "A made-up sci-fi story for the Snow Media Center guide.",
+        "duration": 5400000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.3,
+        "contentRating": "PG-13",
+        "genres": [
+          "Sci-Fi"
+        ],
+        "addedAt": 1790164800000
+      },
+      {
+        "ratingKey": "1010",
+        "title": "Velvet Thunder",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/velvet-thunder.svg",
+        "art": "https://img.example.com/backdrop/velvet-thunder.svg",
+        "year": 2024,
+        "summary": "A made-up music story for the Snow Media Center guide.",
+        "duration": 6120000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 6.8,
+        "contentRating": "PG",
+        "genres": [
+          "Music"
+        ],
+        "addedAt": 1790078400000
+      },
+      {
+        "ratingKey": "1011",
+        "title": "Blue Fox Summer",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/blue-fox-summer.svg",
+        "art": "https://img.example.com/backdrop/blue-fox-summer.svg",
+        "year": 2023,
+        "summary": "A made-up family story for the Snow Media Center guide.",
+        "duration": 6840000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.2,
+        "contentRating": "G",
+        "genres": [
+          "Family"
+        ],
+        "addedAt": 1789992000000
+      },
+      {
+        "ratingKey": "1012",
+        "title": "Echoes of Ember Hill",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/echoes-of-ember-hill.svg",
+        "art": "https://img.example.com/backdrop/echoes-of-ember-hill.svg",
+        "year": 2025,
+        "summary": "A made-up mystery story for the Snow Media Center guide.",
+        "duration": 7560000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.7,
+        "contentRating": "PG-13",
+        "genres": [
+          "Mystery"
+        ],
+        "addedAt": 1789905600000
+      },
+      {
+        "ratingKey": "1013",
+        "title": "Northbound",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/northbound.svg",
+        "art": "https://img.example.com/backdrop/northbound.svg",
+        "year": 2024,
+        "summary": "A made-up adventure story for the Snow Media Center guide.",
+        "duration": 5400000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.5,
+        "contentRating": "PG",
+        "genres": [
+          "Adventure"
+        ],
+        "addedAt": 1789819200000
+      },
+      {
+        "ratingKey": "1014",
+        "title": "The Glass Garden",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/the-glass-garden.svg",
+        "art": "https://img.example.com/backdrop/the-glass-garden.svg",
+        "year": 2023,
+        "summary": "A made-up romance story for the Snow Media Center guide.",
+        "duration": 6120000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 6.9,
+        "contentRating": "PG-13",
+        "genres": [
+          "Romance"
+        ],
+        "addedAt": 1789732800000
+      },
+      {
+        "ratingKey": "1015",
+        "title": "Rocket Soup",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/rocket-soup.svg",
+        "art": "https://img.example.com/backdrop/rocket-soup.svg",
+        "year": 2025,
+        "summary": "A made-up animation story for the Snow Media Center guide.",
+        "duration": 6840000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7.9,
+        "contentRating": "G",
+        "genres": [
+          "Animation"
+        ],
+        "addedAt": 1789646400000
+      },
+      {
+        "ratingKey": "1016",
+        "title": "Harbor Lights",
+        "type": "movie",
+        "thumb": "https://img.example.com/poster/harbor-lights.svg",
+        "art": "https://img.example.com/backdrop/harbor-lights.svg",
+        "year": 2024,
+        "summary": "A made-up drama story for the Snow Media Center guide.",
+        "duration": 7560000,
+        "videoResolution": "1080",
+        "librarySectionID": "1",
+        "rating": 7,
+        "contentRating": "PG-13",
+        "genres": [
+          "Drama"
+        ],
+        "addedAt": 1789560000000
+      }
+    ],
+    "2": [
+      {
+        "ratingKey": "2001",
+        "title": "Maple Street Mysteries",
+        "type": "show",
+        "thumb": "https://img.example.com/poster/maple-street-mysteries.svg",
+        "art": "https://img.example.com/backdrop/maple-street-mysteries.svg",
+        "year": 2024,
+        "summary": "A made-up mystery series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 8.2,
+        "contentRating": "TV-PG",
+        "genres": [
+          "Mystery"
+        ],
+        "addedAt": 1790942400000
+      },
+      {
+        "ratingKey": "2002",
+        "title": "Deep Space Diner",
+        "type": "show",
+        "thumb": "https://img.example.com/poster/deep-space-diner.svg",
+        "art": "https://img.example.com/backdrop/deep-space-diner.svg",
+        "year": 2025,
+        "summary": "A made-up comedy series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 7.9,
+        "contentRating": "TV-14",
+        "genres": [
+          "Comedy"
+        ],
+        "addedAt": 1790856000000
+      },
+      {
+        "ratingKey": "2003",
+        "title": "The Wild Coast",
+        "type": "show",
+        "thumb": "https://img.example.com/poster/the-wild-coast.svg",
+        "art": "https://img.example.com/backdrop/the-wild-coast.svg",
+        "year": 2023,
+        "summary": "A made-up documentary series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 8.5,
+        "contentRating": "TV-G",
+        "genres": [
+          "Documentary"
+        ],
+        "addedAt": 1790769600000
+      },
+      {
+        "ratingKey": "2004",
+        "title": "Kingdom of Clocks",
+        "type": "show",
+        "thumb": "https://img.example.com/poster/kingdom-of-clocks.svg",
+        "art": "https://img.example.com/backdrop/kingdom-of-clocks.svg",
+        "year": 2025,
+        "summary": "A made-up fantasy series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 7.8,
+        "contentRating": "TV-14",
+        "genres": [
+          "Fantasy"
+        ],
+        "addedAt": 1790683200000
+      },
+      {
+        "ratingKey": "2005",
+        "title": "Backyard Builders",
+        "type": "show",
+        "thumb": "https://img.example.com/poster/backyard-builders.svg",
+        "art": "https://img.example.com/backdrop/backyard-builders.svg",
+        "year": 2024,
+        "summary": "A made-up reality series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 7.1,
+        "contentRating": "TV-G",
+        "genres": [
+          "Reality"
+        ],
+        "addedAt": 1790596800000
+      },
+      {
+        "ratingKey": "2006",
+        "title": "Night Shift at Pine General",
+        "type": "show",
+        "thumb": "https://img.example.com/poster/night-shift-at-pine-general.svg",
+        "art": "https://img.example.com/backdrop/night-shift-at-pine-general.svg",
+        "year": 2025,
+        "summary": "A made-up drama series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 7.6,
+        "contentRating": "TV-14",
+        "genres": [
+          "Drama"
+        ],
+        "addedAt": 1790510400000
+      },
+      {
+        "ratingKey": "2007",
+        "title": "Tiny Chefs",
+        "type": "show",
+        "thumb": "https://img.example.com/poster/tiny-chefs.svg",
+        "art": "https://img.example.com/backdrop/tiny-chefs.svg",
+        "year": 2024,
+        "summary": "A made-up kids series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 7.3,
+        "contentRating": "TV-Y",
+        "genres": [
+          "Kids"
+        ],
+        "addedAt": 1790424000000
+      },
+      {
+        "ratingKey": "2008",
+        "title": "Summit Rescue",
+        "type": "show",
+        "thumb": "https://img.example.com/poster/summit-rescue.svg",
+        "art": "https://img.example.com/backdrop/summit-rescue.svg",
+        "year": 2023,
+        "summary": "A made-up action series for the Snow Media Center guide.",
+        "librarySectionID": "2",
+        "rating": 7.4,
+        "contentRating": "TV-14",
+        "genres": [
+          "Action"
+        ],
+        "addedAt": 1790337600000
+      }
+    ]
+  },
+  "metadataByRatingKey": {
+    "1001": {
+      "ratingKey": "1001",
+      "title": "Starfall Harbor",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/starfall-harbor.svg",
+      "art": "https://img.example.com/backdrop/starfall-harbor.svg",
+      "year": 2025,
+      "summary": "A made-up sci-fi story for the Snow Media Center guide.",
+      "duration": 5400000,
+      "videoResolution": "4k",
+      "librarySectionID": "1",
+      "rating": 8.1,
+      "contentRating": "PG-13",
+      "genres": [
+        "Sci-Fi"
+      ],
+      "addedAt": 1790856000000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 8.1,
+      "cast": [
+        {
+          "id": "p0",
+          "tag": "Jordan Vale",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        },
+        {
+          "id": "p1",
+          "tag": "Ana Solís",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        },
+        {
+          "id": "p2",
+          "tag": "Ravi Anand",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        },
+        {
+          "id": "p3",
+          "tag": "Nora Lind",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        },
+        {
+          "id": "p4",
+          "tag": "Theo Brandt",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        }
+      ],
+      "directors": [
+        "Lena Park"
+      ],
+      "media": {
+        "videoResolution": "4k",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      },
+      "versions": [
+        {
+          "id": "1001:0",
+          "ratingKey": "1001",
+          "mediaIndex": 0,
+          "videoResolution": "4k",
+          "label": "4K",
+          "bitrateKbps": 24000,
+          "height": 2160,
+          "videoCodec": "hevc"
+        },
+        {
+          "id": "1001:1",
+          "ratingKey": "1001",
+          "mediaIndex": 1,
+          "videoResolution": "1080",
+          "label": "1080p",
+          "bitrateKbps": 8000,
+          "height": 1080,
+          "videoCodec": "h264"
+        }
+      ]
+    },
+    "1002": {
+      "ratingKey": "1002",
+      "title": "The Copper Kite",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/the-copper-kite.svg",
+      "art": "https://img.example.com/backdrop/the-copper-kite.svg",
+      "year": 2024,
+      "summary": "A made-up family story for the Snow Media Center guide.",
+      "duration": 6120000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 7.4,
+      "contentRating": "PG",
+      "genres": [
+        "Family"
+      ],
+      "addedAt": 1790769600000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 7.4,
+      "cast": [
+        {
+          "id": "p7",
+          "tag": "Mira Castell",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/mira-castell.svg"
+        },
+        {
+          "id": "p8",
+          "tag": "Kofi Mensah",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        },
+        {
+          "id": "p9",
+          "tag": "Grace Holloway",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        },
+        {
+          "id": "p10",
+          "tag": "Jordan Vale",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        },
+        {
+          "id": "p11",
+          "tag": "Ana Solís",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        }
+      ],
+      "directors": [
+        "Ravi Anand"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1003": {
+      "ratingKey": "1003",
+      "title": "Midnight at Juniper Lake",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/midnight-at-juniper-lake.svg",
+      "art": "https://img.example.com/backdrop/midnight-at-juniper-lake.svg",
+      "year": 2025,
+      "summary": "A made-up thriller story for the Snow Media Center guide.",
+      "duration": 6840000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 7.8,
+      "contentRating": "PG-13",
+      "genres": [
+        "Thriller"
+      ],
+      "addedAt": 1790683200000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 7.8,
+      "cast": [
+        {
+          "id": "p14",
+          "tag": "Theo Brandt",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        },
+        {
+          "id": "p15",
+          "tag": "Lena Park",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        },
+        {
+          "id": "p16",
+          "tag": "Sam Okafor",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/sam-okafor.svg"
+        },
+        {
+          "id": "p17",
+          "tag": "Mira Castell",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/mira-castell.svg"
+        },
+        {
+          "id": "p18",
+          "tag": "Kofi Mensah",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        }
+      ],
+      "directors": [
+        "Grace Holloway"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1004": {
+      "ratingKey": "1004",
+      "title": "Paper Lanterns",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/paper-lanterns.svg",
+      "art": "https://img.example.com/backdrop/paper-lanterns.svg",
+      "year": 2023,
+      "summary": "A made-up drama story for the Snow Media Center guide.",
+      "duration": 7560000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 7.1,
+      "contentRating": "PG",
+      "genres": [
+        "Drama"
+      ],
+      "addedAt": 1790596800000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 7.1,
+      "cast": [
+        {
+          "id": "p21",
+          "tag": "Ana Solís",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        },
+        {
+          "id": "p22",
+          "tag": "Ravi Anand",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        },
+        {
+          "id": "p23",
+          "tag": "Nora Lind",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        },
+        {
+          "id": "p24",
+          "tag": "Theo Brandt",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        },
+        {
+          "id": "p25",
+          "tag": "Lena Park",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        }
+      ],
+      "directors": [
+        "Sam Okafor"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1005": {
+      "ratingKey": "1005",
+      "title": "Iron Meadow",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/iron-meadow.svg",
+      "art": "https://img.example.com/backdrop/iron-meadow.svg",
+      "year": 2024,
+      "summary": "A made-up western story for the Snow Media Center guide.",
+      "duration": 5400000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 6.9,
+      "contentRating": "PG-13",
+      "genres": [
+        "Western"
+      ],
+      "addedAt": 1790510400000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 6.9,
+      "cast": [
+        {
+          "id": "p28",
+          "tag": "Kofi Mensah",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        },
+        {
+          "id": "p29",
+          "tag": "Grace Holloway",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        },
+        {
+          "id": "p30",
+          "tag": "Jordan Vale",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        },
+        {
+          "id": "p31",
+          "tag": "Ana Solís",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        },
+        {
+          "id": "p32",
+          "tag": "Ravi Anand",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        }
+      ],
+      "directors": [
+        "Nora Lind"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1006": {
+      "ratingKey": "1006",
+      "title": "Snowline Express",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/snowline-express.svg",
+      "art": "https://img.example.com/backdrop/snowline-express.svg",
+      "year": 2025,
+      "summary": "A made-up action story for the Snow Media Center guide.",
+      "duration": 6120000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 7.6,
+      "contentRating": "PG-13",
+      "genres": [
+        "Action"
+      ],
+      "addedAt": 1790424000000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 7.6,
+      "cast": [
+        {
+          "id": "p35",
+          "tag": "Lena Park",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        },
+        {
+          "id": "p36",
+          "tag": "Sam Okafor",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/sam-okafor.svg"
+        },
+        {
+          "id": "p37",
+          "tag": "Mira Castell",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/mira-castell.svg"
+        },
+        {
+          "id": "p38",
+          "tag": "Kofi Mensah",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        },
+        {
+          "id": "p39",
+          "tag": "Grace Holloway",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        }
+      ],
+      "directors": [
+        "Jordan Vale"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1007": {
+      "ratingKey": "1007",
+      "title": "A Year of Small Wonders",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/a-year-of-small-wonders.svg",
+      "art": "https://img.example.com/backdrop/a-year-of-small-wonders.svg",
+      "year": 2023,
+      "summary": "A made-up comedy story for the Snow Media Center guide.",
+      "duration": 6840000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 7,
+      "contentRating": "PG",
+      "genres": [
+        "Comedy"
+      ],
+      "addedAt": 1790337600000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 7,
+      "cast": [
+        {
+          "id": "p42",
+          "tag": "Ravi Anand",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        },
+        {
+          "id": "p43",
+          "tag": "Nora Lind",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        },
+        {
+          "id": "p44",
+          "tag": "Theo Brandt",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        },
+        {
+          "id": "p45",
+          "tag": "Lena Park",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        },
+        {
+          "id": "p46",
+          "tag": "Sam Okafor",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/sam-okafor.svg"
+        }
+      ],
+      "directors": [
+        "Mira Castell"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1008": {
+      "ratingKey": "1008",
+      "title": "The Last Lighthouse Keeper",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/the-last-lighthouse-keeper.svg",
+      "art": "https://img.example.com/backdrop/the-last-lighthouse-keeper.svg",
+      "year": 2024,
+      "summary": "A made-up drama story for the Snow Media Center guide.",
+      "duration": 7560000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 8,
+      "contentRating": "PG",
+      "genres": [
+        "Drama"
+      ],
+      "addedAt": 1790251200000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 8,
+      "cast": [
+        {
+          "id": "p49",
+          "tag": "Grace Holloway",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        },
+        {
+          "id": "p50",
+          "tag": "Jordan Vale",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        },
+        {
+          "id": "p51",
+          "tag": "Ana Solís",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        },
+        {
+          "id": "p52",
+          "tag": "Ravi Anand",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        },
+        {
+          "id": "p53",
+          "tag": "Nora Lind",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        }
+      ],
+      "directors": [
+        "Theo Brandt"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1009": {
+      "ratingKey": "1009",
+      "title": "Neon Orchard",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/neon-orchard.svg",
+      "art": "https://img.example.com/backdrop/neon-orchard.svg",
+      "year": 2025,
+      "summary": "A made-up sci-fi story for the Snow Media Center guide.",
+      "duration": 5400000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 7.3,
+      "contentRating": "PG-13",
+      "genres": [
+        "Sci-Fi"
+      ],
+      "addedAt": 1790164800000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 7.3,
+      "cast": [
+        {
+          "id": "p56",
+          "tag": "Sam Okafor",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/sam-okafor.svg"
+        },
+        {
+          "id": "p57",
+          "tag": "Mira Castell",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/mira-castell.svg"
+        },
+        {
+          "id": "p58",
+          "tag": "Kofi Mensah",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        },
+        {
+          "id": "p59",
+          "tag": "Grace Holloway",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        },
+        {
+          "id": "p60",
+          "tag": "Jordan Vale",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        }
+      ],
+      "directors": [
+        "Ana Solís"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1010": {
+      "ratingKey": "1010",
+      "title": "Velvet Thunder",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/velvet-thunder.svg",
+      "art": "https://img.example.com/backdrop/velvet-thunder.svg",
+      "year": 2024,
+      "summary": "A made-up music story for the Snow Media Center guide.",
+      "duration": 6120000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 6.8,
+      "contentRating": "PG",
+      "genres": [
+        "Music"
+      ],
+      "addedAt": 1790078400000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 6.8,
+      "cast": [
+        {
+          "id": "p63",
+          "tag": "Nora Lind",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        },
+        {
+          "id": "p64",
+          "tag": "Theo Brandt",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        },
+        {
+          "id": "p65",
+          "tag": "Lena Park",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        },
+        {
+          "id": "p66",
+          "tag": "Sam Okafor",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/sam-okafor.svg"
+        },
+        {
+          "id": "p67",
+          "tag": "Mira Castell",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/mira-castell.svg"
+        }
+      ],
+      "directors": [
+        "Kofi Mensah"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1011": {
+      "ratingKey": "1011",
+      "title": "Blue Fox Summer",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/blue-fox-summer.svg",
+      "art": "https://img.example.com/backdrop/blue-fox-summer.svg",
+      "year": 2023,
+      "summary": "A made-up family story for the Snow Media Center guide.",
+      "duration": 6840000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 7.2,
+      "contentRating": "G",
+      "genres": [
+        "Family"
+      ],
+      "addedAt": 1789992000000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 7.2,
+      "cast": [
+        {
+          "id": "p70",
+          "tag": "Jordan Vale",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        },
+        {
+          "id": "p71",
+          "tag": "Ana Solís",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        },
+        {
+          "id": "p72",
+          "tag": "Ravi Anand",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        },
+        {
+          "id": "p73",
+          "tag": "Nora Lind",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        },
+        {
+          "id": "p74",
+          "tag": "Theo Brandt",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        }
+      ],
+      "directors": [
+        "Lena Park"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1012": {
+      "ratingKey": "1012",
+      "title": "Echoes of Ember Hill",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/echoes-of-ember-hill.svg",
+      "art": "https://img.example.com/backdrop/echoes-of-ember-hill.svg",
+      "year": 2025,
+      "summary": "A made-up mystery story for the Snow Media Center guide.",
+      "duration": 7560000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 7.7,
+      "contentRating": "PG-13",
+      "genres": [
+        "Mystery"
+      ],
+      "addedAt": 1789905600000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 7.7,
+      "cast": [
+        {
+          "id": "p77",
+          "tag": "Mira Castell",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/mira-castell.svg"
+        },
+        {
+          "id": "p78",
+          "tag": "Kofi Mensah",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        },
+        {
+          "id": "p79",
+          "tag": "Grace Holloway",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        },
+        {
+          "id": "p80",
+          "tag": "Jordan Vale",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        },
+        {
+          "id": "p81",
+          "tag": "Ana Solís",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        }
+      ],
+      "directors": [
+        "Ravi Anand"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1013": {
+      "ratingKey": "1013",
+      "title": "Northbound",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/northbound.svg",
+      "art": "https://img.example.com/backdrop/northbound.svg",
+      "year": 2024,
+      "summary": "A made-up adventure story for the Snow Media Center guide.",
+      "duration": 5400000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 7.5,
+      "contentRating": "PG",
+      "genres": [
+        "Adventure"
+      ],
+      "addedAt": 1789819200000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 7.5,
+      "cast": [
+        {
+          "id": "p84",
+          "tag": "Theo Brandt",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        },
+        {
+          "id": "p85",
+          "tag": "Lena Park",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        },
+        {
+          "id": "p86",
+          "tag": "Sam Okafor",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/sam-okafor.svg"
+        },
+        {
+          "id": "p87",
+          "tag": "Mira Castell",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/mira-castell.svg"
+        },
+        {
+          "id": "p88",
+          "tag": "Kofi Mensah",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        }
+      ],
+      "directors": [
+        "Grace Holloway"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1014": {
+      "ratingKey": "1014",
+      "title": "The Glass Garden",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/the-glass-garden.svg",
+      "art": "https://img.example.com/backdrop/the-glass-garden.svg",
+      "year": 2023,
+      "summary": "A made-up romance story for the Snow Media Center guide.",
+      "duration": 6120000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 6.9,
+      "contentRating": "PG-13",
+      "genres": [
+        "Romance"
+      ],
+      "addedAt": 1789732800000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 6.9,
+      "cast": [
+        {
+          "id": "p91",
+          "tag": "Ana Solís",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        },
+        {
+          "id": "p92",
+          "tag": "Ravi Anand",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        },
+        {
+          "id": "p93",
+          "tag": "Nora Lind",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        },
+        {
+          "id": "p94",
+          "tag": "Theo Brandt",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        },
+        {
+          "id": "p95",
+          "tag": "Lena Park",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        }
+      ],
+      "directors": [
+        "Sam Okafor"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1015": {
+      "ratingKey": "1015",
+      "title": "Rocket Soup",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/rocket-soup.svg",
+      "art": "https://img.example.com/backdrop/rocket-soup.svg",
+      "year": 2025,
+      "summary": "A made-up animation story for the Snow Media Center guide.",
+      "duration": 6840000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 7.9,
+      "contentRating": "G",
+      "genres": [
+        "Animation"
+      ],
+      "addedAt": 1789646400000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 7.9,
+      "cast": [
+        {
+          "id": "p1",
+          "tag": "Kofi Mensah",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        },
+        {
+          "id": "p2",
+          "tag": "Grace Holloway",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        },
+        {
+          "id": "p3",
+          "tag": "Jordan Vale",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        },
+        {
+          "id": "p4",
+          "tag": "Ana Solís",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        },
+        {
+          "id": "p5",
+          "tag": "Ravi Anand",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        }
+      ],
+      "directors": [
+        "Nora Lind"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "1016": {
+      "ratingKey": "1016",
+      "title": "Harbor Lights",
+      "type": "movie",
+      "thumb": "https://img.example.com/poster/harbor-lights.svg",
+      "art": "https://img.example.com/backdrop/harbor-lights.svg",
+      "year": 2024,
+      "summary": "A made-up drama story for the Snow Media Center guide.",
+      "duration": 7560000,
+      "videoResolution": "1080",
+      "librarySectionID": "1",
+      "rating": 7,
+      "contentRating": "PG-13",
+      "genres": [
+        "Drama"
+      ],
+      "addedAt": 1789560000000,
+      "studio": "Northwind Pictures",
+      "audienceRating": 7,
+      "cast": [
+        {
+          "id": "p8",
+          "tag": "Lena Park",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        },
+        {
+          "id": "p9",
+          "tag": "Sam Okafor",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/sam-okafor.svg"
+        },
+        {
+          "id": "p10",
+          "tag": "Mira Castell",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/mira-castell.svg"
+        },
+        {
+          "id": "p11",
+          "tag": "Kofi Mensah",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        },
+        {
+          "id": "p12",
+          "tag": "Grace Holloway",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        }
+      ],
+      "directors": [
+        "Jordan Vale"
+      ],
+      "media": {
+        "videoResolution": "1080",
+        "videoCodec": "hevc",
+        "audioCodec": "eac3",
+        "audioChannels": 6
+      }
+    },
+    "2001": {
+      "ratingKey": "2001",
+      "title": "Maple Street Mysteries",
+      "type": "show",
+      "thumb": "https://img.example.com/poster/maple-street-mysteries.svg",
+      "art": "https://img.example.com/backdrop/maple-street-mysteries.svg",
+      "year": 2024,
+      "summary": "A made-up mystery series for the Snow Media Center guide.",
+      "librarySectionID": "2",
+      "rating": 8.2,
+      "contentRating": "TV-PG",
+      "genres": [
+        "Mystery"
+      ],
+      "addedAt": 1790942400000,
+      "studio": "Lakeside Studios",
+      "audienceRating": 8.2,
+      "cast": [
+        {
+          "id": "p21",
+          "tag": "Ana Solís",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        },
+        {
+          "id": "p22",
+          "tag": "Ravi Anand",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        },
+        {
+          "id": "p23",
+          "tag": "Nora Lind",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        },
+        {
+          "id": "p24",
+          "tag": "Theo Brandt",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        },
+        {
+          "id": "p25",
+          "tag": "Lena Park",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        }
+      ],
+      "directors": [
+        "Theo Brandt"
+      ]
+    },
+    "2002": {
+      "ratingKey": "2002",
+      "title": "Deep Space Diner",
+      "type": "show",
+      "thumb": "https://img.example.com/poster/deep-space-diner.svg",
+      "art": "https://img.example.com/backdrop/deep-space-diner.svg",
+      "year": 2025,
+      "summary": "A made-up comedy series for the Snow Media Center guide.",
+      "librarySectionID": "2",
+      "rating": 7.9,
+      "contentRating": "TV-14",
+      "genres": [
+        "Comedy"
+      ],
+      "addedAt": 1790856000000,
+      "studio": "Lakeside Studios",
+      "audienceRating": 7.9,
+      "cast": [
+        {
+          "id": "p28",
+          "tag": "Kofi Mensah",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        },
+        {
+          "id": "p29",
+          "tag": "Grace Holloway",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        },
+        {
+          "id": "p30",
+          "tag": "Jordan Vale",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        },
+        {
+          "id": "p31",
+          "tag": "Ana Solís",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        },
+        {
+          "id": "p32",
+          "tag": "Ravi Anand",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        }
+      ],
+      "directors": [
+        "Ana Solís"
+      ]
+    },
+    "2003": {
+      "ratingKey": "2003",
+      "title": "The Wild Coast",
+      "type": "show",
+      "thumb": "https://img.example.com/poster/the-wild-coast.svg",
+      "art": "https://img.example.com/backdrop/the-wild-coast.svg",
+      "year": 2023,
+      "summary": "A made-up documentary series for the Snow Media Center guide.",
+      "librarySectionID": "2",
+      "rating": 8.5,
+      "contentRating": "TV-G",
+      "genres": [
+        "Documentary"
+      ],
+      "addedAt": 1790769600000,
+      "studio": "Lakeside Studios",
+      "audienceRating": 8.5,
+      "cast": [
+        {
+          "id": "p35",
+          "tag": "Lena Park",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        },
+        {
+          "id": "p36",
+          "tag": "Sam Okafor",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/sam-okafor.svg"
+        },
+        {
+          "id": "p37",
+          "tag": "Mira Castell",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/mira-castell.svg"
+        },
+        {
+          "id": "p38",
+          "tag": "Kofi Mensah",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        },
+        {
+          "id": "p39",
+          "tag": "Grace Holloway",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        }
+      ],
+      "directors": [
+        "Kofi Mensah"
+      ]
+    },
+    "2004": {
+      "ratingKey": "2004",
+      "title": "Kingdom of Clocks",
+      "type": "show",
+      "thumb": "https://img.example.com/poster/kingdom-of-clocks.svg",
+      "art": "https://img.example.com/backdrop/kingdom-of-clocks.svg",
+      "year": 2025,
+      "summary": "A made-up fantasy series for the Snow Media Center guide.",
+      "librarySectionID": "2",
+      "rating": 7.8,
+      "contentRating": "TV-14",
+      "genres": [
+        "Fantasy"
+      ],
+      "addedAt": 1790683200000,
+      "studio": "Lakeside Studios",
+      "audienceRating": 7.8,
+      "cast": [
+        {
+          "id": "p42",
+          "tag": "Ravi Anand",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        },
+        {
+          "id": "p43",
+          "tag": "Nora Lind",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        },
+        {
+          "id": "p44",
+          "tag": "Theo Brandt",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        },
+        {
+          "id": "p45",
+          "tag": "Lena Park",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        },
+        {
+          "id": "p46",
+          "tag": "Sam Okafor",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/sam-okafor.svg"
+        }
+      ],
+      "directors": [
+        "Lena Park"
+      ]
+    },
+    "2005": {
+      "ratingKey": "2005",
+      "title": "Backyard Builders",
+      "type": "show",
+      "thumb": "https://img.example.com/poster/backyard-builders.svg",
+      "art": "https://img.example.com/backdrop/backyard-builders.svg",
+      "year": 2024,
+      "summary": "A made-up reality series for the Snow Media Center guide.",
+      "librarySectionID": "2",
+      "rating": 7.1,
+      "contentRating": "TV-G",
+      "genres": [
+        "Reality"
+      ],
+      "addedAt": 1790596800000,
+      "studio": "Lakeside Studios",
+      "audienceRating": 7.1,
+      "cast": [
+        {
+          "id": "p49",
+          "tag": "Grace Holloway",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        },
+        {
+          "id": "p50",
+          "tag": "Jordan Vale",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        },
+        {
+          "id": "p51",
+          "tag": "Ana Solís",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        },
+        {
+          "id": "p52",
+          "tag": "Ravi Anand",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        },
+        {
+          "id": "p53",
+          "tag": "Nora Lind",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        }
+      ],
+      "directors": [
+        "Ravi Anand"
+      ]
+    },
+    "2006": {
+      "ratingKey": "2006",
+      "title": "Night Shift at Pine General",
+      "type": "show",
+      "thumb": "https://img.example.com/poster/night-shift-at-pine-general.svg",
+      "art": "https://img.example.com/backdrop/night-shift-at-pine-general.svg",
+      "year": 2025,
+      "summary": "A made-up drama series for the Snow Media Center guide.",
+      "librarySectionID": "2",
+      "rating": 7.6,
+      "contentRating": "TV-14",
+      "genres": [
+        "Drama"
+      ],
+      "addedAt": 1790510400000,
+      "studio": "Lakeside Studios",
+      "audienceRating": 7.6,
+      "cast": [
+        {
+          "id": "p56",
+          "tag": "Sam Okafor",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/sam-okafor.svg"
+        },
+        {
+          "id": "p57",
+          "tag": "Mira Castell",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/mira-castell.svg"
+        },
+        {
+          "id": "p58",
+          "tag": "Kofi Mensah",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/kofi-mensah.svg"
+        },
+        {
+          "id": "p59",
+          "tag": "Grace Holloway",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/grace-holloway.svg"
+        },
+        {
+          "id": "p60",
+          "tag": "Jordan Vale",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        }
+      ],
+      "directors": [
+        "Grace Holloway"
+      ]
+    },
+    "2007": {
+      "ratingKey": "2007",
+      "title": "Tiny Chefs",
+      "type": "show",
+      "thumb": "https://img.example.com/poster/tiny-chefs.svg",
+      "art": "https://img.example.com/backdrop/tiny-chefs.svg",
+      "year": 2024,
+      "summary": "A made-up kids series for the Snow Media Center guide.",
+      "librarySectionID": "2",
+      "rating": 7.3,
+      "contentRating": "TV-Y",
+      "genres": [
+        "Kids"
+      ],
+      "addedAt": 1790424000000,
+      "studio": "Lakeside Studios",
+      "audienceRating": 7.3,
+      "cast": [
+        {
+          "id": "p63",
+          "tag": "Nora Lind",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        },
+        {
+          "id": "p64",
+          "tag": "Theo Brandt",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        },
+        {
+          "id": "p65",
+          "tag": "Lena Park",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/lena-park.svg"
+        },
+        {
+          "id": "p66",
+          "tag": "Sam Okafor",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/sam-okafor.svg"
+        },
+        {
+          "id": "p67",
+          "tag": "Mira Castell",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/mira-castell.svg"
+        }
+      ],
+      "directors": [
+        "Sam Okafor"
+      ]
+    },
+    "2008": {
+      "ratingKey": "2008",
+      "title": "Summit Rescue",
+      "type": "show",
+      "thumb": "https://img.example.com/poster/summit-rescue.svg",
+      "art": "https://img.example.com/backdrop/summit-rescue.svg",
+      "year": 2023,
+      "summary": "A made-up action series for the Snow Media Center guide.",
+      "librarySectionID": "2",
+      "rating": 7.4,
+      "contentRating": "TV-14",
+      "genres": [
+        "Action"
+      ],
+      "addedAt": 1790337600000,
+      "studio": "Lakeside Studios",
+      "audienceRating": 7.4,
+      "cast": [
+        {
+          "id": "p70",
+          "tag": "Jordan Vale",
+          "role": "Captain Rhee",
+          "thumb": "https://img.example.com/avatar/jordan-vale.svg"
+        },
+        {
+          "id": "p71",
+          "tag": "Ana Solís",
+          "role": "Dr. Ellis",
+          "thumb": "https://img.example.com/avatar/ana-sol-s.svg"
+        },
+        {
+          "id": "p72",
+          "tag": "Ravi Anand",
+          "role": "June",
+          "thumb": "https://img.example.com/avatar/ravi-anand.svg"
+        },
+        {
+          "id": "p73",
+          "tag": "Nora Lind",
+          "role": "The Mayor",
+          "thumb": "https://img.example.com/avatar/nora-lind.svg"
+        },
+        {
+          "id": "p74",
+          "tag": "Theo Brandt",
+          "role": "Pilot",
+          "thumb": "https://img.example.com/avatar/theo-brandt.svg"
+        }
+      ],
+      "directors": [
+        "Nora Lind"
+      ]
+    }
+  },
+  "seasonsByShow": {
+    "2001": [
+      {
+        "ratingKey": "20011",
+        "title": "Season 1",
+        "index": 1,
+        "thumb": "https://img.example.com/poster/maple-street-mysteries.svg",
+        "leafCount": 6
+      },
+      {
+        "ratingKey": "20012",
+        "title": "Season 2",
+        "index": 2,
+        "thumb": "https://img.example.com/poster/maple-street-mysteries.svg",
+        "leafCount": 6
+      }
+    ],
+    "2002": [
+      {
+        "ratingKey": "20021",
+        "title": "Season 1",
+        "index": 1,
+        "thumb": "https://img.example.com/poster/deep-space-diner.svg",
+        "leafCount": 6
+      },
+      {
+        "ratingKey": "20022",
+        "title": "Season 2",
+        "index": 2,
+        "thumb": "https://img.example.com/poster/deep-space-diner.svg",
+        "leafCount": 6
+      }
+    ],
+    "2003": [
+      {
+        "ratingKey": "20031",
+        "title": "Season 1",
+        "index": 1,
+        "thumb": "https://img.example.com/poster/the-wild-coast.svg",
+        "leafCount": 6
+      },
+      {
+        "ratingKey": "20032",
+        "title": "Season 2",
+        "index": 2,
+        "thumb": "https://img.example.com/poster/the-wild-coast.svg",
+        "leafCount": 6
+      }
+    ],
+    "2004": [
+      {
+        "ratingKey": "20041",
+        "title": "Season 1",
+        "index": 1,
+        "thumb": "https://img.example.com/poster/kingdom-of-clocks.svg",
+        "leafCount": 6
+      },
+      {
+        "ratingKey": "20042",
+        "title": "Season 2",
+        "index": 2,
+        "thumb": "https://img.example.com/poster/kingdom-of-clocks.svg",
+        "leafCount": 6
+      }
+    ],
+    "2005": [
+      {
+        "ratingKey": "20051",
+        "title": "Season 1",
+        "index": 1,
+        "thumb": "https://img.example.com/poster/backyard-builders.svg",
+        "leafCount": 6
+      },
+      {
+        "ratingKey": "20052",
+        "title": "Season 2",
+        "index": 2,
+        "thumb": "https://img.example.com/poster/backyard-builders.svg",
+        "leafCount": 6
+      }
+    ],
+    "2006": [
+      {
+        "ratingKey": "20061",
+        "title": "Season 1",
+        "index": 1,
+        "thumb": "https://img.example.com/poster/night-shift-at-pine-general.svg",
+        "leafCount": 6
+      },
+      {
+        "ratingKey": "20062",
+        "title": "Season 2",
+        "index": 2,
+        "thumb": "https://img.example.com/poster/night-shift-at-pine-general.svg",
+        "leafCount": 6
+      }
+    ],
+    "2007": [
+      {
+        "ratingKey": "20071",
+        "title": "Season 1",
+        "index": 1,
+        "thumb": "https://img.example.com/poster/tiny-chefs.svg",
+        "leafCount": 6
+      },
+      {
+        "ratingKey": "20072",
+        "title": "Season 2",
+        "index": 2,
+        "thumb": "https://img.example.com/poster/tiny-chefs.svg",
+        "leafCount": 6
+      }
+    ],
+    "2008": [
+      {
+        "ratingKey": "20081",
+        "title": "Season 1",
+        "index": 1,
+        "thumb": "https://img.example.com/poster/summit-rescue.svg",
+        "leafCount": 6
+      },
+      {
+        "ratingKey": "20082",
+        "title": "Season 2",
+        "index": 2,
+        "thumb": "https://img.example.com/poster/summit-rescue.svg",
+        "leafCount": 6
+      }
+    ]
+  },
+  "episodesBySeason": {
+    "20011": [
+      {
+        "ratingKey": "2001101",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-1-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2001102",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-1-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2001103",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-1-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2001104",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-1-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2001105",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-1-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2001106",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-1-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20012": [
+      {
+        "ratingKey": "2001201",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-2-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2001202",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-2-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2001203",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-2-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2001204",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-2-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2001205",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-2-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2001206",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/maple-street-mysteries-2-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20021": [
+      {
+        "ratingKey": "2002101",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/deep-space-diner-1-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2002102",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/deep-space-diner-1-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2002103",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/deep-space-diner-1-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2002104",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/deep-space-diner-1-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2002105",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/deep-space-diner-1-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2002106",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/deep-space-diner-1-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20022": [
+      {
+        "ratingKey": "2002201",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/deep-space-diner-2-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2002202",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/deep-space-diner-2-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2002203",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/deep-space-diner-2-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2002204",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/deep-space-diner-2-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2002205",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/deep-space-diner-2-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2002206",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/deep-space-diner-2-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20031": [
+      {
+        "ratingKey": "2003101",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/the-wild-coast-1-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2003102",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/the-wild-coast-1-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2003103",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/the-wild-coast-1-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2003104",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/the-wild-coast-1-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2003105",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/the-wild-coast-1-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2003106",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/the-wild-coast-1-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20032": [
+      {
+        "ratingKey": "2003201",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/the-wild-coast-2-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2003202",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/the-wild-coast-2-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2003203",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/the-wild-coast-2-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2003204",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/the-wild-coast-2-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2003205",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/the-wild-coast-2-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2003206",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/the-wild-coast-2-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20041": [
+      {
+        "ratingKey": "2004101",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-1-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2004102",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-1-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2004103",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-1-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2004104",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-1-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2004105",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-1-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2004106",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-1-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20042": [
+      {
+        "ratingKey": "2004201",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-2-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2004202",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-2-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2004203",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-2-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2004204",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-2-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2004205",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-2-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2004206",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/kingdom-of-clocks-2-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20051": [
+      {
+        "ratingKey": "2005101",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/backyard-builders-1-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2005102",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/backyard-builders-1-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2005103",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/backyard-builders-1-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2005104",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/backyard-builders-1-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2005105",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/backyard-builders-1-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2005106",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/backyard-builders-1-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20052": [
+      {
+        "ratingKey": "2005201",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/backyard-builders-2-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2005202",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/backyard-builders-2-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2005203",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/backyard-builders-2-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2005204",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/backyard-builders-2-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2005205",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/backyard-builders-2-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2005206",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/backyard-builders-2-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20061": [
+      {
+        "ratingKey": "2006101",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-1-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2006102",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-1-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2006103",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-1-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2006104",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-1-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2006105",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-1-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2006106",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-1-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20062": [
+      {
+        "ratingKey": "2006201",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-2-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2006202",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-2-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2006203",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-2-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2006204",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-2-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2006205",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-2-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2006206",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/night-shift-at-pine-general-2-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20071": [
+      {
+        "ratingKey": "2007101",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/tiny-chefs-1-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2007102",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/tiny-chefs-1-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2007103",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/tiny-chefs-1-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2007104",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/tiny-chefs-1-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2007105",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/tiny-chefs-1-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2007106",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/tiny-chefs-1-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20072": [
+      {
+        "ratingKey": "2007201",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/tiny-chefs-2-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2007202",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/tiny-chefs-2-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2007203",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/tiny-chefs-2-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2007204",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/tiny-chefs-2-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2007205",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/tiny-chefs-2-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2007206",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/tiny-chefs-2-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20081": [
+      {
+        "ratingKey": "2008101",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/summit-rescue-1-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2008102",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/summit-rescue-1-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2008103",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/summit-rescue-1-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2008104",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/summit-rescue-1-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2008105",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/summit-rescue-1-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2008106",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/summit-rescue-1-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ],
+    "20082": [
+      {
+        "ratingKey": "2008201",
+        "title": "Pilot",
+        "index": 1,
+        "thumb": "https://img.example.com/tile/summit-rescue-2-1.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2008202",
+        "title": "The Long Night",
+        "index": 2,
+        "thumb": "https://img.example.com/tile/summit-rescue-2-2.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2008203",
+        "title": "Crossroads",
+        "index": 3,
+        "thumb": "https://img.example.com/tile/summit-rescue-2-3.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2008204",
+        "title": "Small Hours",
+        "index": 4,
+        "thumb": "https://img.example.com/tile/summit-rescue-2-4.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2008205",
+        "title": "Open Water",
+        "index": 5,
+        "thumb": "https://img.example.com/tile/summit-rescue-2-5.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      },
+      {
+        "ratingKey": "2008206",
+        "title": "Homecoming",
+        "index": 6,
+        "thumb": "https://img.example.com/tile/summit-rescue-2-6.svg",
+        "duration": 2520000,
+        "summary": "A made-up episode."
+      }
+    ]
+  }
+}

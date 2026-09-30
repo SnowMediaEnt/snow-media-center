@@ -1,0 +1,9 @@
+[
+  {
+    "id": "dev-1",
+    "customer_id": "cust-1",
+    "device_type": "firestick",
+    "label": "Living room",
+    "notes": null
+  }
+]

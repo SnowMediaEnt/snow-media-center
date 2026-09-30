@@ -1,0 +1,22 @@
+[
+  {
+    "id": "svc-1",
+    "customer_id": "cust-1",
+    "service_type": "iptv",
+    "service_name": "DreamStreams",
+    "expiration_date": "2027-03-15",
+    "tied_apps": [],
+    "renewal_status": "active",
+    "notes": null
+  },
+  {
+    "id": "svc-2",
+    "customer_id": "cust-1",
+    "service_type": "iptv",
+    "service_name": "Vibez",
+    "expiration_date": "2027-01-20",
+    "tied_apps": [],
+    "renewal_status": "active",
+    "notes": null
+  }
+]

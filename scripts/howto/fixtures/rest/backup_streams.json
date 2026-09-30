@@ -1,0 +1,50 @@
+[
+  {
+    "id": "bk-1",
+    "kind": "live",
+    "title": "Sports Backup 1",
+    "subtitle": "Main event feed",
+    "url": "demo://backup/1",
+    "poster_url": "https://img.example.com/tile/sports-backup-1.svg",
+    "server_label": null,
+    "reseller_id": null,
+    "sort": 0,
+    "updated_at": "2026-10-04T18:00:00Z"
+  },
+  {
+    "id": "bk-2",
+    "kind": "live",
+    "title": "Sports Backup 2",
+    "subtitle": "Alternate feed",
+    "url": "demo://backup/2",
+    "poster_url": "https://img.example.com/tile/sports-backup-2.svg",
+    "server_label": null,
+    "reseller_id": null,
+    "sort": 1,
+    "updated_at": "2026-10-04T18:00:00Z"
+  },
+  {
+    "id": "bk-3",
+    "kind": "live",
+    "title": "News Backup",
+    "subtitle": "24/7 news",
+    "url": "demo://backup/3",
+    "poster_url": "https://img.example.com/tile/news-backup.svg",
+    "server_label": null,
+    "reseller_id": null,
+    "sort": 2,
+    "updated_at": "2026-10-04T18:00:00Z"
+  },
+  {
+    "id": "bk-4",
+    "kind": "vod",
+    "title": "Movie Night Backup",
+    "subtitle": "Tonight’s feature",
+    "url": "demo://backup/4",
+    "poster_url": "https://img.example.com/tile/movie-night-backup.svg",
+    "server_label": null,
+    "reseller_id": null,
+    "sort": 3,
+    "updated_at": "2026-10-04T18:00:00Z"
+  }
+]

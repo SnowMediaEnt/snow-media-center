@@ -1,0 +1,26 @@
+[
+  {
+    "id": "pk-1",
+    "name": "Starter",
+    "credits": 100,
+    "price": 4.99,
+    "description": "Try Premium AI and Image Gen",
+    "is_active": true
+  },
+  {
+    "id": "pk-2",
+    "name": "Plus",
+    "credits": 250,
+    "price": 9.99,
+    "description": "Most popular",
+    "is_active": true
+  },
+  {
+    "id": "pk-3",
+    "name": "Pro",
+    "credits": 600,
+    "price": 19.99,
+    "description": "Best value",
+    "is_active": true
+  }
+]

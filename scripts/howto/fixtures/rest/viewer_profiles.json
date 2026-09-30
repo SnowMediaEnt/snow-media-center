@@ -1,0 +1,32 @@
+[
+  {
+    "user_id": "a1e2d3c4-5b6a-4c7d-8e9f-0a1b2c3d4e5f",
+    "id": "main",
+    "name": "Me",
+    "avatar": "blue",
+    "kids_level": null,
+    "pin_hash": null,
+    "position": 0,
+    "updated_at": "2026-10-01T12:00:00Z"
+  },
+  {
+    "user_id": "a1e2d3c4-5b6a-4c7d-8e9f-0a1b2c3d4e5f",
+    "id": "samsam",
+    "name": "Sam",
+    "avatar": "teal",
+    "kids_level": null,
+    "pin_hash": null,
+    "position": 1,
+    "updated_at": "2026-10-01T12:00:00Z"
+  },
+  {
+    "user_id": "a1e2d3c4-5b6a-4c7d-8e9f-0a1b2c3d4e5f",
+    "id": "kidsjr",
+    "name": "Kids",
+    "avatar": "orange",
+    "kids_level": "kids",
+    "pin_hash": "48911c45f5cb62d8c31d99ba584e3ff8dc24d2678b44ce37d4781da2128a15c6",
+    "position": 2,
+    "updated_at": "2026-10-01T12:00:00Z"
+  }
+]

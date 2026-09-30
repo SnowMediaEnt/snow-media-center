@@ -1,0 +1,97 @@
+{
+  "items": [
+    {
+      "id": "plex-1001",
+      "source": "plex",
+      "kind": "movie",
+      "title": "Starfall Harbor",
+      "subtitle": "2025 · Sci-Fi",
+      "poster": "https://img.example.com/poster/starfall-harbor.svg",
+      "ratingKey": "1001",
+      "librarySectionID": "1",
+      "metadataType": 1,
+      "duration": 5400000
+    },
+    {
+      "id": "plex-2002",
+      "source": "plex",
+      "kind": "show",
+      "title": "Deep Space Diner",
+      "subtitle": "2025 · Comedy",
+      "poster": "https://img.example.com/poster/deep-space-diner.svg",
+      "ratingKey": "2002",
+      "librarySectionID": "2",
+      "metadataType": 2
+    },
+    {
+      "id": "plex-1006",
+      "source": "plex",
+      "kind": "movie",
+      "title": "Snowline Express",
+      "subtitle": "2025 · Action",
+      "poster": "https://img.example.com/poster/snowline-express.svg",
+      "ratingKey": "1006",
+      "librarySectionID": "1",
+      "metadataType": 1,
+      "duration": 6120000
+    },
+    {
+      "id": "plex-1009",
+      "source": "plex",
+      "kind": "movie",
+      "title": "Neon Orchard",
+      "subtitle": "2025 · Sci-Fi",
+      "poster": "https://img.example.com/poster/neon-orchard.svg",
+      "ratingKey": "1009",
+      "librarySectionID": "1",
+      "metadataType": 1,
+      "duration": 5400000
+    },
+    {
+      "id": "plex-2004",
+      "source": "plex",
+      "kind": "show",
+      "title": "Kingdom of Clocks",
+      "subtitle": "2025 · Fantasy",
+      "poster": "https://img.example.com/poster/kingdom-of-clocks.svg",
+      "ratingKey": "2004",
+      "librarySectionID": "2",
+      "metadataType": 2
+    },
+    {
+      "id": "plex-1012",
+      "source": "plex",
+      "kind": "movie",
+      "title": "Echoes of Ember Hill",
+      "subtitle": "2025 · Mystery",
+      "poster": "https://img.example.com/poster/echoes-of-ember-hill.svg",
+      "ratingKey": "1012",
+      "librarySectionID": "1",
+      "metadataType": 1,
+      "duration": 7560000
+    },
+    {
+      "id": "plex-1015",
+      "source": "plex",
+      "kind": "movie",
+      "title": "Rocket Soup",
+      "subtitle": "2025 · Animation",
+      "poster": "https://img.example.com/poster/rocket-soup.svg",
+      "ratingKey": "1015",
+      "librarySectionID": "1",
+      "metadataType": 1,
+      "duration": 6840000
+    },
+    {
+      "id": "plex-2006",
+      "source": "plex",
+      "kind": "show",
+      "title": "Night Shift at Pine General",
+      "subtitle": "2025 · Drama",
+      "poster": "https://img.example.com/poster/night-shift-at-pine-general.svg",
+      "ratingKey": "2006",
+      "librarySectionID": "2",
+      "metadataType": 2
+    }
+  ]
+}

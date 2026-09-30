@@ -1,0 +1,76 @@
+{
+  "videos": [
+    {
+      "id": "900001",
+      "title": "Getting started with your remote",
+      "description": "A short how-to from Snow Media.",
+      "duration": "2:10",
+      "thumbnail": "https://img.example.com/backdrop/getting-started-with-your-remote.svg",
+      "embed_url": "https://video.example.com/embed/900001",
+      "created_at": "2026-09-10T12:00:00Z",
+      "tags": [
+        "howto"
+      ]
+    },
+    {
+      "id": "900002",
+      "title": "Live TV in two minutes",
+      "description": "A short how-to from Snow Media.",
+      "duration": "3:17",
+      "thumbnail": "https://img.example.com/backdrop/live-tv-in-two-minutes.svg",
+      "embed_url": "https://video.example.com/embed/900002",
+      "created_at": "2026-09-11T12:00:00Z",
+      "tags": [
+        "howto"
+      ]
+    },
+    {
+      "id": "900003",
+      "title": "Plex: finding something to watch",
+      "description": "A short how-to from Snow Media.",
+      "duration": "4:24",
+      "thumbnail": "https://img.example.com/backdrop/plex-finding-something-to-watch.svg",
+      "embed_url": "https://video.example.com/embed/900003",
+      "created_at": "2026-09-12T12:00:00Z",
+      "tags": [
+        "howto"
+      ]
+    },
+    {
+      "id": "900004",
+      "title": "Fixing buffering at home",
+      "description": "A short how-to from Snow Media.",
+      "duration": "5:31",
+      "thumbnail": "https://img.example.com/backdrop/fixing-buffering-at-home.svg",
+      "embed_url": "https://video.example.com/embed/900004",
+      "created_at": "2026-09-13T12:00:00Z",
+      "tags": [
+        "howto"
+      ]
+    },
+    {
+      "id": "900005",
+      "title": "Using your phone as a remote",
+      "description": "A short how-to from Snow Media.",
+      "duration": "2:38",
+      "thumbnail": "https://img.example.com/backdrop/using-your-phone-as-a-remote.svg",
+      "embed_url": "https://video.example.com/embed/900005",
+      "created_at": "2026-09-14T12:00:00Z",
+      "tags": [
+        "howto"
+      ]
+    },
+    {
+      "id": "900006",
+      "title": "Setting up profiles",
+      "description": "A short how-to from Snow Media.",
+      "duration": "3:45",
+      "thumbnail": "https://img.example.com/backdrop/setting-up-profiles.svg",
+      "embed_url": "https://video.example.com/embed/900006",
+      "created_at": "2026-09-15T12:00:00Z",
+      "tags": [
+        "howto"
+      ]
+    }
+  ]
+}

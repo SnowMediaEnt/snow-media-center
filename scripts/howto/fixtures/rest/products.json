@@ -1,0 +1,104 @@
+[
+  {
+    "id": "prod-1",
+    "name": "Snow Media Box Pro",
+    "slug": "snow-media-box-pro",
+    "description": "Snow Media Box Pro: a made-up product for the guide.",
+    "features": [
+      "Fast setup",
+      "Works with Snow Media Center"
+    ],
+    "price": 129.99,
+    "currency": "USD",
+    "variants": [],
+    "category": "device",
+    "image_url": "https://img.example.com/tile/snow-media-box-pro.svg",
+    "featured": true,
+    "sort": 0
+  },
+  {
+    "id": "prod-2",
+    "name": "Snow Media Stick",
+    "slug": "snow-media-stick",
+    "description": "Snow Media Stick: a made-up product for the guide.",
+    "features": [
+      "Fast setup",
+      "Works with Snow Media Center"
+    ],
+    "price": 59.99,
+    "currency": "USD",
+    "variants": [],
+    "category": "device",
+    "image_url": "https://img.example.com/tile/snow-media-stick.svg",
+    "featured": false,
+    "sort": 1
+  },
+  {
+    "id": "prod-3",
+    "name": "DreamStreams 1 Month",
+    "slug": "dreamstreams-1-month",
+    "description": "DreamStreams 1 Month: a made-up product for the guide.",
+    "features": [
+      "Fast setup",
+      "Works with Snow Media Center"
+    ],
+    "price": 20,
+    "currency": "USD",
+    "variants": [],
+    "category": "plan",
+    "image_url": "https://img.example.com/tile/dreamstreams-1-month.svg",
+    "featured": false,
+    "sort": 2
+  },
+  {
+    "id": "prod-4",
+    "name": "Voice Remote",
+    "slug": "voice-remote",
+    "description": "Voice Remote: a made-up product for the guide.",
+    "features": [
+      "Fast setup",
+      "Works with Snow Media Center"
+    ],
+    "price": 24.99,
+    "currency": "USD",
+    "variants": [],
+    "category": "accessory",
+    "image_url": "https://img.example.com/tile/voice-remote.svg",
+    "featured": false,
+    "sort": 3
+  },
+  {
+    "id": "prod-5",
+    "name": "HDMI Extender",
+    "slug": "hdmi-extender",
+    "description": "HDMI Extender: a made-up product for the guide.",
+    "features": [
+      "Fast setup",
+      "Works with Snow Media Center"
+    ],
+    "price": 9.99,
+    "currency": "USD",
+    "variants": [],
+    "category": "accessory",
+    "image_url": "https://img.example.com/tile/hdmi-extender.svg",
+    "featured": false,
+    "sort": 4
+  },
+  {
+    "id": "prod-6",
+    "name": "Wall Mount Kit",
+    "slug": "wall-mount-kit",
+    "description": "Wall Mount Kit: a made-up product for the guide.",
+    "features": [
+      "Fast setup",
+      "Works with Snow Media Center"
+    ],
+    "price": 19.99,
+    "currency": "USD",
+    "variants": [],
+    "category": "accessory",
+    "image_url": "https://img.example.com/tile/wall-mount-kit.svg",
+    "featured": false,
+    "sort": 5
+  }
+]

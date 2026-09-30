@@ -1,0 +1,94 @@
+{
+  "games": [
+    {
+      "id": "nfl-9001",
+      "league": "nfl",
+      "leagueLabel": "NFL",
+      "name": "Ridgeview Owls at Harbor City Gulls",
+      "start": "2026-10-05T00:20:00Z",
+      "state": "pre",
+      "detail": "Sun, October 4th at 8:20 PM EDT",
+      "home": {
+        "name": "Harbor City Gulls",
+        "short": "Gulls",
+        "abbr": "HCG",
+        "location": "Harbor City",
+        "logo": "https://img.example.com/logo/harbor-city-gulls.svg",
+        "score": null
+      },
+      "away": {
+        "name": "Ridgeview Owls",
+        "short": "Owls",
+        "abbr": "RVO",
+        "location": "Ridgeview",
+        "logo": "https://img.example.com/logo/ridgeview-owls.svg",
+        "score": null
+      },
+      "networks": [
+        "Summit Sports"
+      ],
+      "locals": [
+        {
+          "name": "Gridiron Weekly",
+          "market": "home"
+        }
+      ]
+    },
+    {
+      "id": "mlb-9002",
+      "league": "mlb",
+      "leagueLabel": "MLB",
+      "name": "Pine Valley Foxes at Stonebridge Comets",
+      "start": "2026-10-05T00:08:00Z",
+      "state": "pre",
+      "detail": "Sun, October 4th at 8:08 PM EDT",
+      "home": {
+        "name": "Stonebridge Comets",
+        "short": "Comets",
+        "abbr": "STC",
+        "location": "Stonebridge",
+        "logo": "https://img.example.com/logo/stonebridge-comets.svg",
+        "score": null
+      },
+      "away": {
+        "name": "Pine Valley Foxes",
+        "short": "Foxes",
+        "abbr": "PVF",
+        "location": "Pine Valley",
+        "logo": "https://img.example.com/logo/pine-valley-foxes.svg",
+        "score": null
+      },
+      "networks": [
+        "The Dugout"
+      ]
+    },
+    {
+      "id": "nhl-9003",
+      "league": "nhl",
+      "leagueLabel": "NHL",
+      "name": "Lakeshore Loons at Granite Peak Bears",
+      "start": "2026-10-05T02:00:00Z",
+      "state": "pre",
+      "detail": "Sun, October 4th at 10:00 PM EDT",
+      "home": {
+        "name": "Granite Peak Bears",
+        "short": "Bears",
+        "abbr": "GPB",
+        "location": "Granite Peak",
+        "logo": "https://img.example.com/logo/granite-peak-bears.svg",
+        "score": null
+      },
+      "away": {
+        "name": "Lakeshore Loons",
+        "short": "Loons",
+        "abbr": "LSL",
+        "location": "Lakeshore",
+        "logo": "https://img.example.com/logo/lakeshore-loons.svg",
+        "score": null
+      },
+      "networks": [
+        "Arena Sports Extra"
+      ]
+    }
+  ]
+}
