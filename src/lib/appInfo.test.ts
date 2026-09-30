@@ -39,3 +39,17 @@ describe('app info stamped on support tickets', () => {
     expect(text).toBe('App: Snow Media Center 1.8.0 (build 55)');
   });
 });
+
+describe('parseFormFactor', async () => {
+  const { parseFormFactor } = await import('./appInfo');
+  it.each([
+    ['Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) Chrome/70', 'tv'],
+    ['Mozilla/5.0 (Linux; Android 10; BRAVIA 4K UR3 Build/QTG3) Chrome/80', 'tv'],
+    ['Mozilla/5.0 (Linux; Android 12; onn. 4K Streaming Box) Chrome/110', 'tv'],
+    ['Mozilla/5.0 (Linux; Android 13; Pixel 7) Chrome/120 Mobile Safari/537.36', 'phone'],
+    ['Mozilla/5.0 (Linux; Android 11; KFTRWI) Silk/100 like Chrome/100 Safari/537.36', 'tablet'],
+    ['Mozilla/5.0 (Linux; Android 13; SM-T870) Chrome/120 Safari/537.36', 'tablet'],
+  ])('%s', (ua, expected) => {
+    expect(parseFormFactor(ua)).toBe(expected);
+  });
+});

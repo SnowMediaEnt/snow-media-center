@@ -15,6 +15,7 @@ import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { supabase } from "@/integrations/supabase/client";
 import { isDemo } from "@/lib/demoMode";
+import { parseDeviceInfo, parseFormFactor } from "@/lib/appInfo";
 
 type EventRow = {
   device_id: string;
@@ -240,6 +241,69 @@ const startSession = async () => {
 // end-of-session update were refused by the database a few hundred times a
 // day.
 
+// --- line_active -------------------------------------------------------------
+// Reports which Live TV line(s) this box uses, so the admin app can show each
+// customer's device and SMC version. One small event per saved line: host and
+// username exactly as stored. The password is never read into an event and
+// nothing here is logged.
+
+/** A resume sends the lines again only this long after the last time. */
+const LINE_ACTIVE_GAP_MS = 30 * 60_000;
+let lastLineActiveAt = 0;
+
+/** Device model and form factor for the app_open events. Never throws. */
+const deviceProps = (): Record<string, unknown> => {
+  try {
+    const { model } = parseDeviceInfo();
+    return { device_model: model ? model.slice(0, 64) : null, form_factor: parseFormFactor() };
+  } catch {
+    return {};
+  }
+};
+
+/** Every saved line plus the signed-in one, de-duplicated by host + username. */
+const readLines = async (): Promise<Array<{ host: string; username: string }>> => {
+  const { loadSavedAccounts, loadCreds } = await import("@/lib/xtream");
+  const found: Array<{ host: string; username: string }> = [];
+  const seen = new Set<string>();
+  const add = (c: { host?: unknown; username?: unknown } | null | undefined) => {
+    if (!c || typeof c.host !== "string" || typeof c.username !== "string") return;
+    if (!c.host || !c.username) return;
+    const key = `${c.host}\u0000${c.username}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    found.push({ host: c.host, username: c.username });
+  };
+  const [saved, current] = await Promise.all([
+    loadSavedAccounts().catch(() => []),
+    loadCreds().catch(() => null),
+  ]);
+  if (Array.isArray(saved)) saved.forEach(add);
+  add(current);
+  return found;
+};
+
+/**
+ * Fire-and-forget: one line_active event per Live TV line. `force` is the
+ * app start; a resume passes false and is skipped unless the last burst was
+ * at least 30 minutes ago. Never throws, never delays the caller.
+ */
+const reportActiveLines = (force: boolean) => {
+  if (DEMO || !enabled) return;
+  const now = Date.now();
+  if (!force && lastLineActiveAt && now - lastLineActiveAt < LINE_ACTIVE_GAP_MS) return;
+  lastLineActiveAt = now;
+  try {
+    void readLines()
+      .then((lines) => {
+        for (const l of lines) {
+          trackEvent("line_active", "lifecycle", { line_host: l.host, line_user: l.username });
+        }
+      })
+      .catch(() => { /* never block or crash on this */ });
+  } catch { /* never block or crash on this */ }
+};
+
 /** A return after this long away starts a new session. */
 const SESSION_GAP_MS = 30 * 60_000;
 
@@ -268,11 +332,13 @@ export const initAnalytics = () => {
         .then(({ data }) => {
           userId = data?.user?.id ?? null;
           void startSession();
-          trackEvent("app_open", "lifecycle");
+          trackEvent("app_open", "lifecycle", deviceProps());
+          reportActiveLines(true);
         })
         .catch(() => {
           void startSession();
-          trackEvent("app_open", "lifecycle");
+          trackEvent("app_open", "lifecycle", deviceProps());
+          reportActiveLines(true);
         });
 
       // Listen for auth changes to attach user_id to subsequent events
@@ -309,7 +375,8 @@ export const initAnalytics = () => {
             hiddenAt = 0;
             if (away >= SESSION_GAP_MS) {
               void startSession();
-              trackEvent("app_open", "lifecycle", { resumed: true });
+              trackEvent("app_open", "lifecycle", { resumed: true, ...deviceProps() });
+              reportActiveLines(false);
             }
           }
         });
