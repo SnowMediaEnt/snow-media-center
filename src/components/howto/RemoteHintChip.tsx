@@ -22,28 +22,32 @@ const GOLD = 'hsl(39, 31%, 60%)';
 /** The button, 24x24: a circle for OK, a filled circle inside a ring for Hold OK, arrows, a U-turn for Back. */
 function HintIcon({ hint }: { hint: RemoteHint }) {
   const stroke = { stroke: GOLD, strokeWidth: 2, fill: 'none', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  // One drawing per hint, looked up by key.
+  const icons: Record<RemoteHint, JSX.Element> = {
+    ok: <circle cx="12" cy="12" r="6.5" {...stroke} />,
+    holdOk: (
+      <>
+        <circle cx="12" cy="12" r="10" {...stroke} strokeWidth={1.5} strokeDasharray="3 3" />
+        <circle cx="12" cy="12" r="6" fill={GOLD} />
+      </>
+    ),
+    back: <path d="M9 5 L3 11 L9 17 M3 11 H16 A4.5 4.5 0 0 1 16 20 H11" {...stroke} />,
+    upDown: (
+      <>
+        <path d="M12 3 L18 10 H6 Z" fill={GOLD} />
+        <path d="M12 21 L18 14 H6 Z" fill={GOLD} />
+      </>
+    ),
+    leftRight: (
+      <>
+        <path d="M3 12 L10 6 V18 Z" fill={GOLD} />
+        <path d="M21 12 L14 6 V18 Z" fill={GOLD} />
+      </>
+    ),
+  };
   return (
     <svg width={CHIP_ICON_PX} height={CHIP_ICON_PX} viewBox="0 0 24 24" className="flex-shrink-0" focusable="false">
-      {hint === 'ok' && <circle cx="12" cy="12" r="6.5" {...stroke} />}
-      {hint === 'holdOk' && (
-        <>
-          <circle cx="12" cy="12" r="10" {...stroke} strokeWidth={1.5} strokeDasharray="3 3" />
-          <circle cx="12" cy="12" r="6" fill={GOLD} />
-        </>
-      )}
-      {hint === 'back' && <path d="M9 5 L3 11 L9 17 M3 11 H16 A4.5 4.5 0 0 1 16 20 H11" {...stroke} />}
-      {hint === 'upDown' && (
-        <>
-          <path d="M12 3 L18 10 H6 Z" fill={GOLD} />
-          <path d="M12 21 L18 14 H6 Z" fill={GOLD} />
-        </>
-      )}
-      {hint === 'leftRight' && (
-        <>
-          <path d="M3 12 L10 6 V18 Z" fill={GOLD} />
-          <path d="M21 12 L14 6 V18 Z" fill={GOLD} />
-        </>
-      )}
+      {icons[hint]}
     </svg>
   );
 }

@@ -307,6 +307,10 @@
           "line2": "Sie landen von selbst auf deinem Konto.",
           "linkBtn": "Bring mich hin"
         },
+        "payGems": {
+          "title": "Scanne den Code mit dem Handy und bezahle dort.",
+          "linkBtn": "Bring mich hin"
+        },
         "signOut": {
           "title": "Abmelden findest du im Dashboard.",
           "line2": "Es meldet diese Box von deinem Snow-Media-Konto und Live-TV ab."

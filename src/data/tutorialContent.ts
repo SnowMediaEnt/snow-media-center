@@ -261,7 +261,8 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     slides: [
       slide('account', 'dashboard', Users, 'dashboard', [h('dash.player', 'liveAccount'), h('dash.services', 'devices')], { line2: true, link: { kind: 'view', view: 'user' } }),
       slide('account', 'gems', Gem, 'dashboard', [h('dash.gems', 'snowGems')]),
-      slide('account', 'buyGems', Gem, 'gems', [h('gems.packs', 'pickPack'), h('gems.qr', 'scanToPay')], { line2: true, link: { kind: 'view', view: 'credits' } }),
+      slide('account', 'buyGems', Gem, 'gems', [h('gems.packs', 'pickPack')], { line2: true, link: { kind: 'view', view: 'credits' } }),
+      slide('account', 'payGems', Gem, 'gems-qr', [h('gems.qr', 'scanToPay')], { link: { kind: 'view', view: 'credits' } }),
       slide('account', 'signOut', LogOut, 'dashboard', [h('dash.signOut', 'signOut')], { line2: true }),
       slide('account', 'lounge', Dices, 'dashboard', [h('dash.games', 'gameLounge')], { line2: true, link: { kind: 'view', view: 'games' } }),
     ],

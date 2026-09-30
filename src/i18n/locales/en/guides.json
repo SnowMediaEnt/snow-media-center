@@ -307,6 +307,10 @@
           "line2": "They land on your account by themselves.",
           "linkBtn": "Take me there"
         },
+        "payGems": {
+          "title": "Scan the code with your phone and pay there.",
+          "linkBtn": "Take me there"
+        },
         "signOut": {
           "title": "Sign Out is on the Dashboard.",
           "line2": "It signs this box out of your Snow Media account and Live TV."

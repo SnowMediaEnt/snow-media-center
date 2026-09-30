@@ -307,6 +307,10 @@
           "line2": "Elles arrivent toutes seules sur votre compte.",
           "linkBtn": "M'y emmener"
         },
+        "payGems": {
+          "title": "Scannez le code avec votre téléphone pour payer.",
+          "linkBtn": "M'y emmener"
+        },
         "signOut": {
           "title": "Se déconnecter est dans le Tableau de bord.",
           "line2": "Cela déconnecte ce boîtier de votre compte Snow Media et de TV en direct."

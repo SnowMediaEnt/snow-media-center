@@ -46,7 +46,8 @@ export const HOWTO_SHOTS = {
   'apps': ['apps.grid'], // Support → Main Apps
   'apps-detail': ['apps.download'], // Main Apps, OK on an app
   'store': ['store.grid'], // Home → Store
-  'gems': ['gems.packs', 'gems.qr'], // Dashboard → Snow Gems (view `credits`)
+  'gems': ['gems.packs'], // Dashboard → Snow Gems (view `credits`)
+  'gems-qr': ['gems.qr'], // Snow Gems, a pack picked: the pay code
   'dashboard': ['dash.player', 'dash.services', 'dash.gems', 'dash.games', 'dash.signOut'], // Home → Dashboard (demo signed-in user)
   'support-help': ['sup.helpTab', 'sup.aiTab', 'sup.postsTab', 'sup.howto', 'sup.speed', 'sup.guide', 'sup.videos', 'sup.tickets', 'sup.remote', 'sup.cleaner', 'sup.apps'], // Support, Help tab
   'support-ai': ['ai.input'], // Support, AI Chat tab

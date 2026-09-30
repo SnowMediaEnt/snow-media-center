@@ -307,6 +307,10 @@
           "line2": "Llegan solos a tu cuenta.",
           "linkBtn": "Llévame allí"
         },
+        "payGems": {
+          "title": "Escanea el código con tu celular y paga ahí.",
+          "linkBtn": "Llévame allí"
+        },
         "signOut": {
           "title": "Cerrar sesión está en el Panel.",
           "line2": "Saca este equipo de tu cuenta de Snow Media y de TV en vivo."
