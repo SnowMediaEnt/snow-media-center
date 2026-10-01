@@ -1,4 +1,4 @@
-import { configure, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, configure, fireEvent, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.setConfig({ testTimeout: 20_000 });
@@ -61,5 +61,36 @@ describe('GameDaySection chips for soccer', () => {
     fireEvent.click(chip('MLS')!);
     expect(rows()).toHaveLength(1);
     expect(rows()[0]).toContain('Timbers');
+  });
+});
+
+describe('GameDaySection chips under the remote', () => {
+  const key = (k: string) => act(() => { fireEvent.keyDown(window, { key: k }); if (k === 'Enter') fireEvent.keyUp(window, { key: k }); });
+  const classes = (el: HTMLElement | undefined) => (el?.className ?? '').split(/\s+/);
+
+  it('the selected chip, when focused, drops its solid gold so the gold focus ring shows on it', async () => {
+    const { default: GameDay } = await import('./GameDaySection');
+    render(<GameDay creds={line as never} isActive onExitLeft={() => {}} onWatch={() => {}} />);
+    await waitFor(() => expect(rows().length).toBe(4));
+    const all = () => document.querySelector<HTMLElement>('[data-howto="gd.chips"] button');
+    // Selected, not focused: the solid gold chip.
+    expect(all()?.getAttribute('data-focused')).toBe('false');
+    expect(classes(all() ?? undefined)).toContain('bg-brand-gold');
+
+    key('ArrowUp'); // rows -> chips: "All", the selected one, has the remote
+    expect(all()?.getAttribute('data-focused')).toBe('true');
+    expect(classes(all() ?? undefined)).toContain('tv-ring');
+    // A gold ring on a gold fill is invisible: no solid gold under the ring,
+    // the selection kept in a gold tint and gold text.
+    expect(classes(all() ?? undefined)).not.toContain('bg-brand-gold');
+    expect(classes(all() ?? undefined)).toContain('bg-brand-gold/25');
+    expect(classes(all() ?? undefined)).toContain('text-brand-gold');
+
+    // Another chip under the remote: white, ring; the selected one back to gold.
+    key('ArrowRight');
+    const second = document.querySelectorAll<HTMLElement>('[data-howto="gd.chips"] button')[1];
+    expect(second.getAttribute('data-focused')).toBe('true');
+    expect(classes(second)).toContain('bg-white');
+    expect(classes(all() ?? undefined)).toContain('bg-brand-gold');
   });
 });

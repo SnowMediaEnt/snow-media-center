@@ -543,7 +543,10 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                 type="button"
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setLeague(l.id); setRowIdx(0); }}
-                className={`tv-ring mr-2 mb-1 rounded-full px-3 py-1 text-sm font-semibold ${on ? 'bg-brand-gold text-black' : focused ? 'bg-white text-black' : 'bg-white/10 text-white'}`}
+                // The focus ring is gold: on the selected chip's solid gold
+                // it vanished, so the selected chip under the remote keeps
+                // its gold in the text and a gold tint, and the ring shows.
+                className={`tv-ring mr-2 mb-1 rounded-full px-3 py-1 text-sm font-semibold ${on && focused ? 'bg-brand-gold/25 text-brand-gold' : on ? 'bg-brand-gold text-black' : focused ? 'bg-white text-black' : 'bg-white/10 text-white'}`}
               >
                 {l.label}
               </button>
