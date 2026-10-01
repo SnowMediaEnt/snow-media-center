@@ -4279,6 +4279,72 @@ export type Database = {
           },
         ]
       }
+      snow_originals: {
+        Row: {
+          backdrop_path: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          duration_sec: number
+          file_size: number
+          height: number
+          id: string
+          kid_friendly: boolean
+          orientation: string | null
+          poster_path: string | null
+          published: boolean
+          published_at: string | null
+          sort: number
+          title: string
+          updated_at: string
+          video_codec: string | null
+          video_path: string
+          width: number
+        }
+        Insert: {
+          backdrop_path?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_sec: number
+          file_size: number
+          height: number
+          id?: string
+          kid_friendly?: boolean
+          orientation?: string | null
+          poster_path?: string | null
+          published?: boolean
+          published_at?: string | null
+          sort?: number
+          title: string
+          updated_at?: string
+          video_codec?: string | null
+          video_path: string
+          width: number
+        }
+        Update: {
+          backdrop_path?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_sec?: number
+          file_size?: number
+          height?: number
+          id?: string
+          kid_friendly?: boolean
+          orientation?: string | null
+          poster_path?: string | null
+          published?: boolean
+          published_at?: string | null
+          sort?: number
+          title?: string
+          updated_at?: string
+          video_codec?: string | null
+          video_path?: string
+          width?: number
+        }
+        Relationships: []
+      }
       store_display: {
         Row: {
           badge: string | null
