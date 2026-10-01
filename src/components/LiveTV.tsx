@@ -3,7 +3,7 @@ import { peekIntent, takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, handLiveDeepl
 import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy, Trophy } from 'lucide-react';
+import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy, Trophy, Snowflake } from 'lucide-react';
 import { kidsLevel } from '@/lib/kidsFilter';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
@@ -66,6 +66,7 @@ const LayoutTrialPrompt = lazy(() => import('./livetv/LayoutTrialPrompt'));
 const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
 const MultiScreenSection = lazy(() => import('./livetv/MultiScreenSection'));
 const BackupsSection = lazy(() => import('./livetv/BackupsSection'));
+const OriginalsSection = lazy(() => import('./livetv/OriginalsSection'));
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { DEMO_LIVE_CREDS } from '@/data/liveTvDemo';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
@@ -83,7 +84,7 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-type SectionId = 'live' | 'guide' | 'gameday' | 'vod' | 'movies' | 'series' | 'plex' | 'multi' | 'backups';
+type SectionId = 'live' | 'guide' | 'gameday' | 'originals' | 'vod' | 'movies' | 'series' | 'plex' | 'multi' | 'backups';
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
   const { t } = useTranslation();
@@ -363,6 +364,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       // Today's big games and the channel each is on. Not on a Kids profile
       // (its channels are the kids ones); a Teens profile has it.
       ...(kidsLevel() === 'little' || kidsLevel() === 'kids' ? [] : [{ id: 'gameday' as SectionId, labelKey: 'live.sections.gameDayLabel', icon: Trophy }]),
+      // Snow Media's own short videos, on every profile: the section itself
+      // keeps a Little or Kids profile to the kid-friendly ones.
+      { id: 'originals', labelKey: 'live.sections.originalsLabel', icon: Snowflake },
       // The line's movies. Plex has its own Home card, so it is not in here.
       { id: 'vod',   labelKey: 'live.sections.vodLabel', icon: Film },
       { id: 'multi', labelKey: 'live.sections.multiLabel', icon: Grid2X2 },
@@ -1217,6 +1221,16 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MultiScreenSection
               creds={creds}
+              isActive={pane === 'content' && !claimOpen}
+              onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
+            />
+          </Suspense>
+        )}
+
+        {inSection('originals') && (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+            <OriginalsSection
               isActive={pane === 'content' && !claimOpen}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
