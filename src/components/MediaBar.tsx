@@ -1,7 +1,8 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
-import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import ChannelArt from '@/components/ChannelArt';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform } from '@/utils/platform';
 import { App as CapApp } from '@capacitor/app';
@@ -556,18 +557,16 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                         : ''
                     }`}
                   >
-                    <div className={`relative w-full flex-shrink-0 overflow-hidden rounded-xl shadow-lg media-poster ${item.channel ? 'bg-white/90' : 'bg-white/5'}`}>
-                      {item.poster && imagesReady ? (
+                    <div className="relative w-full flex-shrink-0 overflow-hidden rounded-xl shadow-lg media-poster bg-white/5">
+                      {item.channel ? (
+                        // A channel: its logo over an initials badge on a dark card,
+                        // so a missing or broken logo is never a blank (white) box.
+                        <ChannelArt key={item.poster} name={item.title} src={imagesReady ? item.poster : undefined} />
+                      ) : item.poster && imagesReady ? (
                         <BarPoster
                           src={item.poster}
-                          // Channel logos are drawn for a light card and must
-                          // not be cropped; posters fill the tile.
-                          className={item.channel ? 'absolute inset-0 m-auto max-w-[80%] max-h-[70%] object-contain' : 'absolute top-0 left-0 w-full h-full object-cover'}
+                          className="absolute top-0 left-0 w-full h-full object-cover"
                         />
-                      ) : item.channel ? (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Tv className="w-8 h-8 text-black/40" />
-                        </div>
                       ) : null}
                       {badge && (
                         <span
