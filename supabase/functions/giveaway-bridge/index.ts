@@ -1113,7 +1113,7 @@ Deno.serve(async (req) => {
                     (left != null ? `\nPanel credits left ≈ ${left}${left < 20 ? ' ⚠️ LOW — top up soon' : ''}` : ''));
       }
       return json({ ok: true, replayed: !!r.replayed, username, password, host, expires,
-                    serviceId: r.serviceId, lineId, crm });
+                    serviceId: r.serviceId, lineId, crm, whmcsEmailed: r.whmcsEmailed === true });
     }
 
     if (action === 'gems-order') {
