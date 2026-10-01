@@ -32,7 +32,7 @@ const SUPPORT = ['ArrowRight*2', 'Enter', { wait: 2500 }];
 // Up twice reaches the header on Dashboard; Right is Settings, then Voice.
 const DASHBOARD = ['ArrowUp*2', 'Enter', { wait: 2500 }];
 const SETTINGS = ['ArrowUp*2', 'ArrowRight', 'Enter', { wait: 1500 }];
-// In Live TV, Left opens the side menu: Live TV, Guide, Game Day, VOD, Multi-Screen, Backups.
+// In Live TV, Left opens the side menu: Live TV, Guide, Game Day, Snow Originals, VOD, Multi-Screen, Backups.
 const liveSection = (n) => [...LIVE, 'ArrowLeft', ...(n ? [`ArrowDown*${n}`] : []), 'Enter', { wait: 3000 }];
 // In Support: Down reaches the tabs (Help, AI Chat, Posts), Down again the
 // Help grid, two per row: How to use SMC | Speedtest, Buffering Guide |
@@ -67,9 +67,9 @@ export const RECIPES = [
   { id: 'gameday', start: 'home', keys: [...liveSection(2), { wait: 1500 }], ready: hook('gd.game') },
   { id: 'gameday-game', start: 'home', keys: [...liveSection(2), { wait: 1500 }, 'Enter', { wait: 3500 }], ready: hook('gd.links') },
   { id: 'multi', start: 'stage', bg: 'live-list', keys: [{ wait: 800 }], ready: hook('multi.layouts') },
-  { id: 'backups', start: 'home', keys: [...liveSection(5), { wait: 1000 }], ready: hook('backups.list') },
+  { id: 'backups', start: 'home', keys: [...liveSection(6), { wait: 1000 }], ready: hook('backups.list') },
   // Right goes into the posters (the first category's load waits for that).
-  { id: 'vod', start: 'home', keys: [...liveSection(3), { wait: 1000 }, 'ArrowRight', { wait: 2500 }], ready: `${hook('vod.grid')} img`, settle: 800 },
+  { id: 'vod', start: 'home', keys: [...liveSection(4), { wait: 1000 }, 'ArrowRight', { wait: 2500 }], ready: `${hook('vod.grid')} img`, settle: 800 },
   // Up from the side menu reaches the header: Back, Update Channels, Settings.
   // The menu is a little taller than the screen and follows the highlight:
   // down to Sign Out brings it on screen, then back up to Switch Account.

@@ -34,23 +34,10 @@ import { loadPlayerVolume } from '@/utils/volume';
 import SnowLoader from '@/components/SnowLoader';
 import type { VideoController } from './VideoPlayer';
 
-// ─── TEMP until item B merges ───────────────────────────────────────────────
-// `SnowOriginal` belongs to item B (src/lib/snowOriginals.ts, plan §0). It is
-// copied here word for word so this file type-checks on its own. At merge,
-// delete this block and use:
-//   import type { SnowOriginal } from '@/lib/snowOriginals';
-interface SnowOriginal { id: string; title: string; description: string | null; videoUrl: string; posterUrl: string | null; backdropUrl: string | null; durationSec: number; width: number; height: number; portrait: boolean; kidFriendly: boolean; publishedAt: string | null; createdAt: string; sort: number }
-// ─── end TEMP ───────────────────────────────────────────────────────────────
+import type { OriginalsPlayerProps, SnowOriginal } from '@/lib/snowOriginals';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
-interface OriginalsPlayerProps {
-  /** What the viewer sees in the list (already Kids-filtered and in order): ▼ / ▲ and Up next walk it. */
-  items: SnowOriginal[];
-  startId: string;
-  /** Back, or the end of the last video. `lastId`: the video on screen, so the list can focus it. */
-  onClose: (lastId: string) => void;
-}
 
 const SEEK_SEC = 10;
 const UP_NEXT_SEC = 5;

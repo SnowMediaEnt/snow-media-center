@@ -63,6 +63,7 @@ Status: building · ready to test · still broken · done.
 | 41 | How to use SMC rebuilt: real screenshots of every screen in all 5 languages, gold rings + numbered labels, 10 chapters incl. Game Day, recording, Language — plan: .claude/plan-howto.md | feature | ready to test (build 57) | |
 | 42 | Live TV Settings: the remote couldn't scroll down to Sign Out on smaller screens | bug | ready to test (build 57) | direct |
 | 43 | Recordings: the key hint at the bottom covered the last recording | bug | ready to test (build 57) | direct |
+| 44 | Snow Originals: owner's own videos in Live TV (after Game Day), uploaded from the Hub; upright videos centred over a blurred still; Kids see kid-friendly only — plan: .claude/plan-originals.md | feature | ready to test (build 58) | |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner
