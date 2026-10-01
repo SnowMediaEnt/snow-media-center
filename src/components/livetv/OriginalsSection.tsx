@@ -5,6 +5,7 @@
 // Keys follow BackupsSection: one capture-phase window handler, gated on
 // isActive, reading refs; it steps aside while the player is open, and never
 // stops other handlers on arrows. One Back = one step: player → grid → menu.
+import ScrollText, { ScrollLines } from '@/components/ScrollText';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { Snowflake, WifiOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -199,7 +200,7 @@ const OriginalsSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
         {focused && (
           <div className="mt-3 h-[78px] rounded-2xl bg-slate-900/70 border border-white/10 px-4 py-2 overflow-hidden" data-testid="originals-strip">
             <div className="flex items-center min-w-0">
-              <span className="min-w-0 truncate font-quicksand font-bold text-lg text-white">{focused.title}</span>
+              <ScrollText text={focused.title} active className="font-quicksand font-bold text-lg text-white" />
               {isNew(focused, now) && (
                 <span className="ml-2 flex-shrink-0 px-2 py-px rounded-md text-xs font-bold font-nunito bg-brand-gold text-black">{t('originals.browse.newChip')}</span>
               )}
@@ -207,7 +208,7 @@ const OriginalsSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
               <span className="ml-auto pl-3 flex-shrink-0 text-brand-ice/60 font-nunito text-xs">{t('originals.browse.playHint')}</span>
             </div>
             {focused.description && (
-              <p className="mt-1 text-brand-ice/80 font-nunito text-sm leading-snug line-clamp-2">{focused.description}</p>
+              <ScrollLines key={focused.id} text={focused.description} maxLines={2} className="mt-1 text-brand-ice/80 font-nunito text-sm leading-snug" />
             )}
           </div>
         )}
@@ -247,7 +248,7 @@ const OriginalsSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
                     {/* The ring on top of the picture (an inset shadow is drawn under it). */}
                     {on && <div className="absolute top-0 left-0 w-full h-full rounded-xl border-[3px] border-brand-gold pointer-events-none" />}
                   </div>
-                  <div className={`mt-2 px-1 truncate font-quicksand font-semibold text-sm ${on ? 'text-white' : 'text-brand-ice/80'}`}>{it.title}</div>
+                  <ScrollText text={it.title} active={on} className={`mt-2 px-1 font-quicksand font-semibold text-sm ${on ? 'text-white' : 'text-brand-ice/80'}`} />
                 </div>
               );
             })}

@@ -99,13 +99,13 @@ describe('the Player on a Kids profile', () => {
   it('the sidebar has no Backups', async () => {
     setKidsLevel('teen');
     await openLiveTv();
-    expect(sidebar()).toEqual(['Live TV', 'Guide', 'Game Day', 'Snow Originals', 'VOD', 'Multi-Screen']);
+    expect(sidebar()).toEqual(['Live TV', 'Guide', 'Game Day', 'VOD', 'Multi-Screen', 'Snow Originals']);
   });
 
   it.each(['little', 'kids'] as const)('%s: Snow Originals stays (the section keeps to kid-friendly videos), Game Day goes', async (level) => {
     setKidsLevel(level);
     await openLiveTv();
-    expect(sidebar()).toEqual(['Live TV', 'Guide', 'Snow Originals', 'VOD', 'Multi-Screen']);
+    expect(sidebar()).toEqual(['Live TV', 'Guide', 'VOD', 'Multi-Screen', 'Snow Originals']);
   });
 
   it('the header has no Player Settings to reach (sign-out, the line password, billing)', async () => {
@@ -225,7 +225,7 @@ describe('the Player on a grown-up profile', () => {
 
   it('keeps Backups and the header Settings', async () => {
     await openLiveTv();
-    expect(sidebar()).toEqual(['Live TV', 'Guide', 'Game Day', 'Snow Originals', 'VOD', 'Multi-Screen', 'Backups']);
+    expect(sidebar()).toEqual(['Live TV', 'Guide', 'Game Day', 'VOD', 'Multi-Screen', 'Snow Originals', 'Backups']);
     key('ArrowLeft');
     key('ArrowUp');
     key('ArrowRight'); key('ArrowRight');

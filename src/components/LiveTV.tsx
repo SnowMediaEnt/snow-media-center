@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import ScrollText from '@/components/ScrollText';
 import { peekIntent, takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, handLiveDeeplink, type PlayerIntent } from '@/lib/appActions';
 import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
@@ -364,12 +365,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       // Today's big games and the channel each is on. Not on a Kids profile
       // (its channels are the kids ones); a Teens profile has it.
       ...(kidsLevel() === 'little' || kidsLevel() === 'kids' ? [] : [{ id: 'gameday' as SectionId, labelKey: 'live.sections.gameDayLabel', icon: Trophy }]),
-      // Snow Media's own short videos, on every profile: the section itself
-      // keeps a Little or Kids profile to the kid-friendly ones.
-      { id: 'originals', labelKey: 'live.sections.originalsLabel', icon: Snowflake },
       // The line's movies. Plex has its own Home card, so it is not in here.
       { id: 'vod',   labelKey: 'live.sections.vodLabel', icon: Film },
       { id: 'multi', labelKey: 'live.sections.multiLabel', icon: Grid2X2 },
+      // Snow Media's own short videos, on every profile: the section itself
+      // keeps a Little or Kids profile to the kid-friendly ones.
+      { id: 'originals', labelKey: 'live.sections.originalsLabel', icon: Snowflake },
       // Admin-published PPV and movie feeds carry no rating: never on a Kids
       // profile, whatever its age.
       ...(kidsLevel() ? [] : [{ id: 'backups' as SectionId, labelKey: 'live.sections.backupsLabel', icon: LifeBuoy }]),
@@ -1174,7 +1175,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                 title={collapsed ? t(s.labelKey) : undefined}
               >
                 <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-brand-gold' : 'text-brand-ice'}`} />
-                {!collapsed && <span className="min-w-0 truncate font-quicksand font-semibold" title={t(s.labelKey)}>{t(s.labelKey)}</span>}
+                {!collapsed && <ScrollText text={t(s.labelKey)} active={isFocused} className="font-quicksand font-semibold" />}
               </div>
             );
           })}
