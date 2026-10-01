@@ -13,8 +13,8 @@
 # then uploads /smc/update.json LAST, so a box is never told about a file
 # that isn't there yet.
 #
-# FTP: the account's directory must be public_html/snowmediaapps.com (the
-# folder that holds both /apps and /smc). The password is asked for each
+# FTP: the account's directory must be public_html (the web root, which
+# holds both /apps and /smc). The password is asked for each
 # time and never saved. Override the defaults with FTP_HOST / FTP_USER.
 set -euo pipefail
 
