@@ -23,6 +23,8 @@ IP="${FIRESTICK_IP:-192.168.50.36}"
 FTP_HOST="${FTP_HOST:-ftp.snowmediaapps.com}"
 FTP_USER="${FTP_USER:-smc@snowmediaapps.com}"
 SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+JDK21=/usr/local/Cellar/openjdk@21/21.0.8/libexec/openjdk.jdk/Contents/Home
+[ -n "${JAVA_HOME:-}" ] || { [ -d "$JDK21" ] && export JAVA_HOME="$JDK21"; }
 ADB="$SDK/platform-tools/adb"
 [ -x "$ADB" ] || ADB="$(command -v adb || true)"
 cd "$(dirname "$0")/.."
@@ -41,6 +43,9 @@ test)
   npm install
   npm run build
   npx cap sync android
+  # cap sync can write local paths into this file; never commit them.
+  git checkout -- android/capacitor.settings.gradle 2>/dev/null || true
+  [ -f android/keystore.properties ] || { echo "STOP: no android/keystore.properties, so this would be signed with a debug key."; exit 1; }
   # Customer build: never with MPV (it logs stream addresses with line logins).
   (cd android && ./gradlew clean assembleRelease)
 
@@ -52,6 +57,15 @@ test)
   if unzip -l "$APK" | grep -q "libmpv"; then
     echo "STOP: this APK contains MPV. Customer builds must not."; exit 1
   fi
+  if [ "$(echo "$BADGING" | grep -c application-debuggable)" != "0" ]; then
+    echo "STOP: this APK is debuggable."; exit 1
+  fi
+  APKSIGNER="$(ls -d "$SDK"/build-tools/*/apksigner | tail -1)"
+  CERT="$("$APKSIGNER" verify --print-certs "$APK")"
+  if echo "$CERT" | grep -qi "CN=Android Debug"; then
+    echo "STOP: signed with a debug key, not the release key."; exit 1
+  fi
+  echo "$CERT" | grep -i "SHA-256 digest" | head -1
   if [ "$APK_NAME" != "$NAME" ] || [ "$APK_CODE" != "$CODE" ]; then
     echo "STOP: APK is $APK_NAME ($APK_CODE) but public/update.json says $NAME ($CODE)."; exit 1
   fi
@@ -62,16 +76,19 @@ test)
   BYTES="$(wc -c < "$APK" | tr -d ' ')"
   node -e "
 const fs=require('fs');const u=JSON.parse(fs.readFileSync('public/update.json','utf8'));
-u.size=(${BYTES}/1048576).toFixed(1)+' MB';u.downloadUrl='https://snowmediaapps.com/smc/snow_media_center.${NAME}.apk';
+u.size=(${BYTES}/1048576).toFixed(1)+' MB';u.bytes=${BYTES};u.sha256='$(shasum -a 256 "$APK" | cut -d' ' -f1)';u.downloadUrl='https://snowmediaapps.com/smc/snow_media_center.${NAME}.apk';
 fs.writeFileSync('${OUT}/update.json',JSON.stringify(u,null,2)+'\n');"
   shasum -a 256 "$OUT/snow_media_center.$NAME.apk" | cut -d' ' -f1 > "$OUT/tested.sha256"
 
   [ -n "$ADB" ] || { echo "adb not found (install Android SDK platform-tools)"; exit 1; }
   echo "Installing $NAME (build $CODE) on the Firestick at $IP…"
-  "$ADB" connect "$IP:5555"
+  PKG=app.lovable.f44324110df840aea0a1fb97cafa76e7
+  "$ADB" devices | grep -q "^$IP:5555[[:space:]]*device" || "$ADB" connect "$IP:5555"
   "$ADB" -s "$IP:5555" wait-for-device
+  # Always an in-place update (-r). Never uninstall: that wipes sign-ins and data.
   "$ADB" -s "$IP:5555" install -r "$OUT/snow_media_center.$NAME.apk"
-  "$ADB" -s "$IP:5555" shell monkey -p app.lovable.f44324110df840aea0a1fb97cafa76e7 -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+  "$ADB" -s "$IP:5555" shell am start -n "$PKG/com.snowmedia.SplashActivity" >/dev/null
+  "$ADB" -s "$IP:5555" shell dumpsys package "$PKG" | grep -E "versionCode|lastUpdateTime" | head -2
   echo "Installed on the Firestick. Nothing was uploaded."
   echo "When it passes, run: scripts/release.sh publish"
   ;;
