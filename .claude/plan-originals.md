@@ -473,3 +473,9 @@ There is no edge function. The Hub writes with the staff member's own signed-in 
    - The alternative is a private bucket with expiring links. That's more work and more moving parts on the TV.
 5. **Videos in the wrong format.** Recommended: **the Hub refuses them and says how to export.** Automatic conversion would need a paid video service or a conversion server; it can be added later if refusals become a hassle.
 6. **Menu position.** Recommended: **after Game Day, before VOD**. Teen profiles follow the Kids rule (kid-friendly only), like the other Kids levels. Say if teens should see everything.
+
+### Owner answers (final)
+1. Longest video / biggest file: **3 minutes, 300 MB**.
+2. Wrong format: **the Hub refuses it and shows how to export** (MP4 H.264 + AAC, ≤1080p). No paid conversion.
+3. Teen profiles: **see all Snow Originals**; only Little/Kids profiles are limited to kid-friendly.
+4. The rest as recommended: blurred still for upright sides; one public bucket with secret random links for drafts; after Game Day, before VOD.
