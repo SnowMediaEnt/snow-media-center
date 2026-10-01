@@ -13,14 +13,19 @@
 # then uploads /smc/update.json LAST, so a box is never told about a file
 # that isn't there yet.
 #
-# FTP: the account's directory must be public_html (the web root, which
+# FTP: the account's directory must be the site's web root (the folder that
 # holds both /apps and /smc). The password is asked for each
 # time and never saved. Override the defaults with FTP_HOST / FTP_USER.
+# The server is Hostwinds shared hosting: its TLS certificate is for the
+# shared server's name (FTP_TLS_NAME), not snowmediaapps.com. curl connects to
+# FTP_HOST but checks the certificate against FTP_TLS_NAME, so the connection
+# is still verified and encrypted.
 set -euo pipefail
 
 STEP="${1:-}"
 IP="${FIRESTICK_IP:-192.168.50.36}"
 FTP_HOST="${FTP_HOST:-ftp.snowmediaapps.com}"
+FTP_TLS_NAME="${FTP_TLS_NAME:-sea-business-12.hostwindsdns.com}"
 FTP_USER="${FTP_USER:-smc@snowmediaapps.com}"
 SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 JDK21=/usr/local/Cellar/openjdk@21/21.0.8/libexec/openjdk.jdk/Contents/Home
@@ -109,9 +114,12 @@ publish)
   read -r -s -p "FTP password for $FTP_USER: " FTP_PASS; echo
   NETRC="$(mktemp)"; chmod 600 "$NETRC"
   trap 'rm -f "$NETRC"' EXIT
-  printf 'machine %s login %s password %s\n' "$FTP_HOST" "$FTP_USER" "$FTP_PASS" > "$NETRC"
+  printf 'machine %s login %s password %s\n' "$FTP_TLS_NAME" "$FTP_USER" "$FTP_PASS" > "$NETRC"
   unset FTP_PASS
-  put() { curl --fail --ssl-reqd --netrc-file "$NETRC" --ftp-create-dirs -T "$1" "ftp://$FTP_HOST/$2"; }
+  put() {
+    curl --fail --ssl-reqd --netrc-file "$NETRC" --ftp-create-dirs \
+      --connect-to "$FTP_TLS_NAME:21:$FTP_HOST:21" -T "$1" "ftp://$FTP_TLS_NAME/$2"
+  }
   put "$OUT/snowmediacenter.apk"            "apps/snowmediacenter.apk"
   put "$OUT/snow_media_center.$NAME.apk"    "smc/snow_media_center.$NAME.apk"
   put "$OUT/update.json"                    "smc/update.json"
