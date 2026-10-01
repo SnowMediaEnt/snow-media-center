@@ -646,15 +646,9 @@
   to   { transform: translate3d(-50%, 0, 0); }
 }
 
-/* ScrollText: a highlighted label that doesn't fit slides to show the rest,
-   pausing at each end. --scroll-text-dist is set on the element. */
-.scroll-text-move {
-  animation-name: scroll-text;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-  animation-direction: alternate;
-  will-change: transform;
-}
+/* ScrollLines: a description taller than its box scrolls up to the end and
+   back, pausing at each end. --scroll-text-dist is set on the element.
+   (ScrollText's one-line ticker runs on the Web Animations API instead.) */
 .scroll-lines-move {
   animation-name: scroll-lines;
   animation-timing-function: linear;
@@ -665,10 +659,6 @@
 @keyframes scroll-lines {
   0%, 15%   { transform: translate3d(0, 0, 0); }
   85%, 100% { transform: translate3d(0, var(--scroll-text-dist, 0), 0); }
-}
-@keyframes scroll-text {
-  0%, 15%   { transform: translate3d(0, 0, 0); }
-  85%, 100% { transform: translate3d(var(--scroll-text-dist, 0), 0, 0); }
 }
 
 /* (The legacy .media-bar-track / @keyframes media-bar-marquee rules used to
