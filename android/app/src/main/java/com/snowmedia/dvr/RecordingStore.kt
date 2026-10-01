@@ -48,8 +48,8 @@ internal object RecordingStore {
     fun partLimitBytes(removable: Boolean): Long = if (removable) PART_LIMIT_BYTES else Long.MAX_VALUE
 
     class Volume(val id: String, val label: String, val dir: File, val removable: Boolean) {
-        val freeBytes: Long get() = StorageBudget.volumeOf(dir)?.first ?: dir.usableSpace
-        val totalBytes: Long get() = StorageBudget.volumeOf(dir)?.second ?: dir.totalSpace
+        val freeBytes: Long get() = StorageBudget.volumeOf(dir)?.first ?: (StorageBudget.nearestExisting(dir)?.usableSpace ?: 0L)
+        val totalBytes: Long get() = StorageBudget.volumeOf(dir)?.second ?: (StorageBudget.nearestExisting(dir)?.totalSpace ?: 0L)
     }
 
     /** Mounted volumes the app can write to, the box's own first. */

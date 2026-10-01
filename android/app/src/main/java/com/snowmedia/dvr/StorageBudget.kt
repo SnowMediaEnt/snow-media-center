@@ -20,10 +20,28 @@ internal object StorageBudget {
     fun allowedBytes(freeBytes: Long, totalBytes: Long, usedBytes: Long, hardCapBytes: Long): Long =
         maxOf(0L, minOf(hardCapBytes, usedBytes + freeBytes - reserveBytes(totalBytes)))
 
-    /** Free and total bytes of the volume holding [dir]; null when it can't be read. */
+    /**
+     * [dir] itself when it exists, else its nearest parent that does (null when none does).
+     * A folder that has not been created yet sits on the same volume as that parent.
+     */
+    fun nearestExisting(dir: File): File? {
+        var d: File? = dir
+        while (d != null && !d.exists()) d = d.parentFile
+        return d
+    }
+
+    /**
+     * Free and total bytes of the volume holding [dir]; null when it can't be read.
+     * [dir] need not exist yet (the Recordings folder is only created by the
+     * first recording): StatFs throws on a missing path, so the nearest existing
+     * parent is measured instead. Never report 0 for a folder that is merely new.
+     */
     fun volumeOf(dir: File): Pair<Long, Long>? = try {
-        val st = StatFs(dir.path)
-        st.availableBytes to st.totalBytes
+        val at = nearestExisting(dir)
+        if (at == null) null else {
+            val st = StatFs(at.path)
+            st.availableBytes to st.totalBytes
+        }
     } catch (_: Throwable) {
         null
     }
