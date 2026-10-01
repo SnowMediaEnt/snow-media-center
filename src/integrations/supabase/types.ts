@@ -1486,6 +1486,47 @@ export type Database = {
         }
         Relationships: []
       }
+      credential_emails: {
+        Row: {
+          customer_id: string | null
+          id: string
+          included: string[]
+          provider_id: string | null
+          sent_at: string
+          sent_by: string | null
+          service_ids: string[]
+          to_email: string
+        }
+        Insert: {
+          customer_id?: string | null
+          id?: string
+          included?: string[]
+          provider_id?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          service_ids?: string[]
+          to_email: string
+        }
+        Update: {
+          customer_id?: string | null
+          id?: string
+          included?: string[]
+          provider_id?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          service_ids?: string[]
+          to_email?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credential_emails_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_packages: {
         Row: {
           created_at: string
@@ -1777,6 +1818,53 @@ export type Database = {
           },
         ]
       }
+      customer_smc_devices: {
+        Row: {
+          app_version: string | null
+          customer_id: string
+          device: string | null
+          device_id: string
+          first_seen_at: string | null
+          gone: boolean
+          last_seen_at: string | null
+          os_version: string | null
+          platform: string | null
+          via: string
+        }
+        Insert: {
+          app_version?: string | null
+          customer_id: string
+          device?: string | null
+          device_id: string
+          first_seen_at?: string | null
+          gone?: boolean
+          last_seen_at?: string | null
+          os_version?: string | null
+          platform?: string | null
+          via: string
+        }
+        Update: {
+          app_version?: string | null
+          customer_id?: string
+          device?: string | null
+          device_id?: string
+          first_seen_at?: string | null
+          gone?: boolean
+          last_seen_at?: string | null
+          os_version?: string | null
+          platform?: string | null
+          via?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_smc_devices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           contact_method: string | null
@@ -1791,6 +1879,10 @@ export type Database = {
           plex_over_limit_at: string | null
           plex_over_limit_peak: number | null
           shares_account: boolean
+          smc_device: string | null
+          smc_devices: number
+          smc_last_seen: string | null
+          smc_version: string | null
           updated_at: string
           user_id: string | null
           wix_contact_id: string | null
@@ -1810,6 +1902,10 @@ export type Database = {
           plex_over_limit_at?: string | null
           plex_over_limit_peak?: number | null
           shares_account?: boolean
+          smc_device?: string | null
+          smc_devices?: number
+          smc_last_seen?: string | null
+          smc_version?: string | null
           updated_at?: string
           user_id?: string | null
           wix_contact_id?: string | null
@@ -1829,6 +1925,10 @@ export type Database = {
           plex_over_limit_at?: string | null
           plex_over_limit_peak?: number | null
           shares_account?: boolean
+          smc_device?: string | null
+          smc_devices?: number
+          smc_last_seen?: string | null
+          smc_version?: string | null
           updated_at?: string
           user_id?: string | null
           wix_contact_id?: string | null
@@ -2677,6 +2777,30 @@ export type Database = {
           title?: string
           updated_at?: string
           uploaded_by?: string | null
+        }
+        Relationships: []
+      }
+      line_device_links: {
+        Row: {
+          device_id: string
+          first_seen_at: string
+          last_seen_at: string
+          panel_username: string
+          service: string
+        }
+        Insert: {
+          device_id: string
+          first_seen_at?: string
+          last_seen_at?: string
+          panel_username: string
+          service: string
+        }
+        Update: {
+          device_id?: string
+          first_seen_at?: string
+          last_seen_at?: string
+          panel_username?: string
+          service?: string
         }
         Relationships: []
       }
@@ -4154,72 +4278,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      snow_originals: {
-        Row: {
-          backdrop_path: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          duration_sec: number
-          file_size: number
-          height: number
-          id: string
-          kid_friendly: boolean
-          orientation: string | null
-          poster_path: string | null
-          published: boolean
-          published_at: string | null
-          sort: number
-          title: string
-          updated_at: string
-          video_codec: string | null
-          video_path: string
-          width: number
-        }
-        Insert: {
-          backdrop_path?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          duration_sec: number
-          file_size: number
-          height: number
-          id?: string
-          kid_friendly?: boolean
-          orientation?: never
-          poster_path?: string | null
-          published?: boolean
-          published_at?: string | null
-          sort?: number
-          title: string
-          updated_at?: string
-          video_codec?: string | null
-          video_path: string
-          width: number
-        }
-        Update: {
-          backdrop_path?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          duration_sec?: number
-          file_size?: number
-          height?: number
-          id?: string
-          kid_friendly?: boolean
-          orientation?: never
-          poster_path?: string | null
-          published?: boolean
-          published_at?: string | null
-          sort?: number
-          title?: string
-          updated_at?: string
-          video_codec?: string | null
-          video_path?: string
-          width?: number
-        }
-        Relationships: []
       }
       store_display: {
         Row: {
