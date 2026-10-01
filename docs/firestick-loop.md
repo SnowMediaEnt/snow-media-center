@@ -9,6 +9,8 @@ what you saw, show the version on screen, and push every change.
 - Fire TV: adb over Wi-Fi at `192.168.50.36:5555` (Fire OS 7 = Android 9).
 - SDK `~/Library/Android/sdk`; JDK 21 `/usr/local/Cellar/openjdk@21/21.0.8/libexec/openjdk.jdk/Contents/Home`.
 - Release signing comes from `android/keystore.properties` (never committed). No file = debug key = never ship.
+  The SMC release key is itself named "Android Debug" (alias `androiddebugkey`, cert SHA-256 `7cdc1043…cc9b`)
+  and every customer box has it, so never swap it; release.sh checks that exact certificate, not the name.
 - Update channel: `https://snowmediaapps.com/smc/update.json` (FTP account rooted at `public_html`):
   `/smc/snow_media_center.<version>.apk`, `/smc/update.json`, and `/apps/snowmediacenter.apk`.
 - MPV is for owner test builds only (`-PSMC_WITH_MPV=true`); customer releases never include it.

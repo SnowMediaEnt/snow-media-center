@@ -62,8 +62,12 @@ test)
   fi
   APKSIGNER="$(ls -d "$SDK"/build-tools/*/apksigner | tail -1)"
   CERT="$("$APKSIGNER" verify --print-certs "$APK")"
-  if echo "$CERT" | grep -qi "CN=Android Debug"; then
-    echo "STOP: signed with a debug key, not the release key."; exit 1
+  # SMC's release key is named "Android Debug" (alias androiddebugkey) and every box in the
+  # field has SMC signed with it, so check the exact certificate, not the name: any other
+  # key (e.g. this Mac's own debug key) means customers can't update.
+  FIELD_CERT=7cdc1043c5022e4e070836f1791960bf16e6555d9c6e03569796992759ffcc9b
+  if ! echo "$CERT" | grep -i "SHA-256 digest" | grep -q "$FIELD_CERT"; then
+    echo "STOP: not signed with the SMC release key that customers' boxes have."; exit 1
   fi
   echo "$CERT" | grep -i "SHA-256 digest" | head -1
   if [ "$APK_NAME" != "$NAME" ] || [ "$APK_CODE" != "$CODE" ]; then
