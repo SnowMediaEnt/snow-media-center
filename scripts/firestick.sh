@@ -36,7 +36,8 @@ VER="$("$AAPT" dump badging "$APK" | grep -o "versionCode='[0-9]*' versionName='
 echo "Built: $VER"
 CODE="$(echo "$VER" | grep -o "versionCode='[0-9]*'" | grep -o "[0-9]*")"
 SUFFIX=""; [ -n "$MPV" ] && SUFFIX="_mpv"
-cp "$APK" "$HOME/Downloads/snow_media_center_1.8.0_build${CODE}${SUFFIX}.apk"
+NAME="$(echo "$VER" | grep -o "versionName='[^']*'" | cut -d"'" -f2)"
+cp "$APK" "$HOME/Downloads/snow_media_center_${NAME}_build${CODE}${SUFFIX}.apk"
 
 echo "Connecting to $IP…"
 "$ADB" connect "$IP:5555"

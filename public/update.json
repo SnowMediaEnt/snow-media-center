@@ -1,9 +1,9 @@
 {
-  "version": "1.8.0",
-  "versionCode": 43,
-  "releaseDate": "2026-09-26",
+  "version": "1.8.1",
+  "versionCode": 59,
+  "releaseDate": "2026-10-01",
   "size": "",
-  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.8.0.apk",
-  "changelog": "WHAT'S NEW\n• Live TV channel lists load even where an internet provider blocks them, no VPN needed\n• 4K in Plex plays without dropping to 1080p\n• Guide Favorites tip fixed\n• Plus everything in 1.7.9: smooth Plex, Resume, Favorites in the Guide, volume to 150%",
-  "releaseNotes": "Version 1.8.0: Live TV channel lists now load even on internet providers that block them, so no VPN is needed. 4K movies in Plex wait for a proper head start and play without dropping to 1080p. Includes everything in 1.7.9: smooth Plex playback and Resume, Favorites in the TV Guide, volume up to 150% and Playback stats."
+  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center.1.8.1.apk",
+  "changelog": "WHAT'S NEW\n• Snow Originals: our own videos, right in Live TV\n• Rewind live TV, record channels and schedule recordings from the Guide\n• Game Day: all your lines with service tags, more soccer (internationals, Europe, Liga MX), better channel picks, report a channel down\n• The whole app in English, Español, Français, Deutsch or العربية\n• New Home look and a new How to use SMC guide with real screenshots\n• Plex picks the right quality for your connection\n• Hold OK on a channel for a quick menu; sign-in keyboard jumps to Sign in",
+  "releaseNotes": "Version 1.8.1: Snow Originals, our own videos in Live TV. Rewind live TV, record channels and schedule recordings from the Guide. Game Day uses every line you're signed into with a tag for each service, adds international and European soccer, lets you report a channel that's down, and lists only channels the guide confirms. The whole app now speaks English, Spanish, French, German or Arabic (Settings → Language). A new Home look, a new How to use SMC guide with real screenshots, smarter Plex quality on slower connections, a quick hold-OK channel menu, and the sign-in keyboard now jumps straight to Sign in."
 }

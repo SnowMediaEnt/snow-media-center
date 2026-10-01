@@ -64,6 +64,7 @@ Kids mode, and games. The owner builds it, installs it on real boxes, and report
 - `src/components/games` and `src/components/kids` belong to another workstream: don't edit.
 - Never apply `20260922060000_remote_support_codes.sql`.
 - Live TV quietly signs a box into the Snow Media account on file; keep that.
+- Releases: install on the owner's Firestick first (`scripts/release.sh test`, 192.168.50.36). Upload to the FTP server (`scripts/release.sh publish`) ONLY after the owner says it passes. Customer releases never include MPV.
 
 ## How we work
 The owner sends batches of features and fixes, builds on the Mac, tests on real boxes, and reports back.
