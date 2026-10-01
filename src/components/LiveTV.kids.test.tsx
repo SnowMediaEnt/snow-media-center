@@ -44,6 +44,7 @@ vi.mock('./livetv/LiveSection', async () => {
   return { default: LiveSectionStub };
 });
 vi.mock('./livetv/BackupsSection', () => ({ default: () => <div>backups-section</div> }));
+vi.mock('./livetv/OriginalsSection', () => ({ default: () => <div>originals-section</div> }));
 // Plex signed out on a box with no line: its "Sign into Live TV" (OK here).
 vi.mock('./livetv/PlexSection', async () => {
   const { useEffect } = await import('react');
@@ -98,7 +99,13 @@ describe('the Player on a Kids profile', () => {
   it('the sidebar has no Backups', async () => {
     setKidsLevel('teen');
     await openLiveTv();
-    expect(sidebar()).toEqual(['Live TV', 'Guide', 'Game Day', 'VOD', 'Multi-Screen']);
+    expect(sidebar()).toEqual(['Live TV', 'Guide', 'Game Day', 'Snow Originals', 'VOD', 'Multi-Screen']);
+  });
+
+  it.each(['little', 'kids'] as const)('%s: Snow Originals stays (the section keeps to kid-friendly videos), Game Day goes', async (level) => {
+    setKidsLevel(level);
+    await openLiveTv();
+    expect(sidebar()).toEqual(['Live TV', 'Guide', 'Snow Originals', 'VOD', 'Multi-Screen']);
   });
 
   it('the header has no Player Settings to reach (sign-out, the line password, billing)', async () => {
@@ -218,7 +225,7 @@ describe('the Player on a grown-up profile', () => {
 
   it('keeps Backups and the header Settings', async () => {
     await openLiveTv();
-    expect(sidebar()).toContain('Backups');
+    expect(sidebar()).toEqual(['Live TV', 'Guide', 'Game Day', 'Snow Originals', 'VOD', 'Multi-Screen', 'Backups']);
     key('ArrowLeft');
     key('ArrowUp');
     key('ArrowRight'); key('ArrowRight');

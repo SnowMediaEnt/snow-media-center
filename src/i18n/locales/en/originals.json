@@ -1,0 +1,25 @@
+{
+  "originals": {
+    "browse": {
+      "heading": "Snow Originals",
+      "subtitle": "Short videos made by Snow Media",
+      "newChip": "New",
+      "uprightLabel": "Upright video",
+      "loading": "Loading Snow Originals…",
+      "empty": "No videos yet. Check back soon.",
+      "emptyKids": "No kid-friendly videos yet.",
+      "offline": "You're offline. This is the last list we had.",
+      "loadFailed": "Couldn't load Snow Originals. Try again in a moment.",
+      "playHint": "OK to play"
+    },
+    "player": {
+      "hintPlaying": "OK pause · ◀ ▶ 10 s · ▼ next · ▲ previous · Back list",
+      "hintPaused": "OK play · ◀ ▶ 10 s · ▼ next · ▲ previous · Back list",
+      "resumed": "Picked up where you left off",
+      "upNext": "Up next",
+      "upNextHint": "OK to play now · Back for the list",
+      "cantPlay": "This video can't play right now.",
+      "retryHint": "OK to try again · Back for the list"
+    }
+  }
+}

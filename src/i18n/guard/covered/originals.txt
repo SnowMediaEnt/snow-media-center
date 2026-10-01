@@ -1,0 +1,4 @@
+# Snow Originals (Live TV section, player, data layer).
+src/components/livetv/OriginalsSection.tsx
+src/components/livetv/OriginalsPlayer.tsx
+src/lib/snowOriginals.ts
