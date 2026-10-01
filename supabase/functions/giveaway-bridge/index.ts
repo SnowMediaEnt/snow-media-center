@@ -24,6 +24,9 @@
 //                             max_connections?, is_trial?, source} -> customer (found or made) +
 //                             customer_services row with expiry, panel id and password
 //   support-session-paid (internal) {ref, order_number, total, email}
+//   site-provision (website key) {order_number, line_index, email, name, months, connections, amount,
+//                             paypal_txn, paid_at, dry_run?} -> a paid NEW DreamStreams order line becomes a
+//                             panel line via billing admin.php order.provision; CRM filed; Discord told
 //   gems-order     (internal) {ref} -> what a Snow Gems QR is for: package, credits, price, status,
 //                             so the private page on snowmediaent.com can show it before charging
 //   gems-paid      (internal) {ref, order_number, total, paypal_transaction_id?, email?} -> flips the
@@ -138,14 +141,21 @@ Deno.serve(async (req) => {
     }
 
     // ---------- INTERNAL (secret-gated) ----------
-    // Accept x-internal-secret matching EITHER INTERNAL_FN_SECRET or the
-    // optional SMC_BRIDGE_SECRET (missing env = no match, never crash).
+    // x-internal-secret must match INTERNAL_FN_SECRET or the optional
+    // SMC_BRIDGE_SECRET (missing env = no match, never crash), with two narrow
+    // keys that each unlock ONE action:
+    //   SMC_HUB_SECRET         the billing server (WHMCS hook), 'line-created' only
+    //   SITE_PROVISION_SECRET  the website; the ONLY key 'site-provision' accepts,
+    //                          because that action mints paid panel lines
     const secret = Deno.env.get('INTERNAL_FN_SECRET');
     const bridgeSecret = Deno.env.get('SMC_BRIDGE_SECRET');
+    const hubSecret = Deno.env.get('SMC_HUB_SECRET');
+    const siteSecret = Deno.env.get('SITE_PROVISION_SECRET');
     const provided = req.headers.get('x-internal-secret') || '';
-    const secretOk =
-      provided.length > 0 &&
-      ((!!secret && provided === secret) || (!!bridgeSecret && provided === bridgeSecret));
+    const matches = (s: string | undefined) => provided.length > 0 && !!s && provided === s;
+    const secretOk = action === 'site-provision'
+      ? matches(siteSecret)
+      : matches(secret) || matches(bridgeSecret) || (action === 'line-created' && matches(hubSecret));
     if (!secretOk) return json({ error: 'unauthorized' }, 401);
 
     const latestGiveaway = async () => {
@@ -983,6 +993,127 @@ Deno.serve(async (req) => {
 
       console.log(`[giveaway-bridge] support-session-paid ref=${ref} discord=${discord_status} push=${push_status}`);
       return json({ ok: true, discord_status, push_status });
+    }
+
+    // site-provision (website only — SITE_PROVISION_SECRET): one PAID website
+    // order line for a NEW DreamStreams plan becomes a real panel line through
+    // the billing server's order.provision (one run per order line, priced,
+    // locked, never minted twice — see smc/admin.php). Then the line is filed
+    // on the buyer's CRM record (the site-order "awaiting panel login"
+    // placeholder is merged into it, no duplicate row) and Discord is told.
+    // The website keeps the login on the order for the owner and the buyer.
+    if (action === 'site-provision') {
+      const escLike = (v: string) => v.replace(/[\\%_]/g, (m) => '\\' + m);
+      const orderNumber = String(body.order_number || '').trim().toUpperCase();
+      const lineIndex = Math.trunc(Number(body.line_index ?? 0)) || 0;
+      const email = String(body.email || '').trim().toLowerCase();
+      const name = String(body.name || '').trim().slice(0, 120);
+      const months = Math.trunc(Number(body.months) || 0);
+      const connections = Math.trunc(Number(body.connections) || 0);
+      const amount = Number(body.amount) || 0;
+      const transId = String(body.paypal_txn || '').trim().toUpperCase();
+      const paidAt = body.paid_at ? String(body.paid_at) : null;
+      const dryRun = body.dry_run === true;
+      if (!/^SNW-\d{5,8}$/.test(orderNumber) || !email.includes('@') || !months || !connections || amount <= 0
+          || !/^[A-Z0-9]{17}$/.test(transId)) {
+        return json({ ok: false, reason: 'bad_request',
+          human: 'order_number, email, months, connections, amount and the 17-character PayPal transaction id are required' }, 400);
+      }
+      const key = (Deno.env.get('SMC_ADMIN_KEY') ?? '').trim();
+      const url = (Deno.env.get('SMC_ADMIN_URL') ?? 'https://billing.smcdreamstreams.store/smc/admin.php').trim();
+      if (!key) return json({ ok: false, reason: 'not_configured', human: 'SMC_ADMIN_KEY is not set on this project' });
+
+      const alert = async (content: string) => {
+        try {
+          const hook = Deno.env.get('DISCORD_WEBHOOK_URL');
+          if (hook) await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) });
+        } catch { /* an alert never fails the call */ }
+      };
+
+      // deno-lint-ignore no-explicit-any
+      let r: any;
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
+          body: JSON.stringify({ action: 'order.provision', dryRun, orderNumber, lineIndex, email, name,
+                                 months, connections, amount, transId, paidAt }),
+          signal: AbortSignal.timeout(90_000),
+        });
+        r = await res.json().catch(() => ({ ok: false, reason: 'bad_reply', human: `billing server answered HTTP ${res.status}` }));
+      } catch (e) {
+        // Timed out or unreachable. A retry is safe: the billing ledger resumes or reports in_progress.
+        r = { ok: false, reason: 'unreachable', human: `billing server did not answer: ${e instanceof Error ? e.message : String(e)}` };
+      }
+
+      if (!r?.ok) {
+        if (!dryRun && r?.reason !== 'in_progress') {
+          await alert(`⚠️ WEBSITE ORDER NEEDS SETUP — ${orderNumber} (${months} mo · ${connections} conn, $${amount}) for ${email}\n` +
+                      `Reason: ${r?.human ?? r?.reason ?? 'unknown'}\n→ snowmediaent.com/admin → Orders`);
+        }
+        return json({ ok: false, reason: String(r?.reason ?? 'failed'), human: String(r?.human ?? 'the billing server refused') });
+      }
+      if (dryRun) return json(r);
+
+      const username = String(r.username || '').trim();
+      const password = r.password ? String(r.password) : null;
+      const host = String(r.host || 'http://dstreams.xyz:8080');
+      const expires = r.expires ? String(r.expires).slice(0, 10) : null;
+      const lineId = r.lineId ? String(r.lineId) : null;
+
+      // CRM: the canonical row (line-created may already have made it) wins and
+      // the site-order placeholder is merged into it; otherwise the placeholder
+      // is adopted; otherwise the line is linked fresh.
+      let crm = 'skipped';
+      try {
+        const resolved = await resolveByEmail(email);
+        const customerId = resolved.customerId;
+        if (customerId && username) {
+          const tag = `#${orderNumber}`;
+          const note = `Website order ${tag} — line created via WHMCS service #${r.serviceId}`;
+          const { data: holder } = await admin.from('customer_services').select('id')
+            .eq('customer_id', customerId).eq('renewal_status', 'pending_provision').is('panel_username', null)
+            .ilike('notes', `%${escLike(tag)}%`).limit(1).maybeSingle();
+          const { data: real } = await admin.from('customer_services').select('id, panel_line_id, panel_password')
+            .eq('customer_id', customerId).ilike('panel_username', escLike(username)).limit(1).maybeSingle();
+          const enc = password ? await encryptIfKeyed(password) : null;
+          if (real) {
+            const patch: Record<string, unknown> = { notes: note };
+            if (lineId && !real.panel_line_id) patch.panel_line_id = lineId;
+            if (enc && !real.panel_password) patch.panel_password = enc;
+            await admin.from('customer_services').update(patch).eq('id', real.id);
+            if (holder) await admin.from('customer_services').delete().eq('id', holder.id);
+            crm = holder ? 'merged placeholder' : 'updated';
+          } else if (holder) {
+            await admin.from('customer_services').update({
+              panel_username: username.toLowerCase(), panel_host: host, panel_line_id: lineId, panel_password: enc,
+              expiration_date: expires, renewal_status: 'active', max_connections: connections, is_trial: false, notes: note,
+            }).eq('id', holder.id);
+            crm = 'adopted placeholder';
+          } else {
+            const { error } = await admin.rpc('link_claimed_panel_line', {
+              p_customer_id: customerId, p_supabase_user_id: resolved.userId, p_panel_username: username,
+              p_panel_host: host, p_server_label: 'Dreamstreams', p_expiration_date: expires,
+              p_max_connections: connections, p_is_trial: false,
+            });
+            crm = error ? `link failed: ${error.message}` : 'linked';
+          }
+        } else {
+          crm = 'no single CRM customer for that email';
+        }
+      } catch (e) {
+        crm = `error: ${e instanceof Error ? e.message : String(e)}`;
+      }
+
+      if (!r.replayed) {
+        const before = r.creditsBefore != null ? Number(r.creditsBefore) : null;
+        const left = before != null ? before - Number(r.creditsCost ?? 0) : null;
+        await alert(`✅ WEBSITE ORDER SET UP — ${orderNumber}: ${username} (${months} mo · ${connections} conn) for ${email}\n` +
+                    `WHMCS service #${r.serviceId}, expires ${expires ?? '?'} · CRM: ${crm}` +
+                    (left != null ? `\nPanel credits left ≈ ${left}${left < 20 ? ' ⚠️ LOW — top up soon' : ''}` : ''));
+      }
+      return json({ ok: true, replayed: !!r.replayed, username, password, host, expires,
+                    serviceId: r.serviceId, lineId, crm });
     }
 
     if (action === 'gems-order') {
