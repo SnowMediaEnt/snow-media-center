@@ -65,6 +65,11 @@ Status: building · ready to test · still broken · done.
 | 43 | Recordings: the key hint at the bottom covered the last recording | bug | ready to test (build 57) | direct |
 | 44 | Snow Originals: owner's own videos in Live TV (after Game Day), uploaded from the Hub; upright videos centred over a blurred still; Kids see kid-friendly only — plan: .claude/plan-originals.md | feature | ready to test (build 58) | |
 | 45 | Snow Originals moved under Multi-Screen in the Live TV menu; long menu names, titles and descriptions scroll when highlighted instead of being cut off | feature | ready to test (1.8.1 build 59) | |
+| 46 | Game Day: player bar named the wrong channel (first of the open list); now always the playing channel, its guide and its CH+/CH- neighbours. Selected filter shows the highlight | bug | ready to test (1.8.1 build 59) | 2 |
+| 47 | Record dialog said "0 MB free" on a box that never recorded (measured a folder not made yet) | bug | ready to test (1.8.1 build 59) | 1 |
+| 48 | One Back from the player closed SMC (app behind showed, recording kept going); Back can no longer close SMC except Home's own "press again to exit" | bug | ready to test (1.8.1 build 59) | 2 |
+| 49 | Player bar buttons shifted when Go live appeared; its spot is now reserved (greyed until rewind) | bug | ready to test (1.8.1 build 59) | 2 |
+| 50 | Home: channel tiles blank white (A&E, ESPN, Golf Channel); now logo on a dark card, initials if no logo | bug | ready to test (1.8.1 build 59) | 1 |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner
