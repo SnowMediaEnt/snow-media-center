@@ -4,31 +4,55 @@ import { liveBarDisabled, liveBarLabel, liveBarOrder, moveBarFocus, type BarCont
 const noChoice = { subtitles: 0, audios: 1 };
 
 describe('the live bar buttons', () => {
-  it('plain: exactly the bar Snow Media Center always had, Stats last', () => {
-    expect(liveBarOrder({ rewind: false, record: false }))
-      .toEqual(['prev', 'rew', 'play', 'fwd', 'next', 'report', 'cc', 'audio', 'vol', 'stats']);
-  });
-
-  it('rewind on: Go live joins after Forward 10s', () => {
-    expect(liveBarOrder({ rewind: true, record: false }))
+  it('plain: Go live has its slot (greyed out until rewind applies), Stats last', () => {
+    expect(liveBarOrder({ record: false }))
       .toEqual(['prev', 'rew', 'play', 'fwd', 'golive', 'next', 'report', 'cc', 'audio', 'vol', 'stats']);
   });
 
-  it('rewind and record: the full row is 12 buttons, Report right after Record, Stats last', () => {
-    const order = liveBarOrder({ rewind: true, record: true });
+  it('record: the full row is 12 buttons, Report right after Record, Stats last', () => {
+    const order = liveBarOrder({ record: true });
     expect(order).toEqual(['prev', 'rew', 'play', 'fwd', 'golive', 'next', 'rec', 'report', 'cc', 'audio', 'vol', 'stats']);
     expect(order).toHaveLength(12);
     expect(order[order.length - 1]).toBe('stats');
   });
 
-  it('record without rewind: Record follows Next channel', () => {
-    expect(liveBarOrder({ rewind: false, record: true }))
-      .toEqual(['prev', 'rew', 'play', 'fwd', 'next', 'rec', 'report', 'cc', 'audio', 'vol', 'stats']);
+  it('no id repeats', () => {
+    const order = liveBarOrder({ record: true });
+    expect(new Set(order).size).toBe(order.length);
+  });
+});
+
+describe('rewind coming on a few seconds into a channel', () => {
+  // The owner's Fire TV: Go live appeared after the channel started, Next and
+  // Record slid one slot right under the highlight, and an OK meant for Record
+  // changed channel. The row is now the same before and after.
+  const s = { seekable: false, subtitles: 0, audios: 1 };
+  const before = (id: BarControlId) => liveBarDisabled(id, { ...s, rewind: false });
+  const after = (id: BarControlId) => liveBarDisabled(id, { ...s, rewind: true });
+  const order = liveBarOrder({ record: true });
+
+  it('Go live is in its slot, greyed out, before rewind applies', () => {
+    expect(order.indexOf('golive')).toBe(4);
+    expect(before('golive')).toBe(true);
+    expect(after('golive')).toBe(false);
   });
 
-  it('no id repeats', () => {
-    const order = liveBarOrder({ rewind: true, record: true });
-    expect(new Set(order).size).toBe(order.length);
+  it('no button changes slot', () => {
+    // One list for both states: every button keeps its index.
+    const slots = Object.fromEntries(order.map((id, i) => [id, i]));
+    expect(slots).toMatchObject({ next: 5, rec: 6, report: 7 });
+  });
+
+  it('the highlight stays on the button the viewer was on', () => {
+    // On Record before rewind: Left goes to Next, Right to Report; the same after.
+    expect(moveBarFocus(order, 'rec', -1, before)).toBe('next');
+    expect(moveBarFocus(order, 'rec', -1, after)).toBe('next');
+    expect(moveBarFocus(order, 'rec', 1, before)).toBe('report');
+    expect(moveBarFocus(order, 'rec', 1, after)).toBe('report');
+    // Greyed out, Go live is stepped over; once on, it is the next stop after Forward 10s.
+    expect(moveBarFocus(order, 'play', 1, before)).toBe('next');
+    expect(moveBarFocus(order, 'play', 1, after)).toBe('fwd');
+    expect(moveBarFocus(order, 'fwd', 1, after)).toBe('golive');
   });
 });
 
@@ -54,7 +78,7 @@ describe('which buttons are greyed out', () => {
 });
 
 describe('the ◀ ▶ steps', () => {
-  const order = liveBarOrder({ rewind: true, record: true });
+  const order = liveBarOrder({ record: true });
   const off = (id: BarControlId) => liveBarDisabled(id, { seekable: false, rewind: true, ...noChoice });
 
   it('steps along the row and stops at both ends', () => {
@@ -71,8 +95,7 @@ describe('the ◀ ▶ steps', () => {
   });
 
   it('a highlight on a button no longer in the row lands on Play', () => {
-    const plain = liveBarOrder({ rewind: false, record: false });
-    expect(moveBarFocus(plain, 'golive', 1, off)).toBe('play');
+    const plain = liveBarOrder({ record: false });
     expect(moveBarFocus(plain, 'rec', -1, off)).toBe('play');
   });
 });

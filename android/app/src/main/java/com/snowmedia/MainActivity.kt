@@ -12,6 +12,7 @@ import android.view.ViewGroup
 import android.widget.TextView
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
+import androidx.activity.OnBackPressedCallback
 import com.getcapacitor.BridgeActivity
 import com.getcapacitor.WebViewListener
 import com.snowmedia.appmanager.AppManagerPlugin
@@ -78,6 +79,20 @@ class MainActivity : BridgeActivity() {
         // anyway once a player has been used.
         bridge?.webView?.setBackgroundColor(Color.TRANSPARENT)
         window.decorView.setBackgroundColor(Color.BLACK)
+        // Back never closes Snow Media Center on Android's say-so. The page
+        // decides every Back (Capacitor's App plugin hands it the press), and
+        // the app leaves only through Home's own "press Back again to exit"
+        // (useNavigation), which calls App.exitApp. Capacitor's callback is
+        // tied to the activity's started state and is re-added on each start;
+        // in any moment it is not there, Android's default for Back was to
+        // finish this activity: SMC gone, the app behind it on screen, a
+        // recording carrying on with nobody watching. This one sits under
+        // Capacitor's (added first, so asked last) and only keeps the app.
+        onBackPressedDispatcher.addCallback(object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                Log.i("SMC-Back", "Back with no page handler: SMC stays open")
+            }
+        })
     }
 
     // The remote's media buttons never reach the page: Android's WebView keeps

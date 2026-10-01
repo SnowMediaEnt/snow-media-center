@@ -114,7 +114,7 @@ const Stage = ({ shot, bg }: { shot: StageShot; bg: string | null }) => {
           <DrawnStill art={stageChannelLogo()} />
           <PlayerControlBar
             visible
-            order={liveBarOrder({ rewind: true, record: true })}
+            order={liveBarOrder({ record: true })}
             focus="rec"
             isPaused={false}
             controller={liveController}

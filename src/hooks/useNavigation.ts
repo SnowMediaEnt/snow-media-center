@@ -54,7 +54,19 @@ const exitApp = () => {
   }
 };
 
+/** Two Back presses on Home at most this far apart leave the app. */
 const DOUBLE_PRESS_MS = 2000;
+/**
+ * Home must have been on screen this long before a Back there counts toward
+ * leaving the app. A press in Home's first moments belongs to the screen just
+ * left: the one that walked out of the Player, or presses Capacitor held while
+ * the page was not listening (it replays them to the first backButton listener
+ * the moment one is added, which is Home's, at boot or after the WebView was
+ * reloaded) and a box that is slow to draw Home under a recording.
+ */
+export const HOME_SETTLE_MS = 800;
+/** One press delivered twice (the system Back event and a key) is still one press. */
+const SAME_PRESS_MS = 350;
 
 export const useNavigation = (initialView: string = 'home', options: NavigationOptions = {}) => {
   const { onRootBack } = options;
@@ -64,7 +76,37 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
   });
 
   const [backPressCount, setBackPressCount] = useState(0);
-  const [lastBackPressTime, setLastBackPressTime] = useState(0);
+
+  // When Home came on screen (0 while another screen is up), and when the
+  // first of the two exit presses was made there (0 = none). Refs: the native
+  // listener and Index's key handler both read them, and must agree.
+  const homeSinceRef = useRef(initialView === 'home' ? Date.now() : 0);
+  const armedAtRef = useRef(0);
+  useEffect(() => {
+    homeSinceRef.current = navigationState.currentView === 'home' ? Date.now() : 0;
+    armedAtRef.current = 0;
+  }, [navigationState.currentView]);
+
+  /**
+   * Back on Home with nothing open there: the app's only way out. The first
+   * press shows "press Back again to exit", a second one within two seconds
+   * leaves. Neither can be a press that belongs to another screen.
+   */
+  const backAtHome = useCallback(() => {
+    const now = Date.now();
+    const since = homeSinceRef.current;
+    if (!since || now - since < HOME_SETTLE_MS) return;
+    const armed = armedAtRef.current;
+    if (armed && now - armed < SAME_PRESS_MS) return;
+    if (armed && now - armed < DOUBLE_PRESS_MS) {
+      armedAtRef.current = 0;
+      setBackPressCount(0);
+      exitApp();
+      return;
+    }
+    armedAtRef.current = now;
+    setBackPressCount(1);
+  }, []);
 
   const navigateTo = useCallback((view: string) => {
     setNavigationState(prev => {
@@ -86,46 +128,35 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
     });
   }, []);
 
+  const stateRef = useRef(navigationState);
+  stateRef.current = navigationState;
+  const onRootBackRef = useRef(onRootBack);
+  useEffect(() => { onRootBackRef.current = onRootBack; }, [onRootBack]);
+
   const goBack = useCallback(() => {
+    const st = stateRef.current;
+    if (st.navigationStack.length <= 1) {
+      // Home: its own popups first, then the way out. Anywhere else at the
+      // root (a screen opened straight from boot) Back does nothing.
+      if (st.currentView === 'home' && !onRootBackRef.current?.()) backAtHome();
+      return;
+    }
     setNavigationState(prev => {
-      if (prev.navigationStack.length <= 1) {
-        if (prev.currentView === 'home') {
-          if (onRootBack?.()) return prev;
-          const now = Date.now();
-          if (now - lastBackPressTime < DOUBLE_PRESS_MS) {
-            exitApp();
-            return prev;
-          }
-          setLastBackPressTime(now);
-          setBackPressCount(1);
-          return prev;
-        }
-        return prev;
-      }
-
-      const newStack = [...prev.navigationStack];
-      newStack.pop();
-      const previousView = newStack[newStack.length - 1];
-
+      if (prev.navigationStack.length <= 1) return prev;
+      const newStack = prev.navigationStack.slice(0, -1);
       return {
-        currentView: previousView,
+        currentView: newStack[newStack.length - 1],
         navigationStack: newStack
       };
     });
-  }, [lastBackPressTime, onRootBack]);
+  }, [backAtHome]);
 
   // Refs — keep the native backButton listener registered ONCE per mount.
   const currentViewRef = useRef(navigationState.currentView);
-  const lastBackPressTimeRef = useRef(lastBackPressTime);
-  const backPressCountRef = useRef(backPressCount);
   const goBackRef = useRef(goBack);
-  const onRootBackRef = useRef(onRootBack);
 
   useEffect(() => { currentViewRef.current = navigationState.currentView; }, [navigationState.currentView]);
-  useEffect(() => { lastBackPressTimeRef.current = lastBackPressTime; }, [lastBackPressTime]);
-  useEffect(() => { backPressCountRef.current = backPressCount; }, [backPressCount]);
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
-  useEffect(() => { onRootBackRef.current = onRootBack; }, [onRootBack]);
 
   useEffect(() => {
     let backButtonHandler: CapacitorListenerHandle | undefined;
@@ -152,18 +183,8 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
 
           console.log('Capacitor back button pressed, current view:', currentView, 'canGoBack:', canGoBack);
 
-          if (currentView !== 'home') {
-            goBackRef.current?.();
-          } else {
-            if (onRootBackRef.current?.()) return;
-            const now = Date.now();
-            if (now - lastBackPressTimeRef.current < DOUBLE_PRESS_MS && backPressCountRef.current === 1) {
-              exitApp();
-            } else {
-              setLastBackPressTime(now);
-              setBackPressCount(1);
-            }
-          }
+          // One step back; on Home, the double press that leaves the app.
+          goBackRef.current?.();
         });
         if (cancelled) handle?.remove?.();
         else backButtonHandler = handle;

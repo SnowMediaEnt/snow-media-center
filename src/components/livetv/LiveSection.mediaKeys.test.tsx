@@ -156,12 +156,12 @@ describe('remote media keys in a live channel', () => {
 });
 
 describe('the bar without rewind or a recorder', () => {
-  it('is the plain one, with Stats last', async () => {
+  it('is the plain one, Go live greyed out in its slot, Stats last', async () => {
     await watchNewsOne();
     expect(barButtons()).toEqual([
-      'Previous channel', 'Back 10s', 'Pause', 'Forward 10s', 'Next channel', 'Report channel', 'Subtitles', 'Audio', expect.stringMatching(/^Volume \d+%$/), 'Stats',
+      'Previous channel', 'Back 10s', 'Pause', 'Forward 10s', 'Go live', 'Next channel', 'Report channel', 'Subtitles', 'Audio', expect.stringMatching(/^Volume \d+%$/), 'Stats',
     ]);
-    expect(barButtons()).not.toContain('Go live');
+    expect(document.querySelector('[data-bar-control="golive"] button')!.className).toMatch(/text-white\/30/);
     expect(barButtons()).not.toContain('Record');
     expect(document.querySelector('[data-rewind-timeline]')).toBeNull();
     expect(text()).toContain('LIVE');

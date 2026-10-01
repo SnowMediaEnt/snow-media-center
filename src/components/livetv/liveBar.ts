@@ -20,21 +20,23 @@ export interface LiveBarContext {
 
 /**
  * The buttons, left to right. Stats is always last.
- * - Plain: previous channel, back 10 s, play/pause, forward 10 s, next channel,
- *   report, subtitles, audio, volume, stats. Back / forward stay in the row but are
- *   greyed out unless the stream can seek (nothing changes for a bar without
- *   rewind).
- * - Rewind on: Go live joins after forward 10 s.
- * - Record on: Record follows next channel.
+ * - Previous channel, back 10 s, play/pause, forward 10 s, Go live, next
+ *   channel, report, subtitles, audio, volume, stats. Back / forward stay in
+ *   the row but are greyed out unless the stream can seek or rewind is on.
+ * - Go live has its own slot from the start, greyed out until rewind applies
+ *   to the channel. Rewind often comes on a few seconds after a channel
+ *   starts; a button that only joined the row then pushed Next, Record and
+ *   everything after them one slot right, under the viewer's highlight, and an
+ *   OK meant for Record landed on Next channel. Nothing moves now.
+ * - Record on: Record follows next channel (known when the bar is first drawn:
+ *   the native app, not Kids, not the demo; it never changes mid-channel).
  * - Report is always there (Kids and the demo too), right after Record, or
  *   after next channel where there is no Record.
  * All twelve fit the 960 px screen (w-12 buttons, w-16 Play, about 710 px).
  */
-export function liveBarOrder(ctx: Pick<LiveBarContext, 'rewind' | 'record'>): BarControlId[] {
+export function liveBarOrder(ctx: Pick<LiveBarContext, 'record'>): BarControlId[] {
   return [
-    'prev', 'rew', 'play', 'fwd',
-    ...(ctx.rewind ? (['golive'] as BarControlId[]) : []),
-    'next',
+    'prev', 'rew', 'play', 'fwd', 'golive', 'next',
     ...(ctx.record ? (['rec'] as BarControlId[]) : []),
     'report',
     'cc', 'audio', 'vol', 'stats',
@@ -43,8 +45,9 @@ export function liveBarOrder(ctx: Pick<LiveBarContext, 'rewind' | 'record'>): Ba
 
 /**
  * Buttons that are greyed out and skipped by ◀ ▶: back / forward when there
- * is nothing to seek in (rewind on always has something), subtitles and audio
- * when the stream has no choice to offer.
+ * is nothing to seek in (rewind on always has something), Go live until the
+ * channel has rewind, subtitles and audio when the stream has no choice to
+ * offer. Greyed out, a button keeps its slot.
  */
 export function liveBarDisabled(
   id: BarControlId,
@@ -93,8 +96,9 @@ export function liveBarLabel(id: BarControlId, s: LiveBarLabelState): string {
 
 /**
  * The next button left (-1) or right (+1) of `cur`, skipping disabled ones.
- * Stops at either end. A focus no longer in the row (Go live after rewind
- * turned off, Record after the channel changed) lands on Play.
+ * Stops at either end. The highlight is a button, not a slot: a button that
+ * greys out or comes on elsewhere in the row never moves it. A focus no
+ * longer in the row lands on Play.
  */
 export function moveBarFocus(
   order: BarControlId[],

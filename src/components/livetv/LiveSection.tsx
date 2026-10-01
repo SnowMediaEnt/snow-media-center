@@ -1922,7 +1922,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         const seekable = !!ctrl?.isSeekable();
         const rewindOn = rewindRef.current.kind !== 'off';
         // The same list and rule the bar itself draws from (liveBar.ts).
-        const order = liveBarOrder({ rewind: rewindOn, record: recordOnRef.current });
+        const order = liveBarOrder({ record: recordOnRef.current });
         const isDisabled = (id: BarControlId): boolean =>
           liveBarDisabled(id, { seekable, rewind: rewindOn, subtitles: subs.length, audios: auds.length });
 
@@ -1938,7 +1938,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           // one, else a seek; held, the steps are added up (liveSkip).
           else if (id === 'rew')  { liveSkip.push(-MEDIA_SKIP_SEC); }
           else if (id === 'fwd')  { liveSkip.push(+MEDIA_SKIP_SEC); }
-          else if (id === 'golive') { void rewindRef.current.goLive(); }
+          // Greyed out (its slot is kept) until the channel has rewind.
+          else if (id === 'golive') { if (rewindOn) void rewindRef.current.goLive(); }
           else if (id === 'rec') {
             const st = playingStreamRef.current;
             if (st && !e.repeat && recordOnRef.current) setRecordFor({ st, line: playingLineRef.current });
@@ -2394,7 +2395,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         {NATIVE_PLAYBACK && statsShown && <PlayerStatsPanel />}
         <PlayerControlBar
           visible={barVisible}
-          order={liveBarOrder({ rewind: rewind.kind !== 'off', record: recordOn })}
+          order={liveBarOrder({ record: recordOn })}
           rewind={rewind.info}
           recording={!!jobFor(playingStream?.name)}
           focus={barFocus}

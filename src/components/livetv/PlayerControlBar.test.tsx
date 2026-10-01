@@ -11,7 +11,7 @@ import { liveBarOrder, type BarControlId } from './liveBar';
 const bar = (over: Partial<Parameters<typeof PlayerControlBar>[0]> = {}) => (
   <PlayerControlBar
     visible
-    order={liveBarOrder({ rewind: true, record: true })}
+    order={liveBarOrder({ record: true })}
     focus="play"
     isPaused={false}
     controller={null}
@@ -95,9 +95,30 @@ describe('the name under the highlighted button', () => {
   });
 
   it('is on the plain bar too, Stats last', () => {
-    const { container } = render(bar({ order: liveBarOrder({ rewind: false, record: false }), focus: 'stats' }));
+    const { container } = render(bar({ order: liveBarOrder({ record: false }), focus: 'stats' }));
     const ids = Array.from(container.querySelectorAll('[data-bar-control]')).map((c) => c.getAttribute('data-bar-control'));
     expect(ids[ids.length - 1]).toBe('stats');
     expect(shown(container)[0].text).toBe('Stats');
+  });
+});
+
+describe('rewind coming on after the channel starts', () => {
+  const ids = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-bar-control]')).map((n) => n.getAttribute('data-bar-control'));
+  const focused = (c: HTMLElement) => c.querySelector('button[data-focused="true"]')?.closest('[data-bar-control]')?.getAttribute('data-bar-control');
+  const goLive = (c: HTMLElement) => c.querySelector('[data-bar-control="golive"] button')!;
+
+  it('keeps every button in its slot, Go live greyed out until then, and the highlight where it was', () => {
+    // A few seconds in: no rewind yet, the viewer is on Record.
+    const { container, rerender } = render(bar({ focus: 'rec', rewind: null }));
+    const before = ids(container);
+    expect(before).toEqual(['prev', 'rew', 'play', 'fwd', 'golive', 'next', 'rec', 'report', 'cc', 'audio', 'vol', 'stats']);
+    expect(goLive(container).className).toMatch(/text-white\/30/);
+    expect(focused(container)).toBe('rec');
+    // Rewind comes on: the same row, Go live lights up, Record is still the one highlighted.
+    rerender(bar({ focus: 'rec', rewind: { availableSec: 30, behindSec: 0, archiveDays: 0 } }));
+    expect(ids(container)).toEqual(before);
+    expect(goLive(container).className).not.toMatch(/text-white\/30/);
+    expect(focused(container)).toBe('rec');
+    expect(container.querySelectorAll('[data-bar-control]')[6].getAttribute('data-bar-control')).toBe('rec');
   });
 });
