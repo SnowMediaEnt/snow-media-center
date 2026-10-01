@@ -479,6 +479,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const allOptedInRef = useRef(false);
 
   const [playingChannelId, setPlayingChannelId] = useState<number | null>(null);
+  // The line the playing channel belongs to. Set with the channel, never
+  // derived later: the list it came from may have been dropped by then.
+  const [playingLine, setPlayingLine] = useState<XtreamCreds>(creds);
+  // The stream last handed to playChannel: keeps what the list said about it
+  // (its name, number, logo, catch-up days) after the list itself has moved
+  // on, and for a channel handed over from outside the list (Game Day, a
+  // kickoff reminder, the content bar) that the list never held.
+  const playedStreamRef = useRef<XtreamLiveStream | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
 
   // "Report a problem" dialog — owns the keyboard while open.
@@ -921,6 +929,65 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     : 0;
   const focusedChannel = visibleChannels[safeChannelIdx];
 
+  // The channel actually playing, on its own line: the bar's number, name,
+  // logo and guide, the record and report buttons all read it. The list's
+  // own row when the list on screen holds it (its current name), else the
+  // stream it was started from. Never the row the list happens to be on: a
+  // channel Game Day started is often in no list on screen, and the bar
+  // showed the first channel of the open category ("1 · A&E") and its guide.
+  const playingKey = playingChannelId ? lineKey(playingLine) : '';
+  const playingInList = useMemo(
+    () => (playingChannelId
+      ? visibleChannels.find((s) => s.stream_id === playingChannelId && lineKey(lineFor(s)) === playingKey) ?? null
+      : null),
+    [visibleChannels, playingChannelId, playingKey, lineFor],
+  );
+  const playingStream = useMemo<XtreamLiveStream | undefined>(() => {
+    if (!playingChannelId) return focusedChannel;
+    if (playingInList) return playingInList;
+    const played = playedStreamRef.current;
+    if (played && played.stream_id === playingChannelId && lineKey(lineFor(played)) === playingKey) return played;
+    const stub: XtreamLiveStream = { stream_id: playingChannelId, name: '' };
+    streamLineRef.current.set(stub, playingLine);
+    return stub;
+  }, [playingChannelId, playingInList, focusedChannel, playingKey, playingLine, lineFor]);
+  // The category the playing channel is in: the open one when the list
+  // holds it, else its own on its line when that is listed.
+  const playingCat: CatEntry | undefined = !playingChannelId || playingInList
+    ? currentCat
+    : playingStream?.category_id != null
+      ? visibleCategories.find((c) => c.lineKey === playingKey && c.catId === String(playingStream.category_id))
+      : undefined;
+
+  // A channel handed over from outside the list (Game Day, a reminder, the
+  // content bar): once its line's categories are listed, the list moves to
+  // the channel's own category and lands on it, so CH+ / CH- walk its
+  // neighbours and leaving full screen finds it in place. Dropped when
+  // another channel plays, the viewer moves, or the category is not listed.
+  const followRef = useRef<{ key: string; catId: string; streamId: number; moved: boolean } | null>(null);
+  useEffect(() => {
+    const f = followRef.current;
+    if (!f) return;
+    if (playingChannelId !== f.streamId || playingKey !== f.key) { followRef.current = null; return; }
+    const entryId = `${f.key}|${f.catId}`;
+    if (!f.moved) {
+      const idx = visibleCategories.findIndex((c) => c.id === entryId);
+      if (idx < 0) { if (categoriesByLine.has(f.key)) followRef.current = null; return; }
+      f.moved = true;
+      userMovedRef.current = true;
+      if (idx !== categoryIdx) { setCategoryIdx(idx); return; }
+    }
+    if (currentCat?.id !== entryId || searchOpen) { followRef.current = null; return; }
+    if (playingInList) {
+      followRef.current = null;
+      const i = visibleChannels.indexOf(playingInList);
+      if (i >= 0) setChannelIdx(i);
+      return;
+    }
+    // Loaded, and not in it: the list stays where it is.
+    if (!channelsLoading) followRef.current = null;
+  }, [playingChannelId, playingKey, visibleCategories, categoriesByLine, categoryIdx, currentCat, searchOpen, playingInList, visibleChannels, channelsLoading]);
+
   // Virtualizer
   const scrollParentRef = useRef<HTMLDivElement | null>(null);
   const categoriesScrollRef = useRef<HTMLDivElement | null>(null);
@@ -1163,9 +1230,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const virtualItems = rowVirtualizer.getVirtualItems();
   useEffect(() => {
-    // In fullscreen only the channel being watched matters.
+    // In fullscreen only the channel being watched matters: that one, not
+    // the row the list is on (a channel Game Day started is in no list).
     const want: XtreamLiveStream[] = [];
-    if (focusedChannel) want.push(focusedChannel);
+    if (fullscreen && playingStream) want.push(playingStream);
+    else if (focusedChannel) want.push(focusedChannel);
     if (!fullscreen) {
       for (const v of virtualItems) {
         for (let c = 0; c < cols; c++) {
@@ -1181,7 +1250,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       return false;
     });
     for (const s of want) enqueueEpg(s);
-  }, [virtualItems, visibleChannels, focusedChannel, enqueueEpg, epgKey, cols, fullscreen]);
+  }, [virtualItems, visibleChannels, focusedChannel, playingStream, enqueueEpg, epgKey, cols, fullscreen]);
 
   const focusedNowNext = epgFor(focusedChannel);
 
@@ -1245,9 +1314,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, []);
   const previewObserverRef = useRef<ResizeObserver | null>(null);
 
-  // The line the playing channel belongs to. Set with the channel, never
-  // derived later: the list it came from may have been dropped by then.
-  const [playingLine, setPlayingLine] = useState<XtreamCreds>(creds);
   const streamUrl = useMemo(() => {
     if (DEMO || !playingChannelId) return null;
     return buildLiveStreamUrl(playingLine, playingChannelId);
@@ -1257,9 +1323,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => { previewChannelRef.current = previewChannel; }, [previewChannel]);
 
   const lastPlayRef = useRef<{ id: number; ts: number } | null>(null);
-  // The stream last handed to playChannel: keeps what the list said about it
-  // (its catch-up days) after the list itself has moved on.
-  const playedStreamRef = useRef<XtreamLiveStream | null>(null);
   const watchRecordTimerRef = useRef<number | null>(null);
   useEffect(() => () => { if (watchRecordTimerRef.current) window.clearTimeout(watchRecordTimerRef.current); }, []);
   // What is on screen right now, for the watch timer below.
@@ -1353,9 +1416,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     drop();
     const stream: XtreamLiveStream = { stream_id: target.streamId!, name: target.name ?? i18n.t('live.list.channelFallback'), stream_icon: target.icon, category_id: target.categoryId, num: target.num };
     streamLineRef.current.set(stream, line);
-    if (!kidsLevel()) { playChannelRef.current(stream); return; }
+    // Played as it was handed over (the bar names it from this, see
+    // playingStream); the list then follows it to its own category.
+    const start = () => {
+      playChannelRef.current(stream);
+      followRef.current = target!.categoryId
+        ? { key: lineKey(line), catId: String(target!.categoryId), streamId: stream.stream_id, moved: false }
+        : null;
+    };
+    if (!kidsLevel()) { start(); return; }
     void getLiveCategories(line)
-      .then((cats) => { if (kidsAllowsChannel(stream, new Set(cats.map((c) => String(c.category_id))))) playChannelRef.current(stream); })
+      .then((cats) => { if (kidsAllowsChannel(stream, new Set(cats.map((c) => String(c.category_id))))) start(); })
       .catch(() => undefined);
   }, [lines, deeplinkTick, visibleCategories, categoriesByLine]);
 
@@ -1380,8 +1451,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // channel plays full screen: no row is on screen, and the auto-'ok' below
   // works from the last list.
   const downSet = useDownChannels(lines, isActive && !fullscreen);
-  const playingStreamName = (id: number): string =>
-    visibleChannels.find((s) => s.stream_id === id)?.name ?? favoritesOf(playingLine).get(id)?.name ?? '';
+  const playingName = playingChannelId ? playingStream?.name ?? '' : '';
 
   // Native ExoPlayer wiring — fullscreen, or the preview box while browsing.
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!playingChannelId;
@@ -1402,11 +1472,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // on-box buffer is switched to inside the native player and changes nothing
   // here. The buffer is a second stream on the line: the plan's stream count
   // (known for the main line) and the running recordings decide if it runs.
-  const rewindStream = nativeActive && playingChannelId
-    ? (visibleChannels.find((st) => st.stream_id === playingChannelId && lineFor(st) === playingLine)
-      ?? (playedStreamRef.current?.stream_id === playingChannelId ? playedStreamRef.current : null)
-      ?? { stream_id: playingChannelId })
-    : null;
+  const rewindStream = nativeActive && playingChannelId ? playingStream ?? null : null;
   const { account: playerAccount } = usePlayerAccount();
   const playingPlan = playerAccount && lineKey({ host: playerAccount.host, username: playerAccount.username }) === lineKey(playingLine)
     ? playerAccount.maxConnections
@@ -1529,14 +1595,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return () => { document.documentElement.classList.remove('snowplayer-preview'); };
   }, [nativePreviewActive]);
 
+  // CH+ / CH-: the next / previous channel of the list on screen. A channel
+  // that list does not hold (Game Day started it and its own category is not
+  // listed) counts as sitting just above the focused row: CH+ plays that
+  // row, CH- the one before it — never one row past it.
   const changeChannelInFullscreen = useCallback((delta: 1 | -1) => {
-    if (!visibleChannels.length) return;
-    let i = visibleChannels.findIndex(s => s.stream_id === playingChannelId);
-    if (i < 0) i = channelIdx;
-    const next = (i + delta + visibleChannels.length) % visibleChannels.length;
+    const n = visibleChannels.length;
+    if (!n) return;
+    const i = playingInList ? visibleChannels.indexOf(playingInList) : -1;
+    const at = Math.min(channelIdx, n - 1);
+    const next = i >= 0
+      ? (i + delta + n) % n
+      : delta > 0 ? at : (at - 1 + n) % n;
     setChannelIdx(next);
     playChannel(visibleChannels[next]);
-  }, [visibleChannels, playingChannelId, channelIdx, playChannel]);
+  }, [visibleChannels, playingInList, channelIdx, playChannel]);
 
   // Remote media buttons while a channel is full screen. Rewind / Fast-forward
   // move 10 s back / forward through the channel's rewind (the panel's
@@ -1578,7 +1651,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // What the native player is showing: the full-screen channel, or the one
   // in the preview box.
   const nativeStream = nativeActive && playingChannelId
-    ? { host: playingLine.host, id: playingChannelId, name: playingStreamName(playingChannelId) }
+    ? { host: playingLine.host, id: playingChannelId, name: playingName }
     : nativePreviewActive && previewChannel
       ? { host: lineFor(previewChannel).host, id: previewChannel.stream_id, name: previewChannel.name }
       : null;
@@ -1610,17 +1683,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (msg && msg !== lastNativeErrorRef.current) {
       lastNativeErrorRef.current = msg;
       try {
-        const ch = visibleChannels.find(s => s.stream_id === playingChannelId);
         trackEvent('player_error', 'player', {
           kind: 'live_native',
-          channel_or_title: ch?.name ?? '',
+          channel_or_title: playingName,
           server: playingLine.serverLabel,
         });
       } catch { /* ignore */ }
     } else if (!msg) {
       lastNativeErrorRef.current = null;
     }
-  }, [native.error, visibleChannels, playingChannelId, playingLine.serverLabel]);
+  }, [native.error, playingName, playingLine.serverLabel]);
 
   // Report undecodable audio per channel so the codec shows up in telemetry
   // instead of only arriving as a customer phone call.
@@ -1632,16 +1704,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (key === lastAudioWarnRef.current) return;
     lastAudioWarnRef.current = key;
     try {
-      const ch = visibleChannels.find(s => s.stream_id === playingChannelId);
       trackEvent('audio_unsupported', 'player', {
         kind: 'live_native',
-        channel_or_title: ch?.name ?? '',
+        channel_or_title: playingName,
         server: playingLine.serverLabel,
         codecs: w.codecs,
         ffmpeg_available: w.ffmpegAvailable,
       });
     } catch { /* ignore */ }
-  }, [native.audioWarning, visibleChannels, playingChannelId, playingLine.serverLabel]);
+  }, [native.audioWarning, playingName, playingChannelId, playingLine.serverLabel]);
 
   // (player_search intentionally NOT fired for Live TV — spec scopes it to movies/series/plex.)
 
@@ -2101,15 +2172,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [isActive, onExitLeft, hideBarNow]);
 
 
-  // Resolve playing stream from visible list OR favorites (we may not have loaded the original category)
-  const playingStream = (() => {
-    if (!playingChannelId) return focusedChannel;
-    const inList = visibleChannels.find(s => s.stream_id === playingChannelId && lineFor(s) === playingLine);
-    if (inList) return inList;
-    const fav = favoritesOf(playingLine).get(playingChannelId);
-    if (fav) { const st = favToStream(fav); streamLineRef.current.set(st, playingLine); return st; }
-    return focusedChannel;
-  })();
   playingStreamRef.current = playingStream ?? null;
   const playingNowNext = epgFor(playingStream);
   const progress = (() => {
@@ -2192,7 +2254,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       <ReportChannelDialog
         channelName={reportFor.name}
         channelId={reportFor.stream_id}
-        categoryName={searchOpen ? 'Search' : (currentCat?.isFav ? 'Favorites' : (currentCat?.name || ''))}
+        categoryName={playingChannelId && !playingInList && reportFor === playingStream
+          // The playing channel the list on screen does not hold: its own category.
+          ? (playingCat?.name || '')
+          : searchOpen ? 'Search' : (currentCat?.isFav ? 'Favorites' : (currentCat?.name || ''))}
         isFavorite={isFav(reportFor)}
         onToggleFavorite={() => toggleFavorite(reportFor)}
         onRecord={recordOn ? () => {
@@ -2245,12 +2310,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               onPlayStateChange={(paused) => setIsPaused(paused)}
               onTracksChanged={() => setTracksTick(t => t + 1)}
               onError={(msg) => {
-                if (playingChannelId) signalChannel(playingLine.host, playingChannelId, playingStreamName(playingChannelId), 'fail');
+                if (playingChannelId) signalChannel(playingLine.host, playingChannelId, playingName, 'fail');
                 try {
-                  const ch = visibleChannels.find(s => s.stream_id === playingChannelId);
                   trackEvent('player_error', 'player', {
                     kind: 'live_web',
-                    channel_or_title: ch?.name ?? '',
+                    channel_or_title: playingName,
                     server: playingLine.serverLabel,
                     message: msg.slice(0, 200),
                   });
@@ -2338,7 +2402,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           statsOn={statsShown}
           controller={videoControllerRef.current}
           tracksTick={tracksTick}
-          categoryName={currentCat ? catLabel(currentCat) : undefined}
+          categoryName={playingCat ? catLabel(playingCat) : undefined}
           channelLogo={playingStream?.stream_icon}
           channelNum={playingStream?.num}
           channelName={playingStream?.name}

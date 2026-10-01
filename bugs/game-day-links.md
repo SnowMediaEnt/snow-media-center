@@ -56,3 +56,33 @@ verified to do so), `src/components/livetv/GameDaySection.test.tsx` ("shows a
 whip-around zone channel (RedZone) in its own section, never as a team link").
 `tsc`, `eslint` on the changed files, the full `vitest run` (145 files / 1182
 tests) and `npm run build` all pass.
+
+## Follow-up (1.8.1 build 59, Fire TV): the player bar named another channel
+
+**What the owner saw.** Live TV → Game Day → Watch played the Golf Channel,
+but the player bar said "1 · [USA] A&E – Ozark Law" and never corrected itself.
+
+**Root cause (fixer-2).** Not Game Day's link (that played the right stream,
+as above): Live TV's `LiveSection` resolved the bar's channel as "the list's
+row with this stream id on this line, else a favourite, else **the focused
+row**". A channel Game Day hands over (`handLiveDeeplink`) is usually in no
+list on screen (another category, another line, or an owner-added stub), so
+the bar fell back to the open category's first row — number, name, logo and
+its guide (the EPG queue also fetched only the focused row in full screen).
+CH+/CH- then counted from the focused row too (CH+ skipped it).
+
+**Fix.** `playingStream` in `LiveSection.tsx` is now: the list's row on the
+playing line, else the stream `playChannel` was given (`playedStreamRef`),
+else a bare stub — never the focused row. In full screen the EPG queue asks
+for that stream (keyed by its own line). The bar's category, the report's
+category and the error/telemetry names read the playing channel too. A
+handed-over channel with a `categoryId` makes the list follow it to its own
+category on its line (`followRef`), so CH+/CH- walk its neighbours; when its
+category is not listed, CH+ plays the focused row and CH- the one before it.
+
+**Also:** Game Day's selected filter chip under the remote kept its solid gold
+fill, which hid the gold focus ring; focused + selected is now a gold tint
+with gold text, so the ring shows.
+
+Tests: `src/components/livetv/LiveSection.handedChannel.test.tsx` (4 of 5
+fail before the fix), `GameDaySection.chips.test.tsx` ("chips under the remote").
