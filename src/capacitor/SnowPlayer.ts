@@ -84,6 +84,15 @@ export interface PlayerStats {
   avgKbps: number | null;
   minKbps: number | null;
   maxKbps: number | null;
+  /** Bytes as they ARRIVE from the network over the last sample window,
+   *  kbps, for every source: the range reader counts its pieces on its
+   *  worker threads as they come in, the library's sources straight off the
+   *  socket. The same figure as `nowKbps` on a build that has it; its
+   *  absence marks an older build whose range reader counted bytes only
+   *  when the player read them (bursty, and blind to the other
+   *  connections while the head piece was slow). Judge what the line
+   *  delivers on this, never on `nowKbps` alone. */
+  arrivalKbps?: number | null;
   /** The decoder's own name, or "FFmpeg (software)". */
   videoDecoder: string | null;
   /** e.g. "HEVC 1920x804 23.98fps 21.6 Mb/s"; parts the stream doesn't state
@@ -114,9 +123,15 @@ export interface PlayerStats {
   /** How far ahead the player reads, e.g. "steady · 50 s / 128 MB, 20 s floor",
    *  or for mpv "mpv · cache 32 MB · 10 s ahead". */
   loadProfile: string | null;
-  /** How many connections the stream is read over: several for a Plex file
-   *  from a remote server (rangeFetch), 1 otherwise. Older builds leave it out. */
+  /** How many connections the stream is being read over right now: the
+   *  range reader's live count for a Plex file from a remote server
+   *  (rangeFetch; 0 while its window is full and nothing is in flight),
+   *  1 otherwise. Older builds leave it out, or report the fixed count. */
   fetchConnections?: number | null;
+  /** Whether the box is low on RAM (2 GB class: isLowRamDevice, or about
+   *  2 GB of total memory), as the plugin sizes its buffers by. Older
+   *  builds leave it out. */
+  lowRamBox?: boolean | null;
   javaHeapMb: number | null;
   nativeHeapMb: number | null;
   /** Which engine actually played this stream. */
@@ -139,10 +154,10 @@ export interface PlayerStats {
 export function emptyPlayerStats(): PlayerStats {
   return {
     state: 'idle', playing: false, positionSec: 0, durationSec: 0, bufferedAheadSec: 0,
-    nowKbps: null, avgKbps: null, minKbps: null, maxKbps: null,
+    nowKbps: null, avgKbps: null, minKbps: null, maxKbps: null, arrivalKbps: null,
     videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null,
     audioDecoder: null, audioFormat: null,
-    restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null, fetchConnections: null,
+    restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null, fetchConnections: null, lowRamBox: null,
     javaHeapMb: null, nativeHeapMb: null,
     engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
   };

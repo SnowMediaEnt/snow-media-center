@@ -11,10 +11,10 @@ import plugin from '../../android/app/src/main/java/com/snowmedia/player/SnowPla
 
 const KEYS: Array<keyof PlayerStats> = [
   'state', 'playing', 'positionSec', 'durationSec', 'bufferedAheadSec',
-  'nowKbps', 'avgKbps', 'minKbps', 'maxKbps',
+  'nowKbps', 'avgKbps', 'minKbps', 'maxKbps', 'arrivalKbps',
   'videoDecoder', 'videoFormat', 'renderedFrames', 'droppedFrames',
   'audioDecoder', 'audioFormat',
-  'restarts', 'lastRestartReason', 'lastError', 'httpStatus', 'loadProfile', 'fetchConnections',
+  'restarts', 'lastRestartReason', 'lastError', 'httpStatus', 'loadProfile', 'fetchConnections', 'lowRamBox',
   'javaHeapMb', 'nativeHeapMb',
   'engine', 'firstFrameMs', 'stalls', 'stallSec', 'cpuPct', 'pssMb',
 ];
@@ -27,10 +27,10 @@ describe('SnowPlayer.getStats — web / no native player', () => {
     expect(Object.keys(st).sort()).toEqual([...KEYS].sort());
     expect(st).toEqual({
       state: 'idle', playing: false, positionSec: 0, durationSec: 0, bufferedAheadSec: 0,
-      nowKbps: null, avgKbps: null, minKbps: null, maxKbps: null,
+      nowKbps: null, avgKbps: null, minKbps: null, maxKbps: null, arrivalKbps: null,
       videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null,
       audioDecoder: null, audioFormat: null,
-      restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null, fetchConnections: null,
+      restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null, fetchConnections: null, lowRamBox: null,
       javaHeapMb: null, nativeHeapMb: null,
       engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
     });
@@ -218,7 +218,9 @@ describe('SnowPlayerPlugin.kt — getStats', () => {
   });
 
   it('every player has a load profile to report', () => {
-    expect(plugin).toContain('s.loadProfile = "steady · 50 s / 128 MB, 20 s floor"');
+    // 2 GB boxes: the range reader's 16 MiB window comes out of the 128 MB.
+    expect(plugin).toContain('s.loadProfile = "steady · 50 s / 112 MB, 20 s floor"');
+    expect(plugin).toContain('targetBufferBytes = 128 * 1024 * 1024 - RangeFetchDataSource.LOW_RAM_WINDOW_BYTES,');
     expect(plugin).toContain('s.loadProfile = "steady · 120 s / 144 MB"');
     expect(plugin).toContain('s.loadProfile = if (lowRam) "tile · 15 s / 6 MB" else "tile · 15 s / 10 MB"');
   });
