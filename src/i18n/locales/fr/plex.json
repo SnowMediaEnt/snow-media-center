@@ -83,7 +83,11 @@
       "ahead": "{{value}} s d'avance",
       "framesValue": "{{rendered}} · {{dropped}} perdues",
       "restartsLast": "{{count}} (dernier : {{reason}})",
-      "minMax": "(min {{min}}, max {{max}})"
+      "minMax": "(min {{min}}, max {{max}})",
+      "download": "Téléchargement",
+      "connections_one": "{{count}} connexion",
+      "connections_many": "{{count}} connexions",
+      "connections_other": "{{count}} connexions"
     },
     "buffering": {
       "checking": "Vérification…",
@@ -439,7 +443,9 @@
         "backToTitle": "Retour à {{quality}}",
         "backToDesc": "Votre débit s'est amélioré.",
         "hiddenTitle": "{{name}} masquée",
-        "hiddenDesc": "Réaffichez-la à tout moment dans Paramètres."
+        "hiddenDesc": "Réaffichez-la à tout moment dans Paramètres.",
+        "startLowerTitle": "Démarrage en {{quality}}",
+        "startLowerDesc": "Le serveur Plex envoie environ {{speed}} à cette TV. La qualité remonte d'elle-même quand le débit le permet. Modifiable à tout moment sous Qualité."
       },
       "sessionDirect": "Lecture directe du fichier d'origine",
       "sessionConvertTo": "Conversion en {{quality}}",

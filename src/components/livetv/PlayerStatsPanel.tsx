@@ -178,6 +178,7 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, scre
           <Row label={t('plex.stats.restarts')}>{restarts}</Row>
           <Row label={t('plex.stats.lastError')}>{lastError}</Row>
           <Row label={t('plex.stats.load')}>{text(st?.loadProfile)}</Row>
+          <Row label={t('plex.stats.download')}>{st && num(st.fetchConnections) && st.fetchConnections > 0 ? t('plex.stats.connections', { count: st.fetchConnections }) : '—'}</Row>
         </Card>
         <Card title={t('plex.stats.memory')}>
           <Row label={t('plex.stats.cpu')}>{cpuRow(st?.cpuPct)}</Row>

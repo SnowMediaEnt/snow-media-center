@@ -83,7 +83,10 @@
       "ahead": "{{value}} s voraus",
       "framesValue": "{{rendered}} · {{dropped}} verworfen",
       "restartsLast": "{{count}} (zuletzt: {{reason}})",
-      "minMax": "(min {{min}}, max {{max}})"
+      "minMax": "(min {{min}}, max {{max}})",
+      "download": "Download",
+      "connections_one": "{{count}} Verbindung",
+      "connections_other": "{{count}} Verbindungen"
     },
     "buffering": {
       "checking": "Wird geprüft…",
@@ -435,7 +438,9 @@
         "backToTitle": "Zurück auf {{quality}}",
         "backToDesc": "Deine Geschwindigkeit hat sich erholt.",
         "hiddenTitle": "{{name}} ausgeblendet",
-        "hiddenDesc": "Du kannst sie jederzeit unter Einstellungen zurückholen."
+        "hiddenDesc": "Du kannst sie jederzeit unter Einstellungen zurückholen.",
+        "startLowerTitle": "Start in {{quality}}",
+        "startLowerDesc": "Der Plex-Server liefert etwa {{speed}} an diesen Fernseher. Es geht von selbst wieder hoch, sobald die Geschwindigkeit reicht. Jederzeit unter Qualität änderbar."
       },
       "sessionDirect": "Direkte Wiedergabe der Originaldatei",
       "sessionConvertTo": "Umwandlung in {{quality}}",

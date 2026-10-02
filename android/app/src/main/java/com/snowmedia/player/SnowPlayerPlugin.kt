@@ -119,6 +119,13 @@ class SnowPlayerPlugin : Plugin() {
         // load: the same session is tried again once, then JS is told
         // (PLEX_TRANSCODE_HTTP) and starts a fresh one instead.
         var transcodeHttpFails: Int = 0
+        // A Plex file played as it is over several range requests at once
+        // (RangeFetchDataSource): asked for by load() for a remote server.
+        // Read by the data source at each open, so it holds for the whole
+        // load, reconnects included. `rangeConnections` is what the stats
+        // panel reports when it is on (set by buildPlayer).
+        var rangeFetch: Boolean = false
+        var rangeConnections: Int = 1
         var firstFrameSeen: Boolean = false
         // Screen format. ExoPlayer stretches the picture to fill its
         // TextureView, so the view is sized to the picture's shape. These
@@ -878,15 +885,31 @@ class SnowPlayerPlugin : Plugin() {
         // than the pause did; up to 30 s the buffer simply rides it out. It
         // also says who is asking, like any Plex player, instead of the bare
         // "Dalvik/2.1.0" Android sends by default.
+        val plexAgent = "SnowMediaCenter/${BuildConfig.VERSION_NAME} (Linux; Android ${Build.VERSION.RELEASE}) " +
+            "ExoPlayerLib/${MediaLibraryInfo.VERSION}"
         val plexFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15000)
             .setReadTimeoutMs(30000)
-            .setUserAgent(
-                "SnowMediaCenter/${BuildConfig.VERSION_NAME} (Linux; Android ${Build.VERSION.RELEASE}) " +
-                    "ExoPlayerLib/${MediaLibraryInfo.VERSION}",
-            )
+            .setUserAgent(plexAgent)
             .setTransferListener(meter)
+        // A file played as it is from a REMOTE server (load() says, by
+        // route): the same agent, timeouts and meter, but read over several
+        // range requests at once (RangeFetchDataSource). One connection to a
+        // far server carried a customer's 12 Mb/s film at 1.4-5.7 Mb/s while
+        // the Plex app on the same box played it directly; parallel pieces
+        // are how a single slow flow is beaten. Bounded memory: 2 GB boxes
+        // 3 × 1 MiB in flight, others 4 × 2 MiB.
+        val lowRam = isLowRamBox(act)
+        val rangeConnections = if (lowRam) 3 else 4
+        s.rangeConnections = rangeConnections
+        val rangeFactory = RangeFetchDataSource.Factory(
+            userAgent = plexAgent,
+            connectTimeoutMs = 15000,
+            readTimeoutMs = 30000,
+            connections = rangeConnections,
+            chunkBytes = if (lowRam) MIB.toInt() else (2L * MIB).toInt(),
+        ).setTransferListener(meter)
         // A conversion (playlist and segments) is as patient, but goes out
         // with Android's own user agent, as it did up to build 38, when the
         // owner's server still started conversions for SMC. Build 39 sent
@@ -901,7 +924,7 @@ class SnowPlayerPlugin : Plugin() {
             .setConnectTimeoutMs(15000)
             .setReadTimeoutMs(30000)
             .setTransferListener(meter)
-        val dataSourceFactory = DefaultDataSource.Factory(act, PlexAwareFactory(httpFactory, plexFactory, transcodeFactory))
+        val dataSourceFactory = DefaultDataSource.Factory(act, PlexAwareFactory(httpFactory, plexFactory, transcodeFactory, rangeFactory) { s.rangeFetch })
         // Closed captions on raw MPEG-TS live streams.
         //
         // By default Media3 only creates a caption track when the PMT carries an
@@ -958,7 +981,6 @@ class SnowPlayerPlugin : Plugin() {
         // past its live edge, so it never reaches either mark and loads
         // non-stop exactly as it did; the start (2.5 s buffered) and the
         // restart after a stall (5 s) are unchanged.
-        val lowRam = isLowRamBox(act)
         if (screenId != MAIN) {
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(4000, 15000, 1000, 2000)
@@ -1286,6 +1308,10 @@ class SnowPlayerPlugin : Plugin() {
         if (url.isNullOrBlank()) { call.reject("url required"); return }
         val live = call.getBoolean("live", true) ?: true
         val subs = call.getArray("subtitles", null)
+        // A Plex file from a remote server: read over several range requests
+        // at once (RangeFetchDataSource). Off for Live TV, conversions, and a
+        // server on this network, where one connection is all it takes.
+        val rangeFetch = call.getBoolean("rangeFetch", false) ?: false
         // Seconds; a film resumed part-way. Absent or 0: the player's own start.
         val startSec = call.getDouble("startPosition")
         val startMs = if (startSec != null && startSec > 0.0) (startSec * 1000.0).toLong() else 0L
@@ -1369,6 +1395,7 @@ class SnowPlayerPlugin : Plugin() {
             s.lastPositionMs = startMs
             s.reconnectAttempts = 0
             s.transcodeHttpFails = 0
+            s.rangeFetch = rangeFetch && !live
             s.firstFrameSeen = false
             resetStats(s, url)
             // A film or episode holds the Wi-Fi lock (see holdWifi); a
@@ -1564,6 +1591,9 @@ class SnowPlayerPlugin : Plugin() {
         o.put("lastError", s?.lastError ?: JSONObject.NULL)
         o.put("httpStatus", s?.lastHttpStatus ?: JSONObject.NULL)
         o.put("loadProfile", s?.let { loadProfileOf(it) } ?: JSONObject.NULL)
+        // How many connections the file is read over (RangeFetchDataSource);
+        // 1 for a conversion, Live TV, or a server on this network.
+        o.put("fetchConnections", if (s != null && s.rangeFetch) s.rangeConnections else 1)
         val rt = Runtime.getRuntime()
         o.put("javaHeapMb", (rt.totalMemory() - rt.freeMemory()) / MIB)
         o.put("nativeHeapMb", Debug.getNativeHeapAllocatedSize() / MIB)
@@ -2599,22 +2629,30 @@ private fun isPlexStream(uri: Uri): Boolean {
 /** A Plex conversion: its playlist and segments. */
 private fun isPlexTranscode(uri: Uri): Boolean = uri.path?.contains("/transcode/universal/") == true
 
+/** A Plex file played as it is ({base}/library/parts/...). */
+private fun isPlexFile(uri: Uri): Boolean = uri.path?.contains("/library/parts/") == true
+
 /** Plex streams get the patient sources (a file played as it is, and a
  *  conversion, each with its own user agent); everything else (Live TV) the
- *  quick one. */
+ *  quick one. A file from a remote server (`rangeFetch`, per load) is read
+ *  over several range requests at once (RangeFetchDataSource). */
 private class PlexAwareFactory(
     private val normal: DataSource.Factory,
     private val plex: DataSource.Factory,
     private val transcode: DataSource.Factory,
+    private val range: DataSource.Factory,
+    private val rangeFetch: () -> Boolean,
 ) : DataSource.Factory {
     override fun createDataSource(): DataSource =
-        PlexAwareDataSource(normal.createDataSource(), plex.createDataSource(), transcode.createDataSource())
+        PlexAwareDataSource(normal.createDataSource(), plex.createDataSource(), transcode.createDataSource(), range.createDataSource(), rangeFetch)
 }
 
 private class PlexAwareDataSource(
     private val normal: DataSource,
     private val plex: DataSource,
     private val transcode: DataSource,
+    private val range: DataSource,
+    private val rangeFetch: () -> Boolean,
 ) : DataSource {
     private var current: DataSource? = null
 
@@ -2622,12 +2660,14 @@ private class PlexAwareDataSource(
         normal.addTransferListener(transferListener)
         plex.addTransferListener(transferListener)
         transcode.addTransferListener(transferListener)
+        range.addTransferListener(transferListener)
     }
 
     override fun open(dataSpec: DataSpec): Long {
         val uri = dataSpec.uri
         val src = when {
             isPlexTranscode(uri) -> transcode
+            isPlexFile(uri) && rangeFetch() -> range
             isPlexStream(uri) -> plex
             else -> normal
         }

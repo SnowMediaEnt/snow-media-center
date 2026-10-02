@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mediaVersions, plexTranscodeUrl, type PlexVersion } from './plex';
 import {
-  _resetPlexSpeedCache, _setPlexSpeed, cachedPlexSpeed, defaultVersion, fallbackVersion, measurePlexSpeed,
+  _resetPlexSpeedCache, _setPlexSpeed, cachedPlexSpeed, defaultVersion, fallbackVersion, measurePlexSpeed, mergeMarks,
   probeRate, probeRateFromMarks, sortVersions, speedVerdict, speedWarning, startVersion, transcodeSource, versionName,
 } from './plexVersions';
 
@@ -184,5 +184,66 @@ describe('measuring the speed to the server', () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('blocked'); }));
     expect(await measurePlexSpeed('http://s:32400', 'tok', '/p')).toBeNull();
     expect(await measurePlexSpeed('http://s:32400', 'tok', undefined)).toBeNull();
+  });
+});
+
+describe('measuring over several connections at once (what the player reads a remote file with)', () => {
+  afterEach(() => { _resetPlexSpeedCache(); vi.unstubAllGlobals(); });
+
+  it('the arrivals of several reads add up as one', () => {
+    const a = [{ t: 100, bytes: 1000 }, { t: 300, bytes: 3000 }];
+    const b = [{ t: 200, bytes: 500 }, { t: 400, bytes: 1500 }];
+    expect(mergeMarks([a, b])).toEqual([{ t: 100, bytes: 1000 }, { t: 200, bytes: 1500 }, { t: 300, bytes: 3500 }, { t: 400, bytes: 4500 }]);
+    expect(mergeMarks([a])).toBe(a);
+  });
+
+  it('reads three stretches of the file at once, and rates them together', async () => {
+    const chunk = new Uint8Array(512 * 1024);
+    const ranges: string[] = [];
+    const fetchMock = vi.fn(async (_u: string, init?: RequestInit) => {
+      ranges.push(String((init?.headers as Record<string, string>).Range));
+      let reads = 0;
+      return {
+        ok: true,
+        status: 206,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              reads += 1;
+              await new Promise((r) => setTimeout(r, 60));
+              return reads > 6 ? { done: true, value: undefined } : { done: false, value: chunk };
+            },
+            cancel: async () => {},
+          }),
+        },
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const three = await measurePlexSpeed('http://s:32400', 'tok', '/library/parts/2/file.mkv', { connections: 3, maxBytes: 3 * 4 * 1024 * 1024 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(ranges).toEqual(['bytes=0-4194303', 'bytes=4194304-8388607', 'bytes=8388608-12582911']);
+    expect(three).toBeGreaterThan(0);
+    _resetPlexSpeedCache();
+    const one = await measurePlexSpeed('http://s:32400', 'tok', '/library/parts/2/file.mkv');
+    // Each read came in at the same pace: three of them carry about three times as much.
+    expect(three!).toBeGreaterThan(one! * 2.2);
+    expect(three!).toBeLessThan(one! * 3.8);
+  });
+
+  it('a stretch past the end of a short file is simply not there; an unreachable first read tells nothing', async () => {
+    const chunk = new Uint8Array(256 * 1024);
+    vi.stubGlobal('fetch', vi.fn(async (_u: string, init?: RequestInit) => {
+      const from = Number(/bytes=(\d+)-/.exec(String((init?.headers as Record<string, string>).Range))?.[1]);
+      if (from > 0) return { ok: false, status: 416, body: null };
+      let reads = 0;
+      return {
+        ok: true, status: 206,
+        body: { getReader: () => ({ read: async () => { reads += 1; await new Promise((r) => setTimeout(r, 40)); return reads > 8 ? { done: true, value: undefined } : { done: false, value: chunk }; }, cancel: async () => {} }) },
+      };
+    }));
+    expect(await measurePlexSpeed('http://s:32400', 'tok', '/library/parts/2/file.mkv', { connections: 3 })).toBeGreaterThan(0);
+    _resetPlexSpeedCache();
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 403, body: null })));
+    expect(await measurePlexSpeed('http://s:32400', 'tok', '/library/parts/2/file.mkv', { connections: 3 })).toBeNull();
   });
 });

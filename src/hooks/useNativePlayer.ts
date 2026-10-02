@@ -26,6 +26,10 @@ interface UseNativePlayerArgs {
   /** 'exo' (default) or 'mpv' — see SnowPlayer.SnowPlayerLoadOpts. A change
    *  reloads, like `url`. Callers that don't pass it behave as before. */
   engine?: 'exo' | 'mpv';
+  /** Read the stream over several range requests at once (a Plex file from
+   *  a remote server; see SnowPlayerLoadOpts.rangeFetch). Goes with every
+   *  load() of the stream, reloads included; a change alone never reloads. */
+  rangeFetch?: boolean;
   /** Seconds to start at (a resumed film). Goes with load(); a retry or a
    *  return to the app picks up where the viewer is instead. */
   startPosition?: number;
@@ -108,7 +112,7 @@ async function positionNow(): Promise<number> {
   } catch { return 0; }
 }
 
-export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true }: UseNativePlayerArgs): NativePlayerState {
+export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', rangeFetch = false, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true }: UseNativePlayerArgs): NativePlayerState {
   const [buffering, setBuffering] = useState(false);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string; httpStatus?: number | null } | null>(null);
@@ -137,6 +141,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   backgroundRef.current = background;
   const liveRef = useRef(live);
   liveRef.current = live;
+  const rangeFetchRef = useRef(rangeFetch);
+  rangeFetchRef.current = rangeFetch;
   // The next load is a reload of the stream being watched (a retry, or the
   // app coming back), not a new one. A film then picks up where the viewer
   // is: it used to start again from `startPosition` — the very beginning of
@@ -357,7 +363,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         // Still a jump as far as automatic quality is concerned (playerSeek).
         if (start > 0) markSeek();
         jumped();
-        await SnowPlayer.load({ url, live, isLive: live, subtitles, engine, ...(start > 0 ? { startPosition: start } : {}) });
+        await SnowPlayer.load({ url, live, isLive: live, subtitles, engine, ...(rangeFetchRef.current && !live ? { rangeFetch: true } : {}), ...(start > 0 ? { startPosition: start } : {}) });
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.setVolume({ volume: Math.min(MAX_VOLUME, Math.max(0, volume)) });
         if (cancelled || myNonce !== nonceRef.current) return;

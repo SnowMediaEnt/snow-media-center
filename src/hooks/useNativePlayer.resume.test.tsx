@@ -47,6 +47,7 @@ vi.mock('@capacitor/app', () => ({ App: { addListener: async () => ({ remove: ()
 import { useNativePlayer } from './useNativePlayer';
 import { lastPlaybackStartAt, lastSeekAt, markPlaybackStart, markSeek } from '@/lib/playerSeek';
 import plugin from '../../android/app/src/main/java/com/snowmedia/player/SnowPlayerPlugin.kt?raw';
+import rangeSource from '../../android/app/src/main/java/com/snowmedia/player/RangeFetchDataSource.kt?raw';
 import rule from '../../android/app/src/main/java/com/snowmedia/player/PreBufferRule.kt?raw';
 import uhdRule from '../../android/app/src/main/java/com/snowmedia/player/UhdBuffer.kt?raw';
 import strings from '../../android/app/src/main/res/values/strings.xml?raw';
@@ -54,10 +55,10 @@ import strings from '../../android/app/src/main/res/values/strings.xml?raw';
 const FILM = 'https://srv.plex.direct:32400/library/parts/42/1700000000/file.mkv';
 const CHANNEL = 'http://iptv.example/live/1.ts';
 
-type Props = { url: string | null; live?: boolean; startPosition?: number };
+type Props = { url: string | null; live?: boolean; startPosition?: number; rangeFetch?: boolean };
 function mount(initial: Props) {
   return renderHook(
-    (p: Props) => useNativePlayer({ active: true, url: p.url, volume: 1, live: p.live, startPosition: p.startPosition }),
+    (p: Props) => useNativePlayer({ active: true, url: p.url, volume: 1, live: p.live, startPosition: p.startPosition, rangeFetch: p.rangeFetch }),
     { initialProps: initial },
   );
 }
@@ -199,6 +200,26 @@ describe('useNativePlayer — where a film starts and resumes', () => {
     expect(loads()).toHaveLength(1);
   });
 
+  it('a film from a remote server asks for the range fetch with every load, a reload included; Live TV never does', async () => {
+    const h = mount({ url: FILM, live: false, rangeFetch: true });
+    await waitFor(() => expect(loads()).toHaveLength(1));
+    expect(loads()[0].opts).toMatchObject({ rangeFetch: true });
+    await waitFor(() => expect(listeners.get('playerError')?.length).toBe(1));
+    fire('playerError', { code: 'ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT', message: 'x' });
+    await waitFor(() => expect(loads()).toHaveLength(2), { timeout: 3000 });
+    expect(loads()[1].opts).toMatchObject({ rangeFetch: true });
+    h.rerender({ url: FILM, live: false, rangeFetch: false });
+    await new Promise((r) => { setTimeout(r, 100); });
+    // A change of the flag alone never reloads.
+    expect(loads()).toHaveLength(2);
+    h.rerender({ url: CHANNEL, live: true, rangeFetch: true });
+    await waitFor(() => expect(loads()).toHaveLength(3));
+    expect(loads()[2].opts).not.toHaveProperty('rangeFetch');
+    h.rerender({ url: `${FILM}?v=2`, live: false });
+    await waitFor(() => expect(loads()).toHaveLength(4));
+    expect(loads()[3].opts).not.toHaveProperty('rangeFetch');
+  });
+
   it('a new title starts at its own start position, not at the last one\'s place', async () => {
     const h = mount({ url: FILM, live: false, startPosition: 60 });
     await waitFor(() => expect(loads()).toHaveLength(1));
@@ -233,10 +254,11 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
 
   it("Plex files and conversions get the patient sources; files say who asks, conversions keep Android's own agent (as up to build 38); Live TV keeps 8 s and no agent", () => {
     expect(plugin).toMatch(/fun isPlexStream\(uri: Uri\)[\s\S]*"\/library\/parts\/"[\s\S]*"\/transcode\/universal\/"/);
-    const plex = plugin.slice(plugin.indexOf('val plexFactory'), plugin.indexOf('val transcodeFactory'));
+    expect(plugin).toMatch(/val plexAgent = "SnowMediaCenter\/\$\{BuildConfig\.VERSION_NAME\} \(Linux; Android \$\{Build\.VERSION\.RELEASE\}\) " \+\s*"ExoPlayerLib\/\$\{MediaLibraryInfo\.VERSION\}"/);
+    const plex = plugin.slice(plugin.indexOf('val plexFactory'), plugin.indexOf('val rangeFactory'));
     expect(plex).toContain('.setReadTimeoutMs(30000)');
     expect(plex).toContain('.setConnectTimeoutMs(15000)');
-    expect(plex).toMatch(/\.setUserAgent\(\s*"SnowMediaCenter\/\$\{BuildConfig\.VERSION_NAME\} \(Linux; Android \$\{Build\.VERSION\.RELEASE\}\) " \+\s*"ExoPlayerLib\/\$\{MediaLibraryInfo\.VERSION\}"/);
+    expect(plex).toContain('.setUserAgent(plexAgent)');
     // Conversions: as patient, and no agent of ours (build 38 and before,
     // when the owner's server still started them).
     const transcode = plugin.slice(plugin.indexOf('val transcodeFactory'), plugin.indexOf('val dataSourceFactory'));
@@ -247,11 +269,35 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(http).toContain('.setReadTimeoutMs(8000)');
     expect(http).not.toContain('setUserAgent');
     expect(plugin.match(/setUserAgent\(/g)).toHaveLength(1);
-    expect(plugin).toContain('PlexAwareFactory(httpFactory, plexFactory, transcodeFactory)');
-    // A conversion's playlist and segments go to the conversion source first.
+    expect(plugin).toContain('PlexAwareFactory(httpFactory, plexFactory, transcodeFactory, rangeFactory) { s.rangeFetch }');
+    // A conversion's playlist and segments go to the conversion source first;
+    // a file from a remote server (rangeFetch) to the range source.
     const open = plugin.slice(plugin.indexOf('override fun open(dataSpec: DataSpec): Long {'));
-    expect(open).toMatch(/isPlexTranscode\(uri\) -> transcode\s*isPlexStream\(uri\) -> plex\s*else -> normal/);
+    expect(open).toMatch(/isPlexTranscode\(uri\) -> transcode\s*isPlexFile\(uri\) && rangeFetch\(\) -> range\s*isPlexStream\(uri\) -> plex\s*else -> normal/);
     expect(plugin).toContain('private fun isPlexTranscode(uri: Uri): Boolean = uri.path?.contains("/transcode/universal/") == true');
+    expect(plugin).toContain('private fun isPlexFile(uri: Uri): Boolean = uri.path?.contains("/library/parts/") == true');
+  });
+
+  it('a file from a remote server is read over several range requests at once (RangeFetchDataSource), with the same agent, timeouts and meter', () => {
+    const range = plugin.slice(plugin.indexOf('val rangeFactory'), plugin.indexOf('val dataSourceFactory'));
+    expect(range).toMatch(/RangeFetchDataSource\.Factory\(\s*userAgent = plexAgent,\s*connectTimeoutMs = 15000,\s*readTimeoutMs = 30000,\s*connections = rangeConnections,\s*chunkBytes = if \(lowRam\) MIB\.toInt\(\) else \(2L \* MIB\)\.toInt\(\),\s*\)\.setTransferListener\(meter\)/);
+    // 2 GB boxes: 3 × 1 MiB in flight; others 4 × 2 MiB.
+    expect(plugin).toContain('val rangeConnections = if (lowRam) 3 else 4');
+    expect(plugin).toContain('s.rangeConnections = rangeConnections');
+    // Asked for per load, never for a live stream; read at each open.
+    const load = plugin.slice(plugin.indexOf('fun load(call: PluginCall) {'), plugin.indexOf('fun play(call: PluginCall)'));
+    expect(load).toContain('val rangeFetch = call.getBoolean("rangeFetch", false) ?: false');
+    expect(load).toContain('s.rangeFetch = rangeFetch && !live');
+    // The stats panel says how many connections the stream is read over.
+    expect(plugin).toContain('o.put("fetchConnections", if (s != null && s.rangeFetch) s.rangeConnections else 1)');
+    // The source itself: pieces in order, a small first piece, an error
+    // status reported like the library's own source.
+    expect(rangeSource).toContain('class RangeFetchDataSource(');
+    expect(rangeSource).toContain(') : BaseDataSource(/* isNetwork = */ true)');
+    expect(rangeSource).toContain('const val FIRST_CHUNK_BYTES = 512 * 1024');
+    expect(rangeSource).toContain('conn.setRequestProperty("Range", "bytes=$from-$to")');
+    expect(rangeSource).toContain('throw HttpDataSource.InvalidResponseCodeException(code, conn.responseMessage, null, responseHeaders, dataSpec, body)');
+    expect(rangeSource).not.toMatch(/Log\.[dwiev]\(/);
   });
 
   it('the first-frame watchdog skips Plex films only; channels and Backups films keep it', () => {

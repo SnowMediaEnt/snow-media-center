@@ -798,15 +798,39 @@ export function transcodeStopUrl(url: string | null | undefined): string | null 
  * token).
  */
 export function stopPlexTranscode(url: string | null | undefined): void {
+  sendQuietly(transcodeStopUrl(url));
+}
+
+/** The address that keeps a converting session alive (Plex's own players
+ *  call it every few seconds while paused), or null when `url` is not one. */
+export function transcodePingUrl(url: string | null | undefined): string | null {
   const stop = transcodeStopUrl(url);
-  if (!stop || typeof fetch !== 'function') return;
+  return stop ? stop.replace('/video/:/transcode/universal/stop?', '/video/:/transcode/universal/ping?') : null;
+}
+
+/**
+ * How often a paused conversion is pinged. The server ends a session it
+ * hears nothing from for a while (no segment asked for, no ping): a film
+ * paused for a few minutes then came back to segment requests the server
+ * answered with an error status, which looked like a refused conversion.
+ */
+export const TRANSCODE_PING_MS = 20_000;
+
+/** Keeps a converting session alive while playback is paused (the player
+ *  asks for no segments then). Fire and forget, like stopPlexTranscode. */
+export function pingPlexTranscode(url: string | null | undefined): void {
+  sendQuietly(transcodePingUrl(url));
+}
+
+function sendQuietly(url: string | null): void {
+  if (!url || typeof fetch !== 'function') return;
   const ac = typeof AbortController === 'function' ? new AbortController() : null;
   const timer = setTimeout(() => { try { ac?.abort(); } catch { /* ignore */ } }, STOP_TIMEOUT_MS);
   const done = () => { clearTimeout(timer); };
   try {
     // no-cors: the answer is never read, and a server without CORS headers
     // still gets the request.
-    fetch(stop, { mode: 'no-cors', cache: 'no-store', signal: ac?.signal }).then(done, done);
+    fetch(url, { mode: 'no-cors', cache: 'no-store', signal: ac?.signal }).then(done, done);
   } catch {
     done();
   }

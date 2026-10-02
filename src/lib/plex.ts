@@ -860,12 +860,29 @@ export function isDirectAudioCodec(codec: string | undefined | null): boolean {
 /** HLS transcode fallback — offloads decoding to the Plex server (any codec).
  *  Optional `opts` clamp video bitrate/resolution so the user can pick a
  *  lower-bandwidth ladder ("Play at 1080p · 8 Mbps" etc.) without leaving
- *  the app. When omitted, behaves exactly like the pre-opts version. */
+ *  the app.
+ *
+ *  The session is asked for the way Plex's own players ask (bugs/
+ *  plex-buffering-remote.md): the client is named by platform, product,
+ *  version and device on the URL (`identify`, on by default) — the same
+ *  values the decision call for the same session sends as headers
+ *  (plexTranscodeDecision) — and `location` says whether the box is on the
+ *  server's network or across the internet. The server picks its
+ *  conversion profile by X-Plex-Platform; without it, it had only the
+ *  player's User-Agent to go on, and build 39 showed how brittle that is:
+ *  SMC's own agent on the playlist and segment requests (nothing else
+ *  changed) and no conversion started on the owner's server. The agent is
+ *  left exactly as it was then fixed (Android's own, SnowPlayerPlugin's
+ *  transcode source); naming the platform in the request itself, as Plex
+ *  for Android does, selects the Android profile outright instead of
+ *  leaving it to agent sniffing. `identify: false` is the plain, unnamed
+ *  start of builds 38-56, kept as the second thing to try when a named
+ *  session is turned down (PlexSection). */
 export function plexTranscodeUrl(
   base: string,
   ratingKey: string,
   token: string,
-  opts?: { maxVideoBitrateKbps?: number; videoResolution?: string; mediaIndex?: number; identify?: boolean },
+  opts?: { maxVideoBitrateKbps?: number; videoResolution?: string; mediaIndex?: number; identify?: boolean; location?: 'lan' | 'wan' },
 ): string {
   const path = encodeURIComponent(`/library/metadata/${ratingKey}`);
   const cid = encodeURIComponent(getPlexClientId());
@@ -883,17 +900,18 @@ export function plexTranscodeUrl(
     + `&mediaIndex=${opts?.mediaIndex && opts.mediaIndex > 0 ? Math.floor(opts.mediaIndex) : 0}&partIndex=0&X-Plex-Client-Identifier=${cid}&X-Plex-Token=${encodeURIComponent(token)}`;
   if (opts?.maxVideoBitrateKbps) url += `&maxVideoBitrate=${opts.maxVideoBitrateKbps}`;
   if (opts?.videoResolution) url += `&videoResolution=${encodeURIComponent(opts.videoResolution)}`;
-  // `identify`: named the way Plex's own players name themselves (product,
-  // version, platform, device), matching the headers the decision call for
-  // the same session goes out with (plexTranscodeDecision). Only for a fresh
-  // session after the plain one was turned down: the plain start has always
-  // converted on the owner's server, and naming the platform decides which
-  // conversion profile the server uses.
-  if (opts?.identify) {
+  if (opts?.location) url += `&location=${opts.location}`;
+  if (opts?.identify !== false) {
     const h = plexHeaders();
     url += `&${PLEX_CLIENT_PARAMS.filter((k) => k !== 'X-Plex-Client-Identifier').map((k) => `${k}=${encodeURIComponent(h[k])}`).join('&')}`;
   }
   return url;
+}
+
+/** Whether a conversion's start address names the client (plexTranscodeUrl's
+ *  `identify`), or is the plain start of builds 38-56. */
+export function plexTranscodeIdentified(startUrl: string | null | undefined): boolean {
+  return !!startUrl && startUrl.indexOf('X-Plex-Platform=') >= 0;
 }
 
 /** What the server said to a conversion's decision call. */

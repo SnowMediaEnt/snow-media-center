@@ -83,7 +83,14 @@
       "ahead": "{{value}} ث للأمام",
       "framesValue": "{{rendered}} · {{dropped}} مفقودة",
       "restartsLast": "{{count}} (الأخير: {{reason}})",
-      "minMax": "(الأدنى {{min}}، الأعلى {{max}})"
+      "minMax": "(الأدنى {{min}}، الأعلى {{max}})",
+      "download": "التنزيل",
+      "connections_zero": "لا اتصالات",
+      "connections_one": "اتصال واحد",
+      "connections_two": "اتصالان",
+      "connections_few": "{{count}} اتصالات",
+      "connections_many": "{{count}} اتصالًا",
+      "connections_other": "{{count}} اتصال"
     },
     "buffering": {
       "checking": "جارٍ الفحص…",
@@ -451,7 +458,9 @@
         "backToTitle": "العودة إلى {{quality}}",
         "backToDesc": "تحسنت سرعتك.",
         "hiddenTitle": "تم إخفاء {{name}}",
-        "hiddenDesc": "يمكنك إعادتها في أي وقت من الإعدادات."
+        "hiddenDesc": "يمكنك إعادتها في أي وقت من الإعدادات.",
+        "startLowerTitle": "البدء بجودة {{quality}}",
+        "startLowerDesc": "يرسل خادم Plex نحو {{speed}} إلى هذا التلفاز. ترتفع الجودة تلقائيًا عندما تسمح السرعة. يمكنك تغييرها في أي وقت من «الجودة»."
       },
       "sessionDirect": "تشغيل مباشر للملف الأصلي",
       "sessionConvertTo": "التحويل إلى {{quality}}",

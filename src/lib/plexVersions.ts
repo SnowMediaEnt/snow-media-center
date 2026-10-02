@@ -198,56 +198,93 @@ export function cachedPlexSpeed(base: string, now = Date.now()): number | null {
 export function _resetPlexSpeedCache(): void { cache.clear(); inflight.clear(); }
 export function _setPlexSpeed(base: string, kbps: number, at = Date.now()): void { cache.set(serverKey(base), { kbps, at }); }
 
+/** The arrivals of several reads made at once, as one: the bytes in by each
+ *  moment, over all of them (what the player gets when it reads the file
+ *  over that many connections, RangeFetchDataSource). */
+export function mergeMarks(all: Array<Array<{ t: number; bytes: number }>>): Array<{ t: number; bytes: number }> {
+  if (all.length === 1) return all[0];
+  const steps: Array<{ t: number; n: number }> = [];
+  for (const marks of all) {
+    let prev = 0;
+    for (const m of marks) { steps.push({ t: m.t, n: m.bytes - prev }); prev = m.bytes; }
+  }
+  steps.sort((a, b) => a.t - b.t);
+  const out: Array<{ t: number; bytes: number }> = [];
+  let total = 0;
+  for (const s of steps) { total += s.n; out.push({ t: s.t, bytes: total }); }
+  return out;
+}
+
 /**
  * How fast this box gets data from the Plex server right now, kbps: a few
  * seconds of the file itself (at most 16 MB), the same path playback takes.
+ * `connections` reads that many stretches of the file at once (each its
+ * share of the bytes), the way the player reads a remote server's file
+ * (RangeFetchDataSource.kt), so the figure is what playback will get.
  * Cached for a few minutes per server (`fresh` measures anyway, e.g. mid-film
  * before raising the quality); concurrent calls share one download.
  * Null when it cannot tell (no part, blocked, too little arrived). Never
  * throws, never logs the address (it carries the token).
  */
-export function measurePlexSpeed(base: string, token: string, partKey: string | undefined, opts?: { fresh?: boolean }): Promise<number | null> {
+export function measurePlexSpeed(
+  base: string, token: string, partKey: string | undefined,
+  opts?: { fresh?: boolean; connections?: number; maxMs?: number; maxBytes?: number },
+): Promise<number | null> {
   const known = opts?.fresh ? null : cachedPlexSpeed(base);
   if (known != null) return Promise.resolve(known);
   if (!partKey || typeof fetch !== 'function') return Promise.resolve(null);
   const key = serverKey(base);
   const running = inflight.get(key);
   if (running) return running;
+  const connections = Math.max(1, Math.min(4, Math.floor(opts?.connections ?? 1)));
+  const maxMs = opts?.maxMs ?? PROBE_MAX_MS;
+  const maxBytes = opts?.maxBytes ?? PROBE_MAX_BYTES;
+  const share = Math.floor(maxBytes / connections);
   const p = (async (): Promise<number | null> => {
     const ac = typeof AbortController === 'function' ? new AbortController() : null;
     // A server that stops sending mid-way would hold read() forever.
-    const stop = setTimeout(() => { try { ac?.abort(); } catch { /* ignore */ } }, PROBE_MAX_MS + 500);
+    const stop = setTimeout(() => { try { ac?.abort(); } catch { /* ignore */ } }, maxMs + 500);
     const started = Date.now();
-    let bytes = 0;
-    const marks: Array<{ t: number; bytes: number }> = [];
-    try {
-      const res = await fetch(plexDirectUrl(base, partKey, token), {
-        headers: { Range: `bytes=0-${PROBE_MAX_BYTES - 1}` },
-        cache: 'no-store',
-        signal: ac?.signal,
-      });
-      if (!res.ok || !res.body || typeof res.body.getReader !== 'function') return null;
-      const reader = res.body.getReader();
+    // Each read: its own stretch of the file, `share` bytes from `from`.
+    const one = async (from: number): Promise<Array<{ t: number; bytes: number }> | null> => {
+      let bytes = 0;
+      const marks: Array<{ t: number; bytes: number }> = [];
       try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const n = value ? value.byteLength : 0;
-          bytes += n;
-          marks.push({ t: Date.now(), bytes });
-          if (bytes >= PROBE_MAX_BYTES || Date.now() - started >= PROBE_MAX_MS) break;
-        }
-      } catch { /* cut off by the timer: what arrived still counts */ }
-      try { await reader.cancel(); } catch { /* ignore */ }
-    } catch {
-      // Blocked or unreachable: that says nothing about the speed.
-      return null;
+        const res = await fetch(plexDirectUrl(base, partKey, token), {
+          headers: { Range: `bytes=${from}-${from + share - 1}` },
+          cache: 'no-store',
+          signal: ac?.signal,
+        });
+        // A stretch past the end of a short file (416) is simply not there.
+        if (!res.ok || !res.body || typeof res.body.getReader !== 'function') return res.ok || from === 0 ? null : [];
+        const reader = res.body.getReader();
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const n = value ? value.byteLength : 0;
+            bytes += n;
+            marks.push({ t: Date.now(), bytes });
+            if (bytes >= share || Date.now() - started >= maxMs) break;
+          }
+        } catch { /* cut off by the timer: what arrived still counts */ }
+        try { await reader.cancel(); } catch { /* ignore */ }
+        return marks;
+      } catch {
+        // Blocked or unreachable: that says nothing about the speed.
+        return from === 0 ? null : [];
+      }
+    };
+    let all: Array<Array<{ t: number; bytes: number }> | null>;
+    try {
+      all = await Promise.all(Array.from({ length: connections }, (_, i) => one(i * share)));
     } finally {
       clearTimeout(stop);
       try { ac?.abort(); } catch { /* ignore */ }
       inflight.delete(key);
     }
-    const kbps = probeRateFromMarks(marks, started, Date.now());
+    if (all[0] == null) return null;
+    const kbps = probeRateFromMarks(mergeMarks(all.filter((m): m is Array<{ t: number; bytes: number }> => m != null)), started, Date.now());
     if (kbps != null) cache.set(key, { kbps, at: Date.now() });
     return kbps;
   })();

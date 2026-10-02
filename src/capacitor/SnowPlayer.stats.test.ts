@@ -14,7 +14,7 @@ const KEYS: Array<keyof PlayerStats> = [
   'nowKbps', 'avgKbps', 'minKbps', 'maxKbps',
   'videoDecoder', 'videoFormat', 'renderedFrames', 'droppedFrames',
   'audioDecoder', 'audioFormat',
-  'restarts', 'lastRestartReason', 'lastError', 'httpStatus', 'loadProfile',
+  'restarts', 'lastRestartReason', 'lastError', 'httpStatus', 'loadProfile', 'fetchConnections',
   'javaHeapMb', 'nativeHeapMb',
   'engine', 'firstFrameMs', 'stalls', 'stallSec', 'cpuPct', 'pssMb',
 ];
@@ -30,7 +30,7 @@ describe('SnowPlayer.getStats — web / no native player', () => {
       nowKbps: null, avgKbps: null, minKbps: null, maxKbps: null,
       videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null,
       audioDecoder: null, audioFormat: null,
-      restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null,
+      restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null, fetchConnections: null,
       javaHeapMb: null, nativeHeapMb: null,
       engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
     });

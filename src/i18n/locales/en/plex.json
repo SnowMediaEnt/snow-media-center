@@ -83,7 +83,10 @@
       "ahead": "{{value}} s ahead",
       "framesValue": "{{rendered}} · {{dropped}} dropped",
       "restartsLast": "{{count}} (last: {{reason}})",
-      "minMax": "(min {{min}}, max {{max}})"
+      "minMax": "(min {{min}}, max {{max}})",
+      "download": "Download",
+      "connections_one": "{{count}} connection",
+      "connections_other": "{{count}} connections"
     },
     "buffering": {
       "checking": "Checking…",
@@ -435,7 +438,9 @@
         "backToTitle": "Back to {{quality}}",
         "backToDesc": "Your speed picked up.",
         "hiddenTitle": "{{name}} hidden",
-        "hiddenDesc": "Bring it back any time under Settings."
+        "hiddenDesc": "Bring it back any time under Settings.",
+        "startLowerTitle": "Starting at {{quality}}",
+        "startLowerDesc": "The Plex server is delivering about {{speed}} to this TV. It goes back up by itself when the speed allows. Change it any time under Quality."
       },
       "sessionDirect": "Direct play of the original file",
       "sessionConvertTo": "Converting to {{quality}}",

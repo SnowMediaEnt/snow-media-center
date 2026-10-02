@@ -188,3 +188,42 @@ describe('a conversion the server answers with an HTTP error: the recovery', () 
     expect(convertAlternative(film, 1, '1080-8', { measuredKbps: 9000, failed: ['720-4'] })?.key).toBe('720-3');
   });
 });
+
+describe('the customer\'s box over a wall clock: a 12 Mb/s file at 1.4-5.7 Mb/s settles on 720p · 4 Mbps within a minute of the start grace', () => {
+  it('plays, stalls, plays, stalls: the second stall past the grace drops it, sized to the best the server sent', () => {
+    const aq = new AutoQuality(0);
+    const startedAt = 5 * S;
+    const ctx = { lastStartAt: startedAt, lastSeekAt: 0, relay: false, serverKbps: 5700 };
+    const rates: RateReport[] = [];
+    const stalls: number[] = [];
+    // The player downloads flat out: 4-5.7 Mb/s in a 3 s window, with the
+    // odd 1.4; it plays about 5 s on what it got, then stalls for ~10 s.
+    let t = startedAt;
+    let move = null;
+    let stalled = false;
+    let phaseEnd = t + 4 * S;
+    while (t < startedAt + 150 * S && !move) {
+      t += RATE_TICK_MS;
+      const kbps = [4100, 5700, 1400, 5200, 3000][Math.floor(t / RATE_TICK_MS) % 5];
+      rates.push(stalled ? { t, kbps, stalled: true } : { t, kbps });
+      if (t >= phaseEnd) {
+        stalled = !stalled;
+        phaseEnd = t + (stalled ? 10 * S : 5 * S);
+        if (stalled) {
+          stalls.push(t);
+          move = aq.onStall(t, 0, film, 0, 5700, ctx);
+        }
+      }
+      if (!move && stalled) {
+        const starved = aq.starved(rates, t, 12000, ctx);
+        if (starved) move = aq.onStarved(t, film, 0, starved);
+      }
+    }
+    expect(move).not.toBeNull();
+    expect(move!.step.key).toBe('720-4');
+    expect(move!.reason).toBe('starved');
+    // Within a minute of the start grace ending.
+    expect(t - startedAt).toBeLessThan(START_GRACE_MS + 60 * S);
+    expect(stalls.filter((s) => s - startedAt >= START_GRACE_MS).length).toBeLessThanOrEqual(3);
+  });
+});

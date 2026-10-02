@@ -15,6 +15,7 @@ import { beginStream, endStream, recordPlayerRate, setBuffering as diagSetBuffer
 import { emptyPlayerStats } from '@/capacitor/SnowPlayer';
 import { AutoQuality } from '@/lib/plexAutoQuality';
 import { markPlaybackStart } from '@/lib/playerSeek';
+import { _setPlexSpeed } from '@/lib/plexVersions';
 
 // Slow under a loaded full run (renders the whole screen); the default 5 s flakes.
 vi.setConfig({ testTimeout: 20_000 });
@@ -40,6 +41,8 @@ const h = vi.hoisted(() => {
     later, auth, conn, pos,
     /** Every stream address the native player was handed, in order. */
     urls: [] as string[],
+    /** Whether each of them was to be read over several connections (rangeFetch). */
+    rangeFetch: [] as boolean[],
     native: null as unknown as NativeState,
     kick: null as null | (() => void),
     part: vi.fn(),
@@ -89,10 +92,10 @@ vi.mock('@/capacitor/SnowPlayer', async (orig) => {
 vi.mock('@/hooks/useNativePlayer', async () => {
   const React = await import('react');
   return {
-    useNativePlayer: ({ url }: { url: string | null }) => {
+    useNativePlayer: ({ url, rangeFetch }: { url: string | null; rangeFetch?: boolean }) => {
       const [, force] = React.useState(0);
       React.useEffect(() => { h.kick = () => force((n) => n + 1); return () => { h.kick = null; }; }, []);
-      if (url && h.urls[h.urls.length - 1] !== url) h.urls.push(url);
+      if (url && h.urls[h.urls.length - 1] !== url) { h.urls.push(url); h.rangeFetch.push(!!rangeFetch); }
       return h.native;
     },
   };
@@ -154,6 +157,10 @@ const isTranscode = (u: string) => u.includes('/video/:/transcode/universal/star
 const cap = (u: string) => /[?&]maxVideoBitrate=(\d+)/.exec(u)?.[1] ?? null;
 const sessionOf = (u: string) => /[?&]session=([^&]+)/.exec(u)?.[1] ?? '';
 const stops = () => h.fetch.mock.calls.map((c) => String(c[0])).filter((u) => u.includes('/video/:/transcode/universal/stop'));
+const pings = () => h.fetch.mock.calls.map((c) => String(c[0])).filter((u) => u.includes('/video/:/transcode/universal/ping?'));
+const decisionsAll = () => h.fetch.mock.calls.map((c) => String(c[0])).filter((u) => u.includes('/video/:/transcode/universal/decision?'));
+/** Where in the run of requests the first one matching `part` went out. */
+const requestIndex = (part: string) => h.fetch.mock.calls.findIndex((c) => String(c[0]).includes(part));
 // Reads of the file itself (measurePlexSpeed: a ranged GET of up to 16 MB).
 const speedReads = () => h.fetch.mock.calls.filter((c) => /bytes=0-/.test(String((c[1] as RequestInit | undefined)?.headers
   ? ((c[1] as RequestInit).headers as Record<string, string>).Range ?? '' : '')));
@@ -176,6 +183,7 @@ beforeEach(async () => {
   h.conn.route = 'direct';
   h.pos.position = 600; h.pos.duration = 7200; h.pos.playing = true;
   h.urls = [];
+  h.rangeFetch = [];
   h.native = {
     error: null, buffering: false, paused: false, audioWarning: null, controller: null,
     getPosition: async () => ({ ...h.pos }), seekTo: async () => undefined, retry: () => undefined,
@@ -259,11 +267,15 @@ describe('automatic quality through PlexSection', () => {
     act(() => { h.pickQuality?.('720-4', 600); });
     await waitFor(() => expect(cap(lastUrl())).toBe('4000'));
     const second = lastUrl();
-    expect(stops()).toEqual([]);
-    await wait(1700);
+    // Stopped at once, BEFORE the new session is asked for (its decision):
+    // a server that allows one conversion at a time has the slot free.
     expect(stops()).toHaveLength(1);
     expect(stops()[0]).toContain(`session=${sessionOf(first)}`);
     expect(stops()[0].startsWith('https://plex.test/video/:/transcode/universal/stop?')).toBe(true);
+    expect(requestIndex(`stop?session=${sessionOf(first)}`)).toBeLessThan(requestIndex(`decision?`) < 0 ? Infinity : h.fetch.mock.calls.findIndex((c) => String(c[0]).includes('decision?') && String(c[0]).includes(`session=${sessionOf(second)}`)));
+    await wait(1700);
+    // And not again by the delayed stop.
+    expect(stops()).toHaveLength(1);
     act(() => { h.closePlayer?.(); });
     await wait(1700);
     expect(stops()).toHaveLength(2);
@@ -808,9 +820,12 @@ describe('a conversion the Plex server answers with an HTTP error status', () =>
     expect(isTranscode(fresh)).toBe(true);
     expect(cap(fresh)).toBe('4000');
     expect(sessionOf(fresh)).not.toBe(sessionOf(first));
-    expect(fresh).toContain('X-Plex-Platform=Android');
-    expect(decisions()).toHaveLength(1);
-    expect(decisions()[0]).toContain(`session=${sessionOf(fresh)}`);
+    // The first was named like Plex's players; the fresh one is the plain
+    // start of builds 38-56, the other thing to try.
+    expect(first).toContain('X-Plex-Platform=Android');
+    expect(fresh).not.toContain('X-Plex-Platform=Android');
+    expect(decisions()).toHaveLength(2);
+    expect(decisions()[1]).toContain(`session=${sessionOf(fresh)}`);
     expect(toastTitles()).toContain("The Plex server couldn't prepare this");
     expect(screen.queryByText('Playback Error')).toBeNull();
     cleared();
@@ -820,6 +835,8 @@ describe('a conversion the Plex server answers with an HTTP error status', () =>
     await waitFor(() => expect(cap(lastUrl())).toBe('3000'));
     const other = lastUrl();
     expect(sessionOf(other)).not.toBe(sessionOf(fresh));
+    expect(other).toContain('X-Plex-Platform=Android');
+    expect(decisions()).toHaveLength(3);
     expect(h.toast.mock.calls.map((c) => String((c[0] as { description?: string }).description ?? ''))).toContain('Playing 720p · 3 Mbps instead. Change it any time under Quality.');
     cleared();
     await started();
@@ -841,14 +858,16 @@ describe('a conversion the Plex server answers with an HTTP error status', () =>
 
   it('a fresh session the server turns down at its decision goes straight to another quality', async () => {
     await converting720();
-    h.fetch.mockImplementation(async (u: unknown) => (String(u).includes('/transcode/universal/decision?')
+    // The fresh session's decision is turned down; the next one is not.
+    let refusals = 1;
+    h.fetch.mockImplementation(async (u: unknown) => (String(u).includes('/transcode/universal/decision?') && refusals-- > 0
       ? new Response('', { status: 503 })
       : new Response('', { status: 200 })));
     const first = lastUrl();
     convertFail();
     await waitFor(() => expect(cap(lastUrl())).toBe('3000'));
     expect(h.urls.filter(isTranscode).filter((u) => cap(u) === '4000')).toEqual([first]);
-    expect(decisions()).toHaveLength(1);
+    expect(decisions()).toHaveLength(3);
   });
 
   it('with the rate measured from the server carrying the file, the other quality is the file as it is', async () => {
@@ -868,5 +887,185 @@ describe('a conversion the Plex server answers with an HTTP error status', () =>
     convertFail();
     await waitFor(() => expect(isTranscode(lastUrl())).toBe(false));
     expect(lastUrl()).toContain('/library/parts/7/file.mkv');
+  });
+});
+
+describe('a quality the viewer picks (customers on 1.8.0: "changing of quality — not playing")', () => {
+  const decisionsFor = (url: string) => decisionsAll().filter((d) => d.includes(`session=${sessionOf(url)}`));
+
+  it('starts the way Plex\'s own players start one: the old session stopped first, a decision for the new session, then its playlist — all one session, named', async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { h.pickQuality?.('720-4', 600); });
+    await waitFor(() => expect(cap(lastUrl())).toBe('4000'));
+    const url = lastUrl();
+    expect(isTranscode(url)).toBe(true);
+    expect(url).toContain('X-Plex-Platform=Android');
+    expect(url).toContain('location=wan');
+    expect(decisionsFor(url)).toHaveLength(1);
+    const q = new URLSearchParams(decisionsFor(url)[0].slice(decisionsFor(url)[0].indexOf('?') + 1));
+    expect(q.get('maxVideoBitrate')).toBe('4000');
+    expect(q.get('X-Plex-Platform')).toBe('Android');
+    // The file had no session to stop.
+    expect(stops()).toEqual([]);
+    expect(toastTitles()).not.toContain("The Plex server couldn't prepare this");
+    await started();
+    // A second pick: the first session stopped before the second is asked for.
+    act(() => { h.pickQuality?.('720-3', 700); });
+    await waitFor(() => expect(cap(lastUrl())).toBe('3000'));
+    expect(stops()).toHaveLength(1);
+    expect(stops()[0]).toContain(`session=${sessionOf(url)}`);
+    expect(requestIndex(`stop?session=${sessionOf(url)}`)).toBeLessThan(requestIndex(`decision?`) >= 0 ? h.fetch.mock.calls.findIndex((c) => String(c[0]).includes(`session=${sessionOf(lastUrl())}`)) : Infinity);
+    expect(screen.queryByText('Still preparing…')).toBeNull();
+  });
+
+  it('turned down at its decision: the next lighter conversion, said so; every one turned down: the file as it is, said so — never a spinner', async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    const file = lastUrl();
+    h.fetch.mockImplementation(async (u: unknown) => (String(u).includes('/transcode/universal/decision?')
+      ? new Response('', { status: 503 })
+      : new Response('', { status: 200 })));
+    act(() => { h.pickQuality?.('1080-8', 600); });
+    // 1080p · 8 refused → 720p · 4 refused → 720p · 3 refused → the file.
+    await waitFor(() => expect(decisionsAll()).toHaveLength(3));
+    await waitFor(() => expect(toastTitles()).toContain("The Plex server wouldn't convert this"));
+    const caps = decisionsAll().map((d) => /[?&]maxVideoBitrate=(\d+)/.exec(d)?.[1]);
+    expect(caps).toEqual(['8000', '4000', '3000']);
+    // Not one of them was handed to the player; the file plays on.
+    expect(h.urls.filter(isTranscode)).toEqual([]);
+    expect(lastUrl()).toBe(file);
+    const descs = h.toast.mock.calls.map((c) => String((c[0] as { description?: string }).description ?? ''));
+    expect(descs).toContain('Playing 720p · 4 Mbps instead. Change it any time under Quality.');
+    expect(descs).toContain('Playing 720p · 3 Mbps instead. Change it any time under Quality.');
+    expect(screen.queryByText('Still preparing…')).toBeNull();
+    expect(screen.queryByText('Playback Error')).toBeNull();
+    // Nothing converted is tried again on this title by automatic quality.
+    await started();
+    await stall(); await stall(); await stall();
+    await wait(4_000);
+    expect(h.urls.filter(isTranscode)).toEqual([]);
+  });
+
+  it('a title with no file to play as it is: a pick the server turns down goes back to converting at original quality', async () => {
+    h.part.mockImplementation(async () => ({ versions: [] }));
+    await openDune();
+    await play('Dune');
+    await started();
+    const original = lastUrl();
+    expect(isTranscode(original)).toBe(true);
+    h.fetch.mockImplementation(async (u: unknown) => (String(u).includes('/transcode/universal/decision?')
+      ? new Response('', { status: 500 })
+      : new Response('', { status: 200 })));
+    act(() => { h.pickQuality?.('720-4', 600); });
+    await waitFor(() => expect(decisionsAll().length).toBeGreaterThan(0));
+    await waitFor(() => expect(lastUrl()).not.toBe(original));
+    expect(isTranscode(lastUrl())).toBe(true);
+    expect(cap(lastUrl())).toBeNull();
+    expect(screen.queryByText('Still preparing…')).toBeNull();
+  });
+
+  it('a paused conversion is kept alive on the server; a file played as it is is not', async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { h.native = { ...h.native, paused: true }; h.kick?.(); });
+    await wait(45_000);
+    expect(pings()).toEqual([]);
+    act(() => { h.native = { ...h.native, paused: false }; h.kick?.(); });
+    act(() => { h.pickQuality?.('720-4', 600); });
+    await waitFor(() => expect(cap(lastUrl())).toBe('4000'));
+    await started();
+    await wait(45_000);
+    expect(pings()).toEqual([]);
+    act(() => { h.native = { ...h.native, paused: true }; h.kick?.(); });
+    await wait(45_000);
+    expect(pings()).toHaveLength(2);
+    expect(pings()[0]).toContain(`session=${sessionOf(lastUrl())}`);
+    act(() => { h.native = { ...h.native, paused: false }; h.kick?.(); });
+    await wait(45_000);
+    expect(pings()).toHaveLength(2);
+  });
+
+  it('a conversion the server accepts but never feeds: the same quality asked for the plain way once, then the file', async () => {
+    h.pos.playing = false; h.pos.position = 0; h.pos.duration = 0;
+    await openDune();
+    await play('Dune');
+    act(() => { h.pickQuality?.('720-4', 0); });
+    await waitFor(() => expect(cap(lastUrl())).toBe('4000'));
+    const named = lastUrl();
+    expect(named).toContain('X-Plex-Platform=Android');
+    await wait(31_000);
+    await waitFor(() => expect(lastUrl()).not.toBe(named));
+    const plain = lastUrl();
+    expect(cap(plain)).toBe('4000');
+    expect(plain).not.toContain('X-Plex-Platform=Android');
+    expect(stops()[0]).toContain(`session=${sessionOf(named)}`);
+    await wait(31_000);
+    await waitFor(() => expect(isTranscode(lastUrl())).toBe(false));
+    expect(toastTitles()).toContain("The Plex server couldn't convert this in time");
+  });
+});
+
+describe('a remote server: what it delivers to this box decides the start, and the file is read over several connections', () => {
+  it('measured short of the file: starts at what it carries, as automatic quality\'s own conversion', async () => {
+    h.part.mockImplementation(async () => ({ partKey: '/library/parts/7/file.mkv', bitrateKbps: 12000, versions: [{ id: 'd1:0', ratingKey: 'd1', mediaIndex: 0, partKey: '/library/parts/7/file.mkv', label: '1080p', bitrateKbps: 12000 }] }));
+    _setPlexSpeed(h.conn.base, 5000);
+    await openDune();
+    await play('Dune');
+    expect(isTranscode(lastUrl())).toBe(true);
+    expect(cap(lastUrl())).toBe('3000');
+    expect(toastTitles()).toContain('Starting at 720p · 3 Mbps');
+    expect(h.toast.mock.calls.map((c) => String((c[0] as { description?: string }).description ?? ''))).toContain('The Plex server is delivering about 5.0 Mb/s to this TV. It goes back up by itself when the speed allows. Change it any time under Quality.');
+    expect(decisionsAll()).toHaveLength(1);
+    expect(h.rangeFetch[h.rangeFetch.length - 1]).toBe(false);
+  });
+
+  it('measured short, the server refusing to convert: the file as it is, read over several connections', async () => {
+    h.part.mockImplementation(async () => ({ partKey: '/library/parts/7/file.mkv', bitrateKbps: 12000, versions: [{ id: 'd1:0', ratingKey: 'd1', mediaIndex: 0, partKey: '/library/parts/7/file.mkv', label: '1080p', bitrateKbps: 12000 }] }));
+    _setPlexSpeed(h.conn.base, 5000);
+    h.fetch.mockImplementation(async (u: unknown) => (String(u).includes('/transcode/universal/decision?')
+      ? new Response('', { status: 503 })
+      : new Response('', { status: 200 })));
+    await openDune();
+    await play('Dune');
+    expect(isTranscode(lastUrl())).toBe(false);
+    expect(lastUrl()).toContain('/library/parts/7/file.mkv');
+    expect(h.rangeFetch[h.rangeFetch.length - 1]).toBe(true);
+    expect(toastTitles()).toContain("The Plex server wouldn't convert this");
+  });
+
+  it('measured fast enough: the file as it is, over several connections; on this network over one', async () => {
+    h.part.mockImplementation(async (_b: string, _t: string, key: string) => ({ partKey: `/library/parts/${key}/file.mkv`, bitrateKbps: 12000, versions: [] }));
+    _setPlexSpeed(h.conn.base, 40000);
+    await openDune();
+    await play('Dune');
+    expect(isTranscode(lastUrl())).toBe(false);
+    expect(h.rangeFetch[h.rangeFetch.length - 1]).toBe(true);
+    expect(toastTitles()).toEqual([]);
+    act(() => { h.closePlayer?.(); });
+    await wait(20);
+    h.closePlayer = null;
+    h.conn.route = 'lan';
+    await play('Other');
+    expect(isTranscode(lastUrl())).toBe(false);
+    expect(h.rangeFetch[h.rangeFetch.length - 1]).toBe(false);
+  });
+
+  it('nothing measured yet: a short read of the file over three connections before the first play, once per server', async () => {
+    h.part.mockImplementation(async () => ({ partKey: '/library/parts/7/file.mkv', bitrateKbps: 12000, versions: [{ id: 'd1:0', ratingKey: 'd1', mediaIndex: 0, partKey: '/library/parts/7/file.mkv', label: '1080p', bitrateKbps: 12000 }] }));
+    await openDune();
+    await play('Dune');
+    expect(isTranscode(lastUrl())).toBe(false);
+    const ranges = h.fetch.mock.calls.map((c) => String(((c[1] as RequestInit | undefined)?.headers as Record<string, string> | undefined)?.Range ?? '')).filter(Boolean);
+    expect(ranges).toEqual(['bytes=0-4194303', 'bytes=4194304-8388607', 'bytes=8388608-12582911']);
+    act(() => { h.closePlayer?.(); });
+    await wait(20);
+    h.closePlayer = null;
+    await play('Other');
+    // Could not tell (nothing came back): not read again on every play.
+    expect(h.fetch.mock.calls.map((c) => String(((c[1] as RequestInit | undefined)?.headers as Record<string, string> | undefined)?.Range ?? '')).filter(Boolean)).toHaveLength(3);
   });
 });

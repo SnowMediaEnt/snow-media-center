@@ -53,6 +53,11 @@ export interface SnowPlayerLoadOpts {
    *  'mpv' is asked for, with no engineFallback — it was never offered
    *  there. Ignored on web. */
   engine?: 'exo' | 'mpv';
+  /** A Plex file played as it is from a remote server: the player reads it
+   *  over several HTTP range requests at once (RangeFetchDataSource.kt),
+   *  which carries a far server's file past what one connection manages.
+   *  Ignored for live streams and conversions; off by default. */
+  rangeFetch?: boolean;
 }
 
 export interface SnowScreenOpts { screenId?: string }
@@ -109,6 +114,9 @@ export interface PlayerStats {
   /** How far ahead the player reads, e.g. "steady · 50 s / 128 MB, 20 s floor",
    *  or for mpv "mpv · cache 32 MB · 10 s ahead". */
   loadProfile: string | null;
+  /** How many connections the stream is read over: several for a Plex file
+   *  from a remote server (rangeFetch), 1 otherwise. Older builds leave it out. */
+  fetchConnections?: number | null;
   javaHeapMb: number | null;
   nativeHeapMb: number | null;
   /** Which engine actually played this stream. */
@@ -134,7 +142,7 @@ export function emptyPlayerStats(): PlayerStats {
     nowKbps: null, avgKbps: null, minKbps: null, maxKbps: null,
     videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null,
     audioDecoder: null, audioFormat: null,
-    restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null,
+    restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null, fetchConnections: null,
     javaHeapMb: null, nativeHeapMb: null,
     engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
   };

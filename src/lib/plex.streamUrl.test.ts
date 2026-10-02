@@ -1,18 +1,19 @@
 // The direct-play URL names the app to the server the way Plex's own players
 // do: the player sends none of the headers the API calls carry, so the client
 // id, product, version, platform and device ride on the URL next to the token.
-// The transcode URL keeps the client id alone, as it always has: the server
-// picks its conversion profile by platform and product.
+// The transcode URL names the client the same way (bugs/plex-buffering-remote.md):
+// the server picks its conversion profile by platform; the plain start of
+// builds 38-56 (identify: false) is kept as the other thing to try.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Not native: plexReq goes through fetch, which the header test captures.
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false }, CapacitorHttp: {} }));
 
 import {
-  getPlexClientId, getPlexServers, plexDirectUrl, plexTranscodeDecision, plexTranscodeDecisionUrl, plexTranscodeUrl,
+  getPlexClientId, getPlexServers, plexDirectUrl, plexTranscodeDecision, plexTranscodeDecisionUrl, plexTranscodeIdentified, plexTranscodeUrl,
   PLEX_DEVICE, PLEX_PRODUCT, PLEX_VERSION,
 } from './plex';
-import { transcodeStopUrl } from './plexAutoQuality';
+import { transcodePingUrl, transcodeStopUrl } from './plexAutoQuality';
 
 const BASE = 'https://203-0-113-5.abc123.plex.direct:32400';
 const PART = '/library/parts/7/1700000000/file.mkv';
@@ -53,19 +54,37 @@ describe('plexDirectUrl', () => {
 });
 
 describe('plexTranscodeUrl', () => {
-  it('names the client by its id alone, with the token after it', () => {
-    const url = plexTranscodeUrl(BASE, '101', 'tok+1', { maxVideoBitrateKbps: 4000, mediaIndex: 1 });
+  it('names the client the way Plex\'s own players do, with the token after the id, and says where the box is', () => {
+    const url = plexTranscodeUrl(BASE, '101', 'tok+1', { maxVideoBitrateKbps: 4000, mediaIndex: 1, location: 'wan' });
     const q = query(url);
     expect(q.getAll('X-Plex-Client-Identifier')).toEqual([getPlexClientId()]);
     expect(q.getAll('X-Plex-Token')).toEqual(['tok+1']);
-    // Nothing the server could pick a different conversion profile by.
-    for (const k of ['X-Plex-Product', 'X-Plex-Version', 'X-Plex-Platform', 'X-Plex-Device', 'X-Plex-Device-Name']) {
-      expect(q.has(k)).toBe(false);
-    }
-    expect(url.slice(url.indexOf('&mediaIndex='))).toBe(
+    // What the server picks its conversion profile by: the platform, named
+    // outright (Plex for Android sends the same), not left to the player's
+    // User-Agent (build 39: SMC's own agent there, and no conversion started).
+    expect(q.get('X-Plex-Platform')).toBe('Android');
+    expect(q.get('X-Plex-Product')).toBe(PLEX_PRODUCT);
+    expect(q.get('X-Plex-Version')).toBe(PLEX_VERSION);
+    expect(q.get('X-Plex-Device')).toBe(PLEX_DEVICE);
+    expect(q.get('X-Plex-Device-Name')).toBe(PLEX_PRODUCT);
+    expect(q.get('location')).toBe('wan');
+    expect(url.slice(url.indexOf('&mediaIndex='), url.indexOf('&location='))).toBe(
       `&mediaIndex=1&partIndex=0&X-Plex-Client-Identifier=${encodeURIComponent(getPlexClientId())}`
       + '&X-Plex-Token=tok%2B1&maxVideoBitrate=4000',
     );
+    expect(plexTranscodeIdentified(url)).toBe(true);
+  });
+
+  it('the plain start of builds 38-56 (identify: false): the client id alone', () => {
+    const url = plexTranscodeUrl(BASE, '101', 'tok+1', { maxVideoBitrateKbps: 4000, identify: false });
+    const q = query(url);
+    for (const k of ['X-Plex-Product', 'X-Plex-Version', 'X-Plex-Platform', 'X-Plex-Device', 'X-Plex-Device-Name', 'location']) {
+      expect(q.has(k)).toBe(false);
+    }
+    expect(q.getAll('X-Plex-Client-Identifier')).toEqual([getPlexClientId()]);
+    expect(plexTranscodeIdentified(url)).toBe(false);
+    expect(plexTranscodeIdentified(plexDirectUrl(BASE, PART, 'tok'))).toBe(true);
+    expect(plexTranscodeIdentified(null)).toBe(false);
   });
 
   it('still gives the address that ends its converting session', () => {
@@ -79,11 +98,11 @@ describe('plexTranscodeUrl', () => {
   });
 });
 
-describe('a fresh conversion session after one was turned down', () => {
-  it('is named like Plex\'s own players (not the plain start), and its decision call has the same session', () => {
-    const plain = plexTranscodeUrl(BASE, '42', 'tok', { maxVideoBitrateKbps: 4000, videoResolution: '1280x720' });
+describe('a conversion session asked for the other way round', () => {
+  it('a named and a plain session differ only in the naming; the decision call has the same session and parameters', () => {
+    const plain = plexTranscodeUrl(BASE, '42', 'tok', { maxVideoBitrateKbps: 4000, videoResolution: '1280x720', identify: false });
     expect(query(plain).get('X-Plex-Platform')).toBeNull();
-    const fresh = plexTranscodeUrl(BASE, '42', 'tok', { maxVideoBitrateKbps: 4000, videoResolution: '1280x720', identify: true });
+    const fresh = plexTranscodeUrl(BASE, '42', 'tok', { maxVideoBitrateKbps: 4000, videoResolution: '1280x720' });
     const q = query(fresh);
     expect(q.get('X-Plex-Platform')).toBe('Android');
     expect(q.get('X-Plex-Product')).toBe(PLEX_PRODUCT);
@@ -94,6 +113,11 @@ describe('a fresh conversion session after one was turned down', () => {
     expect(decision.startsWith(`${BASE}/video/:/transcode/universal/decision?`)).toBe(true);
     expect(query(decision).toString()).toBe(q.toString());
     expect(plexTranscodeDecisionUrl(plexDirectUrl(BASE, PART, 'tok'))).toBeNull();
+    // The keep-alive while paused, for the same session.
+    const ping = transcodePingUrl(fresh) ?? '';
+    expect(ping).toBe(`${BASE}/video/:/transcode/universal/ping?session=${q.get('session')}`
+      + `&X-Plex-Client-Identifier=${encodeURIComponent(getPlexClientId())}&X-Plex-Token=tok`);
+    expect(transcodePingUrl(plexDirectUrl(BASE, PART, 'tok'))).toBeNull();
   });
 
   it('the decision: an error status or a "can\'t convert" code is a refusal; no answer is not', async () => {
