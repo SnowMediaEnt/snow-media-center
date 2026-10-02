@@ -21,7 +21,10 @@
     "browse": "{{name}} in Live-TV durchsuchen",
     "zoneHeading": "Zone-Sender – alle Spiele der Liga, nicht nur dieses",
     "unconfirmedHeading": "Nicht vom Guide bestätigt – zeigt dieses Spiel vielleicht nicht",
+    "searchHeading": "Per Suche gefunden – vielleicht nicht dieses Spiel",
+    "foundBySearch": "Per Suche gefunden",
     "checkingGuide": "Guide wird geprüft…",
+    "searching": "Deine Kanäle werden durchsucht…",
     "serviceTag": "Auf {{service}}",
     "playingOn": "Wiedergabe auf {{service}}",
     "none": "Derzeit nicht in deinen Sendern. Drücke Zurück, um zu den Spielen zurückzukehren.",
@@ -46,7 +49,8 @@
       "team": "Teamsender",
       "league": "Ligasender",
       "zone": "Zone-Sender",
-      "picked": "Von Snow Media ausgewählt"
+      "picked": "Von Snow Media ausgewählt",
+      "search": "Per Suche gefunden"
     },
     "guide": {
       "note": "Guide: {{text}}"

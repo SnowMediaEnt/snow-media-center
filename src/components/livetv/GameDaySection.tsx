@@ -30,6 +30,17 @@
 // the report names the line and stream of that link, and "channel down" puts
 // the ⚠️ on it for the other boxes. A short press plays when OK is let go.
 //
+// Search (lib/gameDayAi, flag gameday_ai_match): once a day per provider the
+// box sends its event-like channel names to be read against the day's games,
+// in the background, and reads what was found (on open and after a scan).
+// A found channel the box still has under that name is listed under its own
+// heading, "Found by search — may not be this game", between the game's
+// channels and "Not confirmed by the guide"; the guide still drops one it
+// shows with something else, and moves one it confirms up with the game's
+// channels. Only a high-confidence one can be the row's Watch pick and a
+// reminder's channel. A held OK on one offers "Not this game". Never in demo
+// or on a Kids profile.
+//
 // The owner's picks (lib/gameDay, read with the games) are laid over each
 // game's channels last of all: an added channel goes first with a "Picked by
 // Snow Media" line, a hidden one is gone (from the row's Watch pick and a
@@ -38,13 +49,20 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Bell, BellRing, FolderOpen, Loader2, Play, Star, Trophy, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
 import { isChannelDown, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import {
   CHANNELS_TTL_MS, LINK_LABELS, PICKED_LABEL, applyChannelEdits, arrangeLinks, cardChannels, channelKey, channelsForGame, checkGuides, chipOf, fetchGameEdits,
   fetchGames, gameServices, isPpvFight, isStreamingOnly, kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames,
-  type Game, type GameChannel, type GameEdit, type SportsChannel,
+  type Game, type GameChannel, type GameEdit, type LinkGroups, type SportsChannel,
 } from '@/lib/gameDay';
+import {
+  AI_FLAG, aiAllowed, fetchCachedScan, hostOf, isWrongLink, learnedCats, markWrong, rememberMiss, sendLearn, sendScan, shouldScan, trackAiPlay, wrongLinks,
+  type CachedScan, type LearnedCats, type ScanResult, type SearchLink,
+  // TODO(gdai merge): these four come from '@/lib/gameDay' once item A lands.
+  aiLinks, lineupHash, scanCandidates, teamTokens,
+} from '@/lib/gameDayAi';
 import { GAME_REMINDERS_EVENT, hasReminder, toggleReminder } from '@/lib/gameReminders';
 import { buildLines, lineKey } from '@/lib/liveLines';
 import { SERVERS, loadSavedAccounts, serverDisplayName, type XtreamCreds } from '@/lib/xtream';
@@ -52,6 +70,29 @@ import { setPausableInterval } from '@/utils/pausableInterval';
 import { useTranslation } from 'react-i18next';
 
 const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
+
+// TODO(gdai merge): item A gives loadSportsChannels and channelsForGame their
+// `learned` parameter; these casts go then.
+const loadChannels = loadSportsChannels as (lines: XtreamCreds[], learned?: LearnedCats) => Promise<SportsChannel[]>;
+const matchGame = channelsForGame as (game: Game, channels: SportsChannel[], limit?: number, learned?: LearnedCats) => GameChannel[];
+
+/** How it was found, for a link found by search. */
+const searchOf = (l: GameChannel): 'high' | 'medium' | undefined => (l as SearchLink).search;
+/** The groups with the links found by search apart (unless the guide
+ *  confirmed them: those are the game's channels). arrangeLinks fills
+ *  `search` (item A); a found link left in another group is moved too. */
+const splitSearch = (groups: LinkGroups): LinkGroups & { search: GameChannel[] } => {
+  const g = groups as LinkGroups & { search?: GameChannel[] };
+  const found = (l: GameChannel) => !!searchOf(l) && l.guide !== 'yes';
+  const keep = (list: GameChannel[]) => (list.some(found) ? list.filter((l) => !found(l)) : list);
+  return {
+    main: keep(g.main), unconfirmed: keep(g.unconfirmed), zone: keep(g.zone),
+    search: [...(g.search ?? []), ...g.main.filter(found), ...g.unconfirmed.filter(found), ...g.zone.filter(found)],
+  };
+};
+/** A provider's answer is read again this long after a scan the box gave up waiting for. */
+const SCAN_SOON_MS = 30_000;
+const SCAN_LATE_MS = 90_000;
 
 interface Props {
   creds: XtreamCreds;
@@ -75,9 +116,10 @@ const lowMemory = () => { try { return document.documentElement.classList.contai
 const modalOpen = () => { try { return !!document.querySelector('[aria-modal="true"][data-state="open"]'); } catch { return false; } };
 const canRemind = (g: Game) => g.state !== 'in' && Date.parse(g.start) > Date.now();
 
-/** Where a link sits in the list: with the game's channels, under "Not
- *  confirmed by the guide", or under the zone channels' heading. */
-type LinkGroup = 'main' | 'unconfirmed' | 'zone';
+/** Where a link sits in the list: with the game's channels, under "Found by
+ *  search", under "Not confirmed by the guide", or under the zone channels'
+ *  heading. */
+type LinkGroup = 'main' | 'search' | 'unconfirmed' | 'zone';
 type PickItem =
   | { kind: 'link'; link: GameChannel; down: boolean; group: LinkGroup }
   | { kind: 'browse'; line: XtreamCreds; categoryId: string; name: string };
@@ -148,6 +190,17 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   const [reportFor, setReportFor] = useState<GameChannel | null>(null);
   const [, setReminderTick] = useState(0);
   const [channelsTick, setChannelsTick] = useState(0);
+  // Search: on unless the owner turned it off (a missing flag row is on),
+  // once the flag has been read this time (a box never calls past the kill
+  // switch on a remembered "on"); never in demo or on a Kids profile.
+  const { enabled: aiFlag, loading: aiFlagLoading } = useFeatureFlag(AI_FLAG);
+  const [aiOk] = useState(aiAllowed);
+  const aiOn = aiFlag && !aiFlagLoading && aiOk;
+  // What each provider's last scan found (by host), and scans on their way.
+  const [aiScans, setAiScans] = useState<Map<string, CachedScan>>(() => new Map());
+  const [aiBusy, setAiBusy] = useState(0);
+  // A "Not this game" was said: the found links are worked out again.
+  const [wrongTick, setWrongTick] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const pickRef = useRef<HTMLDivElement>(null);
 
@@ -181,13 +234,32 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   // This box's sports and network channels, read again every ten minutes
   // while on screen (a list that has not aged comes straight back).
   const linesKey = lines.map((l) => `${l.host}|${l.username}`).join(',');
+  // The providers (by hostname: never a login), two at most.
+  const aiHosts = useMemo(() => [...new Set(lines.map((l) => hostOf(l.host)).filter(Boolean))].slice(0, 2),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the lines themselves
+    [linesKey]);
+  // The categories viewers showed carry a league's games on these providers:
+  // the matching treats them as that league's. Worked out again when a
+  // provider's answer is read; the same list keeps the same map.
+  const learnedSig = useMemo(() => {
+    if (!aiOn) return '';
+    return JSON.stringify([...learnedCats(aiHosts)]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- aiScans: a new answer brings new categories
+  }, [aiOn, aiHosts, aiScans]);
+  const learned = useMemo<LearnedCats | undefined>(() => {
+    if (!learnedSig) return undefined;
+    try { const m = new Map(JSON.parse(learnedSig) as Array<[string, string[]]>); return m.size ? m : undefined; } catch { return undefined; }
+  }, [learnedSig]);
+  // Read with the next channel list (not a reason to read it again now).
+  const learnedRef = useRef(learned);
+  learnedRef.current = learned;
   useEffect(() => {
     if (!isActive) return;
     return setPausableInterval(() => setChannelsTick((t) => t + 1), CHANNELS_TTL_MS);
   }, [isActive]);
   useEffect(() => {
     let alive = true;
-    void loadSportsChannels(lines)
+    void loadChannels(lines, learnedRef.current)
       .then((c) => { if (alive) setChannels(c); })
       .catch(() => { if (alive) setChannels((old) => old ?? []); });
     return () => { alive = false; };
@@ -237,19 +309,100 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   // What the matching finds for each (the slow part: not done again when the
   // owner's picks or the down list change).
   const matched = useMemo(
-    () => shown.map((g) => (g.league === 'ppv' ? (ppvLinks.get(g.id) ?? []) : channels ? channelsForGame(g, channels) : [])),
-    [shown, channels, ppvLinks],
+    () => shown.map((g) => (g.league === 'ppv' ? (ppvLinks.get(g.id) ?? []) : channels ? matchGame(g, channels, undefined, learned) : [])),
+    [shown, channels, ppvLinks, learned],
   );
+
+  // ── search ────────────────────────────────────────────────────────────────
+  // Each time Game Day opens: read each provider's answer (kept ten minutes),
+  // and send its scan in the background when the answer is missing, old or
+  // made from another line-up (shouldScan). Nothing waits for it.
+  const aliveRef = useRef(true);
+  const lateTimers = useRef<number[]>([]);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; lateTimers.current.forEach((id) => window.clearTimeout(id)); lateTimers.current = []; };
+  }, []);
+  const aiCheckedRef = useRef('');
+  useEffect(() => { if (!isActive) aiCheckedRef.current = ''; }, [isActive]);
+  useEffect(() => {
+    if (!isActive || !aiOn || !channels || !aiHosts.length) return;
+    const key = aiHosts.join(',');
+    if (aiCheckedRef.current === key) return;
+    aiCheckedRef.current = key;
+    const list = channels;
+    const put = (host: string, scan: CachedScan | null) => {
+      if (scan && aliveRef.current) setAiScans((m) => (m.get(host) === scan ? m : new Map(m).set(host, scan)));
+    };
+    for (const host of aiHosts) {
+      void (async () => {
+        const cached = await fetchCachedScan(host);
+        put(host, cached);
+        const cands = scanCandidates(list, host);
+        if (!cands.length) return;
+        const hash = lineupHash(cands);
+        if (!shouldScan(host, cached, hash)) return;
+        setAiBusy((n) => n + 1);
+        let r: ScanResult = 'error';
+        try { r = await sendScan(host, cands, hash); } finally { if (aliveRef.current) setAiBusy((n) => Math.max(0, n - 1)); }
+        if (r !== 'scanned' && r !== 'started' && r !== 'fresh' && r !== 'busy' && r !== 'timeout') return;
+        put(host, await fetchCachedScan(host, true));
+        // The server finishes the scan after answering, or it was given up on
+        // after six seconds, or another box on this provider is scanning it
+        // now: read it again a little later (never a second scan).
+        if ((r === 'started' || r === 'timeout' || r === 'busy') && aliveRef.current) {
+          for (const ms of [SCAN_SOON_MS, SCAN_LATE_MS]) {
+            lateTimers.current.push(window.setTimeout(() => { if (aliveRef.current) void fetchCachedScan(host, true).then((s) => put(host, s)); }, ms));
+          }
+        }
+      })().catch(() => undefined);
+    }
+  }, [isActive, aiOn, channels, aiHosts]);
+  // What was found for each game listed, as links on this box: only a channel
+  // still loaded under that name (or one still naming a team), and never one
+  // a viewer here said is not the game.
+  const searchByGame = useMemo(() => {
+    const out = new Map<string, GameChannel[]>();
+    if (!aiOn || !channels || !aiScans.size) return out;
+    const wrong = wrongLinks();
+    for (const [host, scan] of aiScans) {
+      const ids = new Set<number>();
+      for (const id of Object.keys(scan.matches)) for (const m of scan.matches[id]) ids.add(m.stream_id);
+      if (!ids.size) continue;
+      // One pass over the channels per provider, not one per game.
+      const here = channels.filter((c) => ids.has(Number(c.stream.stream_id)) && hostOf(c.line.host) === host);
+      if (!here.length) continue;
+      for (const g of shown) {
+        const m = scan.matches[g.id];
+        if (!m || !m.length || !g.home || !g.away) continue;
+        const links = aiLinks(g, here, host, m).filter((l) => !isWrongLink(wrong, g.id, host, l.stream.stream_id));
+        if (links.length) out.set(g.id, [...(out.get(g.id) ?? []), ...links]);
+      }
+    }
+    return out;
+  // wrongTick: a "Not this game" here takes the link off.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiOn, channels, aiScans, shown, wrongTick]);
   const rows = useMemo(() => shown.map((g, i) => {
     const auto = matched[i] ?? [];
+    const search = searchByGame.get(g.id) ?? [];
+    // The names' matches first: a channel they found too is not "found by search".
+    const named = search.length ? mergeLinks([auto, search], channels ?? []) : auto;
     // What the guide said (once the game's list has been opened) over the names.
     const checked = guided.get(g.id);
-    const groups = arrangeLinks(g, checked ? mergeLinks([checked, auto], channels ?? []) : auto, false);
+    const groups = splitSearch(arrangeLinks(g, checked ? mergeLinks([checked, named], channels ?? []) : named, false));
     // The row's Watch pick and a reminder's channel: a channel named for the
-    // game or confirmed by its guide, never a network only its name matched.
-    // The owner's picks go over them, last of all.
-    const found = applyChannelEdits(g, byScore(groups.main), edits, lines, channels ?? []);
-    const pick = found.find((c) => !isDown(c)) ?? found[0] ?? null;
+    // game or confirmed by its guide, never a network only its name matched;
+    // with none, a channel found by search with high confidence. The owner's
+    // picks go over them, last of all.
+    const searchKeys = new Set(groups.search.map(channelKey));
+    const laid = applyChannelEdits(g, searchKeys.size ? [...byScore(groups.main), ...byScore(groups.search)] : byScore(groups.main), edits, lines, channels ?? []);
+    const found = searchKeys.size ? laid.filter((c) => c.picked || !searchKeys.has(channelKey(c))) : laid;
+    const searched = searchKeys.size ? laid.filter((c) => !c.picked && searchKeys.has(channelKey(c))) : [];
+    const sure = searched.filter((c) => searchOf(c) === 'high');
+    const pick = found.find((c) => !isDown(c)) ?? sure.find((c) => !isDown(c)) ?? found[0] ?? sure[0] ?? null;
+    // The owner added a channel to a game nothing else found: a 'pick' signal.
+    const picks = groups.main.length || !g.home || !g.away ? [] : found.filter((c) => c.picked);
     // Worked out here, not on every key press: a formatter per row per
     // press is slow on an old box.
     const when = kickoffParts(g.start);
@@ -257,10 +410,24 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     // No pick, but the guide may still find one: a network its name matched,
     // or a feed on this box of one of the game's streaming services.
     const unsure = !pick && (groups.unconfirmed.length > 0 || gameServices(g).some((s) => boxServices.has(s)));
-    return { game: g, auto, found, channel: pick, channelDown: !!pick && isDown(pick), more: Math.max(0, found.length - 1), when, tv, unsure };
+    return {
+      game: g, auto, search, found, picks, channel: pick, channelDown: !!pick && isDown(pick), more: Math.max(0, found.length + searched.length - 1), when, tv, unsure,
+    };
     // t: the kickoff day and time are drawn in the app's language, so a language change recomputes them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [shown, matched, guided, edits, lines, channels, boxServices, isDown, t]);
+  }), [shown, matched, searchByGame, guided, edits, lines, channels, boxServices, isDown, t]);
+
+  // The owner's adds to games nothing else found: each sent once a day.
+  useEffect(() => {
+    if (!isActive || !aiOn || !channels) return;
+    let cats: Map<string, string> | null = null;
+    for (const r of rows) {
+      for (const c of r.picks) {
+        cats ??= new Map(channels.map((x) => [channelKey(x), x.cat]));
+        sendLearn({ host: hostOf(c.line.host), gameId: r.game.id, streamId: c.stream.stream_id, name: c.stream.name, cat: cats.get(channelKey(c)) ?? '', source: 'pick' });
+      }
+    }
+  }, [rows, isActive, aiOn, channels]);
 
   // A focus that fell off the list (games arrived, a league filter) comes back.
   useEffect(() => {
@@ -275,12 +442,12 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     // (never one a guide check cached before the last channel-list refresh).
     // The matching's own links and the guide's word on them: the owner's
     // picks come after the arranging.
-    const merged = mergeLinks([picker.extra, pickerRow.auto], channels ?? []);
+    const merged = mergeLinks([picker.extra, pickerRow.auto, pickerRow.search], channels ?? []);
     // What the guide leaves, in three groups never mixed together: the
     // game's channels; the networks it could not confirm (once it has been
     // read); and the zone channels (RedZone, "MLB Zone": every game of the
     // league, never just this one).
-    const groups = arrangeLinks(pickerRow.game, merged, picker.scanning);
+    const groups = splitSearch(arrangeLinks(pickerRow.game, merged, picker.scanning));
     // In each, best first, a channel reported down after the working ones of
     // its kind. Same quality and both working: the active line first, then
     // the other lines in the order Live TV lists them. The original position
@@ -291,25 +458,28 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
       .sort((a, b) => b.l.score - a.l.score || Number(isDown(a.l)) - Number(isDown(b.l)) || rankOf(a.l) - rankOf(b.l) || a.i - b.i)
       .map((x) => x.l);
     const main = sorted(groups.main);
+    const search = sorted(groups.search);
     const unconfirmed = sorted(groups.unconfirmed);
     const zone = sorted(groups.zone);
+    const found = new Set(search.map(channelKey));
     const unsure = new Set(unconfirmed.map(channelKey));
     // The owner's picks, last of all: what they add goes first (even a
     // channel the guide dropped), what they hide is gone (even if the guide
     // brought it back), what they mark down goes last.
-    const arranged = applyChannelEdits(pickerRow.game, [...main, ...unconfirmed, ...zone], edits, lines, channels ?? []);
+    const arranged = applyChannelEdits(pickerRow.game, [...main, ...search, ...unconfirmed, ...zone], edits, lines, channels ?? []);
     const items: PickItem[] = arranged.map((link) => ({
       kind: 'link', link, down: isDown(link),
       // A channel the owner picked is up with the picks, not in its group.
-      group: link.picked ? 'main' : unsure.has(channelKey(link)) ? 'unconfirmed' : link.via === 'zone' ? 'zone' : 'main',
+      group: link.picked ? 'main' : found.has(channelKey(link)) ? 'search' : unsure.has(channelKey(link)) ? 'unconfirmed' : link.via === 'zone' ? 'zone' : 'main',
     }));
     const own = pickerRow.game.league === 'ppv' ? new Set(pickerRow.found.map(channelKey)) : undefined;
     for (const c of channels ? leagueCategories(pickerRow.game, channels, 2, own) : []) items.push({ kind: 'browse', ...c });
     return items;
   }, [picker, pickerRow, channels, isDown, lines, edits]);
   const firstLinkIdx = pickItems.findIndex((it) => it.kind === 'link');
-  // Where the "Not confirmed by the guide" and the zone groups start (their
-  // headings go there).
+  // Where the "Found by search", "Not confirmed by the guide" and the zone
+  // groups start (their headings go there).
+  const firstSearchIdx = useMemo(() => pickItems.findIndex((it) => it.kind === 'link' && it.group === 'search'), [pickItems]);
   const firstUnconfirmedIdx = useMemo(() => pickItems.findIndex((it) => it.kind === 'link' && it.group === 'unconfirmed'), [pickItems]);
   const firstZoneIdx = useMemo(() => pickItems.findIndex((it) => it.kind === 'link' && it.group === 'zone'), [pickItems]);
 
@@ -333,7 +503,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
       // is read again): a network it confirmed can be the row's Watch pick.
       if (done) setGuided((m) => (m.get(gameId) === extra ? m : new Map(m).set(gameId, extra)));
     };
-    void checkGuides(r.game, channels, r.auto, games ?? [], Date.now(), (partial) => lay(partial, false))
+    // The guide is asked about the channels found by search too: one showing
+    // something else is dropped, one with the game joins its channels.
+    void checkGuides(r.game, channels, r.search.length ? [...r.auto, ...r.search] : r.auto, games ?? [], Date.now(), (partial) => lay(partial, false))
       .then((extra) => lay(extra, true))
       .catch(() => setPicker((p) => (p && p.gameId === gameId ? { ...p, scanning: false } : p)));
   }, [rows, channels, isDown, games]);
@@ -356,14 +528,31 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     focusKeyRef.current = cur ? pickKey(cur) : null;
   }, [picker, pickItems]);
 
-  const closePicker = useCallback(() => setPicker(null), []);
+  // A two-team game's list closing with nothing to watch: remembered this
+  // session, so a channel Live TV then plays for the teams can say where it was.
+  const aiOnRef = useRef(aiOn);
+  aiOnRef.current = aiOn;
+  const noteMiss = useCallback(() => {
+    if (!aiOnRef.current) return;
+    const st = stateRef.current;
+    const row = st.picker ? st.rows.find((r) => r.game.id === st.picker?.gameId) : undefined;
+    if (!row || !row.game.home || !row.game.away) return;
+    if (st.pickItems.some((it) => it.kind === 'link' && it.group === 'main' && !it.down)) return;
+    rememberMiss(row.game, teamTokens(row.game));
+  }, []);
+  const closePicker = useCallback(() => { noteMiss(); setPicker(null); }, [noteMiss]);
 
   const activate = useCallback((item: PickItem | undefined) => {
     if (!item) return;
     const gameId = stateRef.current.picker?.gameId;
+    noteMiss();
     setPicker(null);
     if (item.kind === 'link') {
       const { line, stream } = item.link;
+      if (item.group === 'search') {
+        const league = stateRef.current.rows.find((r) => r.game.id === gameId)?.game.league ?? '';
+        trackAiPlay(league, searchOf(item.link) ?? 'medium');
+      }
       // Live TV shows every line at once, so a link from another line plays
       // on that line as it is: the active account is not switched.
       const others = stateRef.current.lines;
@@ -379,7 +568,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
       handLiveCategory({ host: item.line.host, username: item.line.username, categoryId: item.categoryId });
     }
     onWatch(gameId);
-  }, [onWatch, toast, t]);
+  }, [onWatch, toast, t, noteMiss]);
 
   // A kickoff reminder with no channel asked for this game's list.
   useEffect(() => {
@@ -526,6 +715,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
 
   // More than one signed-in line: each link says which service it is on.
   const multi = lines.length > 1;
+  // The link being reported was found by search: its menu offers "Not this game".
+  const reportIsSearch = !!reportFor && pickItems.some((it) => it.kind === 'link' && it.group === 'search' && channelKey(it.link) === channelKey(reportFor));
   const focusedRow = isActive && zone === 'rows' && !picker ? rowIdx : -1;
 
   return (
@@ -603,11 +794,16 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                 {channels === null ? (
                   <span className="text-xs text-white/50">{t('gameDay.findingChannels')}</span>
                 ) : r.channel ? (
-                  <div className="flex items-center min-w-0">
-                    {r.channelDown && <AlertTriangle className="w-4 h-4 text-amber-400 mr-1 shrink-0" aria-label={t('gameDay.reportedDown')} />}
-                    <span className={`truncate text-sm ${r.channelDown ? 'text-amber-300' : 'text-white/90'}`}>{r.channel.stream.name}</span>
-                    {multi && <ServiceTag name={serviceName(r.channel.line)} label={t('gameDay.serviceTag', { service: serviceName(r.channel.line) })} onLight={false} />}
-                    {r.more > 0 && <span className="ml-1 text-xs text-white/50 shrink-0">+{r.more}</span>}
+                  <div className="min-w-0">
+                    <div className="flex items-center min-w-0">
+                      {r.channelDown && <AlertTriangle className="w-4 h-4 text-amber-400 mr-1 shrink-0" aria-label={t('gameDay.reportedDown')} />}
+                      <span className={`truncate text-sm ${r.channelDown ? 'text-amber-300' : 'text-white/90'}`}>{r.channel.stream.name}</span>
+                      {multi && <ServiceTag name={serviceName(r.channel.line)} label={t('gameDay.serviceTag', { service: serviceName(r.channel.line) })} onLight={false} />}
+                      {r.more > 0 && <span className="ml-1 text-xs text-white/50 shrink-0">+{r.more}</span>}
+                    </div>
+                    {searchOf(r.channel) && !r.channel.picked && (
+                      <span className="block truncate text-xs text-brand-ice/70">{t('gameDay.foundBySearch')}</span>
+                    )}
                   </div>
                 ) : (
                   <span className="text-xs text-white/50 truncate block">
@@ -669,6 +865,11 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
               const { link } = item;
               return (
                 <div key={`l-${link.line.host}-${link.line.username}-${link.stream.stream_id}`}>
+                  {i === firstSearchIdx && (
+                    <div className="px-2 pt-1 pb-2 text-xs font-bold uppercase tracking-wide text-white/40">
+                      {t('gameDay.searchHeading')}
+                    </div>
+                  )}
                   {i === firstUnconfirmedIdx && (
                     <div className="px-2 pt-1 pb-2 text-xs font-bold uppercase tracking-wide text-white/40" data-howto="gd.unconfirmed">
                       {t('gameDay.unconfirmedHeading')}
@@ -697,7 +898,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                       {link.note && <span className={`block truncate text-xs ${focused ? 'text-black/60' : 'text-white/50'}`}>{link.note}</span>}
                     </span>
                     <span className={`ml-3 shrink-0 text-xs font-bold uppercase tracking-wide ${focused ? 'text-black/60' : 'text-brand-ice/70'}`}>
-                      {t(`gameDay.link.${link.via}`, { defaultValue: LINK_LABELS[link.via] })}
+                      {item.group === 'search' ? t('gameDay.link.search') : t(`gameDay.link.${link.via}`, { defaultValue: LINK_LABELS[link.via] })}
                     </span>
                   </button>
                 </div>
@@ -705,6 +906,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
             })}
             {picker.scanning && (
               <div className="flex items-center text-white/60 text-sm px-2 py-2"><Loader2 className="w-4 h-4 animate-spin mr-2" /> {t('gameDay.checkingGuide')}</div>
+            )}
+            {aiBusy > 0 && !!pickerRow.game.home && !!pickerRow.game.away && !pickItems.some((it) => it.kind === 'link' && it.group === 'main') && (
+              <div className="flex items-center text-white/60 text-sm px-2 py-2"><Loader2 className="w-4 h-4 animate-spin mr-2" /> {t('gameDay.searching')}</div>
             )}
             {!picker.scanning && pickItems.length === 0 && (
               <div className="text-white/70 px-2 py-4">
@@ -728,6 +932,11 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
             onReportedDown={() => signalChannel(reportFor.line.host, reportFor.stream.stream_id, reportFor.stream.name, 'down')}
             isDown={crowdDown(reportFor)}
             onClearDown={() => signalChannel(reportFor.line.host, reportFor.stream.stream_id, reportFor.stream.name, 'clear')}
+            onWrongGame={aiOn && pickerRow && reportIsSearch ? () => {
+              const cat = channels?.find((c) => channelKey(c) === channelKey(reportFor))?.cat ?? '';
+              markWrong(pickerRow.game, reportFor, cat);
+              setWrongTick((n) => n + 1);
+            } : undefined}
             onOpenBufferingGuide={() => {
               setReportFor(null);
               onNavigate?.('support');
