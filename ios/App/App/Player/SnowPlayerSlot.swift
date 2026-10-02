@@ -64,6 +64,9 @@ final class SnowPlayerSlot: NSObject, VLCMediaPlayerDelegate {
     private var shutter: UIView?
     /// The current player's drawable. VLC adds its own video view inside it.
     private var drawable: UIView?
+    /// Retired players' views, held on main until their player is freed
+    /// (retireEngine), so a UIView is never let go off the main thread.
+    private var retiringViews: [ObjectIdentifier: UIView] = [:]
     private enum RectMode { case fullscreen, frame(CGRect) }
     /// Where the box goes; nil until the WebView has said (Android pendingRect).
     private var rectMode: RectMode?
@@ -73,6 +76,9 @@ final class SnowPlayerSlot: NSObject, VLCMediaPlayerDelegate {
     private let capture = SnowVLCErrorCapture()
     private var player: VLCMediaPlayer?
     private var media: VLCMedia?
+    /// The current player reported `.stopped` (VLC stops a live stream it
+    /// can't pause); play() then has to start it again.
+    private var engineStopped = false
     /// The picture size the drawable was last shaped for (applyFormat), and
     /// the layout it got: a new picture size or box re-shapes it.
     private var fittedVideoSize = CGSize.zero
@@ -198,7 +204,10 @@ final class SnowPlayerSlot: NSObject, VLCMediaPlayerDelegate {
         wantPlaying = true
         backgroundPaused = false
         lastProgressAt = CACurrentMediaTime()
-        if p.state == .stopped {
+        // Not `p.state == .stopped`: VLC updates that from its events, so a
+        // player started a moment ago still reads stopped, and a load()+play()
+        // pair (Multi-Screen) would open the channel twice.
+        if engineStopped {
             // VLC stops a live stream it can't pause instead of pausing it.
             startEngine(atMs: isLive ? 0 : lastPositionMs, paused: false)
         } else {
@@ -286,6 +295,10 @@ final class SnowPlayerSlot: NSObject, VLCMediaPlayerDelegate {
         progressing = false
         ignoreProgressUntil = now + 0.4
         lastProgressAt = now
+        // Paused: VLC may not draw again until Play, so a buffering state here
+        // would leave a spinner over the paused picture (ExoPlayer goes READY
+        // after a paused seek). Play's first frames report ready anyway.
+        guard wantPlaying else { return }
         if firstFrameSeen && stallStartedAt == 0 {
             stalls += 1
             stallStartedAt = now
@@ -635,7 +648,7 @@ final class SnowPlayerSlot: NSObject, VLCMediaPlayerDelegate {
         case .error:
             fail(code: nil, reason: nil)
         case .stopped:
-            break
+            engineStopped = true
         @unknown default:
             break
         }
@@ -676,6 +689,7 @@ final class SnowPlayerSlot: NSObject, VLCMediaPlayerDelegate {
         guard let urlString = currentUrl, let url = URL(string: urlString), let b = ensureBox(), let sh = shutter else { return }
         retireEngine()
         loadGen += 1
+        engineStopped = false
         capture.reset()
 
         let m = VLCMedia(url: url)
@@ -720,15 +734,26 @@ final class SnowPlayerSlot: NSObject, VLCMediaPlayerDelegate {
     private func retireEngine() {
         tracksItem?.cancel()
         tracksItem = nil
-        guard let old = player else { return }
-        old.delegate = nil
-        let oldView = drawable
+        guard player != nil else { return }
+        player?.delegate = nil
+        // The old player is freed on the teardown queue (its release blocks
+        // while a stuck read winds down), and it holds its view. The view must
+        // still die on main: `retiringViews` keeps it until the player is
+        // gone, and only then is it taken down, on main. Nothing on the
+        // teardown queue holds the view or outlives `dying = nil`.
+        var dying: VLCMediaPlayer? = player
+        let viewId = drawable.map { ObjectIdentifier($0) }
+        if let v = drawable, let id = viewId { retiringViews[id] = v }
         player = nil
         media = nil
         drawable = nil
-        Self.teardownQueue.async {
-            old.stop()
-            DispatchQueue.main.async { oldView?.removeFromSuperview() }
+        Self.teardownQueue.async { [weak self] in
+            dying?.stop()
+            dying = nil
+            guard let id = viewId else { return }
+            DispatchQueue.main.async {
+                self?.retiringViews.removeValue(forKey: id)?.removeFromSuperview()
+            }
         }
     }
 
