@@ -8,6 +8,11 @@
 //   scan   {host, candidates: {id, name, cat}[≤2000], lineup_hash, device_id}
 //          → {ok: true, scanned}            scanned false: the host's scan
 //                                           from the last 3 h still holds
+//          | {ok: true, scanned: false, started: true}
+//                                           the scan runs on in the background
+//                                           (edge runtime); read 'cached' later
+//          | {ok: true, scanned: false, busy: true}
+//                                           another box's scan is running
 //          | {ok: false, reason: off | paused | limit | bad_request | error}
 //   cached {host}
 //          → {ok, day, lineup_hash, scanned_at, matches: {gameId: AiMatch[]},
@@ -77,6 +82,8 @@ const KNOWN_BOX_AFTER_MS = 30 * 60 * 1000;
 const MAX_LEARNED = 100;
 
 type Admin = ReturnType<typeof createClient>;
+/** Supabase's edge runtime: keeps a request's work going after it answered. */
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
 let flagCache: { at: number; on: boolean } | null = null;
 let gamesCache: { at: number; games: unknown[] } | null = null;
@@ -374,60 +381,78 @@ Deno.serve(async (req) => {
         throw new Error('OpenAI API key not configured');
       }
 
-      const started = Date.now();
-      const parts = batches(usable);
-      const results = await inTurn(parts.map((part) => () => askModel(openaiKey, games, part)), PARALLEL_CALLS);
-      let tokensIn = 0;
-      let tokensOut = 0;
-      const links: Link[] = [];
-      let failed = 0;
-      for (const r of results) {
-        if (r.status === 'fulfilled') {
-          tokensIn += r.value.tokensIn;
-          tokensOut += r.value.tokensOut;
-          links.push(...r.value.links);
-        } else {
-          failed++;
-          console.error('[game-day-match] model call failed:', (r.reason as Error)?.message ?? String(r.reason));
+      // From here the scan holds the host's lock. The box stops waiting after
+      // 6 s and reads 'cached' again later, so on the edge runtime the model
+      // calls, the store and the logs run in the background
+      // (EdgeRuntime.waitUntil) and the answer goes back at once. Anything
+      // that goes wrong frees the lock; a lock nobody frees lapses after 5 min.
+      const job = async (): Promise<Record<string, unknown>> => {
+        try {
+          const started = Date.now();
+          const parts = batches(usable);
+          const results = await inTurn(parts.map((part) => () => askModel(openaiKey, games, part)), PARALLEL_CALLS);
+          let tokensIn = 0;
+          let tokensOut = 0;
+          const links: Link[] = [];
+          let failed = 0;
+          for (const r of results) {
+            if (r.status === 'fulfilled') {
+              tokensIn += r.value.tokensIn;
+              tokensOut += r.value.tokensOut;
+              links.push(...r.value.links);
+            } else {
+              failed++;
+              console.error('[game-day-match] model call failed:', (r.reason as Error)?.message ?? String(r.reason));
+            }
+          }
+          const cost = costUsd(tokensIn, tokensOut);
+          const matches = toMatches(links, usable);
+          const linked = Object.values(matches).reduce((n, l) => n + l.length, 0);
+
+          // The spend is counted whatever happened.
+          await admin.rpc('game_day_ai_add', { p_tokens_in: tokensIn, p_tokens_out: tokensOut, p_cost: cost });
+          await admin.from('ai_usage_log').insert({
+            user_id: null,
+            user_email: null,
+            feature: 'gameday',
+            model: MODEL,
+            prompt: `Game Day scan for ${host}: ${games.length} games x ${usable.length} channels in ${parts.length} call(s)`,
+            response_preview: failed ? `${failed} of ${parts.length} call(s) failed` : `${linked} link(s) for ${Object.keys(matches).length} game(s)`,
+            prompt_tokens: tokensIn,
+            completion_tokens: tokensOut,
+            total_tokens: tokensIn + tokensOut,
+            cost_credits: cost,
+            status: failed ? 'error' : 'ok',
+            error_message: failed ? 'model call failed' : null,
+          });
+          try { await enforceThreshold(); } catch { /* best effort */ }
+
+          // A scan with a failed call is not stored: half a line-up would hold
+          // for 3 h. The next box's scan tries again.
+          if (failed) {
+            await release();
+            return { ok: false, reason: 'error' };
+          }
+          const { error } = await stored({
+            matches, learned: learnedFrom(links, games, usable), model: MODEL,
+            tokens_in: tokensIn, tokens_out: tokensOut, cost_usd: cost,
+          });
+          if (error) throw new Error(`store: ${error.message}`);
+          cachedAnswers.delete(host);
+          await sweep(admin, 0.05);
+          console.log(`[game-day-match] scan ${host}: ${games.length} games, ${usable.length} channels, ${linked} links, ${Date.now() - started} ms`);
+          return { ok: true, scanned: true, games: games.length, links: linked };
+        } catch (e) {
+          console.error('[game-day-match] scan error:', (e as Error).message);
+          try { await release(); } catch { /* the lock lapses on its own */ }
+          return { ok: false, reason: 'error' };
         }
+      };
+      if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+        EdgeRuntime.waitUntil(job());
+        return json({ ok: true, scanned: false, started: true });
       }
-      const cost = costUsd(tokensIn, tokensOut);
-      const matches = toMatches(links, usable);
-      const linked = Object.values(matches).reduce((n, l) => n + l.length, 0);
-
-      // The spend is counted whatever happened.
-      await admin.rpc('game_day_ai_add', { p_tokens_in: tokensIn, p_tokens_out: tokensOut, p_cost: cost });
-      await admin.from('ai_usage_log').insert({
-        user_id: null,
-        user_email: null,
-        feature: 'gameday',
-        model: MODEL,
-        prompt: `Game Day scan for ${host}: ${games.length} games x ${usable.length} channels in ${parts.length} call(s)`,
-        response_preview: failed ? `${failed} of ${parts.length} call(s) failed` : `${linked} link(s) for ${Object.keys(matches).length} game(s)`,
-        prompt_tokens: tokensIn,
-        completion_tokens: tokensOut,
-        total_tokens: tokensIn + tokensOut,
-        cost_credits: cost,
-        status: failed ? 'error' : 'ok',
-        error_message: failed ? 'model call failed' : null,
-      });
-      try { await enforceThreshold(); } catch { /* best effort */ }
-
-      // A scan with a failed call is not stored: half a line-up would hold
-      // for 3 h. The next box's scan tries again.
-      if (failed) {
-        await release();
-        return json({ ok: false, reason: 'error' });
-      }
-      const { error } = await stored({
-        matches, learned: learnedFrom(links, games, usable), model: MODEL,
-        tokens_in: tokensIn, tokens_out: tokensOut, cost_usd: cost,
-      });
-      if (error) throw new Error(`store: ${error.message}`);
-      cachedAnswers.delete(host);
-      await sweep(admin, 0.05);
-      console.log(`[game-day-match] scan ${host}: ${games.length} games, ${usable.length} channels, ${linked} links, ${Date.now() - started} ms`);
-      return json({ ok: true, scanned: true, games: games.length, links: linked });
+      return json(await job());
     }
 
     if (op === 'learn') {

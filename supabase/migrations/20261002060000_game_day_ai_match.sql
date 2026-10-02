@@ -74,9 +74,11 @@ REVOKE ALL ON public.game_day_match_signals FROM PUBLIC, anon, authenticated;
 GRANT ALL ON public.game_day_match_signals TO service_role;
 
 -- One more scan for this host today: 'ok', 'busy' (another scan for the host
--- started under two minutes ago and has not finished: a morning's first
--- boxes must not each start one) or 'limit' (p_cap scans today). One
--- statement, so two requests at once cannot both get through.
+-- started under five minutes ago and has not finished: a morning's first
+-- boxes must not each start one) or 'limit' (p_cap scans today). The edge
+-- function frees the lock when a scan ends, failed or not; a lock left by a
+-- scan that died lapses after the five minutes. One statement, so two
+-- requests at once cannot both get through.
 CREATE OR REPLACE FUNCTION public.game_day_ai_host_take(p_host text, p_day date, p_cap integer)
 RETURNS text
 LANGUAGE plpgsql
@@ -95,7 +97,7 @@ BEGIN
   ON CONFLICT (host, day) DO UPDATE
     SET scans = m.scans + 1, scan_started_at = now(), updated_at = now()
     WHERE m.scans < p_cap
-      AND (m.scan_started_at IS NULL OR m.scan_started_at < now() - interval '2 minutes')
+      AND (m.scan_started_at IS NULL OR m.scan_started_at < now() - interval '5 minutes')
   RETURNING scans INTO v_scans;
 
   IF FOUND THEN

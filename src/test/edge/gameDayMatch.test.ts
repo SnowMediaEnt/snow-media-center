@@ -3,7 +3,7 @@
 // anything the model names that was not in the input is dropped, the limits
 // hold, and the flag and the global AI pause stop it. Plus prompt.ts on its
 // own: the prompt holds only id, name and category, and bad output gives none.
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eqValue, loadEdgeFunction, opArg, type FakeHandlers, type QueryCall, type RpcCall } from './fakeSupabase';
 import {
   buildInput, candidatesHash, cleanCandidates, etDay, parseLinks, requestBody, toMatches, type ScanGame,
@@ -99,7 +99,7 @@ function onRpc(c: RpcCall) {
     const row = scans.get(k) ?? { host: c.args.p_host, day: c.args.p_day, scans: 0 };
     const started = row.scan_started_at ? Date.parse(String(row.scan_started_at)) : 0;
     if (Number(row.scans) >= Number(c.args.p_cap)) return { data: 'limit' };
-    if (started && Date.now() - started < 2 * 60_000) return { data: 'busy' };
+    if (started && Date.now() - started < 5 * 60_000) return { data: 'busy' };
     scans.set(k, { ...row, scans: Number(row.scans) + 1, scan_started_at: iso(Date.now()) });
     return { data: 'ok' };
   }
@@ -118,7 +118,7 @@ let modelStatus: number;
 const openAiBodies: Array<Record<string, unknown>> = [];
 const openAiHeaders: Array<Record<string, string>> = [];
 let gameDayCalls: number;
-const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+const plainFetch = async (url: string, init?: RequestInit) => {
   if (String(url) === 'http://supabase.test/functions/v1/game-day') {
     gameDayCalls++;
     return new Response(JSON.stringify({ ok: true, games: GAMES }), { status: 200 });
@@ -135,7 +135,8 @@ const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     }), { status: 200 });
   }
   return new Response('not found', { status: 404 });
-});
+};
+const fetchMock = vi.fn(plainFetch);
 
 let handler: (req: Request) => Promise<Response> | Response;
 
@@ -272,6 +273,59 @@ describe('game-day-match scan', () => {
   });
 });
 
+describe('game-day-match scan on the edge runtime (EdgeRuntime.waitUntil)', () => {
+  let pending: Array<Promise<unknown>>;
+  let hold: { release: () => void; wait: Promise<void> };
+  beforeEach(() => {
+    pending = [];
+    let release = () => {};
+    hold = { release: () => release(), wait: new Promise<void>((r) => { release = r; }) };
+    (globalThis as unknown as { EdgeRuntime: unknown }).EdgeRuntime = { waitUntil: (p: Promise<unknown>) => { pending.push(p); } };
+    // The model takes its time: the answer must not wait for it.
+    const plain = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url).startsWith('https://api.openai.com/')) await hold.wait;
+      return plain(url, init);
+    });
+  });
+  afterEach(() => {
+    delete (globalThis as unknown as { EdgeRuntime?: unknown }).EdgeRuntime;
+    fetchMock.mockImplementation(plainFetch);
+  });
+
+  it('answers at once that the scan started, and stores it in the background', async () => {
+    expect((await scan()).body).toEqual({ ok: true, scanned: false, started: true });
+    expect(pending).toHaveLength(1);
+    expect(scans.get(`${HOST}|${DAY}`)!.scanned_at).toBeUndefined();
+    hold.release();
+    await expect(pending[0]).resolves.toMatchObject({ ok: true, scanned: true, links: 2 });
+    const row = scans.get(`${HOST}|${DAY}`)!;
+    expect(row).toMatchObject({ lineup_hash: 'lineup-1', scan_started_at: null });
+    expect(row.matches).toHaveProperty('ncaah:401000001');
+    expect(usageLog).toHaveLength(1);
+    // A box reading 'cached' afterwards gets it.
+    expect((await call({ op: 'cached', host: HOST })).body).toMatchObject({ scanned_at: iso(NOW), lineup_hash: 'lineup-1' });
+  });
+
+  it('a background scan that fails still frees the host', async () => {
+    modelStatus = 500;
+    expect((await scan()).body).toEqual({ ok: true, scanned: false, started: true });
+    expect(scans.get(`${HOST}|${DAY}`)!.scan_started_at).toBe(iso(NOW));
+    hold.release();
+    await expect(pending[0]).resolves.toEqual({ ok: false, reason: 'error' });
+    expect(scans.get(`${HOST}|${DAY}`)!.scan_started_at).toBeNull();
+    expect(scans.get(`${HOST}|${DAY}`)!.scanned_at).toBeUndefined();
+  });
+
+  it('limits and a fresh cache still answer straight away, with nothing in the background', async () => {
+    scans.set(`${HOST}|${DAY}`, { host: HOST, day: DAY, scans: 1, lineup_hash: 'lineup-1', scanned_at: iso(NOW - H), matches: {} });
+    expect((await scan()).body).toEqual({ ok: true, scanned: false });
+    scans.set(`${HOST}|${DAY}`, { host: HOST, day: DAY, scans: 8, lineup_hash: 'old', scanned_at: iso(NOW - 4 * H), matches: {} });
+    expect((await scan()).body).toEqual({ ok: false, reason: 'limit' });
+    expect(pending).toHaveLength(0);
+  });
+});
+
 describe('game-day-match limits', () => {
   it('8 scans per host a day', async () => {
     scans.set(`${HOST}|${DAY}`, { host: HOST, day: DAY, scans: 8, lineup_hash: 'old', scanned_at: iso(NOW - 4 * H), matches: {} });
@@ -285,6 +339,11 @@ describe('game-day-match limits', () => {
     scans.set(`${HOST}|${DAY}`, { host: HOST, day: DAY, scans: 1, scan_started_at: iso(NOW - 30_000), matches: {} });
     expect((await scan()).body).toEqual({ ok: true, scanned: false, busy: true });
     expect(openAiBodies).toHaveLength(0);
+  });
+
+  it('a lock left by a scan that died lapses after 5 minutes', async () => {
+    scans.set(`${HOST}|${DAY}`, { host: HOST, day: DAY, scans: 1, scan_started_at: iso(NOW - 6 * 60_000), matches: {} });
+    expect((await scan()).body).toMatchObject({ ok: true, scanned: true });
   });
 
   it('300 scans a day in all, and the host is freed again', async () => {
