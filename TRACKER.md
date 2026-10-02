@@ -70,6 +70,7 @@ Status: building · ready to test · still broken · done.
 | 48 | One Back from the player closed SMC (app behind showed, recording kept going); Back can no longer close SMC except Home's own "press again to exit" | bug | ready to test (1.8.1 build 59) | 2 |
 | 49 | Player bar buttons shifted when Go live appeared; its spot is now reserved (greyed until rewind) | bug | ready to test (1.8.1 build 59) | 2 |
 | 50 | Home: channel tiles blank white (A&E, ESPN, Golf Channel); now logo on a dark card, initials if no logo | bug | ready to test (1.8.1 build 59) | 1 |
+| 51 | Plex buffering for some customers (Plex app direct-plays fine) + manual quality change not playing — see bugs/plex-buffering-remote.md | bug | ready to test (1.8.1 build 59) | 4 |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner
