@@ -98,16 +98,16 @@ export function liveBarLabel(id: BarControlId, s: LiveBarLabelState): string {
  * The next button left (-1) or right (+1) of `cur`, skipping disabled ones.
  * Stops at either end. The highlight is a button, not a slot: a button that
  * greys out or comes on elsewhere in the row never moves it. A focus no
- * longer in the row lands on Play.
+ * longer in the row lands on Play. Shared with the films' bar (vodBar.ts).
  */
-export function moveBarFocus(
-  order: BarControlId[],
-  cur: BarControlId,
+export function moveBarFocus<T extends string = BarControlId>(
+  order: T[],
+  cur: T,
   dir: 1 | -1,
-  disabled: (id: BarControlId) => boolean,
-): BarControlId {
+  disabled: (id: T) => boolean,
+): T {
   const at = order.indexOf(cur);
-  if (at < 0) return order.includes('play') ? 'play' : (order[0] ?? cur);
+  if (at < 0) return order.includes('play' as T) ? ('play' as T) : (order[0] ?? cur);
   for (let step = 1; step <= order.length; step++) {
     const next = at + dir * step;
     if (next < 0 || next >= order.length) return cur;

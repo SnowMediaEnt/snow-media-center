@@ -18,6 +18,8 @@ src/components/livetv/MoviesSection.tsx
 src/components/livetv/SeriesSection.tsx
 src/components/livetv/VideoPlayer.tsx
 src/components/livetv/VodPlayer.tsx
+src/components/livetv/VodControlBar.tsx
+src/components/livetv/vodBar.ts
 src/lib/vodAudio.ts
 src/components/livetv/PosterCard.tsx
 src/lib/xtream.ts

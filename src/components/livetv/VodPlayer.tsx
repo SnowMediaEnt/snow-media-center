@@ -10,10 +10,13 @@
 // no sound. The native player decodes all of them in software (the FFmpeg
 // extension, see android/app/build.gradle) and boosts past 100% (up to 150%).
 //
-// The section keeps its keys (Back closes, ◀ ▶ volume); the remote's media
-// keys (play/pause, +30 s / -10 s) are useNativePlayer's, as they were
-// VideoPlayer's. Several sound tracks: the viewer's language when the file
-// has it, else the file's own default (see vodAudio).
+// Every key is the player's while it plays: VodControlBar (OK / ▲ ▼ bring up
+// play/pause, seek, subtitles, audio, volume to 150%, next episode; ◀ ▶
+// with the bar hidden jump -10 / +30 s; Back closes the bar, then the
+// player through onClose). The remote's media keys (play/pause, +30 s /
+// -10 s) are useNativePlayer's, as they were VideoPlayer's. Several sound
+// tracks: the viewer's language when the file has it, else the file's own
+// default (see vodAudio), until the viewer picks one in the bar.
 //
 // Chrome 66: no inset, no aspect-ratio, no gap beyond gap-1..4.
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -24,7 +27,9 @@ import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { pickAudioTrack } from '@/lib/vodAudio';
 import SnowLoader from '@/components/SnowLoader';
+import { loadPlayerVolume, MAX_VOLUME, savePlayerVolume } from '@/utils/volume';
 import type { VideoController } from './VideoPlayer';
+import VodControlBar, { type VodPosition } from './VodControlBar';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -36,8 +41,18 @@ const cleanVodMessage = (msg: string): string =>
 interface Props {
   /** The film's or episode's stream URL. Never logged. */
   src: string;
-  /** 0..1.5; the browser's <video> stops at 1. */
-  volume: number;
+  /** 0..1.5 (the shared player volume); the browser's <video> stops at 1.
+   *  Left out: the saved one (loadPlayerVolume). */
+  volume?: number;
+  /** The viewer changed the volume in the bar (already saved). */
+  onVolumeChange?: (v: number) => void;
+  /** Shown at the top of the bar. */
+  title?: string;
+  /** Back with the bar down: leave the player. */
+  onClose?: () => void;
+  /** A series: the bar's Next episode button (greyed out when !hasNext). */
+  onNext?: () => void;
+  hasNext?: boolean;
   /** For analytics: an address-free message. */
   onError?: (msg: string) => void;
   onEnded?: () => void;
@@ -45,7 +60,17 @@ interface Props {
   children?: ReactNode;
 }
 
-export default function VodPlayer({ src, volume, onError, onEnded, children }: Props) {
+/** What both engines hand the bar. */
+interface BarProps {
+  title?: string;
+  volume: number;
+  onVolume: (v: number) => void;
+  onClose?: () => void;
+  onNext?: () => void;
+  hasNext?: boolean;
+}
+
+export default function VodPlayer({ src, volume: volumeProp, onVolumeChange, title, onClose, onNext, hasNext, onError, onEnded, children }: Props) {
   const { t } = useTranslation();
   // Fixed for the life of the player: a box never changes engine mid-film.
   const [native] = useState(() => hasNativePlayer());
@@ -57,16 +82,19 @@ export default function VodPlayer({ src, volume, onError, onEnded, children }: P
   const reportError = useCallback((msg: string) => { onErrorRef.current?.(cleanVodMessage(msg)); }, []);
   const ended = useCallback(() => { onEndedRef.current?.(); }, []);
 
-  // ◀ ▶ change the volume with nothing else on screen: show where it is.
-  const [volShown, setVolShown] = useState(false);
-  const volSeenRef = useRef(false);
-  useEffect(() => {
-    if (!volSeenRef.current) { volSeenRef.current = true; return; }
-    setVolShown(true);
-    const id = window.setTimeout(() => setVolShown(false), 2000);
-    return () => window.clearTimeout(id);
-  }, [volume]);
-  const volPct = Math.round((native ? volume : Math.min(1, volume)) * 100);
+  // The shared player volume (Live TV, Plex). The bar changes it, saves it
+  // and tells the section; a change from the section is followed.
+  const [volume, setVolume] = useState(() => volumeProp ?? loadPlayerVolume());
+  useEffect(() => { if (volumeProp != null) setVolume(volumeProp); }, [volumeProp]);
+  const onVolumeChangeRef = useRef(onVolumeChange);
+  onVolumeChangeRef.current = onVolumeChange;
+  const changeVolume = useCallback((v: number) => {
+    setVolume(v);
+    savePlayerVolume(v);
+    onVolumeChangeRef.current?.(v);
+  }, []);
+
+  const bar: BarProps = { title, volume, onVolume: changeVolume, onClose, onNext, hasNext };
 
   return (
     <div
@@ -75,23 +103,60 @@ export default function VodPlayer({ src, volume, onError, onEnded, children }: P
       className={`fixed left-0 top-0 w-full h-full z-[60] ${native ? 'bg-transparent' : 'bg-black'}`}
     >
       {native ? (
-        <NativeVod src={src} volume={volume} onError={reportError} onEnded={ended} />
+        <NativeVod src={src} onError={reportError} onEnded={ended} bar={bar} />
       ) : (
         <Suspense fallback={<div className="absolute left-0 top-0 w-full h-full flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
-          <VideoPlayer src={src} volume={volume} className="w-full h-full" onError={reportError} onEnded={ended} />
+          <WebVod src={src} onError={reportError} onEnded={ended} bar={bar} />
         </Suspense>
-      )}
-      {volShown && (
-        <div data-vod-volume className="absolute top-4 right-4 px-4 py-2 rounded-xl bg-black/70 text-white font-nunito text-base tabular-nums pointer-events-none">
-          {t('live.bar.volLevelLabel', { pct: volPct })}
-        </div>
       )}
       {children}
     </div>
   );
 }
 
-function NativeVod({ src, volume, onError, onEnded }: { src: string; volume: number; onError: (msg: string) => void; onEnded: () => void }) {
+/** The browser build: the HTML5 <video>, with the same bar (to 100%). */
+function WebVod({ src, onError, onEnded, bar }: { src: string; onError: (msg: string) => void; onEnded: () => void; bar: BarProps }) {
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [controller, setController] = useState<VideoController | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [tracksTick, setTracksTick] = useState(0);
+  const onTracks = useCallback(() => setTracksTick((n) => n + 1), []);
+  const video = () => boxRef.current?.querySelector('video') ?? null;
+  const getPosition = useCallback(async (): Promise<VodPosition> => {
+    const v = video();
+    if (!v) return { position: 0, duration: 0, playing: false };
+    return { position: v.currentTime || 0, duration: Number.isFinite(v.duration) ? v.duration : 0, playing: !v.paused };
+  }, []);
+  const seekTo = useCallback((sec: number) => { const v = video(); if (v) v.currentTime = Math.max(0, sec); }, []);
+  return (
+    <>
+      <div ref={boxRef} className="absolute left-0 top-0 w-full h-full">
+        <VideoPlayer
+          src={src}
+          volume={Math.min(1, bar.volume)}
+          className="w-full h-full"
+          onError={onError}
+          onEnded={onEnded}
+          onReady={setController}
+          onPlayStateChange={setPaused}
+          onTracksChanged={onTracks}
+        />
+      </div>
+      <VodControlBar
+        {...bar}
+        volume={Math.min(1, bar.volume)}
+        maxVolume={1}
+        controller={controller}
+        tracksTick={tracksTick}
+        paused={paused}
+        getPosition={getPosition}
+        seekTo={seekTo}
+      />
+    </>
+  );
+}
+
+function NativeVod({ src, onError, onEnded, bar }: { src: string; onError: (msg: string) => void; onEnded: () => void; bar: BarProps }) {
   const { t } = useTranslation();
 
   // Sound track: once per stream (and again after a reload, which starts on
@@ -100,18 +165,25 @@ function NativeVod({ src, volume, onError, onEnded }: { src: string; volume: num
   const srcRef = useRef(src);
   srcRef.current = src;
   const pickedForRef = useRef<string | null>(null);
+  // The track the viewer chose in the bar: a reload (which starts on the
+  // file's default) goes back to it, not to the automatic pick.
+  const chosenRef = useRef<{ src: string; id: number } | null>(null);
+  const [tracksTick, setTracksTick] = useState(0);
   const onTracks = useCallback(() => {
+    setTracksTick((n) => n + 1); // the bar's menus re-read the lists
     const c = ctlRef.current;
     if (!c || pickedForRef.current === srcRef.current) return;
     const tracks = c.getAudioTracks();
     if (!tracks.length) return; // not prepared yet: the next tracksChanged has them
     pickedForRef.current = srcRef.current;
-    const id = pickAudioTrack(tracks, i18n.language);
-    if (id !== null) c.setAudioTrack(id);
+    const chosen = chosenRef.current?.src === srcRef.current ? chosenRef.current.id : null;
+    const id = chosen ?? pickAudioTrack(tracks, i18n.language);
+    if (id !== null && !(tracks.find((tr) => tr.id === id)?.active)) c.setAudioTrack(id);
   }, []);
   const onReload = useCallback(() => { pickedForRef.current = null; }, []);
+  const onAudioPicked = useCallback((id: number) => { chosenRef.current = { src: srcRef.current, id }; }, []);
 
-  const player = useNativePlayer({ active: true, url: src, live: false, volume, onEnded, onTracksChanged: onTracks, onReload });
+  const player = useNativePlayer({ active: true, url: src, live: false, volume: bar.volume, onEnded, onTracksChanged: onTracks, onReload });
   ctlRef.current = player.controller;
 
   // The native picture shows through: no background on the page behind it.
@@ -162,6 +234,18 @@ function NativeVod({ src, volume, onError, onEnded }: { src: string; volume: num
           </button>
         </div>
       )}
+      <VodControlBar
+        {...bar}
+        maxVolume={MAX_VOLUME}
+        controller={player.controller}
+        tracksTick={tracksTick}
+        paused={player.paused}
+        getPosition={player.getPosition}
+        seekTo={player.seekTo}
+        stats
+        blocked={!!err}
+        onAudioPicked={onAudioPicked}
+      />
     </>
   );
 }

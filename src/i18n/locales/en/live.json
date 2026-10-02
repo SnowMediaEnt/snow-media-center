@@ -293,7 +293,8 @@
       "noDescription": "No description available.",
       "playMovieBtn": "Play Movie",
       "noSoundTitle": "No sound on this title",
-      "noSoundBody": "This title's audio ({{codecs}}) can't be decoded on this device. Report it in Support and we'll look at it."
+      "noSoundBody": "This title's audio ({{codecs}}) can't be decoded on this device. Report it in Support and we'll look at it.",
+      "nextEpisode": "Next episode"
     },
     "series": {
       "allSeries": "All Series",

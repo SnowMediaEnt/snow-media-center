@@ -294,7 +294,8 @@
       "noDescription": "Aucune description disponible.",
       "playMovieBtn": "Lire le film",
       "noSoundTitle": "Pas de son sur ce titre",
-      "noSoundBody": "L'audio de ce titre ({{codecs}}) ne peut pas être décodé sur cet appareil. Signalez-le à l'Assistance et nous l'examinerons."
+      "noSoundBody": "L'audio de ce titre ({{codecs}}) ne peut pas être décodé sur cet appareil. Signalez-le à l'Assistance et nous l'examinerons.",
+      "nextEpisode": "Épisode suivant"
     },
     "series": {
       "allSeries": "Toutes les séries",

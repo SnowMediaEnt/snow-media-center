@@ -66,6 +66,65 @@ const fmtMs = (ms: number) => {
   return `${pad2(m)}:${pad2(s)}`;
 };
 
+export interface BarButtonProps {
+  id: string;
+  icon: JSX.Element;
+  label: string;
+  focused: boolean;
+  /** Its popup menu is showing: the eye should move to the menu rows, so the
+   *  button drops to an outlined marker (no ring, no scale). */
+  open?: boolean;
+  disabled?: boolean;
+  /** "On" (this channel is recording). */
+  on?: boolean;
+  howto?: string;
+}
+
+/**
+ * One button of a player bar, with its name under it while highlighted. The
+ * channel bar and the films' bar (VodControlBar) both draw theirs with it.
+ * Each button sits in a column as wide as itself: the name under the
+ * highlighted one may run past the column but never widens it. Every column
+ * has the name's line (invisible unless highlighted), so the row never jumps
+ * as the highlight moves. Play is the big one.
+ */
+export function BarButton({ id, icon, label, focused, open = false, disabled = false, on = false, howto }: BarButtonProps) {
+  const base = 'tv-focusable home-focus-surface flex items-center justify-center rounded-full transition-transform duration-150';
+  const size = id === 'play' ? 'w-16 h-16' : 'w-12 h-12';
+  const visualState = open
+    ? 'bg-black/60 text-brand-gold border-2 border-brand-gold scale-100'
+    : focused
+      ? 'bg-brand-gold text-brand-navy scale-110'
+      : disabled
+        ? 'bg-white/5 text-white/30'
+        : on
+          ? 'bg-white/15 text-brand-gold'
+          : 'bg-white/10 text-white hover:bg-white/20';
+  return (
+    <div data-bar-control={id} data-howto={howto} className={`flex flex-col items-center flex-shrink-0 ${id === 'play' ? 'w-16' : 'w-12'}`}>
+      <div className="h-16 flex items-center justify-center">
+        <button
+          type="button"
+          aria-label={label}
+          title={label}
+          data-focused={focused && !open ? 'true' : 'false'}
+          className={`${base} ${size} ${visualState}`}
+        >
+          {icon}
+        </button>
+      </div>
+      <span
+        data-bar-name
+        data-howto={focused ? 'bar.label' : undefined}
+        aria-hidden="true"
+        className={`mt-1 h-4 whitespace-nowrap text-center text-sm leading-4 font-quicksand font-bold ${focused ? 'text-white' : 'invisible'}`}
+      >
+        {focused ? label : '.'}
+      </span>
+    </div>
+  );
+}
+
 const PlayerControlBar = memo(({
   visible, order, focus, isPaused, controller, tracksTick,
   categoryName, channelLogo, channelNum, channelName,
@@ -134,52 +193,20 @@ const PlayerControlBar = memo(({
   }));
 
 
-  const renderButton = (c: typeof controls[number]) => {
-    const focused = focus === c.id;
-    // "Open" state: this button's popup menu is showing, so the eye should move
-    // to the menu rows — the button drops to an outlined marker (no ring, no scale).
-    const open = (c.id === 'cc' && subMenuOpen) || (c.id === 'audio' && audioMenuOpen) || (c.id === 'vol' && volMenuOpen) || (c.id === 'stats' && statsOn);
-    // A button that is "on": this channel is recording.
-    const on = c.id === 'rec' && recording;
-    const base = 'tv-focusable home-focus-surface flex items-center justify-center rounded-full transition-transform duration-150';
-    const size = c.id === 'play' ? 'w-16 h-16' : 'w-12 h-12';
-    const visualState = open
-      ? 'bg-black/60 text-brand-gold border-2 border-brand-gold scale-100'
-      : focused
-        ? 'bg-brand-gold text-brand-navy scale-110'
-        : c.disabled
-          ? 'bg-white/5 text-white/30'
-          : on
-            ? 'bg-white/15 text-brand-gold'
-            : 'bg-white/10 text-white hover:bg-white/20';
-    // Each button sits in a column as wide as itself: the name under the
-    // highlighted one may run past the column but never widens it. Every
-    // column has the name's line (invisible unless highlighted), so the row
-    // never jumps as the highlight moves.
-    return (
-      <div key={c.id} data-bar-control={c.id} data-howto={BAR_HOWTO[c.id]} className={`flex flex-col items-center flex-shrink-0 ${c.id === 'play' ? 'w-16' : 'w-12'}`}>
-        <div className="h-16 flex items-center justify-center">
-          <button
-            type="button"
-            aria-label={c.label}
-            title={c.label}
-            data-focused={focused && !open ? 'true' : 'false'}
-            className={`${base} ${size} ${visualState}`}
-          >
-            {c.icon}
-          </button>
-        </div>
-        <span
-          data-bar-name
-          data-howto={focused ? 'bar.label' : undefined}
-          aria-hidden="true"
-          className={`mt-1 h-4 whitespace-nowrap text-center text-sm leading-4 font-quicksand font-bold ${focused ? 'text-white' : 'invisible'}`}
-        >
-          {focused ? c.label : '.'}
-        </span>
-      </div>
-    );
-  };
+  const renderButton = (c: typeof controls[number]) => (
+    <BarButton
+      key={c.id}
+      id={c.id}
+      icon={c.icon}
+      label={c.label}
+      focused={focus === c.id}
+      // "Open": this button's popup menu is showing.
+      open={(c.id === 'cc' && subMenuOpen) || (c.id === 'audio' && audioMenuOpen) || (c.id === 'vol' && volMenuOpen) || (c.id === 'stats' && statsOn)}
+      disabled={c.disabled}
+      on={c.id === 'rec' && recording}
+      howto={BAR_HOWTO[c.id]}
+    />
+  );
 
 
   return (
