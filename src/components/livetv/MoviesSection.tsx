@@ -31,7 +31,7 @@ import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
-import { loadPlayerVolume, savePlayerVolume, stepVolume } from '@/utils/volume';
+import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import VodPlayer from './VodPlayer';
 import FitPoster from './FitPoster';
 
@@ -117,7 +117,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [demoNotice, setDemoNotice] = useState(false);
   // The shared player volume (Live TV, Plex): 0..150%, never back at 0 on
-  // a new start (VodPlayer shows the level while ◀ ▶ change it).
+  // a new start (VodPlayer's bar changes it).
   const [volume, setVolume] = useState(() => loadPlayerVolume());
   useEffect(() => { savePlayerVolume(volume); }, [volume]);
 
@@ -360,17 +360,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
 
-      // Fullscreen player owns keys
-      if (playingRef.current) {
-        if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
-          e.preventDefault(); e.stopPropagation();
-          setPlaying(null);
-          return;
-        }
-        if (e.key === 'ArrowLeft')  { e.preventDefault(); setVolume(v => Math.max(0, +(v - 0.05).toFixed(2))); return; }
-        if (e.key === 'ArrowRight') { e.preventDefault(); setVolume(v => stepVolume(v, 0.05)); return; }
-        return;
-      }
+      // The player owns every key while it plays (VodPlayer's bar: Back, seek, volume).
+      if (playingRef.current) return;
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
@@ -550,6 +541,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       <VodPlayer
         src={playing.url}
         volume={volume}
+        onVolumeChange={setVolume}
+        title={playing.title}
+        onClose={() => setPlaying(null)}
         onError={(msg) => {
           try { trackEvent('player_error', 'player', { kind: 'movie', channel_or_title: playing.title, server: creds.serverLabel, message: msg.slice(0, 200) }); } catch { /* ignore */ }
         }}

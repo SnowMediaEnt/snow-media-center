@@ -2,7 +2,8 @@
  * Live TV › VOD › a film: on a box it plays on the native player (the WebView
  * plays AC-3 / E-AC-3 / DTS films with no sound), with the file type the
  * panel's get_vod_info names, and at the shared player volume (never stuck
- * at 0 by the old VOD-only key). Back closes it.
+ * at 0 by the old VOD-only key). Back closes it; ◀ ▶ seek, and the volume
+ * is the player bar's.
  */
 import { act, fireEvent, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,6 +14,7 @@ const h = vi.hoisted(() => ({
   native: true,
   args: [] as NativeArgs[],
   videoProps: null as Record<string, unknown> | null,
+  seekTo: vi.fn(async (_s: number) => {}),
 }));
 
 vi.mock('@/capacitor/SnowPlayer', () => ({ hasNativePlayer: () => h.native }));
@@ -20,9 +22,12 @@ vi.mock('@/hooks/useNativePlayer', () => ({
   useNativePlayer: (a: NativeArgs) => {
     h.args.push(a);
     return {
-      controller: { getAudioTracks: () => [], setAudioTrack: () => {} },
+      controller: {
+        getAudioTracks: () => [], setAudioTrack: () => {}, getSubtitleTracks: () => [], setSubtitleTrack: () => {},
+        togglePlay: () => {}, play: () => {}, pause: () => {}, seek: () => {}, isPaused: () => false, isSeekable: () => true,
+      },
       buffering: false, paused: false, error: null, audioWarning: null, engineNotice: null,
-      retry: () => {}, seekTo: async () => {}, getPosition: async () => ({ position: 0, duration: 0, playing: true }),
+      retry: () => {}, seekTo: h.seekTo, getPosition: async () => ({ position: 100, duration: 3600, playing: true }),
     };
   },
 }));
@@ -63,7 +68,7 @@ async function openAndPlay() {
 }
 
 beforeEach(() => {
-  h.native = true; h.args = []; h.videoProps = null;
+  h.native = true; h.args = []; h.videoProps = null; h.seekTo.mockClear();
   localStorage.clear();
   document.documentElement.classList.remove('snowplayer-fullscreen');
 });
@@ -91,13 +96,22 @@ describe('MoviesSection player', () => {
     expect(h.args).toHaveLength(0);
   });
 
-  it('plays at the shared player volume, boost included, and ◀ ▶ step it', async () => {
+  it('plays at the shared player volume, boost included; ◀ ▶ seek, the bar changes the volume', async () => {
     localStorage.setItem('snow-player-volume-v1', '1.3');
     await openAndPlay();
     expect(latest().volume).toBe(1.3);
+    // With the bar down ◀ ▶ jump through the film; the volume stays put.
     await key('ArrowRight');
-    expect(latest().volume).toBe(1.35);
-    expect(localStorage.getItem('snow-player-volume-v1')).toBe('1.35');
+    expect(h.seekTo).toHaveBeenLastCalledWith(130);
+    expect(latest().volume).toBe(1.3);
+    // The bar's Volume: OK, ▶ ▶ (subtitles / audio have nothing here), OK, ▶.
+    await key('Enter');
+    await key('ArrowRight');
+    await key('ArrowRight');
+    await key('Enter');
+    await key('ArrowRight');
+    expect(latest().volume).toBe(1.4);
+    expect(localStorage.getItem('snow-player-volume-v1')).toBe('1.4');
   });
 
   it('a volume left at 0 by the old VOD-only key no longer silences every film', async () => {
