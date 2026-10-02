@@ -264,8 +264,9 @@ export function learnedCats(hosts: readonly string[]): LearnedCats {
 
 // ── scan ────────────────────────────────────────────────────────────────────
 
-/** 'busy': another box on this provider is scanning it right now (read the answer a little later). */
-export type ScanResult = 'scanned' | 'fresh' | 'busy' | 'off' | 'limit' | 'error' | 'timeout';
+/** 'busy': another box on this provider is scanning it right now (read the answer a little later).
+ *  'started': the server took the scan and finishes it after answering (read it a little later). */
+export type ScanResult = 'scanned' | 'started' | 'fresh' | 'busy' | 'off' | 'limit' | 'error' | 'timeout';
 interface ScanRecord { day: string; at: number; hash: string }
 const scanKey = (host: string) => `smc-gdai-scan:${host}`;
 
@@ -300,8 +301,8 @@ export async function sendScan(host: string, candidates: ScanCandidate[], hash: 
   if (r === 'timeout') result = 'timeout';
   else if (!r) result = 'error';
   else {
-    const d = (r.data ?? {}) as { ok?: boolean; scanned?: boolean; busy?: boolean; reason?: string };
-    if (d.ok === true) result = d.busy === true ? 'busy' : d.scanned === false ? 'fresh' : 'scanned';
+    const d = (r.data ?? {}) as { ok?: boolean; scanned?: boolean; started?: boolean; busy?: boolean; reason?: string };
+    if (d.ok === true) result = d.busy === true ? 'busy' : d.started === true ? 'started' : d.scanned === false ? 'fresh' : 'scanned';
     else result = d.reason === 'off' || d.reason === 'paused' ? 'off' : d.reason === 'limit' ? 'limit' : 'error';
   }
   try {

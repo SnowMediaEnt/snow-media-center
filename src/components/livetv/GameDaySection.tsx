@@ -91,6 +91,7 @@ const splitSearch = (groups: LinkGroups): LinkGroups & { search: GameChannel[] }
   };
 };
 /** A provider's answer is read again this long after a scan the box gave up waiting for. */
+const SCAN_SOON_MS = 30_000;
 const SCAN_LATE_MS = 90_000;
 
 interface Props {
@@ -344,13 +345,15 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
         setAiBusy((n) => n + 1);
         let r: ScanResult = 'error';
         try { r = await sendScan(host, cands, hash); } finally { if (aliveRef.current) setAiBusy((n) => Math.max(0, n - 1)); }
-        if (r !== 'scanned' && r !== 'fresh' && r !== 'busy' && r !== 'timeout') return;
+        if (r !== 'scanned' && r !== 'started' && r !== 'fresh' && r !== 'busy' && r !== 'timeout') return;
         put(host, await fetchCachedScan(host, true));
-        // Given up on after six seconds, the scan may still be finishing; or
-        // another box on this provider is scanning it now: read it once more
-        // a little later (never a second scan).
-        if ((r === 'timeout' || r === 'busy') && aliveRef.current) {
-          lateTimers.current.push(window.setTimeout(() => { void fetchCachedScan(host, true).then((s) => put(host, s)); }, SCAN_LATE_MS));
+        // The server finishes the scan after answering, or it was given up on
+        // after six seconds, or another box on this provider is scanning it
+        // now: read it again a little later (never a second scan).
+        if ((r === 'started' || r === 'timeout' || r === 'busy') && aliveRef.current) {
+          for (const ms of [SCAN_SOON_MS, SCAN_LATE_MS]) {
+            lateTimers.current.push(window.setTimeout(() => { if (aliveRef.current) void fetchCachedScan(host, true).then((s) => put(host, s)); }, ms));
+          }
         }
       })().catch(() => undefined);
     }
