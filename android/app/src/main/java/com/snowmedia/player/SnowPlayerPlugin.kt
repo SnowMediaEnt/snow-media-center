@@ -76,6 +76,8 @@ import com.snowmedia.dvr.TimeshiftManager
 import com.snowmedia.dvr.TimeshiftSession
 import java.io.File
 import java.util.Locale
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import org.json.JSONObject
 
@@ -122,10 +124,11 @@ class SnowPlayerPlugin : Plugin() {
         // A Plex file played as it is over several range requests at once
         // (RangeFetchDataSource): asked for by load() for a remote server.
         // Read by the data source at each open, so it holds for the whole
-        // load, reconnects included. `rangeConnections` is what the stats
-        // panel reports when it is on (set by buildPlayer).
+        // load, reconnects included. `rangeShared` (set by buildPlayer) is
+        // what the sources share: the slab pool, the live connection count
+        // the stats report, and the connection cap a refusal lowers.
         var rangeFetch: Boolean = false
-        var rangeConnections: Int = 1
+        var rangeShared: RangeFetchDataSource.Shared? = null
         var firstFrameSeen: Boolean = false
         // Screen format. ExoPlayer stretches the picture to fill its
         // TextureView, so the view is sized to the picture's shape. These
@@ -224,11 +227,18 @@ class SnowPlayerPlugin : Plugin() {
     // included) — never retried until the app restarts.
     private var mpvEngine: SecondEngine? = null
     private var mpvInitFailed = false
-    // Debug.getPss() is a process-wide, somewhat costly read; cached for 5 s
-    // (statsOf), same as a stats panel polling every second would otherwise
-    // pay for on every tick.
-    private var pssCacheMb: Long = -1L
-    private var pssCacheAtMs: Long = 0L
+    // Debug.getPss() is a process-wide, costly read (it walks smaps): done
+    // on its own thread every PSS_CACHE_MS, never on the UI thread, which
+    // with a TextureView is also the thread that delivers frames. statsOf
+    // (UI thread) only hands back the last value.
+    @Volatile private var pssCacheMb: Long = -1L
+    @Volatile private var pssCacheAtMs: Long = 0L
+    private val pssRefreshing = AtomicBoolean(false)
+    private val statsExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "SnowPlayer:stats").apply { isDaemon = true }
+    }
+    // Whether this box is low on RAM (isLowRamBox), read once.
+    private var lowRamBox: Boolean? = null
 
     companion object {
         private const val MAIN = "main"
@@ -278,7 +288,7 @@ class SnowPlayerPlugin : Plugin() {
         private const val PREBUFFER_TICK_MS = 500L
         private const val MIB = 1024L * 1024L
         private const val KIB_PER_MIB = 1024L
-        private const val PSS_CACHE_MS = 5000L
+        private const val PSS_CACHE_MS = 15000L
         // Rewind live TV (see tsSwitchToBuffer and friends).
         private const val TS_TICK_MS = 1000L
         /** Never closer than this to the end of the buffer: the next segment is still being written. */
@@ -894,22 +904,30 @@ class SnowPlayerPlugin : Plugin() {
             .setUserAgent(plexAgent)
             .setTransferListener(meter)
         // A file played as it is from a REMOTE server (load() says, by
-        // route): the same agent, timeouts and meter, but read over several
-        // range requests at once (RangeFetchDataSource). One connection to a
-        // far server carried a customer's 12 Mb/s film at 1.4-5.7 Mb/s while
-        // the Plex app on the same box played it directly; parallel pieces
-        // are how a single slow flow is beaten. Bounded memory: 2 GB boxes
-        // 3 × 1 MiB in flight, others 4 × 2 MiB.
+        // route): the same agent and timeouts, but read over several range
+        // requests at once (RangeFetchDataSource) as a window of unread plus
+        // in-flight bytes: 4 connections on every box, 32 MiB (16 MiB on a
+        // 2 GB box, taken out of its buffer budget below so memory does not
+        // grow). One connection to a far server carried a customer's 12 Mb/s
+        // film at 1.4-5.7 Mb/s while the Plex app on the same box played it
+        // directly; parallel pieces are how a single slow flow is beaten.
+        // Its bytes are counted as they ARRIVE, on its worker threads, into
+        // the same counter the meter feeds for the other sources; the meter
+        // itself is not attached to it (ByteMeter skips it too).
         val lowRam = isLowRamBox(act)
-        val rangeConnections = if (lowRam) 3 else 4
-        s.rangeConnections = rangeConnections
+        lowRamBox = lowRam
+        val rangeShared = RangeFetchDataSource.Shared(
+            connections = RangeFetchDataSource.DEFAULT_CONNECTIONS,
+            windowBytes = if (lowRam) RangeFetchDataSource.LOW_RAM_WINDOW_BYTES else RangeFetchDataSource.DEFAULT_WINDOW_BYTES,
+            arrival = s.netBytes,
+        )
+        s.rangeShared = rangeShared
         val rangeFactory = RangeFetchDataSource.Factory(
             userAgent = plexAgent,
             connectTimeoutMs = 15000,
             readTimeoutMs = 30000,
-            connections = rangeConnections,
-            chunkBytes = if (lowRam) MIB.toInt() else (2L * MIB).toInt(),
-        ).setTransferListener(meter)
+            shared = rangeShared,
+        )
         // A conversion (playlist and segments) is as patient, but goes out
         // with Android's own user agent, as it did up to build 38, when the
         // owner's server still started conversions for SMC. Build 39 sent
@@ -991,28 +1009,32 @@ class SnowPlayerPlugin : Plugin() {
             s.loadProfile = if (lowRam) "tile · 15 s / 6 MB" else "tile · 15 s / 10 MB"
         } else if (lowRam) {
             // 2 GB-class boxes, where memory is what gets the WebView
-            // killed: 50 s ahead within 128 MB, and never less than 20 s. A
-            // 1080p film at 8-20 Mb/s keeps its full 50 s (50-125 MB), a
-            // 30 Mb/s remux about 35 s. A 4K remux at 60-80 Mb/s would stop
-            // at 13-18 s on the bytes alone, which one slow spell of the
-            // server's empties; the floor carries it on to 20 s (150-200 MB),
-            // what the old time-first profile held for it, and tops it up
-            // there as it plays. Only a file above about 54 Mb/s goes past
-            // 128 MB, and only as far as its 20 s. A 4K film keeps this
-            // budget here (memory first), and gets the 4K start and restart
+            // killed: 50 s ahead within 112 MB, and never less than 20 s.
+            // 128 MB was the budget, and still is for the file's bytes on
+            // the box: the range reader's 16 MiB window (above) is taken
+            // out of it, so a film played over several connections holds
+            // no more memory than it did over one. A 1080p film at
+            // 8-20 Mb/s keeps its full 50 s (50-112 MB), a 30 Mb/s remux
+            // about 30 s. A 4K remux at 60-80 Mb/s would stop at 11-15 s on
+            // the bytes alone, which one slow spell of the server's empties;
+            // the floor carries it on to 20 s (150-200 MB), what the old
+            // time-first profile held for it, and tops it up there as it
+            // plays. Only a file above about 47 Mb/s goes past 112 MB, and
+            // only as far as its 20 s. A 4K film keeps this budget here
+            // (memory first), and gets the 4K start and restart
             // (SteadyLoadControl).
             val lc = SteadyLoadControl(
                 minBufferMs = 50000,
                 maxBufferMs = 50000,
                 bufferForPlaybackMs = 2500,
                 bufferForPlaybackAfterRebufferMs = 5000,
-                targetBufferBytes = 128 * 1024 * 1024,
+                targetBufferBytes = 128 * 1024 * 1024 - RangeFetchDataSource.LOW_RAM_WINDOW_BYTES,
                 floorMs = 20000,
                 uhdBudgetBytes = 0,
             )
             builder.setLoadControl(lc)
             s.loadControl = lc
-            s.loadProfile = "steady · 50 s / 128 MB, 20 s floor"
+            s.loadProfile = "steady · 50 s / 112 MB, 20 s floor"
         } else {
             // Boxes with memory to spare: up to two minutes ahead within the
             // library's own byte budget (about 144 MB for a picture and a
@@ -1396,6 +1418,9 @@ class SnowPlayerPlugin : Plugin() {
             s.reconnectAttempts = 0
             s.transcodeHttpFails = 0
             s.rangeFetch = rangeFetch && !live
+            // Every connection again for this load: a refusal of the last
+            // load's extra ranges lowered them for that load only.
+            if (s.rangeFetch) s.rangeShared?.newLoad()
             s.firstFrameSeen = false
             resetStats(s, url)
             // A film or episode holds the Wi-Fi lock (see holdWifi); a
@@ -1531,6 +1556,7 @@ class SnowPlayerPlugin : Plugin() {
             o.put("engine", EngineChoice.MPV)
             o.put("cpuPct", cpuPctSince(s)?.let { Math.round(it * 10.0) / 10.0 } ?: JSONObject.NULL)
             o.put("pssMb", cachedPssMb())
+            o.put("lowRamBox", isLowRamBoxCached())
             return o
         }
         val p = s?.player
@@ -1551,7 +1577,15 @@ class SnowPlayerPlugin : Plugin() {
         o.put("durationSec", if (dur == C.TIME_UNSET || dur < 0L) 0.0 else dur / 1000.0)
         o.put("bufferedAheadSec", if (p == null) 0.0 else (p.bufferedPosition - pos).coerceAtLeast(0L) / 1000.0)
         // Speeds: the bandwidth tick's (main slot only), since this load.
+        // The meter counts bytes as they ARRIVE from the network for every
+        // source (the range reader adds them on its worker threads; the
+        // library's sources read straight off the socket), so `now` is the
+        // arrival rate of the last window. `arrivalKbps` says so by name:
+        // JS reads it where it must judge what the line delivers, and its
+        // absence marks an older build whose range reader counted at read
+        // time instead.
         o.put("nowKbps", s?.lastKbps?.takeIf { it >= 0L } ?: JSONObject.NULL)
+        o.put("arrivalKbps", s?.lastKbps?.takeIf { it >= 0L } ?: JSONObject.NULL)
         if (s != null && s.kbpsSamples > 0) {
             o.put("avgKbps", s.kbpsSum / s.kbpsSamples)
             o.put("minKbps", s.kbpsMin)
@@ -1591,9 +1625,12 @@ class SnowPlayerPlugin : Plugin() {
         o.put("lastError", s?.lastError ?: JSONObject.NULL)
         o.put("httpStatus", s?.lastHttpStatus ?: JSONObject.NULL)
         o.put("loadProfile", s?.let { loadProfileOf(it) } ?: JSONObject.NULL)
-        // How many connections the file is read over (RangeFetchDataSource);
-        // 1 for a conversion, Live TV, or a server on this network.
-        o.put("fetchConnections", if (s != null && s.rangeFetch) s.rangeConnections else 1)
+        // How many connections the file is being read over right now
+        // (RangeFetchDataSource's live count: 0 while the window is full and
+        // nothing is in flight); 1 for a conversion, Live TV, or a server on
+        // this network.
+        o.put("fetchConnections", if (s != null && s.rangeFetch) (s.rangeShared?.liveConnections?.get() ?: 0) else 1)
+        o.put("lowRamBox", isLowRamBoxCached())
         val rt = Runtime.getRuntime()
         o.put("javaHeapMb", (rt.totalMemory() - rt.freeMemory()) / MIB)
         o.put("nativeHeapMb", Debug.getNativeHeapAllocatedSize() / MIB)
@@ -1617,16 +1654,36 @@ class SnowPlayerPlugin : Plugin() {
         return cpuMs.toDouble() / wallMs.toDouble() * 100.0
     }
 
-    /** Debug.getPss() is process-wide and not cheap; good for PSS_CACHE_MS.
-     *  It answers in KILOBYTES (smaps' Pss), not bytes: divided by MIB (build
-     *  46) a 300 MB process read as 0 MB on both engines. */
-    private fun cachedPssMb(): Long {
+    /** Debug.getPss() is process-wide and not cheap; good for PSS_CACHE_MS,
+     *  and read on the stats thread, never on the caller's (the UI thread,
+     *  where a stats panel polling every second would stall a slow box's
+     *  frames). The caller gets the last value, or null before the first
+     *  read has come back. It answers in KILOBYTES (smaps' Pss), not bytes:
+     *  divided by MIB (build 46) a 300 MB process read as 0 MB on both
+     *  engines. */
+    private fun cachedPssMb(): Any {
         val now = SystemClock.elapsedRealtime()
-        if (pssCacheMb < 0L || now - pssCacheAtMs >= PSS_CACHE_MS) {
-            pssCacheMb = try { Debug.getPss() / KIB_PER_MIB } catch (e: Throwable) { pssCacheMb }
-            pssCacheAtMs = now
+        if ((pssCacheMb < 0L || now - pssCacheAtMs >= PSS_CACHE_MS) && pssRefreshing.compareAndSet(false, true)) {
+            statsExecutor.execute {
+                try {
+                    pssCacheMb = Debug.getPss() / KIB_PER_MIB
+                    pssCacheAtMs = SystemClock.elapsedRealtime()
+                } catch (e: Throwable) {
+                    // Keep the last value; asked again next time.
+                } finally {
+                    pssRefreshing.set(false)
+                }
+            }
         }
-        return pssCacheMb
+        val mb = pssCacheMb
+        return if (mb < 0L) JSONObject.NULL else mb
+    }
+
+    /** isLowRamBox, read once per process (ActivityManager is a binder call). */
+    private fun isLowRamBoxCached(): Boolean {
+        lowRamBox?.let { return it }
+        val act = activity ?: return false
+        return isLowRamBox(act).also { lowRamBox = it }
     }
 
     /** What decodes a track: the decoder's own name ("c2.amlogic.hevc.decoder"),
@@ -2605,12 +2662,18 @@ private class SteadyLoadControl(
     }
 }
 
-/** Counts the bytes the player's HTTP sources receive (loader threads). */
+/** Counts the bytes the player's HTTP sources receive (loader threads), as
+ *  they arrive: the library's sources hand bytes on straight off the
+ *  socket. The range reader (RangeFetchDataSource) counts its own on its
+ *  worker threads, as its pieces arrive, and its read-time
+ *  bytesTransferred() is for Media3's bandwidth meter only: counted here
+ *  as well, a slow head piece would hide the bytes the other connections
+ *  were bringing in, and then land them all in one window. */
 private class ByteMeter(private val total: AtomicLong) : TransferListener {
     override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
     override fun onTransferStart(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
     override fun onBytesTransferred(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean, bytesTransferred: Int) {
-        if (isNetwork) total.addAndGet(bytesTransferred.toLong())
+        if (isNetwork && source !is RangeFetchDataSource) total.addAndGet(bytesTransferred.toLong())
     }
     override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
 }

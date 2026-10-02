@@ -172,7 +172,10 @@ describe('Plex player: pausing shows the control bar and keeps it up', () => {
     expect(body('fun pause(call: PluginCall)')).toMatch(/releaseHold\(s\); s\.player\?\.pause\(\); reportPaused\(s, screenId\)/);
     expect(body('private fun scheduleBandwidthTick(')).toContain('if (screenId != MAIN) return');
     // Live TV's source, the Plex file's and the Plex conversion's: every HTTP source counts its bytes.
-    // Live TV, a Plex file, a conversion, and a remote file read over several connections (RangeFetchDataSource).
-    expect(plugin.match(/\.setTransferListener\(meter\)/g)).toHaveLength(4);
+    // A remote file read over several connections (RangeFetchDataSource) counts its own as they
+    // arrive, into the same counter (Shared.arrival = s.netBytes), and the meter skips it.
+    expect(plugin.match(/\.setTransferListener\(meter\)/g)).toHaveLength(3);
+    expect(plugin).toContain('arrival = s.netBytes,');
+    expect(plugin).toContain('if (isNetwork && source !is RangeFetchDataSource) total.addAndGet(bytesTransferred.toLong())');
   });
 });
