@@ -515,3 +515,54 @@ Not touched:
 - **Cost overrun.** Capped by the daily RPC, the limits, the flag and the global pause.
 - **Proxy.** The ESPN team forms could not be checked from here. The tests cover both the BU and BC
   forms; one `game-day {op:'list'}` call on the device will confirm them.
+
+---
+
+## Owner answers (final) — these OVERRIDE the sections above where they differ
+
+1. **AI runs as a daily scan, not a per-game search when a list opens.**
+   Owner, in his words: "it only needs to see what events are on today, and just scan through all my channels and link them to the event in Game Day, that's all."
+   **Replace the per-game `op:'match'` flow** in §2b and §3 with a scan per provider host:
+   - **When the box sends a scan.** On the first Game Day open of the day for a line host, when the host's server cache is missing, stale (older than 3 h) or has a different line-up hash, the box sends ONE `op:'scan'` per host (2 at most, one per line), in the background. The UI never waits for it.
+   - **Candidates:**
+     - the box's channels on that host that could carry an event: names containing "vs", "v.", "@", " at ", or ":" followed by a matchup; channels in conference/service/event families (B1G+, SEC+, ACCNX, ESPN+, Peacock, Paramount+, DAZN, Flo, NCAA, UEFA, league passes, "Event", "Live Event"); plus numbered feeds of those families;
+     - excluded: 24/7 and NOT_SPORTS categories;
+     - each candidate is `{id, name ≤80, cat ≤40}`; no `now` titles are needed;
+     - cap 2000 per host;
+     - add a `lineupHash` (a hash of the sorted candidate ids and names).
+   - **The server (`game-day-match` `op:'scan'`):**
+     - validates the input;
+     - checks the flag and the global AI pause;
+     - takes today's games from `game-day` itself (live, or starting within the next 24 h), never from the box;
+     - skips the AI when the cache for (host, day) already has the same `lineupHash` and is fresh (under 3 h);
+     - otherwise calls the model in batches: up to ~400 candidates × all of today's team games per call, under strict JSON `{links:[{game_id, id, confidence}]}`, dropping ids or games not in the input; at most 6 links per game;
+     - stores per (host, day) `{game_id → matches}` plus `lineupHash` and `scannedAt`;
+     - logs usage in `ai_usage_log` (feature `gameday`) and `game_day_ai_usage`.
+   - **Limits:**
+     - at most 8 scans per host per day;
+     - per-IP limit 20/h;
+     - a global safety cap of 300 scans a day.
+
+     Expected cost: about $0.01–0.03 per scan × a few scans a day per provider, so cents a day.
+   - **The box:** `op:'cached'` (host, day) returns every game's matches, plus `learned`. GameDaySection reads it on open (cheap) and after a scan finishes, and lays the matches in as §2b says: the box re-check, the "Found by search" group, guide verdicts, owner picks last, and the "Not this game" report.
+   - **Delete** the per-game `op:'match'`, `aiEligible`'s 3-hour rule (scan covers today), the "press Watch to search" row text and the per-device-per-game limits. Keep `op:'learn'` (play/wrong/pick) and the learned categories.
+   - **The deterministic upgrade (§2a, item A) stays as planned.**
+2. **High-confidence search matches may be the row's Watch pick and the reminder's channel.** Medium ones show only inside the game's list.
+3. **PPV is never for team games.** Owner: "PPV doesn't show games, just UFC and boxing, concerts, WWE and stuff." Keep PPV channels OUT of team games entirely (no change from today). PPV stays for fight cards and events only, as now.
+4. **Model** `gpt-5.4-nano` with the existing OpenAI key (as recommended). The flag `gameday_ai_match` starts ON.
+
+### Contract changes (replace the `op:'match'` lines in §3)
+```ts
+// gameDay.ts (A) adds:
+export interface ScanCandidate { id: number; name: string; cat: string }
+export function scanCandidates(channels: SportsChannel[], host: string, max?: number): ScanCandidate[]; // event-capable channels on that host
+export function lineupHash(c: ScanCandidate[]): string;
+// (aiCandidates / aiEligible are not needed; keep aiLinks(game, channels, host, matches) and teamTokens.)
+
+// Edge function game-day-match (B):
+// {op:'scan',   host, candidates: ScanCandidate[≤2000], lineup_hash, device_id}
+//        → {ok:true, scanned: boolean /* false = cache was fresh */} | {ok:false, reason:'off'|'paused'|'limit'|'bad_request'|'error'}
+// {op:'cached', host}  → {ok, day, lineup_hash, scanned_at, matches: Record<gameId, AiMatch[]>, learned: {league, cat}[]}
+// {op:'learn',  ...unchanged}
+```
+Analytics: `gameday_ai_scan {result: 'scanned'|'fresh'|'off'|'limit'|'error', candidates, ms}` replaces `gameday_ai_search`. `gameday_ai_play` and `gameday_ai_wrong` are unchanged.
