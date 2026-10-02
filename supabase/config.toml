@@ -118,5 +118,10 @@ verify_jwt = false
 [functions.game-day]
 verify_jwt = false
 
+# Game Day's daily channel scan (AI). Boxes have no session; the function
+# checks the flag, the global AI pause and its own limits.
+[functions.game-day-match]
+verify_jwt = false
+
 [functions.phone-remote]
 verify_jwt = false
