@@ -105,6 +105,13 @@ describe('a fresh conversion session', () => {
     expect(q.getAll('X-Plex-Client-Identifier')).toEqual([getPlexClientId()]);
     expect(q.get('session')).not.toBe(query(first).get('session'));
     expect(query(first).get('X-Plex-Platform')).toBe('Android');
+    // With the playback session (one per title): the transcode session stays
+    // its own, the play it belongs to is named, and the stop still finds it.
+    const play = plexTranscodeUrl(BASE, '42', 'tok', { maxVideoBitrateKbps: 4000, playbackSession: 'smcp-abc' });
+    expect(query(play).get('X-Plex-Session-Identifier')).toBe('smcp-abc');
+    expect(query(play).get('session')).not.toBe('smcp-abc');
+    expect(transcodeStopUrl(play)).toContain(`stop?session=${query(play).get('session')}`);
+    expect(query(fresh).get('X-Plex-Session-Identifier')).toBe(q.get('session'));
     const decision = plexTranscodeDecisionUrl(fresh) ?? '';
     expect(decision.startsWith(`${BASE}/video/:/transcode/universal/decision?`)).toBe(true);
     expect(query(decision).toString()).toBe(q.toString());

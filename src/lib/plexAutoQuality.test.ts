@@ -138,6 +138,8 @@ describe('one measurement: what the server delivers', () => {
     const stall = now - 30_000;
     const rates = stalled(stall, [4000, 4000, 4000]);
     expect(deliveredKbps(rates, now, { lastStartAt: stall - 1_000 }).kbps).toBeNull();
+    // Windows from the load itself (before playback began) never count either.
+    expect(deliveredKbps(rates, now, { lastStartAt: stall + 20_000 }).windows).toBe(0);
     // A seek 2 s before the first window: that window is the seek's, the rest count.
     const seek = deliveredKbps(stalled(stall, [4000, 4000, 4000, 4000]), now, { lastSeekAt: stall + 1_000 });
     expect(seek).toEqual({ kbps: 4000, windows: 3, paused: false });

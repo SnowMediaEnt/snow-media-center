@@ -2449,11 +2449,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // The player's arrival rates for this title, the one measurement every
   // rule reads: getStats.arrivalKbps (bytes as they arrive from the network)
   // polled every window, or, before a plugin that reports it, the player's
-  // bandwidth reports (bufferDiagnostics). `native`: whether the plugin
-  // reports it (null until its first answer); `connections`: how many the
-  // stream is read over, as it reports them.
+  // bandwidth reports (bufferDiagnostics, the same measure since 1.8.1).
+  // `native`: whether the plugin reports it (false: an older plugin, null
+  // until a sample is in); `connections`: how many the stream is read over,
+  // as it reports them.
   const arrivalRef = useRef<{ samples: RateReport[]; native: boolean | null; connections: number | null }>({ samples: [], native: null, connections: null });
-  const rates = useCallback((): RateReport[] => (arrivalRef.current.native ? arrivalRef.current.samples : getPlayerRates()), []);
+  const rates = useCallback((): RateReport[] => (arrivalRef.current.samples.length ? arrivalRef.current.samples : getPlayerRates()), []);
   // Starts a conversion the way Plex's own players do (filled in below, with
   // automatic quality): 'refused' when the server turned it down at its
   // decision, 'started' when it is on its way, 'stale' when a newer request
@@ -3218,7 +3219,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (DEMO) { setDemoNotice(true); return; }
     if (!conn) return;
     const gen = newStreamRequest();
-    playbackSessionRef.current = newPlexPlaybackSession();
+    // One playback session per title start; a Retry of the title still up
+    // keeps the one it has.
+    if (!(playbackSessionRef.current && isPlexPlaybackActive() && playingKeyRef.current === ratingKey)) playbackSessionRef.current = newPlexPlaybackSession();
     // Reset one-shot rescue guards so replaying the same title after backing
     // out regains its zero-audio safety nets.
     audioSafetyRef.current = null;
@@ -3770,14 +3773,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const a = arrivalRef.current;
     let alive = true;
     const id = window.setInterval(async () => {
-      if (a.native === false || stillLoadingRef.current) return;
+      if (a.native === false) return;
       try {
         const s = await SnowPlayer.getStats() as { arrivalKbps?: number | null; fetchConnections?: number | null };
         if (!alive || arrivalRef.current !== a) return;
         if (!('arrivalKbps' in s)) { a.native = false; window.clearInterval(id); return; }
-        a.native = true;
+        // A live count: 0 while the window is full, which says nothing.
         if (typeof s.fetchConnections === 'number' && s.fetchConnections > 0) a.connections = s.fetchConnections;
         if (typeof s.arrivalKbps !== 'number' || !Number.isFinite(s.arrivalKbps) || s.arrivalKbps < 0) return;
+        a.native = true;
         const t = Date.now();
         a.samples.push(bufferingRef.current ? { t, kbps: s.arrivalKbps, stalled: true } : { t, kbps: s.arrivalKbps });
         while (a.samples.length > 1 && a.samples[0].t < t - RATES_KEPT_MS) a.samples.shift();

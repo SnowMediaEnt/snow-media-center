@@ -343,7 +343,9 @@ export function deliveredKbps(
   opts: { since?: number; lastStartAt?: number; lastSeekAt?: number; stallStart?: number; proven?: boolean } = {},
 ): Delivery {
   const from = Math.max(opts.since ?? 0, now - DELIVERY_WINDOW_MS);
-  const counts = (t: number): boolean => t > from && t <= now && !inJumpGrace(t, opts.lastSeekAt ?? 0, opts.lastStartAt ?? 0);
+  // A window from before playback last began is the load (or the seek)
+  // itself, never evidence; nor is the half minute after it.
+  const counts = (t: number): boolean => t > from && t <= now && t >= (opts.lastStartAt ?? 0) && !inJumpGrace(t, opts.lastSeekAt ?? 0, opts.lastStartAt ?? 0);
   const paused = opts.stallStart != null && stallEvidence(rates, opts.stallStart, now).paused;
   const data = rates.filter((r) => r.stalled && r.kbps > 0 && counts(r.t)).map((r) => r.kbps);
   const needed = opts.proven ? DELIVERY_PROVEN_WINDOWS : DELIVERY_MIN_WINDOWS;

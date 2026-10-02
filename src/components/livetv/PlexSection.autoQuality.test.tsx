@@ -857,6 +857,8 @@ describe('a conversion the Plex server answers with an HTTP error status', () =>
     convertFail();
     await until(() => expect(isFile(lastUrl())).toBe(true));
     expect(toastTitles()).toContain("The Plex server wouldn't convert this");
+    // The session the file replaced is stopped on the server (the delayed stop).
+    await wait(1_700);
     expect(stops().some((u) => u.includes(`session=${sessionOf(fresh)}`))).toBe(true);
     // Every session was its own.
     const sessions = h.urls.filter(isTranscode).map(sessionOf);
