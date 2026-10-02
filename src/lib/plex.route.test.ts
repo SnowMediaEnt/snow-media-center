@@ -11,7 +11,7 @@ vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false }
 
 import {
   getPlexServers, pickPlexConnectionDetailed, pickBetterPlexConnection, plexRouteLabel,
-  plexRouteImprovable, plexRouteOf, PLEX_PROBE_TIMEOUT_MS,
+  plexRouteImprovable, plexRouteOf, plexEndpoint, plexRouteEndpoint, PLEX_PROBE_TIMEOUT_MS,
   type PlexConnection, type PlexServer,
 } from './plex';
 
@@ -295,13 +295,118 @@ describe('pickPlexConnectionDetailed', () => {
   });
 
   it('keeps the longer budget for an address listed both as remote and as local', async () => {
-    const s = server([conn(PD, '203.0.113.5'), conn(PD, '203.0.113.5', { local: true })]);
-    answer(PD, 4000);
+    const s = server([conn(LAN, '192.168.1.20'), conn(LAN, '192.168.1.20', { local: true })]);
+    answer(LAN, 4000);
     const r = await start(pickPlexConnectionDetailed(s));
     await vi.advanceTimersByTimeAsync(3000);
     expect(r.done).toBe(false);
     await vi.advanceTimersByTimeAsync(1100);
-    expect(r.value).toEqual({ base: PD, route: 'lan' });
+    expect(r.value).toEqual({ base: LAN, route: 'lan' });
+  });
+});
+
+// A hosted server, or one with a public IP on its own interface, lists that
+// PUBLIC address as local. It answers from anywhere, so it is a remote path:
+// the parallel reader, the remote budget and the "Direct to server" label all
+// follow the route. Only a private address is the home network, and only when
+// plex.tv does not say this box is somewhere else.
+describe('which local addresses are the home network', () => {
+  it('a public IPv4 address listed as local is direct, with the full remote budget', async () => {
+    const s = server([conn(PD, '203.0.113.5', { local: true })]);
+    // Past the 2.5 s window a home-network address gets.
+    answer(PD, 4000);
+    const r = await start(pickPlexConnectionDetailed(s));
+    await vi.advanceTimersByTimeAsync(4100);
+    expect(r.value).toEqual({ base: PD, route: 'direct' });
+    expect(plexRouteOf(s, PD)).toBe('direct');
+    expect(plexRouteOf(s, PD_HTTP)).toBe('direct');
+  });
+
+  it('a public address listed both remote and local is direct, whichever comes first', () => {
+    expect(plexRouteOf(server([conn(PD, '203.0.113.5'), conn(PD, '203.0.113.5', { local: true })]), PD)).toBe('direct');
+    expect(plexRouteOf(server([conn(PD, '203.0.113.5', { local: true }), conn(PD, '203.0.113.5')]), PD)).toBe('direct');
+  });
+
+  it.each([
+    ['10/8', 'https://10-0-0-7.abc123.plex.direct:32400', '10.0.0.7'],
+    ['172.16/12', 'https://172-20-0-5.abc123.plex.direct:32400', '172.20.0.5'],
+    ['192.168/16', LAN, '192.168.1.20'],
+  ])('an RFC 1918 address (%s) listed as local is the home network', (_r, uri, address) => {
+    expect(plexRouteOf(server([conn(uri, address, { local: true })]), uri)).toBe('lan');
+  });
+
+  it('not when plex.tv says this box is not on the server\'s network (publicAddressMatches false)', async () => {
+    const away: PlexServer = { ...server([conn(LAN, '192.168.1.20', { local: true }), conn(PD, '203.0.113.5')]), publicAddressMatches: false };
+    expect(plexRouteOf(away, LAN)).toBe('direct');
+    expect(plexRouteOf(away, LAN_HTTP)).toBe('direct');
+    const home: PlexServer = { ...away, publicAddressMatches: true };
+    expect(plexRouteOf(home, LAN)).toBe('lan');
+    // Someone else's network keeps the short window: a private address that
+    // does not answer at once is not worth the remote budget.
+    const lanOnly: PlexServer = { ...server([conn(LAN, '192.168.1.20', { local: true })]), publicAddressMatches: false };
+    answer(LAN, 4000);
+    const r = await start(pickPlexConnectionDetailed(lanOnly));
+    await vi.advanceTimersByTimeAsync(3600);
+    expect(r).toEqual({ done: true, value: null });
+  });
+
+  it('probes a 172.16/12 home address but still skips Docker\'s default bridge (172.17/16)', async () => {
+    const HOME172 = 'https://172-20-0-5.abc123.plex.direct:32400';
+    const s = server([
+      conn('https://172-17-0-2.abc123.plex.direct:32400', '172.17.0.2', { local: true }),
+      conn(HOME172, '172.20.0.5', { local: true }),
+      conn(PD, '203.0.113.5'),
+    ]);
+    answer(HOME172, 30);
+    answer(PD, 30);
+    const r = await start(pickPlexConnectionDetailed(s));
+    await vi.advanceTimersByTimeAsync(100);
+    expect(r.value).toEqual({ base: HOME172, route: 'lan' });
+    expect(calls).toContain(identity('http://172.20.0.5:32400'));
+    expect(calls.some((u) => /172[.-]17[.-]/.test(u))).toBe(false);
+  });
+});
+
+describe('what plex.tv says about the server', () => {
+  const resources = (extra: Record<string, unknown>) => [{
+    name: 'Snow Media P2', clientIdentifier: 'p2', accessToken: 'srv-tok', provides: 'server', ...extra,
+    connections: [{ uri: PD, address: '203.0.113.5', port: 32400, protocol: 'https', local: false, relay: false }],
+  }];
+  const listed = async (account: string, extra: Record<string, unknown>) => {
+    vi.useRealTimers();
+    vi.stubGlobal('fetch', async () => ({ ok: true, status: 200, text: async () => JSON.stringify(resources(extra)) }));
+    const [s] = await getPlexServers(account, { fresh: true });
+    vi.useFakeTimers();
+    return s;
+  };
+
+  it('keeps publicAddressMatches and httpsRequired', async () => {
+    const s = await listed('pam-account', { publicAddressMatches: false, httpsRequired: true });
+    expect(s.publicAddressMatches).toBe(false);
+    expect(s.httpsRequired).toBe(true);
+    const t = await listed('pam-account-2', {});
+    expect(t.publicAddressMatches).toBeUndefined();
+    expect(t.httpsRequired).toBeUndefined();
+  });
+
+  it('never tries a plain http address on a server that requires secure connections', async () => {
+    const s: PlexServer = { ...server([conn(PD, '203.0.113.5')]), httpsRequired: true };
+    answer(PD_HTTP, 10);
+    answer(PD, 500);
+    const r = await start(pickPlexConnectionDetailed(s));
+    await vi.advanceTimersByTimeAsync(600);
+    expect(calls).not.toContain(identity(PD_HTTP));
+    expect(r.value).toEqual({ base: PD, route: 'direct' });
+  });
+
+  it('takes no answer that does not name the server: an empty /identity is not a path to it', async () => {
+    const s = server([conn(CUSTOM, 'plex.example.com'), conn(PD, '203.0.113.5')]);
+    // A captive portal or a proxy's error page answering with {}.
+    answer(PD, 20, '');
+    answer(CUSTOM, 300);
+    const r = await start(pickPlexConnectionDetailed(s));
+    await vi.advanceTimersByTimeAsync(400);
+    expect(r.value).toEqual({ base: CUSTOM, route: 'direct' });
   });
 });
 
@@ -419,18 +524,18 @@ describe('plexRouteImprovable / plexRouteOf', () => {
 
   it('gives an address listed twice the route a fresh probe gives it', async () => {
     // Remote first, then local: the first listing is not the one that counts.
-    const s = server([conn(PD, '203.0.113.5'), conn(PD, '203.0.113.5', { local: true })]);
-    expect(plexRouteOf(s, PD)).toBe('lan');
-    expect(plexRouteOf(s, PD_HTTP)).toBe('lan');
-    expect(plexRouteOf(s, `${PD.toUpperCase()}/`)).toBe('lan');
-    answer(PD, 20);
+    const s = server([conn(LAN, '192.168.1.20'), conn(LAN, '192.168.1.20', { local: true })]);
+    expect(plexRouteOf(s, LAN)).toBe('lan');
+    expect(plexRouteOf(s, LAN_HTTP)).toBe('lan');
+    expect(plexRouteOf(s, `${LAN.toUpperCase()}/`)).toBe('lan');
+    answer(LAN, 20);
     const r = await start(pickPlexConnectionDetailed(s));
     await vi.advanceTimersByTimeAsync(100);
-    expect(r.value).toEqual({ base: PD, route: plexRouteOf(s, PD) });
+    expect(r.value).toEqual({ base: LAN, route: plexRouteOf(s, LAN) });
 
     // Local first, then remote: the same.
-    const flipped = server([conn(PD, '203.0.113.5', { local: true }), conn(PD, '203.0.113.5')]);
-    expect(plexRouteOf(flipped, PD)).toBe('lan');
+    const flipped = server([conn(LAN, '192.168.1.20', { local: true }), conn(LAN, '192.168.1.20')]);
+    expect(plexRouteOf(flipped, LAN)).toBe('lan');
   });
 
   it('gives an http address listed remote, and the twin of a local one, the home-network route', () => {
@@ -467,5 +572,33 @@ describe('plexRouteLabel', () => {
     const label = plexRouteLabel('direct', 'https://user:secret@plex.example.com:8443/web?X-Plex-Token=abc123');
     expect(label).toBe('Direct to server · custom address (plex.example.com) · https');
     expect(label).not.toMatch(/secret|abc123|Token|8443/);
+  });
+});
+
+describe('plexRouteEndpoint (the stats panel\'s Route line)', () => {
+  it('says host:port and the IP family; a plex.direct name as the IP it stands for', () => {
+    expect(plexRouteEndpoint(PD)).toBe('203.0.113.5:32400 · IPv4');
+    expect(plexRouteEndpoint(PD_HTTP)).toBe('203.0.113.5:32400 · IPv4');
+    expect(plexRouteEndpoint(PD6)).toBe('[2001:db8:0:0:0:0:0:5]:32400 · IPv6');
+    expect(plexRouteEndpoint(PD6_HTTP)).toBe('[2001:db8::5]:32400 · IPv6');
+    expect(plexRouteEndpoint(RELAY)).toBe('198.51.100.7:8443 · IPv4');
+    // A name: which family it resolves to is not known here.
+    expect(plexRouteEndpoint(CUSTOM)).toBe('plex.example.com:443');
+    expect(plexRouteEndpoint('https://plex.example.com')).toBe('plex.example.com:443');
+    expect(plexRouteEndpoint('http://plex.example.com/web')).toBe('plex.example.com:80');
+    expect(plexRouteEndpoint('')).toBe('');
+    expect(plexRouteEndpoint(null)).toBe('');
+  });
+
+  it('shows nothing of the URL past the host and port', () => {
+    const line = plexRouteEndpoint('https://user:secret@plex.example.com:8443/web?X-Plex-Token=abc123');
+    expect(line).toBe('plex.example.com:8443');
+    expect(line).not.toMatch(/secret|abc123|Token|user/);
+  });
+
+  it('gives the parts for analytics: kind, port, family, secure', () => {
+    expect(plexEndpoint(PD)).toEqual({ host: '203.0.113.5', port: 32400, family: 'IPv4', secure: true, kind: 'plex.direct' });
+    expect(plexEndpoint(PD6_HTTP)).toEqual({ host: '2001:db8::5', port: 32400, family: 'IPv6', secure: false, kind: 'ip' });
+    expect(plexEndpoint(CUSTOM)).toEqual({ host: 'plex.example.com', port: 443, family: null, secure: true, kind: 'custom' });
   });
 });

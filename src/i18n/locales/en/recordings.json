@@ -24,6 +24,7 @@
       "noSpace": "Not enough free space for about {{length}} ({{usable}} usable).",
       "rewindPaused": "Rewind paused while recording…",
       "updateRunning": "A recording is running. Updating now will stop it.",
+      "sharingInternet": "A recording is using part of your internet.",
       "updateSoon": "A recording is scheduled to start soon. Updating now will stop it."
     },
     "dialog": {

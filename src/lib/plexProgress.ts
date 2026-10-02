@@ -111,8 +111,9 @@ const write = (viewer: string, map: Record<string, PlexProgress>): boolean => {
 };
 
 /** Keep the newest MAX, for this viewer. False when storage would not take
- *  it: the list then lasts only until the app closes. */
-const save = (map: Record<string, PlexProgress>): boolean => {
+ *  it: the list then lasts only until the app closes. `quiet`: tell no one
+ *  (a beat that changed nothing Continue Watching shows). */
+const save = (map: Record<string, PlexProgress>, quiet = false): boolean => {
   const list = Object.values(map).sort((a, b) => b.t - a.t).slice(0, MAX);
   const newest = (n: number) => {
     const out: Record<string, PlexProgress> = {};
@@ -131,7 +132,7 @@ const save = (map: Record<string, PlexProgress>): boolean => {
   }
   if (!ok) noteProgressDiag({ storageErrorAt: Date.now() });
   memo = { viewer, map: kept };
-  emit();
+  if (!quiet) emit();
   return ok;
 };
 
@@ -215,15 +216,30 @@ const carryDeviceOver = (was: Memo | null): void => {
   });
 };
 
+/** What Continue Watching (and its "next episode" half) would show from
+ *  `map`: which titles, in which order. Two maps with the same signature
+ *  draw the same rows, progress bars aside. */
+const continueSignature = (map: Record<string, PlexProgress>, now: number): string =>
+  `${continueFrom(map, MAX, undefined, now).map((i) => i.ratingKey).join(',')}|${
+    finishedFrom(map, MAX, now).map((f) => `${f.showKey}:${f.season}:${f.index}`).join(',')}`;
+
 /** Record where playback is. `final` when it stopped (always copied to the
- *  account); otherwise the account copy is refreshed at most once a minute. */
+ *  account); otherwise the account copy is refreshed at most once a minute.
+ *  The change event (PLEX_PROGRESS_EVENT) goes out on a final save, or when
+ *  a beat changes what Continue Watching shows (a title joins it past the
+ *  first minute, or leaves it as it is watched): the screens behind the
+ *  player re-draw on it, and every 15 s beat of a film re-drew them for
+ *  nothing. The player closing refreshes them anyway (watchNonce). */
 export function saveProgress(p: Omit<PlexProgress, 't' | 'done'> & { done?: boolean }, final = false): void {
   if (!p.ratingKey || !(p.dur > 0)) return;
   void resolveViewer().then(() => {
     const map = load();
     const done = p.done ?? (p.at >= p.dur * DONE_SHARE || p.at >= p.dur - EDGE_S);
     const entry: PlexProgress = { ...map[p.ratingKey], ...p, at: Math.max(0, p.at), done, t: Date.now() };
-    save({ ...map, [p.ratingKey]: entry });
+    const next = { ...map, [p.ratingKey]: entry };
+    const now = Date.now();
+    const quiet = !final && continueSignature(map, now) === continueSignature(next, now);
+    save(next, quiet);
     toCloud(entry, final);
     noteProgressDiag({ savedAt: entry.t, title: entry.title, at: entry.at, dur: entry.dur, done });
   });
@@ -304,16 +320,20 @@ const barelyStarted = (p: PlexProgress): boolean => !p.done && p.at < EDGE_S;
  *  would sit at the front of the row until that date came round. */
 const watchedAt = (p: PlexProgress, now: number): number => (p.t > now + FUTURE_SLACK_MS ? now : p.t);
 
-/** This viewer's titles, most recently watched first. */
-const newestFirst = (now: number) =>
-  Object.values(load()).map((p) => ({ p, t: watchedAt(p, now) })).sort((a, b) => b.t - a.t);
+/** `map`'s titles, most recently watched first. The index breaks ties:
+ *  Array#sort is not stable on an old WebView. */
+const newestFirst = (map: Record<string, PlexProgress>, now: number) =>
+  Object.values(map).map((p, i) => ({ p, t: watchedAt(p, now), i })).sort((a, b) => b.t - a.t || a.i - b.i);
 
 /** Continue Watching: titles stopped part-way, newest first, one episode per
  *  show (the latest), as tiles. Episodes show their show's poster. */
 export function continueWatching(limit = 30, sectionId?: string, now = Date.now()): PlexItem[] {
+  return continueFrom(load(), limit, sectionId, now);
+}
+function continueFrom(map: Record<string, PlexProgress>, limit: number, sectionId: string | undefined, now: number): PlexItem[] {
   const seenShows = new Set<string>();
   const out: PlexItem[] = [];
-  for (const { p, t } of newestFirst(now)) {
+  for (const { p, t } of newestFirst(map, now)) {
     if (out.length >= limit) break;
     // Passed over, not the end of the list: one odd time must not hide the
     // titles after it.
@@ -328,7 +348,7 @@ export function continueWatching(limit = 30, sectionId?: string, now = Date.now(
       if (seenShows.has(p.showKey)) continue;
       seenShows.add(p.showKey);
     }
-    if (resumeSeconds(p.ratingKey) == null) continue;
+    if (!resumable(p)) continue;
     out.push({
       ratingKey: p.ratingKey,
       title: p.title,
@@ -354,9 +374,12 @@ export interface FinishedShow {
   showKey: string; showTitle?: string; season: number; index: number; t: number; librarySectionID?: string;
 }
 export function finishedShows(limit = 8, now = Date.now()): FinishedShow[] {
+  return finishedFrom(load(), limit, now);
+}
+function finishedFrom(map: Record<string, PlexProgress>, limit: number, now: number): FinishedShow[] {
   const seen = new Set<string>();
   const out: FinishedShow[] = [];
-  for (const { p, t } of newestFirst(now)) {
+  for (const { p, t } of newestFirst(map, now)) {
     if (out.length >= limit) break;
     if (now - t > CONTINUE_MAX_AGE_MS) continue;
     // The next episode opened and left inside a minute: the finished one

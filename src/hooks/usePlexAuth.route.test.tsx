@@ -35,6 +35,7 @@ const h = vi.hoisted(() => ({
   pick: vi.fn(),
   rekey: vi.fn(),
   epoch: vi.fn(),
+  identity: vi.fn(),
 }));
 // The ranking helpers (plexRouteImprovable, plexRouteOf) and the playback flag
 // are the real ones; the network and storage are scripted.
@@ -45,7 +46,7 @@ vi.mock('@/lib/plex', async (orig) => ({
   clearPlexToken: async () => { localStorage.removeItem('snow-plex-token-v1'); localStorage.removeItem('snow-plex-server-v1'); },
   loadPlexServer: async () => { const raw = localStorage.getItem('snow-plex-server-v1'); return raw ? JSON.parse(raw) : null; },
   savePlexServer: async (s: unknown) => { localStorage.setItem('snow-plex-server-v1', JSON.stringify(s)); },
-  getPlexIdentity: async () => { const raw = localStorage.getItem('snow-plex-server-v1'); return raw ? (JSON.parse(raw).clientIdentifier as string) : null; },
+  getPlexIdentity: (...a: unknown[]) => h.identity(...a),
   getPlexServers: h.servers,
   pickBetterPlexConnection: h.better,
   pickPlexConnectionDetailed: h.pick,
@@ -54,8 +55,11 @@ vi.mock('@/lib/plex', async (orig) => ({
   clearPlexCaches: () => { /* noop */ },
 }));
 
-import { usePlexAuth } from '@/hooks/usePlexAuth';
-import { setPlexPlaybackActive, type PlexServer } from '@/lib/plex';
+import { rediscoveryOrder, usePlexAuth } from '@/hooks/usePlexAuth';
+import { getPlexCurrentRoute, setPlexPlaybackActive, type PlexServer } from '@/lib/plex';
+
+/** By default the saved server is what answers /identity. */
+const savedIdentity = async () => { const raw = localStorage.getItem('snow-plex-server-v1'); return raw ? (JSON.parse(raw).clientIdentifier as string) : null; };
 
 const PD = 'https://203-0-113-5.abc123.plex.direct:32400';
 const PD_HTTP = 'http://203.0.113.5:32400';
@@ -89,6 +93,7 @@ beforeEach(() => {
   h.pick.mockReset();
   h.rekey.mockReset();
   h.epoch.mockReset();
+  h.identity.mockReset().mockImplementation(savedIdentity);
   img.rekey.mockReset();
   setPlexPlaybackActive(false);
 });
@@ -202,6 +207,76 @@ describe('usePlexAuth: relay escape', () => {
     await run(1000);
     expect(h.better).toHaveBeenCalledTimes(1);
     expect(result.current.conn?.base).toBe(PD);
+  });
+});
+
+describe('usePlexAuth: relay escape mid-title', () => {
+  it('saves a direct path found while a title plays, and switches as soon as the title ends, with no new probe', async () => {
+    cache('srv-relay-mid', RELAY, 'relay');
+    h.better.mockImplementation(async () => {
+      // The viewer starts a film while the probe is out.
+      setPlexPlaybackActive(true);
+      return { base: PD, route: 'direct' };
+    });
+    const { result } = renderHook(() => usePlexAuth());
+    await run(50);
+    await run(10_500);
+    expect(h.better).toHaveBeenCalledTimes(1);
+    // The film keeps the relay (Rule 1: no setConn mid-title)…
+    expect(result.current.conn?.base).toBe(RELAY);
+    // …but what was found is not thrown away: the next launch starts on it.
+    expect(saved()).toMatchObject({ base: PD, route: 'direct', clientIdentifier: 'srv-relay-mid' });
+
+    act(() => { setPlexPlaybackActive(false); });
+    await run(2500);
+    expect(result.current.conn?.base).toBe(RELAY);
+    await run(1000);
+    expect(result.current.conn).toMatchObject({ base: PD, route: 'direct' });
+    expect(h.better).toHaveBeenCalledTimes(1);
+    expect(h.rekey).toHaveBeenCalledWith(RELAY, PD);
+  });
+});
+
+describe('usePlexAuth: the saved server is checked and found again', () => {
+  const other: PlexServer = { ...server('srv-other'), name: 'Owned elsewhere', owned: true };
+
+  it('does not take an /identity answer that names no server: it finds the server again', async () => {
+    cache('srv-empty-id', CUSTOM, 'direct');
+    // A captive portal answering {} at the saved address.
+    h.identity.mockResolvedValue(null);
+    h.pick.mockResolvedValue({ base: PD, route: 'direct' });
+    const { result } = renderHook(() => usePlexAuth());
+    await run(50);
+    expect(h.pick).toHaveBeenCalled();
+    expect(result.current.conn).toMatchObject({ base: PD, clientIdentifier: 'srv-empty-id' });
+  });
+
+  it('probes the saved server first when it finds the server again, ahead of owned ones', async () => {
+    cache('srv-saved', CUSTOM, 'direct');
+    h.identity.mockRejectedValue(new Error('timeout'));
+    h.servers.mockResolvedValue([other, server('srv-saved')]);
+    // Both answer: the saved one wins, though another server is owned.
+    h.pick.mockImplementation(async (s: PlexServer) => ({ base: s.clientIdentifier === 'srv-saved' ? PD : 'https://other.example.com', route: 'direct' }));
+    const { result } = renderHook(() => usePlexAuth());
+    await run(50);
+    expect(h.pick.mock.calls[0][0].clientIdentifier).toBe('srv-saved');
+    expect(result.current.conn).toMatchObject({ base: PD, clientIdentifier: 'srv-saved' });
+  });
+
+  it('rediscoveryOrder: saved, then owned, then shared, plex.tv\'s order within each', () => {
+    const a = { ...server('a'), owned: false };
+    const b = { ...server('b'), owned: true };
+    const c = { ...server('c'), owned: false };
+    const d = { ...server('d'), owned: true };
+    expect(rediscoveryOrder([a, b, c, d], 'c').map((s) => s.clientIdentifier)).toEqual(['c', 'b', 'd', 'a']);
+    expect(rediscoveryOrder([a, b, c, d]).map((s) => s.clientIdentifier)).toEqual(['b', 'd', 'a', 'c']);
+  });
+
+  it('keeps the address in use for the stats panel and the end-of-title stats', async () => {
+    cache('srv-route', PD, 'direct');
+    renderHook(() => usePlexAuth());
+    await run(50);
+    expect(getPlexCurrentRoute()).toEqual({ base: PD, route: 'direct' });
   });
 });
 

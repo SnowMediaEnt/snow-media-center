@@ -24,6 +24,7 @@
       "noSpace": "Nicht genug freier Speicher für etwa {{length}} ({{usable}} nutzbar).",
       "rewindPaused": "Zurückspulen pausiert während der Aufnahme…",
       "updateRunning": "Eine Aufnahme läuft. Ein Update jetzt beendet sie.",
+      "sharingInternet": "Eine Aufnahme nutzt einen Teil deiner Internetverbindung.",
       "updateSoon": "Eine Aufnahme startet bald. Ein Update jetzt beendet sie."
     },
     "dialog": {

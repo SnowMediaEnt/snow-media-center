@@ -28,6 +28,10 @@ interface UpdateInfo extends SmcUpdateInfo {
 
 const AUTO_UPDATE_KEY = 'smc-auto-update-enabled';
 const SNOOZE_KEY = 'smc-auto-update-snooze-version';
+// The silent download starts only once the box has sat on Home this long with
+// no key pressed and no player open (see waitForHomeIdle).
+const HOME_IDLE_MS = 60_000;
+const IDLE_POLL_MS = 5_000;
 
 const isVersionNewer = (a: string, b: string): boolean => {
   const ap = a.split('.').map(Number);
@@ -56,7 +60,14 @@ const isVersionNewer = (a: string, b: string): boolean => {
  *  for home — a 40 MB download used to begin four seconds into a Plex
  *  session, under the rails. A download that finishes while paused holds its
  *  prompt until home is back: the dialog owns every key, so it must not open
- *  over the Player, a game or the profile screens. */
+ *  over the Player, a game or the profile screens.
+ *
+ *  The download itself starts only after the box has been idle on Home (no
+ *  key for HOME_IDLE_MS, no player open: `paused` is the app's "off Home"
+ *  signal, and `streaming-active` says a player is streaming). Once started
+ *  the native download can't be paused, so it must not begin while the
+ *  viewer is on their way into a film: a viewer who has left the box alone
+ *  on Home for a minute is not. An APK already in the cache needs no wait. */
 const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
   const { t } = useTranslation();
   const { version: currentVersion, versionCode: currentVersionCode, isLoading } = useVersion();
@@ -74,7 +85,15 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
   const preparingRef = useRef(false);
 
   const pausedRef = useRef(paused);
-  useEffect(() => { pausedRef.current = paused; }, [paused]);
+  // When the box last showed signs of a viewer on Home: a key, or Home
+  // coming back. The silent download waits for HOME_IDLE_MS past it.
+  const activeAtRef = useRef(Date.now());
+  useEffect(() => { pausedRef.current = paused; activeAtRef.current = Date.now(); }, [paused]);
+  useEffect(() => {
+    const onKey = () => { activeAtRef.current = Date.now(); };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
   const skippedRef = useRef(false);
   // A prepared update whose prompt is waiting for home.
   const heldRef = useRef(false);
@@ -106,6 +125,28 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
 
     let cancelled = false;
 
+    // A player streaming (any: Plex, Live TV, a film) or the viewer off Home.
+    const playerOpen = () => pausedRef.current || document.documentElement.classList.contains('streaming-active');
+    // Resolves once the box has been idle on Home for HOME_IDLE_MS with no
+    // player open; rejects if this check is torn down first.
+    const waitForHomeIdle = (version: string) => new Promise<void>((resolve, reject) => {
+      const step = () => {
+        if (cancelled) { reject(new Error('update check closed')); return; }
+        const idleFor = playerOpen() ? -1 : Date.now() - activeAtRef.current;
+        if (idleFor >= HOME_IDLE_MS) {
+          // Subtle, non-blocking hint. Don't steal focus.
+          toast({
+            title: i18n.t('updater.prompt.downloadingTitle'),
+            description: i18n.t('updater.prompt.downloadingDesc', { version }),
+          });
+          resolve();
+          return;
+        }
+        setTimeout(step, idleFor < 0 ? IDLE_POLL_MS : Math.max(1000, Math.min(IDLE_POLL_MS, HOME_IDLE_MS - idleFor)));
+      };
+      step();
+    });
+
     const prepareAndPrompt = async (data: UpdateInfo) => {
       if (preparingRef.current) return;
       const key = data.versionCode ?? data.version;
@@ -116,12 +157,7 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
       }
       preparingRef.current = true;
       try {
-        // Subtle, non-blocking hint. Don't steal focus.
-        toast({
-          title: i18n.t('updater.prompt.downloadingTitle'),
-          description: i18n.t('updater.prompt.downloadingDesc', { version: data.version }),
-        });
-        const result = await prepareSmcUpdate(data);
+        const result = await prepareSmcUpdate(data, undefined, { beforeDownload: () => waitForHomeIdle(data.version) });
         if (cancelled) return;
         handledRef.current = key;
         setPrepared(result);

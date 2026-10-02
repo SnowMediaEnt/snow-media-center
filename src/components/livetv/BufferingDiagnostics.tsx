@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { formatMbps, useBufferDiagnostics, type ClassifyResult, type DiagSnapshot, type Verdict } from '@/lib/bufferDiagnostics';
+import { SnowRecorder, RECORDINGS_CHANGED_EVENT, hasRecorder } from '@/capacitor/SnowRecorder';
 
 /**
  * Small corner card shown during a playback stall. Tells the viewer whether
@@ -22,6 +23,9 @@ import { formatMbps, useBufferDiagnostics, type ClassifyResult, type DiagSnapsho
  *   line); a player whose verdict weighs it against better evidence (Plex)
  *   labels it as one, and blanks it once that verdict says the connection
  *   dropped (the number is from before). Live TV's card is left as it was.
+ * - A recording running on the box (it keeps capturing a channel during
+ *   Plex, by design) shares the same internet: every card says so. Asked
+ *   only while the card shows, and again when a recording starts or stops.
  */
 
 interface BufferingDiagnosticsProps {
@@ -63,6 +67,24 @@ const LINGER_MS = 2500;
 const speed = (kbps: number | null | undefined, failed = false): string =>
   kbps != null ? formatMbps(kbps) : failed ? '—' : i18n.t('plex.buffering.checking');
 
+/** A recording running on this box while `on` (the card is showing). */
+function useRecordingRunning(on: boolean): boolean {
+  const [running, setRunning] = useState(false);
+  useEffect(() => {
+    if (!on || !hasRecorder()) return;
+    let alive = true;
+    const read = () => {
+      SnowRecorder.active()
+        .then((r) => { if (alive) setRunning((r?.jobs?.length ?? 0) > 0); })
+        .catch(() => { /* older app: nothing to say */ });
+    };
+    read();
+    window.addEventListener(RECORDINGS_CHANGED_EVENT, read);
+    return () => { alive = false; window.removeEventListener(RECORDINGS_CHANGED_EVENT, read); };
+  }, [on]);
+  return on && running;
+}
+
 const VERDICT_COLOR: Record<Verdict, string> = {
   throttling: 'text-brand-gold',
   server: 'text-amber-300',
@@ -81,6 +103,7 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
   const stallStartRef = useRef(0);
   const phaseRef = useRef(phase);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+  const recording = useRecordingRunning(phase === 'active');
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -161,6 +184,9 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
           )}
           {auto && (
             <p className="mt-1 text-xs text-brand-ice/80 leading-snug">{auto}</p>
+          )}
+          {recording && (
+            <p className="mt-1 text-xs text-brand-ice/80 leading-snug">{t('recordings.note.sharingInternet')}</p>
           )}
           {footnote && (
             <p className="mt-1 text-xs text-brand-ice/60 leading-snug">{footnote}</p>

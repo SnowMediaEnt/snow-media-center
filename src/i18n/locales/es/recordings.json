@@ -26,6 +26,7 @@
       "noSpace": "No hay suficiente espacio libre para unos {{length}} ({{usable}} utilizables).",
       "rewindPaused": "Retroceso en pausa durante la grabación…",
       "updateRunning": "Hay una grabación en curso. Actualizar ahora la detendrá.",
+      "sharingInternet": "Una grabación está usando parte de tu internet.",
       "updateSoon": "Hay una grabación programada que empezará pronto. Actualizar ahora la detendrá."
     },
     "dialog": {

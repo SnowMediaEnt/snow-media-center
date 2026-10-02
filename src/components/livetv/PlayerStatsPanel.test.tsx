@@ -26,6 +26,7 @@ vi.mock('@/hooks/use-toast', () => ({ toast: () => {} }));
 
 import PlayerStatsPanel from './PlayerStatsPanel';
 import PlexPlayerOverlay from './PlexPlayerOverlay';
+import { setPlexCurrentRoute } from '@/lib/plex';
 
 // The owner's film in the Plex app, as SMC's player would report it.
 const STATS: PlayerStats = {
@@ -263,5 +264,39 @@ describe('Help → Playback stats in the Plex player', () => {
     await wait(0);
     expect(screen.getByLabelText('Volume').getAttribute('data-focused')).toBe('true');
     expect(panel()?.querySelector('[data-focused]')).toBeNull();
+  });
+});
+
+// "Which address does the Plex app use?" could not be answered from SMC: the
+// Route line now says which host and port SMC's stream goes to, and over
+// which IP family, to hold up against the server dashboard.
+describe('the Route line', () => {
+  afterEach(() => { setPlexCurrentRoute(null); });
+
+  it('adds the server\'s host:port and IP family for the address Plex is connected through', async () => {
+    setPlexCurrentRoute({ base: 'https://203-0-113-5.abc123.plex.direct:32400', route: 'direct' });
+    render(<PlayerStatsPanel session="Direct play of the original file" routeLabel="Direct to server · plex.direct · https" />);
+    await wait(0);
+    expect(panel()?.textContent).toContain('Route Direct to server · plex.direct · https · 203.0.113.5:32400 · IPv4');
+  });
+
+  it('says IPv6 once, at the end', async () => {
+    setPlexCurrentRoute({ base: 'http://[2001:db8::5]:32400', route: 'direct' });
+    render(<PlayerStatsPanel session="x" routeLabel="Direct to server · IP · http (unencrypted) · IPv6" />);
+    await wait(0);
+    const text = panel()?.textContent ?? '';
+    expect(text).toContain('Route Direct to server · IP · http (unencrypted) · [2001:db8::5]:32400 · IPv6');
+    expect(text.match(/IPv6/g)).toHaveLength(1);
+  });
+
+  it('takes an endpoint passed in, and has no Route line for Live TV', async () => {
+    render(<PlayerStatsPanel session="x" routeLabel="Home network · plex.direct · https" routeEndpoint="192.168.1.20:32400 · IPv4" />);
+    await wait(0);
+    expect(panel()?.textContent).toContain('Route Home network · plex.direct · https · 192.168.1.20:32400 · IPv4');
+    document.body.innerHTML = '';
+    setPlexCurrentRoute({ base: 'https://203-0-113-5.abc123.plex.direct:32400', route: 'direct' });
+    render(<PlayerStatsPanel />);
+    await wait(0);
+    expect(panel()?.textContent).not.toContain('203.0.113.5');
   });
 });

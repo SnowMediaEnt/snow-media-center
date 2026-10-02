@@ -238,6 +238,28 @@ const PlexLibraryRows = memo(({
   // earlier answer lands last and puts back the list from before.
   const rowGenRef = useRef<Record<string, number>>({});
 
+  // Continue Watching from what this box knows, painted and cached at once:
+  // the viewer's own progress, with the server's half from last time folded
+  // in (asking again must not blank those titles until the new answer lands
+  // — nor the whole row, when they are all it has, which would also throw
+  // the highlight off it). No request. Returns the own list and where the
+  // server's half is kept (null when the row has none).
+  const paintContinue = useCallback((spec: LibraryRowSpec, path: string, epoch: number) => {
+    const own = continueWatching(30, libKey);
+    // On the viewer's own Plex account the server's is theirs too. A TV
+    // library also gets the next episode of each of its shows whose latest
+    // episode was finished, as Home does: without it a show watched to the
+    // end of an episode left this row empty.
+    const extraPath = serverResume ? `${path}#server` : sectionType === 'show' ? `${path}#upnext` : null;
+    const before = extraPath ? getCachedHubStale(base, extraPath) : null;
+    // An emptied Continue Watching is cached as empty, or the old list would
+    // be painted from the cache on every later visit.
+    const items = before && before.length ? mergeContinue(own, before) : own;
+    setLoaded((prev) => ({ ...prev, [spec.id]: items }));
+    setCachedHub(base, path, items, epoch);
+    return { own, extraPath };
+  }, [base, libKey, serverResume, sectionType]);
+
   const fetchRow = useCallback(async (spec: LibraryRowSpec) => {
     if (fetchedRef.current.has(spec.id)) return;
     fetchedRef.current.add(spec.id);
@@ -262,30 +284,12 @@ const PlexLibraryRows = memo(({
       // Deck belongs to the Plex account every box shares. The demo keeps the
       // server's canned one.
       if (spec.kind === 'onDeck' && !isDemo()) {
-        // The row, painted and cached as it stands. An emptied Continue
-        // Watching is cached as empty, or the old list would be painted from
-        // the cache on every later visit.
-        const put = (items: PlexItem[]) => {
-          setLoaded((prev) => ({ ...prev, [spec.id]: items }));
-          setCachedHub(base, path, items, epoch);
-        };
         // The viewer's own progress is read from this box and goes on screen
         // at once. It used to wait for the server's half as well, which is a
         // request per show on a 20 s timeout in a TV library: on a slow box
         // the row stayed missing for as long as that took, and for good when
         // a request never came back.
-        const own = continueWatching(30, libKey);
-        // On the viewer's own Plex account the server's is theirs too. A TV
-        // library also gets the next episode of each of its shows whose
-        // latest episode was finished, as Home does: without it a show
-        // watched to the end of an episode left this row empty.
-        const extraPath = serverResume ? `${path}#server` : sectionType === 'show' ? `${path}#upnext` : null;
-        // The server's half from last time is kept beside the row and folded
-        // in meanwhile, so asking again does not blank those titles until the
-        // new answer lands — nor the whole row, when they are all it has,
-        // which would also throw the highlight off it.
-        const before = extraPath ? getCachedHubStale(base, extraPath) : null;
-        put(before && before.length ? mergeContinue(own, before) : own);
+        const { own, extraPath } = paintContinue(spec, path, epoch);
         setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
         if (!extraPath) return;
         const extra = serverResume
@@ -294,7 +298,9 @@ const PlexLibraryRows = memo(({
             .filter((it) => String(it.librarySectionID ?? '') === String(libKey));
         if (rowGenRef.current[spec.id] !== gen) return; // a newer request owns the row
         setCachedHub(base, extraPath, extra, epoch);
-        put(mergeContinue(own, extra));
+        const items = mergeContinue(own, extra);
+        setLoaded((prev) => ({ ...prev, [spec.id]: items }));
+        setCachedHub(base, path, items, epoch);
         return;
       }
       const items = spec.kind === 'onDeck'
@@ -315,7 +321,7 @@ const PlexLibraryRows = memo(({
     } finally {
       setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
     }
-  }, [base, token, libKey, serverResume, sectionType]);
+  }, [base, token, libKey, serverResume, paintContinue]);
 
   // Wave 1 — prefetched on isCurrent, NOT isActive (see the header). Behind
   // the same 400ms dwell the old grid used: the panel mounts as soon as its
@@ -347,18 +353,22 @@ const PlexLibraryRows = memo(({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchNonce]);
   // The final save as the player closes lands a moment after the nonce, and
-  // an account's progress can arrive from another box: follow both.
+  // an account's progress can arrive from another box: follow both. From
+  // what the box knows only: the player closing (the nonce above) is what
+  // asks the server again. This event also comes mid-film, when a title
+  // joins or leaves Continue Watching, and a request then (the server's On
+  // Deck, or a show's episodes) would compete with the film.
   useEffect(() => {
     if (isDemo()) return;
     const refresh = () => {
       const spec = specs.find((x) => x.kind === 'onDeck');
-      if (!spec) return;
-      fetchedRef.current.delete(spec.id);
-      void fetchRow(spec);
+      if (!spec || !fetchedRef.current.has(spec.id)) return;
+      paintContinue(spec, rowCachePath(libKey, spec), getHubEpoch());
+      setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
     };
     window.addEventListener(PLEX_PROGRESS_EVENT, refresh);
     return () => window.removeEventListener(PLEX_PROGRESS_EVENT, refresh);
-  }, [specs, fetchRow]);
+  }, [specs, libKey, paintContinue]);
 
   // Wave 2 once the user reaches the last loaded row — never at tab-enter.
   useEffect(() => {

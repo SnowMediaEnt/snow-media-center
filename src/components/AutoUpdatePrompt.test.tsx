@@ -146,3 +146,60 @@ describe('AutoUpdatePrompt with a recording at stake', () => {
     expect(installPreparedUpdate).not.toHaveBeenCalled();
   });
 });
+
+// The ~40 MB APK download can't be paused once the native side has it, and
+// it used to start four seconds into whatever the viewer did next. Now it
+// starts only once the box has sat on Home, untouched, for a minute with no
+// player open; a cached APK needs no wait.
+describe('AutoUpdatePrompt: the silent download waits for an idle Home', () => {
+  let started = 0;
+  beforeEach(() => {
+    started = 0;
+    prepareSmcUpdate.mockImplementation(((_info: unknown, _p: unknown, opts?: { beforeDownload?: () => Promise<void> }) => (async () => {
+      await opts?.beforeDownload?.();
+      started += 1;
+      return { filePath: '/cache/apk/1.7.9.apk', apkVersionName: '1.7.9', apkVersionCode: 179, apkPackageName: 'com.snowmedia.center' };
+    })()) as unknown as () => Promise<never>);
+  });
+  afterEach(() => { document.documentElement.classList.remove('streaming-active'); });
+
+  it('starts only after a minute on Home with no key pressed', async () => {
+    render(<AutoUpdatePrompt paused={false} />);
+    await tick(5000);
+    expect(prepareSmcUpdate).toHaveBeenCalledTimes(1);
+    expect(started).toBe(0);
+    // The viewer is browsing Home: each key restarts the minute.
+    await tick(40_000);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    await tick(40_000);
+    expect(started).toBe(0);
+    await tick(25_000);
+    expect(started).toBe(1);
+    expect(dialog()).not.toBeNull();
+  });
+
+  it('never while a player is open: off Home, or a stream playing', async () => {
+    const r = render(<AutoUpdatePrompt paused={false} />);
+    await tick(5000);
+    // Into a film before the minute is up.
+    r.rerender(<AutoUpdatePrompt paused />);
+    document.documentElement.classList.add('streaming-active');
+    await tick(10 * 60_000);
+    expect(started).toBe(0);
+    // Back on Home: the minute starts from there.
+    document.documentElement.classList.remove('streaming-active');
+    r.rerender(<AutoUpdatePrompt paused={false} />);
+    await tick(30_000);
+    expect(started).toBe(0);
+    await tick(35_000);
+    expect(started).toBe(1);
+  });
+
+  it('a stream playing on Home (a preview) holds it too', async () => {
+    render(<AutoUpdatePrompt paused={false} />);
+    await tick(5000);
+    document.documentElement.classList.add('streaming-active');
+    await tick(5 * 60_000);
+    expect(started).toBe(0);
+  });
+});

@@ -5,8 +5,9 @@ import {
   getPlexServers, pickPlexConnectionDetailed, loadPlexServer, savePlexServer,
   getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches, rekeyPlexCaches, plexRouteOf,
   isPlexPlaybackActive, onPlexPlaybackActiveChange, pickBetterPlexConnection, plexRouteImprovable,
-  PLEX_PROBE_TIMEOUT_MS, type PlexRoute,
+  setPlexCurrentRoute, PLEX_PROBE_TIMEOUT_MS, type PlexRoute, type PlexServer,
 } from '@/lib/plex';
+import { watchPlexTitleStats } from '@/lib/plexTitleStats';
 import { clearPlexImageCache, rekeyPlexImageCache } from '@/components/livetv/PlexImage';
 import { runAfter } from '@/utils/idle';
 import { isDemo } from '@/lib/demoMode';
@@ -74,6 +75,13 @@ const RELAY_OPEN_DELAY_MS = 10_000;
 // And after a title ends: the screen it returns to is already loaded.
 const RELAY_SETTLE_MS = 3000;
 
+/** Every server once, the one this box was saved on first, then owned ones,
+ *  then shared ones (plex.tv's order within each). */
+export function rediscoveryOrder(servers: PlexServer[], savedId?: string | null): PlexServer[] {
+  const rank = (s: PlexServer) => (savedId && s.clientIdentifier === savedId ? 0 : s.owned ? 1 : 2);
+  return servers.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i).map((x) => x.s);
+}
+
 export function usePlexAuth() {
   const demo = isDemo();
 
@@ -121,6 +129,14 @@ export function usePlexAuth() {
 
   useEffect(() => { statusRef.current = status; }, [status]);
 
+  // The address Plex goes through now, for the stats panel's Route line and
+  // the end-of-title stats (which start watching with the first Plex open).
+  useEffect(() => {
+    if (demo) return;
+    setPlexCurrentRoute(conn ? { base: conn.base, route: conn.route } : null);
+  }, [conn, demo]);
+  useEffect(() => { if (!demo) watchPlexTitleStats(); }, [demo]);
+
   const discover = useCallback(async (accountToken: string): Promise<DiscoverOutcome> => {
     if (discoveringRef.current) return 'failed';
     discoveringRef.current = true;
@@ -136,8 +152,10 @@ export function usePlexAuth() {
           // which is the only thing that can undo a bad base already written
           // to device storage. This is a one-shot check at connect: no loop,
           // no extra state, and nothing fires while the user is watching.
+          // An answer that names no server (an empty or {} body from a
+          // captive portal or a proxy) proves nothing either.
           const machineId = await getPlexIdentity(cached.base, cached.token);
-          if (cached.clientIdentifier && machineId && machineId !== cached.clientIdentifier) {
+          if (!machineId || (cached.clientIdentifier && machineId !== cached.clientIdentifier)) {
             throw new Error('cached Plex base points at a different server');
           }
           if (connBaseRef.current && connBaseRef.current !== cached.base) bumpPlexImageEpoch();
@@ -260,8 +278,11 @@ export function usePlexAuth() {
       // are probed at once and the first in that order that answered wins:
       // one at a time, each dead registration ahead of the live server cost
       // its whole probe budget first. Each probe takes a direct path over the
-      // relay whenever one answers within the budget.
-      const ordered = [...servers].sort((a, b) => Number(b.owned) - Number(a.owned));
+      // relay whenever one answers within the budget. The server this box was
+      // on goes first: a saved address that stopped answering (a new IP, a
+      // slow check) must not hand the box to another server on the account
+      // that happened to answer too.
+      const ordered = rediscoveryOrder(servers, cached?.clientIdentifier);
       const picks = ordered.map((s) => pickPlexConnectionDetailed(s, PLEX_PROBE_TIMEOUT_MS).catch(() => null));
       for (let i = 0; i < ordered.length; i++) {
         const s = ordered[i];
@@ -487,6 +508,18 @@ export function usePlexAuth() {
     const relayKey = conn.clientIdentifier || conn.base;
     let delay = _relayDelay.get(relayKey) ?? RELAY_FIRST_DELAY_MS;
     let timer: number | null = null;
+    // A direct path found while a title played: saved at once (so a restart
+    // uses it too), switched to as soon as the title ends.
+    let found: PlexConn | null = null;
+    // Move the screen onto `upgraded` (no title playing).
+    const switchTo = (upgraded: PlexConn) => {
+      bumpPlexImageEpoch();
+      rekeyPlexCaches(conn.base, upgraded.base);
+      rekeyPlexImageCache(conn.base, upgraded.base);
+      _relayDelay.delete(relayKey); // escaped: a later relay stretch starts fresh
+      connBaseRef.current = upgraded.base;
+      setConn(upgraded);
+    };
     // Returns false when nothing was tried, so a skipped tick does not count
     // toward the backoff below.
     const attempt = async (): Promise<boolean> => {
@@ -511,22 +544,19 @@ export function usePlexAuth() {
         // relay, https ones first.
         const better = await pickBetterPlexConnection(s, { base: conn.base, route: 'relay' }, PLEX_PROBE_TIMEOUT_MS);
         if (!better || stopped || sessionRef.current !== session) return true;
-        // A title started while the probe ran. Moving the base under it would
-        // need its stream URL rebuilt; the playback-end hook below brings the
-        // escape straight back once it ends.
-        if (isPlexPlaybackActive()) return true;
         const upgraded: PlexConn = { ...conn, base: better.base, route: better.route, token: s.accessToken || conn.token };
         // Re-check BEFORE the write, not just after it: the hook may have torn
         // down, or the user may have signed out, while the probe was running.
         if (stopped || sessionRef.current !== session) return true;
+        // Saved even when a title started while the probe ran: what was found
+        // must not be thrown away (the next launch starts on it).
         await savePlexServer(upgraded);
         if (stopped || sessionRef.current !== session) return true;
-        bumpPlexImageEpoch();
-        rekeyPlexCaches(conn.base, upgraded.base);
-        rekeyPlexImageCache(conn.base, upgraded.base);
-        _relayDelay.delete(relayKey); // escaped: a later relay stretch starts fresh
-        connBaseRef.current = upgraded.base;
-        setConn(upgraded);
+        // That title keeps the relay: moving the base under it would need its
+        // stream URL rebuilt, and setConn mid-title is Rule 1's outage. The
+        // playback-end hook below switches as soon as it ends.
+        if (isPlexPlaybackActive()) { found = upgraded; return true; }
+        switchTo(upgraded);
       } catch { /* still on the relay — try again next tick */ } finally {
         _probing.delete(relayKey);
         _lastProbeAt.set(relayKey, Date.now());
@@ -555,8 +585,24 @@ export function usePlexAuth() {
     // port forwarding, or come home to the server's own network, since.
     schedule(soon(RELAY_OPEN_DELAY_MS));
     // A skipped tick while a title played would otherwise wait out the whole
-    // backoff step once it ended.
-    const off = onPlexPlaybackActiveChange((active) => { if (!active && !stopped) schedule(soon(RELAY_SETTLE_MS)); });
+    // backoff step once it ended. A path found during the title is taken as
+    // the title ends, with no new probe (the screen it returns to is loaded).
+    const off = onPlexPlaybackActiveChange((active) => {
+      if (active || stopped) return;
+      if (found) {
+        const upgraded = found;
+        found = null;
+        if (timer) window.clearTimeout(timer);
+        timer = window.setTimeout(() => {
+          timer = null;
+          if (stopped || sessionRef.current !== session) return;
+          if (isPlexPlaybackActive()) { found = upgraded; return; }
+          switchTo(upgraded);
+        }, RELAY_SETTLE_MS);
+        return;
+      }
+      schedule(soon(RELAY_SETTLE_MS));
+    });
     return () => { stopped = true; off(); if (timer) window.clearTimeout(timer); };
   }, [conn, accountToken, demo]);
 

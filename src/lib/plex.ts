@@ -5,12 +5,16 @@
 
 import i18n, { getAppLanguage } from '@/i18n';
 import { kidsAllowsLibrary, kidsAllowsPlex, kidsLevel, kidsRatingQuery } from '@/lib/kidsFilter';
+import { parseDeviceInfo } from '@/lib/appInfo';
+import { loadVersion } from '@/hooks/useVersion';
 
 const PLEX_TOKEN_KEY = 'snow-plex-token-v1';
 const PLEX_CLIENT_ID_KEY = 'snow-plex-client-id-v1';
 const PLEX_SERVER_KEY = 'snow-plex-server-v1';
 
 export const PLEX_PRODUCT = 'Snow Media Center';
+/** Stand-ins, used only when the app's own version or the box's model can't
+ *  be read (the web build, tests). */
 export const PLEX_VERSION = '1.0';
 export const PLEX_DEVICE = 'Android TV';
 
@@ -29,14 +33,92 @@ export function getPlexClientId(): string {
   }
 }
 
+/** Who is asking, as the server's dashboard and logs show it. */
+export interface PlexClientIdentity {
+  product: string;
+  /** The installed app's versionName ("1.8.1"). */
+  version: string;
+  platform: string;
+  /** The box's model ("AFTMM", "onn. 4K Streaming Box"). */
+  device: string;
+  deviceName: string;
+}
+
+// Fixed at the first call, so every request of a run (a conversion's decision
+// and its start above all) names the client the same way. On the device the
+// first Plex request waits (briefly, once) for the installed version first:
+// see primePlexClientIdentity.
+let _identity: PlexClientIdentity | null = null;
+let _installedVersion: string | null = null;
+let _identityPrimed: Promise<void> | null = null;
+const IDENTITY_WAIT_MS = 1500;
+
+/** The build's own version (package.json, which each release moves together
+ *  with versionName), when the bundler stamped it. */
+const buildVersion = (): string | null => {
+  try {
+    const v = (import.meta as { env?: Record<string, unknown> }).env?.VITE_APP_VERSION;
+    return typeof v === 'string' && v.trim() ? v.trim().slice(0, 32) : null;
+  } catch { return null; }
+};
+
+/** The box's model from the WebView's User-Agent (it carries Build.MODEL).
+ *  A reduced agent ("Android 10; K") says nothing, so that is no model. */
+const boxModel = (): string | null => {
+  try {
+    const m = parseDeviceInfo().model;
+    return m && m.length > 1 ? m.slice(0, 64) : null;
+  } catch { return null; }
+};
+
+/**
+ * Who SMC says it is on every Plex request and stream URL: the real app
+ * version and the box's model, so the server owner can tell SMC builds and
+ * boxes apart. Product and platform never change: the server picks its
+ * conversion profile by them.
+ */
+export function plexClientIdentity(): PlexClientIdentity {
+  if (!_identity) {
+    _identity = {
+      product: PLEX_PRODUCT,
+      version: _installedVersion ?? buildVersion() ?? PLEX_VERSION,
+      platform: 'Android',
+      device: boxModel() ?? PLEX_DEVICE,
+      deviceName: PLEX_PRODUCT,
+    };
+  }
+  return _identity;
+}
+
+/** On the device, reads the installed versionName once (the shared lookup
+ *  the About screen uses) before the identity is fixed. Never throws; never
+ *  waits more than IDENTITY_WAIT_MS. */
+function primePlexClientIdentity(): Promise<void> {
+  if (_identity) return Promise.resolve();
+  if (!_identityPrimed) {
+    _identityPrimed = (async () => {
+      try {
+        const v = await Promise.race([
+          loadVersion(),
+          new Promise<null>((resolve) => { setTimeout(() => resolve(null), IDENTITY_WAIT_MS); }),
+        ]);
+        const name = v?.versionCode ? String(v.version || '').trim() : '';
+        if (name && !_identity) _installedVersion = name.slice(0, 32);
+      } catch { /* the build's version stands */ }
+    })();
+  }
+  return _identityPrimed;
+}
+
 const plexHeaders = (token?: string): Record<string, string> => {
+  const id = plexClientIdentity();
   const h: Record<string, string> = {
-    'X-Plex-Product': PLEX_PRODUCT,
-    'X-Plex-Version': PLEX_VERSION,
+    'X-Plex-Product': id.product,
+    'X-Plex-Version': id.version,
     'X-Plex-Client-Identifier': getPlexClientId(),
-    'X-Plex-Device': PLEX_DEVICE,
-    'X-Plex-Device-Name': PLEX_PRODUCT,
-    'X-Plex-Platform': 'Android',
+    'X-Plex-Device': id.device,
+    'X-Plex-Device-Name': id.deviceName,
+    'X-Plex-Platform': id.platform,
     'Accept': 'application/json',
     // The server names its own rows ("Recently Added") in the app's language. API calls only:
     // stream URLs take their client parameters from PLEX_CLIENT_PARAMS and never carry this.
@@ -65,7 +147,6 @@ function plexReq<T>(method: 'GET' | 'POST', url: string, token?: string, timeout
 }
 
 async function plexReqRaw<T>(method: 'GET' | 'POST', url: string, token?: string, timeoutMs = 20000): Promise<T> {
-  const headers = plexHeaders(token);
   let native = false;
   let CapacitorHttpRef: typeof import('@capacitor/core').CapacitorHttp | null = null;
   try {
@@ -73,6 +154,8 @@ async function plexReqRaw<T>(method: 'GET' | 'POST', url: string, token?: string
     native = !!mod.Capacitor.isNativePlatform?.();
     CapacitorHttpRef = mod.CapacitorHttp;
   } catch { /* no @capacitor/core on web */ }
+  if (native) await primePlexClientIdentity();
+  const headers = plexHeaders(token);
   if (native && CapacitorHttpRef) {
     // Native path: any error propagates — do NOT fall through to WebView fetch.
     //
@@ -180,6 +263,12 @@ export interface PlexConnection {
 }
 export interface PlexServer {
   name: string; clientIdentifier: string; accessToken?: string; owned: boolean; connections: PlexConnection[];
+  /** plex.tv: this box asked from the same public IP the server has, i.e. it
+   *  is on the server's own network. False means its private addresses are
+   *  someone else's network; left out when plex.tv did not say. */
+  publicAddressMatches?: boolean;
+  /** The server accepts only secure connections: plain http is not tried. */
+  httpsRequired?: boolean;
 }
 
 /** All Plex Media Servers the account can reach. Each carries its OWN accessToken.
@@ -209,6 +298,8 @@ async function fetchPlexServers(token: string): Promise<PlexServer[]> {
       clientIdentifier: String(d.clientIdentifier || ''),
       accessToken: (d.accessToken as string) || token,
       owned: !!d.owned,
+      ...(typeof d.publicAddressMatches === 'boolean' ? { publicAddressMatches: d.publicAddressMatches } : {}),
+      ...(d.httpsRequired === true ? { httpsRequired: true } : {}),
       connections: (((d.connections as Array<Record<string, unknown>>) || [])).map((c) => ({
         uri: String(c.uri || ''),
         local: !!c.local,
@@ -223,10 +314,12 @@ async function fetchPlexServers(token: string): Promise<PlexServer[]> {
 
 /** Reject docker-internal / link-local / CGNAT IPs that a PMS may advertise
  *  but which are unreachable from a Fire TV on a normal LAN. Waiting the full
- *  SocketTimeout on these drowns the https candidate. */
+ *  SocketTimeout on these drowns the https candidate. Only Docker's default
+ *  bridge (172.17/16) counts as docker: the rest of 172.16/12 is a private
+ *  range real home and office networks use. */
 function isDeadIp(addr: string): boolean {
   if (!addr) return false;
-  if (/^172\.(1[6-9]|2[0-9]|3[01])\./.test(addr)) return true;   // docker-internal
+  if (/^172\.17\./.test(addr)) return true;                       // docker's default bridge
   if (/^169\.254\./.test(addr)) return true;                     // link-local
   if (/^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./.test(addr)) return true; // CGNAT
   // IPv6 link-local (fe80::/10) only works with the network interface named
@@ -242,6 +335,13 @@ function isIpv6Literal(addr: string): boolean {
 }
 
 const unbracket = (addr: string): string => addr.replace(/^\[/, '').replace(/\]$/, '');
+
+/** A private IPv4 address (RFC 1918): 10/8, 172.16/12, 192.168/16. */
+function isRfc1918(ip: string): boolean {
+  return /^10\./.test(ip) || /^172\.(1[6-9]|2[0-9]|3[01])\./.test(ip) || /^192\.168\./.test(ip);
+}
+/** A unique-local IPv6 address (fc00::/7), IPv6's private range. */
+const isUla = (ip: string): boolean => /^f[cd][0-9a-f]{2}:/i.test(ip);
 
 /** host:port for a URL. An IPv6 literal has to sit in brackets:
  *  http://2001:db8::5:32400 is not a URL, http://[2001:db8::5]:32400 is. */
@@ -295,20 +395,32 @@ function plexBaseInfo(base: string): PlexBaseInfo {
 export type PlexRoute = 'lan' | 'direct' | 'relay';
 
 /** Which route a listed connection is. plex.tv marks an address local when the
- *  server has it on one of its own network interfaces. Over IPv4 that is
- *  normally a private address, reachable only from the server's own network.
- *  Over IPv6 it is usually the server's global address, which answers from
- *  anywhere: a hosted server has no other. So a local IPv6 path counts as the
- *  home network only when it is unique-local (fc00::/7); a link-local one
- *  (fe80::) is never probed at all (see isDeadIp). */
-function plexConnRoute(c: PlexConnection): PlexRoute {
+ *  server has it on one of its own network interfaces. That is the home
+ *  network only when the address is private: RFC 1918 over IPv4, unique-local
+ *  (fc00::/7) over IPv6. A hosted server, or one with a public IP on its
+ *  interface, lists its PUBLIC address as local, and that answers from
+ *  anywhere like any remote path. A link-local one (fe80::) is never probed
+ *  at all (see isDeadIp). And when plex.tv says this box is not on the
+ *  server's network (publicAddressMatches false), a private address there is
+ *  someone else's network, never this box's home network. */
+function plexConnRoute(c: PlexConnection, publicAddressMatches?: boolean): PlexRoute {
   if (c.relay) return 'relay';
-  if (!c.local) return 'direct';
+  if (!c.local || publicAddressMatches === false) return 'direct';
   const addr = unbracket(c.address || '');
   const u = plexBaseInfo(c.uri || '');
   const v6 = isIpv6Literal(addr) ? addr : u.ipv6 ? u.ip : '';
-  if (!v6 && !c.ipv6) return 'lan';
-  return /^f[cd][0-9a-f]{2}:/i.test(v6) ? 'lan' : 'direct';
+  if (v6 || c.ipv6) return isUla(v6) ? 'lan' : 'direct';
+  const v4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(addr) ? addr : u.ipv6 ? '' : u.ip;
+  return isRfc1918(v4) ? 'lan' : 'direct';
+}
+
+/** A private address (RFC 1918 / unique-local), by the connection's address
+ *  or its plex.direct name. */
+function isPrivateConn(c: PlexConnection): boolean {
+  const addr = unbracket(c.address || '');
+  const u = plexBaseInfo(c.uri || '');
+  const ip = isIpv6Literal(addr) || /^\d{1,3}(\.\d{1,3}){3}$/.test(addr) ? addr : u.ip;
+  return isIpv6Literal(ip) ? isUla(ip) : isRfc1918(ip);
 }
 
 // Which path to prefer. The route decides first: this home network, then
@@ -364,6 +476,69 @@ export function onPlexPlaybackActiveChange(fn: (active: boolean) => void): () =>
   return () => { _playbackListeners.delete(fn); };
 }
 
+// One id per playback of a title, sent as X-Plex-Session-Identifier so the
+// server can tell this play from the box's others (and from other boxes on
+// the same shared account). Listeners hear each new one with the one it
+// replaced: the end-of-title stats report the title that just ended.
+let _playbackSession: string | null = null;
+const _sessionListeners = new Set<(previous: string | null, next: string) => void>();
+
+/** A new playback session id. Call once when a title starts playing (not on
+ *  a quality change or a retry of the same title), before its stream URL is
+ *  built. */
+export function newPlexPlaybackSession(): string {
+  const rnd = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  const previous = _playbackSession;
+  const next = `smcp-${rnd}`;
+  _playbackSession = next;
+  _sessionListeners.forEach((fn) => { try { fn(previous, next); } catch { /* the listener's problem */ } });
+  return next;
+}
+/** The current playback session id, or null before the first title. */
+export function currentPlexPlaybackSession(): string | null { return _playbackSession; }
+export function onPlexPlaybackSession(fn: (previous: string | null, next: string) => void): () => void {
+  _sessionListeners.add(fn);
+  return () => { _sessionListeners.delete(fn); };
+}
+
+// The server address Plex is connected through right now (usePlexAuth keeps
+// it), for the stats panel's Route line and the end-of-title stats.
+let _currentRoute: { base: string; route?: PlexRoute } | null = null;
+export function setPlexCurrentRoute(r: { base: string; route?: PlexRoute } | null): void {
+  _currentRoute = r ? { base: r.base, route: r.route } : null;
+}
+export function getPlexCurrentRoute(): { base: string; route?: PlexRoute } | null { return _currentRoute; }
+
+/** Where a base URL goes, for diagnostics: the host (a plex.direct name as
+ *  the IP it stands for), the port, and the IP family when the URL says. The
+ *  server's own address is not a secret; nothing else of the URL (user,
+ *  path, query, token) is ever read out. */
+export interface PlexEndpoint {
+  host: string;
+  port: number | null;
+  family: 'IPv4' | 'IPv6' | null;
+  secure: boolean;
+  kind: 'plex.direct' | 'ip' | 'custom';
+}
+export function plexEndpoint(base: string): PlexEndpoint | null {
+  const h = plexBaseInfo(base);
+  if (!h.host) return null;
+  const m = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(base || '');
+  const auth = m ? m[1].slice(m[1].lastIndexOf('@') + 1) : '';
+  const portStr = auth.charAt(0) === '[' ? (/\]:(\d+)$/.exec(auth)?.[1] ?? '') : (/:(\d+)$/.exec(auth)?.[1] ?? '');
+  const port = portStr ? Number(portStr) : (h.https ? 443 : 80);
+  const family = h.ip ? (h.ipv6 ? 'IPv6' : 'IPv4') : null;
+  return { host: h.ip || h.host, port: Number.isFinite(port) ? port : null, family, secure: h.https, kind: h.kind };
+}
+/** "203.0.113.5:32400 · IPv4", "[2001:db8::5]:32400 · IPv6",
+ *  "plex.example.com:443" (a name: the family is the resolver's choice). */
+export function plexRouteEndpoint(base: string | null | undefined): string {
+  const e = base ? plexEndpoint(base) : null;
+  if (!e) return '';
+  const host = e.family === 'IPv6' ? `[${e.host}]` : e.host;
+  return [e.port != null ? `${host}:${e.port}` : host, e.family ?? ''].filter(Boolean).join(' · ');
+}
+
 /** Route of a base URL we already trust, read straight off the server's own
  *  connection list — no probing, no network. Lets a record saved before routes
  *  were tracked learn its route without a round-trip, so the background upgrade
@@ -396,13 +571,17 @@ function plexCandidates(
 ): PlexCandidate[] {
   const byUrl: Record<string, PlexCandidate> = {};
   const list: PlexCandidate[] = [];
-  const add = (url: string, tier: number, ipv6: boolean) => {
+  // A server that only takes secure connections refuses every http address.
+  const httpsOnly = !!opts?.httpsOnly || !!server.httpsRequired;
+  const add = (url: string, tier: number, ipv6: boolean, shortWait: boolean) => {
     if (!url) return;
-    if (opts?.httpsOnly && !isHttpsUrl(url)) return;
+    if (httpsOnly && !isHttpsUrl(url)) return;
     const rank = plexRank(url, tier, ipv6);
-    // Local candidates get an even shorter probe window — a live LAN PMS
-    // answers /identity in <300ms; anything slower is the docker/CGNAT tarpit.
-    const t = tier === TIER_LAN ? Math.min(2500, timeoutMs) : timeoutMs;
+    // Private addresses get an even shorter probe window — a live LAN PMS
+    // answers /identity in <300ms; anything slower is the docker/CGNAT
+    // tarpit, or someone else's network. A public address gets the whole
+    // remote budget, whichever way it is listed.
+    const t = shortWait ? Math.min(2500, timeoutMs) : timeoutMs;
     const had = byUrl[url];
     if (had) {
       // Listed twice (once as LAN, once as remote, say): keep the better rank,
@@ -418,8 +597,9 @@ function plexCandidates(
   };
   for (const c of server.connections) {
     if (opts?.noRelay && c.relay) continue;
-    const tier = tierOfRoute(plexConnRoute(c));
+    const tier = tierOfRoute(plexConnRoute(c, server.publicAddressMatches));
     const ipv6 = !!c.ipv6;
+    const shortWait = !c.relay && c.local && isPrivateConn(c);
     // Skip dead IP families in a plex.direct name and in the raw address
     // field (the http twin below). A plex.direct name is an address the server
     // found on its own interfaces, where docker and CGNAT ones are dead ends.
@@ -427,9 +607,9 @@ function plexCandidates(
     // for them, a Tailscale 100.x or a VPN's 172.16 address included, so it
     // is always tried.
     const u = plexBaseInfo(c.uri || '');
-    if (!(u.kind === 'plex.direct' && u.ip && isDeadIp(u.ip))) add(c.uri, tier, ipv6);
+    if (!(u.kind === 'plex.direct' && u.ip && isDeadIp(u.ip))) add(c.uri, tier, ipv6, shortWait);
     const addr = unbracket(c.address || '');
-    if (!c.relay && addr && c.port && !isDeadIp(addr)) add(`http://${urlHostPort(addr, c.port)}`, tier, ipv6);
+    if (!c.relay && addr && c.port && !isDeadIp(addr)) add(`http://${urlHostPort(addr, c.port)}`, tier, ipv6, shortWait);
   }
   return list;
 }
@@ -483,9 +663,10 @@ function racePlexCandidates(
         .then((data) => {
           // Some OTHER Plex server answering at this address (a home server on
           // the private IP a remote server lists as its LAN address) is not a
-          // path to this one.
+          // path to this one. Nor is an answer that names no server at all (an
+          // empty or {} body from a captive portal or a proxy's error page).
           const id = data?.MediaContainer?.machineIdentifier;
-          if (id && server.clientIdentifier && id !== server.clientIdentifier) return;
+          if (!id || (server.clientIdentifier && id !== server.clientIdentifier)) return;
           if (!best || cand.rank < best.rank) best = cand;
         })
         .catch(() => { /* unreachable candidate */ })
@@ -549,8 +730,10 @@ export function pickBetterPlexConnection(
  *  that some Plex server is listening, not that it is ours or that our token
  *  works on it. */
 export async function getPlexIdentity(base: string, token: string): Promise<string | null> {
+  // The same budget a probe gives a remote path: a slow but live server
+  // failing a shorter check sent the box through a full rediscovery.
   const data = await plexReq<{ MediaContainer?: { machineIdentifier?: string } }>(
-    'GET', `${base}/identity`, token, 5000,
+    'GET', `${base}/identity`, token, PLEX_PROBE_TIMEOUT_MS,
   );
   return data?.MediaContainer?.machineIdentifier ?? null;
 }
@@ -842,18 +1025,12 @@ function plexClientQuery(): string {
 }
 
 /** The file itself, played as it is. The token stays the first parameter,
- *  where it has always been; who is asking follows it. */
-export function plexDirectUrl(base: string, partKey: string, token: string): string {
-  return `${base}${partKey}?X-Plex-Token=${encodeURIComponent(token)}&${plexClientQuery()}`;
-}
-
-/** Codecs the Media3 decoder + Fire TV audio path can direct-play reliably.
- *  Anything else (ac3/eac3/dts/truehd/…) gets silently deselected by ExoPlayer
- *  and the file plays with zero audio — force a Plex server-side transcode. */
-const SUPPORTED_DIRECT_AUDIO_CODECS: string[] = ['aac', 'mp3', 'mp2', 'flac', 'opus', 'vorbis', 'pcm'];
-export function isDirectAudioCodec(codec: string | undefined | null): boolean {
-  if (!codec) return true; // unknown → assume ok, let normal error path handle it
-  return SUPPORTED_DIRECT_AUDIO_CODECS.indexOf(String(codec).toLowerCase()) >= 0;
+ *  where it has always been; who is asking follows it. `session`: this
+ *  playback's id (newPlexPlaybackSession), so the server can tell one play
+ *  of the file from another. */
+export function plexDirectUrl(base: string, partKey: string, token: string, opts?: { session?: string }): string {
+  const session = opts?.session ? `&X-Plex-Session-Identifier=${encodeURIComponent(opts.session)}` : '';
+  return `${base}${partKey}?X-Plex-Token=${encodeURIComponent(token)}&${plexClientQuery()}${session}`;
 }
 
 

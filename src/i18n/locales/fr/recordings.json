@@ -26,6 +26,7 @@
       "noSpace": "Pas assez d'espace libre pour environ {{length}} ({{usable}} utilisables).",
       "rewindPaused": "Rembobinage en pause pendant l'enregistrement…",
       "updateRunning": "Un enregistrement est en cours. Mettre à jour maintenant l'arrêtera.",
+      "sharingInternet": "Un enregistrement utilise une partie de votre connexion internet.",
       "updateSoon": "Un enregistrement va bientôt démarrer. Mettre à jour maintenant l'arrêtera."
     },
     "dialog": {

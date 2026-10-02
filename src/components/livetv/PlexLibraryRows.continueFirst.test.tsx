@@ -144,3 +144,29 @@ describe('PlexLibraryRows — Continue Watching asked again', () => {
     expect(continueRow()).toContain('From Server');
   });
 });
+
+// A progress change (a title joining or leaving Continue Watching mid-film,
+// or the account's copy arriving from another box) re-draws the row from
+// what the box knows. Only the player closing asks the server again: a
+// request mid-film would compete with it.
+describe('PlexLibraryRows — a progress change asks the server nothing', () => {
+  it('own-account library: the row follows the change, On Deck is not asked again', async () => {
+    h.onDeck.mockImplementation(async () => [tile('s2', 'From Server')]);
+    await renderRows('movie', '1', true);
+    expect(h.onDeck).toHaveBeenCalledTimes(1);
+    await savePartWay({ ratingKey: 'm9', kind: 'movie', title: 'Harbor Lights', at: 1500, dur: 6000, librarySectionID: '1' });
+    expect(continueRow()).toContain('Harbor Lights');
+    // The server's half from last time stays in the row.
+    expect(continueRow()).toContain('From Server');
+    expect(h.onDeck).toHaveBeenCalledTimes(1);
+  });
+
+  it('TV library: no next-episode lookups on a progress change', async () => {
+    h.upNext.mockImplementation(async () => []);
+    await renderRows('show', '2', false);
+    expect(h.upNext).toHaveBeenCalledTimes(1);
+    await savePartWay({ ratingKey: 'e5', kind: 'episode', title: 'Crossing', at: 900, dur: 2940, librarySectionID: '2', showKey: 's1', showTitle: 'Frontier', season: 1, index: 5 });
+    expect(continueRow()).toContain('Frontier');
+    expect(h.upNext).toHaveBeenCalledTimes(1);
+  });
+});

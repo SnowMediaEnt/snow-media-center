@@ -8,7 +8,11 @@ const episodes: Record<string, Array<{ ratingKey: string; title: string; index: 
 };
 const calls = { seasons: 0 };
 vi.mock('@/lib/plex', () => ({
-  getPlexSeasons: async () => { calls.seasons += 1; return seasons; },
+  getPlexSeasons: async (_b: string, _t: string, show: string) => {
+    calls.seasons += 1;
+    if (show === 'GONE') throw new Error('Plex HTTP 404');
+    return seasons;
+  },
   getPlexEpisodes: async (_b: string, _t: string, key: string) => episodes[key] ?? [],
 }));
 
@@ -30,5 +34,22 @@ describe('plexUpNext', () => {
     await nextEpisode('b', 't', show);
     await nextEpisode('b', 't', show);
     expect(calls.seasons).toBe(1);
+  });
+
+  it('remembers a failed lookup for a few minutes instead of asking on every re-draw', async () => {
+    vi.useFakeTimers();
+    try {
+      const { nextEpisode } = await import('./plexUpNext');
+      const gone = { showKey: 'GONE', season: 1, index: 1, t: 5 };
+      await expect(nextEpisode('b', 't', gone)).rejects.toThrow('404');
+      await expect(nextEpisode('b', 't', gone)).rejects.toThrow('404');
+      expect(calls.seasons).toBe(1);
+      // After a few minutes it is asked again.
+      await vi.advanceTimersByTimeAsync(6 * 60 * 1000);
+      await expect(nextEpisode('b', 't', gone)).rejects.toThrow('404');
+      expect(calls.seasons).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

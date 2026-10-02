@@ -45,8 +45,10 @@ vi.mock('@/lib/plex', () => ({
   onPlexPlaybackActiveChange: () => () => { /* noop */ },
   pickBetterPlexConnection: async () => null,
   plexRouteImprovable: () => false,
+  setPlexCurrentRoute: () => { /* noop */ },
   PLEX_PROBE_TIMEOUT_MS: 6000,
 }));
+vi.mock('@/lib/plexTitleStats', () => ({ watchPlexTitleStats: () => { /* noop */ } }));
 
 import { usePlexAuth } from '@/hooks/usePlexAuth';
 

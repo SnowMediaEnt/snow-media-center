@@ -15,12 +15,14 @@
 //   them anyway). Sized for the 960x540 viewport: about half the width and
 //   the top half of the picture, clear of the control bar.
 // - Codec names, numbers and error code names only: the plugin never sends a
-//   URL, and the route is the kind of address (plexRouteLabel), never a token.
+//   URL, and the route is the kind of address (plexRouteLabel) plus the
+//   server's host:port and IP family (plexRouteEndpoint), never a token.
 import { memo, useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { SnowPlayer, type PlayerStats } from '@/capacitor/SnowPlayer';
 import { formatMbps } from '@/lib/bufferDiagnostics';
+import { getPlexCurrentRoute, plexRouteEndpoint } from '@/lib/plex';
 import { formatNumber } from '@/i18n/format';
 
 /** How often the panel reads the player while open. */
@@ -35,6 +37,9 @@ export interface PlayerStatsPanelProps {
   serverName?: string;
   /** The way to the server (plexRouteLabel): "Direct to server · https". */
   routeLabel?: string;
+  /** Where it goes: "203.0.113.5:32400 · IPv4" (plexRouteEndpoint). Left
+   *  out: the address Plex is connected through now. */
+  routeEndpoint?: string;
   /** What the video needs, kbps. */
   needKbps?: number;
   /** An HTTP status the caller knows of for this title (a conversion the
@@ -85,7 +90,7 @@ const Row = ({ label, children }: { label?: string; children: ReactNode }) => (
   </p>
 );
 
-const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, screenId, httpStatus }: PlayerStatsPanelProps) => {
+const PlayerStatsPanel = memo(({ session, serverName, routeLabel, routeEndpoint, needKbps, screenId, httpStatus }: PlayerStatsPanelProps) => {
   const { t } = useTranslation();
   const [stats, setStats] = useState<PlayerStats | null>(null);
   // An app built before getStats existed rejects the call.
@@ -113,6 +118,12 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, scre
   }, [screenId]);
 
   const st = stats;
+  // Which address and IP family the server is reached on, so it can be held
+  // up against the server dashboard's view of the Plex app's own stream.
+  const endpoint = routeEndpoint ?? (session != null ? plexRouteEndpoint(getPlexCurrentRoute()?.base) : '');
+  // The label's own "· IPv6" is said once, by the endpoint, at the end.
+  const label = endpoint && /IPv6$/.test(endpoint) ? (routeLabel ?? '').replace(/ · IPv6$/, '') : routeLabel;
+  const route = [label, endpoint].filter((v) => v && v.trim()).join(' · ');
   const frames = st && (st.renderedFrames != null || st.droppedFrames != null)
     ? t('plex.stats.framesValue', { rendered: count(st.renderedFrames), dropped: count(st.droppedFrames) })
     : '—';
@@ -149,7 +160,7 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, needKbps, scre
           <Card title={t('plex.stats.session')} wide>
             <Row>{session}</Row>
             <Row label={t('plex.stats.server')}>{text(serverName)}</Row>
-            <Row label={t('plex.stats.route')}>{text(routeLabel)}</Row>
+            <Row label={t('plex.stats.route')}>{text(route)}</Row>
           </Card>
         )}
         <Card title={t('plex.stats.engine')} wide={session == null}>

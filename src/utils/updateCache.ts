@@ -126,10 +126,18 @@ export async function findCachedSmcApk(info: SmcUpdateInfo): Promise<PreparedUpd
 /**
  * Ensure the APK for `info` is available on local cache, downloading it if
  * necessary. Reuses an existing cached APK that matches versionCode.
+ *
+ * `beforeDownload`: awaited right before the network download starts (a
+ * cached APK never waits). The silent auto-update uses it to hold the ~40 MB
+ * download until the box sits idle on Home with no player open: once
+ * started, the native download cannot be paused or cancelled, and it must
+ * not share the line with a film. A rejection gives up quietly; the caller
+ * tries again later.
  */
 export async function prepareSmcUpdate(
   info: SmcUpdateInfo,
   onProgress?: (pct: number) => void,
+  opts?: { beforeDownload?: () => Promise<void> },
 ): Promise<PreparedUpdate> {
   if (!isNativePlatform()) {
     throw new Error(i18n.t('updater.errors.androidOnly'));
@@ -151,6 +159,7 @@ export async function prepareSmcUpdate(
     }
   }
   const fileName = apkFileName(info.version);
+  if (opts?.beforeDownload) await opts.beforeDownload();
 
   // Two attempts, and the FIRST is byte-identical to the request a browser or
   // Downloader makes — bare URL, no query string. Only if that yields

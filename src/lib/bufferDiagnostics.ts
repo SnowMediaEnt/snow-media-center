@@ -7,13 +7,16 @@
  *
  *   1. Stream throughput — fed by the engines (hls.js FRAG_LOADED,
  *      mpegts.js STATISTICS_INFO) via `recordStreamThroughput`. On native
- *      (ExoPlayer) there are no engine stats, so we take small background
- *      Range samples from the stream host instead.
+ *      (ExoPlayer) the WebView never reads the file the player is reading:
+ *      a 64-128 KB WebView read from byte 0 measured TCP slow start, not the
+ *      server (it was the customer's "1.4 Mb/s"). The player's own arrival
+ *      rates stand in instead (see `recordPlayerRate`).
  *   2. Neutral probe — a 256 KB download from speed.cloudflare.com measures
  *      *general* internet (TTFB + throughput), independent of the stream.
  *   3. Stream-host probe — measures whether the *source* is slow to respond.
- *      For VOD this is a ranged GET against the stream URL (Range requests
- *      are normal there). For LIVE it is, by default, an opaque GET to the
+ *      For VOD in the WebView this is a ranged GET against the stream URL
+ *      (Range requests are normal there); a native film (Plex) gets none,
+ *      only the internet check. For LIVE it is, by default, an opaque GET to the
  *      stream host's origin (TTFB only) so we never open a second session on
  *      an Xtream live URL that a 1-connection line would count or drop.
  *      `setHostProbeEnabled(true)` opts live streams into the ranged GET.
@@ -21,7 +24,8 @@
  * Probes run only while a stall has lasted ≥ 0.5 s — so the numbers are in
  * by the time the card shows at 2 s — at most once every 20 s across the
  * whole stream (not per stall — waiting/playing flapping does not multiply
- * rounds), once more ≥ 10 s after recovery, and never in the first 6 s of a
+ * rounds; a film's reload — retry, quality change, recovery — keeps that
+ * clock and the last internet check instead of probing again), once more ≥ 10 s after recovery, and never in the first 6 s of a
  * live stream (play() on an empty element fires `waiting`, and zapping must
  * not probe) or 1.5 s of a film. Never while `document.hidden`. On a
  * low-memory box only the 256 KB internet probe runs, at most once a minute
@@ -29,9 +33,11 @@
  * nothing blocks.
  *
  * The native player also reports how fast its own downloads arrive
- * (`recordPlayerRate`, every 3 s while data flows): the card's "Now". It costs
- * no network and is kept apart from the stream samples, since between stalls
- * it follows the buffer filling up, not the connection.
+ * (`recordPlayerRate`, every 3 s while data flows; bytes counted as they
+ * arrive from the network, the same window as getStats' arrivalKbps): the
+ * card's "Now", and for a film the "was" (its best window in the first 30 s).
+ * It costs no network and is kept apart from the stream samples, since
+ * between stalls it follows the buffer filling up, not the connection.
  *
  * The classification lives in the pure `classify()` so it can be unit-tested
  * without the DOM. Worked examples:
@@ -113,8 +119,6 @@ export interface ClassifyResult {
 const MAX_SAMPLES = 120;
 const EARLY_WINDOW_MS = 30_000;
 const EARLY_MIN_SAMPLES = 3;
-// Native (ExoPlayer) has no engine stats; samples are rare, so one is enough.
-const EARLY_MIN_SAMPLES_NATIVE = 1;
 const RECENT_WINDOW_MS = 20_000;
 const RECENT_MAX_SAMPLES = 5;
 // A single low fragment during a stall should not be enough to accuse an ISP.
@@ -141,9 +145,6 @@ const NEUTRAL_TIMEOUT_MS = 6_000;
 const HOST_TIMEOUT_MS = 5_000;
 const ORIGIN_TIMEOUT_MS = 5_000;
 const HOST_PROBE_BYTES = 131_072;
-const NATIVE_SAMPLE_BYTES = 65_536;
-const NATIVE_SAMPLE_SCHEDULE_MS = [6_000, 40_000];
-const NATIVE_SAMPLE_INTERVAL_MS = 90_000;
 // Below this many bytes a throughput number is noise; keep TTFB only.
 const MIN_BYTES_FOR_KBPS = 8_192;
 // The player's rate reports kept for "Your speed" (a 3 s window each).
@@ -260,6 +261,8 @@ interface State {
   /** `stalled`: taken while playback was stalled (the player then
    *  downloads as fast as it is sent). */
   playerRates: Array<Sample & { stalled?: boolean }>;
+  /** A film's best player rate in its first 30 s (the card's "was"). */
+  earlyRateKbps: number | null;
   held: ClassifyResult | null;
   holdUntil: number;
   reported: Set<Verdict>;
@@ -281,6 +284,7 @@ const freshState = (): State => ({
   hostKbps: null,
   hostMs: null,
   playerRates: [],
+  earlyRateKbps: null,
   held: null,
   holdUntil: 0,
   reported: new Set<Verdict>(),
@@ -291,12 +295,15 @@ let state: State = freshState();
 let hostProbeOverride: boolean | null = null;
 // Wall-clock of the last probe round (any kind) — enforces cadence across stalls.
 let lastProbeAt = 0;
+// The last internet check of a film, so its reload (a retry, a quality change,
+// a recovery: a new beginStream, often after an endStream) keeps the cadence
+// and the number instead of probing again. Live streams start afresh.
+let lastNeutral: { at: number; kind: 'live' | 'vod'; kbps: number | null; ms: number | null } | null = null;
 
 // Timers
 let stallProbeTimer: Timer | null = null;
 let recoveryTimer: Timer | null = null;
 let holdTimer: Timer | null = null;
-let nativeTimer: Timer | null = null;
 let tickTimer: ReturnType<typeof setInterval> | null = null;
 let probeInFlight = false;
 let probeAbort: AbortController[] = [];
@@ -314,12 +321,10 @@ const lowMemory = (): boolean => {
   try { return typeof document !== 'undefined' && document.documentElement.classList.contains('native-low-memory'); } catch { return false; }
 };
 const warmupMs = (): number => (state.kind === 'vod' ? PROBE_WARMUP_VOD_MS : PROBE_WARMUP_MS);
-const saveDataOn = (): boolean => {
-  try {
-    const nav = navigator as Navigator & { connection?: { saveData?: boolean } };
-    return !!nav.connection?.saveData;
-  } catch { return false; }
-};
+/** Gap between probe rounds on this box (a low-memory box: once a minute). */
+const probeGapMs = (minGapMs: number): number => (lowMemory() ? Math.max(minGapMs, LOW_MEMORY_PROBE_INTERVAL_MS) : minGapMs);
+/** ms since the last probe round; null when none, or the clock went back. */
+const sinceLastProbe = (t: number): number | null => (lastProbeAt > 0 && t >= lastProbeAt ? t - lastProbeAt : null);
 
 /**
  * Some IPTV panels cap a line at ONE concurrent connection; a ranged GET to
@@ -346,12 +351,12 @@ function rangeProbeAllowed(): boolean {
 }
 
 // ── Derived numbers ─────────────────────────────────────────────────────────
+/** Median of the engine's samples in the first 30 s (the throttling evidence). */
 function earlyKbps(): number | null {
   if (!state.active) return null;
   const cutoff = state.startedAt + EARLY_WINDOW_MS;
   const early = state.samples.filter(s => s.t <= cutoff).map(s => s.kbps);
-  const minSamples = isNativePlatform() ? EARLY_MIN_SAMPLES_NATIVE : EARLY_MIN_SAMPLES;
-  if (early.length < minSamples) return null;
+  if (early.length < EARLY_MIN_SAMPLES) return null;
   return median(early);
 }
 
@@ -407,7 +412,9 @@ function computeSnapshot(): DiagSnapshot {
     detail: result.detail,
     dropped: result.dropped,
     streamKbps: recent,
-    streamEarlyKbps: early,
+    // A film on the native player: its own best arrival window of the first
+    // 30 s; otherwise the engine's samples.
+    streamEarlyKbps: state.earlyRateKbps ?? early,
     probeKbps: state.probeKbps,
     probeMs: state.probeMs,
     probeFailed: state.probeKbps == null && state.neutralFailStreak > 0,
@@ -516,10 +523,11 @@ async function runNeutralProbe(): Promise<void> {
     state.probeMs = r.ttfbMs;
     state.probeKbps = r.kbps;
   }
+  lastNeutral = { at: now(), kind: state.kind, kbps: state.probeKbps, ms: state.probeMs };
 }
 
 /** Ranged GET against the stream URL (opens a media session — VOD / opt-in only). */
-async function runRangeProbe(bytes: number, feedSamples: boolean): Promise<void> {
+async function runRangeProbe(bytes: number): Promise<void> {
   const url = state.url;
   if (!/^https?:\/\//i.test(url)) return;
   const r = await measure(url, { method: 'GET', headers: { Range: `bytes=0-${bytes - 1}` } }, HOST_TIMEOUT_MS, bytes);
@@ -527,7 +535,6 @@ async function runRangeProbe(bytes: number, feedSamples: boolean): Promise<void>
   if (!r) { state.hostMs = null; return; } // CORS / network error is not evidence
   state.hostMs = r.ttfbMs;
   state.hostKbps = r.kbps;
-  if (feedSamples && r.kbps != null) pushSample(r.kbps);
 }
 
 /**
@@ -547,9 +554,14 @@ async function runOriginProbe(): Promise<void> {
   state.hostKbps = null;
 }
 
-function runHostProbe(bytes: number, feedSamples: boolean): Promise<void> {
-  return rangeProbeAllowed() ? runRangeProbe(bytes, feedSamples) : runOriginProbe();
+function runHostProbe(bytes: number): Promise<void> {
+  return rangeProbeAllowed() ? runRangeProbe(bytes) : runOriginProbe();
 }
+
+/** A film on the native player gets the internet check only: a WebView read
+ *  of the file would compete with the player for the same line and measure
+ *  a fresh connection's slow start, not the server. */
+const hostProbeWanted = (): boolean => !(isNativePlatform() && state.kind === 'vod');
 
 /**
  * Neutral + host probes, concurrently. Skipped when hidden, already running,
@@ -566,14 +578,14 @@ async function runStallProbes(minGapMs: number = PROBE_INTERVAL_MS): Promise<boo
   const lowMem = lowMemory();
   const t = now();
   if (state.samples.length === 0 && t - state.startedAt < warmupMs()) return false;
-  if (lastProbeAt > 0 && t - lastProbeAt < (lowMem ? Math.max(minGapMs, LOW_MEMORY_PROBE_INTERVAL_MS) : minGapMs)) return false;
+  const since = sinceLastProbe(t);
+  if (since != null && since < probeGapMs(minGapMs)) return false;
   probeInFlight = true;
   lastProbeAt = t;
   try {
-    const native = isNativePlatform();
-    await Promise.all(lowMem ? [runNeutralProbe()] : [
+    await Promise.all(lowMem || !hostProbeWanted() ? [runNeutralProbe()] : [
       runNeutralProbe(),
-      runHostProbe(HOST_PROBE_BYTES, native),
+      runHostProbe(HOST_PROBE_BYTES),
     ]);
   } catch { /* never */ } finally {
     probeInFlight = false;
@@ -587,7 +599,8 @@ async function runStallProbes(minGapMs: number = PROBE_INTERVAL_MS): Promise<boo
 function nextStallDelay(floorMs = 1_000): number {
   const t = now();
   const warmup = state.samples.length === 0 ? state.startedAt + warmupMs() - t : 0;
-  const cadence = lastProbeAt > 0 ? lastProbeAt + (lowMemory() ? LOW_MEMORY_PROBE_INTERVAL_MS : PROBE_INTERVAL_MS) - t : 0;
+  const since = sinceLastProbe(t);
+  const cadence = since != null ? probeGapMs(PROBE_INTERVAL_MS) - since : 0;
   return Math.max(floorMs, warmup, cadence);
 }
 
@@ -604,35 +617,10 @@ function clearStallProbe() {
   if (stallProbeTimer) { clearTimeout(stallProbeTimer); stallProbeTimer = null; }
 }
 
-// Native background host sampling: t=6 s, t=40 s, then every 90 s while NOT
-// buffering. Only when the ranged stream-URL probe is allowed (VOD / opt-in) —
-// the origin probe yields no throughput, so there would be nothing to sample.
-function scheduleNativeSample(index: number) {
-  if (nativeTimer) { clearTimeout(nativeTimer); nativeTimer = null; }
-  if (!state.active || !isNativePlatform() || saveDataOn() || !rangeProbeAllowed()) return;
-  // Not on a box already short of memory, as with the stall probes.
-  try { if (document.documentElement.classList.contains('native-low-memory')) return; } catch { /* no document */ }
-  const sinceStart = now() - state.startedAt;
-  let delay: number;
-  if (index < NATIVE_SAMPLE_SCHEDULE_MS.length) delay = Math.max(0, NATIVE_SAMPLE_SCHEDULE_MS[index] - sinceStart);
-  else delay = NATIVE_SAMPLE_INTERVAL_MS;
-  nativeTimer = setTimeout(async () => {
-    nativeTimer = null;
-    if (!state.active) return;
-    if (!state.buffering && !isHidden() && !probeInFlight) {
-      probeInFlight = true;
-      try { await runRangeProbe(NATIVE_SAMPLE_BYTES, true); } catch { /* never */ } finally { probeInFlight = false; }
-      if (state.active) emit();
-    }
-    scheduleNativeSample(index + 1);
-  }, delay);
-}
-
 function clearAllTimers() {
   clearStallProbe();
   if (recoveryTimer) { clearTimeout(recoveryTimer); recoveryTimer = null; }
   if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-  if (nativeTimer) { clearTimeout(nativeTimer); nativeTimer = null; }
   stopTicking();
   probeAbort.forEach(a => { try { a.abort(); } catch { /* ignore */ } });
   probeAbort = [];
@@ -654,9 +642,18 @@ export function beginStream(url: string, kind: 'live' | 'vod'): void {
   state.url = url || '';
   state.kind = kind;
   state.startedAt = now();
-  lastProbeAt = 0;
+  // A film reloaded within a minute of its last internet check keeps the
+  // probe clock and that number. Anything else starts afresh, as before.
+  const t = state.startedAt;
+  const carry = kind === 'vod' && lastNeutral?.kind === 'vod' && t >= lastNeutral.at && t - lastNeutral.at < LOW_MEMORY_PROBE_INTERVAL_MS
+    ? lastNeutral : null;
+  if (carry) {
+    state.probeKbps = carry.kbps;
+    state.probeMs = carry.ms;
+  } else {
+    lastProbeAt = 0;
+  }
   ensureOnlineListeners();
-  scheduleNativeSample(0);
   emit();
 }
 
@@ -688,6 +685,11 @@ export function recordPlayerRate(kbps: number): void {
   // Taken mid-stall: automatic quality's proof of what the server delivers
   // when the player pulls flat out (plexAutoQuality.starvedKbps).
   state.playerRates.push(state.buffering ? { t, kbps, stalled: true } : { t, kbps });
+  // A film's "was": the best window of its first 30 s. Live channels keep
+  // their card as it was.
+  if (state.kind === 'vod' && kbps > 0 && t - state.startedAt <= EARLY_WINDOW_MS && kbps > (state.earlyRateKbps ?? 0)) {
+    state.earlyRateKbps = kbps;
+  }
   const cutoff = t - PLAYER_RATE_WINDOW_MS;
   while (state.playerRates.length > 1 && state.playerRates[0].t < cutoff) state.playerRates.shift();
   // Only the card shows it, and only mid-stall; no re-render otherwise.
