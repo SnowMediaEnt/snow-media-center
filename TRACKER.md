@@ -71,6 +71,7 @@ Status: building · ready to test · still broken · done.
 | 49 | Player bar buttons shifted when Go live appeared; its spot is now reserved (greyed until rewind) | bug | ready to test (1.8.1 build 59) | 2 |
 | 50 | Home: channel tiles blank white (A&E, ESPN, Golf Channel); now logo on a dark card, initials if no logo | bug | ready to test (1.8.1 build 59) | 1 |
 | 51 | Plex buffering for some customers (Plex app direct-plays fine) + manual quality change not playing — see bugs/plex-buffering-remote.md | bug | ready to test (1.8.1 build 59) | 4 |
+| 52 | VOD movies/episodes had no sound (web player can't play Dolby/DTS audio; a saved volume of 0 too); VOD now plays on the native player on boxes | bug | ready to test (1.8.1 build 59) | 2 |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner
