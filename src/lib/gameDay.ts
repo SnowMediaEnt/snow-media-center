@@ -1925,7 +1925,7 @@ export function lineupHash(c: ScanCandidate[]): string {
  *  league's numbered channels, the numbered feeds of the game's streaming
  *  services, the league's and teams' own channels found, and the teams'
  *  cities' channels. */
-const GUIDE_MAX = { found: 10, leagueFeed: 4, numbered: 8, service: 8, league: 4, city: 6 };
+const GUIDE_MAX = { found: 10, search: 6, leagueFeed: 4, numbered: 8, service: 8, league: 4, city: 6 };
 /** A game further off than this is past what a short guide covers. */
 const GUIDE_AHEAD_MS = 6 * 60 * 60_000;
 const guideCache = new Map<string, { at: number; from: SportsChannel[]; links: GameChannel[] }>();
@@ -1964,7 +1964,8 @@ const guideNote = (e: Listing, g: Game): string => {
 
 /** What the guide says about a game's channels, as links to lay over the
  *  list (arrangeLinks sorts them out). Each network, local, team and league
- *  channel found by name comes back with the guide's verdict on it
+ *  channel found by name, and each link the line-up search found
+ *  (`search`: 'yes' makes it one of the game's, 'other' drops it), comes back with the guide's verdict on it
  *  (`guide`): 'yes' with score 95 and the listing as its note; 'other' when
  *  the listings around kickoff show another game (of any league) or nothing
  *  of its league, sport or teams ("SportsCenter", "College Football", a
@@ -1989,9 +1990,10 @@ export async function checkGuides(
   const at = live || !Number.isFinite(start) ? now : Math.max(now, start + 10 * 60_000);
 
   // A channel named for the game says so already; in the playoffs, not a
-  // league's feed ("MLB 05: …"): those rarely carry a playoff game.
-  const leagueFeeds = game.postseason ? found.filter((f) => f.via === 'game' && isLeagueFeed(f, game.league)) : [];
-  const seen = new Set<string>(found.filter((f) => f.via === 'game' && !leagueFeeds.includes(f)).map(linkKey));
+  // league's feed ("MLB 05: …"): those rarely carry a playoff game. What the
+  // line-up search found is never sure: its guide is read too.
+  const leagueFeeds = game.postseason ? found.filter((f) => f.via === 'game' && !f.search && isLeagueFeed(f, game.league)) : [];
+  const seen = new Set<string>(found.filter((f) => f.via === 'game' && !f.search && !leagueFeeds.includes(f)).map(linkKey));
   const cands: Array<{ line: XtreamCreds; stream: XtreamLiveStream; via: LinkKind; was?: GameChannel }> = [];
   const add = (c: { line: XtreamCreds; stream: XtreamLiveStream }, via: LinkKind, was?: GameChannel): boolean => {
     const k = linkKey(c);
@@ -2004,6 +2006,12 @@ export async function checkGuides(
   for (const f of found) {
     if (n >= GUIDE_MAX.found) break;
     if ((f.via === 'network' || f.via === 'local') && add(f, f.via, f)) n += 1;
+  }
+  // The search's links: 'other' drops one, 'yes' makes it the game's own.
+  n = 0;
+  for (const f of found) {
+    if (n >= GUIDE_MAX.search) break;
+    if (f.search && add(f, f.via, f)) n += 1;
   }
   n = 0;
   for (const f of leagueFeeds) {

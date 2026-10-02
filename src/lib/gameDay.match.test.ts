@@ -274,6 +274,17 @@ describe('learned categories', () => {
     expect(channelsForGame(hockey(BU()), bare)).toEqual([]);
     expect(ids(channelsForGame(hockey(BU()), bare, 12, learned))).toEqual([6]);
   });
+
+  it("match whatever form the key comes in: the box's normalised one, or the panel's own", async () => {
+    const { channelsForGame, sportsChannel } = await import('./gameDay');
+    // The category as the panel names it; the box sends it normalised.
+    const raw = 'ÉVÉNEMENTS | Spécial:Extra_2';
+    const list = [sportsChannel(line, { stream_id: 7, name: 'BU vs MICH' } as never, raw)!];
+    for (const key of ['evenements special extra 2', raw, 'EVENEMENTS|SPECIAL:EXTRA_2']) {
+      expect(ids(channelsForGame(hockey(BU()), list, 12, new Map([[key, ['ncaah']]]))), key).toEqual([7]);
+    }
+    expect(channelsForGame(hockey(BU()), list, 12, new Map([['evenements', ['ncaah']]]))).toEqual([]);
+  });
 });
 
 describe('the line-up search', () => {
@@ -359,5 +370,23 @@ describe('the line-up search', () => {
     expect(ids(groups.main)).toEqual([2]);
     expect(ids(groups.search)).toEqual([1]);
     expect(arrangeLinks(g, [{ ...got[1], guide: 'other' }], false).search).toEqual([]);
+  });
+
+  it("checkGuides reads the search links' guide: 'other' drops one, 'yes' makes it the game's, none keeps it apart", async () => {
+    const { aiLinks, arrangeLinks, checkGuides, mergeLinks } = await import('./gameDay');
+    const now = Date.parse('2026-10-02T22:00:00Z');
+    const kick = now + 60 * 60_000;
+    const on = (title: string, description = '') => [{ title, description, start: kick - 5 * 60_000, end: kick + 3 * 60 * 60_000 }];
+    const g = hockey(BU(), { start: new Date(kick).toISOString() });
+    const list = [chans(21, 'DS 21', 'EXTRA'), chans(22, 'DS 22', 'EXTRA'), chans(23, 'DS 23', 'EXTRA')];
+    const search = aiLinks(g, list, 'dstreams.xyz', [21, 22, 23].map((id) => ({ stream_id: id, name: `DS ${id}`, confidence: 'high' as const, source: 'ai' as const })));
+    epg[21] = on('College Hockey', 'Boston University at Michigan.');
+    epg[22] = on('Cooking Live');
+    const extra = await checkGuides(g, list, search, [g], now);
+    expect(vi.mocked(xtream.getShortEpg).mock.calls.map((c) => c[1]).sort()).toEqual([21, 22, 23]);
+    expect(extra.map((c) => [c.stream.stream_id, c.guide])).toEqual([[21, 'yes'], [22, 'other'], [23, 'none']]);
+    const groups = arrangeLinks(g, mergeLinks([extra, search], list), false);
+    expect(ids(groups.main)).toEqual([21]);
+    expect(ids(groups.search)).toEqual([23]);
   });
 });
