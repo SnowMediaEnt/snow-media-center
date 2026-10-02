@@ -10,7 +10,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
-  vod: null as null | { src: string; onEnded?: () => void },
+  vod: null as null | { src: string; onEnded?: () => void; onClose?: () => void; onNext?: () => void; hasNext?: boolean },
   keepInView: [] as Array<{ container: HTMLElement; el: HTMLElement }>,
 }));
 
@@ -20,7 +20,7 @@ vi.mock('@/utils/keepInView', () => ({
 }));
 // The player itself (native on a box, HTML5 in a browser) has its own tests.
 vi.mock('./VodPlayer', () => ({
-  default: (p: { src: string; onEnded?: () => void }) => { h.vod = p; return <div data-vod-player="" />; },
+  default: (p: NonNullable<typeof h.vod>) => { h.vod = p; return <div data-vod-player="" />; },
 }));
 vi.mock('@/lib/xtream', async (orig) => {
   const real = await orig<typeof import('@/lib/xtream')>();
@@ -200,8 +200,10 @@ describe('VOD › Series', () => {
     expect(h.vod?.src).toMatch(/\/series\/user1\/pass1\/1002\.mkv$/);
     expect(document.querySelector('[data-vod-player]')).toBeTruthy();
 
-    // Back closes the player, onto the episode just played.
-    await key('Escape');
+    // The player owns the remote while it is up; its Back closes it, onto
+    // the episode just played.
+    await act(async () => { h.vod?.onClose?.(); });
+    await settle();
     expect(document.querySelector('[data-vod-player]')).toBeNull();
     expect(document.querySelector('[data-episode-i="1"]')?.getAttribute('data-focused')).toBe('true');
   });
@@ -227,10 +229,13 @@ describe('VOD › Series', () => {
     await key('ArrowDown');
     await key('Enter'); // S1E3, the season's last
     expect(h.vod?.src).toMatch(/\/1003\.mkv$/);
+    // The bar's Next knows there is one (season 2).
+    expect(h.vod?.hasNext).toBe(true);
     await act(async () => { h.vod?.onEnded?.(); });
     await settle();
     expect(h.vod?.src).toMatch(/\/2001\.mkv$/);
-    // The last episode of the last season: the player closes.
+    // The last episode of the last season: no Next, and the player closes at the end.
+    expect(h.vod?.hasNext).toBe(false);
     await act(async () => { h.vod?.onEnded?.(); });
     await settle();
     expect(document.querySelector('[data-vod-player]')).toBeNull();
@@ -254,6 +259,16 @@ describe('VOD › Series', () => {
     await act(async () => { h.vod?.onEnded?.(); });
     await settle();
     expect(document.querySelector('[data-vod-player]')).toBeNull();
+  });
+
+  it("the player bar's Next plays the next episode, across seasons", async () => {
+    await openSeries();
+    await key('ArrowDown');
+    await key('ArrowDown');
+    await key('Enter'); // S1E3
+    await act(async () => { h.vod?.onNext?.(); });
+    await settle();
+    expect(h.vod?.src).toMatch(/\/2001\.mkv$/);
   });
 
   it('Back walks out one screen at a time: page, posters, categories, chooser, menu', async () => {

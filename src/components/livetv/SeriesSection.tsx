@@ -620,8 +620,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
         onVolumeChange={setVolume}
         title={playing.title}
         onClose={() => setPlaying(null)}
-        onNext={() => playEpisode(playing.episodeIdx + 1)}
-        hasNext={playing.episodeIdx + 1 < episodes.length}
+        onNext={() => {
+          const next = nextEpisode(seasonsRef.current, playing.seasonIdx, playing.episodeIdx);
+          if (next) playEpisode(next.season, next.episode);
+        }}
+        hasNext={!!nextEpisode(seasons, playing.seasonIdx, playing.episodeIdx)}
         onError={(msg) => {
           try { trackEvent('player_error', 'player', { kind: 'series', channel_or_title: playing.title, server: creds.serverLabel, message: msg.slice(0, 200) }); } catch { /* ignore */ }
         }}
