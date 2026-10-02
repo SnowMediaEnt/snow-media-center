@@ -312,6 +312,13 @@
       "noEpisodes": "Aucun épisode",
       "episodeN": "Épisode {{n}}"
     },
+    "vodChooser": {
+      "title": "Que voulez-vous regarder ?",
+      "moviesDesc": "Des films, par catégorie",
+      "seriesDesc": "Des séries, par saison et épisode",
+      "titles": "{{n}} titres",
+      "hint": "◀ ▶ choisir · OK pour ouvrir · Retour pour le menu"
+    },
     "videoPlayer": {
       "formatUnsupported": "Le format de ce titre n'est peut-être pas pris en charge sur cet appareil.",
       "unavailableDevice": "Flux indisponible sur cet appareil.",

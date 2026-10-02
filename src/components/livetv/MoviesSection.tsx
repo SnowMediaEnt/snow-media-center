@@ -22,8 +22,10 @@ import {
   type CatalogCounts,
 } from '@/lib/catalogCounts';
 import PosterCard from './PosterCard';
+import { followGridRow } from './posterGrid';
 import { tmdbSized } from '@/lib/tmdbImage';
 import { keepInView } from '@/utils/keepInView';
+import ScrollText, { ScrollLines } from '@/components/ScrollText';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
@@ -31,6 +33,7 @@ import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { loadPlayerVolume, savePlayerVolume, stepVolume } from '@/utils/volume';
 import VodPlayer from './VodPlayer';
+import FitPoster from './FitPoster';
 
 interface Props {
   creds: XtreamCreds;
@@ -40,6 +43,9 @@ interface Props {
   /** Live TV's VOD section: a "Plex" entry sits first in the categories and
    *  opens Plex for everything else. */
   onOpenPlex?: () => void;
+  /** Back from the category list: one step out (Live TV's Movies / Series
+   *  chooser). Without it Back goes to the side menu, as Left does. */
+  onBack?: () => void;
 }
 
 type Pane = 'categories' | 'grid' | 'detail';
@@ -51,7 +57,7 @@ const GRID_COLS = 5;
 // Demo latch (?demo=1) — canned catalog; play shows the demo dialog instead.
 const DEMO = isDemo();
 
-const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex }: Props) => {
+const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex, onBack }: Props) => {
   const { t } = useTranslation();
   // Plex and All Movies are ours to translate; the rest are the provider's category names.
   const catLabel = (c: { id: string; name: string }): string =>
@@ -59,6 +65,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
   const hasPlex = !!onOpenPlex;
   const onOpenPlexRef = useRef(onOpenPlex);
   useEffect(() => { onOpenPlexRef.current = onOpenPlex; }, [onOpenPlex]);
+  const onBackRef = useRef(onBack);
+  useEffect(() => { onBackRef.current = onBack; }, [onBack]);
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [moviesByCat, setMoviesByCat] = useState<Map<string, XtreamVodStream[]>>(new Map());
@@ -209,7 +217,10 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
       if (cancelled) return;
       setMoviesByCat(prev => { const n = new Map(prev); n.set(key, []); return n; });
     }).finally(() => {
-      if (cancelled) return;
+      // Even when cancelled: the list arriving re-runs this effect (the
+      // category's count changes), which cancels this run, and the spinner
+      // stayed on the category for good. Another category's load owns the
+      // spinner by then, so this leaves that one alone.
       setLoadingCat(prev => prev === key ? null : prev);
     });
     return () => { cancelled = true; };
@@ -365,7 +376,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
         e.preventDefault(); e.stopPropagation();
         if (paneRef.current === 'detail') { setPane('grid'); setSelectedMovie(null); }
         else if (paneRef.current === 'grid') setPane('categories');
-        else onExitLeft();
+        else (onBackRef.current ?? onExitLeft)();
         return;
       }
 
@@ -488,6 +499,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
     if (!visibleMovies.length) return;
     const row = Math.floor(gridIdx / GRID_COLS);
     rowVirtualizer.scrollToIndex(row, { align: 'auto' });
+    return followGridRow(gridScrollRef.current, row);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridIdx, visibleMovies.length]);
 
@@ -551,36 +563,34 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
     );
   }
 
-  // Detail view
+  // Detail view: sized to fit a 960×540 screen with nothing to scroll by
+  // hand (the remote only reaches Play); a long plot scrolls itself.
   if (pane === 'detail' && selectedMovie) {
     const info = movieInfo?.info;
     const cover = tmdbSized(info?.movie_image || info?.cover_big || selectedMovie.stream_icon, 'w500');
     return (
-      <div className="flex-1 min-h-0 flex flex-col text-white bg-black/40">
-        <div className={`${BACK_ROW} flex-shrink-0 px-8 pt-8 mb-4`}>
+      <div data-movie-detail="" className="flex-1 min-h-0 min-w-0 flex flex-col text-white bg-black/40">
+        <div className={`${BACK_ROW} flex-shrink-0 px-8 pt-4 mb-3`}>
           <BackButton onClick={() => { setPane('grid'); setSelectedMovie(null); }} label={t('common.back')} />
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
-        <div className="flex gap-8 max-w-4xl">
-          <div className="w-80 aspect-[2/3] rounded-2xl overflow-hidden bg-black/40 border border-white/10 flex-shrink-0">
-            {cover ? <img src={cover} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-3xl font-quicksand font-bold mb-3">{selectedMovie.name}</h2>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-brand-ice/80 font-nunito mb-4">
+        {/* The cover takes the row's height (FitPoster), with a margin above
+            the bottom edge; the text beside it scrolls if it ever must. */}
+        <div className="flex-1 min-h-0 flex px-8 pb-6">
+          <FitPoster src={cover} maxWidth={300} className="mr-8" />
+          <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden max-w-3xl px-2 py-2">
+            <h2 className="text-3xl font-quicksand font-bold leading-tight line-clamp-2 mb-3">{selectedMovie.name}</h2>
+            <div className="flex flex-wrap items-center text-sm text-brand-ice/80 font-nunito mb-4">
               {info?.rating != null && (
-                <span className="flex items-center gap-1"><Star className="w-4 h-4 text-brand-gold fill-brand-gold" />{Number(info.rating).toFixed(1)}</span>
+                <span className="flex items-center mr-3"><Star className="w-4 h-4 mr-1 text-brand-gold fill-brand-gold" />{Number(info.rating).toFixed(1)}</span>
               )}
-              {info?.releasedate && <span>{String(info.releasedate).slice(0, 4)}</span>}
-              {info?.genre && <span>{info.genre}</span>}
+              {info?.releasedate && <span className="mr-3">{String(info.releasedate).slice(0, 4)}</span>}
+              {info?.genre && <span className="mr-3">{info.genre}</span>}
               {info?.duration && <span>{info.duration}</span>}
             </div>
             {infoLoading ? (
-              <Loader2 className="w-6 h-6 animate-spin text-brand-gold" />
+              <Loader2 className="w-6 h-6 mb-6 animate-spin text-brand-gold" />
             ) : (
-              <p className="text-brand-ice/90 font-nunito leading-relaxed max-w-3xl mb-6">
-                {info?.plot || t('live.vod.noDescription')}
-              </p>
+              <ScrollLines text={info?.plot || t('live.vod.noDescription')} maxLines={7} className="text-brand-ice/90 font-nunito leading-snug max-w-3xl mb-6" />
             )}
             <Button
               variant="gold"
@@ -593,7 +603,6 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
               {t('live.vod.playMovieBtn')}
             </Button>
           </div>
-        </div>
         </div>
         {demoNoticeOverlay}
       </div>
@@ -657,7 +666,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
                   `}
                 >
                   {c.id === PLEX_ID && <Film className="w-4 h-4 text-brand-gold flex-shrink-0" />}
-                  <span className="flex-1 truncate">{catLabel(c)}</span>
+                  <ScrollText text={catLabel(c)} active={isFocused} className="flex-1" />
                   {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                   {!isLoadingThis && c.count != null && c.count > 0 && (
                     <span className={`text-xs tabular-nums px-2 py-1 rounded-lg flex-shrink-0 ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
@@ -708,6 +717,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex 
               return (
                 <div
                   key={vr.key}
+                  data-grid-row={vr.index}
                   className="grid gap-4"
                   style={{
                     position: 'absolute',

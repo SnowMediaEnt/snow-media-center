@@ -47,6 +47,7 @@ const GuideSection = lazy(() => import('./livetv/GuideSection'));
 const GameDaySection = lazy(() => import('./livetv/GameDaySection'));
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
+const VodSection = lazy(() => import('./livetv/VodSection'));
 const PlexSection = lazy(() => import('./livetv/PlexSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 
@@ -71,6 +72,7 @@ const OriginalsSection = lazy(() => import('./livetv/OriginalsSection'));
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { DEMO_LIVE_CREDS } from '@/data/liveTvDemo';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { keepInView } from '@/utils/keepInView';
 
 // Demo latch (?demo=1) — module scope like PlexSection. Every demo behavior
 // below lives behind this flag so non-demo sessions stay byte-for-byte equal.
@@ -697,6 +699,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const credsChildOpenRef = useRef(false);
   useEffect(() => { paneRef.current = pane; }, [pane]);
   useEffect(() => { sectionIdxRef.current = sectionIdx; }, [sectionIdx]);
+  // The side menu follows its highlight on a short screen (a big text size).
+  const sectionsMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sectionsMenuRef.current;
+    const el = node?.querySelector<HTMLElement>(`[data-section-i="${sectionIdx}"]`);
+    if (node && el) keepInView(node, el, 8);
+  }, [sectionIdx, pane]);
   useEffect(() => { headerIdxRef.current = headerIdx; }, [headerIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
 
@@ -1154,9 +1163,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Pane 1 — Sections */}
         <div data-player-chrome=""
+          ref={sectionsMenuRef}
           data-howto="live.sections"
           onClick={() => { if (pane !== 'sections') setPane('sections'); }}
-          className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 overflow-hidden ${pane === 'sections' ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
+          className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 overflow-y-auto overflow-x-hidden ${pane === 'sections' ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
         >
           {sections.map((s, i) => {
             const Icon = s.icon;
@@ -1166,6 +1176,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             return (
               <div
                 key={s.id}
+                data-section-i={i}
                 data-focused={isFocused ? 'true' : 'false'}
                 onClick={(e) => { if (collapsed) return; e.stopPropagation(); setSectionIdx(i); setSection(s.id); setPane('content'); }}
                 className={`
@@ -1258,9 +1269,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         )}
 
 
+        {/* VOD: Movies or Series first (VodSection), then that browser. */}
         {inSection('vod') && creds && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
-            <MoviesSection
+            <VodSection
               creds={creds}
               isActive={pane === 'content' && !claimOpen}
               onExitLeft={onExitLeft}

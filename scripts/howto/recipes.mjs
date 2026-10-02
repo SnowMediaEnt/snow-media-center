@@ -68,8 +68,9 @@ export const RECIPES = [
   { id: 'gameday-game', start: 'home', keys: [...liveSection(2), { wait: 1500 }, 'Enter', { wait: 3500 }], ready: hook('gd.links') },
   { id: 'multi', start: 'stage', bg: 'live-list', keys: [{ wait: 800 }], ready: hook('multi.layouts') },
   { id: 'backups', start: 'home', keys: [...liveSection(6), { wait: 1000 }], ready: hook('backups.list') },
-  // Right goes into the posters (the first category's load waits for that).
-  { id: 'vod', start: 'home', keys: [...liveSection(3), { wait: 1000 }, 'ArrowRight', { wait: 2500 }], ready: `${hook('vod.grid')} img`, settle: 800 },
+  // VOD opens on Movies or Series (Movies highlighted on a fresh box): OK
+  // opens Movies, then Right goes into the posters (the first category's load waits for that).
+  { id: 'vod', start: 'home', keys: [...liveSection(3), { waitFor: '[data-vod-kind="movies"]' }, 'Enter', { wait: 2000 }, 'ArrowRight', { wait: 2500 }], ready: `${hook('vod.grid')} img`, settle: 800 },
   // Up from the side menu reaches the header: Back, Update Channels, Settings.
   // The menu is a little taller than the screen and follows the highlight:
   // down to Sign Out brings it on screen, then back up to Switch Account.

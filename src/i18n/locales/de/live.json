@@ -311,6 +311,13 @@
       "noEpisodes": "Keine Folgen",
       "episodeN": "Folge {{n}}"
     },
+    "vodChooser": {
+      "title": "Was möchtest du sehen?",
+      "moviesDesc": "Filme, nach Kategorie",
+      "seriesDesc": "Serien, nach Staffel und Folge",
+      "titles": "{{n}} Titel",
+      "hint": "◀ ▶ wählen · OK zum Öffnen · Zurück zum Menü"
+    },
     "videoPlayer": {
       "formatUnsupported": "Das Format dieses Titels wird auf diesem Gerät möglicherweise nicht unterstützt.",
       "unavailableDevice": "Stream auf diesem Gerät nicht verfügbar.",

@@ -16,6 +16,8 @@ src/components/livetv/KidsAskGrownUp.tsx
 src/components/livetv/ReportChannelDialog.tsx
 src/components/livetv/MoviesSection.tsx
 src/components/livetv/SeriesSection.tsx
+src/components/livetv/VodSection.tsx
+src/components/livetv/FitPoster.tsx
 src/components/livetv/VideoPlayer.tsx
 src/components/livetv/VodPlayer.tsx
 src/lib/vodAudio.ts

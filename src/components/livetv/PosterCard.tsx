@@ -1,5 +1,10 @@
 import { memo, useState } from 'react';
 import { Film, Play, Star, Tv as TvIcon } from 'lucide-react';
+import ScrollText from '@/components/ScrollText';
+import { isHowtoCapture } from '@/lib/demoMode';
+
+// The How-to pictures (dev build only) catch the ticker mid-way otherwise.
+const STILL_TITLES = isHowtoCapture();
 
 interface Props {
   title: string;
@@ -77,9 +82,14 @@ const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'mov
       )}
 
       <div className="absolute inset-x-0 bottom-0 py-2 px-3 bg-gradient-to-t from-black/95 via-black/70 to-transparent">
-        <p className={`text-xs sm:text-sm font-quicksand font-semibold line-clamp-2 leading-tight ${isFocused ? 'text-brand-gold' : 'text-white'}`}>
-          {title}
-        </p>
+        {/* Highlighted: one line that scrolls a long name through; else two lines, cut. */}
+        {isFocused ? (
+          <ScrollText text={title} active={!STILL_TITLES} className="text-xs sm:text-sm font-quicksand font-semibold leading-tight text-brand-gold" />
+        ) : (
+          <p className="text-xs sm:text-sm font-quicksand font-semibold line-clamp-2 leading-tight text-white">
+            {title}
+          </p>
+        )}
         {year && (
           <p className="text-xs text-brand-ice/70 font-nunito mt-1">{year}</p>
         )}

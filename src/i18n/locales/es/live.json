@@ -312,6 +312,13 @@
       "noEpisodes": "Sin episodios",
       "episodeN": "Episodio {{n}}"
     },
+    "vodChooser": {
+      "title": "¿Qué quieres ver?",
+      "moviesDesc": "Películas, por categoría",
+      "seriesDesc": "Series, por temporada y episodio",
+      "titles": "{{n}} títulos",
+      "hint": "◀ ▶ elegir · OK para abrir · Atrás para el menú"
+    },
     "videoPlayer": {
       "formatUnsupported": "Es posible que el formato de este título no sea compatible con este dispositivo.",
       "unavailableDevice": "Transmisión no disponible en este dispositivo.",

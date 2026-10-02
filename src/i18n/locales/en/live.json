@@ -311,6 +311,13 @@
       "noEpisodes": "No episodes",
       "episodeN": "Episode {{n}}"
     },
+    "vodChooser": {
+      "title": "What would you like to watch?",
+      "moviesDesc": "Films, by category",
+      "seriesDesc": "TV shows, by season and episode",
+      "titles": "{{n}} titles",
+      "hint": "◀ ▶ choose · OK to open · Back for the menu"
+    },
     "videoPlayer": {
       "formatUnsupported": "This title's format may not be supported on this device.",
       "unavailableDevice": "Stream unavailable on this device.",

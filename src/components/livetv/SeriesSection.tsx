@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Loader2, Play, Search, Star } from 'lucide-react';
+import { Check, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,8 @@ import {
   type XtreamCategory,
   type XtreamSeries,
   type XtreamSeriesInfo,
-  type XtreamEpisode,
 } from '@/lib/xtream';
+import { nextEpisode, seriesSeasons } from '@/lib/xtreamSeasons';
 import {
   formatCount,
   readCounts,
@@ -23,32 +23,44 @@ import {
   type CatalogCounts,
 } from '@/lib/catalogCounts';
 import PosterCard from './PosterCard';
+import { followGridRow } from './posterGrid';
 import { tmdbSized } from '@/lib/tmdbImage';
+import { keepInView } from '@/utils/keepInView';
 import { isFireTV } from '@/utils/platform';
+import ScrollText, { ScrollLines } from '@/components/ScrollText';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { loadPlayerVolume, savePlayerVolume, stepVolume } from '@/utils/volume';
 import VodPlayer from './VodPlayer';
+import { PosterFrame } from './FitPoster';
 
 interface Props {
   creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
   onExitUp?: () => void;
+  /** Back from the category list: one step out (Live TV's Movies / Series
+   *  chooser). Without it Back goes to the side menu, as Left does. */
+  onBack?: () => void;
 }
 
 type Pane = 'categories' | 'grid' | 'detail';
+// A series page: Play and the autoplay switch on the left, then the seasons,
+// then the episodes. Each list scrolls on its own to keep the highlight in view.
+type DetailFocus = 'play' | 'autoplay' | 'seasons' | 'episodes';
 const ALL_ID = '__all__';
 const GRID_COLS = 5;
 const AUTOPLAY_KEY = 'snow-livetv-autoplay-next';
 // Demo latch (?demo=1) — canned catalog; play shows the demo dialog instead.
 const DEMO = isDemo();
 
-const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
+const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: Props) => {
   const { t } = useTranslation();
   const catLabel = (c: { id: string; name: string }): string => (c.id === ALL_ID ? t('live.series.allSeries') : c.name);
+  const onBackRef = useRef(onBack);
+  useEffect(() => { onBackRef.current = onBack; }, [onBack]);
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [seriesByCat, setSeriesByCat] = useState<Map<string, XtreamSeries[]>>(new Map());
@@ -91,9 +103,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const [infoLoading, setInfoLoading] = useState(false);
   const [seasonIdx, setSeasonIdx] = useState(0);
   const [episodeIdx, setEpisodeIdx] = useState(0);
-  const [detailFocus, setDetailFocus] = useState<'seasons' | 'episodes' | 'play'>('episodes');
+  const [detailFocus, setDetailFocus] = useState<DetailFocus>('episodes');
 
-  const [playing, setPlaying] = useState<{ url: string; title: string; episodeIdx: number } | null>(null);
+  const [playing, setPlaying] = useState<{ url: string; title: string; seasonIdx: number; episodeIdx: number } | null>(null);
   // On-screen title: shows 4 s on play / episode change / any key, then hides.
   const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [demoNotice, setDemoNotice] = useState(false);
@@ -199,7 +211,10 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       if (cancelled) return;
       setSeriesByCat(prev => { const n = new Map(prev); n.set(key, []); return n; });
     }).finally(() => {
-      if (cancelled) return;
+      // Even when cancelled: the list arriving re-runs this effect (the
+      // category's count changes), which cancels this run, and the spinner
+      // stayed on the category for good. Another category's load owns the
+      // spinner by then, so this leaves that one alone.
       setLoadingCat(prev => prev === key ? null : prev);
     });
     return () => { cancelled = true; };
@@ -255,14 +270,16 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => { if (gridIdx >= visibleSeries.length) setGridIdx(0); }, [visibleSeries.length, gridIdx]);
 
 
-  const seasons = seriesInfo?.seasons || [];
-  const currentSeasonNumber = seasons[seasonIdx]?.season_number;
-  const episodes: XtreamEpisode[] = useMemo(() => {
-    if (!seriesInfo || currentSeasonNumber == null) return [];
-    return seriesInfo.episodes?.[String(currentSeasonNumber)] || [];
-  }, [seriesInfo, currentSeasonNumber]);
+  // Built from the episodes the panel actually sent (see xtreamSeasons).
+  const seasons = useMemo(() => seriesSeasons(seriesInfo), [seriesInfo]);
+  const episodes = useMemo(() => seasons[seasonIdx]?.episodes ?? [], [seasons, seasonIdx]);
+  const seasonsRef = useRef(seasons);
+  seasonsRef.current = seasons;
 
+  // A slow answer for an earlier series must not fill in a newer one's page.
+  const openSeqRef = useRef(0);
   const openSeries = useCallback(async (s: XtreamSeries) => {
+    const seq = ++openSeqRef.current;
     setSelectedSeries(s);
     setSeriesInfo(null);
     setSeasonIdx(0);
@@ -272,33 +289,48 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     setInfoLoading(true);
     try {
       const info = await getSeriesInfo(creds, s.series_id);
+      if (seq !== openSeqRef.current) return;
       setSeriesInfo(info);
+      // Nothing to list: the highlight waits on Play (Back still works).
+      if (!seriesSeasons(info).length) setDetailFocus('play');
     } catch {
-      setSeriesInfo(null);
+      if (seq === openSeqRef.current) { setSeriesInfo(null); setDetailFocus('play'); }
     } finally {
-      setInfoLoading(false);
+      if (seq === openSeqRef.current) setInfoLoading(false);
     }
   }, [creds]);
 
-  const playEpisode = useCallback((index: number) => {
+  // Any season's episode (autoplay crosses into the next season). The page
+  // follows along, so Back from the player lands on the episode just watched.
+  const playEpisode = useCallback((sIdx: number, eIdx: number) => {
     // Demo: never build a stream URL or mount a player — show the demo dialog.
     if (DEMO) { setDemoNotice(true); return; }
-    const ep = episodes[index];
+    const season = seasonsRef.current[sIdx];
+    const ep = season?.episodes[eIdx];
     if (!ep || !selectedSeries) return;
+    setSeasonIdx(sIdx);
+    setEpisodeIdx(eIdx);
+    setDetailFocus('episodes');
     const url = buildEpisodeUrl(creds, ep.id, ep.container_extension || 'mp4');
     setPlaying({
       url,
-      title: `${selectedSeries.name} · S${currentSeasonNumber}E${ep.episode_num} · ${ep.title}`,
-      episodeIdx: index,
+      title: `${selectedSeries.name} · S${season.number}E${ep.episode_num} · ${ep.title}`,
+      seasonIdx: sIdx,
+      episodeIdx: eIdx,
     });
     try {
       trackEvent('series_play', 'player', {
         series: selectedSeries.name,
-        season: currentSeasonNumber,
+        season: season.number,
         episode: ep.episode_num,
       });
     } catch { /* ignore */ }
-  }, [episodes, selectedSeries, creds, currentSeasonNumber]);
+  }, [selectedSeries, creds]);
+  // "Play S1·E1": the first episode of the first season.
+  const playFirst = useCallback(() => {
+    const first = seasonsRef.current.findIndex((x) => x.episodes.length > 0);
+    if (first >= 0) playEpisode(first, 0);
+  }, [playEpisode]);
 
   // player_search — debounce
   useEffect(() => {
@@ -322,7 +354,6 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const detailFocusRef = useRef(detailFocus);
   const seasonIdxRef = useRef(seasonIdx);
   const episodeIdxRef = useRef(episodeIdx);
-  const seasonsRef = useRef(seasons);
   const episodesRef = useRef(episodes);
   const autoplayNextRef = useRef(autoplayNext);
   useEffect(() => { paneRef.current = pane; }, [pane]);
@@ -344,7 +375,6 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => { detailFocusRef.current = detailFocus; }, [detailFocus]);
   useEffect(() => { seasonIdxRef.current = seasonIdx; }, [seasonIdx]);
   useEffect(() => { episodeIdxRef.current = episodeIdx; }, [episodeIdx]);
-  useEffect(() => { seasonsRef.current = seasons; }, [seasons]);
   useEffect(() => { episodesRef.current = episodes; }, [episodes]);
   useEffect(() => { autoplayNextRef.current = autoplayNext; }, [autoplayNext]);
 
@@ -366,9 +396,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
-        if (paneRef.current === 'detail') { setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }
+        if (paneRef.current === 'detail') { openSeqRef.current++; setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }
         else if (paneRef.current === 'grid') setPane('categories');
-        else onExitLeft();
+        else (onBackRef.current ?? onExitLeft)();
         return;
       }
 
@@ -436,37 +466,45 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       const focus = detailFocusRef.current;
       const seas = seasonsRef.current;
       const eps = episodesRef.current;
-      if (focus === 'seasons') {
-        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-          if (seasonIdxRef.current + 1 < seas.length) { setSeasonIdx(seasonIdxRef.current + 1); setEpisodeIdx(0); }
-        } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-          if (seasonIdxRef.current > 0) { setSeasonIdx(seasonIdxRef.current - 1); setEpisodeIdx(0); }
-        } else if (e.key === 'Enter' || e.key === ' ') {
-          setDetailFocus('episodes');
+      const sIdx = seasonIdxRef.current;
+      const eIdx = episodeIdxRef.current;
+      // Right from the left column: the seasons, or straight to the
+      // episodes when there is only one season to pick.
+      const intoLists = () => {
+        if (seas.length > 1) setDetailFocus('seasons');
+        else if (eps.length) setDetailFocus('episodes');
+      };
+      if (focus === 'play') {
+        if (e.key === 'ArrowDown') setDetailFocus('autoplay');
+        else if (e.key === 'ArrowRight') intoLists();
+        else if (e.key === 'Enter' || e.key === ' ') playFirst();
+      } else if (focus === 'autoplay') {
+        if (e.key === 'ArrowUp') setDetailFocus('play');
+        else if (e.key === 'ArrowRight') intoLists();
+        else if (e.key === 'Enter' || e.key === ' ') setAutoplayNext((v) => !v);
+      } else if (focus === 'seasons') {
+        if (e.key === 'ArrowDown') {
+          if (sIdx + 1 < seas.length) { setSeasonIdx(sIdx + 1); setEpisodeIdx(0); }
+        } else if (e.key === 'ArrowUp') {
+          if (sIdx > 0) { setSeasonIdx(sIdx - 1); setEpisodeIdx(0); }
+        } else if (e.key === 'ArrowLeft') setDetailFocus('play');
+        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
+          if (eps.length) setDetailFocus('episodes');
         }
       } else if (focus === 'episodes') {
         if (e.key === 'ArrowDown') {
-          if (!eps.length) return;
-          setEpisodeIdx(i => (i + 1) % eps.length);
-        }
-        else if (e.key === 'ArrowUp') {
-          if (!eps.length) return;
-          if (episodeIdxRef.current === 0) setDetailFocus('play');
-          else setEpisodeIdx(episodeIdxRef.current - 1);
-        }
-        else if (e.key === 'ArrowLeft') setDetailFocus('seasons');
-        else if (e.key === 'Enter' || e.key === ' ') playEpisode(episodeIdxRef.current);
-      } else if (focus === 'play') {
-        if (e.key === 'ArrowDown') setDetailFocus('episodes');
-        else if (e.key === 'ArrowLeft') setDetailFocus('seasons');
+          if (eIdx + 1 < eps.length) setEpisodeIdx(eIdx + 1);
+        } else if (e.key === 'ArrowUp') {
+          if (eIdx > 0) setEpisodeIdx(eIdx - 1);
+        } else if (e.key === 'ArrowLeft') setDetailFocus(seas.length > 1 ? 'seasons' : 'play');
         else if (e.key === 'Enter' || e.key === ' ') {
-          if (eps.length) { setEpisodeIdx(0); playEpisode(0); }
+          if (!e.repeat) playEpisode(sIdx, eIdx);
         }
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, onExitUp, openSeries, playEpisode]);
+  }, [isActive, onExitLeft, onExitUp, openSeries, playEpisode, playFirst]);
 
   // Virtualize series grid by row — measure row height from real layout so
   // virtual stride matches what's rendered at any TV resolution.
@@ -474,6 +512,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const [rowH, setRowH] = useState(280);
   const rowHRef = useRef(280);
   useEffect(() => { rowHRef.current = rowH; }, [rowH]);
+  // Keyed on the grid being on screen: the series page and the player
+  // replace it, and the observer was left watching the old, detached one.
+  const gridShown = !playing && !(pane === 'detail' && !!selectedSeries);
   useEffect(() => {
     const el = gridScrollRef.current;
     if (!el) return;
@@ -493,7 +534,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [gridShown]);
   const rowCount = Math.ceil(visibleSeries.length / GRID_COLS);
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
@@ -505,11 +546,47 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx, searchOpen, searchQuery]);
   useEffect(() => {
     if (!visibleSeries.length) return;
-    rowVirtualizer.scrollToIndex(Math.floor(gridIdx / GRID_COLS), { align: 'auto' });
+    const row = Math.floor(gridIdx / GRID_COLS);
+    rowVirtualizer.scrollToIndex(row, { align: 'auto' });
+    return followGridRow(gridScrollRef.current, row);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridIdx, visibleSeries.length]);
-  const focusedEpRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { focusedEpRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [episodeIdx]);
+
+  // Every list keeps its highlight on screen as the remote moves through it
+  // (keepInView: only that list scrolls, never the page around it). Also when
+  // the grid or the page is drawn again, coming back from a series or a film.
+  const catScrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = catScrollRef.current;
+    if (!node) return;
+    if (categoryIdx === 0) { node.scrollTop = 0; return; }
+    const el = node.querySelector<HTMLElement>(`[data-cat-i="${categoryIdx}"]`);
+    if (el) keepInView(node, el, 8);
+  }, [categoryIdx, gridShown, searchOpen, visibleCategories.length]);
+  const seasonsScrollRef = useRef<HTMLDivElement | null>(null);
+  const episodesScrollRef = useRef<HTMLDivElement | null>(null);
+  const infoScrollRef = useRef<HTMLDivElement | null>(null);
+  const detailShown = !playing && pane === 'detail' && !!selectedSeries;
+  useEffect(() => {
+    if (!detailShown) return;
+    const node = seasonsScrollRef.current;
+    const el = node?.querySelector<HTMLElement>(`[data-season-i="${seasonIdx}"]`);
+    if (node && el) keepInView(node, el, 8);
+  }, [detailShown, seasonIdx, seasons.length]);
+  useEffect(() => {
+    if (!detailShown) return;
+    const node = episodesScrollRef.current;
+    if (!node) return;
+    if (episodeIdx === 0) { node.scrollTop = 0; return; }
+    const el = node.querySelector<HTMLElement>(`[data-episode-i="${episodeIdx}"]`);
+    if (el) keepInView(node, el, 8);
+  }, [detailShown, episodeIdx, seasonIdx, episodes.length]);
+  useEffect(() => {
+    if (!detailShown) return;
+    const node = infoScrollRef.current;
+    const el = node?.querySelector<HTMLElement>(`[data-detail-btn="${detailFocus}"]`);
+    if (node && el) keepInView(node, el, 8);
+  }, [detailShown, detailFocus]);
 
   // Demo notice owns the D-pad while open: swallow every key so focus can't
   // leak into the grid behind it. OK / Back / Escape dismiss. (Plex pattern.)
@@ -551,8 +628,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
         }}
         onEnded={() => {
           if (!autoplayNextRef.current) { setPlaying(null); return; }
-          const next = playing.episodeIdx + 1;
-          if (next < episodesRef.current.length) playEpisode(next);
+          // The next episode, into the next season after a season's last.
+          const next = nextEpisode(seasonsRef.current, playing.seasonIdx, playing.episodeIdx);
+          if (next) playEpisode(next.season, next.episode);
           else setPlaying(null);
         }}
       >
@@ -565,79 +643,88 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     );
   }
 
-  // Detail
+  // Detail: three columns that each fit the screen and scroll on their own
+  // (the old page ran its episodes off the bottom of a 960×540 screen).
   if (pane === 'detail' && selectedSeries) {
     const info = seriesInfo?.info;
-    const cover = info?.cover || selectedSeries.cover;
+    const cover = tmdbSized(info?.cover || selectedSeries.cover);
+    const plot = info?.plot || selectedSeries.plot || '';
+    const firstPlayable = seasons.some((x) => x.episodes.length > 0);
+    const btnFocused = (f: DetailFocus) => isActive && !demoNotice && detailFocus === f;
     return (
-      <div className="flex-1 min-h-0 flex flex-col text-white bg-black/40">
-        <div className={`${BACK_ROW} flex-shrink-0 px-6 pt-6 mb-4`}>
-          <BackButton onClick={() => { setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }} label={t('common.back')} />
+      <div data-series-detail="" className="flex-1 min-h-0 min-w-0 flex flex-col text-white bg-black/40">
+        <div className={`${BACK_ROW} flex-shrink-0 px-6 pt-4 mb-3`}>
+          <BackButton onClick={() => { openSeqRef.current++; setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }} label={t('common.back')} />
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
-        <div className="flex gap-6 mb-6">
-          <div className="w-48 aspect-[2/3] rounded-2xl overflow-hidden bg-black/40 border border-white/10 flex-shrink-0">
-            {cover ? <img src={cover} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-3xl font-quicksand font-bold mb-2">{selectedSeries.name}</h2>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-brand-ice/80 font-nunito mb-3">
-              {info?.rating != null && (
-                <span className="flex items-center gap-1"><Star className="w-4 h-4 text-brand-gold fill-brand-gold" />{Number(info.rating).toFixed(1)}</span>
-              )}
-              {info?.releaseDate && <span>{String(info.releaseDate).slice(0, 4)}</span>}
-              {info?.genre && <span>{info.genre}</span>}
+        <div className="flex-1 min-h-0 flex px-6 pb-4">
+          {/* About the series, Play, autoplay */}
+          <div ref={infoScrollRef} className="w-72 flex-shrink-0 min-h-0 overflow-y-auto overflow-x-hidden pr-4 mr-4 border-r border-white/10">
+            <div className="flex items-start mb-3">
+              <div className="w-24 flex-shrink-0 mr-3">
+                <PosterFrame src={cover} className="rounded-xl" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl font-quicksand font-bold leading-tight line-clamp-3 mb-2">{selectedSeries.name}</h2>
+                <div className="flex flex-wrap items-center text-sm text-brand-ice/80 font-nunito">
+                  {info?.rating != null && info.rating !== '' && (
+                    <span className="flex items-center mr-3"><Star className="w-4 h-4 mr-1 text-brand-gold fill-brand-gold" />{Number(info.rating).toFixed(1)}</span>
+                  )}
+                  {info?.releaseDate && <span className="mr-3">{String(info.releaseDate).slice(0, 4)}</span>}
+                  {info?.genre && <ScrollText text={info.genre} active={isActive} className="w-full" />}
+                </div>
+              </div>
             </div>
-            {infoLoading ? <Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> : (
-              <p className="text-brand-ice/90 font-nunito leading-relaxed line-clamp-4">{info?.plot || t('live.vod.noDescription')}</p>
+            {infoLoading ? <Loader2 className="w-5 h-5 mb-3 animate-spin text-brand-gold" /> : (
+              <ScrollLines text={plot || t('live.vod.noDescription')} maxLines={5} className="text-brand-ice/90 font-nunito text-sm leading-snug mb-3" />
             )}
-            <div className="flex items-center gap-4 mt-4">
-              <Button
-                variant="gold"
-                onClick={() => { if (episodes.length) { setEpisodeIdx(0); playEpisode(0); } }}
-                data-focused={detailFocus === 'play' ? 'true' : 'false'}
-                className={`tv-ring tv-ring-contrast rounded-xl h-12 px-6 text-base transition-transform duration-150 ease-out ${detailFocus === 'play' ? 'scale-105 z-10' : ''}`}
-                disabled={!episodes.length}
-              >
-                <Play className="w-4 h-4 mr-2 fill-current" />
-                <span className="min-w-0 truncate">{t('live.series.playFirstBtn')}</span>
-              </Button>
-              <label className="flex items-center gap-2 text-sm font-nunito text-brand-ice cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoplayNext}
-                  onChange={(e) => setAutoplayNext(e.target.checked)}
-                  className="accent-brand-gold w-4 h-4"
-                />
-                {t('live.series.autoplayNext')}
-              </label>
+            <Button
+              variant="gold"
+              data-detail-btn="play"
+              onClick={playFirst}
+              data-focused={btnFocused('play') ? 'true' : 'false'}
+              className={`tv-ring tv-ring-contrast w-full rounded-xl h-12 px-4 text-base transition-transform duration-150 ease-out ${btnFocused('play') ? 'scale-105 z-10' : ''}`}
+              disabled={!firstPlayable}
+            >
+              <Play className="w-4 h-4 mr-2 fill-current" />
+              <span className="min-w-0 truncate">{t('live.series.playFirstBtn')}</span>
+            </Button>
+            <div
+              role="switch"
+              aria-checked={autoplayNext}
+              data-detail-btn="autoplay"
+              data-focused={btnFocused('autoplay') ? 'true' : 'false'}
+              onClick={() => setAutoplayNext((v) => !v)}
+              className={`tv-ring mt-3 flex items-center px-3 py-2 rounded-xl cursor-pointer font-nunito text-sm text-brand-ice ${btnFocused('autoplay') ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-white/5'}`}
+            >
+              <span className={`w-5 h-5 mr-2 flex-shrink-0 rounded flex items-center justify-center border ${autoplayNext ? 'bg-brand-gold border-brand-gold' : 'border-white/40'}`}>
+                {autoplayNext && <Check className="w-4 h-4 text-brand-navy" />}
+              </span>
+              <span className="min-w-0">{t('live.series.autoplayNext')}</span>
             </div>
           </div>
-        </div>
 
-        <div className="flex gap-6">
           {/* Seasons */}
-          <div className="w-44 flex-shrink-0">
-            <h4 className="font-quicksand font-semibold text-xl mb-2 text-white/90">{t('live.series.seasons')}</h4>
-            <div className="space-y-1">
-              {seasons.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">{t('live.series.noSeasons')}</p>}
-              {seasons.map((s, i) => {
-                const focused = detailFocus === 'seasons' && seasonIdx === i;
+          <div className="w-40 flex-shrink-0 min-h-0 flex flex-col mr-4">
+            <h4 className="flex-shrink-0 font-quicksand font-semibold text-lg mb-2 text-white/90">{t('live.series.seasons')}</h4>
+            <div ref={seasonsScrollRef} data-series-seasons="" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-1 px-1 py-1">
+              {!infoLoading && seasons.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">{t('live.series.noSeasons')}</p>}
+              {seasons.map((x, i) => {
+                const focused = isActive && !demoNotice && detailFocus === 'seasons' && seasonIdx === i;
                 const selected = seasonIdx === i;
                 return (
                   <div
-                    key={s.season_number}
+                    key={x.number}
+                    data-season-i={i}
                     data-focused={focused ? 'true' : 'false'}
                     onClick={() => { setSeasonIdx(i); setEpisodeIdx(0); setDetailFocus('episodes'); }}
                     className={`
-                      tv-ring px-3 py-3 rounded-xl cursor-pointer font-nunito text-base
+                      tv-ring px-3 py-3 rounded-xl cursor-pointer font-nunito text-base text-brand-ice
                       ${focused ? 'bg-brand-gold/25 scale-[1.02] z-10' : ''}
                       ${!focused && selected ? 'bg-white/10' : ''}
                       ${!focused && !selected ? 'hover:bg-white/5' : ''}
-                      text-brand-ice
                     `}
                   >
-                    {s.name || t('live.series.seasonN', { n: s.season_number })}
+                    <ScrollText text={x.name || t('live.series.seasonN', { n: x.number })} active={focused} />
                   </div>
                 );
               })}
@@ -645,32 +732,32 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
           </div>
 
           {/* Episodes */}
-          <div className="flex-1 min-w-0">
-            <h4 className="font-quicksand font-semibold text-xl mb-2 text-white/90">{t('live.series.episodes')}</h4>
-            <div className="space-y-1 max-h-[55vh] overflow-y-auto px-2 -mx-2">
-              {episodes.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">{t('live.series.noEpisodes')}</p>}
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+            <h4 className="flex-shrink-0 font-quicksand font-semibold text-lg mb-2 text-white/90">{t('live.series.episodes')}</h4>
+            <div ref={episodesScrollRef} data-series-episodes="" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-1 px-2 py-1">
+              {infoLoading && <Loader2 className="w-5 h-5 animate-spin text-brand-gold" />}
+              {!infoLoading && episodes.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">{t('live.series.noEpisodes')}</p>}
               {episodes.map((ep, i) => {
-                const focused = detailFocus === 'episodes' && episodeIdx === i;
+                const focused = isActive && !demoNotice && detailFocus === 'episodes' && episodeIdx === i;
                 return (
                   <div
                     key={ep.id}
-                    ref={focused ? focusedEpRef : null}
-                    onClick={() => { setEpisodeIdx(i); playEpisode(i); }}
+                    data-episode-i={i}
+                    onClick={() => playEpisode(seasonIdx, i)}
                     data-focused={focused ? 'true' : 'false'}
                     className={`
-                      tv-ring flex items-center gap-4 px-5 py-3 rounded-xl border border-white/10 cursor-pointer
+                      tv-ring flex items-center px-4 py-3 rounded-xl border border-white/10 cursor-pointer
                       ${focused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-white/5 hover:bg-white/10'}
                     `}
                   >
-                    <span className="w-10 text-right font-quicksand font-bold text-brand-gold">{ep.episode_num}</span>
-                    <span className="flex-1 truncate font-nunito text-white">{ep.title || t('live.series.episodeN', { n: ep.episode_num })}</span>
-                    {ep.info?.duration && <span className="text-xs text-brand-ice/70 font-nunito">{ep.info.duration}</span>}
+                    <span className="w-8 mr-3 flex-shrink-0 text-right font-quicksand font-bold text-brand-gold">{ep.episode_num}</span>
+                    <ScrollText text={ep.title || t('live.series.episodeN', { n: ep.episode_num })} active={focused} className="flex-1 font-nunito text-white" />
+                    {ep.info?.duration && <span className="ml-3 flex-shrink-0 text-xs text-brand-ice/70 font-nunito">{ep.info.duration}</span>}
                   </div>
                 );
               })}
             </div>
           </div>
-        </div>
         </div>
         {demoNoticeOverlay}
       </div>
@@ -679,7 +766,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
 
   return (
     <div className="flex-1 min-h-0 flex">
-      <div className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
+      <div ref={catScrollRef} data-series-cats="" className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
@@ -717,6 +804,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
               return (
                 <div
                   key={c.id}
+                  data-cat-i={i}
                   data-focused={isFocused ? 'true' : 'false'}
                   onClick={() => {
                     userMovedRef.current = true;
@@ -730,7 +818,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                     ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
                   `}
                 >
-                  <span className="flex-1 truncate">{catLabel(c)}</span>
+                  <ScrollText text={catLabel(c)} active={isFocused} className="flex-1" />
                   {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                   {!isLoadingThis && c.count != null && c.count > 0 && (
                     <span className={`text-xs tabular-nums px-2 py-1 rounded-lg flex-shrink-0 ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
@@ -744,11 +832,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
         )}
       </div>
 
-      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 bg-black/30">
+      <div ref={gridScrollRef} data-series-grid="" className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 bg-black/30">
         {seriesLoading && visibleSeries.length === 0 ? (
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
             {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
-              <div key={i} className="rounded-xl bg-white/5 animate-pulse" style={{ aspectRatio: '2 / 3' }} />
+              <div key={i} className="rounded-xl bg-white/5 animate-pulse" style={{ height: 0, paddingBottom: '150%' }} />
             ))}
           </div>
         ) : visibleSeries.length === 0 ? (
@@ -768,6 +856,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
               return (
                 <div
                   key={vr.key}
+                  data-grid-row={vr.index}
                   className="grid gap-4"
                   style={{
                     position: 'absolute',
