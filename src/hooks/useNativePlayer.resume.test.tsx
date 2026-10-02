@@ -236,9 +236,9 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
   const body = (from: string) => plugin.slice(plugin.indexOf(from), plugin.indexOf('\n    }\n', plugin.indexOf(from)));
 
   it('main slot tops its buffer up continuously (low mark = high mark), size before time', () => {
-    // 2 GB boxes: 50 s within 128 MB, over a 20 s floor.
+    // 2 GB boxes: 50 s within 112 MB (128 MB less the range-fetch window), over a 20 s floor.
     const low = plugin.slice(plugin.indexOf('} else if (lowRam) {'), plugin.indexOf('} else {', plugin.indexOf('} else if (lowRam) {')));
-    expect(low).toMatch(/SteadyLoadControl\(\s*minBufferMs = 50000,\s*maxBufferMs = 50000,\s*bufferForPlaybackMs = 2500,\s*bufferForPlaybackAfterRebufferMs = 5000,\s*targetBufferBytes = 128 \* 1024 \* 1024,\s*floorMs = 20000,\s*uhdBudgetBytes = 0,/);
+    expect(low).toMatch(/SteadyLoadControl\(\s*minBufferMs = 50000,\s*maxBufferMs = 50000,\s*bufferForPlaybackMs = 2500,\s*bufferForPlaybackAfterRebufferMs = 5000,\s*targetBufferBytes = 128 \* 1024 \* 1024 - RangeFetchDataSource\.LOW_RAM_WINDOW_BYTES,\s*floorMs = 20000,\s*uhdBudgetBytes = 0,/);
     // Other boxes: what DefaultLoadControl.Builder().setBufferDurationsMs(120000, 120000, 2500, 5000)
     // built (the library's own byte budget, C.LENGTH_UNSET), with no floor; a 4K film gets a budget of its own.
     const normal = plugin.slice(plugin.indexOf('} else {', plugin.indexOf('} else if (lowRam) {')), plugin.indexOf('val p = builder.build()'));
@@ -280,23 +280,27 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
 
   it('a file from a remote server is read over several range requests at once (RangeFetchDataSource), with the same agent, timeouts and meter', () => {
     const range = plugin.slice(plugin.indexOf('val rangeFactory'), plugin.indexOf('val dataSourceFactory'));
-    expect(range).toMatch(/RangeFetchDataSource\.Factory\(\s*userAgent = plexAgent,\s*connectTimeoutMs = 15000,\s*readTimeoutMs = 30000,\s*connections = rangeConnections,\s*chunkBytes = if \(lowRam\) MIB\.toInt\(\) else \(2L \* MIB\)\.toInt\(\),\s*\)\.setTransferListener\(meter\)/);
-    // 2 GB boxes: 3 × 1 MiB in flight; others 4 × 2 MiB.
-    expect(plugin).toContain('val rangeConnections = if (lowRam) 3 else 4');
-    expect(plugin).toContain('s.rangeConnections = rangeConnections');
+    expect(range).toMatch(/RangeFetchDataSource\.Factory\(\s*userAgent = plexAgent,\s*connectTimeoutMs = 15000,\s*readTimeoutMs = 30000,\s*shared = rangeShared,\s*\)/);
+    // Bytes are counted as they arrive (not through the meter on read).
+    expect(range).not.toMatch(/shared = rangeShared,\s*\)\.setTransferListener/);
+    // 4 connections on every box; 2 GB boxes get a smaller window, not fewer connections.
+    expect(plugin).toContain('connections = RangeFetchDataSource.DEFAULT_CONNECTIONS,');
+    expect(plugin).toContain('windowBytes = if (lowRam) RangeFetchDataSource.LOW_RAM_WINDOW_BYTES else RangeFetchDataSource.DEFAULT_WINDOW_BYTES,');
+    expect(plugin).toContain('arrival = s.netBytes,');
+    expect(plugin).toContain('s.rangeShared = rangeShared');
     // Asked for per load, never for a live stream; read at each open.
     const load = plugin.slice(plugin.indexOf('fun load(call: PluginCall) {'), plugin.indexOf('fun play(call: PluginCall)'));
     expect(load).toContain('val rangeFetch = call.getBoolean("rangeFetch", false) ?: false');
     expect(load).toContain('s.rangeFetch = rangeFetch && !live');
     // The stats panel says how many connections the stream is read over.
-    expect(plugin).toContain('o.put("fetchConnections", if (s != null && s.rangeFetch) s.rangeConnections else 1)');
+    expect(plugin).toContain('o.put("fetchConnections", if (s != null && s.rangeFetch) (s.rangeShared?.liveConnections?.get() ?: 0) else 1)');
     // The source itself: pieces in order, a small first piece, an error
     // status reported like the library's own source.
     expect(rangeSource).toContain('class RangeFetchDataSource(');
     expect(rangeSource).toContain(') : BaseDataSource(/* isNetwork = */ true)');
-    expect(rangeSource).toContain('const val FIRST_CHUNK_BYTES = 512 * 1024');
+    expect(rangeSource).toContain('const val DEFAULT_RAMP_BYTES = MIB');
     expect(rangeSource).toContain('conn.setRequestProperty("Range", "bytes=$from-$to")');
-    expect(rangeSource).toContain('throw HttpDataSource.InvalidResponseCodeException(code, conn.responseMessage, null, responseHeaders, dataSpec, body)');
+    expect(rangeSource).toContain('throw HttpDataSource.InvalidResponseCodeException(code, message, cause, responseHeaders, dataSpec, body)');
     expect(rangeSource).not.toMatch(/Log\.[dwiev]\(/);
   });
 
