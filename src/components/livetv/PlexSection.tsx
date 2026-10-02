@@ -21,6 +21,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 // every toast state change, which only <Toaster> needs.
 import { toast } from '@/hooks/use-toast';
 import { isFireTV } from '@/utils/platform';
+import { fingerIsDriving } from '@/lib/phoneMode';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { usePlexAuth } from '@/hooks/usePlexAuth';
@@ -3093,6 +3094,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       const lk = tabsRef.current[libIdxRef.current]?.libKey;
       if (lk && (libraryModeRef.current[lk] ?? 'rows') !== 'grid') return;
     }
+    // A finger scrolling the grid is never pulled back to the highlight (phoneMode).
+    if (fingerIsDriving()) return;
     const row = Math.floor(cursor / COLS);
     rowVirtualizer.scrollToIndex(row, { align: 'auto' });
   }, [cursor, zone, rowVirtualizer]);

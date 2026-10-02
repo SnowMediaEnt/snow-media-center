@@ -6,6 +6,8 @@ import App from './App.tsx'
 import './index.css'
 import './styles/tv.css'
 import './styles/plex.css'
+import './styles/phone.css'
+import { startPhoneMode } from './lib/phoneMode'
 import { isNativePlatform, getPlatform, isFireTV } from './utils/platform'
 import { isStorageReady, waitForStorageReady } from './utils/storage'
 import { isOnline } from './utils/network'
@@ -13,6 +15,8 @@ import { readTheme, applyTheme } from '@/lib/theme'
 
 // Apply user theme before React mounts to avoid FOUC.
 applyTheme(readTheme());
+// Phone / tablet or TV, before the first frame (html.is-touch / is-phone).
+startPhoneMode();
 
 try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('js'); } catch(e){}
 
