@@ -658,8 +658,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
             remote's Back returns to the list. The space goes to the info. */}
         <div className="flex-1 min-h-0 flex px-6 pt-4 pb-4">
           {/* About the series, Play, autoplay */}
-          <div ref={infoScrollRef} className="w-72 flex-shrink-0 min-h-0 overflow-y-auto overflow-x-hidden pr-4 mr-4 border-r border-white/10">
-            <div className="flex items-start mb-3">
+          <div ref={infoScrollRef} className="w-72 flex-shrink-0 min-h-0 flex flex-col overflow-hidden pr-4 mr-4 border-r border-white/10">
+            <div className="flex-shrink-0 flex items-start mb-3">
               <div className="w-24 flex-shrink-0 mr-3">
                 <PosterFrame src={cover} className="rounded-xl" />
               </div>
@@ -674,9 +674,14 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
                 </div>
               </div>
             </div>
-            {infoLoading ? <Loader2 className="w-5 h-5 mb-3 animate-spin text-brand-gold" /> : (
-              <ScrollLines text={plot || t('live.vod.noDescription')} maxLines={5} className="text-brand-ice/90 font-nunito text-sm leading-snug mb-3" />
-            )}
+            {/* The description takes all the height between the title and the
+                buttons, which sit at the bottom; it scrolls only if it must. */}
+            <div className="flex-1 min-h-0 flex flex-col mb-3">
+              {infoLoading ? <Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> : (
+                <ScrollLines text={plot || t('live.vod.noDescription')} fill className="flex-1 min-h-0 text-brand-ice/90 font-nunito text-sm leading-snug" />
+              )}
+            </div>
+            <div className="flex-shrink-0">
             <Button
               variant="gold"
               data-detail-btn="play"
@@ -700,6 +705,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
                 {autoplayNext && <Check className="w-4 h-4 text-brand-navy" />}
               </span>
               <span className="min-w-0">{t('live.series.autoplayNext')}</span>
+            </div>
             </div>
           </div>
 

@@ -89,8 +89,12 @@ export const SCROLL_LINES_HOLD_MS = 3000;
  * end, holds there, then jumps back to the top and repeats; it never bounces.
  * Chrome 66: the Web Animations API with plain px values (no CSS variables in
  * keyframes); text that fits never moves.
+ *
+ * `fill`: instead of `maxLines`, the box takes whatever height its parent
+ * gives it (put it in a flex column with `flex-1 min-h-0`), and is measured
+ * again when that height changes.
  */
-export function ScrollLines({ text, maxLines = 2, className = '' }: { text: string; maxLines?: number; className?: string }) {
+export function ScrollLines({ text, maxLines = 2, fill = false, className = '' }: { text: string; maxLines?: number; fill?: boolean; className?: string }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [dist, setDist] = useState(0);
@@ -99,9 +103,16 @@ export function ScrollLines({ text, maxLines = 2, className = '' }: { text: stri
     const box = boxRef.current;
     const inner = innerRef.current;
     if (!box || !inner) return;
-    const over = inner.scrollHeight - box.clientHeight;
-    setDist(over > 2 ? over : 0);
-  }, [text, maxLines]);
+    const measure = () => {
+      const over = inner.scrollHeight - box.clientHeight;
+      setDist(over > 2 ? over : 0);
+    };
+    measure();
+    if (!fill || typeof ResizeObserver !== 'function') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [text, maxLines, fill]);
 
   useLayoutEffect(() => {
     const inner = innerRef.current;
@@ -122,7 +133,7 @@ export function ScrollLines({ text, maxLines = 2, className = '' }: { text: stri
   }, [dist, text]);
 
   return (
-    <div ref={boxRef} className={`overflow-hidden ${className}`} style={{ maxHeight: `${maxLines * 1.375}em` }}>
+    <div ref={boxRef} className={`overflow-hidden ${className}`} style={fill ? undefined : { maxHeight: `${maxLines * 1.375}em` }}>
       <div ref={innerRef} style={dist > 0 ? { willChange: 'transform' } : undefined}>{text}</div>
     </div>
   );
