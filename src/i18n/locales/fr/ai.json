@@ -169,6 +169,7 @@
         "resolved": "Résolu"
       },
       "dpadScroll": "↑↓ Utilisez les flèches pour faire défiler les messages",
+      "fullscreenBackHint": "Retour : vue réduite",
       "you": "Vous",
       "supportSender": "Assistance",
       "replyPlaceholder": "Écrivez votre réponse...",

@@ -169,6 +169,7 @@
         "resolved": "Resolved"
       },
       "dpadScroll": "↑↓ Use D-pad to scroll messages",
+      "fullscreenBackHint": "Back: smaller view",
       "you": "You",
       "supportSender": "Support",
       "replyPlaceholder": "Type your reply...",

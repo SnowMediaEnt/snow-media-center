@@ -263,7 +263,6 @@ const RenameDialog = ({ item, onSave, onCancel }: { item: RecordingItem; onSave:
               ref={inputRef}
               type="text"
               value={text}
-              autoComplete="off"
               onChange={(e) => setText(e.target.value)}
               className="w-full bg-transparent text-white px-1 py-1 font-nunito text-lg focus:outline-none"
             />

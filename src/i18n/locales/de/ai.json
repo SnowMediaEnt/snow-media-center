@@ -169,6 +169,7 @@
         "resolved": "Gelöst"
       },
       "dpadScroll": "↑↓ Mit dem Steuerkreuz Nachrichten scrollen",
+      "fullscreenBackHint": "Zurück: kleinere Ansicht",
       "you": "Du",
       "supportSender": "Support",
       "replyPlaceholder": "Schreib deine Antwort...",

@@ -585,10 +585,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   value={newSubject}
                   onChange={(e) => setNewSubject(e.target.value)}
                   onKeyDown={(e) => handleTicketFieldKeyDown(e, 'create-message')}
-                  enterKeyHint="next"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
+                  type="text"
                   placeholder={t('tickets.create.subjectPlaceholder')}
                   data-tv-focus-id="create-subject"
                   data-tv-allow-enter="true"
@@ -608,7 +605,6 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onKeyDown={(e) => handleTicketFieldKeyDown(e)}
                   placeholder={t('tickets.create.messagePlaceholder')}
                   rows={8}
-                  enterKeyHint="done"
                   data-tv-focus-id="create-message"
                   data-tv-allow-enter="true"
                   className="bg-slate-700 border-slate-600 text-white "
