@@ -75,6 +75,7 @@ Status: building · ready to test · still broken · done.
 | 53 | VOD player bar: play/pause, seek, subtitles, audio, volume to 150%, next episode | feature | ready to test (1.8.1 build 59) | |
 | 54 | VOD opens Movies or Series; Series works (seasons, episodes, autoplay); every VOD list scrolls; covers fit the screen | feature | ready to test (1.8.1 build 59) | |
 | 55 | Support AI Chat: full screen while typing/talking, roomier layout, bold/lists shown properly (no **); keyboard talk button back on AI Chat, Plex search and ticket fields | feature | ready to test (1.8.1 build 59) | |
+| 56 | Plex deep audit (docs/plex-audit-2026-10.md): download engine rewritten (4 busy connections on every box, arrival metering, retries); one quality rule on real delivery; one conversion lifecycle; start conversion removed; no test reads during play; route/home-network fixes; no update download during play; remote kill switch plex_range_fetch | bug | ready to test (1.8.1 build 59) | 4 |
 | 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
 
 ## Waiting on the owner
