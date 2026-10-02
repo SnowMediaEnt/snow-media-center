@@ -36,16 +36,13 @@ html.is-touch a {
   -webkit-user-drag: none;
 }
 
-/* A list's scroll stays in the list: reaching its end doesn't drag the page
-   (or the pane behind it) along. */
-html.is-touch .overflow-y-auto,
-html.is-touch .overflow-auto {
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
-html.is-touch .overflow-x-auto {
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
+/* No blanket overscroll-behavior: contain on every overflow-*-auto box: a box
+   with overflow-y:auto that has no height of its own (it grows with its page
+   inside another scroller) then stops every finger swipe and the page never
+   scrolls (found in Tronix's Settings, its commit eb646b5). Screen roots let
+   a swipe through to the page that scrolls. */
+html.is-touch .tv-scroll-container {
+  overscroll-behavior: auto;
 }
 
 /* Rows the remote scrolls in code (overflow hidden on a TV) scroll by finger
