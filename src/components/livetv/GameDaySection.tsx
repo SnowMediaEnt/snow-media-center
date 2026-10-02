@@ -53,15 +53,13 @@ import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
 import { isChannelDown, signalChannel, useDownChannels } from '@/lib/channelStatus';
 import {
-  CHANNELS_TTL_MS, LINK_LABELS, PICKED_LABEL, applyChannelEdits, arrangeLinks, cardChannels, channelKey, channelsForGame, checkGuides, chipOf, fetchGameEdits,
+  CHANNELS_TTL_MS, LINK_LABELS, aiLinks, lineupHash, scanCandidates, teamTokens, PICKED_LABEL, applyChannelEdits, arrangeLinks, cardChannels, channelKey, channelsForGame, checkGuides, chipOf, fetchGameEdits,
   fetchGames, gameServices, isPpvFight, isStreamingOnly, kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames,
-  type Game, type GameChannel, type GameEdit, type LinkGroups, type SportsChannel,
+  type Game, type GameChannel, type GameEdit, type LearnedCats, type LinkGroups, type SportsChannel,
 } from '@/lib/gameDay';
 import {
   AI_FLAG, aiAllowed, fetchCachedScan, hostOf, isWrongLink, learnedCats, markWrong, rememberMiss, sendLearn, sendScan, shouldScan, trackAiPlay, wrongLinks,
-  type CachedScan, type LearnedCats, type ScanResult, type SearchLink,
-  // TODO(gdai merge): these four come from '@/lib/gameDay' once item A lands.
-  aiLinks, lineupHash, scanCandidates, teamTokens,
+  type CachedScan, type ScanResult,
 } from '@/lib/gameDayAi';
 import { GAME_REMINDERS_EVENT, hasReminder, toggleReminder } from '@/lib/gameReminders';
 import { buildLines, lineKey } from '@/lib/liveLines';
@@ -71,18 +69,16 @@ import { useTranslation } from 'react-i18next';
 
 const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
 
-// TODO(gdai merge): item A gives loadSportsChannels and channelsForGame their
-// `learned` parameter; these casts go then.
-const loadChannels = loadSportsChannels as (lines: XtreamCreds[], learned?: LearnedCats) => Promise<SportsChannel[]>;
-const matchGame = channelsForGame as (game: Game, channels: SportsChannel[], limit?: number, learned?: LearnedCats) => GameChannel[];
+const loadChannels = loadSportsChannels;
+const matchGame = channelsForGame;
 
 /** How it was found, for a link found by search. */
-const searchOf = (l: GameChannel): 'high' | 'medium' | undefined => (l as SearchLink).search;
+const searchOf = (l: GameChannel): 'high' | 'medium' | undefined => l.search;
 /** The groups with the links found by search apart (unless the guide
  *  confirmed them: those are the game's channels). arrangeLinks fills
- *  `search` (item A); a found link left in another group is moved too. */
-const splitSearch = (groups: LinkGroups): LinkGroups & { search: GameChannel[] } => {
-  const g = groups as LinkGroups & { search?: GameChannel[] };
+ *  `search`; a found link left in another group is moved there too. */
+const splitSearch = (groups: LinkGroups): LinkGroups => {
+  const g = groups;
   const found = (l: GameChannel) => !!searchOf(l) && l.guide !== 'yes';
   const keep = (list: GameChannel[]) => (list.some(found) ? list.filter((l) => !found(l)) : list);
   return {

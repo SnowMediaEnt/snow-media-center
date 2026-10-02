@@ -18,9 +18,10 @@ vi.mock('@/lib/demoMode', () => ({ isDemo: () => spy.demo }));
 vi.mock('@/lib/kidsFilter', () => ({ kidsLevel: () => spy.kids }));
 
 import {
-  __resetGameDayAiForTests, fetchCachedScan, learnedCats, lineupHash, markWrong, noteLivePlay, rememberMiss, sendLearn, sendScan, shouldScan, wrongLinks,
+  __resetGameDayAiForTests, fetchCachedScan, learnedCats, markWrong, noteLivePlay, rememberMiss, sendLearn, sendScan, shouldScan, wrongLinks,
   isWrongLink, type CachedScan,
 } from './gameDayAi';
+import { lineupHash } from './gameDay';
 
 const HOST = 'dstreams.xyz';
 const cachedAnswer = {

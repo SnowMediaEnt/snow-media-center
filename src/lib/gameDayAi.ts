@@ -25,7 +25,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { getDeviceId, trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import { kidsLevel } from '@/lib/kidsFilter';
-import type { Game, GameChannel, SportsChannel } from '@/lib/gameDay';
+import type { AiMatch, Game, GameChannel, LearnedCats, ScanCandidate } from '@/lib/gameDay';
+
+export type { AiMatch, LearnedCats, ScanCandidate };
 
 const FN = 'game-day-match';
 export const AI_FLAG = 'gameday_ai_match';
@@ -39,83 +41,8 @@ const RESEND_MS = 30 * 60_000;
 const LEARNED_MS = 30 * 24 * 60 * 60_000;
 const MAX_MATCHES_PER_GAME = 6;
 
-// ── TODO(gdai merge): item A's gameDay.ts exports ───────────────────────────
-// Item A adds ScanCandidate, AiMatch, LearnedCats, scanCandidates, lineupHash,
-// aiLinks, teamTokens and GameChannel.search to lib/gameDay. Until it lands,
-// these minimal stand-ins keep this branch compiling and testable. At merge:
-// delete this block, import the types from '@/lib/gameDay' here, and switch
-// GameDaySection's import of the four functions to '@/lib/gameDay'.
-
-export interface ScanCandidate { id: number; name: string; cat: string }
-export interface AiMatch { stream_id: number; name: string; confidence: 'high' | 'medium'; source: 'ai' | 'crowd' }
-export type LearnedCats = ReadonlyMap<string, string[]>;
-/** A link found by search (GameChannel.search, item A). */
-export type SearchLink = GameChannel & { search?: 'high' | 'medium' };
-
-const EVENTISH = / (?:vs?|at|x) |@|: *[a-z].* (?:vs?|at|@) /;
-const FAMILY = /\b(?:b1g|big ?1[02]|big ten|btn|sec|acc ?nx|acc|pac ?12|big east|ncaa|college|flo ?\w*|uefa|espn ?\+|espn plus|peacock|paramount|dazn|event|live event|league pass|game ?pass|nfl\+|mlb ?tv|nhl ?tv)\b/;
-const ALWAYS_ON = /24 ?\/ ?7|24 ?7\b/;
-
-/** Stand-in for gameDay.scanCandidates: this host's channels that could carry an event. */
-export function scanCandidates(channels: SportsChannel[], host: string, max = 2000): ScanCandidate[] {
-  const out: ScanCandidate[] = [];
-  const seen = new Set<number>();
-  for (const c of channels) {
-    if (out.length >= max) break;
-    const id = Number(c.stream?.stream_id);
-    if (!Number.isInteger(id) || id <= 0 || seen.has(id) || hostOf(c.line?.host) !== host) continue;
-    const name = String(c.stream?.name ?? '');
-    const text = ` ${normCat(name)} `;
-    if (ALWAYS_ON.test(name.toLowerCase()) || ALWAYS_ON.test(c.cat)) continue;
-    if (!EVENTISH.test(` ${name.toLowerCase()} `) && !FAMILY.test(text) && !FAMILY.test(` ${c.cat} `) && !c.service) continue;
-    seen.add(id);
-    out.push({ id, name: name.trim().slice(0, 80), cat: String(c.cat ?? '').trim().slice(0, 40) });
-  }
-  return out;
-}
-
-/** Stand-in for gameDay.lineupHash: the same channels give the same hash, in any order. */
-export function lineupHash(c: ScanCandidate[]): string {
-  const text = c.map((x) => `${x.id}\t${x.name}`).sort().join('\n');
-  let a = 0x811c9dc5, b = 0x01000193 ^ text.length;
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text.charCodeAt(i);
-    a = Math.imul(a ^ ch, 0x01000193) >>> 0;
-    b = Math.imul(b ^ ch, 0x5bd1e995) >>> 0;
-  }
-  return `${a.toString(16).padStart(8, '0')}${b.toString(16).padStart(8, '0')}`;
-}
-
-const STOP = new Set(['the', 'and', 'university', 'college', 'state', 'city', 'club', 'united', 'team', 'women', 'mens']);
-
-/** Stand-in for gameDay.teamTokens: the teams' words, 3+ letters. */
-export function teamTokens(game: Game): string[] {
-  const out = new Set<string>();
-  for (const t of [game.home, game.away]) {
-    if (!t) continue;
-    for (const part of [t.name, t.short, t.location]) {
-      for (const w of normCat(part ?? '').split(' ')) if (w.length >= 3 && !STOP.has(w)) out.add(w);
-    }
-  }
-  return [...out];
-}
-
-/** Stand-in for gameDay.aiLinks: the matches still loaded on this host under
- *  the same name, or a name that still shares a word with the teams. */
-export function aiLinks(game: Game, channels: SportsChannel[], host: string, matches: AiMatch[]): SearchLink[] {
-  const tokens = teamTokens(game);
-  const out: SearchLink[] = [];
-  for (const m of matches.slice(0, MAX_MATCHES_PER_GAME)) {
-    for (const c of channels) {
-      if (Number(c.stream?.stream_id) !== m.stream_id || hostOf(c.line?.host) !== host) continue;
-      const now = normCat(String(c.stream?.name ?? ''));
-      if (now !== normCat(m.name) && !sharesToken(` ${now} `, tokens)) continue;
-      out.push({ line: c.line, stream: c.stream, score: m.confidence === 'high' ? 85 : 75, via: 'game', search: m.confidence });
-    }
-  }
-  return out;
-}
-// ── end of item A stand-ins ─────────────────────────────────────────────────
+/** A link found by search (GameChannel.search). */
+export type SearchLink = GameChannel;
 
 /** The panel a line is on, by its hostname alone (gameDay.serviceOf). */
 export const hostOf = (host: string | null | undefined): string =>

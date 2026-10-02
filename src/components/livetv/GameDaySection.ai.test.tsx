@@ -186,7 +186,10 @@ describe('Game Day: found by search', () => {
     await waitFor(() => expect(rowOf('Wolverines').textContent).toContain('B1G+ 03'));
     expect(rowOf('Wolverines').textContent).toContain('Found by search');
     expect(rowOf('Catamounts').textContent).not.toContain('LIVE EVENT 09');
-    expect(rowOf('Catamounts').textContent).toContain('Not in your channels');
+    expect(rowOf('Catamounts').textContent).not.toContain('Found by search');
+    // Nothing sure to watch: the row says so (with the box's B1G+ feeds, it
+    // offers to check their guides).
+    expect(rowOf('Catamounts').textContent).toMatch(/Not in your channels|check your guide/);
   });
 
   it('asks nothing with the flag off', async () => {
