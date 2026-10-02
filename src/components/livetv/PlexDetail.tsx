@@ -20,6 +20,7 @@ import { runWhenIdle } from '@/utils/idle';
 import type { SubtitleSearchContext } from './PlexPlayerOverlay';
 import { isPlexKeyOwner } from './plexKeyOwner';
 import { getProgress, isWatched, progressPercent, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
+import { isPlexPlaybackActive } from '@/lib/plex';
 import { isFavorite, toggleFavorite, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 
 interface Props {
@@ -34,6 +35,10 @@ interface Props {
   /** Play a specific episode (shows), optionally one of its versions. */
   onPlayEpisode: (ep: PlexEpisode, ctx?: SubtitleSearchContext, version?: PlexVersion | null) => void;
   onBack: () => void;
+  /** How many connections playback reads a file from this server over
+   *  (plexPlayback.playbackConnections): the 4K speed check reads it the
+   *  same way, so its figure is what playback will get. */
+  speedConnections?: number;
   /** Bumped when the player closes. The page stays mounted under the player
    *  now, so its Resume point is refreshed on this instead of on a remount. */
   watchNonce?: number;
@@ -158,7 +163,7 @@ const EpisodeRow = memo(({ ep, base, token, focused, chips, note }: { ep: PlexEp
 });
 EpisodeRow.displayName = 'EpisodeRow';
 
-const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, onBack, watchNonce = 0, serverResume = false }: Props) => {
+const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, onBack, watchNonce = 0, serverResume = false, speedConnections = 1 }: Props) => {
   const { t } = useTranslation();
   // ── back-stack of items (top = current). Opening a title from actor
   //    filmography pushes; Back pops before we ever hit onBack().
@@ -166,14 +171,17 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const current = stack[stack.length - 1];
 
   // Resume points and watched ticks are this viewer's (plexProgress); redraw
-  // when they change, e.g. the final save as the player closes.
+  // when they change, e.g. the final save as the player closes — not on the
+  // saves every 15 s while a title plays over this page (watchNonce brings
+  // it up to date when the player closes).
   const [progressTick, setProgressTick] = useState(0);
   useEffect(() => {
     const bump = () => setProgressTick((n) => n + 1);
-    window.addEventListener(PLEX_PROGRESS_EVENT, bump);
+    const onProgress = () => { if (!isPlexPlaybackActive()) bump(); };
+    window.addEventListener(PLEX_PROGRESS_EVENT, onProgress);
     window.addEventListener(PLEX_FAVORITES_EVENT, bump);
     return () => {
-      window.removeEventListener(PLEX_PROGRESS_EVENT, bump);
+      window.removeEventListener(PLEX_PROGRESS_EVENT, onProgress);
       window.removeEventListener(PLEX_FAVORITES_EVENT, bump);
     };
   }, []);
@@ -218,7 +226,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const [epPref, setEpPref] = useState<string | null>(null);
   // The speed to the server, for 4K. Measured only when a 4K version is
   // chosen or focused, kept for five minutes (plexVersions).
-  const [speedKbps, setSpeedKbps] = useState<number | null>(() => cachedPlexSpeed(base));
+  const [speedKbps, setSpeedKbps] = useState<number | null>(() => cachedPlexSpeed(base, speedConnections));
   const [speedChecking, setSpeedChecking] = useState(false);
   const speedPromiseRef = useRef<Promise<number | null> | null>(null);
   const speedTriedAtRef = useRef(0);
@@ -361,16 +369,18 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const checkSpeed = useCallback((v: PlexVersion | null | undefined) => {
     if (DEMO || !v || !is4k(v) || !v.partKey) return;
     const { base, token } = connRef.current;
-    const cached = cachedPlexSpeed(base);
+    // Over the connections playback reads with: a read over one says little
+    // about what the player gets over four.
+    const cached = cachedPlexSpeed(base, speedConnections);
     if (cached != null) { setSpeedKbps(cached); return; }
     if (speedPromiseRef.current || Date.now() - speedTriedAtRef.current < 60_000) return;
     speedTriedAtRef.current = Date.now();
     setSpeedChecking(true);
-    const pr = measurePlexSpeed(base, token, v.partKey);
+    const pr = measurePlexSpeed(base, token, v.partKey, { connections: speedConnections });
     speedPromiseRef.current = pr;
     void pr.then((k) => { if (k != null) setSpeedKbps(k); })
       .finally(() => { speedPromiseRef.current = null; setSpeedChecking(false); });
-  }, []);
+  }, [speedConnections]);
   // A 4K default (or a 4K version under the highlight) gets checked.
   const focusedVersion = zone === 'versions' ? versions[verIdx] : undefined;
   useEffect(() => {

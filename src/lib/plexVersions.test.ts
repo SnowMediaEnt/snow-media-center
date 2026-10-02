@@ -142,10 +142,15 @@ describe('measuring the speed to the server', () => {
     expect(probeRateFromMarks([], 0, 3000)).toBeNull();
   });
 
-  it('keeps a measurement for a few minutes per server', () => {
+  it('keeps a measurement for a few minutes per server and connection count', () => {
     _setPlexSpeed('http://s:32400/', 30000, 1_000);
-    expect(cachedPlexSpeed('http://s:32400', 1_000 + 60_000)).toBe(30000);
-    expect(cachedPlexSpeed('http://s:32400', 1_000 + 6 * 60_000)).toBeNull();
+    expect(cachedPlexSpeed('http://s:32400', 1, 1_000 + 60_000)).toBe(30000);
+    expect(cachedPlexSpeed('http://s:32400', 1, 1_000 + 6 * 60_000)).toBeNull();
+    // A read over one connection says nothing about four.
+    expect(cachedPlexSpeed('http://s:32400', 4, 1_000 + 60_000)).toBeNull();
+    _setPlexSpeed('http://s:32400/', 90000, 1_000, 4);
+    expect(cachedPlexSpeed('http://s:32400', 4, 1_000 + 60_000)).toBe(90000);
+    expect(cachedPlexSpeed('http://s:32400', 1, 1_000 + 60_000)).toBe(30000);
   });
 
   it('reads part of the file once, and shares it', async () => {
@@ -184,6 +189,31 @@ describe('measuring the speed to the server', () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('blocked'); }));
     expect(await measurePlexSpeed('http://s:32400', 'tok', '/p')).toBeNull();
     expect(await measurePlexSpeed('http://s:32400', 'tok', undefined)).toBeNull();
+  });
+
+  it('a fresh read (mid-film) is neither cached nor shared; a read over other connections is its own', async () => {
+    const chunk = new Uint8Array(512 * 1024);
+    const fetchMock = vi.fn(async () => {
+      let reads = 0;
+      return {
+        ok: true, status: 206,
+        body: { getReader: () => ({ read: async () => { reads += 1; await new Promise((r) => setTimeout(r, 40)); return reads > 6 ? { done: true, value: undefined } : { done: false, value: chunk }; }, cancel: async () => {} }) },
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    // A 1-connection read is cached; a 4-connection read right after does not take it.
+    expect(await measurePlexSpeed('http://s:32400', 'tok', '/library/parts/2/file.mkv')).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const four = measurePlexSpeed('http://s:32400', 'tok', '/library/parts/2/file.mkv', { connections: 4 });
+    // Nor does a fresh read join the 4-connection read on the wire, and it leaves no cache behind.
+    const fresh = measurePlexSpeed('http://s:32400', 'tok', '/library/parts/2/file.mkv', { fresh: true, connections: 4 });
+    expect(await four).toBeGreaterThan(0);
+    expect(await fresh).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1 + 4 + 4);
+    expect(cachedPlexSpeed('http://s:32400', 4)).toBe(await four);
+    _resetPlexSpeedCache();
+    expect(await measurePlexSpeed('http://s:32400', 'tok', '/library/parts/2/file.mkv', { fresh: true })).toBeGreaterThan(0);
+    expect(cachedPlexSpeed('http://s:32400', 1)).toBeNull();
   });
 });
 

@@ -82,7 +82,6 @@ vi.mock('@/lib/plex', async (orig) => ({
   reportPlexTimeline: async () => undefined,
   getPlexAccount: async () => null,
   loadHiddenPlexLibs: async () => [],
-  loadPlexQuality: async () => 'original',
   preloadImages: async () => undefined,
 }));
 vi.mock('@/lib/plexFavorites', async (orig) => ({

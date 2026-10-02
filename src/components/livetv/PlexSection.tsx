@@ -35,15 +35,15 @@ import {
   searchPlex as _searchPlex,
   getPlexItemByKey,
   getPlexPart,
-  plexDirectUrl, plexTranscodeUrl, plexTranscodeDecision, plexTranscodeIdentified, loadHiddenPlexLibs, saveHiddenPlexLibs,
+  plexDirectUrl, plexTranscodeUrl, plexTranscodeDecision, loadHiddenPlexLibs, saveHiddenPlexLibs,
   getCachedLibrary, setCachedLibrary, isLibraryCacheFresh,
   getCachedHub, getCachedHubStale, getCachedHubWithin, getHubEpoch, setCachedHub,
   resolutionLabel,
-  PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
+  PLEX_QUALITY_PRESETS,
   getPlexAccount,
   setPlexImageFocus, preloadImages, plexPhotoTranscodeUrl, POSTER_TILE_W, POSTER_TILE_H,
   type PlexLibrary, type PlexItem, type PlexEpisode, type PlexPlayInfo, type PlexQualityPreset, plexRouteLabel,
-  setPlexPlaybackActive } from '@/lib/plex';
+  isPlexPlaybackActive, setPlexPlaybackActive, newPlexPlaybackSession, plexEndpoint } from '@/lib/plex';
 import { isDemo, isHowtoCapture, demoDialogMsg } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
@@ -83,15 +83,17 @@ import {
 } from '@/lib/plexDiscover';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
-import { autoDropPreset, explainPlexStall, fitPreset } from '@/lib/plexStallVerdict';
-import { formatMbps, getPlayerRates, getPlayerSpeedKbps, getSnapshot as getDiagSnapshot, type DiagSnapshot } from '@/lib/bufferDiagnostics';
+import { explainPlexStall } from '@/lib/plexStallVerdict';
+import { getPlayerRates, type DiagSnapshot } from '@/lib/bufferDiagnostics';
 import {
-  AutoQuality, autoQualityNote, buildQualityLadder, convertAlternative, convertRecoveryStep, dropSizeKbps, floorPresetFor, freshConvertRecovery, inJumpGrace, ladderIndex, lineClearFor, stallBudgetKbps, stallEvidence, steadyKbps, stepName,
-  pingPlexTranscode, stopPlexTranscode, transcodeStopUrl, type ConvertRecovery,
-  RAISE_SUSTAIN_MS, RATE_TICK_MS, RELAY_PRESET, SPEED_HEADROOM, TRANSCODE_PING_MS, type AutoMove, type QualityStep, type StallContext,
+  AutoQuality, autoQualityNote, buildQualityLadder, convertRecoveryStep, fileAlternative, floorPresetFor, freshConvertRecovery, ladderIndex, lighterConversion, needKbps, stallEvidence, steadyKbps, stepName, sustainedKbps,
+  pingPlexTranscode, stopPlexTranscode, stopPlexTranscodeAndWait, transcodeStopUrl, type ConvertRecovery,
+  CONVERT_RECOVERY_MAX, DELIVERY_FACTOR, RAISE_SUSTAIN_MS, RATE_TICK_MS, RELAY_PRESET, SPEED_HEADROOM, TRANSCODE_PING_MS, type AutoMove, type QualityStep, type RateReport, type StallContext,
 } from '@/lib/plexAutoQuality';
 import { lastPlaybackStartAt, lastSeekAt } from '@/lib/playerSeek';
-import { cachedPlexSpeed, is4k, measurePlexSpeed, transcodeSource, type PlexVersion } from '@/lib/plexVersions';
+import { is4k, measurePlexSpeed, transcodeSource, type PlexVersion } from '@/lib/plexVersions';
+import { isPlexFileUrl, playbackConnections, rangeFetchAllowed } from '@/lib/plexPlayback';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { clearPreBuffer, isPreBuffering, usePreBufferActive } from '@/lib/preBuffer';
 import PreBufferIndicator from './PreBufferIndicator';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
@@ -108,27 +110,18 @@ const TRANSCODE_START_GRACE_MS = 30000;
 /** A converting session playback left is stopped this long after, unless the
  *  same address came back (a reload with subtitles puts it back at once). */
 const TRANSCODE_STOP_DELAY_MS = 1500;
-/** How far into a stall a file played as it is may first be judged too big
- *  for what the server sends (by then the player has been downloading flat
- *  out for two of its 3 s windows); looked at again every window after. */
-const SLOW_FILE_AFTER_MS = 6000;
-/** A read of the file made for a raise stays good evidence this long. */
-const SERVER_READ_FRESH_MS = 5 * 60_000;
-/** The read of the file made before the first play from a remote server
- *  (bugs/plex-buffering-remote.md): over as many connections as the player
- *  then reads it (RangeFetchDataSource), for a couple of seconds, and the
- *  start waits for it this long at most. Cached per server for five minutes
- *  (plexVersions), so one play in five waits. A box short of memory reads
- *  less. */
-const START_PROBE_CONNECTIONS = 3;
-const START_PROBE_MS = 2500;
-const START_PROBE_WAIT_MS = 3000;
-const START_PROBE_BYTES = 12 * 1024 * 1024;
-const START_PROBE_BYTES_LOW_MEMORY = 4 * 1024 * 1024;
+/** The read of the file made before a raise (a converted stream arrives only
+ *  as fast as it is made, so the player's own rates can't show the line):
+ *  this much, over the connections playback reads with, and the tail rate
+ *  (plexVersions.probeRateFromMarks). At most every 2 minutes, never over
+ *  the relay. */
+const RAISE_PROBE_BYTES = 6 * 1024 * 1024;
+const RAISE_PROBE_MS = 3000;
+const RAISE_PROBE_GAP_MS = 2 * 60_000;
+/** The player's rate reports kept for a title (the raise looks 90 s back). */
+const RATES_KEPT_MS = 3 * 60_000;
 /** A conversion's decision call gets this long; past it the start goes ahead. */
 const DECISION_TIMEOUT_MS = 8000;
-/** A Plex file played as it is ({base}/library/parts/...). */
-const isPlexFileUrl = (u: string | null | undefined): boolean => !!u && u.indexOf('/library/parts/') >= 0;
 /** How long a voice command's title is looked for before Search opens. */
 const VOICE_WAIT_MS = 12000;
 const getPlexLibraries = DEMO ? demoGetLibraries : _getPlexLibraries;
@@ -777,24 +770,30 @@ const HomePanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, o
   }, [refreshTick]);
 
   // Continue Watching: this viewer's own (plexProgress), kept current as
-  // progress is saved. The server's On Deck is only asked for in the demo.
+  // progress is saved. Not while a title plays: every 15 s save rebuilt the
+  // hidden browse view behind the player; the final save as it closes (and
+  // watchNonce) bring it up to date. The server's On Deck is only asked
+  // for in the demo.
   const [ownContinue, setOwnContinue] = useState<PlexItem[]>(() => (DEMO ? [] : continueWatching()));
   useEffect(() => {
     if (DEMO) return;
-    const refresh = () => setOwnContinue(continueWatching());
+    const refresh = () => { if (!isPlexPlaybackActive()) setOwnContinue(continueWatching()); };
     refresh();
     window.addEventListener(PLEX_PROGRESS_EVENT, refresh);
     return () => window.removeEventListener(PLEX_PROGRESS_EVENT, refresh);
   }, [watchNonce, refreshTick]);
   // The next episode of each show whose latest episode was finished (on the
-  // viewer's own Plex account the server's On Deck already has these).
+  // viewer's own Plex account the server's On Deck already has these). Asked
+  // of the server only when Continue Watching's membership or order changes,
+  // never on a mere progress save.
   const [upNext, setUpNext] = useState<PlexItem[]>([]);
+  const continueKeys = useMemo(() => ownContinue.map((it) => it.ratingKey).join(','), [ownContinue]);
   useEffect(() => {
     if (DEMO || serverResume) return;
     let cancelled = false;
     void upNextEpisodes(base, token).then((items) => { if (!cancelled) setUpNext(items); }).catch(() => undefined);
     return () => { cancelled = true; };
-  }, [base, token, serverResume, ownContinue]);
+  }, [base, token, serverResume, continueKeys]);
   // My List (plexFavorites), kept current as titles are added and removed.
   const [listItems, setListItems] = useState<PlexItem[]>(() => (DEMO ? [] : myList()));
   useEffect(() => {
@@ -2388,9 +2387,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [tracksTick, setTracksTick] = useState(0);
   const [subCtx, setSubCtx] = useState<SubtitleSearchContext | undefined>(undefined);
   const [extraSubs, setExtraSubs] = useState<SnowSubtitle[] | undefined>(undefined);
+  // Every start is Original; what the viewer picks lasts for that title only
+  // (a saved preset used to be loaded here and could land on a file playing
+  // directly after a fast deep-link start).
   const [qualityKey, setQualityKey] = useState<string>('original');
-  useEffect(() => { void loadPlexQuality().then(setQualityKey); }, []);
   const qualityKeyRef = useRef(qualityKey); qualityKeyRef.current = qualityKey;
+  // Play could not get the file's details from the server (twice): said,
+  // with Retry, instead of converting behind the viewer's back.
+  const [startError, setStartError] = useState<string | null>(null);
+  // The last refusal of a conversion of this title — the HTTP status and the
+  // server's own words for its decision — for the stats panel, the message
+  // and the refusal event (a fresh session's stats start over).
+  const [convertRefusal, setConvertRefusal] = useState<{ status: number | null; text: string | null } | null>(null);
   const fileKbpsRef = useRef(fileKbps); fileKbpsRef.current = fileKbps;
   // The file being played: one of the title's versions (a 4K and a 1080p
   // Media, or a copy of the title in another library). Quality changes, the
@@ -2412,48 +2420,75 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Bumped by every start, so a replay of the same title starts afresh.
   const [playSeq, setPlaySeq] = useState(0);
   // Automatic quality for the title playing (rules in plexAutoQuality.ts),
-  // made afresh for each start. `autoKey`: the converted quality it put in
-  // effect (null once the viewer picks one), and `autoFromKbps` the bitrate
-  // of what it moved from — a slow start of that conversion is automatic
-  // quality's to sort out, never a reason to go back to Original.
-  // `peakKbps`: the fastest the player has been sent this title (a 4K file:
-  // what proves the line carries it, see stallCtx).
-  const autoQRef = useRef<{ key: string | null; aq: AutoQuality; slowFileDone: boolean; probeAt: number; probeKbps: number | null; autoKey: string | null; autoFromKbps?: number; peakKbps: number }>(
-    { key: null, aq: new AutoQuality(0), slowFileDone: false, probeAt: 0, probeKbps: null, autoKey: null, peakKbps: 0 },
+  // made afresh for each start. `sustainedKbps`: the best the server has
+  // delivered this title over a sustained window (what proves the line
+  // carries a file, see stallCtx); `probeKbps`: the raise probe's last read.
+  const autoQRef = useRef<{ key: string | null; aq: AutoQuality; probeAt: number; probeKbps: number | null; sustainedKbps: number | null }>(
+    { key: null, aq: new AutoQuality(0), probeAt: 0, probeKbps: null, sustainedKbps: null },
   );
-  // Set by a start that is itself automatic (the Plex Relay starts at its
-  // own quality); the title's automatic quality picks it up.
-  const startAutoKeyRef = useRef<string | null>(null);
   const connRef = useRef(conn); connRef.current = conn;
-  // The server the start probe (playRatingKey) was last tried for: one
-  // that could not tell is not read again on every play.
-  const startProbeTriedRef = useRef<string | null>(null);
-  // Starts a conversion the way Plex's own players do (filled in below,
-  // with automatic quality): 'refused' when the server turned it down at
-  // its decision, 'started' when it is on its way (or the viewer moved on).
-  const startConversionRef = useRef<(c: { base: string; token: string }, key: string, preset: PlexQualityPreset | undefined, resume: number, opts: { identify: boolean }) => Promise<'started' | 'refused'>>(async () => 'started');
-  // What to do when a conversion the viewer (or a start) asked for is turned
-  // down at its decision: another quality, else the file, else a message
-  // (filled in below, with automatic quality).
-  const convertRefusedRef = useRef<(failedKey: string, resume: number) => Promise<void>>(async () => undefined);
+  // The parallel reader's kill switch (public.feature_flags.plex_range_fetch):
+  // a missing row is on.
+  const { enabled: rangeFetchFlag } = useFeatureFlag('plex_range_fetch', true);
+  const rangeFetchFlagRef = useRef(rangeFetchFlag); rangeFetchFlagRef.current = rangeFetchFlag;
+  // Every request for a stream (a play, a pick, a conversion, a recovery, a
+  // fallback, the player closing) takes the next generation. A path that
+  // awaited anything checks it is still the latest before touching the
+  // player, so a late decision never sets a stream the viewer moved on from.
+  const streamGenRef = useRef(0);
+  const newStreamRequest = useCallback((): number => { streamGenRef.current += 1; return streamGenRef.current; }, []);
+  const stillCurrent = useCallback((gen: number): boolean => gen === streamGenRef.current, []);
+  // One session id per playback (newPlexPlaybackSession, once per title
+  // start), on the file URL and every conversion of that play, so the server
+  // can tell SMC's streams apart and the end-of-title stats know the title.
+  const playbackSessionRef = useRef<string>('');
+  // The file the title plays as it is (its part key); null once the server
+  // said it has none (a conversion that fails then has no file to fall back
+  // on), undefined while that is not known yet.
+  const partKeyRef = useRef<string | null | undefined>(undefined);
+  // The player's arrival rates for this title, the one measurement every
+  // rule reads: getStats.arrivalKbps (bytes as they arrive from the network)
+  // polled every window, or, before a plugin that reports it, the player's
+  // bandwidth reports (bufferDiagnostics). `native`: whether the plugin
+  // reports it (null until its first answer); `connections`: how many the
+  // stream is read over, as it reports them.
+  const arrivalRef = useRef<{ samples: RateReport[]; native: boolean | null; connections: number | null }>({ samples: [], native: null, connections: null });
+  const rates = useCallback((): RateReport[] => (arrivalRef.current.native ? arrivalRef.current.samples : getPlayerRates()), []);
+  // Starts a conversion the way Plex's own players do (filled in below, with
+  // automatic quality): 'refused' when the server turned it down at its
+  // decision, 'started' when it is on its way, 'stale' when a newer request
+  // overtook it.
+  const startConversionRef = useRef<(c: { base: string; token: string }, key: string, preset: PlexQualityPreset | undefined, resume: number, gen: number) => Promise<'started' | 'refused' | 'stale'>>(async () => 'started');
+  // What to do when a conversion fails, whichever way (filled in below): the
+  // one failure state machine per title.
+  const recoverConversionRef = useRef<(kind: 'refused' | 'http' | 'slow', failedKey: string) => Promise<void>>(async () => undefined);
   // Converting the file being played (optionally capped): from the lightest
   // version that still carries the cap — a 1080p file for 1080p · 8 Mbps,
-  // not the 4K one.
-  // Every conversion is asked for the way Plex's own players ask: named by
-  // platform and product (plexTranscodeUrl, `identify`; false is the plain
-  // start of builds 38-56, the second thing tried when a named session is
-  // turned down), and saying whether the box is on the server's network.
-  const sourceTranscodeUrl = useCallback((c: { base: string; token: string }, fallbackKey: string, opts?: { maxVideoBitrateKbps?: number; videoResolution?: string; identify?: boolean }): string => {
+  // not the 4K one. Every conversion is asked for the way Plex's own players
+  // ask: named by platform and product (plexTranscodeUrl, the same identity
+  // as its decision call), and saying whether the box is on the server's
+  // network.
+  const sourceTranscodeUrl = useCallback((c: { base: string; token: string }, fallbackKey: string, opts?: { maxVideoBitrateKbps?: number; videoResolution?: string }): string => {
     const src = transcodeSource(playVersionsRef.current, playVersionRef.current, opts?.maxVideoBitrateKbps);
     const location = connRef.current?.route === 'lan' ? 'lan' : 'wan';
-    return plexTranscodeUrl(c.base, src?.ratingKey ?? fallbackKey, c.token, { ...opts, location, mediaIndex: src?.mediaIndex ?? 0 });
+    return plexTranscodeUrl(c.base, src?.ratingKey ?? fallbackKey, c.token, { ...opts, location, mediaIndex: src?.mediaIndex ?? 0, playbackSession: playbackSessionRef.current || undefined });
   }, []);
-  // The file being played, as it is; null when the server has no part for it.
+  // The file being played, as it is, with this playback's session id; null
+  // when the server has no part for it.
   const sourceDirectUrl = useCallback(async (c: { base: string; token: string }, fallbackKey: string): Promise<string | null> => {
     const v = playVersionRef.current;
     const partKey = v?.partKey ?? (await getPlexPart(c.base, c.token, v?.ratingKey ?? fallbackKey, v?.mediaIndex ?? 0)).partKey;
-    return partKey ? plexDirectUrl(c.base, partKey, c.token) : null;
+    return partKey ? plexDirectUrl(c.base, partKey, c.token, { session: playbackSessionRef.current || undefined }) : null;
   }, []);
+  // A conversion audio (or the codec) forces, at original quality: asked
+  // for like any other (the old session stopped, a decision, then the
+  // playlist). Refused, the failure machine goes on without the file (it
+  // would play mute). The caller sets forcedTranscodeRef first.
+  const forcedConversion = useCallback(async (c: { base: string; token: string }, key: string, resume: number | undefined): Promise<void> => {
+    const gen = newStreamRequest();
+    const r = await startConversionRef.current(c, key, undefined, resume ?? 0, gen);
+    if (r === 'refused') await recoverConversionRef.current('refused', 'original');
+  }, [newStreamRequest]);
   // Is this box on the viewer's own Plex account (not the shared provider
   // account)? Then its progress is also reported to Plex and the server's
   // Continue Watching / resume points are theirs too. Unknown = shared.
@@ -3182,15 +3217,19 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string, knownPartKey?: string, src?: { version?: PlexVersion | null; versions?: PlexVersion[] }) => {
     if (DEMO) { setDemoNotice(true); return; }
     if (!conn) return;
+    const gen = newStreamRequest();
+    playbackSessionRef.current = newPlexPlaybackSession();
     // Reset one-shot rescue guards so replaying the same title after backing
-    // out regains its silent auto-revert and zero-audio safety-net.
-    autoRevertRef.current = null;
+    // out regains its zero-audio safety nets.
     audioSafetyRef.current = null;
-    // Owner directive: playback ALWAYS starts at Original / direct play. A
-    // persisted quality preset must never influence how playback STARTS —
-    // picking a preset DURING playback still works via changeQuality below.
+    audioWarnedRef.current = null;
+    partKeyRef.current = undefined;
+    setStartError(null);
+    // Owner directive: playback ALWAYS starts at Original / direct play, as
+    // the Plex app does. Nothing converts at the start except the relay.
     // Reset quality state so the overlay's Quality menu reflects reality.
     setQualityKey('original');
+    qualityKeyRef.current = 'original';
     setUseTranscode(false);
     forcedTranscodeRef.current = false;
     // Automatic quality starts over with every start (a replay too).
@@ -3206,18 +3245,22 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const mediaIndex = ver?.mediaIndex ?? 0;
     setFileKbps(ver?.bitrateKbps);
     // What the file needs, for the buffering card, and every version of it
-    // for the Quality menu. Off the start path.
-    void getPlexPart(conn.base, conn.token, srcKey, mediaIndex)
-      .then((p) => {
-        if (playingKeyRef.current !== ratingKey) return;
-        setFileKbps((cur) => p.bitrateKbps ?? cur);
-        if (!known.length && p.versions.length) {
-          const mine = p.versions[mediaIndex] ?? p.versions[0];
-          setSource(playVersionRef.current ?? mine, p.versions);
-          if (!ceilingVersionIdRef.current) ceilingVersionIdRef.current = mine.id;
-        }
-      })
-      .catch(() => { /* card just won't show it */ });
+    // for the Quality menu — only when Play did not already know them. Off
+    // the start path.
+    if (!known.length || !ver?.bitrateKbps) {
+      void getPlexPart(conn.base, conn.token, srcKey, mediaIndex)
+        .then((p) => {
+          if (playingKeyRef.current !== ratingKey) return;
+          if (partKeyRef.current === undefined) partKeyRef.current = p.partKey ?? null;
+          setFileKbps((cur) => p.bitrateKbps ?? cur);
+          if (!known.length && p.versions.length) {
+            const mine = p.versions[mediaIndex] ?? p.versions[0];
+            setSource(playVersionRef.current ?? mine, p.versions);
+            if (!ceilingVersionIdRef.current) ceilingVersionIdRef.current = mine.id;
+          }
+        })
+        .catch(() => { /* card just won't show it */ });
+    }
     // Flip fullscreen ON *before* any await so the loading UI paints
     // immediately — otherwise the user stares at the grid for the ~1-3s
     // getPlexPart round-trip and mashes OK, queueing up phantom presses.
@@ -3234,7 +3277,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // the relay can carry instead of stalling on the original. Automatic
     // quality raises it if the speed allows; the viewer can pick any quality.
     const relay = conn.route === 'relay' ? PLEX_QUALITY_PRESETS.find((p) => p.key === RELAY_PRESET) : undefined;
-    startAutoKeyRef.current = relay ? relay.key : null;
+    partKeyRef.current = ver?.partKey ?? knownPartKey;
     if (relay) {
       setQualityKey(relay.key);
       qualityKeyRef.current = relay.key;
@@ -3243,90 +3286,62 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       try { toast({ title: i18n.t('plex.section.toast.relayTitle', { quality: relay.label }), description: i18n.t('plex.section.toast.relayDesc') }); } catch { /* ignore */ }
       return;
     }
-    try {
-      // The detail page and the episode list already have the file's part key
-      // from their own metadata; asking the server again only delayed the
-      // start by a round trip.
-      let partKey = ver?.partKey ?? knownPartKey;
-      let fileKbps = ver?.bitrateKbps;
-      if (!partKey) {
-        const p = await getPlexPart(conn.base, conn.token, ver ? srcKey : ratingKey, ver ? mediaIndex : 0);
-        partKey = p.partKey;
-        fileKbps = fileKbps ?? p.bitrateKbps;
-      }
-      // A remote server, the file's bitrate known: what the server delivers
-      // to THIS box, measured on the file itself over the connections the
-      // player then reads it with (START_PROBE_*), decides the start, as
-      // Plex's own players decide a remote start by measured bandwidth —
-      // never the quick internet check (a customer's read 42.5 Mb/s from a
-      // test server while the Plex server sent 1.4-5.7 of a 12 Mb/s file).
-      // Plainly short of the file (under its own bitrate): start at the
-      // quality that rate carries, as a conversion automatic quality owns
-      // (it raises it when the speed allows; a refused conversion goes to
-      // the file anyway). Otherwise the file as it is, as always.
-      if (partKey && fileKbps && conn.route === 'direct') {
-        let have = cachedPlexSpeed(conn.base);
-        if (have == null && startProbeTriedRef.current !== conn.base) {
-          startProbeTriedRef.current = conn.base;
-          have = await Promise.race([
-            measurePlexSpeed(conn.base, conn.token, partKey, {
-              connections: START_PROBE_CONNECTIONS, maxMs: START_PROBE_MS, maxBytes: LOW_MEMORY ? START_PROBE_BYTES_LOW_MEMORY : START_PROBE_BYTES,
-            }),
-            new Promise<null>((r) => { window.setTimeout(() => r(null), START_PROBE_WAIT_MS); }),
-          ]);
-          if (playingKeyRef.current !== ratingKey) return;
-        }
-        if (have != null && have > 0 && have < fileKbps) {
-          const p = fitPreset(have);
-          const floorKbps = PLEX_QUALITY_PRESETS.find((q) => q.key === floorPresetFor(conn.route))?.maxVideoBitrateKbps ?? 0;
-          const preset = (p.maxVideoBitrateKbps ?? 0) >= floorKbps ? p : PLEX_QUALITY_PRESETS.find((q) => q.key === floorPresetFor(conn.route)) ?? p;
-          if (preset.maxVideoBitrateKbps && preset.maxVideoBitrateKbps < fileKbps) {
-            startAutoKeyRef.current = preset.key;
-            setQualityKey(preset.key);
-            qualityKeyRef.current = preset.key;
-            try { trackEvent('plex_start_lower', 'player', { preset: preset.key, fileKbps, measuredKbps: have }); } catch { /* ignore */ }
-            try { toast({ title: i18n.t('plex.section.toast.startLowerTitle', { quality: preset.label }), description: i18n.t('plex.section.toast.startLowerDesc', { speed: formatMbps(have) }) }); } catch { /* ignore */ }
-            const r = await startConversionRef.current(conn, srcKey, preset, resumeSec && resumeSec > 0 ? resumeSec : 0, { identify: true });
-            if (r !== 'refused') return;
-            // The server won't convert: the file as it is, which the Plex
-            // app on such a box plays directly too (it may buffer).
-            startAutoKeyRef.current = null;
-            setQualityKey('original');
-            qualityKeyRef.current = 'original';
-            try { toast({ title: i18n.t('plex.section.toast.refusedTitle'), description: i18n.t('plex.section.toast.refusedDesc') }); } catch { /* ignore */ }
-          }
-        }
-      }
-      // Always direct-play the original. If a title's audio genuinely can't be
-      // decoded, the onTracksChanged zero-audio safety net reloads it as a
-      // transcode automatically — no pre-emptive transcode.
-      const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : sourceTranscodeUrl(conn, srcKey);
-      // No file to play as it is: the server converts it, and the start
-      // grace and the fallbacks go by useTranscode.
-      if (!partKey) setUseTranscode(true);
-      setStreamUrl(url);
-    } catch {
-      setStreamUrl(sourceTranscodeUrl(conn, srcKey));
-      setUseTranscode(true);
+    // The detail page and the episode list already have the file's part key
+    // from their own metadata; asking the server again only delayed the
+    // start by a round trip. When it has to be asked, once more on a
+    // failure, and then an error with Retry — never a conversion behind the
+    // viewer's back.
+    let partKey = ver?.partKey ?? knownPartKey;
+    if (!partKey) {
+      const ask = () => getPlexPart(conn.base, conn.token, ver ? srcKey : ratingKey, ver ? mediaIndex : 0);
+      let p: { partKey?: string } | null = null;
+      try { p = await ask(); } catch { try { p = await ask(); } catch { p = null; } }
+      if (!stillCurrent(gen)) return;
+      if (!p) { setStartError(i18n.t('plex.section.startFailed')); return; }
+      partKey = p.partKey;
     }
-  }, [conn, setSource, sourceTranscodeUrl]);
+    // The file as it is, with this playback's session id. If a title's audio
+    // genuinely can't be decoded, the zero-audio safety nets reload it as a
+    // conversion — no pre-emptive conversion. No file to play as it is: the
+    // server converts it, and the start grace and the fallbacks go by
+    // useTranscode.
+    partKeyRef.current = partKey ?? null;
+    const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token, { session: playbackSessionRef.current }) : sourceTranscodeUrl(conn, srcKey);
+    if (!partKey) setUseTranscode(true);
+    setStreamUrl(url);
+  }, [conn, setSource, sourceTranscodeUrl, newStreamRequest, stillCurrent]);
 
 
   // Which path the stream takes (LAN / direct / Plex relay, http vs https).
   // Logged with every play so the Hub can tell a throttled-relay box from a
   // slow-server one, and shown in the player's Help menu + buffering card.
   const routeLabel = conn ? plexRouteLabel(conn.route, conn.base) : '';
+  // The route's facts for plex_play: the server's public address (not a
+  // secret), its port and the address family, so the Hub can tell which
+  // endpoint a box used.
+  const playRoute = useCallback(() => {
+    const ep = conn ? plexEndpoint(conn.base) : null;
+    return {
+      route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://'),
+      host: ep?.host ?? '', port: ep?.port ?? 0, ipFamily: ep?.family ?? 'name', endpointKind: ep?.kind ?? 'custom',
+    };
+  }, [conn]);
   // What this video needs, for the buffering card (its verdict is further
   // down, with automatic quality).
   const qualityCapKbps = PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKey)?.maxVideoBitrateKbps;
   const stallNeedKbps = useTranscode ? (qualityCapKbps ?? fileKbps) : fileKbps;
   // The stats panel's Session line (Help → Playback stats): what the server
   // does with the file, like the Plex app's "Direct Playing" line.
-  const statsSession = !useTranscode
+  // With the server's own words (and status) for the last conversion of
+  // this title it turned down, so a photo of the panel says why.
+  const refusalNote = convertRefusal && (convertRefusal.text || convertRefusal.status)
+    ? ` · ${t('plex.section.sessionRefused', { reason: convertRefusal.text ?? t('plex.stats.httpStatus', { code: convertRefusal.status }) })}`
+    : '';
+  const statsSession = (!useTranscode
     ? t('plex.section.sessionDirect')
     : qualityCapKbps
       ? t('plex.section.sessionConvertTo', { quality: PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKey)?.label ?? t('plex.section.aLowerQuality') })
-      : forcedTranscodeRef.current ? t('plex.section.sessionSoundOnly') : t('plex.section.sessionOriginal');
+      : forcedTranscodeRef.current ? t('plex.section.sessionSoundOnly') : t('plex.section.sessionOriginal')) + refusalNote;
   // What is playing, as far as Play already knew it: the title's page, the
   // episode list, Up Next. PlexProgressReporter saves from this until
   // EpisodeAutoplay's fuller answer from the server arrives (playInfo below).
@@ -3337,15 +3352,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [playSeed, setPlaySeed] = useState<PlexPlayInfo | null>(null);
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext, partKey?: string, src?: { version?: PlexVersion | null; versions?: PlexVersion[] }) => {
     // ratingKey feeds the content bar's "Popular this week" (media-bar-feed).
-    try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie', ratingKey: it.ratingKey, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
+    try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie', ratingKey: it.ratingKey, ...playRoute() }); } catch { /* ignore */ }
     if (!DEMO) recordPlexWatch(it);
     setPlaySeed(seedFromItem(it));
     void playRatingKey(it.ratingKey, it.title, resumeSec, ctx, resolutionLabel(it.videoResolution), partKey, src);
-  }, [playRatingKey, conn]);
+  }, [playRatingKey, playRoute]);
   const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext, version?: PlexVersion | null) => {
     // The SHOW is what to come back to and what "more like this" keys off.
     const show = detailRef.current;
-    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', ratingKey: ep.ratingKey, showKey: show?.ratingKey, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
+    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', ratingKey: ep.ratingKey, showKey: show?.ratingKey, ...playRoute() }); } catch { /* ignore */ }
     if (!DEMO && show) recordPlexWatch({ ...show, type: 'show', grandparentTitle: undefined }, undefined);
     // The list is this show's, unless the viewer went on from its page to
     // another show (an actor's), which the list names.
@@ -3360,7 +3375,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     });
     // Pick up where this viewer stopped (their own progress, see plexProgress).
     void playRatingKey(ep.ratingKey, ep.title, resumeSeconds(ep.ratingKey), ctx, '', ep.partKey, { version, versions: ep.versions });
-  }, [playRatingKey, conn]);
+  }, [playRatingKey, playRoute]);
 
   // Skip Intro / Up Next (EpisodeAutoplay). The next episode starts in place,
   // from the start, with the same subtitle search context an episode opened
@@ -3371,7 +3386,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const autoNextRef = useRef<(() => boolean) | null>(null);
   const registerAutoNext = useCallback((fn: (() => boolean) | null) => { autoNextRef.current = fn; }, []);
   const playNextEpisode = useCallback((ep: NextEpisode, info: PlexPlayInfo) => {
-    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', ratingKey: ep.ratingKey, showKey: info.showKey, autoNext: true, route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
+    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', ratingKey: ep.ratingKey, showKey: info.showKey, autoNext: true, ...playRoute() }); } catch { /* ignore */ }
     if (!DEMO && info.showKey) {
       recordPlexWatch({ ratingKey: info.showKey, title: info.showTitle || ep.title, type: 'show', thumb: info.showThumb }, undefined);
     }
@@ -3389,7 +3404,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       markers: [],
     });
     void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '', ep.partKey, { version, versions: ep.versions });
-  }, [playRatingKey, conn]);
+  }, [playRatingKey, playRoute]);
 
   // (plex_error tracked below, once `native` is declared.)
 
@@ -3415,10 +3430,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       ver = playVersionsRef.current.find((v) => v.id === id) ?? ver;
       key = 'original';
     }
-    void savePlexQuality(key);
     setQualityKey(key);
     qualityKeyRef.current = key;
     if (!conn || !playing) return;
+    const gen = newStreamRequest();
     if (ver && ver !== playVersionRef.current) {
       setSource(ver);
       setFileKbps(ver.bitrateKbps);
@@ -3430,13 +3445,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     setStartPos(resumeSec > 0 ? resumeSec : undefined);
     if (goingTranscode && preset) {
       // Asked for the way Plex's own players ask (startConversion: the old
-      // session stopped first, a decision call, then the playlist). Turned
-      // down at the decision: another quality, else the file, else a
-      // message — never a spinner waiting on a session that will not come.
+      // session stopped and waited for, a decision call, then the playlist).
+      // Turned down at the decision: the failure machine (a fresh session,
+      // the file, a lighter conversion, a message) — never a spinner waiting
+      // on a session that will not come.
       const title = playing.ratingKey;
       void (async () => {
-        const r = await startConversionRef.current(conn, title, preset, resumeSec, { identify: true });
-        if (r === 'refused' && playingKeyRef.current === title) await convertRefusedRef.current(preset.key, resumeSec);
+        const r = await startConversionRef.current(conn, title, preset, resumeSec, gen);
+        if (r === 'refused') await recoverConversionRef.current('refused', preset.key);
       })();
       return;
     }
@@ -3445,16 +3461,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       let url = '';
       try {
         const direct = await sourceDirectUrl(conn, playing.ratingKey);
+        if (!stillCurrent(gen)) return;
         url = direct ?? sourceTranscodeUrl(conn, playing.ratingKey);
         // No file to play as it is: the server converts it.
         if (!direct) setUseTranscode(true);
       } catch {
+        if (!stillCurrent(gen)) return;
         url = sourceTranscodeUrl(conn, playing.ratingKey);
         setUseTranscode(true);
       }
       setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
     })();
-  }, [conn, playing, setSource, sourceTranscodeUrl, sourceDirectUrl]);
+  }, [conn, playing, setSource, sourceTranscodeUrl, sourceDirectUrl, newStreamRequest, stillCurrent]);
   const changeQualityRef = useRef(changeQuality); changeQualityRef.current = changeQuality;
   // Picked in the player's Quality menu, for this title only: a preset is a
   // ceiling automatic quality never raises past (it still lowers below it on
@@ -3462,11 +3480,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // highest it goes back up to.
   const changeQualityByViewer = useCallback((presetKey: string, resumeSec: number) => {
     const st = autoQRef.current;
-    if (st.key && st.key === playingKeyRef.current) {
-      st.aq.viewerPicked(presetKey, Date.now());
-      st.autoKey = null;
-      st.autoFromKbps = undefined;
-    }
+    if (st.key && st.key === playingKeyRef.current) st.aq.viewerPicked(presetKey, Date.now());
     if (presetKey.indexOf('original@') === 0) ceilingVersionIdRef.current = presetKey.slice('original@'.length);
     changeQuality(presetKey, resumeSec);
   }, [changeQuality]);
@@ -3478,12 +3492,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (DEMO) { setDemoNotice(true); return; }
     if (!conn || !playing || useTranscode) return;
     try { trackEvent('plex_fix_audio', 'player', { ratingKey: playing.ratingKey }); } catch { /* ignore */ }
-    setUseTranscode(true);
     forcedTranscodeRef.current = true;
-    setStartPos(resumeSec > 0 ? resumeSec : undefined);
-    const url = sourceTranscodeUrl(conn, playing.ratingKey);
-    setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
-  }, [conn, playing, useTranscode, sourceTranscodeUrl]);
+    void forcedConversion(conn, playing.ratingKey, resumeSec);
+  }, [conn, playing, useTranscode, forcedConversion]);
 
 
 
@@ -3522,14 +3533,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           const p = await SnowPlayer.getPosition();
           if (p.position > 0) resume = p.position;
         } catch { /* ignore */ }
-        setStartPos(resume);
-        setUseTranscode(true);
+        if (playingKeyRef.current !== key) return;
         forcedTranscodeRef.current = true;
-        const url = sourceTranscodeUrl(conn, key);
-        setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+        await forcedConversion(conn, key, resume);
       })();
     } catch { /* ignore */ }
-  }, [nativeActive, useTranscode, playing, conn, toast, sourceTranscodeUrl]);
+  }, [nativeActive, useTranscode, playing, conn, toast, forcedConversion]);
   const slowLoadTimerRef = useRef<number | null>(null);
   const stillLoadingRef = useRef(true);
   const clearSlowLoadTimer = useCallback(() => {
@@ -3552,18 +3561,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Forward-referenced from armSlowLoadTimer (declared below) so app-resume
   // reloads from the hook can re-arm the slow-load watchdog.
   const armSlowLoadTimerRef = useRef<() => void>(() => { /* set below */ });
-  // Filled in with automatic quality below: what to do when a conversion it
-  // asked for is slow to start (null: not its conversion).
-  const autoSlowStartRef = useRef<() => 'wait' | 'moved' | null>(() => null);
+  // A conversion recovery under way (filled in below): the slow-load timer
+  // stands down meanwhile.
+  const convertRecoveringRef = useRef(false);
   const native = useNativePlayer({
     active: nativeActive,
     url: nativeActive ? streamUrl : null,
     volume,
     live: false,
-    // A file played as it is from a remote server is read over several
-    // connections at once (RangeFetchDataSource.kt); on this network one is
-    // all it takes, and a conversion arrives only as fast as it is made.
-    rangeFetch: isPlexFileUrl(streamUrl) && conn?.route !== 'lan',
+    // A file played as it is from a server that is not on a private network
+    // is read over several connections at once (RangeFetchDataSource.kt);
+    // never over the relay, and only while the flag is on (plexPlayback).
+    rangeFetch: rangeFetchAllowed(streamUrl, conn?.route, rangeFetchFlag),
     startPosition: startPos,
     subtitles: extraSubs,
     onTracksChanged,
@@ -3571,6 +3580,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     onEnded: () => {
       // An episode with the next one lined up carries straight on.
       if (autoNextRef.current?.()) return;
+      newStreamRequest();
       setPlexKeyOwner(detailRef.current ? 'detail' : 'browse'); setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
     },
     onReload: () => { armSlowLoadTimerRef.current?.(); },
@@ -3606,38 +3616,46 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // rest of the film because of a Wi-Fi hiccup. Leave the URL alone and let
     // the reconnect path below handle it.
     if (isNetworkPlaybackError(native.error.code)) return;
+    // A conversion the server answered with an error status is the failure
+    // machine's (above), never a codec problem: the error is still set for
+    // a moment after the machine has moved to the file.
+    if (native.error.code === 'PLEX_TRANSCODE_HTTP') return;
+    const key = playing.ratingKey;
     void (async () => {
       let resume: number | undefined;
       try {
         const p = await native.getPosition();
         if (p.position > 0) resume = p.position;
       } catch { /* ignore */ }
-      setStartPos(resume);
-      setUseTranscode(true);
+      if (playingKeyRef.current !== key) return;
       forcedTranscodeRef.current = true;
-      setStreamUrl(sourceTranscodeUrl(conn, playing.ratingKey));
+      await forcedConversion(conn, key, resume);
     })();
-  }, [native.error, nativeActive, useTranscode, playing, conn, native, sourceTranscodeUrl]);
+  }, [native.error, nativeActive, useTranscode, playing, conn, native, forcedConversion]);
 
   // Same fallback for SILENT audio: a Dolby/DTS-only file on a device with no
   // matching decoder raises no error at all — ExoPlayer just deselects the
   // audio track and the movie plays mute. The native layer now reports that
   // as audioWarning, so treat it exactly like AUDIO_DECODE: hand decoding to
-  // the Plex server (transcode outputs AAC every device can play).
+  // the Plex server (transcode outputs AAC every device can play). Once per
+  // title: the conversion must never come back on top of its own recovery.
+  const audioWarnedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!(nativeActive && native.audioWarning && !native.error && !useTranscode && playing && conn)) return;
+    const key = playing.ratingKey;
+    if (audioWarnedRef.current === key) return;
+    audioWarnedRef.current = key;
     void (async () => {
       let resume: number | undefined;
       try {
         const p = await native.getPosition();
         if (p.position > 0) resume = p.position;
       } catch { /* ignore */ }
-      setStartPos(resume);
-      setUseTranscode(true);
+      if (playingKeyRef.current !== key) return;
       forcedTranscodeRef.current = true;
-      setStreamUrl(sourceTranscodeUrl(conn, playing.ratingKey));
+      await forcedConversion(conn, key, resume);
     })();
-  }, [native.audioWarning, native.error, nativeActive, useTranscode, playing, conn, native, sourceTranscodeUrl]);
+  }, [native.audioWarning, native.error, nativeActive, useTranscode, playing, conn, native, forcedConversion]);
 
   // Slow-load watchdog: if the native player hasn't emitted 'ready' within
   // 8s of the fullscreen flipping on, expose a Retry button so the user can
@@ -3663,15 +3681,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // The native player may be holding the start on purpose to fill its
     // buffer (up to 10 s, see preBuffer.ts): that is not the server being
     // slow, so look again once the hold is over.
-    // A conversion automatic quality asked for is its to sort out (another
-    // wait, a lighter file, the next step down) before the Retry panel.
+    // A conversion recovery under way (a stop awaited, a decision pending)
+    // is not the server being slow either: look again once it is through.
     const fire = () => {
       slowLoadTimerRef.current = null;
       if (!stillLoadingRef.current) return;
-      if (isPreBuffering()) { slowLoadTimerRef.current = window.setTimeout(fire, 2000) as unknown as number; return; }
-      const auto = autoSlowStartRef.current();
-      if (auto === 'wait') { slowLoadTimerRef.current = window.setTimeout(fire, TRANSCODE_START_GRACE_MS) as unknown as number; return; }
-      if (auto === 'moved') return;
+      if (isPreBuffering() || convertRecoveringRef.current) { slowLoadTimerRef.current = window.setTimeout(fire, 2000) as unknown as number; return; }
       setSlowLoad(true);
     };
     slowLoadTimerRef.current = window.setTimeout(fire, useTranscodeRef.current ? TRANSCODE_START_GRACE_MS : 8000) as unknown as number;
@@ -3714,124 +3729,62 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return () => { alive = false; window.clearInterval(id); };
   }, [fullscreen, streamUrl, native, clearSlowLoadTimer]);
 
-  // Auto-rescue: if the slow-load watchdog fires while we're playing a
-  // TRANSCODE stream, the server's transcoder is almost certainly stuck.
-  // Silently revert to direct play instead of showing the Retry panel.
-  // Not for a conversion automatic quality asked for: Original is the file
-  // that was stalling (or one the relay can't carry). Automatic quality
-  // tries a lighter step itself (autoSlowStartRef), then the panel shows.
-  // The one exception: on the Plex Relay a play starts converted, and when
-  // the server won't convert it at all (the player gives up before any
-  // picture, the server having answered with an error status) the file as
-  // it is is the only way left to play it. A connection that failed or timed
-  // out is an outage, not a refusal: the network-retry path's. Once per
-  // title, like the rest of this rescue.
-  const autoRevertRef = useRef<string | null>(null);
-  // The title whose slow conversion was already asked for the other way round.
-  const slowStartFlipRef = useRef<string | null>(null);
-  // Not PLEX_TRANSCODE_HTTP: that has its own recovery (fresh session first).
-  const relayConvertFailed = !!native.error && native.error.code !== 'PLEX_TRANSCODE_HTTP' && useTranscode && conn?.route === 'relay';
+  // A conversion the server accepted but never fed: the slow-load watchdog
+  // fired while a converting stream was still loading (no error, no
+  // picture in 30 s). The failure machine's: a fresh session once, then the
+  // file as it is, a lighter conversion, a message — never a spinner on a
+  // session that will not come (recoverConversion, below).
   useEffect(() => {
-    const st = autoQRef.current;
-    const autoConvert = !!playing && st.key === playing.ratingKey && !!st.autoKey && st.autoKey === qualityKeyRef.current;
-    // Offline is the reconnect path's to handle, not the server refusing.
-    const online = typeof navigator === 'undefined' || navigator.onLine !== false;
-    // Perhaps refused: the player's last error tells (below).
-    const failedToStart = relayConvertFailed && autoConvert && stillLoadingRef.current && online;
-    if (!((slowLoad || failedToStart) && useTranscode && playing && conn)) return;
-    const key = playing.ratingKey;
-    if (autoRevertRef.current === key) return;
-    if (!failedToStart && autoConvert) return;
-    let cancelled = false;
-    void (async () => {
-      const refused = failedToStart && await serverAnsweredWithError();
-      // Not a refusal: nothing for this rescue to do.
-      if (cancelled || (failedToStart && !refused) || autoRevertRef.current === key) return;
-      // A conversion the viewer picked that the server accepted but never
-      // fed (no error, no segments in 30 s): once per title, the same
-      // quality asked for the other way round (named ⇄ plain, see
-      // plexTranscodeUrl) before giving up on converting it. Bounded: the
-      // next 30 s without a picture end here with the file as it is.
-      if (!refused && !autoConvert && slowStartFlipRef.current !== key) {
-        slowStartFlipRef.current = key;
-        let at: number | undefined = startPos;
-        try { const p = await native.getPosition(); if (p.position > 0) at = p.position; } catch { /* where it was to start */ }
-        if (cancelled) return;
-        const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKeyRef.current && p.key !== 'original');
-        const identify = !plexTranscodeIdentified(streamUrlRef.current);
-        try { trackEvent('plex_convert_slow_flip', 'player', { preset: preset?.key ?? 'original', identified: identify }); } catch { /* ignore */ }
-        try { toast({ title: i18n.t('plex.section.toast.convertFailTitle'), description: i18n.t('plex.section.toast.convertRetryDesc') }); } catch { /* ignore */ }
-        setSlowLoad(false);
-        const r = await startConversionRef.current(conn, key, preset, at ?? 0, { identify });
-        if (r !== 'refused' || cancelled) return;
-      }
-      autoRevertRef.current = key;
-      if (refused) {
-        // Nothing converted will start on this title: automatic quality must
-        // not step back down into a conversion.
-        st.aq.conversionsRefused(buildQualityLadder(playVersionsRef.current, fileKbpsRef.current, floorPresetFor(conn.route)));
-        st.autoKey = null;
-        st.autoFromKbps = undefined;
-        try { trackEvent('plex_relay_convert_refused', 'player', { preset: qualityKeyRef.current, code: native.error?.code ?? '' }); } catch { /* ignore */ }
-      }
-      let resume: number | undefined = startPos;
-      try {
-        const p = await native.getPosition();
-        if (p.position > 0) resume = p.position;
-      } catch { /* ignore */ }
-      if (cancelled) return;
-      let url = '';
-      let fellBack = false;
-      try {
-        const direct = await sourceDirectUrl(conn, key);
-        url = direct ?? sourceTranscodeUrl(conn, key);
-        fellBack = !direct;
-      } catch {
-        url = sourceTranscodeUrl(conn, key);
-        fellBack = true;
-      }
-      if (cancelled) return;
-      setUseTranscode(fellBack);
-      setQualityKey('original');
-      setStartPos(resume);
-      setSlowLoad(false);
-      stillLoadingRef.current = true;
-      setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
-      try {
-        toast(refused
-          ? { title: i18n.t('plex.section.toast.refusedTitle'), description: i18n.t('plex.section.toast.refusedDesc') }
-          : { title: i18n.t('plex.section.toast.tooSlowTitle'), description: i18n.t('plex.section.toast.tooSlowDesc') });
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [slowLoad, relayConvertFailed, useTranscode, playing, conn, native, startPos, toast, sourceDirectUrl, sourceTranscodeUrl]);
-
-  // Reset the auto-revert guard when a new title starts.
-  useEffect(() => { autoRevertRef.current = null; }, [playing?.ratingKey]);
+    if (!(slowLoad && useTranscode && playing && conn)) return;
+    if (convertRecoveringRef.current) return;
+    setSlowLoad(false);
+    void recoverConversionRef.current('slow', qualityKeyRef.current);
+  }, [slowLoad, useTranscode, playing, conn]);
 
   // Automatic quality, like the Plex app's (rules in plexAutoQuality.ts): a
   // conservative safety net, not a reason to leave the original early.
   // Playback starts at the version chosen on the title page, as it is (on
-  // the Plex Relay, at the quality the relay carries). Down, when playback
-  // really stalls (the first load and seeks never count): three stalls
-  // within five minutes, to what the speed carries. Sooner only on proof
-  // that the file is plainly bigger than what the server sends flat out
-  // during the stall; a server that pauses is never that. Up: speed
-  // comfortably above the next step for a minute and a half, no stall, one
-  // step at a time, never above where it started nor above what the viewer
-  // picked for this title.
+  // the Plex Relay, at the quality the relay carries). Down, on one rule:
+  // what the server delivered over a stall (or the stalls of the last two
+  // minutes) is short of what the stream needs; then to the best rung that
+  // rate carries, lighter files first. A server that pauses is never that.
+  // Repeated stalls alone (three in five minutes) may only move to a
+  // lighter file. Up: speed comfortably above the next step for a minute
+  // and a half, no stall, one step at a time, never above where it started
+  // nor above what the viewer picked for this title.
   useEffect(() => {
     const prev = autoQRef.current;
     const key = playing?.ratingKey ?? null;
     // A replay of the same title keeps the conversions that failed on it.
     const failed = prev.key && prev.key === key ? prev.aq.failedKeys() : [];
-    const autoKey = startAutoKeyRef.current;
-    autoQRef.current = {
-      key, aq: new AutoQuality(Date.now(), failed), slowFileDone: false, probeAt: 0, probeKbps: null,
-      autoKey, autoFromKbps: autoKey ? fileKbpsRef.current : undefined, peakKbps: 0,
-    };
+    autoQRef.current = { key, aq: new AutoQuality(Date.now(), failed), probeAt: 0, probeKbps: null, sustainedKbps: null };
+    arrivalRef.current = { samples: [], native: null, connections: null };
   }, [playing?.ratingKey, playSeq]);
   const bufferingRef = useRef(false); bufferingRef.current = native.buffering;
+  // The one measurement: the player's arrival rate, polled every window
+  // from getStats (arrivalKbps, bytes as they arrive from the network). A
+  // plugin that does not report it (built before it) leaves the bandwidth
+  // reports in charge (rates()). Kept for the title, three minutes back.
+  useEffect(() => {
+    if (!nativeActive) return;
+    const a = arrivalRef.current;
+    let alive = true;
+    const id = window.setInterval(async () => {
+      if (a.native === false || stillLoadingRef.current) return;
+      try {
+        const s = await SnowPlayer.getStats() as { arrivalKbps?: number | null; fetchConnections?: number | null };
+        if (!alive || arrivalRef.current !== a) return;
+        if (!('arrivalKbps' in s)) { a.native = false; window.clearInterval(id); return; }
+        a.native = true;
+        if (typeof s.fetchConnections === 'number' && s.fetchConnections > 0) a.connections = s.fetchConnections;
+        if (typeof s.arrivalKbps !== 'number' || !Number.isFinite(s.arrivalKbps) || s.arrivalKbps < 0) return;
+        const t = Date.now();
+        a.samples.push(bufferingRef.current ? { t, kbps: s.arrivalKbps, stalled: true } : { t, kbps: s.arrivalKbps });
+        while (a.samples.length > 1 && a.samples[0].t < t - RATES_KEPT_MS) a.samples.shift();
+      } catch { /* an app without getStats: the bandwidth reports */ }
+    }, RATE_TICK_MS);
+    return () => { alive = false; window.clearInterval(id); };
+  }, [nativeActive]);
   // The ladder as it stands now (versions and the file's bitrate arrive
   // after the start), where playback is on it, and the highest it may go.
   const autoLadder = useCallback((): { ladder: QualityStep[]; index: number; ceiling: number } => {
@@ -3857,191 +3810,117 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // Never above what the viewer picked for this title.
     return { ladder, index, ceiling: st.aq.ceiling(ladder, ceiling) };
   }, []);
-  // A read of a few seconds of the file within its freshness: the raise
-  // probe's, else the speed check made before the start. Real evidence of
-  // what the server sends flat out, like the player's rate inside a stall.
-  const freshRead = useCallback((): number | null => {
-    const st = autoQRef.current;
-    const now = Date.now();
-    const c = connRef.current;
-    return st.probeKbps != null && now - st.probeAt < SERVER_READ_FRESH_MS ? st.probeKbps : (c ? cachedPlexSpeed(c.base, now) : null);
-  }, []);
-  // What to size a drop by (never a reason for one): the player's steady
-  // rate, its rate in the stall under way (from `stallStart`), a fresh read;
-  // else the quick probes.
-  const dropSpeed = useCallback((stallStart?: number): number | null => (
-    stallBudgetKbps(getDiagSnapshot(), dropSizeKbps(getPlayerRates(), Date.now(), { stallStart, readKbps: freshRead() }))
-  ), [freshRead]);
-  // What the stream playing now needs: the cap it is converted to, else the
-  // file's own bitrate.
-  const needNow = (): number | undefined => PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKeyRef.current)?.maxVideoBitrateKbps ?? fileKbpsRef.current;
+  // What the stream playing now needs: the smaller of the cap it is
+  // converted to and the source file's own bitrate (needKbps).
+  const needNow = (): number | undefined => needKbps(
+    useTranscodeRef.current ? PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKeyRef.current)?.maxVideoBitrateKbps : undefined,
+    fileKbpsRef.current,
+  );
   const needNowRef = useRef(needNow); needNowRef.current = needNow;
+  // The best the server has delivered this title sustained (15 s), kept for
+  // the title: while the player fills its start or a seek it downloads flat
+  // out, so twice the file proves the line carries it.
+  const noteSustained = useCallback((): void => {
+    const st = autoQRef.current;
+    const s = sustainedKbps(rates(), Date.now());
+    if (s != null && s > (st.sustainedKbps ?? 0)) st.sustainedKbps = s;
+  }, [rates]);
   // What a stall is judged with besides its time: when playback last began
   // (the first half minute after a start, a resume or a seek is the server
-  // getting going there, not a stall), what the player itself was sent by the
-  // Plex server for a file played as it is (its best window, kept for the
-  // title: while it fills its start it downloads flat out; twice the file:
-  // stalls alone never leave it for a conversion), and whether playback is
-  // starving (the best the server delivered over its last stalls clearly
-  // short of what the stream needs: then nothing keeps it where it is). The
-  // quick internet check is only shown: a customer's read 42.5 Mb/s while the
-  // server sent 1.4-5.7 of a 12 Mb/s file, and it kept that file for good.
-  const notePeak = useCallback((): boolean => {
-    if (useTranscodeRef.current) return false;
-    const st = autoQRef.current;
-    st.peakKbps = Math.max(st.peakKbps, getPlayerSpeedKbps() ?? 0);
-    return is4k(playVersionRef.current);
-  }, []);
-  const stallCtx = useCallback((): StallContext => {
-    const uhd = notePeak();
+  // getting going there, not a stall), the best the server has delivered
+  // sustained (a proven line), and what it delivered over the last stalls
+  // when that is short of what the stream needs (`shortKbps`: then nothing
+  // keeps playback where it is). `stallStart`: the stall under way, whose
+  // pause gives no verdict. The quick internet check never counts: a
+  // customer's read 42.5 Mb/s while the server sent 1.4-5.7 of a 12 Mb/s
+  // file, and it kept that file for good.
+  const stallCtx = useCallback((stallStart?: number): StallContext => {
+    noteSustained();
     const st = autoQRef.current;
     const ctx: StallContext = {
       lastStartAt: lastPlaybackStartAt(),
       lastSeekAt: lastSeekAt(),
-      internetKbps: getDiagSnapshot().probeKbps,
       relay: connRef.current?.route === 'relay',
-      uhd,
-      serverKbps: useTranscodeRef.current ? null : st.peakKbps || null,
+      uhd: !useTranscodeRef.current && is4k(playVersionRef.current),
+      sustainedKbps: st.sustainedKbps,
     };
     const own = !!st.key && st.key === playingKeyRef.current;
-    ctx.starvedKbps = own ? st.aq.starved(getPlayerRates(), Date.now(), needNowRef.current(), ctx) : null;
+    if (own) {
+      const need = needNowRef.current();
+      const d = st.aq.delivery(rates(), Date.now(), ctx, stallStart, need);
+      ctx.shortKbps = d.kbps != null && !!need && d.kbps < need * DELIVERY_FACTOR ? d.kbps : null;
+    }
     return ctx;
-  }, [notePeak]);
-  // A 4K file the line has been seen to carry twice over: a stall is one of
-  // the server's slow spells, not proof the file is too big for the line.
-  const slowFileRuledOut = useCallback((ctx: StallContext): boolean => !!ctx.uhd && lineClearFor(fileKbpsRef.current, ctx), []);
+  }, [noteSustained, rates]);
   const startPosRef = useRef(startPos); startPosRef.current = startPos;
   const nativeGetPosition = native.getPosition;
   const applyAutoMove = useCallback(async (move: AutoMove) => {
     const st = autoQRef.current;
-    // Where it moves from: a lighter file than this one is what a slow
-    // start of the conversion falls back to.
-    const from = autoLadder();
-    const fromKbps = (from.index >= 0 && Number.isInteger(from.index) ? from.ladder[from.index]?.kbps : undefined) ?? needNowRef.current();
     let resume = 0;
     try { const p = await nativeGetPosition(); resume = p.position; } catch { /* from the start */ }
     // A conversion that never started has no playhead: where it was to start.
     if (!(resume > 0)) resume = startPosRef.current ?? 0;
     if (autoQRef.current !== st || st.key !== playingKeyRef.current) return;
     st.aq.applied(move, Date.now());
-    st.autoKey = move.step.presetKey === 'original' ? null : move.step.key;
-    st.autoFromKbps = fromKbps;
     const shown = stepName(move.step);
     try { trackEvent('plex_auto_quality', 'player', { preset: move.step.presetKey, direction: move.direction, reason: move.reason, fileKbps: fileKbpsRef.current ?? 0 }); } catch { /* ignore */ }
     changeQualityRef.current(move.step.key, Math.floor(resume));
     try {
-      toast(move.reason === 'slow-start'
-        ? { title: i18n.t('plex.section.toast.slowConvertTitle'), description: i18n.t('plex.section.toast.slowConvertDesc', { quality: shown }) }
-        : move.direction === 'down'
-          ? { title: i18n.t('plex.section.toast.loweredTitle', { quality: shown }), description: i18n.t('plex.section.toast.loweredDesc') }
-          : { title: i18n.t('plex.section.toast.backToTitle', { quality: shown }), description: i18n.t('plex.section.toast.backToDesc') });
+      toast(move.direction === 'down'
+        ? { title: i18n.t('plex.section.toast.loweredTitle', { quality: shown }), description: i18n.t('plex.section.toast.loweredDesc') }
+        : { title: i18n.t('plex.section.toast.backToTitle', { quality: shown }), description: i18n.t('plex.section.toast.backToDesc') });
     } catch { /* ignore */ }
-  }, [nativeGetPosition, autoLadder]);
-  // A conversion automatic quality asked for (a drop, or the relay's start)
-  // has not started in time: a lighter file as it is, one more wait, or the
-  // next step down (AutoQuality.onSlowStart), never Original. Null when it is
-  // not automatic quality's conversion, or nothing is left to try.
-  autoSlowStartRef.current = () => {
-    const st = autoQRef.current;
-    if (!useTranscodeRef.current || !st.key || st.key !== playingKeyRef.current) return null;
-    const key = qualityKeyRef.current;
-    if (!st.autoKey || st.autoKey !== key) return null;
-    const { ladder, index } = autoLadder();
-    const r = st.aq.onSlowStart(ladder, index, key, {
-      fromKbps: st.autoFromKbps,
-      speedKbps: dropSpeed(),
-      // No file as it is fits through the relay.
-      files: connRef.current?.route !== 'relay',
-    });
-    if (r === 'wait') return 'wait';
-    if (!r) return null;
-    try { trackEvent('plex_auto_slow_start', 'player', { preset: key, next: r.step.presetKey }); } catch { /* ignore */ }
-    void applyAutoMove(r);
-    return 'moved';
-  };
+  }, [nativeGetPosition]);
   useEffect(() => {
     if (!(nativeActive && native.buffering)) return;
     if (stillLoadingRef.current) return;
     const st = autoQRef.current;
     if (!st.key || st.key !== playingKeyRef.current) return;
     const at = Date.now();
-    // A seek, or the first half minute after playback began (a resume
-    // included): the start, never evidence against the file.
-    const seek = inJumpGrace(at, lastSeekAt(), lastPlaybackStartAt());
+    // The stall itself: straight back after a raise that did not hold, or
+    // a lighter file once stalls have repeated (a seek, or the first half
+    // minute after playback began, never counts).
     const { ladder, index } = autoLadder();
-    const ctx = stallCtx();
-    const move = st.aq.onStall(at, lastSeekAt(), ladder, index, dropSpeed(at), ctx);
+    const move = st.aq.onStall(at, ladder, index, stallCtx(at));
     if (move) { void applyAutoMove(move); return; }
-    // Starving (AutoQuality.starved): playback keeps stalling and the best
-    // the Plex server delivered over the last stalls is clearly short of what
-    // this stream needs — a file played as it is or a conversion. Lowered to
-    // what that rate carries, whatever the quick internet check says. Looked
-    // at on each of the player's rate reports while the stall lasts (its
-    // reports in memory, no calls to the player).
-    let starveTimer = 0;
-    let starveDone = false;
-    const starveCheck = () => {
-      if (starveDone || autoQRef.current !== st || st.key !== playingKeyRef.current) return;
-      const starved = stallCtx().starvedKbps ?? null;
-      if (starved) {
-        const now = autoLadder();
-        const m = st.aq.onStarved(Date.now(), now.ladder, now.index, starved);
-        if (m) {
-          starveDone = true;
-          void applyAutoMove(m);
-          return;
-        }
-      }
-      starveTimer = window.setTimeout(starveCheck, RATE_TICK_MS);
-    };
-    starveCheck();
-    const stopStarve = () => { window.clearTimeout(starveTimer); };
-    if (starveDone) return stopStarve;
-    // The file played as-is is plainly bigger than what the server sends (a
-    // remux on a line that can't carry it): no need to sit through more
-    // stalls. Decided from what the player got inside this stall — with its
-    // buffer short it downloads flat out — or a fresh read of the file; never
-    // from the steady rate before it (the video's own bitrate while the
-    // buffer is topped up) nor a quick probe. A window with nothing in it is
-    // the server pausing, not its speed: no early drop for this stall then.
-    // A 4K file waits for the player's own windows (a short read of the file
-    // under-reads a fast line), and is not judged at all on a line proven
-    // to carry it.
-    if (seek || useTranscodeRef.current || st.slowFileDone || slowFileRuledOut(ctx)) return stopStarve;
+    // The one down rule: what the server delivers over this stall (and the
+    // last two minutes' stalls) short of what the stream needs — a file
+    // played as it is or a conversion — lowers to what that rate carries.
+    // Looked at on each of the player's windows while the stall lasts (its
+    // reports in memory, no calls to the player). A pause is never a drop.
     let timer = 0;
+    let done = false;
     const check = () => {
-      if (starveDone || st.slowFileDone || autoQRef.current !== st) return;
-      const ev = stallEvidence(getPlayerRates(), at, Date.now(), freshRead(), { needWindows: ctx.uhd });
-      if (ev.paused) return;
-      // Not two windows of the stall in yet: look again after the next.
-      if (ev.kbps == null) { timer = window.setTimeout(check, RATE_TICK_MS); return; }
-      if (!autoDropPreset(fileKbpsRef.current, { serverKbps: ev.kbps })) return;
+      if (done || autoQRef.current !== st || st.key !== playingKeyRef.current) return;
       const now = autoLadder();
-      const m = st.aq.onSlowFile(now.ladder, now.index, dropSpeed(at));
-      if (!m) return;
-      st.slowFileDone = true;
-      void applyAutoMove(m);
+      const need = needNowRef.current();
+      const d = st.aq.delivery(rates(), Date.now(), stallCtx(at), at, need);
+      const m = st.aq.onDelivery(Date.now(), now.ladder, now.index, d, need);
+      if (m) { done = true; void applyAutoMove(m); return; }
+      timer = window.setTimeout(check, RATE_TICK_MS);
     };
-    timer = window.setTimeout(check, SLOW_FILE_AFTER_MS);
-    return () => { window.clearTimeout(timer); stopStarve(); };
-  }, [native.buffering, nativeActive, autoLadder, applyAutoMove, dropSpeed, freshRead, stallCtx, slowFileRuledOut]);
+    check();
+    return () => { done = true; window.clearTimeout(timer); };
+  }, [native.buffering, nativeActive, autoLadder, applyAutoMove, stallCtx, rates]);
   // The way back up, checked every 15 s while playing smoothly. When the
   // player's own downloads can't show the speed (a converted stream arrives
   // only as fast as the server converts it), a short read of the file itself
-  // measures the line to the server — at most every 2 minutes, and never
-  // over the Plex Relay: the relay is the cap, and 16 MB pulled through it
-  // is taken from the playback it is carrying.
+  // measures the line to the server — over the connections playback reads
+  // with, taking the tail rate; at most every 2 minutes; never over the
+  // Plex Relay (the relay is the cap, and bytes pulled through it are taken
+  // from the playback it is carrying); never reused for a start or a 4K
+  // choice (measured while the player itself downloads).
   useEffect(() => {
     if (!(nativeActive && playing && conn)) return;
     const id = window.setInterval(() => {
       const st = autoQRef.current;
       // The player's rates are kept for 3 minutes; the title's best is kept for good.
-      if (st.key && st.key === playingKeyRef.current) notePeak();
+      if (st.key && st.key === playingKeyRef.current) noteSustained();
       if (stillLoadingRef.current || bufferingRef.current || !st.key || st.key !== playingKeyRef.current) return;
       const now = Date.now();
       const { ladder, index, ceiling } = autoLadder();
       const probe = st.probeKbps != null && now - st.probeAt < 60_000 ? st.probeKbps : null;
-      const player = steadyKbps(getPlayerRates(), now, RAISE_SUSTAIN_MS);
+      const player = steadyKbps(rates(), now, RAISE_SUSTAIN_MS);
       const speed = Math.max(player ?? 0, probe ?? 0) || null;
       const move = st.aq.maybeRaise(now, ladder, index, ceiling, speed);
       if (move) { void applyAutoMove(move); return; }
@@ -4049,97 +3928,100 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       // player's numbers fall short of the step above.
       const up = Math.ceil(index) - 1;
       const need = up >= ceiling && up >= 0 ? ladder[up]?.kbps : undefined;
-      if (!need || !st.aq.raiseWindowOpen(now) || (speed ?? 0) >= need * SPEED_HEADROOM || now - st.probeAt < 120_000) return;
+      if (!need || !st.aq.raiseWindowOpen(now) || (speed ?? 0) >= need * SPEED_HEADROOM || now - st.probeAt < RAISE_PROBE_GAP_MS) return;
       if (connRef.current?.route === 'relay') return;
       const part = playVersionRef.current?.partKey ?? playVersionsRef.current.find((v) => v.partKey)?.partKey;
       if (!part) return;
       st.probeAt = now;
-      void measurePlexSpeed(conn.base, conn.token, part, { fresh: true }).then((k) => {
+      const connections = arrivalRef.current.connections ?? playbackConnections(conn.base, connRef.current?.route, rangeFetchFlagRef.current);
+      void measurePlexSpeed(conn.base, conn.token, part, { fresh: true, connections, maxBytes: RAISE_PROBE_BYTES, maxMs: RAISE_PROBE_MS }).then((k) => {
         if (autoQRef.current === st) { st.probeKbps = k; st.probeAt = Date.now(); }
       });
     }, 15_000);
     return () => window.clearInterval(id);
-  }, [nativeActive, playing, conn, autoLadder, applyAutoMove, notePeak]);
+  }, [nativeActive, playing, conn, autoLadder, applyAutoMove, noteSustained, rates]);
   // The buffering card: its verdict told what this video needs, the same
-  // evidence of what the server sends that automatic quality goes by, and
+  // evidence of what the server delivers that automatic quality goes by, and
   // what automatic quality will do (and when); and a line saying whether it
-  // is on. What a drop would go to is sized as the drop itself is, from the
-  // stall (or the start) under way as the card counts it (stallStartOf).
+  // is on. Judged from the stall (or the start) under way as the card counts
+  // it (stallStartOf).
   const autoPreview = useCallback((stallStart: number | undefined) => {
     const st = autoQRef.current;
     if (!st.key || st.key !== playingKeyRef.current) return null;
     const { ladder, index } = autoLadder();
-    return { ladder, index, ...st.aq.preview(ladder, index, dropSpeed(stallStart), stallCtx()) };
-  }, [autoLadder, dropSpeed, stallCtx]);
+    return { ladder, index, ...st.aq.preview(ladder, index, stallCtx(stallStart)) };
+  }, [autoLadder, stallCtx]);
   const explainStall = useCallback((snap: DiagSnapshot) => {
     const start = stallStartOf(snap);
-    const next = autoPreview(start)?.next ?? null;
-    const ctx = stallCtx();
-    const ev = start != null ? stallEvidence(getPlayerRates(), start, Date.now(), freshRead(), { needWindows: ctx.uhd }) : null;
-    // The early drop of a file played as it is (the stall effect above) is
-    // still to come in this stall and its proof is in: it lowers within
-    // seconds, not on more stalls.
-    const st = autoQRef.current;
-    const soon = !!next && start != null && !!ev && !ev.paused && ev.kbps != null
-      && !useTranscodeRef.current && !st.slowFileDone && !stillLoadingRef.current && !inJumpGrace(start, lastSeekAt(), lastPlaybackStartAt())
-      && !slowFileRuledOut(ctx) && !!autoDropPreset(fileKbpsRef.current, { serverKbps: ev.kbps });
-    // Starving: what the server delivered over the last stalls is the proof
-    // (the card then never calls the internet "fine" for this video), and the
-    // drop comes within seconds.
-    const starved = ctx.starvedKbps && ctx.starvedKbps > 0 ? ctx.starvedKbps : null;
+    const preview = autoPreview(start);
+    const next = preview?.next ?? null;
+    const ev = start != null ? stallEvidence(rates(), start, Date.now()) : null;
+    // Delivered too little: what the server delivered over the last stalls
+    // is the proof (the card then never calls the internet "fine" for this
+    // video), and the drop comes within seconds.
+    const short = preview?.shortKbps ?? null;
     return explainPlexStall(snap, {
       fileKbps, targetKbps: qualityCapKbps, transcoding: useTranscode, route: conn?.route,
-      serverKbps: ev?.kbps ?? starved, quietMs: ev?.quietMs ?? 0, autoNext: next ? stepName(next) : null, autoSoon: soon || (!!next && !!starved),
+      serverKbps: ev?.kbps ?? short, quietMs: ev?.quietMs ?? 0, autoNext: next ? stepName(next) : null, autoSoon: !!next && !!short,
     });
-  }, [fileKbps, qualityCapKbps, useTranscode, conn?.route, autoPreview, freshRead, stallCtx, slowFileRuledOut]);
+  }, [fileKbps, qualityCapKbps, useTranscode, conn?.route, autoPreview, rates]);
   const autoNote = useCallback((snap: DiagSnapshot): string | null => {
     const p = autoPreview(stallStartOf(snap));
     return p ? autoQualityNote(p.ladder, p.index, p) : null;
   }, [autoPreview]);
 
-  // A conversion the Plex server answered with an HTTP error status
-  // (PLEX_TRANSCODE_HTTP: the native player tried that session twice). It
-  // used to be loaded again and again as it was (6 restarts on a customer's
-  // box, 0 bytes, "Buffer 0.0 s"). Now: a FRESH session (a new id, asked for
-  // with a decision call first and named like Plex's own players); if that
-  // is turned down too, another quality (the file as it is when the rate
-  // measured from the server carries it, else a lighter conversion); then a
-  // plain message with the status (convertRecoveryStep, capped per title).
+  // A conversion that fails, whichever way — turned down at its decision,
+  // answered with an HTTP error status (PLEX_TRANSCODE_HTTP: the native
+  // player tried that session twice; it used to be loaded again and again
+  // as it was, 6 restarts on a customer's box, 0 bytes), or accepted but
+  // never fed — goes through ONE failure machine per title
+  // (convertRecoveryStep): a fresh session once (a new id, asked for with a
+  // decision call first), the file as it is (unless audio forced the
+  // conversion), a lighter conversion, then a plain message with the
+  // status. Capped per title.
   const convertRecRef = useRef<{ key: string | null; r: ConvertRecovery }>({ key: null, r: freshConvertRecovery() });
   const [convertGaveUp, setConvertGaveUp] = useState(false);
-  // The last HTTP status a conversion of this title was turned down with,
-  // for the stats panel and the message (a fresh session's stats start over).
-  const [convertHttpStatus, setConvertHttpStatus] = useState<number | null>(null);
+  // A recovery under way: the loader shows instead of the error, and the
+  // slow-load timer stands down.
+  const [convertRecovering, setConvertRecovering] = useState(false);
+  const setRecovering = useCallback((on: boolean) => { convertRecoveringRef.current = on; setConvertRecovering(on); }, []);
   useEffect(() => {
     convertRecRef.current = { key: playing?.ratingKey ?? null, r: freshConvertRecovery() };
     setConvertGaveUp(false);
-    setConvertHttpStatus(null);
-  }, [playing?.ratingKey]);
+    setConvertRefusal(null);
+    setRecovering(false);
+  }, [playing?.ratingKey, setRecovering]);
+  // A recovery is over once the stream it chose is on its way (the player
+  // clears the old error as it loads it).
+  useEffect(() => { if (streamUrl) setRecovering(false); }, [streamUrl, setRecovering]);
   const streamUrlRef = useRef(streamUrl); streamUrlRef.current = streamUrl;
   // Sessions this component stopped itself, ahead of the delayed stop below
   // (which then leaves them alone).
   const stoppedTranscodesRef = useRef<Set<string>>(new Set());
   // Starts a conversion the way Plex's own players start one: the session
-  // playback leaves is stopped on the server FIRST (a shared server that
-  // allows a user one conversion at a time, or is still tearing the old one
-  // down, turned the new one away otherwise), then a decision call for the
-  // new session, named like Plex's players (or the plain start of builds
-  // 38-56 when `identify` is false: the other thing to try), and only then
-  // the playlist, with the same session id throughout. 'refused' when the
-  // server turned the decision down (the HTTP status noted for the panel and
-  // the stats); 'started' when it is on its way, or the viewer has moved on.
-  const startConversion = useCallback(async (c: { base: string; token: string }, key: string, preset: PlexQualityPreset | undefined, resume: number, opts: { identify: boolean }): Promise<'started' | 'refused'> => {
+  // playback leaves is stopped on the server FIRST and waited for (a shared
+  // server that allows a user one conversion at a time, or is still tearing
+  // the old one down, turned the new one away otherwise), then a decision
+  // call for the new session, named like Plex's players, and only then the
+  // playlist, with the same session id and identity throughout. 'refused'
+  // when the server turned the decision down (its status and words noted
+  // for the panel, the stats and the event); 'started' when it is on its
+  // way; 'stale' when a newer request (`gen`) overtook it on the way — a
+  // stopped session is then never played on, as the newer request replaced
+  // it.
+  const startConversion = useCallback(async (c: { base: string; token: string }, key: string, preset: PlexQualityPreset | undefined, resume: number, gen: number): Promise<'started' | 'refused' | 'stale'> => {
     const leaving = streamUrlRef.current;
     if (leaving && transcodeStopUrl(leaving) && !stoppedTranscodesRef.current.has(leaving)) {
       stoppedTranscodesRef.current.add(leaving);
-      stopPlexTranscode(leaving);
+      await stopPlexTranscodeAndWait(leaving);
+      if (!stillCurrent(gen)) return 'stale';
     }
-    const url = sourceTranscodeUrl(c, key, { maxVideoBitrateKbps: preset?.maxVideoBitrateKbps, videoResolution: preset?.videoResolution, identify: opts.identify });
+    const url = sourceTranscodeUrl(c, key, { maxVideoBitrateKbps: preset?.maxVideoBitrateKbps, videoResolution: preset?.videoResolution });
     const d = await plexTranscodeDecision(url, c.token, DECISION_TIMEOUT_MS);
-    if (playingKeyRef.current !== key) return 'started';
+    if (!stillCurrent(gen)) return 'stale';
     if (d?.refused) {
-      if (d.httpStatus) setConvertHttpStatus(d.httpStatus);
-      try { trackEvent('plex_convert_refused', 'player', { preset: preset?.key ?? 'original', status: d.httpStatus ?? 0, code: d.code ?? 0, identified: opts.identify }); } catch { /* ignore */ }
+      setConvertRefusal({ status: d.httpStatus, text: d.text });
+      try { trackEvent('plex_convert_refused', 'player', { preset: preset?.key ?? 'original', status: d.httpStatus ?? 0, code: d.code ?? 0, text: d.text ?? '' }); } catch { /* ignore */ }
       return 'refused';
     }
     setUseTranscode(true);
@@ -4148,148 +4030,130 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     stillLoadingRef.current = true;
     setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
     return 'started';
-  }, [sourceTranscodeUrl]);
+  }, [sourceTranscodeUrl, stillCurrent]);
   useEffect(() => { startConversionRef.current = startConversion; }, [startConversion]);
-  // A fresh session of the quality playing now, asked for the other way
-  // round from the one that failed (named ⇄ plain). False when the server
-  // turned its decision down.
-  const startFreshConvert = useCallback(async (resume: number): Promise<boolean> => {
-    const c = connRef.current;
-    const key = playingKeyRef.current;
-    if (!c || !key) return true;
-    const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKeyRef.current && p.key !== 'original');
-    const identify = !plexTranscodeIdentified(streamUrlRef.current);
-    return (await startConversion(c, key, preset, resume, { identify })) !== 'refused';
-  }, [startConversion]);
-  // Another quality after a fresh session failed too. False when there is
-  // none to try.
-  const tryOtherQuality = useCallback((resume: number): boolean => {
+  // What the server has been seen to deliver, kbps, to size a way out by:
+  // the best sustained rate this title, else the last raise probe.
+  const measuredKbps = useCallback((): number | null => {
     const st = autoQRef.current;
-    const key = playingKeyRef.current;
-    if (!key) return false;
-    const failedKey = qualityKeyRef.current;
-    const { ladder, index } = autoLadder();
-    const own = st.key === key;
-    // An automatic conversion (the relay's start, or a remote start sized to
-    // the measured speed) that never started goes to the file as it is: the
-    // only way left to play it, and what the Plex app plays on such a box.
-    const directAnyway = own && !!st.autoKey && st.autoKey === failedKey && stillLoadingRef.current;
-    const measured = Math.max(getPlayerSpeedKbps() ?? 0, own ? st.peakKbps : 0, freshRead() ?? 0) || null;
-    const step = convertAlternative(ladder, index, failedKey, {
-      measuredKbps: measured,
-      // Audio (or the codec) can't be played as it is here.
-      files: !forcedTranscodeRef.current,
-      directAnyway,
-      failed: own ? st.aq.failedKeys() : [],
-    });
-    if (own) st.aq.convertFailed(failedKey);
-    if (!step) return false;
-    if (own) {
-      st.aq.applied({ step, direction: 'down', reason: 'slow-start' }, Date.now());
-      st.autoKey = step.presetKey === 'original' ? null : step.key;
-      st.autoFromKbps = undefined;
-    }
-    try { trackEvent('plex_convert_other', 'player', { from: failedKey, to: step.presetKey }); } catch { /* ignore */ }
-    changeQualityRef.current(step.key, Math.floor(resume));
-    try { toast({ title: i18n.t('plex.section.toast.convertFailTitle'), description: i18n.t('plex.section.toast.convertOtherDesc', { quality: stepName(step) }) }); } catch { /* ignore */ }
-    return true;
-  }, [autoLadder, freshRead]);
-  const convertErrRef = useRef<unknown>(null);
-  useEffect(() => {
-    const err = native.error;
-    if (!(nativeActive && err && err.code === 'PLEX_TRANSCODE_HTTP' && playing && conn)) return;
-    if (convertErrRef.current === err) return;
-    convertErrRef.current = err;
-    const key = playing.ratingKey;
-    const rec = convertRecRef.current;
-    if (rec.key !== key) { rec.key = key; rec.r = freshConvertRecovery(); }
-    const status = typeof err.httpStatus === 'number' && err.httpStatus > 0 ? err.httpStatus : null;
-    if (status) setConvertHttpStatus(status);
-    // The session that failed had got playing: a new outage once it has
-    // played for a while (convertRecoveryStep).
-    let played = !stillLoadingRef.current;
-    const fallbackPos = startPos ?? 0;
-    // No cleanup cancels this: a re-render mid-way must not leave it half
-    // done; it checks the title is still the one playing instead.
-    void (async () => {
-      let resume = fallbackPos;
-      try { const p = await nativeGetPosition(); if (p.position > 0) resume = p.position; } catch { /* where it was to start */ }
-      // At most: fresh (turned down at its decision) → other → give up.
-      for (let i = 0; i < 3; i += 1) {
-        if (playingKeyRef.current !== key) return;
-        const step = convertRecoveryStep(rec.r, Date.now(), played);
-        played = false;
-        try { trackEvent('plex_convert_http', 'player', { status: status ?? 0, step, preset: qualityKeyRef.current }); } catch { /* ignore */ }
-        if (step === 'fresh') {
-          try { toast({ title: i18n.t('plex.section.toast.convertFailTitle'), description: i18n.t('plex.section.toast.convertRetryDesc') }); } catch { /* ignore */ }
-          if (await startFreshConvert(resume)) return;
-          continue;
-        }
-        if (step === 'other') {
-          if (tryOtherQuality(resume)) return;
-          continue;
-        }
-        setConvertGaveUp(true);
-        return;
-      }
-    })();
-  }, [native.error, nativeActive, playing, conn, startPos, nativeGetPosition, startFreshConvert, tryOtherQuality]);
-  // Retry on the message: a fresh session again (never the one that failed).
-  const retryConvert = useCallback(() => {
-    convertRecRef.current = { key: playingKeyRef.current, r: freshConvertRecovery() };
-    convertRecRef.current.r.stage = 1;
-    convertRecRef.current.r.total = 1;
-    convertRecRef.current.r.lastAt = Date.now();
-    setConvertGaveUp(false);
-    void (async () => {
-      let resume = startPos ?? 0;
-      try { const p = await nativeGetPosition(); if (p.position > 0) resume = p.position; } catch { /* where it was to start */ }
-      if (!(await startFreshConvert(resume))) setConvertGaveUp(true);
-    })();
-  }, [startPos, nativeGetPosition, startFreshConvert]);
-  // A conversion the viewer picked (or a start chose) that the server turned
-  // down at its decision: the next lighter conversion that has not failed on
-  // this title (asked for the same way), else the file as it is, else — when
-  // the file can't be played as it is here — the message with the status.
-  // Said at each step, never a spinner.
-  const convertRefused = useCallback(async (failedKey: string, resume: number): Promise<void> => {
+    return Math.max(st.sustainedKbps ?? 0, st.probeKbps ?? 0) || null;
+  }, []);
+  // The failure machine (see convertRecRef): `kind` says what failed —
+  // 'refused' at the decision, 'http' an error status on the session,
+  // 'slow' accepted but never fed — and `failedKey` which quality. Each
+  // step is said as it happens; the loader shows meanwhile, never a
+  // spinner on a session that will not come. Every step checks it is
+  // still the latest request (a pick of the viewer's overtakes it).
+  const recoverConversion = useCallback(async (kind: 'refused' | 'http' | 'slow', failedKey: string): Promise<void> => {
     const c = connRef.current;
     const key = playingKeyRef.current;
     if (!c || !key) return;
+    const gen = newStreamRequest();
+    const rec = convertRecRef.current;
+    if (rec.key !== key) { rec.key = key; rec.r = freshConvertRecovery(); }
     const st = autoQRef.current;
     const own = st.key === key;
     if (own) st.aq.convertFailed(failedKey);
-    const { ladder, index } = autoLadder();
-    const measured = Math.max(getPlayerSpeedKbps() ?? 0, own ? st.peakKbps : 0, freshRead() ?? 0) || null;
-    // The next lighter conversion first (the viewer picked lower because the
-    // file stalls), the file when none is left and it can be played as it is.
-    const step = convertAlternative(ladder, index, failedKey, {
-      measuredKbps: measured, files: !forcedTranscodeRef.current, failed: own ? st.aq.failedKeys() : [],
-    }) ?? (forcedTranscodeRef.current ? null : ladder.find((s) => s.presetKey === 'original') ?? null);
-    if (!step) {
-      setConvertGaveUp(true);
-      return;
+    setRecovering(true);
+    const done = () => { if (stillCurrent(gen)) setRecovering(false); };
+    // The session that failed had got playing: a new outage once it has
+    // played for a while (convertRecoveryStep).
+    let played = kind === 'http' && !stillLoadingRef.current;
+    // The file as it is is no way out when audio forced the conversion (it
+    // would play mute), nor over the relay for a conversion that merely
+    // never fed (the relay can't carry the file; Retry on the message
+    // starts a fresh session). One the server refused outright gets the
+    // file: the only way left to play it, as the Plex app does.
+    const hasFile = !!playVersionRef.current?.partKey || partKeyRef.current !== null;
+    const files = hasFile && !forcedTranscodeRef.current && !(kind === 'slow' && connRef.current?.route === 'relay');
+    let resume = startPosRef.current ?? 0;
+    try { const p = await nativeGetPosition(); if (p.position > 0) resume = p.position; } catch { /* where it was to start */ }
+    if (!stillCurrent(gen)) { setRecovering(false); return; }
+    let failed = failedKey;
+    for (let i = 0; i <= CONVERT_RECOVERY_MAX; i += 1) {
+      if (!stillCurrent(gen)) { setRecovering(false); return; }
+      const step = convertRecoveryStep(rec.r, Date.now(), played, { files });
+      played = false;
+      try { trackEvent('plex_convert_recover', 'player', { kind, step, preset: failed, status: convertRefusal?.status ?? 0 }); } catch { /* ignore */ }
+      if (step === 'fresh') {
+        try { toast({ title: i18n.t('plex.section.toast.convertFailTitle'), description: i18n.t('plex.section.toast.convertRetryDesc') }); } catch { /* ignore */ }
+        const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === failed && p.key !== 'original');
+        const r = await startConversionRef.current(c, key, preset, resume, gen);
+        if (r !== 'refused') { done(); return; }
+        continue;
+      }
+      if (step === 'file') {
+        const { ladder } = autoLadder();
+        const file = fileAlternative(ladder, measuredKbps());
+        if (!file) continue;
+        // Nothing converted started on this title: automatic quality must
+        // not step back into a conversion (a conversion that merely never
+        // fed keeps the others open).
+        if (own && kind !== 'slow') st.aq.conversionsRefused(ladder);
+        try {
+          toast(kind === 'slow'
+            ? { title: i18n.t('plex.section.toast.tooSlowTitle'), description: i18n.t('plex.section.toast.tooSlowDesc') }
+            : { title: i18n.t('plex.section.toast.refusedTitle'), description: i18n.t('plex.section.toast.refusedDesc') });
+        } catch { /* ignore */ }
+        changeQualityRef.current(file.key, Math.floor(resume));
+        return;
+      }
+      if (step === 'lighter') {
+        const { ladder, index } = autoLadder();
+        const next = lighterConversion(ladder, index, failed, { measuredKbps: measuredKbps(), failed: own ? st.aq.failedKeys() : [] });
+        if (!next) continue;
+        try { toast({ title: i18n.t('plex.section.toast.convertFailTitle'), description: i18n.t('plex.section.toast.convertOtherDesc', { quality: stepName(next) }) }); } catch { /* ignore */ }
+        if (own) st.aq.applied({ step: next, direction: 'down', reason: 'delivery' }, Date.now());
+        setQualityKey(next.key);
+        qualityKeyRef.current = next.key;
+        const r = await startConversionRef.current(c, key, PLEX_QUALITY_PRESETS.find((p) => p.key === next.key), resume, gen);
+        if (r !== 'refused') { done(); return; }
+        if (own) st.aq.convertFailed(next.key);
+        failed = next.key;
+        continue;
+      }
+      break;
     }
-    if (own) {
-      st.aq.applied({ step, direction: 'down', reason: 'slow-start' }, Date.now());
-      st.autoKey = step.presetKey === 'original' ? null : step.key;
-      st.autoFromKbps = undefined;
-    }
-    try { trackEvent('plex_convert_other', 'player', { from: failedKey, to: step.presetKey }); } catch { /* ignore */ }
-    try {
-      toast(step.presetKey === 'original'
-        ? { title: i18n.t('plex.section.toast.refusedTitle'), description: i18n.t('plex.section.toast.refusedDesc') }
-        : { title: i18n.t('plex.section.toast.convertFailTitle'), description: i18n.t('plex.section.toast.convertOtherDesc', { quality: stepName(step) }) });
-    } catch { /* ignore */ }
-    changeQualityRef.current(step.key, Math.floor(resume));
-  }, [autoLadder, freshRead]);
-  useEffect(() => { convertRefusedRef.current = convertRefused; }, [convertRefused]);
-  // While a failed conversion is being recovered its error is not shown.
-  const convertRecovering = !!native.error && native.error.code === 'PLEX_TRANSCODE_HTTP' && !convertGaveUp;
-  // A conversion turned down at its decision has no player error: the
-  // message stands on its own.
-  const shownError = native.error && !convertRecovering ? native.error : (convertGaveUp ? { message: t('plex.section.convertFailed') } : null);
-  const shownHttpStatus = (native.error?.httpStatus ?? null) || convertHttpStatus;
+    setConvertGaveUp(true);
+    setRecovering(false);
+  }, [newStreamRequest, stillCurrent, setRecovering, nativeGetPosition, autoLadder, measuredKbps, convertRefusal?.status]);
+  useEffect(() => { recoverConversionRef.current = recoverConversion; }, [recoverConversion]);
+  // A session the server answered with an error status: PLEX_TRANSCODE_HTTP
+  // from the native player, or — before any picture — the player giving up
+  // (RECONNECT_EXHAUSTED) with the server's error status as its last error.
+  // A connection that failed or timed out is an outage, not a refusal: the
+  // network-retry path's.
+  const convertErrRef = useRef<unknown>(null);
+  useEffect(() => {
+    const err = native.error;
+    if (!(nativeActive && err && useTranscode && playing && conn)) return;
+    if (convertErrRef.current === err) return;
+    const http = err.code === 'PLEX_TRANSCODE_HTTP';
+    const atStart = err.code === 'RECONNECT_EXHAUSTED' && stillLoadingRef.current;
+    if (!http && !atStart) return;
+    convertErrRef.current = err;
+    const status = typeof err.httpStatus === 'number' && err.httpStatus > 0 ? err.httpStatus : null;
+    if (status) setConvertRefusal((cur) => ({ status, text: cur?.text ?? null }));
+    void (async () => {
+      if (!http && !(await serverAnsweredWithError())) return;
+      if (convertErrRef.current !== err || playingKeyRef.current !== playing.ratingKey) return;
+      void recoverConversionRef.current('http', qualityKeyRef.current);
+    })();
+  }, [native.error, nativeActive, useTranscode, playing, conn]);
+  // Retry on the message: the machine starts over with a fresh session
+  // (never the one that failed).
+  const retryConvert = useCallback(() => {
+    convertRecRef.current = { key: playingKeyRef.current, r: freshConvertRecovery() };
+    setConvertGaveUp(false);
+    void recoverConversion('http', qualityKeyRef.current);
+  }, [recoverConversion]);
+  // While a failed conversion is being recovered its error is not shown. A
+  // conversion turned down at its decision, or a start that could not get
+  // the file's details, has no player error: the message stands on its own.
+  const shownError = native.error && !convertRecovering ? native.error
+    : convertGaveUp ? { message: t('plex.section.convertFailed') }
+      : startError ? { message: startError } : null;
+  const shownHttpStatus = (native.error?.httpStatus ?? null) || convertRefusal?.status || null;
   // A paused conversion is kept alive on the server (Plex's own players
   // ping theirs): the player asks for no segments while paused, and a
   // session the server hears nothing from is ended, after which its next
@@ -4382,8 +4246,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // Synchronous owner hand-back: the Back keydown that closes the player
     // must never also be seen by PlexDetail (episodes → seasons pop).
     setPlexKeyOwner(detailRef.current ? 'detail' : 'browse');
+    newStreamRequest();
     setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
-  }, []);
+  }, [newStreamRequest]);
 
   // The overlay's Help and Support exits, made once per title rather than on
   // every render: fresh closures here re-rendered the whole playback overlay
@@ -4734,8 +4599,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <p className="font-quicksand font-semibold mb-1">{t('plex.section.playbackError')}</p>
             <p className={`text-sm text-brand-ice/80 font-nunito max-w-md ${shownHttpStatus ? 'mb-1' : 'mb-4'}`}>{convertGaveUp ? t('plex.section.convertFailed') : shownError.message}</p>
             {shownHttpStatus ? <p className="text-xs text-brand-ice/60 font-nunito mb-4" data-http-status>{t('plex.stats.httpStatus', { code: shownHttpStatus })}</p> : null}
-            {/* A conversion the server turned down: Retry starts a fresh session, never the one that failed. */}
-            <button onClick={() => { armSlowLoadTimer(); if (convertGaveUp) retryConvert(); else native.retry(); }} autoFocus data-focused="true" className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold">
+            {/* A conversion the server turned down: Retry starts a fresh session, never the one that failed. A start that could not get the file's details: Play again. */}
+            <button onClick={() => {
+              armSlowLoadTimer();
+              if (convertGaveUp) retryConvert();
+              else if (startError && playing) void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel, undefined, { version: playVersionRef.current, versions: playVersionsRef.current });
+              else native.retry();
+            }} autoFocus data-focused="true" className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold">
               <RotateCw className="w-4 h-4" /> {t('common.retry')}
             </button>
           </div>
@@ -4778,7 +4648,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             prompt={playerPrompt}
             paused={native.paused}
             statsSession={statsSession}
-            httpStatus={convertHttpStatus}
+            httpStatus={convertRefusal?.status ?? null}
             serverName={conn?.name}
             needKbps={stallNeedKbps}
           />
@@ -5017,6 +4887,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           onBack={closeDetail}
           watchNonce={watchNonce}
           serverResume={ownPlexAccount}
+          speedConnections={playbackConnections(conn.base, conn.route, rangeFetchFlag)}
         />
       )}
     </div>

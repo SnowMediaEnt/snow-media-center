@@ -75,7 +75,6 @@ vi.mock('@/lib/plex', async (orig) => ({
   getPlexSectionRow: h.row,
   getPlexAccount: async () => null,
   loadHiddenPlexLibs: async () => [],
-  loadPlexQuality: async () => 'original',
   preloadImages: async () => undefined,
 }));
 vi.mock('@/lib/overseerr', async (orig) => ({

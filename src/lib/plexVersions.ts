@@ -186,17 +186,19 @@ export function probeRateFromMarks(marks: Array<{ t: number; bytes: number }>, s
   return base == null ? tail : Math.max(base, tail);
 }
 
-const serverKey = (base: string): string => base.replace(/\/+$/, '');
+/** A measurement is only ever reused for the same number of connections: a
+ *  read over one says little about what the player gets over four. */
+const serverKey = (base: string, connections: number): string => `${base.replace(/\/+$/, '')}#${Math.max(1, Math.min(4, Math.floor(connections)))}`;
 
-/** A recent measurement to this server, kbps, or null. */
-export function cachedPlexSpeed(base: string, now = Date.now()): number | null {
-  const c = cache.get(serverKey(base));
+/** A recent measurement to this server over `connections`, kbps, or null. */
+export function cachedPlexSpeed(base: string, connections = 1, now = Date.now()): number | null {
+  const c = cache.get(serverKey(base, connections));
   return c && now - c.at < SPEED_CACHE_MS ? c.kbps : null;
 }
 
 /** For tests. */
 export function _resetPlexSpeedCache(): void { cache.clear(); inflight.clear(); }
-export function _setPlexSpeed(base: string, kbps: number, at = Date.now()): void { cache.set(serverKey(base), { kbps, at }); }
+export function _setPlexSpeed(base: string, kbps: number, at = Date.now(), connections = 1): void { cache.set(serverKey(base, connections), { kbps, at }); }
 
 /** The arrivals of several reads made at once, as one: the bytes in by each
  *  moment, over all of them (what the player gets when it reads the file
@@ -221,8 +223,11 @@ export function mergeMarks(all: Array<Array<{ t: number; bytes: number }>>): Arr
  * `connections` reads that many stretches of the file at once (each its
  * share of the bytes), the way the player reads a remote server's file
  * (RangeFetchDataSource.kt), so the figure is what playback will get.
- * Cached for a few minutes per server (`fresh` measures anyway, e.g. mid-film
- * before raising the quality); concurrent calls share one download.
+ * Cached for a few minutes per server and connection count; concurrent
+ * calls over the same count share one download. `fresh` (mid-film, before
+ * raising the quality, while the player itself is downloading) measures
+ * anyway, and that figure is neither cached nor shared: it says nothing a
+ * start or a 4K choice should go by.
  * Null when it cannot tell (no part, blocked, too little arrived). Never
  * throws, never logs the address (it carries the token).
  */
@@ -230,13 +235,14 @@ export function measurePlexSpeed(
   base: string, token: string, partKey: string | undefined,
   opts?: { fresh?: boolean; connections?: number; maxMs?: number; maxBytes?: number },
 ): Promise<number | null> {
-  const known = opts?.fresh ? null : cachedPlexSpeed(base);
+  const connections = Math.max(1, Math.min(4, Math.floor(opts?.connections ?? 1)));
+  const fresh = !!opts?.fresh;
+  const known = fresh ? null : cachedPlexSpeed(base, connections);
   if (known != null) return Promise.resolve(known);
   if (!partKey || typeof fetch !== 'function') return Promise.resolve(null);
-  const key = serverKey(base);
-  const running = inflight.get(key);
+  const key = serverKey(base, connections);
+  const running = fresh ? undefined : inflight.get(key);
   if (running) return running;
-  const connections = Math.max(1, Math.min(4, Math.floor(opts?.connections ?? 1)));
   const maxMs = opts?.maxMs ?? PROBE_MAX_MS;
   const maxBytes = opts?.maxBytes ?? PROBE_MAX_BYTES;
   const share = Math.floor(maxBytes / connections);
@@ -281,13 +287,13 @@ export function measurePlexSpeed(
     } finally {
       clearTimeout(stop);
       try { ac?.abort(); } catch { /* ignore */ }
-      inflight.delete(key);
+      if (!fresh) inflight.delete(key);
     }
     if (all[0] == null) return null;
     const kbps = probeRateFromMarks(mergeMarks(all.filter((m): m is Array<{ t: number; bytes: number }> => m != null)), started, Date.now());
-    if (kbps != null) cache.set(key, { kbps, at: Date.now() });
+    if (kbps != null && !fresh) cache.set(key, { kbps, at: Date.now() });
     return kbps;
   })();
-  inflight.set(key, p);
+  if (!fresh) inflight.set(key, p);
   return p;
 }

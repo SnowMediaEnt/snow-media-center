@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classify, type ClassifyInput, type DiagSnapshot } from './bufferDiagnostics';
-import { autoDropPreset, connectionDropped, explainPlexStall, presetFor } from './plexStallVerdict';
+import { connectionDropped, explainPlexStall, presetFor } from './plexStallVerdict';
 
 const snap = (o: Partial<DiagSnapshot>): DiagSnapshot => ({
   verdict: 'unknown', headline: 'Buffering…', detail: '', streamKbps: null, streamEarlyKbps: null,
@@ -149,21 +149,3 @@ describe('presetFor', () => {
   });
 });
 
-describe('autoDropPreset', () => {
-  it("drops a 1080p remux to what the player gets from the server", () => {
-    expect(autoDropPreset(35000, { serverKbps: 11000 })?.key).toBe('1080-8');
-  });
-  it('never on no number at all (it used to assume half the file)', () => {
-    expect(autoDropPreset(35000, {})).toBeNull();
-    expect(autoDropPreset(35000, { serverKbps: null })).toBeNull();
-  });
-  it('not when the server sends at least as fast as the file plays', () => {
-    expect(autoDropPreset(35000, { serverKbps: 36000 })).toBeNull();
-    // A shade under: it can never keep up.
-    expect(autoDropPreset(35000, { serverKbps: 33000 })?.key).toBe('1080-20');
-  });
-  it('leaves small files and unknown sizes alone', () => {
-    expect(autoDropPreset(6000, { serverKbps: 20000 })).toBeNull();
-    expect(autoDropPreset(undefined, { serverKbps: 2000 })).toBeNull();
-  });
-});

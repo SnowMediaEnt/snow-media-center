@@ -2,15 +2,15 @@
 // do: the player sends none of the headers the API calls carry, so the client
 // id, product, version, platform and device ride on the URL next to the token.
 // The transcode URL names the client the same way (bugs/plex-buffering-remote.md):
-// the server picks its conversion profile by platform; the plain start of
-// builds 38-56 (identify: false) is kept as the other thing to try.
+// the server picks its conversion profile by platform, and the decision call
+// for the same session carries the same identity — one identity, always.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Not native: plexReq goes through fetch, which the header test captures.
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false }, CapacitorHttp: {} }));
 
 import {
-  getPlexClientId, getPlexServers, plexDirectUrl, plexTranscodeDecision, plexTranscodeDecisionUrl, plexTranscodeIdentified, plexTranscodeUrl,
+  getPlexClientId, getPlexServers, plexDirectUrl, plexTranscodeDecision, plexTranscodeDecisionUrl, plexTranscodeUrl,
   PLEX_DEVICE, PLEX_PRODUCT, PLEX_VERSION,
 } from './plex';
 import { transcodePingUrl, transcodeStopUrl } from './plexAutoQuality';
@@ -72,19 +72,15 @@ describe('plexTranscodeUrl', () => {
       `&mediaIndex=1&partIndex=0&X-Plex-Client-Identifier=${encodeURIComponent(getPlexClientId())}`
       + '&X-Plex-Token=tok%2B1&maxVideoBitrate=4000',
     );
-    expect(plexTranscodeIdentified(url)).toBe(true);
   });
 
-  it('the plain start of builds 38-56 (identify: false): the client id alone', () => {
-    const url = plexTranscodeUrl(BASE, '101', 'tok+1', { maxVideoBitrateKbps: 4000, identify: false });
+  it('is always named: there is no plain, unnamed start any more', () => {
+    const url = plexTranscodeUrl(BASE, '101', 'tok+1', { maxVideoBitrateKbps: 4000 });
     const q = query(url);
-    for (const k of ['X-Plex-Product', 'X-Plex-Version', 'X-Plex-Platform', 'X-Plex-Device', 'X-Plex-Device-Name', 'location']) {
-      expect(q.has(k)).toBe(false);
+    for (const k of ['X-Plex-Product', 'X-Plex-Version', 'X-Plex-Platform', 'X-Plex-Device', 'X-Plex-Device-Name']) {
+      expect(q.has(k)).toBe(true);
     }
     expect(q.getAll('X-Plex-Client-Identifier')).toEqual([getPlexClientId()]);
-    expect(plexTranscodeIdentified(url)).toBe(false);
-    expect(plexTranscodeIdentified(plexDirectUrl(BASE, PART, 'tok'))).toBe(true);
-    expect(plexTranscodeIdentified(null)).toBe(false);
   });
 
   it('still gives the address that ends its converting session', () => {
@@ -98,17 +94,17 @@ describe('plexTranscodeUrl', () => {
   });
 });
 
-describe('a conversion session asked for the other way round', () => {
-  it('a named and a plain session differ only in the naming; the decision call has the same session and parameters', () => {
-    const plain = plexTranscodeUrl(BASE, '42', 'tok', { maxVideoBitrateKbps: 4000, videoResolution: '1280x720', identify: false });
-    expect(query(plain).get('X-Plex-Platform')).toBeNull();
+describe('a fresh conversion session', () => {
+  it('a fresh session is a new id with the same naming; the decision call has the same session and parameters', () => {
+    const first = plexTranscodeUrl(BASE, '42', 'tok', { maxVideoBitrateKbps: 4000, videoResolution: '1280x720' });
     const fresh = plexTranscodeUrl(BASE, '42', 'tok', { maxVideoBitrateKbps: 4000, videoResolution: '1280x720' });
     const q = query(fresh);
     expect(q.get('X-Plex-Platform')).toBe('Android');
     expect(q.get('X-Plex-Product')).toBe(PLEX_PRODUCT);
     expect(q.get('X-Plex-Device')).toBe(PLEX_DEVICE);
     expect(q.getAll('X-Plex-Client-Identifier')).toEqual([getPlexClientId()]);
-    expect(q.get('session')).not.toBe(query(plain).get('session'));
+    expect(q.get('session')).not.toBe(query(first).get('session'));
+    expect(query(first).get('X-Plex-Platform')).toBe('Android');
     const decision = plexTranscodeDecisionUrl(fresh) ?? '';
     expect(decision.startsWith(`${BASE}/video/:/transcode/universal/decision?`)).toBe(true);
     expect(query(decision).toString()).toBe(q.toString());
@@ -120,15 +116,17 @@ describe('a conversion session asked for the other way round', () => {
     expect(transcodePingUrl(plexDirectUrl(BASE, PART, 'tok'))).toBeNull();
   });
 
-  it('the decision: an error status or a "can\'t convert" code is a refusal; no answer is not', async () => {
-    const fresh = plexTranscodeUrl(BASE, '42', 'tok', { identify: true });
+  it('the decision: an error status or a "can\'t convert" code is a refusal, with the server\'s words; no answer is not', async () => {
+    const fresh = plexTranscodeUrl(BASE, '42', 'tok');
     const answer = (r: () => Promise<Response>) => vi.stubGlobal('fetch', vi.fn(r));
     answer(async () => new Response('', { status: 503 }));
-    expect(await plexTranscodeDecision(fresh, 'tok')).toEqual({ refused: true, httpStatus: 503, code: null });
-    answer(async () => new Response(JSON.stringify({ MediaContainer: { generalDecisionCode: 1001 } }), { status: 200 }));
-    expect(await plexTranscodeDecision(fresh, 'tok')).toEqual({ refused: false, httpStatus: null, code: 1001 });
-    answer(async () => new Response(JSON.stringify({ MediaContainer: { generalDecisionCode: 2000 } }), { status: 200 }));
-    expect((await plexTranscodeDecision(fresh, 'tok'))?.refused).toBe(true);
+    expect(await plexTranscodeDecision(fresh, 'tok')).toEqual({ refused: true, httpStatus: 503, code: null, text: null });
+    answer(async () => new Response(JSON.stringify({ MediaContainer: { generalDecisionCode: 1001, generalDecisionText: 'Direct play OK' } }), { status: 200 }));
+    expect(await plexTranscodeDecision(fresh, 'tok')).toEqual({ refused: false, httpStatus: null, code: 1001, text: 'Direct play OK' });
+    answer(async () => new Response(JSON.stringify({ MediaContainer: { generalDecisionCode: 2000, transcodeDecisionText: 'The transcoder is busy' } }), { status: 200 }));
+    const refused = await plexTranscodeDecision(fresh, 'tok');
+    expect(refused?.refused).toBe(true);
+    expect(refused?.text).toBe('The transcoder is busy');
     answer(async () => { throw new TypeError('Failed to fetch'); });
     expect(await plexTranscodeDecision(fresh, 'tok')).toBeNull();
   });

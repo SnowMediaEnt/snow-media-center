@@ -1,18 +1,18 @@
 // Automatic quality and a 4K film (bugs/plex-4k.md). On the owner's TV a 4K
 // title stalled at the start and was then "Lowered to 1080p", while the Plex
 // app plays the same file from the same server at ~84 Mb/s on average (peaks
-// ~300). What says the line is fast enough for a 4K file is what the player
-// itself was sent by the server, not only the quick internet check (a 256 KB
-// download from Cloudflare, which rarely reads the 120-160 Mb/s a 60-80 Mb/s
-// file needed); and once that proves the line, stalls alone never take a 4K
-// file off to the 1080p file either. Since then the quick check counts for
-// no file at all (a customer's read 42.5 Mb/s while the server sent 1.4-5.7):
-// the player's own windows from the server are what prove a line, 1080p too.
+// ~300). What says the line is fast enough for a 4K file is what the server
+// has delivered to the player itself, sustained — never the quick internet
+// check (a 256 KB download from Cloudflare, which rarely reads the 120-160
+// Mb/s a 60-80 Mb/s file needed; and a customer's read 42.5 Mb/s while the
+// server sent 1.4-5.7). Once that proves the line, stalls alone never take
+// a 4K file off to the 1080p file; only the server delivering too little
+// does, and then after a longer look.
 import { describe, expect, it } from 'vitest';
 import { mediaVersions } from './plex';
 import {
-  AutoQuality, buildQualityLadder, lineClearFor, lineClearForFile, stallEvidence,
-  INTERNET_CLEAR_FACTOR, RATE_TICK_MS, START_GRACE_MS,
+  AutoQuality, buildQualityLadder, keepsFileOnStalls, lineClearFor, sustainedKbps,
+  PROVEN_FACTOR, PROVEN_WINDOWS, RATE_TICK_MS, START_GRACE_MS, type RateReport,
 } from './plexAutoQuality';
 
 const MIN = 60_000;
@@ -28,62 +28,73 @@ const at4k = 0;
 // The same 1080p file on its own (a 1080p title).
 const hd = buildQualityLadder([], 21600);
 
+const fill = (kbps: number, n = PROVEN_WINDOWS): RateReport[] => Array.from({ length: n }, (_, i) => ({ t: (i + 1) * RATE_TICK_MS, kbps }));
+
 describe('a 4K file: what says the line is fast enough', () => {
-  it('the player\'s own best rate from the server counts for a 4K file', () => {
-    // Quick check low (a short download), the player was sent 200 Mb/s while filling its start.
-    expect(lineClearFor(60000, { uhd: true, internetKbps: 40000, serverKbps: 200000 })).toBe(true);
+  it('what the server delivered to the player, sustained, counts for a 4K file', () => {
+    // The player was sent 200 Mb/s while filling its start: twice the file.
+    expect(sustainedKbps(fill(200000), MIN)).toBe(200000);
+    expect(lineClearFor(60000, { uhd: true, sustainedKbps: 200000 })).toBe(true);
     // Not twice the file: not clear.
-    expect(lineClearFor(60000, { uhd: true, internetKbps: 40000, serverKbps: 90000 })).toBe(false);
+    expect(lineClearFor(60000, { uhd: true, sustainedKbps: 90000 })).toBe(false);
     // The Plex Relay: never.
-    expect(lineClearFor(60000, { uhd: true, serverKbps: 200000, relay: true })).toBe(false);
+    expect(lineClearFor(60000, { uhd: true, sustainedKbps: 200000, relay: true })).toBe(false);
+    // A short burst (four windows) is not sustained.
+    expect(sustainedKbps(fill(200000, PROVEN_WINDOWS - 1), MIN)).toBeNull();
   });
 
-  it('for any file the player\'s own best window counts, and the quick internet check never does', () => {
-    expect(lineClearFor(21600, { internetKbps: 40000, serverKbps: 200000 })).toBe(true);
-    expect(lineClearFor(21600, { internetKbps: 21600 * INTERNET_CLEAR_FACTOR })).toBe(false);
-    expect(lineClearFor(21600, { internetKbps: 500000, serverKbps: 30000 })).toBe(false);
-    // Starving now: not clear, whatever the server once managed.
-    expect(lineClearFor(21600, { serverKbps: 200000, starvedKbps: 9000 })).toBe(false);
+  it('for any file the sustained rate counts, and delivering too little now cancels it', () => {
+    expect(lineClearFor(21600, { sustainedKbps: 200000 })).toBe(true);
+    expect(lineClearFor(21600, { sustainedKbps: 21600 * PROVEN_FACTOR - 1 })).toBe(false);
+    expect(lineClearFor(21600, { sustainedKbps: 200000, shortKbps: 9000 })).toBe(false);
   });
 
   it('once the line is proven, a 4K file is not left for the 1080p file on stalls alone', () => {
-    const toFile = ladder[1];
-    expect(toFile.presetKey).toBe('original');
-    expect(lineClearForFile(ladder, at4k, toFile, { uhd: true, serverKbps: 200000 })).toBe(true);
+    expect(keepsFileOnStalls(ladder, at4k, { uhd: true, sustainedKbps: 200000 })).toBe(true);
     // Not proven: the 1080p file is still where it goes.
-    expect(lineClearForFile(ladder, at4k, toFile, { uhd: true, serverKbps: 70000 })).toBe(false);
+    expect(keepsFileOnStalls(ladder, at4k, { uhd: true, sustainedKbps: 70000 })).toBe(false);
     // A 1080p title with a lighter file keeps the 1.7.9 rule: a lighter file is always allowed.
-    expect(lineClearForFile(ladder, at4k, toFile, { internetKbps: 500000 })).toBe(false);
-    expect(lineClearForFile(hd, 0, hd[1], { serverKbps: 21600 * INTERNET_CLEAR_FACTOR })).toBe(true);
-    expect(lineClearForFile(hd, 0, hd[1], { internetKbps: 21600 * INTERNET_CLEAR_FACTOR })).toBe(false);
+    expect(keepsFileOnStalls(ladder, at4k, { sustainedKbps: 500000 })).toBe(false);
+    expect(keepsFileOnStalls(hd, 0, { sustainedKbps: 21600 * PROVEN_FACTOR })).toBe(false);
   });
 
-  it('AutoQuality: three stalls after the start keep a 4K file whose line is proven, and still drop one whose line is not', () => {
+  it('AutoQuality: three stalls after the start keep a 4K file whose line is proven, and still move one whose line is not', () => {
     const start = 10 * MIN;
     const stallsAt = [start + START_GRACE_MS + 1_000, start + START_GRACE_MS + 30_000, start + START_GRACE_MS + 60_000];
     const proven = new AutoQuality(0);
-    const moves = stallsAt.map((t) => proven.onStall(t, 0, ladder, at4k, 70000, { lastStartAt: start, uhd: true, serverKbps: 200000 }));
+    const moves = stallsAt.map((t) => proven.onStall(t, ladder, at4k, { lastStartAt: start, uhd: true, sustainedKbps: 200000 }));
     expect(moves).toEqual([null, null, null]);
     const slow = new AutoQuality(0);
-    const last = stallsAt.map((t) => slow.onStall(t, 0, ladder, at4k, 70000, { lastStartAt: start, uhd: true, serverKbps: 70000 })).pop();
+    const last = stallsAt.map((t) => slow.onStall(t, ladder, at4k, { lastStartAt: start, uhd: true, sustainedKbps: 70000 })).pop();
     expect(last?.step.key).toBe(ladder[1].key);
+    expect(last?.reason).toBe('stalls');
   });
 });
 
-describe('a 4K file: a stall is judged by the player\'s own windows', () => {
-  const now = 1_000_000;
-  it('a fresh read of the file never stands in for them (with them in, it can still clear the stall)', () => {
-    const stallStart = now - 7_000;
-    // One window inside the stall at 40 Mb/s, and the title page's short read at 30.
-    const rates = [{ t: stallStart - RATE_TICK_MS, kbps: 60000 }, { t: stallStart + 1_000, kbps: 40000 }];
-    // As in 1.7.9 for a 1080p file: the read makes up the second window.
-    expect(stallEvidence(rates, stallStart, now, 30000).kbps).toBe(40000);
-    // A 4K file waits for the player's own second window.
-    expect(stallEvidence(rates, stallStart, now, 30000, { needWindows: true }).kbps).toBeNull();
-    // A fast read still clears a slow-looking window.
-    expect(stallEvidence(rates, stallStart, now, 90000, { needWindows: true }).kbps).toBeNull();
-    const two = [...rates, { t: stallStart + 4_000, kbps: 45000 }];
-    expect(stallEvidence(two, stallStart, now, 90000, { needWindows: true }).kbps).toBe(90000);
-    expect(stallEvidence(two, stallStart, now, 30000, { needWindows: true }).kbps).toBe(45000);
+describe('a 4K file: a stall is judged by what the server delivers in it', () => {
+  const t = 10 * MIN;
+  const inStall = (kbps: number[]): RateReport[] => kbps.map((k, i) => ({ t: t + (i + 1) * RATE_TICK_MS, kbps: k, stalled: true }));
+
+  it('a slow spell of the server on a proven line gets a longer look; a line too slow for 4K still goes to the 1080p file', () => {
+    const aq = new AutoQuality(0);
+    const ctx = { lastStartAt: 0, uhd: true, sustainedKbps: 200000 };
+    // Three windows at 30 Mb/s: not yet.
+    expect(aq.onDelivery(t + 9_000, ladder, at4k, aq.delivery(inStall([30000, 30000, 30000]), t + 9_000, ctx, t, 60000), 60000)).toBeNull();
+    // Five: 60 Mb/s at 30 can't play; the 1080p file carries 10 × 1.3.
+    const d = aq.delivery(inStall([30000, 30000, 30000, 30000, 30000]), t + 15_000, ctx, t, 60000);
+    expect(d.kbps).toBe(30000);
+    expect(aq.onDelivery(t + 15_000, ladder, at4k, d, 60000)?.step.key).toBe(ladder[1].key);
+  });
+
+  it('an unproven line: three windows decide', () => {
+    const aq = new AutoQuality(0);
+    const ctx = { lastStartAt: 0, uhd: true, sustainedKbps: 70000 };
+    expect(aq.onDelivery(t + 9_000, ladder, at4k, aq.delivery(inStall([30000, 30000, 30000]), t + 9_000, ctx, t, 60000), 60000)?.step.key).toBe(ladder[1].key);
+  });
+
+  it('the server refilling flat out in the stall is no reason to leave 4K', () => {
+    const aq = new AutoQuality(0);
+    const ctx = { lastStartAt: 0, uhd: true, sustainedKbps: 70000 };
+    expect(aq.onDelivery(t + 9_000, ladder, at4k, aq.delivery(inStall([40000, 150000, 160000]), t + 9_000, ctx, t, 60000), 60000)).toBeNull();
   });
 });

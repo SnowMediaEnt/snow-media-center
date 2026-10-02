@@ -343,6 +343,22 @@ function isRfc1918(ip: string): boolean {
 /** A unique-local IPv6 address (fc00::/7), IPv6's private range. */
 const isUla = (ip: string): boolean => /^f[cd][0-9a-f]{2}:/i.test(ip);
 
+/**
+ * Whether a base URL points at a private network — the same rule as the
+ * route (plexConnRoute): RFC 1918 over IPv4, unique-local over IPv6, read
+ * off an IP literal or a plex.direct name; loopback too. A name that stands
+ * for no address is not known to be private. The parallel reader stays off
+ * such servers (plexPlayback): one connection is all a home network takes.
+ */
+export function isPrivatePlexBase(base: string): boolean {
+  const u = plexBaseInfo(base);
+  if (!u.host) return false;
+  if (u.host === 'localhost') return true;
+  if (!u.ip) return false;
+  if (u.ipv6) return isUla(u.ip) || u.ip === '::1';
+  return isRfc1918(u.ip) || /^127\./.test(u.ip);
+}
+
 /** host:port for a URL. An IPv6 literal has to sit in brackets:
  *  http://2001:db8::5:32400 is not a URL, http://[2001:db8::5]:32400 is. */
 function urlHostPort(address: string, port: number): string {
@@ -1041,54 +1057,47 @@ export function plexDirectUrl(base: string, partKey: string, token: string, opts
  *
  *  The session is asked for the way Plex's own players ask (bugs/
  *  plex-buffering-remote.md): the client is named by platform, product,
- *  version and device on the URL (`identify`, on by default) — the same
- *  values the decision call for the same session sends as headers
- *  (plexTranscodeDecision) — and `location` says whether the box is on the
- *  server's network or across the internet. The server picks its
- *  conversion profile by X-Plex-Platform; without it, it had only the
- *  player's User-Agent to go on, and build 39 showed how brittle that is:
- *  SMC's own agent on the playlist and segment requests (nothing else
- *  changed) and no conversion started on the owner's server. The agent is
- *  left exactly as it was then fixed (Android's own, SnowPlayerPlugin's
- *  transcode source); naming the platform in the request itself, as Plex
- *  for Android does, selects the Android profile outright instead of
- *  leaving it to agent sniffing. `identify: false` is the plain, unnamed
- *  start of builds 38-56, kept as the second thing to try when a named
- *  session is turned down (PlexSection). */
+ *  version and device on the URL — the same values the decision call for
+ *  the same session sends as headers (plexTranscodeDecision), one identity
+ *  for both — and `location` says whether the box is on the server's
+ *  network or across the internet. The server picks its conversion profile
+ *  by X-Plex-Platform; without it, it had only the player's User-Agent to
+ *  go on, and build 39 showed how brittle that is: SMC's own agent on the
+ *  playlist and segment requests (nothing else changed) and no conversion
+ *  started on the owner's server. The agent is left exactly as it was then
+ *  fixed (Android's own, SnowPlayerPlugin's transcode source); naming the
+ *  platform in the request itself, as Plex for Android does, selects the
+ *  Android profile outright instead of leaving it to agent sniffing. */
 export function plexTranscodeUrl(
   base: string,
   ratingKey: string,
   token: string,
-  opts?: { maxVideoBitrateKbps?: number; videoResolution?: string; mediaIndex?: number; identify?: boolean; location?: 'lan' | 'wan' },
+  opts?: { maxVideoBitrateKbps?: number; videoResolution?: string; mediaIndex?: number; location?: 'lan' | 'wan'; playbackSession?: string },
 ): string {
   const path = encodeURIComponent(`/library/metadata/${ratingKey}`);
   const cid = encodeURIComponent(getPlexClientId());
   // A new transcode session for every start. Without one the server keys the
   // session on the client id alone, so a quality change could be handed the
   // old session (the previous quality, or one it is still tearing down).
+  // The playback session (`playbackSession`, one per title, the same the
+  // file URL carries) names the play it belongs to; without one the
+  // transcode session stands in.
   const session = `smc${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  const playback = encodeURIComponent(opts?.playbackSession || session);
   // audioCodec=aac + maxAudioChannels=6 force Plex to re-encode audio to AAC
   // (up to 5.1) instead of direct-streaming the original — needed for Fire TV
   // devices that reject offloaded EAC3/AC3 / trigger DECODER_INIT_FAILED.
   let url = `${base}/video/:/transcode/universal/start.m3u8`
     + `?path=${path}&protocol=hls&fastSeek=1&directPlay=0&directStream=1`
     + `&audioCodec=aac&maxAudioChannels=6`
-    + `&session=${session}&X-Plex-Session-Identifier=${session}&videoQuality=100&autoAdjustQuality=0`
+    + `&session=${session}&X-Plex-Session-Identifier=${playback}&videoQuality=100&autoAdjustQuality=0`
     + `&mediaIndex=${opts?.mediaIndex && opts.mediaIndex > 0 ? Math.floor(opts.mediaIndex) : 0}&partIndex=0&X-Plex-Client-Identifier=${cid}&X-Plex-Token=${encodeURIComponent(token)}`;
   if (opts?.maxVideoBitrateKbps) url += `&maxVideoBitrate=${opts.maxVideoBitrateKbps}`;
   if (opts?.videoResolution) url += `&videoResolution=${encodeURIComponent(opts.videoResolution)}`;
   if (opts?.location) url += `&location=${opts.location}`;
-  if (opts?.identify !== false) {
-    const h = plexHeaders();
-    url += `&${PLEX_CLIENT_PARAMS.filter((k) => k !== 'X-Plex-Client-Identifier').map((k) => `${k}=${encodeURIComponent(h[k])}`).join('&')}`;
-  }
+  const h = plexHeaders();
+  url += `&${PLEX_CLIENT_PARAMS.filter((k) => k !== 'X-Plex-Client-Identifier').map((k) => `${k}=${encodeURIComponent(h[k])}`).join('&')}`;
   return url;
-}
-
-/** Whether a conversion's start address names the client (plexTranscodeUrl's
- *  `identify`), or is the plain start of builds 38-56. */
-export function plexTranscodeIdentified(startUrl: string | null | undefined): boolean {
-  return !!startUrl && startUrl.indexOf('X-Plex-Platform=') >= 0;
 }
 
 /** What the server said to a conversion's decision call. */
@@ -1100,6 +1109,10 @@ export interface PlexTranscodeDecision {
   httpStatus: number | null;
   /** Plex's own decision code (generalDecisionCode, else the transcode one). */
   code: number | null;
+  /** The server's own words for its decision (generalDecisionText, else
+   *  transcodeDecisionText), for the refusal event and the stats panel;
+   *  null when it gave none. */
+  text: string | null;
 }
 
 /** The decision address for a conversion's start address (same session, same
@@ -1121,18 +1134,20 @@ export async function plexTranscodeDecision(startUrl: string, token: string, tim
   const url = plexTranscodeDecisionUrl(startUrl);
   if (!url) return null;
   try {
-    const data = await plexReqRaw<{ MediaContainer?: { generalDecisionCode?: unknown; transcodeDecisionCode?: unknown } }>('GET', url, token, timeoutMs);
+    const data = await plexReqRaw<{ MediaContainer?: { generalDecisionCode?: unknown; transcodeDecisionCode?: unknown; generalDecisionText?: unknown; transcodeDecisionText?: unknown } }>('GET', url, token, timeoutMs);
     const mc = data?.MediaContainer;
     const num = (v: unknown): number | null => {
       const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
       return Number.isFinite(n) ? n : null;
     };
+    const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 200) : null);
     const code = num(mc?.generalDecisionCode) ?? num(mc?.transcodeDecisionCode);
-    return { refused: code != null && code >= 2000, httpStatus: null, code };
+    const text = str(mc?.generalDecisionText) ?? str(mc?.transcodeDecisionText);
+    return { refused: code != null && code >= 2000, httpStatus: null, code, text };
   } catch (e) {
     const m = /Plex HTTP (\d{3})/.exec(e instanceof Error ? e.message : '');
     const status = m ? Number(m[1]) : null;
-    return status != null && status >= 400 ? { refused: true, httpStatus: status, code: null } : null;
+    return status != null && status >= 400 ? { refused: true, httpStatus: status, code: null, text: null } : null;
   }
 }
 
@@ -1153,30 +1168,6 @@ export const PLEX_QUALITY_PRESETS: PlexQualityPreset[] = [
   { key: '720-3',   label: '720p · 3 Mbps',   maxVideoBitrateKbps: 3000,  videoResolution: '1280x720' },
   { key: '480-2',   label: '480p · 2 Mbps',   maxVideoBitrateKbps: 2000,  videoResolution: '854x480' },
 ];
-
-const PLEX_QUALITY_KEY = 'snow-plex-quality-v1';
-
-export async function loadPlexQuality(): Promise<string> {
-  try {
-    const { Preferences } = await import('@capacitor/preferences');
-    const { value } = await Preferences.get({ key: PLEX_QUALITY_KEY });
-    if (value) return value;
-  } catch { /* not native */ }
-  try {
-    const raw = localStorage.getItem(PLEX_QUALITY_KEY);
-    if (raw) return raw;
-  } catch { /* ignore */ }
-  return 'original';
-}
-
-export async function savePlexQuality(key: string): Promise<void> {
-  try {
-    const { Preferences } = await import('@capacitor/preferences');
-    await Preferences.set({ key: PLEX_QUALITY_KEY, value: key });
-  } catch { /* not native */ }
-  try { localStorage.setItem(PLEX_QUALITY_KEY, key); } catch { /* ignore */ }
-}
-
 
 // ── image loading via CapacitorHttp (avoids mixed-content on http PMS) ─────
 

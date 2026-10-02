@@ -8,16 +8,16 @@
 //   • Relay: Plex's relay caps the speed whatever the internet does.
 //   • Nothing arriving from the server: it has paused (or is slow to
 //     answer). Said as that, never as a speed.
-//   • What the server sent flat out during the stall (stallEvidence) short of
-//     what the video needs: the server's upload, its converting, or the line
-//     to it is the bottleneck, and a lower quality helps.
+//   • What the server delivered during the stall (stallEvidence: bytes as
+//     they arrived at the player) short of what the video needs: the
+//     server's upload, its converting, or the line to it is the bottleneck,
+//     and a lower quality helps.
 //   • Internet quick check slower than the file needs: a lower quality can.
-// Only that flat-out number (or a fresh read of the file) is proof that the
-// server or the line can't keep up. The quick checks (256 KB from Cloudflare,
-// 64 KB samples of the stream) read low on a fast line, and the general
-// verdict's "server" and "ISP throttling" come from them, so with the
-// internet check well above what the video needs and no such proof, the
-// card names no culprit and suggests no quality.
+// Only that delivered number is proof that the server or the line can't
+// keep up. The quick checks (256 KB from Cloudflare) read low on a fast
+// line, and the general verdict's "server" and "ISP throttling" come from
+// them, so with the internet check well above what the video needs and no
+// such proof, the card names no culprit and suggests no quality.
 // Returns null when there is nothing Plex-specific to add.
 import i18n from '@/i18n';
 import { formatMbps, type ClassifyResult, type DiagSnapshot } from '@/lib/bufferDiagnostics';
@@ -76,25 +76,6 @@ export function fitPreset(kbps: number): PlexQualityPreset {
 export const presetFor = (kbps: number): string => fitPreset(kbps).label;
 
 const relayPreset = (): PlexQualityPreset | undefined => PLEX_QUALITY_PRESETS.find((p) => p.key === RELAY_PRESET);
-
-/**
- * Automatic quality, like the Plex app's: the preset to drop to when a file
- * played as-is keeps buffering. Only when the file is plainly bigger than
- * what the server sends flat out (`serverKbps`: stallEvidence's number — the
- * player's rate inside the stall, or a fresh read of the file) and a lower
- * quality would actually be smaller. With no such number it says nothing: a
- * quick 64–256 KB probe (of the internet or of the stream) reads low on a
- * fast line, and the steady rate between stalls is the video's own bitrate;
- * neither is proof that the file is too big. Null means leave it alone.
- */
-export function autoDropPreset(fileKbps: number | undefined, speed: { serverKbps?: number | null }): PlexQualityPreset | null {
-  const server = speed.serverKbps;
-  if (!fileKbps || server == null || server <= 0) return null;
-  // Arriving at least as fast as the file plays: its size is not the problem.
-  if (server >= fileKbps) return null;
-  const p = fitPreset(server);
-  return p.maxVideoBitrateKbps && p.maxVideoBitrateKbps < fileKbps * 0.8 ? p : null;
-}
 
 export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): PlexStallExplanation | null {
   if (snap.verdict === 'ok') return null;
