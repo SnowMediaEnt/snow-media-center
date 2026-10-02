@@ -565,7 +565,8 @@ describe('gameDay', () => {
       const found = channelsForGame(g, list);
       expect(found.map((c) => c.via)).toEqual(['network']);
       // While the guide is being read, a network only its name matched is not shown.
-      expect(arrangeLinks(g, found, true)).toEqual({ main: [], unconfirmed: [], zone: [] });
+      // (Every group is there, empty: the line-up search's too.)
+      expect(arrangeLinks(g, found, true)).toEqual({ main: [], unconfirmed: [], zone: [], search: [] });
       const after = async (listing?: ReturnType<typeof on>) => {
         __resetGameDayForTests();
         delete epg[620];
@@ -574,7 +575,7 @@ describe('gameDay', () => {
         return arrangeLinks(g, mergeLinks([extra, found], list), false);
       };
       // SportsCenter at kickoff: gone.
-      expect(await after(on('SportsCenter'))).toEqual({ main: [], unconfirmed: [], zone: [] });
+      expect(await after(on('SportsCenter'))).toEqual({ main: [], unconfirmed: [], zone: [], search: [] });
       // A listing of the league that names no teams, or no guide at all: apart, not confirmed.
       for (const listing of [on('MLB Baseball'), undefined]) {
         const got = await after(listing);

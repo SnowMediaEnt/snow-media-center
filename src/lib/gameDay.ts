@@ -42,6 +42,25 @@
 // partners (NBC's Peacock, ESPN's ESPN+ …), are read as its list opens, and
 // listed only when their guide has the game (gameServices, checkGuides).
 //
+// Conferences and services providers file games under (B1G+ / BIG10+, SEC+,
+// ACCNX, PAC-12, NCAA, UEFA, Flo …) are "families" (FAMILIES): a category or
+// name in one is a channel of its leagues (the college ones, UEFA's), so it
+// is loaded on every box and its short codes count; their numbered feeds
+// ("B1G+ 03") are read by their guide like a streaming service's. A
+// conference network is every college sport's, not football's alone.
+// An event channel's name is split once, as the list loads, into its two
+// sides ("B1G+ | #11 Boston vs Michigan" → "boston" (ranked 11), "michigan"):
+// a game is on it when one side is each team, by name, school, alias,
+// mascot or code (a mascot or code only next to a name, or on a channel of
+// the game's league or service), or by city — never a school inside another
+// ("Michigan" in "Michigan State"), never a team ranked otherwise ("#5
+// Boston" is not #11 BU). Names are read with their accents folded
+// ("Atlético" is "Atletico").
+// What a search of the line-up found (the game-day-match function's daily
+// scan per provider) is listed apart, "Found by search", once the box sees
+// the same channel still loaded under that name or one with the teams'
+// words (aiLinks); the guide still has the last word on it (arrangeLinks).
+//
 // The owner's picks: the Snow Media admin app can, for one game, add a channel
 // (first in its list, "Picked by Snow Media"), hide one, or mark one down
 // (last, ⚠️). They are rows of the public game_day_channel_edits table, read
@@ -57,7 +76,11 @@ import { cleanChannelName, normalizeSpeech } from '@/lib/voiceCommands';
 import i18n from '@/i18n';
 import { formatTime } from '@/i18n/format';
 
-export interface GameTeam { name: string; short: string; abbr: string; location: string; logo: string | null; score: string | null }
+export interface GameTeam {
+  name: string; short: string; abbr: string; location: string; logo: string | null; score: string | null;
+  /** The poll rank (1–25) of a college team, when it has one. */
+  rank?: number;
+}
 export interface GameLocal { name: string; market: 'home' | 'away' }
 export interface Game {
   id: string; league: string; leagueLabel: string; name: string; start: string;
@@ -100,7 +123,27 @@ export interface SportsChannel {
   /** The streaming service it is a numbered feed of ("US| PEACOCK 02" →
    *  'peacock'), worked out once, as the channel is read. */
   service?: string;
+  /** An event channel's two sides, worked out once as the channel is read
+   *  ("#11 Boston vs Michigan" → " boston ", " michigan "): plain words with
+   *  a space at each end, the labels, ranks, times and dates gone. */
+  sides?: [string, string];
+  /** The ranks the sides gave ("#11 Boston" → 11; 0 for none). */
+  ranks?: [number, number];
+  /** The conference and service families its category or label names
+   *  ('b1g', 'sec', 'uefa' …): FAMILIES. */
+  fam?: string[];
 }
+
+/** Categories a provider was seen to carry a league's games in (from the
+ *  game-day-match function), by category name (normalised here) → leagues. */
+export type LearnedCats = ReadonlyMap<string, string[]>;
+
+/** What a search of the line-up found for a game: a stream, under the name
+ *  it had then. */
+export interface AiMatch { stream_id: number; name: string; confidence: 'high' | 'medium'; source: 'ai' | 'crowd' }
+
+/** A channel sent to the line-up search: its id, name and category, nothing else. */
+export interface ScanCandidate { id: number; name: string; cat: string }
 
 /** What a game's guide check says about a link (checkGuides): 'yes' a
  *  listing around kickoff has the game; 'other' the listings there show
@@ -114,7 +157,12 @@ export type GuideVerdict = 'yes' | 'other' | 'none';
 export interface GameChannel {
   line: XtreamCreds; stream: XtreamLiveStream; score: number; via: LinkKind; note?: string; picked?: boolean; ownerDown?: boolean;
   guide?: GuideVerdict;
+  /** Found by the line-up search (aiLinks), with its confidence. */
+  search?: 'high' | 'medium';
 }
+
+/** English for the label on a link the search found (the screen translates it). */
+export const SEARCH_LABEL = 'Found by search';
 
 const GAMES_TTL_MS = 3 * 60_000;
 /** How old this box's channel list may get: event channels are renamed for
@@ -144,7 +192,8 @@ const FRIENDLY = /\b((?:international|intl|fifa|soccer|football|national team)s?
 const NATIONS_LEAGUE = /\b(nations league)\b/;
 const LEAGUE_WORDS: Record<string, RegExp> = {
   nfl: /\b(nfl|red ?zone|sunday ticket)\b/,
-  ncaaf: /\b(ncaaf|ncaa football|college football|cfb|sec network|acc network|big ten network|btn)\b/,
+  // The conference networks are every college sport's: FAMILIES.
+  ncaaf: /\b(ncaaf|ncaa football|college football|cfb)\b/,
   ufl: /\b(ufl)\b/,
   nba: /\b(nba|league pass)\b/,
   wnba: /\b(wnba)\b/,
@@ -240,13 +289,43 @@ const SPORT_LEAGUES: Array<[RegExp, string[]]> = [
 const namedLeagues = (text: string): string[] =>
   Object.entries(LEAGUE_WORDS).filter(([, re]) => re.test(text)).map(([id]) => id);
 
-export function leaguesIn(text: string): string[] {
+const COLLEGE_LEAGUES = ['ncaaf', 'ncaab', 'wncaab', 'ncaah'];
+const UEFA_LEAGUES = ['ucl', 'uel', 'uecl', 'unl', 'euroq', 'euro', 'wcq'];
+/** Conferences and services providers file games under, on normalised words:
+ *  a category or label in one is a channel of its leagues. A sport's own
+ *  name stays that sport's ("College Football" is football only). */
+const FAMILIES: Array<{ id: string; re: RegExp; leagues: string[] }> = [
+  { id: 'b1g', re: /\b(?:b1g|big ?10|big ten|btn)(?: ?\+| plus| network)?(?![a-z0-9])/, leagues: COLLEGE_LEAGUES },
+  { id: 'sec', re: /\b(?:sec(?: ?\+| plus| network(?: ?\+| plus)?)|secn)(?![a-z0-9])/, leagues: COLLEGE_LEAGUES },
+  { id: 'acc', re: /\b(?:acc ?nx|acc network(?: ?\+| extra)?|acc extra|accn)(?![a-z0-9])/, leagues: COLLEGE_LEAGUES },
+  { id: 'pac12', re: /\bpac ?12(?![0-9])/, leagues: COLLEGE_LEAGUES },
+  { id: 'bigeast', re: /\bbig east\b/, leagues: COLLEGE_LEAGUES },
+  { id: 'big12', re: /\bbig ?12(?![0-9])/, leagues: COLLEGE_LEAGUES },
+  {
+    id: 'ncaa',
+    re: /\b(?:ncaa|college|collegiate)\b(?!(?: [a-z]+)? (?:football|basketball|hockey|baseball|softball|volleyball|soccer|lacrosse|wrestling|hoops)\b)/,
+    leagues: COLLEGE_LEAGUES,
+  },
+  { id: 'uefa', re: /\buefa\b/, leagues: UEFA_LEAGUES },
+  { id: 'flo', re: /\bflo ?(?:sports?|hockey|college|football|hoops|basketball)\b|\bflo(?= \d)/, leagues: ['ncaah', 'ncaab', 'ncaaf'] },
+];
+/** The families some normalised words name. */
+const familiesIn = (text: string): typeof FAMILIES => FAMILIES.filter((f) => f.re.test(text));
+
+/** Leagues some words name: outright, by a sport's word, or by a family. */
+const baseLeagues = (text: string): Set<string> => {
   const out = new Set(namedLeagues(text));
   for (const [re, ids] of SPORT_LEAGUES) if (re.test(text)) for (const id of ids) out.add(id);
+  return out;
+};
+
+export function leaguesIn(text: string): string[] {
+  const out = baseLeagues(text);
+  for (const f of familiesIn(text)) for (const id of f.leagues) out.add(id);
   return [...out];
 }
 
-const SPORT = /\b(sports?|espn|ppv|pay per view|events?|live events?|game ?day|zone|dazn|fubo|bein|tsn|sky sports|golf|tennis|racing|f1|nascar|wrestling|wwe|aew)\b/;
+const SPORT = /\b(sports?|espn|ppv|pay per view|events?|live events?|game ?day|match ?day|game ?pass|zone|dazn|fubo|bein|tsn|sky sports|golf|tennis|racing|f1|nascar|wrestling|wwe|aew)\b/;
 const NETWORK = /\b(networks?|locals?|regionals?|rsn|abc|cbs|nbc|fox|tnt|tbs|usa|us|united states|america|american|entertainment)\b/;
 const NOT_SPORTS = /\b(kids?|children|cartoons?|music|radio|religious|faith|adult|xxx|movies?|cinema|vod|series)\b/;
 /** PPV and event categories: fight cards and events. */
@@ -276,6 +355,13 @@ const SERVICES: Array<{ id: string; head: string; bare?: string }> = [
   { id: 'nhlcenterice', head: 'nhl center ice|center ice' },
   { id: 'mlsseasonpass', head: 'mls season pass|season pass' },
   { id: 'sundayticket', head: 'nfl sunday ticket|sunday ticket' },
+  // The conferences' and services' own feeds ("B1G+ 03", "SEC+ 12", "FLO 02").
+  { id: 'b1gplus', head: 'b1g ?\\+|b1g plus|big ?10 ?\\+|big ten ?\\+|big ten plus|btn ?\\+|btn plus' },
+  { id: 'secplus', head: 'sec ?\\+|sec plus|sec network ?\\+|sec network plus' },
+  { id: 'accnx', head: 'acc ?nx|acc network extra|acc extra' },
+  { id: 'flo', head: 'flo ?sports|flo ?hockey|flo ?college|flo ?football|flo ?hoops', bare: 'flo' },
+  { id: 'ncaa', head: 'ncaa' },
+  { id: 'uefa', head: 'uefa(?: tv)?' },
 ];
 const COUNTRY = '(?:(?:us|usa|uk|ca) )?';
 /** A word some feeds carry before their number: "PEACOCK EVENT 02". */
@@ -305,7 +391,19 @@ const feedService = (raw: string, name: string): string | undefined => {
   return undefined;
 };
 
-const normalise = (s: string): string => normalizeSpeech(String(s ?? '').replace(/[|:_/-]+/g, ' '));
+/** Letters with their accents taken off ("Atlético München" → "Atletico
+ *  Munchen"), and the few that have no accent to take off. */
+const FOLD_MORE: Record<string, string> = { ø: 'o', Ø: 'O', æ: 'ae', Æ: 'AE', œ: 'oe', Œ: 'OE', ß: 'ss', ł: 'l', Ł: 'L', đ: 'd', Đ: 'D', ı: 'i' };
+const fold = (s: string): string => {
+  const t = String(s ?? '');
+  // Plain ASCII (most names): nothing to do.
+  if (!/[^\x20-\x7e]/.test(t)) return t;
+  return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[øØæÆœŒßłŁđĐı]/g, (c) => FOLD_MORE[c] ?? c);
+};
+/** Plain words, accents folded: "Atlético Madrid" → "atletico madrid". */
+const plain = (s: string): string => normalizeSpeech(fold(s));
+
+const normalise = (s: string): string => normalizeSpeech(fold(s).replace(/[|:_/-]+/g, ' '));
 
 /** How much a category matters to Game Day: 3 for a league's ("MLB ZONE"),
  *  2 for sports, events and streaming services ("US| SPORTS", "PPV", "US|
@@ -322,49 +420,93 @@ const lowMemory = (): boolean => {
   try { return document.documentElement.classList.contains('native-low-memory'); } catch { return false; }
 };
 
-/** One channel as Game Day reads it (null for a nameless one). */
-export function sportsChannel(line: XtreamCreds, stream: XtreamLiveStream, catName = ''): SportsChannel | null {
+/** Learned categories by their normalised name (however they came). */
+const learnedMap = (learned?: LearnedCats | null): Map<string, string[]> | null => {
+  if (!learned || !learned.size) return null;
+  const out = new Map<string, string[]>();
+  try {
+    for (const [cat, leagues] of learned) {
+      const k = normalise(cat);
+      if (k && Array.isArray(leagues)) out.set(k, [...(out.get(k) ?? []), ...leagues.map(String)]);
+    }
+  } catch { return null; }
+  return out.size ? out : null;
+};
+
+/** One channel as Game Day reads it (null for a nameless one). Its sides
+ *  and families are worked out here, once per channel list: never per game
+ *  or per key press. `learned`: categories learned as a league's. */
+export function sportsChannel(line: XtreamCreds, stream: XtreamLiveStream, catName = '', learned?: LearnedCats | null): SportsChannel | null {
+  return readChannel(line, stream, catName, learnedMap(learned));
+}
+
+const readChannel = (line: XtreamCreds, stream: XtreamLiveStream, catName: string, learned: Map<string, string[]> | null): SportsChannel | null => {
   const raw = String(stream?.name ?? '');
-  const name = cleanChannelName(raw);
+  const name = cleanChannelName(fold(raw));
   if (!name) return null;
   const cat = normalise(catName);
   const words = normalise(raw);
-  return { line, stream, name, full: ` ${words} `, cat, leagues: leaguesIn(`${cat} ${words}`), service: feedService(raw, name) };
-}
+  const m = matchup(raw);
+  const leagues = baseLeagues(`${cat} ${words}`);
+  // A family by its category or the name's label, never by a team ("Boston
+  // College vs Maine" is not the NCAA's channel; "NCAA 03: …" is).
+  const fams = familiesIn(m ? `${cat} ${m.label}` : `${cat} ${words}`);
+  for (const f of fams) for (const id of f.leagues) leagues.add(id);
+  for (const id of learned?.get(cat) ?? []) leagues.add(id);
+  const c: SportsChannel = { line, stream, name, full: ` ${words} `, cat, leagues: [...leagues], service: feedService(raw, name) };
+  if (m) {
+    c.sides = m.sides;
+    if (m.ranks) c.ranks = m.ranks;
+  }
+  if (fams.length) c.fam = fams.map((f) => f.id);
+  return c;
+};
 
 let channelsCache: { key: string; at: number; list: SportsChannel[] } | null = null;
 
 /** This box's channels Game Day can use, across its lines, at most ten
- *  minutes old (a kept list older than that is asked for again). */
-export async function loadSportsChannels(lines: XtreamCreds[]): Promise<SportsChannel[]> {
-  const key = lines.map((l) => `${l.host}|${l.username}`).join(',');
+ *  minutes old (a kept list older than that is asked for again).
+ *  `learned`: categories the provider was seen to carry a league's games in,
+ *  read (on a box short of memory too) as that league's. */
+export async function loadSportsChannels(lines: XtreamCreds[], learned?: LearnedCats | null): Promise<SportsChannel[]> {
+  const known = learnedMap(learned);
+  const key = `${lines.map((l) => `${l.host}|${l.username}`).join(',')}#${known ? [...known.keys()].sort().join(',') : ''}`;
   if (channelsCache && channelsCache.key === key && Date.now() - channelsCache.at < CHANNELS_TTL_MS) return channelsCache.list;
   const fresh = { maxAgeMs: CHANNELS_TTL_MS };
   const out: SportsChannel[] = [];
   let failed = false;
   const add = (line: XtreamCreds, stream: XtreamLiveStream, catName: string) => {
-    const c = sportsChannel(line, stream, catName);
+    const c = readChannel(line, stream, catName, known);
     if (c) out.push(c);
   };
+  const weightOf = (name: string): number => (known?.has(normalise(name)) ? 3 : categoryWeight(name));
   for (const line of lines) {
     let cats: XtreamCategory[] = [];
     // A line that will not answer leaves the others' channels as they are.
     try { cats = await getLiveCategories(line); } catch { failed = true; continue; }
     const catName = new Map(cats.map((c) => [String(c.category_id), String(c.category_name ?? '')]));
-    const weight = new Map(cats.map((c) => [String(c.category_id), categoryWeight(c.category_name)]));
+    const weight = new Map(cats.map((c) => [String(c.category_id), weightOf(c.category_name)]));
     if (!lowMemory()) {
       // The whole line-up: the list Live TV search keeps (one request, shared).
       let all: XtreamLiveStream[] = [];
       try { all = await getLiveStreams(line, undefined, fresh); } catch { all = []; }
       if (all.length) {
+        // Kids, music, film … categories: never an event channel's.
+        const notSports = new Set(cats.filter((c) => NOT_SPORTS.test(normalise(String(c.category_name ?? '')))).map((c) => String(c.category_id)));
         for (const s of all) {
           const id = String(s.category_id ?? '');
-          const n = normalise(String(s.name ?? ''));
+          const rawName = String(s.name ?? '');
+          const n = normalise(rawName);
           if ((weight.get(id) ?? 0) > 0 || SPORT.test(n) || leaguesIn(n).length) add(line, s, catName.get(id) ?? '');
-          else if (/\d/.test(n) && SERVICE_WORD.test(n)) {
+          else if (!notSports.has(id) && QUICK_SIDES.test(fold(rawName).toLowerCase())) {
+            // A matchup ("#11 Boston vs Michigan"), whatever its category
+            // ("B1G+" is no sports word): kept when it splits in two.
+            const c = readChannel(line, s, catName.get(id) ?? '', known);
+            if (c?.sides || c?.service) out.push(c);
+          } else if (/\d/.test(n) && SERVICE_WORD.test(n)) {
             // A streaming service's numbered feed ("PEACOCK 02"), whatever
             // its category ("STREAMING"): kept when it is one.
-            const c = sportsChannel(line, s, catName.get(id) ?? '');
+            const c = readChannel(line, s, catName.get(id) ?? '', known);
             if (c?.service) out.push(c);
           }
         }
@@ -372,10 +514,10 @@ export async function loadSportsChannels(lines: XtreamCreds[]): Promise<SportsCh
       }
     }
     // A box short of memory (or a line-up that would not load whole): the
-    // best categories, the leagues' first, three at a time so the panel sees
-    // a short burst.
+    // best categories, the leagues' (and families', and learned ones) first,
+    // three at a time so the panel sees a short burst.
     const picked = cats
-      .map((c) => ({ c, w: categoryWeight(c.category_name) }))
+      .map((c) => ({ c, w: weightOf(c.category_name) }))
       .filter((x) => x.w > 0)
       .sort((a, b) => b.w - a.w)
       .slice(0, MAX_CATEGORIES_PER_LINE);
@@ -447,15 +589,23 @@ const networkService = (network: string): string | undefined => {
   return undefined;
 };
 
+/** The feeds a league's games are on whatever its networks: a college
+ *  game on the conferences' (B1G+, SEC+, ACCNX), Flo's, the NCAA's and
+ *  ESPN+; a UEFA one on UEFA's and Paramount+. */
+const LEAGUE_FEEDS: Record<string, string[]> = {};
+for (const l of COLLEGE_LEAGUES) LEAGUE_FEEDS[l] = ['b1gplus', 'secplus', 'accnx', 'flo', 'ncaa', 'espnplus'];
+for (const l of ['ucl', 'uel', 'uecl', 'unl', 'euroq', 'euro']) LEAGUE_FEEDS[l] = ['uefa', 'paramount'];
+
 /** The streaming services whose numbered feeds may have a game, in the order
  *  to look: its own ("Peacock" in its networks), then its TV networks'
- *  partners (NBC → Peacock, ESPN → ESPN+). */
+ *  partners (NBC → Peacock, ESPN → ESPN+), then its league's (LEAGUE_FEEDS). */
 export function gameServices(game: Game): string[] {
   const out: string[] = [];
   const put = (s: string | undefined) => { if (s && !out.includes(s)) out.push(s); };
   const nets = Array.isArray(game?.networks) ? game.networks : [];
   for (const n of nets) put(networkService(n));
   for (const n of nets) put(PARTNERS[normalizeSpeech(String(n ?? ''))]);
+  for (const s of LEAGUE_FEEDS[game?.league] ?? []) put(s);
   return out;
 }
 
@@ -594,17 +744,121 @@ const NATIONAL_TEAMS: Record<string, { own?: string[]; duo?: string[] }> = {
 /** Short codes that are also words ("NO" for New Orleans). */
 const NOT_A_CODE = new Set(['no', 'at', 'vs', 'in', 'on', 'or', 'is', 'it', 'as', 'of', 'to', 'tv', 'hd', 'sd', 'us', 'uk', 'the']);
 
+/** College teams as providers write them, by ESPN's school (its location
+ *  or name, normalised): `strong`, another name for the school ("UMass",
+ *  "Pitt"); `code`, a short form many schools share ("BU", "OSU", "MSU"),
+ *  which counts only next to the other team's name or on a channel of the
+ *  game's league or service. */
+const COLLEGE_ALIASES: Record<string, { strong?: string[]; code?: string[] }> = {
+  'boston university': { strong: ['boston u'], code: ['bu'] },
+  'boston college': { code: ['bc'] },
+  massachusetts: { strong: ['umass'] },
+  umass: { strong: ['massachusetts'] },
+  'umass lowell': { strong: ['mass lowell'], code: ['uml'] },
+  connecticut: { strong: ['uconn'] },
+  uconn: { strong: ['connecticut'] },
+  'minnesota duluth': { strong: ['minn duluth', 'mn duluth'], code: ['umd'] },
+  minnesota: { code: ['umn'] },
+  'north dakota': { code: ['und'] },
+  michigan: { strong: ['umich'] },
+  'michigan state': { code: ['msu'] },
+  'michigan tech': { code: ['mtu'] },
+  'western michigan': { code: ['wmu'] },
+  'ohio state': { code: ['osu', 'tosu'] },
+  'penn state': { code: ['psu'] },
+  'new hampshire': { code: ['unh'] },
+  vermont: { code: ['uvm'] },
+  rensselaer: { strong: ['rpi'] },
+  rpi: { strong: ['rensselaer'] },
+  'notre dame': { code: ['nd'] },
+  pittsburgh: { strong: ['pitt'] },
+  pitt: { strong: ['pittsburgh'] },
+  'ole miss': { strong: ['mississippi'] },
+  mississippi: { strong: ['ole miss'] },
+  'mississippi state': { code: ['msst', 'miss st'] },
+  lsu: { strong: ['louisiana state'] },
+  usc: { strong: ['southern california', 'southern cal'] },
+  ucla: { strong: ['california los angeles'] },
+  byu: { strong: ['brigham young'] },
+  smu: { strong: ['southern methodist'] },
+  tcu: { strong: ['texas christian'] },
+  ucf: { strong: ['central florida'] },
+  unlv: { strong: ['nevada las vegas'] },
+  'north carolina': { code: ['unc'] },
+  'nc state': { strong: ['north carolina state'], code: ['ncsu'] },
+  'miami oh': { strong: ['miami ohio', 'miami of ohio'] },
+  miami: { strong: ['miami fl', 'miami florida'] },
+  'texas a&m': { code: ['tamu'] },
+  'virginia tech': { code: ['vt'] },
+  'georgia tech': { code: ['gt'] },
+  'florida state': { code: ['fsu'] },
+  'oklahoma state': { code: ['okst', 'osu'] },
+  'oregon state': { code: ['osu'] },
+  'arizona state': { code: ['asu'] },
+  'iowa state': { code: ['isu'] },
+  'kansas state': { code: ['ksu', 'k state'] },
+  'st cloud state': { strong: ['st cloud'], code: ['scsu'] },
+  denver: { code: ['du'] },
+  'colorado college': { code: ['cc'] },
+  northeastern: { code: ['neu'] },
+  providence: { code: ['pc'] },
+  wisconsin: { code: ['uw', 'wisc'] },
+  'bowling green': { code: ['bgsu'] },
+  'lake superior state': { code: ['lssu'] },
+  alabama: { code: ['bama'] },
+};
+/** Clubs as providers write them, by ESPN's name (normalised), in every
+ *  league: `strong` alone, `code` like a short code. */
+const CLUB_ALIASES: Record<string, { strong?: string[]; code?: string[] }> = {
+  internazionale: { strong: ['inter milan'], code: ['inter'] },
+  'inter milan': { strong: ['internazionale'], code: ['inter'] },
+  'bayern munich': { strong: ['bayern munchen', 'fc bayern'], code: ['bayern'] },
+  'atletico madrid': { strong: ['atletico de madrid'], code: ['atletico', 'atleti'] },
+  'paris saint germain': { strong: ['paris sg', 'psg'] },
+  'borussia dortmund': { code: ['dortmund', 'bvb'] },
+  'bayer leverkusen': { code: ['leverkusen'] },
+  'ac milan': { code: ['milan'] },
+  juventus: { code: ['juve'] },
+  'sporting cp': { strong: ['sporting lisbon'], code: ['sporting'] },
+};
+
+/** A word right after a school's name that makes it another school
+ *  ("Michigan State", "Texas A&M", "Miami (OH)"). */
+const QUAL_AFTER = new Set(['state', 'st', 'tech', 'college', 'university', 'a&m', 'southern', 'christian', 'oh', 'ohio', 'fl', 'florida']);
+/** A word right before one that does ("Central Michigan", "North Texas",
+ *  "New Mexico"). */
+const QUAL_BEFORE = new Set(['north', 'south', 'east', 'west', 'northern', 'southern', 'eastern', 'western', 'central', 'new']);
+
+/** The other forms of a school's name: "Boston University" ↔ "Boston U",
+ *  "University of X" → "X", "Saint" ↔ "St", "State" → "St". */
+const schoolForms = (n: string): string[] => {
+  const out: string[] = [];
+  if (n.endsWith(' university')) out.push(`${n.slice(0, -' university'.length)} u`);
+  if (n.endsWith(' u')) out.push(`${n.slice(0, -2)} university`);
+  if (n.startsWith('university of ')) out.push(n.slice('university of '.length));
+  if (n.startsWith('saint ')) out.push(`st ${n.slice(6)}`);
+  if (n.startsWith('st ')) out.push(`saint ${n.slice(3)}`);
+  if (/ state\b/.test(n)) out.push(n.replace(/ state\b/, ' st'));
+  return out;
+};
+
 /** A team's words, spaced: its own names ("Packers", "Green Bay Packers",
  *  "Sixers"), its place ("Green Bay") and its short code ("GB"). A place
  *  alone names half the local channels in a city, so it only counts next to
- *  the other team. College teams go by their school ("Florida", "Miami"),
- *  which is a place too: `shortPlace`, which names the team only next to the
- *  other one ("Tennessee vs Florida"), never alone ("FanDuel Sports Florida",
- *  "NBC 6 Miami"). */
-interface TeamWords { own: string[]; shortPlace: string[]; place: string[]; code: string[]; duo: string[] }
-const teamWords = (t: GameTeam | null, national = false): TeamWords => {
-  if (!t) return { own: [], shortPlace: [], place: [], code: [], duo: [] };
-  const clean = (ws: string[]) => [...new Set(ws.map((w) => normalizeSpeech(String(w ?? ''))).filter((w) => w.length >= 3))];
+ *  the other team. College teams go by their school ("Florida", "Miami",
+ *  "Boston University", "UMass"), which is a place too: `shortPlace`, which
+ *  names the team only next to the other one ("Tennessee vs Florida"), never
+ *  alone ("FanDuel Sports Florida", "NBC 6 Miami"); and by their mascot
+ *  ("Terriers") and short forms ("BU"), with the codes; and, weakly, by the
+ *  city of a "<City> University / College" ("Boston"). `mine`: every name
+ *  of the team (and the first two words of each), which tells "Michigan
+ *  State" (another school) from this one's own long name. `rank`: its poll
+ *  rank. */
+interface TeamWords { own: string[]; shortPlace: string[]; place: string[]; code: string[]; duo: string[]; mine: Set<string>; rank: number }
+const NO_TEAM: TeamWords = { own: [], shortPlace: [], place: [], code: [], duo: [], mine: new Set(), rank: 0 };
+const teamWords = (t: GameTeam | null, national = false, college = false): TeamWords => {
+  if (!t) return { ...NO_TEAM, mine: new Set() };
+  const clean = (ws: string[]) => [...new Set(ws.map((w) => plain(String(w ?? ''))).filter((w) => w.length >= 3))];
   const loc = clean([t.location]);
   const shortPlace = clean([t.short]).filter((w) => loc.some((l) => l === w || ` ${l} `.includes(` ${w} `) || ` ${w} `.includes(` ${l} `)));
   const names = clean([t.short, t.name]);
@@ -615,26 +869,122 @@ const teamWords = (t: GameTeam | null, national = false): TeamWords => {
   // team only.
   const own = ownAll.filter((w) => !shortPlace.includes(w) && !(national && duo.includes(w)) && !(national && w === 'usa'));
   if (national && ownAll.includes('usa')) duo.push('usa');
-  const code = normalizeSpeech(String(t.abbr ?? ''));
+  const code = plain(String(t.abbr ?? ''));
   const okCode = /^[a-z0-9]{2,4}$/.test(code) && !NOT_A_CODE.has(code);
   // A country's code ("CZE vs ENG") is enough next to the other country's.
   if (national && okCode) duo.push(code);
+  const codes = okCode ? [code] : [];
+  const keys = [...new Set([...loc, ...names])];
+  const aliases = keys.map((k) => CLUB_ALIASES[k]).filter(Boolean);
+  const extra: string[] = aliases.flatMap((a) => a.strong ?? []);
+  codes.push(...aliases.flatMap((a) => a.code ?? []));
+  const heads: string[] = [];
+  if (college) {
+    // The school by its name, and its other forms, is the team's name.
+    const school = keys.map((k) => COLLEGE_ALIASES[k]).filter(Boolean);
+    extra.push(...loc, ...school.flatMap((a) => a.strong ?? []), ...keys.flatMap(schoolForms));
+    codes.push(...school.flatMap((a) => a.code ?? []));
+    // The mascot: its name without the school ("Terriers").
+    for (const n of names) for (const l of loc) {
+      if (n.startsWith(`${l} `) && n.length - l.length > 3) codes.push(n.slice(l.length + 1));
+    }
+    // "Boston University", "Boston College": "Boston", weakly.
+    for (const l of [...loc, ...clean([t.short])]) {
+      const ws = l.split(' ');
+      if (ws.length === 2 && /^(university|college|u)$/.test(ws[1]) && ws[0].length >= 4 && !QUAL_BEFORE.has(ws[0])) heads.push(ws[0]);
+    }
+  }
+  const strongMore = [...new Set(extra.filter((w) => w.length >= 2 && !own.includes(w)))];
+  const short = [...new Set([...shortPlace, ...strongMore])];
+  const codeList = [...new Set(codes.filter((w) => w.length >= 2 && !own.includes(w) && !short.includes(w)))];
+  const place = [...new Set([...loc, ...heads])].filter((w) => !own.includes(w) && !short.includes(w));
+  const mine = new Set<string>();
+  for (const w of [...own, ...short, ...place, ...codeList, ...duo, ...loc, ...names]) {
+    mine.add(w);
+    const ws = w.split(' ');
+    if (ws.length > 2) mine.add(`${ws[0]} ${ws[1]}`);
+  }
+  const rank = Number(t.rank);
   return {
     own: spaced(own),
-    shortPlace: spaced(shortPlace),
-    place: spaced(loc.filter((w) => !own.includes(w) && !shortPlace.includes(w))),
-    code: okCode ? spaced([code]) : [],
+    shortPlace: spaced(short),
+    place: spaced(place),
+    code: spaced(codeList),
     duo: spaced([...new Set(duo)]),
+    mine,
+    rank: Number.isInteger(rank) && rank > 0 && rank < 100 ? rank : 0,
   };
+};
+
+/** Whether a spaced text has one of some spaced words as this team's: never
+ *  inside a longer school's name that is not the team's own ("michigan" in
+ *  "michigan state", "texas" in "north texas"). */
+const hasOwn = (text: string, words: string[], mine: Set<string>): boolean => {
+  for (const w of words) {
+    let i = text.indexOf(w);
+    while (i >= 0) {
+      if (!otherSchool(text, i, w, mine)) return true;
+      i = text.indexOf(w, i + 1);
+    }
+  }
+  return false;
+};
+const otherSchool = (text: string, i: number, w: string, mine: Set<string>): boolean => {
+  const core = w.slice(1, -1);
+  const after = text.slice(i + w.length);
+  const sp = after.indexOf(' ');
+  const next = sp < 0 ? after : after.slice(0, sp);
+  if (next && QUAL_AFTER.has(next) && !mine.has(`${core} ${next}`)) return true;
+  const before = text.slice(0, i);
+  const prev = before.slice(before.lastIndexOf(' ') + 1);
+  return !!prev && QUAL_BEFORE.has(prev) && !mine.has(`${prev} ${core}`);
 };
 
 interface Side { strong: boolean; weak: boolean }
 /** How a spaced text names a team: by its own name, its school or (on a
- *  channel of its league) its short code — strongly; by its city — weakly. */
+ *  channel of its league or service) its short code — strongly; by its
+ *  city — weakly. */
 const sideIn = (text: string, w: TeamWords, codes: boolean): Side => ({
-  strong: has(text, w.own) || has(text, w.shortPlace) || (codes && has(text, w.code)) || has(text, w.duo),
-  weak: has(text, w.place),
+  strong: hasOwn(text, w.own, w.mine) || hasOwn(text, w.shortPlace, w.mine) || (codes && hasOwn(text, w.code, w.mine)) || hasOwn(text, w.duo, w.mine),
+  weak: hasOwn(text, w.place, w.mine),
 });
+
+/** How one side of a matchup names a team: 3 by name, 2 by a code or
+ *  mascot (a name only next to a name, or on a channel of the game's
+ *  league or service), 1 by its city, 0 not at all; -1 when the side gives
+ *  another rank ("#5 Boston" is not #11 BU). Its own rank makes even a city
+ *  the team's ("#11 Boston"). */
+const sideTier = (side: string, rank: number, w: TeamWords): number => {
+  const t = hasOwn(side, w.own, w.mine) || hasOwn(side, w.shortPlace, w.mine) || hasOwn(side, w.duo, w.mine) ? 3
+    : hasOwn(side, w.code, w.mine) ? 2
+      : hasOwn(side, w.place, w.mine) ? 1 : 0;
+  if (!t || !rank || !w.rank) return t;
+  return rank === w.rank ? 3 : -1;
+};
+
+/** How well a matchup's two sides are the game's two teams, either way
+ *  round: both by name (a code or mascot next to a name, or on a channel
+ *  of the game) 100, a name and a city 100, both cities 90 on a channel of
+ *  the league; 0 when it is not. */
+const sideScore = (c: SportsChannel, w: GameWords, ofGame: boolean, inLeague: boolean): number => {
+  const [a, b] = c.sides!;
+  const [ra, rb] = c.ranks ?? [0, 0];
+  const pair = (x: number, y: number): number => {
+    if (x <= 0 || y <= 0) return 0;
+    const sx = x === 3 || (x === 2 && (ofGame || y === 3));
+    const sy = y === 3 || (y === 2 && (ofGame || x === 3));
+    if (sx && sy) return 100;
+    if ((sx && y === 1) || (sy && x === 1)) return 100;
+    return x === 1 && y === 1 && inLeague ? 90 : 0;
+  };
+  // Most sides name neither team: the other side is read only when this
+  // one names one.
+  const ah = sideTier(a, ra, w.home);
+  const one = ah > 0 ? pair(ah, sideTier(b, rb, w.away)) : 0;
+  if (one === 100) return one;
+  const aw = sideTier(a, ra, w.away);
+  return Math.max(one, aw > 0 ? pair(aw, sideTier(b, rb, w.home)) : 0);
+};
 
 /** Words that say what kind of event it is, not which one: never enough on
  *  their own ("Grand Prix", "Championship", "Speedway", "Open"). */
@@ -658,14 +1008,14 @@ const EVENT_SPONSORS = /\b(qatar airways|singapore airlines|etihad airways|gulf 
  *  both needed ("ankalaev", "pereira"). */
 interface Card { phrases: string[]; words: string[]; pair: string[] }
 const cardWords = (g: Game): Card => {
-  const name = normalizeSpeech(String(g.event || g.name || '').split(' · ')[0]);
+  const name = plain(String(g.event || g.name || '').split(' · ')[0]);
   if (g.league === 'ufc') {
     const num = /\bufc \d{2,3}\b/.exec(name)?.[0];
     const vs = /([a-z]+)(?: \d+)? vs ([a-z]+)/.exec(name);
     const fighters = vs ? [vs[1], vs[2]].filter((w) => w.length >= 3) : [];
     return { phrases: num ? spaced([num]) : [], words: [], pair: fighters.length === 2 ? spaced(fighters) : [] };
   }
-  const places = (g.places ?? []).map((p) => normalizeSpeech(String(p ?? ''))).filter(Boolean);
+  const places = (g.places ?? []).map((p) => plain(String(p ?? ''))).filter(Boolean);
   const bare = name.replace(EVENT_SPONSORS, ' ').replace(/\s+/g, ' ').trim();
   const phrases = [name, bare, ...places].filter((p) => p.length >= 5 && (p.includes(' ') || !EVENT_GENERIC.has(p)));
   const words = [bare, ...places]
@@ -795,6 +1145,73 @@ const timeMatches = (times: NameTime[], at: Date): boolean => times.some((t) =>
     });
   }));
 
+// ── an event channel's two sides ───────────────────────────────────────────
+
+/** Whether a name (lower case) may be a matchup at all: a cheap first look
+ *  before splitting it. */
+const QUICK_SIDES = /\sv(?:s|\.)?\.?\s|@|\s(?:at|x)\s|\s[-\u2013\u2014]\s/;
+/** What stands between the two sides, the surest first: "vs", "v", "@";
+ *  then "at", "x" (Brazil's); then, after a label only, a dash. */
+const SIDE_SEPS = [/\s(?:vs?\.?)\s|\s?@\s?/, /\s(?:at|x)\s/];
+const SIDE_DASH = /\s[-\u2013\u2014]\s/;
+/** Where a side's tail of times and dates starts ("7:00 PM ET", "09/24",
+ *  "Sep 24", "(9.18"). */
+const SIDE_TAIL = new RegExp(`\\s(?:\\d{1,2}[:.]\\d{2}|\\d{1,2}\\s*(?:am|pm)\\b|\\d{1,2}[/.]\\d{1,2}|20\\d\\d-\\d|${MONTH}\\.?\\s*\\d{1,2}\\b|\\d{1,2}(?:st|nd|rd|th)?\\s+${MONTH}\\b)`);
+/** A rank before a side's name: "#11 ", "No. 11 ", "11 ". */
+const SIDE_RANK = /^\s*(?:#\s*|no\.?\s*)?(\d{1,2})\s+(?=[a-z])/;
+
+const hasSides = (seg: string, dash: boolean): [string, string] | null => {
+  for (const re of dash ? [...SIDE_SEPS, SIDE_DASH] : SIDE_SEPS) {
+    const m = re.exec(seg);
+    if (!m) continue;
+    const left = seg.slice(0, m.index), right = seg.slice(m.index + m[0].length);
+    if (/[a-z]/.test(left) && /[a-z]/.test(right)) return [left, right];
+  }
+  return null;
+};
+
+/** One side in plain words, with its rank apart (0: none). */
+const readSide = (raw: string): { text: string; rank: number } | null => {
+  let t = ` ${raw} `;
+  const tail = SIDE_TAIL.exec(t);
+  if (tail) t = t.slice(0, tail.index);
+  let rank = 0;
+  const r = SIDE_RANK.exec(t);
+  if (r) {
+    rank = Number(r[1]);
+    t = t.slice(r[0].length);
+  }
+  const text = normalizeSpeech(t.replace(/[|:_/-]+/g, ' '));
+  return /[a-z]/.test(text) ? { text, rank } : null;
+};
+
+/** A channel name's matchup: its two sides (spaced plain words, labels,
+ *  ranks, times and dates gone), their ranks, and the rest of the name (its
+ *  label: "B1G+ 03", "Paramount+ 04 UCL"). null when it is no matchup.
+ *  "PPV EVENT 12: Michigan vs Ohio State", "ESPN+ 07 | BU vs MICH", "MLB 07
+ *  [Yankees vs Red Sox]", "#11 Boston vs Michigan". */
+const matchup = (raw: string): { sides: [string, string]; ranks?: [number, number]; label: string } | null => {
+  let s = fold(String(raw ?? '')).toLowerCase();
+  if (!QUICK_SIDES.test(s)) return null;
+  // "(11) Boston": a rank; "[Yankees vs Red Sox]": the matchup itself;
+  // "(9.18 6:00 PM ET)": a schedule; "(OH)": part of the name.
+  s = s.replace(/\((\d{1,2})\)\s*(?=[a-z])/g, '#$1 ');
+  s = s.replace(/[([]([^)\]]*)[)\]]?/g, (_, inner: string) =>
+    (hasSides(` ${inner} `, false) ? ` | ${inner} | ` : /\d/.test(inner) ? ' ' : ` ${inner} `));
+  // The label before a ":" or "|" ("Live Event 05:", "ESPN+ 07 |"), and any
+  // after one ("| TUDN"); never the ":" of a time ("7:00").
+  const segs = s.split(/\s*\|\s*|:(?!\d{2})/);
+  for (let i = 0; i < segs.length; i++) {
+    const cut = hasSides(` ${segs[i].trim()} `, i > 0);
+    if (!cut) continue;
+    const a = readSide(cut[0]), b = readSide(cut[1]);
+    if (!a || !b) continue;
+    const label = normalise(segs.filter((_, j) => j !== i).join(' '));
+    return { sides: [` ${a.text} `, ` ${b.text} `], ...(a.rank || b.rank ? { ranks: [a.rank, b.rank] as [number, number] } : {}), label };
+  }
+  return null;
+};
+
 interface When { at: Date; days: Set<number> }
 /** The kickoff, and the dates it falls on from Hawaii to Moscow: a UK
  *  line-up dates a 7 PM Eastern game the next day. */
@@ -812,7 +1229,8 @@ const gameWhen = (start: string): When | null => {
 interface GameWords { home: TeamWords; away: TeamWords; card: Card | null; when: When | null }
 const gameWords = (g: Game): GameWords => {
   const national = INTERNATIONAL_LEAGUES.includes(g.league);
-  const home = teamWords(g.home, national), away = teamWords(g.away, national);
+  const college = COLLEGE_LEAGUES.includes(g.league);
+  const home = teamWords(g.home, national, college), away = teamWords(g.away, national, college);
   // A city both teams share tells neither apart (Yankees vs Mets).
   const shared = home.place.filter((p) => away.place.includes(p));
   if (shared.length) {
@@ -828,8 +1246,11 @@ const gameWords = (g: Game): GameWords => {
  *  league; 12 less when it gives another kickoff time (the other game of a
  *  doubleheader). 0 when it doesn't have the game; -1 when it has it on
  *  another day (a name not yet changed from yesterday's game) or another
- *  session (yesterday's qualifying): then the channel is nothing to it. */
-const eventScore = (c: SportsChannel, g: Game, w: GameWords, inLeague: boolean): number => {
+ *  session (yesterday's qualifying): then the channel is nothing to it.
+ *  A name split in two sides is read side by side (sideScore); short codes
+ *  count on a channel of the game (`ofGame`: its league's, family's or one
+ *  of its services' feeds). */
+const eventScore = (c: SportsChannel, g: Game, w: GameWords, inLeague: boolean, ofGame = inLeague): number => {
   let score = 0;
   if (w.card) {
     const ofSport = inLeague || (!c.leagues.length && EVENTS.test(`${c.cat} ${c.full}`));
@@ -837,8 +1258,10 @@ const eventScore = (c: SportsChannel, g: Game, w: GameWords, inLeague: boolean):
       if (otherSession(c.full, g)) return -1;
       score = 100;
     }
+  } else if (c.sides) {
+    score = sideScore(c, w, ofGame, inLeague);
   } else {
-    const h = sideIn(c.full, w.home, inLeague), a = sideIn(c.full, w.away, inLeague);
+    const h = sideIn(c.full, w.home, ofGame), a = sideIn(c.full, w.away, ofGame);
     if ((h.strong || h.weak) && (a.strong || a.weak)) score = h.strong || a.strong ? 100 : inLeague ? 90 : 0;
   }
   if (!score || !w.when) return score;
@@ -892,9 +1315,12 @@ const isNumberedEvent = (c: SportsChannel, league: string): boolean =>
 
 const linkKey = (l: { line: XtreamCreds; stream: XtreamLiveStream }): string => `${l.line.host}|${l.line.username}|${l.stream.stream_id}`;
 
-/** This box's channels for a game, best first (at most `limit`). */
-export function channelsForGame(game: Game, channels: SportsChannel[], limit = 12): GameChannel[] {
+/** This box's channels for a game, best first (at most `limit`).
+ *  `learned`: categories learned as a league's (loadSportsChannels). */
+export function channelsForGame(game: Game, channels: SportsChannel[], limit = 12, learned?: LearnedCats | null): GameChannel[] {
   const w = gameWords(game);
+  const known = learnedMap(learned);
+  const services = gameServices(game);
   const nets = aliasList(game.networks);
   const locals = aliasList((game.locals ?? []).map((l) => l.name));
   const places = [...w.home.place, ...w.away.place, ...w.home.own, ...w.away.own, ...w.home.shortPlace, ...w.away.shortPlace];
@@ -903,14 +1329,16 @@ export function channelsForGame(game: Game, channels: SportsChannel[], limit = 1
   const found: GameChannel[] = [];
   let leagueLinks = 0;
   for (const c of channels) {
-    const inLeague = c.leagues.includes(game.league);
+    const inLeague = c.leagues.includes(game.league) || !!known?.get(c.cat)?.includes(game.league);
     // PPV carries fights, festivals and small races, never a league's games
     // or the scoreboards' races and tournaments: only a fight card is ever on
     // one. A league's own PPV category ("NHL PPV") is that league's.
     if (!inLeague && game.league !== 'ufc' && PPV.test(`${c.cat} ${c.full}`)) continue;
     const other = !inLeague && otherLeague(c, game.league);
     if (!other) {
-      const s = eventScore(c, game, w, inLeague);
+      // A feed of one of the game's services ("ESPN+ 07: BU vs MICH") is
+      // the game's own, like its league's: short codes count there.
+      const s = eventScore(c, game, w, inLeague, inLeague || (!!c.service && services.includes(c.service)));
       if (s < 0) continue;
       if (s > 0) { found.push({ line: c.line, stream: c.stream, score: s, via: 'game' }); continue; }
     }
@@ -1004,6 +1432,9 @@ export interface LinkGroups {
   unconfirmed: GameChannel[];
   /** Whip-around channels ("MLB Zone"): every game of the league at once. */
   zone: GameChannel[];
+  /** What the line-up search found and the guide has not confirmed: "Found
+   *  by search — may not be this game". */
+  search: GameChannel[];
 }
 
 /** A game's links as the guide leaves them. A channel whose guide shows
@@ -1012,14 +1443,18 @@ export interface LinkGroups {
  *  confirmed. In the playoffs (national TV only) the zone channels are
  *  dropped, and so are the teams', locals' and league's channels and the
  *  league's numbered feeds ("MLB 05: …") unless their guide has the game
- *  (hidden while it is read). Pure: the owner's picks go over the result. */
+ *  (hidden while it is read). What the line-up search found is listed apart
+ *  too, unless its guide has the game (then it is one of the game's). Pure:
+ *  the owner's picks go over the result. */
 export function arrangeLinks(game: Game, links: GameChannel[], scanning: boolean): LinkGroups {
   const post = !!game.postseason;
-  const out: LinkGroups = { main: [], unconfirmed: [], zone: [] };
+  const out: LinkGroups = { main: [], unconfirmed: [], zone: [], search: [] };
   for (const l of links) {
     if (l.guide === 'other') continue;
     const yes = l.guide === 'yes';
-    if (l.via === 'zone') {
+    if (l.search && !yes) {
+      out.search.push(l);
+    } else if (l.via === 'zone') {
       if (!post) out.zone.push(l);
     } else if (yes || l.via === 'game') {
       if (yes || !post || !isLeagueFeed(l, game.league)) out.main.push(l);
@@ -1365,6 +1800,124 @@ export function cardChannels(games: Game[], channels: SportsChannel[]): Set<stri
 
 export const channelKey = linkKey;
 
+// ── the line-up search ─────────────────────────────────────────────────────
+
+/** Words that never tell one team from another. */
+const TOKEN_STOP = new Set([
+  'the', 'and', 'university', 'college', 'state', 'city', 'united', 'club', 'real', 'sporting', 'saint', 'santa', 'san', 'los', 'las',
+  'new', 'north', 'south', 'east', 'west', 'central', 'national', 'team', 'women', 'womens', 'men', 'mens', 'football', 'soccer',
+]);
+
+/** The words of a game's teams (or its event) a channel name would have:
+ *  names, schools, mascots, cities and codes of three letters or more. */
+export function teamTokens(game: Game): string[] {
+  const out = new Set<string>();
+  const put = (phrases: string[]) => {
+    for (const p of phrases) for (const t of p.trim().split(' ')) if (t.length >= 3 && !/^\d+$/.test(t) && !TOKEN_STOP.has(t)) out.add(t);
+  };
+  if (!game?.home && !game?.away) {
+    const c = cardWords(game);
+    put([...c.phrases, ...c.words, ...c.pair]);
+  } else {
+    const w = gameWords(game);
+    for (const t of [w.home, w.away]) put([...t.own, ...t.shortPlace, ...t.place, ...t.code, ...t.duo]);
+  }
+  return [...out];
+}
+
+/** The links a line-up search found for a game, on this box's lines on that
+ *  provider (`host`: serviceOf a line). Each is checked against the box's
+ *  own list first: the stream must be loaded here, under the name the search
+ *  saw or one that still has a word of the teams' (a provider renames its
+ *  event channels for each day's games: never the next game's channel).
+ *  High first: 85, medium 75. */
+export function aiLinks(game: Game, channels: SportsChannel[], host: string, matches: AiMatch[]): GameChannel[] {
+  try {
+    const service = serviceOf(host);
+    if (!service || !Array.isArray(matches) || !matches.length) return [];
+    const want = new Map<number, AiMatch>();
+    for (const m of matches) {
+      const id = Number(m?.stream_id);
+      if (!Number.isInteger(id) || id <= 0 || (m.confidence !== 'high' && m.confidence !== 'medium')) continue;
+      const had = want.get(id);
+      if (!had || (had.confidence === 'medium' && m.confidence === 'high')) want.set(id, m);
+    }
+    if (!want.size) return [];
+    let tokens: Set<string> | null = null;
+    const out: GameChannel[] = [];
+    const seen = new Set<string>();
+    for (const c of channels) {
+      const m = want.get(Number(c.stream?.stream_id));
+      if (!m || serviceOf(c.line) !== service) continue;
+      const k = linkKey(c);
+      if (seen.has(k)) continue;
+      const name = String(c.stream?.name ?? '').trim();
+      if (name !== String(m.name ?? '').trim()) {
+        tokens ??= new Set(teamTokens(game));
+        if (!plain(name).split(' ').some((t) => tokens!.has(t))) continue;
+      }
+      seen.add(k);
+      out.push({ line: c.line, stream: c.stream, score: m.confidence === 'high' ? 85 : 75, via: 'game', search: m.confidence });
+    }
+    return out.sort((a, b) => b.score - a.score);
+  } catch {
+    return [];
+  }
+}
+
+/** A channel the line-up search may look at: a matchup, a channel of a
+ *  conference, service or event family, or a numbered feed of one; never a
+ *  24/7 loop, a kids, music or film one, or PPV (fights and shows, never a
+ *  team's game). 2 the surest, 0 not one. */
+const scanRank = (c: SportsChannel): number => {
+  if (NOT_SPORTS.test(c.cat) || LOOP.test(String(c.stream?.name ?? ''))) return 0;
+  if (!c.leagues.length && PPV.test(`${c.cat} ${c.full}`)) return 0;
+  if (c.sides) return 2;
+  if (c.fam?.length || c.service || /\b(events?|live events?)\b/.test(`${c.cat} ${c.name}`)) return 1;
+  return c.leagues.length && /\b\d{1,3}\b/.test(c.name) && !LEAGUE_CHANNEL.test(c.name) ? 1 : 0;
+};
+
+/** This box's channels on one provider (`host`) a line-up search should
+ *  look at, each once, the matchups first, at most `max`: only its id, name
+ *  and category (never a login, a password or an address). */
+export function scanCandidates(channels: SportsChannel[], host: string, max = 2000): ScanCandidate[] {
+  const service = serviceOf(host);
+  if (!service) return [];
+  const sure: ScanCandidate[] = [];
+  const maybe: ScanCandidate[] = [];
+  const seen = new Set<number>();
+  for (const c of channels) {
+    if (serviceOf(c.line) !== service) continue;
+    const id = Number(c.stream?.stream_id);
+    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue;
+    const r = scanRank(c);
+    if (!r) continue;
+    seen.add(id);
+    (r === 2 ? sure : maybe).push({ id, name: String(c.stream?.name ?? '').trim().slice(0, 80), cat: c.cat.slice(0, 40) });
+  }
+  return [...sure, ...maybe].slice(0, Math.max(0, max));
+}
+
+/** A short fingerprint of a line-up search's channels (their ids and names,
+ *  in id order): the same channels give the same one, on any box. */
+export function lineupHash(c: ScanCandidate[]): string {
+  const rows = (Array.isArray(c) ? c : [])
+    .map((x) => ({ id: Number(x?.id) || 0, name: String(x?.name ?? '') }))
+    .sort((a, b) => a.id - b.id || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  // Two 32-bit FNV-1a hashes with different starts: 64 bits in all.
+  let h1 = 0x811c9dc5, h2 = 0x01000193 ^ 0x5bd1e995;
+  const eat = (text: string) => {
+    for (let i = 0; i < text.length; i++) {
+      const ch = text.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 0x01000193);
+      h2 = Math.imul(h2 ^ ch, 0x01000193) ^ (h2 >>> 13);
+    }
+  };
+  for (const r of rows) eat(`${r.id}\u0001${r.name}\u0002`);
+  const hex = (n: number) => (n >>> 0).toString(16).padStart(8, '0');
+  return `${hex(h1)}${hex(h2)}`;
+}
+
 // ── the guide ──────────────────────────────────────────────────────────────
 
 /** Guide lookups for one game's list, four at a time: the networks and
@@ -1401,10 +1954,10 @@ const listingMatcher = (g: Game): ((text: string) => boolean) => {
     return (h.strong && (a.strong || a.weak)) || (a.strong && h.weak);
   };
 };
-const listingText = (e: Listing): string => ` ${normalizeSpeech(`${e.title} ${e.description}`)} `;
+const listingText = (e: Listing): string => ` ${plain(`${e.title} ${e.description}`)} `;
 const guideNote = (e: Listing, g: Game): string => {
   const title = e.title.trim();
-  const more = listingMatcher(g)(` ${normalizeSpeech(title)} `) ? '' : e.description.trim();
+  const more = listingMatcher(g)(` ${plain(title)} `) ? '' : e.description.trim();
   const s = more ? `${title} — ${more}` : title;
   return i18n.t('gameDay.guide.note', { text: s.length > 140 ? `${s.slice(0, 139)}…` : s });
 };
