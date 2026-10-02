@@ -1550,7 +1550,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const startedAt = Date.now();
     const sample = (minutes: number) => {
       if (!shouldSampleEngines(mpvInBuildRef.current, statsShownRef.current)) return;
-      void SnowPlayer.getStats().then((st) => recordEngineSample(sampleFromStats(st, minutes))).catch(() => undefined);
+      void SnowPlayer.getStats({ memory: true }).then((st) => recordEngineSample(sampleFromStats(st, minutes))).catch(() => undefined);
     };
     const t = window.setTimeout(() => sample(1), 60_000);
     return () => {

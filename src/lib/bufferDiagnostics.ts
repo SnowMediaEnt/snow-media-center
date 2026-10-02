@@ -683,7 +683,7 @@ export function recordPlayerRate(kbps: number): void {
   if (!Number.isFinite(kbps) || kbps < 0 || kbps > 5_000_000) return;
   const t = now();
   // Taken mid-stall: automatic quality's proof of what the server delivers
-  // when the player pulls flat out (plexAutoQuality.starvedKbps).
+  // when the player pulls flat out (plexAutoQuality.deliveredKbps).
   state.playerRates.push(state.buffering ? { t, kbps, stalled: true } : { t, kbps });
   // A film's "was": the best window of its first 30 s. Live channels keep
   // their card as it was.

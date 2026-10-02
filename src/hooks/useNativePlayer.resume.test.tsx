@@ -294,6 +294,14 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(load).toContain('s.rangeFetch = rangeFetch && !live');
     // The stats panel says how many connections the stream is read over.
     expect(plugin).toContain('o.put("fetchConnections", if (s != null && s.rangeFetch) (s.rangeShared?.liveConnections?.get() ?: 0) else 1)');
+    // A piece's connection is only ever its current attempt's: set under the
+    // lock when the attempt still holds (a stall re-request may have ended it
+    // while it connected), and cleared only by the worker that set it.
+    const fetch = rangeSource.slice(rangeSource.indexOf('private fun fetch('), rangeSource.indexOf('private fun connect('));
+    expect(fetch).toMatch(/val current = synchronized\(lock\) \{\s*if \(attempt == c\.attempt\) c\.connection = made\s*attempt == c\.attempt\s*\}\s*if \(!current\) return\s*shared\.liveConnections\.incrementAndGet\(\)/);
+    expect(fetch).toMatch(/val current = synchronized\(lock\) \{\s*if \(attempt == c\.attempt\) c\.connection = pre\s*attempt == c\.attempt\s*\}\s*if \(!current\) return/);
+    expect(fetch).toMatch(/synchronized\(lock\) \{\s*\/\/[^\n]*\n\s*if \(c\.connection === conn\) c\.connection = null/);
+    expect(fetch).not.toMatch(/^\s*c\.connection = (conn|null)$/m);
     // The source itself: pieces in order, a small first piece, an error
     // status reported like the library's own source.
     expect(rangeSource).toContain('class RangeFetchDataSource(');

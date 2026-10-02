@@ -1,8 +1,9 @@
 // End-of-title playback stats: one analytics event per Plex title played on
 // the native player, with what Playback stats would have shown at the end —
 // arrival speed (average, slowest, fastest), stalls, restarts, the last error
-// and its HTTP status, download connections, and which kind of path the
-// stream took (route, port, IP family). So the Hub can compare boxes, routes
+// and its HTTP status, how the file was read (over several connections, and
+// how many at most), and which kind of path the stream took (route, port, IP
+// family). So the Hub can compare boxes, routes
 // and builds without asking a customer for a photo of the stats panel.
 //
 // - A title ends when the player closes (the Plex playback flag goes off) or
@@ -55,7 +56,11 @@ export function plexTitleStatsProps(
     lastRestartReason: st.lastRestartReason ? String(st.lastRestartReason).slice(0, 80) : null,
     lastError: st.lastError ? String(st.lastError).slice(0, 64) : null,
     httpStatus: num(st.httpStatus) != null && (st.httpStatus as number) > 0 ? st.httpStatus : null,
-    connections: round(st.fetchConnections),
+    // How the file was read: over several connections (a remote server's
+    // file) and how many at most, refusals included. Not the live count
+    // (fetchConnections), which at the end says only what was in flight.
+    rangeFetch: typeof st.rangeFetch === 'boolean' ? st.rangeFetch : null,
+    connectionCap: round(st.connectionCap),
     droppedFrames: round(st.droppedFrames),
     lowRamBox: typeof ext.lowRamBox === 'boolean' ? ext.lowRamBox : null,
     route: route?.route ?? 'unknown',

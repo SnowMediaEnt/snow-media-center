@@ -2451,9 +2451,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // polled every window, or, before a plugin that reports it, the player's
   // bandwidth reports (bufferDiagnostics, the same measure since 1.8.1).
   // `native`: whether the plugin reports it (false: an older plugin, null
-  // until a sample is in); `connections`: how many the stream is read over,
-  // as it reports them.
-  const arrivalRef = useRef<{ samples: RateReport[]; native: boolean | null; connections: number | null }>({ samples: [], native: null, connections: null });
+  // until a sample is in).
+  const arrivalRef = useRef<{ samples: RateReport[]; native: boolean | null }>({ samples: [], native: null });
   const rates = useCallback((): RateReport[] => (arrivalRef.current.samples.length ? arrivalRef.current.samples : getPlayerRates()), []);
   // Starts a conversion the way Plex's own players do (filled in below, with
   // automatic quality): 'refused' when the server turned it down at its
@@ -3761,13 +3760,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // A replay of the same title keeps the conversions that failed on it.
     const failed = prev.key && prev.key === key ? prev.aq.failedKeys() : [];
     autoQRef.current = { key, aq: new AutoQuality(Date.now(), failed), probeAt: 0, probeKbps: null, sustainedKbps: null };
-    arrivalRef.current = { samples: [], native: null, connections: null };
+    arrivalRef.current = { samples: [], native: null };
   }, [playing?.ratingKey, playSeq]);
   const bufferingRef = useRef(false); bufferingRef.current = native.buffering;
   // The one measurement: the player's arrival rate, polled every window
   // from getStats (arrivalKbps, bytes as they arrive from the network). A
   // plugin that does not report it (built before it) leaves the bandwidth
   // reports in charge (rates()). Kept for the title, three minutes back.
+  // Restarted with the title too (after the reset above, which replaces the
+  // samples), so a new title never polls into the old one's, whether or not
+  // the player closed in between.
   useEffect(() => {
     if (!nativeActive) return;
     const a = arrivalRef.current;
@@ -3775,20 +3777,22 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const id = window.setInterval(async () => {
       if (a.native === false) return;
       try {
-        const s = await SnowPlayer.getStats() as { arrivalKbps?: number | null; fetchConnections?: number | null };
+        const s = await SnowPlayer.getStats();
         if (!alive || arrivalRef.current !== a) return;
         if (!('arrivalKbps' in s)) { a.native = false; window.clearInterval(id); return; }
-        // A live count: 0 while the window is full, which says nothing.
-        if (typeof s.fetchConnections === 'number' && s.fetchConnections > 0) a.connections = s.fetchConnections;
         if (typeof s.arrivalKbps !== 'number' || !Number.isFinite(s.arrivalKbps) || s.arrivalKbps < 0) return;
         a.native = true;
+        // One zero, then quiet, as with the bandwidth reports: repeated zeros
+        // would keep moving the last sample up and cap how long it reads quiet.
+        const last = a.samples[a.samples.length - 1];
+        if (s.arrivalKbps === 0 && last && last.kbps <= 0) return;
         const t = Date.now();
         a.samples.push(bufferingRef.current ? { t, kbps: s.arrivalKbps, stalled: true } : { t, kbps: s.arrivalKbps });
         while (a.samples.length > 1 && a.samples[0].t < t - RATES_KEPT_MS) a.samples.shift();
       } catch { /* an app without getStats: the bandwidth reports */ }
     }, RATE_TICK_MS);
     return () => { alive = false; window.clearInterval(id); };
-  }, [nativeActive]);
+  }, [nativeActive, playing?.ratingKey, playSeq]);
   // The ladder as it stands now (versions and the file's bitrate arrive
   // after the start), where playback is on it, and the highest it may go.
   const autoLadder = useCallback((): { ladder: QualityStep[]; index: number; ceiling: number } => {
@@ -3937,7 +3941,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       const part = playVersionRef.current?.partKey ?? playVersionsRef.current.find((v) => v.partKey)?.partKey;
       if (!part) return;
       st.probeAt = now;
-      const connections = arrivalRef.current.connections ?? playbackConnections(conn.base, connRef.current?.route, rangeFetchFlagRef.current);
+      // The file is read over as many connections as the player would use
+      // for it; a conversion over one.
+      const connections = ladder[up]?.presetKey === 'original' ? playbackConnections(conn.base, connRef.current?.route, rangeFetchFlagRef.current) : 1;
       void measurePlexSpeed(conn.base, conn.token, part, { fresh: true, connections, maxBytes: RAISE_PROBE_BYTES, maxMs: RAISE_PROBE_MS }).then((k) => {
         if (autoQRef.current === st) { st.probeKbps = k; st.probeAt = Date.now(); }
       });

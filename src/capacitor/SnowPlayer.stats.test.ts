@@ -15,6 +15,7 @@ const KEYS: Array<keyof PlayerStats> = [
   'videoDecoder', 'videoFormat', 'renderedFrames', 'droppedFrames',
   'audioDecoder', 'audioFormat',
   'restarts', 'lastRestartReason', 'lastError', 'httpStatus', 'loadProfile', 'fetchConnections', 'lowRamBox',
+  'rangeFetch', 'connectionCap',
   'javaHeapMb', 'nativeHeapMb',
   'engine', 'firstFrameMs', 'stalls', 'stallSec', 'cpuPct', 'pssMb',
 ];
@@ -31,6 +32,7 @@ describe('SnowPlayer.getStats — web / no native player', () => {
       videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null,
       audioDecoder: null, audioFormat: null,
       restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null, fetchConnections: null, lowRamBox: null,
+      rangeFetch: false, connectionCap: 1,
       javaHeapMb: null, nativeHeapMb: null,
       engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
     });
@@ -133,9 +135,22 @@ describe('SnowPlayerPlugin.kt — getStats', () => {
   it('is a plugin method that reads the player on its own thread, and never makes a slot', () => {
     const m = body('fun getStats(call: PluginCall)');
     expect(plugin).toMatch(/@PluginMethod\s*fun getStats\(call: PluginCall\)/);
-    expect(m).toContain('act.runOnUiThread { call.resolve(statsOf(slots[screenId])) }');
-    expect(m).toContain('call.resolve(statsOf(null))');
+    expect(m).toContain('act.runOnUiThread { call.resolve(statsOf(slots[screenId], memory)) }');
+    expect(m).toContain('call.resolve(statsOf(null, memory))');
     expect(m).not.toContain('slotFor(');
+  });
+
+  it('reads the PSS only when asked for (the stats panel), never for the arrival poll every film runs', () => {
+    expect(body('fun getStats(call: PluginCall)')).toContain('val memory = call.getBoolean("memory", false) == true');
+    const whole = plugin.slice(plugin.indexOf('private fun statsOf('), plugin.indexOf('private fun cpuPctSince('));
+    expect(whole.match(/cachedPssMb\(\)/g)).toHaveLength(2);
+    expect(whole.match(/o\.put\("pssMb", if \(memory\) cachedPssMb\(\) else JSONObject\.NULL\)/g)).toHaveLength(2);
+  });
+
+  it('says whether the file is read over several connections, and the most it may use', () => {
+    expect(stats).toContain('val rangeFetch = s != null && s.rangeFetch');
+    expect(stats).toContain('o.put("rangeFetch", rangeFetch)');
+    expect(stats).toContain('o.put("connectionCap", if (rangeFetch) (s?.rangeShared?.connectionCap ?: 1) else 1)');
   });
 
   it('never sends a URL', () => {

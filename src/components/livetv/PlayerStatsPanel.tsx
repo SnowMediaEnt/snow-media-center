@@ -104,7 +104,8 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, routeEndpoint,
       if (busy) return;
       busy = true;
       try {
-        const st = await SnowPlayer.getStats(screenId ? { screenId } : undefined);
+        // The panel shows the process's memory: the only regular reader that asks for it.
+        const st = await SnowPlayer.getStats(screenId ? { screenId, memory: true } : { memory: true });
         if (alive) { setStats(st); setUnavailable(false); }
       } catch {
         if (alive) setUnavailable(true);

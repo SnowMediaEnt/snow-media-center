@@ -748,18 +748,31 @@ describe('raising the quality back up: the read of the file', () => {
     }));
   });
 
-  it('on a direct route, a converted stream due a raise reads a few MB of the file over the connections playback reads with', async () => {
+  // The diagnostics' own small stall probes aside.
+  const probeReads = () => rangeHeaders().filter((r) => r !== 'bytes=0-131071');
+
+  it('on a direct route, a converted stream due a raise to a lighter conversion reads a few MB of the file over one connection, as a conversion is read', async () => {
     await playingDune();
     await deliverInStall([4000, 4000, 4000]);
     await until(() => expect(cap(lastUrl())).toBe('3000'));
     await started();
-    // Raising waits ten minutes after a delivery drop; then the read (the
-    // diagnostics' own small stall probes aside).
-    const probeReads = () => rangeHeaders().filter((r) => r !== 'bytes=0-131071');
+    // Raising waits ten minutes after a delivery drop; then the read.
     await wait(5 * 60_000);
     expect(probeReads()).toEqual([]);
     await wait(5.5 * 60_000);
-    // Four stretches of 1.5 MB each.
+    // Next up is 720p · 4 Mbps, another conversion: one stretch of 6 MB.
+    expect(probeReads()).toEqual(['bytes=0-6291455']);
+  });
+
+  it('due a raise back to the file: over the connections the file plays with, whatever live count the player reports', async () => {
+    // A conversion is read over one connection, and the player says so live.
+    h.stats.mockImplementation(async () => ({ ...emptyPlayerStats(), fetchConnections: 1 }));
+    await playingDune();
+    await deliverInStall([5500, 5500, 5500]);
+    await until(() => expect(cap(lastUrl())).toBe('4000'));
+    await started();
+    await wait(10.5 * 60_000);
+    // Next up is the file, read over four: four stretches of 1.5 MB each.
     expect(probeReads()).toEqual(['bytes=0-1572863', 'bytes=1572864-3145727', 'bytes=3145728-4718591', 'bytes=4718592-6291455']);
   });
 
@@ -771,6 +784,53 @@ describe('raising the quality back up: the read of the file', () => {
     await wait(5 * 60_000);
     expect(cap(lastUrl())).toBe('2000');
     expect(rangeHeaders()).toEqual([]);
+  });
+});
+
+describe('the arrival poll: getStats every window, the one measurement', () => {
+  // What the player says arrived over its last window, kbps.
+  let arrival = 7500;
+  beforeEach(() => {
+    arrival = 7500;
+    h.stats.mockImplementation(async () => ({ ...emptyPlayerStats(), arrivalKbps: arrival }));
+  });
+  /** A stall of three windows in which the poll alone says what arrived. */
+  async function pollStall(kbps: number) {
+    stallBoth();
+    arrival = kbps;
+    await wait(12_000);
+    arrival = 7500;
+    playOn();
+  }
+
+  it('alone drives the down rule, and never asks for the PSS (only the stats panel does)', async () => {
+    await playingDune();
+    await pollStall(4000);
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
+    expect(h.stats.mock.calls.length).toBeGreaterThan(10);
+    expect(h.stats.mock.calls.filter((c) => (c[0] as { memory?: boolean } | undefined)?.memory)).toEqual([]);
+  });
+
+  it('a server that goes quiet reads as quiet for as long as it lasts, not as a fresh zero every window', async () => {
+    await playingDune();
+    stallBoth();
+    arrival = 0;
+    await wait(20_000);
+    const quiet = /No data from the server for (\d+) s\./.exec(document.body.textContent ?? '');
+    expect(quiet).not.toBeNull();
+    expect(Number(quiet?.[1])).toBeGreaterThanOrEqual(15);
+  });
+
+  it('carries on for the next title started from the player (Up Next, a restart), which starts its own samples', async () => {
+    await playingDune();
+    // The next title, started with the player still open.
+    fireEvent.click(await screen.findByText('PLAY:Other'));
+    await until(() => expect(h.urls.length).toBeGreaterThan(1));
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); markPlaybackStart(); });
+    await wait(31_000);
+    await pollStall(4000);
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
   });
 });
 

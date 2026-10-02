@@ -29,7 +29,8 @@ const STATS = {
   nowKbps: 21000, avgKbps: 24567.8, minKbps: 5700, maxKbps: 61000,
   videoDecoder: 'c2.amlogic.hevc.decoder', videoFormat: 'HEVC 3840x1600', renderedFrames: 1000, droppedFrames: 12,
   audioDecoder: 'Passthrough', audioFormat: 'EAC3 6ch', restarts: 1, lastRestartReason: 'server stopped responding',
-  lastError: 'ERROR_CODE_IO_BAD_HTTP_STATUS', httpStatus: 503, loadProfile: 'steady', fetchConnections: 4,
+  lastError: 'ERROR_CODE_IO_BAD_HTTP_STATUS', httpStatus: 503, loadProfile: 'steady', fetchConnections: 0,
+  rangeFetch: true, connectionCap: 3,
   javaHeapMb: 40, nativeHeapMb: 80, engine: 'exo', firstFrameMs: 2100, stalls: 3, stallSec: 7.25, cpuPct: 30, pssMb: 300,
   arrivalKbps: 22000, lowRamBox: true,
 } as PlayerStats & { arrivalKbps: number; lowRamBox: boolean };
@@ -44,12 +45,12 @@ beforeEach(() => {
 });
 
 describe('plexTitleStatsProps', () => {
-  it('reports arrival speed, stalls, restarts, the last error, connections and the route\'s kind', () => {
+  it('reports arrival speed, stalls, restarts, the last error, how the file was read and the route\'s kind', () => {
     expect(plexTitleStatsProps(STATS, { base: PD, route: 'direct' }, 'smcp-1')).toEqual({
       session: 'smcp-1', engine: 'exo', state: 'ready', positionSec: 1235, durationSec: 5400, firstFrameMs: 2100,
       avgKbps: 24568, minKbps: 5700, maxKbps: 61000, arrivalKbps: 22000,
       stalls: 3, stallSec: 7.3, restarts: 1, lastRestartReason: 'server stopped responding',
-      lastError: 'ERROR_CODE_IO_BAD_HTTP_STATUS', httpStatus: 503, connections: 4, droppedFrames: 12, lowRamBox: true,
+      lastError: 'ERROR_CODE_IO_BAD_HTTP_STATUS', httpStatus: 503, rangeFetch: true, connectionCap: 3, droppedFrames: 12, lowRamBox: true,
       route: 'direct', addressKind: 'plex.direct', port: 32400, ipFamily: 'IPv4', secure: true,
     });
   });
@@ -69,8 +70,9 @@ describe('plexTitleStatsProps', () => {
   it('copes with an older app that leaves the newer figures out', () => {
     const old = { ...STATS } as Record<string, unknown>;
     delete old.arrivalKbps; delete old.lowRamBox; delete old.httpStatus; delete old.fetchConnections;
+    delete old.rangeFetch; delete old.connectionCap;
     expect(plexTitleStatsProps(old as unknown as PlayerStats, null, null)).toMatchObject({
-      arrivalKbps: null, lowRamBox: null, httpStatus: null, connections: null, route: 'unknown', port: null,
+      arrivalKbps: null, lowRamBox: null, httpStatus: null, rangeFetch: null, connectionCap: null, route: 'unknown', port: null,
     });
   });
 });

@@ -1538,16 +1538,19 @@ class SnowPlayerPlugin : Plugin() {
      * player's own getters, the bandwidth tick's samples, the decoder names
      * the analytics listener kept — so a read costs the answer and nothing
      * more. Codec names, numbers and error code names only, never a URL or a
-     * token. A slot with no player answers with zeros and nulls.
+     * token. A slot with no player answers with zeros and nulls. `memory`
+     * (the stats panel) asks for the process's PSS too: Debug.getPss() is
+     * not cheap, so the arrival poll every film runs leaves it out (null).
      */
     @PluginMethod
     fun getStats(call: PluginCall) {
         val screenId = screenIdOf(call)
-        val act = activity ?: run { call.resolve(statsOf(null)); return }
-        act.runOnUiThread { call.resolve(statsOf(slots[screenId])) }
+        val memory = call.getBoolean("memory", false) == true
+        val act = activity ?: run { call.resolve(statsOf(null, memory)); return }
+        act.runOnUiThread { call.resolve(statsOf(slots[screenId], memory)) }
     }
 
-    private fun statsOf(s: PlayerSlot?): JSObject {
+    private fun statsOf(s: PlayerSlot?, memory: Boolean): JSObject {
         // mpv already builds this same shape (SecondEngine.stats) — only
         // engine/cpuPct/pssMb, which know about neither engine specifically,
         // are added here.
@@ -1555,7 +1558,7 @@ class SnowPlayerPlugin : Plugin() {
             val o = s.second!!.stats()
             o.put("engine", EngineChoice.MPV)
             o.put("cpuPct", cpuPctSince(s)?.let { Math.round(it * 10.0) / 10.0 } ?: JSONObject.NULL)
-            o.put("pssMb", cachedPssMb())
+            o.put("pssMb", if (memory) cachedPssMb() else JSONObject.NULL)
             o.put("lowRamBox", isLowRamBoxCached())
             return o
         }
@@ -1630,6 +1633,11 @@ class SnowPlayerPlugin : Plugin() {
         // nothing is in flight); 1 for a conversion, Live TV, or a server on
         // this network.
         o.put("fetchConnections", if (s != null && s.rangeFetch) (s.rangeShared?.liveConnections?.get() ?: 0) else 1)
+        // Whether this load reads the file over several connections, and how
+        // many it may use at most (lowered by a refusal); 1 otherwise.
+        val rangeFetch = s != null && s.rangeFetch
+        o.put("rangeFetch", rangeFetch)
+        o.put("connectionCap", if (rangeFetch) (s?.rangeShared?.connectionCap ?: 1) else 1)
         o.put("lowRamBox", isLowRamBoxCached())
         val rt = Runtime.getRuntime()
         o.put("javaHeapMb", (rt.totalMemory() - rt.freeMemory()) / MIB)
@@ -1639,7 +1647,7 @@ class SnowPlayerPlugin : Plugin() {
         o.put("stalls", s?.stalls ?: 0)
         o.put("stallSec", s?.let { Math.round(it.stallSec * 10.0) / 10.0 } ?: 0.0)
         o.put("cpuPct", s?.let { cpuPctSince(it) }?.let { Math.round(it * 10.0) / 10.0 } ?: JSONObject.NULL)
-        o.put("pssMb", cachedPssMb())
+        o.put("pssMb", if (memory) cachedPssMb() else JSONObject.NULL)
         return o
     }
 

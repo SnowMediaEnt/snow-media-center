@@ -74,7 +74,8 @@ describe('the stats panel', () => {
       'CPU 18.2%', 'Process 210 MB', 'Java 61 MB', 'Native 142 MB',
       'ExoPlayer', 'First picture 340 ms', 'Stalls 1 (2.4 s)',
     ]) expect(text).toContain(part);
-    expect(h.getStats).toHaveBeenCalledWith(undefined);
+    // The only regular reader that asks for the process's memory (the PSS).
+    expect(h.getStats).toHaveBeenCalledWith({ memory: true });
   });
 
   it('nothing known yet reads as dashes; converting says to what', async () => {

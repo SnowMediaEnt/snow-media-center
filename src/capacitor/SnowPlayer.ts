@@ -128,6 +128,12 @@ export interface PlayerStats {
    *  (rangeFetch; 0 while its window is full and nothing is in flight),
    *  1 otherwise. Older builds leave it out, or report the fixed count. */
   fetchConnections?: number | null;
+  /** Whether this load reads the file over several connections at once (a
+   *  Plex file from a remote server), and how many it may use at most (the
+   *  cap, lowered by a refusal); false and 1 otherwise. Older builds leave
+   *  them out. */
+  rangeFetch?: boolean;
+  connectionCap?: number;
   /** Whether the box is low on RAM (2 GB class: isLowRamDevice, or about
    *  2 GB of total memory), as the plugin sizes its buffers by. Older
    *  builds leave it out. */
@@ -145,7 +151,8 @@ export interface PlayerStats {
   /** CPU used by this whole process since load(), against wall time since
    *  load() — not just this stream's own decoding. Null before a load(). */
   cpuPct: number | null;
-  /** This process's PSS, cached for a few seconds. */
+  /** This process's PSS, cached for a few seconds. Only read when asked for
+   *  (getStats({ memory: true })), null otherwise. */
   pssMb: number | null;
 }
 
@@ -158,6 +165,7 @@ export function emptyPlayerStats(): PlayerStats {
     videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null,
     audioDecoder: null, audioFormat: null,
     restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null, fetchConnections: null, lowRamBox: null,
+    rangeFetch: false, connectionCap: 1,
     javaHeapMb: null, nativeHeapMb: null,
     engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
   };
@@ -236,8 +244,10 @@ export interface SnowPlayerPlugin {
   /** Whether this device can software-decode Dolby/DTS. Use for diagnostics. */
   getDecoderInfo(): Promise<SnowDecoderInfo>;
   /** The stats panel's figures for a slot (main by default); see PlayerStats.
-   *  An app built before this existed rejects the call. */
-  getStats(opts?: SnowScreenOpts): Promise<PlayerStats>;
+   *  `memory` also reads the process's PSS (not cheap: the stats panel and
+   *  the engine comparison only). An app built before this existed rejects
+   *  the call. */
+  getStats(opts?: SnowScreenOpts & { memory?: boolean }): Promise<PlayerStats>;
   /** Whether mpv is offered on this box right now (owner test builds only),
    *  and why not when it isn't. An app built before this existed rejects
    *  the call — callers treat that the same as { available: false }. */

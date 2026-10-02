@@ -608,8 +608,16 @@ class RangeFetchDataSource(
         try {
             if (conn == null) {
                 val from = c.start + c.filled
-                conn = connect(c.open.url, spec, from, c.start + c.length - 1)
-                c.connection = conn
+                val made = connect(c.open.url, spec, from, c.start + c.length - 1)
+                conn = made
+                // A stall re-request may have ended this attempt while it
+                // connected (when the piece had no connection yet to cut):
+                // then it is never the piece's, and goes (finally).
+                val current = synchronized(lock) {
+                    if (attempt == c.attempt) c.connection = made
+                    attempt == c.attempt
+                }
+                if (!current) return
                 shared.liveConnections.incrementAndGet()
                 counted = true
                 if (c.cancelled && !c.drain) return
@@ -641,7 +649,11 @@ class RangeFetchDataSource(
                     }
                 }
             } else {
-                c.connection = conn
+                val current = synchronized(lock) {
+                    if (attempt == c.attempt) c.connection = pre
+                    attempt == c.attempt
+                }
+                if (!current) return
                 shared.liveConnections.incrementAndGet()
                 counted = true
             }
@@ -700,8 +712,9 @@ class RangeFetchDataSource(
                 try { conn?.disconnect() } catch (_: Throwable) { /* already gone */ }
             }
             if (counted) shared.liveConnections.decrementAndGet()
-            c.connection = null
             synchronized(lock) {
+                // Only its own: the attempt that took over may have one by now.
+                if (c.connection === conn) c.connection = null
                 val e = failure
                 if (e != null && !c.cancelled && attempt == c.attempt) {
                     val wrapped = e as? HttpDataSource.HttpDataSourceException
