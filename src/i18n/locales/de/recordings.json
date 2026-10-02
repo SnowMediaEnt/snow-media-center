@@ -139,6 +139,7 @@
         "streamsUnknown": "Dieses Gerät kann nicht feststellen, wie viele Streams dein Tarif erlaubt, daher funktioniert Zurückspulen nur bei Sendern mit Zeitversatz.",
         "recording": "Zurückspulen pausiert während der Aufnahme (die Streams deines Tarifs sind belegt).",
         "engine": "Zurückspulen benötigt die ExoPlayer-Engine. Ändere sie unter Live-TV-Einstellungen › Wiedergabe.",
+        "device": "Auf diesem Gerät funktioniert Zurückspulen nur bei Sendern mit Zeitversatz.",
         "lineChecking": "Zurückspulen prüft, ob dein Zugang einen freien Stream hat. Versuche es in ein paar Sekunden erneut.",
         "lineFull": "Zurückspulen ist aus: Ein anderes Gerät nutzt die Streams deines Zugangs. Beim nächsten Sender wird es erneut versucht.",
         "lineUnknown": "Zurückspulen ist aus: Dieses Gerät konnte nicht prüfen, ob dein Zugang einen freien Stream hat. Beim nächsten Sender wird es erneut versucht.",

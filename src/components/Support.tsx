@@ -35,6 +35,7 @@ import { useSnowMail } from '@/hooks/useSnowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { peekPlexDeeplink, renewPlexDeeplink } from '@/lib/plexDeeplink';
 import { BackButton, HEADER_ROW } from '@/components/ui/BackButton';
+import { canManageApps } from '@/utils/platform';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
@@ -72,6 +73,11 @@ const HELP_IDS = [
  *  the server) stay. */
 const KIDS_HIDDEN = new Set<string>(['help-tickets', 'help-remote', 'help-cleaner', 'help-apps']);
 
+/** The iPhone build's Support: no Remote Access (the technician's app drives
+ *  an Android box), Device Cleaner (Android's apps and caches) or Main Apps
+ *  (APKs). Everything else stays. */
+const NO_APPS_HIDDEN = new Set<string>(['help-remote', 'help-cleaner', 'help-apps']);
+
 /** Matches the `md:` breakpoint the card grid switches columns at. */
 const HELP_TWO_COL = '(min-width: 768px)';
 
@@ -82,10 +88,15 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   // Where to land: the assistant (or a How-to link) can ask for a tab or a
   // tool before Support mounts. Read once, then it is an ordinary visit.
   const kids = !!kidsLevel();
-  const helpIds = useMemo(() => (kids ? HELP_IDS.filter((id) => !KIDS_HIDDEN.has(id)) : [...HELP_IDS]), [kids]);
+  // False only on the iPhone build (see NO_APPS_HIDDEN).
+  const deviceTools = canManageApps();
+  const helpIds = useMemo(
+    () => HELP_IDS.filter((id) => !(kids && KIDS_HIDDEN.has(id)) && (deviceTools || !NO_APPS_HIDDEN.has(id))),
+    [kids, deviceTools],
+  );
   const [landing] = useState(() => {
     const l = peekIntent(INTENT_KEYS.support);
-    return kids && (l === 'tickets' || l === 'cleaner' || l === 'posts') ? null : l;
+    return (kids && (l === 'tickets' || l === 'cleaner' || l === 'posts')) || (!deviceTools && l === 'cleaner') ? null : l;
   });
   useEffect(() => { clearIntent(INTENT_KEYS.support); }, []);
   const [tab, setTab] = useState<Tab>(landing === 'posts' ? 'mail' : landing === 'ai' ? 'ai' : 'help');
@@ -124,6 +135,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       const guide = flag('smc-open-buffering-guide');
       const howTo = flag('smc-open-howto');
       if (kids && (l === 'tickets' || l === 'cleaner' || l === 'posts')) return;
+      if (!deviceTools && l === 'cleaner') return;
       if (l === 'posts') { setChildFocusActive(false); setTab('mail'); return; }
       if (l === 'ai') { setTab('ai'); return; }
       if (!l && !guide && !howTo) return;
@@ -135,7 +147,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     };
     window.addEventListener(SCREEN_INTENT_EVENT, on);
     return () => window.removeEventListener(SCREEN_INTENT_EVENT, on);
-  }, [kids]);
+  }, [kids, deviceTools]);
   // Origin of the guide open — 'plex-movie' means close should return to Plex.
   const [guideOrigin, setGuideOrigin] = useState<string | null>(() => {
     try { return sessionStorage.getItem('smc-guide-origin'); } catch { return null; }
@@ -164,7 +176,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const launchApp = useCallback(async (app: AppData) => {
     try {
       const { Capacitor } = await import('@capacitor/core');
-      if (!Capacitor.isNativePlatform()) {
+      // The web and the iPhone build have no box apps to start.
+      if (!Capacitor.isNativePlatform() || !canManageApps()) {
         toast({ title: t('support.toast.launchUnavailableTitle'), description: t('support.toast.launchUnavailableDesc') });
         return;
       }
@@ -181,7 +194,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const openAppSettings = useCallback(async (app: AppData) => {
     try {
       const { Capacitor } = await import('@capacitor/core');
-      if (!Capacitor.isNativePlatform()) {
+      if (!Capacitor.isNativePlatform() || !canManageApps()) {
         toast({ title: t('support.toast.appInfoUnavailableTitle'), description: t('support.toast.appInfoUnavailableDesc') });
         return;
       }
@@ -380,7 +393,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       setTab('help'); setHelpView('menu'); setShowGuide(true);
     };
     const openHowTo = () => { setTab('help'); setHelpView('menu'); setShowHowTo(true); };
-    const openCleaner = () => { if (kids) return; setTab('help'); setHelpView('cleaner'); };
+    const openCleaner = () => { if (kids || !deviceTools) return; setTab('help'); setHelpView('cleaner'); };
     const openPosts = () => { if (kids) return; setChildFocusActive(false); setTab('mail'); };
     window.addEventListener('support:focus-tab', handler as EventListener);
     window.addEventListener('support:open-tickets', openTickets);
@@ -397,7 +410,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       window.removeEventListener('support:open-howto', openHowTo);
     };
 
-  }, [scrollSupportToRealTop, supportFocus, tab, kids]);
+  }, [scrollSupportToRealTop, supportFocus, tab, kids, deviceTools]);
 
 
 
@@ -588,7 +601,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 </span>
               </Button>
               )}
-              {!kids && (
+              {!kids && deviceTools && (
               <Button
                 onClick={() => setHelpView('remote')}
                 variant="outline"
@@ -605,7 +618,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 </span>
               </Button>
               )}
-              {!kids && (
+              {!kids && deviceTools && (
               <Button
                 onClick={() => setHelpView('cleaner')}
                 variant="outline"
@@ -623,7 +636,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               </Button>
               )}
               {/* Main Apps moved here from the Home screen. */}
-              {!kids && (
+              {!kids && deviceTools && (
               <Button
                 onClick={() => onNavigate?.('apps')}
                 variant="outline"

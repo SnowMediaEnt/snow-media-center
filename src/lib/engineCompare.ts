@@ -7,7 +7,7 @@
 import type { PlayerStats } from '@/capacitor/SnowPlayer';
 
 export interface EngineSample {
-  engine: 'exo' | 'mpv';
+  engine: 'exo' | 'mpv' | 'vlc';
   /** Time to first picture, ms — null if the load hadn't drawn one yet. */
   firstPictureMs: number | null;
   stalls: number;

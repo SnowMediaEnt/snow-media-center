@@ -53,6 +53,38 @@ export const getPlatform = (): 'android' | 'ios' | 'web' => {
   return 'web';
 };
 
+/**
+ * The private iPhone build (Capacitor iOS: WKWebView at capacitor://localhost).
+ * It is native — Preferences, Browser, Keyboard, App and SnowPlayer are there —
+ * but none of the Android-only plugins are (AppManager, SmcBilling,
+ * SnowCapture, SnowNotify, SnowRecorder), and it has no APKs, no other apps to
+ * start, no D-pad and no Back key. Falls back to Capacitor's own test (the iOS
+ * bridge without the Android one) when the global has no getPlatform.
+ */
+export const isIOSNative = (): boolean => {
+  if (!isNativePlatform()) return false;
+  if (getPlatform() === 'ios') return true;
+  try {
+    const win = window as unknown as { androidBridge?: unknown; webkit?: { messageHandlers?: { bridge?: unknown } } };
+    return !win.androidBridge && !!win.webkit?.messageHandlers?.bridge;
+  } catch {
+    return false;
+  }
+};
+
+/** The Android app (TV boxes, Fire TV): native and not iOS. Exactly what
+ *  isNativePlatform() meant before the iPhone build existed, so swapping one
+ *  for the other changes nothing on a box or on the web. */
+export const isAndroidNative = (): boolean => isNativePlatform() && !isIOSNative();
+
+/**
+ * Apps on the device: the APK self-update, Main Apps (install / launch /
+ * pinned apps), the Device Cleaner and Remote Access. The web keeps these
+ * screens (they say they need the box); the iPhone build can do none of it, so
+ * it does not show them.
+ */
+export const canManageApps = (): boolean => !isIOSNative();
+
 // Safe wrapper for native-only operations
 export const runOnNative = async <T>(
   nativeCallback: () => Promise<T>,

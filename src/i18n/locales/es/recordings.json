@@ -142,6 +142,7 @@
         "streamsUnknown": "Este equipo no sabe cuántas conexiones permite tu plan, así que el retroceso solo funciona en canales con diferido.",
         "recording": "El retroceso está en pausa mientras se graba (las conexiones de tu plan están en uso).",
         "engine": "El retroceso necesita el motor ExoPlayer. Cámbialo en Ajustes de TV en vivo › Reproducción.",
+        "device": "En este dispositivo, el retroceso solo funciona en canales con diferido.",
         "lineChecking": "El retroceso está comprobando si tu línea tiene una conexión libre. Inténtalo de nuevo en unos segundos.",
         "lineFull": "El retroceso está desactivado: otro dispositivo está usando las conexiones de tu línea. Lo intentará de nuevo en el próximo canal.",
         "lineUnknown": "El retroceso está desactivado: este equipo no pudo comprobar que tu línea tenga una conexión libre. Lo intentará de nuevo en el próximo canal.",

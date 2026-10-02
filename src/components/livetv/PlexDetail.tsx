@@ -15,7 +15,7 @@ import { cachedPlexSpeed, defaultVersion, is4k, measurePlexSpeed, sortVersions, 
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { demoGetMetadata, demoGetSeasons, demoGetEpisodes, demoGetActorItems } from '@/lib/plexDemo';
 import PlexImage from './PlexImage';
-import { isNativePlatform } from '@/utils/platform';
+import { isAndroidNative } from '@/utils/platform';
 import { runWhenIdle } from '@/utils/idle';
 import type { SubtitleSearchContext } from './PlexPlayerOverlay';
 import { isPlexKeyOwner } from './plexKeyOwner';
@@ -310,8 +310,10 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   // is the direct cause of the ~200MB allocation → 25s GC pause when the
   // detail page opens). On NATIVE we skip it entirely; on web we defer past
   // first paint. Either way the gradient overlay below still frames the page.
+  // The skip is for the boxes: an iPhone has the memory, so it shows the art
+  // as the web does.
   const [backdropReady, setBackdropReady] = useState(false);
-  const showBackdrop = !isNativePlatform();
+  const showBackdrop = !isAndroidNative();
   useEffect(() => {
     if (!showBackdrop) { setBackdropReady(false); return; }
     setBackdropReady(false);

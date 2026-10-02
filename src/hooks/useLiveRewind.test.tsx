@@ -13,8 +13,10 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const LIVE_STATUS = { state: 'capturing', mode: 'live', availableSec: 120, behindSec: 0, usedBytes: 1 };
-const { calls, status, panel, toastSpy } = vi.hoisted(() => ({
+const { calls, status, panel, toastSpy, platform } = vi.hoisted(() => ({
   calls: [] as Array<{ fn: string; opts?: Record<string, unknown> }>,
+  // The iPhone build (no on-box buffer); false = a box.
+  platform: { ios: false },
   status: { value: { state: 'capturing', mode: 'live', availableSec: 120, behindSec: 0, usedBytes: 1 } as Record<string, unknown> },
   // What the panel's user_info says; `asks` counts every read of it.
   panel: { max: 2 as unknown, active: 1 as unknown, fail: false, asks: 0 },
@@ -46,6 +48,10 @@ vi.mock('@/lib/xtream', () => ({
   },
 }));
 vi.mock('@/hooks/use-toast', () => ({ toast: toastSpy }));
+vi.mock('@/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/platform')>()),
+  isIOSNative: () => platform.ios,
+}));
 
 import { bufferGate, rewindOffMessage, useLiveRewind } from './useLiveRewind';
 import {
@@ -79,6 +85,7 @@ beforeEach(() => {
   status.value = { ...LIVE_STATUS };
   panel.max = 2; panel.active = 1; panel.fail = false; panel.asks = 0;
   toastSpy.mockClear();
+  platform.ios = false;
   localStorage.removeItem(REWIND_SETTINGS_KEY);
   logSpies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((k) => vi.spyOn(console, k).mockImplementation(() => {}));
 });
@@ -613,6 +620,30 @@ describe('panel catch-up', () => {
     expect(h.result.current.playUrl).not.toBeNull();
     act(() => { h.result.current.onEnded(); });
     expect(h.result.current.playUrl).toBeNull();
+  });
+});
+
+describe('the iPhone build', () => {
+  it('has no on-box buffer: nothing starts, the panel is not asked, and it says why', async () => {
+    platform.ios = true;
+    const h = mount({ active: true, directUrl: url(7), stream: CHANNEL });
+    await flush();
+    await tick(LINE_RETRY_MS);
+    expect(h.result.current.kind).toBe('off');
+    expect(h.result.current.offReason).toBe('device');
+    expect(rewindOffMessage('device')).toMatch(/catch-up/);
+    expect(count('timeshiftStart')).toBe(0);
+    expect(panel.asks).toBe(0);
+  });
+
+  it('still rewinds a catch-up channel through the panel', async () => {
+    platform.ios = true;
+    const h = mount({ active: true, directUrl: url(8), stream: ARCHIVE });
+    await flush();
+    expect(h.result.current.kind).toBe('catchup');
+    await act(async () => { await h.result.current.rewind(10); });
+    await flush();
+    expect(h.result.current.playUrl).toMatch(/\/timeshift\/viewer\/S3cretPass\/.+\/8\.ts$/);
   });
 });
 

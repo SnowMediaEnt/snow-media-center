@@ -16,7 +16,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('@capacitor/core', () => ({
-  Capacitor: { isNativePlatform: () => state.native },
+  Capacitor: { isNativePlatform: () => state.native, getPlatform: () => (state.native ? 'android' : 'web') },
 }));
 
 vi.mock('@capacitor/keyboard', () => ({

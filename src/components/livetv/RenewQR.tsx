@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Trans, useTranslation } from 'react-i18next';
+import { isIOSNative } from '@/utils/platform';
 
 /** Renewal URL scanned by the phone — username + server label, encoded. */
 export const buildRenewUrl = (username: string, serverLabel: string): string =>
@@ -68,6 +69,17 @@ const RenewQR = memo(({ username, serverLabel, onBack }: Props) => {
       <p className="text-sm text-white/80 text-center leading-relaxed">
         <Trans i18nKey="liveAccount.renewQr.scan" values={{ username }} components={{ 1: <span className="font-semibold text-white break-all" /> }} />
       </p>
+      {/* The iPhone build is the phone: it cannot scan its own screen, so the
+          same page opens in Safari's in-app view (not the WebView). */}
+      {isIOSNative() && (
+        <Button
+          variant="white"
+          onClick={() => { void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url })).catch(() => { /* no browser: the QR stays */ }); }}
+          className="min-w-[140px] h-12 rounded-xl text-base font-semibold"
+        >
+          {t('liveAccount.expiry.renewBtn')}
+        </Button>
+      )}
       <Button
         ref={backRef}
         variant="white"

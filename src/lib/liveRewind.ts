@@ -199,6 +199,8 @@ export type RewindOffReason =
   | 'disabled'
   /** The channel plays on mpv (owner test builds): rewind is ExoPlayer only. */
   | 'engine'
+  /** The iPhone build: no on-box buffer, so only catch-up channels rewind. */
+  | 'device'
   /** The plan allows one stream, so the buffer's second stream is not opened. */
   | 'streams'
   /** How many streams the plan allows is not known (another saved line). */
@@ -227,6 +229,7 @@ export function rewindOffMessage(reason: RewindOffReason | null): string {
     case 'streams-unknown': return i18n.t('recordings.rewind.off.streamsUnknown');
     case 'recording': return i18n.t('recordings.rewind.off.recording');
     case 'engine': return i18n.t('recordings.rewind.off.engine');
+    case 'device': return i18n.t('recordings.rewind.off.device');
     case 'line-checking': return i18n.t('recordings.rewind.off.lineChecking');
     case 'line-full': return i18n.t('recordings.rewind.off.lineFull');
     case 'line-unknown': return i18n.t('recordings.rewind.off.lineUnknown');

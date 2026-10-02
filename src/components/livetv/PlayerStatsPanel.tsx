@@ -62,7 +62,7 @@ const count = (n: number | null | undefined): string => (typeof n === 'number' &
 const text = (v: string | null | undefined): string => (v && v.trim() ? v : '—');
 const num = (n: number | null | undefined): n is number => typeof n === 'number' && Number.isFinite(n);
 
-const engineLabel = (e: PlayerStats['engine']): string => (e === 'mpv' ? 'mpv' : 'ExoPlayer');
+const engineLabel = (e: PlayerStats['engine']): string => (e === 'mpv' ? 'mpv' : e === 'vlc' ? 'VLC' : 'ExoPlayer');
 const stallsRow = (st: PlayerStats | null): string => {
   if (!st) return '—';
   return `${count(st.stalls)}${st.stalls > 0 ? ` (${st.stallSec.toFixed(1)} s)` : ''}`;

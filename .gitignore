@@ -59,3 +59,6 @@ supabase/.temp/
 # How-to capture: review pictures, contact sheet, raw captures and font cache
 # (scripts/howto/capture.mjs). The pictures that ship are in public/howto/.
 scripts/howto/out/
+
+# iOS build output (xcodebuild -derivedDataPath)
+/.dd-*/

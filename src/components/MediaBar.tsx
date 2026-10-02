@@ -4,7 +4,7 @@ import i18n from '@/i18n';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import ChannelArt from '@/components/ChannelArt';
 import { supabase } from '@/integrations/supabase/client';
-import { isNativePlatform } from '@/utils/platform';
+import { isAndroidNative } from '@/utils/platform';
 import { App as CapApp } from '@capacitor/app';
 import { toast } from '@/hooks/use-toast';
 import { setPausableInterval } from '@/utils/pausableInterval';
@@ -143,7 +143,9 @@ const buildPlexPlayLink = (item: MediaItem): string | undefined => {
  * route and fall back to opening Plex Home only if Android cannot resolve it.
  */
 const openPlexItemFromBeginning = async (item: MediaItem) => {
-  const native = isNativePlatform();
+  // Android's Plex app, by package. The iPhone build has no AppManager to
+  // look for it with: it takes the browser's path.
+  const native = isAndroidNative();
   const ratingKey = getRatingKey(item);
   const metadataKey = getMetadataKey(item);
   const machineIdentifier = getMachineIdentifier(item);

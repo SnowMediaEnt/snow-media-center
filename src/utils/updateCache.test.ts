@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ cached: false, order: [] as string[] }));
-vi.mock('@/utils/platform', () => ({ isNativePlatform: () => true }));
+vi.mock('@/utils/platform', () => ({ isNativePlatform: () => true, isAndroidNative: () => true }));
 vi.mock('@capacitor/preferences', () => ({
   Preferences: { get: async () => ({ value: null }), set: async () => {}, remove: async () => {} },
 }));

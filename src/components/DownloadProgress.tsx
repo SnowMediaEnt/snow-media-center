@@ -126,7 +126,8 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
     let progressListener: any = null;
     
     const startDownload = async () => {
-      if (!Capacitor.isNativePlatform()) {
+      // The iPhone build cannot take an APK either: the same "Android only" answer.
+      if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() === 'ios') {
         if (isMounted) {
           setErrorMessage(i18n.t('updater.download.webOnly'));
           setState('error');

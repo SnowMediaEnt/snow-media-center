@@ -1,5 +1,5 @@
 import { Directory, Filesystem } from "@capacitor/filesystem";
-import { isNativePlatform } from "@/utils/platform";
+import { isAndroidNative } from "@/utils/platform";
 import { CapacitorHttp, type PluginListenerHandle } from "@capacitor/core";
 import i18n from "@/i18n";
 import { formatNumber } from "@/i18n/format";
@@ -137,7 +137,8 @@ export async function downloadApkToCache(
   onProgress?: (progress: number) => void,
   { cacheBust = false }: { cacheBust?: boolean } = {},
 ): Promise<string> {
-  const isNative = isNativePlatform();
+  // Android only: on the iPhone build an APK has nowhere to go.
+  const isNative = isAndroidNative();
   
   console.log('[APK] Starting download...');
   console.log('[APK] URL:', url);
@@ -299,7 +300,7 @@ export async function findCachedApk(
   appName: string,
   version?: string
 ): Promise<string | null> {
-  if (!isNativePlatform()) return null;
+  if (!isAndroidNative()) return null;
   const target = generateFileName(appName, version);
   const sanitizedName = appName.toLowerCase().replace(/[^a-z0-9]/g, '');
   try {

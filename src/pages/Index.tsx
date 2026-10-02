@@ -25,6 +25,7 @@ import { useBroadcastAlert } from '@/hooks/useBroadcastAlert';
 
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { generatePackageName, findCachedApk } from '@/utils/downloadApk';
+import { canManageApps } from '@/utils/platform';
 import DownloadProgress from '@/components/DownloadProgress';
 import type { AppData } from '@/hooks/useAppData';
 import { useAuth } from '@/hooks/useAuth';
@@ -677,6 +678,10 @@ const Index = () => {
     return () => setGameMusicMode(null);
   }, [musicMode]);
   const navigateTo = useCallback((view: string) => {
+    // Main Apps installs and starts APKs: the iPhone build has none to show,
+    // whichever way it is asked for (Support's card is hidden there; voice,
+    // the assistant and How-to links can still name it).
+    if (view === 'apps' && !canManageApps()) return;
     navigateToView(profileGameView(view, profile.kidsLevel));
   }, [navigateToView, profile.kidsLevel]);
 
@@ -1648,10 +1653,12 @@ const Index = () => {
 
       {/* Background auto-update check (native only). On by default; users can
           disable via localStorage key smc-auto-update-enabled = "false".
+          Never on the iPhone build: update.json is an APK, and this is the
+          only update checker (HomeClock's triangle listens to it).
           Unlike the popups above it stays mounted while the profile screens
           are up — unmounting it mid-download lost its prompt and started a
           second download of the same APK — and waits through `paused`. */}
-      {deferredOverlaysReady && (
+      {deferredOverlaysReady && canManageApps() && (
         <Suspense fallback={null}>
           <AutoUpdatePrompt paused={currentView !== 'home' || profileGateOpen} />
         </Suspense>

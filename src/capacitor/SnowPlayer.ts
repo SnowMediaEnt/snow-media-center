@@ -141,7 +141,7 @@ export interface PlayerStats {
   javaHeapMb: number | null;
   nativeHeapMb: number | null;
   /** Which engine actually played this stream. */
-  engine: 'exo' | 'mpv';
+  engine: 'exo' | 'mpv' | 'vlc';
   /** Time to first picture since load(), ms. Null before it has one. */
   firstFrameMs: number | null;
   /** Rebuffers since the first picture (not the start-up wait itself), and

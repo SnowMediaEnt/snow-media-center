@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { SnowPlayer, type TimeshiftStatus } from '@/capacitor/SnowPlayer';
+import { isIOSNative } from '@/utils/platform';
 import { toast } from '@/hooks/use-toast';
 import { authenticate, type XtreamCreds, type XtreamLiveStream } from '@/lib/xtream';
 import {
@@ -182,13 +183,17 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
   const planGate = bufferGate(maxConnections, 0);
   const playing = active && !!stream && !!line;
   const key = stream && line ? rewindChannelKey(line.host, stream.stream_id) : '';
+  // The on-box buffer is the Android player's (ExoPlayer writes the channel to
+  // the box's storage). The iPhone build keeps rewind on catch-up channels
+  // (the panel's archive is just another address to play) and asks nothing else.
+  const onBoxBuffer = !isIOSNative();
 
   // ---- is a stream free on the line? -------------------------------------------
   // For an ordinary channel the plan check passes, the panel is asked once
   // (a few seconds after the channel opens: zapping doesn't ask per channel),
   // and the buffer starts only if a stream is free. Not asked at all when
   // rewind is off, on mpv, on a catch-up channel, or when not full screen.
-  const wantBuffer = playing && engine !== 'mpv' && settings.enabled && days === 0 && gate === 'ok' && !!directUrl;
+  const wantBuffer = playing && onBoxBuffer && engine !== 'mpv' && settings.enabled && days === 0 && gate === 'ok' && !!directUrl;
   // Coming back from Home: the plugin wiped the buffer, so start again (and ask again).
   const [resumeNonce, setResumeNonce] = useState(0);
   // Bumped by the retry timer: ask again after the buffer was refused or gave up.
@@ -202,6 +207,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
     if (engine === 'mpv') offReason = 'engine';
     else if (!settings.enabled) offReason = 'disabled';
     else if (days > 0) kind = 'catchup';
+    else if (!onBoxBuffer) offReason = 'device';
     else if (gate === 'unknown') offReason = 'streams-unknown';
     else if (gate === 'few') offReason = planGate === 'ok' ? 'recording' : 'streams';
     else if (!verdict) offReason = 'line-checking';

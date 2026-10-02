@@ -142,6 +142,7 @@
         "streamsUnknown": "Ce boîtier ne peut pas savoir combien de connexions votre forfait autorise, donc le rembobinage ne fonctionne que sur les chaînes avec replay.",
         "recording": "Le rembobinage est en pause pendant l'enregistrement (les connexions de votre forfait sont utilisées).",
         "engine": "Le rembobinage nécessite le moteur ExoPlayer. Modifiez-le dans Paramètres TV en direct › Lecture.",
+        "device": "Sur cet appareil, le rembobinage ne fonctionne que sur les chaînes avec replay.",
         "lineChecking": "Le rembobinage vérifie si votre ligne a une connexion libre. Réessayez dans quelques secondes.",
         "lineFull": "Le rembobinage est désactivé : un autre appareil utilise les connexions de votre ligne. Il réessaiera sur la prochaine chaîne.",
         "lineUnknown": "Le rembobinage est désactivé : ce boîtier n'a pas pu vérifier que votre ligne a une connexion libre. Il réessaiera sur la prochaine chaîne.",

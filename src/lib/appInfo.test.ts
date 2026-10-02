@@ -4,7 +4,7 @@ const { getAppInfo, native } = vi.hoisted(() => ({
   getAppInfo: vi.fn(async () => ({ versionName: '1.8.0', versionCode: 55, packageName: 'x' })),
   native: { on: true },
 }));
-vi.mock('@/utils/platform', () => ({ isNativePlatform: () => native.on }));
+vi.mock('@/utils/platform', () => ({ isNativePlatform: () => native.on, isIOSNative: () => false }));
 vi.mock('@/utils/idle', () => ({ runWhenIdle: (fn: () => void) => fn() }));
 vi.mock('@/capacitor/AppManager', () => ({ AppManager: { getAppInfo } }));
 

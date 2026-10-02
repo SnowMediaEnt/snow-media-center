@@ -30,7 +30,9 @@ export const focusTextInputForDpad = async (
     // Some input types do not support selection ranges.
   }
 
-  if (Capacitor.isNativePlatform()) {
+  // Android only: iOS has no Keyboard.show() (it rejects UNIMPLEMENTED), and
+  // there the tap that focused the field already brought its keyboard up.
+  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() !== 'ios') {
     try {
       const { Keyboard } = await import('@capacitor/keyboard');
       await Keyboard.show();

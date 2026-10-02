@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { AppManager } from '@/capacitor/AppManager';
-import { isNativePlatform, isFireTV } from '@/utils/platform';
+import { isAndroidNative, isNativePlatform, isFireTV } from '@/utils/platform';
 
 // Minimum recorded-audio size (bytes) to bother sending to ElevenLabs.
 // Fire TV's Alexa Voice Remote mic is not exposed to the WebView's
@@ -194,7 +194,8 @@ export const VoiceInput = ({
 
     if (code === 'MIC_PERMISSION_DENIED') {
       // No alert — just take the user straight to the App Info / Permissions screen.
-      if (isNativePlatform()) {
+      // (Android's; the iPhone build gets the browser wording: allow the microphone.)
+      if (isAndroidNative()) {
         try {
           await AppManager.openAppSettings({ packageName: 'com.snowmedia' });
           onVoiceError?.(t('voice.input.micPermissionTitle'), t('voice.input.micPermissionTurnOn'));
@@ -277,7 +278,7 @@ export const VoiceInput = ({
       const base64Audio = btoa(binary);
 
       const { data, error } = await supabase.functions.invoke('elevenlabs-stt', {
-        body: { audio: base64Audio, mimeType: 'audio/webm' },
+        body: { audio: base64Audio, mimeType: audioBlob.type || 'audio/webm' },
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       console.log('VOICE_FALLBACK_STT_END');
@@ -365,9 +366,15 @@ export const VoiceInput = ({
       }
 
       streamRef.current = stream;
+      // Chromium (every box) records WebM. iOS WebKit has no WebM recorder
+      // and records MP4 (AAC); the old code asked it for WebM regardless and
+      // the recorder refused to start. MP4 only where WebM is unsupported.
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
-        : 'audio/webm';
+        : !MediaRecorder.isTypeSupported('audio/webm') && MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : 'audio/webm';
+      const blobType = mimeType === 'audio/mp4' ? 'audio/mp4' : 'audio/webm';
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       chunksRef.current = [];
       shouldProcessStopRef.current = false;
@@ -381,7 +388,7 @@ export const VoiceInput = ({
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(chunksRef.current, { type: blobType });
         mediaRecorderRef.current = null;
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
@@ -517,7 +524,10 @@ export const VoiceInput = ({
     // Skip the native path entirely and go straight to getUserMedia →
     // elevenlabs-stt. On standard Android TV (Google services) the native
     // RecognizerIntent works fine — keep it.
-    if (isNativePlatform() && !isFireTV()) {
+    //
+    // The iPhone build has no Android recognizer either (AppManager is not
+    // there): straight to the same recording path as Fire TV and the web.
+    if (isAndroidNative() && !isFireTV()) {
       await startNativeThenFallback();
     } else {
       await startFallbackRecording('web');

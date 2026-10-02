@@ -139,6 +139,7 @@
         "streamsUnknown": "This box can't tell how many streams your plan allows, so rewind works only on channels with catch-up.",
         "recording": "Rewind is paused while recording (your plan's streams are in use).",
         "engine": "Rewind needs the ExoPlayer engine. Change it under Live TV settings › Playback.",
+        "device": "On this device, rewind works only on channels with catch-up.",
         "lineChecking": "Rewind is checking your line for a free stream. Try again in a few seconds.",
         "lineFull": "Rewind is off: another device is using your line's streams. It tries again on the next channel.",
         "lineUnknown": "Rewind is off: this box couldn't check that your line has a free stream. It tries again on the next channel.",

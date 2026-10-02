@@ -3,6 +3,7 @@ import { App as CapApp } from '@capacitor/app';
 import i18n from '@/i18n';
 import { GLOBAL_MODAL_SELECTOR } from '@/components/games/shared/gameInput';
 import { gameOwnsHardwareBack } from '@/components/games/shared/gameBack';
+import { isIOSNative } from '@/utils/platform';
 
 interface NavigationState {
   currentView: string;
@@ -93,6 +94,10 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
    * leaves. Neither can be a press that belongs to another screen.
    */
   const backAtHome = useCallback(() => {
+    // An iPhone app never quits itself (App.exitApp is unimplemented there,
+    // and Apple says the Home gesture leaves): a keyboard's Escape on Home
+    // neither arms "press Back again" nor exits.
+    if (isIOSNative()) return;
     const now = Date.now();
     const since = homeSinceRef.current;
     if (!since || now - since < HOME_SETTLE_MS) return;

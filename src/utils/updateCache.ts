@@ -1,6 +1,6 @@
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
-import { isNativePlatform } from '@/utils/platform';
+import { isAndroidNative } from '@/utils/platform';
 import i18n from '@/i18n';
 import { AppManager } from '@/capacitor/AppManager';
 import { downloadApkToCache, cleanupOldApks } from '@/utils/downloadApk';
@@ -65,7 +65,8 @@ export async function deleteCachedApk(version: string): Promise<void> {
  * suitable for AppManager.installApk, or null if nothing usable is cached.
  */
 export async function findCachedSmcApk(info: SmcUpdateInfo): Promise<PreparedUpdate | null> {
-  if (!isNativePlatform()) return null;
+  // APKs are Android's: the iPhone build never looks for, fetches or installs one.
+  if (!isAndroidNative()) return null;
   const target = apkFileName(info.version);
 
   // 1) Resolve a file URI for the target APK. Prefer Filesystem (that's where
@@ -139,7 +140,7 @@ export async function prepareSmcUpdate(
   onProgress?: (pct: number) => void,
   opts?: { beforeDownload?: () => Promise<void> },
 ): Promise<PreparedUpdate> {
-  if (!isNativePlatform()) {
+  if (!isAndroidNative()) {
     throw new Error(i18n.t('updater.errors.androidOnly'));
   }
   // If we already handed this exact version to the installer and we are STILL

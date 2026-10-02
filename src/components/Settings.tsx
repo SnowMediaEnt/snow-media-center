@@ -8,6 +8,7 @@ import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
+import { canManageApps } from '@/utils/platform';
 import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone } from 'lucide-react';
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors, loadProfiles, profileName, PROFILES_EVENT } from '@/lib/profiles';
@@ -75,7 +76,8 @@ const Settings = ({ onBack }: SettingsProps) => {
   const kids = !!currentProfile.kidsLevel;
   const isAdmin = hasAdminRole && !demo && !kids;
   // The How-to pictures show the tab a real box has (developer build only).
-  const showUpdates = (!demo || isHowtoCapture()) && !kids;
+  // The iPhone build has no APK to update, so no Updates tab there either.
+  const showUpdates = (!demo || isHowtoCapture()) && !kids && canManageApps();
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   const dashboardSize = useDashboardSize();
   const mailNotify = useMailNotify();
@@ -164,7 +166,7 @@ const Settings = ({ onBack }: SettingsProps) => {
   };
   const [activeTab, setActiveTab] = useState(() => {
     const want = peekIntent(INTENT_KEYS.settings);
-    const open = kids ? ['media', 'ui', 'profiles', 'remote'] : ['media', 'ui', 'profiles', 'remote', 'updates', 'alerts', 'ai'];
+    const open = kids ? ['media', 'ui', 'profiles', 'remote'] : ['media', 'ui', 'profiles', 'remote', ...(canManageApps() ? ['updates'] : []), 'alerts', 'ai'];
     return want && open.includes(want) ? want : 'media';
   });
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
@@ -177,7 +179,7 @@ const Settings = ({ onBack }: SettingsProps) => {
     const on = (e: Event) => {
       if ((e as CustomEvent<string>).detail !== 'settings') return;
       const want = takeIntent(INTENT_KEYS.settings);
-      const open = kids ? ['media', 'ui', 'profiles', 'remote'] : ['media', 'ui', 'profiles', 'remote', 'updates', 'alerts', 'ai'];
+      const open = kids ? ['media', 'ui', 'profiles', 'remote'] : ['media', 'ui', 'profiles', 'remote', ...(canManageApps() ? ['updates'] : []), 'alerts', 'ai'];
       if (!want || !open.includes(want) || want === activeTab) return;
       setActiveTab(want);
       setFocusedElement(`tab-${want}` as SettingsFocus);

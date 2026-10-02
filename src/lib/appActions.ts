@@ -15,6 +15,7 @@ import { saveMailNotify } from '@/lib/snowMail';
 import { setMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { trackEvent } from '@/lib/analytics';
 import i18n from '@/i18n';
+import { canManageApps } from '@/utils/platform';
 
 export type Navigate = (section: string) => void;
 
@@ -242,6 +243,8 @@ export function reportChannel(intent: ReportIntent, navigate: Navigate): void {
 /** Open an app installed on the box by (spoken) name. Not installed: Main
  *  Apps opens and starts its download. Returns a line saying which. */
 export async function openInstalledApp(name: string, navigate: Navigate): Promise<string> {
+  // The iPhone build starts no other apps and has no Main Apps to find one in.
+  if (!canManageApps()) return i18n.t('apps.webUnsupported');
   const [{ getInstalledAppsNow }, { bestApp }] = await Promise.all([
     import('@/hooks/useDeviceInstalledApps'),
     import('@/lib/voiceCommands'),

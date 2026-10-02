@@ -53,7 +53,8 @@ const listeners = new Set<(s: Snapshot) => void>();
 const emit = () => { listeners.forEach((l) => l(snapshot)); };
 
 const runFetch = async (force = false): Promise<void> => {
-  if (!Capacitor.isNativePlatform()) {
+  // The web and the iPhone build: no other apps to list.
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() === 'ios') {
     snapshot = { ...EMPTY };
     hasFetched = true;
     emit();

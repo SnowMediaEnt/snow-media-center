@@ -169,6 +169,23 @@ export function isWebUnsupportedError(err: unknown): boolean {
   );
 }
 
+// The iPhone build has no AppManager: no APKs, no other apps to start, no
+// Android settings screens. Without an `ios` entry every call there would
+// reject with UNIMPLEMENTED; with this one each answers as it does in a
+// browser, so the screens' "only on your Android device" paths apply. One
+// difference: a web link opens in Safari's in-app view (Capacitor Browser),
+// since WKWebView drops a window.open made after an await. Anything else
+// (intent://, plex://) has nothing to open it.
+const iosFallback: AppManagerPlugin = {
+  ...webFallback,
+  async openUrl({ url }) {
+    if (!/^https?:\/\//i.test(url)) throw unsupported();
+    const { Browser } = await import("@capacitor/browser");
+    await Browser.open({ url });
+  },
+};
+
 export const AppManager = registerPlugin<AppManagerPlugin>("AppManager", {
   web: webFallback,
+  ios: iosFallback,
 });

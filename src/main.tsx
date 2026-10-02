@@ -6,7 +6,7 @@ import App from './App.tsx'
 import './index.css'
 import './styles/tv.css'
 import './styles/plex.css'
-import { isNativePlatform, getPlatform, isFireTV } from './utils/platform'
+import { isNativePlatform, isAndroidNative, getPlatform, isFireTV } from './utils/platform'
 import { isStorageReady, waitForStorageReady } from './utils/storage'
 import { isOnline } from './utils/network'
 import { readTheme, applyTheme } from '@/lib/theme'
@@ -32,7 +32,9 @@ const fireTv = isFireTV();
 // Watched queries, glow transitions on every focus move. Treat them as the
 // weak boxes they are.
 const legacyWebView = document.documentElement.classList.contains('legacy-webview');
-const nativeLowMemory = (isNativePlatform() && (lowRam || ancientAndroid || legacyWebView)) || fireTv;
+// Boxes only: an iPhone is never a low-RAM box (WKWebView has no
+// deviceMemory, and a modern iOS WebKit passes every legacy probe anyway).
+const nativeLowMemory = (isAndroidNative() && (lowRam || ancientAndroid || legacyWebView)) || fireTv;
 if (nativeLowMemory) {
   document.documentElement.classList.add('native-low-memory');
 }

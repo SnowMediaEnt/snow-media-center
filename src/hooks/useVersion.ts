@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isNativePlatform } from '@/utils/platform';
+import { isIOSNative, isNativePlatform } from '@/utils/platform';
 import { runWhenIdle } from '@/utils/idle';
 
 // Module-level singleton — getAppInfo() on Android costs ~150ms and was
@@ -24,7 +24,17 @@ const runFetch = async (): Promise<void> => {
   if (hasFetched) return;
   inflight = (async () => {
     try {
-      if (isNativePlatform()) {
+      if (isIOSNative()) {
+        // No AppManager on the iPhone build: the bundle's own version
+        // (CFBundleShortVersionString) and build number (CFBundleVersion).
+        const { App } = await import('@capacitor/app');
+        const info = await App.getInfo();
+        if (info?.version) {
+          snap = { version: info.version, versionCode: parseInt(info.build, 10) || 0, isLoading: false };
+          hasFetched = true;
+          return;
+        }
+      } else if (isNativePlatform()) {
         const { AppManager } = await import('@/capacitor/AppManager');
         const nativeInfo = await AppManager.getAppInfo({});
         if (nativeInfo?.versionName) {
