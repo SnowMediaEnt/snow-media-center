@@ -9,7 +9,8 @@
 //   POST {op:'check'}          games per league in the list (the same
 //                              four-minute copy as a box's)
 //
-// A game: league, teams (names, short names, logos sized for a TV row),
+// A game: league, teams (names, short names, logos sized for a TV row, a
+// ranked college team's poll rank),
 // start time, state (pre | in), the live detail ("Q3 5:32") and score, the TV
 // networks carrying it nationally, and the local / regional ones (RSNs) with
 // the team whose market they serve. Finished games are left out. A playoff
@@ -132,7 +133,8 @@ const MAX_PARALLEL = 12;
  *  ones only (the Slams, the 1000s, the finals and the team cups). */
 const BIG_TENNIS = /(australian open|roland garros|french open|wimbledon|us open|indian wells|bnp paribas open|miami open|monte.?carlo|madrid|internazionali|italian open|rome|canadian open|national bank open|omnium banque nationale|rogers cup|cincinnati|western & southern|shanghai|rolex paris|paris masters|china open|wuhan|dubai duty free|qatar totalenergies|guadalajara|atp finals|wta finals|nitto|next gen|laver cup|davis cup|billie jean king cup|united cup|olympic)/i;
 
-interface Team { name: string; short: string; abbr: string; location: string; logo: string | null; score: string | null }
+/** `rank`: the poll rank ESPN shows ("#11"), college teams in the top 25 only. */
+interface Team { name: string; short: string; abbr: string; location: string; logo: string | null; score: string | null; rank?: number }
 interface Game {
   id: string; league: string; leagueLabel: string; name: string; start: string;
   state: 'pre' | 'in'; detail: string; home: Team | null; away: Team | null; networks: string[];
@@ -165,6 +167,8 @@ type Any = any;
 const team = (c: Any): Team | null => {
   const t = c?.team ?? c?.athlete;
   if (!t) return null;
+  // ESPN gives unranked teams 99.
+  const rank = Number(c?.curatedRank?.current);
   return {
     name: String(t.displayName ?? t.name ?? ''),
     short: String(t.shortDisplayName ?? t.name ?? t.displayName ?? ''),
@@ -172,6 +176,7 @@ const team = (c: Any): Team | null => {
     location: String(t.location ?? ''),
     logo: smallLogo(t.logo ?? t.logos?.[0]?.href ?? t.flag?.href),
     score: c?.score != null && c.score !== '' ? String(c.score) : null,
+    ...(Number.isInteger(rank) && rank >= 1 && rank <= 25 ? { rank } : {}),
   };
 };
 

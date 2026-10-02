@@ -157,6 +157,19 @@ const BOARDS: Record<string, unknown> = {
     }],
   },
 };
+// College hockey: ESPN's poll rank (curatedRank), 99 for an unranked team.
+BOARDS['hockey/mens-college-hockey'] = {
+  events: [{
+    id: 'h1', date: iso(NOW + 7 * H), status: { type: { state: 'pre', shortDetail: '7:00 PM' } },
+    competitions: [{
+      competitors: [
+        { homeAway: 'home', curatedRank: { current: 99 }, team: { displayName: 'Michigan Wolverines', shortDisplayName: 'Michigan', abbreviation: 'MICH', location: 'Michigan' } },
+        { homeAway: 'away', curatedRank: { current: 11 }, team: { displayName: 'Boston University Terriers', shortDisplayName: 'Boston U', abbreviation: 'BU', location: 'Boston University' } },
+      ],
+      broadcasts: [{ market: 'national', names: ['B1G+'] }],
+    }],
+  }],
+};
 const EVENT_BOARDS = ['racing/f1', 'racing/nascar-premier', 'racing/irl', 'golf/pga', 'golf/lpga', 'tennis/atp', 'tennis/wta'];
 
 const asked: string[] = [];
@@ -223,6 +236,15 @@ describe('game-day', () => {
     expect(by['mlb:b2']).toMatchObject({ league: 'mlb', name: 'Orioles @ Yankees' });
     expect(by['mlb:b2']).not.toHaveProperty('postseason');
     expect(by['mlb:b2']).not.toHaveProperty('round');
+  });
+
+  it("passes on a ranked team's poll rank (1-25 only)", async () => {
+    const out = await call({ op: 'list' });
+    const game = (out.games ?? []).find((g) => g.id === 'ncaah:h1') as { away: Record<string, unknown>; home: Record<string, unknown> };
+    expect(game.away).toMatchObject({ name: 'Boston University Terriers', abbr: 'BU', rank: 11 });
+    expect(game.home).not.toHaveProperty('rank');
+    const mlb = (out.games ?? []).find((g) => g.id === 'mlb:b2') as { home: Record<string, unknown> };
+    expect(mlb.home).not.toHaveProperty('rank');
   });
 
   it('lists national-team games (USA vs Chile, Czechia vs England) with their networks, TV games first', async () => {
