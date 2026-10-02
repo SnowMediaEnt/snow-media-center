@@ -21,7 +21,10 @@
     "browse": "Parcourir {{name}} dans TV en direct",
     "zoneHeading": "Chaînes Zone — tous les matchs de la ligue, pas seulement celui-ci",
     "unconfirmedHeading": "Non confirmé par le guide — ce match n'y est peut-être pas",
+    "searchHeading": "Trouvé par recherche — ce n'est peut-être pas ce match",
+    "foundBySearch": "Trouvé par recherche",
     "checkingGuide": "Vérification du guide…",
+    "searching": "Recherche dans vos chaînes…",
     "serviceTag": "Sur {{service}}",
     "playingOn": "Lecture sur {{service}}",
     "none": "Absent de vos chaînes pour le moment. Appuyez sur Retour pour revenir aux matchs.",
@@ -46,7 +49,8 @@
       "team": "Chaîne de l'équipe",
       "league": "Chaîne de la ligue",
       "zone": "Chaîne Zone",
-      "picked": "Choix de Snow Media"
+      "picked": "Choix de Snow Media",
+      "search": "Trouvé par recherche"
     },
     "guide": {
       "note": "Guide : {{text}}"

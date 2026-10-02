@@ -21,7 +21,10 @@
     "browse": "Browse {{name}} in Live TV",
     "zoneHeading": "Zone channels — every game of the league, not just this one",
     "unconfirmedHeading": "Not confirmed by the guide — may not have this game",
+    "searchHeading": "Found by search — may not be this game",
+    "foundBySearch": "Found by search",
     "checkingGuide": "Checking the guide…",
+    "searching": "Searching your channels…",
     "serviceTag": "On {{service}}",
     "playingOn": "Playing on {{service}}",
     "none": "Not in your channels right now. Press Back to return to the games.",
@@ -46,7 +49,8 @@
       "team": "Team channel",
       "league": "League channel",
       "zone": "Zone channel",
-      "picked": "Picked by Snow Media"
+      "picked": "Picked by Snow Media",
+      "search": "Found by search"
     },
     "guide": {
       "note": "Guide: {{text}}"

@@ -250,6 +250,7 @@
       "otherTitle": "Describe el problema",
       "clearWarning": "Ya funciona: quitar ⚠️",
       "reportChannel": "Reportar canal",
+      "wrongGame": "No es este partido",
       "removeFavorite": "Quitar de Favoritos",
       "addFavorite": "Agregar a Favoritos",
       "refreshing": "Actualizando…",

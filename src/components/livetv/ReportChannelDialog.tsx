@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle, Star, StarOff, Flag, X, RefreshCw, CheckCircle2, Circle } from 'lucide-react';
+import { Loader2, AlertTriangle, Star, StarOff, Flag, X, RefreshCw, CheckCircle2, Circle, Ban } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -43,6 +43,10 @@ interface Props {
   isDown?: boolean;
   /** … and the viewer says it works: clear it for everyone. */
   onClearDown?: () => void;
+  /** Game Day, on a channel found by search: a "Not this game" row. The
+   *  caller takes the link off the list; the menu closes. Left out (Live TV,
+   *  every other link) the row is not shown. */
+  onWrongGame?: () => void;
   onClose: () => void;
 }
 
@@ -87,6 +91,7 @@ const ReportChannelDialog = memo(({
   onReportedDown,
   isDown = false,
   onClearDown,
+  onWrongGame,
   onClose,
 }: Props) => {
   const { t } = useTranslation();
@@ -168,6 +173,7 @@ const ReportChannelDialog = memo(({
       run: () => { onClearDown(); toast({ title: t('live.report.thanksTitle'), description: t('live.report.thanksDesc') }); onClose(); },
     }] : []),
     { id: 'report', label: t('live.report.reportChannel'), icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } },
+    ...(onWrongGame ? [{ id: 'wrong', label: t('live.report.wrongGame'), icon: Ban, run: () => { onWrongGame(); onClose(); } }] : []),
     ...(onToggleFavorite ? [{ id: 'fav', label: isFavorite ? t('live.report.removeFavorite') : t('live.report.addFavorite'), icon: isFavorite ? StarOff : Star, run: () => { onToggleFavorite(); onClose(); } }] : []),
     ...(onRecord ? [{ id: 'record', label: recording ? t('live.report.stopRecording') : t('live.report.recordChannel'), icon: Circle, run: () => { onRecord(); } }] : []),
     ...(canRefresh ? [{ id: 'refresh', label: refreshing ? t('live.report.refreshing') : t('live.report.refreshLink'), icon: RefreshCw, run: () => { void refreshNow(); } }] : []),

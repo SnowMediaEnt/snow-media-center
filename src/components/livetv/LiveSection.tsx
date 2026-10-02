@@ -85,6 +85,7 @@ import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
 import RecordDialog, { type RecordChoice } from './RecordDialog';
 import { recordChannelWatch } from '@/lib/watchHistory';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
+import { noteLivePlay } from '@/lib/gameDayAi';
 import { onMediaKey } from '@/lib/mediaKeys';
 import { createSkipQueue, MEDIA_SKIP_SEC } from '@/lib/skipQueue';
 import { MAX_SIMULTANEOUS_RECORDINGS, REWIND_PAUSED_NOTE, endsAtLabel, extraStreamNote, pauseRewindForRecording, recordingFileName } from '@/lib/recording';
@@ -1351,6 +1352,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         watchRecordTimerRef.current = window.setTimeout(() => {
           watchRecordTimerRef.current = null;
           try { recordChannelWatch(stream, line, catName); } catch { /* ignore */ }
+          // A game whose Game Day list came up empty, and this channel names
+          // its teams: tell Game Day's search where it was (never for Kids).
+          if (!kidsLevel()) { try { noteLivePlay(line, stream, catName); } catch { /* ignore */ } }
         }, WATCH_RECORD_DWELL_MS);
         trackEvent('channel_play', 'player', {
           channel: stream.name,

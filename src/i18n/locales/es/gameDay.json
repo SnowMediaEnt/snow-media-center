@@ -21,7 +21,10 @@
     "browse": "Explorar {{name}} en TV en vivo",
     "zoneHeading": "Canales Zone — todos los partidos de la liga, no solo este",
     "unconfirmedHeading": "Sin confirmar en la guía — puede que no tenga este partido",
+    "searchHeading": "Encontrado por búsqueda — puede que no sea este partido",
+    "foundBySearch": "Encontrado por búsqueda",
     "checkingGuide": "Revisando la guía…",
+    "searching": "Buscando en tus canales…",
     "serviceTag": "En {{service}}",
     "playingOn": "Reproduciendo en {{service}}",
     "none": "No está en tus canales por ahora. Presiona Atrás para volver a los partidos.",
@@ -46,7 +49,8 @@
       "team": "Canal del equipo",
       "league": "Canal de la liga",
       "zone": "Canal Zone",
-      "picked": "Elegido por Snow Media"
+      "picked": "Elegido por Snow Media",
+      "search": "Encontrado por búsqueda"
     },
     "guide": {
       "note": "Guía: {{text}}"
