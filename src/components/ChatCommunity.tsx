@@ -26,6 +26,8 @@ import { withAppInfo } from '@/lib/appInfo';
 import { loadAiTiers, getPreferredTier, setPreferredTier, premiumTrialUsed, describeReceipt, type AiTier, type AiTierPair } from '@/lib/aiTiers';
 import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import ChatMarkdown from '@/components/ChatMarkdown';
+import { isNativePlatform } from '@/utils/platform';
 
 
 interface ChatCommunityProps {
@@ -37,6 +39,11 @@ interface ChatCommunityProps {
   /** When set, forces the active tab and prevents tab switching. */
   lockedTab?: 'admin' | 'community' | 'ai';
 }
+
+/** The page's visible height (the visual viewport where the WebView has one). */
+const readViewH = () => (typeof window === 'undefined'
+  ? 540
+  : Math.round(window.visualViewport?.height ?? window.innerHeight));
 
 type AIFunctionCall = {
   name: string;
@@ -484,6 +491,24 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const aiChatContainerRef = useRef<HTMLDivElement>(null);
+  // Full-screen chat. Opening the ask box for typing (OK on it, or a tap)
+  // gives the conversation the whole screen: no Support header, tabs, card
+  // or chips, just the messages above the ask row. Back steps out of it one
+  // press at a time: the keyboard first, then full screen, then Support.
+  const [aiFull, setAiFull] = useState(false);
+  const aiFullRef = useRef(false);
+  aiFullRef.current = aiFull;
+  // Whether the on-screen keyboard is up, and how tall Android said it is
+  // (0: not told). The Fire TV keyboard covers the bottom half of the screen.
+  const [kb, setKb] = useState<{ up: boolean; height: number }>({ up: false, height: 0 });
+  const kbUpRef = useRef(false);
+  kbUpRef.current = kb.up;
+  // The visible height, and the screen's own (the tallest seen with no
+  // keyboard up). A WebView that shrinks for the keyboard shows it as the
+  // difference; one that doesn't needs the keyboard's own height.
+  const [viewH, setViewH] = useState(readViewH);
+  const fullViewHRef = useRef(viewH);
+  const lastFullBackRef = useRef(0);
   // Hidden, off-screen focus sink. We never focus the panel wrapper itself
   // (the user would see the entire AI box highlighted as one big focus ring
   // and be trapped). Instead we park DOM focus here while D-pad navigation
@@ -500,6 +525,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     snapAllTVScrollToTop([containerRef.current]);
   }, []);
 
+  // Newest message in view: on a new message, and whenever full screen or
+  // the keyboard changes the room the conversation has.
   useEffect(() => {
     if (activeTab === 'ai') {
       requestAnimationFrame(() => {
@@ -508,7 +535,46 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         }
       });
     }
-  }, [activeTab, aiChat.length, aiLoading]);
+  }, [activeTab, aiChat.length, aiLoading, aiFull, kb.up, viewH]);
+
+  useEffect(() => {
+    if (activeTab !== 'ai') return;
+    const vv = window.visualViewport;
+    const onResize = () => {
+      const h = readViewH();
+      setViewH(h);
+      if (!kbUpRef.current || h > fullViewHRef.current) fullViewHRef.current = h;
+    };
+    window.addEventListener('resize', onResize);
+    vv?.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      vv?.removeEventListener('resize', onResize);
+    };
+  }, [activeTab]);
+
+  // What Android says about the keyboard (native only; the web has none).
+  useEffect(() => {
+    if (activeTab !== 'ai' || !isNativePlatform()) return;
+    let cancelled = false;
+    const handles: Array<{ remove: () => Promise<void> }> = [];
+    void (async () => {
+      try {
+        const { Keyboard } = await import('@capacitor/keyboard');
+        const shown = (info: { keyboardHeight?: number }) => setKb({ up: true, height: info?.keyboardHeight || 0 });
+        const hidden = () => setKb({ up: false, height: 0 });
+        const list = await Promise.all([
+          Keyboard.addListener('keyboardWillShow', shown),
+          Keyboard.addListener('keyboardDidShow', shown),
+          Keyboard.addListener('keyboardWillHide', hidden),
+          Keyboard.addListener('keyboardDidHide', hidden),
+        ]);
+        if (cancelled) list.forEach((h) => void h.remove());
+        else handles.push(...list);
+      } catch { /* no keyboard plugin: focus and blur still drive it */ }
+    })();
+    return () => { cancelled = true; handles.forEach((h) => void h.remove()); };
+  }, [activeTab]);
 
   const handleOpenSavedAIConversation = async (conversationId: string) => {
     // The account's saved chats are the grown-ups'.
@@ -1063,12 +1129,77 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     });
   }, [embedded, focusSink, getFocusableElements]);
 
+  // One Back inside the full-screen chat: a keyboard still up closes first
+  // (the highlight stays on the ask box), otherwise full screen closes.
+  // Stamped so the app's own Back (useNavigation) leaves Support alone, and
+  // so the same press arriving as both a key and a system Back counts once.
+  const stepBackInFull = useCallback(() => {
+    const now = Date.now();
+    lastFullBackRef.current = now;
+    (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = now;
+    const input = containerRef.current?.querySelector('[data-focus-id="ai-input"]') as HTMLInputElement | null;
+    const typing = !!input && document.activeElement === input;
+    const inputIndex = getFocusableElements().findIndex((el) => el.id === 'ai-input');
+    if (inputIndex !== -1) setFocusIndex(inputIndex);
+    // A box tells us when its keyboard closed itself (the keyboard's own
+    // Back); with no such report (the web), a focused box counts as typing.
+    if (input && typing && (kbUpRef.current || !isNativePlatform())) {
+      input.blur();
+      void hideKeyboardForDpad(input);
+      setKb({ up: false, height: 0 });
+      focusSink();
+      return;
+    }
+    if (input && typing) {
+      input.blur();
+      void hideKeyboardForDpad(input);
+    }
+    setKb({ up: false, height: 0 });
+    setAiFull(false);
+    focusSink();
+  }, [focusSink, getFocusableElements]);
+
+  // Hardware Back on a box arrives as the system's Back, not always as a key.
+  // While full screen is up, aria-modal keeps the app's own Back listener off.
+  useEffect(() => {
+    if (!aiFull) return;
+    let cancelled = false;
+    let handle: { remove: () => Promise<void> } | undefined;
+    void (async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        const h = await App.addListener('backButton', () => {
+          if (Date.now() - lastFullBackRef.current < 400) return;
+          stepBackInFull();
+        });
+        if (cancelled) void h.remove();
+        else handle = h;
+      } catch { /* web: the key handler covers it */ }
+    })();
+    return () => { cancelled = true; void handle?.remove(); };
+  }, [aiFull, stepBackInFull]);
+
+  // Leaving the chat (another tab, Up to the Support tabs) ends full screen.
+  useEffect(() => {
+    if (activeTab !== 'ai' || (embedded && !embeddedFocusActive)) setAiFull(false);
+  }, [activeTab, embedded, embeddedFocusActive]);
+
   const focusableElements = getFocusableElements();
   const clampedIndex = Math.min(focusIndex, focusableElements.length - 1);
   const currentElement = focusableElements[clampedIndex];
   const currentFocusId = embedded && !embeddedFocusActive ? '' : (currentElement?.id || 'back');
 
   const isFocused = (id: string) => currentFocusId === id;
+  // Full-screen height: the screen less what the keyboard covers. A WebView
+  // that already shrank for the keyboard needs nothing taken off; one that
+  // did not is told the keyboard's height by Android, or, if it was not,
+  // keeps the top half (the Fire TV keyboard's share of the screen).
+  const screenH = Math.max(fullViewHRef.current, viewH);
+  const pageShrank = screenH - viewH > 80;
+  const kbCover = kb.up && !pageShrank
+    ? (kb.height > 0 ? Math.min(kb.height, Math.round(screenH * 0.6)) : Math.round(screenH * 0.5))
+    : 0;
+  const aiFullHeight = Math.max(200, viewH - kbCover);
   const focusRing = (id: string) =>
     isFocused(id)
       ? 'ring-4 ring-brand-ice shadow-[0_0_18px_rgba(161,213,220,0.45)] brightness-110 z-10'
@@ -1090,7 +1221,15 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       if (event.key === 'Escape' || event.keyCode === 4 || event.code === 'GoBack') {
         event.preventDefault();
         event.stopPropagation();
-        
+
+        // Full-screen chat: the keyboard, then full screen, one press each.
+        if (activeTab === 'ai' && aiFullRef.current) {
+          event.stopImmediatePropagation?.();
+          if (Date.now() - lastFullBackRef.current < 400) return;
+          stepBackInFull();
+          return;
+        }
+
         // If viewing a ticket, go back to ticket list first
         if (selectedTicket) {
           setSelectedTicket(null);
@@ -1187,7 +1326,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       const scrollMessages = (direction: 'up' | 'down') => {
         const scrollContainer = activeTab === 'ai' ? aiChatContainerRef.current : messagesContainerRef.current;
         if (scrollContainer) {
-          const scrollAmount = 100;
+          // Most of a screenful per press, so a long reply reads in a few
+          // presses and the line just read stays on screen.
+          const scrollAmount = Math.max(80, Math.round(scrollContainer.clientHeight * 0.6));
           scrollContainer.scrollBy({
             top: direction === 'down' ? scrollAmount : -scrollAmount,
             behavior: 'smooth',
@@ -1208,6 +1349,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           // saved chat (the three input-row controls sit on the same row, so
           // Down should leave the row entirely, not cycle within it).
           if (currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-tier' || currentFocusId === 'ai-compare' || currentFocusId === 'ai-send') {
+            // Full screen has nothing below the ask row.
+            if (aiFullRef.current) return;
             if (firstAiHistoryIndex !== -1) {
               setFocusIndex(firstAiHistoryIndex);
               return;
@@ -1248,6 +1391,11 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           if (activeTab === 'ai' && currentFocusId === 'message-scroll') {
             const container = aiChatContainerRef.current;
             const atTop = !container || container.scrollTop <= 12;
+            // Full screen covers the Support tabs: the top is the top.
+            if (aiFullRef.current) {
+              if (!atTop) scrollMessages('up');
+              return;
+            }
             if (embedded && atTop) {
               void hideKeyboardForDpad(active ?? target);
               setEmbeddedFocusActive(false);
@@ -1260,6 +1408,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             }
             return;
           }
+          if (aiFullRef.current && ['ai-input', 'ai-voice', 'ai-tier', 'ai-compare', 'ai-send'].includes(currentFocusId)) return;
           if (embedded && (focusIndex === 0 || currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-tier' || currentFocusId === 'ai-compare' || currentFocusId === 'ai-send')) {
             void hideKeyboardForDpad(active ?? target);
             setEmbeddedFocusActive(false);
@@ -1397,7 +1546,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback, embedded, focusTextFieldById, leaveTextFieldById, forceSupportScrollTop]);
+  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback, embedded, focusTextFieldById, leaveTextFieldById, forceSupportScrollTop, stepBackInFull]);
 
   // Move D-pad highlight WITHOUT focusing native text inputs (which would
   // auto-open the on-screen keyboard). Keyboard only opens when user presses OK/Enter.
@@ -1412,7 +1561,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     // never sit below the fold. The off-screen focusSink is now pinned at (0,0)
     // so block:'nearest' will NOT snap the document to the top.
     if (isInputRow) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      // Full screen keeps the row on screen itself; scrolling would move the page under it.
+      if (!aiFullRef.current) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
     } else if (!embedded) {
       const useSmoothCenter = currentFocusId.startsWith('ai-history-');
       el.scrollIntoView(
@@ -1627,7 +1777,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     value={newSubject}
                     onChange={(e) => setNewSubject(e.target.value)}
                     placeholder={t('ai.chat.subjectPlaceholder')}
-                    enterKeyHint="next"
+                    type="text"
                     data-focus-id="new-subject"
                     className={`bg-slate-800 border-slate-600 text-white transition-all duration-200 ${isFocused('new-subject') ? 'ring-4 ring-brand-ice' : ''}`}
                   />
@@ -1638,7 +1788,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder={t('ai.chat.messagePlaceholder')}
-                    enterKeyHint="done"
                     data-focus-id="new-message"
                     className={`bg-slate-800 border-slate-600 text-white min-h-32 transition-all duration-200 ${isFocused('new-message') ? 'ring-4 ring-brand-ice' : ''}`}
                   />
@@ -1767,7 +1916,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                       value={replyMessage}
                       onChange={(e) => setReplyMessage(e.target.value)}
                       placeholder={t('ai.chat.replyPlaceholder')}
-                      enterKeyHint="done"
                       data-focus-id="reply-input"
                       disabled={replySending}
                       className={`bg-slate-800 border-slate-600 text-white flex-1 transition-all duration-200 ${isFocused('reply-input') ? 'ring-4 ring-brand-ice' : ''}`}
@@ -1935,21 +2083,42 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         {/* AI Tab Content */}
         {/* i18n-ignore: state check, not text */}
         {activeTab === 'ai' && (
-          <Card className={`bg-slate-950/90 border-purple-500/40 text-white shadow-xl ${embedded ? 'p-5' : 'p-6'}`}>
+          <Card
+            // Full screen: fixed over the whole page (Support's header and
+            // tabs included), solid so nothing shows through, and sized to
+            // what the keyboard leaves. aria-modal tells the app's own Back
+            // and key handlers that this owns the remote.
+            role={aiFull ? 'dialog' : undefined}
+            aria-modal={aiFull ? true : undefined}
+            aria-label={aiFull ? t('ai.chat.assistantTitle') : undefined}
+            data-ai-fullscreen={aiFull ? 'true' : undefined}
+            style={aiFull ? { position: 'fixed', top: 0, left: 0, right: 0, height: aiFullHeight, zIndex: 40 } : undefined}
+            className={aiFull
+              ? 'flex flex-col rounded-none border-0 bg-slate-950 text-white shadow-none px-[5vw] pt-[2.5vh] pb-[2.5vh]'
+              : `bg-slate-950/90 border-purple-500/40 text-white shadow-xl ${embedded ? 'p-4' : 'p-6'}`}
+          >
             {/* A solid dark card. It was a 30% purple gradient over the Card's
                 light default, which read as washed-out lavender on the TV with
-                the purple and gold text on it hard to make out. */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center min-w-0 mr-3">
-                <span className="w-11 h-11 rounded-full bg-purple-600 inline-flex items-center justify-center mr-3 shrink-0">
-                  <Brain className="w-6 h-6 text-white" />
-                </span>
-                <div className="min-w-0">
-                  <h3 className="text-xl font-bold text-white leading-tight">{t('ai.chat.assistantTitle')}</h3>
-                  <p className="text-sm text-white/70 truncate">{t('ai.chat.assistantSubtitle')}</p>
+                the purple and gold text on it hard to make out.
+                One slim line: who this is, the prices, voice and the balance,
+                so the conversation below gets the height. */}
+            <div className="flex items-center mb-3 shrink-0 min-w-0">
+              <span className="w-8 h-8 rounded-full bg-purple-600 inline-flex items-center justify-center mr-3 shrink-0">
+                <Brain className="w-5 h-5 text-white" />
+              </span>
+              <h3 className="text-lg font-bold text-white leading-tight shrink-0 mr-3" title={t('ai.chat.assistantSubtitle')}>{t('ai.chat.assistantTitle')}</h3>
+              {aiFull ? (
+                <span className="flex-1 min-w-0 truncate text-sm text-white/60">{t('ai.chat.fullscreenBackHint')}</span>
+              ) : (
+                // A chip that does not fit wraps onto a second line that is
+                // cut off, so it goes whole rather than half-drawn.
+                <div className="flex-1 min-w-0 flex flex-wrap items-start content-start h-[22px] overflow-hidden whitespace-nowrap text-xs leading-4 font-semibold">
+                  <span className="mr-2 rounded-full bg-brand-gold/15 border border-brand-gold/40 px-2.5 py-0.5 text-brand-gold">{t('ai.chat.textChatChip')}</span>
+                  <span className="mr-2 rounded-full bg-brand-ice/10 border border-brand-ice/35 px-2.5 py-0.5 text-brand-ice">{t('ai.chat.voiceReplyChip')}</span>
+                  <span className="rounded-full bg-white/10 border border-white/15 px-2.5 py-0.5 text-white/75">{t('ai.chat.languagesChip')}</span>
                 </div>
-              </div>
-              <div className="flex items-center shrink-0">
+              )}
+              <div className="flex items-center shrink-0 ml-3">
                 <button
                   type="button"
                   onClick={() => setVoiceRepliesEnabled(v => !v)}
@@ -1973,28 +2142,25 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               </div>
             </div>
 
-            <div className={`flex flex-wrap items-center text-xs font-semibold ${embedded ? 'mb-3' : 'mb-5'}`}>
-              <span className="mr-2 mb-1 rounded-full bg-brand-gold/15 border border-brand-gold/40 px-2.5 py-0.5 text-brand-gold">{t('ai.chat.textChatChip')}</span>
-              <span className="mr-2 mb-1 rounded-full bg-brand-ice/10 border border-brand-ice/35 px-2.5 py-0.5 text-brand-ice">{t('ai.chat.voiceReplyChip')}</span>
-              <span className="mb-1 rounded-full bg-white/10 border border-white/15 px-2.5 py-0.5 text-white/75">{t('ai.chat.languagesChip')}</span>
-            </div>
-
-            {/* A Kids profile: say plainly what this AI will and won't do. */}
+            {/* A Kids profile: say plainly what this AI will and won't do.
+                Full screen keeps the line that says so. */}
             {kidsLevel() && (
-              <div className="mb-4 rounded-lg border border-emerald-400/60 bg-emerald-900/40 p-3 flex items-start">
-                <ShieldCheck className="w-6 h-6 text-emerald-300 mr-3 mt-0.5 shrink-0" />
-                <div>
+              <div className={`rounded-lg border border-emerald-400/60 bg-emerald-900/40 flex items-start shrink-0 ${aiFull ? 'mb-2 px-3 py-1.5' : 'mb-3 p-3'}`}>
+                <ShieldCheck className={`text-emerald-300 mr-3 shrink-0 ${aiFull ? 'w-5 h-5' : 'w-6 h-6 mt-0.5'}`} />
+                <div className="min-w-0">
                   <div className="font-bold text-emerald-200">{kidsAiTitle()}</div>
-                  <p className="text-sm text-emerald-50/90">{kidsAiNotice()}</p>
+                  {!aiFull && <p className="text-sm text-emerald-50/90">{kidsAiNotice()}</p>}
                 </div>
               </div>
             )}
 
-            {/* AI Chat Messages */}
+            {/* AI Chat Messages. Up/Down on it scroll most of a screenful a
+                press; the newest is kept at the bottom. */}
             <div
               ref={aiChatContainerRef}
               data-focus-id="message-scroll"
-              className={`bg-black/30 border border-white/10 rounded-xl p-4 mb-4 ${embedded ? 'max-h-[30vh]' : 'max-h-80'} overflow-y-auto transition-colors duration-200 ${isFocused('message-scroll') ? 'border-l-4 border-l-brand-ice' : ''}`}
+              style={aiFull || !embedded ? undefined : { height: kidsLevel() ? 'calc(100vh - 24rem)' : 'calc(100vh - 19.5rem)', minHeight: '9.5rem' }}
+              className={`bg-black/30 border border-white/10 rounded-xl px-4 py-3 ${aiFull ? 'flex-1 min-h-0 mb-3' : `mb-3 ${embedded ? '' : 'max-h-80'}`} overflow-y-auto transition-colors duration-200 ${isFocused('message-scroll') ? 'border-l-4 border-l-brand-ice' : ''}`}
             >
               {isFocused('message-scroll') && aiChat.length > 0 && (
                 <div className="text-center text-xs text-brand-ice mb-2 animate-pulse">
@@ -2009,13 +2175,14 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 </div>
               ) : (
                 aiChat.map((msg, index) => (
-                  // Bubbles: yours on the right, the assistant's on the left.
-                  <div key={index} className={`mb-3 last:mb-0 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`rounded-2xl px-4 py-2.5 ${msg.premiumContent ? 'w-full' : 'max-w-[85%]'} ${
+                  // Bubbles: yours on the right, the assistant's on the left,
+                  // wide enough for a long answer to read in few lines.
+                  <div key={index} className={`mb-4 last:mb-0 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`rounded-2xl px-4 py-3 ${msg.premiumContent ? 'w-full' : msg.role === 'user' ? 'max-w-[75%]' : 'max-w-[90%]'} ${
                     msg.role === 'user' ? 'bg-blue-600/80 rounded-br-md' : 'bg-white/10 border border-white/10 rounded-bl-md'
                   }`}>
-                    <div className="flex items-center justify-between mb-1 text-xs">
-                      <span className={`font-semibold mr-4 ${msg.role === 'user' ? 'text-blue-100' : 'text-purple-300'}`}>
+                    <div className="flex items-baseline justify-between mb-1.5 text-xs leading-none">
+                      <span className={`font-bold uppercase tracking-wide mr-4 ${msg.role === 'user' ? 'text-blue-100' : 'text-purple-300'}`}>
                         {msg.role === 'user' ? t('ai.chat.you') : t('ai.chat.aiSender')}
                       </span>
                       <span className="text-white/50">
@@ -2026,23 +2193,25 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                       <div className="grid gap-3 md:grid-cols-2">
                         <div className="rounded-xl border border-white/15 bg-black/25 p-3">
                           <p className="text-xs uppercase tracking-wide text-brand-ice/80 mb-1">{t('ai.chat.snowAiIncluded')}</p>
-                          <p className="text-white whitespace-pre-wrap">{msg.content}</p>
+                          <ChatMarkdown text={msg.content} className="text-white text-base leading-relaxed" />
                         </div>
                         <div className="rounded-xl border border-brand-gold/60 bg-brand-gold/10 p-3">
                           <p className="text-xs uppercase tracking-wide text-brand-gold mb-1">
                             {chatPremium ? t('ai.chat.snowAiPremiumGems', { gems: chatPremium.gems }) : t('ai.chat.snowAiPremium')}
                           </p>
-                          <p className="text-white whitespace-pre-wrap">{msg.premiumContent}</p>
+                          <ChatMarkdown text={msg.premiumContent} className="text-white text-base leading-relaxed" />
                         </div>
                       </div>
-                    ) : (
-                      <p className="text-white whitespace-pre-wrap">
-                        {msg.content}
+                    ) : msg.role === 'ai' ? (
+                      <div>
+                        <ChatMarkdown text={msg.content} className="text-white text-base leading-relaxed" />
                         {/* i18n-ignore: state check, not text */}
-                        {msg.role === 'ai' && msg.tier === 'premium' && (
-                          <span className="ml-2 align-middle text-[10px] uppercase tracking-wide rounded-full bg-brand-gold text-black px-2 py-0.5">{t('ai.chat.premiumChip')}</span>
+                        {msg.tier === 'premium' && (
+                          <span className="inline-block mt-1 text-[10px] uppercase tracking-wide rounded-full bg-brand-gold text-black px-2 py-0.5">{t('ai.chat.premiumChip')}</span>
                         )}
-                      </p>
+                      </div>
+                    ) : (
+                      <p className="text-white text-base leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                     )}
                     {/* i18n-ignore: state check, not text */}
                     {msg.role === 'ai' && pendingTtsMessageIndex === index && (
@@ -2068,13 +2237,23 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               )}
             </div>
             
-            {/* AI Input */}
-            <div className="flex gap-2">
+            {/* AI Input. A plain text box, nothing that turns suggestions off,
+                no input mode or action hint: the Fire TV keyboard offers its
+                "speak instead of typing" key on fields like this one (see
+                voiceInputFields.guard.test.ts). Opening it for typing opens
+                the chat full screen. */}
+            <div className="flex gap-2 shrink-0">
               <Input 
+                type="text"
                 value={aiMessage}
                 onChange={(e) => setAiMessage(e.target.value)}
+                onFocus={() => {
+                  setAiFull(true);
+                  // A box's keyboard is assumed up until Android says otherwise.
+                  if (isNativePlatform()) setKb((k) => (k.up ? k : { up: true, height: k.height }));
+                }}
+                onBlur={() => setKb({ up: false, height: 0 })}
                 placeholder={t('ai.chat.askPlaceholder')}
-                enterKeyHint="done"
                 data-focus-id="ai-input"
                 data-howto="ai.input"
                 className={`bg-black/40 border-white/20 text-white text-lg py-3 flex-1 transition-all duration-200 rounded-lg placeholder:text-white/45 ${isFocused('ai-input') ? 'ring-4 ring-brand-ice' : ''}`}
@@ -2151,7 +2330,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 )}
               </Button>
             </div>
-            {aiConversations.length > 0 && (
+            {!aiFull && aiConversations.length > 0 && (
               <div className="mt-5 border-t border-purple-700/50 pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold text-purple-200">{t('ai.chat.savedChatsTitle')}</h4>
@@ -2188,7 +2367,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               </div>
             )}
             
-            {!user && (
+            {!aiFull && !user && (
               <p className="text-purple-300 text-sm mt-4 text-center">
                 {t('ai.chat.signInToSave')}
               </p>

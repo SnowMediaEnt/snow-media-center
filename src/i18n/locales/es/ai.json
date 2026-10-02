@@ -169,6 +169,7 @@
         "resolved": "Resuelto"
       },
       "dpadScroll": "↑↓ Usa el control direccional para desplazar los mensajes",
+      "fullscreenBackHint": "Atrás: vista más pequeña",
       "you": "Tú",
       "supportSender": "Soporte",
       "replyPlaceholder": "Escribe tu respuesta...",

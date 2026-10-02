@@ -1725,8 +1725,11 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
     <div>
       <div data-focused={isActive && zone === 'input' ? 'true' : 'false'} data-howto="plex.searchBox" className="tv-ring mb-4 flex items-center gap-2 px-4 py-3 rounded-plex-md bg-black/40 border border-white/10">
         <SearchIcon className="w-4 h-4 text-brand-ice/60" />
+        {/* A plain text box (no autocomplete/spellcheck off, no inputMode or
+            enterKeyHint): the Fire TV keyboard's speak key stays on it. */}
         <input
           ref={inputRef}
+          type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setZone('input')}
