@@ -646,21 +646,6 @@
   to   { transform: translate3d(-50%, 0, 0); }
 }
 
-/* ScrollLines: a description taller than its box scrolls up to the end and
-   back, pausing at each end. --scroll-text-dist is set on the element.
-   (ScrollText's one-line ticker runs on the Web Animations API instead.) */
-.scroll-lines-move {
-  animation-name: scroll-lines;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-  animation-direction: alternate;
-  will-change: transform;
-}
-@keyframes scroll-lines {
-  0%, 15%   { transform: translate3d(0, 0, 0); }
-  85%, 100% { transform: translate3d(0, var(--scroll-text-dist, 0), 0); }
-}
-
 /* (The legacy .media-bar-track / @keyframes media-bar-marquee rules used to
    live here. The current MediaBar component is paginated — it has no marquee
    element — so those rules were dead code and have been removed.) */

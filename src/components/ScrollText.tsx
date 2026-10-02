@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 interface ScrollTextProps {
   text: string;
@@ -78,10 +78,17 @@ export default function ScrollText({ text, active, className = '' }: ScrollTextP
   );
 }
 
+/** Description scroll speed, in CSS px a second: slow enough to read. */
+export const SCROLL_LINES_PX_PER_SEC = 15;
+/** How long the description holds still at the top, and again at the end. */
+export const SCROLL_LINES_HOLD_MS = 3000;
+
 /**
  * A short block of text (a description) shown in a box `maxLines` tall. When
- * it is longer, it scrolls slowly up to the end and back, pausing at each end,
- * so the whole thing can be read from the couch.
+ * it is taller than the box, it holds at the top, scrolls slowly up to the
+ * end, holds there, then jumps back to the top and repeats; it never bounces.
+ * Chrome 66: the Web Animations API with plain px values (no CSS variables in
+ * keyframes); text that fits never moves.
  */
 export function ScrollLines({ text, maxLines = 2, className = '' }: { text: string; maxLines?: number; className?: string }) {
   const boxRef = useRef<HTMLDivElement>(null);
@@ -96,14 +103,27 @@ export function ScrollLines({ text, maxLines = 2, className = '' }: { text: stri
     setDist(over > 2 ? over : 0);
   }, [text, maxLines]);
 
-  // About 12 px (half a line) a second, plus the pauses at each end.
-  const style: CSSProperties | undefined = dist > 0
-    ? ({ '--scroll-text-dist': `-${dist}px`, animationDuration: `${Math.max(4, dist / 12 + 3)}s` } as CSSProperties)
-    : undefined;
+  useLayoutEffect(() => {
+    const inner = innerRef.current;
+    if (dist <= 0 || !inner || typeof inner.animate !== 'function') return;
+    const travelMs = (dist / SCROLL_LINES_PX_PER_SEC) * 1000;
+    const total = SCROLL_LINES_HOLD_MS * 2 + travelMs;
+    const end = `translate3d(0, -${dist}px, 0)`;
+    const anim = inner.animate(
+      [
+        { transform: 'translate3d(0, 0, 0)', offset: 0 },
+        { transform: 'translate3d(0, 0, 0)', offset: SCROLL_LINES_HOLD_MS / total },
+        { transform: end, offset: (SCROLL_LINES_HOLD_MS + travelMs) / total },
+        { transform: end, offset: 1 },
+      ],
+      { duration: total, iterations: Infinity, easing: 'linear' },
+    );
+    return () => anim.cancel();
+  }, [dist, text]);
 
   return (
     <div ref={boxRef} className={`overflow-hidden ${className}`} style={{ maxHeight: `${maxLines * 1.375}em` }}>
-      <div ref={innerRef} className={dist > 0 ? 'scroll-lines-move' : undefined} style={style}>{text}</div>
+      <div ref={innerRef} style={dist > 0 ? { willChange: 'transform' } : undefined}>{text}</div>
     </div>
   );
 }
