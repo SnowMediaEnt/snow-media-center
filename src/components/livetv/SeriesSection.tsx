@@ -30,7 +30,6 @@ import { isFireTV } from '@/utils/platform';
 import ScrollText, { ScrollLines } from '@/components/ScrollText';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
-import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import VodPlayer from './VodPlayer';
@@ -655,10 +654,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
     const btnFocused = (f: DetailFocus) => isActive && !demoNotice && detailFocus === f;
     return (
       <div data-series-detail="" className="flex-1 min-h-0 min-w-0 flex flex-col text-white bg-black/40">
-        <div className={`${BACK_ROW} flex-shrink-0 px-6 pt-4 mb-3`}>
-          <BackButton onClick={() => { openSeqRef.current++; setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }} label={t('common.back')} />
-        </div>
-        <div className="flex-1 min-h-0 flex px-6 pb-4">
+        {/* No Back button of its own: the screen's top bar has one, and the
+            remote's Back returns to the list. The space goes to the info. */}
+        <div className="flex-1 min-h-0 flex px-6 pt-4 pb-4">
           {/* About the series, Play, autoplay */}
           <div ref={infoScrollRef} className="w-72 flex-shrink-0 min-h-0 overflow-y-auto overflow-x-hidden pr-4 mr-4 border-r border-white/10">
             <div className="flex items-start mb-3">

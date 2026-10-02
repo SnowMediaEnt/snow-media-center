@@ -29,7 +29,6 @@ import ScrollText, { ScrollLines } from '@/components/ScrollText';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
-import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import VodPlayer from './VodPlayer';
@@ -564,12 +563,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     const cover = tmdbSized(info?.movie_image || info?.cover_big || selectedMovie.stream_icon, 'w500');
     return (
       <div data-movie-detail="" className="flex-1 min-h-0 min-w-0 flex flex-col text-white bg-black/40">
-        <div className={`${BACK_ROW} flex-shrink-0 px-8 pt-4 mb-3`}>
-          <BackButton onClick={() => { setPane('grid'); setSelectedMovie(null); }} label={t('common.back')} />
-        </div>
+        {/* No Back button of its own: the screen's top bar has one, and the
+            remote's Back returns to the list. The space goes to the info. */}
         {/* The cover takes the row's height (FitPoster), with a margin above
             the bottom edge; the text beside it scrolls if it ever must. */}
-        <div className="flex-1 min-h-0 flex px-8 pb-6">
+        <div className="flex-1 min-h-0 flex px-8 pt-4 pb-6">
           <FitPoster src={cover} maxWidth={300} className="mr-8" />
           <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden max-w-3xl px-2 py-2">
             <h2 className="text-3xl font-quicksand font-bold leading-tight line-clamp-2 mb-3">{selectedMovie.name}</h2>
