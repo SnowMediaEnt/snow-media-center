@@ -2075,6 +2075,93 @@ export type Database = {
         }
         Relationships: []
       }
+      game_day_ai_matches: {
+        Row: {
+          candidates: number
+          candidates_hash: string | null
+          cost_usd: number
+          created_at: string
+          day: string
+          games: number
+          host: string
+          learned: Json
+          lineup_hash: string | null
+          matches: Json
+          model: string | null
+          scan_started_at: string | null
+          scanned_at: string | null
+          scans: number
+          tokens_in: number
+          tokens_out: number
+          updated_at: string
+        }
+        Insert: {
+          candidates?: number
+          candidates_hash?: string | null
+          cost_usd?: number
+          created_at?: string
+          day: string
+          games?: number
+          host: string
+          learned?: Json
+          lineup_hash?: string | null
+          matches?: Json
+          model?: string | null
+          scan_started_at?: string | null
+          scanned_at?: string | null
+          scans?: number
+          tokens_in?: number
+          tokens_out?: number
+          updated_at?: string
+        }
+        Update: {
+          candidates?: number
+          candidates_hash?: string | null
+          cost_usd?: number
+          created_at?: string
+          day?: string
+          games?: number
+          host?: string
+          learned?: Json
+          lineup_hash?: string | null
+          matches?: Json
+          model?: string | null
+          scan_started_at?: string | null
+          scanned_at?: string | null
+          scans?: number
+          tokens_in?: number
+          tokens_out?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      game_day_ai_usage: {
+        Row: {
+          calls: number
+          cost_usd: number
+          day: string
+          tokens_in: number
+          tokens_out: number
+          updated_at: string
+        }
+        Insert: {
+          calls?: number
+          cost_usd?: number
+          day: string
+          tokens_in?: number
+          tokens_out?: number
+          updated_at?: string
+        }
+        Update: {
+          calls?: number
+          cost_usd?: number
+          day?: string
+          tokens_in?: number
+          tokens_out?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       game_day_channel_edits: {
         Row: {
           action: string
@@ -2126,6 +2213,51 @@ export type Database = {
           sort?: number
           stream_id?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      game_day_match_signals: {
+        Row: {
+          category_name: string | null
+          channel_name: string | null
+          created_at: string
+          device_hash: string
+          game_id: string
+          host: string
+          id: string
+          ip_hash: string | null
+          league: string | null
+          source: string
+          stream_id: number
+          trusted: boolean
+        }
+        Insert: {
+          category_name?: string | null
+          channel_name?: string | null
+          created_at?: string
+          device_hash: string
+          game_id: string
+          host: string
+          id?: string
+          ip_hash?: string | null
+          league?: string | null
+          source: string
+          stream_id: number
+          trusted?: boolean
+        }
+        Update: {
+          category_name?: string | null
+          channel_name?: string | null
+          created_at?: string
+          device_hash?: string
+          game_id?: string
+          host?: string
+          id?: string
+          ip_hash?: string | null
+          league?: string | null
+          source?: string
+          stream_id?: number
+          trusted?: boolean
         }
         Relationships: []
       }
@@ -5517,6 +5649,15 @@ export type Database = {
         Returns: Json
       }
       free_ai_available: { Args: never; Returns: Json }
+      game_day_ai_add: {
+        Args: { p_cost: number; p_tokens_in: number; p_tokens_out: number }
+        Returns: undefined
+      }
+      game_day_ai_host_take: {
+        Args: { p_cap: number; p_day: string; p_host: string }
+        Returns: string
+      }
+      game_day_ai_take: { Args: { p_cap: number }; Returns: boolean }
       get_claim_session: {
         Args: { p_token: string }
         Returns: {
