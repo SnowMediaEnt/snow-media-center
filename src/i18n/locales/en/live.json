@@ -291,7 +291,9 @@
       "plexTitle": "Plex",
       "plexBody": "All your movies and TV shows. Press OK to open Plex.",
       "noDescription": "No description available.",
-      "playMovieBtn": "Play Movie"
+      "playMovieBtn": "Play Movie",
+      "noSoundTitle": "No sound on this title",
+      "noSoundBody": "This title's audio ({{codecs}}) can't be decoded on this device. Report it in Support and we'll look at it."
     },
     "series": {
       "allSeries": "All Series",

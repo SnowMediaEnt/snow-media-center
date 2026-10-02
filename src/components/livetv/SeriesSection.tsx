@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
@@ -8,8 +8,6 @@ import {
   getSeries,
   getSeriesInfo,
   buildEpisodeUrl,
-  loadVolume,
-  saveVolume,
   XTREAM_REFRESH_EVENT,
   type XtreamCreds,
   type XtreamCategory,
@@ -30,11 +28,9 @@ import { isFireTV } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
-import SnowLoader from '@/components/SnowLoader';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
-import { stepVolume } from '@/utils/volume';
-
-const VideoPlayer = lazy(() => import('./VideoPlayer'));
+import { loadPlayerVolume, savePlayerVolume, stepVolume } from '@/utils/volume';
+import VodPlayer from './VodPlayer';
 
 interface Props {
   creds: XtreamCreds;
@@ -101,8 +97,10 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   // On-screen title: shows 4 s on play / episode change / any key, then hides.
   const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [demoNotice, setDemoNotice] = useState(false);
-  const [volume, setVolume] = useState(() => loadVolume());
-  useEffect(() => { saveVolume(volume); }, [volume]);
+  // The shared player volume (Live TV, Plex): 0..150%, never back at 0 on
+  // a new start (VodPlayer shows the level while ◀ ▶ change it).
+  const [volume, setVolume] = useState(() => loadPlayerVolume());
+  useEffect(() => { savePlayerVolume(volume); }, [volume]);
   const [autoplayNext, setAutoplayNext] = useState<boolean>(() => {
     try { return localStorage.getItem(AUTOPLAY_KEY) !== 'false'; } catch { return true; }
   });
@@ -545,29 +543,25 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   // Fullscreen episode player with autoplay next
   if (playing) {
     return (
-      <div className="fixed inset-0 z-[60] bg-black">
-        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
-          <VideoPlayer
-            src={playing.url}
-            volume={volume}
-            className="w-full h-full"
-            onError={(msg) => {
-              try { trackEvent('player_error', 'player', { kind: 'series', channel_or_title: playing.title, server: creds.serverLabel, message: msg.slice(0, 200) }); } catch { /* ignore */ }
-            }}
-            onEnded={() => {
-              if (!autoplayNextRef.current) { setPlaying(null); return; }
-              const next = playing.episodeIdx + 1;
-              if (next < episodesRef.current.length) playEpisode(next);
-              else setPlaying(null);
-            }}
-          />
-        </Suspense>
+      <VodPlayer
+        src={playing.url}
+        volume={volume}
+        onError={(msg) => {
+          try { trackEvent('player_error', 'player', { kind: 'series', channel_or_title: playing.title, server: creds.serverLabel, message: msg.slice(0, 200) }); } catch { /* ignore */ }
+        }}
+        onEnded={() => {
+          if (!autoplayNextRef.current) { setPlaying(null); return; }
+          const next = playing.episodeIdx + 1;
+          if (next < episodesRef.current.length) playEpisode(next);
+          else setPlaying(null);
+        }}
+      >
         {titleShown && (
           <div className="absolute top-4 left-4 max-w-[70%] truncate px-4 py-2 rounded-xl bg-black/70 text-white font-quicksand font-bold text-lg pointer-events-none">
             {playing.title}
           </div>
         )}
-      </div>
+      </VodPlayer>
     );
   }
 

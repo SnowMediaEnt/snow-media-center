@@ -292,7 +292,9 @@
       "plexTitle": "Plex",
       "plexBody": "Tous vos films et émissions de TV. Appuyez sur OK pour ouvrir Plex.",
       "noDescription": "Aucune description disponible.",
-      "playMovieBtn": "Lire le film"
+      "playMovieBtn": "Lire le film",
+      "noSoundTitle": "Pas de son sur ce titre",
+      "noSoundBody": "L'audio de ce titre ({{codecs}}) ne peut pas être décodé sur cet appareil. Signalez-le à l'Assistance et nous l'examinerons."
     },
     "series": {
       "allSeries": "Toutes les séries",
