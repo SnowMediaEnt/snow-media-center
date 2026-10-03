@@ -17,11 +17,13 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		874298063EB150D5FF3EFEF7 /* SnowPlayerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 144CFA0945234917FF4B59E9 /* SnowPlayerPlugin.swift */; };
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
+		B82723D71F17FF104B8B97A4 /* SMCBackGesture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056A8A17C21BA194502DDACD /* SMCBackGesture.swift */; };
 		F1DB880362C95D40F96315D5 /* SnowVLCSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127F8C87D82ECEA2C62F2991 /* SnowVLCSupport.swift */; };
 		F781774C5A3DEEED101ACD3F /* SMCViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6071ECB76BA8D356D3EE551F /* SMCViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		056A8A17C21BA194502DDACD /* SMCBackGesture.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SMCBackGesture.swift; sourceTree = "<group>"; };
 		127F8C87D82ECEA2C62F2991 /* SnowVLCSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SnowVLCSupport.swift; sourceTree = "<group>"; };
 		144CFA0945234917FF4B59E9 /* SnowPlayerPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SnowPlayerPlugin.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -102,6 +104,7 @@
 				50B271D01FEDC1A000F3C39B /* public */,
 				6071ECB76BA8D356D3EE551F /* SMCViewController.swift */,
 				4836122096CFC8E000F0DA9A /* Player */,
+				056A8A17C21BA194502DDACD /* SMCBackGesture.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -233,6 +236,7 @@
 				F1DB880362C95D40F96315D5 /* SnowVLCSupport.swift in Sources */,
 				1A97A6B4296F0A9687D4C590 /* SnowPlayerSlot.swift in Sources */,
 				874298063EB150D5FF3EFEF7 /* SnowPlayerPlugin.swift in Sources */,
+				B82723D71F17FF104B8B97A4 /* SMCBackGesture.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

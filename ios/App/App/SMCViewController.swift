@@ -19,5 +19,12 @@ class SMCViewController: CAPBridgeViewController {
         // The native player (VLC). Its picture goes under the page, inside
         // the WebView below its scroll view.
         bridge?.registerPluginInstance(SnowPlayerPlugin())
+        // No Back key on an iPhone: a swipe in from a side edge is Back, sent
+        // as the same "backButton" event the Android remote's Back sends.
+        backGesture = SMCBackGesture(on: view) { [weak self] in
+            self?.bridge?.plugin(withName: "App")?.notifyListeners("backButton", data: ["canGoBack": false])
+        }
     }
+
+    private var backGesture: SMCBackGesture?
 }
