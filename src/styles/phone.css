@@ -1,0 +1,67 @@
+/* ==========================================================================
+   Phones and touch screens. Every rule here is scoped under html.is-touch or
+   html.is-phone, which src/lib/phoneMode.ts sets at boot and which a TV box
+   never gets: the TV path is unchanged. Phones run a current Chrome WebView,
+   so these rules may use modern CSS. (Ported from Tronix's phone.css.)
+   ========================================================================== */
+
+/* No tap delay or double-tap zoom on the controls. */
+html.is-touch button,
+html.is-touch a,
+html.is-touch [role="button"],
+html.is-touch [role="switch"],
+html.is-touch [data-focus-id] {
+  touch-action: manipulation;
+}
+
+/* A finger held on a list: no word gets selected. Android's WebView ends the
+   whole touch the moment it shows selection handles (a touchcancel; the list
+   stops dead under the finger); with nothing to select, a held finger that
+   moves scrolls as usual. No picture dragged either. Typing boxes keep their
+   selection, and so do values a viewer may want to copy ([data-selectable]). */
+html.is-touch body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+html.is-touch input,
+html.is-touch textarea,
+html.is-touch [contenteditable="true"],
+html.is-touch [data-selectable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+html.is-touch img,
+html.is-touch a {
+  -webkit-user-drag: none;
+}
+
+/* No blanket overscroll-behavior: contain on every overflow-*-auto box: a box
+   with overflow-y:auto that has no height of its own (it grows with its page
+   inside another scroller) then stops every finger swipe and the page never
+   scrolls (found in Tronix's Settings, its commit eb646b5). Screen roots let
+   a swipe through to the page that scrolls. */
+html.is-touch .tv-scroll-container {
+  overscroll-behavior: auto;
+}
+
+/* Rows the remote scrolls in code (overflow hidden on a TV) scroll by finger
+   here. Mark them data-touch-scroll-x / data-touch-scroll-y. */
+html.is-touch [data-touch-scroll-x] {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+html.is-touch [data-touch-scroll-y] {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+html.is-touch [data-touch-scroll-x]::-webkit-scrollbar,
+html.is-touch [data-touch-scroll-y]::-webkit-scrollbar {
+  display: none;
+}

@@ -1,9 +1,14 @@
+import { fingerIsDriving } from '@/lib/phoneMode';
+
 // Keep a focused row visible inside its own scroll container, by adjusting
 // only that container's scrollTop (never scrollIntoView, which also scrolls
 // ancestors on a TV WebView). Measured from the DOM, and against the screen
 // as well as the container: on some boxes the pane runs past the bottom of
 // the visible screen, so "inside the pane" was not "on screen".
+// On a touch screen a finger's scroll is never pulled back to the remote's
+// highlight (src/lib/phoneMode.ts); a TV is unchanged.
 export function keepInView(container: HTMLElement, el: HTMLElement, pad = 8): void {
+  if (fingerIsDriving()) return;
   const c = container.getBoundingClientRect();
   const r = el.getBoundingClientRect();
   const viewH = window.innerHeight || document.documentElement.clientHeight || c.bottom;

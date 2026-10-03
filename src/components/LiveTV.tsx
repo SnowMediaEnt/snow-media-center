@@ -451,6 +451,20 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const leaveMode = useCallback(() => {
     onBackRef.current();
   }, []);
+  // The top bar's Back is one step, like the remote's Back: from inside a
+  // section (a film page, a category, VOD's Movies / Series) it goes back one
+  // screen there; only from the far-left menu does it leave the Player.
+  // The section gets the same Escape the remote's Back turns into, once it
+  // is active again.
+  const stepBack = useCallback(() => {
+    const fromContent = paneRef.current === 'content'
+      || (paneRef.current === 'header' && headerReturnPaneRef.current === 'content');
+    if (!fromContent) { leaveMode(); return; }
+    setPane('content');
+    window.setTimeout(() => {
+      try { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); } catch { /* very old WebView */ }
+    }, 60);
+  }, [leaveMode]);
 
   // What the assistant or a voice command asked for. The channel to play or
   // report and the Plex title are handed on through sessionStorage (read by
@@ -776,7 +790,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (paneRef.current === 'header') {
         if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
           e.preventDefault(); e.stopPropagation();
-          leaveMode();
+          stepBack();
           return;
         }
         const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
@@ -802,7 +816,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           // just reached. Swallowed, exactly like Up at the top of a list.
         } else if (e.key === 'Enter' || e.key === ' ') {
           const idx = headerIdxRef.current;
-          if (idx === 0) leaveMode();
+          if (idx === 0) stepBack();
           else if (idx === 1) refreshChannels();
           else if (idx === 2 && (!DEMO || HOWTO) && !kidsLevel()) setSettingsOpen(true);
         }
@@ -839,7 +853,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, accountFormOpen, settingsOpen, creds, signOut, refreshChannels, leaveMode]);
+  }, [onBack, accountFormOpen, settingsOpen, creds, signOut, refreshChannels, leaveMode, stepBack]);
 
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -1108,7 +1122,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       <div data-player-chrome="" className="flex items-center justify-between px-5 py-2 border-b border-white/10 bg-black/30">
         <div className="flex items-center gap-3">
           <BackButton
-            onClick={leaveMode}
+            onClick={stepBack}
             label={t('common.back')}
             className="h-10 rounded-lg"
             data-player-header-btn=""

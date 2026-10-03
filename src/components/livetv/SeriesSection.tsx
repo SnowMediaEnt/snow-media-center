@@ -26,6 +26,7 @@ import PosterCard from './PosterCard';
 import { followGridRow } from './posterGrid';
 import { tmdbSized } from '@/lib/tmdbImage';
 import { keepInView } from '@/utils/keepInView';
+import { fingerIsDriving } from '@/lib/phoneMode';
 import { isFireTV } from '@/utils/platform';
 import ScrollText, { ScrollLines } from '@/components/ScrollText';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
@@ -538,7 +539,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
   useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line */ }, [rowH]);
   useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx, searchOpen, searchQuery]);
   useEffect(() => {
-    if (!visibleSeries.length) return;
+    // A finger scrolling the grid is never pulled back to the highlight (phoneMode).
+    if (!visibleSeries.length || fingerIsDriving()) return;
     const row = Math.floor(gridIdx / GRID_COLS);
     rowVirtualizer.scrollToIndex(row, { align: 'auto' });
     return followGridRow(gridScrollRef.current, row);
