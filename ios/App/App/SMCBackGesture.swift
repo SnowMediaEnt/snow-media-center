@@ -1,38 +1,44 @@
 import UIKit
 
-/// iPhones have no Back key. A swipe in from either side edge is the remote's
-/// Back: it fires the same Capacitor "backButton" event Android sends, so every
-/// screen's own Back handling runs unchanged (one swipe = one step back).
+/// iPhones have no Back key. A swipe in from either side edge is one press of
+/// the remote's Back, delivered the way Android delivers it
+/// (SMCViewController.pressBack), so every screen's own Back handling runs
+/// unchanged: one swipe = one step back.
 /// An arrow follows the thumb in from the edge, like Android's back gesture,
 /// and a light tick says the swipe has gone far enough to count.
 final class SMCBackGesture: NSObject, UIGestureRecognizerDelegate {
 
     /// How far the thumb must travel in from the edge for the swipe to count.
     private static let threshold: CGFloat = 70
+    /// A swipe has to start this close to the left or right edge.
+    private static let edgeZone: CGFloat = 24
 
     private weak var host: UIView?
     private let fire: () -> Void
     private let arrow = SMCBackArrow()
     private let haptic = UIImpactFeedbackGenerator(style: .light)
+    private var recognizer: UIPanGestureRecognizer?
+    private var fromLeft = true
     private var armed = false
 
     init(on view: UIView, fire: @escaping () -> Void) {
         self.host = view
         self.fire = fire
         super.init()
-        for edge in [UIRectEdge.left, .right] {
-            let g = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(pan(_:)))
-            g.edges = edge
-            g.delegate = self
-            view.addGestureRecognizer(g)
-        }
+        // A plain pan that only starts at a side edge, not a
+        // UIScreenEdgePanGestureRecognizer: the same on a phone, and it also
+        // answers the simulator's touches, so it can be tested there.
+        let g = UIPanGestureRecognizer(target: self, action: #selector(pan(_:)))
+        g.delegate = self
+        g.maximumNumberOfTouches = 1
+        view.addGestureRecognizer(g)
+        recognizer = g
         arrow.isHidden = true
         view.addSubview(arrow)
     }
 
-    @objc private func pan(_ g: UIScreenEdgePanGestureRecognizer) {
+    @objc private func pan(_ g: UIPanGestureRecognizer) {
         guard let host = host else { return }
-        let fromLeft = g.edges == .left
         let inward: CGFloat = fromLeft ? 1 : -1
         let dx = g.translation(in: host).x * inward
         let y = g.location(in: host).y
@@ -41,6 +47,7 @@ final class SMCBackGesture: NSObject, UIGestureRecognizerDelegate {
             armed = false
             haptic.prepare()
             arrow.show(fromLeft: fromLeft, y: y, in: host.bounds)
+            arrow.update(progress: max(0, min(1, dx / Self.threshold)), armed: false, y: y)
         case .changed:
             let nowArmed = dx >= Self.threshold
             if nowArmed && !armed { haptic.impactOccurred() }
@@ -59,10 +66,24 @@ final class SMCBackGesture: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    /// Only a mostly sideways swipe, inward, that started at a side edge.
+    func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+        guard g === recognizer, let pan = g as? UIPanGestureRecognizer, let host = host else { return true }
+        let t = pan.translation(in: host)
+        let start = pan.location(in: host).x - t.x
+        // The first reading can be (0, 0); the speed says which way it's going.
+        let d = t == .zero ? pan.velocity(in: host) : t
+        let w = host.bounds.width
+        if start <= Self.edgeZone && d.x > 0 { fromLeft = true }
+        else if start >= w - Self.edgeZone && d.x < 0 { fromLeft = false }
+        else { return false }
+        return abs(d.x) > abs(d.y)
+    }
+
     // The page's own scrolling waits until an edge swipe has been ruled out,
     // so a swipe from the edge never also scrolls the list under the thumb.
     func gestureRecognizer(_ g: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
-        other is UIPanGestureRecognizer && !(other is UIScreenEdgePanGestureRecognizer)
+        g === recognizer && other !== recognizer && other is UIPanGestureRecognizer
     }
 }
 
