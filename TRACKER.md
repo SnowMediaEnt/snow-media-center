@@ -77,11 +77,11 @@ Status: building · ready to test · still broken · done.
 | 55 | Support AI Chat: full screen while typing/talking, roomier layout, bold/lists shown properly (no **); keyboard talk button back on AI Chat, Plex search and ticket fields | feature | ready to test (1.8.1 build 59) | |
 | 56 | Plex deep audit (docs/plex-audit-2026-10.md): download engine rewritten (4 busy connections on every box, arrival metering, retries); one quality rule on real delivery; one conversion lifecycle; start conversion removed; no test reads during play; route/home-network fixes; no update download during play; remote kill switch plex_range_fetch | bug | ready to test (1.8.1 build 59) | 4 |
 | 57 | Game Day finds channels it missed (B1G+/BIG10+ "#11 Boston vs Michigan", SEC+, ACCNX, Flo, UEFA, accents, Michigan vs Michigan State) and a daily AI scan per provider links today's games to its event channels ("Found by search"; sure ones can be the Watch pick; "Not this game"); never PPV for team games; kill switch gameday_ai_match; needs migration 20261002060000 + deploy game-day, game-day-match | feature | ready to test (1.8.1 build 59, after Lovable deploy) | |
-| 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Canvas 2.3 build 15 ready to test (branch claude/canvas-2.3); APS waiting on GitHub access or Lovable | feature | Canvas ready to test; APS waiting | |
+| 27 | Canvas + All-Pro Streams: bring up to date with SMC (no MPV, each keeps its own brand). Second round (player, VOD, Plex audit, Back fix, sign-in keyboard, AI chat, version on tickets): Canvas 2.4 build 16 (branch port/canvas-2.4), APS 1.3 build 5 (branch port/aps-1.4, Plex brought up to SMC's screen). Kotlin not compiled in the cloud | feature | ready to test (build on the Mac) | |
 
 ## Waiting on the owner
 - Redeploy snow-media-ai (AI answers in the chosen language) and publish the phone remote page (web/phone-remote).
-- APS: add SnowMediaEnt as collaborator on DJ341972/all-pro-streams, or we go through Lovable.
+- APS: Continue Watching/My List across devices needs a watch_history table in APS's Supabase (box-only until then). Plex "Popular searches" needs get_popular_plex_searches there.
 - Migration 20260930070000 + notify-ticket/telegram-notify deploy: held until you decide.
 - snow-admin-app notify-admin header change: held until you decide.
 - Quiet Live TV sign-in: should it switch away from a different account already signed in? (currently: no)
