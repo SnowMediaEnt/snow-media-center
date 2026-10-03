@@ -1,5 +1,9 @@
 package com.snowmedia
 
+import android.app.UiModeManager
+import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
@@ -13,6 +17,9 @@ import android.widget.TextView
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
 import androidx.activity.OnBackPressedCallback
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.getcapacitor.BridgeActivity
 import com.getcapacitor.WebViewListener
 import com.snowmedia.appmanager.AppManagerPlugin
@@ -79,6 +86,7 @@ class MainActivity : BridgeActivity() {
         // anyway once a player has been used.
         bridge?.webView?.setBackgroundColor(Color.TRANSPARENT)
         window.decorView.setBackgroundColor(Color.BLACK)
+        fitTvLayoutOnTouchScreen()
         // Back never closes Snow Media Center on Android's say-so. The page
         // decides every Back (Capacitor's App plugin hands it the press), and
         // the app leaves only through Home's own "press Back again to exit"
@@ -132,4 +140,47 @@ class MainActivity : BridgeActivity() {
         }
         return true
     }
+
+    /** A TV: Android TV / Google TV / Fire TV, or no touch screen at all. */
+    private fun isTvDevice(): Boolean {
+        val ui = getSystemService(UI_MODE_SERVICE) as? UiModeManager
+        if (ui?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) return true
+        val pm = packageManager
+        if (pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) return true
+        if (pm.hasSystemFeature("amazon.hardware.fire_tv")) return true
+        return !pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
+    }
+
+    // Phones and tablets get SMC's TV layout, sideways and scaled to fit:
+    // full screen like a TV (no status or navigation bar; a swipe shows them
+    // for a moment), turned sideways, and the page drawn so the screen is
+    // TV_HEIGHT_CSS points tall, the height every screen is designed for.
+    // Only when the screen is shorter than that (phones): a tablet that
+    // already has the room keeps its own size. A TV is never touched.
+    private fun fitTvLayoutOnTouchScreen() {
+        if (isTvDevice()) return
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+        val dm = resources.displayMetrics
+        val shortPx = minOf(dm.widthPixels, dm.heightPixels)
+        // The real screen, bars included: they are hidden.
+        val real = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay.getRealMetrics(real)
+        val screenShortPx = minOf(real.widthPixels, real.heightPixels).coerceAtLeast(shortPx)
+        if (screenShortPx / dm.density >= TV_HEIGHT_CSS) return
+        val percent = (screenShortPx * 100 / TV_HEIGHT_CSS).toInt()
+        Log.i("SMC-Phone", "Touch screen: sideways, TV layout scaled to $percent% (short side ${screenShortPx}px)")
+        bridge?.webView?.setInitialScale(percent)
+    }
+
+    private companion object {
+        /** The height every SMC screen is designed for (CSS px), as on a TV. */
+        const val TV_HEIGHT_CSS = 540f
+    }
+
 }

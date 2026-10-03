@@ -24,7 +24,24 @@ class SMCViewController: CAPBridgeViewController {
         backGesture = SMCBackGesture(on: view) { [weak self] in
             self?.bridge?.plugin(withName: "App")?.notifyListeners("backButton", data: ["canGoBack": false])
         }
+        fitTvLayout()
     }
 
     private var backGesture: SMCBackGesture?
+
+    /// The height every SMC screen is designed for (CSS px), as on a TV.
+    private static let tvHeightCss: CGFloat = 540
+
+    /// SMC's TV layout on a phone, like Android phones get it (MainActivity
+    /// fitTvLayoutOnTouchScreen): sideways, full screen, and the page zoomed
+    /// so the screen is 540 CSS px tall. A screen that already has the room
+    /// keeps its own size.
+    private func fitTvLayout() {
+        let screen = UIScreen.main.bounds.size
+        let short = min(screen.width, screen.height)
+        if short < Self.tvHeightCss { webView?.pageZoom = short / Self.tvHeightCss }
+    }
+
+    override var prefersStatusBarHidden: Bool { true }
+    override var prefersHomeIndicatorAutoHidden: Bool { true }
 }

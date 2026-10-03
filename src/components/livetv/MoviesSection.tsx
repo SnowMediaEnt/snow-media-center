@@ -25,6 +25,7 @@ import PosterCard from './PosterCard';
 import { followGridRow } from './posterGrid';
 import { tmdbSized } from '@/lib/tmdbImage';
 import { keepInView } from '@/utils/keepInView';
+import { fingerIsDriving } from '@/lib/phoneMode';
 import ScrollText, { ScrollLines } from '@/components/ScrollText';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
@@ -486,7 +487,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx, searchOpen, searchQuery]);
 
   useEffect(() => {
-    if (!visibleMovies.length) return;
+    // A finger scrolling the grid is never pulled back to the highlight (phoneMode).
+    if (!visibleMovies.length || fingerIsDriving()) return;
     const row = Math.floor(gridIdx / GRID_COLS);
     rowVirtualizer.scrollToIndex(row, { align: 'auto' });
     return followGridRow(gridScrollRef.current, row);
