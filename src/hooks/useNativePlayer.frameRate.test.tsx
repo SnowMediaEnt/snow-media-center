@@ -204,14 +204,18 @@ describe('frame-rate matching — the native side (pinned)', () => {
     expect(fn('timeFrame')).toContain('val fps = FrameRateMatch.estimate(e.pts, e.count)\n');
     // F2: a switch while playing re-enters the hold and resumes there.
     const begin = fn('beginModeSwitch');
-    expect(begin).toMatch(/s\.holding = true\s*s\.modeWaitUntilMs = switchWaitUntilMs\s*p\.playWhenReady = false\s*schedulePreBuffer\(s, screenId, midFile = true\)/);
+    expect(begin).toMatch(/s\.holding = true\s*s\.modeWaitUntilMs = switchWaitUntilMs\s*p\.playWhenReady = false\s*schedulePreBuffer\(s, screenId, midFile = true, modeOnly = true\)/);
+    // A mode-only hold waits for the screen alone, never the start-up buffer rules.
+    expect(fn('schedulePreBuffer')).toMatch(/val done = \(modeOnly \|\| PreBufferRule\.isDone\(/);
     // F3: the display has the mode; HDMI gets 1.5 s more.
     const watch = fn('watchDisplayMode');
     expect(watch).toContain('if (s.modeWaitUntilMs != 0L) s.modeWaitUntilMs = t');
     expect(watch).toContain('s.modeSwitchUntilMs = maxOf(s.modeSwitchUntilMs, t)');
     expect(plugin).toMatch(/MODE_RESYNC_MS = 1500L/);
     // F4: already on screen: attribute only; an ignored request stops later waits.
-    expect(apply).toContain('if (pick.id != shown.id) beginModeSwitch(s, screenId, pick, useFps, request = true)');
+    expect(apply).toContain('if (pick.id != shown.id && !(displayListener != null && watchingModeId == pick.id)) {');
+    // A TV slower than the wait still counts as honouring requests.
+    expect(watch).toContain('modeRequestsIgnored = false');
     expect(begin).toContain('if (!modeRequestsIgnored) {');
     expect(begin).toContain('modeRequestsIgnored = true');
     // F6: a load during a pending switch keeps the grace and waits.

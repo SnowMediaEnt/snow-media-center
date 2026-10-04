@@ -104,3 +104,15 @@ describe('SnowPlayerPlugin.kt — audio order (pinned)', () => {
     expect(plex).toContain('if (last && Date.now() - last.t <= 1000 && last.kbps === data.arrivalKbps) a.samples.pop();');
   });
 });
+
+describe('passthrough mute holds (native, pinned)', () => {
+  it('a track pick or setAudioEnabled never unmutes a passthrough mute; audio off clears it', async () => {
+    const fs = await import('node:fs');
+    const src = fs.readFileSync('android/app/src/main/java/com/snowmedia/player/SnowPlayerPlugin.kt', 'utf8');
+    expect(src).toContain('.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, !enabled || s.passthroughMuted)');
+    expect(src).toContain('.setTrackTypeDisabled(type, type == C.TRACK_TYPE_AUDIO && s.passthroughMuted)');
+    expect(src).toContain('if (type == C.TRACK_TYPE_AUDIO) s.passthroughMuted = false');
+    // No phantom stall after a stop.
+    expect(src).toMatch(/s\.stallStartedAtMs = 0L\n\s*s\.stallUncounted = false\n\s*}/);
+  });
+});

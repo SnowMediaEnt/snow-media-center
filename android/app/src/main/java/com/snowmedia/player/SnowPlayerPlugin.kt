@@ -336,6 +336,8 @@ class SnowPlayerPlugin : Plugin() {
     private var modeBefore: FrameRateMatch.Mode? = null
     // Told when the requested mode is in place (the start-up hold waits for it).
     private var displayListener: DisplayManager.DisplayListener? = null
+    // The mode the display listener waits for (0: none).
+    private var watchingModeId: Int = 0
     // A stop puts the screen back a moment later, so a quality change, a
     // retry or the next episode (a stop and a load) keeps the film's mode.
     private val restoreModeRunnable = Runnable { restoreDisplayMode() }
@@ -599,6 +601,7 @@ class SnowPlayerPlugin : Plugin() {
         s.stalls = 0
         s.stallSec = 0.0
         s.stallStartedAtMs = 0L
+        s.stallUncounted = false
     }
 
     /**
@@ -688,7 +691,7 @@ class SnowPlayerPlugin : Plugin() {
      *  behavior (start at once). The main slot reports progress as
      *  'preBuffer' events every tick, so the WebView can show "Getting
      *  ready…" instead of a still frame. */
-    private fun schedulePreBuffer(s: PlayerSlot, screenId: String, midFile: Boolean) {
+    private fun schedulePreBuffer(s: PlayerSlot, screenId: String, midFile: Boolean, modeOnly: Boolean = false) {
         s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
         val startedAt = SystemClock.elapsedRealtime()
         val url = s.currentUrl
@@ -709,10 +712,12 @@ class SnowPlayerPlugin : Plugin() {
                 // A display mode asked for during the hold: wait until the
                 // screen is in it (or MODE_WAIT_MS), so its HDMI blank never
                 // eats the film's first seconds.
-                val done = PreBufferRule.isDone(
+                // A hold only for a mid-play mode switch (modeOnly) waits for
+                // the screen alone, never the start-up buffer rules.
+                val done = (modeOnly || PreBufferRule.isDone(
                     midFile, elapsed, flowAt, now, bufMs, ready,
                     loading = p.isLoading, ended = state == Player.STATE_ENDED, uhd = uhd,
-                ) && !(s.modeWaitUntilMs != 0L && now < s.modeWaitUntilMs)
+                )) && !(s.modeWaitUntilMs != 0L && now < s.modeWaitUntilMs)
                 if (screenId == MAIN) {
                     // The indicator's clock: the filling time, which for a
                     // start part-way in begins once video arrives there.
@@ -1138,7 +1143,11 @@ class SnowPlayerPlugin : Plugin() {
                 Log.i(TAG, "fps ${FrameRateMatch.label(useFps ?: 0f)} → mode ${modeText(pick)} (was ${modeText(shown)})")
                 // Already on screen (the TV is in it, only our request was
                 // elsewhere): the attribute alone, no blank to wait for.
-                if (pick.id != shown.id) beginModeSwitch(s, screenId, pick, useFps, request = true)
+                // Already on its way there (a switch back in progress to this
+                // same mode): no second switch event or longer hold.
+                if (pick.id != shown.id && !(displayListener != null && watchingModeId == pick.id)) {
+                    beginModeSwitch(s, screenId, pick, useFps, request = true)
+                }
             }
         }
     }
@@ -1178,7 +1187,7 @@ class SnowPlayerPlugin : Plugin() {
                     s.holding = true
                     s.modeWaitUntilMs = switchWaitUntilMs
                     p.playWhenReady = false
-                    schedulePreBuffer(s, screenId, midFile = true)
+                    schedulePreBuffer(s, screenId, midFile = true, modeOnly = true)
                 }
             }
         }
@@ -1212,6 +1221,7 @@ class SnowPlayerPlugin : Plugin() {
     private fun watchDisplayMode(s: PlayerSlot, modeId: Int) {
         unwatchDisplayMode()
         val dm = activity?.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager ?: return
+        watchingModeId = modeId
         val l = object : DisplayManager.DisplayListener {
             override fun onDisplayAdded(displayId: Int) {}
             override fun onDisplayRemoved(displayId: Int) {}
@@ -1219,6 +1229,9 @@ class SnowPlayerPlugin : Plugin() {
                 val now = try { currentDisplay()?.mode?.modeId } catch (_: Throwable) { null }
                 if (now != modeId) return
                 unwatchDisplayMode()
+                // A TV that took longer than MODE_WAIT_MS still switched: it
+                // does honour requests.
+                modeRequestsIgnored = false
                 // The display has the mode; the TV has yet to re-sync HDMI.
                 val t = SystemClock.elapsedRealtime() + MODE_RESYNC_MS
                 if (s.modeWaitUntilMs != 0L) s.modeWaitUntilMs = t
@@ -1232,6 +1245,7 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     private fun unwatchDisplayMode() {
+        watchingModeId = 0
         val l = displayListener ?: return
         displayListener = null
         try { (activity?.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.unregisterDisplayListener(l) } catch (_: Throwable) { /* gone */ }
@@ -2731,7 +2745,7 @@ class SnowPlayerPlugin : Plugin() {
             val p = s.player
             if (p != null) {
                 p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, !enabled)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, !enabled || s.passthroughMuted)
                     .build()
             }
             call.resolve()
@@ -2918,6 +2932,8 @@ class SnowPlayerPlugin : Plugin() {
                 if (auto) s.audioChoiceDone = false else s.userPickedAudio = true
             }
             if (id == "-1") {
+                // Audio off by the viewer: no longer a passthrough mute to undo.
+                if (type == C.TRACK_TYPE_AUDIO) s.passthroughMuted = false
                 p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(type, true).build()
                 call.resolve(); return@runOnUiThread
             }
@@ -2928,7 +2944,9 @@ class SnowPlayerPlugin : Plugin() {
             val groups = p.currentTracks.groups
             if (gi < 0 || gi >= groups.size) { call.resolve(); return@runOnUiThread }
             val group = groups[gi]
-            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(type, false).setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, ti)).build()
+            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(type, type == C.TRACK_TYPE_AUDIO && s.passthroughMuted)
+                .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, ti)).build()
             call.resolve()
         }
     }
