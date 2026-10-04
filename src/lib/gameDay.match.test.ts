@@ -305,12 +305,15 @@ describe('the line-up search', () => {
       chans(11, 'Yankees vs Red Sox', 'MLB', other),
     ];
     const got = scanCandidates(list, 'dstreams.xyz');
-    expect(got.map((c) => c.id)).toEqual([3, 2, 7, 8, 10]);
+    // A PPV channel named for an event goes too (the search links it to a
+    // fight card only, never a team game).
+    expect(got.map((c) => c.id)).toEqual([3, 2, 6, 7, 8, 10]);
     expect(got[0]).toEqual({ id: 3, name: '#11 Boston vs Michigan', cat: 'b1g+' });
     for (const c of got) expect(Object.keys(c).sort()).toEqual(['cat', 'id', 'name']);
     expect(JSON.stringify(got)).not.toMatch(/dstreams|"u"|"p"|http|password|username/);
     expect(scanCandidates(list, 'http://strmz.xyz:8080').map((c) => c.id)).toEqual([11]);
     expect(scanCandidates(list, 'dstreams.xyz', 2).map((c) => c.id)).toEqual([3, 2]);
+    expect(scanCandidates([chans(20, 'PPV1 05', 'PPV1'), chans(21, 'PPV1: UFC 321 Aspinall vs Gane', 'PPV1')], 'dstreams.xyz').map((c) => c.id)).toEqual([21]);
     const many = Array.from({ length: 2500 }, (_, i) => chans(100 + i, `Team ${i} vs Team ${i + 1}`, 'EVENTS'));
     expect(scanCandidates(many, 'dstreams.xyz')).toHaveLength(2000);
   });

@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eqValue, loadEdgeFunction, opArg, type FakeHandlers, type QueryCall, type RpcCall } from './fakeSupabase';
 import {
-  buildInput, candidatesHash, cleanCandidates, etDay, parseLinks, requestBody, toMatches, type ScanGame,
+  buildInput, candidatesHash, cleanCandidates, etDay, isPpv, parseLinks, requestBody, scanGames, toMatches, type ScanGame,
 } from '../../../supabase/functions/game-day-match/prompt';
 
 const state = vi.hoisted(() => ({ handlers: {} as FakeHandlers }));
@@ -449,6 +449,25 @@ describe('game-day-match prompt.ts', () => {
     const m = toMatches(all, lots)['nfl:401000002'];
     expect(m).toHaveLength(6);
     expect(m.slice(0, 5).every((x) => x.confidence === 'high')).toBe(true);
+  });
+
+  it('fight cards: listed as EVENT lines; PPV1/PPV2/PPV3 channels link to a card only, never a team game', () => {
+    const card = { id: 'ufc:600', league: 'ufc', leagueLabel: 'UFC', name: 'UFC 321: Aspinall vs. Gane', start: iso(NOW + 2 * H), state: 'pre', detail: '', home: null, away: null, networks: [] };
+    const list = scanGames([...GAMES, card], NOW);
+    expect(list.map((g) => g.id)).toContain('ufc:600');
+    expect(list.map((g) => g.id)).not.toContain('f1:e1:c4');
+    const cands = cleanCandidates([...CANDIDATES, { id: 601, name: 'PPV1: UFC 321 Aspinall vs Gane', cat: 'PPV1' }, { id: 602, name: 'UFC 321', cat: 'PPV 2' }])!;
+    for (const c of cands.filter((x) => x.id >= 601)) expect(isPpv(c)).toBe(true);
+    const input = buildInput(list, cands);
+    expect(input).toContain('ufc:600 | UFC | EVENT: UFC 321: Aspinall vs. Gane');
+    const links = parseLinks(JSON.stringify({ links: [
+      { game_id: 'ufc:600', id: 601, confidence: 'high' },
+      { game_id: 'ufc:600', id: 602, confidence: 'medium' },
+      { game_id: 'nfl:401000002', id: 103, confidence: 'high' },
+    ] }), list, cands);
+    const m = toMatches(links, cands, list);
+    expect(m['ufc:600']?.map((x) => x.stream_id)).toEqual([601, 602]);
+    expect(m['nfl:401000002']).toBeUndefined();
   });
 
   it('malformed output gives no links', () => {

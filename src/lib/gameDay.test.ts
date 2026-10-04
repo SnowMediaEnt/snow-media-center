@@ -338,6 +338,48 @@ describe('gameDay', () => {
     });
   });
 
+  describe('numbered PPV categories ("PPV1", "PPV 2", "PPV03")', () => {
+    const now = Date.parse('2026-10-04T20:00:00Z');
+    it('count as PPV: loaded, read as events, labels taken off', async () => {
+      const { categoryWeight, ppvEvent } = await import('./gameDay');
+      for (const cat of ['PPV1', 'PPV 2', 'PPV03', 'US| PPV3', 'PAY PER VIEW 1']) expect(categoryWeight(cat)).toBeGreaterThan(0);
+      expect(ppvEvent('PPV1: UFC 321 Aspinall vs Gane', now)).toEqual({ title: 'UFC 321 Aspinall vs Gane', start: null });
+      expect(ppvEvent('PPV2 | Canelo vs Crawford (10.4 8:00 PM ET)', now)).toEqual({ title: 'Canelo vs Crawford', start: Date.parse('2026-10-05T00:00:00Z') });
+      expect(ppvEvent('PPV1 03: WWE Crown Jewel', now)?.title).toBe('WWE Crown Jewel');
+      expect(ppvEvent('PPV1', now)).toBeNull();
+      expect(ppvEvent('PPV1 05', now)).toBeNull();
+      expect(ppvEvent('PPV 3 #12', now)).toBeNull();
+    });
+
+    it('a UFC card finds its channels in PPV1/PPV2/PPV3, and the PPV list has every PPV1-3 event', async () => {
+      const { channelsForGame, ppvGames } = await import('./gameDay');
+      const card = game({ id: 'ufc:2', league: 'ufc', leagueLabel: 'UFC', name: 'UFC 321: Aspinall vs. Gane', start: new Date(now + 2 * 60 * 60_000).toISOString() });
+      const list = [
+        chans(500, 'PPV1: UFC 321 Aspinall vs Gane', 'PPV1'),
+        chans(501, 'PPV2 | Canelo vs Crawford (10.4 8:00 PM ET)', 'PPV2'),
+        chans(502, 'PPV3 01: WWE Crown Jewel', 'PPV3'),
+        chans(503, 'PPV3 02', 'PPV3'),
+        chans(504, 'UFC FIGHT PASS', 'UFC'),
+      ];
+      expect(ids(channelsForGame(card, list))).toContain(500);
+      const got = ppvGames(list, new Set(), now);
+      expect(got.map((p) => [p.game.name, ids(p.links)])).toEqual(expect.arrayContaining([
+        ['UFC 321 Aspinall vs Gane', [500]],
+        ['Canelo vs Crawford', [501]],
+        ['WWE Crown Jewel', [502]],
+      ]));
+      expect(got).toHaveLength(3);
+      // No time in the name: on now.
+      expect(got.find((p) => p.game.name === 'WWE Crown Jewel')?.game.state).toBe('in');
+    });
+
+    it('a team game never takes a PPV1-3 channel', async () => {
+      const { channelsForGame } = await import('./gameDay');
+      const g = game({ id: 'nfl:9', league: 'nfl', leagueLabel: 'NFL', name: 'CHI @ GB', home: team('Packers', 'Green Bay', 'Green Bay Packers', 'GB'), away: team('Bears', 'Chicago', 'Chicago Bears', 'CHI') });
+      expect(ids(channelsForGame(g, [chans(510, 'PPV1: Bears vs Packers', 'PPV1')]))).toEqual([]);
+    });
+  });
+
   it('reads dates and times written in a channel name', async () => {
     const { nameDates, nameTimes } = await import('./gameDay');
     expect(nameDates('MLB 07: Yankees vs Red Sox 09/24')).toEqual([924]);

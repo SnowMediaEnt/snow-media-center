@@ -325,13 +325,14 @@ export function leaguesIn(text: string): string[] {
   return [...out];
 }
 
-const SPORT = /\b(sports?|espn|ppv|pay per view|events?|live events?|game ?day|match ?day|game ?pass|zone|dazn|fubo|bein|tsn|sky sports|golf|tennis|racing|f1|nascar|wrestling|wwe|aew)\b/;
+const SPORT = /\b(sports?|espn|ppv ?\d{0,3}|pay ?per ?view|events?|live events?|game ?day|match ?day|game ?pass|zone|dazn|fubo|bein|tsn|sky sports|golf|tennis|racing|f1|nascar|wrestling|wwe|aew)\b/;
 const NETWORK = /\b(networks?|locals?|regionals?|rsn|abc|cbs|nbc|fox|tnt|tbs|usa|us|united states|america|american|entertainment)\b/;
 const NOT_SPORTS = /\b(kids?|children|cartoons?|music|radio|religious|faith|adult|xxx|movies?|cinema|vod|series)\b/;
 /** PPV and event categories: fight cards and events. */
-const EVENTS = /\b(ppv|pay per view|events?)\b/;
-/** Pay-per-view: fights, festivals and small races, never a league's games. */
-const PPV = /\b(ppv|pay ?per ?view)\b/;
+const EVENTS = /\b(ppv ?\d{0,3}|pay ?per ?view|events?)\b/;
+/** Pay-per-view: fights, festivals and small races, never a league's games.
+ *  Numbered PPV categories too: "PPV1", "PPV 2", "PPV03". */
+const PPV = /\b(ppv ?\d{0,3}|pay ?per ?view)\b/;
 
 /** Streaming services, by id: `head`, how its name starts (normalised
  *  words); `bare`, a name that is the service only right before a number
@@ -649,7 +650,7 @@ const aliasWords = (a: string[], c: string[]): number => {
 };
 
 /** The word before a numbered feed's number: "ESPN EVENT 05", "FOX EVENT 2". */
-const FEED_EVENT = /^(events?|ppv)$/;
+const FEED_EVENT = /^(events?|ppv\d{0,3})$/;
 
 /** How well a channel name is a network: 90 exactly, 75 a feed of it
  *  ("FOX 32 Chicago", "ESPN HD"), 0 otherwise. */
@@ -1714,10 +1715,10 @@ const zonedAt = (y: number, mo: number, d: number, mins: number, zone: string): 
 };
 
 /** "PPV EVENT 01: ", "PAY-PER-VIEW 3 - ", "UFC EVENT 05 | " before the title. */
-const PPV_LABEL = /^(?:(?:ppv|pay[- ]?per[- ]?view|special|events?|ufc|boxing|live|main|fight|card|channel|ch)\s*)+#?\s*\d{1,3}\s*[:|\u2013\u2014-]\s*/i;
+const PPV_LABEL = /^(?:(?:ppv\s*\d{0,3}|pay[- ]?per[- ]?view|special|events?|ufc|boxing|live|main|fight|card|channel|ch)\s*)+#?\s*\d{0,3}\s*[:|\u2013\u2014-]\s*/i;
 const NO_EVENT = /^(no events?|no games?|off ?air|offline|tba|tbd|coming soon|events?|ppv|n\/?a|none|closed|to be announced)$/i;
 /** A name that is only its label ("PPV EVENT 15"): nothing on. */
-const LABEL_ONLY = /^(?:(?:ppv|pay[- ]?per[- ]?view|special|events?|ufc|boxing|live|main|fight|card|channel|ch)\s*)+#?\s*\d{0,3}$/i;
+const LABEL_ONLY = /^(?:(?:ppv\s*\d{0,3}|pay[- ]?per[- ]?view|special|events?|ufc|boxing|live|main|fight|card|channel|ch)\s*)+#?\s*\d{0,3}$/i;
 const TIME_TAIL = `\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)\\s*(?:${Object.keys(ZONES).join('|')})?`;
 
 /** The event in a PPV channel's name, and when it starts: "PPV EVENT 02: STSS
@@ -1759,26 +1760,30 @@ export function ppvEvent(raw: string, now = Date.now()): { title: string; start:
 /** A PPV fight ("Covington vs. Muhammad"): listed with the day's games. */
 export const isPpvFight = (g: Game): boolean => g.league === 'ppv' && /\bvs?\.?\s/i.test(g.name);
 
-/** Today's PPV events on this box, from its PPV channels' names: the fights,
- *  festivals and small races no scoreboard lists. One entry per event (the
- *  same event on two lines is one, with both channels); from its start until
- *  five hours after, or up to 30 hours ahead. `taken`: channels a listed game
+/** Today's PPV events on this box, from its PPV channels' names (the
+ *  "PPV", "PPV1", "PPV 2" … categories): the fights, cards, festivals and
+ *  shows. One entry per event (the same event on two lines is one, with both
+ *  channels); from its start until five hours after, or up to 30 hours
+ *  ahead; a name with no time, as on now. `taken`: channels a listed game
  *  already has (a UFC card's). */
 export function ppvGames(channels: SportsChannel[], taken: Set<string> = new Set(), now = Date.now()): Array<{ game: Game; links: GameChannel[] }> {
   const byEvent = new Map<string, { game: Game; links: GameChannel[] }>();
   for (const c of channels) {
     if (!PPV.test(`${c.cat} ${c.full}`) || taken.has(linkKey(c))) continue;
     const ev = ppvEvent(String(c.stream?.name ?? ''), now);
-    if (!ev || ev.start == null) continue;
-    if (now - ev.start > PPV_LASTS_MS || ev.start - now > 30 * HOUR) continue;
+    if (!ev) continue;
+    // A name with no time ("PPV1 02: UFC 310 Pantoja vs Asakura") is the
+    // event on that channel now: listed as on now.
+    const start = ev.start ?? now;
+    if (now - start > PPV_LASTS_MS || start - now > 30 * HOUR) continue;
     const link: GameChannel = { line: c.line, stream: c.stream, score: 100, via: 'game' };
-    const k = `${normalizeSpeech(ev.title)}|${ev.start}`;
+    const k = `${normalizeSpeech(ev.title)}|${ev.start ?? 'now'}`;
     const hit = byEvent.get(k);
     if (hit) { hit.links.push(link); continue; }
     byEvent.set(k, {
       game: {
         id: `ppv:${linkKey(c)}`, league: 'ppv', leagueLabel: 'PPV', name: ev.title, event: ev.title,
-        start: new Date(ev.start).toISOString(), state: ev.start <= now ? 'in' : 'pre', detail: '',
+        start: new Date(start).toISOString(), state: start <= now ? 'in' : 'pre', detail: '',
         home: null, away: null, networks: [],
       },
       links: [link],
@@ -1866,12 +1871,13 @@ export function aiLinks(game: Game, channels: SportsChannel[], host: string, mat
 }
 
 /** A channel the line-up search may look at: a matchup, a channel of a
- *  conference, service or event family, or a numbered feed of one; never a
- *  24/7 loop, a kids, music or film one, or PPV (fights and shows, never a
- *  team's game). 2 the surest, 0 not one. */
+ *  conference, service or event family, or a numbered feed of one, or a PPV
+ *  channel named for an event (the search links those to fight cards only,
+ *  never a team's game); never a 24/7 loop or a kids, music or film one.
+ *  2 the surest, 0 not one. */
 const scanRank = (c: SportsChannel): number => {
   if (NOT_SPORTS.test(c.cat) || LOOP.test(String(c.stream?.name ?? ''))) return 0;
-  if (!c.leagues.length && PPV.test(`${c.cat} ${c.full}`)) return 0;
+  if (!c.leagues.length && PPV.test(`${c.cat} ${c.full}`)) return ppvEvent(String(c.stream?.name ?? '')) ? 1 : 0;
   if (c.sides) return 2;
   if (c.fam?.length || c.service || /\b(events?|live events?)\b/.test(`${c.cat} ${c.name}`)) return 1;
   return c.leagues.length && /\b\d{1,3}\b/.test(c.name) && !LEAGUE_CHANNEL.test(c.name) ? 1 : 0;

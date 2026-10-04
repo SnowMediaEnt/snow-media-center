@@ -41,7 +41,7 @@ import { checkPause, enforceThreshold } from '../_shared/ai-guard.ts';
 import { clientIp, hashIp, throttle, type ThrottleDb } from '../_shared/requestGuard.ts';
 import {
   type AiMatch, type Link, type ScanCandidate, type ScanGame,
-  MODEL, batches, candidatesHash, cleanCandidates, costUsd, etDay, isPpv, learnedFrom, outputText, parseLinks,
+  MODEL, batches, candidatesHash, cleanCandidates, costUsd, etDay, isCard, isPpv, learnedFrom, outputText, parseLinks,
   requestBody, scanGames, toMatches,
 } from './prompt.ts';
 
@@ -350,7 +350,8 @@ Deno.serve(async (req) => {
       }
 
       const games = scanGames(await todaysGames());
-      const usable = cands.filter((c) => !isPpv(c));
+      // PPV channels only when there is a fight card to link them to.
+      const usable = games.some(isCard) ? cands : cands.filter((c) => !isPpv(c));
       const stored = (fields: Record<string, unknown>) => admin.from('game_day_ai_matches').upsert({
         host, day, lineup_hash: lineupHash, candidates_hash: cHash, scanned_at: new Date().toISOString(),
         scan_started_at: null, candidates: usable.length, games: games.length, updated_at: new Date().toISOString(), ...fields,
@@ -406,7 +407,7 @@ Deno.serve(async (req) => {
             }
           }
           const cost = costUsd(tokensIn, tokensOut);
-          const matches = toMatches(links, usable);
+          const matches = toMatches(links, usable, games);
           const linked = Object.values(matches).reduce((n, l) => n + l.length, 0);
 
           // The spend is counted whatever happened.

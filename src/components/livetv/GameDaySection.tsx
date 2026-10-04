@@ -284,9 +284,17 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   // …or marked down by the owner for this game: the same to the list.
   const isDown = useCallback((c: GameChannel) => !!c.ownerDown || crowdDown(c), [crowdDown]);
 
-  // Today's PPV events, from the box's PPV channels' own names (a UFC card
-  // the scoreboard has is shown once, as its game).
-  const ppv = useMemo(() => (channels ? ppvGames(channels, cardChannels(games ?? [], channels)) : []), [games, channels]);
+  // Today's PPV events, from the box's PPV channels' own names: every one
+  // under PPV (UFC cards too). Under All, a UFC card the scoreboard has is
+  // shown once, as its game (with these PPV channels).
+  const ppv = useMemo(() => (channels ? ppvGames(channels) : []), [channels]);
+  const ppvShownAsGame = useMemo(() => {
+    const out = new Set<string>();
+    if (!channels) return out;
+    const taken = cardChannels(games ?? [], channels);
+    for (const p of ppv) if (p.links.every((l) => taken.has(channelKey(l)))) out.add(p.game.id);
+    return out;
+  }, [games, channels, ppv]);
   const ppvLinks = useMemo(() => new Map(ppv.map((p) => [p.game.id, p.links])), [ppv]);
   const allGames = useMemo(() => [...(games ?? []), ...ppv.map((p) => p.game)]
     // Live first, then by start.
@@ -298,10 +306,11 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     return [{ id: 'all', label: t('gameDay.allChip') }, ...(ppv.length ? [{ id: 'ppv', label: 'PPV' }] : []), ...[...seen].map(([id, label]) => ({ id, label }))];
   }, [allGames, ppv.length, t]);
 
-  // "All": every game, and of PPV the fights; the rest of PPV under PPV.
+  // "All": every game, and of PPV the fights (once); everything on PPV
+  // channels under PPV.
   const shown = useMemo(() => allGames
-    .filter((g) => (league === 'all' ? g.league !== 'ppv' || isPpvFight(g) : chipOf(g).id === league))
-    .slice(0, lowMemory() ? 40 : 80), [allGames, league]);
+    .filter((g) => (league === 'all' ? g.league !== 'ppv' || (isPpvFight(g) && !ppvShownAsGame.has(g.id)) : chipOf(g).id === league))
+    .slice(0, lowMemory() ? 40 : 80), [allGames, league, ppvShownAsGame]);
   // What the matching finds for each (the slow part: not done again when the
   // owner's picks or the down list change).
   const matched = useMemo(
