@@ -75,8 +75,9 @@ export interface SnowPlayerLoadOpts {
    *  timing, HDR passed through. A change rebuilds the main player's views.
    *  Tiles always use a TextureView. */
   surfaceView?: boolean;
-  /** MediaCodec's asynchronous queueing on API 28+ (the `async_codec` flag).
-   *  A change rebuilds the main player. */
+  /** MediaCodec's asynchronous queueing forced on API 28+ (the `async_codec`
+   *  flag, an A/B switch, off unless a row turns it on). A change rebuilds
+   *  the main player. */
   asyncCodec?: boolean;
   /** Tunneled playback for a film on the main player's SurfaceView (the
    *  `tunneled_vod` flag, off by default; never with the volume boost). */
@@ -190,8 +191,9 @@ export interface PlayerStats {
    *  layer) or 'TextureView' (through the app's GPU composition). Null with
    *  no view yet; older builds leave it out. */
   surface?: 'SurfaceView' | 'TextureView' | null;
-  /** Tunneled playback for this load. */
-  tunneled?: boolean;
+  /** Tunneled playback was asked for this load (whether the box really
+   *  tunnels is its own decision). */
+  tunnelingRequested?: boolean;
   /** Frame pacing, this load: frames skipped as already late, the longest
    *  run dropped in a row, drops back to a key frame, and the average time
    *  frames left the decoder ahead of their slot (ms; negative = late). */
@@ -224,7 +226,7 @@ export function emptyPlayerStats(): PlayerStats {
     rangeFetch: false, connectionCap: 1,
     javaHeapMb: null, nativeHeapMb: null,
     engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
-    displayHz: null, surface: null, tunneled: false,
+    displayHz: null, surface: null, tunnelingRequested: false,
     skippedFrames: null, maxConsecutiveDropped: null, droppedToKeyframe: null, avgFrameOffsetMs: null, videoDecoderSoftware: null,
     audioOrder: null, audioPassthrough: false, audioUnderruns: 0, audioUnderrunMs: 0,
   };

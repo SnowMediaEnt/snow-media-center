@@ -65,7 +65,7 @@
       "display": "Pantalla",
       "hz": "{{value}} Hz",
       "surface": "Superficie",
-      "tunneled": "tunelizado",
+      "tunneled": "túnel solicitado",
       "software": "(software)",
       "pacing": "Ritmo",
       "pacingValue": "{{skipped}} omitidos · máx. {{run}} perdidos seguidos · {{key}} hasta fotograma clave · {{offset}} ms de adelanto",

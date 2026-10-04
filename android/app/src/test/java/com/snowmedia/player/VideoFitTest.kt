@@ -83,15 +83,14 @@ class VideoFitTest {
         assertFalse(VideoFit.useSurfaceView(isMain = false, requested = true))
     }
 
-    @Test fun `a SurfaceView never grows past its box - zoom stays the box and the decoder crops`() {
-        assertTrue(VideoFit.cropsInDecoder("zoom"))
-        assertFalse(VideoFit.cropsInDecoder("fit"))
-        assertArrayEquals(intArrayOf(1920, 1080), VideoFit.surfaceViewSize("zoom", 1920, 1080, 1920, 804, 1f))
-        // In a preview box too (where an oversized surface could spill out).
-        assertArrayEquals(intArrayOf(640, 360), VideoFit.surfaceViewSize("zoom", 640, 360, 3840, 1600, 1f))
-        // Fit, fill and wide size it as the TextureView is.
-        assertArrayEquals(VideoFit.viewSize("fit", 1920, 1080, 1920, 804, 1f), VideoFit.surfaceViewSize("fit", 1920, 1080, 1920, 804, 1f))
-        assertArrayEquals(intArrayOf(1920, 1080), VideoFit.surfaceViewSize("fill", 1920, 1080, 1920, 804, 1f))
-        assertNull(VideoFit.surfaceViewSize("zoom", 0, 0, 1920, 804, 1f))
+    @Test fun `after a stop only ExoPlayer's main SurfaceView box stays up`() {
+        assertTrue(VideoFit.keepBoxAfterStop(surfaceView = true, exo = true))
+        assertFalse(VideoFit.keepBoxAfterStop(surfaceView = true, exo = false))
+        assertFalse(VideoFit.keepBoxAfterStop(surfaceView = false, exo = true))
+    }
+
+    @Test fun `zoom on any view is sized from the picture's shape, non-square pixels included`() {
+        // 720x480 flagged 16:9 zoomed on a 4:3 box: 16:9 wide, cropped by the box.
+        assertArrayEquals(intArrayOf(853, 480), VideoFit.viewSize("zoom", 640, 480, 720, 480, 1.185f))
     }
 }

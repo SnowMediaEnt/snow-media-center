@@ -197,7 +197,7 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, routeEndpoint,
           {/* Next to the video's frame rate: whether frame-rate matching happened. */}
           <Row label={t('plex.stats.display')}>{st && num(st.displayHz) && st.displayHz > 0 ? t('plex.stats.hz', { value: hzLabel(st.displayHz) }) : '—'}</Row>
           {/* SurfaceView (its own display layer) or TextureView (through the app's GPU composition). */}
-          <Row label={t('plex.stats.surface')}>{text(st?.surface)}{st?.tunneled ? ` · ${t('plex.stats.tunneled')}` : ''}</Row>
+          <Row label={t('plex.stats.surface')}>{text(st?.surface)}{st?.tunnelingRequested ? ` · ${t('plex.stats.tunneled')}` : ''}</Row>
         </Card>
         <Card title={t('plex.stats.audio')}>
           <Row>{text(st?.audioDecoder)}{st?.audioPassthrough ? ` · ${t('plex.stats.passthroughOn')}` : ''}</Row>

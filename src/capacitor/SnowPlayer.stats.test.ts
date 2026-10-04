@@ -18,7 +18,7 @@ const KEYS: Array<keyof PlayerStats> = [
   'rangeFetch', 'connectionCap',
   'javaHeapMb', 'nativeHeapMb',
   'engine', 'firstFrameMs', 'stalls', 'stallSec', 'cpuPct', 'pssMb',
-  'displayHz', 'surface', 'tunneled',
+  'displayHz', 'surface', 'tunnelingRequested',
   'skippedFrames', 'maxConsecutiveDropped', 'droppedToKeyframe', 'avgFrameOffsetMs', 'videoDecoderSoftware',
   'audioOrder', 'audioPassthrough', 'audioUnderruns', 'audioUnderrunMs',
 ];
@@ -38,7 +38,7 @@ describe('SnowPlayer.getStats — web / no native player', () => {
       rangeFetch: false, connectionCap: 1,
       javaHeapMb: null, nativeHeapMb: null,
       engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
-      displayHz: null, surface: null, tunneled: false,
+      displayHz: null, surface: null, tunnelingRequested: false,
       skippedFrames: null, maxConsecutiveDropped: null, droppedToKeyframe: null, avgFrameOffsetMs: null, videoDecoderSoftware: null,
       audioOrder: null, audioPassthrough: false, audioUnderruns: 0, audioUnderrunMs: 0,
     });

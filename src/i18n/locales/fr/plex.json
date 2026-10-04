@@ -65,7 +65,7 @@
       "display": "Écran",
       "hz": "{{value}} Hz",
       "surface": "Surface",
-      "tunneled": "tunnel",
+      "tunneled": "tunnel demandé",
       "software": "(logiciel)",
       "pacing": "Cadence",
       "pacingValue": "{{skipped}} sautées · max {{run}} perdues d'affilée · {{key}} jusqu'à l'image clé · {{offset}} ms d'avance",

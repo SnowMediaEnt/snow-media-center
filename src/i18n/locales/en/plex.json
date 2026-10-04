@@ -65,7 +65,7 @@
       "display": "Display",
       "hz": "{{value}} Hz",
       "surface": "Surface",
-      "tunneled": "tunneled",
+      "tunneled": "tunneling requested",
       "software": "(software)",
       "pacing": "Pacing",
       "pacingValue": "{{skipped}} skipped · max {{run}} dropped in a row · {{key}} to key frame · {{offset}} ms ahead",

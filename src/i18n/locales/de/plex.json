@@ -65,7 +65,7 @@
       "display": "Bildschirm",
       "hz": "{{value}} Hz",
       "surface": "Oberfläche",
-      "tunneled": "getunnelt",
+      "tunneled": "Tunneling angefordert",
       "software": "(Software)",
       "pacing": "Takt",
       "pacingValue": "{{skipped}} übersprungen · max. {{run}} verworfen in Folge · {{key}} bis Schlüsselbild · {{offset}} ms Vorlauf",

@@ -87,7 +87,7 @@ describe('the stats panel', () => {
 
   it('says which surface draws the picture, how frames are paced, and flags a software decoder', async () => {
     h.getStats.mockImplementation(async () => ({
-      ...STATS, surface: 'SurfaceView', tunneled: false, videoDecoder: 'c2.android.hevc.decoder', videoDecoderSoftware: true,
+      ...STATS, surface: 'SurfaceView', tunnelingRequested: false, videoDecoder: 'c2.android.hevc.decoder', videoDecoderSoftware: true,
       skippedFrames: 3, maxConsecutiveDropped: 2, droppedToKeyframe: 0, avgFrameOffsetMs: 12.4,
     }));
     render(<PlayerStatsPanel />);

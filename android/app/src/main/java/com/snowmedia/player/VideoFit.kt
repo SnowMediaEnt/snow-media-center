@@ -48,27 +48,18 @@ internal object VideoFit {
     }
 
     /**
-     * The main player's SurfaceView: a SurfaceView can't be transformed, and
-     * one larger than its box may not be clipped by the box (its layer is
-     * the display's, not the view tree's). Zoom therefore keeps it exactly
-     * the box and lets the decoder crop (cropsInDecoder); everything else is
-     * sized as [viewSize] sizes the TextureView.
-     */
-    fun surfaceViewSize(format: String, boxW: Int, boxH: Int, videoW: Int, videoH: Int, pixelRatio: Float): IntArray? {
-        if (boxW <= 0 || boxH <= 0) return null
-        if (cropsInDecoder(format)) return intArrayOf(boxW, boxH)
-        return viewSize(format, boxW, boxH, videoW, videoH, pixelRatio)
-    }
-
-    /** Zoom on a SurfaceView: the decoder scales to cover and crops (VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING). */
-    fun cropsInDecoder(format: String): Boolean = format == "zoom"
-
-    /**
      * Which view the picture is drawn on: a SurfaceView for the main player
      * while `video_surface_view` is on (the WebView asks with each load), a
      * TextureView for the Multi-Screen tiles and when switched off.
      */
     fun useSurfaceView(isMain: Boolean, requested: Boolean): Boolean = isMain && requested
+
+    /**
+     * After a stop, only ExoPlayer's SurfaceView box stays on screen (behind
+     * the shut shutter), so its surface survives a quality change or a retry.
+     * mpv's own view and every TextureView box go GONE as before.
+     */
+    fun keepBoxAfterStop(surfaceView: Boolean, exo: Boolean): Boolean = surfaceView && exo
 
     /**
      * The shutter (black over the picture view) opens once this stream has

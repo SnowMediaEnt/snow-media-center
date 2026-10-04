@@ -119,8 +119,6 @@ class SnowPlayerPlugin : Plugin() {
         // the player was built with, and what load() asks for.
         var asyncCodec: Boolean = false
         var wantAsyncCodec: Boolean = false
-        // The scaling mode last handed to the player (SurfaceView zoom).
-        var scalingMode: Int = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
         // Tunneled playback for this load (`tunneled_vod`, off by default).
         var tunneled: Boolean = false
         // Audio renderer order (`audio_hw_first`): the player is built with
@@ -413,11 +411,8 @@ class SnowPlayerPlugin : Plugin() {
     private fun slotFor(screenId: String): PlayerSlot {
         var s = slots[screenId]
         if (s == null) {
+            // The main box's view is chosen by load() (setRect never builds it).
             s = PlayerSlot()
-            // setRect can build the main box before the first load() says
-            // which view to use: the SurfaceView, as the switch is on unless
-            // a row turns it off (load() rebuilds the box then).
-            s.wantSurfaceView = screenId == MAIN
             slots[screenId] = s
         }
         return s
@@ -1254,6 +1249,9 @@ class SnowPlayerPlugin : Plugin() {
         cancelTimers(s)
         releasePlayer(s)
         buildPlayer(s, screenId)
+        // Anything the old player's last callbacks queued (a reconnect for
+        // the old load) goes with it.
+        cancelTimers(s)
         val p = s.player ?: return
         // What load() set up on the player it had.
         try {
@@ -1297,14 +1295,34 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     /** The player alone, the views kept: a rebuild for another renderer
-     *  setup (asynchronous queueing) attaches the next one to the same view. */
+     *  setup (asynchronous queueing, the audio order) attaches the next one
+     *  to the same view. The surface is handed back first, so the next
+     *  player takes it from a clean state. */
     private fun releasePlayer(s: PlayerSlot) {
         releaseBoost(s)
-        s.player?.release()
+        s.player?.let { it.clearVideoSurface(); it.release() }
         s.player = null
         s.trackSelector = null
         s.loadControl = null
-        s.scalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+    }
+
+    /** Only ExoPlayer's main SurfaceView is kept on screen (shutter shut)
+     *  after a stop; mpv on the main slot, and every TextureView, go GONE. */
+    private fun keepsBoxAfterStop(s: PlayerSlot): Boolean =
+        VideoFit.keepBoxAfterStop(s.usesSurfaceView, s.engine == EngineChoice.EXO)
+
+    /**
+     * The main box, kept VISIBLE (and black) after a stop so its surface
+     * survives a quality change, sits ABOVE the Multi-Screen tiles (they are
+     * added under it). With nothing loaded on it, it goes GONE: on stopAll
+     * and whenever a tile loads. Its surface is destroyed then, which costs
+     * nothing on an idle player; the next main load makes it VISIBLE again
+     * (applyPendingRect).
+     */
+    private fun hideIdleMainBox() {
+        val m = slots[MAIN] ?: return
+        if (m.currentUrl != null) return
+        m.container?.visibility = View.GONE
     }
 
     private fun buildPlayer(s: PlayerSlot, screenId: String) {
@@ -1958,6 +1976,8 @@ class SnowPlayerPlugin : Plugin() {
                 s.wantAudioMode = wantAudio
             }
             if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
+            // A tile: an idle main box must not cover it.
+            if (screenId != MAIN) hideIdleMainBox()
             if (engine == EngineChoice.MPV) {
                 val second = s.second ?: run { call.reject("mpv init failed"); return@runOnUiThread }
                 // mpv plays live channels only: never a matched mode.
@@ -2008,6 +2028,8 @@ class SnowPlayerPlugin : Plugin() {
             // the volume boost (an effect on the audio session).
             if (screenId == MAIN) {
                 s.tunneled = !live && tunneled && s.usesSurfaceView && s.volume <= 1f
+                // No effect left on a tunneled session.
+                if (s.tunneled) releaseBoost(s)
                 s.trackSelector?.let { ts -> ts.setParameters(ts.buildUponParameters().setTunnelingEnabled(s.tunneled)) }
             }
             // Frame-rate matching: a film or episode on the main player,
@@ -2250,7 +2272,8 @@ class SnowPlayerPlugin : Plugin() {
         o.put("videoDecoderSoftware", s?.videoDecoderName?.let { isSoftwareDecoder(it) } ?: JSONObject.NULL)
         // How the picture reaches the screen (see PlayerSlot.videoView).
         o.put("surface", if (s?.videoView == null) JSONObject.NULL else if (s.usesSurfaceView) "SurfaceView" else "TextureView")
-        o.put("tunneled", s?.tunneled == true)
+        // Asked of the track selector; whether the box really tunnels is its own call.
+        o.put("tunnelingRequested", s?.tunneled == true)
         // The sound: which renderer comes first for this load, whether it goes
         // out as a bitstream, and the audio output's underruns (count, and
         // the time the output went unfed in them).
@@ -2468,7 +2491,7 @@ class SnowPlayerPlugin : Plugin() {
         // re-creates the decoder (black, then seconds waiting for a 4K key
         // frame) — a quality change or a retry is a stop and a load. The
         // closed shutter covers it; the box is as black as the decor behind.
-        if (!s.usesSurfaceView) s.container?.visibility = View.GONE
+        if (!keepsBoxAfterStop(s)) s.container?.visibility = View.GONE
         s.pendingRect = null
     }
 
@@ -2493,6 +2516,7 @@ class SnowPlayerPlugin : Plugin() {
                 stopSlot(s)
                 if (id != MAIN) releaseSlot(s)
             }
+            hideIdleMainBox()
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             call.resolve()
         }
@@ -2518,7 +2542,8 @@ class SnowPlayerPlugin : Plugin() {
         val p = s.player ?: return
         // A bitstream to the TV or receiver can't be boosted (or turned
         // down here at all): no effect on its session.
-        val gainMb = if (s.volume > 1f && !s.audioPassthrough) ((s.volume - 1f) * BOOST_MB_PER_UNIT).toInt() else 0
+        // Tunneled playback has no app-side audio session to boost either.
+        val gainMb = if (s.volume > 1f && !s.audioPassthrough && !s.tunneled) ((s.volume - 1f) * BOOST_MB_PER_UNIT).toInt() else 0
         if (gainMb <= 0) {
             s.boost?.let { e -> try { e.enabled = false } catch (_: Exception) { /* released */ } }
             return
@@ -2576,11 +2601,22 @@ class SnowPlayerPlugin : Plugin() {
             // dropped so they can NEVER accidentally cover other tiles.
             if (!fs && (w <= 0 || h <= 0)) { call.resolve(); return@runOnUiThread }
 
-            ensureSurface(s)
+            // Device px, worked out before the box exists so a rect kept for
+            // load() is in the same units applyPendingRect uses.
+            val wvW = bridge?.webView?.width ?: 0
+            val wvH = bridge?.webView?.height ?: 0
+            val density = activity?.resources?.displayMetrics?.density ?: 1f
+            val sx = if (cssW > 0 && wvW > 0) wvW.toFloat() / cssW else density
+            val sy = if (cssH > 0 && wvH > 0) wvH.toFloat() / cssH else density
+            val rect = if (fs) intArrayOf(0, 0, 0, 0, 1)
+                else intArrayOf(Math.round(x * sx), Math.round(y * sy), Math.round(w * sx), Math.round(h * sy), 0)
+            // The main box is built by load(), which knows which view it
+            // needs (a SurfaceView, or a TextureView with video_surface_view
+            // off); a tile's box is always a TextureView.
+            if (screenId != MAIN) ensureSurface(s)
             val c = s.container ?: run {
                 // Surface not built yet — remember the request for load().
-                s.pendingRect = if (fs) intArrayOf(0, 0, 0, 0, 1)
-                    else intArrayOf(x, y, w, h, 0)
+                s.pendingRect = rect
                 call.resolve(); return@runOnUiThread
             }
             val lp = c.layoutParams
@@ -2588,23 +2624,13 @@ class SnowPlayerPlugin : Plugin() {
                 lp.width = ViewGroup.LayoutParams.MATCH_PARENT
                 lp.height = ViewGroup.LayoutParams.MATCH_PARENT
                 c.x = 0f; c.y = 0f
-                s.pendingRect = intArrayOf(0, 0, 0, 0, 1)
             } else {
-                val wvW = bridge?.webView?.width ?: 0
-                val wvH = bridge?.webView?.height ?: 0
-                val density = activity?.resources?.displayMetrics?.density ?: 1f
-                val sx = if (cssW > 0 && wvW > 0) wvW.toFloat() / cssW else density
-                val sy = if (cssH > 0 && wvH > 0) wvH.toFloat() / cssH else density
-                val devX = Math.round(x * sx)
-                val devY = Math.round(y * sy)
-                val devW = Math.round(w * sx)
-                val devH = Math.round(h * sy)
-                lp.width = devW
-                lp.height = devH
-                c.x = devX.toFloat()
-                c.y = devY.toFloat()
-                s.pendingRect = intArrayOf(devX, devY, devW, devH, 0)
+                lp.width = rect[2]
+                lp.height = rect[3]
+                c.x = rect[0].toFloat()
+                c.y = rect[1].toFloat()
             }
+            s.pendingRect = rect
             c.layoutParams = lp
             c.requestLayout()
             // Non-main slots that already have a URL loaded must become VISIBLE
@@ -2792,20 +2818,14 @@ class SnowPlayerPlugin : Plugin() {
         // sized the same way.
         val v: View = (if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.videoView) ?: return
         val box = s.container ?: return
-        // ExoPlayer's SurfaceView can't be transformed, and one larger than
-        // its box may not be clipped by it: zoom keeps it the box's size and
-        // has the decoder crop instead (VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_
-        // CROPPING). Fit, fill and wide size it as the TextureView is.
-        val exoSurface = s.engine == EngineChoice.EXO && v is SurfaceView
-        if (exoSurface) {
-            val mode = if (VideoFit.cropsInDecoder(s.format)) C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING else C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-            val p = s.player
-            if (p != null && mode != s.scalingMode) { p.setVideoScalingMode(mode); s.scalingMode = mode }
-        }
+        // Every view is sized to the picture's shape the same way, ExoPlayer's
+        // SurfaceView included (its scaling mode stays SCALE_TO_FIT, which
+        // fills the view): zoom makes it larger than the box, and the box
+        // clips it (the surface's hole is drawn on the view's own canvas,
+        // inside the box's clip). Non-square pixels count, as they must.
         // Before the first layout, or before anything is decoded, there is
         // nothing to fit; the layout listener and onVideoSizeChanged come back.
-        val size = (if (exoSurface) VideoFit.surfaceViewSize(s.format, box.width, box.height, s.videoW, s.videoH, s.pixelRatio)
-            else VideoFit.viewSize(s.format, box.width, box.height, s.videoW, s.videoH, s.pixelRatio)) ?: return
+        val size = VideoFit.viewSize(s.format, box.width, box.height, s.videoW, s.videoH, s.pixelRatio) ?: return
         // No matrix: the view itself has the picture's shape. A shrunken
         // picture in a box-sized view left the bars unpainted (the band in
         // bugs/plex-green-bar.md).

@@ -14,10 +14,13 @@ export const MATCH_FRAME_RATE_FLAG = 'match_frame_rate';
 /** The main player draws on a SurfaceView (smooth 4K, HDR passed through);
  *  off falls back to the TextureView. Missing row: on. */
 export const SURFACE_VIEW_FLAG = 'video_surface_view';
-/** MediaCodec's asynchronous queueing on API 28-30 boxes. Missing row: on. */
+/** MediaCodec's asynchronous queueing forced on API 28-30 boxes, an A/B
+ *  switch: Fire TVs already get it from Media3 itself (Amazon's TV feature
+ *  check), and Media3 calls it reliable elsewhere only on API 31+.
+ *  Missing row: OFF. */
 export const ASYNC_CODEC_FLAG = 'async_codec';
 /** Tunneled playback for films, for an A/B test on the owner's box.
- *  Missing row: OFF (the one flag that defaults off). */
+ *  Missing row: OFF. */
 export const TUNNELED_VOD_FLAG = 'tunneled_vod';
 
 /** Films get the box's hardware audio (or passthrough) first, FFmpeg as the
@@ -28,7 +31,7 @@ export const AUDIO_HW_FIRST_FLAG = 'audio_hw_first';
 export const PLAYER_FLAG_DEFAULTS: Record<string, boolean> = {
   [MATCH_FRAME_RATE_FLAG]: true,
   [SURFACE_VIEW_FLAG]: true,
-  [ASYNC_CODEC_FLAG]: true,
+  [ASYNC_CODEC_FLAG]: false,
   [TUNNELED_VOD_FLAG]: false,
   [AUDIO_HW_FIRST_FLAG]: true,
 };
