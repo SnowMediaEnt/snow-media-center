@@ -91,10 +91,10 @@ export function createNativeVideoController(cb: Callbacks = {}): NativeControlle
       void SnowPlayer.setSubtitleTrack({ id: trackId }).then(() => prime()).catch(() => { /* ignore */ });
     },
     getAudioTracks: () => state.audioTracks,
-    setAudioTrack: (id: number) => {
+    setAudioTrack: (id: number, opts?: { auto?: boolean }) => {
       const trackId = state.audioIdMap[id];
       if (!trackId) return;
-      void SnowPlayer.setAudioTrack({ id: trackId }).then(() => prime()).catch(() => { /* ignore */ });
+      void SnowPlayer.setAudioTrack(opts?.auto ? { id: trackId, auto: true } : { id: trackId }).then(() => prime()).catch(() => { /* ignore */ });
     },
   };
 

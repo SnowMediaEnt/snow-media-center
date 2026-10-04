@@ -108,4 +108,20 @@ describe('PlaybackScreen', () => {
     up();
     expect(chip('ExoPlayer').getAttribute('data-focused')).toBe('true');
   });
+
+  it('Match frame rate: on by default, down from MPV, OK turns it off and it is remembered', async () => {
+    render(<PlaybackScreen onBack={() => {}} />);
+    await wait();
+    const row = () => document.querySelector('[data-playback-toggle="matchFrameRate"]') as HTMLElement;
+    expect(row().textContent).toContain('Match frame rate');
+    expect(row().getAttribute('data-on')).toBe('true');
+    down(); down();
+    expect(row().getAttribute('data-focused')).toBe('true');
+    ok();
+    expect(row().getAttribute('data-on')).toBe('false');
+    expect(localStorage.getItem('smc-match-frame-rate-v1')).toBe('0');
+    ok();
+    expect(row().getAttribute('data-on')).toBe('true');
+    expect(localStorage.getItem('smc-match-frame-rate-v1')).toBe('1');
+  });
 });

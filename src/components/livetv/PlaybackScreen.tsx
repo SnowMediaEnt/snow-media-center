@@ -1,10 +1,11 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Gauge, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { BackButton } from '@/components/ui/BackButton';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { usePlayerEngine, type PlayerEngine } from '@/hooks/usePlayerEngine';
 import { compareEngines, type EngineCompareRow } from '@/lib/engineCompare';
+import { loadDecodeAudioOnBox, loadMatchFrameRate, saveDecodeAudioOnBox, saveMatchFrameRate } from '@/lib/playerFlags';
 
 interface Props {
   onBack: () => void;
@@ -27,6 +28,23 @@ const CHIPS: EngineChip[] = [
   { id: 'mpv', labelKey: 'live.playback.mpvLabel', hintKey: 'live.playback.mpvHint' },
 ];
 
+/** On/off rows under the engine choice: the viewer's own player settings,
+ *  saved on this box and sent with every load (lib/playerFlags). */
+interface ToggleRow {
+  id: string;
+  labelKey: string;
+  descKey: string;
+  load: () => boolean;
+  save: (on: boolean) => void;
+}
+const TOGGLES: ToggleRow[] = [
+  { id: 'matchFrameRate', labelKey: 'live.playback.matchFrameRate', descKey: 'live.playback.matchFrameRateDesc', load: loadMatchFrameRate, save: saveMatchFrameRate },
+  { id: 'decodeAudio', labelKey: 'live.playback.decodeAudio', descKey: 'live.playback.decodeAudioDesc', load: loadDecodeAudioOnBox, save: saveDecodeAudioOnBox },
+];
+/** Focus: 0 = Back, 1-2 = the engine chips, then one per toggle. */
+const FIRST_TOGGLE = 1 + CHIPS.length;
+const LAST_FOCUS = FIRST_TOGGLE + TOGGLES.length - 1;
+
 const dash = (n: number | null, digits = 0, suffix = ''): string => (n == null ? '—' : `${n.toFixed(digits)}${suffix}`);
 
 const PlaybackScreen = memo(({ onBack }: Props) => {
@@ -35,6 +53,12 @@ const PlaybackScreen = memo(({ onBack }: Props) => {
   const [mpvAvailable, setMpvAvailable] = useState(true);
   const [mpvReason, setMpvReason] = useState<string | null>(null);
   const [rows, setRows] = useState<EngineCompareRow[]>([]);
+  const [toggles, setToggles] = useState<Record<string, boolean>>(() => Object.fromEntries(TOGGLES.map((r) => [r.id, r.load()])));
+  const flip = (row: ToggleRow) => {
+    const next = !row.load();
+    row.save(next);
+    setToggles((cur) => ({ ...cur, [row.id]: next }));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -49,8 +73,10 @@ const PlaybackScreen = memo(({ onBack }: Props) => {
     return () => { cancelled = true; };
   }, []);
 
-  // Focus: 0 = Back, 1 = ExoPlayer chip, 2 = MPV chip.
+  // Focus: 0 = Back, 1 = ExoPlayer chip, 2 = MPV chip, 3+ = the toggles.
   const [focusIdx, setFocusIdx] = useState(1);
+  const focusRef = useRef(focusIdx);
+  focusRef.current = focusIdx;
   const isDisabled = (chip: EngineChip) => chip.id === 'mpv' && !mpvAvailable;
 
   useEffect(() => {
@@ -70,10 +96,14 @@ const PlaybackScreen = memo(({ onBack }: Props) => {
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
 
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-        setFocusIdx((i) => Math.min(2, i + 1));
+        setFocusIdx((i) => Math.min(LAST_FOCUS, i + 1));
       } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
         setFocusIdx((i) => Math.max(0, i - 1));
       } else if (e.key === 'Enter' || e.key === ' ') {
+        // A toggle flips once per press (outside the state updater, which
+        // React may run twice).
+        const row = TOGGLES[focusRef.current - FIRST_TOGGLE];
+        if (row) { flip(row); return; }
         setFocusIdx((cur) => {
           if (cur === 0) { onBack(); return cur; }
           const chip = CHIPS[cur - 1];
@@ -134,6 +164,33 @@ const PlaybackScreen = memo(({ onBack }: Props) => {
             <p className="text-xs font-nunito text-brand-ice/60">
               {t('live.playback.mpvGainNote')}
             </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="text-xs uppercase tracking-wide text-white/70">{t('live.playback.settingsHeading')}</div>
+            {TOGGLES.map((row, i) => {
+              const flatIdx = FIRST_TOGGLE + i;
+              const focused = focusIdx === flatIdx;
+              const on = toggles[row.id] === true;
+              return (
+                <div
+                  key={row.id}
+                  data-playback-toggle={row.id}
+                  data-focused={focused ? 'true' : 'false'}
+                  data-on={on ? 'true' : 'false'}
+                  onClick={() => { setFocusIdx(flatIdx); flip(row); }}
+                  className={`tv-ring flex items-center rounded-2xl px-4 py-3 border cursor-pointer bg-slate-900/60 border-white/10 ${focused ? 'scale-[1.02] z-10' : ''}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-quicksand font-bold text-white">{t(row.labelKey)}</p>
+                    <p className="text-xs font-nunito text-brand-ice/70 mt-1">{t(row.descKey)}</p>
+                  </div>
+                  <span className={`ml-4 px-3 py-1 rounded-lg text-sm font-quicksand font-bold ${on ? 'bg-brand-gold text-brand-navy' : 'bg-white/10 text-white/70'}`}>
+                    {on ? t('live.playback.on') : t('live.playback.off')}
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
           <div className="space-y-3">

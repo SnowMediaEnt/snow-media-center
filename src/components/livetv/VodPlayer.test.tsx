@@ -6,6 +6,7 @@
  * OK opens it, play/pause, seeking, subtitles / audio through the native
  * track selection, volume to 150% (saved), Back's order, and long lists.
  */
+import { setAudioPassthrough } from '@/lib/audioOutput';
 import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
@@ -146,7 +147,8 @@ describe('VodPlayer on a box', () => {
     act(() => { h.args?.onTracksChanged?.(); });
     act(() => { h.args?.onTracksChanged?.(); });
     expect(h.setAudioTrack).toHaveBeenCalledTimes(1);
-    expect(h.setAudioTrack).toHaveBeenCalledWith(1);
+    // The app's own pick, marked so: the native player may still lighten it.
+    expect(h.setAudioTrack).toHaveBeenCalledWith(1, { auto: true });
   });
 
   it('leaves the file\'s default track when the viewer\'s language is not in it', () => {
@@ -338,6 +340,32 @@ describe('VodPlayer control bar', () => {
     await key('Enter'); // closes the slider
     expect(q('[data-vod-menu]')).toBeNull();
     expect(focusedName()).toBe('Volume 140%');
+  });
+
+  it('volume with Dolby / DTS passed through: the slider says to use the TV or receiver', async () => {
+    render(<VodPlayer src={URL_MKV} volume={1} />);
+    await key('Enter');
+    await key('ArrowRight');
+    await key('ArrowRight');
+    await key('Enter');
+    expect(q('[data-vod-menu="vol"]')).not.toBeNull();
+    expect(q('[data-volume-passthrough]')).toBeNull();
+    act(() => { setAudioPassthrough(true); });
+    expect(q('[data-volume-passthrough]')?.textContent).toContain('Volume on your TV or receiver');
+    act(() => { setAudioPassthrough(false); });
+    expect(q('[data-volume-passthrough]')).toBeNull();
+  });
+
+  it('volume past 100% on a bitstream: no "Boost" label (no boost reaches it)', async () => {
+    render(<VodPlayer src={URL_MKV} volume={1.3} />);
+    await key('Enter');
+    await key('ArrowRight');
+    await key('ArrowRight');
+    await key('Enter');
+    expect(q('[data-vod-vol-level]')?.textContent).toContain('Boost');
+    act(() => { setAudioPassthrough(true); });
+    expect(q('[data-vod-vol-level]')?.textContent).toBe('130%');
+    act(() => { setAudioPassthrough(false); });
   });
 
   it('Back closes the menu, then the stats, then the bar, then the player', async () => {

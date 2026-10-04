@@ -78,6 +78,52 @@ describe('the stats panel', () => {
     expect(h.getStats).toHaveBeenCalledWith({ memory: true });
   });
 
+  it('the screen\'s refresh rate sits next to the video\'s frame rate (frame-rate matching)', async () => {
+    h.getStats.mockImplementation(async () => ({ ...STATS, displayHz: 23.976 }));
+    render(<PlayerStatsPanel />);
+    await wait(0);
+    expect(panel()?.textContent ?? '').toContain('Display 23.976 Hz');
+  });
+
+  it('says which surface draws the picture, how frames are paced, and flags a software decoder', async () => {
+    h.getStats.mockImplementation(async () => ({
+      ...STATS, surface: 'SurfaceView', tunnelingRequested: false, videoDecoder: 'c2.android.hevc.decoder', videoDecoderSoftware: true,
+      skippedFrames: 3, maxConsecutiveDropped: 2, droppedToKeyframe: 0, avgFrameOffsetMs: 12.4,
+    }));
+    render(<PlayerStatsPanel />);
+    await wait(0);
+    const text = panel()?.textContent ?? '';
+    expect(text).toContain('Surface SurfaceView');
+    expect(text).toContain('c2.android.hevc.decoder (software)');
+    expect(text).toContain('Pacing 3 skipped · max 2 dropped in a row · 0 to key frame · 12.4 ms ahead');
+  });
+
+  it('the sound: passthrough said, which decoder came first, and the output\'s underruns', async () => {
+    h.getStats.mockImplementation(async () => ({ ...STATS, audioPassthrough: true, audioOrder: 'hardware', audioUnderruns: 2, audioUnderrunMs: 340, audioFormat: 'TrueHD 8ch (7.1) 48.0kHz' }));
+    render(<PlayerStatsPanel />);
+    await wait(0);
+    const text = panel()?.textContent ?? '';
+    expect(text).toContain('Passthrough · bitstream to the TV or receiver');
+    expect(text).toContain('TrueHD 8ch (7.1) 48.0kHz');
+    expect(text).toContain('Order hardware first, FFmpeg fallback');
+    expect(text).toContain('Underruns 2 (340 ms)');
+  });
+
+  it('a hardware decoder is not flagged; an older app shows no pacing row', async () => {
+    render(<PlayerStatsPanel />);
+    await wait(0);
+    const text = panel()?.textContent ?? '';
+    expect(text).not.toContain('(software)');
+    expect(text).not.toContain('Pacing');
+    expect(text).toContain('Surface —');
+  });
+
+  it('an older app without the refresh rate shows a dash', async () => {
+    render(<PlayerStatsPanel />);
+    await wait(0);
+    expect(panel()?.textContent ?? '').toContain('Display —');
+  });
+
   it('nothing known yet reads as dashes; converting says to what', async () => {
     h.getStats.mockImplementation(async () => ({
       ...STATS, state: 'buffering', playing: false, nowKbps: 0, avgKbps: null, minKbps: null, maxKbps: null,

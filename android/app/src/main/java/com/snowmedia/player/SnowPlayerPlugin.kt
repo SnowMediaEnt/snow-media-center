@@ -4,6 +4,7 @@ package com.snowmedia.player
 
 import android.app.ActivityManager
 import android.content.Context
+import android.media.MediaFormat
 import android.graphics.Color
 import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
@@ -15,7 +16,10 @@ import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
+import android.hardware.display.DisplayManager
+import android.view.Display
 import android.view.Gravity
+import android.view.SurfaceView
 import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
@@ -46,15 +50,19 @@ import androidx.media3.datasource.TransferListener
 // drops out, instead of silently regressing to "video plays, no sound".
 import androidx.media3.decoder.ffmpeg.FfmpegLibrary
 import androidx.media3.exoplayer.DecoderCounters
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.LoadControl
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.MediaCodecAudioRenderer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultAllocator
+import androidx.media3.exoplayer.video.VideoFrameMetadataListener
 import androidx.media3.exoplayer.source.TrackGroupArray
 import androidx.media3.exoplayer.trackselection.ExoTrackSelection
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
@@ -96,7 +104,57 @@ class SnowPlayerPlugin : Plugin() {
         // The main player's load control (a film's 4K budget, start and
         // restart after a stall; see SteadyLoadControl). Null on tiles.
         var loadControl: SteadyLoadControl? = null
-        var textureView: TextureView? = null
+        // The picture's own view. The main player draws on a SurfaceView
+        // (`video_surface_view`, on unless switched off remotely): its own
+        // layer straight to the display, frame timing from the decoder, and
+        // HDR10 / HLG / Dolby Vision passed through to an HDR TV. A
+        // TextureView goes through the app's GPU composition every frame,
+        // which at 4K paces frames unevenly and is always SDR. Tiles keep the
+        // TextureView. `wantSurfaceView` is what load() asked for; a change
+        // rebuilds the views (load()).
+        var videoView: View? = null
+        var usesSurfaceView: Boolean = false
+        var wantSurfaceView: Boolean = false
+        // MediaCodec's asynchronous queueing (`async_codec`, API 28+): what
+        // the player was built with, and what load() asks for.
+        var asyncCodec: Boolean = false
+        var wantAsyncCodec: Boolean = false
+        // Tunneled playback for this load (`tunneled_vod`, off by default).
+        var tunneled: Boolean = false
+        // Audio renderer order (`audio_hw_first`): the player is built with
+        // one. ON puts MediaCodec first (the box's hardware decoder, or the
+        // bitstream passed through to the TV or receiver) with FFmpeg as the
+        // fallback; PREFER puts FFmpeg first (every track decoded on the
+        // CPU, as Live TV has always played). `wantAudioMode` is what this
+        // load needs; a change rebuilds the player (load()).
+        var audioMode: Int = AudioOrder.FFMPEG_FIRST
+        var wantAudioMode: Int = AudioOrder.FFMPEG_FIRST
+        // This title's hardware audio failed once: FFmpeg first from then on
+        // (restartWithSoftwareAudio), until another title loads.
+        var audioSwFallback: Boolean = false
+        var audioSwFallbackTitle: String? = null
+        // The title loaded (AudioOrder.titleKey: the address without its
+        // per-session parameters), for what is kept per title.
+        var titleKey: String? = null
+        // Audio disabled here because the bitstream can't be turned down
+        // (passthrough at volume 0): re-enabled when that ends.
+        var passthroughMuted: Boolean = false
+        // The viewer picked an audio track (setAudioTrack): never overridden.
+        var userPickedAudio: Boolean = false
+        // The heavy-track check ran for this load (chooseLighterAudio).
+        var audioChoiceDone: Boolean = false
+        // The sound goes out as a bitstream (Dolby / DTS to the TV or
+        // receiver): no volume or boost acts on it.
+        var audioPassthrough: Boolean = false
+        var audioUnderruns: Int = 0
+        var audioUnderrunGapMs: Long = 0L
+        // The video decoder sessions that have ended this load, added up
+        // like framesRendered (statsOf adds the running one's).
+        var framesSkipped: Long = 0L
+        var maxConsecutiveDropped: Int = 0
+        var droppedToKeyframe: Long = 0L
+        var frameOffsetUs: Long = 0L
+        var frameOffsetCount: Long = 0L
         // Opaque black view between the picture and the subtitles. A
         // TextureView keeps showing the last frame it was given — through
         // stop(), setMediaItem() and the container going GONE and back — so
@@ -212,6 +270,36 @@ class SnowPlayerPlugin : Plugin() {
         var stalls: Int = 0
         var stallSec: Double = 0.0
         var stallStartedAtMs: Long = 0L
+        // Frame-rate matching (FrameRateMatch, main slot only): this load
+        // may change the display mode (a film or episode with the setting
+        // and the remote switch on; never Live TV or a tile). Until
+        // `modeSwitchUntilMs` the screen may be blank from a mode switch:
+        // a stall then is not counted, and the first-picture watchdog has
+        // been pushed back.
+        var matchFrameRate: Boolean = false
+        var modeSwitchUntilMs: Long = 0L
+        // A rebuffer that began inside the switch's grace: counted only if
+        // it is still going once the grace is over (stallStartedAtMs is
+        // then the grace's end).
+        var stallUncounted: Boolean = false
+        // The frame rate the WebView knows for this load (Plex's metadata:
+        // a Matroska file never states one to the player); 0 = none. Which
+        // source the rate came from is logged once per load.
+        var hintFps: Float = 0f
+        var fpsLogged: Boolean = false
+        // While a requested mode has not shown up yet (onDisplayChanged), the
+        // start-up hold keeps the film paused, until this time at most.
+        var modeWaitUntilMs: Long = 0L
+        // No rate from the WebView or the stream: the first frames' times
+        // (set on the main thread, filled on the playback thread).
+        @Volatile var fpsEstimator: FpsEstimator? = null
+    }
+
+    /** Presentation times of the first frames shown (FrameRateMatch.estimate). */
+    private class FpsEstimator(val url: String) {
+        val pts = LongArray(FPS_ESTIMATE_FRAMES)
+        var count = 0
+        @Volatile var done = false
     }
 
     private val slots = HashMap<String, PlayerSlot>()
@@ -239,6 +327,34 @@ class SnowPlayerPlugin : Plugin() {
     }
     // Whether this box is low on RAM (isLowRamBox), read once.
     private var lowRamBox: Boolean? = null
+    // Frame-rate matching: the display mode this plugin asked the window
+    // for (preferredDisplayModeId; 0 = none, the system's own), and the mode
+    // the screen was in before the first such request. One window, so one
+    // request for the whole plugin, made for the main slot only.
+    private var requestedModeId: Int = 0
+    private var requestedMode: FrameRateMatch.Mode? = null
+    private var modeBefore: FrameRateMatch.Mode? = null
+    // Told when the requested mode is in place (the start-up hold waits for it).
+    private var displayListener: DisplayManager.DisplayListener? = null
+    // The mode the display listener waits for (0: none).
+    private var watchingModeId: Int = 0
+    // A stop puts the screen back a moment later, so a quality change, a
+    // retry or the next episode (a stop and a load) keeps the film's mode.
+    private val restoreModeRunnable = Runnable { restoreDisplayMode() }
+    // A switch under way: the start-up hold waits for it until this time
+    // (a load arriving meanwhile waits too, see load()).
+    private var switchWaitUntilMs: Long = 0L
+    // This box or TV left a request unanswered once (the mode never showed
+    // within MODE_WAIT_MS): requests still go out, but no start waits on
+    // them for the rest of the process.
+    private var modeRequestsIgnored: Boolean = false
+    private var modeWaitTimeout: Runnable? = null
+    // A mode just let go of (restoreDisplayMode) that the screen may still
+    // show for a moment, and the mode from before it: a film arriving then
+    // at a rate that mode fits pins it instead of blanking twice.
+    private var restoringFrom: FrameRateMatch.Mode? = null
+    private var restoringBefore: FrameRateMatch.Mode? = null
+    private var restoredAtMs: Long = 0L
 
     companion object {
         private const val MAIN = "main"
@@ -300,6 +416,22 @@ class SnowPlayerPlugin : Plugin() {
         private const val TS_PAUSE_TO_BUFFER_MS = 20_000L
         private const val TS_RECOVER_GAP_MS = 10_000L
         private const val TS_OLDEST_MARGIN_MS = 30_000L
+        /** A display mode switch blanks HDMI for 1-3 s: that long after one,
+         *  a stall is the switch, not the stream. */
+        private const val MODE_SWITCH_GRACE_MS = 4000L
+        /** The start-up hold waits at most this long for a requested mode to show. */
+        private const val MODE_WAIT_MS = 4000L
+        /** After a stop, the screen goes back to its own mode this much later
+         *  unless another film loads (Plex's quality change is a stop and a load). */
+        private const val MODE_RESTORE_DELAY_MS = 4000L
+        /** How long after a restore the screen may still show the old mode. */
+        private const val RESTORE_SETTLE_MS = 5000L
+        /** After the display reports the new mode, HDMI takes about this long to show a picture. */
+        private const val MODE_RESYNC_MS = 1500L
+        /** Shorter than this (a trailer, an extra): never worth a mode switch. */
+        private const val MIN_MATCH_DURATION_MS = 5 * 60_000L
+        /** Frames timed for a frame-rate estimate. */
+        const val FPS_ESTIMATE_FRAMES = 48
     }
 
     private fun screenIdOf(call: PluginCall): String = call.getString("screenId") ?: MAIN
@@ -308,7 +440,11 @@ class SnowPlayerPlugin : Plugin() {
 
     private fun slotFor(screenId: String): PlayerSlot {
         var s = slots[screenId]
-        if (s == null) { s = PlayerSlot(); slots[screenId] = s }
+        if (s == null) {
+            // The main box's view is chosen by load() (setRect never builds it).
+            s = PlayerSlot()
+            slots[screenId] = s
+        }
         return s
     }
 
@@ -355,7 +491,14 @@ class SnowPlayerPlugin : Plugin() {
                 if (ms > 0) {
                     val kbps = (bytes - lastBytes) * 8L / ms
                     if (kbps > 0L || s.lastKbps != 0L) {
-                        notifyListeners("bandwidth", JSObject().put("screenId", screenId).put("kbps", kbps))
+                        // `arrival`: this figure is bytes as they arrive (what
+                        // getStats.arrivalKbps reports), so the WebView needs
+                        // no getStats poll of its own for it.
+                        notifyListeners(
+                            "bandwidth",
+                            JSObject().put("screenId", screenId).put("kbps", kbps)
+                                .put("arrival", true).put("arrivalKbps", kbps),
+                        )
                     }
                     s.lastKbps = kbps
                     if (kbps > 0L) {
@@ -399,12 +542,14 @@ class SnowPlayerPlugin : Plugin() {
         s.kbpsSamples = 0
         s.framesRendered = 0L
         s.framesDropped = 0L
+        clearVideoTelemetry(s)
         s.videoCounters = null
         s.framesSeen = false
         s.firstFrameMs = null
         s.stalls = 0
         s.stallSec = 0.0
         s.stallStartedAtMs = 0L
+        s.stallUncounted = false
         s.loadStartWallMs = SystemClock.elapsedRealtime()
         s.loadStartCpuMs = Process.getElapsedCpuTime()
         if (url != s.statsUrl) {
@@ -414,6 +559,16 @@ class SnowPlayerPlugin : Plugin() {
             s.lastError = null
             s.lastHttpStatus = null
         }
+    }
+
+    private fun clearVideoTelemetry(s: PlayerSlot) {
+        s.audioUnderruns = 0
+        s.audioUnderrunGapMs = 0L
+        s.framesSkipped = 0L
+        s.maxConsecutiveDropped = 0
+        s.droppedToKeyframe = 0L
+        s.frameOffsetUs = 0L
+        s.frameOffsetCount = 0L
     }
 
     /** A stop: nothing of the stream that was playing is left to report. Its
@@ -428,6 +583,7 @@ class SnowPlayerPlugin : Plugin() {
         s.kbpsSamples = 0
         s.framesRendered = 0L
         s.framesDropped = 0L
+        clearVideoTelemetry(s)
         s.videoCounters = null
         s.framesSeen = false
         s.statsUrl = null
@@ -445,6 +601,7 @@ class SnowPlayerPlugin : Plugin() {
         s.stalls = 0
         s.stallSec = 0.0
         s.stallStartedAtMs = 0L
+        s.stallUncounted = false
     }
 
     /**
@@ -534,7 +691,7 @@ class SnowPlayerPlugin : Plugin() {
      *  behavior (start at once). The main slot reports progress as
      *  'preBuffer' events every tick, so the WebView can show "Getting
      *  ready…" instead of a still frame. */
-    private fun schedulePreBuffer(s: PlayerSlot, screenId: String, midFile: Boolean) {
+    private fun schedulePreBuffer(s: PlayerSlot, screenId: String, midFile: Boolean, modeOnly: Boolean = false) {
         s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
         val startedAt = SystemClock.elapsedRealtime()
         val url = s.currentUrl
@@ -552,10 +709,15 @@ class SnowPlayerPlugin : Plugin() {
                 // A 4K film (known once its tracks are selected) waits for a
                 // steady buffer (PreBufferRule.UHD_*).
                 val uhd = s.loadControl?.uhd == true
-                val done = PreBufferRule.isDone(
+                // A display mode asked for during the hold: wait until the
+                // screen is in it (or MODE_WAIT_MS), so its HDMI blank never
+                // eats the film's first seconds.
+                // A hold only for a mid-play mode switch (modeOnly) waits for
+                // the screen alone, never the start-up buffer rules.
+                val done = (modeOnly || PreBufferRule.isDone(
                     midFile, elapsed, flowAt, now, bufMs, ready,
                     loading = p.isLoading, ended = state == Player.STATE_ENDED, uhd = uhd,
-                )
+                )) && !(s.modeWaitUntilMs != 0L && now < s.modeWaitUntilMs)
                 if (screenId == MAIN) {
                     // The indicator's clock: the filling time, which for a
                     // start part-way in begins once video arrives there.
@@ -734,7 +896,7 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     private fun ensureSurface(s: PlayerSlot): Boolean {
-        if (s.container != null && s.textureView != null) return true
+        if (s.container != null && s.videoView != null) return true
         val act = activity ?: return false
         val webView = bridge?.webView ?: return false
         val parent = webView.parent as? ViewGroup ?: return false
@@ -742,7 +904,12 @@ class SnowPlayerPlugin : Plugin() {
         // Ensure every transparency gap around/behind the WebView reads BLACK,
         // never the light-theme window default (white flash on layout).
         act.window.decorView.setBackgroundColor(Color.BLACK)
-        val tv = TextureView(act)
+        // The main player's SurfaceView keeps its default z-order: its layer
+        // sits under the window, which shows it through the hole the view
+        // punches. Never setZOrderOnTop / setZOrderMediaOverlay: the WebView
+        // (transparent, its own layer type left as it is) and the shutter
+        // and subtitles above must stay on top of the picture.
+        val tv: View = if (s.wantSurfaceView) SurfaceView(act) else TextureView(act)
         val fl = FrameLayout(act)
         fl.setBackgroundColor(Color.BLACK)
         // Sized to the picture and centred by applyFormat (VideoFit): the
@@ -773,7 +940,8 @@ class SnowPlayerPlugin : Plugin() {
         fl.visibility = View.GONE
         parent.addView(fl, 0, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         s.container = fl
-        s.textureView = tv
+        s.videoView = tv
+        s.usesSurfaceView = tv is SurfaceView
         return true
     }
 
@@ -848,22 +1016,457 @@ class SnowPlayerPlugin : Plugin() {
         releaseWifi()
     }
 
+    // ---- Frame-rate matching -------------------------------------------------
+    // A 23.976 fps film on the Fire TV's usual 60 Hz is shown with 3:2
+    // pulldown: uneven, the "a little lag" of 4K films. A film or episode on
+    // the main player (matchFrameRate, from the WebView: the viewer's setting
+    // and the remote switch) asks the window for a display mode of the same
+    // resolution whose refresh rate is a whole multiple of the film's
+    // (FrameRateMatch), once, as soon as the rate is known. The window's
+    // preferredDisplayModeId is what Fire OS honours (API 28); Surface.
+    // setFrameRate is not used: the window's explicit mode outranks it on
+    // API 30+, and two requests could disagree. Everything here runs on the
+    // main thread.
+
+    /** The display this activity is on; null if it can't be read. */
+    @Suppress("DEPRECATION")
+    private fun currentDisplay(): Display? {
+        val act = activity ?: return null
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) act.display else act.windowManager.defaultDisplay
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun modeOf(m: Display.Mode): FrameRateMatch.Mode =
+        FrameRateMatch.Mode(m.modeId, m.physicalWidth, m.physicalHeight, m.refreshRate)
+
+    private fun modeText(m: FrameRateMatch.Mode?): String =
+        if (m == null) "?" else "${m.width}x${m.height}@${FrameRateMatch.label(m.refreshRate)}"
+
+    /** The screen's refresh rate now, Hz to 3 decimals (stats); null if unknown. */
+    private fun displayHz(): Double? {
+        val d = currentDisplay() ?: return null
+        val hz = try { d.mode.refreshRate } catch (_: Throwable) { return null }
+        return if (hz > 0f) Math.round(hz * 1000.0) / 1000.0 else null
+    }
+
+    /** The video track being played, from a track list; null when none is selected. */
+    private fun selectedVideoFormat(tracks: androidx.media3.common.Tracks): Format? {
+        for (g in tracks.groups) {
+            if (g.type != C.TRACK_TYPE_VIDEO || !g.isSelected) continue
+            for (i in 0 until g.length) if (g.isTrackSelected(i)) return g.getTrackFormat(i)
+        }
+        return null
+    }
+
+    private fun inModeSwitch(s: PlayerSlot): Boolean =
+        s.modeSwitchUntilMs != 0L && SystemClock.elapsedRealtime() < s.modeSwitchUntilMs
+
+    /**
+     * A film's frame rate is known (its tracks, or its decoder's input
+     * format): the rate to match is the WebView's (Plex's metadata), else
+     * the stream's own, else, when neither has one (a Matroska file states
+     * none to the player), an estimate from the first frames shown
+     * (FpsEstimator, see onVideoFrameAboutToBeRendered).
+     */
+    private fun matchFrameRate(s: PlayerSlot, screenId: String, format: Format?) {
+        // Only once the picture's track is known: by then so is the length
+        // (a trailer is left alone, see applyFrameRate).
+        if (format == null || screenId != MAIN || !s.matchFrameRate || s.isLive) return
+        val url = s.currentUrl ?: return
+        val own = format.frameRate
+        when {
+            // Plex's labels ("24p", "NTSC") are approximate: the stream's own
+            // rate wins when it is there and agrees within 1 %.
+            s.hintFps > 0f && own > 0f && Math.abs(own - s.hintFps) <= s.hintFps * 0.01f -> applyFrameRate(s, screenId, own, "format")
+            s.hintFps > 0f -> applyFrameRate(s, screenId, s.hintFps, "plex")
+            own > 0f -> applyFrameRate(s, screenId, own, "format")
+            s.fpsEstimator == null -> s.fpsEstimator = FpsEstimator(url)
+        }
+    }
+
+    /**
+     * Settle the screen's mode for this title (FrameRateMatch.decide): ask
+     * for the mode that fits `fps`, keep the one asked for when it still
+     * fits, or give the screen back its own when the last title's mode
+     * doesn't fit this one (or the rate is unknown, variable, or the title a
+     * trailer: `fps` null). Judged against the mode last asked for while
+     * one is (the display reports the old one until the TV has switched, and
+     * keeps reporting it if the TV ignored the request), so a second report
+     * of the same rate never asks again. Logs numbers only.
+     */
+    private fun applyFrameRate(s: PlayerSlot, screenId: String, fps: Float?, source: String) {
+        if (screenId != MAIN || !s.matchFrameRate || s.isLive || s.currentUrl == null) return
+        if (fps != null && fps > 0f && !s.fpsLogged) {
+            s.fpsLogged = true
+            Log.i(TAG, "fps=${FrameRateMatch.label(fps)} src=$source")
+        }
+        // A trailer or an extra: not worth 1-3 s of blank screen, and not
+        // left in the last film's mode either.
+        val dur = s.player?.duration ?: C.TIME_UNSET
+        val short = dur != C.TIME_UNSET && dur in 1 until MIN_MATCH_DURATION_MS
+        val useFps = if (fps != null && fps > 0f && !short) fps else null
+        val act = activity ?: return
+        val display = currentDisplay() ?: return
+        val shown = try { modeOf(display.mode) } catch (_: Throwable) { return }
+        val modes = try { display.supportedModes.map { modeOf(it) } } catch (_: Throwable) { return }
+        val now = SystemClock.elapsedRealtime()
+        val restoring = restoringFrom?.takeIf { it.id == shown.id && now - restoredAtMs < RESTORE_SETTLE_MS }
+        when (val d = FrameRateMatch.decide(shown, requestedMode, modeBefore, modes, useFps, restoring)) {
+            is FrameRateMatch.Decision.Keep -> return
+            is FrameRateMatch.Decision.Pin -> {
+                // The screen already shows a mode that fits: hold it there.
+                if (!setPreferredMode(act, d.mode.id)) return
+                requestedModeId = d.mode.id
+                requestedMode = d.mode
+                modeBefore = restoringBefore
+                restoringFrom = null
+                Log.i(TAG, "fps ${FrameRateMatch.label(useFps ?: 0f)} → keep mode ${modeText(d.mode)}")
+            }
+            is FrameRateMatch.Decision.Restore -> {
+                val back = modeBefore
+                restoreDisplayMode()
+                if (back != null && back.id != shown.id) beginModeSwitch(s, screenId, back, useFps, request = false)
+            }
+            is FrameRateMatch.Decision.Request -> {
+                val pick = d.mode
+                // Never a change of size: that would be a configuration change too.
+                if (pick.id == requestedModeId || pick.width != shown.width || pick.height != shown.height) return
+                mainHandler.removeCallbacks(restoreModeRunnable)
+                if (!setPreferredMode(act, pick.id)) return
+                if (requestedModeId == 0) modeBefore = restoring?.let { restoringBefore } ?: shown
+                requestedModeId = pick.id
+                requestedMode = pick
+                restoringFrom = null
+                Log.i(TAG, "fps ${FrameRateMatch.label(useFps ?: 0f)} → mode ${modeText(pick)} (was ${modeText(shown)})")
+                // Already on screen (the TV is in it, only our request was
+                // elsewhere): the attribute alone, no blank to wait for.
+                // Already on its way there (a switch back in progress to this
+                // same mode): no second switch event or longer hold.
+                if (pick.id != shown.id && !(displayListener != null && watchingModeId == pick.id)) {
+                    beginModeSwitch(s, screenId, pick, useFps, request = true)
+                }
+            }
+        }
+    }
+
+    private fun setPreferredMode(act: android.app.Activity, modeId: Int): Boolean = try {
+        val w = act.window
+        val lp = w.attributes
+        lp.preferredDisplayModeId = modeId
+        w.attributes = lp
+        true
+    } catch (e: Throwable) {
+        Log.w(TAG, "Display mode not changed (${e.javaClass.simpleName})")
+        false
+    }
+
+    /**
+     * The screen is about to change mode (1-3 s of blank HDMI): stalls are
+     * not counted for a while (onPlaybackStateChanged), a first-picture
+     * watchdog still waiting starts its 8 s again, and the WebView treats it
+     * like a seek for automatic quality. The film waits, paused, until the
+     * screen is in the new mode and HDMI has had a moment (MODE_WAIT_MS at
+     * most): its start-up hold if one is running, or (a switch mid-play, from
+     * an estimate) a fresh hold that resumes where it paused. Not on a box
+     * that has ignored a request before.
+     */
+    private fun beginModeSwitch(s: PlayerSlot, screenId: String, target: FrameRateMatch.Mode, fps: Float?, request: Boolean) {
+        val now = SystemClock.elapsedRealtime()
+        s.modeSwitchUntilMs = now + MODE_SWITCH_GRACE_MS
+        switchWaitUntilMs = now + MODE_WAIT_MS
+        if (!modeRequestsIgnored) {
+            if (s.holding) {
+                s.modeWaitUntilMs = switchWaitUntilMs
+            } else {
+                val p = s.player
+                if (p != null && p.playWhenReady && !s.isLive && s.engine == EngineChoice.EXO && s.currentUrl != null) {
+                    // Playing: hold here until the screen is back.
+                    s.holding = true
+                    s.modeWaitUntilMs = switchWaitUntilMs
+                    p.playWhenReady = false
+                    schedulePreBuffer(s, screenId, midFile = true, modeOnly = true)
+                }
+            }
+        }
+        watchDisplayMode(s, target.id)
+        modeWaitTimeout?.let { mainHandler.removeCallbacks(it) }
+        val asked = if (request) target.id else 0
+        val r = Runnable {
+            modeWaitTimeout = null
+            val shownNow = try { currentDisplay()?.mode?.modeId } catch (_: Throwable) { null }
+            if (asked != 0 && requestedModeId == asked && shownNow != asked && !modeRequestsIgnored) {
+                modeRequestsIgnored = true
+                Log.w(TAG, "display mode request not taken within ${MODE_WAIT_MS / 1000} s; starts no longer wait for it")
+            }
+        }
+        modeWaitTimeout = r
+        mainHandler.postDelayed(r, MODE_WAIT_MS)
+        if (s.watchdogRunnable != null) scheduleWatchdog(s, screenId)
+        notifyListeners(
+            "displayMode",
+            JSObject().put("screenId", screenId)
+                .put("fps", if (fps != null) Math.round(fps * 1000.0) / 1000.0 else JSONObject.NULL)
+                .put("refreshHz", Math.round(target.refreshRate * 1000.0) / 1000.0),
+        )
+    }
+
+    /** A switch under way: the display listener is waiting for its mode. */
+    private fun switchPending(): Boolean = displayListener != null && SystemClock.elapsedRealtime() < switchWaitUntilMs
+
+    /** Until the display reports mode [modeId]: then HDMI gets MODE_RESYNC_MS
+     *  more before the hold may end, and the grace runs at least that long. */
+    private fun watchDisplayMode(s: PlayerSlot, modeId: Int) {
+        unwatchDisplayMode()
+        val dm = activity?.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager ?: return
+        watchingModeId = modeId
+        val l = object : DisplayManager.DisplayListener {
+            override fun onDisplayAdded(displayId: Int) {}
+            override fun onDisplayRemoved(displayId: Int) {}
+            override fun onDisplayChanged(displayId: Int) {
+                val now = try { currentDisplay()?.mode?.modeId } catch (_: Throwable) { null }
+                if (now != modeId) return
+                unwatchDisplayMode()
+                // A TV that took longer than MODE_WAIT_MS still switched: it
+                // does honour requests.
+                modeRequestsIgnored = false
+                // The display has the mode; the TV has yet to re-sync HDMI.
+                val t = SystemClock.elapsedRealtime() + MODE_RESYNC_MS
+                if (s.modeWaitUntilMs != 0L) s.modeWaitUntilMs = t
+                s.modeSwitchUntilMs = maxOf(s.modeSwitchUntilMs, t)
+            }
+        }
+        try {
+            dm.registerDisplayListener(l, mainHandler)
+            displayListener = l
+        } catch (_: Throwable) { /* the hold's own limit ends the wait */ }
+    }
+
+    private fun unwatchDisplayMode() {
+        watchingModeId = 0
+        val l = displayListener ?: return
+        displayListener = null
+        try { (activity?.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.unregisterDisplayListener(l) } catch (_: Throwable) { /* gone */ }
+    }
+
+    /** Playback thread: a frame about to be shown, for a film whose rate is
+     *  not known. The estimate (or "none": variable, a jump) goes to the
+     *  main thread once; none gives the screen back its own mode. */
+    private fun timeFrame(s: PlayerSlot, presentationTimeUs: Long) {
+        val e = s.fpsEstimator ?: return
+        if (e.done) return
+        if (e.count > 0 && presentationTimeUs <= e.pts[e.count - 1]) { e.count = 0 }
+        e.pts[e.count++] = presentationTimeUs
+        if (e.count < FPS_ESTIMATE_FRAMES) return
+        e.done = true
+        val fps = FrameRateMatch.estimate(e.pts, e.count)
+        mainHandler.post {
+            if (s.fpsEstimator === e && s.currentUrl == e.url) applyFrameRate(s, MAIN, fps, "estimate")
+        }
+    }
+
+    /** Back to the system's own display mode (preferredDisplayModeId 0), if this plugin asked for another. */
+    private fun restoreDisplayMode() {
+        mainHandler.removeCallbacks(restoreModeRunnable)
+        unwatchDisplayMode()
+        if (requestedModeId == 0) return
+        val asked = requestedMode
+        val before = modeBefore
+        requestedModeId = 0
+        requestedMode = null
+        modeBefore = null
+        restoringFrom = asked
+        restoringBefore = before
+        restoredAtMs = SystemClock.elapsedRealtime()
+        try {
+            val w = activity?.window ?: return
+            val lp = w.attributes
+            lp.preferredDisplayModeId = 0
+            w.attributes = lp
+            Log.i(TAG, "display mode back from ${modeText(asked)} to the system's (${modeText(before)})")
+        } catch (e: Throwable) {
+            Log.w(TAG, "Display mode not restored (${e.javaClass.simpleName})")
+        }
+    }
+
+    // ---- Audio: hardware first for films -------------------------------------
+
+    /** The sound goes out as a bitstream (or no longer does): the boost lets
+     *  go, and the WebView's volume says to use the TV or receiver's. */
+    private fun setPassthrough(s: PlayerSlot, screenId: String, on: Boolean) {
+        if (s.audioPassthrough == on) return
+        s.audioPassthrough = on
+        applyBoost(s)
+        applyPassthroughMute(s)
+        if (screenId == MAIN) notifyListeners("audioOutput", JSObject().put("screenId", screenId).put("passthrough", on))
+    }
+
+    /**
+     * Mute on a bitstream: no volume here reaches it, so volume 0 turns the
+     * audio track off (Media3's track-type switch) and anything above, or the
+     * end of passthrough, turns it back on. Only what this turned off is
+     * turned back on.
+     */
+    private fun applyPassthroughMute(s: PlayerSlot) {
+        val p = s.player ?: return
+        val mute = AudioOrder.muteByDisabling(s.audioPassthrough, s.volume)
+        if (mute == s.passthroughMuted) return
+        s.passthroughMuted = mute
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, mute)
+            .build()
+    }
+
+    /**
+     * A film's heavy sound (TrueHD, DTS-HD, 7.1) that FFmpeg would decode on
+     * the CPU, next to a same-language track the box plays in hardware or
+     * passes through: that one instead (AudioOrder.lighter). Once per load,
+     * never over the viewer's own pick. Media3's default choice is the
+     * "best" track (default flag, then channels), so TrueHD 7.1 beat AC3 5.1.
+     */
+    private fun chooseLighterAudio(s: PlayerSlot, p: ExoPlayer, tracks: androidx.media3.common.Tracks) {
+        s.audioChoiceDone = true
+        if (s.audioMode != AudioOrder.HARDWARE_FIRST || s.userPickedAudio) return
+        val mapped = s.trackSelector?.currentMappedTrackInfo ?: return
+        var selGroup: androidx.media3.common.TrackGroup? = null
+        var sel: Format? = null
+        for (g in tracks.groups) {
+            if (g.type != C.TRACK_TYPE_AUDIO || !g.isSelected) continue
+            for (i in 0 until g.length) if (g.isTrackSelected(i)) { selGroup = g.mediaTrackGroup; sel = g.getTrackFormat(i) }
+        }
+        val group = selGroup ?: return
+        val fmt = sel ?: return
+        var byFfmpeg = false
+        val candidates = ArrayList<AudioOrder.Candidate>()
+        for (r in 0 until mapped.rendererCount) {
+            if (mapped.getRendererType(r) != C.TRACK_TYPE_AUDIO) continue
+            val hw = p.getRenderer(r) is MediaCodecAudioRenderer
+            val groups = mapped.getTrackGroups(r)
+            for (gi in 0 until groups.length) {
+                val tg = groups.get(gi)
+                if (tg == group && !hw) byFfmpeg = true
+                if (!hw) continue
+                for (ti in 0 until tg.length) {
+                    if (mapped.getTrackSupport(r, gi, ti) != C.FORMAT_HANDLED) continue
+                    val f = tg.getFormat(ti)
+                    candidates.add(
+                        AudioOrder.Candidate(r, gi, ti, f.language, f.channelCount, hardware = true, label = f.label, roleFlags = f.roleFlags, selectionFlags = f.selectionFlags),
+                    )
+                }
+            }
+        }
+        val pick = AudioOrder.lighter(fmt.sampleMimeType, fmt.channelCount, fmt.language, byFfmpeg, s.userPickedAudio, candidates) ?: return
+        val tg = mapped.getTrackGroups(pick.renderer).get(pick.group)
+        val to = tg.getFormat(pick.track)
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setOverrideForType(TrackSelectionOverride(tg, pick.track))
+            .build()
+        Log.i(TAG, "audio: ${codecName(fmt.sampleMimeType)} ${fmt.channelCount}ch (FFmpeg) -> ${codecName(to.sampleMimeType)} ${to.channelCount}ch (hardware)")
+    }
+
+    /**
+     * A film's hardware sound failed (the box's decoder, or a bitstream the
+     * TV or receiver turned down): the same place again, once, on a player
+     * built FFmpeg first, before anything is said to the WebView (whose
+     * AUDIO_DECODE answer is a server conversion). The film keeps that order
+     * until another title loads.
+     */
+    private fun restartWithSoftwareAudio(s: PlayerSlot, screenId: String, code: String) {
+        val old = s.player ?: return
+        val url = s.currentUrl ?: return
+        val pos = old.currentPosition.takeIf { it > 0L } ?: s.lastPositionMs
+        val play = old.playWhenReady || s.holding
+        Log.w(TAG, "audio: hardware path failed (${code.removePrefix("ERROR_CODE_")}); FFmpeg first for this title")
+        s.audioSwFallback = true
+        s.audioSwFallbackTitle = AudioOrder.titleKey(url)
+        // The track choices (the viewer's sound and subtitles) go to the new
+        // player; a passthrough mute does not (the new output is PCM).
+        val params = old.trackSelectionParameters
+        val wasMuted = s.passthroughMuted
+        s.wantAudioMode = AudioOrder.FFMPEG_FIRST
+        s.restarts++
+        s.lastRestartReason = "sound on FFmpeg after ${code.removePrefix("ERROR_CODE_")}"
+        cancelTimers(s)
+        releasePlayer(s)
+        buildPlayer(s, screenId)
+        // Anything the old player's last callbacks queued (a reconnect for
+        // the old load) goes with it.
+        cancelTimers(s)
+        val p = s.player ?: return
+        // What load() set up on the player it had.
+        try {
+            p.setVideoChangeFrameRateStrategy(
+                if (s.matchFrameRate) C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF else C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS,
+            )
+        } catch (_: Throwable) { /* a player without it */ }
+        p.trackSelectionParameters = if (wasMuted) params.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false).build() else params
+        s.trackSelector?.let { ts -> ts.setParameters(ts.buildUponParameters().setTunnelingEnabled(s.tunneled)) }
+        s.loadControl?.beginStream(film = true)
+        s.firstFrameSeen = false
+        s.audioChoiceDone = false
+        s.shutterView?.visibility = View.VISIBLE
+        setPassthrough(s, screenId, false)
+        applyFormat(s)
+        p.setMediaItem(buildMediaItem(url, s.currentSubtitles), pos.coerceAtLeast(0L))
+        p.prepare()
+        p.playWhenReady = false
+        if (play) {
+            s.holding = true
+            schedulePreBuffer(s, screenId, midFile = pos > 0L)
+        }
+        scheduleWatchdog(s, screenId)
+        schedulePositionTick(s)
+        scheduleBandwidthTick(s, screenId)
+    }
+
     /** Multi-Screen tiles: stop() only stopped the media, so after one visit
      *  up to four players (threads, views, last-frame buffers) stayed alive
      *  for the rest of the session. load() rebuilds all of this on demand. */
     private fun releaseSlot(s: PlayerSlot) {
-        releaseBoost(s)
-        s.player?.release()
-        s.player = null
-        s.trackSelector = null
-        s.loadControl = null
+        if (slots[MAIN] === s) restoreDisplayMode()
+        releasePlayer(s)
         s.container?.let { c -> (c.parent as? ViewGroup)?.removeView(c) }
         s.container = null
-        s.textureView = null
+        s.videoView = null
+        s.usesSurfaceView = false
         s.shutterView = null
         s.subtitleView = null
         s.videoW = 0
         s.videoH = 0
+    }
+
+    /** The player alone, the views kept: a rebuild for another renderer
+     *  setup (asynchronous queueing, the audio order) attaches the next one
+     *  to the same view. The surface is handed back first, so the next
+     *  player takes it from a clean state. */
+    private fun releasePlayer(s: PlayerSlot) {
+        releaseBoost(s)
+        s.player?.let { it.clearVideoSurface(); it.release() }
+        s.player = null
+        s.passthroughMuted = false
+        s.trackSelector = null
+        s.loadControl = null
+    }
+
+    /** Only ExoPlayer's main SurfaceView is kept on screen (shutter shut)
+     *  after a stop; mpv on the main slot, and every TextureView, go GONE. */
+    private fun keepsBoxAfterStop(s: PlayerSlot): Boolean =
+        VideoFit.keepBoxAfterStop(s.usesSurfaceView, s.engine == EngineChoice.EXO)
+
+    /**
+     * The main box, kept VISIBLE (and black) after a stop so its surface
+     * survives a quality change, sits ABOVE the Multi-Screen tiles (they are
+     * added under it). With nothing loaded on it, it goes GONE: on stopAll
+     * and whenever a tile loads. Its surface is destroyed then, which costs
+     * nothing on an idle player; the next main load makes it VISIBLE again
+     * (applyPendingRect).
+     */
+    private fun hideIdleMainBox() {
+        val m = slots[MAIN] ?: return
+        if (m.currentUrl != null) return
+        m.container?.visibility = View.GONE
     }
 
     private fun buildPlayer(s: PlayerSlot, screenId: String) {
@@ -876,9 +1479,22 @@ class SnowPlayerPlugin : Plugin() {
         tsParamsBuilder.setAudioOffloadPreferences(offloadOff)
         ts.setParameters(tsParamsBuilder)
         s.trackSelector = ts
+        // The audio renderer order this player is built with (see
+        // PlayerSlot.audioMode). Video is always MediaCodec: the FFmpeg
+        // extension decodes no video.
+        s.audioMode = s.wantAudioMode
         val renderersFactory = DefaultRenderersFactory(act)
             .setEnableDecoderFallback(true)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            .setExtensionRendererMode(
+                if (s.audioMode == AudioOrder.HARDWARE_FIRST) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER,
+            )
+        // MediaCodec's asynchronous queueing: Media3 1.5 turns it on by
+        // itself only on API 31+ (or a box reporting Amazon's TV feature);
+        // generic API 28-30 boxes got the synchronous adapter, which feeds
+        // a 4K decoder from the playback thread's own loop.
+        s.asyncCodec = s.wantAsyncCodec && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+        if (s.asyncCodec) renderersFactory.forceEnableMediaCodecAsynchronousQueueing()
         val meter = ByteMeter(s.netBytes)
         // Live TV and everything else: quick 8 s timeouts, and no user agent
         // of our own (some IPTV panels turn away agents they don't know).
@@ -1068,7 +1684,12 @@ class SnowPlayerPlugin : Plugin() {
         // A film or episode on the main player also holds its own for the
         // whole stream (holdWifi); Live TV has this one only.
         p.setWakeMode(C.WAKE_MODE_NETWORK)
-        p.setVideoTextureView(s.textureView)
+        // Media3 handles the SurfaceView's surfaceCreated / surfaceDestroyed
+        // itself (a placeholder surface in between), so no raw Surface here.
+        when (val v = s.videoView) {
+            is SurfaceView -> p.setVideoSurfaceView(v)
+            is TextureView -> p.setVideoTextureView(v)
+        }
         // Our own audio session, so the volume boost (past 100%) has a session
         // to attach to before the first sound is played.
         try { p.setAudioSessionId(Util.generateAudioSessionIdV21(act)) } catch (e: Exception) { Log.w(TAG, "No audio session for the volume boost", e) }
@@ -1087,11 +1708,27 @@ class SnowPlayerPlugin : Plugin() {
             override fun onPlaybackStateChanged(state: Int) {
                 // Stalls/stallSec (statsOf), counted only after the first
                 // picture — the start-up wait is firstFrameMs, not a stall.
+                // A display mode switch under way (1-3 s of blank HDMI) is
+                // not a stall either.
                 if (state == Player.STATE_BUFFERING && s.firstFrameSeen) {
-                    if (s.stallStartedAtMs == 0L) { s.stallStartedAtMs = SystemClock.elapsedRealtime(); s.stalls++ }
+                    if (s.stallStartedAtMs == 0L) {
+                        if (inModeSwitch(s)) {
+                            // Counted from the grace's end, if it lasts past it.
+                            s.stallStartedAtMs = s.modeSwitchUntilMs
+                            s.stallUncounted = true
+                        } else {
+                            s.stallStartedAtMs = SystemClock.elapsedRealtime()
+                            s.stalls++
+                        }
+                    }
                 } else if (s.stallStartedAtMs != 0L) {
-                    s.stallSec += (SystemClock.elapsedRealtime() - s.stallStartedAtMs) / 1000.0
+                    val now = SystemClock.elapsedRealtime()
+                    if (now > s.stallStartedAtMs) {
+                        s.stallSec += (now - s.stallStartedAtMs) / 1000.0
+                        if (s.stallUncounted) s.stalls++
+                    }
                     s.stallStartedAtMs = 0L
+                    s.stallUncounted = false
                 }
                 // Rewind live TV: the buffer ran out; back to the channel itself.
                 if (state == Player.STATE_ENDED && screenId == MAIN && tsBuffer) { tsGoLive(s); return }
@@ -1152,6 +1789,35 @@ class SnowPlayerPlugin : Plugin() {
                 // Rewind live TV: an error while playing the local buffer is
                 // settled there (tsOnBufferError), never as a channel restart.
                 if (screenId == MAIN && tsBuffer) { tsOnBufferError(s, error); return }
+                // The sound output lost in a display mode switch (HDMI
+                // renegotiating, a passthrough track to the TV or receiver
+                // included): the same film again from where it was, not
+                // "this sound can't be played" (which sends Plex to a
+                // conversion).
+                if (isAudioTrack && inModeSwitch(s) && s.currentUrl != null && !s.isLive && s.reconnectAttempts < MAX_VOD_RECONNECTS) {
+                    reconnect(s, screenId, "sound reset by a display mode switch")
+                    return
+                }
+                // A film whose hardware sound failed (the box's decoder, or a
+                // bitstream the TV or receiver would not take): once, the
+                // same place again with FFmpeg first, before anything is
+                // said. AUDIO_DECODE sends Plex to a server conversion; that
+                // must not happen more often than it did.
+                if ((isAudioTrack || isAudioDecoder) && screenId == MAIN && !s.isLive && s.currentUrl != null &&
+                    AudioOrder.canFallBack(s.audioMode, s.audioSwFallback)
+                ) {
+                    // Posted: the player is released and rebuilt, never from
+                    // inside its own listener call.
+                    val failed = p
+                    val soundUrl = s.currentUrl
+                    val codeName = error.errorCodeName
+                    s.audioSwFallback = true
+                    s.audioSwFallbackTitle = soundUrl?.let { AudioOrder.titleKey(it) }
+                    mainHandler.post {
+                        if (s.player === failed && s.currentUrl == soundUrl) restartWithSoftwareAudio(s, screenId, codeName)
+                    }
+                    return
+                }
                 if (isAudioTrack || isAudioDecoder) {
                     releaseWifiIfStopped(s)
                     notifyListeners(
@@ -1218,6 +1884,15 @@ class SnowPlayerPlugin : Plugin() {
             }
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                 notifyListeners("tracksChanged", JSObject().put("screenId", screenId))
+                // Frame-rate matching, as early as the picture's frame rate
+                // is known: the selected video track's (a file says it in
+                // its header; a conversion may only say it once the first
+                // segment is read, see onVideoInputFormatChanged).
+                if (screenId == MAIN && s.matchFrameRate) matchFrameRate(s, screenId, selectedVideoFormat(tracks))
+                // A film whose chosen sound is a heavy one FFmpeg would decode
+                // on the CPU (TrueHD, DTS-HD, 7.1): a same-language track the
+                // box plays in hardware or passes through, if there is one.
+                if (screenId == MAIN && !s.isLive && !s.audioChoiceDone && !tracks.isEmpty) chooseLighterAudio(s, p, tracks)
 
                 // Silent-audio detection: the stream carries audio, but this
                 // device can decode none of it. ExoPlayer raises no error here —
@@ -1268,6 +1943,30 @@ class SnowPlayerPlugin : Plugin() {
             override fun onAudioDecoderReleased(eventTime: AnalyticsListener.EventTime, decoderName: String) {
                 if (isCurrentItem(eventTime)) s.audioDecoderName = null
             }
+            // The sound's output: a bitstream (passthrough) or PCM. Told to
+            // the WebView when it changes (the volume shows "Volume on your
+            // TV or receiver"), and the boost is let go of on a bitstream.
+            override fun onAudioTrackInitialized(eventTime: AnalyticsListener.EventTime, audioTrackConfig: AudioSink.AudioTrackConfig) {
+                setPassthrough(s, screenId, !Util.isEncodingLinearPcm(audioTrackConfig.encoding))
+            }
+            override fun onAudioUnderrun(
+                eventTime: AnalyticsListener.EventTime,
+                bufferSize: Int,
+                bufferSizeMs: Long,
+                elapsedSinceLastFeedMs: Long,
+            ) {
+                s.audioUnderruns++
+                s.audioUnderrunGapMs += elapsedSinceLastFeedMs.coerceAtLeast(0L)
+            }
+            // The format the video decoder is handed: frame-rate matching's
+            // second chance, for a stream whose track list had no rate.
+            override fun onVideoInputFormatChanged(
+                eventTime: AnalyticsListener.EventTime,
+                format: Format,
+                decoderReuseEvaluation: DecoderReuseEvaluation?,
+            ) {
+                if (screenId == MAIN && s.matchFrameRate && isCurrentItem(eventTime)) matchFrameRate(s, screenId, format)
+            }
             // Each (re)start of the picture gets fresh counters. A session
             // that ends is added to this load's totals — only the one this
             // load started: the last stream's arrives here after load() or
@@ -1282,9 +1981,26 @@ class SnowPlayerPlugin : Plugin() {
                 decoderCounters.ensureUpdated()
                 s.framesRendered += decoderCounters.renderedOutputBufferCount
                 s.framesDropped += decoderCounters.droppedBufferCount
+                s.framesSkipped += decoderCounters.skippedOutputBufferCount
+                s.maxConsecutiveDropped = maxOf(s.maxConsecutiveDropped, decoderCounters.maxConsecutiveDroppedBufferCount)
+                s.droppedToKeyframe += decoderCounters.droppedToKeyframeCount
+                s.frameOffsetUs += decoderCounters.totalVideoFrameProcessingOffsetUs
+                s.frameOffsetCount += decoderCounters.videoFrameProcessingOffsetCount
                 s.videoCounters = null
             }
         })
+        // Frame-rate matching's last resort: the times of the first frames
+        // shown, for a film whose rate nothing states (playback thread).
+        if (screenId == MAIN) {
+            p.setVideoFrameMetadataListener(object : VideoFrameMetadataListener {
+                override fun onVideoFrameAboutToBeRendered(
+                    presentationTimeUs: Long,
+                    releaseTimeNs: Long,
+                    format: Format,
+                    mediaFormat: MediaFormat?,
+                ) { timeFrame(s, presentationTimeUs) }
+            })
+        }
         s.player = p
         applyBoost(s)
     }
@@ -1334,6 +2050,21 @@ class SnowPlayerPlugin : Plugin() {
         // at once (RangeFetchDataSource). Off for Live TV, conversions, and a
         // server on this network, where one connection is all it takes.
         val rangeFetch = call.getBoolean("rangeFetch", false) ?: false
+        // A film or episode may switch the display to its frame rate
+        // (FrameRateMatch). Off unless asked for; never for Live TV or a tile.
+        val matchFrameRate = call.getBoolean("matchFrameRate", false) ?: false
+        // The film's frame rate as the WebView knows it (Plex's metadata); 0 = unknown.
+        val hintFps = (call.getDouble("frameRate") ?: 0.0).toFloat().takeIf { it > 0f && it < 200f } ?: 0f
+        // The remote switches for how the main player draws and decodes
+        // (lib/playerFlags): a SurfaceView, MediaCodec's asynchronous
+        // queueing, and (an A/B test, off unless asked) tunneled playback
+        // for a film. Absent: off, as before these existed (tiles).
+        val surfaceView = call.getBoolean("surfaceView", false) ?: false
+        val asyncCodec = call.getBoolean("asyncCodec", false) ?: false
+        val tunneled = call.getBoolean("tunneled", false) ?: false
+        // Hardware audio first for a film (`audio_hw_first` and not the
+        // viewer's "Decode audio on this box"). Absent: FFmpeg first.
+        val audioHwFirst = call.getBoolean("audioHwFirst", false) ?: false
         // Seconds; a film resumed part-way. Absent or 0: the player's own start.
         val startSec = call.getDouble("startPosition")
         val startMs = if (startSec != null && startSec > 0.0) (startSec * 1000.0).toLong() else 0L
@@ -1378,14 +2109,48 @@ class SnowPlayerPlugin : Plugin() {
                 s.pendingRect = keepRect
                 s.engine = engine
             }
+            // ExoPlayer's view and codec setup for this slot. A change (a
+            // remote switch flipped) tears down only what no longer fits:
+            // the views for the other kind of view, the player alone for the
+            // other codec setup (the next one draws on the same view).
+            if (engine == EngineChoice.EXO) {
+                val wantSv = VideoFit.useSurfaceView(screenId == MAIN, surfaceView)
+                val wantAsync = screenId == MAIN && asyncCodec
+                if (s.container != null && s.usesSurfaceView != wantSv) {
+                    val keepRect = s.pendingRect
+                    stopSlot(s)
+                    releaseSlot(s)
+                    s.pendingRect = keepRect
+                }
+                // A film keeps the FFmpeg order its hardware sound failed in,
+                // whatever session or quality it loads with next.
+                val title = AudioOrder.titleKey(url)
+                if (s.audioSwFallbackTitle != title) { s.audioSwFallback = false; s.audioSwFallbackTitle = null }
+                // Another title: the viewer's sound pick was for the last one.
+                if (s.titleKey != title) s.userPickedAudio = false
+                s.titleKey = title
+                val wantAudio = AudioOrder.mode(isMain = screenId == MAIN, live = live, hwFirst = audioHwFirst, fellBack = s.audioSwFallback)
+                if (s.player != null && (s.wantAsyncCodec != wantAsync || s.audioMode != wantAudio)) {
+                    cancelTimers(s)
+                    releasePlayer(s)
+                }
+                s.wantSurfaceView = wantSv
+                s.wantAsyncCodec = wantAsync
+                s.wantAudioMode = wantAudio
+            }
             if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
+            // A tile: an idle main box must not cover it.
+            if (screenId != MAIN) hideIdleMainBox()
             if (engine == EngineChoice.MPV) {
                 val second = s.second ?: run { call.reject("mpv init failed"); return@runOnUiThread }
+                // mpv plays live channels only: never a matched mode.
+                s.matchFrameRate = false
+                if (screenId == MAIN) restoreDisplayMode()
                 activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 applyPendingRect(s, screenId)
                 // mpv draws on its own SurfaceView (attach); ExoPlayer's
                 // TextureView has no player behind it while mpv owns the slot.
-                s.textureView?.visibility = View.INVISIBLE
+                s.videoView?.visibility = View.INVISIBLE
                 second.attach(s.container!!)
                 applyFormat(s)
                 cancelTimers(s)
@@ -1418,6 +2183,47 @@ class SnowPlayerPlugin : Plugin() {
             s.reconnectAttempts = 0
             s.transcodeHttpFails = 0
             s.rangeFetch = rangeFetch && !live
+            s.audioChoiceDone = false
+            // Told again by the new stream's audio output (onAudioTrackInitialized).
+            setPassthrough(s, screenId, false)
+            // Tunneled playback (`tunneled_vod`, an A/B test, off by
+            // default): a film on the main player's SurfaceView, never with
+            // the volume boost (an effect on the audio session).
+            if (screenId == MAIN) {
+                s.tunneled = !live && tunneled && s.usesSurfaceView && s.volume <= 1f
+                // No effect left on a tunneled session.
+                if (s.tunneled) releaseBoost(s)
+                s.trackSelector?.let { ts -> ts.setParameters(ts.buildUponParameters().setTunnelingEnabled(s.tunneled)) }
+            }
+            // Frame-rate matching: a film or episode on the main player,
+            // when the WebView asks (the setting and the remote switch).
+            // Anything else puts the screen back in its own mode at once; a
+            // film keeps the last one's mode until its own rate is known
+            // (back-to-back episodes at the same rate blank nothing).
+            s.matchFrameRate = matchFrameRate && !live && screenId == MAIN
+            s.hintFps = if (s.matchFrameRate) hintFps else 0f
+            s.fpsLogged = false
+            s.fpsEstimator = null
+            if (screenId == MAIN) {
+                mainHandler.removeCallbacks(restoreModeRunnable)
+                if (!s.matchFrameRate) restoreDisplayMode()
+                // A switch still under way when this film loads: its blank is
+                // still to come, so the grace stays and the start waits for
+                // it too, whatever this film decides.
+                if (s.matchFrameRate && switchPending()) {
+                    s.modeWaitUntilMs = if (modeRequestsIgnored) 0L else switchWaitUntilMs
+                } else {
+                    s.modeSwitchUntilMs = 0L
+                    s.modeWaitUntilMs = 0L
+                }
+                // While this plugin manages the mode, Media3 must not ask for
+                // one of its own (Surface.setFrameRate, API 30+).
+                try {
+                    p.setVideoChangeFrameRateStrategy(
+                        if (s.matchFrameRate) C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF else C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS,
+                    )
+                } catch (_: Throwable) { /* a player without it */ }
+            }
             // Every connection again for this load: a refusal of the last
             // load's extra ranges lowered them for that load only.
             if (s.rangeFetch) s.rangeShared?.newLoad()
@@ -1557,6 +2363,7 @@ class SnowPlayerPlugin : Plugin() {
         if (s != null && s.engine == EngineChoice.MPV && s.second != null) {
             val o = s.second!!.stats()
             o.put("engine", EngineChoice.MPV)
+            o.put("displayHz", displayHz() ?: JSONObject.NULL)
             o.put("cpuPct", cpuPctSince(s)?.let { Math.round(it * 10.0) / 10.0 } ?: JSONObject.NULL)
             o.put("pssMb", if (memory) cachedPssMb() else JSONObject.NULL)
             o.put("lowRamBox", isLowRamBoxCached())
@@ -1612,10 +2419,38 @@ class SnowPlayerPlugin : Plugin() {
             c?.ensureUpdated()
             o.put("renderedFrames", s.framesRendered + (c?.renderedOutputBufferCount ?: 0))
             o.put("droppedFrames", s.framesDropped + (c?.droppedBufferCount ?: 0))
+            // How the frames were paced (numbers only): frames skipped
+            // because they were already late, the longest run dropped in a
+            // row, drops back to a key frame, and how far ahead of their
+            // time frames left the decoder on average (ms; negative = late).
+            o.put("skippedFrames", s.framesSkipped + (c?.skippedOutputBufferCount ?: 0))
+            o.put("maxConsecutiveDropped", maxOf(s.maxConsecutiveDropped, c?.maxConsecutiveDroppedBufferCount ?: 0))
+            o.put("droppedToKeyframe", s.droppedToKeyframe + (c?.droppedToKeyframeCount ?: 0))
+            val offUs = s.frameOffsetUs + (c?.totalVideoFrameProcessingOffsetUs ?: 0L)
+            val offN = s.frameOffsetCount + (c?.videoFrameProcessingOffsetCount ?: 0)
+            o.put("avgFrameOffsetMs", if (offN > 0) Math.round(offUs.toDouble() / offN / 100.0) / 10.0 else JSONObject.NULL)
         } else {
             o.put("renderedFrames", JSONObject.NULL)
             o.put("droppedFrames", JSONObject.NULL)
+            o.put("skippedFrames", JSONObject.NULL)
+            o.put("maxConsecutiveDropped", JSONObject.NULL)
+            o.put("droppedToKeyframe", JSONObject.NULL)
+            o.put("avgFrameOffsetMs", JSONObject.NULL)
         }
+        // A software video decoder (Android's own c2.android.* / OMX.google.*):
+        // a 4K film then plays on the CPU. Null with no video decoder.
+        o.put("videoDecoderSoftware", s?.videoDecoderName?.let { isSoftwareDecoder(it) } ?: JSONObject.NULL)
+        // How the picture reaches the screen (see PlayerSlot.videoView).
+        o.put("surface", if (s?.videoView == null) JSONObject.NULL else if (s.usesSurfaceView) "SurfaceView" else "TextureView")
+        // Asked of the track selector; whether the box really tunnels is its own call.
+        o.put("tunnelingRequested", s?.tunneled == true)
+        // The sound: which renderer comes first for this load, whether it goes
+        // out as a bitstream, and the audio output's underruns (count, and
+        // the time the output went unfed in them).
+        o.put("audioOrder", if (s?.player == null) JSONObject.NULL else if (s.audioMode == AudioOrder.HARDWARE_FIRST) "hardware" else "ffmpeg")
+        o.put("audioPassthrough", s?.audioPassthrough == true)
+        o.put("audioUnderruns", s?.audioUnderruns ?: 0)
+        o.put("audioUnderrunMs", s?.audioUnderrunGapMs ?: 0L)
         o.put("audioDecoder", decoderLabel(s?.audioDecoderName, af) ?: JSONObject.NULL)
         if (s != null && af != null) {
             if (af !== s.audioFormatOf) { s.audioFormatOf = af; s.audioFormatText = describeAudio(af) }
@@ -1639,15 +2474,21 @@ class SnowPlayerPlugin : Plugin() {
         o.put("rangeFetch", rangeFetch)
         o.put("connectionCap", if (rangeFetch) (s?.rangeShared?.connectionCap ?: 1) else 1)
         o.put("lowRamBox", isLowRamBoxCached())
+        // The heaps (mallinfo for the native one) only for the stats panel,
+        // like the PSS: not on every read a poll makes on the UI thread.
         val rt = Runtime.getRuntime()
-        o.put("javaHeapMb", (rt.totalMemory() - rt.freeMemory()) / MIB)
-        o.put("nativeHeapMb", Debug.getNativeHeapAllocatedSize() / MIB)
+        o.put("javaHeapMb", if (memory) (rt.totalMemory() - rt.freeMemory()) / MIB else JSONObject.NULL)
+        o.put("nativeHeapMb", if (memory) Debug.getNativeHeapAllocatedSize() / MIB else JSONObject.NULL)
         o.put("engine", s?.engine ?: EngineChoice.EXO)
         o.put("firstFrameMs", s?.firstFrameMs ?: JSONObject.NULL)
-        o.put("stalls", s?.stalls ?: 0)
+        // A rebuffer that began in a switch's grace counts once it outlasts it.
+        o.put("stalls", (s?.stalls ?: 0) + (if (s != null && s.stallUncounted && SystemClock.elapsedRealtime() > s.stallStartedAtMs) 1 else 0))
         o.put("stallSec", s?.let { Math.round(it.stallSec * 10.0) / 10.0 } ?: 0.0)
         o.put("cpuPct", s?.let { cpuPctSince(it) }?.let { Math.round(it * 10.0) / 10.0 } ?: JSONObject.NULL)
         o.put("pssMb", if (memory) cachedPssMb() else JSONObject.NULL)
+        // The screen's refresh rate now, next to the video's frame rate:
+        // whether frame-rate matching happened (23.976 next to "23.98fps").
+        o.put("displayHz", displayHz() ?: JSONObject.NULL)
         return o
     }
 
@@ -1712,6 +2553,11 @@ class SnowPlayerPlugin : Plugin() {
         else -> false
     }
 
+    /** Android's own software decoders, by name. */
+    private fun isSoftwareDecoder(name: String): Boolean =
+        name.startsWith("c2.android.", ignoreCase = true) || name.startsWith("OMX.google.", ignoreCase = true) ||
+            name.startsWith("ffmpeg", ignoreCase = true)
+
     /** "HEVC 1920x804 23.98fps 21.6 Mb/s", leaving out what the stream doesn't
      *  say: a file played as it is rarely carries its bit rate, a conversion
      *  does. */
@@ -1725,13 +2571,24 @@ class SnowPlayerPlugin : Plugin() {
             sb.append("fps")
         }
         if (f.bitrate > 0) sb.append(' ').append(String.format(Locale.US, "%.1f Mb/s", f.bitrate / 1_000_000.0))
+        // The codec string (a Dolby Vision profile shows as dvhe.07…) and
+        // the transfer: PQ (HDR10 / Dolby Vision), HLG, or SDR.
+        f.codecs?.takeIf { it.isNotBlank() }?.let { sb.append(" · ").append(it) }
+        when (f.colorInfo?.colorTransfer) {
+            C.COLOR_TRANSFER_ST2084 -> sb.append(" · PQ")
+            C.COLOR_TRANSFER_HLG -> sb.append(" · HLG")
+            C.COLOR_TRANSFER_SDR -> sb.append(" · SDR")
+        }
         return sb.toString()
     }
 
     /** "EAC3 8ch 48.0kHz". */
     private fun describeAudio(f: Format): String {
         val sb = StringBuilder(codecName(f.sampleMimeType))
-        if (f.channelCount > 0) sb.append(' ').append(f.channelCount).append("ch")
+        if (f.channelCount > 0) {
+            sb.append(' ').append(f.channelCount).append("ch")
+            when (f.channelCount) { 8 -> sb.append(" (7.1)"); 6 -> sb.append(" (5.1)") }
+        }
         if (f.sampleRate > 0) sb.append(' ').append(String.format(Locale.US, "%.1fkHz", f.sampleRate / 1000.0))
         return sb.toString()
     }
@@ -1770,6 +2627,22 @@ class SnowPlayerPlugin : Plugin() {
     private fun stopSlot(s: PlayerSlot) {
         if (slots[MAIN] === s) releaseWifi()
         if (slots[MAIN] === s) tsReset()
+        // Leaving the film (Back, a stop, another screen): the screen goes
+        // back to its own mode, never left at 24 Hz on the menus. A moment
+        // later, so a stop followed by the next load of a film (a quality
+        // change, a retry, the next episode) keeps it: that load cancels it.
+        if (slots[MAIN] === s && requestedModeId != 0) {
+            mainHandler.removeCallbacks(restoreModeRunnable)
+            mainHandler.postDelayed(restoreModeRunnable, MODE_RESTORE_DELAY_MS)
+        }
+        s.matchFrameRate = false
+        // A switch still under way keeps its grace for the next load (a
+        // quality change is a stop and a load).
+        if (!(slots[MAIN] === s && switchPending())) s.modeSwitchUntilMs = 0L
+        s.modeWaitUntilMs = 0L
+        s.fpsEstimator = null
+        s.userPickedAudio = false
+        setPassthrough(s, if (slots[MAIN] === s) MAIN else "", false)
         s.currentUrl = null
         clearStats(s)
         s.currentSubtitles = null
@@ -1785,7 +2658,13 @@ class SnowPlayerPlugin : Plugin() {
         // GONE keeps the TextureView and its last frame; the next load makes
         // the container VISIBLE again, so cover that frame now.
         s.shutterView?.visibility = View.VISIBLE
-        s.container?.visibility = View.GONE
+        // The main SurfaceView stays VISIBLE and attached: going GONE would
+        // destroy its surface, and on the Fire TV models Media3 lists for its
+        // output-surface workaround every surface change releases and
+        // re-creates the decoder (black, then seconds waiting for a 4K key
+        // frame) — a quality change or a retry is a stop and a load. The
+        // closed shutter covers it; the box is as black as the decor behind.
+        if (!keepsBoxAfterStop(s)) s.container?.visibility = View.GONE
         s.pendingRect = null
     }
 
@@ -1810,6 +2689,7 @@ class SnowPlayerPlugin : Plugin() {
                 stopSlot(s)
                 if (id != MAIN) releaseSlot(s)
             }
+            hideIdleMainBox()
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             call.resolve()
         }
@@ -1824,6 +2704,7 @@ class SnowPlayerPlugin : Plugin() {
             if (s.engine == EngineChoice.MPV) { s.second?.setVolume(s.volume); call.resolve(); return@runOnUiThread }
             s.player?.volume = s.volume.coerceAtMost(1f)
             applyBoost(s)
+            applyPassthroughMute(s)
             call.resolve()
         }
     }
@@ -1833,7 +2714,10 @@ class SnowPlayerPlugin : Plugin() {
      *  effect simply stays at 100%. */
     private fun applyBoost(s: PlayerSlot) {
         val p = s.player ?: return
-        val gainMb = if (s.volume > 1f) ((s.volume - 1f) * BOOST_MB_PER_UNIT).toInt() else 0
+        // A bitstream to the TV or receiver can't be boosted (or turned
+        // down here at all): no effect on its session.
+        // Tunneled playback has no app-side audio session to boost either.
+        val gainMb = if (s.volume > 1f && !s.audioPassthrough && !s.tunneled) ((s.volume - 1f) * BOOST_MB_PER_UNIT).toInt() else 0
         if (gainMb <= 0) {
             s.boost?.let { e -> try { e.enabled = false } catch (_: Exception) { /* released */ } }
             return
@@ -1861,7 +2745,7 @@ class SnowPlayerPlugin : Plugin() {
             val p = s.player
             if (p != null) {
                 p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, !enabled)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, !enabled || s.passthroughMuted)
                     .build()
             }
             call.resolve()
@@ -1891,11 +2775,22 @@ class SnowPlayerPlugin : Plugin() {
             // dropped so they can NEVER accidentally cover other tiles.
             if (!fs && (w <= 0 || h <= 0)) { call.resolve(); return@runOnUiThread }
 
-            ensureSurface(s)
+            // Device px, worked out before the box exists so a rect kept for
+            // load() is in the same units applyPendingRect uses.
+            val wvW = bridge?.webView?.width ?: 0
+            val wvH = bridge?.webView?.height ?: 0
+            val density = activity?.resources?.displayMetrics?.density ?: 1f
+            val sx = if (cssW > 0 && wvW > 0) wvW.toFloat() / cssW else density
+            val sy = if (cssH > 0 && wvH > 0) wvH.toFloat() / cssH else density
+            val rect = if (fs) intArrayOf(0, 0, 0, 0, 1)
+                else intArrayOf(Math.round(x * sx), Math.round(y * sy), Math.round(w * sx), Math.round(h * sy), 0)
+            // The main box is built by load(), which knows which view it
+            // needs (a SurfaceView, or a TextureView with video_surface_view
+            // off); a tile's box is always a TextureView.
+            if (screenId != MAIN) ensureSurface(s)
             val c = s.container ?: run {
                 // Surface not built yet — remember the request for load().
-                s.pendingRect = if (fs) intArrayOf(0, 0, 0, 0, 1)
-                    else intArrayOf(x, y, w, h, 0)
+                s.pendingRect = rect
                 call.resolve(); return@runOnUiThread
             }
             val lp = c.layoutParams
@@ -1903,23 +2798,13 @@ class SnowPlayerPlugin : Plugin() {
                 lp.width = ViewGroup.LayoutParams.MATCH_PARENT
                 lp.height = ViewGroup.LayoutParams.MATCH_PARENT
                 c.x = 0f; c.y = 0f
-                s.pendingRect = intArrayOf(0, 0, 0, 0, 1)
             } else {
-                val wvW = bridge?.webView?.width ?: 0
-                val wvH = bridge?.webView?.height ?: 0
-                val density = activity?.resources?.displayMetrics?.density ?: 1f
-                val sx = if (cssW > 0 && wvW > 0) wvW.toFloat() / cssW else density
-                val sy = if (cssH > 0 && wvH > 0) wvH.toFloat() / cssH else density
-                val devX = Math.round(x * sx)
-                val devY = Math.round(y * sy)
-                val devW = Math.round(w * sx)
-                val devH = Math.round(h * sy)
-                lp.width = devW
-                lp.height = devH
-                c.x = devX.toFloat()
-                c.y = devY.toFloat()
-                s.pendingRect = intArrayOf(devX, devY, devW, devH, 0)
+                lp.width = rect[2]
+                lp.height = rect[3]
+                c.x = rect[0].toFloat()
+                c.y = rect[1].toFloat()
             }
+            s.pendingRect = rect
             c.layoutParams = lp
             c.requestLayout()
             // Non-main slots that already have a URL loaded must become VISIBLE
@@ -1950,7 +2835,9 @@ class SnowPlayerPlugin : Plugin() {
             // at index 0, so in practice this now never fires.
             val parent = c.parent as? ViewGroup
             val wv = bridge?.webView
-            if (parent != null && wv != null) {
+            // Never for the main box: it is added under the WebView once and
+            // never moved (moving it would destroy its surface).
+            if (screenId != MAIN && parent != null && wv != null) {
                 val cIdx = parent.indexOfChild(c)
                 val wvIdx = parent.indexOfChild(wv)
                 if (cIdx >= 0 && wvIdx >= 0 && cIdx > wvIdx) {
@@ -2028,6 +2915,7 @@ class SnowPlayerPlugin : Plugin() {
 
     private fun selectTrack(call: PluginCall, type: Int) {
         val id = call.getString("id")
+        val auto = call.getBoolean("auto", false) ?: false
         val s = slot(call)
         activity?.runOnUiThread {
             if (s.engine == EngineChoice.MPV) {
@@ -2037,7 +2925,15 @@ class SnowPlayerPlugin : Plugin() {
             }
             val p = s.player
             if (p == null || id == null) { call.resolve(); return@runOnUiThread }
+            // A pick the WebView made by itself (VodPlayer's language rule,
+            // `auto`) is not the viewer's: the heavy-track rule may still run
+            // on what it chose.
+            if (type == C.TRACK_TYPE_AUDIO) {
+                if (auto) s.audioChoiceDone = false else s.userPickedAudio = true
+            }
             if (id == "-1") {
+                // Audio off by the viewer: no longer a passthrough mute to undo.
+                if (type == C.TRACK_TYPE_AUDIO) s.passthroughMuted = false
                 p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(type, true).build()
                 call.resolve(); return@runOnUiThread
             }
@@ -2048,7 +2944,9 @@ class SnowPlayerPlugin : Plugin() {
             val groups = p.currentTracks.groups
             if (gi < 0 || gi >= groups.size) { call.resolve(); return@runOnUiThread }
             val group = groups[gi]
-            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(type, false).setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, ti)).build()
+            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(type, type == C.TRACK_TYPE_AUDIO && s.passthroughMuted)
+                .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, ti)).build()
             call.resolve()
         }
     }
@@ -2102,8 +3000,13 @@ class SnowPlayerPlugin : Plugin() {
         // mpv draws on its own view, which its MediaCodec output fills
         // edge to edge just as ExoPlayer fills the TextureView — so it is
         // sized the same way.
-        val v: View = (if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.textureView) ?: return
+        val v: View = (if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.videoView) ?: return
         val box = s.container ?: return
+        // Every view is sized to the picture's shape the same way, ExoPlayer's
+        // SurfaceView included (its scaling mode stays SCALE_TO_FIT, which
+        // fills the view): zoom makes it larger than the box, and the box
+        // clips it (the surface's hole is drawn on the view's own canvas,
+        // inside the box's clip). Non-square pixels count, as they must.
         // Before the first layout, or before anything is decoded, there is
         // nothing to fit; the layout listener and onVideoSizeChanged come back.
         val size = VideoFit.viewSize(s.format, box.width, box.height, s.videoW, s.videoH, s.pixelRatio) ?: return
@@ -2548,6 +3451,20 @@ class SnowPlayerPlugin : Plugin() {
     override fun handleOnStop() {
         tsReset()
         tsManager?.wipeAll()
+        // A film doesn't play on behind the screen (with a SurfaceView a 4K
+        // decoder would keep going into the placeholder surface). Paused;
+        // playing again is the viewer's choice, as before (the WebView loads
+        // the film again on return).
+        slots[MAIN]?.let { s ->
+            if (!s.isLive && s.currentUrl != null && s.engine == EngineChoice.EXO) {
+                releaseHold(s)
+                s.player?.playWhenReady = false
+            }
+        }
+        // The app leaves the screen: so does a film's display mode. The
+        // WebView stops the player too and loads it again on return, which
+        // matches the mode again.
+        restoreDisplayMode()
         super.handleOnStop()
     }
 
@@ -2556,6 +3473,7 @@ class SnowPlayerPlugin : Plugin() {
         tsReset()
         tsManager?.wipeAll()
         activity?.runOnUiThread {
+            restoreDisplayMode()
             for (s in slots.values) {
                 cancelTimers(s)
                 s.currentUrl = null

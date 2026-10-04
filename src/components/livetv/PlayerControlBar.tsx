@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import { useTranslation } from 'react-i18next';
+import { useAudioPassthrough } from '@/lib/audioOutput';
 import { formatTime } from '@/i18n/format';
 import { volumeBar } from '@/utils/volume';
 import { availableLabel, behindLabel } from '@/lib/liveRewind';
@@ -134,6 +135,8 @@ const PlayerControlBar = memo(({
 }: Props) => {
   // Also makes the bar redraw (button names come from liveBarLabel) when the language changes.
   const { t } = useTranslation();
+  // Dolby / DTS passed through to the TV or receiver: no volume here acts on it.
+  const passthrough = useAudioPassthrough();
   // 1Hz clock + progress tick.
 
   const [now, setNow] = useState(() => Date.now());
@@ -388,7 +391,7 @@ const PlayerControlBar = memo(({
           <div className="px-2 pb-1">
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-brand-ice/70 font-nunito">{t('live.bar.level')}</span>
-              <span className={`text-sm font-quicksand font-bold tabular-nums ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost ? t('live.bar.levelBoost', { pct: volPct }) : `${volPct}%`}</span>
+              <span className={`text-sm font-quicksand font-bold tabular-nums ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost && !passthrough ? t('live.bar.levelBoost', { pct: volPct }) : `${volPct}%`}</span>
             </div>
             {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
             <div className="relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
@@ -396,6 +399,9 @@ const PlayerControlBar = memo(({
               <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
             </div>
           </div>
+            {passthrough && (
+              <p data-volume-passthrough className="px-2 pb-1 text-xs font-nunito text-amber-300">{t('live.bar.volPassthrough')}</p>
+            )}
         </div>
       )}
     </>

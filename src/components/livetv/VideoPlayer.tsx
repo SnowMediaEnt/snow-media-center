@@ -38,7 +38,9 @@ export interface VideoController {
   /** -1 = OFF */
   setSubtitleTrack(id: number): void;
   getAudioTracks(): VideoTrackInfo[];
-  setAudioTrack(id: number): void;
+  /** `auto`: the app chose it (a language rule), not the viewer; the
+   *  native player may still swap a heavy track for a lighter one then. */
+  setAudioTrack(id: number, opts?: { auto?: boolean }): void;
 }
 
 interface VideoPlayerProps {

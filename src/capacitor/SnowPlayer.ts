@@ -58,6 +58,35 @@ export interface SnowPlayerLoadOpts {
    *  which carries a far server's file past what one connection manages.
    *  Ignored for live streams and conversions; off by default. */
   rangeFetch?: boolean;
+  /** A film or episode on the main player may switch the TV to a display
+   *  mode whose refresh rate fits its frame rate (FrameRateMatch.kt): 23.976
+   *  fps at 23.976 Hz instead of 3:2 pulldown on 60 Hz. The viewer's
+   *  "Match frame rate" setting and the `match_frame_rate` flag
+   *  (lib/playerFlags). Ignored for live streams and tiles; off by default.
+   *  The screen goes back to its own mode on stop, a live load, or the app
+   *  leaving the screen. */
+  matchFrameRate?: boolean;
+  /** The film's frame rate when the caller knows it (Plex's metadata: a
+   *  Matroska file never states one to the player). Used before the
+   *  stream's own and before an estimate from the first frames. */
+  frameRate?: number;
+  /** The main player draws on a SurfaceView instead of a TextureView (the
+   *  `video_surface_view` flag): its own display layer, the decoder's frame
+   *  timing, HDR passed through. A change rebuilds the main player's views.
+   *  Tiles always use a TextureView. */
+  surfaceView?: boolean;
+  /** MediaCodec's asynchronous queueing forced on API 28+ (the `async_codec`
+   *  flag, an A/B switch, off unless a row turns it on). A change rebuilds
+   *  the main player. */
+  asyncCodec?: boolean;
+  /** Tunneled playback for a film on the main player's SurfaceView (the
+   *  `tunneled_vod` flag, off by default; never with the volume boost). */
+  tunneled?: boolean;
+  /** A film's audio: the box's hardware decoder or passthrough first, FFmpeg
+   *  as the fallback (`audio_hw_first`, and the viewer's "Decode audio on
+   *  this box" off). Live TV and tiles keep FFmpeg first whatever this says.
+   *  A change of order rebuilds the main player. */
+  audioHwFirst?: boolean;
 }
 
 export interface SnowScreenOpts { screenId?: string }
@@ -154,6 +183,35 @@ export interface PlayerStats {
   /** This process's PSS, cached for a few seconds. Only read when asked for
    *  (getStats({ memory: true })), null otherwise. */
   pssMb: number | null;
+  /** The screen's refresh rate now, Hz (23.976, 59.94, 60): next to the
+   *  video's frame rate it shows whether frame-rate matching happened.
+   *  Older builds leave it out. */
+  displayHz?: number | null;
+  /** How the picture reaches the screen: 'SurfaceView' (its own display
+   *  layer) or 'TextureView' (through the app's GPU composition). Null with
+   *  no view yet; older builds leave it out. */
+  surface?: 'SurfaceView' | 'TextureView' | null;
+  /** Tunneled playback was asked for this load (whether the box really
+   *  tunnels is its own decision). */
+  tunnelingRequested?: boolean;
+  /** Frame pacing, this load: frames skipped as already late, the longest
+   *  run dropped in a row, drops back to a key frame, and the average time
+   *  frames left the decoder ahead of their slot (ms; negative = late). */
+  skippedFrames?: number | null;
+  maxConsecutiveDropped?: number | null;
+  droppedToKeyframe?: number | null;
+  avgFrameOffsetMs?: number | null;
+  /** The video decoder is Android's software one (c2.android.* /
+   *  OMX.google.*): a 4K film then plays on the CPU. */
+  videoDecoderSoftware?: boolean | null;
+  /** Which audio decoder came first for this load: 'hardware' (MediaCodec /
+   *  passthrough, FFmpeg as the fallback) or 'ffmpeg'. */
+  audioOrder?: 'hardware' | 'ffmpeg' | null;
+  /** The sound goes out as a bitstream to the TV or receiver. */
+  audioPassthrough?: boolean;
+  /** The audio output ran dry: how often, and for how long in all (ms). */
+  audioUnderruns?: number;
+  audioUnderrunMs?: number;
 }
 
 /** Stats with nothing playing: what the web build answers, and a stand-in
@@ -168,6 +226,9 @@ export function emptyPlayerStats(): PlayerStats {
     rangeFetch: false, connectionCap: 1,
     javaHeapMb: null, nativeHeapMb: null,
     engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
+    displayHz: null, surface: null, tunnelingRequested: false,
+    skippedFrames: null, maxConsecutiveDropped: null, droppedToKeyframe: null, avgFrameOffsetMs: null, videoDecoderSoftware: null,
+    audioOrder: null, audioPassthrough: false, audioUnderruns: 0, audioUnderrunMs: 0,
   };
 }
 
@@ -238,7 +299,8 @@ export interface SnowPlayerPlugin {
   /** Disable audio decoding entirely on a slot (cheaper than volume 0 on Fire TV). */
   setAudioEnabled(opts: { enabled: boolean; screenId?: string }): Promise<void>;
   getAudioTracks(opts?: SnowScreenOpts): Promise<{ tracks: SnowTrack[] }>;
-  setAudioTrack(opts: { id: string; screenId?: string }): Promise<void>;
+  /** `auto`: chosen by the app, not the viewer (see VideoController). */
+  setAudioTrack(opts: { id: string; screenId?: string; auto?: boolean }): Promise<void>;
   getSubtitleTracks(opts?: SnowScreenOpts): Promise<{ tracks: SnowTrack[] }>;
   setSubtitleTrack(opts: { id: string; screenId?: string }): Promise<void>;
   /** Whether this device can software-decode Dolby/DTS. Use for diagnostics. */
@@ -269,7 +331,7 @@ export interface SnowPlayerPlugin {
   /** The buffer's disk use and the cache volume's free / total bytes. */
   timeshiftUsage(): Promise<{ usedBytes: number; freeBytes: number; totalBytes: number }>;
   addListener(
-    event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth' | 'preBuffer' | 'engineFallback',
+    event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth' | 'preBuffer' | 'engineFallback' | 'displayMode' | 'audioOutput',
     cb: (data: {
       screenId?: string; state?: string; playing?: boolean;
       /** playerError: the player's own ERROR_CODE_* name, AUDIO_DECODE, or
@@ -291,8 +353,10 @@ export interface SnowPlayerPlugin {
       /** audioUnsupported: the codecs present that this device cannot decode. */
       codecs?: string; ffmpegAvailable?: boolean;
       /** bandwidth (main slot, every 3 s while data flows): how fast the
-       *  player's own downloads are arriving, kbps. */
-      kbps?: number;
+       *  player's own downloads are arriving, kbps. `arrival: true` (newer
+       *  builds) says it is the arrival rate getStats.arrivalKbps reports,
+       *  sent here too as `arrivalKbps`, so no getStats poll is needed. */
+      kbps?: number; arrival?: boolean; arrivalKbps?: number;
       /** preBuffer (main slot, every 500 ms while a film's start is held to
        *  fill the buffer): video buffered ahead / the target, time held / the
        *  limit, all ms; `done` on the last one. */
@@ -300,6 +364,14 @@ export interface SnowPlayerPlugin {
       /** engineFallback: mpv was asked for and could not be used —
        *  'not-in-build' | 'android-too-old' | 'init-failed'. */
       reason?: string;
+      /** displayMode (main slot): the player asked the TV for a display
+       *  mode fitting the film's frame rate; the screen may be blank for
+       *  1-3 s while it switches. Numbers only. */
+      fps?: number | null; refreshHz?: number;
+      /** audioOutput (main slot): the sound now goes out as a bitstream to
+       *  the TV or receiver (no volume or boost here acts on it), or no
+       *  longer does. */
+      passthrough?: boolean;
     }) => void,
   ): Promise<PluginListenerHandle>;
 }

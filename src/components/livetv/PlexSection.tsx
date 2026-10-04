@@ -2453,7 +2453,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // bandwidth reports (bufferDiagnostics, the same measure since 1.8.1).
   // `native`: whether the plugin reports it (false: an older plugin, null
   // until a sample is in).
-  const arrivalRef = useRef<{ samples: RateReport[]; native: boolean | null }>({ samples: [], native: null });
+  const arrivalRef = useRef<{ samples: RateReport[]; native: boolean | null; fromEvent?: boolean }>({ samples: [], native: null });
   const rates = useCallback((): RateReport[] => (arrivalRef.current.samples.length ? arrivalRef.current.samples : getPlayerRates()), []);
   // Starts a conversion the way Plex's own players do (filled in below, with
   // automatic quality): 'refused' when the server turned it down at its
@@ -3578,6 +3578,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // is read over several connections at once (RangeFetchDataSource.kt);
     // never over the relay, and only while the flag is on (plexPlayback).
     rangeFetch: rangeFetchAllowed(streamUrl, conn?.route, rangeFetchFlag),
+    // The film's frame rate from Plex's metadata (Matroska never states one
+    // to the player): frame-rate matching's first source.
+    frameRate: playVersion?.frameRate,
     startPosition: startPos,
     subtitles: extraSubs,
     onTracksChanged,
@@ -3773,28 +3776,48 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Restarted with the title too (after the reset above, which replaces the
   // samples), so a new title never polls into the old one's, whether or not
   // the player closed in between.
+  // A plugin that sends the arrival rate with its own 'bandwidth' event
+  // (`arrival: true`) feeds the samples from that, and the getStats poll
+  // stops at the first such event; an older one is polled as before.
   useEffect(() => {
     if (!nativeActive) return;
     const a = arrivalRef.current;
     let alive = true;
+    const add = (kbps: number) => {
+      a.native = true;
+      // One zero, then quiet, as with the bandwidth reports: repeated zeros
+      // would keep moving the last sample up and cap how long it reads quiet.
+      const last = a.samples[a.samples.length - 1];
+      if (kbps === 0 && last && last.kbps <= 0) return;
+      const t = Date.now();
+      a.samples.push(bufferingRef.current ? { t, kbps, stalled: true } : { t, kbps });
+      while (a.samples.length > 1 && a.samples[0].t < t - RATES_KEPT_MS) a.samples.shift();
+    };
     const id = window.setInterval(async () => {
-      if (a.native === false) return;
+      if (a.native === false || a.fromEvent) { if (a.fromEvent) window.clearInterval(id); return; }
       try {
         const s = await SnowPlayer.getStats();
-        if (!alive || arrivalRef.current !== a) return;
+        if (!alive || arrivalRef.current !== a || a.fromEvent) return;
         if (!('arrivalKbps' in s)) { a.native = false; window.clearInterval(id); return; }
         if (typeof s.arrivalKbps !== 'number' || !Number.isFinite(s.arrivalKbps) || s.arrivalKbps < 0) return;
-        a.native = true;
-        // One zero, then quiet, as with the bandwidth reports: repeated zeros
-        // would keep moving the last sample up and cap how long it reads quiet.
-        const last = a.samples[a.samples.length - 1];
-        if (s.arrivalKbps === 0 && last && last.kbps <= 0) return;
-        const t = Date.now();
-        a.samples.push(bufferingRef.current ? { t, kbps: s.arrivalKbps, stalled: true } : { t, kbps: s.arrivalKbps });
-        while (a.samples.length > 1 && a.samples[0].t < t - RATES_KEPT_MS) a.samples.shift();
+        add(s.arrivalKbps);
       } catch { /* an app without getStats: the bandwidth reports */ }
     }, RATE_TICK_MS);
-    return () => { alive = false; window.clearInterval(id); };
+    let handle: { remove?: () => void } | null = null;
+    void SnowPlayer.addListener('bandwidth', (data) => {
+      if (!alive || arrivalRef.current !== a) return;
+      if (data.screenId && data.screenId !== 'main') return;
+      if (data.arrival !== true || typeof data.arrivalKbps !== 'number' || !Number.isFinite(data.arrivalKbps) || data.arrivalKbps < 0) return;
+      if (!a.fromEvent) {
+        // The poll's last sample may be this same window read through
+        // getStats a moment ago: not twice.
+        a.fromEvent = true;
+        const last = a.samples[a.samples.length - 1];
+        if (last && Date.now() - last.t <= 1000 && last.kbps === data.arrivalKbps) a.samples.pop();
+      }
+      add(data.arrivalKbps);
+    }).then((h) => { if (alive) handle = h; else { try { h?.remove?.(); } catch { /* ignore */ } } }).catch(() => { /* web */ });
+    return () => { alive = false; window.clearInterval(id); try { handle?.remove?.(); } catch { /* ignore */ } };
   }, [nativeActive, playing?.ratingKey, playSeq]);
   // The ladder as it stands now (versions and the file's bitrate arrive
   // after the start), where playback is on it, and the highest it may go.

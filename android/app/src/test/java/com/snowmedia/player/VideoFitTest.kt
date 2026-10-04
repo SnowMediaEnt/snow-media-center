@@ -76,4 +76,21 @@ class VideoFitTest {
         assertFalse(VideoFit.shutterOpen(firstFrameSeen = false, holding = true))
         assertTrue(VideoFit.shutterOpen(firstFrameSeen = true, holding = false))
     }
+
+    @Test fun `the main player draws on a SurfaceView when asked, tiles never`() {
+        assertTrue(VideoFit.useSurfaceView(isMain = true, requested = true))
+        assertFalse(VideoFit.useSurfaceView(isMain = true, requested = false))
+        assertFalse(VideoFit.useSurfaceView(isMain = false, requested = true))
+    }
+
+    @Test fun `after a stop only ExoPlayer's main SurfaceView box stays up`() {
+        assertTrue(VideoFit.keepBoxAfterStop(surfaceView = true, exo = true))
+        assertFalse(VideoFit.keepBoxAfterStop(surfaceView = true, exo = false))
+        assertFalse(VideoFit.keepBoxAfterStop(surfaceView = false, exo = true))
+    }
+
+    @Test fun `zoom on any view is sized from the picture's shape, non-square pixels included`() {
+        // 720x480 flagged 16:9 zoomed on a 4:3 box: 16:9 wide, cropped by the box.
+        assertArrayEquals(intArrayOf(853, 480), VideoFit.viewSize("zoom", 640, 480, 720, 480, 1.185f))
+    }
 }

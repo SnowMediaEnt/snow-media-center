@@ -68,6 +68,8 @@ const stallsRow = (st: PlayerStats | null): string => {
   return `${count(st.stalls)}${st.stalls > 0 ? ` (${st.stallSec.toFixed(1)} s)` : ''}`;
 };
 const cpuRow = (n: number | null | undefined): string => (num(n) ? `${n.toFixed(1)}%` : '—');
+/** 23.976, 59.94, 60: the screen's refresh rate as the TV reports it, to 3 decimals. */
+const hzLabel = (n: number): string => String(Math.round(n * 1000) / 1000);
 
 function engineState(st: PlayerStats, t: TFunction): string {
   if (st.state === 'ready') return st.playing ? t('plex.stats.playing') : t('plex.stats.paused');
@@ -178,13 +180,34 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, routeEndpoint,
           {needKbps != null && needKbps > 0 && <Row label={t('plex.stats.needs')}>{formatMbps(needKbps)}</Row>}
         </Card>
         <Card title={t('plex.stats.video')}>
-          <Row>{text(st?.videoDecoder)}</Row>
+          {/* A software decoder (c2.android.* / OMX.google.*) plays 4K on the CPU: said plainly. */}
+          <Row>{text(st?.videoDecoder)}{st?.videoDecoder && st.videoDecoderSoftware === true ? ` ${t('plex.stats.software')}` : ''}</Row>
           <Row>{text(st?.videoFormat)}</Row>
           <Row label={t('plex.stats.frames')}>{frames}</Row>
+          {st && num(st.skippedFrames) && (
+            <Row label={t('plex.stats.pacing')}>
+              {t('plex.stats.pacingValue', {
+                skipped: count(st.skippedFrames),
+                run: count(st.maxConsecutiveDropped),
+                key: count(st.droppedToKeyframe),
+                offset: num(st.avgFrameOffsetMs) ? st.avgFrameOffsetMs.toFixed(1) : '—',
+              })}
+            </Row>
+          )}
+          {/* Next to the video's frame rate: whether frame-rate matching happened. */}
+          <Row label={t('plex.stats.display')}>{st && num(st.displayHz) && st.displayHz > 0 ? t('plex.stats.hz', { value: hzLabel(st.displayHz) }) : '—'}</Row>
+          {/* SurfaceView (its own display layer) or TextureView (through the app's GPU composition). */}
+          <Row label={t('plex.stats.surface')}>{text(st?.surface)}{st?.tunnelingRequested ? ` · ${t('plex.stats.tunneled')}` : ''}</Row>
         </Card>
         <Card title={t('plex.stats.audio')}>
-          <Row>{text(st?.audioDecoder)}</Row>
+          <Row>{text(st?.audioDecoder)}{st?.audioPassthrough ? ` · ${t('plex.stats.passthroughOn')}` : ''}</Row>
           <Row>{text(st?.audioFormat)}</Row>
+          {st?.audioOrder && (
+            <Row label={t('plex.stats.audioOrder')}>{st.audioOrder === 'hardware' ? t('plex.stats.audioOrderHardware') : t('plex.stats.audioOrderFfmpeg')}</Row>
+          )}
+          {st && num(st.audioUnderruns) && (
+            <Row label={t('plex.stats.underruns')}>{t('plex.stats.underrunsValue', { count: count(st.audioUnderruns), ms: count(st.audioUnderrunMs ?? 0) })}</Row>
+          )}
         </Card>
         <Card title={t('plex.stats.player')}>
           <Row label={t('plex.stats.restarts')}>{restarts}</Row>

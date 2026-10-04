@@ -88,6 +88,7 @@
       "subsOff": "Desactivados",
       "level": "Nivel",
       "levelBoost": "{{pct}}% · Amplificado",
+      "volPassthrough": "Volumen en tu TV o receptor: este sonido le llega tal cual.",
       "reportLabel": "Reportar canal"
     },
     "playback": {
@@ -109,7 +110,14 @@
       "colStallSec": "Seg. de corte / h",
       "colCpu": "CPU",
       "colMemory": "Memoria",
-      "footnote": "Se basa en las últimas 30 reproducciones de TV en vivo por motor en este equipo: una medición a los 60 s y otra al terminar."
+      "footnote": "Se basa en las últimas 30 reproducciones de TV en vivo por motor en este equipo: una medición a los 60 s y otra al terminar.",
+      "settingsHeading": "Imagen",
+      "matchFrameRate": "Ajustar la frecuencia de imagen",
+      "matchFrameRateDesc": "Las películas y los episodios cambian la TV a su propia frecuencia (las películas de 24p a 24 Hz) para un movimiento fluido. La pantalla se queda en negro un momento al empezar. La TV en vivo nunca cambia.",
+      "decodeAudio": "Decodificar el audio en este equipo",
+      "decodeAudioDesc": "Para una TV o receptor que muestra la película pero no da sonido: Dolby y DTS se decodifican aquí en lugar de enviarse tal cual. Déjalo apagado para el mejor sonido.",
+      "on": "Sí",
+      "off": "No"
     },
     "shell": {
       "signingIn": "Iniciando tu sesión con tu cuenta…",

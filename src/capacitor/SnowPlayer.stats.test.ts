@@ -18,6 +18,9 @@ const KEYS: Array<keyof PlayerStats> = [
   'rangeFetch', 'connectionCap',
   'javaHeapMb', 'nativeHeapMb',
   'engine', 'firstFrameMs', 'stalls', 'stallSec', 'cpuPct', 'pssMb',
+  'displayHz', 'surface', 'tunnelingRequested',
+  'skippedFrames', 'maxConsecutiveDropped', 'droppedToKeyframe', 'avgFrameOffsetMs', 'videoDecoderSoftware',
+  'audioOrder', 'audioPassthrough', 'audioUnderruns', 'audioUnderrunMs',
 ];
 
 const body = (from: string) => plugin.slice(plugin.indexOf(from), plugin.indexOf('\n    }\n', plugin.indexOf(from)));
@@ -35,6 +38,9 @@ describe('SnowPlayer.getStats — web / no native player', () => {
       rangeFetch: false, connectionCap: 1,
       javaHeapMb: null, nativeHeapMb: null,
       engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
+      displayHz: null, surface: null, tunnelingRequested: false,
+      skippedFrames: null, maxConsecutiveDropped: null, droppedToKeyframe: null, avgFrameOffsetMs: null, videoDecoderSoftware: null,
+      audioOrder: null, audioPassthrough: false, audioUnderruns: 0, audioUnderrunMs: 0,
     });
   });
 
@@ -80,8 +86,8 @@ describe('SnowPlayerPlugin.kt — mpv (owner test builds only)', () => {
     const mpv = load.slice(load.indexOf('if (engine == EngineChoice.MPV) {\n'));
     expect(mpv.indexOf('applyPendingRect(s, screenId)')).toBeGreaterThan(-1);
     expect(mpv.indexOf('applyPendingRect(s, screenId)')).toBeLessThan(mpv.indexOf('second.attach(s.container!!)'));
-    expect(mpv).toContain('s.textureView?.visibility = View.INVISIBLE');
-    expect(body('private fun applyFormat(')).toContain('if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.textureView');
+    expect(mpv).toContain('s.videoView?.visibility = View.INVISIBLE');
+    expect(body('private fun applyFormat(')).toContain('if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.videoView');
   });
 
   it('memory: Debug.getPss() is in KB, so it is divided by 1024, not by MIB', () => {
@@ -238,5 +244,16 @@ describe('SnowPlayerPlugin.kt — getStats', () => {
     expect(plugin).toContain('targetBufferBytes = 128 * 1024 * 1024 - RangeFetchDataSource.LOW_RAM_WINDOW_BYTES,');
     expect(plugin).toContain('s.loadProfile = "steady · 120 s / 144 MB"');
     expect(plugin).toContain('s.loadProfile = if (lowRam) "tile · 15 s / 6 MB" else "tile · 15 s / 10 MB"');
+  });
+});
+
+describe('SnowPlayerPlugin.kt — reads that cost nothing on the UI thread', () => {
+  it('the heaps (mallinfo) are read only for the stats panel (memory: true), like the PSS', () => {
+    expect(plugin).toContain('o.put("javaHeapMb", if (memory) (rt.totalMemory() - rt.freeMemory()) / MIB else JSONObject.NULL)');
+    expect(plugin).toContain('o.put("nativeHeapMb", if (memory) Debug.getNativeHeapAllocatedSize() / MIB else JSONObject.NULL)');
+  });
+
+  it('the bandwidth event carries the arrival rate, so the WebView needs no poll for it', () => {
+    expect(plugin).toMatch(/notifyListeners\(\s*"bandwidth",\s*JSObject\(\)\.put\("screenId", screenId\)\.put\("kbps", kbps\)\s*\.put\("arrival", true\)\.put\("arrivalKbps", kbps\)/);
   });
 });

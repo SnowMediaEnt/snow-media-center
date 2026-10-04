@@ -57,6 +57,7 @@ import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import { usePlayerFlagSync } from '@/hooks/usePlayerFlagSync';
 import { useActiveGiveaway } from '@/hooks/useActiveGiveaway';
 import { isDemo } from '@/lib/demoMode';
 import { InstalledApp } from '@/data/installedApps';
@@ -698,6 +699,10 @@ const Index = () => {
   const { apps } = useAppData();
   const [mediaBarEnabled] = useMediaBarEnabled();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
+  // The native player's kill switches (frame-rate matching and the like):
+  // one read and one subscription for all of them, here in the shell, so
+  // every player's load() reads them from the cache.
+  usePlayerFlagSync();
   // If the flag flips off and the user was on the (now-removed) Player card, drop back to Store.
   useEffect(() => {
     if (!playerEnabled) {

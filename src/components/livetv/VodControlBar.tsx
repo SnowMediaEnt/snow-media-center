@@ -21,6 +21,7 @@
 // Chrome 66: no inset, no aspect-ratio, no gap beyond gap-1..4.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAudioPassthrough } from '@/lib/audioOutput';
 import { AudioLines, FastForward, Gauge, Pause, Play, Rewind, SkipForward, Subtitles, Volume2, VolumeX } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import { BarButton } from './PlayerControlBar';
@@ -86,6 +87,8 @@ export default function VodControlBar({
   onClose, onNext, hasNext = false, stats = false, blocked = false, onAudioPicked,
 }: Props) {
   const { t } = useTranslation();
+  // Dolby / DTS passed through to the TV or receiver: no volume here acts on it.
+  const passthrough = useAudioPassthrough();
   // Fixed for the life of the player: buttons never move under the highlight.
   const [order] = useState(() => vodBarOrder({ next: !!onNext, stats }));
 
@@ -449,7 +452,7 @@ export default function VodControlBar({
           <div className="px-2 pb-1">
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-brand-ice/70 font-nunito">{t('live.bar.level')}</span>
-              <span data-vod-vol-level className={`text-sm font-quicksand font-bold tabular-nums ${boost ? 'text-orange-300' : 'text-brand-gold'}`}>{boost ? t('live.bar.levelBoost', { pct: vol }) : `${vol}%`}</span>
+              <span data-vod-vol-level className={`text-sm font-quicksand font-bold tabular-nums ${boost ? 'text-orange-300' : 'text-brand-gold'}`}>{boost && !passthrough ? t('live.bar.levelBoost', { pct: vol }) : `${vol}%`}</span>
             </div>
             {/* Over the player's whole range; on the native one the tick is
                 100% and past it the sound is boosted. */}
@@ -458,6 +461,9 @@ export default function VodControlBar({
               {maxVolume > 1 && <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: `${(100 / maxVolume).toFixed(1)}%` }} />}
             </div>
           </div>
+            {passthrough && (
+              <p data-volume-passthrough className="px-2 pb-1 text-xs font-nunito text-amber-300">{t('live.bar.volPassthrough')}</p>
+            )}
         </div>
       )}
     </>

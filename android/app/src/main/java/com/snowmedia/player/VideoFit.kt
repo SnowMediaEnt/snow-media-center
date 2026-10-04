@@ -48,6 +48,20 @@ internal object VideoFit {
     }
 
     /**
+     * Which view the picture is drawn on: a SurfaceView for the main player
+     * while `video_surface_view` is on (the WebView asks with each load), a
+     * TextureView for the Multi-Screen tiles and when switched off.
+     */
+    fun useSurfaceView(isMain: Boolean, requested: Boolean): Boolean = isMain && requested
+
+    /**
+     * After a stop, only ExoPlayer's SurfaceView box stays on screen (behind
+     * the shut shutter), so its surface survives a quality change or a retry.
+     * mpv's own view and every TextureView box go GONE as before.
+     */
+    fun keepBoxAfterStop(surfaceView: Boolean, exo: Boolean): Boolean = surfaceView && exo
+
+    /**
      * The shutter (black over the picture view) opens once this stream has
      * drawn its first frame and the start-up hold is over. During the hold the
      * first frame is drawn paused; "Getting ready…" shows over black, and the
