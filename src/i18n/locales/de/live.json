@@ -88,6 +88,7 @@
       "subsOff": "Aus",
       "level": "Pegel",
       "levelBoost": "{{pct}} % · Verstärkt",
+      "volPassthrough": "Lautstärke am Fernseher oder Receiver: Dieser Ton geht unverändert dorthin.",
       "reportLabel": "Sender melden"
     },
     "playback": {
@@ -113,6 +114,8 @@
       "settingsHeading": "Bild",
       "matchFrameRate": "Bildrate anpassen",
       "matchFrameRateDesc": "Filme und Folgen schalten den Fernseher auf ihre eigene Bildrate (24p-Filme auf 24 Hz) für flüssige Bewegung. Beim Start ist der Bildschirm kurz schwarz. Live-TV wird nie umgestellt.",
+      "decodeAudio": "Ton auf diesem Gerät dekodieren",
+      "decodeAudioDesc": "Für einen Fernseher oder Receiver, der den Film zeigt, aber keinen Ton spielt: Dolby und DTS werden dann hier dekodiert statt durchgereicht. Für den besten Ton ausgeschaltet lassen.",
       "on": "An",
       "off": "Aus"
     },

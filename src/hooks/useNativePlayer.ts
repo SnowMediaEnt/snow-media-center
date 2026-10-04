@@ -15,6 +15,7 @@ import { enterQuiet, exitQuiet } from '@/utils/quietMode';
 import { beginStream as diagBegin, endStream as diagEnd, setBuffering as diagBuffering, recordPlayerRate as diagPlayerRate } from '@/lib/bufferDiagnostics';
 import { MAX_VOLUME } from '@/utils/volume';
 import { nativeLoadExtras } from '@/lib/playerFlags';
+import { setAudioPassthrough } from '@/lib/audioOutput';
 
 interface UseNativePlayerArgs {
   active: boolean;
@@ -225,6 +226,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     let rateH: { remove?: () => void } | null = null;
     let engineH: { remove?: () => void } | null = null;
     let modeH: { remove?: () => void } | null = null;
+    let outH: { remove?: () => void } | null = null;
     // Added after awaits: if the player went inactive in between, the cleanup
     // below has already run, so each handle removes itself as it arrives.
     let gone = false;
@@ -261,6 +263,13 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         modeH = keep(await SnowPlayer.addListener('displayMode', (data) => {
           if (data.screenId && data.screenId !== 'main') return;
           markSeek();
+        }));
+        if (gone) return;
+        // The sound goes out as a bitstream (or no longer does): the volume
+        // controls say to use the TV's or receiver's.
+        outH = keep(await SnowPlayer.addListener('audioOutput', (data) => {
+          if (data.screenId && data.screenId !== 'main') return;
+          setAudioPassthrough(data.passthrough === true);
         }));
         if (gone) return;
         stateH = keep(await SnowPlayer.addListener('playerState', (data) => {
@@ -317,6 +326,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
       try { rateH?.remove?.(); } catch { /* ignore */ }
       try { engineH?.remove?.(); } catch { /* ignore */ }
       try { modeH?.remove?.(); } catch { /* ignore */ }
+      try { outH?.remove?.(); } catch { /* ignore */ }
+      setAudioPassthrough(false);
     };
   }, [active, maxRetries]);
 

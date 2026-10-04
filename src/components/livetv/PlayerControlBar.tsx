@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import { useTranslation } from 'react-i18next';
+import { useAudioPassthrough } from '@/lib/audioOutput';
 import { formatTime } from '@/i18n/format';
 import { volumeBar } from '@/utils/volume';
 import { availableLabel, behindLabel } from '@/lib/liveRewind';
@@ -134,6 +135,8 @@ const PlayerControlBar = memo(({
 }: Props) => {
   // Also makes the bar redraw (button names come from liveBarLabel) when the language changes.
   const { t } = useTranslation();
+  // Dolby / DTS passed through to the TV or receiver: no volume here acts on it.
+  const passthrough = useAudioPassthrough();
   // 1Hz clock + progress tick.
 
   const [now, setNow] = useState(() => Date.now());
@@ -396,6 +399,9 @@ const PlayerControlBar = memo(({
               <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
             </div>
           </div>
+            {passthrough && (
+              <p data-volume-passthrough className="px-2 pb-1 text-xs font-nunito text-amber-300">{t('live.bar.volPassthrough')}</p>
+            )}
         </div>
       )}
     </>

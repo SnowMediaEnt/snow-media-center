@@ -88,6 +88,7 @@
       "subsOff": "Désactivés",
       "level": "Niveau",
       "levelBoost": "{{pct}} % · Amplifié",
+      "volPassthrough": "Volume sur votre TV ou ampli : ce son lui est envoyé tel quel.",
       "reportLabel": "Signaler la chaîne"
     },
     "playback": {
@@ -113,6 +114,8 @@
       "settingsHeading": "Image",
       "matchFrameRate": "Adapter la fréquence d'images",
       "matchFrameRateDesc": "Les films et les épisodes passent la TV à leur propre fréquence (les films en 24p à 24 Hz) pour un mouvement fluide. L'écran devient noir un instant au début. La TV en direct n'est jamais modifiée.",
+      "decodeAudio": "Décoder le son sur ce boîtier",
+      "decodeAudioDesc": "Pour une TV ou un ampli qui affiche le film sans son : le Dolby et le DTS sont alors décodés ici au lieu d'être transmis tels quels. Laissez désactivé pour le meilleur son.",
       "on": "Oui",
       "off": "Non"
     },

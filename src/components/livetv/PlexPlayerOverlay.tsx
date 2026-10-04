@@ -6,6 +6,7 @@
 // Native-only (uses SnowPlayer position/tracks).
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAudioPassthrough } from '@/lib/audioOutput';
 import i18n from '@/i18n';
 import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, Maximize, LifeBuoy, Volume2, VolumeX } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
@@ -132,6 +133,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   // The Quality menu: every version as it is (when there are several), then
   // the converted presets. `selected` is the entry now in effect.
   const { t } = useTranslation();
+  // Dolby / DTS passed through to the TV or receiver: no volume here acts on it.
+  const passthrough = useAudioPassthrough();
   // `name` is the short form the "Switching to …" notice uses.
   const qualityList = useMemo((): Array<{ key: string; label: string; name: string }> => {
     if (!versions || versions.length < 2) return PLEX_QUALITY_PRESETS.map((p) => ({ key: p.key, label: qualityPresetLabel(p), name: qualityPresetLabel(p) }));
@@ -756,6 +759,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             </div>
             <span className={`text-sm font-quicksand font-bold tabular-nums text-right ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost ? t('plex.player.volumeBoost', { pct: volPct }) : `${volPct}%`}</span>
           </div>
+            {passthrough && (
+              <p data-volume-passthrough className="px-2 pb-1 text-xs font-nunito text-amber-300">{t('live.bar.volPassthrough')}</p>
+            )}
         </div>
       )}
 

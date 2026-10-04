@@ -200,8 +200,14 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, routeEndpoint,
           <Row label={t('plex.stats.surface')}>{text(st?.surface)}{st?.tunneled ? ` · ${t('plex.stats.tunneled')}` : ''}</Row>
         </Card>
         <Card title={t('plex.stats.audio')}>
-          <Row>{text(st?.audioDecoder)}</Row>
+          <Row>{text(st?.audioDecoder)}{st?.audioPassthrough ? ` · ${t('plex.stats.passthroughOn')}` : ''}</Row>
           <Row>{text(st?.audioFormat)}</Row>
+          {st?.audioOrder && (
+            <Row label={t('plex.stats.audioOrder')}>{st.audioOrder === 'hardware' ? t('plex.stats.audioOrderHardware') : t('plex.stats.audioOrderFfmpeg')}</Row>
+          )}
+          {st && num(st.audioUnderruns) && (
+            <Row label={t('plex.stats.underruns')}>{t('plex.stats.underrunsValue', { count: count(st.audioUnderruns), ms: count(st.audioUnderrunMs ?? 0) })}</Row>
+          )}
         </Card>
         <Card title={t('plex.stats.player')}>
           <Row label={t('plex.stats.restarts')}>{restarts}</Row>

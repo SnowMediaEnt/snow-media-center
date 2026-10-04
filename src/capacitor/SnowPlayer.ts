@@ -81,6 +81,11 @@ export interface SnowPlayerLoadOpts {
   /** Tunneled playback for a film on the main player's SurfaceView (the
    *  `tunneled_vod` flag, off by default; never with the volume boost). */
   tunneled?: boolean;
+  /** A film's audio: the box's hardware decoder or passthrough first, FFmpeg
+   *  as the fallback (`audio_hw_first`, and the viewer's "Decode audio on
+   *  this box" off). Live TV and tiles keep FFmpeg first whatever this says.
+   *  A change of order rebuilds the main player. */
+  audioHwFirst?: boolean;
 }
 
 export interface SnowScreenOpts { screenId?: string }
@@ -197,6 +202,14 @@ export interface PlayerStats {
   /** The video decoder is Android's software one (c2.android.* /
    *  OMX.google.*): a 4K film then plays on the CPU. */
   videoDecoderSoftware?: boolean | null;
+  /** Which audio decoder came first for this load: 'hardware' (MediaCodec /
+   *  passthrough, FFmpeg as the fallback) or 'ffmpeg'. */
+  audioOrder?: 'hardware' | 'ffmpeg' | null;
+  /** The sound goes out as a bitstream to the TV or receiver. */
+  audioPassthrough?: boolean;
+  /** The audio output ran dry: how often, and for how long in all (ms). */
+  audioUnderruns?: number;
+  audioUnderrunMs?: number;
 }
 
 /** Stats with nothing playing: what the web build answers, and a stand-in
@@ -213,6 +226,7 @@ export function emptyPlayerStats(): PlayerStats {
     engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
     displayHz: null, surface: null, tunneled: false,
     skippedFrames: null, maxConsecutiveDropped: null, droppedToKeyframe: null, avgFrameOffsetMs: null, videoDecoderSoftware: null,
+    audioOrder: null, audioPassthrough: false, audioUnderruns: 0, audioUnderrunMs: 0,
   };
 }
 
@@ -314,7 +328,7 @@ export interface SnowPlayerPlugin {
   /** The buffer's disk use and the cache volume's free / total bytes. */
   timeshiftUsage(): Promise<{ usedBytes: number; freeBytes: number; totalBytes: number }>;
   addListener(
-    event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth' | 'preBuffer' | 'engineFallback' | 'displayMode',
+    event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth' | 'preBuffer' | 'engineFallback' | 'displayMode' | 'audioOutput',
     cb: (data: {
       screenId?: string; state?: string; playing?: boolean;
       /** playerError: the player's own ERROR_CODE_* name, AUDIO_DECODE, or
@@ -349,6 +363,10 @@ export interface SnowPlayerPlugin {
        *  mode fitting the film's frame rate; the screen may be blank for
        *  1-3 s while it switches. Numbers only. */
       fps?: number; refreshHz?: number;
+      /** audioOutput (main slot): the sound now goes out as a bitstream to
+       *  the TV or receiver (no volume or boost here acts on it), or no
+       *  longer does. */
+      passthrough?: boolean;
     }) => void,
   ): Promise<PluginListenerHandle>;
 }

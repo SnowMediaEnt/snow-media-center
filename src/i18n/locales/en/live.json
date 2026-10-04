@@ -88,6 +88,7 @@
       "subsOff": "Off",
       "level": "Level",
       "levelBoost": "{{pct}}% · Boost",
+      "volPassthrough": "Volume on your TV or receiver: this sound goes to it as it is.",
       "reportLabel": "Report channel"
     },
     "playback": {
@@ -113,6 +114,8 @@
       "settingsHeading": "Picture",
       "matchFrameRate": "Match frame rate",
       "matchFrameRateDesc": "Films and episodes switch the TV to their own frame rate (24p films at 24 Hz) for smooth motion. The screen goes black for a moment when a film starts. Live TV is never changed.",
+      "decodeAudio": "Decode audio on this box",
+      "decodeAudioDesc": "For a TV or receiver that shows the film but plays no sound: Dolby and DTS are then decoded here instead of being passed through. Leave off for the best sound.",
       "on": "On",
       "off": "Off"
     },

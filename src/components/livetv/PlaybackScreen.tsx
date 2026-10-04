@@ -5,7 +5,7 @@ import { BackButton } from '@/components/ui/BackButton';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { usePlayerEngine, type PlayerEngine } from '@/hooks/usePlayerEngine';
 import { compareEngines, type EngineCompareRow } from '@/lib/engineCompare';
-import { loadMatchFrameRate, saveMatchFrameRate } from '@/lib/playerFlags';
+import { loadDecodeAudioOnBox, loadMatchFrameRate, saveDecodeAudioOnBox, saveMatchFrameRate } from '@/lib/playerFlags';
 
 interface Props {
   onBack: () => void;
@@ -39,6 +39,7 @@ interface ToggleRow {
 }
 const TOGGLES: ToggleRow[] = [
   { id: 'matchFrameRate', labelKey: 'live.playback.matchFrameRate', descKey: 'live.playback.matchFrameRateDesc', load: loadMatchFrameRate, save: saveMatchFrameRate },
+  { id: 'decodeAudio', labelKey: 'live.playback.decodeAudio', descKey: 'live.playback.decodeAudioDesc', load: loadDecodeAudioOnBox, save: saveDecodeAudioOnBox },
 ];
 /** Focus: 0 = Back, 1-2 = the engine chips, then one per toggle. */
 const FIRST_TOGGLE = 1 + CHIPS.length;

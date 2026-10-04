@@ -98,6 +98,17 @@ describe('the stats panel', () => {
     expect(text).toContain('Pacing 3 skipped · max 2 dropped in a row · 0 to key frame · 12.4 ms ahead');
   });
 
+  it('the sound: passthrough said, which decoder came first, and the output\'s underruns', async () => {
+    h.getStats.mockImplementation(async () => ({ ...STATS, audioPassthrough: true, audioOrder: 'hardware', audioUnderruns: 2, audioUnderrunMs: 340, audioFormat: 'TrueHD 8ch (7.1) 48.0kHz' }));
+    render(<PlayerStatsPanel />);
+    await wait(0);
+    const text = panel()?.textContent ?? '';
+    expect(text).toContain('Passthrough · bitstream to the TV or receiver');
+    expect(text).toContain('TrueHD 8ch (7.1) 48.0kHz');
+    expect(text).toContain('Order hardware first, FFmpeg fallback');
+    expect(text).toContain('Underruns 2 (340 ms)');
+  });
+
   it('a hardware decoder is not flagged; an older app shows no pacing row', async () => {
     render(<PlayerStatsPanel />);
     await wait(0);

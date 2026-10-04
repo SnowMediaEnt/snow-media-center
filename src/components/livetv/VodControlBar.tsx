@@ -21,6 +21,7 @@
 // Chrome 66: no inset, no aspect-ratio, no gap beyond gap-1..4.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAudioPassthrough } from '@/lib/audioOutput';
 import { AudioLines, FastForward, Gauge, Pause, Play, Rewind, SkipForward, Subtitles, Volume2, VolumeX } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import { BarButton } from './PlayerControlBar';
@@ -86,6 +87,8 @@ export default function VodControlBar({
   onClose, onNext, hasNext = false, stats = false, blocked = false, onAudioPicked,
 }: Props) {
   const { t } = useTranslation();
+  // Dolby / DTS passed through to the TV or receiver: no volume here acts on it.
+  const passthrough = useAudioPassthrough();
   // Fixed for the life of the player: buttons never move under the highlight.
   const [order] = useState(() => vodBarOrder({ next: !!onNext, stats }));
 
@@ -458,6 +461,9 @@ export default function VodControlBar({
               {maxVolume > 1 && <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: `${(100 / maxVolume).toFixed(1)}%` }} />}
             </div>
           </div>
+            {passthrough && (
+              <p data-volume-passthrough className="px-2 pb-1 text-xs font-nunito text-amber-300">{t('live.bar.volPassthrough')}</p>
+            )}
         </div>
       )}
     </>

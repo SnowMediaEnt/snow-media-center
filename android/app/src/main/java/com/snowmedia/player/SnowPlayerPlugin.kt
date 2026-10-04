@@ -56,6 +56,8 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.LoadControl
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.MediaCodecAudioRenderer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
@@ -121,6 +123,27 @@ class SnowPlayerPlugin : Plugin() {
         var scalingMode: Int = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
         // Tunneled playback for this load (`tunneled_vod`, off by default).
         var tunneled: Boolean = false
+        // Audio renderer order (`audio_hw_first`): the player is built with
+        // one. ON puts MediaCodec first (the box's hardware decoder, or the
+        // bitstream passed through to the TV or receiver) with FFmpeg as the
+        // fallback; PREFER puts FFmpeg first (every track decoded on the
+        // CPU, as Live TV has always played). `wantAudioMode` is what this
+        // load needs; a change rebuilds the player (load()).
+        var audioMode: Int = AudioOrder.FFMPEG_FIRST
+        var wantAudioMode: Int = AudioOrder.FFMPEG_FIRST
+        // This title's hardware audio failed once: FFmpeg first from then on
+        // (restartWithSoftwareAudio), until another title loads.
+        var audioSwFallback: Boolean = false
+        var audioSwFallbackUrl: String? = null
+        // The viewer picked an audio track (setAudioTrack): never overridden.
+        var userPickedAudio: Boolean = false
+        // The heavy-track check ran for this load (chooseLighterAudio).
+        var audioChoiceDone: Boolean = false
+        // The sound goes out as a bitstream (Dolby / DTS to the TV or
+        // receiver): no volume or boost acts on it.
+        var audioPassthrough: Boolean = false
+        var audioUnderruns: Int = 0
+        var audioUnderrunGapMs: Long = 0L
         // The video decoder sessions that have ended this load, added up
         // like framesRendered (statsOf adds the running one's).
         var framesSkipped: Long = 0L
@@ -506,6 +529,8 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     private fun clearVideoTelemetry(s: PlayerSlot) {
+        s.audioUnderruns = 0
+        s.audioUnderrunGapMs = 0L
         s.framesSkipped = 0L
         s.maxConsecutiveDropped = 0
         s.droppedToKeyframe = 0L
@@ -1145,6 +1170,109 @@ class SnowPlayerPlugin : Plugin() {
         }
     }
 
+    // ---- Audio: hardware first for films -------------------------------------
+
+    /** The sound goes out as a bitstream (or no longer does): the boost lets
+     *  go, and the WebView's volume says to use the TV or receiver's. */
+    private fun setPassthrough(s: PlayerSlot, screenId: String, on: Boolean) {
+        if (s.audioPassthrough == on) return
+        s.audioPassthrough = on
+        applyBoost(s)
+        if (screenId == MAIN) notifyListeners("audioOutput", JSObject().put("screenId", screenId).put("passthrough", on))
+    }
+
+    /**
+     * A film's heavy sound (TrueHD, DTS-HD, 7.1) that FFmpeg would decode on
+     * the CPU, next to a same-language track the box plays in hardware or
+     * passes through: that one instead (AudioOrder.lighter). Once per load,
+     * never over the viewer's own pick. Media3's default choice is the
+     * "best" track (default flag, then channels), so TrueHD 7.1 beat AC3 5.1.
+     */
+    private fun chooseLighterAudio(s: PlayerSlot, p: ExoPlayer, tracks: androidx.media3.common.Tracks) {
+        s.audioChoiceDone = true
+        if (s.audioMode != AudioOrder.HARDWARE_FIRST || s.userPickedAudio) return
+        val mapped = s.trackSelector?.currentMappedTrackInfo ?: return
+        var selGroup: androidx.media3.common.TrackGroup? = null
+        var sel: Format? = null
+        for (g in tracks.groups) {
+            if (g.type != C.TRACK_TYPE_AUDIO || !g.isSelected) continue
+            for (i in 0 until g.length) if (g.isTrackSelected(i)) { selGroup = g.mediaTrackGroup; sel = g.getTrackFormat(i) }
+        }
+        val group = selGroup ?: return
+        val fmt = sel ?: return
+        var byFfmpeg = false
+        val candidates = ArrayList<AudioOrder.Candidate>()
+        for (r in 0 until mapped.rendererCount) {
+            if (mapped.getRendererType(r) != C.TRACK_TYPE_AUDIO) continue
+            val hw = p.getRenderer(r) is MediaCodecAudioRenderer
+            val groups = mapped.getTrackGroups(r)
+            for (gi in 0 until groups.length) {
+                val tg = groups.get(gi)
+                if (tg == group && !hw) byFfmpeg = true
+                if (!hw) continue
+                for (ti in 0 until tg.length) {
+                    if (mapped.getTrackSupport(r, gi, ti) != C.FORMAT_HANDLED) continue
+                    val f = tg.getFormat(ti)
+                    candidates.add(AudioOrder.Candidate(r, gi, ti, f.language, f.channelCount, hardware = true))
+                }
+            }
+        }
+        val pick = AudioOrder.lighter(fmt.sampleMimeType, fmt.channelCount, fmt.language, byFfmpeg, s.userPickedAudio, candidates) ?: return
+        val tg = mapped.getTrackGroups(pick.renderer).get(pick.group)
+        val to = tg.getFormat(pick.track)
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setOverrideForType(TrackSelectionOverride(tg, pick.track))
+            .build()
+        Log.i(TAG, "audio: ${codecName(fmt.sampleMimeType)} ${fmt.channelCount}ch (FFmpeg) -> ${codecName(to.sampleMimeType)} ${to.channelCount}ch (hardware)")
+    }
+
+    /**
+     * A film's hardware sound failed (the box's decoder, or a bitstream the
+     * TV or receiver turned down): the same place again, once, on a player
+     * built FFmpeg first, before anything is said to the WebView (whose
+     * AUDIO_DECODE answer is a server conversion). The film keeps that order
+     * until another title loads.
+     */
+    private fun restartWithSoftwareAudio(s: PlayerSlot, screenId: String, code: String) {
+        val old = s.player ?: return
+        val url = s.currentUrl ?: return
+        val pos = old.currentPosition.takeIf { it > 0L } ?: s.lastPositionMs
+        val play = old.playWhenReady || s.holding
+        Log.w(TAG, "audio: hardware path failed (${code.removePrefix("ERROR_CODE_")}); FFmpeg first for this title")
+        s.audioSwFallback = true
+        s.audioSwFallbackUrl = url
+        s.wantAudioMode = AudioOrder.FFMPEG_FIRST
+        s.restarts++
+        s.lastRestartReason = "sound on FFmpeg after ${code.removePrefix("ERROR_CODE_")}"
+        cancelTimers(s)
+        releasePlayer(s)
+        buildPlayer(s, screenId)
+        val p = s.player ?: return
+        // What load() set up on the player it had.
+        try {
+            p.setVideoChangeFrameRateStrategy(
+                if (s.matchFrameRate) C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF else C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS,
+            )
+        } catch (_: Throwable) { /* a player without it */ }
+        s.trackSelector?.let { ts -> ts.setParameters(ts.buildUponParameters().setTunnelingEnabled(s.tunneled)) }
+        s.loadControl?.beginStream(film = true)
+        s.firstFrameSeen = false
+        s.audioChoiceDone = false
+        s.shutterView?.visibility = View.VISIBLE
+        setPassthrough(s, screenId, false)
+        applyFormat(s)
+        p.setMediaItem(buildMediaItem(url, s.currentSubtitles), pos.coerceAtLeast(0L))
+        p.prepare()
+        p.playWhenReady = false
+        if (play) {
+            s.holding = true
+            schedulePreBuffer(s, screenId, midFile = pos > 0L)
+        }
+        scheduleWatchdog(s, screenId)
+        schedulePositionTick(s)
+        scheduleBandwidthTick(s, screenId)
+    }
+
     /** Multi-Screen tiles: stop() only stopped the media, so after one visit
      *  up to four players (threads, views, last-frame buffers) stayed alive
      *  for the rest of the session. load() rebuilds all of this on demand. */
@@ -1182,9 +1310,16 @@ class SnowPlayerPlugin : Plugin() {
         tsParamsBuilder.setAudioOffloadPreferences(offloadOff)
         ts.setParameters(tsParamsBuilder)
         s.trackSelector = ts
+        // The audio renderer order this player is built with (see
+        // PlayerSlot.audioMode). Video is always MediaCodec: the FFmpeg
+        // extension decodes no video.
+        s.audioMode = s.wantAudioMode
         val renderersFactory = DefaultRenderersFactory(act)
             .setEnableDecoderFallback(true)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            .setExtensionRendererMode(
+                if (s.audioMode == AudioOrder.HARDWARE_FIRST) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER,
+            )
         // MediaCodec's asynchronous queueing: Media3 1.5 turns it on by
         // itself only on API 31+ (or a box reporting Amazon's TV feature);
         // generic API 28-30 boxes got the synchronous adapter, which feeds
@@ -1480,6 +1615,26 @@ class SnowPlayerPlugin : Plugin() {
                     reconnect(s, screenId, "sound reset by a display mode switch")
                     return
                 }
+                // A film whose hardware sound failed (the box's decoder, or a
+                // bitstream the TV or receiver would not take): once, the
+                // same place again with FFmpeg first, before anything is
+                // said. AUDIO_DECODE sends Plex to a server conversion; that
+                // must not happen more often than it did.
+                if ((isAudioTrack || isAudioDecoder) && screenId == MAIN && !s.isLive && s.currentUrl != null &&
+                    AudioOrder.canFallBack(s.audioMode, s.audioSwFallback)
+                ) {
+                    // Posted: the player is released and rebuilt, never from
+                    // inside its own listener call.
+                    val failed = p
+                    val soundUrl = s.currentUrl
+                    val codeName = error.errorCodeName
+                    s.audioSwFallback = true
+                    s.audioSwFallbackUrl = soundUrl
+                    mainHandler.post {
+                        if (s.player === failed && s.currentUrl == soundUrl) restartWithSoftwareAudio(s, screenId, codeName)
+                    }
+                    return
+                }
                 if (isAudioTrack || isAudioDecoder) {
                     releaseWifiIfStopped(s)
                     notifyListeners(
@@ -1551,6 +1706,10 @@ class SnowPlayerPlugin : Plugin() {
                 // its header; a conversion may only say it once the first
                 // segment is read, see onVideoInputFormatChanged).
                 if (screenId == MAIN && s.matchFrameRate) matchFrameRate(s, screenId, selectedVideoFormat(tracks))
+                // A film whose chosen sound is a heavy one FFmpeg would decode
+                // on the CPU (TrueHD, DTS-HD, 7.1): a same-language track the
+                // box plays in hardware or passes through, if there is one.
+                if (screenId == MAIN && !s.isLive && !s.audioChoiceDone && !tracks.isEmpty) chooseLighterAudio(s, p, tracks)
 
                 // Silent-audio detection: the stream carries audio, but this
                 // device can decode none of it. ExoPlayer raises no error here —
@@ -1600,6 +1759,21 @@ class SnowPlayerPlugin : Plugin() {
             ) { if (isCurrentItem(eventTime)) s.audioDecoderName = decoderName }
             override fun onAudioDecoderReleased(eventTime: AnalyticsListener.EventTime, decoderName: String) {
                 if (isCurrentItem(eventTime)) s.audioDecoderName = null
+            }
+            // The sound's output: a bitstream (passthrough) or PCM. Told to
+            // the WebView when it changes (the volume shows "Volume on your
+            // TV or receiver"), and the boost is let go of on a bitstream.
+            override fun onAudioTrackInitialized(eventTime: AnalyticsListener.EventTime, audioTrackConfig: AudioSink.AudioTrackConfig) {
+                setPassthrough(s, screenId, !Util.isEncodingLinearPcm(audioTrackConfig.encoding))
+            }
+            override fun onAudioUnderrun(
+                eventTime: AnalyticsListener.EventTime,
+                bufferSize: Int,
+                bufferSizeMs: Long,
+                elapsedSinceLastFeedMs: Long,
+            ) {
+                s.audioUnderruns++
+                s.audioUnderrunGapMs += elapsedSinceLastFeedMs.coerceAtLeast(0L)
             }
             // The format the video decoder is handed: frame-rate matching's
             // second chance, for a stream whose track list had no rate.
@@ -1705,6 +1879,9 @@ class SnowPlayerPlugin : Plugin() {
         val surfaceView = call.getBoolean("surfaceView", false) ?: false
         val asyncCodec = call.getBoolean("asyncCodec", false) ?: false
         val tunneled = call.getBoolean("tunneled", false) ?: false
+        // Hardware audio first for a film (`audio_hw_first` and not the
+        // viewer's "Decode audio on this box"). Absent: FFmpeg first.
+        val audioHwFirst = call.getBoolean("audioHwFirst", false) ?: false
         // Seconds; a film resumed part-way. Absent or 0: the player's own start.
         val startSec = call.getDouble("startPosition")
         val startMs = if (startSec != null && startSec > 0.0) (startSec * 1000.0).toLong() else 0L
@@ -1761,12 +1938,17 @@ class SnowPlayerPlugin : Plugin() {
                     stopSlot(s)
                     releaseSlot(s)
                     s.pendingRect = keepRect
-                } else if (s.player != null && s.wantAsyncCodec != wantAsync) {
+                }
+                // A film keeps the FFmpeg order its hardware sound failed in.
+                if (s.audioSwFallbackUrl != url) { s.audioSwFallback = false; s.audioSwFallbackUrl = null }
+                val wantAudio = AudioOrder.mode(isMain = screenId == MAIN, live = live, hwFirst = audioHwFirst, fellBack = s.audioSwFallback)
+                if (s.player != null && (s.wantAsyncCodec != wantAsync || s.audioMode != wantAudio)) {
                     cancelTimers(s)
                     releasePlayer(s)
                 }
                 s.wantSurfaceView = wantSv
                 s.wantAsyncCodec = wantAsync
+                s.wantAudioMode = wantAudio
             }
             if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
             if (engine == EngineChoice.MPV) {
@@ -1811,6 +1993,9 @@ class SnowPlayerPlugin : Plugin() {
             s.reconnectAttempts = 0
             s.transcodeHttpFails = 0
             s.rangeFetch = rangeFetch && !live
+            s.audioChoiceDone = false
+            // Told again by the new stream's audio output (onAudioTrackInitialized).
+            setPassthrough(s, screenId, false)
             // Tunneled playback (`tunneled_vod`, an A/B test, off by
             // default): a film on the main player's SurfaceView, never with
             // the volume boost (an effect on the audio session).
@@ -2059,6 +2244,13 @@ class SnowPlayerPlugin : Plugin() {
         // How the picture reaches the screen (see PlayerSlot.videoView).
         o.put("surface", if (s?.videoView == null) JSONObject.NULL else if (s.usesSurfaceView) "SurfaceView" else "TextureView")
         o.put("tunneled", s?.tunneled == true)
+        // The sound: which renderer comes first for this load, whether it goes
+        // out as a bitstream, and the audio output's underruns (count, and
+        // the time the output went unfed in them).
+        o.put("audioOrder", if (s?.player == null) JSONObject.NULL else if (s.audioMode == AudioOrder.HARDWARE_FIRST) "hardware" else "ffmpeg")
+        o.put("audioPassthrough", s?.audioPassthrough == true)
+        o.put("audioUnderruns", s?.audioUnderruns ?: 0)
+        o.put("audioUnderrunMs", s?.audioUnderrunGapMs ?: 0L)
         o.put("audioDecoder", decoderLabel(s?.audioDecoderName, af) ?: JSONObject.NULL)
         if (s != null && af != null) {
             if (af !== s.audioFormatOf) { s.audioFormatOf = af; s.audioFormatText = describeAudio(af) }
@@ -2190,7 +2382,10 @@ class SnowPlayerPlugin : Plugin() {
     /** "EAC3 8ch 48.0kHz". */
     private fun describeAudio(f: Format): String {
         val sb = StringBuilder(codecName(f.sampleMimeType))
-        if (f.channelCount > 0) sb.append(' ').append(f.channelCount).append("ch")
+        if (f.channelCount > 0) {
+            sb.append(' ').append(f.channelCount).append("ch")
+            when (f.channelCount) { 8 -> sb.append(" (7.1)"); 6 -> sb.append(" (5.1)") }
+        }
         if (f.sampleRate > 0) sb.append(' ').append(String.format(Locale.US, "%.1fkHz", f.sampleRate / 1000.0))
         return sb.toString()
     }
@@ -2241,6 +2436,8 @@ class SnowPlayerPlugin : Plugin() {
         s.modeSwitchUntilMs = 0L
         s.modeWaitUntilMs = 0L
         s.fpsEstimator = null
+        s.userPickedAudio = false
+        setPassthrough(s, if (slots[MAIN] === s) MAIN else "", false)
         s.currentUrl = null
         clearStats(s)
         s.currentSubtitles = null
@@ -2310,7 +2507,9 @@ class SnowPlayerPlugin : Plugin() {
      *  effect simply stays at 100%. */
     private fun applyBoost(s: PlayerSlot) {
         val p = s.player ?: return
-        val gainMb = if (s.volume > 1f) ((s.volume - 1f) * BOOST_MB_PER_UNIT).toInt() else 0
+        // A bitstream to the TV or receiver can't be boosted (or turned
+        // down here at all): no effect on its session.
+        val gainMb = if (s.volume > 1f && !s.audioPassthrough) ((s.volume - 1f) * BOOST_MB_PER_UNIT).toInt() else 0
         if (gainMb <= 0) {
             s.boost?.let { e -> try { e.enabled = false } catch (_: Exception) { /* released */ } }
             return
@@ -2516,6 +2715,7 @@ class SnowPlayerPlugin : Plugin() {
             }
             val p = s.player
             if (p == null || id == null) { call.resolve(); return@runOnUiThread }
+            if (type == C.TRACK_TYPE_AUDIO) s.userPickedAudio = true
             if (id == "-1") {
                 p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(type, true).build()
                 call.resolve(); return@runOnUiThread

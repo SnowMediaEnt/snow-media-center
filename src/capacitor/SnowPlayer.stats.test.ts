@@ -20,6 +20,7 @@ const KEYS: Array<keyof PlayerStats> = [
   'engine', 'firstFrameMs', 'stalls', 'stallSec', 'cpuPct', 'pssMb',
   'displayHz', 'surface', 'tunneled',
   'skippedFrames', 'maxConsecutiveDropped', 'droppedToKeyframe', 'avgFrameOffsetMs', 'videoDecoderSoftware',
+  'audioOrder', 'audioPassthrough', 'audioUnderruns', 'audioUnderrunMs',
 ];
 
 const body = (from: string) => plugin.slice(plugin.indexOf(from), plugin.indexOf('\n    }\n', plugin.indexOf(from)));
@@ -39,6 +40,7 @@ describe('SnowPlayer.getStats — web / no native player', () => {
       engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
       displayHz: null, surface: null, tunneled: false,
       skippedFrames: null, maxConsecutiveDropped: null, droppedToKeyframe: null, avgFrameOffsetMs: null, videoDecoderSoftware: null,
+      audioOrder: null, audioPassthrough: false, audioUnderruns: 0, audioUnderrunMs: 0,
     });
   });
 

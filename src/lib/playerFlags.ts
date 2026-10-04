@@ -20,12 +20,17 @@ export const ASYNC_CODEC_FLAG = 'async_codec';
  *  Missing row: OFF (the one flag that defaults off). */
 export const TUNNELED_VOD_FLAG = 'tunneled_vod';
 
+/** Films get the box's hardware audio (or passthrough) first, FFmpeg as the
+ *  fallback; off puts FFmpeg first everywhere, as before. Missing row: on. */
+export const AUDIO_HW_FIRST_FLAG = 'audio_hw_first';
+
 /** Every player flag and its default (what a missing row means). */
 export const PLAYER_FLAG_DEFAULTS: Record<string, boolean> = {
   [MATCH_FRAME_RATE_FLAG]: true,
   [SURFACE_VIEW_FLAG]: true,
   [ASYNC_CODEC_FLAG]: true,
   [TUNNELED_VOD_FLAG]: false,
+  [AUDIO_HW_FIRST_FLAG]: true,
 };
 
 export const PLAYER_FLAG_KEYS = Object.keys(PLAYER_FLAG_DEFAULTS);
@@ -58,6 +63,13 @@ function writeBool(key: string, value: boolean): void {
 export const loadMatchFrameRate = (): boolean => readBool(MATCH_FRAME_RATE_KEY, true);
 export const saveMatchFrameRate = (on: boolean): void => writeBool(MATCH_FRAME_RATE_KEY, on);
 
+/** "Decode audio on this box": off unless the viewer turns it on. The way
+ *  out for a TV or receiver that takes the Dolby / DTS bitstream and plays
+ *  no sound: every track is then decoded here (FFmpeg first), as before. */
+export const DECODE_AUDIO_KEY = 'smc-decode-audio-on-box-v1';
+export const loadDecodeAudioOnBox = (): boolean => readBool(DECODE_AUDIO_KEY, false);
+export const saveDecodeAudioOnBox = (on: boolean): void => writeBool(DECODE_AUDIO_KEY, on);
+
 /**
  * What every load() of the main player adds to its options. `frameRate` is
  * the film's rate when the caller knows it (Plex's metadata). How the main
@@ -68,6 +80,8 @@ export function nativeLoadExtras(live: boolean, frameRate?: number): Partial<Sno
   const out: Partial<SnowPlayerLoadOpts> = {
     surfaceView: playerFlag(SURFACE_VIEW_FLAG),
     asyncCodec: playerFlag(ASYNC_CODEC_FLAG),
+    // The native side applies it to films only; Live TV stays FFmpeg first.
+    audioHwFirst: playerFlag(AUDIO_HW_FIRST_FLAG) && !loadDecodeAudioOnBox(),
   };
   if (!live && playerFlag(TUNNELED_VOD_FLAG)) out.tunneled = true;
   if (!live && loadMatchFrameRate() && playerFlag(MATCH_FRAME_RATE_FLAG)) {

@@ -24,7 +24,7 @@ beforeEach(() => { localStorage.clear(); });
 describe('what the WebView asks for with each load', () => {
   it('SurfaceView and async queueing on unless switched off; tunneling only for a film, only when switched on', () => {
     expect(PLAYER_FLAG_DEFAULTS).toMatchObject({ video_surface_view: true, async_codec: true, tunneled_vod: false });
-    expect(nativeLoadExtras(true)).toEqual({ surfaceView: true, asyncCodec: true });
+    expect(nativeLoadExtras(true)).toEqual({ surfaceView: true, asyncCodec: true, audioHwFirst: true });
     expect(nativeLoadExtras(false)).not.toHaveProperty('tunneled');
     writeCachedFlag('tunneled_vod', true);
     expect(nativeLoadExtras(false)).toMatchObject({ tunneled: true });
@@ -76,7 +76,7 @@ describe('SnowPlayerPlugin.kt — the main player on a SurfaceView (pinned)', ()
   it('a switch flipped rebuilds what no longer fits: the views, or the player alone', () => {
     const load = fn('fun load(call: PluginCall)');
     expect(load).toContain('if (s.container != null && s.usesSurfaceView != wantSv)');
-    expect(load).toContain('} else if (s.player != null && s.wantAsyncCodec != wantAsync) {');
+    expect(load).toContain('if (s.player != null && (s.wantAsyncCodec != wantAsync || s.audioMode != wantAudio)) {');
   });
 
   it('async queueing on API 28+ when asked; tunneling for a film on the SurfaceView without the boost', () => {
