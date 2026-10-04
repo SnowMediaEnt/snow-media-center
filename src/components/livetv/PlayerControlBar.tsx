@@ -391,7 +391,7 @@ const PlayerControlBar = memo(({
           <div className="px-2 pb-1">
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-brand-ice/70 font-nunito">{t('live.bar.level')}</span>
-              <span className={`text-sm font-quicksand font-bold tabular-nums ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost ? t('live.bar.levelBoost', { pct: volPct }) : `${volPct}%`}</span>
+              <span className={`text-sm font-quicksand font-bold tabular-nums ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost && !passthrough ? t('live.bar.levelBoost', { pct: volPct }) : `${volPct}%`}</span>
             </div>
             {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
             <div className="relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">

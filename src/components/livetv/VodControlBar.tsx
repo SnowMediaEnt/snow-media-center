@@ -452,7 +452,7 @@ export default function VodControlBar({
           <div className="px-2 pb-1">
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-brand-ice/70 font-nunito">{t('live.bar.level')}</span>
-              <span data-vod-vol-level className={`text-sm font-quicksand font-bold tabular-nums ${boost ? 'text-orange-300' : 'text-brand-gold'}`}>{boost ? t('live.bar.levelBoost', { pct: vol }) : `${vol}%`}</span>
+              <span data-vod-vol-level className={`text-sm font-quicksand font-bold tabular-nums ${boost ? 'text-orange-300' : 'text-brand-gold'}`}>{boost && !passthrough ? t('live.bar.levelBoost', { pct: vol }) : `${vol}%`}</span>
             </div>
             {/* Over the player's whole range; on the native one the tick is
                 100% and past it the sound is boosted. */}

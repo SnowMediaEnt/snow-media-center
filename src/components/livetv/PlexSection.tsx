@@ -3808,7 +3808,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       if (!alive || arrivalRef.current !== a) return;
       if (data.screenId && data.screenId !== 'main') return;
       if (data.arrival !== true || typeof data.arrivalKbps !== 'number' || !Number.isFinite(data.arrivalKbps) || data.arrivalKbps < 0) return;
-      a.fromEvent = true;
+      if (!a.fromEvent) {
+        // The poll's last sample may be this same window read through
+        // getStats a moment ago: not twice.
+        a.fromEvent = true;
+        const last = a.samples[a.samples.length - 1];
+        if (last && Date.now() - last.t <= 1000 && last.kbps === data.arrivalKbps) a.samples.pop();
+      }
       add(data.arrivalKbps);
     }).then((h) => { if (alive) handle = h; else { try { h?.remove?.(); } catch { /* ignore */ } } }).catch(() => { /* web */ });
     return () => { alive = false; window.clearInterval(id); try { handle?.remove?.(); } catch { /* ignore */ } };

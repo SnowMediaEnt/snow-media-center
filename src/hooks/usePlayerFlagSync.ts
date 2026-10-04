@@ -38,7 +38,8 @@ export function usePlayerFlagSync(): void {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'feature_flags', filter: `key=in.(${PLAYER_FLAG_KEYS.join(',')})` },
           (payload) => {
-            const row = (payload.new ?? payload.old) as { key?: string; enabled?: boolean } | null;
+            // A delete carries the row in `old` (`new` is an empty object).
+            const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as { key?: string; enabled?: boolean } | null;
             if (!row || typeof row.key !== 'string' || !PLAYER_FLAG_KEYS.includes(row.key)) return;
             if (payload.eventType === 'DELETE') clearCachedFlag(row.key);
             else if (typeof row.enabled === 'boolean') writeCachedFlag(row.key, row.enabled);

@@ -757,7 +757,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               <div className={`h-full ${vol.boost ? 'bg-orange-400' : 'bg-brand-gold'} transition-[width] duration-150 ease-out`} style={{ width: `${vol.fill}%` }} />
               <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
             </div>
-            <span className={`text-sm font-quicksand font-bold tabular-nums text-right ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost ? t('plex.player.volumeBoost', { pct: volPct }) : `${volPct}%`}</span>
+            {/* No boost reaches a bitstream: no "Boost" label then. */}
+            <span className={`text-sm font-quicksand font-bold tabular-nums text-right ${vol.boost && !passthrough ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost && !passthrough ? t('plex.player.volumeBoost', { pct: volPct }) : `${volPct}%`}</span>
           </div>
             {passthrough && (
               <p data-volume-passthrough className="px-2 pb-1 text-xs font-nunito text-amber-300">{t('live.bar.volPassthrough')}</p>

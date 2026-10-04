@@ -299,7 +299,8 @@ export interface SnowPlayerPlugin {
   /** Disable audio decoding entirely on a slot (cheaper than volume 0 on Fire TV). */
   setAudioEnabled(opts: { enabled: boolean; screenId?: string }): Promise<void>;
   getAudioTracks(opts?: SnowScreenOpts): Promise<{ tracks: SnowTrack[] }>;
-  setAudioTrack(opts: { id: string; screenId?: string }): Promise<void>;
+  /** `auto`: chosen by the app, not the viewer (see VideoController). */
+  setAudioTrack(opts: { id: string; screenId?: string; auto?: boolean }): Promise<void>;
   getSubtitleTracks(opts?: SnowScreenOpts): Promise<{ tracks: SnowTrack[] }>;
   setSubtitleTrack(opts: { id: string; screenId?: string }): Promise<void>;
   /** Whether this device can software-decode Dolby/DTS. Use for diagnostics. */

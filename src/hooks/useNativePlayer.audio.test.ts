@@ -13,6 +13,8 @@ import order from '../../android/app/src/main/java/com/snowmedia/player/AudioOrd
 import { nativeLoadExtras, PLAYER_FLAG_DEFAULTS, loadDecodeAudioOnBox, saveDecodeAudioOnBox } from '@/lib/playerFlags';
 import { writeCachedFlag } from '@/lib/featureFlagCache';
 import { audioPassthrough, setAudioPassthrough } from '@/lib/audioOutput';
+import flagSync from './usePlayerFlagSync.ts?raw';
+import plex from '../components/livetv/PlexSection.tsx?raw';
 
 const fn = (sig: string) => {
   const at = plugin.indexOf(sig);
@@ -65,7 +67,7 @@ describe('SnowPlayerPlugin.kt — audio order (pinned)', () => {
     const choose = fn('private fun chooseLighterAudio(');
     expect(choose).toContain('p.getRenderer(r) is MediaCodecAudioRenderer');
     expect(choose).toContain('TrackSelectionOverride(tg, pick.track)');
-    expect(fn('private fun selectTrack(')).toContain('if (type == C.TRACK_TYPE_AUDIO) s.userPickedAudio = true');
+    expect(fn('private fun selectTrack(')).toContain('if (auto) s.audioChoiceDone = false else s.userPickedAudio = true');
   });
 
   it('a bitstream output: the boost lets go, the WebView is told, and the stats say so', () => {
@@ -74,5 +76,31 @@ describe('SnowPlayerPlugin.kt — audio order (pinned)', () => {
     expect(fn('private fun setPassthrough(')).toContain('notifyListeners("audioOutput"');
     const stats = fn('private fun statsOf(');
     for (const k of ['audioOrder', 'audioPassthrough', 'audioUnderruns', 'audioUnderrunMs']) expect(stats).toContain(`o.put("${k}"`);
+  });
+
+  it('review fixes: no commentary / description / fewer channels, choices kept on the FFmpeg rebuild, mute on a bitstream, picks per title', () => {
+    // A1
+    expect(fn('private fun chooseLighterAudio(')).toContain('label = f.label, roleFlags = f.roleFlags, selectionFlags = f.selectionFlags');
+    expect(order).toContain('!isSideTrack(it) && it.channels >= minChannels');
+    // A2: the track choices survive the rebuild (a passthrough mute does not).
+    const restart = fn('private fun restartWithSoftwareAudio(');
+    expect(restart).toContain('val params = old.trackSelectionParameters');
+    expect(restart.indexOf('p.trackSelectionParameters = if (wasMuted)')).toBeLessThan(restart.indexOf('setTunnelingEnabled(s.tunneled)'));
+    // A3: volume 0 on a bitstream turns the audio off; back on above 0 or when passthrough ends.
+    expect(fn('private fun applyPassthroughMute(')).toContain('.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, mute)');
+    expect(fn('fun setVolume(call: PluginCall)')).toContain('applyPassthroughMute(s)');
+    expect(fn('private fun setPassthrough(')).toContain('applyPassthroughMute(s)');
+    expect(order).toContain('fun muteByDisabling(passthrough: Boolean, volume: Float): Boolean = passthrough && volume <= 0f');
+    // A4: a new title forgets the last one's pick; an automatic pick isn't the viewer's.
+    expect(plugin).toContain('if (s.titleKey != title) s.userPickedAudio = false');
+    expect(fn('private fun selectTrack(')).toContain('if (auto) s.audioChoiceDone = false else s.userPickedAudio = true');
+    // A5: the FFmpeg fallback is kept per title, not per session address.
+    expect(plugin).toContain('if (s.audioSwFallbackTitle != title) { s.audioSwFallback = false; s.audioSwFallbackTitle = null }');
+    expect(plugin).not.toContain('audioSwFallbackUrl');
+  });
+
+  it('A6/A7: a deleted flag row is read from `old`; the first arrival event drops a duplicate poll sample', () => {
+    expect(flagSync).toContain("const row = (payload.eventType === 'DELETE' ? payload.old : payload.new)");
+    expect(plex).toContain('if (last && Date.now() - last.t <= 1000 && last.kbps === data.arrivalKbps) a.samples.pop();');
   });
 });

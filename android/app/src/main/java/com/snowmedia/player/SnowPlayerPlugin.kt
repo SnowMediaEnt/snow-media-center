@@ -132,7 +132,13 @@ class SnowPlayerPlugin : Plugin() {
         // This title's hardware audio failed once: FFmpeg first from then on
         // (restartWithSoftwareAudio), until another title loads.
         var audioSwFallback: Boolean = false
-        var audioSwFallbackUrl: String? = null
+        var audioSwFallbackTitle: String? = null
+        // The title loaded (AudioOrder.titleKey: the address without its
+        // per-session parameters), for what is kept per title.
+        var titleKey: String? = null
+        // Audio disabled here because the bitstream can't be turned down
+        // (passthrough at volume 0): re-enabled when that ends.
+        var passthroughMuted: Boolean = false
         // The viewer picked an audio track (setAudioTrack): never overridden.
         var userPickedAudio: Boolean = false
         // The heavy-track check ran for this load (chooseLighterAudio).
@@ -1279,7 +1285,24 @@ class SnowPlayerPlugin : Plugin() {
         if (s.audioPassthrough == on) return
         s.audioPassthrough = on
         applyBoost(s)
+        applyPassthroughMute(s)
         if (screenId == MAIN) notifyListeners("audioOutput", JSObject().put("screenId", screenId).put("passthrough", on))
+    }
+
+    /**
+     * Mute on a bitstream: no volume here reaches it, so volume 0 turns the
+     * audio track off (Media3's track-type switch) and anything above, or the
+     * end of passthrough, turns it back on. Only what this turned off is
+     * turned back on.
+     */
+    private fun applyPassthroughMute(s: PlayerSlot) {
+        val p = s.player ?: return
+        val mute = AudioOrder.muteByDisabling(s.audioPassthrough, s.volume)
+        if (mute == s.passthroughMuted) return
+        s.passthroughMuted = mute
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, mute)
+            .build()
     }
 
     /**
@@ -1314,7 +1337,9 @@ class SnowPlayerPlugin : Plugin() {
                 for (ti in 0 until tg.length) {
                     if (mapped.getTrackSupport(r, gi, ti) != C.FORMAT_HANDLED) continue
                     val f = tg.getFormat(ti)
-                    candidates.add(AudioOrder.Candidate(r, gi, ti, f.language, f.channelCount, hardware = true))
+                    candidates.add(
+                        AudioOrder.Candidate(r, gi, ti, f.language, f.channelCount, hardware = true, label = f.label, roleFlags = f.roleFlags, selectionFlags = f.selectionFlags),
+                    )
                 }
             }
         }
@@ -1341,7 +1366,11 @@ class SnowPlayerPlugin : Plugin() {
         val play = old.playWhenReady || s.holding
         Log.w(TAG, "audio: hardware path failed (${code.removePrefix("ERROR_CODE_")}); FFmpeg first for this title")
         s.audioSwFallback = true
-        s.audioSwFallbackUrl = url
+        s.audioSwFallbackTitle = AudioOrder.titleKey(url)
+        // The track choices (the viewer's sound and subtitles) go to the new
+        // player; a passthrough mute does not (the new output is PCM).
+        val params = old.trackSelectionParameters
+        val wasMuted = s.passthroughMuted
         s.wantAudioMode = AudioOrder.FFMPEG_FIRST
         s.restarts++
         s.lastRestartReason = "sound on FFmpeg after ${code.removePrefix("ERROR_CODE_")}"
@@ -1358,6 +1387,7 @@ class SnowPlayerPlugin : Plugin() {
                 if (s.matchFrameRate) C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF else C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS,
             )
         } catch (_: Throwable) { /* a player without it */ }
+        p.trackSelectionParameters = if (wasMuted) params.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false).build() else params
         s.trackSelector?.let { ts -> ts.setParameters(ts.buildUponParameters().setTunnelingEnabled(s.tunneled)) }
         s.loadControl?.beginStream(film = true)
         s.firstFrameSeen = false
@@ -1401,6 +1431,7 @@ class SnowPlayerPlugin : Plugin() {
         releaseBoost(s)
         s.player?.let { it.clearVideoSurface(); it.release() }
         s.player = null
+        s.passthroughMuted = false
         s.trackSelector = null
         s.loadControl = null
     }
@@ -1767,7 +1798,7 @@ class SnowPlayerPlugin : Plugin() {
                     val soundUrl = s.currentUrl
                     val codeName = error.errorCodeName
                     s.audioSwFallback = true
-                    s.audioSwFallbackUrl = soundUrl
+                    s.audioSwFallbackTitle = soundUrl?.let { AudioOrder.titleKey(it) }
                     mainHandler.post {
                         if (s.player === failed && s.currentUrl == soundUrl) restartWithSoftwareAudio(s, screenId, codeName)
                     }
@@ -2077,8 +2108,13 @@ class SnowPlayerPlugin : Plugin() {
                     releaseSlot(s)
                     s.pendingRect = keepRect
                 }
-                // A film keeps the FFmpeg order its hardware sound failed in.
-                if (s.audioSwFallbackUrl != url) { s.audioSwFallback = false; s.audioSwFallbackUrl = null }
+                // A film keeps the FFmpeg order its hardware sound failed in,
+                // whatever session or quality it loads with next.
+                val title = AudioOrder.titleKey(url)
+                if (s.audioSwFallbackTitle != title) { s.audioSwFallback = false; s.audioSwFallbackTitle = null }
+                // Another title: the viewer's sound pick was for the last one.
+                if (s.titleKey != title) s.userPickedAudio = false
+                s.titleKey = title
                 val wantAudio = AudioOrder.mode(isMain = screenId == MAIN, live = live, hwFirst = audioHwFirst, fellBack = s.audioSwFallback)
                 if (s.player != null && (s.wantAsyncCodec != wantAsync || s.audioMode != wantAudio)) {
                     cancelTimers(s)
@@ -2654,6 +2690,7 @@ class SnowPlayerPlugin : Plugin() {
             if (s.engine == EngineChoice.MPV) { s.second?.setVolume(s.volume); call.resolve(); return@runOnUiThread }
             s.player?.volume = s.volume.coerceAtMost(1f)
             applyBoost(s)
+            applyPassthroughMute(s)
             call.resolve()
         }
     }
@@ -2864,6 +2901,7 @@ class SnowPlayerPlugin : Plugin() {
 
     private fun selectTrack(call: PluginCall, type: Int) {
         val id = call.getString("id")
+        val auto = call.getBoolean("auto", false) ?: false
         val s = slot(call)
         activity?.runOnUiThread {
             if (s.engine == EngineChoice.MPV) {
@@ -2873,7 +2911,12 @@ class SnowPlayerPlugin : Plugin() {
             }
             val p = s.player
             if (p == null || id == null) { call.resolve(); return@runOnUiThread }
-            if (type == C.TRACK_TYPE_AUDIO) s.userPickedAudio = true
+            // A pick the WebView made by itself (VodPlayer's language rule,
+            // `auto`) is not the viewer's: the heavy-track rule may still run
+            // on what it chose.
+            if (type == C.TRACK_TYPE_AUDIO) {
+                if (auto) s.audioChoiceDone = false else s.userPickedAudio = true
+            }
             if (id == "-1") {
                 p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(type, true).build()
                 call.resolve(); return@runOnUiThread

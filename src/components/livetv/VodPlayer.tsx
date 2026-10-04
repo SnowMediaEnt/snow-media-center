@@ -178,7 +178,10 @@ function NativeVod({ src, onError, onEnded, bar }: { src: string; onError: (msg:
     pickedForRef.current = srcRef.current;
     const chosen = chosenRef.current?.src === srcRef.current ? chosenRef.current.id : null;
     const id = chosen ?? pickAudioTrack(tracks, i18n.language);
-    if (id !== null && !(tracks.find((tr) => tr.id === id)?.active)) c.setAudioTrack(id);
+    if (id === null || tracks.find((tr) => tr.id === id)?.active) return;
+    // The viewer's own choice is theirs; the language rule's is automatic.
+    if (chosen !== null) c.setAudioTrack(id);
+    else c.setAudioTrack(id, { auto: true });
   }, []);
   const onReload = useCallback(() => { pickedForRef.current = null; }, []);
   const onAudioPicked = useCallback((id: number) => { chosenRef.current = { src: srcRef.current, id }; }, []);

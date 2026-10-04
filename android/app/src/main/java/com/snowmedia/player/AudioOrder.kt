@@ -44,14 +44,40 @@ internal object AudioOrder {
 
     /** An audio track the player could switch to: renderer, group and track
      *  index as Media3 maps them. `hardware`: MediaCodec plays it (the box's
-     *  decoder or passthrough). */
-    data class Candidate(val renderer: Int, val group: Int, val track: Int, val language: String?, val channels: Int, val hardware: Boolean)
+     *  decoder or passthrough). `roleFlags` / `selectionFlags`: Format's. */
+    data class Candidate(
+        val renderer: Int,
+        val group: Int,
+        val track: Int,
+        val language: String?,
+        val channels: Int,
+        val hardware: Boolean,
+        val label: String? = null,
+        val roleFlags: Int = 0,
+        val selectionFlags: Int = 0,
+    )
+
+    /** C.ROLE_FLAG_COMMENTARY, _DESCRIBES_VIDEO, _DESCRIBES_MUSIC_AND_SOUND. */
+    const val ROLE_COMMENTARY = 1 shl 3
+    const val ROLE_DESCRIBES_VIDEO = 1 shl 9
+    const val ROLE_DESCRIBES_MUSIC_AND_SOUND = 1 shl 10
+    /** C.SELECTION_FLAG_DEFAULT. */
+    const val SELECTION_DEFAULT = 1
+
+    /** Commentary or audio description, by role or by name: never a stand-in for the film's sound. */
+    fun isSideTrack(c: Candidate): Boolean {
+        if (c.roleFlags and (ROLE_COMMENTARY or ROLE_DESCRIBES_VIDEO or ROLE_DESCRIBES_MUSIC_AND_SOUND) != 0) return true
+        val l = c.label?.lowercase() ?: return false
+        return "comment" in l || "descri" in l
+    }
 
     /**
      * The track to switch to, or null to keep the selected one: only when the
      * selected one is heavy and FFmpeg would play it, the viewer did not
-     * pick it, and a same-language track plays in hardware (the most
-     * channels of those).
+     * pick it, and a same-language track plays in hardware. Never commentary
+     * or audio description, never fewer channels than min(6, the selected
+     * one's) (no 7.1 film down to stereo); the file's default track first,
+     * then the most channels.
      */
     fun lighter(
         selectedMime: String?,
@@ -63,9 +89,38 @@ internal object AudioOrder {
     ): Candidate? {
         if (userPicked || !selectedByFfmpeg || !isHeavy(selectedMime, selectedChannels)) return null
         val lang = norm(selectedLanguage)
+        val minChannels = minOf(6, selectedChannels)
         return candidates
-            .filter { it.hardware && norm(it.language) == lang }
-            .maxByOrNull { it.channels }
+            .filter { it.hardware && norm(it.language) == lang && !isSideTrack(it) && it.channels >= minChannels }
+            .maxWithOrNull(compareBy<Candidate>({ if (it.selectionFlags and SELECTION_DEFAULT != 0) 1 else 0 }, { it.channels }))
+    }
+
+    /** Passthrough at volume 0: the only way to silence a bitstream here is to turn the audio track off. */
+    fun muteByDisabling(passthrough: Boolean, volume: Float): Boolean = passthrough && volume <= 0f
+
+    /** Query parameters that change from one session or quality of a title to the next. */
+    private val PER_SESSION = setOf(
+        "session", "offset", "fastseek", "maxvideobitrate", "videoresolution", "videoquality", "autoadjustquality",
+        "location", "directplay", "directstream", "protocol", "audiocodec", "maxaudiochannels", "copyts",
+    )
+
+    /**
+     * The title a stream address belongs to, for what is kept per title (the
+     * FFmpeg fallback, the viewer's own sound pick): the path and its
+     * parameters without the per-session ones (Plex's session ids, client
+     * headers, quality). Never logged: it can carry a line's login.
+     */
+    fun titleKey(url: String): String {
+        val q = url.indexOf('?')
+        if (q < 0) return url
+        val kept = url.substring(q + 1).split('&')
+            .filter { it.isNotEmpty() }
+            .filter { p ->
+                val name = p.substringBefore('=').lowercase()
+                !name.startsWith("x-plex-") && name !in PER_SESSION
+            }
+            .sorted()
+        return if (kept.isEmpty()) url.substring(0, q) else url.substring(0, q) + "?" + kept.joinToString("&")
     }
 
     private fun norm(l: String?): String = l?.trim()?.lowercase()?.substringBefore('-')?.takeIf { it.isNotEmpty() && it != "und" } ?: ""

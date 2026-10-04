@@ -68,4 +68,47 @@ class AudioOrderTest {
         assertEquals(1, AudioOrder.lighter("audio/vnd.dts.hd", 8, null, selectedByFfmpeg = true, userPicked = false,
             candidates = listOf(c(1, "und", 6)))!!.group)
     }
+
+    private fun t(group: Int, ch: Int, label: String? = null, role: Int = 0, sel: Int = 0) =
+        AudioOrder.Candidate(0, group, 0, "en", ch, true, label, role, sel)
+    private fun lighterOf(vararg c: AudioOrder.Candidate) =
+        AudioOrder.lighter("audio/true-hd", 8, "en", selectedByFfmpeg = true, userPicked = false, candidates = c.toList())?.group
+
+    @Test fun `never commentary or audio description, by role or by name`() {
+        assertNull(lighterOf(t(1, 6, role = AudioOrder.ROLE_COMMENTARY)))
+        assertNull(lighterOf(t(1, 6, role = AudioOrder.ROLE_DESCRIBES_VIDEO)))
+        assertNull(lighterOf(t(1, 6, role = AudioOrder.ROLE_DESCRIBES_MUSIC_AND_SOUND)))
+        assertNull(lighterOf(t(1, 6, label = "Director's Commentary")))
+        assertNull(lighterOf(t(1, 6, label = "Audio Description")))
+        assertEquals(2, lighterOf(t(1, 6, label = "COMMENTARY"), t(2, 6, label = "English 5.1")))
+    }
+
+    @Test fun `never down to fewer channels than min(6, the selected)`() {
+        assertNull(lighterOf(t(1, 2)))
+        assertEquals(2, lighterOf(t(1, 2), t(2, 6)))
+        // A 6-channel heavy track (DTS-HD 5.1) never goes to stereo either.
+        assertNull(AudioOrder.lighter("audio/vnd.dts.hd", 6, "en", true, false, listOf(t(1, 2))))
+    }
+
+    @Test fun `the default track first, then the most channels`() {
+        assertEquals(1, lighterOf(t(1, 6, sel = AudioOrder.SELECTION_DEFAULT), t(2, 8)))
+        assertEquals(2, lighterOf(t(1, 6), t(2, 8)))
+    }
+
+    @Test fun `a title's key leaves out per-session and quality parameters`() {
+        val a = "https://srv.plex.direct:32400/library/parts/42/170/file.mkv?X-Plex-Token=t&X-Plex-Session-Identifier=s1&X-Plex-Client-Identifier=c"
+        val b = "https://srv.plex.direct:32400/library/parts/42/170/file.mkv?X-Plex-Session-Identifier=s2&X-Plex-Token=t"
+        assertEquals(AudioOrder.titleKey(a), AudioOrder.titleKey(b))
+        val t1 = "https://h/video/:/transcode/universal/start.m3u8?path=%2Flibrary%2Fmetadata%2F7&session=a&maxVideoBitrate=8000&mediaIndex=0"
+        val t2 = "https://h/video/:/transcode/universal/start.m3u8?mediaIndex=0&path=%2Flibrary%2Fmetadata%2F7&session=b&maxVideoBitrate=4000"
+        assertEquals(AudioOrder.titleKey(t1), AudioOrder.titleKey(t2))
+        assertFalse(AudioOrder.titleKey(t1) == AudioOrder.titleKey(t1.replace("%2F7", "%2F8")))
+        assertEquals("http://line/movie/u/p/9.mkv", AudioOrder.titleKey("http://line/movie/u/p/9.mkv"))
+    }
+
+    @Test fun `a bitstream is muted by turning the audio off, only at volume 0`() {
+        assertTrue(AudioOrder.muteByDisabling(passthrough = true, volume = 0f))
+        assertFalse(AudioOrder.muteByDisabling(passthrough = true, volume = 0.1f))
+        assertFalse(AudioOrder.muteByDisabling(passthrough = false, volume = 0f))
+    }
 }
