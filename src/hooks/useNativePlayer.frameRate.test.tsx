@@ -127,8 +127,9 @@ describe('frame-rate matching — what goes with load()', () => {
 describe('frame-rate matching — the native side (pinned)', () => {
   it('asks the window for the mode (what Fire OS honours) and only for a film on the main player', () => {
     const apply = fn('applyFrameRate');
-    expect(apply).toContain('lp.preferredDisplayModeId = pick.id');
-    expect(apply).toContain('FrameRateMatch.pick(');
+    expect(fn('setPreferredMode')).toContain('lp.preferredDisplayModeId = modeId');
+    expect(apply).toContain('if (!setPreferredMode(act, pick.id)) return');
+    expect(apply).toContain('FrameRateMatch.decide(shown, requestedMode, modeBefore, modes, useFps, restoring)');
     expect(apply).toMatch(/screenId != MAIN \|\| !s\.matchFrameRate \|\| s\.isLive/);
     // Never a change of size (that would be a configuration change).
     expect(apply).toContain('pick.width != shown.width || pick.height != shown.height');
@@ -141,8 +142,10 @@ describe('frame-rate matching — the native side (pinned)', () => {
 
   it('the rate: the WebView\'s first, then the stream\'s, then an estimate; logged once with numbers only', () => {
     const m = fn('matchFrameRate');
-    expect(m.indexOf('s.hintFps > 0f')).toBeLessThan(m.indexOf('format.frameRate > 0f'));
-    expect(m.indexOf('format.frameRate > 0f')).toBeLessThan(m.indexOf('FpsEstimator('));
+    // Plex's approximate label gives way to the stream's own rate within 1 %.
+    expect(m).toContain('s.hintFps > 0f && own > 0f && Math.abs(own - s.hintFps) <= s.hintFps * 0.01f -> applyFrameRate(s, screenId, own, "format")');
+    expect(m.indexOf('s.hintFps > 0f -> applyFrameRate(s, screenId, s.hintFps, "plex")')).toBeLessThan(m.indexOf('own > 0f -> applyFrameRate'));
+    expect(m.indexOf('own > 0f -> applyFrameRate')).toBeLessThan(m.indexOf('FpsEstimator('));
     expect(plugin).toContain('Log.i(TAG, "fps=${FrameRateMatch.label(fps)} src=$source")');
     expect(plugin).toContain('"estimate")');
     // No log line in the matching code names an address.
@@ -151,7 +154,8 @@ describe('frame-rate matching — the native side (pinned)', () => {
   });
 
   it('the film waits in its start-up hold until the TV is in the new mode (4 s at most)', () => {
-    expect(fn('applyFrameRate')).toContain('if (s.holding) s.modeWaitUntilMs = now + MODE_WAIT_MS');
+    const begin = fn('beginModeSwitch');
+    expect(begin).toContain('s.modeWaitUntilMs = switchWaitUntilMs');
     expect(plugin).toContain('&& !(s.modeWaitUntilMs != 0L && now < s.modeWaitUntilMs)');
     expect(fn('watchDisplayMode')).toContain('registerDisplayListener');
     expect(plugin).toMatch(/MODE_WAIT_MS = 4000L/);
@@ -171,8 +175,9 @@ describe('frame-rate matching — the native side (pinned)', () => {
   });
 
   it('the HDMI blank is no stall: not counted, the first-picture watchdog starts over, a lost sound output resumes the film', () => {
-    expect(plugin).toContain('state == Player.STATE_BUFFERING && s.firstFrameSeen && !inModeSwitch(s)');
-    expect(fn('applyFrameRate')).toContain('if (s.watchdogRunnable != null) scheduleWatchdog(s, screenId)');
+    expect(plugin).toMatch(/if \(inModeSwitch\(s\)\) \{\s*\/\/[^\n]*\n\s*s\.stallStartedAtMs = s\.modeSwitchUntilMs\s*s\.stallUncounted = true/);
+    expect(plugin).toContain('if (s.stallUncounted) s.stalls++');
+    expect(fn('beginModeSwitch')).toContain('if (s.watchdogRunnable != null) scheduleWatchdog(s, screenId)');
     expect(plugin).toContain('if (isAudioTrack && inModeSwitch(s)');
   });
 
@@ -189,5 +194,32 @@ describe('frame-rate matching — the native side (pinned)', () => {
 
   it('the stats report the screen\'s refresh rate', () => {
     expect(plugin).toContain('o.put("displayHz", displayHz() ?: JSONObject.NULL)');
+  });
+
+  it('review fixes: the last title\'s mode never sticks, a mid-play switch holds, HDMI re-sync, ignored requests, pending switches', () => {
+    const apply = fn('applyFrameRate');
+    // F1: unknown rate, VFR (an estimate of none) and trailers go through decide (Restore).
+    expect(apply).toContain('val useFps = if (fps != null && fps > 0f && !short) fps else null');
+    expect(apply).toContain('is FrameRateMatch.Decision.Restore -> {');
+    expect(fn('timeFrame')).toContain('val fps = FrameRateMatch.estimate(e.pts, e.count)\n');
+    // F2: a switch while playing re-enters the hold and resumes there.
+    const begin = fn('beginModeSwitch');
+    expect(begin).toMatch(/s\.holding = true\s*s\.modeWaitUntilMs = switchWaitUntilMs\s*p\.playWhenReady = false\s*schedulePreBuffer\(s, screenId, midFile = true\)/);
+    // F3: the display has the mode; HDMI gets 1.5 s more.
+    const watch = fn('watchDisplayMode');
+    expect(watch).toContain('if (s.modeWaitUntilMs != 0L) s.modeWaitUntilMs = t');
+    expect(watch).toContain('s.modeSwitchUntilMs = maxOf(s.modeSwitchUntilMs, t)');
+    expect(plugin).toMatch(/MODE_RESYNC_MS = 1500L/);
+    // F4: already on screen: attribute only; an ignored request stops later waits.
+    expect(apply).toContain('if (pick.id != shown.id) beginModeSwitch(s, screenId, pick, useFps, request = true)');
+    expect(begin).toContain('if (!modeRequestsIgnored) {');
+    expect(begin).toContain('modeRequestsIgnored = true');
+    // F6: a load during a pending switch keeps the grace and waits.
+    expect(fn('load')).toContain('if (s.matchFrameRate && switchPending()) {');
+    expect(fn('stopSlot')).toContain('if (!(slots[MAIN] === s && switchPending())) s.modeSwitchUntilMs = 0L');
+    // F7: restore 4 s after a stop; a restore in flight is pinned.
+    expect(plugin).toMatch(/MODE_RESTORE_DELAY_MS = 4000L/);
+    expect(apply).toContain('is FrameRateMatch.Decision.Pin -> {');
+    expect(fn('restoreDisplayMode')).toContain('restoringFrom = asked');
   });
 });

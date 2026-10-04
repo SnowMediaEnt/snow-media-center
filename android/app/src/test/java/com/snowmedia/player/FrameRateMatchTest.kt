@@ -157,6 +157,47 @@ class FrameRateMatchTest {
         assertNull(FrameRateMatch.estimate(jump, 48))
     }
 
+    @Test fun `a 50 Hz box with only 50 and 60 - films, 29_97 and 59_94 go to 60`() {
+        val box = listOf(uhd(50f), uhd(60f))
+        assertEquals(60f, FrameRateMatch.pick(box[0], box, 23.976f)!!.refreshRate)
+        assertEquals(60f, FrameRateMatch.pick(box[0], box, 29.97f)!!.refreshRate)
+        assertEquals(60f, FrameRateMatch.pick(box[0], box, 59.94f)!!.refreshRate)
+        // Already at 60: near (29.97, 59.94) or pulldown (23.976) is as good as it gets.
+        assertNull(FrameRateMatch.pick(box[1], box, 29.97f))
+        assertNull(FrameRateMatch.pick(box[1], box, 59.94f))
+        assertNull(FrameRateMatch.pick(box[1], box, 23.976f))
+        assertTrue(FrameRateMatch.isNear(60f, 29.97f))
+        assertTrue(FrameRateMatch.isNear(60f, 59.94f))
+        assertFalse(FrameRateMatch.isNear(50f, 23.976f))
+        assertTrue(FrameRateMatch.fitsPulldown(60f, 23.976f))
+        assertFalse(FrameRateMatch.fitsPulldown(59.94f, 25f))
+    }
+
+    @Test fun `a new title is never kept in the last one's mode when that does not fit it`() {
+        val box = listOf(uhd(60f), uhd(23.976f), uhd(59.94f), uhd(50f))
+        val at60 = box[0]
+        val film = box[1]
+        // 29.97 after a 23.976 film: 59.94, not 24 Hz.
+        assertEquals(FrameRateMatch.Decision.Request(box[2]), FrameRateMatch.decide(film, film, at60, box, 29.97f))
+        // 30 after it: the screen's own 60 fits, so back to it.
+        assertEquals(FrameRateMatch.Decision.Restore, FrameRateMatch.decide(film, film, at60, box, 30f))
+        // The same rate again: kept, no blank.
+        assertEquals(FrameRateMatch.Decision.Keep, FrameRateMatch.decide(film, film, at60, box, 23.976f))
+        // Unknown, variable, or too short: back to the screen's own.
+        assertEquals(FrameRateMatch.Decision.Restore, FrameRateMatch.decide(film, film, at60, box, null))
+        assertEquals(FrameRateMatch.Decision.Keep, FrameRateMatch.decide(at60, null, null, box, null))
+        // Nothing asked for yet: the plain pick.
+        assertEquals(FrameRateMatch.Decision.Request(film), FrameRateMatch.decide(at60, null, null, box, 23.976f))
+        assertEquals(FrameRateMatch.Decision.Keep, FrameRateMatch.decide(at60, null, null, box, 30f))
+    }
+
+    @Test fun `a restore in flight that already fits the next title is pinned, not blanked twice`() {
+        val box = listOf(uhd(60f), uhd(23.976f))
+        assertEquals(FrameRateMatch.Decision.Pin(box[1]), FrameRateMatch.decide(box[1], null, null, box, 23.976f, restoringFrom = box[1]))
+        // A rate it doesn't fit: the plain pick.
+        assertEquals(FrameRateMatch.Decision.Keep, FrameRateMatch.decide(box[0], null, null, box, 60f, restoringFrom = box[1]))
+    }
+
     @Test fun `labels for the log and the stats`() {
         assertEquals("23.976", FrameRateMatch.label(23.976025f))
         assertEquals("59.94", FrameRateMatch.label(59.94006f))

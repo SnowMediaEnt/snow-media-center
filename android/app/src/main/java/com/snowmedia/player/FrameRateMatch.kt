@@ -44,6 +44,8 @@ internal object FrameRateMatch {
     /** Within this (per frame) a mode counts as the film's exact rate. */
     private const val EXACT_HZ = 0.01f
     private const val PULLDOWN = 2.5f
+    private const val PULLDOWN_TOLERANCE_FPS = 0.03f
+    private const val NEAR_FRACTION = 0.0011f
 
     /** The multiples tried, in order of preference, for a frame rate. */
     fun preferredMultiples(fps: Float): IntArray = when {
@@ -71,8 +73,16 @@ internal object FrameRateMatch {
         return m > 0 && Math.abs(refresh / m - fps) <= EXACT_HZ
     }
 
-    private fun fitsPulldown(refresh: Float, fps: Float): Boolean =
-        fps > 0f && Math.abs(refresh - fps * PULLDOWN) <= TOLERANCE_HZ
+    /** 3:2 pulldown: the refresh is 2.5 film frames, within 0.03 fps. */
+    fun fitsPulldown(refresh: Float, fps: Float): Boolean =
+        fps > 0f && Math.abs(refresh / PULLDOWN - fps) <= PULLDOWN_TOLERANCE_FPS
+
+    /** x1 or x2 within 0.11 % (59.94 on 60, 29.97 on 60): a frame repeated
+     *  every ~15-30 s. Only when nothing fits, before pulldown. */
+    fun isNear(refresh: Float, fps: Float): Boolean {
+        if (!(fps > 0f) || !(refresh > 0f)) return false
+        return intArrayOf(1, 2).any { m -> Math.abs(refresh / m - fps) <= fps * NEAR_FRACTION }
+    }
 
     private fun usable(fps: Float): Boolean = fps > 0f && !fps.isNaN() && !fps.isInfinite()
 
@@ -100,11 +110,68 @@ internal object FrameRateMatch {
         if (fits(current.refreshRate, fps) && !anyExact) return null
         val best = fitting.firstOrNull()
         if (best != null) return if (best.id == current.id) null else best
+        // Nothing fits (the screen's mode doesn't either): a near mode (x1 /
+        // x2 within 0.11 %), the screen's own first.
+        if (isNear(current.refreshRate, fps)) return null
+        val near = sameSize
+            .filter { isNear(it.refreshRate, fps) }
+            .minWithOrNull(
+                compareBy<Mode>(
+                    { order.indexOf(if (Math.abs(it.refreshRate - fps) <= fps * NEAR_FRACTION) 1 else 2) },
+                    { Math.abs(it.refreshRate - current.refreshRate) },
+                ),
+            )
+        if (near != null) return near
         // Last resort: 3:2 pulldown, only where the screen's own mode is not that already.
         if (fitsPulldown(current.refreshRate, fps)) return null
         return sameSize
             .filter { fitsPulldown(it.refreshRate, fps) }
-            .minByOrNull { Math.abs(it.refreshRate - fps * PULLDOWN) }
+            .minByOrNull { Math.abs(it.refreshRate / PULLDOWN - fps) }
+    }
+
+    /** What to do with the screen for a title (SnowPlayerPlugin.applyFrameRate). */
+    sealed class Decision {
+        /** Leave the screen as it is. */
+        object Keep : Decision()
+        /** Ask for this mode. */
+        data class Request(val mode: Mode) : Decision()
+        /** Back to the system's own mode (preferredDisplayModeId 0). */
+        object Restore : Decision()
+        /** Ask for the mode the screen shows now (attribute only, no blank). */
+        data class Pin(val mode: Mode) : Decision()
+    }
+
+    /**
+     * The decision for a title at `fps` (null: unknown, variable, or a title
+     * too short to switch for). `shown`: the screen's mode now. `requested`:
+     * the mode this app asked for for an earlier title, null for none;
+     * `before`: the mode the screen was in before that. `restoringFrom`: a
+     * mode the app has just let go of that the screen still shows (a
+     * restore in flight).
+     *
+     * A new title is judged against what was asked for, but never kept in
+     * the last title's mode when that doesn't fit it: then it is judged
+     * from the screen's own mode, and goes back there if that is as good.
+     */
+    fun decide(shown: Mode, requested: Mode?, before: Mode?, modes: List<Mode>, fps: Float?, restoringFrom: Mode? = null): Decision {
+        if (fps == null || !usable(fps)) return if (requested != null) Decision.Restore else Decision.Keep
+        if (requested == null) {
+            val p = pick(shown, modes, fps)
+            if (p != null) return Decision.Request(p)
+            if (restoringFrom != null && restoringFrom.id == shown.id && fits(shown.refreshRate, fps)) return Decision.Pin(shown)
+            return Decision.Keep
+        }
+        val p = pick(requested, modes, fps)
+        // The screen's own mode is the one: give it back rather than pin it.
+        if (p != null) return if (before != null && p.id == before.id) Decision.Restore else Decision.Request(p)
+        if (fits(requested.refreshRate, fps)) return Decision.Keep
+        val p2 = pick(before ?: shown, modes, fps)
+        return when {
+            p2 == null -> Decision.Restore
+            p2.id == requested.id -> Decision.Keep
+            before != null && p2.id == before.id -> Decision.Restore
+            else -> Decision.Request(p2)
+        }
     }
 
     /** Frame rates a film or an episode really comes in; an estimate snaps to the nearest. */

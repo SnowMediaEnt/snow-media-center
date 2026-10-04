@@ -272,6 +272,10 @@ class SnowPlayerPlugin : Plugin() {
         // been pushed back.
         var matchFrameRate: Boolean = false
         var modeSwitchUntilMs: Long = 0L
+        // A rebuffer that began inside the switch's grace: counted only if
+        // it is still going once the grace is over (stallStartedAtMs is
+        // then the grace's end).
+        var stallUncounted: Boolean = false
         // The frame rate the WebView knows for this load (Plex's metadata:
         // a Matroska file never states one to the player); 0 = none. Which
         // source the rate came from is logged once per load.
@@ -329,6 +333,20 @@ class SnowPlayerPlugin : Plugin() {
     // A stop puts the screen back a moment later, so a quality change, a
     // retry or the next episode (a stop and a load) keeps the film's mode.
     private val restoreModeRunnable = Runnable { restoreDisplayMode() }
+    // A switch under way: the start-up hold waits for it until this time
+    // (a load arriving meanwhile waits too, see load()).
+    private var switchWaitUntilMs: Long = 0L
+    // This box or TV left a request unanswered once (the mode never showed
+    // within MODE_WAIT_MS): requests still go out, but no start waits on
+    // them for the rest of the process.
+    private var modeRequestsIgnored: Boolean = false
+    private var modeWaitTimeout: Runnable? = null
+    // A mode just let go of (restoreDisplayMode) that the screen may still
+    // show for a moment, and the mode from before it: a film arriving then
+    // at a rate that mode fits pins it instead of blanking twice.
+    private var restoringFrom: FrameRateMatch.Mode? = null
+    private var restoringBefore: FrameRateMatch.Mode? = null
+    private var restoredAtMs: Long = 0L
 
     companion object {
         private const val MAIN = "main"
@@ -397,7 +415,11 @@ class SnowPlayerPlugin : Plugin() {
         private const val MODE_WAIT_MS = 4000L
         /** After a stop, the screen goes back to its own mode this much later
          *  unless another film loads (Plex's quality change is a stop and a load). */
-        private const val MODE_RESTORE_DELAY_MS = 2000L
+        private const val MODE_RESTORE_DELAY_MS = 4000L
+        /** How long after a restore the screen may still show the old mode. */
+        private const val RESTORE_SETTLE_MS = 5000L
+        /** After the display reports the new mode, HDMI takes about this long to show a picture. */
+        private const val MODE_RESYNC_MS = 1500L
         /** Shorter than this (a trailer, an extra): never worth a mode switch. */
         private const val MIN_MATCH_DURATION_MS = 5 * 60_000L
         /** Frames timed for a frame-rate estimate. */
@@ -519,6 +541,7 @@ class SnowPlayerPlugin : Plugin() {
         s.stalls = 0
         s.stallSec = 0.0
         s.stallStartedAtMs = 0L
+        s.stallUncounted = false
         s.loadStartWallMs = SystemClock.elapsedRealtime()
         s.loadStartCpuMs = Process.getElapsedCpuTime()
         if (url != s.statsUrl) {
@@ -1042,71 +1065,144 @@ class SnowPlayerPlugin : Plugin() {
         // (a trailer is left alone, see applyFrameRate).
         if (format == null || screenId != MAIN || !s.matchFrameRate || s.isLive) return
         val url = s.currentUrl ?: return
+        val own = format.frameRate
         when {
+            // Plex's labels ("24p", "NTSC") are approximate: the stream's own
+            // rate wins when it is there and agrees within 1 %.
+            s.hintFps > 0f && own > 0f && Math.abs(own - s.hintFps) <= s.hintFps * 0.01f -> applyFrameRate(s, screenId, own, "format")
             s.hintFps > 0f -> applyFrameRate(s, screenId, s.hintFps, "plex")
-            format.frameRate > 0f -> applyFrameRate(s, screenId, format.frameRate, "format")
+            own > 0f -> applyFrameRate(s, screenId, own, "format")
             s.fpsEstimator == null -> s.fpsEstimator = FpsEstimator(url)
         }
     }
 
     /**
-     * Ask for the mode that fits this film's frame rate, if the screen is not
-     * in one already. Judged against the mode last asked for while one is
-     * (the display reports the old one until the TV has switched, and keeps
-     * reporting it if the TV ignored the request), so a second report of the
-     * same rate (the track list, then the decoder; a quality change; a seek)
-     * never asks again. Logs numbers only.
+     * Settle the screen's mode for this title (FrameRateMatch.decide): ask
+     * for the mode that fits `fps`, keep the one asked for when it still
+     * fits, or give the screen back its own when the last title's mode
+     * doesn't fit this one (or the rate is unknown, variable, or the title a
+     * trailer: `fps` null). Judged against the mode last asked for while
+     * one is (the display reports the old one until the TV has switched, and
+     * keeps reporting it if the TV ignored the request), so a second report
+     * of the same rate never asks again. Logs numbers only.
      */
-    private fun applyFrameRate(s: PlayerSlot, screenId: String, fps: Float, source: String) {
+    private fun applyFrameRate(s: PlayerSlot, screenId: String, fps: Float?, source: String) {
         if (screenId != MAIN || !s.matchFrameRate || s.isLive || s.currentUrl == null) return
-        if (!(fps > 0f)) return
-        if (!s.fpsLogged) {
+        if (fps != null && fps > 0f && !s.fpsLogged) {
             s.fpsLogged = true
             Log.i(TAG, "fps=${FrameRateMatch.label(fps)} src=$source")
         }
-        // A trailer or an extra: not worth 1-3 s of blank screen.
+        // A trailer or an extra: not worth 1-3 s of blank screen, and not
+        // left in the last film's mode either.
         val dur = s.player?.duration ?: C.TIME_UNSET
-        if (dur != C.TIME_UNSET && dur in 1 until MIN_MATCH_DURATION_MS) return
+        val short = dur != C.TIME_UNSET && dur in 1 until MIN_MATCH_DURATION_MS
+        val useFps = if (fps != null && fps > 0f && !short) fps else null
         val act = activity ?: return
         val display = currentDisplay() ?: return
         val shown = try { modeOf(display.mode) } catch (_: Throwable) { return }
         val modes = try { display.supportedModes.map { modeOf(it) } } catch (_: Throwable) { return }
-        val pick = FrameRateMatch.pick(requestedMode ?: shown, modes, fps) ?: return
-        // Never a change of size: that would be a configuration change too.
-        if (pick.id == requestedModeId || pick.width != shown.width || pick.height != shown.height) return
-        try {
-            val w = act.window
-            val lp = w.attributes
-            lp.preferredDisplayModeId = pick.id
-            w.attributes = lp
-        } catch (e: Throwable) {
-            Log.w(TAG, "Display mode not changed (${e.javaClass.simpleName})")
-            return
+        val now = SystemClock.elapsedRealtime()
+        val restoring = restoringFrom?.takeIf { it.id == shown.id && now - restoredAtMs < RESTORE_SETTLE_MS }
+        when (val d = FrameRateMatch.decide(shown, requestedMode, modeBefore, modes, useFps, restoring)) {
+            is FrameRateMatch.Decision.Keep -> return
+            is FrameRateMatch.Decision.Pin -> {
+                // The screen already shows a mode that fits: hold it there.
+                if (!setPreferredMode(act, d.mode.id)) return
+                requestedModeId = d.mode.id
+                requestedMode = d.mode
+                modeBefore = restoringBefore
+                restoringFrom = null
+                Log.i(TAG, "fps ${FrameRateMatch.label(useFps ?: 0f)} → keep mode ${modeText(d.mode)}")
+            }
+            is FrameRateMatch.Decision.Restore -> {
+                val back = modeBefore
+                restoreDisplayMode()
+                if (back != null && back.id != shown.id) beginModeSwitch(s, screenId, back, useFps, request = false)
+            }
+            is FrameRateMatch.Decision.Request -> {
+                val pick = d.mode
+                // Never a change of size: that would be a configuration change too.
+                if (pick.id == requestedModeId || pick.width != shown.width || pick.height != shown.height) return
+                mainHandler.removeCallbacks(restoreModeRunnable)
+                if (!setPreferredMode(act, pick.id)) return
+                if (requestedModeId == 0) modeBefore = restoring?.let { restoringBefore } ?: shown
+                requestedModeId = pick.id
+                requestedMode = pick
+                restoringFrom = null
+                Log.i(TAG, "fps ${FrameRateMatch.label(useFps ?: 0f)} → mode ${modeText(pick)} (was ${modeText(shown)})")
+                // Already on screen (the TV is in it, only our request was
+                // elsewhere): the attribute alone, no blank to wait for.
+                if (pick.id != shown.id) beginModeSwitch(s, screenId, pick, useFps, request = true)
+            }
         }
-        if (requestedModeId == 0) modeBefore = shown
-        requestedModeId = pick.id
-        requestedMode = pick
-        Log.i(TAG, "fps ${FrameRateMatch.label(fps)} → mode ${modeText(pick)} (was ${modeText(shown)})")
-        // The HDMI blank that follows is not a stall: stalls are not counted
-        // for a while (onPlaybackStateChanged), and a first-picture watchdog
-        // still waiting starts its 8 s again. The WebView treats it like a
-        // seek for automatic quality. A start-up hold still running keeps the
-        // film paused until the screen is in the new mode (watchDisplayMode).
+    }
+
+    private fun setPreferredMode(act: android.app.Activity, modeId: Int): Boolean = try {
+        val w = act.window
+        val lp = w.attributes
+        lp.preferredDisplayModeId = modeId
+        w.attributes = lp
+        true
+    } catch (e: Throwable) {
+        Log.w(TAG, "Display mode not changed (${e.javaClass.simpleName})")
+        false
+    }
+
+    /**
+     * The screen is about to change mode (1-3 s of blank HDMI): stalls are
+     * not counted for a while (onPlaybackStateChanged), a first-picture
+     * watchdog still waiting starts its 8 s again, and the WebView treats it
+     * like a seek for automatic quality. The film waits, paused, until the
+     * screen is in the new mode and HDMI has had a moment (MODE_WAIT_MS at
+     * most): its start-up hold if one is running, or (a switch mid-play, from
+     * an estimate) a fresh hold that resumes where it paused. Not on a box
+     * that has ignored a request before.
+     */
+    private fun beginModeSwitch(s: PlayerSlot, screenId: String, target: FrameRateMatch.Mode, fps: Float?, request: Boolean) {
         val now = SystemClock.elapsedRealtime()
         s.modeSwitchUntilMs = now + MODE_SWITCH_GRACE_MS
-        if (s.holding) s.modeWaitUntilMs = now + MODE_WAIT_MS
-        watchDisplayMode(s, pick.id)
+        switchWaitUntilMs = now + MODE_WAIT_MS
+        if (!modeRequestsIgnored) {
+            if (s.holding) {
+                s.modeWaitUntilMs = switchWaitUntilMs
+            } else {
+                val p = s.player
+                if (p != null && p.playWhenReady && !s.isLive && s.engine == EngineChoice.EXO && s.currentUrl != null) {
+                    // Playing: hold here until the screen is back.
+                    s.holding = true
+                    s.modeWaitUntilMs = switchWaitUntilMs
+                    p.playWhenReady = false
+                    schedulePreBuffer(s, screenId, midFile = true)
+                }
+            }
+        }
+        watchDisplayMode(s, target.id)
+        modeWaitTimeout?.let { mainHandler.removeCallbacks(it) }
+        val asked = if (request) target.id else 0
+        val r = Runnable {
+            modeWaitTimeout = null
+            val shownNow = try { currentDisplay()?.mode?.modeId } catch (_: Throwable) { null }
+            if (asked != 0 && requestedModeId == asked && shownNow != asked && !modeRequestsIgnored) {
+                modeRequestsIgnored = true
+                Log.w(TAG, "display mode request not taken within ${MODE_WAIT_MS / 1000} s; starts no longer wait for it")
+            }
+        }
+        modeWaitTimeout = r
+        mainHandler.postDelayed(r, MODE_WAIT_MS)
         if (s.watchdogRunnable != null) scheduleWatchdog(s, screenId)
         notifyListeners(
             "displayMode",
             JSObject().put("screenId", screenId)
-                .put("fps", Math.round(fps * 1000.0) / 1000.0)
-                .put("refreshHz", Math.round(pick.refreshRate * 1000.0) / 1000.0),
+                .put("fps", if (fps != null) Math.round(fps * 1000.0) / 1000.0 else JSONObject.NULL)
+                .put("refreshHz", Math.round(target.refreshRate * 1000.0) / 1000.0),
         )
     }
 
-    /** Until the display reports mode [modeId] (or MODE_WAIT_MS pass): then
-     *  the start-up hold may end, and the blank's grace runs on from there. */
+    /** A switch under way: the display listener is waiting for its mode. */
+    private fun switchPending(): Boolean = displayListener != null && SystemClock.elapsedRealtime() < switchWaitUntilMs
+
+    /** Until the display reports mode [modeId]: then HDMI gets MODE_RESYNC_MS
+     *  more before the hold may end, and the grace runs at least that long. */
     private fun watchDisplayMode(s: PlayerSlot, modeId: Int) {
         unwatchDisplayMode()
         val dm = activity?.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager ?: return
@@ -1117,11 +1213,10 @@ class SnowPlayerPlugin : Plugin() {
                 val now = try { currentDisplay()?.mode?.modeId } catch (_: Throwable) { null }
                 if (now != modeId) return
                 unwatchDisplayMode()
-                if (s.modeWaitUntilMs != 0L) {
-                    s.modeWaitUntilMs = 0L
-                    // The TV takes a moment more to show the picture.
-                    s.modeSwitchUntilMs = maxOf(s.modeSwitchUntilMs, SystemClock.elapsedRealtime() + 1500L)
-                }
+                // The display has the mode; the TV has yet to re-sync HDMI.
+                val t = SystemClock.elapsedRealtime() + MODE_RESYNC_MS
+                if (s.modeWaitUntilMs != 0L) s.modeWaitUntilMs = t
+                s.modeSwitchUntilMs = maxOf(s.modeSwitchUntilMs, t)
             }
         }
         try {
@@ -1137,7 +1232,8 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     /** Playback thread: a frame about to be shown, for a film whose rate is
-     *  not known. The estimate goes to the main thread once. */
+     *  not known. The estimate (or "none": variable, a jump) goes to the
+     *  main thread once; none gives the screen back its own mode. */
     private fun timeFrame(s: PlayerSlot, presentationTimeUs: Long) {
         val e = s.fpsEstimator ?: return
         if (e.done) return
@@ -1145,7 +1241,7 @@ class SnowPlayerPlugin : Plugin() {
         e.pts[e.count++] = presentationTimeUs
         if (e.count < FPS_ESTIMATE_FRAMES) return
         e.done = true
-        val fps = FrameRateMatch.estimate(e.pts, e.count) ?: return
+        val fps = FrameRateMatch.estimate(e.pts, e.count)
         mainHandler.post {
             if (s.fpsEstimator === e && s.currentUrl == e.url) applyFrameRate(s, MAIN, fps, "estimate")
         }
@@ -1161,6 +1257,9 @@ class SnowPlayerPlugin : Plugin() {
         requestedModeId = 0
         requestedMode = null
         modeBefore = null
+        restoringFrom = asked
+        restoringBefore = before
+        restoredAtMs = SystemClock.elapsedRealtime()
         try {
             val w = activity?.window ?: return
             val lp = w.attributes
@@ -1566,11 +1665,25 @@ class SnowPlayerPlugin : Plugin() {
                 // picture — the start-up wait is firstFrameMs, not a stall.
                 // A display mode switch under way (1-3 s of blank HDMI) is
                 // not a stall either.
-                if (state == Player.STATE_BUFFERING && s.firstFrameSeen && !inModeSwitch(s)) {
-                    if (s.stallStartedAtMs == 0L) { s.stallStartedAtMs = SystemClock.elapsedRealtime(); s.stalls++ }
+                if (state == Player.STATE_BUFFERING && s.firstFrameSeen) {
+                    if (s.stallStartedAtMs == 0L) {
+                        if (inModeSwitch(s)) {
+                            // Counted from the grace's end, if it lasts past it.
+                            s.stallStartedAtMs = s.modeSwitchUntilMs
+                            s.stallUncounted = true
+                        } else {
+                            s.stallStartedAtMs = SystemClock.elapsedRealtime()
+                            s.stalls++
+                        }
+                    }
                 } else if (s.stallStartedAtMs != 0L) {
-                    s.stallSec += (SystemClock.elapsedRealtime() - s.stallStartedAtMs) / 1000.0
+                    val now = SystemClock.elapsedRealtime()
+                    if (now > s.stallStartedAtMs) {
+                        s.stallSec += (now - s.stallStartedAtMs) / 1000.0
+                        if (s.stallUncounted) s.stalls++
+                    }
                     s.stallStartedAtMs = 0L
+                    s.stallUncounted = false
                 }
                 // Rewind live TV: the buffer ran out; back to the channel itself.
                 if (state == Player.STATE_ENDED && screenId == MAIN && tsBuffer) { tsGoLive(s); return }
@@ -2038,14 +2151,21 @@ class SnowPlayerPlugin : Plugin() {
             // film keeps the last one's mode until its own rate is known
             // (back-to-back episodes at the same rate blank nothing).
             s.matchFrameRate = matchFrameRate && !live && screenId == MAIN
-            s.modeSwitchUntilMs = 0L
-            s.modeWaitUntilMs = 0L
             s.hintFps = if (s.matchFrameRate) hintFps else 0f
             s.fpsLogged = false
             s.fpsEstimator = null
             if (screenId == MAIN) {
                 mainHandler.removeCallbacks(restoreModeRunnable)
                 if (!s.matchFrameRate) restoreDisplayMode()
+                // A switch still under way when this film loads: its blank is
+                // still to come, so the grace stays and the start waits for
+                // it too, whatever this film decides.
+                if (s.matchFrameRate && switchPending()) {
+                    s.modeWaitUntilMs = if (modeRequestsIgnored) 0L else switchWaitUntilMs
+                } else {
+                    s.modeSwitchUntilMs = 0L
+                    s.modeWaitUntilMs = 0L
+                }
                 // While this plugin manages the mode, Media3 must not ask for
                 // one of its own (Surface.setFrameRate, API 30+).
                 try {
@@ -2311,7 +2431,8 @@ class SnowPlayerPlugin : Plugin() {
         o.put("nativeHeapMb", if (memory) Debug.getNativeHeapAllocatedSize() / MIB else JSONObject.NULL)
         o.put("engine", s?.engine ?: EngineChoice.EXO)
         o.put("firstFrameMs", s?.firstFrameMs ?: JSONObject.NULL)
-        o.put("stalls", s?.stalls ?: 0)
+        // A rebuffer that began in a switch's grace counts once it outlasts it.
+        o.put("stalls", (s?.stalls ?: 0) + (if (s != null && s.stallUncounted && SystemClock.elapsedRealtime() > s.stallStartedAtMs) 1 else 0))
         o.put("stallSec", s?.let { Math.round(it.stallSec * 10.0) / 10.0 } ?: 0.0)
         o.put("cpuPct", s?.let { cpuPctSince(it) }?.let { Math.round(it * 10.0) / 10.0 } ?: JSONObject.NULL)
         o.put("pssMb", if (memory) cachedPssMb() else JSONObject.NULL)
@@ -2465,7 +2586,9 @@ class SnowPlayerPlugin : Plugin() {
             mainHandler.postDelayed(restoreModeRunnable, MODE_RESTORE_DELAY_MS)
         }
         s.matchFrameRate = false
-        s.modeSwitchUntilMs = 0L
+        // A switch still under way keeps its grace for the next load (a
+        // quality change is a stop and a load).
+        if (!(slots[MAIN] === s && switchPending())) s.modeSwitchUntilMs = 0L
         s.modeWaitUntilMs = 0L
         s.fpsEstimator = null
         s.userPickedAudio = false

@@ -366,7 +366,7 @@ export interface SnowPlayerPlugin {
       /** displayMode (main slot): the player asked the TV for a display
        *  mode fitting the film's frame rate; the screen may be blank for
        *  1-3 s while it switches. Numbers only. */
-      fps?: number; refreshHz?: number;
+      fps?: number | null; refreshHz?: number;
       /** audioOutput (main slot): the sound now goes out as a bitstream to
        *  the TV or receiver (no volume or boost here acts on it), or no
        *  longer does. */
