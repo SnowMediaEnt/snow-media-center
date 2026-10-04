@@ -246,3 +246,14 @@ describe('SnowPlayerPlugin.kt — getStats', () => {
     expect(plugin).toContain('s.loadProfile = if (lowRam) "tile · 15 s / 6 MB" else "tile · 15 s / 10 MB"');
   });
 });
+
+describe('SnowPlayerPlugin.kt — reads that cost nothing on the UI thread', () => {
+  it('the heaps (mallinfo) are read only for the stats panel (memory: true), like the PSS', () => {
+    expect(plugin).toContain('o.put("javaHeapMb", if (memory) (rt.totalMemory() - rt.freeMemory()) / MIB else JSONObject.NULL)');
+    expect(plugin).toContain('o.put("nativeHeapMb", if (memory) Debug.getNativeHeapAllocatedSize() / MIB else JSONObject.NULL)');
+  });
+
+  it('the bandwidth event carries the arrival rate, so the WebView needs no poll for it', () => {
+    expect(plugin).toMatch(/notifyListeners\(\s*"bandwidth",\s*JSObject\(\)\.put\("screenId", screenId\)\.put\("kbps", kbps\)\s*\.put\("arrival", true\)\.put\("arrivalKbps", kbps\)/);
+  });
+});

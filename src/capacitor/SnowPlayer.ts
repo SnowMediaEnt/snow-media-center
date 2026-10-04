@@ -350,8 +350,10 @@ export interface SnowPlayerPlugin {
       /** audioUnsupported: the codecs present that this device cannot decode. */
       codecs?: string; ffmpegAvailable?: boolean;
       /** bandwidth (main slot, every 3 s while data flows): how fast the
-       *  player's own downloads are arriving, kbps. */
-      kbps?: number;
+       *  player's own downloads are arriving, kbps. `arrival: true` (newer
+       *  builds) says it is the arrival rate getStats.arrivalKbps reports,
+       *  sent here too as `arrivalKbps`, so no getStats poll is needed. */
+      kbps?: number; arrival?: boolean; arrivalKbps?: number;
       /** preBuffer (main slot, every 500 ms while a film's start is held to
        *  fill the buffer): video buffered ahead / the target, time held / the
        *  limit, all ms; `done` on the last one. */

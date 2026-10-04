@@ -50,6 +50,8 @@ const h = vi.hoisted(() => {
     fetch: vi.fn(),
     /** The native player's getStats (its last error). */
     stats: vi.fn(),
+    /** The plugin's 'bandwidth' listeners (a newer plugin sends the arrival rate with them). */
+    bandwidth: [] as Array<(d: Record<string, unknown>) => void>,
     closePlayer: null as null | (() => void),
     pickQuality: null as null | ((key: string, resumeSec: number) => void),
   };
@@ -84,7 +86,11 @@ vi.mock('@/hooks/usePlexAuth', () => ({ usePlexAuth: () => h.auth }));
 vi.mock('@/capacitor/SnowPlayer', async (orig) => {
   const m = await orig<typeof import('@/capacitor/SnowPlayer')>();
   // The plugin as it is, but for its stats.
-  const SnowPlayer = new Proxy(m.SnowPlayer, { get: (t, p) => (p === 'getStats' ? h.stats : Reflect.get(t, p)) });
+  const addListener = async (ev: string, cb: (d: Record<string, unknown>) => void) => {
+    if (ev === 'bandwidth') h.bandwidth.push(cb);
+    return { remove: async () => { h.bandwidth = h.bandwidth.filter((f) => f !== cb); } };
+  };
+  const SnowPlayer = new Proxy(m.SnowPlayer, { get: (t, p) => (p === 'getStats' ? h.stats : p === 'addListener' ? addListener : Reflect.get(t, p)) });
   return { ...m, hasNativePlayer: () => true, SnowPlayer };
 });
 // The native player: records the address it is handed; a test flips
@@ -190,6 +196,7 @@ const playOn = () => { act(() => { diagSetBuffering(false); }); setBuffering(fal
 const report = async (kbps: number, after = 3_000) => { await wait(after); act(() => { recordPlayerRate(kbps); }); };
 
 beforeEach(async () => {
+  h.bandwidth = [];
   sessionStorage.clear();
   localStorage.clear();
   h.conn.route = 'direct';
@@ -819,6 +826,24 @@ describe('the arrival poll: getStats every window, the one measurement', () => {
     const quiet = /No data from the server for (\d+) s\./.exec(document.body.textContent ?? '');
     expect(quiet).not.toBeNull();
     expect(Number(quiet?.[1])).toBeGreaterThanOrEqual(15);
+  });
+
+  it('a plugin that sends the arrival rate with its bandwidth event: the samples come from that, and the poll stops', async () => {
+    await playingDune();
+    expect(h.bandwidth.length).toBeGreaterThan(0);
+    act(() => { h.bandwidth.forEach((cb) => cb({ screenId: 'main', kbps: 7500, arrival: true, arrivalKbps: 7500 })); });
+    await wait(4_000);
+    const polled = h.stats.mock.calls.length;
+    // Stalled, the event alone says what arrives: the down rule still acts.
+    stallBoth();
+    for (let i = 0; i < 4; i += 1) {
+      act(() => { h.bandwidth.forEach((cb) => cb({ screenId: 'main', kbps: 4000, arrival: true, arrivalKbps: 4000 })); });
+      await wait(3_000);
+    }
+    playOn();
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
+    // No arrival poll since the first event (getStats may still be read for an error).
+    expect(h.stats.mock.calls.length - polled).toBeLessThanOrEqual(1);
   });
 
   it('carries on for the next title started from the player (Up Next, a restart), which starts its own samples', async () => {

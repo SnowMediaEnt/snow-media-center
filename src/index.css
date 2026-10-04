@@ -392,6 +392,8 @@
 .native-low-memory *:not(.news-ticker):not(.news-ticker-track):not(.animate-spin):not(.smc-loader-track):not(.smc-loader-scene):not(.smc-loader-able):not(.smc-loader-able-img):not(.smc-loader-feet):not(.smc-loader-slope-dashes):not(.smc-loader-runner):not(.smc-loader-ball-wrap) {
   animation-duration: 0.001ms !important;
   animation-delay: 0s !important;
+  /* Once: an infinite animation at 0.001ms still restarts every frame. */
+  animation-iteration-count: 1 !important;
   transition: none !important;
 }
 /* Belt-and-braces: pin the spinner's timing explicitly in case a future

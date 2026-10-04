@@ -466,7 +466,14 @@ class SnowPlayerPlugin : Plugin() {
                 if (ms > 0) {
                     val kbps = (bytes - lastBytes) * 8L / ms
                     if (kbps > 0L || s.lastKbps != 0L) {
-                        notifyListeners("bandwidth", JSObject().put("screenId", screenId).put("kbps", kbps))
+                        // `arrival`: this figure is bytes as they arrive (what
+                        // getStats.arrivalKbps reports), so the WebView needs
+                        // no getStats poll of its own for it.
+                        notifyListeners(
+                            "bandwidth",
+                            JSObject().put("screenId", screenId).put("kbps", kbps)
+                                .put("arrival", true).put("arrivalKbps", kbps),
+                        )
                     }
                     s.lastKbps = kbps
                     if (kbps > 0L) {
@@ -2274,9 +2281,11 @@ class SnowPlayerPlugin : Plugin() {
         o.put("rangeFetch", rangeFetch)
         o.put("connectionCap", if (rangeFetch) (s?.rangeShared?.connectionCap ?: 1) else 1)
         o.put("lowRamBox", isLowRamBoxCached())
+        // The heaps (mallinfo for the native one) only for the stats panel,
+        // like the PSS: not on every read a poll makes on the UI thread.
         val rt = Runtime.getRuntime()
-        o.put("javaHeapMb", (rt.totalMemory() - rt.freeMemory()) / MIB)
-        o.put("nativeHeapMb", Debug.getNativeHeapAllocatedSize() / MIB)
+        o.put("javaHeapMb", if (memory) (rt.totalMemory() - rt.freeMemory()) / MIB else JSONObject.NULL)
+        o.put("nativeHeapMb", if (memory) Debug.getNativeHeapAllocatedSize() / MIB else JSONObject.NULL)
         o.put("engine", s?.engine ?: EngineChoice.EXO)
         o.put("firstFrameMs", s?.firstFrameMs ?: JSONObject.NULL)
         o.put("stalls", s?.stalls ?: 0)
