@@ -19,6 +19,7 @@ import android.util.Log
 import android.hardware.display.DisplayManager
 import android.view.Display
 import android.view.Gravity
+import android.view.SurfaceView
 import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
@@ -101,7 +102,32 @@ class SnowPlayerPlugin : Plugin() {
         // The main player's load control (a film's 4K budget, start and
         // restart after a stall; see SteadyLoadControl). Null on tiles.
         var loadControl: SteadyLoadControl? = null
-        var textureView: TextureView? = null
+        // The picture's own view. The main player draws on a SurfaceView
+        // (`video_surface_view`, on unless switched off remotely): its own
+        // layer straight to the display, frame timing from the decoder, and
+        // HDR10 / HLG / Dolby Vision passed through to an HDR TV. A
+        // TextureView goes through the app's GPU composition every frame,
+        // which at 4K paces frames unevenly and is always SDR. Tiles keep the
+        // TextureView. `wantSurfaceView` is what load() asked for; a change
+        // rebuilds the views (load()).
+        var videoView: View? = null
+        var usesSurfaceView: Boolean = false
+        var wantSurfaceView: Boolean = false
+        // MediaCodec's asynchronous queueing (`async_codec`, API 28+): what
+        // the player was built with, and what load() asks for.
+        var asyncCodec: Boolean = false
+        var wantAsyncCodec: Boolean = false
+        // The scaling mode last handed to the player (SurfaceView zoom).
+        var scalingMode: Int = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+        // Tunneled playback for this load (`tunneled_vod`, off by default).
+        var tunneled: Boolean = false
+        // The video decoder sessions that have ended this load, added up
+        // like framesRendered (statsOf adds the running one's).
+        var framesSkipped: Long = 0L
+        var maxConsecutiveDropped: Int = 0
+        var droppedToKeyframe: Long = 0L
+        var frameOffsetUs: Long = 0L
+        var frameOffsetCount: Long = 0L
         // Opaque black view between the picture and the subtitles. A
         // TextureView keeps showing the last frame it was given — through
         // stop(), setMediaItem() and the container going GONE and back — so
@@ -363,7 +389,14 @@ class SnowPlayerPlugin : Plugin() {
 
     private fun slotFor(screenId: String): PlayerSlot {
         var s = slots[screenId]
-        if (s == null) { s = PlayerSlot(); slots[screenId] = s }
+        if (s == null) {
+            s = PlayerSlot()
+            // setRect can build the main box before the first load() says
+            // which view to use: the SurfaceView, as the switch is on unless
+            // a row turns it off (load() rebuilds the box then).
+            s.wantSurfaceView = screenId == MAIN
+            slots[screenId] = s
+        }
         return s
     }
 
@@ -454,6 +487,7 @@ class SnowPlayerPlugin : Plugin() {
         s.kbpsSamples = 0
         s.framesRendered = 0L
         s.framesDropped = 0L
+        clearVideoTelemetry(s)
         s.videoCounters = null
         s.framesSeen = false
         s.firstFrameMs = null
@@ -471,6 +505,14 @@ class SnowPlayerPlugin : Plugin() {
         }
     }
 
+    private fun clearVideoTelemetry(s: PlayerSlot) {
+        s.framesSkipped = 0L
+        s.maxConsecutiveDropped = 0
+        s.droppedToKeyframe = 0L
+        s.frameOffsetUs = 0L
+        s.frameOffsetCount = 0L
+    }
+
     /** A stop: nothing of the stream that was playing is left to report. Its
      *  speeds, frames, restarts and last error go, and so do its decoders and
      *  formats, which the next stream would otherwise show until its own
@@ -483,6 +525,7 @@ class SnowPlayerPlugin : Plugin() {
         s.kbpsSamples = 0
         s.framesRendered = 0L
         s.framesDropped = 0L
+        clearVideoTelemetry(s)
         s.videoCounters = null
         s.framesSeen = false
         s.statsUrl = null
@@ -792,7 +835,7 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     private fun ensureSurface(s: PlayerSlot): Boolean {
-        if (s.container != null && s.textureView != null) return true
+        if (s.container != null && s.videoView != null) return true
         val act = activity ?: return false
         val webView = bridge?.webView ?: return false
         val parent = webView.parent as? ViewGroup ?: return false
@@ -800,7 +843,12 @@ class SnowPlayerPlugin : Plugin() {
         // Ensure every transparency gap around/behind the WebView reads BLACK,
         // never the light-theme window default (white flash on layout).
         act.window.decorView.setBackgroundColor(Color.BLACK)
-        val tv = TextureView(act)
+        // The main player's SurfaceView keeps its default z-order: its layer
+        // sits under the window, which shows it through the hole the view
+        // punches. Never setZOrderOnTop / setZOrderMediaOverlay: the WebView
+        // (transparent, its own layer type left as it is) and the shutter
+        // and subtitles above must stay on top of the picture.
+        val tv: View = if (s.wantSurfaceView) SurfaceView(act) else TextureView(act)
         val fl = FrameLayout(act)
         fl.setBackgroundColor(Color.BLACK)
         // Sized to the picture and centred by applyFormat (VideoFit): the
@@ -831,7 +879,8 @@ class SnowPlayerPlugin : Plugin() {
         fl.visibility = View.GONE
         parent.addView(fl, 0, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         s.container = fl
-        s.textureView = tv
+        s.videoView = tv
+        s.usesSurfaceView = tv is SurfaceView
         return true
     }
 
@@ -1101,18 +1150,26 @@ class SnowPlayerPlugin : Plugin() {
      *  for the rest of the session. load() rebuilds all of this on demand. */
     private fun releaseSlot(s: PlayerSlot) {
         if (slots[MAIN] === s) restoreDisplayMode()
+        releasePlayer(s)
+        s.container?.let { c -> (c.parent as? ViewGroup)?.removeView(c) }
+        s.container = null
+        s.videoView = null
+        s.usesSurfaceView = false
+        s.shutterView = null
+        s.subtitleView = null
+        s.videoW = 0
+        s.videoH = 0
+    }
+
+    /** The player alone, the views kept: a rebuild for another renderer
+     *  setup (asynchronous queueing) attaches the next one to the same view. */
+    private fun releasePlayer(s: PlayerSlot) {
         releaseBoost(s)
         s.player?.release()
         s.player = null
         s.trackSelector = null
         s.loadControl = null
-        s.container?.let { c -> (c.parent as? ViewGroup)?.removeView(c) }
-        s.container = null
-        s.textureView = null
-        s.shutterView = null
-        s.subtitleView = null
-        s.videoW = 0
-        s.videoH = 0
+        s.scalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
     }
 
     private fun buildPlayer(s: PlayerSlot, screenId: String) {
@@ -1128,6 +1185,12 @@ class SnowPlayerPlugin : Plugin() {
         val renderersFactory = DefaultRenderersFactory(act)
             .setEnableDecoderFallback(true)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        // MediaCodec's asynchronous queueing: Media3 1.5 turns it on by
+        // itself only on API 31+ (or a box reporting Amazon's TV feature);
+        // generic API 28-30 boxes got the synchronous adapter, which feeds
+        // a 4K decoder from the playback thread's own loop.
+        s.asyncCodec = s.wantAsyncCodec && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+        if (s.asyncCodec) renderersFactory.forceEnableMediaCodecAsynchronousQueueing()
         val meter = ByteMeter(s.netBytes)
         // Live TV and everything else: quick 8 s timeouts, and no user agent
         // of our own (some IPTV panels turn away agents they don't know).
@@ -1317,7 +1380,12 @@ class SnowPlayerPlugin : Plugin() {
         // A film or episode on the main player also holds its own for the
         // whole stream (holdWifi); Live TV has this one only.
         p.setWakeMode(C.WAKE_MODE_NETWORK)
-        p.setVideoTextureView(s.textureView)
+        // Media3 handles the SurfaceView's surfaceCreated / surfaceDestroyed
+        // itself (a placeholder surface in between), so no raw Surface here.
+        when (val v = s.videoView) {
+            is SurfaceView -> p.setVideoSurfaceView(v)
+            is TextureView -> p.setVideoTextureView(v)
+        }
         // Our own audio session, so the volume boost (past 100%) has a session
         // to attach to before the first sound is played.
         try { p.setAudioSessionId(Util.generateAudioSessionIdV21(act)) } catch (e: Exception) { Log.w(TAG, "No audio session for the volume boost", e) }
@@ -1556,6 +1624,11 @@ class SnowPlayerPlugin : Plugin() {
                 decoderCounters.ensureUpdated()
                 s.framesRendered += decoderCounters.renderedOutputBufferCount
                 s.framesDropped += decoderCounters.droppedBufferCount
+                s.framesSkipped += decoderCounters.skippedOutputBufferCount
+                s.maxConsecutiveDropped = maxOf(s.maxConsecutiveDropped, decoderCounters.maxConsecutiveDroppedBufferCount)
+                s.droppedToKeyframe += decoderCounters.droppedToKeyframeCount
+                s.frameOffsetUs += decoderCounters.totalVideoFrameProcessingOffsetUs
+                s.frameOffsetCount += decoderCounters.videoFrameProcessingOffsetCount
                 s.videoCounters = null
             }
         })
@@ -1625,6 +1698,13 @@ class SnowPlayerPlugin : Plugin() {
         val matchFrameRate = call.getBoolean("matchFrameRate", false) ?: false
         // The film's frame rate as the WebView knows it (Plex's metadata); 0 = unknown.
         val hintFps = (call.getDouble("frameRate") ?: 0.0).toFloat().takeIf { it > 0f && it < 200f } ?: 0f
+        // The remote switches for how the main player draws and decodes
+        // (lib/playerFlags): a SurfaceView, MediaCodec's asynchronous
+        // queueing, and (an A/B test, off unless asked) tunneled playback
+        // for a film. Absent: off, as before these existed (tiles).
+        val surfaceView = call.getBoolean("surfaceView", false) ?: false
+        val asyncCodec = call.getBoolean("asyncCodec", false) ?: false
+        val tunneled = call.getBoolean("tunneled", false) ?: false
         // Seconds; a film resumed part-way. Absent or 0: the player's own start.
         val startSec = call.getDouble("startPosition")
         val startMs = if (startSec != null && startSec > 0.0) (startSec * 1000.0).toLong() else 0L
@@ -1669,6 +1749,25 @@ class SnowPlayerPlugin : Plugin() {
                 s.pendingRect = keepRect
                 s.engine = engine
             }
+            // ExoPlayer's view and codec setup for this slot. A change (a
+            // remote switch flipped) tears down only what no longer fits:
+            // the views for the other kind of view, the player alone for the
+            // other codec setup (the next one draws on the same view).
+            if (engine == EngineChoice.EXO) {
+                val wantSv = VideoFit.useSurfaceView(screenId == MAIN, surfaceView)
+                val wantAsync = screenId == MAIN && asyncCodec
+                if (s.container != null && s.usesSurfaceView != wantSv) {
+                    val keepRect = s.pendingRect
+                    stopSlot(s)
+                    releaseSlot(s)
+                    s.pendingRect = keepRect
+                } else if (s.player != null && s.wantAsyncCodec != wantAsync) {
+                    cancelTimers(s)
+                    releasePlayer(s)
+                }
+                s.wantSurfaceView = wantSv
+                s.wantAsyncCodec = wantAsync
+            }
             if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
             if (engine == EngineChoice.MPV) {
                 val second = s.second ?: run { call.reject("mpv init failed"); return@runOnUiThread }
@@ -1679,7 +1778,7 @@ class SnowPlayerPlugin : Plugin() {
                 applyPendingRect(s, screenId)
                 // mpv draws on its own SurfaceView (attach); ExoPlayer's
                 // TextureView has no player behind it while mpv owns the slot.
-                s.textureView?.visibility = View.INVISIBLE
+                s.videoView?.visibility = View.INVISIBLE
                 second.attach(s.container!!)
                 applyFormat(s)
                 cancelTimers(s)
@@ -1712,6 +1811,13 @@ class SnowPlayerPlugin : Plugin() {
             s.reconnectAttempts = 0
             s.transcodeHttpFails = 0
             s.rangeFetch = rangeFetch && !live
+            // Tunneled playback (`tunneled_vod`, an A/B test, off by
+            // default): a film on the main player's SurfaceView, never with
+            // the volume boost (an effect on the audio session).
+            if (screenId == MAIN) {
+                s.tunneled = !live && tunneled && s.usesSurfaceView && s.volume <= 1f
+                s.trackSelector?.let { ts -> ts.setParameters(ts.buildUponParameters().setTunnelingEnabled(s.tunneled)) }
+            }
             // Frame-rate matching: a film or episode on the main player,
             // when the WebView asks (the setting and the remote switch).
             // Anything else puts the screen back in its own mode at once; a
@@ -1929,10 +2035,30 @@ class SnowPlayerPlugin : Plugin() {
             c?.ensureUpdated()
             o.put("renderedFrames", s.framesRendered + (c?.renderedOutputBufferCount ?: 0))
             o.put("droppedFrames", s.framesDropped + (c?.droppedBufferCount ?: 0))
+            // How the frames were paced (numbers only): frames skipped
+            // because they were already late, the longest run dropped in a
+            // row, drops back to a key frame, and how far ahead of their
+            // time frames left the decoder on average (ms; negative = late).
+            o.put("skippedFrames", s.framesSkipped + (c?.skippedOutputBufferCount ?: 0))
+            o.put("maxConsecutiveDropped", maxOf(s.maxConsecutiveDropped, c?.maxConsecutiveDroppedBufferCount ?: 0))
+            o.put("droppedToKeyframe", s.droppedToKeyframe + (c?.droppedToKeyframeCount ?: 0))
+            val offUs = s.frameOffsetUs + (c?.totalVideoFrameProcessingOffsetUs ?: 0L)
+            val offN = s.frameOffsetCount + (c?.videoFrameProcessingOffsetCount ?: 0)
+            o.put("avgFrameOffsetMs", if (offN > 0) Math.round(offUs.toDouble() / offN / 100.0) / 10.0 else JSONObject.NULL)
         } else {
             o.put("renderedFrames", JSONObject.NULL)
             o.put("droppedFrames", JSONObject.NULL)
+            o.put("skippedFrames", JSONObject.NULL)
+            o.put("maxConsecutiveDropped", JSONObject.NULL)
+            o.put("droppedToKeyframe", JSONObject.NULL)
+            o.put("avgFrameOffsetMs", JSONObject.NULL)
         }
+        // A software video decoder (Android's own c2.android.* / OMX.google.*):
+        // a 4K film then plays on the CPU. Null with no video decoder.
+        o.put("videoDecoderSoftware", s?.videoDecoderName?.let { isSoftwareDecoder(it) } ?: JSONObject.NULL)
+        // How the picture reaches the screen (see PlayerSlot.videoView).
+        o.put("surface", if (s?.videoView == null) JSONObject.NULL else if (s.usesSurfaceView) "SurfaceView" else "TextureView")
+        o.put("tunneled", s?.tunneled == true)
         o.put("audioDecoder", decoderLabel(s?.audioDecoderName, af) ?: JSONObject.NULL)
         if (s != null && af != null) {
             if (af !== s.audioFormatOf) { s.audioFormatOf = af; s.audioFormatText = describeAudio(af) }
@@ -2032,6 +2158,11 @@ class SnowPlayerPlugin : Plugin() {
         else -> false
     }
 
+    /** Android's own software decoders, by name. */
+    private fun isSoftwareDecoder(name: String): Boolean =
+        name.startsWith("c2.android.", ignoreCase = true) || name.startsWith("OMX.google.", ignoreCase = true) ||
+            name.startsWith("ffmpeg", ignoreCase = true)
+
     /** "HEVC 1920x804 23.98fps 21.6 Mb/s", leaving out what the stream doesn't
      *  say: a file played as it is rarely carries its bit rate, a conversion
      *  does. */
@@ -2045,6 +2176,14 @@ class SnowPlayerPlugin : Plugin() {
             sb.append("fps")
         }
         if (f.bitrate > 0) sb.append(' ').append(String.format(Locale.US, "%.1f Mb/s", f.bitrate / 1_000_000.0))
+        // The codec string (a Dolby Vision profile shows as dvhe.07…) and
+        // the transfer: PQ (HDR10 / Dolby Vision), HLG, or SDR.
+        f.codecs?.takeIf { it.isNotBlank() }?.let { sb.append(" · ").append(it) }
+        when (f.colorInfo?.colorTransfer) {
+            C.COLOR_TRANSFER_ST2084 -> sb.append(" · PQ")
+            C.COLOR_TRANSFER_HLG -> sb.append(" · HLG")
+            C.COLOR_TRANSFER_SDR -> sb.append(" · SDR")
+        }
         return sb.toString()
     }
 
@@ -2117,7 +2256,13 @@ class SnowPlayerPlugin : Plugin() {
         // GONE keeps the TextureView and its last frame; the next load makes
         // the container VISIBLE again, so cover that frame now.
         s.shutterView?.visibility = View.VISIBLE
-        s.container?.visibility = View.GONE
+        // The main SurfaceView stays VISIBLE and attached: going GONE would
+        // destroy its surface, and on the Fire TV models Media3 lists for its
+        // output-surface workaround every surface change releases and
+        // re-creates the decoder (black, then seconds waiting for a 4K key
+        // frame) — a quality change or a retry is a stop and a load. The
+        // closed shutter covers it; the box is as black as the decor behind.
+        if (!s.usesSurfaceView) s.container?.visibility = View.GONE
         s.pendingRect = null
     }
 
@@ -2282,7 +2427,9 @@ class SnowPlayerPlugin : Plugin() {
             // at index 0, so in practice this now never fires.
             val parent = c.parent as? ViewGroup
             val wv = bridge?.webView
-            if (parent != null && wv != null) {
+            // Never for the main box: it is added under the WebView once and
+            // never moved (moving it would destroy its surface).
+            if (screenId != MAIN && parent != null && wv != null) {
                 val cIdx = parent.indexOfChild(c)
                 val wvIdx = parent.indexOfChild(wv)
                 if (cIdx >= 0 && wvIdx >= 0 && cIdx > wvIdx) {
@@ -2434,11 +2581,22 @@ class SnowPlayerPlugin : Plugin() {
         // mpv draws on its own view, which its MediaCodec output fills
         // edge to edge just as ExoPlayer fills the TextureView — so it is
         // sized the same way.
-        val v: View = (if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.textureView) ?: return
+        val v: View = (if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.videoView) ?: return
         val box = s.container ?: return
+        // ExoPlayer's SurfaceView can't be transformed, and one larger than
+        // its box may not be clipped by it: zoom keeps it the box's size and
+        // has the decoder crop instead (VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_
+        // CROPPING). Fit, fill and wide size it as the TextureView is.
+        val exoSurface = s.engine == EngineChoice.EXO && v is SurfaceView
+        if (exoSurface) {
+            val mode = if (VideoFit.cropsInDecoder(s.format)) C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING else C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+            val p = s.player
+            if (p != null && mode != s.scalingMode) { p.setVideoScalingMode(mode); s.scalingMode = mode }
+        }
         // Before the first layout, or before anything is decoded, there is
         // nothing to fit; the layout listener and onVideoSizeChanged come back.
-        val size = VideoFit.viewSize(s.format, box.width, box.height, s.videoW, s.videoH, s.pixelRatio) ?: return
+        val size = (if (exoSurface) VideoFit.surfaceViewSize(s.format, box.width, box.height, s.videoW, s.videoH, s.pixelRatio)
+            else VideoFit.viewSize(s.format, box.width, box.height, s.videoW, s.videoH, s.pixelRatio)) ?: return
         // No matrix: the view itself has the picture's shape. A shrunken
         // picture in a box-sized view left the bars unpainted (the band in
         // bugs/plex-green-bar.md).
@@ -2880,6 +3038,16 @@ class SnowPlayerPlugin : Plugin() {
     override fun handleOnStop() {
         tsReset()
         tsManager?.wipeAll()
+        // A film doesn't play on behind the screen (with a SurfaceView a 4K
+        // decoder would keep going into the placeholder surface). Paused;
+        // playing again is the viewer's choice, as before (the WebView loads
+        // the film again on return).
+        slots[MAIN]?.let { s ->
+            if (!s.isLive && s.currentUrl != null && s.engine == EngineChoice.EXO) {
+                releaseHold(s)
+                s.player?.playWhenReady = false
+            }
+        }
         // The app leaves the screen: so does a film's display mode. The
         // WebView stops the player too and loads it again on return, which
         // matches the mode again.

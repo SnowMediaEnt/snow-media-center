@@ -180,11 +180,24 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, routeEndpoint,
           {needKbps != null && needKbps > 0 && <Row label={t('plex.stats.needs')}>{formatMbps(needKbps)}</Row>}
         </Card>
         <Card title={t('plex.stats.video')}>
-          <Row>{text(st?.videoDecoder)}</Row>
+          {/* A software decoder (c2.android.* / OMX.google.*) plays 4K on the CPU: said plainly. */}
+          <Row>{text(st?.videoDecoder)}{st?.videoDecoder && st.videoDecoderSoftware === true ? ` ${t('plex.stats.software')}` : ''}</Row>
           <Row>{text(st?.videoFormat)}</Row>
           <Row label={t('plex.stats.frames')}>{frames}</Row>
+          {st && num(st.skippedFrames) && (
+            <Row label={t('plex.stats.pacing')}>
+              {t('plex.stats.pacingValue', {
+                skipped: count(st.skippedFrames),
+                run: count(st.maxConsecutiveDropped),
+                key: count(st.droppedToKeyframe),
+                offset: num(st.avgFrameOffsetMs) ? st.avgFrameOffsetMs.toFixed(1) : '—',
+              })}
+            </Row>
+          )}
           {/* Next to the video's frame rate: whether frame-rate matching happened. */}
           <Row label={t('plex.stats.display')}>{st && num(st.displayHz) && st.displayHz > 0 ? t('plex.stats.hz', { value: hzLabel(st.displayHz) }) : '—'}</Row>
+          {/* SurfaceView (its own display layer) or TextureView (through the app's GPU composition). */}
+          <Row label={t('plex.stats.surface')}>{text(st?.surface)}{st?.tunneled ? ` · ${t('plex.stats.tunneled')}` : ''}</Row>
         </Card>
         <Card title={t('plex.stats.audio')}>
           <Row>{text(st?.audioDecoder)}</Row>

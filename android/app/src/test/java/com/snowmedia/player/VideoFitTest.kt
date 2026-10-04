@@ -76,4 +76,22 @@ class VideoFitTest {
         assertFalse(VideoFit.shutterOpen(firstFrameSeen = false, holding = true))
         assertTrue(VideoFit.shutterOpen(firstFrameSeen = true, holding = false))
     }
+
+    @Test fun `the main player draws on a SurfaceView when asked, tiles never`() {
+        assertTrue(VideoFit.useSurfaceView(isMain = true, requested = true))
+        assertFalse(VideoFit.useSurfaceView(isMain = true, requested = false))
+        assertFalse(VideoFit.useSurfaceView(isMain = false, requested = true))
+    }
+
+    @Test fun `a SurfaceView never grows past its box - zoom stays the box and the decoder crops`() {
+        assertTrue(VideoFit.cropsInDecoder("zoom"))
+        assertFalse(VideoFit.cropsInDecoder("fit"))
+        assertArrayEquals(intArrayOf(1920, 1080), VideoFit.surfaceViewSize("zoom", 1920, 1080, 1920, 804, 1f))
+        // In a preview box too (where an oversized surface could spill out).
+        assertArrayEquals(intArrayOf(640, 360), VideoFit.surfaceViewSize("zoom", 640, 360, 3840, 1600, 1f))
+        // Fit, fill and wide size it as the TextureView is.
+        assertArrayEquals(VideoFit.viewSize("fit", 1920, 1080, 1920, 804, 1f), VideoFit.surfaceViewSize("fit", 1920, 1080, 1920, 804, 1f))
+        assertArrayEquals(intArrayOf(1920, 1080), VideoFit.surfaceViewSize("fill", 1920, 1080, 1920, 804, 1f))
+        assertNull(VideoFit.surfaceViewSize("zoom", 0, 0, 1920, 804, 1f))
+    }
 }

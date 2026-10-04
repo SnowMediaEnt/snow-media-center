@@ -96,7 +96,7 @@ describe('useNativePlayer — where a film starts and resumes', () => {
   it('no start position (Live TV, a film from the top): load() carries none', async () => {
     mount({ url: CHANNEL });
     await waitFor(() => expect(loads()).toHaveLength(1));
-    expect(loads()[0].opts).toEqual({ url: CHANNEL, live: true, isLive: true, subtitles: undefined, engine: 'exo' });
+    expect(loads()[0].opts).toEqual({ url: CHANNEL, live: true, isLive: true, subtitles: undefined, engine: 'exo', surfaceView: true, asyncCodec: true });
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
     expect(calls.some((c) => c.fn === 'seekTo')).toBe(false);
     expect(asked()).toHaveLength(0);
@@ -158,7 +158,7 @@ describe('useNativePlayer — where a film starts and resumes', () => {
     await setHidden(true);
     await setHidden(false);
     await waitFor(() => expect(loads()).toHaveLength(3));
-    for (const l of loads()) expect(l.opts).toEqual({ url: CHANNEL, live: true, isLive: true, subtitles: undefined, engine: 'exo' });
+    for (const l of loads()) expect(l.opts).toEqual({ url: CHANNEL, live: true, isLive: true, subtitles: undefined, engine: 'exo', surfaceView: true, asyncCodec: true });
     expect(asked()).toHaveLength(0);
   });
 
@@ -346,7 +346,8 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(uhdRule).toContain('const val MAX_BUDGET_BYTES = 256 * 1024 * 1024');
     expect(uhdRule).toContain('fun isUhd(width: Int, height: Int): Boolean = height >= MIN_HEIGHT || width >= MIN_WIDTH');
     // A released player lets its control go; tiles never have one.
-    expect(body('private fun releaseSlot(')).toContain('s.loadControl = null');
+    expect(body('private fun releaseSlot(')).toContain('releasePlayer(s)');
+    expect(body('private fun releasePlayer(')).toContain('s.loadControl = null');
   });
 
   it('a Plex conversion answered with an HTTP error: the same session twice at most, then the WebView, with the status', () => {

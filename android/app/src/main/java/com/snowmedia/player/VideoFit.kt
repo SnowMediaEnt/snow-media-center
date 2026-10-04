@@ -48,6 +48,29 @@ internal object VideoFit {
     }
 
     /**
+     * The main player's SurfaceView: a SurfaceView can't be transformed, and
+     * one larger than its box may not be clipped by the box (its layer is
+     * the display's, not the view tree's). Zoom therefore keeps it exactly
+     * the box and lets the decoder crop (cropsInDecoder); everything else is
+     * sized as [viewSize] sizes the TextureView.
+     */
+    fun surfaceViewSize(format: String, boxW: Int, boxH: Int, videoW: Int, videoH: Int, pixelRatio: Float): IntArray? {
+        if (boxW <= 0 || boxH <= 0) return null
+        if (cropsInDecoder(format)) return intArrayOf(boxW, boxH)
+        return viewSize(format, boxW, boxH, videoW, videoH, pixelRatio)
+    }
+
+    /** Zoom on a SurfaceView: the decoder scales to cover and crops (VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING). */
+    fun cropsInDecoder(format: String): Boolean = format == "zoom"
+
+    /**
+     * Which view the picture is drawn on: a SurfaceView for the main player
+     * while `video_surface_view` is on (the WebView asks with each load), a
+     * TextureView for the Multi-Screen tiles and when switched off.
+     */
+    fun useSurfaceView(isMain: Boolean, requested: Boolean): Boolean = isMain && requested
+
+    /**
      * The shutter (black over the picture view) opens once this stream has
      * drawn its first frame and the start-up hold is over. During the hold the
      * first frame is drawn paused; "Getting ready…" shows over black, and the

@@ -70,6 +70,17 @@ export interface SnowPlayerLoadOpts {
    *  Matroska file never states one to the player). Used before the
    *  stream's own and before an estimate from the first frames. */
   frameRate?: number;
+  /** The main player draws on a SurfaceView instead of a TextureView (the
+   *  `video_surface_view` flag): its own display layer, the decoder's frame
+   *  timing, HDR passed through. A change rebuilds the main player's views.
+   *  Tiles always use a TextureView. */
+  surfaceView?: boolean;
+  /** MediaCodec's asynchronous queueing on API 28+ (the `async_codec` flag).
+   *  A change rebuilds the main player. */
+  asyncCodec?: boolean;
+  /** Tunneled playback for a film on the main player's SurfaceView (the
+   *  `tunneled_vod` flag, off by default; never with the volume boost). */
+  tunneled?: boolean;
 }
 
 export interface SnowScreenOpts { screenId?: string }
@@ -170,6 +181,22 @@ export interface PlayerStats {
    *  video's frame rate it shows whether frame-rate matching happened.
    *  Older builds leave it out. */
   displayHz?: number | null;
+  /** How the picture reaches the screen: 'SurfaceView' (its own display
+   *  layer) or 'TextureView' (through the app's GPU composition). Null with
+   *  no view yet; older builds leave it out. */
+  surface?: 'SurfaceView' | 'TextureView' | null;
+  /** Tunneled playback for this load. */
+  tunneled?: boolean;
+  /** Frame pacing, this load: frames skipped as already late, the longest
+   *  run dropped in a row, drops back to a key frame, and the average time
+   *  frames left the decoder ahead of their slot (ms; negative = late). */
+  skippedFrames?: number | null;
+  maxConsecutiveDropped?: number | null;
+  droppedToKeyframe?: number | null;
+  avgFrameOffsetMs?: number | null;
+  /** The video decoder is Android's software one (c2.android.* /
+   *  OMX.google.*): a 4K film then plays on the CPU. */
+  videoDecoderSoftware?: boolean | null;
 }
 
 /** Stats with nothing playing: what the web build answers, and a stand-in
@@ -184,7 +211,8 @@ export function emptyPlayerStats(): PlayerStats {
     rangeFetch: false, connectionCap: 1,
     javaHeapMb: null, nativeHeapMb: null,
     engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
-    displayHz: null,
+    displayHz: null, surface: null, tunneled: false,
+    skippedFrames: null, maxConsecutiveDropped: null, droppedToKeyframe: null, avgFrameOffsetMs: null, videoDecoderSoftware: null,
   };
 }
 

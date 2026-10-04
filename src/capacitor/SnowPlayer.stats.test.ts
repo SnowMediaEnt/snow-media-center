@@ -18,7 +18,8 @@ const KEYS: Array<keyof PlayerStats> = [
   'rangeFetch', 'connectionCap',
   'javaHeapMb', 'nativeHeapMb',
   'engine', 'firstFrameMs', 'stalls', 'stallSec', 'cpuPct', 'pssMb',
-  'displayHz',
+  'displayHz', 'surface', 'tunneled',
+  'skippedFrames', 'maxConsecutiveDropped', 'droppedToKeyframe', 'avgFrameOffsetMs', 'videoDecoderSoftware',
 ];
 
 const body = (from: string) => plugin.slice(plugin.indexOf(from), plugin.indexOf('\n    }\n', plugin.indexOf(from)));
@@ -36,7 +37,8 @@ describe('SnowPlayer.getStats — web / no native player', () => {
       rangeFetch: false, connectionCap: 1,
       javaHeapMb: null, nativeHeapMb: null,
       engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
-      displayHz: null,
+      displayHz: null, surface: null, tunneled: false,
+      skippedFrames: null, maxConsecutiveDropped: null, droppedToKeyframe: null, avgFrameOffsetMs: null, videoDecoderSoftware: null,
     });
   });
 
@@ -82,8 +84,8 @@ describe('SnowPlayerPlugin.kt — mpv (owner test builds only)', () => {
     const mpv = load.slice(load.indexOf('if (engine == EngineChoice.MPV) {\n'));
     expect(mpv.indexOf('applyPendingRect(s, screenId)')).toBeGreaterThan(-1);
     expect(mpv.indexOf('applyPendingRect(s, screenId)')).toBeLessThan(mpv.indexOf('second.attach(s.container!!)'));
-    expect(mpv).toContain('s.textureView?.visibility = View.INVISIBLE');
-    expect(body('private fun applyFormat(')).toContain('if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.textureView');
+    expect(mpv).toContain('s.videoView?.visibility = View.INVISIBLE');
+    expect(body('private fun applyFormat(')).toContain('if (s.engine == EngineChoice.MPV) s.second?.videoView() else s.videoView');
   });
 
   it('memory: Debug.getPss() is in KB, so it is divided by 1024, not by MIB', () => {
