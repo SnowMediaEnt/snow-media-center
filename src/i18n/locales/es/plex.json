@@ -62,6 +62,8 @@
       "needs": "Necesita",
       "video": "Video",
       "frames": "Cuadros",
+      "display": "Pantalla",
+      "hz": "{{value}} Hz",
       "audio": "Audio",
       "player": "Reproductor",
       "restarts": "Reinicios",

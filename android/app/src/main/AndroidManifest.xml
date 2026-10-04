@@ -105,6 +105,7 @@
             android:alwaysRetainTaskState="true"
             android:label="@string/app_name"
             android:name="com.snowmedia.MainActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:theme="@style/AppTheme.NoActionBar">
 
             <!-- Custom scheme deep link: snowmedia://sso?token=... -->

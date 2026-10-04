@@ -62,6 +62,8 @@
       "needs": "Requis",
       "video": "Vidéo",
       "frames": "Images",
+      "display": "Écran",
+      "hz": "{{value}} Hz",
       "audio": "Audio",
       "player": "Lecteur",
       "restarts": "Redémarrages",

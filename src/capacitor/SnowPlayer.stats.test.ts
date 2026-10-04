@@ -18,6 +18,7 @@ const KEYS: Array<keyof PlayerStats> = [
   'rangeFetch', 'connectionCap',
   'javaHeapMb', 'nativeHeapMb',
   'engine', 'firstFrameMs', 'stalls', 'stallSec', 'cpuPct', 'pssMb',
+  'displayHz',
 ];
 
 const body = (from: string) => plugin.slice(plugin.indexOf(from), plugin.indexOf('\n    }\n', plugin.indexOf(from)));
@@ -35,6 +36,7 @@ describe('SnowPlayer.getStats — web / no native player', () => {
       rangeFetch: false, connectionCap: 1,
       javaHeapMb: null, nativeHeapMb: null,
       engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
+      displayHz: null,
     });
   });
 

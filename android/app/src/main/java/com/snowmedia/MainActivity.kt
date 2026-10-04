@@ -35,6 +35,9 @@ class MainActivity : BridgeActivity() {
     private var blocked = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // One line per real start of the activity, no data: a display mode
+        // switch (frame-rate matching) must never produce one.
+        Log.i("SMC-Activity", "SMC-Activity created")
         // Register custom plugins before BridgeActivity initializes the Capacitor bridge.
         registerPlugin(AppManagerPlugin::class.java)
         registerPlugin(SnowPlayerPlugin::class.java)

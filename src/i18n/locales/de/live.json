@@ -109,7 +109,12 @@
       "colStallSec": "Aussetzer-Sek. / Std.",
       "colCpu": "CPU",
       "colMemory": "Speicher",
-      "footnote": "Basiert auf bis zu 30 Live-TV-Sitzungen pro Engine auf diesem Gerät – eine Messung nach 60 s und eine beim Beenden."
+      "footnote": "Basiert auf bis zu 30 Live-TV-Sitzungen pro Engine auf diesem Gerät – eine Messung nach 60 s und eine beim Beenden.",
+      "settingsHeading": "Bild",
+      "matchFrameRate": "Bildrate anpassen",
+      "matchFrameRateDesc": "Filme und Folgen schalten den Fernseher auf ihre eigene Bildrate (24p-Filme auf 24 Hz) für flüssige Bewegung. Beim Start ist der Bildschirm kurz schwarz. Live-TV wird nie umgestellt.",
+      "on": "An",
+      "off": "Aus"
     },
     "shell": {
       "signingIn": "Du wirst mit deinem Konto angemeldet…",

@@ -78,6 +78,19 @@ describe('the stats panel', () => {
     expect(h.getStats).toHaveBeenCalledWith({ memory: true });
   });
 
+  it('the screen\'s refresh rate sits next to the video\'s frame rate (frame-rate matching)', async () => {
+    h.getStats.mockImplementation(async () => ({ ...STATS, displayHz: 23.976 }));
+    render(<PlayerStatsPanel />);
+    await wait(0);
+    expect(panel()?.textContent ?? '').toContain('Display 23.976 Hz');
+  });
+
+  it('an older app without the refresh rate shows a dash', async () => {
+    render(<PlayerStatsPanel />);
+    await wait(0);
+    expect(panel()?.textContent ?? '').toContain('Display —');
+  });
+
   it('nothing known yet reads as dashes; converting says to what', async () => {
     h.getStats.mockImplementation(async () => ({
       ...STATS, state: 'buffering', playing: false, nowKbps: 0, avgKbps: null, minKbps: null, maxKbps: null,

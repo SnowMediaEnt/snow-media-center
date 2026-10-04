@@ -3578,6 +3578,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // is read over several connections at once (RangeFetchDataSource.kt);
     // never over the relay, and only while the flag is on (plexPlayback).
     rangeFetch: rangeFetchAllowed(streamUrl, conn?.route, rangeFetchFlag),
+    // The film's frame rate from Plex's metadata (Matroska never states one
+    // to the player): frame-rate matching's first source.
+    frameRate: playVersion?.frameRate,
     startPosition: startPos,
     subtitles: extraSubs,
     onTracksChanged,

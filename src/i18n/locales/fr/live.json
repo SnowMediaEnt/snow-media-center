@@ -109,7 +109,12 @@
       "colStallSec": "Sec. de blocage / h",
       "colCpu": "CPU",
       "colMemory": "Mémoire",
-      "footnote": "Établi d'après les 30 dernières séances de TV en direct par moteur sur ce boîtier — une mesure à 60 s et une à l'arrêt."
+      "footnote": "Établi d'après les 30 dernières séances de TV en direct par moteur sur ce boîtier — une mesure à 60 s et une à l'arrêt.",
+      "settingsHeading": "Image",
+      "matchFrameRate": "Adapter la fréquence d'images",
+      "matchFrameRateDesc": "Les films et les épisodes passent la TV à leur propre fréquence (les films en 24p à 24 Hz) pour un mouvement fluide. L'écran devient noir un instant au début. La TV en direct n'est jamais modifiée.",
+      "on": "Oui",
+      "off": "Non"
     },
     "shell": {
       "signingIn": "Connexion avec votre compte…",

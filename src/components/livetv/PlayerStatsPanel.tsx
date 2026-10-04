@@ -68,6 +68,8 @@ const stallsRow = (st: PlayerStats | null): string => {
   return `${count(st.stalls)}${st.stalls > 0 ? ` (${st.stallSec.toFixed(1)} s)` : ''}`;
 };
 const cpuRow = (n: number | null | undefined): string => (num(n) ? `${n.toFixed(1)}%` : '—');
+/** 23.976, 59.94, 60: the screen's refresh rate as the TV reports it, to 3 decimals. */
+const hzLabel = (n: number): string => String(Math.round(n * 1000) / 1000);
 
 function engineState(st: PlayerStats, t: TFunction): string {
   if (st.state === 'ready') return st.playing ? t('plex.stats.playing') : t('plex.stats.paused');
@@ -181,6 +183,8 @@ const PlayerStatsPanel = memo(({ session, serverName, routeLabel, routeEndpoint,
           <Row>{text(st?.videoDecoder)}</Row>
           <Row>{text(st?.videoFormat)}</Row>
           <Row label={t('plex.stats.frames')}>{frames}</Row>
+          {/* Next to the video's frame rate: whether frame-rate matching happened. */}
+          <Row label={t('plex.stats.display')}>{st && num(st.displayHz) && st.displayHz > 0 ? t('plex.stats.hz', { value: hzLabel(st.displayHz) }) : '—'}</Row>
         </Card>
         <Card title={t('plex.stats.audio')}>
           <Row>{text(st?.audioDecoder)}</Row>

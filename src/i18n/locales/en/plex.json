@@ -62,6 +62,8 @@
       "needs": "Needs",
       "video": "Video",
       "frames": "Frames",
+      "display": "Display",
+      "hz": "{{value}} Hz",
       "audio": "Audio",
       "player": "Player",
       "restarts": "Restarts",

@@ -4,6 +4,7 @@
 // installed Android app is the supported path, same as the Xtream client).
 
 import i18n, { getAppLanguage } from '@/i18n';
+import { plexMediaFrameRate } from '@/lib/plexFrameRate';
 import { kidsAllowsLibrary, kidsAllowsPlex, kidsLevel, kidsRatingQuery } from '@/lib/kidsFilter';
 import { parseDeviceInfo } from '@/lib/appInfo';
 import { loadVersion } from '@/hooks/useVersion';
@@ -972,6 +973,8 @@ export interface PlexVersion {
   bitrateKbps?: number;
   height?: number;
   videoCodec?: string;
+  /** Frames per second (plexFrameRate): for frame-rate matching. */
+  frameRate?: number;
 }
 
 /** Every Media entry of a metadata payload as a version, in Plex's order. */
@@ -994,6 +997,7 @@ export function mediaVersions(m: Record<string, unknown>, ratingKey: string): Pl
       bitrateKbps: kbps > 0 ? kbps : undefined,
       height: h > 0 ? h : undefined,
       videoCodec: md.videoCodec ? String(md.videoCodec) : undefined,
+      frameRate: plexMediaFrameRate(md),
     };
   });
 }

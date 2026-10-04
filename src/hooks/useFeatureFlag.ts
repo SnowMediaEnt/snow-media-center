@@ -1,25 +1,14 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
+import { readCachedFlag, writeCachedFlag } from '@/lib/featureFlagCache';
 
 // Globally-persisted, admin-controlled feature flags stored in
 // public.feature_flags. Reads are public; writes are admin-only via RLS.
 // The last-known value is cached in localStorage to avoid UI flashes on boot.
 
-const cacheKey = (key: string) => `snow-feature-flag:${key}`;
-
-const readCached = (key: string, fallback: boolean): boolean => {
-  try {
-    const raw = localStorage.getItem(cacheKey(key));
-    if (raw === '1') return true;
-    if (raw === '0') return false;
-  } catch { /* ignore */ }
-  return fallback;
-};
-
-const writeCached = (key: string, value: boolean) => {
-  try { localStorage.setItem(cacheKey(key), value ? '1' : '0'); } catch { /* ignore */ }
-};
+const readCached = readCachedFlag;
+const writeCached = writeCachedFlag;
 
 export function useFeatureFlag(key: string, defaultValue = true) {
   const [enabled, setEnabled] = useState<boolean>(() => readCached(key, defaultValue));
@@ -82,5 +71,5 @@ export async function setFeatureFlag(key: string, value: boolean): Promise<void>
     .from('feature_flags')
     .upsert({ key, enabled: value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
   if (error) throw error;
-  try { localStorage.setItem(cacheKey(key), value ? '1' : '0'); } catch { /* ignore */ }
+  writeCachedFlag(key, value);
 }

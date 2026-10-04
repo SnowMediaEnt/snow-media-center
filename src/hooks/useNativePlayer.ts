@@ -14,6 +14,7 @@ import type { VideoController } from '@/components/livetv/VideoPlayer';
 import { enterQuiet, exitQuiet } from '@/utils/quietMode';
 import { beginStream as diagBegin, endStream as diagEnd, setBuffering as diagBuffering, recordPlayerRate as diagPlayerRate } from '@/lib/bufferDiagnostics';
 import { MAX_VOLUME } from '@/utils/volume';
+import { nativeLoadExtras } from '@/lib/playerFlags';
 
 interface UseNativePlayerArgs {
   active: boolean;
@@ -30,6 +31,10 @@ interface UseNativePlayerArgs {
    *  a remote server; see SnowPlayerLoadOpts.rangeFetch). Goes with every
    *  load() of the stream, reloads included; a change alone never reloads. */
   rangeFetch?: boolean;
+  /** The film's frame rate when the caller knows it (Plex's metadata), for
+   *  frame-rate matching (SnowPlayerLoadOpts.frameRate). Goes with every
+   *  load() of the stream; a change alone never reloads. */
+  frameRate?: number;
   /** Seconds to start at (a resumed film). Goes with load(); a retry or a
    *  return to the app picks up where the viewer is instead. */
   startPosition?: number;
@@ -112,7 +117,7 @@ async function positionNow(): Promise<number> {
   } catch { return 0; }
 }
 
-export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', rangeFetch = false, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true }: UseNativePlayerArgs): NativePlayerState {
+export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', rangeFetch = false, frameRate, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true }: UseNativePlayerArgs): NativePlayerState {
   const [buffering, setBuffering] = useState(false);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string; httpStatus?: number | null } | null>(null);
@@ -143,6 +148,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   liveRef.current = live;
   const rangeFetchRef = useRef(rangeFetch);
   rangeFetchRef.current = rangeFetch;
+  const frameRateRef = useRef(frameRate);
+  frameRateRef.current = frameRate;
   // The next load is a reload of the stream being watched (a retry, or the
   // app coming back), not a new one. A film then picks up where the viewer
   // is: it used to start again from `startPosition` — the very beginning of
@@ -217,6 +224,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     let audioH: { remove?: () => void } | null = null;
     let rateH: { remove?: () => void } | null = null;
     let engineH: { remove?: () => void } | null = null;
+    let modeH: { remove?: () => void } | null = null;
     // Added after awaits: if the player went inactive in between, the cleanup
     // below has already run, so each handle removes itself as it arrives.
     let gone = false;
@@ -245,6 +253,14 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         engineH = keep(await SnowPlayer.addListener('engineFallback', (data) => {
           if (data.screenId && data.screenId !== 'main') return;
           setEngineNotice(data.reason || 'unavailable');
+        }));
+        if (gone) return;
+        // A display mode switch (frame-rate matching) blanks HDMI for 1-3 s:
+        // automatic quality takes a stall right after it as the switch, like
+        // one right after a seek, not as the connection.
+        modeH = keep(await SnowPlayer.addListener('displayMode', (data) => {
+          if (data.screenId && data.screenId !== 'main') return;
+          markSeek();
         }));
         if (gone) return;
         stateH = keep(await SnowPlayer.addListener('playerState', (data) => {
@@ -300,6 +316,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
       try { audioH?.remove?.(); } catch { /* ignore */ }
       try { rateH?.remove?.(); } catch { /* ignore */ }
       try { engineH?.remove?.(); } catch { /* ignore */ }
+      try { modeH?.remove?.(); } catch { /* ignore */ }
     };
   }, [active, maxRetries]);
 
@@ -363,7 +380,9 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         // Still a jump as far as automatic quality is concerned (playerSeek).
         if (start > 0) markSeek();
         jumped();
-        await SnowPlayer.load({ url, live, isLive: live, subtitles, engine, ...(rangeFetchRef.current && !live ? { rangeFetch: true } : {}), ...(start > 0 ? { startPosition: start } : {}) });
+        // The player's settings and kill switches (frame-rate matching…),
+        // read at each load: a change applies from the next stream on.
+        await SnowPlayer.load({ url, live, isLive: live, subtitles, engine, ...(rangeFetchRef.current && !live ? { rangeFetch: true } : {}), ...(start > 0 ? { startPosition: start } : {}), ...nativeLoadExtras(live, frameRateRef.current) });
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.setVolume({ volume: Math.min(MAX_VOLUME, Math.max(0, volume)) });
         if (cancelled || myNonce !== nonceRef.current) return;
