@@ -66,6 +66,7 @@ Kids mode, and games. The owner builds it, installs it on real boxes, and report
 - Live TV quietly signs a box into the Snow Media account on file; keep that.
 - Releases: install on the owner's Firestick first (`scripts/release.sh test`, 192.168.50.36). Upload to the FTP server (`scripts/release.sh publish`) ONLY after the owner says it passes. Customer releases never include MPV.
 - Sessions on the owner's Mac: after every finished change, build, install on the Fire TV and test it yourself, following docs/firestick-loop.md.
+- Playback or quality problems: diagnose from OUR code first (player, data source, rendering, settings) and back every cause with code or measurements. Never blame the customer's TV, box settings or internet without evidence; the owner's TV is a 120 Hz OLED.
 
 ## How we work
 The owner sends batches of features and fixes, builds on the Mac, tests on real boxes, and reports back.
