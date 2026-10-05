@@ -158,8 +158,14 @@ export function useTrackTouch(
     };
     return {
       onTouchStart: (e) => {
+        // A second finger mid-drag ends it as a cancel, so the bar puts its
+        // preview marker and highlight back instead of being left mid-seek.
+        const was = lastRef.current;
         lastRef.current = null;
-        if (e.touches.length !== 1) return;
+        if (e.touches.length !== 1) {
+          if (was != null) dragRef.current?.(was, 'cancel');
+          return;
+        }
         const f = fractionAt(e);
         if (f == null) return;
         lastRef.current = f;

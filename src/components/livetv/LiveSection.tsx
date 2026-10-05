@@ -2224,6 +2224,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // menu is open closes the menu; any other button closes an open menu.
   const tapBarControl = useCallback((id: BarControlId) => {
     pokeBar();
+    // RecordDialog is remote-only (no tap handlers yet): on a phone it would
+    // open a dialog only Back can close. Android phones only — an iPhone has
+    // no recorder, so no Record button.
+    if (id === 'rec') return;
     const ctrl = videoControllerRef.current;
     const off = liveBarDisabled(id, {
       seekable: !!ctrl?.isSeekable(),

@@ -632,10 +632,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   // A finger on the seek bar: the marker follows it, the film jumps where it
   // lifts (the remote's scrub and its OK).
   const seekTouch = useTrackTouch(touch ? (f: number, phase: DragPhase) => {
-    armHideRef.current();
+    // The bar stays up while the finger is on it (it would unmount the seek
+    // bar mid-drag); the hide timer starts again when the finger lifts.
+    if (phase === 'move') clearHide(); else armHideRef.current();
     const d = durRef.current;
     if (phase === 'cancel' || !(d > 0)) { setScrubPos(null); setRow('play'); return; }
-    const to = Math.min(d, Math.max(0, f * d));
+    // Never the very end: a finger past the right edge would end the film.
+    const to = Math.min(Math.max(0, d - 1), Math.max(0, f * d));
     scrubPosRef.current = to; // commitScrub reads it before the re-render
     setScrubPos(to);
     setRow('scrub');
@@ -725,7 +728,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     <>
       {promptEl}
       {statsEl}
-      <div {...chrome} className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-16 pb-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
+      {/* On a touch screen the whole bar takes the finger: a near miss is a
+          touch on the bar, not a tap on the picture that hides it. */}
+      <div {...chrome} className={`absolute left-0 right-0 bottom-0 z-20 px-8 pt-16 pb-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in ${touch ? 'pointer-events-auto' : 'pointer-events-none'}`}>
         <div className="max-w-6xl mx-auto pointer-events-auto">
           <p className="text-xl font-quicksand font-bold text-white truncate mb-2">
             {title}
@@ -832,11 +837,15 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             </p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHintSlider')}</span>
           </div>
-          <div className="flex items-center gap-3 px-2 py-2" {...volTouch}>
-            {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
-            <div ref={volTrackRef} className="relative h-2 flex-1 rounded-full bg-white/15 overflow-hidden">
-              <div className={`h-full ${vol.boost ? 'bg-orange-400' : 'bg-brand-gold'} transition-[width] duration-150 ease-out`} style={{ width: `${vol.fill}%` }} />
-              <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
+          <div className="flex items-center gap-3 px-2 py-2">
+            {/* A finger counts on the track and a little room around it, not on
+                the readout beside it (a finger on "90%" read as 150%). */}
+            <div className={touch ? 'flex-1 py-2 -my-2' : 'flex-1'} {...volTouch}>
+              {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
+              <div ref={volTrackRef} className="relative h-2 w-full rounded-full bg-white/15 overflow-hidden">
+                <div className={`h-full ${vol.boost ? 'bg-orange-400' : 'bg-brand-gold'} transition-[width] duration-150 ease-out`} style={{ width: `${vol.fill}%` }} />
+                <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
+              </div>
             </div>
             <span className={`text-sm font-quicksand font-bold tabular-nums text-right ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost ? t('plex.player.volumeBoost', { pct: volPct }) : `${volPct}%`}</span>
           </div>

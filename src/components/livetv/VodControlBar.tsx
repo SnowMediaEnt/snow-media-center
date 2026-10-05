@@ -374,7 +374,9 @@ export default function VodControlBar({
   // lifts (the remote's scrub and its commit).
   const seekTouch = useTrackTouch(touch ? (f: number, phase: DragPhase) => {
     const c = cur.current;
-    armHide();
+    // The bar stays up while the finger is on it (it would unmount the seek
+    // bar mid-drag); the hide timer starts again when the finger lifts.
+    if (phase === 'move') clearTimer(hideTimer); else armHide();
     if (phase === 'cancel' || !(c.dur > 0)) { clearTimer(scrubTimer); setScrubPos(null); setFocus('play'); return; }
     const to = Math.min(Math.max(0, c.dur - 1), Math.max(0, f * c.dur));
     c.scrubPos = to; // commitScrub reads it before the re-render
@@ -434,7 +436,9 @@ export default function VodControlBar({
   return (
     <>
       {statsEl}
-      <div data-vod-bar {...chrome} className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-12 pb-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent animate-fade-in pointer-events-none">
+      {/* On a touch screen the whole bar takes the finger: a near miss is a
+          touch on the bar, not a tap on the picture that hides it. */}
+      <div data-vod-bar {...chrome} className={`absolute left-0 right-0 bottom-0 z-20 px-8 pt-12 pb-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent animate-fade-in ${touch ? 'pointer-events-auto' : 'pointer-events-none'}`}>
         <div className="max-w-6xl mx-auto pointer-events-auto">
           {title && <p className="text-lg font-quicksand font-bold text-white truncate leading-tight mb-2">{title}</p>}
           <div
@@ -517,16 +521,21 @@ export default function VodControlBar({
             </p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.volHint')}</span>
           </div>
-          <div className="px-2 pb-1" {...volTouch}>
+          <div className="px-2 pb-1">
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-brand-ice/70 font-nunito">{t('live.bar.level')}</span>
               <span data-vod-vol-level className={`text-sm font-quicksand font-bold tabular-nums ${boost ? 'text-orange-300' : 'text-brand-gold'}`}>{boost ? t('live.bar.levelBoost', { pct: vol }) : `${vol}%`}</span>
             </div>
-            {/* Over the player's whole range; on the native one the tick is
-                100% and past it the sound is boosted. */}
-            <div ref={volTrackRef} className="relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
-              <div className={`h-full ${boost ? 'bg-orange-400' : 'bg-brand-gold'}`} style={{ width: `${volFill}%` }} />
-              {maxVolume > 1 && <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: `${(100 / maxVolume).toFixed(1)}%` }} />}
+            {/* A finger counts on the track and a little room around it, not on
+                the readout above (a finger on "90%" read as 150%). pt-2 is the
+                track's old mt-2, so a TV's layout is the same. */}
+            <div className={touch ? 'py-2' : 'pt-2'} {...volTouch}>
+              {/* Over the player's whole range; on the native one the tick is
+                  100% and past it the sound is boosted. */}
+              <div ref={volTrackRef} className="relative h-2 w-full rounded-full bg-white/15 overflow-hidden">
+                <div className={`h-full ${boost ? 'bg-orange-400' : 'bg-brand-gold'}`} style={{ width: `${volFill}%` }} />
+                {maxVolume > 1 && <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: `${(100 / maxVolume).toFixed(1)}%` }} />}
+              </div>
             </div>
           </div>
         </div>

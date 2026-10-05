@@ -139,9 +139,14 @@ describe('the film bar on a phone', () => {
     render(<VodPlayer src={URL_MKV} volume={0.5} onVolumeChange={onVolumeChange} />);
     await finger(picture(), 400, 200);
     await tap(button('Volume 50%'));
-    const level = q('[data-vod-menu="vol"] [data-vod-vol-level]')!.closest('.px-2')!;
-    rect(level.querySelector('.rounded-full')!, 0, 300);
-    await finger(level, 200, 20);
+    const readout = q('[data-vod-menu="vol"] [data-vod-vol-level]')!;
+    const track = readout.closest('.px-2')!.querySelector('.rounded-full')!;
+    rect(track, 0, 300);
+    // The readout ("50%") above the track is not part of it: no jump to 150%.
+    await finger(readout, 290, 10);
+    expect(onVolumeChange).not.toHaveBeenCalled();
+    // The track (and the room around it) takes the finger.
+    await finger(track.parentElement!, 200, 20);
     expect(onVolumeChange).toHaveBeenLastCalledWith(1);
     expect(h.args?.volume).toBe(1);
   });

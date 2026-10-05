@@ -257,7 +257,10 @@ const PlayerControlBar = memo(({
       {/* Kept tight: the bar sits over the programme, so every row is as
           short as it can be, and the controls get their own dark pill so
           they read against any picture. */}
-      <div data-howto="bar.root" {...chrome} className="absolute left-0 right-0 bottom-0 z-10 px-8 pt-8 pb-3 bg-gradient-to-t from-black/95 via-black/85 to-transparent animate-fade-in pointer-events-none">
+      {/* On a touch screen the whole bar takes the finger: a tap that just
+          misses a button (the hint line, the gaps between rows) is a touch on
+          the bar, not a tap on the picture that hides it. */}
+      <div data-howto="bar.root" {...chrome} className={`absolute left-0 right-0 bottom-0 z-10 px-8 pt-8 pb-3 bg-gradient-to-t from-black/95 via-black/85 to-transparent animate-fade-in ${onControl ? 'pointer-events-auto' : 'pointer-events-none'}`}>
         {/* Top row: logo + meta + LIVE */}
         <div className="flex items-start gap-3 max-w-6xl mx-auto pointer-events-auto" data-howto="bar.channel">
           <div className="w-12 h-12 rounded-xl bg-black/60 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/10">
@@ -413,15 +416,20 @@ const PlayerControlBar = memo(({
             </p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.volHint')}</span>
           </div>
-          <div className="px-2 pb-1" {...volTouch}>
+          <div className="px-2 pb-1">
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-brand-ice/70 font-nunito">{t('live.bar.level')}</span>
               <span className={`text-sm font-quicksand font-bold tabular-nums ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost ? t('live.bar.levelBoost', { pct: volPct }) : `${volPct}%`}</span>
             </div>
-            {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
-            <div ref={volTrackRef} className="relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
-              <div className={`h-full ${vol.boost ? 'bg-orange-400' : 'bg-brand-gold'}`} style={{ width: `${vol.fill}%` }} />
-              <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
+            {/* A finger counts on the track and a little room around it, not on
+                the readout above (a finger on "90%" read as 150%). pt-2 is the
+                track's old mt-2, so a TV's layout is the same. */}
+            <div className={onControl ? 'py-2' : 'pt-2'} {...volTouch}>
+              {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
+              <div ref={volTrackRef} className="relative h-2 w-full rounded-full bg-white/15 overflow-hidden">
+                <div className={`h-full ${vol.boost ? 'bg-orange-400' : 'bg-brand-gold'}`} style={{ width: `${vol.fill}%` }} />
+                <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
+              </div>
             </div>
           </div>
         </div>
