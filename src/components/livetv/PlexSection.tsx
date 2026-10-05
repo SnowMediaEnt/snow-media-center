@@ -2409,6 +2409,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [playVersion, setPlayVersion] = useState<PlexVersion | null>(null);
   const playVersionsRef = useRef<PlexVersion[]>([]);
   const playVersionRef = useRef<PlexVersion | null>(null);
+  // The full-screen player layer: on a touch screen the overlay toggles its
+  // bar on a tap in here (PlexPlayerOverlay touchRoot).
+  const playerLayerRef = useRef<HTMLDivElement | null>(null);
   const setSource = useCallback((v: PlexVersion | null, all?: PlexVersion[]) => {
     playVersionRef.current = v;
     setPlayVersion(v);
@@ -4570,7 +4573,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // flashed. The browse view now stays mounted underneath, hidden, and
   // everything in it is inactive while the player is up.
   const playerLayer = fullscreen ? (
-      <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
+      <div ref={playerLayerRef} className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
         {!NATIVE_PLAYBACK && streamUrl && (
           <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
             <VideoPlayer src={streamUrl} volume={volume} className="w-full h-full" />
@@ -4664,6 +4667,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             httpStatus={convertRefusal?.status ?? null}
             serverName={conn?.name}
             needKbps={stallNeedKbps}
+            touchRoot={playerLayerRef}
           />
         )}
         {conn && !DEMO && (

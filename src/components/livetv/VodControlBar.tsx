@@ -13,6 +13,11 @@
 //   media keys. They no longer touch the volume: changing it silently with
 //   nothing on screen was half of the "no sound" reports. Volume is the bar's.
 // - Back: a menu, then the stats panel, then the bar, then the player.
+// - Touch screens (phones, tablets) only: a tap on the picture brings the bar
+//   up or puts it away (a popup menu closes first), a tap on a button or a
+//   menu row does what OK does on it, a finger on the seek bar moves the
+//   marker and the film jumps where it lifts, and one on the volume level
+//   sets it (usePlayerTouch). A TV gets no listener and no click handler.
 // - Owns its own keydown listener (window, capture) for as long as it is
 //   mounted; the section behind leaves every key to it while a film plays.
 //   The remote's media keys stay the player's (onMediaKey); Next skips to
@@ -30,6 +35,8 @@ import { VOD_BACK_SEC, VOD_FWD_SEC, vodBarDisabled, vodBarLabel, vodBarOrder, ty
 import { stepVolume } from '@/utils/volume';
 import { keepInView } from '@/utils/keepInView';
 import { onMediaKey } from '@/lib/mediaKeys';
+import { useTouchUI } from '@/lib/phoneMode';
+import { touchChrome, usePictureTouch, useTrackTouch, type DragPhase } from '@/hooks/usePlayerTouch';
 
 type Focus = VodBarId | 'timeline';
 type Menu = 'none' | 'cc' | 'audio' | 'vol';
@@ -194,6 +201,29 @@ export default function VodControlBar({
     c.onVolume(Math.min(c.maxVolume, Math.max(0, v)));
   }, []);
 
+  // OK with the bar down, and a tap on the picture: the bar comes up on Play.
+  const showBar = useCallback(() => {
+    clearTimer(noteTimer);
+    setSeekNote(null);
+    setFocus('play');
+    setMenu('none');
+    setVisible(true);
+    armHide();
+  }, [armHide]);
+
+  // OK on a subtitles / audio row (0 = Off in the subtitles), and a tap on one.
+  const pickRow = useCallback((i: number) => {
+    const c = cur.current;
+    if (c.menu === 'cc') {
+      if (i === 0) c.controller?.setSubtitleTrack(-1);
+      else { const s = c.subs[i - 1]; if (s) c.controller?.setSubtitleTrack(s.id); }
+    } else if (c.menu === 'audio') {
+      const a = c.auds[i];
+      if (a) { c.controller?.setAudioTrack(a.id); c.onAudioPicked?.(a.id); }
+    }
+    setMenu('none');
+  }, []);
+
   const act = useCallback((id: VodBarId, repeat: boolean) => {
     const c = cur.current;
     if (c.disabled(id)) return;
@@ -236,12 +266,7 @@ export default function VodControlBar({
       if (!c.visible) {
         if (e.key === 'ArrowLeft') { void seekBy(-VOD_BACK_SEC, true); return; }
         if (e.key === 'ArrowRight') { void seekBy(VOD_FWD_SEC, true); return; }
-        clearTimer(noteTimer);
-        setSeekNote(null);
-        setFocus('play');
-        setMenu('none');
-        setVisible(true);
-        armHide();
+        showBar();
         return;
       }
       armHide();
@@ -258,16 +283,7 @@ export default function VodControlBar({
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(count - 1, i + 1));
         else if (e.key === 'ArrowLeft') setMenu('none');
-        else if (isOk) {
-          if (c.menu === 'cc') {
-            if (i === 0) c.controller?.setSubtitleTrack(-1);
-            else { const s = c.subs[i - 1]; if (s) c.controller?.setSubtitleTrack(s.id); }
-          } else {
-            const a = c.auds[i];
-            if (a) { c.controller?.setAudioTrack(a.id); c.onAudioPicked?.(a.id); }
-          }
-          setMenu('none');
-        }
+        else if (isOk) pickRow(i);
         return;
       }
 
@@ -303,7 +319,7 @@ export default function VodControlBar({
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [armHide, seekBy, commitScrub, act, setVol]);
+  }, [armHide, seekBy, commitScrub, act, setVol, showBar, pickRow]);
 
   // The remote's Next: the next episode (Play/Pause and skips are the player's).
   useEffect(() => {
@@ -322,6 +338,57 @@ export default function VodControlBar({
     const row = box?.querySelector<HTMLElement>('[data-focused="true"]');
     if (box && row) keepInView(box, row);
   }, [menu, menuIdx]);
+
+  // ── Touch screens: the same bar by finger (nothing of this on a TV) ──
+  const touch = useTouchUI();
+  // A tap on the picture: a popup menu closes first (like Back), then the
+  // bar goes; a hidden bar comes up on Play, as OK brings it.
+  const tapPicture = useCallback(() => {
+    const c = cur.current;
+    if (c.menu !== 'none') { setMenu('none'); armHide(); return; }
+    if (c.visible) { clearTimer(scrubTimer); setScrubPos(null); setVisible(false); return; }
+    showBar();
+  }, [armHide, showBar]);
+  usePictureTouch({
+    within: '[data-vod-player]',
+    // The error card's Retry answers its own tap; the bar stays down.
+    enabled: !blocked,
+    onTap: tapPicture,
+    onChrome: armHide,
+  });
+  // A tap on a button: the highlight moves there and it does what OK does.
+  // Greyed out: nothing. A second tap on the button of the open menu closes
+  // it; any other button closes an open menu first.
+  const tapControl = useCallback((id: VodBarId) => {
+    const c = cur.current;
+    armHide();
+    if (c.disabled(id)) return;
+    const ownMenu = (id === 'cc' || id === 'audio' || id === 'vol') && c.menu === id;
+    setMenu('none');
+    if (ownMenu) return;
+    setFocus(id);
+    act(id, false);
+  }, [armHide, act]);
+  const tapRow = useCallback((i: number) => { armHide(); setMenuIdx(i); pickRow(i); }, [armHide, pickRow]);
+  // A finger on the seek bar: the marker follows it, the film jumps where it
+  // lifts (the remote's scrub and its commit).
+  const seekTouch = useTrackTouch(touch ? (f: number, phase: DragPhase) => {
+    const c = cur.current;
+    armHide();
+    if (phase === 'cancel' || !(c.dur > 0)) { clearTimer(scrubTimer); setScrubPos(null); setFocus('play'); return; }
+    const to = Math.min(Math.max(0, c.dur - 1), Math.max(0, f * c.dur));
+    c.scrubPos = to; // commitScrub reads it before the re-render
+    setScrubPos(to);
+    setFocus('timeline');
+    if (phase === 'end') { commitScrub(); setFocus('play'); }
+  } : undefined);
+  // A finger on the volume level (the whole level box takes it).
+  const volTrackRef = useRef<HTMLDivElement | null>(null);
+  const volTouch = useTrackTouch(touch ? (f: number) => {
+    armHide();
+    setVol(Math.round(f * cur.current.maxVolume * 100) / 100);
+  } : undefined, volTrackRef);
+  const chrome = touchChrome(touch);
 
   const statsEl = stats && statsOn ? <PlayerStatsPanel /> : null;
 
@@ -367,11 +434,13 @@ export default function VodControlBar({
   return (
     <>
       {statsEl}
-      <div data-vod-bar className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-12 pb-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent animate-fade-in pointer-events-none">
+      <div data-vod-bar {...chrome} className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-12 pb-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent animate-fade-in pointer-events-none">
         <div className="max-w-6xl mx-auto pointer-events-auto">
           {title && <p className="text-lg font-quicksand font-bold text-white truncate leading-tight mb-2">{title}</p>}
           <div
             data-vod-timeline
+            data-touch-track={touch ? '' : undefined}
+            {...seekTouch}
             data-focused={scrubbing ? 'true' : 'false'}
             aria-label={t('plex.player.seekBar')}
             className={`relative rounded-full ${scrubbing ? 'h-2.5 bg-white/25' : 'h-1.5 bg-white/15'}`}
@@ -403,6 +472,7 @@ export default function VodControlBar({
                   focused={focus === id}
                   open={(id === 'cc' && menu === 'cc') || (id === 'audio' && menu === 'audio') || (id === 'vol' && menu === 'vol') || (id === 'stats' && statsOn)}
                   disabled={disabled(id)}
+                  onPress={touch ? () => tapControl(id) : undefined}
                 />
               ))}
             </div>
@@ -414,7 +484,7 @@ export default function VodControlBar({
       </div>
 
       {listOpen && (
-        <div data-vod-menu={menu} className={menuBox}>
+        <div data-vod-menu={menu} {...chrome} className={menuBox}>
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{menu === 'cc' ? t('live.bar.ccLabel') : t('live.bar.audioLabel')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.menuHint')}</span>
@@ -427,6 +497,7 @@ export default function VodControlBar({
               <div
                 key={`${r.id}-${r.label}-${i}`}
                 data-focused={menuIdx === i ? 'true' : 'false'}
+                onClick={touch ? (e) => { e.stopPropagation(); tapRow(i); } : undefined}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}
               >
                 <span className="truncate">{r.label}</span>
@@ -438,7 +509,7 @@ export default function VodControlBar({
       )}
 
       {volOpen && (
-        <div data-vod-menu="vol" className={menuBox}>
+        <div data-vod-menu="vol" {...chrome} className={menuBox}>
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               {vol === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -446,14 +517,14 @@ export default function VodControlBar({
             </p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.volHint')}</span>
           </div>
-          <div className="px-2 pb-1">
+          <div className="px-2 pb-1" {...volTouch}>
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-brand-ice/70 font-nunito">{t('live.bar.level')}</span>
               <span data-vod-vol-level className={`text-sm font-quicksand font-bold tabular-nums ${boost ? 'text-orange-300' : 'text-brand-gold'}`}>{boost ? t('live.bar.levelBoost', { pct: vol }) : `${vol}%`}</span>
             </div>
             {/* Over the player's whole range; on the native one the tick is
                 100% and past it the sound is boosted. */}
-            <div className="relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
+            <div ref={volTrackRef} className="relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
               <div className={`h-full ${boost ? 'bg-orange-400' : 'bg-brand-gold'}`} style={{ width: `${volFill}%` }} />
               {maxVolume > 1 && <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: `${(100 / maxVolume).toFixed(1)}%` }} />}
             </div>

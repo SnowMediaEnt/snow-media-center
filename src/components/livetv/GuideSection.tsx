@@ -53,6 +53,8 @@ import { REWIND_PAUSED_NOTE, endsAtLabel, extraStreamNote, pauseRewindForRecordi
 import RecordDialog, { type RecordChoice } from './RecordDialog';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { usePlayerEngine } from '@/hooks/usePlayerEngine';
+import { usePictureTouch } from '@/hooks/usePlayerTouch';
+import { useTouchUI } from '@/lib/phoneMode';
 import { toast } from '@/hooks/use-toast';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import SnowLoader from '@/components/SnowLoader';
@@ -647,6 +649,16 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   // full screen and the second then left the Guide for the side menu. A
   // second Back this soon is the same press.
   const lastBackAtRef = useRef(0);
+  // ▲ / ▼ full screen (and a swipe on a touch screen): the channel above or
+  // below in the guide, round the ends.
+  const zapFullscreen = useCallback((delta: 1 | -1) => {
+    const chans = channelsRef.current;
+    if (!chans.length) return;
+    const next = (rowIdxRef.current + delta + chans.length) % chans.length;
+    setRowIdx(next);
+    const ch = chans[next];
+    if (ch) { setPlayingChannelId(ch.stream_id); }
+  }, []);
   const freshBack = () => {
     const now = Date.now();
     if (now - lastBackAtRef.current < 350) return false;
@@ -684,13 +696,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           if (e.key === 'ArrowRight') { e.preventDefault(); setVolume(v => stepVolume(v, 0.05)); return; }
           if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
             e.preventDefault();
-            const chans = channelsRef.current;
-            if (!chans.length) return;
-            const delta = e.key === 'ArrowDown' ? 1 : -1;
-            const next = (rowIdxRef.current + delta + chans.length) % chans.length;
-            setRowIdx(next);
-            const ch = chans[next];
-            if (ch) { setPlayingChannelId(ch.stream_id); }
+            zapFullscreen(e.key === 'ArrowDown' ? 1 : -1);
             return;
           }
           return;
@@ -776,7 +782,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       window.removeEventListener('keyup', keyupHandler, true);
       cancelEnterTimer();
     };
-  }, [isActive, onExitLeft, onExitUp, playRow, cancelEnterTimer]);
+  }, [isActive, onExitLeft, onExitUp, playRow, cancelEnterTimer, zapFullscreen]);
 
   // Hardware Back (Capacitor)
   useEffect(() => {
@@ -800,6 +806,17 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     return () => { cancelled = true; handle?.remove?.(); };
   }, [isActive, onExitLeft]);
 
+  // Touch screens (phones, tablets): full screen has no bar, so a swipe
+  // changes channel (up = the next one, ▼; down = the previous one, ▲), and a
+  // tap on the preview box plays its channel (OK). Nothing of this on a TV.
+  const touch = useTouchUI();
+  const fullscreenRootRef = useRef<HTMLDivElement | null>(null);
+  usePictureTouch({
+    within: fullscreenRootRef,
+    enabled: isActive && fullscreen,
+    onSwipe: (dir) => zapFullscreen(dir === 'up' ? 1 : -1),
+  });
+
   // ── Render fullscreen ────────────────────────────────────────────────
   const playingChannel = playingChannelId
     ? channels.find(c => c.stream_id === playingChannelId) || null
@@ -814,7 +831,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   if (fullscreen) {
     const playingNow = playingChannel ? nowProgramFor(playingChannel.stream_id) : undefined;
     return (
-      <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
+      <div ref={fullscreenRootRef} className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
         {!NATIVE_PLAYBACK && !DEMO && (
           <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
             <VideoPlayer src={streamUrl} volume={volume} muted={false} className="w-full h-full" />
@@ -925,6 +942,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           <div data-native-clear className="flex-shrink-0 flex items-stretch px-4 py-3 border-b border-white/10" style={{ height: '27vh' }}>
             <div
               ref={previewBoxRef}
+              onClick={touch ? () => playRow(rowIdx) : undefined}
               className={`h-full flex-shrink-0 rounded-xl overflow-hidden border border-white/10 flex items-center justify-center ${nativePreviewActive ? '' : 'bg-black'}`}
               style={{ width: 'calc(27vh * 16 / 9 - 24px * 16 / 9)' }}
             >

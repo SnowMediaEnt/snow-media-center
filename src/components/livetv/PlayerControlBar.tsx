@@ -6,9 +6,10 @@ import {
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import { useTranslation } from 'react-i18next';
 import { formatTime } from '@/i18n/format';
-import { volumeBar } from '@/utils/volume';
+import { MAX_VOLUME, volumeBar } from '@/utils/volume';
 import { availableLabel, behindLabel } from '@/lib/liveRewind';
 import { liveBarDisabled, liveBarLabel, type BarControlId } from './liveBar';
+import { touchChrome, useTrackTouch } from '@/hooks/usePlayerTouch';
 
 export type { BarControlId } from './liveBar';
 
@@ -50,6 +51,15 @@ interface Props {
   rewind?: { availableSec: number; behindSec: number; archiveDays: number; note?: string } | null;
   /** This channel is being recorded now. */
   recording?: boolean;
+  // Touch screens only (LiveSection leaves them out on a TV, where the bar is
+  // the remote's alone and a click handler would act twice on OK):
+  /** A tap on a button: what OK does on it. */
+  onControl?: (id: BarControlId) => void;
+  /** A tap on a subtitles row (-1 = Off) or an audio row: what OK does on it. */
+  onSubtitle?: (idx: number) => void;
+  onAudio?: (idx: number) => void;
+  /** A finger on the volume level: the new volume (0..MAX_VOLUME). */
+  onVolume?: (v: number) => void;
 }
 
 /** The How-to guide's hooks on the buttons (data-howto; literals, so its check finds them). */
@@ -78,6 +88,8 @@ export interface BarButtonProps {
   /** "On" (this channel is recording). */
   on?: boolean;
   howto?: string;
+  /** Touch screens only: a tap on it (what OK does). Left out on a TV. */
+  onPress?: () => void;
 }
 
 /**
@@ -88,7 +100,7 @@ export interface BarButtonProps {
  * has the name's line (invisible unless highlighted), so the row never jumps
  * as the highlight moves. Play is the big one.
  */
-export function BarButton({ id, icon, label, focused, open = false, disabled = false, on = false, howto }: BarButtonProps) {
+export function BarButton({ id, icon, label, focused, open = false, disabled = false, on = false, howto, onPress }: BarButtonProps) {
   const base = 'tv-focusable home-focus-surface flex items-center justify-center rounded-full transition-transform duration-150';
   const size = id === 'play' ? 'w-16 h-16' : 'w-12 h-12';
   const visualState = open
@@ -109,6 +121,9 @@ export function BarButton({ id, icon, label, focused, open = false, disabled = f
           title={label}
           data-focused={focused && !open ? 'true' : 'false'}
           className={`${base} ${size} ${visualState}`}
+          // Blurred after the tap: a keyboard's Enter on a focused button
+          // would otherwise press it a second time.
+          onClick={onPress ? (e) => { e.stopPropagation(); e.currentTarget.blur(); onPress(); } : undefined}
         >
           {icon}
         </button>
@@ -131,6 +146,7 @@ const PlayerControlBar = memo(({
   nowTitle, nowStart, nowEnd, nextTitle,
   subMenuOpen, audioMenuOpen, subMenuFocus, audioMenuFocus,
   volMenuOpen, volume, statsOn = false, rewind = null, recording = false,
+  onControl, onSubtitle, onAudio, onVolume,
 }: Props) => {
   // Also makes the bar redraw (button names come from liveBarLabel) when the language changes.
   const { t } = useTranslation();
@@ -157,6 +173,15 @@ const PlayerControlBar = memo(({
   const vol = volumeBar(volume);
   const volPct = vol.pct;
   const volIcon = volPct === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />;
+
+  // Touch screens: the bar and its menus are not the picture, and the volume
+  // level follows a finger along it (the whole level box takes the finger).
+  const chrome = touchChrome(!!onControl);
+  const volTrackRef = useRef<HTMLDivElement | null>(null);
+  const volTouch = useTrackTouch(
+    onVolume ? (f) => onVolume(Math.round(f * MAX_VOLUME * 100) / 100) : undefined,
+    volTrackRef,
+  );
 
   if (!visible) return null;
 
@@ -205,6 +230,7 @@ const PlayerControlBar = memo(({
       disabled={c.disabled}
       on={c.id === 'rec' && recording}
       howto={BAR_HOWTO[c.id]}
+      onPress={onControl ? () => onControl(c.id) : undefined}
     />
   );
 
@@ -231,7 +257,7 @@ const PlayerControlBar = memo(({
       {/* Kept tight: the bar sits over the programme, so every row is as
           short as it can be, and the controls get their own dark pill so
           they read against any picture. */}
-      <div data-howto="bar.root" className="absolute left-0 right-0 bottom-0 z-10 px-8 pt-8 pb-3 bg-gradient-to-t from-black/95 via-black/85 to-transparent animate-fade-in pointer-events-none">
+      <div data-howto="bar.root" {...chrome} className="absolute left-0 right-0 bottom-0 z-10 px-8 pt-8 pb-3 bg-gradient-to-t from-black/95 via-black/85 to-transparent animate-fade-in pointer-events-none">
         {/* Top row: logo + meta + LIVE */}
         <div className="flex items-start gap-3 max-w-6xl mx-auto pointer-events-auto" data-howto="bar.channel">
           <div className="w-12 h-12 rounded-xl bg-black/60 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/10">
@@ -320,7 +346,7 @@ const PlayerControlBar = memo(({
 
       {/* Subtitles menu */}
       {subMenuOpen && (
-        <div className="absolute right-8 bottom-32 z-20 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div {...chrome} className="absolute right-8 bottom-32 z-20 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('live.bar.ccLabel')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.menuHint')}</span>
@@ -335,6 +361,7 @@ const PlayerControlBar = memo(({
                   <div
                     key={`${row.id}-${row.label}`}
                     data-focused={focused ? 'true' : 'false'}
+                    onClick={onSubtitle ? (e) => { e.stopPropagation(); onSubtitle(idx); } : undefined}
                     className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${
                       focused ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'
                     }`}
@@ -350,7 +377,7 @@ const PlayerControlBar = memo(({
 
       {/* Audio menu */}
       {audioMenuOpen && (
-        <div className="absolute right-8 bottom-32 z-20 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div {...chrome} className="absolute right-8 bottom-32 z-20 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('live.bar.audioLabel')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.menuHint')}</span>
@@ -362,6 +389,7 @@ const PlayerControlBar = memo(({
                 <div
                   key={`${a.id}-${a.label}`}
                   data-focused={focused ? 'true' : 'false'}
+                  onClick={onAudio ? (e) => { e.stopPropagation(); onAudio(i); } : undefined}
                   className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${
                     focused ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'
                   }`}
@@ -377,7 +405,7 @@ const PlayerControlBar = memo(({
 
       {/* Volume menu */}
       {volMenuOpen && (
-        <div className="absolute right-8 bottom-32 z-20 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div {...chrome} className="absolute right-8 bottom-32 z-20 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               {volPct === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -385,13 +413,13 @@ const PlayerControlBar = memo(({
             </p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.volHint')}</span>
           </div>
-          <div className="px-2 pb-1">
+          <div className="px-2 pb-1" {...volTouch}>
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-brand-ice/70 font-nunito">{t('live.bar.level')}</span>
               <span className={`text-sm font-quicksand font-bold tabular-nums ${vol.boost ? 'text-orange-300' : 'text-brand-gold'}`}>{vol.boost ? t('live.bar.levelBoost', { pct: volPct }) : `${volPct}%`}</span>
             </div>
             {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
-            <div className="relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
+            <div ref={volTrackRef} className="relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
               <div className={`h-full ${vol.boost ? 'bg-orange-400' : 'bg-brand-gold'}`} style={{ width: `${vol.fill}%` }} />
               <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
             </div>

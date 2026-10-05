@@ -15,6 +15,8 @@
 //
 // Remote: OK pause/play, ◀ ▶ 10 s, ▼ next video, ▲ previous, Back to the list
 // (one Back = one step). The remote's media keys are useNativePlayer's.
+// Touch screens (phones, tablets) only: a tap is OK, a swipe up the next
+// video (▼) and a swipe down the previous one (▲); Back is the edge swipe.
 // At the end: "Up next" with a 5-second countdown, then the next video; after
 // the last one, back to the list. Nothing is preloaded.
 //
@@ -24,6 +26,7 @@ import { AlertTriangle, Snowflake } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { hasNativePlayer, SnowPlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer, type NativeRect } from '@/hooks/useNativePlayer';
+import { usePictureTouch } from '@/hooks/usePlayerTouch';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
@@ -296,54 +299,65 @@ export default function OriginalsPlayer({ items, startId, onClose }: OriginalsPl
   }, []);
 
   // ── Remote ──
+  // What a key does once the bar is poked (and a finger on a touch screen):
+  // OK pause/play (Up next: play it now; an error: retry), ▼ ▲ the next /
+  // previous video, ◀ ▶ 10 s.
+  const act = useCallback((key: string, ok: boolean) => {
+    const st = sRef.current;
+    if (st.upNext !== null) {
+      if (ok) playIndex(st.idx + 1, false);
+      return;
+    }
+    if (st.errorMsg) {
+      if (ok) retry();
+      else if (key === 'ArrowDown') playIndex(st.idx + 1, false);
+      else if (key === 'ArrowUp') playIndex(st.idx - 1, false);
+      return;
+    }
+    if (ok) {
+      if (st.native) st.player.controller?.togglePlay();
+      else htmlCtlRef.current?.togglePlay();
+      return;
+    }
+    if (key === 'ArrowDown') { playIndex(st.idx + 1, false); return; }
+    if (key === 'ArrowUp') { playIndex(st.idx - 1, false); return; }
+    if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      const delta = key === 'ArrowRight' ? SEEK_SEC : -SEEK_SEC;
+      if (st.native) {
+        const n = st.player;
+        void n.getPosition().then((p) => {
+          const to = p.position + delta;
+          const max = p.duration > 0 ? Math.max(0, p.duration - 1) : to;
+          return n.seekTo(Math.max(0, Math.min(max, to)));
+        }).catch(() => { /* ignore */ });
+      } else {
+        const v = htmlBoxRef.current?.querySelector('video');
+        if (!v) return;
+        const max = Number.isFinite(v.duration) && v.duration > 0 ? Math.max(0, v.duration - 1) : v.currentTime + delta;
+        try { v.currentTime = Math.max(0, Math.min(max, v.currentTime + delta)); } catch { /* ignore */ }
+      }
+    }
+  }, [playIndex, retry]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // The remote's own media keys belong to the player (useNativePlayer / VideoPlayer).
       if (e.key.startsWith('Media') || e.key.startsWith('Channel')) return;
       swallow(e);
-      const st = sRef.current;
       if (isBackKey(e)) { markBack(); close(); return; }
       if (closedRef.current) return;
       pokeBar();
       const ok = isOkKey(e);
       if (ok && e.repeat) return;
-      if (st.upNext !== null) {
-        if (ok) playIndex(st.idx + 1, false);
-        return;
-      }
-      if (st.errorMsg) {
-        if (ok) retry();
-        else if (e.key === 'ArrowDown') playIndex(st.idx + 1, false);
-        else if (e.key === 'ArrowUp') playIndex(st.idx - 1, false);
-        return;
-      }
-      if (ok) {
-        if (st.native) st.player.controller?.togglePlay();
-        else htmlCtlRef.current?.togglePlay();
-        return;
-      }
-      if (e.key === 'ArrowDown') { playIndex(st.idx + 1, false); return; }
-      if (e.key === 'ArrowUp') { playIndex(st.idx - 1, false); return; }
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        const delta = e.key === 'ArrowRight' ? SEEK_SEC : -SEEK_SEC;
-        if (st.native) {
-          const n = st.player;
-          void n.getPosition().then((p) => {
-            const to = p.position + delta;
-            const max = p.duration > 0 ? Math.max(0, p.duration - 1) : to;
-            return n.seekTo(Math.max(0, Math.min(max, to)));
-          }).catch(() => { /* ignore */ });
-        } else {
-          const v = htmlBoxRef.current?.querySelector('video');
-          if (!v) return;
-          const max = Number.isFinite(v.duration) && v.duration > 0 ? Math.max(0, v.duration - 1) : v.currentTime + delta;
-          try { v.currentTime = Math.max(0, Math.min(max, v.currentTime + delta)); } catch { /* ignore */ }
-        }
-      }
+      act(e.key, ok);
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [close, playIndex, pokeBar, retry]);
+  }, [close, pokeBar, act]);
+  usePictureTouch({
+    within: '[data-originals-player]',
+    onTap: () => { if (closedRef.current) return; pokeBar(); act('Enter', true); },
+    onSwipe: (dir) => { if (closedRef.current) return; pokeBar(); act(dir === 'up' ? 'ArrowDown' : 'ArrowUp', false); },
+  });
 
   if (!cur) return null;
 

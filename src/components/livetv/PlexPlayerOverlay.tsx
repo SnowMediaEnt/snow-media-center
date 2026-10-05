@@ -4,7 +4,14 @@
 // the Skip Intro / Up Next prompt and, when the viewer opened it from Help,
 // the playback stats panel — PlexSection's own Back handler exits playback.
 // Native-only (uses SnowPlayer position/tracks).
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+//
+// Touch screens (phones, tablets) only: a tap on the picture brings the bar
+// up or puts it away (a popup menu closes first), a tap on a button or a menu
+// row does what OK does on it, a finger on the seek bar moves the marker and
+// the film jumps where it lifts, one on the volume level sets it, and a tap
+// on Skip Intro / Up Next takes it (usePlayerTouch). A TV gets no listener
+// and no click handler it did not have.
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, Maximize, LifeBuoy, Volume2, VolumeX } from 'lucide-react';
@@ -20,7 +27,9 @@ import { useScreenFormat } from '@/hooks/useScreenFormat';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
 import { toast } from '@/hooks/use-toast';
-import { stepVolume, volumeBar } from '@/utils/volume';
+import { MAX_VOLUME, stepVolume, volumeBar } from '@/utils/volume';
+import { useTouchUI } from '@/lib/phoneMode';
+import { touchChrome, usePictureTouch, useTrackTouch, type DragPhase } from '@/hooks/usePlayerTouch';
 import PlayerStatsPanel from './PlayerStatsPanel';
 
 // 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
@@ -35,6 +44,12 @@ const SCRUB_REPEAT_MS = 700;
 // Keys, not text: translated when the menu is drawn.
 const HELP_ITEMS = ['plex.player.helpBuffering', 'plex.player.helpSupport', 'plex.player.helpStats'];
 const HELP_STATS = 2;
+// The bar button each popup menu belongs to (its button shows "open").
+type Menu = 'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'format' | 'volume' | 'help';
+const MENU_ROW: Partial<Record<Menu, Row>> = {
+  audio: 'audio', subs: 'subs', osdl: 'subs', quality: 'quality', format: 'format', volume: 'volume', help: 'buffering',
+};
+const NO_ROOT: RefObject<Element | null> = { current: null };
 
 export interface SubtitleSearchContext {
   title: string;
@@ -112,6 +127,9 @@ interface Props {
   httpStatus?: number | null;
   serverName?: string;
   needKbps?: number;
+  /** The player's full-screen layer: on a touch screen, a tap inside it
+   *  that is not on the bar toggles the bar. */
+  touchRoot?: RefObject<Element | null>;
 }
 
 
@@ -128,7 +146,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused, statsSession, serverName, needKbps, httpStatus }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused, statsSession, serverName, needKbps, httpStatus, touchRoot }: Props) => {
   // The Quality menu: every version as it is (when there are several), then
   // the converted presets. `selected` is the entry now in effect.
   const { t } = useTranslation();
@@ -148,7 +166,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     ? `original@${versionId ?? versions[0].id}` : qualityKey;
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
-  const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'format' | 'volume' | 'help'>('none');
+  const [menu, setMenu] = useState<Menu>('none');
   const [menuIdx, setMenuIdx] = useState(0);
   // The playback stats panel. Stays up while the bar hides; Back closes it
   // before anything else it would do (a popup menu open over it aside).
@@ -354,6 +372,71 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const onFixAudioRef = useRef(onFixAudio); useEffect(() => { onFixAudioRef.current = onFixAudio; }, [onFixAudio]);
   const promptRef = useRef(prompt); useEffect(() => { promptRef.current = prompt; }, [prompt]);
 
+  // OK on a row of the open popup menu, and a tap on one. `repeat`: a held OK.
+  // (The volume popup has no rows: OK closes it, in the key handler.)
+  const chooseMenuItem = useCallback((i: number, repeat: boolean) => {
+    const m = menuRef.current;
+    if (m === 'audio') {
+      const list = audsRef.current;
+      if (i === list.length) { // the "Fix audio" row, after the tracks
+        void (async () => {
+          const p = await getPositionRef.current();
+          onFixAudioRef.current?.(Math.floor(p.position));
+          try { toastRef.current({ title: i18n.t('plex.player.toast.fixingAudio') }); } catch { /* ignore */ }
+        })();
+        setMenu('none');
+        return;
+      }
+      const track = list[i];
+      if (track) controllerRef.current?.setAudioTrack(track.id);
+      setMenu('none');
+    } else if (m === 'subs') {
+      // [Off, ...subs, Get subtitles…]
+      const list = subsRef.current;
+      if (i === list.length + 1) { void openOsdlRef.current(); return; }
+      if (i === 0) controllerRef.current?.setSubtitleTrack(-1);
+      else { const track = list[i - 1]; if (track) controllerRef.current?.setSubtitleTrack(track.id); }
+      setMenu('none');
+    } else if (m === 'osdl') {
+      const item = osdlResultsRef.current[i];
+      if (item) void pickOsdlRef.current(item);
+    } else if (m === 'format') {
+      const f = SCREEN_FORMATS[i];
+      if (f) {
+        void setScreenFormatRef.current(f.id as ScreenFormat);
+        try { toastRef.current({ title: i18n.t('plex.player.toast.screenFormat', { format: formatName(f) }) }); } catch { /* ignore */ }
+      }
+      setMenu('none');
+    } else if (m === 'quality') {
+      const p = qualityListRef.current[i];
+      if (p && p.key !== qualityKeyRef.current) {
+        void (async () => {
+          const pos = await getPositionRef.current();
+          onChangeQualityRef.current(p.key, Math.floor(pos.position));
+          try { toastRef.current({ title: i18n.t('plex.player.toast.switching', { name: p.name }) }); } catch { /* ignore */ }
+        })();
+      }
+      setMenu('none');
+    } else if (m === 'help') {
+      setMenu('none');
+      if (i === HELP_STATS) {
+        // OK turns it on and off; a held OK must not flicker it.
+        if (!repeat) { statsOpenRef.current = !statsOpenRef.current; setStatsOpen(statsOpenRef.current); }
+      } else if (i === 0) onOpenBufferingGuideRef.current?.();
+      else onOpenSupportRef.current?.();
+    }
+  }, []);
+
+  // OK on the seek bar, and a finger lifting off it: the film jumps to the marker.
+  const commitScrub = useCallback(() => {
+    const target = scrubPosRef.current;
+    setScrubPos(null);
+    if (target != null && Math.abs(target - posRef.current) >= 1) {
+      setPos(target);
+      void seekToRef.current(target);
+    }
+  }, []);
+
   // A pause — the remote's Play/Pause, OK on ▶❚❚, the phone remote, anything
   // — brings the bar up on Play (so OK resumes) and holds it there. Playing
   // again hides it after the usual 5 s. Back while paused still hides it.
@@ -421,42 +504,20 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       armHideRef.current();
 
       if (menuRef.current === 'audio') {
-        const list = audsRef.current;
-        const total = list.length + 1;   // + synthetic "Fix audio" row at end
-        const fixIdx = list.length;
+        const total = audsRef.current.length + 1;   // + synthetic "Fix audio" row at end
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(total - 1, i + 1));
-        else if (isOk) {
-          if (i === fixIdx) {
-            void (async () => {
-              const p = await getPositionRef.current();
-              onFixAudioRef.current?.(Math.floor(p.position));
-              try { toastRef.current({ title: i18n.t('plex.player.toast.fixingAudio') }); } catch { /* ignore */ }
-            })();
-            setMenu('none');
-            return;
-          }
-          const track = list[i];
-          if (track) controllerRef.current?.setAudioTrack(track.id);
-          setMenu('none');
-        }
+        else if (isOk) chooseMenuItem(i, e.repeat);
         return;
       }
       if (menuRef.current === 'subs') {
         // list = [Off, ...subs, Get subtitles…]
-        const list = subsRef.current;
-        const total = list.length + 2;
-        const getIdx = list.length + 1;
+        const total = subsRef.current.length + 2;
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(total - 1, i + 1));
-        else if (isOk) {
-          if (i === getIdx) { void openOsdlRef.current(); return; }
-          if (i === 0) controllerRef.current?.setSubtitleTrack(-1);
-          else { const track = list[i - 1]; if (track) controllerRef.current?.setSubtitleTrack(track.id); }
-          setMenu('none');
-        }
+        else if (isOk) chooseMenuItem(i, e.repeat);
         return;
       }
       if (menuRef.current === 'osdl') {
@@ -465,7 +526,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
-        else if (isOk) { const item = list[i]; if (item) void pickOsdlRef.current(item); }
+        else if (isOk) chooseMenuItem(i, e.repeat);
         return;
       }
       if (menuRef.current === 'format') {
@@ -473,14 +534,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
-        else if (isOk) {
-          const f = list[i];
-          if (f) {
-            void setScreenFormatRef.current(f.id as ScreenFormat);
-            try { toastRef.current({ title: i18n.t('plex.player.toast.screenFormat', { format: formatName(f) }) }); } catch { /* ignore */ }
-          }
-          setMenu('none');
-        }
+        else if (isOk) chooseMenuItem(i, e.repeat);
         return;
       }
       if (menuRef.current === 'quality') {
@@ -488,17 +542,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
-        else if (isOk) {
-          const p = list[i];
-          if (p && p.key !== qualityKeyRef.current) {
-            void (async () => {
-              const pos = await getPositionRef.current();
-              onChangeQualityRef.current(p.key, Math.floor(pos.position));
-              try { toastRef.current({ title: i18n.t('plex.player.toast.switching', { name: p.name }) }); } catch { /* ignore */ }
-            })();
-          }
-          setMenu('none');
-        }
+        else if (isOk) chooseMenuItem(i, e.repeat);
         return;
       }
       if (menuRef.current === 'volume') {
@@ -517,14 +561,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(HELP_ITEMS.length - 1, i + 1));
-        else if (isOk) {
-          setMenu('none');
-          if (i === HELP_STATS) {
-            // OK turns it on and off; a held OK must not flicker it.
-            if (!e.repeat) { statsOpenRef.current = !statsOpenRef.current; setStatsOpen(statsOpenRef.current); }
-          } else if (i === 0) onOpenBufferingGuideRef.current?.();
-          else onOpenSupportRef.current?.();
-        }
+        else if (isOk) chooseMenuItem(i, e.repeat);
         return;
       }
 
@@ -549,15 +586,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           setScrubPos(Math.min(max, Math.max(0, from + step)));
           return;
         }
-        if (isOk) {
-          const target = scrubPosRef.current;
-          setScrubPos(null);
-          if (target != null && Math.abs(target - posRef.current) >= 1) {
-            setPos(target);
-            void seekToRef.current(target);
-          }
-          return;
-        }
+        if (isOk) { commitScrub(); return; }
         return;
       }
       if (e.key === 'ArrowUp') { setScrubPos(null); setRow('scrub'); return; }
@@ -570,7 +599,61 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [active]);
+  }, [active, chooseMenuItem, commitScrub]);
+
+  // ── Touch screens: the same bar by finger (nothing of this on a TV) ──
+  const touch = useTouchUI();
+  // A tap on the picture: a popup menu closes first (like Back), then the
+  // bar goes; a hidden bar comes up (Skip Intro / Up Next take their own tap).
+  const tapPicture = useCallback(() => {
+    if (menuRef.current !== 'none') { setMenu('none'); armHideRef.current(); return; }
+    if (visibleRef.current) { setVisible(false); return; }
+    showRef.current();
+  }, []);
+  const touchedBar = useCallback(() => { if (visibleRef.current) armHideRef.current(); }, []);
+  usePictureTouch({
+    within: touchRoot ?? NO_ROOT,
+    enabled: active && !!touchRoot,
+    onTap: tapPicture,
+    onChrome: touchedBar,
+  });
+  // A tap on a bar button: the highlight moves there and it does what OK
+  // does. A second tap on the button of the open menu closes it; any other
+  // button closes an open menu first.
+  const tapControl = useCallback((r: Row) => {
+    armHideRef.current();
+    const ownMenu = MENU_ROW[menuRef.current] === r;
+    setScrubPos(null);
+    setMenu('none');
+    setRow(r);
+    if (!ownMenu) void doActionRef.current(r);
+  }, []);
+  const tapMenuItem = useCallback((i: number) => { armHideRef.current(); setMenuIdx(i); chooseMenuItem(i, false); }, [chooseMenuItem]);
+  // A finger on the seek bar: the marker follows it, the film jumps where it
+  // lifts (the remote's scrub and its OK).
+  const seekTouch = useTrackTouch(touch ? (f: number, phase: DragPhase) => {
+    armHideRef.current();
+    const d = durRef.current;
+    if (phase === 'cancel' || !(d > 0)) { setScrubPos(null); setRow('play'); return; }
+    const to = Math.min(d, Math.max(0, f * d));
+    scrubPosRef.current = to; // commitScrub reads it before the re-render
+    setScrubPos(to);
+    setRow('scrub');
+    if (phase === 'end') { commitScrub(); setRow('play'); }
+  } : undefined);
+  // A finger on the volume level (the whole level row takes it).
+  const volTrackRef = useRef<HTMLDivElement | null>(null);
+  const volTouch = useTrackTouch(touch ? (f: number) => {
+    armHideRef.current();
+    onChangeVolumeRef.current(Math.round(f * MAX_VOLUME * 100) / 100);
+  } : undefined, volTrackRef);
+  const chrome = touchChrome(touch);
+  /** A bar button's click handler: on a touch screen only. */
+  const press = (r: Row) => (touch
+    ? (e: ReactMouseEvent<HTMLButtonElement>) => { e.stopPropagation(); e.currentTarget.blur(); tapControl(r); }
+    : undefined);
+  /** A menu row's click handler: on a touch screen only. */
+  const pick = (i: number) => (touch ? (e: ReactMouseEvent) => { e.stopPropagation(); tapMenuItem(i); } : undefined);
 
   const isMenu = (m: string) => menu === m;
   const isRow = (r: string) => row === r;
@@ -579,7 +662,12 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   // while that is open; it steps aside while a menu is up.
   const promptEl = active && prompt && (!visible || menu === 'none') ? (
     <div className={`absolute right-12 ${visible ? 'bottom-44' : 'bottom-12'} z-30 pointer-events-none animate-fade-in`}>
-      <div className="rounded-2xl bg-black/85 border-2 border-brand-gold px-6 py-4 max-w-md" data-howto={isNextPrompt ? 'pp.upNext' : 'pp.skip'}>
+      <div
+        className={touch ? 'rounded-2xl bg-black/85 border-2 border-brand-gold px-6 py-4 max-w-md pointer-events-auto' : 'rounded-2xl bg-black/85 border-2 border-brand-gold px-6 py-4 max-w-md'}
+        data-howto={isNextPrompt ? 'pp.upNext' : 'pp.skip'}
+        role={touch ? 'button' : undefined}
+        onClick={touch ? (e) => { e.stopPropagation(); prompt.onOk(); } : undefined}
+      >
         {isNextPrompt && (
           <p className="text-xs uppercase tracking-wider text-brand-gold font-nunito mb-1">
             {prompt.countdown != null ? t('plex.player.upNextIn', { seconds: prompt.countdown }) : t('plex.player.upNext')}
@@ -619,14 +707,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const btnBase = 'flex items-center justify-center rounded-full transition-transform duration-150';
   // Control-bar row whose popup menu is open. That button drops its focused
   // look (and data-focused) for an "open" outline so the eye moves to the menu.
-  const menuRow: Row | null =
-    menu === 'audio' ? 'audio'
-      : menu === 'subs' || menu === 'osdl' ? 'subs'
-        : menu === 'quality' ? 'quality'
-        : menu === 'format' ? 'format'
-          : menu === 'volume' ? 'volume'
-            : menu === 'help' ? 'buffering'
-              : null;
+  const menuRow: Row | null = MENU_ROW[menu] ?? null;
   const btnFocused = (r: Row) => (row === r && menuRow !== r ? 'true' : 'false');
   const focusVis = (r: Row) => menuRow === r
     ? 'bg-black/60 text-brand-gold border-2 border-brand-gold scale-100'
@@ -644,7 +725,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     <>
       {promptEl}
       {statsEl}
-      <div className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-16 pb-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
+      <div {...chrome} className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-16 pb-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
         <div className="max-w-6xl mx-auto pointer-events-auto">
           <p className="text-xl font-quicksand font-bold text-white truncate mb-2">
             {title}
@@ -657,6 +738,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             data-focused={scrubbing ? 'true' : 'false'}
             data-howto="pp.seek"
             aria-label={t('plex.player.seekBar')}
+            data-touch-track={touch ? '' : undefined}
+            {...seekTouch}
           >
             <div className="h-full rounded-full bg-brand-gold" style={{ width: `${pct}%` }} />
             {scrubbing && (
@@ -677,21 +760,22 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <span>{dur > 0 ? fmtTime(dur) : ''}</span>
           </div>
           <div className="mt-4 flex items-center justify-center gap-3" data-howto="pp.controls">
-            <button type="button" data-focused={row === 'seek-10' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek-10')}`} aria-label={t('plex.player.back10')}><Rewind className="w-6 h-6" /></button>
-            <button type="button" data-focused={row === 'play' ? 'true' : 'false'} className={`${btnBase} w-16 h-16 ${focusVis('play')}`} aria-label={t('plex.player.playPause')}>
+            <button type="button" data-focused={row === 'seek-10' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek-10')}`} aria-label={t('plex.player.back10')} onClick={press('seek-10')}><Rewind className="w-6 h-6" /></button>
+            <button type="button" data-focused={row === 'play' ? 'true' : 'false'} className={`${btnBase} w-16 h-16 ${focusVis('play')}`} aria-label={t('plex.player.playPause')} onClick={press('play')}>
               {(paused ?? pollPaused) ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />}
             </button>
-            <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label={t('plex.player.forward30')}><FastForward className="w-6 h-6" /></button>
-            <button type="button" data-focused={btnFocused('audio')} data-howto="pp.audio" className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label={t('plex.player.audio')}><AudioLines className="w-6 h-6" /></button>
-            <button type="button" data-focused={btnFocused('subs')} data-howto="pp.subs" className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label={t('plex.player.subtitles')}><Subtitles className="w-6 h-6" /></button>
-            <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label={t('plex.player.quality')}><Gauge className="w-6 h-6" /></button>
-            <button type="button" data-focused={btnFocused('format')} className={`${btnBase} w-12 h-12 ${focusVis('format')}`} aria-label={t('plex.player.screenFormat')}><Maximize className="w-6 h-6" /></button>
+            <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label={t('plex.player.forward30')} onClick={press('seek+30')}><FastForward className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('audio')} data-howto="pp.audio" className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label={t('plex.player.audio')} onClick={press('audio')}><AudioLines className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('subs')} data-howto="pp.subs" className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label={t('plex.player.subtitles')} onClick={press('subs')}><Subtitles className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label={t('plex.player.quality')} onClick={press('quality')}><Gauge className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('format')} className={`${btnBase} w-12 h-12 ${focusVis('format')}`} aria-label={t('plex.player.screenFormat')} onClick={press('format')}><Maximize className="w-6 h-6" /></button>
             <div className="flex flex-col items-center gap-1">
               <button
                 type="button"
                 data-focused={btnFocused('volume')}
                 className={`${btnBase} w-12 h-12 ${focusVis('volume')}`}
                 aria-label={t('plex.player.volume')}
+                onClick={press('volume')}
               >
                 {volPct === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
               </button>
@@ -700,7 +784,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               )}
             </div>
             <div className="flex flex-col items-center gap-1">
-              <button type="button" data-focused={btnFocused('buffering')} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label={t('plex.player.help')} onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-6 h-6" /></button>
+              <button type="button" data-focused={btnFocused('buffering')} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label={t('plex.player.help')} onClick={press('buffering') ?? (() => { setMenu('help'); setMenuIdx(0); })}><LifeBuoy className="w-6 h-6" /></button>
               <span className="text-xs font-nunito text-brand-ice/70 leading-none">{t('plex.player.help')}</span>
             </div>
           </div>
@@ -717,7 +801,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       </div>
 
       {isMenu('audio') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div {...chrome} className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.audio')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
@@ -725,12 +809,12 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           {auds.length === 0 && <p className="text-sm text-brand-ice/70 px-3 py-2">{t('plex.player.noTracks')}</p>}
           <div className="space-y-1">
             {auds.map((a, i) => (
-              <div key={`${a.id}-${a.label}`} data-focused={menuIdx === i ? 'true' : 'false'}
+              <div key={`${a.id}-${a.label}`} data-focused={menuIdx === i ? 'true' : 'false'} onClick={pick(i)}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
                 <span className="truncate">{a.label}</span>{a.active && <span className="text-brand-gold text-xs">●</span>}
               </div>
             ))}
-            <div data-focused={menuIdx === auds.length ? 'true' : 'false'} data-howto="pp.fixAudio"
+            <div data-focused={menuIdx === auds.length ? 'true' : 'false'} data-howto="pp.fixAudio" onClick={pick(auds.length)}
               className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === auds.length ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-gold'}`}>
               <VolumeX className="w-3.5 h-3.5" />
               <span className="truncate">{t('plex.player.fixAudio')}</span>
@@ -740,7 +824,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       )}
 
       {isMenu('volume') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div {...chrome} className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               {volPct === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -748,9 +832,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             </p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHintSlider')}</span>
           </div>
-          <div className="flex items-center gap-3 px-2 py-2">
+          <div className="flex items-center gap-3 px-2 py-2" {...volTouch}>
             {/* 0-150%: the tick is 100%; past it the sound is boosted. */}
-            <div className="relative h-2 flex-1 rounded-full bg-white/15 overflow-hidden">
+            <div ref={volTrackRef} className="relative h-2 flex-1 rounded-full bg-white/15 overflow-hidden">
               <div className={`h-full ${vol.boost ? 'bg-orange-400' : 'bg-brand-gold'} transition-[width] duration-150 ease-out`} style={{ width: `${vol.fill}%` }} />
               <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: '66.6%' }} />
             </div>
@@ -761,14 +845,14 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
 
       {isMenu('format') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div {...chrome} className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.screenFormat')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
           </div>
           <div className="space-y-1">
             {SCREEN_FORMATS.map((f, i) => (
-              <div key={f.id} data-focused={menuIdx === i ? 'true' : 'false'}
+              <div key={f.id} data-focused={menuIdx === i ? 'true' : 'false'} onClick={pick(i)}
                 className={`tv-ring px-3 py-2 rounded-xl font-nunito text-sm ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
                 <div className="flex items-center justify-between">
                   <span className="truncate">{formatName(f)}</span>
@@ -782,7 +866,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       )}
 
       {isMenu('quality') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div {...chrome} className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.quality')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
@@ -794,7 +878,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               room above the bar on a 540 px-tall TV viewport. */}
           <div className="space-y-1 overflow-y-auto p-1 -m-1" style={{ maxHeight: '56vh' }}>
             {qualityList.map((p, i) => (
-              <div key={p.key} data-focused={menuIdx === i ? 'true' : 'false'}
+              <div key={p.key} data-focused={menuIdx === i ? 'true' : 'false'} onClick={pick(i)}
                 ref={menuIdx === i ? (el) => { if (el) el.scrollIntoView({ block: 'nearest' }); } : undefined}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
                 <span className="truncate">{p.label}</span>{p.key === selectedQuality && <span className="text-brand-gold text-xs">●</span>}
@@ -806,14 +890,14 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
 
       {isMenu('subs') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div {...chrome} className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.subtitles')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
           </div>
           <div className="space-y-1">
             {subsList.map((r, i) => (
-              <div key={`${r.id}-${r.label}-${i}`} data-focused={menuIdx === i ? 'true' : 'false'} data-howto={r.id === -2 ? 'pp.getSubs' : undefined}
+              <div key={`${r.id}-${r.label}-${i}`} data-focused={menuIdx === i ? 'true' : 'false'} data-howto={r.id === -2 ? 'pp.getSubs' : undefined} onClick={pick(i)}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : r.id === -2 ? 'text-brand-gold' : 'text-brand-ice/90'}`}>
                 <span className="truncate">{r.label}</span>{r.active && <span className="text-brand-gold text-xs">●</span>}
               </div>
@@ -823,7 +907,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       )}
 
       {isMenu('osdl') && (
-        <div className="absolute right-8 bottom-40 z-30 w-96 max-h-[60vh] overflow-y-auto rounded-2xl bg-black/90 border border-white/15 p-2 animate-fade-in pointer-events-auto">
+        <div {...chrome} className="absolute right-8 bottom-40 z-30 w-96 max-h-[60vh] overflow-y-auto rounded-2xl bg-black/90 border border-white/15 p-2 animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               <Download className="w-3.5 h-3.5 text-brand-gold" /> OpenSubtitles{/* i18n-ignore: brand name */}
@@ -845,6 +929,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             {!osdlLoading && osdlResults.map((r, i) => (
               <div key={r.id}
                 data-focused={menuIdx === i ? 'true' : 'false'}
+                onClick={pick(i)}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
                 <span className="uppercase font-quicksand font-bold w-8 text-brand-gold">{r.lang}</span>
                 <span className="flex-1 truncate">{r.release || '—'}</span>
@@ -857,7 +942,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       )}
 
       {isMenu('help') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div {...chrome} className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               <LifeBuoy className="w-3.5 h-3.5 text-brand-gold" /> {t('plex.player.help')}
@@ -869,7 +954,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           )}
           <div className="space-y-1">
             {HELP_ITEMS.map((labelKey, i) => (
-              <div key={labelKey} data-focused={menuIdx === i ? 'true' : 'false'}
+              <div key={labelKey} data-focused={menuIdx === i ? 'true' : 'false'} onClick={pick(i)}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
                 <span className="truncate">{t(labelKey)}</span>
                 {i === HELP_STATS && statsOpen && <span className="text-brand-gold text-xs">●</span>}

@@ -64,6 +64,8 @@ import { liveBarDisabled, liveBarOrder, moveBarFocus, type BarControlId } from '
 import BufferingDiagnostics from './BufferingDiagnostics';
 import SnowLoader from '@/components/SnowLoader';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
+import { usePictureTouch } from '@/hooks/usePlayerTouch';
+import { useTouchUI } from '@/lib/phoneMode';
 import type { VideoController } from './VideoPlayer';
 import { AlertTriangle, RotateCw } from 'lucide-react';
 import { hasNativePlayer, SnowPlayer } from '@/capacitor/SnowPlayer';
@@ -1802,6 +1804,73 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => { subMenuFocusRef.current = subMenuFocus; }, [subMenuFocus]);
   useEffect(() => { audioMenuFocusRef.current = audioMenuFocus; }, [audioMenuFocus]);
 
+  // What OK does on a bar button, and a tap on it on a touch screen: one
+  // action either way. `repeat`: a held OK (Record and Report open once).
+  const activateBarControl = useCallback((id: BarControlId, repeat: boolean) => {
+    const ctrl = videoControllerRef.current;
+    const rewindOn = rewindRef.current.kind !== 'off';
+    if (id === 'prev')  changeChannelInFullscreen(-1);
+    else if (id === 'next') changeChannelInFullscreen(+1);
+    // Back 10s / Forward 10s: through the channel's rewind when it has
+    // one, else a seek; held, the steps are added up (liveSkip).
+    else if (id === 'rew')  { liveSkip.push(-MEDIA_SKIP_SEC); }
+    else if (id === 'fwd')  { liveSkip.push(+MEDIA_SKIP_SEC); }
+    // Greyed out (its slot is kept) until the channel has rewind.
+    else if (id === 'golive') { if (rewindOn) void rewindRef.current.goLive(); }
+    else if (id === 'rec') {
+      const st = playingStreamRef.current;
+      if (st && !repeat && recordOnRef.current) setRecordFor({ st, line: playingLineRef.current });
+    }
+    else if (id === 'report') {
+      // The channel that is playing; the menu finds its line by the stream object.
+      const st = playingStreamRef.current;
+      if (st && !repeat) {
+        streamLineRef.current.set(st, playingLineRef.current);
+        setReportFor(st);
+      }
+    }
+    else if (id === 'play') {
+      ctrl?.togglePlay();
+      // optimistic — onPlayStateChange will reconcile
+      setIsPaused(p => !p);
+    }
+    else if (id === 'cc') {
+      const subs = ctrl?.getSubtitleTracks() ?? [];
+      const cur = subs.findIndex(s => s.active);
+      setSubMenuFocus(cur >= 0 ? cur : -1);
+      setSubMenuOpen(true);
+      setAudioMenuOpen(false);
+      setVolMenuOpen(false);
+    }
+    else if (id === 'audio') {
+      const auds = ctrl?.getAudioTracks() ?? [];
+      const cur = auds.findIndex(a => a.active);
+      setAudioMenuFocus(cur >= 0 ? cur : 0);
+      setAudioMenuOpen(true);
+      setSubMenuOpen(false);
+      setVolMenuOpen(false);
+    }
+    else if (id === 'vol') {
+      setVolMenuOpen(true);
+      setSubMenuOpen(false);
+      setAudioMenuOpen(false);
+    }
+    else if (id === 'stats') {
+      setStatsShown((v) => !v);
+    }
+  }, [changeChannelInFullscreen, liveSkip]);
+  // OK on a subtitles row (-1 = Off) or an audio row, and a tap on one.
+  const chooseSubtitle = useCallback((idx: number) => {
+    videoControllerRef.current?.setSubtitleTrack(idx);
+    setTracksTick(t => t + 1);
+    setSubMenuOpen(false);
+  }, []);
+  const chooseAudio = useCallback((idx: number) => {
+    videoControllerRef.current?.setAudioTrack(idx);
+    setTracksTick(t => t + 1);
+    setAudioMenuOpen(false);
+  }, []);
+
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
@@ -1865,21 +1934,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             const min = -1; const max = subs.length - 1;
             if (e.key === 'ArrowDown') setSubMenuFocus(f => Math.min(max, f + 1));
             else if (e.key === 'ArrowUp') setSubMenuFocus(f => Math.max(min, f - 1));
-            else if (e.key === 'Enter' || e.key === ' ') {
-              ctrl?.setSubtitleTrack(subMenuFocusRef.current);
-              setTracksTick(t => t + 1);
-              setSubMenuOpen(false);
-            }
+            else if (e.key === 'Enter' || e.key === ' ') chooseSubtitle(subMenuFocusRef.current);
           } else {
             const auds = ctrl?.getAudioTracks() ?? [];
             const max = auds.length - 1;
             if (e.key === 'ArrowDown') setAudioMenuFocus(f => Math.min(max, f + 1));
             else if (e.key === 'ArrowUp') setAudioMenuFocus(f => Math.max(0, f - 1));
-            else if (e.key === 'Enter' || e.key === ' ') {
-              ctrl?.setAudioTrack(audioMenuFocusRef.current);
-              setTracksTick(t => t + 1);
-              setAudioMenuOpen(false);
-            }
+            else if (e.key === 'Enter' || e.key === ' ') chooseAudio(audioMenuFocusRef.current);
           }
           return;
         }
@@ -1935,54 +1996,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         if (e.key === 'ArrowUp')    { changeChannelInFullscreen(-1); setBarFocus('play'); pokeBar(); return; }
         if (e.key === 'ArrowDown')  { changeChannelInFullscreen(+1); setBarFocus('play'); pokeBar(); return; }
         if (e.key === 'Enter' || e.key === ' ') {
-          const id = barFocusRef.current;
-          if (id === 'prev')  changeChannelInFullscreen(-1);
-          else if (id === 'next') changeChannelInFullscreen(+1);
-          // Back 10s / Forward 10s: through the channel's rewind when it has
-          // one, else a seek; held, the steps are added up (liveSkip).
-          else if (id === 'rew')  { liveSkip.push(-MEDIA_SKIP_SEC); }
-          else if (id === 'fwd')  { liveSkip.push(+MEDIA_SKIP_SEC); }
-          // Greyed out (its slot is kept) until the channel has rewind.
-          else if (id === 'golive') { if (rewindOn) void rewindRef.current.goLive(); }
-          else if (id === 'rec') {
-            const st = playingStreamRef.current;
-            if (st && !e.repeat && recordOnRef.current) setRecordFor({ st, line: playingLineRef.current });
-          }
-          else if (id === 'report') {
-            // The channel that is playing; the menu finds its line by the stream object.
-            const st = playingStreamRef.current;
-            if (st && !e.repeat) {
-              streamLineRef.current.set(st, playingLineRef.current);
-              setReportFor(st);
-            }
-          }
-          else if (id === 'play') {
-            ctrl?.togglePlay();
-            // optimistic — onPlayStateChange will reconcile
-            setIsPaused(p => !p);
-          }
-          else if (id === 'cc') {
-            const cur = subs.findIndex(s => s.active);
-            setSubMenuFocus(cur >= 0 ? cur : -1);
-            setSubMenuOpen(true);
-            setAudioMenuOpen(false);
-            setVolMenuOpen(false);
-          }
-          else if (id === 'audio') {
-            const cur = auds.findIndex(a => a.active);
-            setAudioMenuFocus(cur >= 0 ? cur : 0);
-            setAudioMenuOpen(true);
-            setSubMenuOpen(false);
-            setVolMenuOpen(false);
-          }
-          else if (id === 'vol') {
-            setVolMenuOpen(true);
-            setSubMenuOpen(false);
-            setAudioMenuOpen(false);
-          }
-          else if (id === 'stats') {
-            setStatsShown((v) => !v);
-          }
+          activateBarControl(barFocusRef.current, e.repeat);
           return;
         }
         return;
@@ -2143,7 +2157,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       window.removeEventListener('keyup', guardedUp, true);
       cancelEnterTimer();
     };
-  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, toggleCollapsed, liveSkip]);
+  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, toggleCollapsed, liveSkip, activateBarControl, chooseSubtitle, chooseAudio]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -2175,6 +2189,62 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     })();
     return () => { cancelled = true; handle?.remove?.(); };
   }, [isActive, onExitLeft, hideBarNow]);
+
+  // --- Touch screens (phones, tablets): the same bar by finger. A TV gets
+  // none of it: no listener (usePictureTouch) and no click handler on the
+  // bar (PlayerControlBar's on* props are left out).
+  const touch = useTouchUI();
+  const fullscreenRootRef = useRef<HTMLDivElement | null>(null);
+  const closeBarMenus = useCallback(() => { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); }, []);
+  // A tap on the picture: a popup menu closes first (like Back), then the
+  // bar hides; a hidden bar comes up on Play, as OK brings it.
+  const tapPicture = useCallback(() => {
+    if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { closeBarMenus(); pokeBar(); return; }
+    if (barVisibleRef.current) { hideBarNow(); return; }
+    setBarFocus('play');
+    pokeBar();
+  }, [closeBarMenus, pokeBar, hideBarNow]);
+  // A swipe up is the next channel (CH+, what ▼ does here), a swipe down the
+  // previous one (CH-, ▲), like a list pushed by the finger.
+  const swipePicture = useCallback((dir: 'up' | 'down') => {
+    changeChannelInFullscreen(dir === 'up' ? +1 : -1);
+    pokeBar();
+    setBarFocus('play');
+  }, [changeChannelInFullscreen, pokeBar]);
+  usePictureTouch({
+    within: fullscreenRootRef,
+    // The Report / Record dialogs take the screen while they are open.
+    enabled: isActive && fullscreen && !reportFor && !recordFor,
+    onTap: tapPicture,
+    onSwipe: swipePicture,
+    onChrome: pokeBar,
+  });
+  // A tap on a bar button: the highlight moves there and it does what OK
+  // does. A greyed-out button does nothing; a second tap on a button whose
+  // menu is open closes the menu; any other button closes an open menu.
+  const tapBarControl = useCallback((id: BarControlId) => {
+    pokeBar();
+    const ctrl = videoControllerRef.current;
+    const off = liveBarDisabled(id, {
+      seekable: !!ctrl?.isSeekable(),
+      rewind: rewindRef.current.kind !== 'off',
+      subtitles: ctrl?.getSubtitleTracks().length ?? 0,
+      audios: ctrl?.getAudioTracks().length ?? 0,
+    });
+    if (off) return;
+    const ownMenuOpen = (id === 'cc' && subMenuOpenRef.current) || (id === 'audio' && audioMenuOpenRef.current) || (id === 'vol' && volMenuOpenRef.current);
+    closeBarMenus();
+    setBarFocus(id);
+    if (!ownMenuOpen) activateBarControl(id, false);
+  }, [pokeBar, closeBarMenus, activateBarControl]);
+  const tapSubtitle = useCallback((idx: number) => { pokeBar(); setSubMenuFocus(idx); chooseSubtitle(idx); }, [pokeBar, chooseSubtitle]);
+  const tapAudio = useCallback((idx: number) => { pokeBar(); setAudioMenuFocus(idx); chooseAudio(idx); }, [pokeBar, chooseAudio]);
+  const touchVolume = useCallback((v: number) => { pokeBar(); setVolume(v); }, [pokeBar]);
+  // A tap on the preview box: OK on the channel it shows (full screen).
+  const tapPreview = useCallback(() => {
+    const ch = previewChannelRef.current ?? visibleChannelsRef.current[channelIdxRef.current];
+    if (ch) activateChannelRef.current(ch);
+  }, []);
 
 
   playingStreamRef.current = playingStream ?? null;
@@ -2303,7 +2373,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // TextureView behind the WebView shows through. Web/fallback path keeps
     // the original <VideoPlayer> element rendering into the WebView.
     return (
-      <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
+      <div ref={fullscreenRootRef} className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
         {!NATIVE_PLAYBACK && !DEMO && (
           <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
             <VideoPlayer
@@ -2421,6 +2491,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           audioMenuFocus={audioMenuFocus}
           volMenuOpen={volMenuOpen}
           volume={volume}
+          onControl={touch ? tapBarControl : undefined}
+          onSubtitle={touch ? tapSubtitle : undefined}
+          onAudio={touch ? tapAudio : undefined}
+          onVolume={touch ? touchVolume : undefined}
         />
         {/* Volume hint while bar is hidden */}
         {!barVisible && volPillShown && (
@@ -2715,7 +2789,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
         {/* Stage: the preview, then what is on now and next */}
         <div className="flex-1 min-w-0 flex flex-col p-5 gap-3 overflow-hidden">
-          <div ref={previewBoxRef} data-howto="live.preview" className={`relative w-full aspect-video max-h-[56%] rounded-2xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
+          <div ref={previewBoxRef} data-howto="live.preview" onClick={touch ? tapPreview : undefined} className={`relative w-full aspect-video max-h-[56%] rounded-2xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
             {previewBox}
           </div>
 
@@ -2813,7 +2887,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       {categoriesPane}
       <div data-native-clear className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
         <div data-native-clear className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
-          <div ref={previewBoxRef} data-howto="live.preview" className={`w-64 aspect-video rounded-xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
+          <div ref={previewBoxRef} data-howto="live.preview" onClick={touch ? tapPreview : undefined} className={`w-64 aspect-video rounded-xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
             {previewBox}
           </div>
           <div className="flex-1 min-w-0" data-howto="live.nowNext">

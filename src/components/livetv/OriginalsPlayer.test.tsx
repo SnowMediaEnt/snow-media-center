@@ -6,6 +6,7 @@
  */
 import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { __setPhoneModeForTests } from '@/lib/phoneMode';
 
 type NativeArgs = { active: boolean; url: string | null; live?: boolean; startPosition?: number; onEnded?: () => void; rect?: { x: number; y: number; width: number; height: number } | null };
 
@@ -303,5 +304,34 @@ describe('OriginalsPlayer: without the native player', () => {
     expect(q('[data-originals-error]')).toBeNull();
     expect(h.videoProps).not.toBe(before);
     expect(h.retry).not.toHaveBeenCalled();
+  });
+});
+
+describe('OriginalsPlayer: by finger (phones and tablets only)', () => {
+  const at = (x: number, y: number) => [{ identifier: 0, clientX: x, clientY: y }];
+  const finger = (x: number, y: number, x2 = x, y2 = y) => act(() => {
+    const el = q('[data-originals-player]')!;
+    fireEvent.touchStart(el, { touches: at(x, y), changedTouches: at(x, y) });
+    fireEvent.touchEnd(el, { touches: [], changedTouches: at(x2, y2) });
+  });
+  afterEach(() => { act(() => { __setPhoneModeForTests({ touch: false, phone: false }); }); });
+
+  it('a tap is OK (pause / play), a swipe up the next video and a swipe down the previous one', () => {
+    act(() => { __setPhoneModeForTests({ touch: true, phone: true }); });
+    mount([item('a'), item('b')]);
+    finger(400, 300);
+    expect(h.togglePlay).toHaveBeenCalledTimes(1);
+    finger(400, 400, 405, 150);
+    expect(h.args?.url).toBe('https://cdn.example/b.mp4');
+    finger(400, 150, 400, 400);
+    expect(h.args?.url).toBe('https://cdn.example/a.mp4');
+  });
+
+  it('on a TV a finger does nothing', () => {
+    mount([item('a'), item('b')]);
+    finger(400, 300);
+    finger(400, 400, 405, 150);
+    expect(h.togglePlay).not.toHaveBeenCalled();
+    expect(h.args?.url).toBe('https://cdn.example/a.mp4');
   });
 });

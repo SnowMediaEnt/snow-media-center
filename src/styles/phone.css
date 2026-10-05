@@ -65,3 +65,20 @@ html.is-touch [data-touch-scroll-x]::-webkit-scrollbar,
 html.is-touch [data-touch-scroll-y]::-webkit-scrollbar {
   display: none;
 }
+
+/* A player's seek bar (data-touch-track, set on a touch screen only) is a
+   few pixels tall: a finger gets a taller strip around it (the ::before is
+   part of the bar when the browser looks for what was touched), and the
+   browser leaves the drag to the bar instead of scrolling or zooming. The bar
+   must be position: relative. */
+html.is-touch [data-touch-track] {
+  touch-action: none;
+}
+html.is-touch [data-touch-track]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -16px;
+  bottom: -16px;
+}

@@ -9,6 +9,7 @@ import { useBackupStreams, type BackupStream } from '@/hooks/useBackupStreams';
 import { tmdbSized } from '@/lib/tmdbImage';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
+import { usePictureTouch } from '@/hooks/usePlayerTouch';
 import { loadVolume, saveVolume } from '@/lib/xtream';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
@@ -221,10 +222,19 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, doRefresh, playItem]);
 
+  // Touch screens only: the player has no bar; a tap is OK (Retry after a
+  // stream error), and Back is the edge swipe.
+  const playerRootRef = useRef<HTMLDivElement | null>(null);
+  usePictureTouch({
+    within: playerRootRef,
+    enabled: isActive && !!playing,
+    onTap: () => { if (nativeErrorRef.current) nativeRetryRef.current(); },
+  });
+
   // ── Fullscreen player ────────────────────────────────────────────────────
   if (playing) {
     return (
-      <div className={`fixed inset-0 z-[60] text-white ${nativeActive ? 'bg-transparent' : 'bg-black'}`}>
+      <div ref={playerRootRef} className={`fixed inset-0 z-[60] text-white ${nativeActive ? 'bg-transparent' : 'bg-black'}`}>
         {!nativeActive && (
           <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
             <VideoPlayer

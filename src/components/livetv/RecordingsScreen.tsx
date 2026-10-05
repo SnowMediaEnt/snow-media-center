@@ -33,6 +33,7 @@ import {
 import { clockLabel, paddedLabel, paddedWindow, reasonText } from '@/lib/recordSchedule';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
+import { usePictureTouch } from '@/hooks/usePlayerTouch';
 import { cleanRename, formatDuration, isLowSpace, listWindow } from '@/lib/recording';
 import { formatBytes } from '@/lib/liveRewind';
 import { loadPlayerVolume } from '@/utils/volume';
@@ -88,7 +89,8 @@ const isBackKey = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspa
 const isOkKey = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 23;
 const swallow = (e: KeyboardEvent) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
 
-/** A recording full screen on the native player: OK pause, ◀ -10 s, ▶ +30 s, Back leaves. */
+/** A recording full screen on the native player: OK pause, ◀ -10 s, ▶ +30 s, Back leaves.
+ *  On a touch screen (only) a tap is OK. */
 const RecordingPlayer = ({ item, onClose }: { item: RecordingItem; onClose: () => void }) => {
   const { t } = useTranslation();
   // A file plays as a film would (live:false); ExoPlayer is the default engine.
@@ -124,6 +126,7 @@ const RecordingPlayer = ({ item, onClose }: { item: RecordingItem; onClose: () =
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
+  usePictureTouch({ within: '[data-recording-player]', onTap: () => nativeRef.current.controller?.togglePlay() });
   const pct = pos.duration > 0 ? Math.min(100, (pos.position / pos.duration) * 100) : 0;
   return (
     <div data-recording-player className="fixed left-0 top-0 w-full h-full z-[60] text-white bg-transparent">
