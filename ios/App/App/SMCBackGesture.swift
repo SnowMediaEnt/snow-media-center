@@ -10,8 +10,13 @@ final class SMCBackGesture: NSObject, UIGestureRecognizerDelegate {
 
     /// How far the thumb must travel in from the edge for the swipe to count.
     private static let threshold: CGFloat = 70
-    /// A swipe has to start this close to the left or right edge.
-    private static let edgeZone: CGFloat = 24
+    /// A swipe has to start this close to the left or right edge: past the
+    /// side's safe area (the rounded corners and the Dynamic Island, where a
+    /// thumb hardly lands), plus a margin, and never less than a thumb's width.
+    /// 24 pt was too tight on the owner's iPhone 18 Pro Max: no swipe ever started.
+    private static func edgeZone(inset: CGFloat) -> CGFloat {
+        min(80, max(44, inset + 16))
+    }
 
     private weak var host: UIView?
     private let fire: () -> Void
@@ -74,8 +79,9 @@ final class SMCBackGesture: NSObject, UIGestureRecognizerDelegate {
         // The first reading can be (0, 0); the speed says which way it's going.
         let d = t == .zero ? pan.velocity(in: host) : t
         let w = host.bounds.width
-        if start <= Self.edgeZone && d.x > 0 { fromLeft = true }
-        else if start >= w - Self.edgeZone && d.x < 0 { fromLeft = false }
+        let insets = host.safeAreaInsets
+        if start <= Self.edgeZone(inset: insets.left) && d.x > 0 { fromLeft = true }
+        else if start >= w - Self.edgeZone(inset: insets.right) && d.x < 0 { fromLeft = false }
         else { return false }
         return abs(d.x) > abs(d.y)
     }
