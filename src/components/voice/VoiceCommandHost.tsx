@@ -35,6 +35,7 @@ import { parseVoiceCommand, type VoiceAction } from '@/lib/voiceCommands';
 import { OPEN_VOICE_EVENT, noteVoiceOverlay, setVoiceKeyHandler } from '@/lib/voiceUi';
 import { MEDIA_KEY_EVENT } from '@/lib/mediaKeys';
 import { REMOTE_VOICE_EVENT } from '@/lib/phoneRemote';
+import { typingInField } from './typingInField';
 
 // The remote's Search key reaches the page as the 'search' media key
 // (MainActivity takes KEYCODE_SEARCH). As a key it is a keyboard's named
@@ -117,7 +118,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
   // ── ways in ── (the Search key as a key: see "the remote" below)
   useEffect(() => {
     const onOpen = () => start();
-    const onMedia = (e: Event) => { if ((e as CustomEvent).detail === 'search' && !openRef.current) start(); };
+    const onMedia = (e: Event) => { if ((e as CustomEvent).detail === 'search' && !openRef.current && !typingInField()) start(); };
     window.addEventListener(OPEN_VOICE_EVENT, onOpen);
     window.addEventListener(MEDIA_KEY_EVENT, onMedia);
     return () => {
@@ -373,7 +374,8 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
         // has just answered (it synthesizes an Escape): already handled.
         if (isBack(e) && now - lastBack.current < 350) { e.preventDefault(); e.stopImmediatePropagation(); return; }
         // Only while it can open: otherwise the key is left alone.
-        if (!isSearchKey(e) || !canOpen()) return;
+        // Typing in a field: the key is the keyboard's dictation, not ours.
+        if (!isSearchKey(e) || !canOpen() || typingInField()) return;
         e.preventDefault(); e.stopImmediatePropagation();
         taken.set(id(e), now);
         start();

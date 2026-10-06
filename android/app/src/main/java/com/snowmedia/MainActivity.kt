@@ -13,6 +13,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
@@ -124,7 +125,10 @@ class MainActivity : BridgeActivity() {
             // The remote's Search / voice key opens voice commands
             // (VoiceCommandHost). Boxes whose Assistant key is kept by the
             // system never send it; the home screen's mic button covers them.
-            KeyEvent.KEYCODE_SEARCH -> "search"
+            // While a text field is being typed in, the key is the system's:
+            // the keyboard's own dictation (speak instead of typing) needs it,
+            // and SMC taking it there is what made that disappear.
+            KeyEvent.KEYCODE_SEARCH -> if (typingInField()) null else "search"
             else -> null
         }
         val webView = if (blocked) null else bridge?.webView
@@ -143,6 +147,11 @@ class MainActivity : BridgeActivity() {
         }
         return true
     }
+
+    /** A text field has the keyboard's input connection (the viewer is typing). */
+    private fun typingInField(): Boolean = try {
+        (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)?.isAcceptingText == true
+    } catch (_: Throwable) { false }
 
     /** A TV: Android TV / Google TV / Fire TV, or no touch screen at all. */
     private fun isTvDevice(): Boolean {

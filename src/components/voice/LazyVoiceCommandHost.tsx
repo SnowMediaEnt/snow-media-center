@@ -10,6 +10,7 @@ import type { Navigate } from '@/lib/appActions';
 import { MEDIA_KEY_EVENT } from '@/lib/mediaKeys';
 import { REMOTE_VOICE_EVENT } from '@/lib/phoneRemote';
 import { OPEN_VOICE_EVENT, openVoice } from '@/lib/voiceUi';
+import { typingInField } from './typingInField';
 
 const VoiceCommandHost = lazy(() => import('@/components/voice/VoiceCommandHost'));
 
@@ -45,9 +46,10 @@ const LazyVoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigat
       setLoad(true);
     };
     const onOpen = () => want({ kind: 'open' });
-    const onMedia = (e: Event) => { if ((e as CustomEvent).detail === 'search') want({ kind: 'open' }); };
+    const onMedia = (e: Event) => { if ((e as CustomEvent).detail === 'search' && !typingInField()) want({ kind: 'open' }); };
     const onKey = (e: KeyboardEvent) => {
-      if (readyRef.current || !isSearchKey(e)) return;
+      // Typing in a field: the key is the keyboard's dictation, not ours.
+      if (readyRef.current || !isSearchKey(e) || typingInField()) return;
       e.preventDefault(); e.stopImmediatePropagation();
       want({ kind: 'open' });
     };
