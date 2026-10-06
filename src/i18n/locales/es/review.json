@@ -1,0 +1,44 @@
+{
+  "review": {
+    "dialog": {
+      "dialogLabel": "Calificar Snow Media Center",
+      "title": "¿Te gusta Snow Media Center?",
+      "subtitle": "Califícalo de 1 a 5 estrellas. Tu reseña llega directamente al equipo de Snow Media.",
+      "starsLabel": "Tu calificación",
+      "starsValue": "{{rating}} de 5 estrellas",
+      "starsHint": "Pulsa izquierda o derecha para elegir las estrellas y luego OK.",
+      "rating1": "Mala",
+      "rating2": "Regular",
+      "rating3": "Buena",
+      "rating4": "Muy buena",
+      "rating5": "Excelente",
+      "pickStarsFirst": "Primero elige una calificación con estrellas.",
+      "commentLabel": "Escribe una reseña (opcional)",
+      "commentPlaceholder": "¿Qué te gusta? ¿Qué podría mejorar?",
+      "voiceHint": "O graba una reseña de voz (opcional, hasta 1 minuto).",
+      "recordBtn": "Grabar voz",
+      "stopBtn": "Detener",
+      "removeVoiceBtn": "Quitar",
+      "recording": "Grabando… {{time}} / {{max}}",
+      "voiceReady": "Reseña de voz grabada ({{time}})",
+      "sendBtn": "Enviar",
+      "sendingBtn": "Enviando…",
+      "notNowBtn": "Ahora no",
+      "helpLine": "¿Necesitas ayuda? Abre un ticket de soporte",
+      "thanksTitle": "¡Gracias!",
+      "thanksText": "Tu reseña nos ayuda a mejorar Snow Media Center."
+    },
+    "settings": {
+      "title": "Calificar Snow Media Center",
+      "description": "Danos estrellas y cuéntanos qué opinas. En equipos con micrófono también puedes dejar una reseña de voz."
+    },
+    "errors": {
+      "noStars": "Primero elige una calificación con estrellas.",
+      "signIn": "Inicia sesión para enviar una reseña.",
+      "voiceEmpty": "No se grabó nada. Inténtalo de nuevo o quita la reseña de voz.",
+      "voiceTooBig": "La reseña de voz es demasiado larga. Quítala y graba una más corta.",
+      "voiceUpload": "No se pudo subir tu reseña de voz. Inténtalo de nuevo, o quítala y envía el resto.",
+      "sendFailed": "No se pudo enviar tu reseña. Revisa tu conexión e inténtalo de nuevo."
+    }
+  }
+}

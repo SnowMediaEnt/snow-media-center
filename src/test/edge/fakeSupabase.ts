@@ -16,6 +16,8 @@ export interface FakeHandlers {
   userForToken?: (token: string) => FakeUser | null;
   /** auth.admin.getUserById */
   userById?: (id: string) => FakeUser | null;
+  /** storage.from(bucket).download(path) */
+  onDownload?: (bucket: string, path: string) => Result | undefined;
 }
 
 export function fakeSupabase(handlers: FakeHandlers = {}) {
@@ -62,9 +64,10 @@ export function fakeSupabase(handlers: FakeHandlers = {}) {
       },
     },
     storage: {
-      from: () => ({
+      from: (bucket: string) => ({
         list: async () => ({ data: [], error: null }),
-        download: async () => ({ data: null, error: { message: 'none' } }),
+        download: async (path: string) =>
+          handlers.onDownload?.(bucket, path) ?? { data: null, error: { message: 'none' } },
       }),
     },
   };

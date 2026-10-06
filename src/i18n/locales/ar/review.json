@@ -1,0 +1,44 @@
+{
+  "review": {
+    "dialog": {
+      "dialogLabel": "قيّم Snow Media Center",
+      "title": "هل يعجبك Snow Media Center؟",
+      "subtitle": "قيّمه من 5 نجوم. يصل تقييمك مباشرة إلى فريق Snow Media.",
+      "starsLabel": "تقييمك",
+      "starsValue": "{{rating}} من 5 نجوم",
+      "starsHint": "اضغط يسارًا أو يمينًا لاختيار النجوم، ثم اضغط OK.",
+      "rating1": "ضعيف",
+      "rating2": "مقبول",
+      "rating3": "جيد",
+      "rating4": "جيد جدًا",
+      "rating5": "ممتاز",
+      "pickStarsFirst": "اختر عدد النجوم أولًا.",
+      "commentLabel": "اكتب مراجعة (اختياري)",
+      "commentPlaceholder": "ما الذي يعجبك؟ وما الذي يمكن تحسينه؟",
+      "voiceHint": "أو سجّل مراجعة صوتية (اختياري، حتى دقيقة واحدة).",
+      "recordBtn": "تسجيل صوتي",
+      "stopBtn": "إيقاف",
+      "removeVoiceBtn": "حذف",
+      "recording": "جارٍ التسجيل… {{time}} / {{max}}",
+      "voiceReady": "تم تسجيل المراجعة الصوتية ({{time}})",
+      "sendBtn": "إرسال",
+      "sendingBtn": "جارٍ الإرسال…",
+      "notNowBtn": "ليس الآن",
+      "helpLine": "تحتاج إلى مساعدة؟ افتح تذكرة دعم",
+      "thanksTitle": "شكرًا لك!",
+      "thanksText": "تقييمك يساعدنا على تحسين Snow Media Center."
+    },
+    "settings": {
+      "title": "قيّم Snow Media Center",
+      "description": "امنحنا النجوم وأخبرنا برأيك. على الأجهزة المزودة بميكروفون يمكنك أيضًا ترك مراجعة صوتية."
+    },
+    "errors": {
+      "noStars": "اختر عدد النجوم أولًا.",
+      "signIn": "سجّل الدخول لإرسال مراجعة.",
+      "voiceEmpty": "لم يتم تسجيل أي شيء. حاول مرة أخرى أو احذف المراجعة الصوتية.",
+      "voiceTooBig": "المراجعة الصوتية طويلة جدًا. احذفها وسجّل مراجعة أقصر.",
+      "voiceUpload": "تعذّر رفع مراجعتك الصوتية. حاول مرة أخرى، أو احذفها وأرسل الباقي.",
+      "sendFailed": "تعذّر إرسال مراجعتك. تحقق من الاتصال وحاول مرة أخرى."
+    }
+  }
+}

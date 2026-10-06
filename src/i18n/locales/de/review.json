@@ -1,0 +1,44 @@
+{
+  "review": {
+    "dialog": {
+      "dialogLabel": "Snow Media Center bewerten",
+      "title": "Gefällt dir Snow Media Center?",
+      "subtitle": "Bewerte es mit 1 bis 5 Sternen. Deine Bewertung geht direkt an das Snow Media Team.",
+      "starsLabel": "Deine Bewertung",
+      "starsValue": "{{rating}} von 5 Sternen",
+      "starsHint": "Drücke links oder rechts, um die Sterne zu wählen, dann OK.",
+      "rating1": "Schlecht",
+      "rating2": "Mäßig",
+      "rating3": "Gut",
+      "rating4": "Sehr gut",
+      "rating5": "Ausgezeichnet",
+      "pickStarsFirst": "Wähle zuerst eine Sternebewertung.",
+      "commentLabel": "Bewertung schreiben (optional)",
+      "commentPlaceholder": "Was gefällt dir? Was könnte besser sein?",
+      "voiceHint": "Oder nimm eine Sprachbewertung auf (optional, bis zu 1 Minute).",
+      "recordBtn": "Sprache aufnehmen",
+      "stopBtn": "Stopp",
+      "removeVoiceBtn": "Entfernen",
+      "recording": "Aufnahme… {{time}} / {{max}}",
+      "voiceReady": "Sprachbewertung aufgenommen ({{time}})",
+      "sendBtn": "Senden",
+      "sendingBtn": "Wird gesendet…",
+      "notNowBtn": "Später",
+      "helpLine": "Brauchst du Hilfe? Erstelle ein Support-Ticket",
+      "thanksTitle": "Danke!",
+      "thanksText": "Deine Bewertung hilft uns, Snow Media Center zu verbessern."
+    },
+    "settings": {
+      "title": "Snow Media Center bewerten",
+      "description": "Gib uns Sterne und sag uns deine Meinung. Auf Boxen mit Mikrofon geht auch eine Sprachbewertung."
+    },
+    "errors": {
+      "noStars": "Wähle zuerst eine Sternebewertung.",
+      "signIn": "Melde dich an, um eine Bewertung zu senden.",
+      "voiceEmpty": "Es wurde nichts aufgenommen. Versuche es erneut oder entferne die Sprachbewertung.",
+      "voiceTooBig": "Die Sprachbewertung ist zu lang. Entferne sie und nimm eine kürzere auf.",
+      "voiceUpload": "Deine Sprachbewertung konnte nicht hochgeladen werden. Versuche es erneut oder entferne sie und sende den Rest.",
+      "sendFailed": "Deine Bewertung konnte nicht gesendet werden. Prüfe deine Verbindung und versuche es erneut."
+    }
+  }
+}

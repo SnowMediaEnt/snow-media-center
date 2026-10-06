@@ -1,0 +1,44 @@
+{
+  "review": {
+    "dialog": {
+      "dialogLabel": "Noter Snow Media Center",
+      "title": "Vous aimez Snow Media Center ?",
+      "subtitle": "Donnez-lui une note sur 5 étoiles. Votre avis arrive directement à l’équipe Snow Media.",
+      "starsLabel": "Votre note",
+      "starsValue": "{{rating}} étoiles sur 5",
+      "starsHint": "Appuyez sur gauche ou droite pour choisir les étoiles, puis sur OK.",
+      "rating1": "Mauvais",
+      "rating2": "Moyen",
+      "rating3": "Bien",
+      "rating4": "Très bien",
+      "rating5": "Excellent",
+      "pickStarsFirst": "Choisissez d’abord une note en étoiles.",
+      "commentLabel": "Écrire un avis (facultatif)",
+      "commentPlaceholder": "Qu’est-ce qui vous plaît ? Qu’est-ce qui pourrait être mieux ?",
+      "voiceHint": "Ou enregistrez un avis vocal (facultatif, 1 minute maximum).",
+      "recordBtn": "Enregistrer",
+      "stopBtn": "Arrêter",
+      "removeVoiceBtn": "Supprimer",
+      "recording": "Enregistrement… {{time}} / {{max}}",
+      "voiceReady": "Avis vocal enregistré ({{time}})",
+      "sendBtn": "Envoyer",
+      "sendingBtn": "Envoi…",
+      "notNowBtn": "Plus tard",
+      "helpLine": "Besoin d’aide ? Ouvrez un ticket d’assistance",
+      "thanksTitle": "Merci !",
+      "thanksText": "Votre avis nous aide à améliorer Snow Media Center."
+    },
+    "settings": {
+      "title": "Noter Snow Media Center",
+      "description": "Donnez-nous des étoiles et dites-nous ce que vous en pensez. Sur les boîtiers avec micro, vous pouvez aussi laisser un avis vocal."
+    },
+    "errors": {
+      "noStars": "Choisissez d’abord une note en étoiles.",
+      "signIn": "Connectez-vous pour envoyer un avis.",
+      "voiceEmpty": "Rien n’a été enregistré. Réessayez ou supprimez l’avis vocal.",
+      "voiceTooBig": "L’avis vocal est trop long. Supprimez-le et enregistrez-en un plus court.",
+      "voiceUpload": "Impossible d’envoyer votre avis vocal. Réessayez, ou supprimez-le et envoyez le reste.",
+      "sendFailed": "Impossible d’envoyer votre avis. Vérifiez votre connexion et réessayez."
+    }
+  }
+}
