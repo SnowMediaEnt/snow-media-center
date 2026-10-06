@@ -1023,6 +1023,60 @@ export type Database = {
         }
         Relationships: []
       }
+      app_reviews: {
+        Row: {
+          app_version: string | null
+          audio_ms: number | null
+          audio_path: string | null
+          build: number | null
+          comment: string | null
+          created_at: string
+          device_model: string | null
+          form_factor: string | null
+          hours_used: number | null
+          id: string
+          language: string | null
+          rating: number
+          transcript: string | null
+          transcript_status: string
+          user_id: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          audio_ms?: number | null
+          audio_path?: string | null
+          build?: number | null
+          comment?: string | null
+          created_at?: string
+          device_model?: string | null
+          form_factor?: string | null
+          hours_used?: number | null
+          id?: string
+          language?: string | null
+          rating: number
+          transcript?: string | null
+          transcript_status?: string
+          user_id?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          audio_ms?: number | null
+          audio_path?: string | null
+          build?: number | null
+          comment?: string | null
+          created_at?: string
+          device_model?: string | null
+          form_factor?: string | null
+          hours_used?: number | null
+          id?: string
+          language?: string | null
+          rating?: number
+          transcript?: string | null
+          transcript_status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       apps: {
         Row: {
           category: string

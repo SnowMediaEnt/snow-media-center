@@ -1,0 +1,4 @@
+# Rate Snow Media Center (review prompt, dialog, sending).
+src/components/review
+src/lib/appReview.ts
+src/lib/reviewPrompt.ts

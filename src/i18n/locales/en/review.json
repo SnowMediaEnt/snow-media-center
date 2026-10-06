@@ -1,0 +1,44 @@
+{
+  "review": {
+    "dialog": {
+      "dialogLabel": "Rate Snow Media Center",
+      "title": "Enjoying Snow Media Center?",
+      "subtitle": "Rate it out of 5 stars. Your review goes straight to the Snow Media team.",
+      "starsLabel": "Your rating",
+      "starsValue": "{{rating}} of 5 stars",
+      "starsHint": "Press left or right to choose the stars, then OK.",
+      "rating1": "Poor",
+      "rating2": "Fair",
+      "rating3": "Good",
+      "rating4": "Very good",
+      "rating5": "Excellent",
+      "pickStarsFirst": "Choose a star rating first.",
+      "commentLabel": "Write a review (optional)",
+      "commentPlaceholder": "What do you like? What could be better?",
+      "voiceHint": "Or record a voice review (optional, up to 1 minute).",
+      "recordBtn": "Record voice",
+      "stopBtn": "Stop",
+      "removeVoiceBtn": "Remove",
+      "recording": "Recording… {{time}} / {{max}}",
+      "voiceReady": "Voice review recorded ({{time}})",
+      "sendBtn": "Send",
+      "sendingBtn": "Sending…",
+      "notNowBtn": "Not now",
+      "helpLine": "Need help? Open a support ticket",
+      "thanksTitle": "Thank you!",
+      "thanksText": "Your review helps us make Snow Media Center better."
+    },
+    "settings": {
+      "title": "Rate Snow Media Center",
+      "description": "Give us stars and tell us what you think. On boxes with a microphone you can leave a voice review too."
+    },
+    "errors": {
+      "noStars": "Choose a star rating first.",
+      "signIn": "Sign in to send a review.",
+      "voiceEmpty": "Nothing was recorded. Try again or remove the voice review.",
+      "voiceTooBig": "The voice review is too long. Remove it and record a shorter one.",
+      "voiceUpload": "Your voice review couldn't be uploaded. Try again, or remove it and send the rest.",
+      "sendFailed": "Your review couldn't be sent. Check your connection and try again."
+    }
+  }
+}

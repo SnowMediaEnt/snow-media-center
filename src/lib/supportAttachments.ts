@@ -47,7 +47,7 @@ const EXT: Record<string, string> = {
   'audio/ogg': 'ogg',
 };
 
-const extFor = (mime: string): string => EXT[mime.split(';')[0].trim()] ?? 'bin';
+export const extFor = (mime: string): string => EXT[mime.split(';')[0].trim()] ?? 'bin';
 
 /** Chrome 66 (Fire TV) has no crypto.randomUUID. */
 const uuid = (): string => {

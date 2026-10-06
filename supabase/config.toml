@@ -125,3 +125,9 @@ verify_jwt = false
 
 [functions.phone-remote]
 verify_jwt = false
+
+# A box asks for its own voice review to be transcribed, with the viewer's
+# session. The function checks the review is the caller's, once per review,
+# 10 a day per account, and the global AI pause.
+[functions.review-transcribe]
+verify_jwt = true

@@ -41,6 +41,7 @@ const FREE_TEXT_FIELDS: Array<[string, string, string]> = [
   ['Remote help issue', 'src/components/RemoteSupport.tsx', 'data-tv-focus-id="rs-issue"'],
   ['Remote help needs', 'src/components/RemoteSupport.tsx', 'data-tv-focus-id="rs-needs"'],
   ['Buffering report name', 'src/components/BufferingGuide.tsx', 'onChange={(e) => onTitleChange(e.target.value)}'],
+  ['App review comment', 'src/components/review/ReviewDialog.tsx', 'data-tv-focus-id="review-text"'],
 ];
 
 /** Fields that must keep the keyboard's voice key off. */

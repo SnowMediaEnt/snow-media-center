@@ -60,6 +60,7 @@ import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { usePlayerFlagSync } from '@/hooks/usePlayerFlagSync';
 import { useActiveGiveaway } from '@/hooks/useActiveGiveaway';
 import { isDemo } from '@/lib/demoMode';
+import { startForegroundClock } from '@/lib/reviewPrompt';
 import { InstalledApp } from '@/data/installedApps';
 import { trackAppLaunch, trackScreenView, trackEvent, startTimer, stopTimer, markSessionFlag } from '@/lib/analytics';
 import { runWhenIdle } from '@/utils/idle';
@@ -99,6 +100,7 @@ const LiveTV = lazy(() => import('@/components/LiveTV'));
 const Giveaway = lazy(() => import('@/components/Giveaway'));
 const GiveawayPromoPopup = lazy(() => import('@/components/GiveawayPromoPopup'));
 const ProfilesIntroPopup = lazy(() => import('@/components/profiles/ProfilesIntroPopup'));
+const ReviewPromptHost = lazy(() => import('@/components/review/ReviewPromptHost'));
 const AccountChooser = lazy(() => import('@/components/AccountChooser'));
 
 
@@ -561,7 +563,7 @@ const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayou
     {isView(currentView, 'chat') && <ChatCommunity onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
     {isView(currentView, 'community') && <CommunityChat onBack={goBack} />}
     {isView(currentView, 'credits') && <CreditStore onBack={goBack} />}
-    {isView(currentView, 'settings') && <Settings onBack={goBack} layoutMode={layoutMode} onLayoutChange={onLayoutChange} />}
+    {isView(currentView, 'settings') && <Settings onBack={goBack} layoutMode={layoutMode} onLayoutChange={onLayoutChange} onNavigate={navigateTo} />}
     {isView(currentView, 'user') && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} onGiveaway={() => navigateTo('giveaway')} />}
     {isView(currentView, 'games') && <Games onBack={goBack} onOpenGame={(view) => navigateTo(view)} />}
     {isView(currentView, 'kids-games') && <KidsGameLounge onBack={goBack} />}
@@ -703,6 +705,10 @@ const Index = () => {
   // one read and one subscription for all of them, here in the shell, so
   // every player's load() reads them from the cache.
   usePlayerFlagSync();
+  // "Rate Snow Media Center": the box's foreground time, counted from the
+  // start, and the prompt's remote kill switch (missing row = on).
+  useEffect(() => { startForegroundClock(); }, []);
+  const { enabled: reviewPromptOn } = useFeatureFlag('review_prompt', true);
   // If the flag flips off and the user was on the (now-removed) Player card, drop back to Store.
   useEffect(() => {
     if (!playerEnabled) {
@@ -814,6 +820,7 @@ const Index = () => {
   }, [resolvePackageName, toast, t]);
 
   const openPlexFromReady = useCallback(() => openScreen('plex', navigateTo), [navigateTo]);
+  const openTicketsFromReview = useCallback(() => { openScreen('tickets', navigateTo); }, [navigateTo]);
   // A pinned Dreamstreams / VibezTV / Plex tile: suggest the Player first.
   const [nudgeApp, setNudgeApp] = useState<LaunchableApp | null>(null);
   // Entry point used by the popup — the Player suggestion, then the alert
@@ -1637,6 +1644,22 @@ const Index = () => {
       {overlaysReady && isView(currentView, 'home') && (
         <Suspense fallback={null}>
           <ProfilesIntroPopup onSetUp={onOpenSettingsProfiles} />
+        </Suspense>
+      )}
+
+      {/* "Rate Snow Media Center", asked on its own after enough use (rules in
+          src/lib/reviewPrompt.ts). Home only, never on a Kids profile, in demo
+          or signed out; it waits for every other popup and for a quiet
+          remote. Kill switch: feature flag review_prompt. */}
+      {overlaysReady && isView(currentView, 'home') && reviewPromptOn && !kids && !!user && !isDemo() && (
+        <Suspense fallback={null}>
+          <ReviewPromptHost
+            kids={kids}
+            signedIn={!!user}
+            flagOn={reviewPromptOn}
+            busy={isInPopup || isInMediaBar || showEasterEgg || welcomeOpen || preEventOpen || !!nudgeApp || !!pendingAlert || !!downloadingApp}
+            onOpenSupport={openTicketsFromReview}
+          />
         </Suspense>
       )}
 

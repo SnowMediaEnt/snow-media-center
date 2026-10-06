@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone, Star } from 'lucide-react';
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors, loadProfiles, profileName, PROFILES_EVENT } from '@/lib/profiles';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
@@ -29,11 +29,17 @@ import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useToast } from '@/hooks/use-toast';
 import { SUPPORTED_LANGUAGES, LANG_STORAGE_KEY } from '@/i18n';
 import { BackButton, HEADER_ROW } from '@/components/ui/BackButton';
+import { openScreen } from '@/lib/appActions';
+import { trackEvent } from '@/lib/analytics';
+
+const ReviewDialog = lazy(() => import('@/components/review/ReviewDialog'));
 
 interface SettingsProps {
   onBack: () => void;
   layoutMode?: 'grid' | 'row';
   onLayoutChange?: (mode: 'grid' | 'row') => void;
+  /** Opens another screen (the review's "Need help?" line opens the tickets). */
+  onNavigate?: (view: string) => void;
 }
 
 type SettingsFocus =
@@ -56,12 +62,13 @@ type SettingsFocus =
   | 'ui-mail-notify-toggle'
   | 'ui-player-toggle'
   | 'ui-device-alerts-toggle'
+  | 'ui-rate-app'
   | 'updates-content'
   | 'alerts-content'
   | 'ai-content'
   | `ui-language-${string}`;
 
-const Settings = ({ onBack }: SettingsProps) => {
+const Settings = ({ onBack, onNavigate }: SettingsProps) => {
   const { t, i18n } = useTranslation();
   const { isAdmin: hasAdminRole } = useAdminRole();
   // Website demo: never surface admin tooling (even to a signed-in admin) and
@@ -113,6 +120,14 @@ const Settings = ({ onBack }: SettingsProps) => {
   }, []);
   const aiTierShown = !!aiPremium && !demo && !kids;
   const canPremium = aiTierShown && !!user;
+  // "Rate Snow Media Center" any time: grown-up profiles on a signed-in box
+  // (the review is saved to the account), never in the website demo.
+  const rateShown = !kids && !demo && !!user;
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const openReview = () => {
+    setReviewOpen(true);
+    try { trackEvent('review_prompt_shown', 'review', { source: 'settings' }); } catch { /* never blocks */ }
+  };
   const toggleAiTier = () => {
     // i18n.t, not t: the key handler that calls this keeps the render it was made in.
     if (!canPremium) { toast({ title: i18n.t('settings.toast.aiSignInTitle'), description: i18n.t('settings.toast.aiSignInDesc') }); return; }
@@ -213,6 +228,7 @@ const Settings = ({ onBack }: SettingsProps) => {
           ? ['ui-content-bar-toggle']
           : [...(aiTierShown ? ['ui-ai-tier' as SettingsFocus] : []), 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
         if (!kids && deviceAlerts.supported) order.push('ui-device-alerts-toggle');
+        if (rateShown) order.push('ui-rate-app');
         if (isAdmin) order.push('ui-player-toggle');
         order.push(...SUPPORTED_LANGUAGES.map((lang) => `ui-language-${lang.code}` as SettingsFocus));
         return order;
@@ -284,6 +300,7 @@ const Settings = ({ onBack }: SettingsProps) => {
           else if (focusedElement === 'ui-dashboard-size-toggle') saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large');
           else if (focusedElement === 'ui-mail-notify-toggle') saveMailNotify(!mailNotify);
           else if (focusedElement === 'ui-device-alerts-toggle') void toggleDeviceAlerts(!deviceAlerts.status.enabled);
+          else if (focusedElement === 'ui-rate-app') openReview();
           else if (focusedElement === 'ui-player-toggle') void togglePlayer(!playerEnabled);
           else if (focusedElement.startsWith('ui-language-')) {
             handleLanguageSelect(focusedElement.replace('ui-language-', ''));
@@ -478,7 +495,7 @@ const Settings = ({ onBack }: SettingsProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   // toggleAiTier reads the state below; it is recreated with it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, kids, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium]);
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, kids, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium, rateShown]);
 
   useEffect(() => {
     const scrollAllToTop = () => {
@@ -810,6 +827,25 @@ const Settings = ({ onBack }: SettingsProps) => {
             )}
             </>)}
 
+            {rateShown && (
+              <Card
+                {...settingsFocusAttrs('ui-rate-app')}
+                tabIndex={0}
+                role="button"
+                onFocus={() => setFocusedElement('ui-rate-app')}
+                onClick={openReview}
+                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-rate-app')}`}
+              >
+                <div className="flex items-start gap-3">
+                  <Star className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{t('review.settings.title')}</h3>
+                    <p className="text-sm text-white/70 mt-1">{t('review.settings.description')}</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+
             {isAdmin && (
               <Card
                 {...settingsFocusAttrs('ui-player-toggle')}
@@ -1000,6 +1036,15 @@ const Settings = ({ onBack }: SettingsProps) => {
           )}
         </Tabs>
       </div>
+      {reviewOpen && (
+        <Suspense fallback={null}>
+          <ReviewDialog
+            source="settings"
+            onClose={() => setReviewOpen(false)}
+            onOpenSupport={onNavigate ? () => { setReviewOpen(false); openScreen('tickets', onNavigate); } : undefined}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };
