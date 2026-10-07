@@ -39,7 +39,6 @@ import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
 import { homeCardIds, profileGameView, type HomeCardId } from '@/lib/kidsGameNavigation';
-import { setGameMusicMode } from '@/components/games/shared/gameMusic';
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors, profileName } from '@/lib/profiles';
 import ProfileGate from '@/components/profiles/ProfileGate';
@@ -78,17 +77,6 @@ const UserDashboard = lazy(() => import('@/components/UserDashboard'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
 const AIConversationSystem = lazy(() => import('@/components/AIConversationSystem'));
 const AdminSupportDashboard = lazy(() => import('@/components/AdminSupportDashboard'));
-const Games = lazy(() => import('@/components/Games'));
-const KidsGameLounge = lazy(() => import('@/components/kids/KidsGameLounge'));
-const DailySpinGame = lazy(() => import('@/components/games/DailySpin'));
-const SlotsGame = lazy(() => import('@/components/games/Slots'));
-const BlackjackGame = lazy(() => import('@/components/games/Blackjack'));
-const VideoPokerGame = lazy(() => import('@/components/games/VideoPoker'));
-const RouletteGame = lazy(() => import('@/components/games/Roulette'));
-const CasinoHoldemGame = lazy(() => import('@/components/games/CasinoHoldem'));
-const PlinkoGame = lazy(() => import('@/components/games/Plinko'));
-const TVTriviaGame = lazy(() => import('@/components/games/TVTrivia'));
-const DiceLoungeGame = lazy(() => import('@/components/games/DiceLounge'));
 const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
 const MediaBarPrompt = lazy(() => import('@/components/MediaBarPrompt'));
 const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
@@ -564,19 +552,8 @@ const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayou
     {isView(currentView, 'community') && <CommunityChat onBack={goBack} />}
     {isView(currentView, 'credits') && <CreditStore onBack={goBack} />}
     {isView(currentView, 'settings') && <Settings onBack={goBack} layoutMode={layoutMode} onLayoutChange={onLayoutChange} onNavigate={navigateTo} />}
-    {isView(currentView, 'user') && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} onGiveaway={() => navigateTo('giveaway')} />}
-    {isView(currentView, 'games') && <Games onBack={goBack} onOpenGame={(view) => navigateTo(view)} />}
-    {isView(currentView, 'kids-games') && <KidsGameLounge onBack={goBack} />}
+    {isView(currentView, 'user') && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGiveaway={() => navigateTo('giveaway')} />}
     {isView(currentView, 'giveaway') && <Giveaway onBack={goBack} />}
-    {isView(currentView, 'game-daily-spin') && <DailySpinGame onBack={goBack} />}
-    {isView(currentView, 'game-slots') && <SlotsGame onBack={goBack} />}
-    {isView(currentView, 'game-blackjack') && <BlackjackGame onBack={goBack} />}
-    {isView(currentView, 'game-video-poker') && <VideoPokerGame onBack={goBack} />}
-    {isView(currentView, 'game-roulette') && <RouletteGame onBack={goBack} />}
-    {isView(currentView, 'game-casino-holdem') && <CasinoHoldemGame onBack={goBack} />}
-    {isView(currentView, 'game-plinko') && <PlinkoGame onBack={goBack} />}
-    {isView(currentView, 'game-tv-trivia') && <TVTriviaGame onBack={goBack} />}
-    {isView(currentView, 'game-dice-lounge') && <DiceLoungeGame onBack={goBack} />}
     {isView(currentView, 'support-tickets') && <SupportTicketSystem onBack={goBack} />}
     {isView(currentView, 'ai-conversations') && <AIConversationSystem onBack={goBack} />}
     {isView(currentView, 'create-ai-conversation') && <AIConversationSystem onBack={goBack} />}
@@ -674,11 +651,6 @@ const Index = () => {
   const { currentView: requestedView, navigateTo: navigateToView, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
   // Resolve before rendering so a restored adult game never mounts for a child.
   const currentView = profileGameView(requestedView, profile.kidsLevel);
-  const musicMode = currentView === 'kids-games' ? 'kids' : currentView === 'games' || currentView.startsWith('game-') ? 'adult' : null;
-  useEffect(() => {
-    setGameMusicMode(musicMode);
-    return () => setGameMusicMode(null);
-  }, [musicMode]);
   const navigateTo = useCallback((view: string) => {
     navigateToView(profileGameView(view, profile.kidsLevel));
   }, [navigateToView, profile.kidsLevel]);
@@ -864,7 +836,7 @@ const Index = () => {
     const view = currentView || 'home';
     const game = view.startsWith('game-') ? view.slice('game-'.length) : null;
     const event = game ? 'game_dwell' : `${view.replace(/-/g, '_')}_dwell`;
-    const category = game || view === 'games' ? 'games' : view === 'livetv' ? 'player' : 'navigation';
+    const category = view === 'livetv' ? 'player' : 'navigation';
     try {
       startTimer('view', event, category, game ? { game, view } : { view });
     } catch { void 0; }

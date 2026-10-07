@@ -39,11 +39,10 @@ interface UserDashboardProps {
   onViewSettings: () => void;
   onCommunityChat: () => void;
   onCreditStore: () => void;
-  onGames?: () => void;
   onGiveaway?: () => void;
 }
 
-const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGames, onGiveaway }: UserDashboardProps) => {
+const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGiveaway }: UserDashboardProps) => {
   const { t } = useTranslation();
   const { enabled: giveawayEnabled } = useFeatureFlag('giveaway_enabled', false);
   const giveawayOn = giveawayEnabled && !isDemo();
@@ -254,7 +253,6 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (focusedElement === 1) handleSignOut();
           else if (focusedElement === 2) onCreditStore();
           else if (focusedElement === 3) onCommunityChat();
-          else if (focusedElement === 4) onGames?.();
           else if (giveawayOn && focusedElement === 5) onGiveaway?.();
           else if (focusedElement === TAB_BASE) setActiveTab('overview');
           else if (focusedElement === TAB_BASE + 1) setActiveTab('credits');
@@ -272,7 +270,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames, onGiveaway, giveawayOn, TAB_BASE, CLAIM_IDX, BILLING_IDX, EDIT_IDX, DELETE_IDX, claimAvailable, claimOpen, billingOn, billingOpen, playerActionAvailable, guestMode, guestPlayerSlot, playerAccount, navigate, large]);
+  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGiveaway, giveawayOn, TAB_BASE, CLAIM_IDX, BILLING_IDX, EDIT_IDX, DELETE_IDX, claimAvailable, claimOpen, billingOn, billingOpen, playerActionAvailable, guestMode, guestPlayerSlot, playerAccount, navigate, large]);
 
   // When the active tab changes (after initial mount), scroll the tab strip
   // into view. Skipping the first run keeps the dashboard scrolled to the top
@@ -600,7 +598,6 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           {([
             { idx: 2, label: t('account.dashboard.purchaseGemsBtn'), Icon: Plus, tint: 'text-brand-gold', onClick: onCreditStore, show: true },
             { idx: 3, label: t('account.dashboard.communityChatBtn'), Icon: MessageCircle, tint: 'text-sky-300', onClick: onCommunityChat, show: true },
-            { idx: 4, label: t('account.dashboard.gameLoungeBtn'), Icon: Gamepad2, tint: 'text-fuchsia-300', onClick: onGames, show: true },
             { idx: 5, label: t('account.dashboard.giveawayBtn'), Icon: Gift, tint: 'text-brand-gold', onClick: onGiveaway, show: giveawayOn },
           ] as const).filter((a) => a.show).map(({ idx, label, Icon, tint, onClick }) => (
             <Button
