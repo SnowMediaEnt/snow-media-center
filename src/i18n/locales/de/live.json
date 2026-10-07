@@ -172,7 +172,8 @@
       "search": "Suchen",
       "channels": "Sender",
       "tag": "Kategorien",
-      "downLabel": "Kategorie als ausgefallen gemeldet"
+      "downLabel": "Kategorie als ausgefallen gemeldet",
+      "allFavorites": "Favoriten · alle Dienste"
     },
     "list": {
       "closeSearchBtn": "Suche schließen",

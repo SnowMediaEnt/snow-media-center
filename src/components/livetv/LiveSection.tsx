@@ -149,6 +149,8 @@ interface Props {
 type Pane = 'categories' | 'channels';
 const FAV_ID = '__favorites__';
 const ALL_ID = '__all__';
+/** The Favorites of every signed-in line together, above the line groups. */
+const ALL_FAVS_ID = '__allfavs__';
 // Slot height per layout. The row inside must match (see ChannelRow): the
 // D-pad scroll math below is written against the slot, never measured.
 //   classic: the 80px row in an 84px slot · compact: 56px in 60px ·
@@ -176,6 +178,8 @@ interface CatEntry {
   name: string;
   count?: number;
   isFav?: boolean;
+  /** Every line's Favorites in one list (only with more than one line). */
+  isAllFavs?: boolean;
   isAll?: boolean;
   isHeader?: boolean;
   collapsedHeader?: boolean;
@@ -209,8 +213,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // The channel rows' words, translated once here (one t() per row would be one per visible row).
   const rowLabels = useMemo(() => channelRowLabels(t), [t]);
   // What a category row shows: Favorites and All are ours to translate, the rest is the provider's name.
-  const catLabel = (c: { name: string; isFav?: boolean; isAll?: boolean }): string =>
-    c.isFav ? t('live.categories.favorites') : c.isAll ? t('live.categories.all') : c.name;
+  const catLabel = (c: { name: string; isFav?: boolean; isAllFavs?: boolean; isAll?: boolean }): string =>
+    c.isAllFavs ? t('live.categories.allFavorites') : c.isFav ? t('live.categories.favorites') : c.isAll ? t('live.categories.all') : c.name;
   // One screen back at a time: from a channel Game Day started, Back returns
   // to that game's list, not to Live TV's categories.
   const backToCallerRef = useRef(onBackToCaller);
@@ -670,6 +674,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // hidden ones. A folded group shows only its header.
   const visibleCategories = useMemo<CatEntry[]>(() => {
     const out: CatEntry[] = [];
+    // With two or more services, their Favorites together come first.
+    if (grouped && lines[0]) {
+      let n = 0;
+      for (const line of lines) n += favsByLine.get(lineKey(line))?.size ?? 0;
+      out.push({ id: ALL_FAVS_ID, name: 'Favorites', count: n, isFav: true, isAllFavs: true, line: lines[0], lineKey: ALL_FAVS_ID });
+    }
     for (const line of lines) {
       const k = lineKey(line);
       if (grouped) out.push({ id: `${k}|__hdr__`, name: lineLabel(line), isHeader: true, collapsedHeader: collapsed.has(k), line, lineKey: k });
@@ -864,6 +874,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       return out;
     }
     if (!currentCat || currentCat.isHeader) return [];
+    if (currentCat.isAllFavs) {
+      const out: XtreamLiveStream[] = [];
+      for (const line of lines) {
+        for (const f of (favsByLine.get(lineKey(line)) ?? EMPTY_FAVS).values()) {
+          const st = favToStream(f);
+          streamLineRef.current.set(st, line);
+          out.push(st);
+        }
+      }
+      return out;
+    }
     if (currentCat.isFav) {
       const favs = favsByLine.get(currentCat.lineKey) ?? EMPTY_FAVS;
       return [...favs.values()].map((f) => {
@@ -2776,6 +2797,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       onActivate={onRowActivate}
                       onLongPress={onRowLongPress}
                       labels={rowLabels}
+                      serviceTag={currentCat?.isAllFavs && !searchOpen ? lineLabel(lineFor(s)) : undefined}
                     />
                   );
                 })}
@@ -2841,7 +2863,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           >
             <span className="text-brand-ice/50 text-sm" aria-hidden="true">◀</span>
             <div className="flex-1 min-w-0 text-center">
-              {grouped && currentCat?.line && (
+              {grouped && currentCat?.line && !currentCat.isAllFavs && (
                 <div className="text-xs font-quicksand font-semibold tracking-[0.12em] uppercase text-brand-gold truncate">{lineLabel(currentCat.line)}</div>
               )}
               <div className="text-sm font-quicksand font-semibold text-white truncate">
@@ -2931,7 +2953,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         <div className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
           <div className="flex-shrink-0 h-12 flex items-center gap-3 px-5 border-b border-white/10">
             <div className="flex-1 min-w-0 flex items-baseline gap-2">
-              {grouped && currentCat?.line && (
+              {grouped && currentCat?.line && !currentCat.isAllFavs && (
                 <span className="text-xs font-quicksand font-semibold tracking-[0.12em] uppercase text-brand-gold">{lineLabel(currentCat.line)}</span>
               )}
               <span className="text-base font-quicksand font-semibold text-white truncate">{searchOpen ? t('live.categories.search') : (currentCat ? catLabel(currentCat) : t('live.categories.channels'))}</span>

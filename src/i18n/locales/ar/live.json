@@ -172,7 +172,8 @@
       "search": "بحث",
       "channels": "القنوات",
       "tag": "الفئات",
-      "downLabel": "تم الإبلاغ عن تعطل الفئة"
+      "downLabel": "تم الإبلاغ عن تعطل الفئة",
+      "allFavorites": "المفضلة · كل الخدمات"
     },
     "list": {
       "closeSearchBtn": "إغلاق البحث",

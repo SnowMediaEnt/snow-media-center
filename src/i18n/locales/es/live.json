@@ -172,7 +172,8 @@
       "search": "Buscar",
       "channels": "Canales",
       "tag": "categorías",
-      "downLabel": "Categoría reportada como caída"
+      "downLabel": "Categoría reportada como caída",
+      "allFavorites": "Favoritos · todos los servicios"
     },
     "list": {
       "closeSearchBtn": "Cerrar búsqueda",

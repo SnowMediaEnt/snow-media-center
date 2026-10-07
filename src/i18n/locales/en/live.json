@@ -172,7 +172,8 @@
       "search": "Search",
       "channels": "Channels",
       "tag": "categories",
-      "downLabel": "Category reported down"
+      "downLabel": "Category reported down",
+      "allFavorites": "Favorites · all services"
     },
     "list": {
       "closeSearchBtn": "Close search",

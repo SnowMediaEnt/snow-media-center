@@ -172,7 +172,8 @@
       "search": "Rechercher",
       "channels": "Chaînes",
       "tag": "catégories",
-      "downLabel": "Catégorie signalée en panne"
+      "downLabel": "Catégorie signalée en panne",
+      "allFavorites": "Favoris · tous les services"
     },
     "list": {
       "closeSearchBtn": "Fermer la recherche",

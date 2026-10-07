@@ -26,6 +26,8 @@ interface Props {
   variant?: 'classic' | 'compact' | 'tile';
   /** The row's words, translated once by the list (channelRowLabels) instead of once per row. */
   labels?: ChannelRowLabels;
+  /** Which service the channel is on, in a list that mixes them (all-services Favorites). */
+  serviceTag?: string;
 }
 
 // One channel in the list, in whichever shape the layout asks for. Each
@@ -35,7 +37,7 @@ interface Props {
 // language: toLocaleTimeString with options builds a new one per call, twice
 // per row per render on Chromium 66.
 
-const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isDown = false, report, nowNext, onSelect, onActivate, onLongPress, variant = 'compact', labels }: Props) => {
+const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isDown = false, report, nowNext, onSelect, onActivate, onLongPress, variant = 'compact', labels, serviceTag }: Props) => {
   const L = labels ?? channelRowLabels(i18n.t.bind(i18n));
   // Down (the channel or its whole category) is red; buffering is amber.
   const flag: ChannelReport = report !== undefined ? report : isDown ? 'down' : null;
@@ -143,6 +145,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
         <div className="h-9 px-2 flex items-center justify-center gap-1 min-w-0">
           {channel.num != null && <span className={`text-xs font-nunito tabular-nums flex-shrink-0 ${isFocused ? 'text-brand-gold' : 'text-white/45'}`}>{channel.num}</span>}
           <span className={`text-sm font-quicksand font-semibold truncate ${isFocused ? 'text-white' : 'text-white/90'}`}>{channel.name}</span>
+          {serviceTag && <span data-service-tag="" className="text-[10px] px-1.5 py-0.5 rounded-md bg-brand-gold/15 text-brand-gold font-quicksand font-bold uppercase tracking-wide flex-shrink-0 leading-3">{serviceTag}</span>}
         </div>
       </div>
     );
@@ -170,6 +173,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
             <span className={`font-quicksand font-semibold truncate ${isFocused ? 'text-white' : 'text-brand-ice'}`}>
               {channel.name}
             </span>
+            {serviceTag && <span data-service-tag="" className="text-[10px] px-1.5 py-0.5 rounded-md bg-brand-gold/15 text-brand-gold font-quicksand font-bold uppercase tracking-wide flex-shrink-0 leading-3">{serviceTag}</span>}
             {isPlaying && (
               <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-brand-gold/30 text-brand-gold font-nunito font-semibold flex-shrink-0">
                 <Radio className="w-3 h-3 animate-pulse" /> {L.onAir}
@@ -226,6 +230,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
           <span className={`font-quicksand font-semibold text-base truncate ${isFocused ? 'text-white' : 'text-white/90'}`}>
             {channel.name}
           </span>
+          {serviceTag && <span data-service-tag="" className="text-[10px] px-1.5 py-0.5 rounded-md bg-brand-gold/15 text-brand-gold font-quicksand font-bold uppercase tracking-wide flex-shrink-0 leading-3">{serviceTag}</span>}
           {isPlaying && (
             <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-brand-gold text-black font-nunito font-bold flex-shrink-0 leading-4">
               <Radio className="w-3 h-3" /> {L.live}
