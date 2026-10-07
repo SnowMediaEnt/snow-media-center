@@ -79,7 +79,6 @@ const AIConversationSystem = lazy(() => import('@/components/AIConversationSyste
 const AdminSupportDashboard = lazy(() => import('@/components/AdminSupportDashboard'));
 const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
 const MediaBarPrompt = lazy(() => import('@/components/MediaBarPrompt'));
-const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
 const PreEventStepsDialog = lazy(() => import('@/components/PreEventStepsDialog'));
 const GiveawayWinnersPopup = lazy(() => import('@/components/GiveawayWinnersPopup'));
 const BroadcastAlertPopup = lazy(() => import('@/components/BroadcastAlertPopup'));
@@ -733,7 +732,7 @@ const Index = () => {
   // we want the list ready immediately).
   useEffect(() => { if (isInPopup) ensureInstalledLoaded(); }, [isInPopup, ensureInstalledLoaded]);
 
-  // Gate the mount of non-critical overlays (WelcomePopup, AutoUpdatePrompt)
+  // Gate the mount of non-critical overlays (WelcomePopup)
   // until after first-frame idle so their effect chains don't pile onto boot.
   const [deferredOverlaysReady, setDeferredOverlaysReady] = useState(false);
   useEffect(() => {
@@ -1024,7 +1023,6 @@ const Index = () => {
   const onMediaBarExitUp = useCallback(() => { setIsInMediaBar(false); setFocusedButton(-2); }, []);
 
   // Clock callback — stable (HomeClock already memoised).
-  const onClockUpdate = useCallback(() => navigateToRef.current('settings'), []);
   const onCloseEasterEgg = useCallback(() => setShowEasterEgg(false), []);
 
   // Screen-height derived classes computed once per tier change, not per render.
@@ -1353,7 +1351,7 @@ const Index = () => {
           <HomeTopBar
             shape={headerShape}
             banner={<ServiceExpirationBanner onOpenDashboard={onOpenDashboardFromBanner} />}
-            clock={<HomeClock version={version} onUpdateClick={onClockUpdate} />}
+            clock={<HomeClock version={version} />}
             header={(fit) => (
               <HomeHeader
                 tier={screenTier}
@@ -1651,11 +1649,6 @@ const Index = () => {
           Unlike the popups above it stays mounted while the profile screens
           are up — unmounting it mid-download lost its prompt and started a
           second download of the same APK — and waits through `paused`. */}
-      {deferredOverlaysReady && (
-        <Suspense fallback={null}>
-          <AutoUpdatePrompt paused={currentView !== 'home' || profileGateOpen} />
-        </Suspense>
-      )}
 
       {/* Download/install flow for pinned-but-not-installed apps. Mirrors the
           DownloadProgress usage in InstallApps; reuses any cached APK. */}

@@ -24,9 +24,7 @@ vi.mock('@/lib/profilesUi', () => ({ openProfiles: vi.fn() }));
 vi.mock('@/components/MediaManager', () => ({
   default: () => <div>media-manager {sessionStorage.getItem('smc-wallpaper-prompt') ?? ''}</div>,
 }));
-vi.mock('@/components/AppUpdater', () => ({ default: () => <div>app-updater</div> }));
 vi.mock('@/components/AppAlertsManager', () => ({ default: () => <div>alerts</div> }));
-vi.mock('@/components/ApkCacheViewer', () => ({ default: () => <div>apk-cache</div> }));
 vi.mock('@/components/AdminAIPanel', () => ({ default: () => <div>admin-ai</div> }));
 vi.mock('@/components/PlayerAccountCard', () => ({ default: () => <div>player-account</div> }));
 vi.mock('@/components/remote/PairingQR', () => ({ default: () => <div>pairing-qr</div> }));

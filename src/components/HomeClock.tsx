@@ -2,7 +2,6 @@ import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle } from 'lucide-react';
 import { getAppLanguage } from '@/i18n';
-import { useUpdateCheck } from '@/hooks/useUpdateCheck';
 import { setPausableInterval } from '@/utils/pausableInterval';
 
 /**
@@ -26,7 +25,6 @@ const clockFormatFor = (lang: string) => {
 
 interface HomeClockProps {
   version: string;
-  onUpdateClick?: () => void;
 }
 
 /**
@@ -35,11 +33,10 @@ interface HomeClockProps {
  * on low-power STB/FireTV devices. Home's top row (HomeTopBar in
  * Index.tsx) places it, between the renewal banner and the header.
  */
-const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
+const HomeClock = memo(({ version }: HomeClockProps) => {
   const { t } = useTranslation();
   const [now, setNow] = useState(() => new Date());
   const format = clockFormatFor(getAppLanguage());
-  const { updateAvailable, latestVersion } = useUpdateCheck(version);
 
   useEffect(() => {
     // 1s clock — pause while app is backgrounded so we don't re-render
@@ -73,21 +70,6 @@ const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
           style={{ color: '#FFD700', fontSize: 'clamp(0.65rem, 0.95vw, 1rem)' }}
         >
           v{version}
-          {updateAvailable && (
-            <button
-              type="button"
-              onClick={onUpdateClick}
-              title={latestVersion ? t('home.clock.updateTitle', { version: latestVersion }) : t('home.clock.updateTitleShort')}
-              aria-label={t('home.clock.updateAria')}
-              className="flex items-center justify-center rounded-full p-0.5 hover:bg-white/10 transition-colors animate-pulse"
-            >
-              <AlertTriangle
-                className="text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.8)]"
-                style={{ width: 'clamp(14px, 1.1vw, 20px)', height: 'clamp(14px, 1.1vw, 20px)' }}
-                fill="currentColor"
-              />
-            </button>
-          )}
         </div>
       </div>
     </div>

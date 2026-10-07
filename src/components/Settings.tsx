@@ -17,9 +17,7 @@ import { PHONE_REMOTE_EVENT, connectedPhones, isPaired, setTypingHintEnabled, ty
 import { getPreferredTier, loadAiTiers, setPreferredTier, type AiTier, type AiTierInfo } from '@/lib/aiTiers';
 import { useAuth } from '@/hooks/useAuth';
 import MediaManager from '@/components/MediaManager';
-import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
-import ApkCacheViewer from '@/components/ApkCacheViewer';
 import AdminAIPanel from '@/components/AdminAIPanel';
 import PlayerAccountCard from '@/components/PlayerAccountCard';
 import { useAdminRole } from '@/hooks/useAdminRole';
@@ -82,7 +80,10 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
   const kids = !!currentProfile.kidsLevel;
   const isAdmin = hasAdminRole && !demo && !kids;
   // The How-to pictures show the tab a real box has (developer build only).
-  const showUpdates = (!demo || isHowtoCapture()) && !kids;
+  // The in-app updater is gone (store rules: an app may not update itself
+  // outside the store). Kept as a flag so the tab list, focus ring and tab
+  // count keep the shape they already had when it was hidden.
+  const showUpdates = false;
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   const dashboardSize = useDashboardSize();
   const mailNotify = useMailNotify();
@@ -1007,18 +1008,6 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
             ))}
           </TabsContent>
 
-          {showUpdates && (
-          <TabsContent value="updates" className="mt-4 space-y-4">
-            <Card
-              {...settingsFocusAttrs('updates-content')}
-              className={`tv-ring bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6 transition-all duration-150 ${focusRing('updates-content')}`}
-            >
-              <AppUpdater />
-            </Card>
-
-            <ApkCacheViewer />
-          </TabsContent>
-          )}
 
           {isAdmin && (
             <TabsContent value="alerts" className="mt-4">
