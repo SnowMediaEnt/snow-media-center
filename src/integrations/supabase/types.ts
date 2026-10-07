@@ -1381,6 +1381,84 @@ export type Database = {
           },
         ]
       }
+      category_overrides: {
+        Row: {
+          category_id: string
+          category_name: string | null
+          expires_at: string | null
+          host: string
+          note: string | null
+          set_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          category_name?: string | null
+          expires_at?: string | null
+          host: string
+          note?: string | null
+          set_by?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          category_name?: string | null
+          expires_at?: string | null
+          host?: string
+          note?: string | null
+          set_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      category_signals: {
+        Row: {
+          active_cons: number | null
+          category_id: string
+          category_name: string | null
+          created_at: string
+          device_hash: string
+          host: string
+          id: number
+          ip_hash: string | null
+          kind: string
+          line_user: string | null
+          max_cons: number | null
+          trusted: boolean
+        }
+        Insert: {
+          active_cons?: number | null
+          category_id: string
+          category_name?: string | null
+          created_at?: string
+          device_hash: string
+          host: string
+          id?: number
+          ip_hash?: string | null
+          kind: string
+          line_user?: string | null
+          max_cons?: number | null
+          trusted?: boolean
+        }
+        Update: {
+          active_cons?: number | null
+          category_id?: string
+          category_name?: string | null
+          created_at?: string
+          device_hash?: string
+          host?: string
+          id?: number
+          ip_hash?: string | null
+          kind?: string
+          line_user?: string | null
+          max_cons?: number | null
+          trusted?: boolean
+        }
+        Relationships: []
+      }
       channel_overrides: {
         Row: {
           channel_name: string | null
@@ -1416,6 +1494,7 @@ export type Database = {
       }
       channel_signals: {
         Row: {
+          active_cons: number | null
           channel_name: string | null
           created_at: string
           device_hash: string
@@ -1423,10 +1502,13 @@ export type Database = {
           id: number
           ip_hash: string | null
           kind: string
+          line_user: string | null
+          max_cons: number | null
           stream_id: number
           trusted: boolean
         }
         Insert: {
+          active_cons?: number | null
           channel_name?: string | null
           created_at?: string
           device_hash: string
@@ -1434,10 +1516,13 @@ export type Database = {
           id?: number
           ip_hash?: string | null
           kind: string
+          line_user?: string | null
+          max_cons?: number | null
           stream_id: number
           trusted?: boolean
         }
         Update: {
+          active_cons?: number | null
           channel_name?: string | null
           created_at?: string
           device_hash?: string
@@ -1445,6 +1530,8 @@ export type Database = {
           id?: number
           ip_hash?: string | null
           kind?: string
+          line_user?: string | null
+          max_cons?: number | null
           stream_id?: number
           trusted?: boolean
         }
@@ -5622,6 +5709,49 @@ export type Database = {
         }
         Returns: Json
       }
+      category_down_list: {
+        Args: { p_hosts: string[] }
+        Returns: {
+          category_id: string
+          category_name: string
+          host: string
+          since: string
+          source: string
+        }[]
+      }
+      category_signal_summary: {
+        Args: { p_since: string }
+        Returns: {
+          category_id: string
+          category_name: string
+          cleared: number
+          host: string
+          ignored: number
+          last_at: string
+          reports: number
+          working: number
+        }[]
+      }
+      channel_buffering_list: {
+        Args: { p_hosts: string[] }
+        Returns: {
+          channel_name: string
+          host: string
+          since: string
+          source: string
+          stream_id: number
+        }[]
+      }
+      channel_buffering_summary: {
+        Args: { p_since: string }
+        Returns: {
+          buffering: number
+          channel_name: string
+          host: string
+          last_at: string
+          stream_id: number
+        }[]
+      }
       channel_down_list: {
         Args: { p_hosts: string[] }
         Returns: {
@@ -5934,6 +6064,20 @@ export type Database = {
           p_kind: string
         }
         Returns: string
+      }
+      report_lines: {
+        Args: { p_since: string }
+        Returns: {
+          active_cons: number
+          category_id: string
+          created_at: string
+          host: string
+          kind: string
+          line_user: string
+          max_cons: number
+          scope: string
+          stream_id: number
+        }[]
       }
       reserve_free_ai: {
         Args: {
