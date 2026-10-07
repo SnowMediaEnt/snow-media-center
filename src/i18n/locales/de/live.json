@@ -61,7 +61,11 @@
       "onAirChip": "ON AIR",
       "downLabel": "Gerade als ausgefallen gemeldet",
       "downNote": "Gerade als ausgefallen gemeldet – wir kümmern uns darum",
-      "noInfo": "Keine Informationen"
+      "noInfo": "Keine Informationen",
+      "categoryDownLabel": "Kategorie als ausgefallen gemeldet",
+      "categoryDownNote": "Die ganze Kategorie wurde als ausgefallen gemeldet – läuft evtl. nicht",
+      "bufferingLabel": "Kürzlich Ruckeln gemeldet",
+      "bufferingNote": "Kürzlich Ruckeln gemeldet – läuft evtl. nicht flüssig"
     },
     "bar": {
       "prevLabel": "Vorheriger Sender",
@@ -167,7 +171,8 @@
       "all": "Alle Sender",
       "search": "Suchen",
       "channels": "Sender",
-      "tag": "Kategorien"
+      "tag": "Kategorien",
+      "downLabel": "Kategorie als ausgefallen gemeldet"
     },
     "list": {
       "closeSearchBtn": "Suche schließen",
@@ -287,7 +292,14 @@
       "refreshFailedTitle": "Aktualisierung nicht möglich",
       "refreshFailedDesc": "Der Dienst hat nicht geantwortet. Versuche es gleich noch einmal.",
       "recordChannel": "Aufnehmen…",
-      "stopRecording": "Aufnahme läuft — stoppen…"
+      "stopRecording": "Aufnahme läuft — stoppen…",
+      "reportCategory": "Kategorie als ausgefallen melden",
+      "categoryMenuTitle": "Kategorie-Optionen",
+      "categoryBody": "Alle Sender darin zeigen dann für alle ⚠️, und wir bekommen ein Ticket.",
+      "categoryFooter": "Halte OK gedrückt oder drücke die Menütaste auf einer Kategorie, um dies zu öffnen.",
+      "categorySentTitle": "Kategorie gemeldet – danke!",
+      "categorySentDesc": "Alle Sender darin zeigen jetzt für alle ⚠️.",
+      "bufferingWarnNote": "Das Ticket warnt auch andere Zuschauer, bevor sie ihn starten."
     },
     "vod": {
       "allMovies": "Alle Filme",
@@ -335,6 +347,17 @@
       "subTrack": "Untertitel {{n}}",
       "audioTrack": "Ton {{n}}",
       "selectChannel": "Wähle einen Sender für die Vorschau"
+    },
+    "warn": {
+      "downTitle": "Als ausgefallen gemeldet",
+      "downBody": "Jemand hat diesen Sender kürzlich als ausgefallen gemeldet – er läuft evtl. nicht.",
+      "categoryTitle": "Kategorie als ausgefallen gemeldet",
+      "categoryBody": "Die ganze Kategorie {{category}} wurde kürzlich als ausgefallen gemeldet – dieser Sender läuft evtl. nicht.",
+      "categoryBodyNoName": "Die ganze Kategorie wurde kürzlich als ausgefallen gemeldet – dieser Sender läuft evtl. nicht.",
+      "bufferingTitle": "Ruckeln gemeldet",
+      "bufferingBody": "Kürzlich Ruckeln gemeldet – läuft evtl. nicht flüssig.",
+      "watchBtn": "Trotzdem ansehen",
+      "pickBtn": "Anderen wählen"
     }
   }
 }

@@ -30,7 +30,7 @@ vi.mock('@/lib/gameDay', async (orig) => {
   };
 });
 vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/xtream')>()), loadSavedAccounts: async () => saved.list }));
-vi.mock('@/lib/channelStatus', () => ({ useDownChannels: () => new Set<string>(), isChannelDown: () => false }));
+vi.mock('@/lib/channelStatus', () => ({ useDownChannels: () => new Set<string>(), isChannelDown: () => false, channelReport: () => null, isCategoryDown: () => false, signalCategory: () => undefined }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: toastFn }) }));
 
 // OK plays when it is let go (a held OK opens the channel's menu instead), so OK is pressed and released.

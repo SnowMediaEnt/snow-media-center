@@ -1,0 +1,4 @@
+# Live TV reports: a whole category reported down, buffering warnings.
+src/components/livetv/ChannelWarningDialog.tsx
+src/components/livetv/ReportCategoryDialog.tsx
+src/components/livetv/channelWarning.ts

@@ -61,7 +61,11 @@
       "onAirChip": "AL AIRE",
       "downLabel": "Reportado como caído ahora",
       "downNote": "Reportado como caído ahora: ya lo estamos revisando",
-      "noInfo": "Sin información"
+      "noInfo": "Sin información",
+      "categoryDownLabel": "Categoría reportada como caída",
+      "categoryDownNote": "Toda su categoría fue reportada como caída: puede que no se vea",
+      "bufferingLabel": "Reportado con cortes hace poco",
+      "bufferingNote": "Reportado con cortes hace poco: puede que no se vea bien"
     },
     "bar": {
       "prevLabel": "Canal anterior",
@@ -167,7 +171,8 @@
       "all": "Todos los canales",
       "search": "Buscar",
       "channels": "Canales",
-      "tag": "categorías"
+      "tag": "categorías",
+      "downLabel": "Categoría reportada como caída"
     },
     "list": {
       "closeSearchBtn": "Cerrar búsqueda",
@@ -288,7 +293,14 @@
       "refreshFailedTitle": "No se pudo actualizar",
       "refreshFailedDesc": "El servicio no respondió. Inténtalo de nuevo en un momento.",
       "recordChannel": "Grabar…",
-      "stopRecording": "Grabando — detener…"
+      "stopRecording": "Grabando — detener…",
+      "reportCategory": "Reportar categoría caída",
+      "categoryMenuTitle": "Opciones de categoría",
+      "categoryBody": "Todos sus canales mostrarán ⚠️ para todos y nos llegará un ticket.",
+      "categoryFooter": "Mantén OK o pulsa la tecla Menú en una categoría para abrir esto.",
+      "categorySentTitle": "Categoría reportada: ¡gracias!",
+      "categorySentDesc": "Todos sus canales muestran ahora ⚠️ para todos.",
+      "bufferingWarnNote": "El ticket también avisa a otros espectadores antes de verlo."
     },
     "vod": {
       "allMovies": "Todas las películas",
@@ -336,6 +348,17 @@
       "subTrack": "Sub. {{n}}",
       "audioTrack": "Audio {{n}}",
       "selectChannel": "Elige un canal para ver la vista previa"
+    },
+    "warn": {
+      "downTitle": "Reportado como caído",
+      "downBody": "Alguien reportó este canal como caído hace poco: puede que no se vea.",
+      "categoryTitle": "Categoría reportada como caída",
+      "categoryBody": "Toda la categoría {{category}} fue reportada como caída hace poco: puede que este canal no se vea.",
+      "categoryBodyNoName": "Toda su categoría fue reportada como caída hace poco: puede que este canal no se vea.",
+      "bufferingTitle": "Reportado con cortes",
+      "bufferingBody": "Reportado con cortes hace poco: puede que no se vea bien.",
+      "watchBtn": "Ver igual",
+      "pickBtn": "Elegir otro"
     }
   }
 }

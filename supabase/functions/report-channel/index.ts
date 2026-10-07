@@ -25,6 +25,15 @@ const HOUR_MS = 60 * 60 * 1000;
 const GUEST_TAGS = ['[Channel Report]', '[Guest Ticket]', '[Anonymous Report]'];
 const tagged = (subject: string) =>
   GUEST_TAGS.some((t) => subject.startsWith(t)) ? subject : `[Guest Report] ${subject}`;
+// A ticket carries the line's username, service and connection counts
+// (the app's "Line:" line), never a password or a URL that holds one. The
+// app never puts one in; this catches anything pasted into a free-text
+// report: player_api / stream URLs with password=, user:pass@host, and
+// /live/<user>/<pass>/ stream paths.
+export const scrubSecrets = (text: string): string => text
+  .replace(/([?&]password=)[^&\s]*/gi, '$1[removed]')
+  .replace(/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1[removed]@')
+  .replace(/(\/(?:live|movie|series|timeshift)\/[^\s/]+\/)[^\s/]+\//gi, '$1[removed]/');
 
 async function resolveSentinelUserId(admin: ReturnType<typeof createClient>): Promise<string> {
   if (cachedSentinelId) return cachedSentinelId;
@@ -84,8 +93,8 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
-    const subject = tagged(rawSubject.replace(/\s+/g, ' ')).slice(0, 200);
-    const message = rawMessage.slice(0, 2000);
+    const subject = scrubSecrets(tagged(rawSubject.replace(/\s+/g, ' '))).slice(0, 200);
+    const message = scrubSecrets(rawMessage).slice(0, 2000);
 
     const admin = createClient(url, key, { auth: { persistSession: false } });
     logIpHeadersOnce('report-channel', req.headers);

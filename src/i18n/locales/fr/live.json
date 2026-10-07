@@ -61,7 +61,11 @@
       "onAirChip": "À L'ANTENNE",
       "downLabel": "Signalée en panne actuellement",
       "downNote": "Signalée en panne actuellement — nous nous en occupons",
-      "noInfo": "Aucune information"
+      "noInfo": "Aucune information",
+      "categoryDownLabel": "Catégorie signalée en panne",
+      "categoryDownNote": "Toute sa catégorie a été signalée en panne — elle risque de ne pas marcher",
+      "bufferingLabel": "Coupures signalées récemment",
+      "bufferingNote": "Coupures signalées récemment — la lecture risque de mal passer"
     },
     "bar": {
       "prevLabel": "Chaîne précédente",
@@ -167,7 +171,8 @@
       "all": "Toutes les chaînes",
       "search": "Rechercher",
       "channels": "Chaînes",
-      "tag": "catégories"
+      "tag": "catégories",
+      "downLabel": "Catégorie signalée en panne"
     },
     "list": {
       "closeSearchBtn": "Fermer la recherche",
@@ -288,7 +293,14 @@
       "refreshFailedTitle": "Impossible d'actualiser",
       "refreshFailedDesc": "Le service n'a pas répondu. Réessayez dans un instant.",
       "recordChannel": "Enregistrer…",
-      "stopRecording": "Enregistrement — arrêter…"
+      "stopRecording": "Enregistrement — arrêter…",
+      "reportCategory": "Signaler la catégorie en panne",
+      "categoryMenuTitle": "Options de la catégorie",
+      "categoryBody": "Toutes ses chaînes afficheront ⚠️ pour tout le monde, et nous recevrons un ticket.",
+      "categoryFooter": "Maintenez OK ou appuyez sur la touche Menu sur une catégorie pour ouvrir ceci.",
+      "categorySentTitle": "Catégorie signalée — merci !",
+      "categorySentDesc": "Toutes ses chaînes affichent maintenant ⚠️ pour tout le monde.",
+      "bufferingWarnNote": "Le ticket prévient aussi les autres avant qu’ils la lancent."
     },
     "vod": {
       "allMovies": "Tous les films",
@@ -336,6 +348,17 @@
       "subTrack": "Sous-tit. {{n}}",
       "audioTrack": "Audio {{n}}",
       "selectChannel": "Sélectionnez une chaîne pour voir un aperçu"
+    },
+    "warn": {
+      "downTitle": "Signalée en panne",
+      "downBody": "Quelqu’un a signalé cette chaîne en panne récemment — elle risque de ne pas marcher.",
+      "categoryTitle": "Catégorie signalée en panne",
+      "categoryBody": "Toute la catégorie {{category}} a été signalée en panne récemment — cette chaîne risque de ne pas marcher.",
+      "categoryBodyNoName": "Toute sa catégorie a été signalée en panne récemment — cette chaîne risque de ne pas marcher.",
+      "bufferingTitle": "Coupures signalées",
+      "bufferingBody": "Coupures signalées récemment — la lecture risque de mal passer.",
+      "watchBtn": "Regarder quand même",
+      "pickBtn": "En choisir une autre"
     }
   }
 }

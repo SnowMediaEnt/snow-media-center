@@ -33,11 +33,19 @@ vi.mock('@/lib/gameDay', async (orig) => {
     checkGuides: () => Promise.resolve([]),
   };
 });
-vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/xtream')>()), loadSavedAccounts: async () => saved.list }));
+vi.mock('@/lib/xtream', async (orig) => ({
+  ...(await orig<typeof import('@/lib/xtream')>()),
+  loadSavedAccounts: async () => saved.list,
+  // The panel's answer for the line's connections (never a network call here).
+  authenticate: async () => ({ user_info: { username: 'vb', password: 'secret-vb', active_cons: '1', max_connections: '2' } }),
+}));
 vi.mock('@/lib/channelStatus', () => ({
   useDownChannels: () => spy.down,
   isChannelDown: (set: Set<string>, host: string, id: number) => set.has(`${host}|${id}`),
+  channelReport: (set: Set<string>, host: string, id: number) => (set.has(`${host}|${id}`) ? 'down' : set.has(`${host}|buf:${id}`) ? 'buffering' : null),
+  isCategoryDown: () => false,
   signalChannel: spy.signal,
+  signalCategory: vi.fn(),
 }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: spy.toast }), toast: spy.toast }));
 vi.mock('@/integrations/supabase/client', () => ({
@@ -93,14 +101,15 @@ describe('Game Day: hold OK on a channel to report it', () => {
     await waitFor(() => expect(dialogText()).toContain('Channel down'));
     tap('Enter');
     await waitFor(() => expect(spy.invoke).toHaveBeenCalled());
-    expect(spy.signal).toHaveBeenCalledWith(vibez.host, 101, 'NFL 01: Bears vs Packers', 'down');
+    // The report goes with that link's own line (its username and connections go to the Hub).
+    expect(spy.signal).toHaveBeenCalledWith(vibez.host, 101, 'NFL 01: Bears vs Packers', 'down', expect.objectContaining({ username: vibez.username }));
     const body = (spy.invoke.mock.calls[0] as unknown as [string, { body: { message: string } }])[1].body;
     expect(body.message).toContain('Channel ID: 101');
     expect(body.message).toContain('Service: Vibez');
     expect(body.message).toContain('Issue: Channel down');
-    // Never a login.
+    // That line's username and connections (the owner asked for them), never its password.
+    expect(body.message).toContain('Line: vb (Vibez) · connections 1/2');
     expect(JSON.stringify(spy.invoke.mock.calls)).not.toContain('secret');
-    expect(JSON.stringify(spy.invoke.mock.calls)).not.toContain(vibez.username);
   });
 
   it('a channel already showing ⚠️ offers "It’s working now" and clears it on its own line', async () => {
@@ -130,5 +139,38 @@ describe('Game Day: hold OK on a channel to report it', () => {
   it('the list says how to report', async () => {
     await openList();
     expect(screen.getByText('Hold OK on a channel to report it')).toBeTruthy();
+  });
+});
+
+describe('Game Day: a link reported buffering or down asks before it plays', () => {
+  const warning = () => document.querySelector('[data-channel-warning]');
+
+  it('buffering: listed after the working copy, amber, and OK asks first; Pick another keeps the list', async () => {
+    spy.down = new Set([`${dream.host}|buf:100`]);
+    const { onWatch } = await openList();
+    // The working Vibez copy leads; the buffering one is second.
+    tap('ArrowDown');
+    expect(document.querySelector('[data-gd-pick="1"] [aria-label="Reported buffering recently"]')).not.toBeNull();
+    tap('Enter');
+    await waitFor(() => expect(warning()?.getAttribute('data-channel-warning')).toBe('buffering'));
+    expect(document.body.textContent).toContain('Reported buffering recently — it may not play well.');
+    tap('Enter'); // the highlight starts on Pick another
+    expect(warning()).toBeNull();
+    expect(sessionStorage.getItem('smc-live-deeplink')).toBeNull();
+    expect(onWatch).not.toHaveBeenCalled();
+    expect(screen.getAllByText('Game channel').length).toBeGreaterThan(0);
+  });
+
+  it('Watch anyway hands it to Live TV', async () => {
+    spy.down = new Set([`${dream.host}|100`]);
+    const { onWatch } = await openList();
+    tap('ArrowDown');
+    tap('Enter');
+    await waitFor(() => expect(warning()?.getAttribute('data-channel-warning')).toBe('down'));
+    tap('ArrowLeft');
+    tap('Enter');
+    expect(warning()).toBeNull();
+    expect(JSON.parse(sessionStorage.getItem('smc-live-deeplink') || '{}')).toMatchObject({ host: dream.host, streamId: 100 });
+    expect(onWatch).toHaveBeenCalledWith('nfl:1');
   });
 });

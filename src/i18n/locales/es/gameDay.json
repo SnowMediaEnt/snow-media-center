@@ -11,6 +11,7 @@
     "liveDetail": "EN VIVO {{detail}}",
     "findingChannels": "Buscando tus canales…",
     "reportedDown": "Reportado como caído ahora",
+    "reportedBuffering": "Reportado con cortes hace poco",
     "notInChannelsOn": "{{networks}} — no está en tus canales",
     "streamingOnly": "{{networks}} (solo streaming)",
     "checkOn": "{{networks}} — presiona Ver para revisar tu guía",

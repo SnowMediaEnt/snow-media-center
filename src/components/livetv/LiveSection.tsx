@@ -80,7 +80,12 @@ import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveL
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import { channelForName } from '@/lib/voiceCommands';
 import { toast } from '@/hooks/use-toast';
-import { isChannelDown, isChannelFailure, signalChannel, useDownChannels } from '@/lib/channelStatus';
+import { channelReport, isCategoryDown, isChannelFailure, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
+import ChannelWarningDialog from './ChannelWarningDialog';
+// Not lazy: it must be up before the held OK that opens it is let go (that
+// release arms it), or the viewer's next OK would be swallowed.
+import ReportCategoryDialog from './ReportCategoryDialog';
+import { warnedRecently, noteWatchAnyway } from './channelWarning';
 import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
 import RecordDialog, { type RecordChoice } from './RecordDialog';
 import { recordChannelWatch } from '@/lib/watchHistory';
@@ -97,6 +102,7 @@ import {
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
+
 const RecordingsScreen = lazy(() => import('./RecordingsScreen'));
 
 const NATIVE_PLAYBACK = hasNativePlayer();
@@ -494,6 +500,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [reportFor, setReportFor] = useState<XtreamLiveStream | null>(null);
   const reportForRef = useRef<XtreamLiveStream | null>(null);
   useEffect(() => { reportForRef.current = reportFor; }, [reportFor]);
+  // Hold OK (or Menu) on a category: report the whole category down. Owns
+  // the keyboard while open, like the channel menu.
+  const [reportCatFor, setReportCatFor] = useState<{ line: XtreamCreds; catId: string; name: string } | null>(null);
+  const reportCatForRef = useRef(reportCatFor);
+  reportCatForRef.current = reportCatFor;
+  // A channel the others reported down or buffering: asked before it plays.
+  const [warnFor, setWarnFor] = useState<{ stream: XtreamLiveStream; report: Exclude<ChannelReport, null> } | null>(null);
+  const warnForRef = useRef(warnFor);
+  warnForRef.current = warnFor;
+  // The reports list (useDownChannels, further down), for callbacks made before it.
+  const downSetRef = useRef<Set<string>>(new Set());
   // Record now (TRACKER 25): the dialog (hold OK on a channel, or Record in
   // the player bar) owns the keyboard while open, like the report dialog. Not
   // in Kids profiles, the demo, or a build without the recorder plugin.
@@ -539,6 +556,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const enterFiredRef = useRef(false);
   const cancelEnterTimer = useCallback(() => {
     if (enterTimerRef.current) { window.clearTimeout(enterTimerRef.current); enterTimerRef.current = null; }
+  }, []);
+  // The same on a category: let go soon = open it, held = its menu (Report
+  // category down). Only a provider's own category: not a service header,
+  // Favorites or All channels.
+  const catHoldRef = useRef<{ timer: number | null; fired: boolean }>({ timer: null, fired: false });
+  const cancelCatHold = useCallback(() => {
+    const h = catHoldRef.current;
+    if (h.timer) { window.clearTimeout(h.timer); h.timer = null; }
   }, []);
 
 
@@ -1366,9 +1391,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [visibleCategories, currentCat, lineFor]);
 
   // OK on a channel goes full screen; the preview box already shows it.
+  // One the others reported down (itself or its whole category) or
+  // buffering asks first: Watch anyway / Pick another. Not for the channel
+  // already playing, nor one this viewer chose to watch anyway a moment ago.
+  const playingKeyRef = useRef('');
+  playingKeyRef.current = playingChannelId ? `${lineKey(playingLine)}|${playingChannelId}` : '';
   const activateChannel = useCallback((stream: XtreamLiveStream) => {
+    const line = lineFor(stream);
+    const report = channelReport(downSetRef.current, line.host, stream.stream_id, stream.category_id);
+    if (report && playingKeyRef.current !== `${lineKey(line)}|${stream.stream_id}` && !warnedRecently(line.host, stream.stream_id)) {
+      setWarnFor({ stream, report });
+      return;
+    }
     playChannel(stream);
-  }, [playChannel]);
+  }, [playChannel, lineFor]);
   const activateChannelRef = useRef(activateChannel);
   useEffect(() => { activateChannelRef.current = activateChannel; }, [activateChannel]);
 
@@ -1455,6 +1491,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // channel plays full screen: no row is on screen, and the auto-'ok' below
   // works from the last list.
   const downSet = useDownChannels(lines, isActive && !fullscreen);
+  downSetRef.current = downSet;
   const playingName = playingChannelId ? playingStream?.name ?? '' : '';
 
   // Native ExoPlayer wiring — fullscreen, or the preview box while browsing.
@@ -1655,9 +1692,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // What the native player is showing: the full-screen channel, or the one
   // in the preview box.
   const nativeStream = nativeActive && playingChannelId
-    ? { host: playingLine.host, id: playingChannelId, name: playingName }
+    ? { host: playingLine.host, id: playingChannelId, name: playingName, catId: playingStream?.category_id }
     : nativePreviewActive && previewChannel
-      ? { host: lineFor(previewChannel).host, id: previewChannel.stream_id, name: previewChannel.name }
+      ? { host: lineFor(previewChannel).host, id: previewChannel.stream_id, name: previewChannel.name, catId: previewChannel.category_id }
       : null;
   const nativeStreamRef = useRef(nativeStream); nativeStreamRef.current = nativeStream;
 
@@ -1670,15 +1707,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     signalChannel(st.host, st.id, st.name, 'fail');
   }, [native.error]);
   const nativeKey = nativeStream ? `${nativeStream.host}|${nativeStream.id}` : '';
-  const shownDown = !!nativeStream && isChannelDown(downSet, nativeStream.host, nativeStream.id);
+  // Down by its own report, or by its whole category's: playing fine ends
+  // that one (a category with a channel that plays is not all down).
+  // Buffering is not ended this way (lib/channelStatus).
+  const shownReport = nativeStream ? channelReport(downSet, nativeStream.host, nativeStream.id, nativeStream.catId) : null;
+  const shownDown = shownReport === 'down' || shownReport === 'category';
   useEffect(() => {
     if (!shownDown || native.buffering || native.error) return;
     const t = window.setTimeout(() => {
       const st = nativeStreamRef.current;
-      if (st) signalChannel(st.host, st.id, st.name, 'ok');
+      if (!st) return;
+      if (shownReport === 'down') signalChannel(st.host, st.id, st.name, 'ok');
+      else if (st.catId != null) signalCategory(st.host, st.catId, '', 'ok');
     }, 12_000);
     return () => window.clearTimeout(t);
-  }, [shownDown, nativeKey, native.buffering, native.error]);
+  }, [shownDown, shownReport, nativeKey, native.buffering, native.error]);
 
   // player_error — track native player fatal error transitions.
   const lastNativeErrorRef = useRef<string | null>(null);
@@ -1772,6 +1815,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // A held OK opens the channel's short menu (Favorite, Report, and Record…
   // where recording is offered); Record… leads on to the recording options.
   const openChannelOptions = useCallback((c: XtreamLiveStream) => { setReportFor(c); }, []);
+  const openCategoryOptions = useCallback((c: { line: XtreamCreds; catId?: string; name: string } | undefined) => {
+    if (c?.catId) setReportCatFor({ line: c.line, catId: c.catId, name: c.name });
+  }, []);
   const openChannelOptionsRef = useRef(openChannelOptions);
   openChannelOptionsRef.current = openChannelOptions;
   const onRowLongPress = useCallback((i: number) => {
@@ -1807,10 +1853,25 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const handler = (e: KeyboardEvent) => {
      try {
       // The Report / Record dialogs and the Recordings screen own the keyboard while open.
-      if (reportForRef.current || recordForRef.current || recordingsOpenRef.current) return;
+      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current) return;
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
+
+      // Remote "Menu" / context key on a category: its menu (Report category down).
+      if (
+        !fullscreenRef.current && !typing && paneRef.current === 'categories'
+        && !searchFocusedRef.current && !recFocusedRef.current
+        && (e.key === 'ContextMenu' || e.keyCode === 82)
+      ) {
+        const c = visibleCategoriesRef.current[categoryIdxRef.current];
+        if (c?.catId) {
+          e.preventDefault(); e.stopPropagation();
+          cancelCatHold();
+          openCategoryOptions(c);
+          return;
+        }
+      }
 
       // Remote "Menu" / context key — open report for the focused channel.
       // Only when on the channels pane and not fullscreen/typing.
@@ -2075,6 +2136,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           const c = cats[categoryIdxRef.current];
           // A service header folds and unfolds its group; it opens nothing.
           if (c?.isHeader) { toggleCollapsed(c.lineKey); return; }
+          // OK on a category: opened when let go; held, its menu (keyup below).
+          if (e.key !== 'ArrowRight' && c?.catId) {
+            const hold = catHoldRef.current;
+            if (e.repeat || hold.timer || hold.fired) return;
+            hold.timer = window.setTimeout(() => {
+              hold.timer = null;
+              hold.fired = true;
+              openCategoryOptions(visibleCategoriesRef.current[categoryIdxRef.current]);
+            }, HOLD_MS) as unknown as number;
+            return;
+          }
           if (c?.isAll) allOptedInRef.current = true;
           setPane('channels');
         }
@@ -2117,7 +2189,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
      } catch { /* ignore */ }
     };
     const keyupHandler = (e: KeyboardEvent) => {
-      if (reportForRef.current || recordForRef.current || recordingsOpenRef.current) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        // A category's OK: let go before the hold, so open it. After the
+        // hold its menu is already up: the release only arms that menu.
+        const hold = catHoldRef.current;
+        if (hold.timer) {
+          cancelCatHold();
+          if (paneRef.current === 'categories' && !fullscreenRef.current) setPane('channels');
+        }
+        hold.fired = false;
+      }
+      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current) return;
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (paneRef.current !== 'channels' || fullscreenRef.current) {
         cancelEnterTimer();
@@ -2142,8 +2224,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       window.removeEventListener('keydown', guardedDown, true);
       window.removeEventListener('keyup', guardedUp, true);
       cancelEnterTimer();
+      cancelCatHold();
     };
-  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, toggleCollapsed, liveSkip]);
+  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, cancelCatHold, openCategoryOptions, toggleCollapsed, liveSkip]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -2159,7 +2242,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if ((window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack) return;
           if (choosingLayoutRef.current) return; // the chooser answers Back itself
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
-          if (reportForRef.current || recordForRef.current || recordingsOpenRef.current) return;
+          if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current) return;
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (fullscreenRef.current) {
             if (barVisibleRef.current) hideBarNow();
@@ -2254,7 +2337,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     />
   ) : null;
 
-  const reportDialog = reportFor ? (
+  // The name of a channel's category on its line ('' when not listed).
+  const categoryNameOf = (st: XtreamLiveStream): string => {
+    const id = st.category_id != null ? String(st.category_id) : '';
+    return id ? (categoriesByLine.get(lineKey(lineFor(st)))?.find((c) => String(c.category_id) === id)?.category_name ?? '') : '';
+  };
+  const channelReportDialog = reportFor ? (
     <Suspense fallback={null}>
       <ReportChannelDialog
         channelName={reportFor.name}
@@ -2275,9 +2363,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         onRefreshFavorite={() => refreshFavorite(reportFor)}
         initialChoice={reportPreset?.choice}
         initialNote={reportPreset?.note}
-        onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down')}
-        isDown={isChannelDown(downSet, lineFor(reportFor).host, reportFor.stream_id)}
-        onClearDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'clear')}
+        line={lineFor(reportFor)}
+        onReportedDown={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'down', lineFor(reportFor))}
+        onReportedBuffering={() => signalChannel(lineFor(reportFor).host, reportFor.stream_id, reportFor.name, 'buffering', lineFor(reportFor))}
+        isDown={channelReport(downSet, lineFor(reportFor).host, reportFor.stream_id, reportFor.category_id) !== null}
+        onClearDown={() => {
+          // "It's working now" ends what the others see on it: its own report
+          // (down or buffering) and, when its category is what marks it, the
+          // category's (a category with a channel that plays is not all down).
+          const host = lineFor(reportFor).host;
+          signalChannel(host, reportFor.stream_id, reportFor.name, 'clear');
+          if (isCategoryDown(downSet, host, reportFor.category_id) && reportFor.category_id != null) {
+            signalCategory(host, reportFor.category_id, categoryNameOf(reportFor), 'clear');
+          }
+        }}
         onOpenBufferingGuide={() => {
           setReportFor(null);
           enterFiredRef.current = false;
@@ -2288,6 +2387,45 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       />
     </Suspense>
   ) : null;
+  const categoryReportDialog = reportCatFor ? (
+    <ReportCategoryDialog
+      categoryName={reportCatFor.name}
+      categoryId={reportCatFor.catId}
+      serviceLabel={grouped ? lineLabel(reportCatFor.line) : undefined}
+      line={reportCatFor.line}
+      isDown={isCategoryDown(downSet, reportCatFor.line.host, reportCatFor.catId)}
+      onReportedDown={() => signalCategory(reportCatFor.line.host, reportCatFor.catId, reportCatFor.name, 'down', reportCatFor.line)}
+      onClearDown={() => signalCategory(reportCatFor.line.host, reportCatFor.catId, reportCatFor.name, 'clear')}
+      onClose={() => { setReportCatFor(null); catHoldRef.current.fired = false; }}
+    />
+  ) : null;
+  const warnDialog = warnFor ? (
+    <ChannelWarningDialog
+      channelName={warnFor.stream.name}
+      report={warnFor.report}
+      categoryName={categoryNameOf(warnFor.stream)}
+      onWatch={() => {
+        const { stream, report } = warnFor;
+        const line = lineFor(stream);
+        setWarnFor(null);
+        noteWatchAnyway(line.host, stream.stream_id);
+        try { trackEvent('report_warning', 'player', { status: report, choice: 'watch', where: 'live', channel: stream.name }); } catch { /* ignore */ }
+        playChannel(stream);
+      }}
+      onPickAnother={() => {
+        const { stream, report } = warnFor;
+        setWarnFor(null);
+        try { trackEvent('report_warning', 'player', { status: report, choice: 'pick_another', where: 'live', channel: stream.name }); } catch { /* ignore */ }
+      }}
+    />
+  ) : null;
+  const reportDialog = (
+    <>
+      {channelReportDialog}
+      {categoryReportDialog}
+      {warnDialog}
+    </>
+  );
 
   // Live TV › Recordings takes the section over (the remote too).
   if (recordingsOpen) {
@@ -2560,6 +2698,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                         : `font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : isMarked ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
                         {catLabel(c)}
                       </span>
+                      {c.catId && isCategoryDown(downSet, c.line.host, c.catId) && (
+                        <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" aria-label={t('live.categories.downLabel')} data-category-down="" />
+                      )}
                       {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                       {!isLoadingThis && !c.isHeader && c.count != null && c.count > 0 && (
                         <span className={`text-xs font-nunito tabular-nums px-2 py-1 rounded-lg ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
@@ -2629,7 +2770,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       isFocused={isActive && pane === 'channels' && idx === safeChannelIdx}
                       isPlaying={playingChannelId === s.stream_id}
                       isFavorite={isFav(s)}
-                      isDown={isChannelDown(downSet, lineFor(s).host, s.stream_id)}
+                      report={channelReport(downSet, lineFor(s).host, s.stream_id, s.category_id)}
                       nowNext={epgFor(s)}
                       onSelect={onRowSelect}
                       onActivate={onRowActivate}

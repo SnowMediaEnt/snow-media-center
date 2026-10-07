@@ -11,6 +11,7 @@
     "liveDetail": "LIVE {{detail}}",
     "findingChannels": "Deine Sender werden gesucht…",
     "reportedDown": "Gerade als ausgefallen gemeldet",
+    "reportedBuffering": "Kürzlich Ruckeln gemeldet",
     "notInChannelsOn": "{{networks}} – nicht in deinen Sendern",
     "streamingOnly": "{{networks}} (nur Streaming)",
     "checkOn": "{{networks}} – drücke Ansehen, um deinen Guide zu prüfen",

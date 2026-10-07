@@ -61,7 +61,11 @@
       "onAirChip": "ON AIR",
       "downLabel": "Reported down right now",
       "downNote": "Reported down right now — we're on it",
-      "noInfo": "No information"
+      "noInfo": "No information",
+      "categoryDownLabel": "Category reported down",
+      "categoryDownNote": "Its whole category was reported down — it may not play",
+      "bufferingLabel": "Reported buffering recently",
+      "bufferingNote": "Reported buffering recently — it may not play well"
     },
     "bar": {
       "prevLabel": "Previous channel",
@@ -167,7 +171,8 @@
       "all": "All channels",
       "search": "Search",
       "channels": "Channels",
-      "tag": "categories"
+      "tag": "categories",
+      "downLabel": "Category reported down"
     },
     "list": {
       "closeSearchBtn": "Close search",
@@ -287,7 +292,14 @@
       "refreshFailedTitle": "Could not refresh",
       "refreshFailedDesc": "The service did not answer. Try again in a moment.",
       "recordChannel": "Record…",
-      "stopRecording": "Recording — stop…"
+      "stopRecording": "Recording — stop…",
+      "reportCategory": "Report category down",
+      "categoryMenuTitle": "Category Options",
+      "categoryBody": "Every channel in it will show ⚠️ for everyone, and we get a ticket.",
+      "categoryFooter": "Hold OK or press the Menu key on a category to open this.",
+      "categorySentTitle": "Category reported — thanks!",
+      "categorySentDesc": "Every channel in it now shows ⚠️ for everyone.",
+      "bufferingWarnNote": "A ticket also warns other viewers before they play it."
     },
     "vod": {
       "allMovies": "All Movies",
@@ -335,6 +347,17 @@
       "subTrack": "Sub {{n}}",
       "audioTrack": "Audio {{n}}",
       "selectChannel": "Select a channel to preview"
+    },
+    "warn": {
+      "downTitle": "Reported down",
+      "downBody": "Someone reported this channel down recently — it may not play.",
+      "categoryTitle": "Category reported down",
+      "categoryBody": "The whole {{category}} category was reported down recently — this channel may not play.",
+      "categoryBodyNoName": "Its whole category was reported down recently — this channel may not play.",
+      "bufferingTitle": "Reported buffering",
+      "bufferingBody": "Reported buffering recently — it may not play well.",
+      "watchBtn": "Watch anyway",
+      "pickBtn": "Pick another"
     }
   }
 }

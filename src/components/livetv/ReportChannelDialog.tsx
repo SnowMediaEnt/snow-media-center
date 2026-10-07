@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
 import { withAppInfo } from '@/lib/appInfo';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
+import type { XtreamCreds } from '@/lib/xtream';
 
 interface Props {
   channelName: string;
@@ -26,6 +27,9 @@ interface Props {
   recording?: boolean;
   /** The service the channel is on ("Vibez"), when the box has more than one: goes into the ticket. */
   serviceLabel?: string;
+  /** The line the channel is on: its username, service and connections go
+   *  into the ticket (lib/lineInfo; never its password). Left out: the line in use. */
+  line?: XtreamCreds;
   /**
    * Favourite only. Looks the channel up again on the service by name and
    * re-points the favourite at its current stream, for the case where the
@@ -39,7 +43,10 @@ interface Props {
   initialNote?: string;
   /** "Channel down" was sent: the caller tells the other boxes (⚠️). */
   onReportedDown?: () => void;
-  /** The channel shows ⚠️ right now … */
+  /** "Channel buffering" was sent (Submit a ticket): the caller tells the
+   *  other boxes, who are then warned before it plays. */
+  onReportedBuffering?: () => void;
+  /** The channel shows ⚠️ right now (down, its category down, or buffering) … */
   isDown?: boolean;
   /** … and the viewer says it works: clear it for everyone. */
   onClearDown?: () => void;
@@ -84,11 +91,13 @@ const ReportChannelDialog = memo(({
   onRecord,
   recording = false,
   serviceLabel,
+  line,
   onRefreshFavorite,
   onOpenBufferingGuide,
   initialChoice,
   initialNote,
   onReportedDown,
+  onReportedBuffering,
   isDown = false,
   onClearDown,
   onWrongGame,
@@ -170,7 +179,12 @@ const ReportChannelDialog = memo(({
       id: 'clear',
       label: t('live.report.clearWarning'),
       icon: CheckCircle2,
-      run: () => { onClearDown(); toast({ title: t('live.report.thanksTitle'), description: t('live.report.thanksDesc') }); onClose(); },
+      run: () => {
+        onClearDown();
+        try { trackEvent('report_clear', 'player', { target: 'channel', channel: channelName }); } catch { void 0; }
+        toast({ title: t('live.report.thanksTitle'), description: t('live.report.thanksDesc') });
+        onClose();
+      },
     }] : []),
     { id: 'report', label: t('live.report.reportChannel'), icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } },
     ...(onWrongGame ? [{ id: 'wrong', label: t('live.report.wrongGame'), icon: Ban, run: () => { onWrongGame(); onClose(); } }] : []),
@@ -195,9 +209,13 @@ const ReportChannelDialog = memo(({
           return;
         }
         if (choice === 'Channel down') { try { onReportedDown?.(); } catch { /* ignore */ } }
+        if (choice === 'Channel buffering') { try { onReportedBuffering?.(); } catch { /* ignore */ } }
+        if (choice === 'Channel down' || choice === 'Channel buffering') {
+          try { trackEvent('channel_report', 'player', { reason: choice === 'Channel down' ? 'down' : 'buffering', channel: channelName, service: serviceLabel ?? null }); } catch { void 0; }
+        }
         const subject = `Channel issue: ${channelName}`;
         // App version, build and device lead the message; the report's own fields follow as they were.
-        const message = await withAppInfo(buildMessage(choice, otherNote));
+        const message = await withAppInfo(buildMessage(choice, otherNote), line ? { lines: [line] } : {});
         if (user) {
           await createTicket(subject, message, { discordKind: 'channel_report' });
         } else {
@@ -222,7 +240,7 @@ const ReportChannelDialog = memo(({
         });
       }
     },
-    [createTicket, buildMessage, channelName, onClose, onReportedDown, submitting, toast, user, t],
+    [createTicket, buildMessage, channelName, line, onClose, onReportedDown, onReportedBuffering, serviceLabel, submitting, toast, user, t],
   );
 
   const onPick = useCallback(
@@ -490,6 +508,7 @@ const ReportChannelDialog = memo(({
           <div className="space-y-2">
             <p className="text-sm text-brand-ice/80 font-nunito mb-3">
               {t('live.report.bufferingBody')}
+              {onReportedBuffering && <> {t('live.report.bufferingWarnNote')}</>}
             </p>
             {BUFFERING_OPTIONS.map((labelKey, i) => {
               const focused = focusIdx === i;

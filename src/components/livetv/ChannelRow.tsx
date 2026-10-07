@@ -4,6 +4,7 @@ import i18n from '@/i18n';
 import { formatTime } from '@/i18n/format';
 import type { XtreamLiveStream, EpgNowNext } from '@/lib/xtream';
 import { channelRowLabels, type ChannelRowLabels } from './channelRowLabels';
+import type { ChannelReport } from '@/lib/channelStatus';
 
 interface Props {
   channel: XtreamLiveStream;
@@ -13,6 +14,9 @@ interface Props {
   isFavorite: boolean;
   /** Down right now, by what other boxes see (lib/channelStatus). */
   isDown?: boolean;
+  /** What the others reported about it (lib/channelStatus channelReport):
+   *  down or its category down (red), buffering (amber). Wins over isDown. */
+  report?: ChannelReport;
   nowNext?: EpgNowNext;
   onSelect: (index: number) => void;
   onActivate: (index: number) => void;
@@ -31,8 +35,15 @@ interface Props {
 // language: toLocaleTimeString with options builds a new one per call, twice
 // per row per render on Chromium 66.
 
-const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isDown = false, nowNext, onSelect, onActivate, onLongPress, variant = 'compact', labels }: Props) => {
+const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isDown = false, report, nowNext, onSelect, onActivate, onLongPress, variant = 'compact', labels }: Props) => {
   const L = labels ?? channelRowLabels(i18n.t.bind(i18n));
+  // Down (the channel or its whole category) is red; buffering is amber.
+  const flag: ChannelReport = report !== undefined ? report : isDown ? 'down' : null;
+  const flagged = flag !== null;
+  const flagLabel = flag === 'buffering' ? L.buffering : flag === 'category' ? L.categoryDown : L.down;
+  const flagNote = flag === 'buffering' ? L.bufferingNote : flag === 'category' ? L.categoryDownNote : L.downNote;
+  const flagIcon = flag === 'buffering' ? 'text-amber-400' : 'text-red-400';
+  const flagText = flag === 'buffering' ? 'text-amber-300' : 'text-red-300';
   const [iconError, setIconError] = useState(false);
   const [iconLoaded, setIconLoaded] = useState(false);
   const showIcon = channel.stream_icon && !iconError;
@@ -118,9 +129,9 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
             <span className="absolute top-1.5 left-1.5 text-xs px-1.5 py-0.5 rounded-md bg-brand-gold text-black font-nunito font-bold leading-4">{L.live}</span>
           )}
           {isFavorite && <Star className="absolute top-1.5 right-1.5 w-4 h-4 text-brand-gold fill-brand-gold" />}
-          {isDown && (
-            <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/70 p-0.5" title={L.down} aria-label={L.down}>
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
+          {flagged && (
+            <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/70 p-0.5" title={flagLabel} aria-label={flagLabel} data-report={flag}>
+              <AlertTriangle className={`w-4 h-4 ${flagIcon}`} />
             </span>
           )}
           {now && (
@@ -155,7 +166,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
         {logo('w-14 h-14', 'w-7 h-7')}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            {isDown && <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" aria-label={L.down} />}
+            {flagged && <AlertTriangle className={`w-4 h-4 ${flagIcon} flex-shrink-0`} aria-label={flagLabel} data-report={flag} />}
             <span className={`font-quicksand font-semibold truncate ${isFocused ? 'text-white' : 'text-brand-ice'}`}>
               {channel.name}
             </span>
@@ -170,8 +181,8 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
               }`}
             />
           </div>
-          {isDown ? (
-            <p className="text-xs text-amber-300 truncate font-nunito mt-1">{L.downNote}</p>
+          {flagged ? (
+            <p className={`text-xs ${flagText} truncate font-nunito mt-1`}>{flagNote}</p>
           ) : now ? (
             <>
               <p className="text-xs text-brand-ice/70 truncate font-nunito mt-1">{now.title}</p>
@@ -211,7 +222,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
-          {isDown && <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" aria-label={L.down} />}
+          {flagged && <AlertTriangle className={`w-4 h-4 ${flagIcon} flex-shrink-0`} aria-label={flagLabel} data-report={flag} />}
           <span className={`font-quicksand font-semibold text-base truncate ${isFocused ? 'text-white' : 'text-white/90'}`}>
             {channel.name}
           </span>
@@ -222,8 +233,8 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
           )}
           {isFavorite && <Star className="w-3.5 h-3.5 text-brand-gold fill-brand-gold flex-shrink-0" />}
         </div>
-        <p className={`text-xs font-nunito truncate ${isDown ? 'text-amber-300' : now ? 'text-brand-ice/75' : 'text-brand-ice/50 italic'}`}>
-          {isDown ? L.down : now ? now.title : L.noInfo}
+        <p className={`text-xs font-nunito truncate ${flagged ? flagText : now ? 'text-brand-ice/75' : 'text-brand-ice/50 italic'}`}>
+          {flagged ? flagLabel : now ? now.title : L.noInfo}
         </p>
       </div>
 
