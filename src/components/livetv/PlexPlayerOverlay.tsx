@@ -23,6 +23,7 @@ import { useScreenFormat } from '@/hooks/useScreenFormat';
 import { toast } from '@/hooks/use-toast';
 import { stepVolume, volumeBar } from '@/utils/volume';
 import PlayerStatsPanel from './PlayerStatsPanel';
+import PlayerMenuList from './PlayerMenuList';
 
 // 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
 // move a preview marker (accelerating on repeated presses), OK jumps there.
@@ -726,7 +727,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
           </div>
           {auds.length === 0 && <p className="text-sm text-brand-ice/70 px-3 py-2">{t('plex.player.noTracks')}</p>}
-          <div className="space-y-1">
+          <PlayerMenuList focused={menuIdx} total={auds.length + 1}>
             {auds.map((a, i) => (
               <div key={`${a.id}-${a.label}`} data-focused={menuIdx === i ? 'true' : 'false'}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
@@ -738,7 +739,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               <VolumeX className="w-3.5 h-3.5" />
               <span className="truncate">{t('plex.player.fixAudio')}</span>
             </div>
-          </div>
+          </PlayerMenuList>
         </div>
       )}
 
@@ -818,14 +819,14 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.subtitles')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
           </div>
-          <div className="space-y-1">
+          <PlayerMenuList focused={menuIdx} total={subsList.length}>
             {subsList.map((r, i) => (
               <div key={`${r.id}-${r.label}-${i}`} data-focused={menuIdx === i ? 'true' : 'false'} data-howto={r.id === -2 ? 'pp.getSubs' : undefined}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : r.id === -2 ? 'text-brand-gold' : 'text-brand-ice/90'}`}>
                 <span className="truncate">{r.label}</span>{r.active && <span className="text-brand-gold text-xs">●</span>}
               </div>
             ))}
-          </div>
+          </PlayerMenuList>
         </div>
       )}
 

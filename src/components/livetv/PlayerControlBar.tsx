@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import PlayerMenuList from './PlayerMenuList';
 import {
   SkipBack, SkipForward, Play, Pause, Rewind, FastForward,
   Subtitles, AudioLines, Tv, Radio, Volume2, VolumeX, Gauge, Circle, History, Flag,
@@ -328,7 +329,7 @@ const PlayerControlBar = memo(({
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('live.bar.ccLabel')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.menuHint')}</span>
           </div>
-          <div className="space-y-1">
+          <PlayerMenuList focused={subMenuFocus + 1} total={subs.length + 1}>
             {[{ id: -1, label: t('live.bar.subsOff'), active: subs.every(s => !s.active) } as { id: number; label: string; active: boolean }]
               .concat(subs.map(s => ({ id: s.id, label: s.label, active: s.active })))
               .map((row, i) => {
@@ -347,7 +348,7 @@ const PlayerControlBar = memo(({
                   </div>
                 );
               })}
-          </div>
+          </PlayerMenuList>
         </div>
       )}
 
@@ -358,7 +359,7 @@ const PlayerControlBar = memo(({
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('live.bar.audioLabel')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('live.bar.menuHint')}</span>
           </div>
-          <div className="space-y-1">
+          <PlayerMenuList focused={audioMenuFocus} total={auds.length}>
             {auds.map((a, i) => {
               const focused = audioMenuFocus === i;
               return (
@@ -374,7 +375,7 @@ const PlayerControlBar = memo(({
                 </div>
               );
             })}
-          </div>
+          </PlayerMenuList>
         </div>
       )}
 
