@@ -65,8 +65,6 @@ import { trackAppLaunch, trackScreenView, trackEvent, startTimer, stopTimer, mar
 import { runWhenIdle } from '@/utils/idle';
 
 // Lazy-load heavy sub-views so the home screen boots faster on STB/FireTV
-const InstallApps = lazy(() => import('@/components/InstallApps'));
-const StoreScreen = lazy(() => import('@/components/StoreScreen'));
 const CommunityChat = lazy(() => import('@/components/CommunityChat'));
 const CreditStore = lazy(() => import('@/components/CreditStore'));
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
@@ -543,8 +541,6 @@ interface RouteSwitchProps {
 
 const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayoutChange }: RouteSwitchProps) => (
   <Suspense fallback={<RouteFallback />}>
-    {isView(currentView, 'apps') && <InstallApps onBack={goBack} onNavigateToChat={() => navigateTo('support')} onNavigate={(view) => navigateTo(view)} />}
-    {isView(currentView, 'store') && <StoreScreen onBack={goBack} />}
     {isView(currentView, 'support') && <Support onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
     {isView(currentView, 'support-videos') && <SupportVideos onBack={goBack} />}
     {isView(currentView, 'chat') && <ChatCommunity onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
