@@ -127,6 +127,10 @@
       "noUsageTitle": "Diese Box hat keinen Nutzungsbildschirm",
       "noUsageDesc": "Cache-Leeren und Hintergrund-Schließen funktionieren weiterhin. Größen und Datum der letzten Nutzung bleiben verborgen.",
       "usageFailedTitle": "Dieser Bildschirm konnte nicht geöffnet werden"
+    },
+    "playbackFreed": {
+      "title": "Flüssigere Wiedergabe",
+      "body": "Im Hintergrund geöffnete Apps wurden geschlossen und {{mb}} MB Speicher freigegeben."
     }
   }
 }

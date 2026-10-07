@@ -4,6 +4,7 @@
 // volume sync, buffering + fatal-error state with exponential-backoff
 // auto-retry (matches VideoPlayer's shape), background stop + resume, and
 // the 'streaming-active' documentElement flag for parity.
+import { freeMemoryForPlayback, WATCH_INTERVAL_MS } from '@/lib/playbackMemory';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import i18n from '@/i18n';
 import { onMediaKey } from '@/lib/mediaKeys';
@@ -119,6 +120,13 @@ async function positionNow(): Promise<number> {
 }
 
 export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', rangeFetch = false, frameRate, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true }: UseNativePlayerArgs): NativePlayerState {
+  // While a stream is up, re-check memory every few minutes (apps opened
+  // from the remote, or the box's own services, fill it up again).
+  useEffect(() => {
+    if (!active) return undefined;
+    const id = window.setInterval(() => { void freeMemoryForPlayback(); }, WATCH_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [active]);
   const [buffering, setBuffering] = useState(false);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string; httpStatus?: number | null } | null>(null);
@@ -393,6 +401,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         jumped();
         // The player's settings and kill switches (frame-rate matching…),
         // read at each load: a change applies from the next stream on.
+        // Low on memory? Close the apps left in the background first (never waits).
+        void freeMemoryForPlayback();
         await SnowPlayer.load({ url, live, isLive: live, subtitles, engine, ...(rangeFetchRef.current && !live ? { rangeFetch: true } : {}), ...(start > 0 ? { startPosition: start } : {}), ...nativeLoadExtras(live, frameRateRef.current) });
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.setVolume({ volume: Math.min(MAX_VOLUME, Math.max(0, volume)) });

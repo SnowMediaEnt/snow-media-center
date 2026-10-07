@@ -134,6 +134,10 @@
       "noUsageTitle": "Este equipo no tiene pantalla de uso",
       "noUsageDesc": "El borrado de cachés y el cierre en segundo plano siguen funcionando. Los tamaños y las fechas de último uso seguirán ocultos.",
       "usageFailedTitle": "No se pudo abrir esa pantalla"
+    },
+    "playbackFreed": {
+      "title": "Reproducción más fluida",
+      "body": "Se cerraron las apps que estaban abiertas en segundo plano y se liberaron {{mb}} MB de memoria."
     }
   }
 }

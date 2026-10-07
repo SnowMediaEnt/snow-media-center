@@ -127,6 +127,10 @@
       "noUsageTitle": "This box has no usage screen",
       "noUsageDesc": "Cache clearing and background closing still work. Sizes and last-used dates will stay hidden.",
       "usageFailedTitle": "Could not open that screen"
+    },
+    "playbackFreed": {
+      "title": "Smoother playback",
+      "body": "Closed apps running in the background and freed {{mb}} MB of memory."
     }
   }
 }

@@ -8,6 +8,9 @@ import './styles/tv.css'
 import './styles/plex.css'
 import './styles/phone.css'
 import { startPhoneMode } from './lib/phoneMode'
+import { setFreedMemoryNotifier } from './lib/playbackMemory'
+import { toast } from '@/hooks/use-toast'
+import i18n from './i18n'
 import { isNativePlatform, getPlatform, isFireTV } from './utils/platform'
 import { isStorageReady, waitForStorageReady } from './utils/storage'
 import { isOnline } from './utils/network'
@@ -17,6 +20,10 @@ import { readTheme, applyTheme } from '@/lib/theme'
 applyTheme(readTheme());
 // Phone / tablet or TV, before the first frame (html.is-touch / is-phone).
 startPhoneMode();
+// A stream that freed memory by closing background apps says so (lib/playbackMemory).
+setFreedMemoryNotifier((mb) => {
+  toast({ title: i18n.t('cleaner.playbackFreed.title'), description: i18n.t('cleaner.playbackFreed.body', { mb }) });
+});
 
 try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('js'); } catch(e){}
 

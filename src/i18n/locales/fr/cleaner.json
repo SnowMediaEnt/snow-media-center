@@ -134,6 +134,10 @@
       "noUsageTitle": "Ce boîtier n’a pas d’écran d’utilisation",
       "noUsageDesc": "Le vidage des caches et la fermeture en arrière-plan fonctionnent toujours. Les tailles et dates de dernière utilisation resteront masquées.",
       "usageFailedTitle": "Impossible d’ouvrir cet écran"
+    },
+    "playbackFreed": {
+      "title": "Lecture plus fluide",
+      "body": "Les applis ouvertes en arrière-plan ont été fermées : {{mb}} Mo de mémoire libérés."
     }
   }
 }
