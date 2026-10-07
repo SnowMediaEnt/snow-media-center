@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const { createTicket, invoke, auth } = vi.hoisted(() => ({
   createTicket: vi.fn(async () => 'ticket-1'),
@@ -52,6 +52,8 @@ describe('Support ticket carries the app version', () => {
   it('signed in: the ticket message starts with version and build', async () => {
     auth.user = { id: 'u1' };
     await fileTicket();
+    // The ticket waits for the line info (lib/lineInfo, loaded on demand) before it goes.
+    await waitFor(() => expect(createTicket).toHaveBeenCalled());
     const [, message] = createTicket.mock.calls[0] as unknown as [string, string];
     expect(message.split('\n')[0]).toBe('App: Snow Media Center 1.8.0 (build 55)');
     expect(message).toContain('It stops all the time');
@@ -60,6 +62,7 @@ describe('Support ticket carries the app version', () => {
   it('signed out: the guest report message starts with version and build', async () => {
     auth.user = null;
     await fileTicket();
+    await waitFor(() => expect(invoke).toHaveBeenCalled());
     const call = invoke.mock.calls[0] as unknown as [string, { body: { message: string } }];
     expect(call[0]).toBe('report-channel');
     expect(call[1].body.message.split('\n')[0]).toBe('App: Snow Media Center 1.8.0 (build 55)');

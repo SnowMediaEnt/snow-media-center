@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const { createTicket, invoke, auth } = vi.hoisted(() => ({
   createTicket: vi.fn(async () => undefined),
@@ -54,6 +54,8 @@ describe('Buffering Guide ticket', () => {
     ok(/Skip VPN/);
     await act(async () => { ok(/Send to support/); await new Promise((r) => setTimeout(r, 50)); });
     expect(createTicket).toHaveBeenCalledTimes(1);
+    // The ticket waits for the line info (lib/lineInfo, loaded on demand) before it goes.
+    await waitFor(() => expect(createTicket).toHaveBeenCalled());
     const [subject, body] = createTicket.mock.calls[0] as unknown as [string, string];
     expect(subject).toMatch(/Buffering Walkthrough Results/);
     expect(body.split('\n')[0]).toBe('App: Snow Media Center 1.8.0 (build 55)');
