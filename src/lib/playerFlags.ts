@@ -27,6 +27,11 @@ export const TUNNELED_VOD_FLAG = 'tunneled_vod';
  *  fallback; off puts FFmpeg first everywhere, as before. Missing row: on. */
 export const AUDIO_HW_FIRST_FLAG = 'audio_hw_first';
 
+/** Fire TV keyboard voice dictation: plain text fields described to the
+ *  keyboard the way Fire TV apps with working dictation do (SnowWebView.kt).
+ *  An A/B switch for the owner's box. Missing row: OFF. */
+export const KEYBOARD_VOICE_FLAG = 'keyboard_voice_attrs';
+
 /** Every player flag and its default (what a missing row means). */
 export const PLAYER_FLAG_DEFAULTS: Record<string, boolean> = {
   [MATCH_FRAME_RATE_FLAG]: true,
@@ -34,6 +39,7 @@ export const PLAYER_FLAG_DEFAULTS: Record<string, boolean> = {
   [ASYNC_CODEC_FLAG]: false,
   [TUNNELED_VOD_FLAG]: false,
   [AUDIO_HW_FIRST_FLAG]: true,
+  [KEYBOARD_VOICE_FLAG]: false,
 };
 
 export const PLAYER_FLAG_KEYS = Object.keys(PLAYER_FLAG_DEFAULTS);

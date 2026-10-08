@@ -8,9 +8,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
 import { clearCachedFlag, writeCachedFlag } from '@/lib/featureFlagCache';
 import { PLAYER_FLAG_KEYS } from '@/lib/playerFlags';
+import { mirrorKeyboardVoiceFlag } from '@/lib/keyboardVoice';
 
 export function usePlayerFlagSync(): void {
   useEffect(() => {
+    // The cached value first (a box offline at start keeps its last switch).
+    void mirrorKeyboardVoiceFlag();
     let cancelled = false;
     const fetchAll = async () => {
       try {
@@ -26,6 +29,7 @@ export function usePlayerFlagSync(): void {
           writeCachedFlag(row.key, row.enabled);
         }
         for (const k of PLAYER_FLAG_KEYS) if (!seen.has(k)) clearCachedFlag(k);
+        void mirrorKeyboardVoiceFlag();
       } catch { /* offline: the cached values stand */ }
     };
     const cancelIdle = runWhenIdle(() => { void fetchAll(); }, 2500);
@@ -43,6 +47,7 @@ export function usePlayerFlagSync(): void {
             if (!row || typeof row.key !== 'string' || !PLAYER_FLAG_KEYS.includes(row.key)) return;
             if (payload.eventType === 'DELETE') clearCachedFlag(row.key);
             else if (typeof row.enabled === 'boolean') writeCachedFlag(row.key, row.enabled);
+            void mirrorKeyboardVoiceFlag();
           },
         )
         .subscribe();
