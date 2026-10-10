@@ -1399,6 +1399,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     for (const s of want) enqueueEpg(s);
   }, [virtualItems, visibleChannels, focusedChannel, playingStream, enqueueEpg, epgKey, cols, fullscreen, chOverlayOpen, pane, channelIdx]);
 
+  // undefined: the highlighted channel's programme info is not in yet (the
+  // info panel says "Loading…"); {} or no programme on now: it came back
+  // empty, and only then "No program info available".
   const focusedNowNext = epgFor(focusedChannel);
 
   // The preview box: the highlighted channel plays there on its own after a
@@ -3280,8 +3283,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   <div className="h-full bg-brand-gold" style={{ width: `${Math.min(100, Math.max(0, ((Date.now() - focusedNowNext.now.start) / (focusedNowNext.now.end - focusedNowNext.now.start)) * 100))}%` }} />
                 </div>
               </>
-            ) : (
+            ) : focusedNowNext ? (
               <p className="text-sm text-brand-ice/70 font-nunito mt-0.5">{t('live.list.noProgramInfo')}</p>
+            ) : (
+              <p data-live-info-loading className="text-sm text-brand-ice/40 font-nunito mt-0.5">{t('common.loading')}</p>
             )}
           </div>
         )}
@@ -3376,8 +3381,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       {nowLeftMins != null ? ` · ${t('live.list.minLeft', { minutes: nowLeftMins })}` : ''}
                     </p>
                   </>
-                ) : (
+                ) : focusedNowNext ? (
                   <p className="text-brand-ice/70 font-nunito mt-1 text-sm">{t('live.list.noProgramInfo')}</p>
+                ) : (
+                  <p data-live-info-loading className="text-brand-ice/40 font-nunito mt-1 text-sm">{t('common.loading')}</p>
                 )}
                 {focusedNowNext?.next && (
                   <p className="text-sm text-brand-ice/70 font-nunito mt-2 truncate">

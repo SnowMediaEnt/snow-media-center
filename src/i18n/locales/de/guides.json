@@ -120,7 +120,7 @@
         "subtitle": "Zurück, aufnehmen, planen",
         "guide": {
           "title": "Der Guide zeigt, was jetzt läuft und was als Nächstes kommt.",
-          "line2": "OK auf einem Sender spielt ihn ab. Favoriten stehen zuerst."
+          "line2": "OK auf einem Sender spielt ihn ab. Halte OK gedrückt, um ihn zu den Favoriten hinzuzufügen."
         },
         "rewind": {
           "title": "Etwas verpasst? 10 s zurück spult Live-TV zurück.",
@@ -131,7 +131,7 @@
           "line2": "Wähle Dauer und Ort: diese Box oder ein USB-Laufwerk."
         },
         "schedule": {
-          "title": "Halte im Guide OK gedrückt, um eine Sendung später aufzunehmen.",
+          "title": "Drücke im Guide die Menütaste auf einem Sender, um eine Sendung später aufzunehmen.",
           "line2": "Ein roter Punkt markiert Sendungen, die aufgenommen werden."
         },
         "recordings": {

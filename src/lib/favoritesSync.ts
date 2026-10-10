@@ -519,6 +519,42 @@ export function scheduleFavoritesPushForLine(
   }, PUSH_DEBOUNCE_MS));
 }
 
+// A favourite added or taken away from the Guide (a held OK on a row): the
+// line's one list, saved here and pushed by the two functions above, the
+// list Live TV's Favorites reads back with loadFavoritesForLine. Another
+// service's line goes to its own stash, as Live TV's toggle does.
+
+/** A channel as a saved favourite: every field the lists, playback and the
+ *  EPG read. */
+export const toFavChannel = (ch: FavChannel): FavChannel => ({
+  stream_id: ch.stream_id,
+  name: ch.name,
+  num: ch.num,
+  stream_icon: ch.stream_icon,
+  category_id: ch.category_id,
+  epg_channel_id: ch.epg_channel_id,
+});
+
+/** The list with this channel added, or taken away if it was in it (a new map). */
+export function toggledFavorites(cur: Map<number, FavChannel>, ch: FavChannel): Map<number, FavChannel> {
+  const n = new Map(cur);
+  if (n.has(ch.stream_id)) n.delete(ch.stream_id);
+  else n.set(ch.stream_id, toFavChannel(ch));
+  return n;
+}
+
+/** A changed list: saved on the box first (a failed push loses nothing
+ *  here), then pushed, debounced. A list the account settled on instead
+ *  (another box wrote first) is saved and handed to `onAdopt`. */
+export function commitFavoritesForLine(
+  creds: XtreamCreds,
+  favorites: Map<number, FavChannel>,
+  onAdopt: (m: Map<number, FavChannel>) => void,
+): void {
+  saveFavoritesForLine(creds, favorites);
+  scheduleFavoritesPushForLine(creds, favorites, (m) => { saveFavoritesForLine(creds, m); onAdopt(m); });
+}
+
 /**
  * Reconcile one line with the cloud on load. The active line goes through
  * reconcileFavoritesOnLoad unchanged; a stashed line follows the same rule

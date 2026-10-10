@@ -8,13 +8,15 @@
 // Xtream has no bulk XMLTV endpoint that's safe on Fire TV — do NOT fetch
 // xmltv.php (freezes the WebView).
 //
-// Scheduled recordings (TRACKER 25.12): hold OK (600 ms, as in Live TV's list)
-// on a channel to open the Record dialog in programme mode, built from the
-// listings already loaded here. OK pressed briefly still plays; where holding
-// does nothing (a Kids profile, the demo, a build without the recorder) OK
-// acts at once as it always did. In the hold-capable case OK acts when it is
-// let go, so a hold can be told apart. Programmes that are scheduled carry a
-// small red dot.
+// Favourites: hold OK (600 ms, as in Live TV's list) on a channel to save it
+// to Favorites, or take it out again, with a toast; a finger held on a row or
+// a right click does the same. OK pressed briefly still plays: it acts when it
+// is let go, so a hold can be told apart.
+//
+// Scheduled recordings (TRACKER 25.12): the remote's Menu key on a channel
+// opens the Record dialog in programme mode, built from the listings already
+// loaded here (a Kids profile, the demo and a build without the recorder get
+// nothing). Programmes that are scheduled carry a small red dot.
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Loader2, Tv, AlertTriangle, RotateCw, Star } from 'lucide-react';
@@ -23,6 +25,7 @@ import {
   getLiveCategories,
   getLiveStreams,
   getShortEpg,
+  hasLiveStreams,
   buildLiveStreamUrl,
   decodeEpgText,
   parseEpgTime,
@@ -37,7 +40,11 @@ import {
   type XtreamLiveStream,
   type XtreamEpgEntry,
 } from '@/lib/xtream';
-import { loadFavoritesForLine, lineKey } from '@/lib/favoritesSync';
+import { commitFavoritesForLine, loadFavoritesForLine, lineKey, toggledFavorites } from '@/lib/favoritesSync';
+import { handLiveDeeplink } from '@/lib/appActions';
+import { nameClasses } from '@/lib/channelName';
+import { CATEGORY_DWELL_MS, KEPT_CATEGORY_SETTLE_MS } from '@/lib/categoryDwell';
+import { useWhenSettled } from '@/hooks/useWhenSettled';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
@@ -86,7 +93,24 @@ interface Props {
   onExitLeft: () => void;
   onExitUp?: () => void;
   onNavigate?: (view: string) => void;
+  /** A channel picked here plays in Live TV's own player (handLiveDeeplink):
+   *  the same bar and options, its name and hints that go away. LiveTV shows
+   *  Live TV and keeps `place`; Back from the picture opens the Guide again
+   *  with it (resumeAt). Without it (or in the demo) the Guide plays the
+   *  channel itself. */
+  onWatch?: (place: GuidePlace) => void;
+  /** Where the Guide was when it handed a channel over (read once, at mount):
+   *  the same category, channel and time. Only Back from that picture hands
+   *  it back (LiveTV); any other way into the Guide opens it at its start. */
+  resumeAt?: GuidePlace | null;
+  /** Told once resumeAt has been taken. */
+  onResumeTaken?: () => void;
 }
+
+/** Where the Guide was: its line, category ('fav' for Favorites), the
+ *  channel and the time shown. `scroll`: the grid's offset, so Back puts the
+ *  channels back where they were (not the played row on the bottom edge). */
+export interface GuidePlace { line: string; cat: string; channel: number; window: number; scroll?: number }
 
 interface DecodedProgram {
   title: string;
@@ -108,8 +132,11 @@ const WINDOW_MINUTES = 150; // 2.5 hours
 const SLOT_MINUTES = 30;
 const SLOTS = WINDOW_MINUTES / SLOT_MINUTES; // 5
 const EPG_MAX_CONCURRENT = 4;
-/** Hold OK this long for the channel's options (the same as Live TV's list). */
+/** Hold OK (or a finger) this long on a channel to save it to Favorites, or
+ *  take it out (the same hold as Live TV's list). */
 const HOLD_MS = 600;
+/** The click a touch hold's lift may still bring comes at once. */
+const LIFT_CLICK_MS = 700;
 
 const halfHourFloor = (t: number) => {
   const d = new Date(t);
@@ -155,8 +182,16 @@ const decodePrograms = (entries: XtreamEpgEntry[]): DecodedProgram[] =>
     .filter(e => e.start > 0 && e.end > e.start)
     .sort((a, b) => a.start - b.start);
 
-const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: _onNavigate }: Props) => {
+const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: _onNavigate, onWatch, resumeAt, onResumeTaken }: Props) => {
   const { t } = useTranslation();
+  const onWatchRef = useRef(onWatch);
+  onWatchRef.current = onWatch;
+  // Back from a channel this Guide handed to Live TV: the same category,
+  // channel and time as it was left (this line's only).
+  const [resume] = useState(() => (!DEMO && resumeAt && resumeAt.line === lineKey(creds) ? resumeAt : null));
+  const onResumeTakenRef = useRef(onResumeTaken);
+  onResumeTakenRef.current = onResumeTaken;
+  useEffect(() => { if (resumeAt) onResumeTakenRef.current?.(); }, [resumeAt]);
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   // Index into the bar: 0 is Favorites, then the categories.
@@ -166,8 +201,12 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const [rowIdx, setRowIdx] = useState(0);
   const [focusZone, setFocusZone] = useState<'category' | 'grid'>('grid');
 
-  // Time window (start ms). Initial = current half-hour.
-  const [windowStart, setWindowStart] = useState<number>(() => halfHourFloor(Date.now()));
+  // Time window (start ms). Initial = current half-hour (or the one shown
+  // when a channel was handed to Live TV, while it is not past).
+  const [windowStart, setWindowStart] = useState<number>(() => {
+    const now = halfHourFloor(Date.now());
+    return resume && resume.window >= now ? resume.window : now;
+  });
   const nowInitialRef = useRef(halfHourFloor(Date.now()));
 
   // Volume + playback
@@ -212,7 +251,11 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         const cats = await fetchLiveCategories(creds).catch(() => [] as XtreamCategory[]);
         if (cancelled) return;
         setCategories(cats);
-        if (!userMovedRef.current) setCategoryIdx(cats.length ? 1 : 0);
+        if (!userMovedRef.current) {
+          // Back from Live TV's player: the category it was on.
+          const back = resume ? (resume.cat === 'fav' ? 0 : cats.findIndex((c) => String(c.category_id) === resume.cat) + 1) : -1;
+          setCategoryIdx(back > 0 || resume?.cat === 'fav' ? Math.max(0, back) : cats.length ? 1 : 0);
+        }
       } finally {
         if (!cancelled) setCategoriesLoading(false);
       }
@@ -249,41 +292,93 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const onFavorites = currentChip === FAV_CHIP;
   const currentCategory = onFavorites ? undefined : currentChip;
 
-  // Load channels for selected category. A short settle first: moving ◀▶
-  // through the category bar used to download (and keep) the list of every
-  // category passed on the way.
-  const firstCategoryRef = useRef(true);
+  // Load the channels of the category the highlight rests on in the bar
+  // (owner, 2026-10-09: "they should auto load after 1 sec (so they don't
+  // bother to load on a fast click past)"): once it has rested there
+  // CATEGORY_DWELL_MS (1 s); moving ◀▶ through the bar faster downloads
+  // nothing. At once when the viewer opens it (OK or ▼ into the grid, a click
+  // on the chip: the grid has the remote), when the Guide opens on it, and on
+  // Update Channels; a list xtream keeps already after a short settle
+  // (KEPT_CATEGORY_SETTLE_MS). The last category's rows are not left under
+  // the new chip while it waits.
+  // Keyed ONLY on which category it is (and its line); the line, the chip
+  // and the grid's focus are read through refs, so no re-render (the
+  // preview, the clock, the player's events) restarts or cancels the wait,
+  // and the grid's row goes back to the top only when the category changes.
+  const catLoadKey = currentCategory ? `${lineKey(creds)}|${currentCategory.category_id}` : null;
+  const catOpenedNow = focusZone === 'grid';
+  const catLoadRef = useRef({ creds, category: currentCategory, openedNow: catOpenedNow });
+  catLoadRef.current = { creds, category: currentCategory, openedNow: catOpenedNow };
+  const catLoadNowRef = useRef<(() => void) | null>(null);
+  const catSeenRef = useRef<{ key: string | null | undefined; refresh: number }>({ key: undefined, refresh: refreshTick });
   useEffect(() => {
-    if (!currentCategory) {
+    const changed = catSeenRef.current.key !== catLoadKey;
+    const refreshed = catSeenRef.current.refresh !== refreshTick;
+    catSeenRef.current = { key: catLoadKey, refresh: refreshTick };
+    if (changed) setRowIdx(0);
+    const { creds: line, category, openedNow } = catLoadRef.current;
+    if (!catLoadKey || !category) {
       // Favorites (or nothing yet): nothing to download, and the last
       // category's list is not kept behind it.
       setStreams([]);
       setChannelsLoading(false);
-      setRowIdx(0);
       return;
     }
     let cancelled = false;
+    let started = false;
+    let t = 0;
+    const catId = String(category.category_id);
+    const kept = !DEMO && hasLiveStreams(line, catId);
+    if (changed) setStreams([]);
     setChannelsLoading(true);
-    setRowIdx(0);
-    const delay = firstCategoryRef.current ? 0 : 250;
-    firstCategoryRef.current = false;
-    const t = window.setTimeout(() => {
-      fetchLiveStreams(creds, String(currentCategory.category_id))
+    const start = () => {
+      if (started || cancelled) return;
+      started = true;
+      window.clearTimeout(t);
+      if (catLoadNowRef.current === start) catLoadNowRef.current = null;
+      fetchLiveStreams(line, catId)
         .then(list => { if (!cancelled) setStreams(list || []); })
         .catch(() => { if (!cancelled) setStreams([]); })
         .finally(() => { if (!cancelled) setChannelsLoading(false); });
-    }, delay);
-    return () => { cancelled = true; window.clearTimeout(t); };
-  }, [creds, currentCategory, refreshTick]);
+    };
+    t = window.setTimeout(start, openedNow || refreshed ? 0 : kept ? KEPT_CATEGORY_SETTLE_MS : CATEGORY_DWELL_MS);
+    catLoadNowRef.current = start;
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+      if (catLoadNowRef.current === start) catLoadNowRef.current = null;
+    };
+  }, [catLoadKey, refreshTick]);
+  // OK / ▼ into the grid / a click while the chip's category waits: no more waiting.
+  useEffect(() => { if (catOpenedNow) catLoadNowRef.current?.(); }, [catOpenedNow]);
 
   // The rows in the grid: the favourites, or the category's channels.
   const channels = onFavorites ? favRows : streams;
   const listLoading = !onFavorites && channelsLoading;
 
-  // Clamp row
+  // Clamp row: the last one when the list got shorter under it (the last
+  // favourite held out of Favorites), not the top.
   useEffect(() => {
-    if (rowIdx >= channels.length) setRowIdx(0);
+    if (rowIdx >= channels.length) setRowIdx(Math.max(0, channels.length - 1));
   }, [channels.length, rowIdx]);
+  // Back from Live TV's player: the highlight on the channel it played, once
+  // the restored category's list is in (gone from it: where it opens). The
+  // viewer's first key or tap ends the wait: it never takes the remote later.
+  const rowResumedRef = useRef(!resume);
+  const restoreScrollRef = useRef<{ row: number; scroll: number } | null>(null);
+  useEffect(() => {
+    if (rowResumedRef.current || !resume || listLoading || !catsReady) return;
+    const want = resume.cat === 'fav' ? onFavorites : String(currentCategory?.category_id ?? '') === resume.cat;
+    if (!want) { if (userMovedRef.current) rowResumedRef.current = true; return; }
+    if (!onFavorites && !channels.length) return;
+    rowResumedRef.current = true;
+    const i = channels.findIndex((c) => c.stream_id === resume.channel);
+    if (i < 0) return;
+    // The grid's own offset with it (the keep-in-view effect below).
+    if (i > 0 && typeof resume.scroll === 'number') restoreScrollRef.current = { row: i, scroll: resume.scroll };
+    setRowIdx(i);
+    setFocusZone('grid');
+  }, [channels, listLoading, resume, catsReady, onFavorites, currentCategory]);
 
   // Virtualizer for channel rows. A stable key function: an inline one made
   // the virtualizer re-measure every channel on every render.
@@ -339,30 +434,44 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   }, [pumpEpg]);
 
   const virtualItems = rowVirtualizer.getVirtualItems();
+  const epgRowIds: number[] = [];
+  if (!fullscreen) {
+    // The rows in view, not the overscan drawn around them.
+    const off = rowVirtualizer.scrollOffset;
+    const viewH = rowVirtualizer.scrollRect?.height;
+    for (const v of virtualItems) {
+      if (typeof off === 'number' && viewH && (v.start + v.size <= off || v.start >= off + viewH)) continue;
+      const s = channels[v.index];
+      if (s) epgRowIds.push(s.stream_id);
+    }
+  }
+  const epgRowsKey = `${refreshTick}:${epgRowIds.join(',')}`;
   useEffect(() => {
     // Drop queued rows that are no longer on screen (in-flight ones finish).
-    const visible = new Set<number>();
-    if (!fullscreen) {
-      for (const v of virtualItems) {
-        const s = channels[v.index];
-        if (s) visible.add(s.stream_id);
-      }
-    }
+    const visible = new Set(epgRowIds);
     const keep: number[] = [];
     for (const id of epgQueueRef.current) {
       if (visible.has(id)) keep.push(id);
       else epgPendingRef.current.delete(id);
     }
     epgQueueRef.current = keep;
-    visible.forEach(enqueueEpg);
-  }, [virtualItems, channels, enqueueEpg, fullscreen, refreshTick]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- epgRowIds is what epgRowsKey spells
+  }, [epgRowsKey]);
+  // The rows on screen ask once the grid rests on them: a held ▼ or a fling
+  // used to ask for every channel it passed (src/hooks/useWhenSettled.ts).
+  useWhenSettled(epgRowsKey, () => epgRowIds.forEach(enqueueEpg));
 
   // Keep the focused category in view — once per move, and only this bar's
   // own scroll. The old inline ref ran scrollIntoView on every render (each
   // EPG reply included) and could nudge the page's scroll too.
   const catBarRef = useRef<HTMLDivElement | null>(null);
+  // Also once when the Guide opens again on a category further along the bar
+  // (back from Live TV's player): the open one is in view.
+  const chipShownRef = useRef(!resume);
   useEffect(() => {
-    if (!isActive || focusZone !== 'category') return;
+    const restoring = !chipShownRef.current && catsReady && categoryIdx > 0;
+    if (restoring) chipShownRef.current = true;
+    if (!restoring && (!isActive || focusZone !== 'category')) return;
     const bar = catBarRef.current;
     const el = bar?.querySelector<HTMLElement>(`[data-cat-i="${categoryIdx}"]`);
     if (!bar || !el) return;
@@ -370,20 +479,32 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     const right = left + el.offsetWidth;
     if (left < bar.scrollLeft) bar.scrollLeft = left - 8;
     else if (right > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = right - bar.clientWidth + 8;
-  }, [categoryIdx, focusZone, isActive, categories.length]);
+  }, [categoryIdx, focusZone, isActive, categories.length, catsReady]);
 
-  // Keep focused row visible
+  // Keep focused row visible.
+  // Back from the channel (Live TV's player: the Guide opens again with its
+  // place; its own full-screen player: the grid is rebuilt): the grid goes
+  // back to where the viewer left it, not to wherever puts the watched row on
+  // its bottom edge. `categoryIdx`: another category opens at its first
+  // channel (scrolled by a finger, the row was 0 already, so with the same
+  // number of channels nothing re-ran and it opened at the old offset).
+  const gridScrollTopRef = useRef(0);
+  const wasFullscreenRef = useRef(fullscreen);
   useEffect(() => {
+    const backFromFullscreen = wasFullscreenRef.current && !fullscreen;
+    wasFullscreenRef.current = fullscreen;
     if (!channels.length) return;
     const node = scrollParentRef.current;
     if (!node) return;
-    if (rowIdx === 0) { node.scrollTop = 0; return; }
+    const restore = restoreScrollRef.current;
+    if (restore && restore.row === rowIdx) { restoreScrollRef.current = null; node.scrollTop = restore.scroll; }
+    else if (backFromFullscreen) node.scrollTop = gridScrollTopRef.current;
+    else if (rowIdx === 0) { node.scrollTop = 0; return; }
     const top = rowIdx * ROW_HEIGHT;
     const bot = top + ROW_HEIGHT;
     if (top < node.scrollTop) node.scrollTop = top;
     else if (bot > node.scrollTop + node.clientHeight) node.scrollTop = bot - node.clientHeight;
-    // `fullscreen`: the grid is rebuilt when playback closes, back at the top.
-  }, [rowIdx, channels.length, fullscreen]);
+  }, [rowIdx, channels.length, fullscreen, categoryIdx]);
 
   const windowEnd = windowStart + WINDOW_MINUTES * 60_000;
   const slotStarts = useMemo(
@@ -482,14 +603,40 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const playRow = useCallback((idx: number) => {
     const ch = channels[idx];
     if (!ch) return;
+    // Live TV's own player: its bar, menus, rewind and record, and a name and
+    // volume that go away (this one's stayed on screen, with none of Live
+    // TV's options). Back from the picture comes back here.
+    if (onWatchRef.current && !DEMO) {
+      // The list on screen is still the last category's (the next one loads):
+      // nothing to pick yet.
+      if (listLoading) return;
+      const place: GuidePlace = {
+        line: lineKey(creds),
+        cat: onFavorites ? 'fav' : String(currentCategory?.category_id ?? ''),
+        channel: ch.stream_id,
+        window: windowStart,
+        scroll: scrollParentRef.current?.scrollTop ?? 0,
+      };
+      handLiveDeeplink({
+        host: creds.host, username: creds.username, streamId: ch.stream_id,
+        name: ch.name, icon: ch.stream_icon || undefined,
+        categoryId: ch.category_id != null ? String(ch.category_id) : undefined, num: ch.num ?? undefined,
+      });
+      onWatchRef.current(place);
+      return;
+    }
     setPlayingChannelId(ch.stream_id);
     setFullscreen(true);
-  }, [channels]);
+  }, [channels, creds, onFavorites, currentCategory, windowStart, listLoading]);
+  // For the key listeners: a new copy of playRow (a list landing, the time
+  // moved) must not re-subscribe them, which cancelled a hold under way.
+  const playRowRef = useRef(playRow);
+  playRowRef.current = playRow;
 
-  // ── Scheduled recordings ─────────────────────────────────────────────
-  // Hold OK: a timer started by the key going down; the key coming up before it
-  // fires is a press (play). enterFiredRef marks a hold that opened the dialog,
-  // so the release that follows is not also a press.
+  // ── Held OK ───────────────────────────────────────────────────────────
+  // A timer started by the key going down; the key coming up before it fires
+  // is a press (play). enterFiredRef marks a hold that saved the favourite, so
+  // the release that follows is not also a press.
   const enterTimerRef = useRef<number | null>(null);
   const enterFiredRef = useRef(false);
   const cancelEnterTimer = useCallback(() => {
@@ -562,7 +709,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   }, [creds]);
   const openRecordRef = useRef(openRecord);
   openRecordRef.current = openRecord;
-  const closeRecord = useCallback(() => { setRecordFor(null); enterFiredRef.current = false; }, []);
+  const closeRecord = useCallback(() => { setRecordFor(null); }, []);
 
   // A programme chosen in the dialog: the one on now records at once (until its
   // end plus the "End late" padding); a later one is set with the native scheduler.
@@ -654,9 +801,62 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     return true;
   };
 
+  // Hold OK on a channel, or a finger held on it: into Favorites, or out
+  // again if it was in, with a toast saying which. The line's own list (this
+  // service's, this profile's), the one Live TV's Favorites reads, so it is
+  // there too; here the row's star and the Favorites chip at once, with no
+  // line-up downloaded. Nothing else moves: the same row, focus and time,
+  // and nothing plays.
+  const favsRef = useRef(favs);
+  favsRef.current = favs;
+  const credsRef = useRef(creds);
+  credsRef.current = creds;
+  const toggleFavoriteAt = useCallback((idx: number) => {
+    rowResumedRef.current = true;
+    const ch = channelsRef.current[idx];
+    if (!ch) return;
+    const was = favsRef.current.has(ch.stream_id);
+    const next = toggledFavorites(favsRef.current, ch);
+    favsRef.current = next;
+    setFavs(next);
+    // A list the account settled on instead (another box wrote first).
+    commitFavoritesForLine(credsRef.current, next, (m) => {
+      favsRef.current = m;
+      setFavs((prev) => (sameFavs(prev, m) ? prev : m));
+    });
+    toast({ title: i18n.t(was ? 'guide.toast.favRemovedTitle' : 'guide.toast.favAddedTitle'), description: ch.name });
+  }, []);
+  // A finger held still on a row (lifted or not), or a right click: the held
+  // OK. A finger that moves is scrolling the grid; the lift after a hold is
+  // not also a tap (which would watch the channel).
+  const touchHoldRef = useRef<number | null>(null);
+  const heldRef = useRef({ at: 0, idx: -1 });
+  const cancelTouchHold = useCallback(() => {
+    if (touchHoldRef.current) { window.clearTimeout(touchHoldRef.current); touchHoldRef.current = null; }
+  }, []);
+  const touchHoldFired = (idx: number) => {
+    heldRef.current = { at: Date.now(), idx };
+    toggleFavoriteAt(idx);
+  };
+  const startTouchHold = (idx: number) => {
+    cancelTouchHold();
+    touchHoldRef.current = window.setTimeout(() => { touchHoldRef.current = null; touchHoldFired(idx); }, HOLD_MS) as unknown as number;
+  };
+  const rowMenu = (idx: number) => {
+    // The system's own long press of the finger that just saved it: once.
+    if (Date.now() - heldRef.current.at < LIFT_CLICK_MS && heldRef.current.idx === idx) return;
+    const touching = touchHoldRef.current != null;
+    cancelTouchHold();
+    if (touching) touchHoldFired(idx); else toggleFavoriteAt(idx);
+  };
+  const wasTouchHold = () => Date.now() - heldRef.current.at < LIFT_CLICK_MS;
+  useEffect(() => cancelTouchHold, [cancelTouchHold]);
+
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
+      // The viewer has the Guide now: a place still being restored is not.
+      rowResumedRef.current = true;
       try {
         const target = e.target as HTMLElement;
         const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
@@ -704,6 +904,18 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           return;
         }
 
+        // The remote's Menu key on a channel: the Record dialog (programme
+        // mode), where recording is offered.
+        if ((e.key === 'ContextMenu' || e.keyCode === 82) && focusZoneRef.current === 'grid') {
+          e.preventDefault(); e.stopPropagation();
+          if (!SCHEDULE_CAPABLE || kidsLevel()) return;
+          const ch = channelsRef.current[rowIdxRef.current];
+          if (!ch) return;
+          cancelEnterTimer();
+          void openRecordRef.current(ch);
+          return;
+        }
+
         const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
         if (!arrows.includes(e.key)) return;
         e.preventDefault();
@@ -745,27 +957,25 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         } else if (e.key === 'ArrowRight') {
           setWindowStart(s => s + SLOT_MINUTES * 60_000);
         } else if (e.key === 'Enter' || e.key === ' ') {
-          // Where holding OK does something (Kids, the demo and older builds excluded) OK acts
-          // when it is let go, so a hold can be told from a press; elsewhere it acts at once.
-          if (!SCHEDULE_CAPABLE || kidsLevel()) { playRow(rowIdxRef.current); return; }
-          if (e.repeat) return;
-          if (enterTimerRef.current || enterFiredRef.current) return;
+          // Watch it on release (below), so a hold can be told from a press;
+          // held, the favourite. A held key's repeats neither restart the
+          // hold nor play.
+          if (e.repeat || enterTimerRef.current || enterFiredRef.current) return;
           enterTimerRef.current = window.setTimeout(() => {
             enterTimerRef.current = null;
             enterFiredRef.current = true;
-            const ch = channelsRef.current[rowIdxRef.current];
-            if (ch) void openRecordRef.current(ch);
+            toggleFavoriteAt(rowIdxRef.current);
           }, HOLD_MS) as unknown as number;
         }
       } catch { /* ignore */ }
     };
-    // OK let go before the hold time: a press, so play. After a hold that opened the dialog the
-    // release is just consumed (the dialog arms itself on the same release).
+    // OK let go before the hold time: a press, so play. After a hold that saved
+    // the favourite the release is just consumed.
     const keyupHandler = (e: KeyboardEvent) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (enterTimerRef.current) {
         cancelEnterTimer();
-        if (!fullscreenRef.current && !recordForRef.current && focusZoneRef.current === 'grid') playRow(rowIdxRef.current);
+        if (!fullscreenRef.current && !recordForRef.current && focusZoneRef.current === 'grid') playRowRef.current(rowIdxRef.current);
       }
       enterFiredRef.current = false;
     };
@@ -776,7 +986,14 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       window.removeEventListener('keyup', keyupHandler, true);
       cancelEnterTimer();
     };
-  }, [isActive, onExitLeft, onExitUp, playRow, cancelEnterTimer]);
+  }, [isActive, onExitLeft, onExitUp, cancelEnterTimer, toggleFavoriteAt]);
+  // The side menu (or a dialog over the Player) has the remote: a hold that
+  // was under way is not finished by it.
+  useEffect(() => {
+    if (isActive) return;
+    cancelEnterTimer();
+    enterFiredRef.current = false;
+  }, [isActive, cancelEnterTimer]);
 
   // Hardware Back (Capacitor)
   useEffect(() => {
@@ -857,7 +1074,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
               ? <img src={playingChannel.stream_icon} alt="" className="w-12 h-12 rounded-lg bg-black/40 object-contain" />
               : <Tv className="w-8 h-8 text-brand-gold" />}
             <div className="min-w-0">
-              <p className="font-quicksand font-bold text-white truncate">{playingChannel?.name || ''}</p>
+              <p data-guide-playing-name className={`font-quicksand font-bold text-white ${nameClasses(playingChannel?.name, 40, 'text-base', 'text-sm')}`}>{playingChannel?.name || ''}</p>
               {playingNow && <p className="text-sm text-brand-ice/80 font-nunito truncate">{playingNow.title}</p>}
             </div>
           </div>
@@ -895,7 +1112,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                   key={c.category_id}
                   data-cat-i={i}
                   data-focused={isFocused ? 'true' : 'false'}
-                  onClick={() => { userMovedRef.current = true; setCategoryIdx(i); setFocusZone('grid'); }}
+                  onClick={() => { userMovedRef.current = true; rowResumedRef.current = true; setCategoryIdx(i); setFocusZone('grid'); }}
                   className={`
                     tv-ring flex-shrink-0 px-3 py-2 rounded-lg border text-sm font-nunito transition-transform duration-150
                     ${isFav ? 'flex items-center' : ''}
@@ -917,12 +1134,14 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       {/* Preview: the highlighted channel, and what is on now and next */}
       {(() => {
         const ch = focusedGuideChannel ?? channels[rowIdx] ?? null;
+        // undefined: not fetched yet (its row shows "EPG…"); [] or a list
+        // with nothing on now: fetched, and "No programme information" is true.
         const list = ch ? epgCacheRef.current.get(ch.stream_id) : undefined;
         const n = Date.now();
         const now = list?.find((p) => p.start <= n && n < p.end);
         const next = list?.find((p) => p.start >= n);
         return (
-          <div data-native-clear className="flex-shrink-0 flex items-stretch px-4 py-3 border-b border-white/10" style={{ height: '27vh' }}>
+          <div data-native-clear data-guide-preview className="flex-shrink-0 flex items-stretch px-4 py-3 border-b border-white/10" style={{ height: '27vh' }}>
             <div
               ref={previewBoxRef}
               className={`h-full flex-shrink-0 rounded-xl overflow-hidden border border-white/10 flex items-center justify-center ${nativePreviewActive ? '' : 'bg-black'}`}
@@ -937,14 +1156,17 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
             <div className="flex-1 min-w-0 pl-5 flex flex-col justify-center">
               {ch ? (
                 <>
-                  <h3 className="text-2xl font-quicksand font-bold text-white truncate">{ch.name}</h3>
+                  {/* A long name (an event and its time): two smaller lines (lib/channelName). */}
+                  <h3 data-guide-head className={`font-quicksand font-bold text-white ${nameClasses(ch.name, 40, 'text-2xl', 'text-lg')}`}>{ch.name}</h3>
                   {now ? (
                     <>
                       <p className="mt-1 text-lg text-brand-ice/90 font-nunito truncate">{t('guide.now', { title: now.title })}</p>
                       <p className="text-sm text-brand-ice/60 font-nunito">{formatSlot(now.start)} – {formatSlot(now.end)}</p>
                     </>
-                  ) : (
+                  ) : list ? (
                     <p className="mt-1 text-base text-brand-ice/60 font-nunito">{t('guide.noInfo')}</p>
+                  ) : (
+                    <p data-guide-info-loading className="mt-1 text-base text-brand-ice/40 font-nunito">{t('common.loading')}</p>
                   )}
                   {next && <p className="mt-2 text-base text-brand-ice/70 font-nunito truncate">{t('guide.next', { title: next.title, time: formatSlot(next.start) })}</p>}
                   <p className="mt-2 text-xs text-brand-ice/45 font-nunito">{t('guide.okFullScreen')}</p>
@@ -991,6 +1213,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       {/* Grid body */}
       <div
         ref={scrollParentRef}
+        data-guide-grid
+        onScroll={(e) => { gridScrollTopRef.current = e.currentTarget.scrollTop; }}
         className={`flex-1 min-h-0 px-3 overflow-y-auto overflow-x-hidden ${focusZone === 'grid' && isActive ? 'bg-white/[0.02]' : ''}`}
       >
         {listLoading && channels.length === 0 ? (
@@ -1012,7 +1236,12 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
               return (
                 <div
                   key={v.key}
-                  onClick={() => { setRowIdx(v.index); playRow(v.index); }}
+                  onClick={() => { if (wasTouchHold()) return; rowResumedRef.current = true; setRowIdx(v.index); playRow(v.index); }}
+                  onTouchStart={() => startTouchHold(v.index)}
+                  onTouchEnd={cancelTouchHold}
+                  onTouchMove={cancelTouchHold}
+                  onTouchCancel={cancelTouchHold}
+                  onContextMenu={(e) => { e.preventDefault(); rowMenu(v.index); }}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -1040,10 +1269,15 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                         ? <img src={ch.stream_icon} alt="" loading="lazy" className="w-10 h-10 object-contain rounded-lg bg-black/40 flex-shrink-0" />
                         : <Tv className="w-8 h-8 text-brand-ice/60 flex-shrink-0" />}
                       <div className="min-w-0">
-                        {ch.num != null && (
-                          <div className="text-xs font-nunito text-brand-ice/70 tabular-nums leading-tight">#{ch.num}</div>
+                        {(ch.num != null || favs.has(ch.stream_id)) && (
+                          <div className="flex items-center text-xs font-nunito text-brand-ice/70 tabular-nums leading-tight">
+                            {ch.num != null && <span>#{ch.num}</span>}
+                            {favs.has(ch.stream_id) && <Star data-guide-fav className={`w-3 h-3 text-brand-gold fill-brand-gold flex-shrink-0 ${ch.num != null ? 'ml-1' : ''}`} />}
+                          </div>
                         )}
-                        <div className="text-sm font-quicksand font-semibold text-white truncate leading-tight">{ch.name}</div>
+                        {/* Long names (an event and its time): a size smaller, two
+                            lines, on every row (lib/channelName). */}
+                        <div data-guide-name className={`font-quicksand font-semibold text-white ${nameClasses(ch.name, 18, 'text-sm', 'text-xs')}`}>{ch.name}</div>
                       </div>
                     </div>
                     {/* Program lane */}
@@ -1053,9 +1287,12 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                           <Loader2 className="w-3 h-3 animate-spin mr-2" /> {t('guide.epgLoading')}
                         </div>
                       )}
+                      {/* No listings (event channels): the channel's whole name here,
+                          where the eye goes, with the event and its time in it. */}
                       {programs && visible.length === 0 && (
-                        <div className="absolute inset-0 flex items-center px-3 text-brand-ice/70 font-nunito text-xs">
-                          {t('guide.noListings')}
+                        <div data-guide-nolistings className="absolute inset-0 flex flex-col justify-center px-3 overflow-hidden">
+                          <div className={`font-quicksand font-semibold text-white/90 ${nameClasses(ch.name, 90, 'text-sm', 'text-[13px]')}`}>{ch.name}</div>
+                          <div className="text-brand-ice/60 font-nunito text-xs leading-tight truncate">{t('guide.noListings')}</div>
                         </div>
                       )}
                       {visible.map((p, i) => {
@@ -1117,6 +1354,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           programmes={recordFor.programmes}
           streamId={recordFor.ch.stream_id}
           existing={recordFor.existing}
+          armed
           onStart={(choice) => { const t = recordFor; closeRecord(); void startProgramme(t, choice); }}
           onClose={closeRecord}
         />

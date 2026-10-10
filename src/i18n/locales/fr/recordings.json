@@ -86,7 +86,7 @@
       "dayTime": "{{day}} {{time}}",
       "driveFree": "{{label}} : {{size}} libres",
       "driveFreeLow": "{{label}} : {{size}} libres (faible)",
-      "empty": "Aucun enregistrement pour le moment. Maintenez OK sur une chaîne (ou utilisez Enregistrer dans le lecteur) pour enregistrer, ou maintenez OK sur une chaîne du Guide pour programmer une émission.",
+      "empty": "Aucun enregistrement pour le moment. Maintenez OK sur une chaîne (ou utilisez Enregistrer dans le lecteur) pour enregistrer, ou appuyez sur Menu sur une chaîne du Guide pour programmer une émission.",
       "alarmsLate": "Ce boîtier peut démarrer les enregistrements programmés en retard.",
       "openSettingsBtn": "Ouvrir les paramètres",
       "wasMissed": "Il a été manqué.",

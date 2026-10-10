@@ -746,7 +746,8 @@ export function forgetLiveStreams(c: XtreamCreds, categoryId?: string): void {
   _liveCatalogue.delete(buildBase(c, params));
 }
 /** Whether a live list is kept already (or on its way): showing it needs no
- *  download, so Live TV's category list waits only a short settle for it. */
+ *  download, so Live TV's and the Guide's category lists wait only a short
+ *  settle for it instead of the full rest. */
 export function hasLiveStreams(c: XtreamCreds, categoryId?: string): boolean {
   const params: Record<string, string | number> = { action: 'get_live_streams' };
   if (categoryId) params.category_id = categoryId;

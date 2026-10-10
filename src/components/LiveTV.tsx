@@ -44,6 +44,7 @@ import KidsAskGrownUp from './livetv/KidsAskGrownUp';
 
 import LiveSection from './livetv/LiveSection';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
+import type { GuidePlace } from './livetv/GuideSection';
 const GameDaySection = lazy(() => import('./livetv/GameDaySection'));
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
@@ -342,6 +343,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const gameDayReturnRef = useRef<string | null>(null);
   const onGameDayWatch = useCallback((gameId?: string) => {
     gameDayReturnRef.current = gameId ?? null;
+    guideReturnRef.current = null;
     setSection('live'); setPane('content');
   }, []);
   const backToGameDay = useCallback((): boolean => {
@@ -355,6 +357,29 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, []);
   // Anywhere else first (the side menu, another section): Back is Live TV's own.
   useEffect(() => { if (section !== 'live') gameDayReturnRef.current = null; }, [section]);
+  // The Guide's channels play in Live TV's own player (GuideSection's
+  // onWatch: its bar and options, a name that goes away). The Guide's place
+  // is kept here, and handed back (resumeAt) only by Back from that picture:
+  // any other way into the Guide (the side menu, a voice command, another
+  // profile) opens it at its start.
+  const guideReturnRef = useRef<GuidePlace | null>(null);
+  const [guideResume, setGuideResume] = useState<GuidePlace | null>(null);
+  const clearGuideResume = useCallback(() => setGuideResume(null), []);
+  const onGuideWatch = useCallback((place: GuidePlace) => {
+    gameDayReturnRef.current = null;
+    guideReturnRef.current = place;
+    setSection('live'); setPane('content');
+  }, []);
+  const backToGuide = useCallback((): boolean => {
+    const place = guideReturnRef.current;
+    if (!place) return false;
+    guideReturnRef.current = null;
+    setGuideResume(place);
+    setSection('guide'); setPane('content');
+    return true;
+  }, []);
+  useEffect(() => { if (section !== 'live') guideReturnRef.current = null; }, [section]);
+  const backToCaller = useCallback(() => backToGameDay() || backToGuide(), [backToGameDay, backToGuide]);
   const onExitUp = useCallback(() => {
     headerReturnPaneRef.current = 'content';
     setPane('header');
@@ -1214,7 +1239,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onExitUp={onExitUp}
             onBack={onBack}
             onNavigate={navigateViaRef}
-            onBackToCaller={backToGameDay}
+            onBackToCaller={backToCaller}
           />
         )}
 
@@ -1226,6 +1251,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
               onNavigate={navigateViaRef}
+              onWatch={onGuideWatch}
+              resumeAt={guideResume}
+              onResumeTaken={clearGuideResume}
             />
           </Suspense>
         )}

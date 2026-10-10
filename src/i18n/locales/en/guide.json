@@ -16,13 +16,13 @@
     "channelHeader": "Channel",
     "earlier": "◀ earlier",
     "loadingChannels": "Loading channels…",
-    "noFavorites": "No favorites yet. In Live TV, hold OK on a channel and choose Add to Favorites.",
+    "noFavorites": "No favorites yet. Hold OK on a channel here to add it.",
     "noChannels": "No channels in this category.",
     "epgLoading": "EPG…",
     "noListings": "No listings",
     "scheduledDot": "Scheduled to record",
-    "hint": "◀ ▶ shift time · ▲ ▼ channel · OK to play · Back to exit",
-    "hintRecord": "◀ ▶ shift time · ▲ ▼ channel · OK to play · hold OK to record · Back to exit",
+    "hint": "◀ ▶ shift time · ▲ ▼ channel · OK to play · Hold OK: favorite · Back to exit",
+    "hintRecord": "◀ ▶ shift time · ▲ ▼ channel · OK to play · Hold OK: favorite · Menu: record · Back to exit",
     "toast": {
       "mpvFallback": "MPV couldn't start on this box — using ExoPlayer",
       "finished": "That programme has finished",
@@ -32,7 +32,9 @@
       "scheduledDesc": "{{channel}}, {{times}}. {{note}}",
       "scheduledDescLate": "{{channel}}, {{times}}. {{note}} This box may start it late: see Live TV › Recordings.",
       "recordFailed": "Recording did not start",
-      "scheduleFailed": "Could not schedule it"
+      "scheduleFailed": "Could not schedule it",
+      "favAddedTitle": "Added to Favorites",
+      "favRemovedTitle": "Removed from Favorites"
     }
   }
 }

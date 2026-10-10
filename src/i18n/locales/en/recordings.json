@@ -84,7 +84,7 @@
       "dayTime": "{{day}} {{time}}",
       "driveFree": "{{label}}: {{size}} free",
       "driveFreeLow": "{{label}}: {{size}} free (low)",
-      "empty": "No recordings yet. Hold OK on a channel (or use Record in the player) to record one, or hold OK on a channel in the Guide to schedule a programme.",
+      "empty": "No recordings yet. Hold OK on a channel (or use Record in the player) to record one, or press Menu on a channel in the Guide to schedule a programme.",
       "alarmsLate": "This box may start scheduled recordings late.",
       "openSettingsBtn": "Open settings",
       "wasMissed": "It was missed.",

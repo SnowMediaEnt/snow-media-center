@@ -120,7 +120,7 @@
         "subtitle": "Go back, record, schedule",
         "guide": {
           "title": "The Guide shows what's on now and next.",
-          "line2": "OK on a channel plays it. Favorites come first."
+          "line2": "OK on a channel plays it. Hold OK to add it to Favorites."
         },
         "rewind": {
           "title": "Missed something? Back 10s rewinds live TV.",
@@ -131,7 +131,7 @@
           "line2": "Pick how long and where: this box or a USB drive."
         },
         "schedule": {
-          "title": "Hold OK in the Guide to record a show later.",
+          "title": "Press Menu on a channel in the Guide to record a show later.",
           "line2": "A red dot marks shows that will record."
         },
         "recordings": {

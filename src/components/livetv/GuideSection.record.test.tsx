@@ -1,7 +1,8 @@
 /**
- * Scheduled recordings from the Guide (TRACKER 25.12): hold OK on a channel to
- * open the Record dialog in programme mode (the channel's programmes, padded
- * times, the extra-stream line); OK pressed briefly still plays; a schedule
+ * Scheduled recordings from the Guide (TRACKER 25.12): the remote's Menu key
+ * on a channel opens the Record dialog in programme mode (the channel's
+ * programmes, padded times, the extra-stream line); OK pressed briefly still
+ * plays (a held OK saves a favourite: GuideSection.hold.test.tsx); a schedule
  * carries no stream address or login; scheduled programmes get a red dot; and
  * a Kids profile, the demo and a build without the recorder don't offer it.
  */
@@ -89,6 +90,12 @@ vi.mock('@tanstack/react-virtual', async () => {
 const down = (k: string, extra: Partial<KeyboardEventInit> = {}) => act(() => { fireEvent.keyDown(document.body, { key: k, ...extra }); });
 const up = (k: string) => act(() => { fireEvent.keyUp(document.body, { key: k }); });
 const sleep = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
+/** The remote's Menu key (KEYCODE_MENU), pressed and let go; the dialog reads the schedules first. */
+const menu = async () => {
+  act(() => { fireEvent.keyDown(document.body, { key: 'ContextMenu', keyCode: 82 }); });
+  act(() => { fireEvent.keyUp(document.body, { key: 'ContextMenu', keyCode: 82 }); });
+  await sleep(50);
+};
 const dialog = () => document.querySelector('[data-record-dialog]');
 const fullscreen = () => document.documentElement.classList.contains('snowplayer-fullscreen');
 const progRows = () => Array.from(document.querySelectorAll('[data-record-programme]')).map((n) => n.textContent);
@@ -122,7 +129,7 @@ beforeEach(() => {
 });
 afterEach(() => { document.documentElement.className = ''; sessionStorage.clear(); });
 
-describe('Guide: hold OK to record a programme', () => {
+describe('Guide: Menu to record a programme', () => {
   it('OK pressed briefly still plays, and it plays when OK is let go', async () => {
     const { Guide } = await freshGuide();
     await openGuide(Guide as never);
@@ -133,11 +140,10 @@ describe('Guide: hold OK to record a programme', () => {
     expect(dialog()).toBeNull();
   });
 
-  it('holding OK opens the dialog in programme mode with the channel\'s programmes and the padded times; letting go does not also play', async () => {
+  it('Menu opens the dialog in programme mode with the channel\'s programmes and the padded times; nothing plays', async () => {
     const { Guide } = await freshGuide();
     await openGuide(Guide as never);
-    down('Enter');
-    await sleep(700);
+    await menu();
     expect(dialog()).not.toBeNull();
     expect(dialog()!.textContent).toContain('Record a programme on News Channel');
     const t = (s: number) => clockLabel(s * 1000);
@@ -148,7 +154,6 @@ describe('Guide: hold OK to record a programme', () => {
     ]);
     // The extra-stream line, same words as Record now.
     expect(dialog()!.querySelector('[data-record-note]')?.textContent).toBe('Recording uses one more stream on your line (your plan allows 2 at once).');
-    up('Enter');
     expect(fullscreen()).toBe(false);
     expect(dialog()).not.toBeNull();
     // Back closes it, and the Guide is as it was.
@@ -156,12 +161,22 @@ describe('Guide: hold OK to record a programme', () => {
     expect(dialog()).toBeNull();
   });
 
-  it('a later programme is scheduled with its true UTC times and the padding; the address and login are never sent', async () => {
+  it('a held OK opens no dialog: it saves the channel to Favorites (the hint says Menu records)', async () => {
     const { Guide } = await freshGuide();
     await openGuide(Guide as never);
+    expect(document.body.textContent).toContain('Menu: record');
     down('Enter');
     await sleep(700);
     up('Enter');
+    expect(dialog()).toBeNull();
+    expect(fullscreen()).toBe(false);
+    expect(calls('toast')).toEqual([{ title: 'Added to Favorites', description: 'News Channel' }]);
+  });
+
+  it('a later programme is scheduled with its true UTC times and the padding; the address and login are never sent', async () => {
+    const { Guide } = await freshGuide();
+    await openGuide(Guide as never);
+    await menu();
     // Pick "The News", go to Start, OK.
     act(() => { fireEvent.keyDown(window, { key: 'ArrowRight' }); });
     act(() => { fireEvent.keyDown(window, { key: 'ArrowDown' }); });
@@ -186,9 +201,7 @@ describe('Guide: hold OK to record a programme', () => {
   it('the programme on now records at once, until its end plus the late padding', async () => {
     const { Guide } = await freshGuide();
     await openGuide(Guide as never);
-    down('Enter');
-    await sleep(700);
-    up('Enter');
+    await menu();
     act(() => { fireEvent.keyDown(window, { key: 'ArrowDown' }); });
     act(() => { fireEvent.keyDown(window, { key: 'ArrowDown' }); });
     act(() => { fireEvent.keyDown(window, { key: 'Enter' }); });
@@ -202,13 +215,11 @@ describe('Guide: hold OK to record a programme', () => {
     expect(opts.maxSimultaneous).toBe(2);
   });
 
-  /** Hold OK, choose the programme on now, Start. */
+  /** Menu, choose the programme on now, Start. */
   async function recordNow() {
     const { Guide } = await freshGuide();
     await openGuide(Guide as never);
-    down('Enter');
-    await sleep(700);
-    up('Enter');
+    await menu();
     act(() => { fireEvent.keyDown(window, { key: 'ArrowDown' }); });
     act(() => { fireEvent.keyDown(window, { key: 'ArrowDown' }); });
     act(() => { fireEvent.keyDown(window, { key: 'Enter' }); });
@@ -243,9 +254,7 @@ describe('Guide: hold OK to record a programme', () => {
     api.scheduleError = Object.assign(new Error('You already have 2 recordings then. Cancel one first.'), { code: 'CONFLICT', data: { atMs: PROGRAMMES[1].s * 1000, count: 2 } });
     const { Guide } = await freshGuide();
     await openGuide(Guide as never);
-    down('Enter');
-    await sleep(700);
-    up('Enter');
+    await menu();
     act(() => { fireEvent.keyDown(window, { key: 'ArrowRight' }); });
     act(() => { fireEvent.keyDown(window, { key: 'ArrowDown' }); });
     act(() => { fireEvent.keyDown(window, { key: 'ArrowDown' }); });
@@ -261,19 +270,21 @@ describe('Guide: hold OK to record a programme', () => {
     const { Guide } = await freshGuide();
     await openGuide(Guide as never);
     await waitFor(() => expect(document.querySelectorAll('[data-scheduled-dot]')).toHaveLength(1));
-    down('Enter');
-    await sleep(700);
+    await menu();
     expect(document.querySelectorAll('[aria-label="Already scheduled"]')).toHaveLength(1);
   });
 
-  it('a Kids profile gets no dialog: OK plays at once, as it always did', async () => {
+  it('a Kids profile gets no dialog: Menu does nothing, OK still plays', async () => {
     const { Guide, kids } = await freshGuide();
     kids.setKidsLevel('kids');
     try {
       await openGuide(Guide as never);
+      await menu();
+      expect(dialog()).toBeNull();
+      expect(document.body.textContent).not.toContain('Menu: record');
       down('Enter');
-      expect(fullscreen()).toBe(true);
       up('Enter');
+      expect(fullscreen()).toBe(true);
       expect(dialog()).toBeNull();
     } finally {
       kids.setKidsLevel(null);
@@ -286,9 +297,8 @@ describe('Guide: hold OK to record a programme', () => {
     render(<Guide creds={line as never} isActive onExitLeft={() => {}} />);
     await waitFor(() => expect(document.querySelector('[data-cat-i]')).not.toBeNull());
     await sleep(100);
-    expect(document.body.textContent).not.toContain('hold OK to record');
-    down('Enter');
-    await sleep(700);
+    expect(document.body.textContent).not.toContain('Menu: record');
+    await menu();
     expect(dialog()).toBeNull();
   });
 });

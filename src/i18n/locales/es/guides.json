@@ -120,7 +120,7 @@
         "subtitle": "Retrocede, graba, programa",
         "guide": {
           "title": "La Guía muestra lo que dan ahora y lo que sigue.",
-          "line2": "OK sobre un canal lo reproduce. Los favoritos van primero."
+          "line2": "OK sobre un canal lo reproduce. Mantén OK para agregarlo a Favoritos."
         },
         "rewind": {
           "title": "¿Te perdiste algo? Atrás 10 s retrocede la TV en vivo.",
@@ -131,7 +131,7 @@
           "line2": "Elige cuánto tiempo y dónde: este equipo o una unidad USB."
         },
         "schedule": {
-          "title": "Mantén OK en la Guía para grabar un programa más tarde.",
+          "title": "Pulsa Menú sobre un canal de la Guía para grabar un programa más tarde.",
           "line2": "Un punto rojo marca los programas que se grabarán."
         },
         "recordings": {
