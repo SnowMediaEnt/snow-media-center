@@ -216,14 +216,16 @@ export function bestChannel<T extends { name: string; stream_id: number }>(spoke
 /** The channel a name asked for by voice means, from every line's full list,
  *  or null (see bestChannel). Providers name channels "US| ESPN FHD": the
  *  name's first word picks the candidates, the whole name ranks them ("the"
- *  is part of none: "the weather channel"). */
-export function channelForName<T extends { name: string; stream_id: number }>(spoken: string, lists: Iterable<T[]>, favourites?: Set<number>): T | null {
+ *  is part of none: "the weather channel"). `skip`: channels never found this
+ *  way, as search never shows them (adult ones, a hidden category's:
+ *  LiveSection), judged only for the candidates. */
+export function channelForName<T extends { name: string; stream_id: number }>(spoken: string, lists: Iterable<T[]>, favourites?: Set<number>, skip?: (ch: T) => boolean): T | null {
   const want = spoken.trim().replace(/^the\s+/i, '') || spoken.trim();
   const first = squash((want.split(/\s+/)[0] || want).toLowerCase());
   if (!first) return null;
   const candidates: T[] = [];
   for (const list of lists) {
-    for (const ch of list) if (squash(String(ch.name ?? '').toLowerCase()).includes(first)) candidates.push(ch);
+    for (const ch of list) if (squash(String(ch.name ?? '').toLowerCase()).includes(first) && !skip?.(ch)) candidates.push(ch);
   }
   return bestChannel(want, candidates, favourites);
 }

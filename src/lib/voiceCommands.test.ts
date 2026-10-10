@@ -157,6 +157,14 @@ describe('matching', () => {
     expect(channelForName('usa', [lineA, lineB])).toBeNull();
   });
 
+  it('never finds a channel search leaves out (skip: adult ones, a hidden category\'s)', () => {
+    const list = [{ name: 'Harbor News', stream_id: 1 }, { name: 'Hot Encounters', stream_id: 2 }];
+    const skip = (ch: { name: string }) => ch.name === 'Hot Encounters';
+    expect(channelForName('hot encounters', [list])?.stream_id).toBe(2);
+    expect(channelForName('hot encounters', [list], undefined, skip)).toBeNull();
+    expect(channelForName('harbor news', [list], undefined, skip)?.stream_id).toBe(1);
+  });
+
   it('finds a "… Channel" said the way the parser hands it over', () => {
     const line = [
       { name: 'US| THE WEATHER CHANNEL HD', stream_id: 1 },

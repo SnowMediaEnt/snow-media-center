@@ -25,6 +25,7 @@ import PosterCard from './PosterCard';
 import { followGridRow } from './posterGrid';
 import { tmdbSized } from '@/lib/tmdbImage';
 import { keepInView } from '@/utils/keepInView';
+import { searchVodTitles } from '@/lib/vodSearch';
 import { fingerIsDriving } from '@/lib/phoneMode';
 import ScrollText, { ScrollLines } from '@/components/ScrollText';
 import { isFireTV } from '@/utils/platform';
@@ -254,22 +255,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   }, [playing]);
 
   const visibleMovies = useMemo(() => {
-    if (searchOpen) {
-      const q = searchQuery.trim().toLowerCase();
-      if (!q) return [];
-      const src = allMovies || [];
-      const out: XtreamVodStream[] = [];
-      for (const m of src) {
-        if (m.name.toLowerCase().includes(q)) {
-          out.push(m);
-          if (out.length >= 500) break;
-        }
-      }
-      return out;
-    }
+    // Never an adult title, whatever is typed (lib/vodSearch).
+    if (searchOpen) return searchVodTitles(searchQuery, allMovies, categories);
     if (!currentCat) return [];
     return moviesByCat.get(currentCat.id) || [];
-  }, [searchOpen, searchQuery, allMovies, currentCat, moviesByCat]);
+  }, [searchOpen, searchQuery, allMovies, categories, currentCat, moviesByCat]);
 
   // Only show "loading" for buckets we actually fetch. The All-Movies sentinel
   // doesn't auto-load, so don't render a spinner there until the user opts in.

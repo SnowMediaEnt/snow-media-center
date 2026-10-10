@@ -26,6 +26,7 @@ import PosterCard from './PosterCard';
 import { followGridRow } from './posterGrid';
 import { tmdbSized } from '@/lib/tmdbImage';
 import { keepInView } from '@/utils/keepInView';
+import { searchVodTitles } from '@/lib/vodSearch';
 import { fingerIsDriving } from '@/lib/phoneMode';
 import { isFireTV } from '@/utils/platform';
 import ScrollText, { ScrollLines } from '@/components/ScrollText';
@@ -238,22 +239,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
   }, [searchOpen, allSeries, allSeriesLoading, creds, noteCounts]);
 
   const visibleSeries = useMemo(() => {
-    if (searchOpen) {
-      const q = searchQuery.trim().toLowerCase();
-      if (!q) return [];
-      const src = allSeries || [];
-      const out: XtreamSeries[] = [];
-      for (const s of src) {
-        if (s.name.toLowerCase().includes(q)) {
-          out.push(s);
-          if (out.length >= 500) break;
-        }
-      }
-      return out;
-    }
+    // Never an adult title, whatever is typed (lib/vodSearch).
+    if (searchOpen) return searchVodTitles(searchQuery, allSeries, categories);
     if (!currentCat) return [];
     return seriesByCat.get(currentCat.id) || [];
-  }, [searchOpen, searchQuery, allSeries, currentCat, seriesByCat]);
+  }, [searchOpen, searchQuery, allSeries, categories, currentCat, seriesByCat]);
 
   // Only show "loading" for buckets we actually fetch. All-Series sentinel
   // doesn't auto-load, so no spinner there until the user opts in.

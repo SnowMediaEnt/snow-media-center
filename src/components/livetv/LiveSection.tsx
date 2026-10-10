@@ -79,6 +79,8 @@ import { isDemo, isHowtoCapture, demoDialogMsg } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import { channelForName } from '@/lib/voiceCommands';
+import { leftOutOfSearch, searchLiveChannels } from '@/lib/liveSearch';
+import { adultCategoryIds } from '@/lib/adultSearch';
 import { toast } from '@/hooks/use-toast';
 import { channelReport, isCategoryDown, isChannelFailure, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
 import ChannelWarningDialog from './ChannelWarningDialog';
@@ -857,21 +859,22 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     });
   }, [isActive, categoriesLoading, categories.length, countsFresh, playingChannelId, fullscreen, creds, noteCounts]);
 
+  // Each line's adult categories: search never shows their channels (lib/liveSearch).
+  const adultCatsByLine = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const [k, cats] of categoriesByLine) m.set(k, adultCategoryIds(cats));
+    return m;
+  }, [categoriesByLine]);
+
   // Resolve channel list for the focused category / favorites / search.
   const visibleChannels: XtreamLiveStream[] = useMemo(() => {
+    // Search: every line's line-up, best matches first, never an adult
+    // channel or a hidden category's, whatever is typed.
     if (searchOpen) {
-      const q = searchQ.trim().toLowerCase();
-      if (!q) return [];
-      const out: XtreamLiveStream[] = [];
-      for (const line of lines) {
-        const src = allByLine.get(lineKey(line)) || [];
-        for (const s of src) {
-          if (out.length >= 500) break;
-          if (s.name.toLowerCase().includes(q)) out.push(s);
-        }
-        if (out.length >= 500) break;
-      }
-      return out;
+      return searchLiveChannels(searchQ, lines.map((line) => {
+        const k = lineKey(line);
+        return { list: allByLine.get(k) || [], hidden: hidden.get(k), adultCats: adultCatsByLine.get(k) };
+      }));
     }
     if (!currentCat || currentCat.isHeader) return [];
     if (currentCat.isAllFavs) {
@@ -894,7 +897,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       });
     }
     return streamsByCat.get(currentCat.id) || [];
-  }, [searchOpen, searchQ, lines, allByLine, currentCat, streamsByCat, favsByLine]);
+  }, [searchOpen, searchQ, lines, allByLine, hidden, adultCatsByLine, currentCat, streamsByCat, favsByLine]);
 
   const channelsLoading = searchOpen
     ? allChannelsLoading
@@ -958,12 +961,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (!pendingPlay || lines.length === 0 || !lines.every((l) => allByLine.has(lineKey(l)))) return;
     const favIds = new Set<number>();
     for (const m of favsByLine.values()) for (const id of m.keys()) favIds.add(id);
-    const hit = channelForName(pendingPlay, lines.map((l) => allByLine.get(lineKey(l)) || []), favIds);
+    // A search by voice: never a channel search leaves out (adult, hidden).
+    const skip = (st: XtreamLiveStream) => {
+      const k = lineKey(lineFor(st));
+      return leftOutOfSearch(st, { hidden: hidden.get(k), adultCats: adultCatsByLine.get(k) });
+    };
+    const hit = channelForName(pendingPlay, lines.map((l) => allByLine.get(lineKey(l)) || []), favIds, skip);
     const said = pendingPlay;
     setPendingPlay(null);
     if (hit) playChannelRef.current(hit);
     else sayChannelNotFound(said);
-  }, [pendingPlay, lines, allByLine, favsByLine]);
+  }, [pendingPlay, lines, allByLine, favsByLine, hidden, adultCatsByLine, lineFor]);
   // Safety clamp: never let channelIdx point past the current list.
   useEffect(() => {
     if (channelIdx >= visibleChannels.length) setChannelIdx(0);
