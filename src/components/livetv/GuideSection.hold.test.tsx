@@ -110,6 +110,8 @@ async function freshGuide() {
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
+  // These cover the Large Guide (the chips, 72 px rows); GuideSection.compact covers Compact.
+  localStorage.setItem('snow-view-size', 'large');
   api.categories = [{ category_id: '1', category_name: 'Events' }, { category_id: '2', category_name: 'News' }];
   api.streams = {
     1: [

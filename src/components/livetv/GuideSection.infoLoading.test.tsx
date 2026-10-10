@@ -56,6 +56,8 @@ const answer = async (id: number, listings: unknown[]) => {
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
+  // These cover the Large Guide (the chips, 72 px rows); GuideSection.compact covers Compact.
+  localStorage.setItem('snow-view-size', 'large');
   api.streams = [
     { stream_id: 301, name: 'News Channel', category_id: '1' },
     { stream_id: 302, name: 'World Desk', category_id: '1' },
