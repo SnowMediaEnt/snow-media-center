@@ -6,7 +6,9 @@
         "subtitle": "Your remote, your phone and Home",
         "remote": {
           "title": "Arrows move. OK picks. Back goes back.",
-          "line2": "Hold OK on a channel or a title for more options. You can't break anything."
+          "titleTouch": "Tap to pick. Swipe to scroll. Back goes back.",
+          "line2": "Hold OK on a channel or a title for more options. You can't break anything.",
+          "line2Touch": "Hold a finger on a channel or a title for more options. You can't break anything."
         },
         "phone": {
           "title": "Use your phone as a remote.",
@@ -19,7 +21,8 @@
         },
         "topbar": {
           "title": "Top right: the date, the time and your buttons.",
-          "line2": "Press Up from the big buttons to reach them."
+          "line2": "Press Up from the big buttons to reach them.",
+          "line2Touch": "They sit at the top of Home: just tap one."
         },
         "dashVoice": {
           "title": "Dashboard is your account. Voice lets you talk to SMC.",
@@ -31,7 +34,8 @@
         },
         "recommended": {
           "title": "Recommended: what's on and what to watch.",
-          "line2": "Press Up from the big buttons. Left and Right scroll; the dots show the page."
+          "line2": "Press Up from the big buttons. Left and Right scroll; the dots show the page.",
+          "line2Touch": "Swipe or tap ◀ ▶ to scroll; the dots show the page."
         }
       },
       "livetv": {
@@ -479,6 +483,7 @@
       },
       "title": "How to use SMC",
       "pickTopic": "Pick a topic — press Back anytime to leave.",
+      "pickTopicTouch": "Pick a topic — the phone's Back leaves at any time.",
       "slideCount_one": "{{count}} slide",
       "slideCount_other": "{{count}} slides",
       "slideOf": "Slide {{current}} of {{total}}",

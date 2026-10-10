@@ -59,4 +59,5 @@ export const BACK_ROW = 'flex items-center w-full justify-start mb-6';
  *  which on a 960x540 TV layout took a third of the screen before any of the
  *  page showed. Back goes in the first cell, the title in the second, the
  *  third is empty so the title stays centred. */
-export const HEADER_ROW = 'grid grid-cols-[1fr_auto_1fr] items-center w-full mb-4';
+// smc-screen-header: phone-entry.css lays it out upright (Back and the title on one line).
+export const HEADER_ROW = 'smc-screen-header grid grid-cols-[1fr_auto_1fr] items-center w-full mb-4';

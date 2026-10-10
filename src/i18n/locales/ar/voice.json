@@ -60,6 +60,7 @@
       "dialogLabel": "الصوت",
       "didntCatch": "لم أفهم ذلك",
       "pressOkRetry": "اضغط موافق على الميكروفون للمحاولة مرة أخرى.",
+      "tapRetry": "اضغط على الصوت للمحاولة مرة أخرى.",
       "listening": "جارٍ الاستماع…",
       "tryExamples": "جرّب {{examples}}",
       "sayCommand": "قل أمرًا",

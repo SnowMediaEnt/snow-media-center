@@ -6,7 +6,9 @@
         "subtitle": "Fernbedienung, Handy und Startseite",
         "remote": {
           "title": "Die Pfeile bewegen. OK wählt aus. Zurück geht zurück.",
-          "line2": "Halte OK auf einem Sender oder Titel gedrückt für mehr Optionen. Du kannst nichts kaputt machen."
+          "titleTouch": "Tippen wählt. Wischen scrollt. Zurück geht zurück.",
+          "line2": "Halte OK auf einem Sender oder Titel gedrückt für mehr Optionen. Du kannst nichts kaputt machen.",
+          "line2Touch": "Halte den Finger auf einem Sender oder Titel für mehr Optionen. Du kannst nichts kaputt machen."
         },
         "phone": {
           "title": "Nutze dein Handy als Fernbedienung.",
@@ -19,7 +21,8 @@
         },
         "topbar": {
           "title": "Oben rechts: Datum, Uhrzeit und deine Tasten.",
-          "line2": "Drücke von den großen Tasten aus Hoch, um sie zu erreichen."
+          "line2": "Drücke von den großen Tasten aus Hoch, um sie zu erreichen.",
+          "line2Touch": "Sie sind oben auf der Startseite: einfach antippen."
         },
         "dashVoice": {
           "title": "Das Dashboard ist dein Konto. Mit Spracheingabe sprichst du mit SMC.",
@@ -31,7 +34,8 @@
         },
         "recommended": {
           "title": "Empfohlen: was läuft und was du schauen kannst.",
-          "line2": "Drücke von den großen Tasten aus Hoch. Links und Rechts scrollen; die Punkte zeigen die Seite."
+          "line2": "Drücke von den großen Tasten aus Hoch. Links und Rechts scrollen; die Punkte zeigen die Seite.",
+          "line2Touch": "Wische oder tippe ◀ ▶ zum Blättern; die Punkte zeigen die Seite."
         }
       },
       "livetv": {
@@ -479,6 +483,7 @@
       },
       "title": "SMC-Anleitung",
       "pickTopic": "Wähle ein Thema – mit Zurück kannst du jederzeit gehen.",
+      "pickTopicTouch": "Wähle ein Thema — Zurück am Handy beendet jederzeit.",
       "slideCount_one": "{{count}} Folie",
       "slideCount_other": "{{count}} Folien",
       "slideOf": "Folie {{current}} von {{total}}",

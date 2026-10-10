@@ -8,6 +8,8 @@ import { trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { kidsBlockedView } from '@/lib/kidsGameNavigation';
 import HowtoShot from '@/components/howto/HowtoShot';
+import i18n from '@/i18n';
+import { useTouchUI } from '@/lib/phoneMode';
 
 interface HowToGuideProps {
   onClose: () => void;
@@ -28,6 +30,10 @@ const kidsMayFollow = (dl: TutorialDeepLink): boolean =>
 
 const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
   const { t } = useTranslation();
+  // A phone or tablet: tap and swipe wording where a line speaks of the
+  // remote (the key's "…Touch" twin, Tronix 6105df9); else the TV's.
+  const touch = useTouchUI();
+  const tt = (key: string): string => (touch && i18n.exists(`${key}Touch`) ? t(`${key}Touch`) : t(key));
   const [view, setView] = useState<View>('chapters');
   const [chapterIdx, setChapterIdx] = useState(0);
   const [slideIdx, setSlideIdx] = useState(0);
@@ -228,7 +234,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h1 className="text-3xl font-quicksand font-bold text-white">{t('guides.howTo.title')}</h1>
-                <p className="text-base text-brand-ice/70 font-nunito mt-1">{t('guides.howTo.pickTopic')}</p>
+                <p className="text-base text-brand-ice/70 font-nunito mt-1">{tt('guides.howTo.pickTopic')}</p>
               </div>
               <Button
                 onClick={onClose}
@@ -315,11 +321,11 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                 {/* dir="auto": Arabic lines read right to left (their full stops and
                     quote marks land on the right side); the layout stays left to right. */}
                 <h2 dir="auto" style={{ textAlign: 'start' }} className="text-2xl font-quicksand font-bold text-white leading-snug">
-                  {t(slide.titleKey)}
+                  {tt(slide.titleKey)}
                 </h2>
                 {slide.line2Key && (
                   <p dir="auto" style={{ textAlign: 'start' }} className="text-base text-brand-ice/80 font-nunito leading-relaxed mt-2">
-                    {t(slide.line2Key)}
+                    {tt(slide.line2Key)}
                   </p>
                 )}
               </div>

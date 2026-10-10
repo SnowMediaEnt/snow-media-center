@@ -1255,7 +1255,7 @@ const BufferingGuide = ({
 
       {/* Footer: Back on the left, Next on the right, the step's one-line
           hint between them. */}
-      <div className="flex-shrink-0 px-[5vw] pt-2.5 pb-[2.5vh] border-t border-white/10 bg-[#0a1628]">
+      <div className="flex-shrink-0 px-[5vw] pt-2.5 pb-[2.5vh] border-t border-white/10 bg-[#0a1628]" data-guide-footer="">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="w-[150px] flex-shrink-0">
             {stepIndex > 0 && (

@@ -36,6 +36,7 @@ import { OPEN_VOICE_EVENT, noteVoiceOverlay, setVoiceKeyHandler } from '@/lib/vo
 import { MEDIA_KEY_EVENT } from '@/lib/mediaKeys';
 import { REMOTE_VOICE_EVENT } from '@/lib/phoneRemote';
 import { typingInField } from './typingInField';
+import { useTouchUI } from '@/lib/phoneMode';
 
 // The remote's Search key reaches the page as the 'search' media key
 // (MainActivity takes KEYCODE_SEARCH). As a key it is a keyboard's named
@@ -74,6 +75,9 @@ interface AiCall { name: string; arguments: Record<string, unknown> }
 
 const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; blocked?: boolean }) => {
   const { t } = useTranslation();
+  // A phone or tablet: tap wording (Tronix 96bbbe2); upright, phone-entry.css
+  // puts the words over the mic and ✕.
+  const touch = useTouchUI();
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: 'listening' });
   const [attempt, setAttempt] = useState(0);
@@ -425,7 +429,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
         className="pointer-events-auto w-full max-w-3xl rounded-3xl border border-white/20 px-8 py-6 text-white shadow-2xl"
         style={{ backgroundColor: 'rgba(7, 27, 58, 0.96)' }}
       >
-        <div className="flex items-center">
+        <div className="flex items-center" data-voice-row="">
           <div className="mr-5 flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-gold/90" data-howto="voice.mic">
             <Mic className={`h-8 w-8 text-black ${phase.kind === 'listening' ? 'animate-pulse' : ''}`} />
           </div>
@@ -440,7 +444,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
             ) : phase.kind === 'stopped' ? (
               <>
                 <div className="text-2xl font-bold">{t('voice.host.didntCatch')}</div>
-                <div className="mt-1 text-lg text-white/80 max-h-40 overflow-y-auto">{phase.reason} {t('voice.host.pressOkRetry')}</div>
+                <div className="mt-1 text-lg text-white/80 max-h-40 overflow-y-auto">{phase.reason} {t(touch ? 'voice.host.tapRetry' : 'voice.host.pressOkRetry')}</div>
               </>
             ) : (
               <>
@@ -451,7 +455,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
               </>
             )}
           </div>
-          <div className="ml-5 flex shrink-0 items-center">
+          <div className="ml-5 flex shrink-0 items-center" data-voice-buttons="">
             <div data-voice-mic className={`mr-3 rounded-xl ${focus === 'mic' ? 'ring-4 ring-white' : ''}`}>
               <VoiceInput
                 key={mic}

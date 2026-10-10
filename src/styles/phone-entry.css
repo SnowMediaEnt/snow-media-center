@@ -164,3 +164,196 @@ html.is-upright [data-home-cards] [data-home-card] h3 {
 html.is-upright [data-home-cards] [data-home-card] > .relative.z-10 {
   padding: 8px;
 }
+
+/* ── The screens' top row (HEADER_ROW: Settings, Support, …) upright: Back
+   and the title on one line, the title beside it (it was squeezed into
+   three lines between Back and an empty column); the subtitle is a TV's. */
+html.is-upright .smc-screen-header {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+  margin-bottom: 12px;
+}
+html.is-upright .smc-screen-header > :nth-child(2) {
+  text-align: left;
+  padding: 0;
+}
+html.is-upright .smc-screen-header > :nth-child(2) h1 {
+  font-size: 1.5rem;
+  line-height: 1.9rem;
+}
+html.is-upright .smc-screen-header > :nth-child(2) p,
+html.is-upright .smc-screen-header > :nth-child(3) {
+  display: none;
+}
+html.is-upright .smc-screen-header button {
+  height: 40px;
+  padding-left: 12px;
+  padding-right: 14px;
+  font-size: 15px;
+}
+/* The screens' padding: a phone's, not a TV's overscan margin. */
+html.is-upright .tv-safe {
+  padding: max(env(safe-area-inset-top, 0px), 12px) 12px 16px !important;
+}
+
+/* ── Tabs (Settings, Support, …) upright: a row that scrolls sideways,
+   every name whole, 40px to a finger. */
+html.is-upright [role="tablist"] {
+  display: flex !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  height: auto !important;
+  gap: 4px;
+  justify-content: flex-start;
+}
+html.is-upright [role="tablist"]::-webkit-scrollbar { display: none; }
+html.is-upright [role="tablist"] > [role="tab"] {
+  flex: 0 0 auto;
+  min-height: 40px;
+}
+html.is-upright [role="tablist"] > [role="tab"] .truncate {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* ── A touch screen has no remote highlight on the screens either: the
+   first button (Back to Home, a tab, a card) only looked chosen. Elements
+   the remote drives carry data-focus-id (useTVFocus); text boxes keep their
+   ring while typed in. */
+html.is-touch [data-focus-id][data-focused="true"]:not(input):not(textarea),
+html.is-touch [data-tv-focused="true"]:not(input):not(textarea) {
+  box-shadow: none !important;
+  outline: none !important;
+  --tw-scale-x: 1;
+  --tw-scale-y: 1;
+  filter: none;
+}
+html.is-touch [data-focus-id][data-focused="true"]:not(input):not(textarea)::after,
+html.is-touch [data-tv-focused="true"]:not(input):not(textarea)::after {
+  display: none !important;
+}
+html.is-touch [data-focus-id]:active {
+  filter: brightness(1.15);
+}
+
+/* ── Dialogs on a phone (data-phone-dialog, and any open Radix dialog):
+   a gutter at the sides, never taller than the screen. */
+html.is-touch [data-phone-dialog],
+html.is-upright [role="dialog"][data-state="open"]:not([data-profile-screens]) {
+  width: calc(100% - 24px);
+  max-width: calc(100vw - 24px);
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+html.is-touch [data-phone-dialog] [data-dialog-footer] > button {
+  min-height: 44px;
+}
+/* Toasts' close X: shown on touch (it was hover-only), finger-sized. */
+html.is-touch [toast-close] {
+  opacity: 1;
+  padding: 12px;
+}
+
+/* ── The profile screens upright (Tronix 981877a, bc8f808): two to three
+   avatars a line, smaller titles, no remote highlight on touch. */
+html.is-upright [data-profile-screens] > div {
+  padding: max(env(safe-area-inset-top, 0px), 16px) 12px 20px !important;
+}
+html.is-upright [data-profile-screens] h1 {
+  font-size: 1.75rem;
+  line-height: 2.2rem;
+}
+html.is-upright [data-profile-screens] h1 + p {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+html.is-upright [data-profile-screens] [data-howto="prof.list"] > button,
+html.is-upright [data-profile-screens] [data-howto="prof.list"] ~ div > button {
+  margin: 6px !important;
+}
+html.is-upright [data-profile-screens] [data-howto="prof.list"] > button > div:first-child > div:first-child {
+  width: 84px !important;
+  height: 84px !important;
+}
+html.is-upright [data-profile-screens] [data-howto="prof.list"] > button > div:first-child > div:first-child > div:first-child {
+  font-size: 38px !important;
+}
+html.is-upright [data-profile-screens] [data-howto="prof.list"] > button > div:last-child {
+  font-size: 15px;
+  margin-top: 4px;
+  text-align: center;
+  overflow-wrap: anywhere;
+  max-width: 7rem;
+}
+html.is-touch [data-profile-screens] [data-focused="true"] {
+  box-shadow: none !important;
+}
+
+/* ── The voice overlay upright (Tronix 96bbbe2): the words get the width,
+   the mic and ✕ go under them (in one row the text ran a word per line). */
+html.is-upright [data-voice-overlay] {
+  padding: 0 10px max(env(safe-area-inset-bottom, 0px), 12px) !important;
+}
+html.is-upright [data-voice-overlay] > div {
+  padding: 16px !important;
+}
+html.is-upright [data-voice-row] {
+  flex-wrap: wrap;
+  row-gap: 12px;
+}
+html.is-upright [data-voice-row] > div:nth-child(2) {
+  flex: 1 1 calc(100% - 84px);
+}
+html.is-upright [data-voice-row] > div:nth-child(2) .text-2xl {
+  font-size: 1.25rem;
+  line-height: 1.6rem;
+}
+html.is-upright [data-voice-buttons] {
+  flex: 1 0 100%;
+  justify-content: flex-end;
+  margin-left: 0 !important;
+}
+html.is-upright [data-voice-buttons] button {
+  min-height: 44px;
+  min-width: 44px;
+}
+html.is-touch [data-voice-mic] {
+  --tw-ring-shadow: 0 0 #0000 !important;
+}
+
+/* ── The Buffering Guide upright (Tronix 8333f4e): the step's hint on a
+   line of its own over Back and Next (between them it ran a word a line). */
+html.is-upright [data-guide-footer] {
+  padding: 8px 12px max(env(safe-area-inset-bottom, 0px), 10px) !important;
+}
+html.is-upright [data-guide-footer] > div {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+html.is-upright [data-guide-footer] > div > p {
+  order: -1;
+  flex: 1 0 100%;
+  padding: 0;
+}
+html.is-upright [data-guide-footer] > div > div {
+  width: auto !important;
+}
+
+/* ── Game Day upright: the title over its league chips, which scroll. ── */
+html.is-upright :has(> [data-howto="gd.chips"]) {
+  flex-wrap: wrap;
+}
+html.is-upright [data-howto="gd.chips"] {
+  flex: 1 0 100%;
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-top: 8px;
+  padding-bottom: 2px;
+}
+html.is-upright [data-howto="gd.chips"] > button {
+  flex: 0 0 auto;
+  min-height: 40px;
+}
