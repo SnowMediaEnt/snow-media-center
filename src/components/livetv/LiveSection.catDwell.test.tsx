@@ -278,4 +278,37 @@ describe('Live TV: a category loads once the highlight rests on it for 1 s', () 
     expect(calls('1')).toBe(2);
     expect(text()).toContain('Testchan 1-1');
   });
+
+  it('a channel handed over in a category already loaded leaves no mark: passing over it later (after Update Channels) still rests', async () => {
+    await open();
+    await key('ArrowDown'); // Group 2
+    await rest(CATEGORY_DWELL_MS);
+    expect(calls('2')).toBe(1);
+    await key('ArrowUp'); // Group 1
+    await key('ArrowRight');
+    await key('Enter'); await keyUp('Enter'); // Testchan 1-1 full screen
+    await advance(0);
+    // A channel of Group 2 handed over (Game Day, the Guide): the list follows to Group 2, loaded already.
+    sessionStorage.setItem('smc-live-deeplink', JSON.stringify({ host: 'http://h.test', username: 'u', streamId: 202, categoryId: '2' }));
+    await act(async () => { window.dispatchEvent(new CustomEvent('smc:live-deeplink')); });
+    await flush();
+    await advance(0);
+    expect(calls('2')).toBe(1);
+    await key('Escape'); await key('Escape'); // the bar, then the picture
+    await advance(0);
+    await key('ArrowLeft'); // the categories, on Group 2
+    await key('ArrowDown'); // Group 3
+    await rest(CATEGORY_DWELL_MS);
+    // Update Channels drops every kept list; then the highlight passes over Group 2.
+    await act(async () => { window.dispatchEvent(new CustomEvent(XTREAM_REFRESH_EVENT)); });
+    await flush();
+    await advance(0);
+    const before = calls('2');
+    await key('ArrowUp'); // Group 2
+    await advance(300);
+    expect(calls('2')).toBe(before);
+    await key('ArrowUp'); // on to Group 1
+    await rest(CATEGORY_DWELL_MS);
+    expect(calls('2')).toBe(before);
+  });
 });

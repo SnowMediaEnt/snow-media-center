@@ -26,6 +26,8 @@ export interface RecentPanelOptions {
   hidden: ReadonlyMap<string, ReadonlySet<string>>;
   /** A Kids profile: the category ids each line lets it open. */
   kidsCats: () => ReadonlyMap<string, ReadonlySet<string>> | null;
+  /** Adult category ids per line (their channels never show). */
+  adultCats?: () => ReadonlyMap<string, ReadonlySet<string>> | null;
   /** The channel on screen (recentChannelId), to mark it and start past it. */
   playingId: () => string | null;
   /** OK on a row: the panel is already closed. */
@@ -49,7 +51,7 @@ export interface RecentPanel {
 
 const readRows = (o: RecentPanelOptions): RecentChannel[] => {
   try {
-    return recentChannelsFrom(loadWatchHistory(viewerKey()), o.lines, { hidden: o.hidden, kidsCats: kidsLevel() ? o.kidsCats() : null });
+    return recentChannelsFrom(loadWatchHistory(viewerKey()), o.lines, { hidden: o.hidden, kidsCats: kidsLevel() ? o.kidsCats() : null, adultCats: o.adultCats?.() ?? null });
   } catch { return []; }
 };
 

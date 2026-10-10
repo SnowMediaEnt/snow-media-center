@@ -40,6 +40,9 @@ export interface RecentChannelsFilter {
   hidden?: ReadonlyMap<string, ReadonlySet<string>> | null;
   /** A Kids profile: the category ids each line lets it open (null: not Kids). */
   kidsCats?: ReadonlyMap<string, ReadonlySet<string>> | null;
+  /** Adult category ids per line: their channels never show, whatever
+   *  category name history kept (it is the list's, e.g. Favorites). */
+  adultCats?: ReadonlyMap<string, ReadonlySet<string>> | null;
 }
 
 /** The rows, newest first. Pure. */
@@ -65,6 +68,7 @@ export function recentChannelsFrom(
     // The subtitle is the category's name, or the service's when none was known.
     const category = e.subtitle && e.subtitle !== ch.serverLabel ? e.subtitle : undefined;
     if (isAdultChannel({ name: e.title, categoryName: category })) continue;
+    if (cat && filter.adultCats?.get(lk)?.has(cat)) continue;
     if (cat && filter.hidden?.get(lk)?.has(cat)) continue;
     if (filter.kidsCats && !(cat && filter.kidsCats.get(lk)?.has(cat))) continue;
     seen.add(id);

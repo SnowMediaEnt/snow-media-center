@@ -26,16 +26,18 @@ vi.mock('@capacitor/app', () => ({ App: { addListener: async () => ({ remove: vi
 // Live TV: Back (Escape) from the picture asks the shell for the caller first.
 vi.mock('./livetv/LiveSection', async () => {
   const { useEffect } = await import('react');
-  const LiveSectionStub = ({ isActive, onExitLeft, onBackToCaller }: { isActive: boolean; onExitLeft: () => void; onBackToCaller?: () => boolean }) => {
+  const LiveSectionStub = ({ isActive, onExitLeft, onBackToCaller, onForgetGuideReturn }: { isActive: boolean; onExitLeft: () => void; onBackToCaller?: () => boolean; onForgetGuideReturn?: () => void }) => {
     useEffect(() => {
       if (!isActive) return;
       const h = (e: KeyboardEvent) => {
         if (e.key === 'Escape') { e.stopPropagation(); if (!onBackToCaller?.()) onExitLeft(); }
         if (e.key === 'ArrowLeft') onExitLeft();
+        // A channel picked inside Live TV (its list over the picture, Recently watched).
+        if (e.key === 'p') onForgetGuideReturn?.();
       };
       window.addEventListener('keydown', h);
       return () => window.removeEventListener('keydown', h);
-    }, [isActive, onExitLeft, onBackToCaller]);
+    }, [isActive, onExitLeft, onBackToCaller, onForgetGuideReturn]);
     return <div>live-section</div>;
   };
   return { default: LiveSectionStub };
@@ -135,6 +137,17 @@ describe("The Guide's channels play in Live TV's own player", () => {
     await settle();
     key('Escape'); // Live TV's own Back: no Guide
     await settle();
+    expect(screen.queryByText(/guide-section/)).toBeNull();
+  });
+
+  it('a channel then picked inside Live TV: Back is Live TV\'s own, not the Guide', async () => {
+    await openGuide();
+    key('Enter'); // the Guide hands a channel over
+    await settle();
+    expect(screen.getByText('live-section')).toBeTruthy();
+    key('p'); // another channel, picked from the list over the picture
+    key('Escape');
+    await settle(); await settle();
     expect(screen.queryByText(/guide-section/)).toBeNull();
   });
 });

@@ -151,6 +151,9 @@ interface Props {
   /** Back from where another screen sent the viewer (Game Day's Watch):
    *  true when it took them back there, so Live TV does nothing more. */
   onBackToCaller?: () => boolean;
+  /** A channel picked inside Live TV (the list over the picture, Recently
+   *  watched): Back from it is Live TV's own, no longer the Guide's. */
+  onForgetGuideReturn?: () => void;
 }
 
 
@@ -218,7 +221,7 @@ const favToStream = (f: FavChannel): XtreamLiveStream => ({
   epg_channel_id: f.epg_channel_id,
 });
 
-const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack, onNavigate, onBackToCaller }: Props) => {
+const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack, onNavigate, onBackToCaller, onForgetGuideReturn }: Props) => {
   const { t } = useTranslation();
   // The channel rows' words, translated once here (one t() per row would be one per visible row).
   const rowLabels = useMemo(() => channelRowLabels(t), [t]);
@@ -229,6 +232,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // to that game's list, not to Live TV's categories.
   const backToCallerRef = useRef(onBackToCaller);
   backToCallerRef.current = onBackToCaller;
+  const clearCallerRef = useRef(onForgetGuideReturn);
+  clearCallerRef.current = onForgetGuideReturn;
   // ── every signed-in line, in one pane ──────────────────────────────────
   // The active line (`creds`) drives Movies, Series and the account screen;
   // here it is simply first. Every other saved account follows as its own
@@ -251,6 +256,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   // Folded groups, remembered on the box.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsedLines());
+  const collapsedRef = useRef(collapsed);
+  collapsedRef.current = collapsed;
   const toggleCollapsed = useCallback((k: string) => {
     setCollapsed((prev) => {
       const n = new Set(prev);
@@ -632,7 +639,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const chOverlayOpenRef = useRef(false);
   chOverlayOpenRef.current = chOverlayOpen;
   const overlayTimerRef = useRef<number | null>(null);
-  const overlaySavedRef = useRef<{ categoryIdx: number; pane: Pane } | null>(null);
+  // The category by its entry id (line + category), not its place: a service
+  // folded in the overlay, or another service's categories arriving, moves
+  // every place after it.
+  const overlaySavedRef = useRef<{ entryId: string | null; lineKey: string | null; pane: Pane } | null>(null);
+  // A category to put back once its folded service is open again.
+  const restoreCatIdRef = useRef<string | null>(null);
   // After a restore, point the list back at the playing channel once the
   // restored category's channels are in (see the effect by the list refs).
   const refocusPlayingRef = useRef(false);
@@ -652,11 +664,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     clearOverlayTimer();
     if (ovHoldRef.current) { window.clearTimeout(ovHoldRef.current.timer); ovHoldRef.current = null; }
   }, [clearOverlayTimer]);
+  // Closed when full screen ends, and when Live TV loses the remote (the
+  // voice overlay, a dialog over the Player), as Recently watched is.
   useEffect(() => {
-    if (fullscreen) return;
+    if (fullscreen && isActive) return;
+    // Over the picture still: closed as Back closes it (the list put back).
+    if (fullscreen && chOverlayOpenRef.current) { closeChannelOverlayRef.current(true); return; }
     clearOverlayTimer();
+    if (ovHoldRef.current) { window.clearTimeout(ovHoldRef.current.timer); ovHoldRef.current = null; }
     setChOverlayOpen(false);
-  }, [fullscreen, clearOverlayTimer]);
+  }, [fullscreen, isActive, clearOverlayTimer]);
 
   // Reset bar state when entering fullscreen or switching channel (the
   // line too: another service's channel can have the same id).
@@ -1115,8 +1132,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       if (idx < 0) { if (categoriesByLine.has(f.key)) followRef.current = null; return; }
       f.moved = true;
       userMovedRef.current = true;
-      catAtOnceRef.current = entryId;
-      if (idx !== categoryIdx) { setCategoryIdx(idx); return; }
+      if (idx !== categoryIdx) {
+        // Only a list still to download: one in hand never reaches the load
+        // effect, and the mark left behind skipped a later pass-over's rest.
+        if (!streamsByCat.has(entryId)) catAtOnceRef.current = entryId;
+        setCategoryIdx(idx);
+        return;
+      }
+      // The list is on it already, maybe still resting: no rest.
+      catLoadNowRef.current?.();
     }
     if (currentCat?.id !== entryId || searchOpen) { followRef.current = null; return; }
     if (playingInList) {
@@ -1477,9 +1501,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => () => { if (watchRecordTimerRef.current) window.clearTimeout(watchRecordTimerRef.current); }, []);
   // What is on screen right now, for the watch timer below.
   const watchingRef = useRef<{ channel: string; category: string } | null>(null);
+  const followOnPlayRef = useRef<{ st: XtreamLiveStream; run: () => void } | null>(null);
   // `catName`: the category to file the play under when it is not the one
   // the list shows (a Recently watched pick).
   const playChannel = useCallback((stream: XtreamLiveStream, catNameIn?: string) => {
+    // What waits for this very stream to play (a Recently watched pick's
+    // list follow); any other play drops it.
+    const onPlay = followOnPlayRef.current;
+    followOnPlayRef.current = null;
+    if (onPlay && onPlay.st === stream) onPlay.run();
     const line = lineFor(stream);
     playedStreamRef.current = stream;
     setPlayingLine(line);
@@ -1493,7 +1523,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const last = lastPlayRef.current;
       if (!last || last.id !== stream.stream_id || now - last.ts > 10_000) {
         lastPlayRef.current = { id: stream.stream_id, ts: now };
-        const catName = catNameIn ?? visibleCategories.find(c => c.id === (currentCat?.id ?? ''))?.name
+        // The channel's own category on its own line (a Guide hand-over, a
+        // search pick or a zap is not filed under the list on screen); the
+        // list's only when the line's categories don't name it.
+        const ownCat = stream.category_id != null
+          ? (categoriesByLine.get(lineKey(line)) ?? []).find((c) => String(c.category_id) === String(stream.category_id))?.category_name
+          : undefined;
+        const catName = catNameIn ?? ownCat ?? visibleCategories.find(c => c.id === (currentCat?.id ?? ''))?.name
           ?? currentCat?.name ?? '';
         watchingRef.current = { channel: stream.name, category: catName };
         // Into history only once it has stayed on screen: zapping through
@@ -1514,7 +1550,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         });
       }
     } catch { /* ignore */ }
-  }, [visibleCategories, currentCat, lineFor]);
+  }, [visibleCategories, currentCat, lineFor, categoriesByLine]);
 
   // OK on a channel goes full screen; the preview box already shows it.
   // One the others reported down (itself or its whole category) or
@@ -1993,7 +2029,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // highlighted once that category's channels are in; else where the list is.
   const openChannelOverlay = useCallback(() => {
     hideBarNow();
-    overlaySavedRef.current = { categoryIdx: categoryIdxRef.current, pane: paneRef.current };
+    const was = visibleCategoriesRef.current[categoryIdxRef.current];
+    overlaySavedRef.current = { entryId: was?.id ?? null, lineKey: was?.lineKey ?? null, pane: paneRef.current };
     const chans = visibleChannelsRef.current;
     const i = playingIndexIn(chans);
     const st = playingStreamRef.current;
@@ -2002,8 +2039,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       setPane('channels');
       // Closed without a pick, the list stays on that category (▲▼ zap there).
       const k = lineKey(playingLineRef.current);
-      const own = visibleCategoriesRef.current.findIndex((c) => c.lineKey === k && c.catId === String(st.category_id));
-      overlaySavedRef.current = { categoryIdx: own, pane: 'channels' };
+      const own = visibleCategoriesRef.current.find((c) => c.lineKey === k && c.catId === String(st.category_id));
+      overlaySavedRef.current = { entryId: own?.id ?? null, lineKey: own?.lineKey ?? null, pane: 'channels' };
     }
     else setPane(chans.length ? 'channels' : 'categories');
     setChOverlayOpen(true);
@@ -2018,16 +2055,31 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const saved = overlaySavedRef.current;
     overlaySavedRef.current = null;
     if (!restore || !saved) return;
-    if (saved.categoryIdx !== categoryIdxRef.current) {
-      setCategoryIdx(saved.categoryIdx);
+    // Where that category is now. Its service folded in the overlay: opened
+    // again, and the category found once it is listed (the effect below).
+    const at = saved.entryId != null ? visibleCategoriesRef.current.findIndex((c) => c.id === saved.entryId) : -1;
+    if (at < 0 && saved.entryId && saved.lineKey && collapsedRef.current.has(saved.lineKey)) {
+      restoreCatIdRef.current = saved.entryId;
+      refocusPlayingRef.current = true;
+      toggleCollapsed(saved.lineKey);
+    } else if (at >= 0 && at !== categoryIdxRef.current) {
+      setCategoryIdx(at);
       refocusPlayingRef.current = true;
     } else {
       const i = playingIndexIn(visibleChannelsRef.current);
       if (i >= 0) setChannelIdx(i);
     }
     setPane(saved.pane);
-  }, [clearOverlayTimer, playingIndexIn]);
+  }, [clearOverlayTimer, playingIndexIn, toggleCollapsed]);
   closeChannelOverlayRef.current = closeChannelOverlay;
+  useEffect(() => {
+    const id = restoreCatIdRef.current;
+    if (!id) return;
+    const at = visibleCategories.findIndex((c) => c.id === id);
+    if (at < 0) return;
+    restoreCatIdRef.current = null;
+    setCategoryIdx(at);
+  }, [visibleCategories]);
   // Declared after the "reset channel focus on a new category" effect, so it
   // runs after it in the same commit.
   useEffect(() => {
@@ -2040,6 +2092,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // the others reported it down, as in the list); the list stays on it.
   const pickFromOverlay = useCallback((ch: XtreamLiveStream) => {
     closeChannelOverlay(false);
+    // Back from it goes to this channel's list, not to where the last one
+    // was opened from (the Guide, Game Day).
+    clearCallerRef.current?.();
     activateChannelRef.current(ch);
   }, [closeChannelOverlay]);
   const pickFromOverlayRef = useRef(pickFromOverlay);
@@ -2057,6 +2112,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     hidden,
     // A Kids profile's categories are already only the ones it may open.
     kidsCats: () => new Map(lines.map((l) => [lineKey(l), new Set((categoriesByLine.get(lineKey(l)) ?? []).map((c) => String(c.category_id)))])),
+    adultCats: () => adultCatsByLine,
     playingId: () => (playingIdRef.current ? recentChannelId(playingLineRef.current, playingIdRef.current) : null),
     onPick: (c) => playRecentRef.current(c),
   });
@@ -2069,9 +2125,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const at = chans.findIndex((st) => st.stream_id === c.stream.stream_id && lineKey(lineFor(st)) === k);
     const st = at >= 0 ? chans[at] : { ...c.stream };
     if (at < 0) streamLineRef.current.set(st, c.line);
-    if (at >= 0) setChannelIdx(at);
-    else followToCategory(c.line, st);
-    setPane('channels');
+    // The list follows only once it plays: the reported-down warning's "Pick
+    // another" leaves the list (and the search) as they were.
+    followOnPlayRef.current = {
+      st,
+      run: () => {
+        // Back from it goes to this channel's list, not the Guide.
+        clearCallerRef.current?.();
+        if (at >= 0) setChannelIdx(at);
+        else followToCategory(c.line, st);
+        setPane('channels');
+      },
+    };
     const own = st.category_id != null
       ? categoriesByLine.get(k)?.find((x) => String(x.category_id) === String(st.category_id))?.category_name
       : undefined;

@@ -380,6 +380,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, []);
   useEffect(() => { if (section !== 'live') guideReturnRef.current = null; }, [section]);
   const backToCaller = useCallback(() => backToGameDay() || backToGuide(), [backToGameDay, backToGuide]);
+  // A channel picked inside Live TV afterwards (its list over the picture,
+  // Recently watched): Back returns to where that channel was opened from.
+  const forgetGuideReturn = useCallback(() => { guideReturnRef.current = null; }, []);
   const onExitUp = useCallback(() => {
     headerReturnPaneRef.current = 'content';
     setPane('header');
@@ -1240,6 +1243,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onBack={onBack}
             onNavigate={navigateViaRef}
             onBackToCaller={backToCaller}
+            onForgetGuideReturn={forgetGuideReturn}
           />
         )}
 

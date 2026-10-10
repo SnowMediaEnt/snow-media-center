@@ -44,6 +44,16 @@ describe('Recently watched channels', () => {
     expect(rows.map((r) => r.name)).toEqual(['Harbor News']);
   });
 
+  it("a channel in an adult category stays out even when history kept the list's name (Favorites)", () => {
+    const rows = recentChannelsFrom([
+      chan(A, 1, 'Harbor News', 100),
+      chan(A, 2, 'Velvet Lounge', 300, '9', 'Favorites'),
+      chan(B, 2, 'Velvet Lounge', 200, '9', 'Favorites'),
+    ], [A, B], { adultCats: new Map([['a.test|u', new Set(['9'])]]) });
+    // Only line A's category 9 is adult: B's same id is another category.
+    expect(rows.map((r) => r.id)).toEqual([recentChannelId(B, 2), recentChannelId(A, 1)]);
+  });
+
   it('the last 10 channels, newest first, a channel watched twice once', () => {
     expect(RECENT_CHANNELS_MAX).toBe(10);
     // Twelve channels, the first watched again last: 12 different channels in all.

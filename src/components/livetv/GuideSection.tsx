@@ -312,6 +312,9 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const catLoadRef = useRef({ creds, category: currentCategory, openedNow: catOpenedNow });
   catLoadRef.current = { creds, category: currentCategory, openedNow: catOpenedNow };
   const catLoadNowRef = useRef<(() => void) | null>(null);
+  // Which category the rows in `streams` are (Update Channels keeps them on
+  // screen while the same category loads again).
+  const streamsForRef = useRef<string | null>(null);
   const catSeenRef = useRef<{ key: string | null | undefined; refresh: number }>({ key: undefined, refresh: refreshTick });
   useEffect(() => {
     const changed = catSeenRef.current.key !== catLoadKey;
@@ -323,6 +326,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       // Favorites (or nothing yet): nothing to download, and the last
       // category's list is not kept behind it.
       setStreams([]);
+      streamsForRef.current = null;
       setChannelsLoading(false);
       return;
     }
@@ -331,7 +335,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     let t = 0;
     const catId = String(category.category_id);
     const kept = !DEMO && hasLiveStreams(line, catId);
-    if (changed) setStreams([]);
+    if (changed) { setStreams([]); streamsForRef.current = null; }
     setChannelsLoading(true);
     const start = () => {
       if (started || cancelled) return;
@@ -339,8 +343,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       window.clearTimeout(t);
       if (catLoadNowRef.current === start) catLoadNowRef.current = null;
       fetchLiveStreams(line, catId)
-        .then(list => { if (!cancelled) setStreams(list || []); })
-        .catch(() => { if (!cancelled) setStreams([]); })
+        .then(list => { if (!cancelled) { setStreams(list || []); streamsForRef.current = catLoadKey; } })
+        .catch(() => { if (!cancelled) { setStreams([]); streamsForRef.current = catLoadKey; } })
         .finally(() => { if (!cancelled) setChannelsLoading(false); });
     };
     t = window.setTimeout(start, openedNow || refreshed ? 0 : kept ? KEPT_CATEGORY_SETTLE_MS : CATEGORY_DWELL_MS);
@@ -610,8 +614,12 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     // TV's options). Back from the picture comes back here.
     if (onWatchRef.current && !DEMO) {
       // The list on screen is still the last category's (the next one loads):
-      // nothing to pick yet.
-      if (listLoading) return;
+      // nothing to pick yet, and it says so. The same category loading again
+      // (Update Channels): its rows play.
+      if (listLoading && streamsForRef.current !== catLoadKey) {
+        toast({ title: t('guide.loadingChannels') });
+        return;
+      }
       const place: GuidePlace = {
         line: lineKey(creds),
         cat: onFavorites ? 'fav' : String(currentCategory?.category_id ?? ''),
@@ -629,7 +637,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     }
     setPlayingChannelId(ch.stream_id);
     setFullscreen(true);
-  }, [channels, creds, onFavorites, currentCategory, windowStart, listLoading]);
+  }, [channels, creds, onFavorites, currentCategory, windowStart, listLoading, catLoadKey, t]);
   // For the key listeners: a new copy of playRow (a list landing, the time
   // moved) must not re-subscribe them, which cancelled a hold under way.
   const playRowRef = useRef(playRow);

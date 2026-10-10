@@ -417,6 +417,63 @@ describe('two services', () => {
   });
 });
 
+describe('the list over the picture puts back the category itself, not its place', () => {
+  it("a service folded inside it moves every place after it: Back puts back the playing channel's own category (the service opened again), never another service's", async () => {
+    h.saved = [{ id: 'two', serverLabel: second.serverLabel, host: second.host, username: second.username, password: second.password, output: 'ts', addedAt: 1 }];
+    render(<LiveSection creds={creds} isActive onExitLeft={vi.fn()} onBack={vi.fn()} />);
+    await until(() => text().includes('Valley TV') && text().includes('News One'));
+    press('ArrowRight');
+    await until(() => listFocus().includes('News One'));
+    press('Enter'); // News One, full screen
+    await until(() => barUp() && fullScreen());
+    press('Escape'); // hides the bar
+    press('ArrowLeft'); // the list over the picture, on News
+    await until(() => overlayFocus().includes('News One'));
+    press('ArrowLeft'); // its categories
+    // Up to the first service's header and fold it: Valley's categories move up into News's place.
+    const catFocus = () => overlay()!.querySelector('[data-overlay-cat][data-focused="true"]')?.textContent ?? '';
+    for (let i = 0; i < 15 && !catFocus().includes('Acme TV'); i++) { press('ArrowUp'); await settle(5); }
+    expect(catFocus()).toContain('Acme TV');
+    press('Enter');
+    await settle(20);
+    expect(overlay()!.textContent).not.toContain('Sports');
+    press('Escape'); // closes the list over the picture, nothing picked
+    expect(overlay()).toBeNull();
+    await settle(20);
+    press('Escape'); // leaves the picture: the list on News One, in News
+    await until(() => !fullScreen());
+    await until(() => listFocus().includes('News One'));
+    expect(listFocus()).toContain('News One');
+    expect(text()).not.toContain('Valley One');
+  });
+});
+
+describe('a channel picked inside Live TV is no longer the Guide\'s', () => {
+  it('a pick in the list over the picture, or in Recently watched, tells the Player to forget the Guide (Back is Live TV\'s own)', async () => {
+    const forget = vi.fn();
+    render(<LiveSection creds={creds} isActive onExitLeft={vi.fn()} onBack={vi.fn()} onForgetGuideReturn={forget} />);
+    await until(() => text().includes('News One'));
+    press('ArrowRight');
+    await until(() => listFocus().includes('News One'));
+    press('Enter');
+    await until(() => barUp() && fullScreen());
+    expect(forget).not.toHaveBeenCalled();
+    press('Escape');
+    press('ArrowLeft'); // the list over the picture
+    press('ArrowDown');
+    press('Enter'); // News Two
+    await until(() => playing().endsWith('/102.ts'));
+    expect(forget).toHaveBeenCalledTimes(1);
+    await until(barUp);
+    press('Escape');
+    press('ArrowRight'); // Recently watched
+    await until(() => !!panel());
+    press('Enter');
+    await settle(20);
+    expect(forget).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('search finds no adult channel', () => {
   it('"nc" lists the channels named so, never one from an adult category; "xxx" / "adult" find none', async () => {
     render(<LiveSection creds={creds} isActive onExitLeft={vi.fn()} onBack={vi.fn()} />);
