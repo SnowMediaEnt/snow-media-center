@@ -582,7 +582,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
 
 
-  // --- Fullscreen control bar (TiviMate-style) ---
+  // --- Fullscreen control bar ---
   const videoControllerRef = useRef<VideoController | null>(null);
   const [barVisible, setBarVisible] = useState(true);
   const [barFocus, setBarFocus] = useState<BarControlId>('play');
@@ -2945,7 +2945,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             grouped={grouped}
             channels={visibleChannels}
             channelIdx={safeChannelIdx}
-            channelsTitle={searchOpen ? t('live.categories.search') : (currentCat ? catLabel(currentCat) : t('live.categories.channels'))}
+            // With two or more services, the category's service too.
+            channelsTitle={searchOpen ? t('live.categories.search')
+              : !currentCat ? t('live.categories.channels')
+                : grouped && !currentCat.isAllFavs && !currentCat.isHeader ? `${lineLabel(currentCat.line)} · ${catLabel(currentCat)}` : catLabel(currentCat)}
             loading={channelsLoading}
             isPlaying={isPlayingRow}
             isFavorite={isFav}

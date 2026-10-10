@@ -404,7 +404,13 @@ describe('two services', () => {
     // The bar names the new channel (the same id as the one before, on another line).
     await until(() => barTitle().includes('Valley One'));
     expect(barTitle()).toBe('1 · Valley One');
-    press('Escape');
+    press('Escape'); // hides the bar
+    // ◀: the list over the picture, on Valley One in its service's category.
+    press('ArrowLeft');
+    await until(() => overlayFocus().includes('Valley One'));
+    expect(overlay()!.textContent).toContain('Valley TV · Valley');
+    press('Escape'); // closes it
+    expect(overlay()).toBeNull();
     press('Escape');
     await until(() => listFocus().includes('Valley One'));
     expect(listFocus()).toContain('Valley One');
