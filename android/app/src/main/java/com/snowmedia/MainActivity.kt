@@ -163,36 +163,71 @@ class MainActivity : BridgeActivity() {
         return !pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
     }
 
-    // Phones and tablets get SMC's TV layout, sideways and scaled to fit:
-    // full screen like a TV (no status or navigation bar; a swipe shows them
-    // for a moment), turned sideways, and the page drawn so the screen is
-    // TV_HEIGHT_CSS points tall, the height every screen is designed for.
-    // Only when the screen is shorter than that (phones): a tablet that
-    // already has the room keeps its own size. A TV is never touched.
+    // Phones and tablets. Sideways: SMC's TV layout, scaled to fit and full
+    // screen like a TV (no status or navigation bar; a swipe shows them for a
+    // moment), the page drawn so the screen is TV_HEIGHT_CSS points tall, the
+    // height every screen is designed for. Only when the screen is shorter
+    // than that (phones): a tablet that already has the room keeps its own
+    // size. Upright (a phone, or a tablet narrower than UPRIGHT_MAX_DP): the
+    // page's own upright phone layout at its natural size (src/lib/phoneMode.ts,
+    // html.is-upright), with the status and navigation bars. The screen turns
+    // with the phone (the viewer's auto-rotate setting decides); turning it
+    // never restarts the activity (configChanges in the manifest), it only
+    // comes back through onConfigurationChanged. A wider tablet stays
+    // sideways, as before. A TV is never touched.
+    private var fitsTouchScreen = false
+
     private fun fitTvLayoutOnTouchScreen() {
         if (isTvDevice()) return
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            hide(WindowInsetsCompat.Type.systemBars())
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        fitsTouchScreen = true
+        val shortDp = screenShortPx() / resources.displayMetrics.density
+        requestedOrientation = if (shortDp < UPRIGHT_MAX_DP) {
+            ActivityInfo.SCREEN_ORIENTATION_USER
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
+        fitOrientation(resources.configuration.orientation)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (fitsTouchScreen && !blocked) fitOrientation(newConfig.orientation)
+    }
+
+    /** The real screen's shorter side, bars included (they are hidden sideways). */
+    private fun screenShortPx(): Int {
         val dm = resources.displayMetrics
-        val shortPx = minOf(dm.widthPixels, dm.heightPixels)
-        // The real screen, bars included: they are hidden.
         val real = android.util.DisplayMetrics()
         @Suppress("DEPRECATION")
         windowManager.defaultDisplay.getRealMetrics(real)
-        val screenShortPx = minOf(real.widthPixels, real.heightPixels).coerceAtLeast(shortPx)
-        if (screenShortPx / dm.density >= TV_HEIGHT_CSS) return
-        val percent = (screenShortPx * 100 / TV_HEIGHT_CSS).toInt()
-        Log.i("SMC-Phone", "Touch screen: sideways, TV layout scaled to $percent% (short side ${screenShortPx}px)")
+        return minOf(real.widthPixels, real.heightPixels).coerceAtLeast(minOf(dm.widthPixels, dm.heightPixels))
+    }
+
+    private fun fitOrientation(orientation: Int) {
+        val upright = orientation == Configuration.ORIENTATION_PORTRAIT
+        WindowCompat.setDecorFitsSystemWindows(window, upright)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            if (upright) {
+                show(WindowInsetsCompat.Type.systemBars())
+            } else {
+                hide(WindowInsetsCompat.Type.systemBars())
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        }
+        val shortPx = screenShortPx()
+        // 0: the WebView's own scale (the page's 1:1).
+        val percent = if (upright || shortPx / resources.displayMetrics.density >= TV_HEIGHT_CSS) 0
+            else (shortPx * 100 / TV_HEIGHT_CSS).toInt()
+        Log.i("SMC-Phone", "Touch screen: ${if (upright) "upright, phone layout" else "sideways, TV layout"} at ${if (percent == 0) "its own size" else "$percent%"} (short side ${shortPx}px)")
         bridge?.webView?.setInitialScale(percent)
     }
 
     private companion object {
         /** The height every SMC screen is designed for (CSS px), as on a TV. */
         const val TV_HEIGHT_CSS = 540f
+        /** Narrower than this (dp), a touch screen may be held upright: phones,
+         *  and tablets up to a Fire HD 10 (phoneMode.ts UPRIGHT_TABLET_MAX_WIDTH). */
+        const val UPRIGHT_MAX_DP = 820f
     }
 
 }
