@@ -258,7 +258,10 @@
       "addToScreen": "Ajouter une chaîne à l'écran {{n}}",
       "pickCategoryHint": "Choisissez une catégorie, puis appuyez sur Droite",
       "pressOkHint": "Appuyez sur OK pour lire · Gauche pour les catégories · Retour pour fermer",
-      "bufferingHint": "Ça coupe ? Votre forfait n'a peut-être pas assez de connexions (4 écrans en demandent 4) ou votre appareil n'est pas assez puissant — essayez avec moins d'écrans."
+      "bufferingHint": "Ça coupe ? Votre forfait n'a peut-être pas assez de connexions (4 écrans en demandent 4) ou votre appareil n'est pas assez puissant — essayez avec moins d'écrans.",
+      "screens3": "3 écrans",
+      "bigPlusTwo": "1 grand + 2 petits",
+      "swapHint": "OK sur un petit écran : le voir en grand. Maintenez OK : options."
     },
     "errors": {
       "invalidLogin": "Nom d'utilisateur ou mot de passe incorrect.",

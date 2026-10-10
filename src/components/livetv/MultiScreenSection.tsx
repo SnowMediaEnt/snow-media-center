@@ -30,11 +30,11 @@ import {
 } from '@/hooks/useMultiScreenPlayers';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
+import { LAYOUT_ORDER, MAIN_TILE, layoutNeighbor, okSwapsIntoMain, soundTile, tilesForLayout, type Layout } from './multiScreenLayout';
 
 // Demo latch (?demo=1) — false on native, so dead code in the APK.
 const DEMO = isDemo();
 
-type Layout = '2h' | '2v' | '4';
 
 interface Props {
   creds: XtreamCreds;
@@ -55,55 +55,11 @@ interface TileState {
 // be a 40% side panel split in two, which left ~200px for channel names.
 const ROW_HEIGHT = 76;
 const CAT_ROW_HEIGHT = 60;
-
-const LAYOUT_TILE_COUNT: Record<Layout, number> = { '2h': 2, '2v': 2, '4': 4 };
+/** OK held this long = the screen's options (as in Live TV's lists). */
+const HOLD_MS = 600;
 
 // Once dismissed the 4-grid buffering hint stays hidden for the session.
 let hintDismissedForSession = false;
-
-const tilesForLayout = (layout: Layout): Array<{ id: MultiScreenId; rect: { left: string; top: string; width: string; height: string } }> => {
-  if (layout === '2h') {
-    return [
-      { id: 'ms1', rect: { left: '0%', top: '0%', width: '50%', height: '100%' } },
-      { id: 'ms2', rect: { left: '50%', top: '0%', width: '50%', height: '100%' } },
-    ];
-  }
-  if (layout === '2v') {
-    return [
-      { id: 'ms1', rect: { left: '0%', top: '0%', width: '100%', height: '50%' } },
-      { id: 'ms2', rect: { left: '0%', top: '50%', width: '100%', height: '50%' } },
-    ];
-  }
-  return [
-    { id: 'ms1', rect: { left: '0%', top: '0%', width: '50%', height: '50%' } },
-    { id: 'ms2', rect: { left: '50%', top: '0%', width: '50%', height: '50%' } },
-    { id: 'ms3', rect: { left: '0%', top: '50%', width: '50%', height: '50%' } },
-    { id: 'ms4', rect: { left: '50%', top: '50%', width: '50%', height: '50%' } },
-  ];
-};
-
-const layoutNeighbor = (layout: Layout, idx: number, dir: 'up' | 'down' | 'left' | 'right'): number | null => {
-  if (layout === '2h') {
-    if (dir === 'left' && idx === 1) return 0;
-    if (dir === 'right' && idx === 0) return 1;
-    return null;
-  }
-  if (layout === '2v') {
-    if (dir === 'up' && idx === 1) return 0;
-    if (dir === 'down' && idx === 0) return 1;
-    return null;
-  }
-  // 4 grid: 0 1 / 2 3
-  const row = idx < 2 ? 0 : 1;
-  const col = idx % 2;
-  let r = row, c = col;
-  if (dir === 'up') r = Math.max(0, row - 1);
-  else if (dir === 'down') r = Math.min(1, row + 1);
-  else if (dir === 'left') c = Math.max(0, col - 1);
-  else if (dir === 'right') c = Math.min(1, col + 1);
-  const n = r * 2 + c;
-  return n === idx ? null : n;
-};
 
 const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previewOnly = false }: Props) => {
   const { t } = useTranslation();
@@ -123,6 +79,10 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   const [categoryIdx, setCategoryIdx] = useState(0);
   const [channelIdx, setChannelIdx] = useState(0);
   const [showHint, setShowHint] = useState(false);
+
+  // Hold OK on a small screen of the 3-screen layout: its options.
+  const holdTimerRef = useRef<number | null>(null);
+  const holdFiredRef = useRef(false);
 
   const [tiles, setTiles] = useState<TileState[]>(() => [
     { channel: null }, { channel: null }, { channel: null }, { channel: null },
@@ -312,7 +272,9 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   // url, NOT the whole `slots` object: every buffering flip on any tile used
   // to re-run this and fan out eight serialized bridge calls across the grid.
   // loadSlot / closeTile already call focusAudio explicitly.
-  const focusedSid = layout ? tilesForLayout(layout)[focusedTile]?.id : undefined;
+  // The tile with the sound: the highlighted one, except in the 3-screen
+  // layout where the big screen keeps it (multiScreenLayout soundTile).
+  const focusedSid = layout ? tilesForLayout(layout)[soundTile(layout, focusedTile)]?.id : undefined;
   const focusedHasUrl = !!(focusedSid && slots[focusedSid]?.url);
   useEffect(() => {
     if (!focusedSid) return;
@@ -377,10 +339,11 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       await loadSlot(sid, url);
       // Audio follows the highlighter: only grab audio if the loaded tile is
       // still under it; otherwise re-assert the currently focused tile.
-      if (focusedTileRef.current === tileIdx) {
+      const soundIdx = soundTile(layoutRef.current!, focusedTileRef.current);
+      if (soundIdx === tileIdx) {
         await focusAudio(sid);
       } else {
-        const fsid = tilesForLayout(layoutRef.current!)[focusedTileRef.current]?.id;
+        const fsid = tilesForLayout(layoutRef.current!)[soundIdx]?.id;
         await focusAudio(fsid && slotsRef.current[fsid]?.url ? fsid : null);
       }
       void fetchEpgForTile(tileIdx, ch.stream_id);
@@ -400,10 +363,38 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       copy[tileIdx] = { channel: null };
       return copy;
     });
-    // Refocus audio to first remaining
+    // Refocus audio: the big screen in the 3-screen layout, else the first remaining
+    const soundIdx = soundTile(layout, focusedTileRef.current);
+    if (layout === '3' && soundIdx !== tileIdx && tilesRef.current[soundIdx]?.channel) { await focusAudio(spec[soundIdx].id); return; }
     const firstRemaining = spec.findIndex((sp, i) => i !== tileIdx && tilesRef.current[i]?.channel);
     if (firstRemaining >= 0) await focusAudio(spec[firstRemaining].id); else await focusAudio(null);
   }, [layout, closeSlot, focusAudio]);
+
+  // 3-screen layout: OK on a small screen puts its channel in the big one
+  // (with the sound) and the big one's channel in that small one. Both slots
+  // just load the other's stream: no re-layout, and the picture is back in a
+  // second or two.
+  const swapIntoMain = useCallback(async (tileIdx: number) => {
+    if (!layout || DEMO) return;
+    const spec = tilesForLayout(layout);
+    const mainSid = spec[MAIN_TILE]?.id;
+    const smallSid = spec[tileIdx]?.id;
+    const small = tilesRef.current[tileIdx];
+    const main = tilesRef.current[MAIN_TILE];
+    if (!mainSid || !smallSid || !small?.channel) return;
+    setTiles(prev => {
+      const copy = prev.slice();
+      copy[MAIN_TILE] = { channel: small.channel, nowNext: small.nowNext };
+      copy[tileIdx] = main?.channel ? { channel: main.channel, nowNext: main.nowNext } : { channel: null };
+      return copy;
+    });
+    setFocusedTile(MAIN_TILE);
+    await loadSlot(mainSid, buildNativeLiveUrl(creds, small.channel.stream_id));
+    await focusAudio(mainSid);
+    if (main?.channel) await loadSlot(smallSid, buildNativeLiveUrl(creds, main.channel.stream_id));
+    else await closeSlot(smallSid);
+    if (!DEMO) { try { trackEvent('multi_screen_swap', 'player', { layout }); } catch { /* ignore */ } }
+  }, [layout, loadSlot, closeSlot, focusAudio, creds]);
 
   const openTileMenu = useCallback(() => {
     setTileMenuIdx(0);
@@ -437,7 +428,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     requestAnimationFrame(() => {
       measureAndApply();
       const fsid = layoutRef.current
-        ? tilesForLayout(layoutRef.current)[focusedTileRef.current]?.id
+        ? tilesForLayout(layoutRef.current)[soundTile(layoutRef.current, focusedTileRef.current)]?.id
         : undefined;
       void focusAudio(fsid && slotsRef.current[fsid]?.url ? fsid : null);
     });
@@ -520,11 +511,10 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
           else setPickerIdx(i => Math.max(0, i - 1));
           return;
         }
-        if (e.key === 'ArrowRight') { consume(e); setPickerIdx(i => Math.min(2, i + 1)); return; }
+        if (e.key === 'ArrowRight') { consume(e); setPickerIdx(i => Math.min(LAYOUT_ORDER.length - 1, i + 1)); return; }
         if (e.key === 'Enter' || e.key === ' ') {
           consume(e);
-          const opts: Layout[] = ['2h', '2v', '4'];
-          chooseLayout(opts[pickerIdxRef.current]);
+          chooseLayout(LAYOUT_ORDER[pickerIdxRef.current]);
         }
         return;
       }
@@ -602,17 +592,51 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         }
         return;
       }
+      // The remote's Menu (≡): the highlighted screen's options, on any
+      // layout (the only way to a small screen's menu in the 3-screen one).
+      if (e.key === 'ContextMenu' || e.keyCode === 82) {
+        consume(e);
+        if (tilesRef.current[focusedTileRef.current]?.channel) openTileMenu();
+        return;
+      }
       if (e.key === 'Enter' || e.key === ' ') {
         consume(e);
         const tIdx = focusedTileRef.current;
         const t = tilesRef.current[tIdx];
+        if (t?.channel && okSwapsIntoMain(layoutRef.current, tIdx)) {
+          // A small screen of the 3-screen layout: OK swaps it into the big
+          // one when let go; held, its options (the remote's Menu key never
+          // reaches the page on a Fire TV). Repeats don't restart the hold.
+          if (e.repeat || holdTimerRef.current || holdFiredRef.current) return;
+          holdTimerRef.current = window.setTimeout(() => {
+            holdTimerRef.current = null;
+            holdFiredRef.current = true;
+            openTileMenu();
+          }, HOLD_MS);
+          return;
+        }
         if (t?.channel) openTileMenu();
         else openPickerForTile(tIdx);
       }
     };
+    const upHandler = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (holdTimerRef.current) {
+        window.clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+        const tIdx = focusedTileRef.current;
+        if (layoutRef.current && okSwapsIntoMain(layoutRef.current, tIdx) && tilesRef.current[tIdx]?.channel) void swapIntoMain(tIdx);
+      }
+      holdFiredRef.current = false;
+    };
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, native, chooseLayout, enterFullscreen, openPickerForTile, closeTile, exitFullscreen, stopAll, openTileForChannel, focusAudio, onExitLeft, onExitUp]);
+    window.addEventListener('keyup', upHandler, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', upHandler, true);
+      if (holdTimerRef.current) { window.clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
+    };
+  }, [isActive, native, chooseLayout, enterFullscreen, openPickerForTile, closeTile, exitFullscreen, stopAll, openTileForChannel, focusAudio, onExitLeft, onExitUp, swapIntoMain]);
 
   // Hardware back
   useEffect(() => {
@@ -655,6 +679,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     const cards: Array<{ id: Layout; label: string; sub: string; need: number }> = [
       { id: '2h', label: t('live.multi.screens2'), sub: t('live.multi.sideBySide'), need: 2 },
       { id: '2v', label: t('live.multi.screens2'), sub: t('live.multi.stacked'), need: 2 },
+      { id: '3',  label: t('live.multi.screens3'), sub: t('live.multi.bigPlusTwo'), need: 3 },
       { id: '4',  label: t('live.multi.screens4'), sub: t('live.multi.grid'), need: 4 },
     ];
     const maxCon = account?.maxConnections ?? null;
@@ -671,7 +696,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
                 key={c.id}
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setPickerIdx(i); chooseLayout(c.id); }}
-                className={`tv-ring w-56 h-40 rounded-2xl py-4 px-6 border cursor-pointer flex flex-col justify-between transition-transform duration-150 ease-out ${
+                className={`tv-ring w-48 h-40 rounded-2xl py-4 px-5 border cursor-pointer flex flex-col justify-between transition-transform duration-150 ease-out ${
                   focused
                     ? 'bg-brand-gold/20 border-brand-gold scale-105 z-10'
                     : 'bg-black/60 border-white/10'
@@ -778,6 +803,13 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
           );
         })}
       </div>
+
+      {/* 3 screens: how to swap, in the free space beside the big screen */}
+      {layout === '3' && !fullscreenSlot && !tileMenuOpen && (
+        <div data-ms-swap-hint="" className="absolute left-[1%] bottom-[38%] w-[13%] text-xs text-brand-ice/70 font-nunito leading-snug pointer-events-none">
+          {t('live.multi.swapHint')}
+        </div>
+      )}
 
       {/* Tile menu */}
       {tileMenuOpen && (

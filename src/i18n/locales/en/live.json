@@ -257,7 +257,10 @@
       "addToScreen": "Add a channel to screen {{n}}",
       "pickCategoryHint": "Pick a category, then press Right",
       "pressOkHint": "Press OK to play · Left for categories · Back to close",
-      "bufferingHint": "Buffering? Your plan may not have enough connections (4 screens need 4) or your device may not be strong enough — try fewer screens."
+      "bufferingHint": "Buffering? Your plan may not have enough connections (4 screens need 4) or your device may not be strong enough — try fewer screens.",
+      "screens3": "3 Screens",
+      "bigPlusTwo": "1 Big + 2 Small",
+      "swapHint": "OK on a small screen: watch it big. Hold OK: options."
     },
     "errors": {
       "invalidLogin": "Invalid username or password.",
