@@ -25,6 +25,7 @@ import {
   getLiveCategories,
   getLiveStreams,
   getShortEpg,
+  hasLiveStreams,
   buildLiveStreamUrl,
   decodeEpgText,
   parseEpgTime,
@@ -42,6 +43,7 @@ import {
 import { commitFavoritesForLine, loadFavoritesForLine, lineKey, toggledFavorites } from '@/lib/favoritesSync';
 import { handLiveDeeplink } from '@/lib/appActions';
 import { nameClasses } from '@/lib/channelName';
+import { CATEGORY_DWELL_MS, KEPT_CATEGORY_SETTLE_MS } from '@/lib/categoryDwell';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
@@ -288,32 +290,65 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const onFavorites = currentChip === FAV_CHIP;
   const currentCategory = onFavorites ? undefined : currentChip;
 
-  // Load channels for selected category. A short settle first: moving ◀▶
-  // through the category bar used to download (and keep) the list of every
-  // category passed on the way.
-  const firstCategoryRef = useRef(true);
+  // Load the channels of the category the highlight rests on in the bar
+  // (owner, 2026-10-09: "they should auto load after 1 sec (so they don't
+  // bother to load on a fast click past)"): once it has rested there
+  // CATEGORY_DWELL_MS (1 s); moving ◀▶ through the bar faster downloads
+  // nothing. At once when the viewer opens it (OK or ▼ into the grid, a click
+  // on the chip: the grid has the remote), when the Guide opens on it, and on
+  // Update Channels; a list xtream keeps already after a short settle
+  // (KEPT_CATEGORY_SETTLE_MS). The last category's rows are not left under
+  // the new chip while it waits.
+  // Keyed ONLY on which category it is (and its line); the line, the chip
+  // and the grid's focus are read through refs, so no re-render (the
+  // preview, the clock, the player's events) restarts or cancels the wait,
+  // and the grid's row goes back to the top only when the category changes.
+  const catLoadKey = currentCategory ? `${lineKey(creds)}|${currentCategory.category_id}` : null;
+  const catOpenedNow = focusZone === 'grid';
+  const catLoadRef = useRef({ creds, category: currentCategory, openedNow: catOpenedNow });
+  catLoadRef.current = { creds, category: currentCategory, openedNow: catOpenedNow };
+  const catLoadNowRef = useRef<(() => void) | null>(null);
+  const catSeenRef = useRef<{ key: string | null | undefined; refresh: number }>({ key: undefined, refresh: refreshTick });
   useEffect(() => {
-    if (!currentCategory) {
+    const changed = catSeenRef.current.key !== catLoadKey;
+    const refreshed = catSeenRef.current.refresh !== refreshTick;
+    catSeenRef.current = { key: catLoadKey, refresh: refreshTick };
+    if (changed) setRowIdx(0);
+    const { creds: line, category, openedNow } = catLoadRef.current;
+    if (!catLoadKey || !category) {
       // Favorites (or nothing yet): nothing to download, and the last
       // category's list is not kept behind it.
       setStreams([]);
       setChannelsLoading(false);
-      setRowIdx(0);
       return;
     }
     let cancelled = false;
+    let started = false;
+    let t = 0;
+    const catId = String(category.category_id);
+    const kept = !DEMO && hasLiveStreams(line, catId);
+    if (changed) setStreams([]);
     setChannelsLoading(true);
-    setRowIdx(0);
-    const delay = firstCategoryRef.current ? 0 : 250;
-    firstCategoryRef.current = false;
-    const t = window.setTimeout(() => {
-      fetchLiveStreams(creds, String(currentCategory.category_id))
+    const start = () => {
+      if (started || cancelled) return;
+      started = true;
+      window.clearTimeout(t);
+      if (catLoadNowRef.current === start) catLoadNowRef.current = null;
+      fetchLiveStreams(line, catId)
         .then(list => { if (!cancelled) setStreams(list || []); })
         .catch(() => { if (!cancelled) setStreams([]); })
         .finally(() => { if (!cancelled) setChannelsLoading(false); });
-    }, delay);
-    return () => { cancelled = true; window.clearTimeout(t); };
-  }, [creds, currentCategory, refreshTick]);
+    };
+    t = window.setTimeout(start, openedNow || refreshed ? 0 : kept ? KEPT_CATEGORY_SETTLE_MS : CATEGORY_DWELL_MS);
+    catLoadNowRef.current = start;
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+      if (catLoadNowRef.current === start) catLoadNowRef.current = null;
+    };
+  }, [catLoadKey, refreshTick]);
+  // OK / ▼ into the grid / a click while the chip's category waits: no more waiting.
+  useEffect(() => { if (catOpenedNow) catLoadNowRef.current?.(); }, [catOpenedNow]);
 
   // The rows in the grid: the favourites, or the category's channels.
   const channels = onFavorites ? favRows : streams;
