@@ -24,6 +24,8 @@ import { trackEvent } from '@/lib/analytics';
 import { signInWithPlayerCredentials, looksLikeEmail } from '@/lib/playerLogin';
 import { BackButton } from '@/components/ui/BackButton';
 import { onFieldActionKey } from '@/utils/fieldEnter';
+// A tapped button keeps the typing box's focus (phones; Tronix aa7b541).
+import { keepTypingFocus } from '@/utils/keepTypingFocus';
 
 type Step = 'email' | 'password' | 'create';
 type FocusEl =
@@ -565,7 +567,7 @@ const Auth = () => {
 
           {/* ===== STEP 2: PASSWORD ===== */}
           {onPasswordStep && (
-            <form onSubmit={handleLogin} className="space-y-3">
+            <form onSubmit={handleLogin} onMouseDown={keepTypingFocus} className="space-y-3">
               <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3">
                 {t('auth.page.welcomeBackNote')}
               </p>
@@ -654,7 +656,7 @@ const Auth = () => {
 
           {/* ===== STEP 3: CREATE ===== */}
           {onCreateStep && (
-            <form onSubmit={handleSignup} className="space-y-2.5">
+            <form onSubmit={handleSignup} onMouseDown={keepTypingFocus} className="space-y-2.5">
               <div>
                 <h2 className="text-base font-semibold text-white mb-1.5">{t('auth.page.createTitle')}</h2>
                 <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3">

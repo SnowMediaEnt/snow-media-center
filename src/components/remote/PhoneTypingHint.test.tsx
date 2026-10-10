@@ -7,6 +7,7 @@ vi.mock('@/components/remote/PairingQR', () => ({ default: () => <div>pairing QR
 
 import PhoneTypingHint from './PhoneTypingHint';
 import { typingHintEnabled } from '@/lib/phoneRemote';
+import { __setPhoneModeForTests } from '@/lib/phoneMode';
 
 const focusBox = async () => {
   const input = document.createElement('input');
@@ -59,5 +60,18 @@ describe('PhoneTypingHint', () => {
     expect(typingHintEnabled()).toBe(false);
     expect(document.activeElement).toBe(box);
     await leave();
+  });
+
+  it('never shows on a phone or tablet, and counts no showing there (Tronix aa7b541)', async () => {
+    __setPhoneModeForTests({ touch: true, phone: true, portrait: true });
+    try {
+      render(<PhoneTypingHint />);
+      const leave = await focusBox();
+      expect(screen.queryByText('Type on your phone')).toBeNull();
+      await leave();
+      expect(typingHintEnabled()).toBe(true);
+    } finally {
+      __setPhoneModeForTests({ touch: false, phone: false });
+    }
   });
 });

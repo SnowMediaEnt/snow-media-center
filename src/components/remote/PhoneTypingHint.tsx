@@ -13,6 +13,7 @@ import { toast } from '@/hooks/use-toast';
 import {
   PHONE_REMOTE_EVENT, TYPING_HINT_SHOWINGS, connectedPhones, countTypingHint, setTypingHintEnabled, typingHintEnabled,
 } from '@/lib/phoneRemote';
+import { useTouchUI } from '@/lib/phoneMode';
 
 // The QR code (and the qrcode library) loads only when this card first shows.
 const PairingQR = lazy(() => import('@/components/remote/PairingQR'));
@@ -30,6 +31,9 @@ const qrSize = (): number => {
 
 const PhoneTypingHint = () => {
   const { t } = useTranslation();
+  // On a phone or tablet the viewer already has a keyboard in hand: no card,
+  // and no showing counted (Tronix aa7b541).
+  const touch = useTouchUI();
   const [typing, setTyping] = useState(false);
   const [, setTick] = useState(0);
 
@@ -56,14 +60,14 @@ const PhoneTypingHint = () => {
   // keeps it up). With a phone connected it is a "ready" note, not counted.
   const [card, setCard] = useState<null | { shown: number }>(null);
   useEffect(() => {
-    if (!typing) { setCard(null); return; }
+    if (!typing || touch) { setCard(null); return; }
     if (!typingHintEnabled()) return;
     if (connectedPhones() > 0) { setCard({ shown: 0 }); return; }
     const shown = countTypingHint();
     // The last showing: off from now on (Settings shows the switch off).
     if (shown >= TYPING_HINT_SHOWINGS) setTypingHintEnabled(false);
     setCard({ shown });
-  }, [typing]);
+  }, [typing, touch]);
 
   const hideForGood = () => {
     setTypingHintEnabled(false);
@@ -77,7 +81,7 @@ const PhoneTypingHint = () => {
   return (
     <>
       <PhoneRequestPrompt />
-      {typing && card && (
+      {typing && card && !touch && (
         <div
           className="fixed z-[180] pointer-events-none rounded-2xl border border-white/20 px-4 py-3 text-white shadow-2xl"
           style={{ top: 'var(--tv-safe-block)', right: 'var(--tv-safe-inline)', backgroundColor: 'rgba(7, 27, 58, 0.95)' }}

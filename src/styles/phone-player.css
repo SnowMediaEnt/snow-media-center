@@ -114,6 +114,15 @@ html.is-upright [data-bar-control] {
   margin-bottom: 2px;
 }
 
+/* ── The Live TV sign-in form (CredentialsForm) upright: a phone's padding,
+   13px small print. ─────────────────────────────────────────────────── */
+html.is-upright [data-creds-form] {
+  padding: 20px 16px;
+}
+html.is-upright [data-creds-form] .text-xs {
+  font-size: 13px;
+}
+
 /* ── The first-open layout chooser and the "Keep this layout?" card ───── */
 html.is-upright [data-live-layout-chooser] .text-xs {
   font-size: 13px;
