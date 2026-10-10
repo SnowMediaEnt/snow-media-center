@@ -55,6 +55,8 @@ interface TileState {
 // be a 40% side panel split in two, which left ~200px for channel names.
 const ROW_HEIGHT = 76;
 const CAT_ROW_HEIGHT = 60;
+/** OK held this long = the screen's options (as in Live TV's lists). */
+const HOLD_MS = 600;
 
 // Once dismissed the 4-grid buffering hint stays hidden for the session.
 let hintDismissedForSession = false;
@@ -77,6 +79,10 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   const [categoryIdx, setCategoryIdx] = useState(0);
   const [channelIdx, setChannelIdx] = useState(0);
   const [showHint, setShowHint] = useState(false);
+
+  // Hold OK on a small screen of the 3-screen layout: its options.
+  const holdTimerRef = useRef<number | null>(null);
+  const holdFiredRef = useRef(false);
 
   const [tiles, setTiles] = useState<TileState[]>(() => [
     { channel: null }, { channel: null }, { channel: null }, { channel: null },
@@ -597,13 +603,39 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         consume(e);
         const tIdx = focusedTileRef.current;
         const t = tilesRef.current[tIdx];
-        if (t?.channel && okSwapsIntoMain(layoutRef.current, tIdx)) void swapIntoMain(tIdx);
-        else if (t?.channel) openTileMenu();
+        if (t?.channel && okSwapsIntoMain(layoutRef.current, tIdx)) {
+          // A small screen of the 3-screen layout: OK swaps it into the big
+          // one when let go; held, its options (the remote's Menu key never
+          // reaches the page on a Fire TV). Repeats don't restart the hold.
+          if (e.repeat || holdTimerRef.current || holdFiredRef.current) return;
+          holdTimerRef.current = window.setTimeout(() => {
+            holdTimerRef.current = null;
+            holdFiredRef.current = true;
+            openTileMenu();
+          }, HOLD_MS);
+          return;
+        }
+        if (t?.channel) openTileMenu();
         else openPickerForTile(tIdx);
       }
     };
+    const upHandler = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (holdTimerRef.current) {
+        window.clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+        const tIdx = focusedTileRef.current;
+        if (layoutRef.current && okSwapsIntoMain(layoutRef.current, tIdx) && tilesRef.current[tIdx]?.channel) void swapIntoMain(tIdx);
+      }
+      holdFiredRef.current = false;
+    };
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
+    window.addEventListener('keyup', upHandler, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', upHandler, true);
+      if (holdTimerRef.current) { window.clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
+    };
   }, [isActive, native, chooseLayout, enterFullscreen, openPickerForTile, closeTile, exitFullscreen, stopAll, openTileForChannel, focusAudio, onExitLeft, onExitUp, swapIntoMain]);
 
   // Hardware back

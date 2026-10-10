@@ -241,7 +241,7 @@
       "bufferingHint": "¿Se corta? Es posible que tu plan no tenga suficientes conexiones (4 pantallas necesitan 4) o que tu dispositivo no sea lo bastante potente: prueba con menos pantallas.",
       "screens3": "3 pantallas",
       "bigPlusTwo": "1 grande + 2 pequeñas",
-      "swapHint": "OK en una pantalla pequeña: verla en grande. ≡ Menú: opciones."
+      "swapHint": "OK en una pantalla pequeña: verla en grande. Mantén OK: opciones."
     },
     "errors": {
       "invalidLogin": "Usuario o contraseña incorrectos.",

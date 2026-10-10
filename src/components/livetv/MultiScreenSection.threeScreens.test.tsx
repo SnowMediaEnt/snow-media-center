@@ -88,10 +88,27 @@ describe('Multi-Screen: 3 screens', () => {
     expect(h.focusAudio.mock.calls.map((c) => c[0])).not.toContain('ms2');
 
     h.loadSlot.mockClear(); h.focusAudio.mockClear();
-    key('Enter'); // OK on the small screen: swap it into the big one
+    key('Enter'); act(() => { fireEvent.keyUp(window, { key: 'Enter' }); }); // OK (let go) on the small screen: swap it into the big one
     await waitFor(() => expect(h.loadSlot).toHaveBeenCalledWith('ms1', urlFor(22)));
     expect(h.loadSlot).toHaveBeenCalledWith('ms2', urlFor(11));
     expect(h.focusAudio).toHaveBeenCalledWith('ms1');
     expect(h.focusAudio.mock.calls.map((c) => c[0])).not.toContain('ms2');
+  });
+
+  it('holding OK on a small screen opens its options instead of swapping', async () => {
+    render(<MultiScreenSection creds={creds} isActive onExitLeft={() => {}} onExitUp={() => {}} />);
+    await waitFor(() => expect(text()).toContain('3 Screens'));
+    key('ArrowRight'); key('ArrowRight'); key('Enter');
+    await settle();
+    key('ArrowDown'); await settle();
+    await addChannel(1);
+    await waitFor(() => expect(h.loadSlot).toHaveBeenCalledWith('ms2', urlFor(22)));
+    h.loadSlot.mockClear();
+    key('Enter');
+    await settle(700); // held past the hold time
+    act(() => { fireEvent.keyUp(window, { key: 'Enter' }); });
+    expect(text()).toContain('Change channel');
+    expect(text()).toContain('Close screen');
+    expect(h.loadSlot).not.toHaveBeenCalled();
   });
 });
