@@ -16,13 +16,13 @@
     "channelHeader": "Sender",
     "earlier": "◀ früher",
     "loadingChannels": "Sender werden geladen…",
-    "noFavorites": "Noch keine Favoriten. Halte in Live-TV OK auf einem Sender gedrückt und wähle Zu Favoriten hinzufügen.",
+    "noFavorites": "Noch keine Favoriten. Halte hier OK auf einem Sender gedrückt, um ihn hinzuzufügen.",
     "noChannels": "Keine Sender in dieser Kategorie.",
     "epgLoading": "EPG…",
     "noListings": "Keine Einträge",
     "scheduledDot": "Zur Aufnahme geplant",
-    "hint": "◀ ▶ Zeit verschieben · ▲ ▼ Sender · OK zum Abspielen · Zurück zum Beenden",
-    "hintRecord": "◀ ▶ Zeit verschieben · ▲ ▼ Sender · OK zum Abspielen · OK halten zum Aufnehmen · Zurück zum Beenden",
+    "hint": "◀ ▶ Zeit verschieben · ▲ ▼ Sender · OK zum Abspielen · OK halten: Favorit · Zurück zum Beenden",
+    "hintRecord": "◀ ▶ Zeit verschieben · ▲ ▼ Sender · OK zum Abspielen · OK halten: Favorit · Menü: Aufnehmen · Zurück zum Beenden",
     "toast": {
       "mpvFallback": "MPV konnte auf diesem Gerät nicht starten – ExoPlayer wird verwendet",
       "finished": "Diese Sendung ist beendet",
@@ -32,7 +32,9 @@
       "scheduledDesc": "{{channel}}, {{times}}. {{note}}",
       "scheduledDescLate": "{{channel}}, {{times}}. {{note}} Dieses Gerät startet sie evtl. verspätet: siehe Live-TV › Aufnahmen.",
       "recordFailed": "Aufnahme nicht gestartet",
-      "scheduleFailed": "Konnte nicht geplant werden"
+      "scheduleFailed": "Konnte nicht geplant werden",
+      "favAddedTitle": "Zu Favoriten hinzugefügt",
+      "favRemovedTitle": "Aus Favoriten entfernt"
     }
   }
 }

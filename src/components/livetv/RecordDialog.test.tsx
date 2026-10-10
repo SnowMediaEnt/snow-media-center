@@ -53,6 +53,14 @@ describe('Record dialog', () => {
     expect(onStart).toHaveBeenCalledWith({ volumeId: 'box', durationMin: 60 });
   });
 
+  it('opened by another key (armed: the Guide\'s Menu key), OK acts at once', async () => {
+    const { onStart } = await open({ armed: true });
+    key('ArrowDown'); key('ArrowDown');
+    expect(focused()).toBe('start');
+    key('Enter');
+    expect(onStart).toHaveBeenCalledWith({ volumeId: 'box', durationMin: 60 });
+  });
+
   it('warns when the drive has less than 2 GB free', async () => {
     await open();
     expect(screen.getByText(/Less than 2 GB free/)).toBeTruthy();

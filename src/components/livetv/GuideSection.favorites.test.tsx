@@ -65,7 +65,8 @@ const saveFavs = (list: FavChannel[]) => {
   localStorage.setItem('snow-livetv-favs-v1', JSON.stringify(list.map((f) => f.stream_id)));
 };
 
-const key = (k: string) => act(() => { fireEvent.keyDown(document.body, { key: k }); });
+// A press: down and up (OK acts on release; held, it saves a favourite).
+const key = (k: string) => act(() => { fireEvent.keyDown(document.body, { key: k }); fireEvent.keyUp(document.body, { key: k }); });
 const chips = () => [...document.querySelectorAll('[data-cat-i]')].map((el) => el.textContent);
 /** The channel names down the grid (not the programmes, not the preview). */
 const rowNames = () => [...document.querySelectorAll('.min-w-0 > .font-quicksand.font-semibold')].map((el) => el.textContent);

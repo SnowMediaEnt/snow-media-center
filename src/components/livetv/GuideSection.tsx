@@ -8,13 +8,15 @@
 // Xtream has no bulk XMLTV endpoint that's safe on Fire TV — do NOT fetch
 // xmltv.php (freezes the WebView).
 //
-// Scheduled recordings (TRACKER 25.12): hold OK (600 ms, as in Live TV's list)
-// on a channel to open the Record dialog in programme mode, built from the
-// listings already loaded here. OK pressed briefly still plays; where holding
-// does nothing (a Kids profile, the demo, a build without the recorder) OK
-// acts at once as it always did. In the hold-capable case OK acts when it is
-// let go, so a hold can be told apart. Programmes that are scheduled carry a
-// small red dot.
+// Favourites: hold OK (600 ms, as in Live TV's list) on a channel to save it
+// to Favorites, or take it out again, with a toast; a finger held on a row or
+// a right click does the same. OK pressed briefly still plays: it acts when it
+// is let go, so a hold can be told apart.
+//
+// Scheduled recordings (TRACKER 25.12): the remote's Menu key on a channel
+// opens the Record dialog in programme mode, built from the listings already
+// loaded here (a Kids profile, the demo and a build without the recorder get
+// nothing). Programmes that are scheduled carry a small red dot.
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Loader2, Tv, AlertTriangle, RotateCw, Star } from 'lucide-react';
@@ -37,7 +39,7 @@ import {
   type XtreamLiveStream,
   type XtreamEpgEntry,
 } from '@/lib/xtream';
-import { loadFavoritesForLine, lineKey } from '@/lib/favoritesSync';
+import { commitFavoritesForLine, loadFavoritesForLine, lineKey, toggledFavorites } from '@/lib/favoritesSync';
 import { handLiveDeeplink } from '@/lib/appActions';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
@@ -125,8 +127,11 @@ const WINDOW_MINUTES = 150; // 2.5 hours
 const SLOT_MINUTES = 30;
 const SLOTS = WINDOW_MINUTES / SLOT_MINUTES; // 5
 const EPG_MAX_CONCURRENT = 4;
-/** Hold OK this long for the channel's options (the same as Live TV's list). */
+/** Hold OK (or a finger) this long on a channel to save it to Favorites, or
+ *  take it out (the same hold as Live TV's list). */
 const HOLD_MS = 600;
+/** The click a touch hold's lift may still bring comes at once. */
+const LIFT_CLICK_MS = 700;
 
 const halfHourFloor = (t: number) => {
   const d = new Date(t);
@@ -313,9 +318,10 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const channels = onFavorites ? favRows : streams;
   const listLoading = !onFavorites && channelsLoading;
 
-  // Clamp row
+  // Clamp row: the last one when the list got shorter under it (the last
+  // favourite held out of Favorites), not the top.
   useEffect(() => {
-    if (rowIdx >= channels.length) setRowIdx(0);
+    if (rowIdx >= channels.length) setRowIdx(Math.max(0, channels.length - 1));
   }, [channels.length, rowIdx]);
   // Back from Live TV's player: the highlight on the channel it played, once
   // the restored category's list is in (gone from it: where it opens). The
@@ -560,10 +566,10 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     setFullscreen(true);
   }, [channels, creds, onFavorites, currentCategory, windowStart, listLoading]);
 
-  // ── Scheduled recordings ─────────────────────────────────────────────
-  // Hold OK: a timer started by the key going down; the key coming up before it
-  // fires is a press (play). enterFiredRef marks a hold that opened the dialog,
-  // so the release that follows is not also a press.
+  // ── Held OK ───────────────────────────────────────────────────────────
+  // A timer started by the key going down; the key coming up before it fires
+  // is a press (play). enterFiredRef marks a hold that saved the favourite, so
+  // the release that follows is not also a press.
   const enterTimerRef = useRef<number | null>(null);
   const enterFiredRef = useRef(false);
   const cancelEnterTimer = useCallback(() => {
@@ -636,7 +642,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   }, [creds]);
   const openRecordRef = useRef(openRecord);
   openRecordRef.current = openRecord;
-  const closeRecord = useCallback(() => { setRecordFor(null); enterFiredRef.current = false; }, []);
+  const closeRecord = useCallback(() => { setRecordFor(null); }, []);
 
   // A programme chosen in the dialog: the one on now records at once (until its
   // end plus the "End late" padding); a later one is set with the native scheduler.
@@ -728,6 +734,57 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     return true;
   };
 
+  // Hold OK on a channel, or a finger held on it: into Favorites, or out
+  // again if it was in, with a toast saying which. The line's own list (this
+  // service's, this profile's), the one Live TV's Favorites reads, so it is
+  // there too; here the row's star and the Favorites chip at once, with no
+  // line-up downloaded. Nothing else moves: the same row, focus and time,
+  // and nothing plays.
+  const favsRef = useRef(favs);
+  favsRef.current = favs;
+  const credsRef = useRef(creds);
+  credsRef.current = creds;
+  const toggleFavoriteAt = useCallback((idx: number) => {
+    rowResumedRef.current = true;
+    const ch = channelsRef.current[idx];
+    if (!ch) return;
+    const was = favsRef.current.has(ch.stream_id);
+    const next = toggledFavorites(favsRef.current, ch);
+    favsRef.current = next;
+    setFavs(next);
+    // A list the account settled on instead (another box wrote first).
+    commitFavoritesForLine(credsRef.current, next, (m) => {
+      favsRef.current = m;
+      setFavs((prev) => (sameFavs(prev, m) ? prev : m));
+    });
+    toast({ title: i18n.t(was ? 'guide.toast.favRemovedTitle' : 'guide.toast.favAddedTitle'), description: ch.name });
+  }, []);
+  // A finger held still on a row (lifted or not), or a right click: the held
+  // OK. A finger that moves is scrolling the grid; the lift after a hold is
+  // not also a tap (which would watch the channel).
+  const touchHoldRef = useRef<number | null>(null);
+  const heldRef = useRef({ at: 0, idx: -1 });
+  const cancelTouchHold = useCallback(() => {
+    if (touchHoldRef.current) { window.clearTimeout(touchHoldRef.current); touchHoldRef.current = null; }
+  }, []);
+  const touchHoldFired = (idx: number) => {
+    heldRef.current = { at: Date.now(), idx };
+    toggleFavoriteAt(idx);
+  };
+  const startTouchHold = (idx: number) => {
+    cancelTouchHold();
+    touchHoldRef.current = window.setTimeout(() => { touchHoldRef.current = null; touchHoldFired(idx); }, HOLD_MS) as unknown as number;
+  };
+  const rowMenu = (idx: number) => {
+    // The system's own long press of the finger that just saved it: once.
+    if (Date.now() - heldRef.current.at < LIFT_CLICK_MS && heldRef.current.idx === idx) return;
+    const touching = touchHoldRef.current != null;
+    cancelTouchHold();
+    if (touching) touchHoldFired(idx); else toggleFavoriteAt(idx);
+  };
+  const wasTouchHold = () => Date.now() - heldRef.current.at < LIFT_CLICK_MS;
+  useEffect(() => cancelTouchHold, [cancelTouchHold]);
+
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
@@ -780,6 +837,18 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           return;
         }
 
+        // The remote's Menu key on a channel: the Record dialog (programme
+        // mode), where recording is offered.
+        if ((e.key === 'ContextMenu' || e.keyCode === 82) && focusZoneRef.current === 'grid') {
+          e.preventDefault(); e.stopPropagation();
+          if (!SCHEDULE_CAPABLE || kidsLevel()) return;
+          const ch = channelsRef.current[rowIdxRef.current];
+          if (!ch) return;
+          cancelEnterTimer();
+          void openRecordRef.current(ch);
+          return;
+        }
+
         const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
         if (!arrows.includes(e.key)) return;
         e.preventDefault();
@@ -821,22 +890,20 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         } else if (e.key === 'ArrowRight') {
           setWindowStart(s => s + SLOT_MINUTES * 60_000);
         } else if (e.key === 'Enter' || e.key === ' ') {
-          // Where holding OK does something (Kids, the demo and older builds excluded) OK acts
-          // when it is let go, so a hold can be told from a press; elsewhere it acts at once.
-          if (!SCHEDULE_CAPABLE || kidsLevel()) { playRow(rowIdxRef.current); return; }
-          if (e.repeat) return;
-          if (enterTimerRef.current || enterFiredRef.current) return;
+          // Watch it on release (below), so a hold can be told from a press;
+          // held, the favourite. A held key's repeats neither restart the
+          // hold nor play.
+          if (e.repeat || enterTimerRef.current || enterFiredRef.current) return;
           enterTimerRef.current = window.setTimeout(() => {
             enterTimerRef.current = null;
             enterFiredRef.current = true;
-            const ch = channelsRef.current[rowIdxRef.current];
-            if (ch) void openRecordRef.current(ch);
+            toggleFavoriteAt(rowIdxRef.current);
           }, HOLD_MS) as unknown as number;
         }
       } catch { /* ignore */ }
     };
-    // OK let go before the hold time: a press, so play. After a hold that opened the dialog the
-    // release is just consumed (the dialog arms itself on the same release).
+    // OK let go before the hold time: a press, so play. After a hold that saved
+    // the favourite the release is just consumed.
     const keyupHandler = (e: KeyboardEvent) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (enterTimerRef.current) {
@@ -852,7 +919,14 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       window.removeEventListener('keyup', keyupHandler, true);
       cancelEnterTimer();
     };
-  }, [isActive, onExitLeft, onExitUp, playRow, cancelEnterTimer]);
+  }, [isActive, onExitLeft, onExitUp, playRow, cancelEnterTimer, toggleFavoriteAt]);
+  // The side menu (or a dialog over the Player) has the remote: a hold that
+  // was under way is not finished by it.
+  useEffect(() => {
+    if (isActive) return;
+    cancelEnterTimer();
+    enterFiredRef.current = false;
+  }, [isActive, cancelEnterTimer]);
 
   // Hardware Back (Capacitor)
   useEffect(() => {
@@ -1089,7 +1163,12 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
               return (
                 <div
                   key={v.key}
-                  onClick={() => { rowResumedRef.current = true; setRowIdx(v.index); playRow(v.index); }}
+                  onClick={() => { if (wasTouchHold()) return; rowResumedRef.current = true; setRowIdx(v.index); playRow(v.index); }}
+                  onTouchStart={() => startTouchHold(v.index)}
+                  onTouchEnd={cancelTouchHold}
+                  onTouchMove={cancelTouchHold}
+                  onTouchCancel={cancelTouchHold}
+                  onContextMenu={(e) => { e.preventDefault(); rowMenu(v.index); }}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -1117,8 +1196,11 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                         ? <img src={ch.stream_icon} alt="" loading="lazy" className="w-10 h-10 object-contain rounded-lg bg-black/40 flex-shrink-0" />
                         : <Tv className="w-8 h-8 text-brand-ice/60 flex-shrink-0" />}
                       <div className="min-w-0">
-                        {ch.num != null && (
-                          <div className="text-xs font-nunito text-brand-ice/70 tabular-nums leading-tight">#{ch.num}</div>
+                        {(ch.num != null || favs.has(ch.stream_id)) && (
+                          <div className="flex items-center text-xs font-nunito text-brand-ice/70 tabular-nums leading-tight">
+                            {ch.num != null && <span>#{ch.num}</span>}
+                            {favs.has(ch.stream_id) && <Star data-guide-fav className={`w-3 h-3 text-brand-gold fill-brand-gold flex-shrink-0 ${ch.num != null ? 'ml-1' : ''}`} />}
+                          </div>
                         )}
                         <div data-guide-name className="text-sm font-quicksand font-semibold text-white truncate leading-tight">{ch.name}</div>
                       </div>
@@ -1194,6 +1276,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           programmes={recordFor.programmes}
           streamId={recordFor.ch.stream_id}
           existing={recordFor.existing}
+          armed
           onStart={(choice) => { const t = recordFor; closeRecord(); void startProgramme(t, choice); }}
           onClose={closeRecord}
         />

@@ -120,7 +120,7 @@
         "subtitle": "Revenir en arrière, enregistrer, programmer",
         "guide": {
           "title": "Le Guide affiche ce qui passe maintenant et ensuite.",
-          "line2": "OK sur une chaîne la lance. Les favoris passent en premier."
+          "line2": "OK sur une chaîne la lance. Maintenez OK pour l'ajouter aux Favoris."
         },
         "rewind": {
           "title": "Vous avez raté quelque chose ? Reculer 10 s rembobine la TV en direct.",
@@ -131,7 +131,7 @@
           "line2": "Choisissez la durée et l'endroit : ce boîtier ou une clé USB."
         },
         "schedule": {
-          "title": "Maintenez OK dans le Guide pour enregistrer une émission plus tard.",
+          "title": "Appuyez sur Menu sur une chaîne du Guide pour enregistrer une émission plus tard.",
           "line2": "Un point rouge marque les émissions qui seront enregistrées."
         },
         "recordings": {

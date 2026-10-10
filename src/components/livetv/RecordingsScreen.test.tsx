@@ -289,7 +289,7 @@ describe('Scheduled group', () => {
     h.items = []; h.schedules = [];
     await open();
     expect(document.body.textContent).toContain('No recordings yet');
-    expect(document.body.textContent).toContain('hold OK on a channel in the Guide');
+    expect(document.body.textContent).toContain('press Menu on a channel in the Guide');
   });
 });
 

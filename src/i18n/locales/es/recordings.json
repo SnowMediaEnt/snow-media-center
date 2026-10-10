@@ -86,7 +86,7 @@
       "dayTime": "{{day}} {{time}}",
       "driveFree": "{{label}}: {{size}} libres",
       "driveFreeLow": "{{label}}: {{size}} libres (poco)",
-      "empty": "Aún no hay grabaciones. Mantén OK en un canal (o usa Grabar en el reproductor) para grabar, o mantén OK en un canal de la Guía para programar un programa.",
+      "empty": "Aún no hay grabaciones. Mantén OK en un canal (o usa Grabar en el reproductor) para grabar, o pulsa Menú sobre un canal de la Guía para programar un programa.",
       "alarmsLate": "Este equipo podría iniciar tarde las grabaciones programadas.",
       "openSettingsBtn": "Abrir ajustes",
       "wasMissed": "Se perdió.",

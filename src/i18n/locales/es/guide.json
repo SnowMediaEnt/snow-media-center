@@ -16,13 +16,13 @@
     "channelHeader": "Canal",
     "earlier": "◀ antes",
     "loadingChannels": "Cargando canales…",
-    "noFavorites": "Aún no hay favoritos. En TV en vivo, mantén OK en un canal y elige Agregar a Favoritos.",
+    "noFavorites": "Aún no hay favoritos. Mantén OK en un canal aquí para agregarlo.",
     "noChannels": "No hay canales en esta categoría.",
     "epgLoading": "EPG…",
     "noListings": "Sin programación",
     "scheduledDot": "Programado para grabar",
-    "hint": "◀ ▶ mover la hora · ▲ ▼ canal · OK para reproducir · Atrás para salir",
-    "hintRecord": "◀ ▶ mover la hora · ▲ ▼ canal · OK para reproducir · mantén OK para grabar · Atrás para salir",
+    "hint": "◀ ▶ mover la hora · ▲ ▼ canal · OK para reproducir · Mantén OK: favorito · Atrás para salir",
+    "hintRecord": "◀ ▶ mover la hora · ▲ ▼ canal · OK para reproducir · Mantén OK: favorito · Menú: grabar · Atrás para salir",
     "toast": {
       "mpvFallback": "MPV no pudo iniciarse en este equipo — se usa ExoPlayer",
       "finished": "Ese programa ya terminó",
@@ -32,7 +32,9 @@
       "scheduledDesc": "{{channel}}, {{times}}. {{note}}",
       "scheduledDescLate": "{{channel}}, {{times}}. {{note}} Este equipo podría iniciarla tarde: mira TV en vivo › Grabaciones.",
       "recordFailed": "La grabación no se inició",
-      "scheduleFailed": "No se pudo programar"
+      "scheduleFailed": "No se pudo programar",
+      "favAddedTitle": "Agregado a Favoritos",
+      "favRemovedTitle": "Quitado de Favoritos"
     }
   }
 }

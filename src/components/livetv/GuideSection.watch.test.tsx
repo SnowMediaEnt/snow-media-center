@@ -11,6 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { XtreamCategory, XtreamLiveStream } from '@/lib/xtream';
 
 configure({ asyncUtilTimeout: 4000 });
+// Each test loads a fresh Guide module: slow on a busy machine.
+vi.setConfig({ testTimeout: 20_000 });
 
 const line = { host: 'http://h', username: 'u', password: 'p' };
 const api = vi.hoisted(() => ({

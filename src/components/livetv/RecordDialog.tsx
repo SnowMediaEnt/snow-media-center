@@ -66,6 +66,9 @@ interface Props {
   onStop?: (id: string) => void;
   /** The channel's other options (favourite, report…), from a held OK. */
   onMore?: () => void;
+  /** Opened by a key other than OK (the Guide's Menu key): OK acts at once,
+   *  with no held OK's release to wait for. */
+  armed?: boolean;
   onClose: () => void;
 }
 
@@ -78,7 +81,7 @@ const DUR_KEYS: Record<string, string> = {
 
 const RecordDialog = memo(({
   channelName, maxConnections = null, programme = null, padding, programmes, streamId = 0, existing, activeJob,
-  onStart, onStop, onMore, onClose,
+  onStart, onStop, onMore, armed = false, onClose,
 }: Props) => {
   const { t } = useTranslation();
   const progMode = !!programmes && !activeJob;
@@ -135,8 +138,8 @@ const RecordDialog = memo(({
   const canStart = !!vol && (!progMode || (!!prog && mode !== 'over' && !conflict));
 
   // Keys — the dialog owns the remote while open. OK is ignored until it is
-  // released once: the dialog often opens from a held OK.
-  const armedRef = useRef(false);
+  // released once: the dialog often opens from a held OK (not when `armed`).
+  const armedRef = useRef(!!armed);
   const stateRef = useRef({ rows, focusRow, volumes, volIdx, durIdx, durations, minutes, progCount: programmes?.length ?? 0, prog, canStart });
   stateRef.current = { rows, focusRow, volumes, volIdx, durIdx, durations, minutes, progCount: programmes?.length ?? 0, prog, canStart };
   useEffect(() => {
