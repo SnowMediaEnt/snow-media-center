@@ -357,3 +357,26 @@ html.is-upright [data-howto="gd.chips"] > button {
   flex: 0 0 auto;
   min-height: 40px;
 }
+
+/* ── How-to upright (Tronix 6105df9): the picture over the words. ───── */
+html.is-upright [data-howto-slide] {
+  flex-direction: column;
+  align-items: stretch;
+}
+html.is-upright [data-howto-slide] > div:first-child {
+  width: 100% !important;
+  margin-bottom: 14px;
+}
+html.is-upright [data-howto-slide] > div:last-child {
+  padding-left: 0;
+}
+html.is-upright [data-howto-slide] h2 {
+  font-size: 1.35rem;
+}
+
+/* A text box or button the browser focused (useTVFocus moves DOM focus):
+   no remote glow on a touch screen. */
+html.is-touch :is(button, [role="button"], a):focus {
+  box-shadow: none !important;
+  outline: none !important;
+}

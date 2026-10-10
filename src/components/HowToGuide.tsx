@@ -310,7 +310,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
               auto margins centres the slide when there is room and lets it scroll from the
               top when a long language does not fit (justify-center would clip the top). */}
           <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain px-6 pb-2">
-            <div className="w-full max-w-5xl mx-auto my-auto flex flex-row items-center">
+            <div className="w-full max-w-5xl mx-auto my-auto flex flex-row items-center" data-howto-slide="">
               <div className="flex-shrink-0" style={{ width: '62%' }}>
                 <HowtoShot art={slide.art} titleKey={slide.titleKey} />
               </div>
