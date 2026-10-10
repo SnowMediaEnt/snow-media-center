@@ -60,6 +60,7 @@
       "dialogLabel": "Voz",
       "didntCatch": "No te entendí",
       "pressOkRetry": "Presiona OK en el micrófono para intentarlo de nuevo.",
+      "tapRetry": "Toca Voz para intentarlo de nuevo.",
       "listening": "Escuchando…",
       "tryExamples": "Prueba {{examples}}",
       "sayCommand": "Di un comando",

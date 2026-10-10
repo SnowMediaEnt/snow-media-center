@@ -111,6 +111,7 @@
       "signInNote": "سجّل الدخول بحسابك على <1>snowmediaent.com</1> أو أنشئ حسابًا جديدًا لتتابع مشترياتك وSnow Gems.",
       "whatsNew": "الجديد في الإصدار v{{version}}",
       "scrollHint": "▲ ▼ تمرير · موافق للإغلاق",
+      "scrollHintTouch": "اسحب لأعلى لقراءة المزيد",
       "closeHint": "موافق للإغلاق",
       "letsGoBtn": "هيا بنا"
     },

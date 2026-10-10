@@ -28,6 +28,7 @@ import {
 } from '@/lib/recording';
 import { formatBytes } from '@/lib/liveRewind';
 import { useTranslation } from 'react-i18next';
+import { useTouchUI } from '@/lib/phoneMode';
 import {
   clockLabel, conflictMessage, loadPadding, minutesUntil, paddedLabel, paddedWindow, programmeMode, recordFloorBytes,
   recordingCap, scheduleConflict, spaceWarning, type ProgrammeChoice, type RecordPadding, type SchedLike,
@@ -208,6 +209,29 @@ const RecordDialog = memo(({
     };
   }, [onClose, onStart, onStop, onMore, activeJob]);
 
+  // A touch screen (Tronix 464aea5): every row and choice takes a tap; the
+  // custom length steps with a tap on its left or right half.
+  const touch = useTouchUI();
+  const onTap = touch ? (e: React.MouseEvent) => {
+    const el = e.target as HTMLElement;
+    const rowEl = el.closest<HTMLElement>('[data-record-row]');
+    const r = rowEl?.dataset.recordRow as Row | undefined;
+    if (!rowEl || !r) return;
+    const st = stateRef.current;
+    const at = st.rows.indexOf(r);
+    if (at >= 0) setFocus(at);
+    const progEl = el.closest<HTMLElement>('[data-record-programme]');
+    const chipEl = el.closest<HTMLElement>('[data-record-chip]');
+    if (r === 'what' && progEl) setProgIdx(Number(progEl.dataset.recordProgramme) || 0);
+    else if (r === 'dest' && chipEl) setVolIdx(Number(chipEl.dataset.recordChip) || 0);
+    else if (r === 'dur' && chipEl) { const d = st.durations[Number(chipEl.dataset.recordChip) || 0]; if (d) setDurId(d.id); }
+    else if (r === 'custom') { const b = rowEl.getBoundingClientRect(); setCustom((m) => stepCustom(m, e.clientX < b.left + b.width / 2 ? -1 : 1)); }
+    else if (r === 'start') { const v = st.volumes?.[st.volIdx]; if (v && st.canStart) onStart({ volumeId: v.id, durationMin: st.minutes, ...(st.prog ? { programme: st.prog } : {}) }); }
+    else if (r === 'stop') { if (activeJob) onStop?.(activeJob.id); }
+    else if (r === 'more') onMore?.();
+    else if (r === 'cancel') onClose();
+  } : undefined;
+
   const rowCls = (r: Row) =>
     `tv-ring rounded-xl px-4 py-2 ${focusRow === r ? 'bg-brand-gold/25 z-10' : 'bg-white/5'}`;
   const chip = (selected: boolean, rowFocused: boolean) =>
@@ -242,7 +266,7 @@ const RecordDialog = memo(({
           </p>
         ) : null}
 
-        <div className="space-y-2">
+        <div className="space-y-2" onClick={onTap}>
           {rows.includes('what') && (
             <div data-record-row="what" data-howto="rec.programmes" data-focused={focusRow === 'what' ? 'true' : 'false'} className={rowCls('what')}>
               <p className="text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold mb-1">{t('recordings.dialog.what')}</p>
@@ -275,7 +299,7 @@ const RecordDialog = memo(({
                 <p className="text-base font-nunito text-amber-300">{t('recordings.dialog.noStorage')}</p>
               )}
               {volumes && volumes.map((v, i) => (
-                <span key={v.id} className={chip(i === volIdx, focusRow === 'dest')}>
+                <span key={v.id} data-record-chip={i} className={chip(i === volIdx, focusRow === 'dest')}>
                   {v.removable ? <Usb className="inline w-4 h-4 mr-1 -mt-0.5" /> : <HardDrive className="inline w-4 h-4 mr-1 -mt-0.5" />}
                   {t('recordings.dialog.volumeFree', { label: v.label, size: formatBytes(v.freeBytes) })}
                 </span>
@@ -291,7 +315,7 @@ const RecordDialog = memo(({
             <div data-record-row="dur" data-howto="rec.length" data-focused={focusRow === 'dur' ? 'true' : 'false'} className={rowCls('dur')}>
               <p className="text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold mb-1">{t('recordings.dialog.howLong')}</p>
               {durations.map((d, i) => (
-                <span key={d.id} className={chip(i === durIdx, focusRow === 'dur')}>{durLabel(d)}</span>
+                <span key={d.id} data-record-chip={i} className={chip(i === durIdx, focusRow === 'dur')}>{durLabel(d)}</span>
               ))}
             </div>
           )}
@@ -367,7 +391,7 @@ const RecordDialog = memo(({
             <span className="text-lg font-nunito">{t('common.cancel')}</span>
           </div>
         </div>
-        <p className="mt-2 text-xs font-nunito text-brand-ice/60">{t('recordings.dialog.hint')}</p>
+        <p data-remote-hint="" className="mt-2 text-xs font-nunito text-brand-ice/60">{t('recordings.dialog.hint')}</p>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { memo, useEffect, useRef } from 'react';
 import { ArrowLeft, Tv } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import { useTouchUI } from '@/lib/phoneMode';
 
 interface Props {
   /** Leave for the Player's mode chooser. */
@@ -15,6 +16,8 @@ interface Props {
  */
 const KidsAskGrownUp = memo(({ onBack }: Props) => {
   const { t } = useTranslation();
+  // A touch screen is not a TV: the line speaks of "this device" (Tronix a57c9d7).
+  const touch = useTouchUI();
   const backRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -51,7 +54,7 @@ const KidsAskGrownUp = memo(({ onBack }: Props) => {
           {t('live.kidsAskGrownUp.title')}
         </h2>
         <p className="text-brand-ice/90 font-nunito text-lg leading-relaxed mb-8">
-          {t('live.kidsAskGrownUp.body')}
+          {t(touch ? 'live.kidsAskGrownUp.bodyTouch' : 'live.kidsAskGrownUp.body')}
         </p>
         <Button
           ref={backRef}

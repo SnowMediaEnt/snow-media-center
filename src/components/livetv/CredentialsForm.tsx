@@ -29,6 +29,7 @@ import { isDemo } from '@/lib/demoMode';
 import { readPending } from '@/components/getstarted/pending';
 import { isNativePlatform } from '@/utils/platform';
 import { useTranslation } from 'react-i18next';
+import { keepTypingFocus } from '@/utils/keepTypingFocus';
 
 // Sign-up for someone with no account yet: DreamStreams end to end on the TV,
 // Vibez handed off to their site. Loaded only when the viewer presses it.
@@ -222,6 +223,10 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
     <div ref={containerRef} className="min-h-screen flex items-center justify-center px-6 py-12">
       <form
         onSubmit={submit}
+        // A tapped button keeps the typing box's focus (phones: the keyboard
+        // stays up and the form doesn't jump from under the finger).
+        onMouseDown={keepTypingFocus}
+        data-creds-form
         className="w-full max-w-xl rounded-3xl p-8 [background:var(--gradient-navy)] shadow-2xl border border-white/10"
       >
         <div className="flex items-center gap-3 mb-6">

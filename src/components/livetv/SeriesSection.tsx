@@ -27,7 +27,7 @@ import { followGridRow } from './posterGrid';
 import { tmdbSized } from '@/lib/tmdbImage';
 import { keepInView } from '@/utils/keepInView';
 import { searchVodTitles } from '@/lib/vodSearch';
-import { fingerIsDriving } from '@/lib/phoneMode';
+import { fingerIsDriving, isTouchUI, usePhoneLayout } from '@/lib/phoneMode';
 import { isFireTV } from '@/utils/platform';
 import ScrollText, { ScrollLines } from '@/components/ScrollText';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
@@ -52,12 +52,19 @@ type Pane = 'categories' | 'grid' | 'detail';
 // then the episodes. Each list scrolls on its own to keep the highlight in view.
 type DetailFocus = 'play' | 'autoplay' | 'seasons' | 'episodes';
 const ALL_ID = '__all__';
-const GRID_COLS = 5;
+// Posters a row: a TV's 5; a phone held upright 3 (phoneMode).
+const GRID_COLS_TV = 5;
+const GRID_COLS_UPRIGHT = 3;
 const AUTOPLAY_KEY = 'snow-livetv-autoplay-next';
 // Demo latch (?demo=1) — canned catalog; play shows the demo dialog instead.
 const DEMO = isDemo();
 
 const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: Props) => {
+  // Upright on a phone: three posters a row and the categories as a row of
+  // chips over them (phone-vod.css, Tronix 6c3e919); the keys read the ref.
+  const GRID_COLS = usePhoneLayout() === 'portrait' ? GRID_COLS_UPRIGHT : GRID_COLS_TV;
+  const gridColsRef = useRef(GRID_COLS);
+  gridColsRef.current = GRID_COLS;
   const { t } = useTranslation();
   const catLabel = (c: { id: string; name: string }): string => (c.id === ALL_ID ? t('live.series.allSeries') : c.name);
   const onBackRef = useRef(onBack);
@@ -381,7 +388,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
         if (paneRef.current === 'detail') { openSeqRef.current++; setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }
-        else if (paneRef.current === 'grid') setPane('categories');
+        // A touch screen shows no highlight to walk back through (the
+        // categories are on screen beside or over the posters): the search
+        // closes first, then Back leaves (Tronix 93ecbf4).
+        else if (paneRef.current === 'grid' && !isTouchUI()) setPane('categories');
+        else if (isTouchUI() && searchOpenRef.current) { setSearchOpen(false); setSearchQuery(''); }
         else (onBackRef.current ?? onExitLeft)();
         return;
       }
@@ -426,18 +437,19 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
       if (paneRef.current === 'grid') {
         const list = visibleSeriesRef.current;
         const i = gridIdxRef.current;
+        const cols = gridColsRef.current;
         if (!list.length) return;
         if (e.key === 'ArrowRight') {
-          if ((i + 1) % GRID_COLS !== 0 && i + 1 < list.length) setGridIdx(i + 1);
+          if ((i + 1) % cols !== 0 && i + 1 < list.length) setGridIdx(i + 1);
         } else if (e.key === 'ArrowLeft') {
-          if (i % GRID_COLS === 0) setPane('categories');
+          if (i % cols === 0) setPane('categories');
           else setGridIdx(i - 1);
         } else if (e.key === 'ArrowDown') {
-          const next = i + GRID_COLS;
+          const next = i + cols;
           setGridIdx(next < list.length ? next : i);
         } else if (e.key === 'ArrowUp') {
-          if (i < GRID_COLS) { if (onExitUp) onExitUp(); return; }
-          setGridIdx(i - GRID_COLS);
+          if (i < cols) { if (onExitUp) onExitUp(); return; }
+          setGridIdx(i - cols);
         
         } else if (e.key === 'Enter' || e.key === ' ') {
           const s = list[i];
@@ -508,7 +520,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
       const padR = parseFloat(cs.paddingRight) || 0;
       const gap = 16; // gap-4
       const inner = Math.max(0, el.clientWidth - padL - padR);
-      const colW = (inner - gap * (GRID_COLS - 1)) / GRID_COLS;
+      const colW = (inner - gap * (gridColsRef.current - 1)) / gridColsRef.current;
       const posterH = colW * 1.5; // aspect 2/3
       const titleArea = 56; // title + meta
       const next = Math.max(180, Math.ceil(posterH + titleArea + 16));
@@ -518,7 +530,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [gridShown]);
+  }, [gridShown, GRID_COLS]);
   const rowCount = Math.ceil(visibleSeries.length / GRID_COLS);
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
@@ -648,9 +660,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
       <div data-series-detail="" className="flex-1 min-h-0 min-w-0 flex flex-col text-white bg-black/40">
         {/* No Back button of its own: the screen's top bar has one, and the
             remote's Back returns to the list. The space goes to the info. */}
-        <div className="flex-1 min-h-0 flex px-6 pt-4 pb-4">
+        <div className="flex-1 min-h-0 flex px-6 pt-4 pb-4" data-detail-body="">
           {/* About the series, Play, autoplay */}
-          <div ref={infoScrollRef} className="w-72 flex-shrink-0 min-h-0 flex flex-col overflow-hidden pr-4 mr-4 border-r border-white/10">
+          <div ref={infoScrollRef} data-series-info="" className="w-72 flex-shrink-0 min-h-0 flex flex-col overflow-hidden pr-4 mr-4 border-r border-white/10">
             <div className="flex-shrink-0 flex items-start mb-3">
               <div className="w-24 flex-shrink-0 mr-3">
                 <PosterFrame src={cover} className="rounded-xl" />
@@ -668,7 +680,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
             </div>
             {/* The description takes all the height between the title and the
                 buttons, which sit at the bottom; it scrolls only if it must. */}
-            <div className="flex-1 min-h-0 flex flex-col mb-3">
+            <div className="flex-1 min-h-0 flex flex-col mb-3" data-series-plot="">
               {infoLoading ? <Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> : (
                 <ScrollLines text={plot || t('live.vod.noDescription')} fill className="flex-1 min-h-0 text-brand-ice/90 font-nunito text-sm leading-snug" />
               )}
@@ -702,7 +714,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
           </div>
 
           {/* Seasons */}
-          <div className="w-40 flex-shrink-0 min-h-0 flex flex-col mr-4">
+          <div className="w-40 flex-shrink-0 min-h-0 flex flex-col mr-4" data-series-seasons-col="">
             <h4 className="flex-shrink-0 font-quicksand font-semibold text-lg mb-2 text-white/90">{t('live.series.seasons')}</h4>
             <div ref={seasonsScrollRef} data-series-seasons="" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-1 px-1 py-1">
               {!infoLoading && seasons.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">{t('live.series.noSeasons')}</p>}
@@ -730,7 +742,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
           </div>
 
           {/* Episodes */}
-          <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col" data-series-episodes-col="">
             <h4 className="flex-shrink-0 font-quicksand font-semibold text-lg mb-2 text-white/90">{t('live.series.episodes')}</h4>
             <div ref={episodesScrollRef} data-series-episodes="" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-1 px-2 py-1">
               {infoLoading && <Loader2 className="w-5 h-5 animate-spin text-brand-gold" />}
@@ -763,8 +775,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
   }
 
   return (
-    <div className="flex-1 min-h-0 flex">
-      <div ref={catScrollRef} data-series-cats="" className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
+    <div className="flex-1 min-h-0 flex" data-vod-browse="">
+      <div ref={catScrollRef} data-series-cats="" data-vod-cats="" className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
@@ -830,7 +842,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
         )}
       </div>
 
-      <div ref={gridScrollRef} data-series-grid="" className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 bg-black/30">
+      <div ref={gridScrollRef} data-series-grid="" data-vod-grid="" className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 bg-black/30">
         {seriesLoading && visibleSeries.length === 0 ? (
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
             {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (

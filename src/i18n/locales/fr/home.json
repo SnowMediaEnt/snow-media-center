@@ -108,6 +108,7 @@
       "signInNote": "Connectez-vous avec votre compte <1>snowmediaent.com</1> ou créez-en un pour suivre vos achats et vos Snow Gems.",
       "whatsNew": "Nouveautés de la v{{version}}",
       "scrollHint": "▲ ▼ défiler · OK fermer",
+      "scrollHintTouch": "Faites glisser vers le haut pour en lire plus",
       "closeHint": "OK fermer",
       "letsGoBtn": "C'est parti"
     },

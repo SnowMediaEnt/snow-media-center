@@ -26,7 +26,7 @@ import { followGridRow } from './posterGrid';
 import { tmdbSized } from '@/lib/tmdbImage';
 import { keepInView } from '@/utils/keepInView';
 import { searchVodTitles } from '@/lib/vodSearch';
-import { fingerIsDriving } from '@/lib/phoneMode';
+import { fingerIsDriving, isTouchUI, usePhoneLayout } from '@/lib/phoneMode';
 import ScrollText, { ScrollLines } from '@/components/ScrollText';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
@@ -54,11 +54,18 @@ const ALL_ID = '__all__';
 const PLEX_ID = '__plex__';
 // Category lists kept while browsing; the oldest go first past this.
 const MAX_KEPT_CATEGORIES = 6;
-const GRID_COLS = 5;
+// Posters a row: a TV's 5; a phone held upright 3 (phoneMode).
+const GRID_COLS_TV = 5;
+const GRID_COLS_UPRIGHT = 3;
 // Demo latch (?demo=1) — canned catalog; play shows the demo dialog instead.
 const DEMO = isDemo();
 
 const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex, onBack }: Props) => {
+  // Upright on a phone: three posters a row and the categories as a row of
+  // chips over them (phone-vod.css, Tronix 6c3e919); the keys read the ref.
+  const GRID_COLS = usePhoneLayout() === 'portrait' ? GRID_COLS_UPRIGHT : GRID_COLS_TV;
+  const gridColsRef = useRef(GRID_COLS);
+  gridColsRef.current = GRID_COLS;
   const { t } = useTranslation();
   // Plex and All Movies are ours to translate; the rest are the provider's category names.
   const catLabel = (c: { id: string; name: string }): string =>
@@ -356,7 +363,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
         if (paneRef.current === 'detail') { setPane('grid'); setSelectedMovie(null); }
-        else if (paneRef.current === 'grid') setPane('categories');
+        // A touch screen shows no highlight to walk back through (the
+        // categories are on screen beside or over the posters): the search
+        // closes first, then Back leaves (Tronix 93ecbf4).
+        else if (paneRef.current === 'grid' && !isTouchUI()) setPane('categories');
+        else if (isTouchUI() && searchOpenRef.current) { setSearchOpen(false); setSearchQuery(''); }
         else (onBackRef.current ?? onExitLeft)();
         return;
       }
@@ -407,18 +418,19 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       if (paneRef.current === 'grid') {
         const list = visibleMoviesRef.current;
         const i = gridIdxRef.current;
+        const cols = gridColsRef.current;
         if (!list.length) return;
         if (e.key === 'ArrowRight') {
-          if ((i + 1) % GRID_COLS !== 0 && i + 1 < list.length) setGridIdx(i + 1);
+          if ((i + 1) % cols !== 0 && i + 1 < list.length) setGridIdx(i + 1);
         } else if (e.key === 'ArrowLeft') {
-          if (i % GRID_COLS === 0) setPane('categories');
+          if (i % cols === 0) setPane('categories');
           else setGridIdx(i - 1);
         } else if (e.key === 'ArrowDown') {
-          const next = i + GRID_COLS;
+          const next = i + cols;
           setGridIdx(next < list.length ? next : i); // stay on last row
         } else if (e.key === 'ArrowUp') {
-          if (i < GRID_COLS) { if (onExitUp) onExitUp(); return; }
-          setGridIdx(i - GRID_COLS);
+          if (i < cols) { if (onExitUp) onExitUp(); return; }
+          setGridIdx(i - cols);
         
         } else if (e.key === 'Enter' || e.key === ' ') {
           const m = list[i];
@@ -454,7 +466,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       const padR = parseFloat(cs.paddingRight) || 0;
       const gap = 16; // gap-4
       const inner = Math.max(0, el.clientWidth - padL - padR);
-      const colW = (inner - gap * (GRID_COLS - 1)) / GRID_COLS;
+      const colW = (inner - gap * (gridColsRef.current - 1)) / gridColsRef.current;
       const posterH = colW * 1.5; // aspect 2/3
       const titleArea = 56;
       const next = Math.max(180, Math.ceil(posterH + titleArea + 16));
@@ -464,7 +476,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [gridShown]);
+  }, [gridShown, GRID_COLS]);
   const rowCount = Math.ceil(visibleMovies.length / GRID_COLS);
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
@@ -559,7 +571,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
             remote's Back returns to the list. The space goes to the info. */}
         {/* The cover takes the row's height (FitPoster), with a margin above
             the bottom edge; the text beside it scrolls if it ever must. */}
-        <div className="flex-1 min-h-0 flex px-8 pt-4 pb-6">
+        <div className="flex-1 min-h-0 flex px-8 pt-4 pb-6" data-detail-body="">
           <FitPoster src={cover} maxWidth={300} className="mr-8" />
           <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden max-w-3xl px-2 py-2">
             <h2 className="text-3xl font-quicksand font-bold leading-tight line-clamp-2 mb-3">{selectedMovie.name}</h2>
@@ -594,9 +606,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   }
 
   return (
-    <div className="flex-1 min-h-0 flex">
+    <div className="flex-1 min-h-0 flex" data-vod-browse="">
       {/* Pane 2 — Categories */}
-      <div ref={catScrollRef} data-howto="vod.categories" className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
+      <div ref={catScrollRef} data-howto="vod.categories" data-vod-cats="" className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
@@ -665,7 +677,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       </div>
 
       {/* Pane 3 — Grid (virtualized by row) */}
-      <div ref={gridScrollRef} data-howto="vod.grid" className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 bg-black/30">
+      <div ref={gridScrollRef} data-howto="vod.grid" data-vod-grid="" className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 bg-black/30">
         {!searchOpen && currentCat?.id === PLEX_ID ? (
           <div className="h-full flex items-center justify-center">
             <div className="max-w-md text-center rounded-3xl border border-brand-gold/30 bg-black/40 px-10 py-10">

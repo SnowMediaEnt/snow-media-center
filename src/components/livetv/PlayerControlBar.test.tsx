@@ -3,8 +3,8 @@
  * only that one, is shown under it. Every button has the line, so the row
  * doesn't jump; the others hide it (invisible).
  */
-import { render } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import PlayerControlBar from './PlayerControlBar';
 import { liveBarOrder, type BarControlId } from './liveBar';
 
@@ -120,5 +120,46 @@ describe('rewind coming on after the channel starts', () => {
     expect(goLive(container).className).not.toMatch(/text-white\/30/);
     expect(focused(container)).toBe('rec');
     expect(container.querySelectorAll('[data-bar-control]')[6].getAttribute('data-bar-control')).toBe('rec');
+  });
+});
+
+// A touch screen (Tronix 4369a23): the buttons, the menu rows and the volume
+// bar take taps; the row wraps; no remote hint. A TV gets none of it.
+describe('the bar on a touch screen', () => {
+  const ctrl = {
+    getSubtitleTracks: () => [{ id: 0, label: 'English', active: false }],
+    getAudioTracks: () => [{ id: 0, label: 'Main', active: true }, { id: 1, label: 'Spanish', active: false }],
+    isSeekable: () => false,
+  } as unknown as Parameters<typeof PlayerControlBar>[0]['controller'];
+
+  it('a tap on a button runs it; no remote hint', () => {
+    const onControl = vi.fn();
+    const { container } = render(bar({ touch: true, onControl }));
+    fireEvent.click(container.querySelector('[data-bar-control="vol"] button')!);
+    expect(onControl).toHaveBeenCalledWith('vol');
+    expect(container.textContent).not.toContain('Enter: activate');
+  });
+
+  it('a tap on a menu row picks it; a tap on the volume bar sets the level there', () => {
+    const onMenuPick = vi.fn();
+    const onVolume = vi.fn();
+    const { container, rerender } = render(bar({ touch: true, controller: ctrl, audioMenuOpen: true, onMenuPick, onVolume }));
+    const rows = container.querySelectorAll('[data-player-menu="audio"] [data-focused]');
+    fireEvent.click(rows[1]);
+    expect(onMenuPick).toHaveBeenCalledWith('audio', 1);
+    rerender(bar({ touch: true, controller: ctrl, subMenuOpen: true, onMenuPick, onVolume }));
+    fireEvent.click(container.querySelectorAll('[data-player-menu="subtitles"] [data-focused]')[0]);
+    expect(onMenuPick).toHaveBeenCalledWith('subtitles', 0);
+    rerender(bar({ touch: true, controller: ctrl, volMenuOpen: true, onMenuPick, onVolume }));
+    const vb = container.querySelector('[data-volume-bar]') as HTMLElement;
+    vb.getBoundingClientRect = () => ({ left: 0, width: 300, top: 0, height: 10, right: 300, bottom: 10, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    fireEvent.click(vb, { clientX: 150 });
+    expect(onVolume).toHaveBeenCalledWith(0.75);
+  });
+
+  it('a TV: the remote hint shown, the volume bar takes no taps', () => {
+    const { container } = render(bar({ volMenuOpen: true }));
+    expect(container.textContent).toContain('Enter: activate');
+    expect(container.querySelector('[data-volume-bar]')?.className ?? '').not.toContain('cursor-pointer');
   });
 });

@@ -1,0 +1,147 @@
+/* ==========================================================================
+   The Player on phones: the Player shell, Live TV, full screen playback and
+   the Player's dialogs (ported from Tronix's phone-player.css, mobile pass
+   E3). Like phone.css, every rule is scoped under html.is-touch or
+   html.is-upright (src/lib/phoneMode.ts), which a TV box never gets: the TV
+   path is exactly what it was. Sideways a phone draws the TV layout scaled to
+   fit (MainActivity), so the layout rules here are the upright ones; the
+   touch rules (finger-sized targets) are for both. Phones run a current
+   Chrome WebView, so these rules may use modern CSS.
+   ========================================================================== */
+
+/* ── The Player shell ─────────────────────────────────────────────────── */
+
+/* The faint "Snow Media Ent." mark in the corner: a TV's only. On a phone or
+   tablet it sat on the rows of the list, and full screen on the control
+   bar's buttons (LiveTV.tsx, data-player-corner). */
+html.is-touch [data-player-corner] {
+  display: none;
+}
+
+/* Upright, the sections as chips (PlayerPhoneTabs): 40px to the finger. */
+html.is-upright [data-player-phone-tabs] > button {
+  height: 40px;
+}
+
+/* ── Live TV upright (LiveUpright) ────────────────────────────────────── */
+
+/* The search and category chips. */
+html.is-upright [data-live-phone-cats] > button {
+  height: 40px;
+  min-width: 40px;
+  justify-content: center;
+}
+html.is-upright [data-live-phone-cats] > input {
+  height: 40px;
+}
+/* The rows' second lines (what is on, the number, the times) and the
+   chips' counts: 13px. */
+html.is-upright [data-live-phone] .text-xs {
+  font-size: 13px;
+  line-height: 16px;
+}
+/* The list under the chips: less padding at the sides, room for a thumb. */
+html.is-upright [data-live-phone] [data-howto="live.channels"] {
+  padding: 4px 8px 12px;
+}
+
+/* ── The Guide upright (GuideSection's data-guide-* hooks) ──────────────
+   A narrower channel column, the preview a third of the width with what is
+   on beside it, every other time label (they ran into each other). The
+   remote's key hints are a TV's (data-guide-hint, any touch screen). */
+html.is-upright [data-guide-chan] {
+  width: 136px !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+html.is-upright [data-guide-chan] img {
+  width: 28px;
+  height: 28px;
+}
+html.is-upright [data-guide-chan] > span:last-child {
+  display: none;
+}
+html.is-upright [data-guide-slot] {
+  font-size: 11px;
+  padding-left: 4px;
+  white-space: nowrap;
+}
+html.is-upright [data-guide-slot]:nth-child(even) {
+  color: transparent;
+}
+html.is-upright [data-guide-preview] {
+  height: auto !important;
+  padding: 8px 12px;
+}
+html.is-upright [data-guide-preview] > div:first-child {
+  width: 40% !important;
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+  align-self: flex-start;
+}
+html.is-upright [data-guide-preview] > div:last-child {
+  padding-left: 12px;
+}
+html.is-upright [data-guide-preview] h3 {
+  font-size: 16px;
+  line-height: 1.25;
+}
+html.is-upright [data-guide-preview] p {
+  font-size: 13px;
+  line-height: 1.3;
+}
+html.is-touch [data-guide-hint],
+html.is-touch [data-guide-preview] p.text-xs {
+  display: none;
+}
+
+/* ── Full screen playback ─────────────────────────────────────────────── */
+
+/* The bar over the picture: LIVE / REC / rewind badges, times. */
+html.is-touch [data-howto="bar.root"] .text-xs {
+  font-size: 13px;
+}
+/* Upright the picture is a band across the middle: the bar's padding a
+   phone's, and its channel line wraps instead of losing the name. */
+html.is-upright [data-howto="bar.root"] {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+html.is-upright [data-howto="bar.root"] h2 {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+/* A bar button's name under it only while highlighted: on a touch screen
+   the last one tapped. Its line stays (the row never jumps). */
+html.is-upright [data-bar-control] {
+  margin-bottom: 2px;
+}
+
+/* ── The Live TV sign-in form (CredentialsForm) upright: a phone's padding,
+   13px small print. ─────────────────────────────────────────────────── */
+html.is-upright [data-creds-form] {
+  padding: 20px 16px;
+}
+html.is-upright [data-creds-form] .text-xs {
+  font-size: 13px;
+}
+
+/* ── The first-open layout chooser and the "Keep this layout?" card ───── */
+html.is-upright [data-live-layout-chooser] .text-xs {
+  font-size: 13px;
+}
+
+/* ── Dialogs over the Player ──────────────────────────────────────────── */
+
+/* The Player's notices (a server notice, the line's expiry, the channel
+   warning, Report / Record): a gutter at the sides, never taller than the
+   screen (the rest scrolls inside). */
+html.is-upright [role="dialog"],
+html.is-upright [role="alertdialog"] {
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

@@ -7,6 +7,9 @@ import './index.css'
 import './styles/tv.css'
 import './styles/plex.css'
 import './styles/phone.css'
+import './styles/phone-entry.css'
+import './styles/phone-player.css'
+import './styles/phone-vod.css'
 import { startPhoneMode } from './lib/phoneMode'
 import { setFreedMemoryNotifier } from './lib/playbackMemory'
 import { toast } from '@/hooks/use-toast'
@@ -18,7 +21,8 @@ import { readTheme, applyTheme } from '@/lib/theme'
 
 // Apply user theme before React mounts to avoid FOUC.
 applyTheme(readTheme());
-// Phone / tablet or TV, before the first frame (html.is-touch / is-phone).
+// Phone / tablet or TV, before the first frame (html.is-touch / is-phone /
+// is-upright).
 startPhoneMode();
 // A stream that freed memory by closing background apps says so (lib/playbackMemory).
 setFreedMemoryNotifier((mb) => {

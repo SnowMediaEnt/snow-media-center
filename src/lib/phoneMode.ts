@@ -2,9 +2,13 @@
 // open it on an Android phone or tablet. ONE answer for the whole app, worked
 // out at boot and kept on <html> as two classes, so CSS and code agree:
 //
-//   is-touch  a touch screen that is not a TV: fingers scroll the lists, a
-//             tap does what OK does. Phones and tablets.
-//   is-phone  a phone-sized touch screen (shorter side under 520 CSS px).
+//   is-touch    a touch screen that is not a TV: fingers scroll the lists, a
+//               tap does what OK does. Phones and tablets.
+//   is-phone    a phone-sized touch screen (shorter side under 520 CSS px).
+//   is-upright  the upright phone layout: a phone held upright, or a tablet
+//               narrower than UPRIGHT_TABLET_MAX_WIDTH held upright. Sideways
+//               a phone or tablet keeps the TV layout (the app scales it to
+//               fit, MainActivity.fitTvLayoutOnTouchScreen).
 //
 // TV boxes never get either, so every rule and branch keyed on them leaves
 // the TV exactly as it was. A TV is what its user agent says (AFTxx, Android
@@ -20,6 +24,12 @@ import { useSyncExternalStore } from 'react';
 
 /** A phone's shorter side is under this (CSS px); a TV layout is 540+. */
 export const PHONE_MAX_SHORT_SIDE = 520;
+/** A tablet held upright, narrower than this (CSS px), takes the phone's
+ *  upright layout: upright, the TV layout's side menu and panes left the
+ *  channels a sliver and Home's top bar ran off the screen (Tronix ab2b621,
+ *  Fire HD 7 / 8 / 10). Sideways it keeps the TV layout. The app lets the
+ *  same screens turn (MainActivity.UPRIGHT_MAX_DP). */
+export const UPRIGHT_TABLET_MAX_WIDTH = 820;
 
 /** The user agent names a TV (Fire TV, Android TV, Google TV, BRAVIA, "TV"). */
 export const isTvUserAgent = (ua: string): boolean =>
@@ -60,19 +70,53 @@ const shortSideNow = (): number => {
   } catch { return 0; }
 };
 
+// The screen's orientation, not the page's shape: the on-screen keyboard
+// shortens the page, and typing in a search box must not flip the layout.
+const portraitNow = (): boolean => {
+  try {
+    const type = window.screen && window.screen.orientation && window.screen.orientation.type;
+    if (typeof type === 'string' && type) return type.indexOf('portrait') === 0;
+  } catch { /* fall back to the page's shape */ }
+  try {
+    const s = window.screen;
+    if (s && s.width > 0 && s.height > 0) return s.height > s.width;
+  } catch { /* the page's shape */ }
+  try { return window.innerHeight > window.innerWidth; } catch { return false; }
+};
+
 let state: PhoneModeState = { touch: false, phone: false };
+let portrait = false;
 const listeners = new Set<() => void>();
 const notify = () => { for (const l of listeners) { try { l(); } catch { /* ignore */ } } };
+
+/** A touch screen that is not phone-sized, held upright and narrow (see
+ *  UPRIGHT_TABLET_MAX_WIDTH): laid out as a phone held upright. */
+const uprightTablet = (): boolean => {
+  if (!state.touch || state.phone || !portrait) return false;
+  const w = shortSideNow();
+  return w > 0 && w < UPRIGHT_TABLET_MAX_WIDTH;
+};
+/** On a phone: 'portrait' or 'landscape' (sideways); on a narrow tablet held
+ *  upright, 'portrait' too; null anywhere else (a TV, a tablet sideways). */
+export const phoneLayoutNow = (): 'portrait' | 'landscape' | null =>
+  (state.phone ? (portrait ? 'portrait' : 'landscape') : uprightTablet() ? 'portrait' : null);
+
+/** <html>'s classes for the state now. */
+function syncClasses(): void {
+  try {
+    const cl = document.documentElement.classList;
+    const upright = phoneLayoutNow() === 'portrait';
+    // Only on a change: a class write on <html> restyles the page.
+    if (cl.contains('is-touch') !== state.touch) cl.toggle('is-touch', state.touch);
+    if (cl.contains('is-phone') !== state.phone) cl.toggle('is-phone', state.phone);
+    if (cl.contains('is-upright') !== upright) cl.toggle('is-upright', upright);
+  } catch { /* no document */ }
+}
 
 function apply(next: PhoneModeState): void {
   const same = next.touch === state.touch && next.phone === state.phone;
   state = next;
-  try {
-    const cl = document.documentElement.classList;
-    // Only on a change: a class write on <html> restyles the page.
-    if (cl.contains('is-touch') !== next.touch) cl.toggle('is-touch', next.touch);
-    if (cl.contains('is-phone') !== next.phone) cl.toggle('is-phone', next.phone);
-  } catch { /* no document */ }
+  syncClasses();
   if (!same) notify();
 }
 
@@ -135,9 +179,13 @@ function guardScrollIntoView(): void {
 }
 listeners.add(() => { if (state.touch) { watchDriver(); guardScrollIntoView(); } });
 
-/** The answer, applied: a phone (or nothing touch) at once; any other touch screen waits for a finger. */
+/** The answer, applied: a phone (or nothing touch) at once; any other touch
+ *  screen waits for a finger, unless it is held upright. A TV box's screen
+ *  never is: upright, it is a tablet in someone's hands, touch at once, so its
+ *  upright layout is there before the first tap and not swapped in under the
+ *  finger (Tronix ab2b621). */
 function settle(next: PhoneModeState, mobile: boolean): void {
-  if (next.touch && !mobile && !state.touch) {
+  if (next.touch && !mobile && !state.touch && !portrait) {
     apply({ touch: false, phone: false });
     armTouch(next.phone);
     return;
@@ -159,20 +207,38 @@ export function startPhoneMode(): void {
     shortSide: shortSideNow(),
   });
   const s = signals();
+  portrait = portraitNow();
   settle(phoneModeFrom(s), s.mobile);
-  // Turning a phone or folding a tablet can change the phone-sized answer.
+  // Turning a phone or a tablet: the upright / sideways layouts follow, and
+  // folding a tablet can change the phone-sized answer (once a frame).
   let frame = 0;
   const onResize = () => {
-    if (frame || !state.touch) return;
+    if (frame) return;
     frame = window.requestAnimationFrame(() => {
       frame = 0;
+      const p = portraitNow();
+      const turned = p !== portrait;
+      portrait = p;
+      // Still waiting for a finger, and now upright: a tablet (see settle).
+      if (p && disarmTouch) { disarmTouch(); apply({ touch: true, phone: phoneModeFrom(signals()).phone }); return; }
+      if (!state.touch) return;
       const now = phoneModeFrom(signals());
-      if (now.touch) apply({ touch: true, phone: now.phone });
+      if (now.touch && now.phone !== state.phone) { apply({ touch: true, phone: now.phone }); return; }
+      syncClasses();
+      if (turned) notify();
     });
   };
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', onResize);
+  try { window.screen.orientation?.addEventListener?.('change', onResize); } catch { /* older engine */ }
+  stopListening = () => {
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
+    try { window.screen.orientation?.removeEventListener?.('change', onResize); } catch { /* older engine */ }
+    if (frame) window.cancelAnimationFrame(frame);
+  };
 }
+let stopListening: (() => void) | null = null;
 
 /** A touch screen that is not a TV (phones and tablets). */
 export const isTouchUI = (): boolean => state.touch;
@@ -191,9 +257,30 @@ export function usePhoneUI(): boolean {
   return useSyncExternalStore(subscribe, isPhoneUI, isPhoneUI);
 }
 
-/** Tests only: set the answer directly (and whether a finger is driving). */
-export function __setPhoneModeForTests(next: PhoneModeState & { finger?: boolean }): void {
+/** 'portrait' / 'landscape' on a phone ('portrait' on a narrow tablet held
+ *  upright), null on a TV, a tablet held sideways or a computer. Re-renders
+ *  when the phone or tablet is turned. Sideways SMC draws its TV layout
+ *  (scaled by the app), so code mostly asks for 'portrait': the upright
+ *  phone layout. */
+export function usePhoneLayout(): 'portrait' | 'landscape' | null {
+  return useSyncExternalStore(subscribe, phoneLayoutNow, phoneLayoutNow);
+}
+
+/** Tests: what startPhoneMode listens to, off (a module loaded again for the
+ *  next test would otherwise share the window with this one). */
+export function __stopPhoneModeForTests(): void {
+  stopListening?.();
+  stopListening = null;
+  disarmTouch?.();
+  started = false;
+}
+
+/** Tests only: set the answer directly (whether a finger is driving, and
+ *  whether the screen is held upright). */
+export function __setPhoneModeForTests(next: PhoneModeState & { finger?: boolean; portrait?: boolean }): void {
   disarmTouch?.();
   fingerDriving = !!next.finger;
+  portrait = !!next.portrait;
   apply({ touch: next.touch, phone: next.phone });
+  notify();
 }

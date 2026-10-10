@@ -30,6 +30,7 @@ import SnowLoader from '@/components/SnowLoader';
 import { loadPlayerVolume, MAX_VOLUME, savePlayerVolume } from '@/utils/volume';
 import type { VideoController } from './VideoPlayer';
 import VodControlBar, { type VodPosition } from './VodControlBar';
+import { useTouchUI } from '@/lib/phoneMode';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -158,6 +159,7 @@ function WebVod({ src, onError, onEnded, bar }: { src: string; onError: (msg: st
 
 function NativeVod({ src, onError, onEnded, bar }: { src: string; onError: (msg: string) => void; onEnded: () => void; bar: BarProps }) {
   const { t } = useTranslation();
+  const touch = useTouchUI();
 
   // Sound track: once per stream (and again after a reload, which starts on
   // the file's default), as soon as the player knows the tracks.
@@ -235,6 +237,12 @@ function NativeVod({ src, onError, onEnded, bar }: { src: string; onError: (msg:
           >
             <RotateCw className="w-4 h-4" /> {t('common.retry')}
           </button>
+          {/* A touch screen has no remote Back to reach for (Tronix 77d9422). */}
+          {touch && bar.onClose && (
+            <button type="button" onClick={bar.onClose} data-vod-error-back="" className="mt-3 px-5 py-2.5 rounded-xl border border-white/20 text-white font-quicksand font-semibold">
+              {t('common.back')}
+            </button>
+          )}
         </div>
       )}
       <VodControlBar

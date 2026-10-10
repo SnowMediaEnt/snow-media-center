@@ -60,6 +60,7 @@
       "dialogLabel": "Spracheingabe",
       "didntCatch": "Nicht verstanden",
       "pressOkRetry": "Drücke OK am Mikrofon, um es erneut zu versuchen.",
+      "tapRetry": "Tippe auf Sprache, um es erneut zu versuchen.",
       "listening": "Hört zu…",
       "tryExamples": "Sag zum Beispiel {{examples}}",
       "sayCommand": "Sprich einen Befehl",

@@ -31,6 +31,7 @@ import { VOD_BACK_SEC, VOD_FWD_SEC, vodBarDisabled, vodBarLabel, vodBarOrder, ty
 import { stepVolume } from '@/utils/volume';
 import { keepInView } from '@/utils/keepInView';
 import { onMediaKey } from '@/lib/mediaKeys';
+import { useTouchUI } from '@/lib/phoneMode';
 
 type Focus = VodBarId | 'timeline';
 type Menu = 'none' | 'cc' | 'audio' | 'vol';
@@ -91,6 +92,12 @@ export default function VodControlBar({
   const passthrough = useAudioPassthrough();
   // Fixed for the life of the player: buttons never move under the highlight.
   const [order] = useState(() => vodBarOrder({ next: !!onNext, stats }));
+  // A touch screen (Tronix 2ca8249, e5970ea): a tap on the picture shows or
+  // hides the bar, its buttons, rows and volume bar take taps, a tap or drag
+  // on the timeline seeks there, and Back leaves at once. A TV: unchanged.
+  const touch = useTouchUI();
+  const touchRef = useRef(touch);
+  touchRef.current = touch;
 
   const [visible, setVisible] = useState(false);
   const [focus, setFocus] = useState<Focus>('play');
@@ -210,6 +217,53 @@ export default function VodControlBar({
     else if (id === 'stats') { if (!repeat) setStatsOn((on) => !on); }
   }, [seekBy]);
 
+  // OK on a row of the Subtitles / Audio menu (or a tap on it).
+  const pickRow = useCallback((i: number) => {
+    const c = cur.current;
+    if (c.menu === 'cc') {
+      if (i === 0) c.controller?.setSubtitleTrack(-1);
+      else { const s = c.subs[i - 1]; if (s) c.controller?.setSubtitleTrack(s.id); }
+    } else {
+      const a = c.auds[i];
+      if (a) { c.controller?.setAudioTrack(a.id); c.onAudioPicked?.(a.id); }
+    }
+    setMenu('none');
+  }, []);
+
+  // Taps (a touch screen). The picture: the bar (or an open menu) away, or up.
+  const onPictureTap = useCallback(() => {
+    const c = cur.current;
+    if (c.blocked) return;
+    if (c.menu !== 'none') { setMenu('none'); armHide(); return; }
+    if (c.visible) { clearTimer(hideTimer); setVisible(false); return; }
+    clearTimer(noteTimer);
+    setSeekNote(null);
+    setFocus('play');
+    setVisible(true);
+    armHide();
+  }, [armHide]);
+  // A button: what OK on it does; a second tap on an open menu's closes it.
+  const onButtonTap = useCallback((id: VodBarId) => {
+    const c = cur.current;
+    armHide();
+    setFocus(id);
+    if ((id === 'cc' && c.menu === 'cc') || (id === 'audio' && c.menu === 'audio') || (id === 'vol' && c.menu === 'vol')) { setMenu('none'); return; }
+    setMenu('none');
+    act(id, false);
+  }, [armHide, act]);
+  // The timeline: the place under the finger (a tap, or a drag let go).
+  const seekAtPointer = useCallback((el: HTMLElement, clientX: number, commit: boolean) => {
+    const c = cur.current;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || c.dur <= 0) return;
+    const to = Math.max(0, Math.min(c.dur - 1, ((clientX - r.left) / r.width) * c.dur));
+    armHide();
+    if (!commit) { setScrubPos(to); return; }
+    setScrubPos(null);
+    setPos(to);
+    void c.seekTo(to);
+  }, [armHide]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -225,7 +279,7 @@ export default function VodControlBar({
       if (isBack) {
         if (c.menu !== 'none') { stop(); setMenu('none'); armHide(); return; }
         if (c.statsOn) { stop(); setStatsOn(false); if (c.visible) armHide(); return; }
-        if (c.visible) { stop(); clearTimer(scrubTimer); setScrubPos(null); setVisible(false); return; }
+        if (c.visible && !touchRef.current) { stop(); clearTimer(scrubTimer); setScrubPos(null); setVisible(false); return; }
         if (!c.onClose) return;
         stop();
         c.onClose();
@@ -261,16 +315,7 @@ export default function VodControlBar({
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(count - 1, i + 1));
         else if (e.key === 'ArrowLeft') setMenu('none');
-        else if (isOk) {
-          if (c.menu === 'cc') {
-            if (i === 0) c.controller?.setSubtitleTrack(-1);
-            else { const s = c.subs[i - 1]; if (s) c.controller?.setSubtitleTrack(s.id); }
-          } else {
-            const a = c.auds[i];
-            if (a) { c.controller?.setAudioTrack(a.id); c.onAudioPicked?.(a.id); }
-          }
-          setMenu('none');
-        }
+        else if (isOk) pickRow(i);
         return;
       }
 
@@ -337,12 +382,15 @@ export default function VodControlBar({
     </div>
   ) : null;
 
-  if (!visible) return statsEl || noteEl ? <>{statsEl}{noteEl}</> : null;
+  // A touch screen: the picture takes taps (under the bar and its menus).
+  const tapEl = touch && !blocked ? <div data-vod-tap="" className="absolute left-0 top-0 w-full h-full z-10" onClick={onPictureTap} /> : null;
+
+  if (!visible) return statsEl || noteEl || tapEl ? <>{tapEl}{statsEl}{noteEl}</> : null;
 
   const vol = Math.round(volume * 100);
   const boost = volume > 1.0001;
   const volFill = Math.min(100, (volume / maxVolume) * 100);
-  const scrubbing = focus === 'timeline';
+  const scrubbing = focus === 'timeline' || (touch && scrubPos != null);
   const shownPos = scrubbing && scrubPos != null ? scrubPos : pos;
   const pct = dur > 0 ? Math.min(100, Math.max(0, (shownPos / dur) * 100)) : 0;
   const scrubDelta = scrubbing && scrubPos != null ? Math.round(scrubPos - pos) : 0;
@@ -365,10 +413,11 @@ export default function VodControlBar({
     : menu === 'audio' ? auds : [];
   const listOpen = menu === 'cc' || menu === 'audio';
   const volOpen = menu === 'vol';
-  const menuBox = 'absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 animate-fade-in pointer-events-auto';
+  const menuBox = `absolute ${touch ? 'right-3 top-14 max-w-[calc(100%-1.5rem)]' : 'right-8 bottom-40'} z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 animate-fade-in pointer-events-auto`;
 
   return (
     <>
+      {tapEl}
       {statsEl}
       <div data-vod-bar className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-12 pb-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent animate-fade-in pointer-events-none">
         <div className="max-w-6xl mx-auto pointer-events-auto">
@@ -376,6 +425,11 @@ export default function VodControlBar({
           <div
             data-vod-timeline
             data-focused={scrubbing ? 'true' : 'false'}
+            // A finger: a thicker bar; tap or drag, let go to seek there.
+            onPointerDown={touch ? (e) => { e.currentTarget.setPointerCapture?.(e.pointerId); seekAtPointer(e.currentTarget, e.clientX, false); } : undefined}
+            onPointerMove={touch ? (e) => { if (e.buttons || e.pointerType === 'touch') seekAtPointer(e.currentTarget, e.clientX, false); } : undefined}
+            onPointerUp={touch ? (e) => seekAtPointer(e.currentTarget, e.clientX, true) : undefined}
+            style={touch ? { touchAction: 'none', height: 12, margin: '6px 0' } : undefined}
             aria-label={t('plex.player.seekBar')}
             className={`relative rounded-full ${scrubbing ? 'h-2.5 bg-white/25' : 'h-1.5 bg-white/15'}`}
           >
@@ -396,7 +450,9 @@ export default function VodControlBar({
             <span data-vod-duration>{dur > 0 ? fmtTime(dur) : ''}</span>
           </div>
           <div className="mt-1 flex items-center justify-center">
-            <div className="inline-flex items-center gap-2 rounded-full bg-black/80 border border-white/10 px-3 py-1.5">
+            <div className={touch
+              ? 'flex flex-wrap items-center justify-center gap-2 rounded-3xl bg-black/80 border border-white/10 px-3 py-1.5'
+              : 'inline-flex items-center gap-2 rounded-full bg-black/80 border border-white/10 px-3 py-1.5'}>
               {order.map((id) => (
                 <BarButton
                   key={id}
@@ -406,13 +462,16 @@ export default function VodControlBar({
                   focused={focus === id}
                   open={(id === 'cc' && menu === 'cc') || (id === 'audio' && menu === 'audio') || (id === 'vol' && menu === 'vol') || (id === 'stats' && statsOn)}
                   disabled={disabled(id)}
+                  onPress={touch ? () => onButtonTap(id) : undefined}
                 />
               ))}
             </div>
           </div>
-          <p className="text-center text-xs text-brand-ice/60 font-nunito mt-2">
-            {scrubbing ? t('plex.player.hintScrub') : t('plex.player.hintControls')}
-          </p>
+          {!touch && (
+            <p className="text-center text-xs text-brand-ice/60 font-nunito mt-2">
+              {scrubbing ? t('plex.player.hintScrub') : t('plex.player.hintControls')}
+            </p>
+          )}
         </div>
       </div>
 
@@ -430,6 +489,7 @@ export default function VodControlBar({
               <div
                 key={`${r.id}-${r.label}-${i}`}
                 data-focused={menuIdx === i ? 'true' : 'false'}
+                onClick={touch ? (e) => { e.stopPropagation(); armHide(); pickRow(i); } : undefined}
                 className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}
               >
                 <span className="truncate">{r.label}</span>
@@ -456,7 +516,15 @@ export default function VodControlBar({
             </div>
             {/* Over the player's whole range; on the native one the tick is
                 100% and past it the sound is boosted. */}
-            <div className="relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
+            <div
+              data-volume-bar=""
+              onClick={touch ? (e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                if (r.width > 0) { armHide(); setVol(Math.round(((e.clientX - r.left) / r.width) * maxVolume * 20) / 20); }
+              } : undefined}
+              className={`relative mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden${touch ? ' cursor-pointer' : ''}`}
+              style={touch ? { height: 14 } : undefined}
+            >
               <div className={`h-full ${boost ? 'bg-orange-400' : 'bg-brand-gold'}`} style={{ width: `${volFill}%` }} />
               {maxVolume > 1 && <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: `${(100 / maxVolume).toFixed(1)}%` }} />}
             </div>

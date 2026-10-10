@@ -2,7 +2,8 @@
   "live": {
     "kidsAskGrownUp": {
       "title": "Pide a un adulto que inicie sesión en TV en vivo",
-      "body": "TV en vivo aún no está configurada en esta TV. Cuando un adulto inicie sesión, tus canales estarán aquí."
+      "body": "TV en vivo aún no está configurada en esta TV. Cuando un adulto inicie sesión, tus canales estarán aquí.",
+      "bodyTouch": "TV en vivo aún no está configurada en este dispositivo. Cuando un adulto inicie sesión, tus canales estarán aquí."
     },
     "layoutTrial": {
       "dialogLabel": "¿Conservar este diseño?",
@@ -377,6 +378,10 @@
       "bufferingBody": "Reportado con cortes hace poco: puede que no se vea bien.",
       "watchBtn": "Ver igual",
       "pickBtn": "Elegir otro"
+    },
+    "phone": {
+      "tapToWatch": "Toca un canal para verlo aquí",
+      "fullScreenLabel": "Pantalla completa"
     }
   }
 }

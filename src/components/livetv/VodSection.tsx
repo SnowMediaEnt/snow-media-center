@@ -151,7 +151,7 @@ const VodSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
             );
           })}
         </div>
-        <p className="mt-6 text-brand-ice/60 font-nunito text-sm text-center">{t('live.vodChooser.hint')}</p>
+        <p data-remote-hint="" className="mt-6 text-brand-ice/60 font-nunito text-sm text-center">{t('live.vodChooser.hint')}</p>
       </div>
     </div>
   );

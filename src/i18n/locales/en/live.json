@@ -2,7 +2,8 @@
   "live": {
     "kidsAskGrownUp": {
       "title": "Ask a grown-up to sign in to Live TV",
-      "body": "Live TV isn't set up on this TV yet. Once a grown-up has signed in, your channels will be waiting right here."
+      "body": "Live TV isn't set up on this TV yet. Once a grown-up has signed in, your channels will be waiting right here.",
+      "bodyTouch": "Live TV isn't set up on this device yet. Once a grown-up has signed in, your channels will be waiting right here."
     },
     "layoutTrial": {
       "dialogLabel": "Keep this layout?",
@@ -376,6 +377,10 @@
       "bufferingBody": "Reported buffering recently — it may not play well.",
       "watchBtn": "Watch anyway",
       "pickBtn": "Pick another"
+    },
+    "phone": {
+      "tapToWatch": "Tap a channel to watch it here",
+      "fullScreenLabel": "Full screen"
     }
   }
 }

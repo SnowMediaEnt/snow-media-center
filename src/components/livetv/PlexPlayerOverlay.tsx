@@ -24,6 +24,7 @@ import { toast } from '@/hooks/use-toast';
 import { stepVolume, volumeBar } from '@/utils/volume';
 import PlayerStatsPanel from './PlayerStatsPanel';
 import PlayerMenuList from './PlayerMenuList';
+import { useTouchUI } from '@/lib/phoneMode';
 
 // 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
 // move a preview marker (accelerating on repeated presses), OK jumps there.
@@ -154,6 +155,12 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const [row, setRow] = useState<Row>('play');
   const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'format' | 'volume' | 'help'>('none');
   const [menuIdx, setMenuIdx] = useState(0);
+  // A touch screen: a tap on the picture shows / hides the bar, a tap on a
+  // button or a menu row does what OK there does, the timeline seeks where it
+  // is tapped, Back leaves at once. A TV: unchanged.
+  const touch = useTouchUI();
+  const touchRef = useRef(touch);
+  touchRef.current = touch;
   // The playback stats panel. Stays up while the bar hides; Back closes it
   // before anything else it would do (a popup menu open over it aside).
   const [statsOpen, setStatsOpen] = useState(false);
@@ -401,7 +408,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           if (visibleRef.current) armHideRef.current();
           return;
         }
-        if (visibleRef.current) {
+        if (visibleRef.current && !touchRef.current) {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           setVisible(false); return;
         }
@@ -608,7 +615,44 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     <PlayerStatsPanel session={statsSession ?? ''} serverName={serverName} routeLabel={routeLabel} needKbps={needKbps} httpStatus={httpStatus} />
   ) : null;
 
-  if (!visible) return statsEl ? <>{promptEl}{statsEl}</> : promptEl;
+  // OK, as the remote's: the same key handler decides what it does.
+  const okHere = () => { try { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); } catch { /* old WebView */ } };
+  const tapEl = touch && active ? (
+    <div
+      data-pp-tap=""
+      className="absolute left-0 top-0 w-full h-full z-10"
+      onClick={() => {
+        if (menuRef.current !== 'none') { setMenu('none'); armHide(); return; }
+        if (visibleRef.current) { clearHide(); setVisible(false); return; }
+        setRow('play'); setScrubPos(null); setVisible(true); armHide();
+      }}
+    />
+  ) : null;
+  // A tap on a control-row button (its place in ROWS) or a menu row.
+  const onControlsTap = touch ? (e: React.MouseEvent) => {
+    const btn = (e.target as HTMLElement).closest('button');
+    const all = Array.from((e.currentTarget as HTMLElement).querySelectorAll('button'));
+    const r = btn ? ROWS[all.indexOf(btn)] : undefined;
+    if (!r) return;
+    e.stopPropagation(); e.preventDefault();
+    armHide();
+    if (menuRef.current !== 'none') { setMenu('none'); if (rowRef.current === r) return; }
+    rowRef.current = r; setRow(r);
+    menuRef.current = 'none';
+    void doActionRef.current(r);
+  } : undefined;
+  const onMenuTap = touch ? (e: React.MouseEvent) => {
+    const rowEl = (e.target as HTMLElement).closest('[data-focused]');
+    const all = Array.from((e.currentTarget as HTMLElement).querySelectorAll('[data-focused]'));
+    const i = rowEl ? all.indexOf(rowEl) : -1;
+    if (i < 0) return;
+    e.stopPropagation();
+    armHide();
+    menuIdxRef.current = i; setMenuIdx(i);
+    okHere();
+  } : undefined;
+
+  if (!visible) return statsEl || tapEl ? <>{tapEl}{promptEl}{statsEl}</> : promptEl;
 
   const scrubbing = row === 'scrub';
   const shownPos = scrubbing && scrubPos != null ? scrubPos : pos;
@@ -646,9 +690,10 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
   return (
     <>
+      {tapEl}
       {promptEl}
       {statsEl}
-      <div className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-16 pb-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
+      <div data-pp-bar="" className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-16 pb-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
         <div className="max-w-6xl mx-auto pointer-events-auto">
           <p className="text-xl font-quicksand font-bold text-white truncate mb-2">
             {title}
@@ -659,6 +704,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <div
             className={`relative rounded-full ${scrubbing ? 'h-2.5 bg-white/25' : 'h-1.5 bg-white/15'}`}
             data-focused={scrubbing ? 'true' : 'false'}
+            onPointerUp={touch ? (e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              if (r.width <= 0 || durRef.current <= 0) return;
+              const to = Math.max(0, Math.min(durRef.current - 1, ((e.clientX - r.left) / r.width) * durRef.current));
+              armHide(); setScrubPos(null); setPos(to); void seekToRef.current(to);
+            } : undefined}
+            style={touch ? { height: 12, margin: '6px 0', touchAction: 'none' } : undefined}
             data-howto="pp.seek"
             aria-label={t('plex.player.seekBar')}
           >
@@ -680,7 +732,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             </span>
             <span>{dur > 0 ? fmtTime(dur) : ''}</span>
           </div>
-          <div className="mt-4 flex items-center justify-center gap-3" data-howto="pp.controls">
+          <div className={`mt-4 flex items-center justify-center gap-3${touch ? ' flex-wrap' : ''}`} data-howto="pp.controls" onClickCapture={onControlsTap}>
             <button type="button" data-focused={row === 'seek-10' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek-10')}`} aria-label={t('plex.player.back10')}><Rewind className="w-6 h-6" /></button>
             <button type="button" data-focused={row === 'play' ? 'true' : 'false'} className={`${btnBase} w-16 h-16 ${focusVis('play')}`} aria-label={t('plex.player.playPause')}>
               {(paused ?? pollPaused) ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />}
@@ -708,7 +760,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               <span className="text-xs font-nunito text-brand-ice/70 leading-none">{t('plex.player.help')}</span>
             </div>
           </div>
-          <p className="text-center text-xs text-brand-ice/60 font-nunito mt-4">
+          <p data-remote-hint="" className="text-center text-xs text-brand-ice/60 font-nunito mt-4">
             {row === 'scrub'
               ? t('plex.player.hintScrub')
               : row === 'buffering'
@@ -721,7 +773,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       </div>
 
       {isMenu('audio') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div data-pp-menu="" onClickCapture={onMenuTap} className={`absolute ${touch ? 'right-3 top-14 max-w-[calc(100%-1.5rem)]' : 'right-8 bottom-40'} z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto`}>
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.audio')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
@@ -744,7 +796,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       )}
 
       {isMenu('volume') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div data-pp-menu="" onClickCapture={onMenuTap} className={`absolute ${touch ? 'right-3 top-14 max-w-[calc(100%-1.5rem)]' : 'right-8 bottom-40'} z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto`}>
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               {volPct === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -769,7 +821,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
 
       {isMenu('format') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div data-pp-menu="" onClickCapture={onMenuTap} className={`absolute ${touch ? 'right-3 top-14 max-w-[calc(100%-1.5rem)]' : 'right-8 bottom-40'} z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto`}>
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.screenFormat')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
@@ -790,7 +842,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       )}
 
       {isMenu('quality') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div data-pp-menu="" onClickCapture={onMenuTap} className={`absolute ${touch ? 'right-3 top-14 max-w-[calc(100%-1.5rem)]' : 'right-8 bottom-40'} z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto`}>
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.quality')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
@@ -814,7 +866,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
 
       {isMenu('subs') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div data-pp-menu="" onClickCapture={onMenuTap} className={`absolute ${touch ? 'right-3 top-14 max-w-[calc(100%-1.5rem)]' : 'right-8 bottom-40'} z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto`}>
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">{t('plex.player.subtitles')}</p>
             <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.player.menuHint')}</span>
@@ -831,7 +883,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       )}
 
       {isMenu('osdl') && (
-        <div className="absolute right-8 bottom-40 z-30 w-96 max-h-[60vh] overflow-y-auto rounded-2xl bg-black/90 border border-white/15 p-2 animate-fade-in pointer-events-auto">
+        <div data-pp-menu="" onClickCapture={onMenuTap} className={`absolute ${touch ? 'right-3 top-14 max-w-[calc(100%-1.5rem)]' : 'right-8 bottom-40'} z-30 w-96 max-h-[60vh] overflow-y-auto rounded-2xl bg-black/90 border border-white/15 p-2 animate-fade-in pointer-events-auto`}>
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               <Download className="w-3.5 h-3.5 text-brand-gold" /> OpenSubtitles{/* i18n-ignore: brand name */}
@@ -865,7 +917,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       )}
 
       {isMenu('help') && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+        <div data-pp-menu="" onClickCapture={onMenuTap} className={`absolute ${touch ? 'right-3 top-14 max-w-[calc(100%-1.5rem)]' : 'right-8 bottom-40'} z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto`}>
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               <LifeBuoy className="w-3.5 h-3.5 text-brand-gold" /> {t('plex.player.help')}

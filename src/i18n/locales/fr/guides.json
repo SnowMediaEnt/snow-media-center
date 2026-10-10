@@ -6,7 +6,9 @@
         "subtitle": "Télécommande, téléphone et Accueil",
         "remote": {
           "title": "Les flèches déplacent. OK valide. Retour revient en arrière.",
-          "line2": "Maintenez OK sur une chaîne ou un titre pour plus d'options. Vous ne risquez rien de casser."
+          "titleTouch": "Touchez pour choisir. Faites glisser pour défiler. Retour revient en arrière.",
+          "line2": "Maintenez OK sur une chaîne ou un titre pour plus d'options. Vous ne risquez rien de casser.",
+          "line2Touch": "Gardez le doigt sur une chaîne ou un titre pour plus d'options. Vous ne pouvez rien casser."
         },
         "phone": {
           "title": "Utilisez votre téléphone comme télécommande.",
@@ -19,7 +21,8 @@
         },
         "topbar": {
           "title": "En haut à droite : la date, l'heure et vos boutons.",
-          "line2": "Appuyez sur Haut depuis les grands boutons pour les atteindre."
+          "line2": "Appuyez sur Haut depuis les grands boutons pour les atteindre.",
+          "line2Touch": "Ils sont en haut de l'accueil : touchez-en un."
         },
         "dashVoice": {
           "title": "Le Tableau de bord, c'est votre compte. Voix vous laisse parler à SMC.",
@@ -31,7 +34,8 @@
         },
         "recommended": {
           "title": "Recommandations : ce qui passe et ce qu'il y a à voir.",
-          "line2": "Appuyez sur Haut depuis les grands boutons. Gauche et Droite font défiler ; les points indiquent la page."
+          "line2": "Appuyez sur Haut depuis les grands boutons. Gauche et Droite font défiler ; les points indiquent la page.",
+          "line2Touch": "Faites glisser ou touchez ◀ ▶ pour défiler ; les points indiquent la page."
         }
       },
       "livetv": {
@@ -479,6 +483,7 @@
       },
       "title": "Utiliser SMC",
       "pickTopic": "Choisissez un sujet ; appuyez sur Retour à tout moment pour quitter.",
+      "pickTopicTouch": "Choisissez un sujet — le Retour du téléphone quitte à tout moment.",
       "slideCount_one": "{{count}} diapositive",
       "slideCount_many": "{{count}} diapositives",
       "slideCount_other": "{{count}} diapositives",

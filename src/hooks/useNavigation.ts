@@ -3,6 +3,7 @@ import { App as CapApp } from '@capacitor/app';
 import i18n from '@/i18n';
 import { GLOBAL_MODAL_SELECTOR } from '@/components/games/shared/gameInput';
 import { gameOwnsHardwareBack } from '@/components/games/shared/gameBack';
+import { isTouchUI } from '@/lib/phoneMode';
 
 interface NavigationState {
   currentView: string;
@@ -182,6 +183,22 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
           }
 
           console.log('Capacitor back button pressed, current view:', currentView, 'canGoBack:', canGoBack);
+
+          // A phone or tablet: the gesture / the bar's Back reaches the page
+          // only here, never as a key. The screen gets the Escape a remote's
+          // Back gives it, so it takes its own steps first (a ticket → the
+          // list, a guide's page → its menu: Tronix fe50f34, 6cd9617); only
+          // a press nobody answered is a step back here. Home keeps its own
+          // way out. A TV is unchanged.
+          if (isTouchUI() && stateRef.current.navigationStack.length > 1) {
+            let answered = false;
+            try {
+              const ev = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true });
+              document.body.dispatchEvent(ev);
+              answered = ev.defaultPrevented;
+            } catch { /* very old WebView: the plain step below */ }
+            if (answered) return;
+          }
 
           // One step back; on Home, the double press that leaves the app.
           goBackRef.current?.();

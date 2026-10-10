@@ -6,7 +6,9 @@
         "subtitle": "Tu control, tu celular y el Inicio",
         "remote": {
           "title": "Las flechas mueven. OK elige. Atrás vuelve.",
-          "line2": "Mantén OK sobre un canal o un título para ver más opciones. No puedes romper nada."
+          "titleTouch": "Toca para elegir. Desliza para desplazarte. Atrás regresa.",
+          "line2": "Mantén OK sobre un canal o un título para ver más opciones. No puedes romper nada.",
+          "line2Touch": "Mantén el dedo en un canal o título para más opciones. No puedes romper nada."
         },
         "phone": {
           "title": "Usa tu celular como control remoto.",
@@ -19,7 +21,8 @@
         },
         "topbar": {
           "title": "Arriba a la derecha: la fecha, la hora y tus botones.",
-          "line2": "Presiona Arriba desde los botones grandes para llegar."
+          "line2": "Presiona Arriba desde los botones grandes para llegar.",
+          "line2Touch": "Están arriba en Inicio: solo toca uno."
         },
         "dashVoice": {
           "title": "El Panel es tu cuenta. Voz te deja hablar con SMC.",
@@ -31,7 +34,8 @@
         },
         "recommended": {
           "title": "Recomendado: lo que dan y lo que puedes ver.",
-          "line2": "Presiona Arriba desde los botones grandes. Izquierda y Derecha desplazan; los puntos marcan la página."
+          "line2": "Presiona Arriba desde los botones grandes. Izquierda y Derecha desplazan; los puntos marcan la página.",
+          "line2Touch": "Desliza o toca ◀ ▶ para desplazarte; los puntos muestran la página."
         }
       },
       "livetv": {
@@ -479,6 +483,7 @@
       },
       "title": "Cómo usar SMC",
       "pickTopic": "Elige un tema; presiona Atrás cuando quieras para salir.",
+      "pickTopicTouch": "Elige un tema — el Atrás del teléfono sale cuando quieras.",
       "slideCount_one": "{{count}} diapositiva",
       "slideCount_many": "{{count}} diapositivas",
       "slideCount_other": "{{count}} diapositivas",

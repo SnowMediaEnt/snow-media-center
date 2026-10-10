@@ -2,7 +2,8 @@
   "live": {
     "kidsAskGrownUp": {
       "title": "Bitte einen Erwachsenen, dich bei Live-TV anzumelden",
-      "body": "Live-TV ist auf diesem Fernseher noch nicht eingerichtet. Sobald sich ein Erwachsener angemeldet hat, warten deine Sender hier auf dich."
+      "body": "Live-TV ist auf diesem Fernseher noch nicht eingerichtet. Sobald sich ein Erwachsener angemeldet hat, warten deine Sender hier auf dich.",
+      "bodyTouch": "Live-TV ist auf diesem Gerät noch nicht eingerichtet. Sobald sich ein Erwachsener angemeldet hat, warten deine Sender hier auf dich."
     },
     "layoutTrial": {
       "dialogLabel": "Dieses Layout behalten?",
@@ -376,6 +377,10 @@
       "bufferingBody": "Kürzlich Ruckeln gemeldet – läuft evtl. nicht flüssig.",
       "watchBtn": "Trotzdem ansehen",
       "pickBtn": "Anderen wählen"
+    },
+    "phone": {
+      "tapToWatch": "Tippe auf einen Sender, um ihn hier zu sehen",
+      "fullScreenLabel": "Vollbild"
     }
   }
 }

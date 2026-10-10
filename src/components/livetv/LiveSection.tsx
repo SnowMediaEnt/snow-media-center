@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type MouseEvent as ReactMouseEvent } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
@@ -56,7 +56,7 @@ import { CATEGORY_DWELL_MS, KEPT_CATEGORY_SETTLE_MS } from '@/lib/categoryDwell'
 import { runAfter } from '@/utils/idle';
 import { keepInView } from '@/utils/keepInView';
 import { isPlaybackQuiet } from '@/utils/quietMode';
-import { loadPlayerVolume, savePlayerVolume, stepVolume } from '@/utils/volume';
+import { MAX_VOLUME, loadPlayerVolume, savePlayerVolume, stepVolume } from '@/utils/volume';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import ChannelRow from './ChannelRow';
@@ -95,6 +95,8 @@ import { recentChannelId, type RecentChannel } from '@/lib/recentChannels';
 import ReportCategoryDialog from './ReportCategoryDialog';
 import { warnedRecently, noteWatchAnyway } from './channelWarning';
 import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
+import LiveUpright from './LiveUpright';
+import { usePhoneLayout, useTouchUI } from '@/lib/phoneMode';
 import RecordDialog, { type RecordChoice } from './RecordDialog';
 import { recordChannelWatch } from '@/lib/watchHistory';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
@@ -1163,6 +1165,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // the virtualized rows, so scrollTop math needs the wrapper's real offset.
   const channelListRef = useRef<HTMLDivElement | null>(null);
   const layout = useLiveLayout();
+  // Phones (src/lib/phoneMode.ts, from Tronix 4369a23). Held upright, Live TV
+  // is one phone screen whatever the chosen layout (LiveUpright, slim rows);
+  // sideways and on a TV the chosen layout is drawn. On any touch screen a
+  // tap does what OK does, and with a video box on screen the first tap on a
+  // channel plays it there.
+  const phoneLayout = usePhoneLayout();
+  const upright = phoneLayout === 'portrait';
+  const touchUI = useTouchUI();
+  const listLayout: LiveLayout = upright ? 'compact' : layout;
+  const uprightRef = useRef(upright);
+  uprightRef.current = upright;
+  const touchUIRef = useRef(touchUI);
+  touchUIRef.current = touchUI;
   // Player engine (owner test builds only — PlaybackScreen). mpv only ever
   // actually plays here: the main slot, live=true (EngineChoice); a preview
   // box and fullscreen share the one useNativePlayer call below, so passing
@@ -1172,8 +1187,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [choosingLayout, setChoosingLayout] = useState(() => (!DEMO || HOWTO) && !hasLiveLayoutChoice());
   const choosingLayoutRef = useRef(choosingLayout);
   choosingLayoutRef.current = choosingLayout;
-  const cols = layout === 'grid' ? GRID_COLS : 1;
-  const rowHeight = rowHeightFor(layout);
+  const cols = listLayout === 'grid' ? GRID_COLS : 1;
+  const rowHeight = rowHeightFor(listLayout);
   const colsRef = useRef(cols); useEffect(() => { colsRef.current = cols; }, [cols]);
   // One virtual row per list row, or per GRID_COLS tiles in the grid.
   const rowCount = Math.ceil(visibleChannels.length / cols);
@@ -1450,12 +1465,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   );
   // The Vibez (grid) layout has no preview box, so it never starts a preview
   // stream: OK plays full screen. It used to open one behind the logo wall.
-  const noPreview = previewDisabled || layout === 'grid';
+  const noPreview = previewDisabled || listLayout === 'grid';
+  // A touch screen with a video box on screen: a tap on a channel puts it in
+  // the box (onRowActivate), a tap on the one already there goes full screen.
+  const tapToBox = touchUI && !noPreview;
+  const tapToBoxRef = useRef(tapToBox);
+  tapToBoxRef.current = tapToBox;
   useEffect(() => {
-    if (noPreview || !focusedChannel) { setPreviewChannel(null); return; }
+    if (noPreview) { setPreviewChannel(null); return; }
+    // On a touch screen the box plays what was tapped, never the highlight.
+    if (touchUI) return;
+    if (!focusedChannel) { setPreviewChannel(null); return; }
     const t = window.setTimeout(() => setPreviewChannel(focusedChannel), PREVIEW_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
-  }, [focusedChannel, noPreview]);
+  }, [focusedChannel, noPreview, touchUI]);
 
   const previewUrl = useMemo(
     // Demo: no stream URL may ever be constructed — the host is a sentinel.
@@ -1470,6 +1493,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const previewBoxRef = useCallback((el: HTMLDivElement | null) => {
     if (!NATIVE_PLAYBACK) return;
     if (previewObserverRef.current) { previewObserverRef.current.disconnect(); previewObserverRef.current = null; }
+    previewResizeOffRef.current?.();
+    previewResizeOffRef.current = null;
     if (!el) { setPreviewRect(null); return; }
     const measure = () => {
       const r = el.getBoundingClientRect();
@@ -1485,8 +1510,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       ro.observe(el);
       previewObserverRef.current = ro;
     }
+    // A phone turned: the box can move without changing size.
+    window.addEventListener('resize', measure);
+    previewResizeOffRef.current = () => window.removeEventListener('resize', measure);
   }, []);
   const previewObserverRef = useRef<ResizeObserver | null>(null);
+  const previewResizeOffRef = useRef<(() => void) | null>(null);
 
   const streamUrl = useMemo(() => {
     if (DEMO || !playingChannelId) return null;
@@ -1503,8 +1532,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const watchingRef = useRef<{ channel: string; category: string } | null>(null);
   const followOnPlayRef = useRef<{ st: XtreamLiveStream; run: () => void } | null>(null);
   // `catName`: the category to file the play under when it is not the one
-  // the list shows (a Recently watched pick).
-  const playChannel = useCallback((stream: XtreamLiveStream, catNameIn?: string) => {
+  // the list shows (a Recently watched pick). `inBox`: upright on a phone the
+  // video box is the player: the channel is watched there (Recently watched,
+  // the watch timer), not full screen (Tronix b033d02).
+  const playChannel = useCallback((stream: XtreamLiveStream, catNameIn?: string, inBox = false) => {
     // What waits for this very stream to play (a Recently watched pick's
     // list follow); any other play drops it.
     const onPlay = followOnPlayRef.current;
@@ -1514,7 +1545,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     playedStreamRef.current = stream;
     setPlayingLine(line);
     setPlayingChannelId(stream.stream_id);
-    setFullscreen(true);
+    if (!inBox) setFullscreen(true);
+    // Upright the box shows the channel full screen was left on (a zap
+    // there included), not the one it was opened from.
+    if (uprightRef.current) setPreviewChannel(stream);
     // Fire-and-forget analytics — dedupe rapid replays of same channel (<10s).
     // Demo visitors must never appear in real stats.
     if (DEMO) return;
@@ -1707,7 +1741,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // instead of reconnecting.
     live: !catchupUrl,
     rect: nativeActive ? undefined : previewRect,
-    background: nativeActive,
+    // Upright the box is where the channel is watched: it owns the screen
+    // (and the remote's media keys) like full screen does.
+    background: nativeActive || (upright && nativePreviewActive),
     onTracksChanged: () => setTracksTick((t) => t + 1),
     onPlayStateChange: (p) => setIsPaused(p),
     onEnded: rewind.onEnded,
@@ -1967,13 +2003,33 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => { visibleChannelsRef.current = visibleChannels; }, [visibleChannels]);
   // Stable row handlers, so ChannelRow's memo holds: inline arrows re-rendered
   // every mounted row (≈95 tiles in the grid) on every key press and EPG reply.
-  const onRowSelect = useCallback((i: number) => { setChannelIdx(i); }, []);
+  // A finger touching a row to scroll the list is not a pick: on a touch
+  // screen only a tap (onRowActivate) moves the highlight.
+  const onRowSelect = useCallback((i: number) => { if (!touchUIRef.current) setChannelIdx(i); }, []);
   const onRowActivate = useCallback((i: number) => {
     setPane('channels');
     setChannelIdx(i);
     const ch = visibleChannelsRef.current[i];
+    // A touch screen with a video box: the first tap plays the channel in
+    // the box, a tap on the channel already there goes full screen.
+    if (ch && tapToBoxRef.current) {
+      const inBox = previewChannelRef.current;
+      if (!inBox || inBox.stream_id !== ch.stream_id || lineFor(inBox) !== lineFor(ch)) {
+        if (uprightRef.current) {
+          // Upright the box is where it is watched: one reported down asks first.
+          const line = lineFor(ch);
+          const report = channelReport(downSetRef.current, line.host, ch.stream_id, ch.category_id);
+          if (report && !warnedRecently(line.host, ch.stream_id)) { setWarnFor({ stream: ch, report }); return; }
+          setPreviewChannel(ch);
+          playChannelRef.current(ch, undefined, true);
+          return;
+        }
+        setPreviewChannel(ch);
+        return;
+      }
+    }
     if (ch) activateChannelRef.current(ch);
-  }, []);
+  }, [lineFor]);
   // A held OK opens the channel's short menu (Favorite, Report, and Record…
   // where recording is offered); Record… leads on to the recording options.
   const openChannelOptions = useCallback((c: XtreamLiveStream) => { setReportFor(c); }, []);
@@ -2160,6 +2216,28 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       isFav: c.isFav,
     }))
     : []), [chOverlayOpen, visibleCategories, t]);
+  // Turning the phone (or a tablet) while a channel plays (Tronix 2ca8249):
+  // sideways it goes full screen, upright it comes back to the box. Not while
+  // something else owns the screen (Recordings, the Report / Record / warning
+  // dialogs) or the section isn't the active one: the channel would go full
+  // screen with no keys.
+  const turnedFromRef = useRef(phoneLayout);
+  const activeForTurnRef = useRef(isActive);
+  activeForTurnRef.current = isActive;
+  useEffect(() => {
+    const from = turnedFromRef.current;
+    turnedFromRef.current = phoneLayout;
+    if (recordingsOpenRef.current || reportForRef.current || recordForRef.current || warnForRef.current || !activeForTurnRef.current) return;
+    const wasUpright = from === 'portrait';
+    const nowUpright = phoneLayout === 'portrait';
+    if (wasUpright && !nowUpright && !fullscreenRef.current && previewChannelRef.current) {
+      activateChannelRef.current(previewChannelRef.current);
+    } else if (!wasUpright && nowUpright && fullscreenRef.current) {
+      const st = playingStreamRef.current ?? playedStreamRef.current;
+      if (st) setPreviewChannel(st);
+      setFullscreen(false);
+    }
+  }, [phoneLayout]);
   useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
   useEffect(() => { barVisibleRef.current = barVisible; }, [barVisible]);
   // A pause — the remote's Play/Pause, OK on ▶❚❚, the phone remote — brings
@@ -2349,7 +2427,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         if (isBack) {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           if (statsShownRef.current) { setStatsShown(false); return; }
-          if (barVisibleRef.current) { hideBarNow(); return; }
+          // A touch screen's Back leaves the picture at once: its bar comes
+          // and goes with a tap.
+          if (barVisibleRef.current && !touchUIRef.current) { hideBarNow(); return; }
           leavePicture();
           return;
         }
@@ -2470,7 +2550,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // exit the Player on Android/Fire TV.
         (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
         if (backToCallerRef.current?.()) return;
-        if (paneRef.current === 'channels') {
+        // A touch screen shows no highlight to walk back through: the search
+        // closes first, then straight to the Player (which leaves on a touch
+        // screen, LiveTV's onExitLeft).
+        if (touchUIRef.current && searchOpenRef.current) { setSearchOpen(false); setSearchQuery(''); return; }
+        if (paneRef.current === 'channels' && !touchUIRef.current) {
           setPane('categories');
         } else {
           onExitLeft(); // categories → sections (parent); from sections, parent Back exits.
@@ -2881,12 +2965,58 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     );
   }
 
+  // A touch screen, full screen (Tronix 4369a23): a tap on the picture brings
+  // the bar up or puts it away (and closes an open menu). A tap on a bar
+  // button or a menu row highlights it and runs the remote's OK there (the
+  // same key handler: one place decides what each button does); a tap on
+  // the volume bar sets the level there.
+  const okOnBar = () => {
+    try { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); } catch { /* very old WebView */ }
+  };
+  const onPictureTap = touchUI ? (e: ReactMouseEvent) => {
+    const el = e.target as HTMLElement | null;
+    if (el?.closest?.('button, [data-bar-control], [data-player-menu], [role="dialog"], [role="alertdialog"]')) return;
+    if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) {
+      setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false);
+      pokeBar();
+      return;
+    }
+    if (barVisibleRef.current) hideBarNow();
+    else { setBarFocus('play'); pokeBar(); }
+  } : undefined;
+  const barTouch = touchUI ? {
+    touch: true,
+    onControl: (id: BarControlId) => {
+      pokeBar();
+      // A menu open: the tap puts it away first (a second tap on its own
+      // button only closes it), so OK can't pick a row in it.
+      const menuOpen = subMenuOpenRef.current ? 'cc' : audioMenuOpenRef.current ? 'audio' : volMenuOpenRef.current ? 'vol' : null;
+      if (menuOpen) {
+        subMenuOpenRef.current = false; audioMenuOpenRef.current = false; volMenuOpenRef.current = false;
+        setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false);
+        if (menuOpen === id) return;
+      }
+      barFocusRef.current = id;
+      setBarFocus(id);
+      barVisibleRef.current = true;
+      okOnBar();
+    },
+    onMenuPick: (menu: 'subtitles' | 'audio', row: number) => {
+      pokeBar();
+      // Subtitles: row 0 is "Off" (-1), then the tracks.
+      if (menu === 'subtitles') { subMenuFocusRef.current = row - 1; setSubMenuFocus(row - 1); }
+      else { audioMenuFocusRef.current = row; setAudioMenuFocus(row); }
+      okOnBar();
+    },
+    onVolume: (v: number) => { pokeBar(); setVolume(Math.max(0, Math.min(MAX_VOLUME, Math.round(v * 20) / 20))); },
+  } : {};
+
   if (fullscreen) {
     // Native path: chrome renders over a transparent layer so the ExoPlayer
     // TextureView behind the WebView shows through. Web/fallback path keeps
     // the original <VideoPlayer> element rendering into the WebView.
     return (
-      <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
+      <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`} onClick={onPictureTap}>
         {!NATIVE_PLAYBACK && !DEMO && (
           <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
             <VideoPlayer
@@ -3004,6 +3134,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           audioMenuFocus={audioMenuFocus}
           volMenuOpen={volMenuOpen}
           volume={volume}
+          {...barTouch}
         />
         {chOverlayOpen && (
           <FullscreenChannelOverlay
@@ -3185,7 +3316,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   );
 
   // ── the channel list / grid, virtualized by row ────────────────────────
-  const rowVariant: 'classic' | 'compact' | 'tile' = layout === 'grid' ? 'tile' : layout;
+  const rowVariant: 'classic' | 'compact' | 'tile' = listLayout === 'grid' ? 'tile' : listLayout;
   const channelList = (
     <div ref={scrollParentRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3" data-howto="live.channels">
       {channelsLoading && visibleChannels.length === 0 ? (
@@ -3273,8 +3404,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // One muted <video> at most — each one spawns a WebMediaPlayer that
         // saturates the compositor thread.
         <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div></div>}>
-          <VideoPlayer src={previewUrl} volume={0} muted className="w-full h-full" chrome="minimal" />
+          {/* Upright on a phone the box is the player itself: with sound. */}
+          <VideoPlayer src={previewUrl} volume={upright ? volume : 0} muted={!upright} className="w-full h-full" chrome="minimal" />
         </Suspense>
+      ) : tapToBox && !previewChannel ? (
+        // A touch screen: the box waits for a tapped channel (the highlight
+        // never starts it), so it says so instead of "Preview loading…".
+        <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-brand-ice/70 font-nunito text-sm text-center px-4">
+          <Tv className="w-10 h-10 text-brand-ice/40" />
+          {t('live.phone.tapToWatch')}
+        </div>
       ) : previewDisabled || !focusedChannel ? (
         <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-brand-ice/70 font-nunito text-sm text-center px-4">
           {focusedChannel?.stream_icon ? (
@@ -3295,6 +3434,48 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // First time in Live TV on this box: the chooser sits over whichever
   // layout is drawn underneath until a look is picked.
   const layoutChooser = choosingLayout ? <LiveLayoutChooser onDone={() => setChoosingLayout(false)} /> : null;
+
+  // ── upright on a phone: one screen, whatever the chosen layout ─────────
+  if (upright) {
+    return (
+      <LiveUpright
+        layoutChooser={layoutChooser}
+        previewBoxRef={previewBoxRef}
+        previewBox={previewBox}
+        nativePreviewActive={nativePreviewActive}
+        inBox={previewChannel}
+        boxNowTitle={previewChannel ? epgFor(previewChannel)?.now?.title : undefined}
+        onFullScreen={() => { if (previewChannel) activateChannel(previewChannel); }}
+        searchOpen={searchOpen}
+        searchQuery={searchQuery}
+        searchInputRef={searchInputRef}
+        onSearchToggle={() => { const open = !searchOpen; setSearchOpen(open); if (!open) setSearchQuery(''); }}
+        onSearchChange={setSearchQuery}
+        showRecordings={showRecEntry}
+        recordingNow={recJobs.length > 0}
+        onOpenRecordings={() => setRecordingsOpen(true)}
+        categoriesLoading={categoriesLoading}
+        categories={visibleCategories.map((c) => ({
+          id: c.id, label: catLabel(c), isHeader: c.isHeader, collapsedHeader: c.collapsedHeader, isFav: c.isFav,
+          count: c.count, loading: loadingCat === c.id, down: !!c.catId && isCategoryDown(downSet, c.line.host, c.catId),
+        }))}
+        categoryIdx={categoryIdx}
+        onPickCategory={(i) => {
+          const c = visibleCategories[i];
+          if (!c) return;
+          userMovedRef.current = true;
+          setCategoryIdx(i);
+          if (c.isHeader) { toggleCollapsed(c.lineKey); return; }
+          if (c.isAll) allOptedInRef.current = true;
+          setPane('channels');
+        }}
+        channelList={channelList}
+      >
+        {reportDialog}
+        {recordDialog}
+      </LiveUpright>
+    );
+  }
 
   if (layout === 'compact') {
     return (
@@ -3386,7 +3567,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           )}
         </div>
 
-          <p className="flex-shrink-0 pr-24 text-xs font-nunito text-brand-ice/55">{t('live.list.hintCompact')}</p>
+          {!touchUI && <p className="flex-shrink-0 pr-24 text-xs font-nunito text-brand-ice/55">{t('live.list.hintCompact')}</p>}
         </div>
       {reportDialog}
       {recordDialog}
@@ -3409,7 +3590,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               <span className="text-base font-quicksand font-semibold text-white truncate">{searchOpen ? t('live.categories.search') : (currentCat ? catLabel(currentCat) : t('live.categories.channels'))}</span>
               {!searchOpen && catCount ? <span className="text-sm text-brand-ice/60 font-nunito">{formatCount(catCount)}</span> : null}
             </div>
-            <span className="text-xs font-nunito text-brand-ice/50">{t('live.list.hintGrid')}</span>
+            {!touchUI && <span className="text-xs font-nunito text-brand-ice/50">{t('live.list.hintGrid')}</span>}
           </div>
           {channelList}
         </div>
@@ -3456,7 +3637,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                     {t('live.list.nextLine', { title: focusedNowNext.next.title, time: formatTime(focusedNowNext.next.start) })}
                   </p>
                 )}
-                <p className="text-xs text-brand-ice/60 font-nunito mt-4">{t('live.list.hintClassic')}</p>
+                {!touchUI && <p className="text-xs text-brand-ice/60 font-nunito mt-4">{t('live.list.hintClassic')}</p>}
               </>
             ) : (
               <p className="text-brand-ice/70 font-nunito">

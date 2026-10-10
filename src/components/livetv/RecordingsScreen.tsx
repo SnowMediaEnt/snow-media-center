@@ -25,6 +25,7 @@
 // Rename follows the app's keyboard rule (useTVFocus, 1.6.x path): the field
 // is only highlighted, OK asks for the keyboard (no autofocus), Enter saves.
 // Chrome 66: margins, no flex gap beyond gap-1..4, no inset.
+import { useTouchUI } from '@/lib/phoneMode';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Check, Circle, Clock, Film, HardDrive, Pencil, Play, Settings, Square, Trash2, Usb, X } from 'lucide-react';
 import {
@@ -291,6 +292,7 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
   const [alarmsLate, setAlarmsLate] = useState(false);
   const [focus, setFocus] = useState(0);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
+  const touch = useTouchUI();
   const [renaming, setRenaming] = useState<RecordingItem | null>(null);
   const [playing, setPlaying] = useState<RecordingItem | null>(null);
 
@@ -508,6 +510,34 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
       default: return <X className={cls} />;
     }
   };
+  // A touch screen (Tronix 464aea5): a tap on a row opens its menu (the
+  // banner: its settings), a tap on a menu row does it, a tap beside the
+  // menu closes it; Delete still asks a second tap (touch: at the top).
+  const onListTap = touch ? (e: React.MouseEvent) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-recording-row]');
+    if (!el) return;
+    const st = stateRef.current;
+    const i = Number(el.dataset.recordingRow);
+    const row = st.rows[i];
+    if (!row) return;
+    setFocus(i);
+    if (row.kind === 'banner') st.openAlarmSettings();
+    else setMenu({ row, focus: 0 });
+  } : undefined;
+  const onMenuTap = touch ? (e: React.MouseEvent) => {
+    const st = stateRef.current;
+    const m = st.menu;
+    if (!m) return;
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-menu-row]');
+    if (!el) { if (!(e.target as HTMLElement).closest('.rounded-2xl')) setMenu(null); return; }
+    const key = el.dataset.menuRow;
+    if (m.confirm) {
+      if (key === 'sure') { if (m.row.kind === 'rec') void st.remove(m.row.it); else void st.dropSchedule(m.row.s); }
+      else setMenu({ row: m.row, focus: 0 });
+      return;
+    }
+    void st.doAction(key as Parameters<typeof st.doAction>[0], m.row);
+  } : undefined;
   const menuRow = (key: string, focused: boolean, icon: JSX.Element, label: string, danger = false) => (
     <div
       key={key}
@@ -537,7 +567,12 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
   return (
     <div data-recordings-screen className="flex-1 min-h-0 min-w-0 flex flex-col text-white p-5 bg-black/30 overflow-hidden">
       <div className="flex items-center mb-3">
-        <ArrowLeft className="w-6 h-6 mr-2 text-brand-ice/70" />
+        {/* A touch screen: the arrow is a Back button (a TV's ◀ / Back leave). */}
+        {touch ? (
+          <button type="button" onClick={() => onCloseRef.current()} aria-label={t('common.back')} data-recordings-back="" className="mr-2 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+            <ArrowLeft className="w-6 h-6 text-white" />
+          </button>
+        ) : <ArrowLeft className="w-6 h-6 mr-2 text-brand-ice/70" />}
         <h1 className="text-2xl font-quicksand font-bold mr-4">{t('recordings.list.title')}</h1>
         <div className="flex-1 min-w-0 text-right truncate">
           {volumes.map((v) => (
@@ -556,7 +591,7 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
         </p>
       )}
 
-      <div ref={listRef} data-recordings-list className="flex-1 min-h-0 overflow-hidden">
+      <div ref={listRef} data-recordings-list data-touch-scroll-y={touch ? '' : undefined} onClick={onListTap} className="flex-1 min-h-0 overflow-hidden">
         {win.start > 0 && <p className="text-center text-brand-ice/50 text-sm leading-none pb-1">▲</p>}
         <div className="space-y-2">
           {rows.slice(win.start, win.end).map((row, j) => {
@@ -635,10 +670,10 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
       </div>
       {win.end < rows.length && <p className="flex-shrink-0 text-center text-brand-ice/50 text-sm leading-none pt-1">▼</p>}
 
-      <p data-recordings-hint className="flex-shrink-0 mt-2 text-sm font-nunito text-brand-ice/60">{t('recordings.list.hint')}</p>
+      <p data-recordings-hint data-remote-hint="" className="flex-shrink-0 mt-2 text-sm font-nunito text-brand-ice/60">{t('recordings.list.hint')}</p>
 
       {menu && (
-        <div data-recording-menu className="fixed left-0 top-0 w-full h-full z-[90] flex items-center justify-center bg-black/75">
+        <div data-recording-menu onClick={onMenuTap} className="fixed left-0 top-0 w-full h-full z-[90] flex items-center justify-center bg-black/75">
           <div className="rounded-2xl bg-brand-navy/95 border border-brand-gold/40 shadow-[0_0_40px_rgba(245,200,80,0.25)] p-4" style={{ width: 480, maxWidth: '94%' }}>
             {menu.confirm ? (
               <>

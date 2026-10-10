@@ -1203,6 +1203,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       >
         <div
           className="flex-shrink-0 border-r border-white/10 flex items-center justify-between px-3 text-xs font-nunito text-brand-ice/70"
+          data-guide-chan
           style={{ width: CHANNEL_COL_WIDTH }}
         >
           <span className="min-w-0 truncate">{t('guide.channelHeader')}</span>
@@ -1213,6 +1214,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
             <div
               key={s}
               className="absolute top-0 bottom-0 border-l border-white/10 flex items-center px-2 text-xs font-nunito text-brand-ice/80"
+              data-guide-slot
               style={{ left: `${i * slotPct}%`, width: `${slotPct}%` }}
             >
               {formatSlot(s)}
@@ -1279,6 +1281,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                     {/* Channel cell */}
                     <div
                       data-howto="guide.channels"
+                      data-guide-chan
                       className="flex-shrink-0 flex items-center gap-2 px-3 border-r border-white/10 overflow-hidden"
                       style={{ width: CHANNEL_COL_WIDTH }}
                     >
@@ -1361,7 +1364,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       </div>
 
       {/* Hint bar */}
-      <div className="flex-shrink-0 border-t border-white/10 bg-black/40 px-3 py-2 text-xs font-nunito text-brand-ice/60">
+      <div data-guide-hint className="flex-shrink-0 border-t border-white/10 bg-black/40 px-3 py-2 text-xs font-nunito text-brand-ice/60">
         {SCHEDULE_CAPABLE && !kidsLevel() ? t('guide.hintRecord') : t('guide.hint')}
       </div>
       {menuFor && (
