@@ -5,7 +5,7 @@
 // and share the same Back stack as show → seasons → episodes.
 // Fire-TV D-pad only. All Plex HTTP via plex.ts.
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Play, RotateCw, List, Plus, Check, Gauge } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, RotateCw, List, Plus, Check, Gauge } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { getPlexMetadata as _getPlexMetadata, getPlexSeasons as _getPlexSeasons,
@@ -22,6 +22,7 @@ import { isPlexKeyOwner } from './plexKeyOwner';
 import { getProgress, isWatched, progressPercent, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { isPlexPlaybackActive } from '@/lib/plex';
 import { isFavorite, toggleFavorite, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
+import { useTouchUI } from '@/lib/phoneMode';
 
 interface Props {
   isActive: boolean;
@@ -164,6 +165,7 @@ const EpisodeRow = memo(({ ep, base, token, focused, chips, note }: { ep: PlexEp
 EpisodeRow.displayName = 'EpisodeRow';
 
 const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, onBack, watchNonce = 0, serverResume = false, speedConnections = 1 }: Props) => {
+  const touch = useTouchUI();
   const { t } = useTranslation();
   // ── back-stack of items (top = current). Opening a title from actor
   //    filmography pushes; Back pops before we ever hit onBack().
@@ -712,7 +714,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const showEpisodePlay = isEpisode && !detailButtons.some((b) => b.id === 'play');
 
   return (
-    <div className="fixed inset-0 z-[55] text-white overflow-hidden">
+    <div className="fixed inset-0 z-[55] text-white overflow-hidden" data-plex-detail="">
       {/* Backdrop — skipped on NATIVE (heap-cost, decorative only); on web
           it's a small 640x360 image mounted after first paint. */}
       <div className="absolute inset-0 bg-black">
@@ -730,9 +732,16 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/50" />
       </div>
 
-      <div className="relative z-10 h-full overflow-y-auto px-8 py-6">
+      <div className="relative z-10 h-full overflow-y-auto px-8 py-6" data-plex-detail-body="">
+        {/* A touch screen: a Back of its own (the page covers the Player's
+            header, and a finger has no remote Back to reach for). */}
+        {touch && (
+          <button type="button" onClick={onBack} data-plex-detail-back="" className="mb-3 inline-flex items-center gap-2 h-10 px-4 rounded-full bg-black/60 border border-white/20 text-white font-quicksand font-semibold">
+            <ArrowLeft className="w-4 h-4" />{t('common.back')}
+          </button>
+        )}
         {isDetailStep && (
-          <div className="max-w-6xl mx-auto flex">
+          <div className="max-w-6xl mx-auto flex" data-plex-detail-top="">
             {/* mr-6, not the row's gap-6: flex gap is 0 on Chromium < 84 and the
                 poster sat hard against the title there. */}
             <div className="w-44 flex-shrink-0 mr-6">

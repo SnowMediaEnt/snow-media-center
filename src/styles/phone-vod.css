@@ -134,3 +134,64 @@ html.is-upright [data-series-episodes-col] > h4 {
   font-size: 15px;
   margin-bottom: 4px;
 }
+
+/* ── Plex upright: the side menu as a row of chips over the content. ─── */
+html.is-upright [data-plex-root] {
+  flex-direction: column;
+}
+html.is-upright [data-plex-menu] {
+  width: 100% !important;
+  flex: 0 0 auto !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px !important;
+  border-right: 0 !important;
+  border-bottom: 1px solid rgb(255 255 255 / 0.1);
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+html.is-upright [data-plex-menu]::-webkit-scrollbar { display: none; }
+/* The server line and the group hairlines: a TV's. */
+html.is-upright [data-plex-menu] > div:first-child,
+html.is-upright [data-plex-menu] > div > div[aria-hidden] {
+  display: none;
+}
+html.is-upright [data-plex-menu] > div {
+  flex: 0 0 auto;
+}
+html.is-upright [data-plex-menu] button {
+  width: auto !important;
+  height: 40px;
+  margin: 0 !important;
+  padding: 0 14px !important;
+  border-radius: 9999px !important;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  white-space: nowrap;
+}
+html.is-upright [data-plex-menu] button > span.absolute {
+  display: none;
+}
+html.is-upright [data-plex-scroller] {
+  padding: 12px 12px 16px !important;
+}
+
+/* ── A Plex title upright: the poster over the text. ─────────────────── */
+html.is-upright [data-plex-detail-body] {
+  padding: max(env(safe-area-inset-top, 0px), 12px) 16px 16px !important;
+}
+html.is-upright [data-plex-detail-top] {
+  flex-direction: column;
+  align-items: stretch;
+}
+html.is-upright [data-plex-detail-top] > :first-child {
+  width: 46% !important;
+  margin: 0 auto 14px !important;
+}
+html.is-upright [data-plex-detail] h1 {
+  white-space: normal;
+  font-size: 22px;
+  line-height: 1.2;
+}

@@ -21,7 +21,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 // every toast state change, which only <Toaster> needs.
 import { toast } from '@/hooks/use-toast';
 import { isFireTV } from '@/utils/platform';
-import { fingerIsDriving } from '@/lib/phoneMode';
+import { fingerIsDriving, isTouchUI, usePhoneLayout, useTouchUI } from '@/lib/phoneMode';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { usePlexAuth } from '@/hooks/usePlexAuth';
@@ -413,7 +413,9 @@ const mergeRail = (lists: Array<PlexItem[] | null>): PlexItem[] => {
   return out.slice(0, RAIL_CAP);
 };
 
-const COLS = 6;
+// Posters a row in the grids: 6 on a TV, 3 on a phone held upright. Set by
+// PlexSection as it renders (usePhoneLayout), read by every grid below.
+let COLS = 6;
 const ROW_H_ESTIMATE = 250;   // pre-measure fallback for the virtualizer
 const PAGE_FIRST = 60;
 const PAGE_MORE = 200;
@@ -569,7 +571,9 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
   // Tiles drawn either side of the anchor: at least a screen's worth, so the
   // part of a scrolled rail behind the cursor is never empty spacer on a wide
   // WebView (a 1920-px-wide one shows about sixteen tiles at once).
-  const railSpan = useMemo(() => Math.max(RAIL_AHEAD, Math.ceil(((typeof window !== 'undefined' && window.innerWidth) || 1920) / RAIL_TILE_PX) + 1), []);
+  // A touch screen: every tile is real (a finger scrolls a rail anywhere,
+  // past the window around the highlight that a remote needs).
+  const railSpan = useMemo(() => (isTouchUI() ? 100000 : Math.max(RAIL_AHEAD, Math.ceil(((typeof window !== 'undefined' && window.innerWidth) || 1920) / RAIL_TILE_PX) + 1)), []);
   // A rail that mounts (it came back into the vertical window below) starts
   // scrolled to its anchor, not to its start.
   const placedRef = useRef<WeakSet<HTMLDivElement>>(new WeakSet());
@@ -638,7 +642,8 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
       {rows.map((r, ri) => (
         <div key={r.id} data-plex-row={r.id} data-howto={r.id === 'continue' ? 'plex.continue' : r.id === 'added' ? 'plex.recent' : undefined} className="plex-rail" ref={(el) => { railBoxRefs.current[r.id] = el; }}>
           <div className="plex-rail-head font-quicksand">{r.titleKey ? t(r.titleKey, r.titleParams) : r.title}</div>
-          {(ri < row - RAIL_ROWS_SPAN || ri > row + RAIL_ROWS_SPAN) ? (
+          {/* A touch screen: every rail is real (a finger scrolls the page anywhere). */}
+          {!isTouchUI() && (ri < row - RAIL_ROWS_SPAN || ri > row + RAIL_ROWS_SPAN) ? (
             <div aria-hidden="true" style={{ height: railHRef.current || RAIL_H_FALLBACK }} />
           ) : (
           <div
@@ -2268,6 +2273,10 @@ const seedFromItem = (it: PlexItem): PlexPlayInfo | null => {
 
 // ─── MAIN ──────────────────────────────────────────────────────────────────
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport, onNeedLiveTV, onFullscreenChange }: Props) => {
+  // Phones (src/lib/phoneMode.ts): upright three posters a row; on any touch
+  // screen the menu stays open (a row of chips upright).
+  const touchUI = useTouchUI();
+  COLS = usePhoneLayout() === 'portrait' ? 3 : 6;
   const { t } = useTranslation();
   const {
     status, conn, pinCode, error, justLinked, accountToken, providerNote, providerAvailable,
@@ -4722,7 +4731,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Folded whenever the remote is over in the content. While the detail page
   // or the player is up the menu is not on screen at all, so this is only
   // about the browse view.
-  const menuCollapsed = zone !== 'tabs';
+  // A touch screen never folds the menu (a tap must not land on a menu that
+  // moved under the finger; upright it is a row of chips, phone-vod.css).
+  const menuCollapsed = zone !== 'tabs' && !touchUI;
   const railsPage = !!currentTab && (currentTab.type === 'home' || currentTab.type === 'discover' || currentTab.type === 'seasonal'
     || ((currentTab.type === 'movie' || currentTab.type === 'show') && !!currentTab.libKey && currentMode(currentTab.libKey) === 'rows'));
   const menuIcon = (t: Tab) =>
@@ -4734,7 +4745,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         position (the rails' and the content column's), and the viewer came
         back to rails scrolled to their start. Hidden this way it paints
         nothing, so the video under the WebView shows through as before. */}
-    <div className="relative flex-1 min-h-0 flex overflow-hidden bg-black/30 text-white" style={fullscreen ? { visibility: 'hidden' } : undefined}>
+    <div data-plex-root="" className="relative flex-1 min-h-0 flex overflow-hidden bg-black/30 text-white" style={fullscreen ? { visibility: 'hidden' } : undefined}>
       {/* The highlighted title's art behind the rails (PlexBackdrop). Only on
           the pages that have rails; the menu and the content paint over it.
           Gone while a film plays (its image and layer freed for the player),
@@ -4750,6 +4761,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       <div
         onClick={() => { if (menuCollapsed) exitToMenu(); }}
         data-howto="plex.menu"
+        data-plex-menu=""
         className={`relative flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col pb-2 overflow-y-auto overflow-x-hidden ${menuCollapsed ? 'w-14 cursor-pointer' : 'w-56'}`}
         // Plex fills the screen with no header above it, so the top of this
         // column is the top of the panel — and a TV's overscan takes the
@@ -4790,7 +4802,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             </div>
           );
         })}
-        {!menuCollapsed && <div className="mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">{t('plex.section.menuHint')}</div>}
+        {!menuCollapsed && <div data-remote-hint="" className="mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">{t('plex.section.menuHint')}</div>}
       </div>
 
       <div className="relative flex-1 min-w-0 flex flex-col overflow-hidden">
