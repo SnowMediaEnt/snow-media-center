@@ -628,6 +628,10 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     setPlayingChannelId(ch.stream_id);
     setFullscreen(true);
   }, [channels, creds, onFavorites, currentCategory, windowStart, listLoading]);
+  // For the key listeners: a new copy of playRow (a list landing, the time
+  // moved) must not re-subscribe them, which cancelled a hold under way.
+  const playRowRef = useRef(playRow);
+  playRowRef.current = playRow;
 
   // ── Held OK ───────────────────────────────────────────────────────────
   // A timer started by the key going down; the key coming up before it fires
@@ -971,7 +975,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (enterTimerRef.current) {
         cancelEnterTimer();
-        if (!fullscreenRef.current && !recordForRef.current && focusZoneRef.current === 'grid') playRow(rowIdxRef.current);
+        if (!fullscreenRef.current && !recordForRef.current && focusZoneRef.current === 'grid') playRowRef.current(rowIdxRef.current);
       }
       enterFiredRef.current = false;
     };
@@ -982,7 +986,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       window.removeEventListener('keyup', keyupHandler, true);
       cancelEnterTimer();
     };
-  }, [isActive, onExitLeft, onExitUp, playRow, cancelEnterTimer, toggleFavoriteAt]);
+  }, [isActive, onExitLeft, onExitUp, cancelEnterTimer, toggleFavoriteAt]);
   // The side menu (or a dialog over the Player) has the remote: a hold that
   // was under way is not finished by it.
   useEffect(() => {
