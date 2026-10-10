@@ -38,6 +38,7 @@ import {
   type XtreamEpgEntry,
 } from '@/lib/xtream';
 import { loadFavoritesForLine, lineKey } from '@/lib/favoritesSync';
+import { handLiveDeeplink } from '@/lib/appActions';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
@@ -86,7 +87,23 @@ interface Props {
   onExitLeft: () => void;
   onExitUp?: () => void;
   onNavigate?: (view: string) => void;
+  /** A channel picked here plays in Live TV's own player (handLiveDeeplink):
+   *  the same bar and options, its name and hints that go away. LiveTV shows
+   *  Live TV and keeps `place`; Back from the picture opens the Guide again
+   *  with it (resumeAt). Without it (or in the demo) the Guide plays the
+   *  channel itself. */
+  onWatch?: (place: GuidePlace) => void;
+  /** Where the Guide was when it handed a channel over (read once, at mount):
+   *  the same category, channel and time. Only Back from that picture hands
+   *  it back (LiveTV); any other way into the Guide opens it at its start. */
+  resumeAt?: GuidePlace | null;
+  /** Told once resumeAt has been taken. */
+  onResumeTaken?: () => void;
 }
+
+/** Where the Guide was: its line, category ('fav' for Favorites), the
+ *  channel and the time shown. */
+export interface GuidePlace { line: string; cat: string; channel: number; window: number }
 
 interface DecodedProgram {
   title: string;
@@ -155,8 +172,16 @@ const decodePrograms = (entries: XtreamEpgEntry[]): DecodedProgram[] =>
     .filter(e => e.start > 0 && e.end > e.start)
     .sort((a, b) => a.start - b.start);
 
-const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: _onNavigate }: Props) => {
+const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: _onNavigate, onWatch, resumeAt, onResumeTaken }: Props) => {
   const { t } = useTranslation();
+  const onWatchRef = useRef(onWatch);
+  onWatchRef.current = onWatch;
+  // Back from a channel this Guide handed to Live TV: the same category,
+  // channel and time as it was left (this line's only).
+  const [resume] = useState(() => (!DEMO && resumeAt && resumeAt.line === lineKey(creds) ? resumeAt : null));
+  const onResumeTakenRef = useRef(onResumeTaken);
+  onResumeTakenRef.current = onResumeTaken;
+  useEffect(() => { if (resumeAt) onResumeTakenRef.current?.(); }, [resumeAt]);
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   // Index into the bar: 0 is Favorites, then the categories.
@@ -166,8 +191,12 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const [rowIdx, setRowIdx] = useState(0);
   const [focusZone, setFocusZone] = useState<'category' | 'grid'>('grid');
 
-  // Time window (start ms). Initial = current half-hour.
-  const [windowStart, setWindowStart] = useState<number>(() => halfHourFloor(Date.now()));
+  // Time window (start ms). Initial = current half-hour (or the one shown
+  // when a channel was handed to Live TV, while it is not past).
+  const [windowStart, setWindowStart] = useState<number>(() => {
+    const now = halfHourFloor(Date.now());
+    return resume && resume.window >= now ? resume.window : now;
+  });
   const nowInitialRef = useRef(halfHourFloor(Date.now()));
 
   // Volume + playback
@@ -212,7 +241,11 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         const cats = await fetchLiveCategories(creds).catch(() => [] as XtreamCategory[]);
         if (cancelled) return;
         setCategories(cats);
-        if (!userMovedRef.current) setCategoryIdx(cats.length ? 1 : 0);
+        if (!userMovedRef.current) {
+          // Back from Live TV's player: the category it was on.
+          const back = resume ? (resume.cat === 'fav' ? 0 : cats.findIndex((c) => String(c.category_id) === resume.cat) + 1) : -1;
+          setCategoryIdx(back > 0 || resume?.cat === 'fav' ? Math.max(0, back) : cats.length ? 1 : 0);
+        }
       } finally {
         if (!cancelled) setCategoriesLoading(false);
       }
@@ -284,6 +317,21 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   useEffect(() => {
     if (rowIdx >= channels.length) setRowIdx(0);
   }, [channels.length, rowIdx]);
+  // Back from Live TV's player: the highlight on the channel it played, once
+  // the restored category's list is in (gone from it: where it opens). The
+  // viewer's first key or tap ends the wait: it never takes the remote later.
+  const rowResumedRef = useRef(!resume);
+  useEffect(() => {
+    if (rowResumedRef.current || !resume || listLoading || !catsReady) return;
+    const want = resume.cat === 'fav' ? onFavorites : String(currentCategory?.category_id ?? '') === resume.cat;
+    if (!want) { if (userMovedRef.current) rowResumedRef.current = true; return; }
+    if (!onFavorites && !channels.length) return;
+    rowResumedRef.current = true;
+    const i = channels.findIndex((c) => c.stream_id === resume.channel);
+    if (i < 0) return;
+    setRowIdx(i);
+    setFocusZone('grid');
+  }, [channels, listLoading, resume, catsReady, onFavorites, currentCategory]);
 
   // Virtualizer for channel rows. A stable key function: an inline one made
   // the virtualizer re-measure every channel on every render.
@@ -361,8 +409,13 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   // own scroll. The old inline ref ran scrollIntoView on every render (each
   // EPG reply included) and could nudge the page's scroll too.
   const catBarRef = useRef<HTMLDivElement | null>(null);
+  // Also once when the Guide opens again on a category further along the bar
+  // (back from Live TV's player): the open one is in view.
+  const chipShownRef = useRef(!resume);
   useEffect(() => {
-    if (!isActive || focusZone !== 'category') return;
+    const restoring = !chipShownRef.current && catsReady && categoryIdx > 0;
+    if (restoring) chipShownRef.current = true;
+    if (!restoring && (!isActive || focusZone !== 'category')) return;
     const bar = catBarRef.current;
     const el = bar?.querySelector<HTMLElement>(`[data-cat-i="${categoryIdx}"]`);
     if (!bar || !el) return;
@@ -370,7 +423,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     const right = left + el.offsetWidth;
     if (left < bar.scrollLeft) bar.scrollLeft = left - 8;
     else if (right > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = right - bar.clientWidth + 8;
-  }, [categoryIdx, focusZone, isActive, categories.length]);
+  }, [categoryIdx, focusZone, isActive, categories.length, catsReady]);
 
   // Keep focused row visible
   useEffect(() => {
@@ -482,9 +535,30 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const playRow = useCallback((idx: number) => {
     const ch = channels[idx];
     if (!ch) return;
+    // Live TV's own player: its bar, menus, rewind and record, and a name and
+    // volume that go away (this one's stayed on screen, with none of Live
+    // TV's options). Back from the picture comes back here.
+    if (onWatchRef.current && !DEMO) {
+      // The list on screen is still the last category's (the next one loads):
+      // nothing to pick yet.
+      if (listLoading) return;
+      const place: GuidePlace = {
+        line: lineKey(creds),
+        cat: onFavorites ? 'fav' : String(currentCategory?.category_id ?? ''),
+        channel: ch.stream_id,
+        window: windowStart,
+      };
+      handLiveDeeplink({
+        host: creds.host, username: creds.username, streamId: ch.stream_id,
+        name: ch.name, icon: ch.stream_icon || undefined,
+        categoryId: ch.category_id != null ? String(ch.category_id) : undefined, num: ch.num ?? undefined,
+      });
+      onWatchRef.current(place);
+      return;
+    }
     setPlayingChannelId(ch.stream_id);
     setFullscreen(true);
-  }, [channels]);
+  }, [channels, creds, onFavorites, currentCategory, windowStart, listLoading]);
 
   // ── Scheduled recordings ─────────────────────────────────────────────
   // Hold OK: a timer started by the key going down; the key coming up before it
@@ -657,6 +731,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
+      // The viewer has the Guide now: a place still being restored is not.
+      rowResumedRef.current = true;
       try {
         const target = e.target as HTMLElement;
         const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
@@ -895,7 +971,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                   key={c.category_id}
                   data-cat-i={i}
                   data-focused={isFocused ? 'true' : 'false'}
-                  onClick={() => { userMovedRef.current = true; setCategoryIdx(i); setFocusZone('grid'); }}
+                  onClick={() => { userMovedRef.current = true; rowResumedRef.current = true; setCategoryIdx(i); setFocusZone('grid'); }}
                   className={`
                     tv-ring flex-shrink-0 px-3 py-2 rounded-lg border text-sm font-nunito transition-transform duration-150
                     ${isFav ? 'flex items-center' : ''}
@@ -991,6 +1067,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       {/* Grid body */}
       <div
         ref={scrollParentRef}
+        data-guide-grid
         className={`flex-1 min-h-0 px-3 overflow-y-auto overflow-x-hidden ${focusZone === 'grid' && isActive ? 'bg-white/[0.02]' : ''}`}
       >
         {listLoading && channels.length === 0 ? (
@@ -1012,7 +1089,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
               return (
                 <div
                   key={v.key}
-                  onClick={() => { setRowIdx(v.index); playRow(v.index); }}
+                  onClick={() => { rowResumedRef.current = true; setRowIdx(v.index); playRow(v.index); }}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -1043,7 +1120,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                         {ch.num != null && (
                           <div className="text-xs font-nunito text-brand-ice/70 tabular-nums leading-tight">#{ch.num}</div>
                         )}
-                        <div className="text-sm font-quicksand font-semibold text-white truncate leading-tight">{ch.name}</div>
+                        <div data-guide-name className="text-sm font-quicksand font-semibold text-white truncate leading-tight">{ch.name}</div>
                       </div>
                     </div>
                     {/* Program lane */}
