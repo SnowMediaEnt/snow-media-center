@@ -1,0 +1,210 @@
+/* ==========================================================================
+   A phone held SIDEWAYS (html.is-sideways, src/lib/phoneMode.ts): the app
+   draws the page at the phone's own size (MainActivity: 360-430 px tall),
+   so the TV screens get Tronix's "sideways fit" (09c4c6d, 4369a23, 9520eec,
+   981877a): smaller bars and titles, narrower panes, finger-sized targets,
+   everything in the height. A tablet sideways and a TV never get the class.
+   The touch rules in phone*.css (taps, swipeable rows, chips, touch bars)
+   apply here too.
+   ========================================================================== */
+
+/* ── Home: the top row slimmer, the title and ticker smaller, the content
+   bar's posters sized to the height, the cards one short row. ───────── */
+html.is-sideways [data-home-topbar] {
+  top: max(env(safe-area-inset-top, 0px), 6px) !important;
+}
+html.is-sideways [data-home-logo] {
+  height: 44px !important;
+  top: 4px !important;
+}
+html.is-sideways [data-home-header] button {
+  height: 36px;
+  min-width: 36px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+html.is-sideways [data-home-title-spacer] {
+  height: 44px !important;
+}
+html.is-sideways [data-home] .home-watermark h1 {
+  font-size: 2.1rem !important;
+}
+html.is-sideways [data-home] .home-watermark p {
+  display: none;
+}
+html.is-sideways .news-ticker-medium {
+  height: 30px;
+}
+html.is-sideways [data-home-bottom] {
+  gap: 8px !important;
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px) !important;
+}
+html.is-sideways [data-media-bar-slot] {
+  padding-top: 4px !important;
+}
+html.is-sideways [data-media-bar] h2 {
+  font-size: 12px;
+}
+html.is-sideways [data-media-bar] > .flex {
+  padding-top: 4px;
+  padding-bottom: 2px;
+}
+html.is-sideways [data-media-bar] .media-poster {
+  height: 92px;
+}
+html.is-sideways [data-media-bar] .media-tile-text {
+  min-height: 0;
+  padding-top: 2px;
+}
+html.is-sideways [data-howto="home.recDots"] {
+  display: none;
+}
+html.is-sideways [data-home-cards] {
+  gap: 12px !important;
+}
+html.is-sideways [data-home-cards] [data-home-card] {
+  aspect-ratio: auto !important;
+  height: 58px !important;
+  width: clamp(120px, 20vw, 200px) !important;
+  border-radius: 16px;
+}
+html.is-sideways [data-home-cards] [data-home-card] > .relative.z-10 {
+  flex-direction: row;
+  gap: 8px;
+  padding: 6px 10px;
+}
+html.is-sideways [data-home-cards] [data-home-card] > .relative.z-10 > div:first-child {
+  width: 26px !important;
+  margin: 0 !important;
+}
+html.is-sideways [data-home-cards] [data-home-card] h3 {
+  font-size: 14px !important;
+  min-height: 0;
+  margin: 0;
+}
+
+/* ── Live TV: narrower categories, a smaller preview. ────────────────── */
+html.is-sideways [data-live-cats-pane="column"] {
+  width: 11rem !important;
+  max-width: 11rem !important;
+  padding: 8px !important;
+}
+html.is-sideways [data-live-cats-pane="drawer"] {
+  min-width: 260px !important;
+  padding: 8px !important;
+}
+html.is-sideways [data-live-cats-pane] > button {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+html.is-sideways [data-live-classic-preview] {
+  width: 10rem !important;
+}
+html.is-sideways [data-live-classic-preview] + div h3 {
+  font-size: 1rem;
+}
+html.is-sideways [data-native-clear] > [data-live-classic-preview] {
+  margin: 0;
+}
+
+/* ── Movies, TV Shows and Plex: narrower menus. ──────────────────────── */
+html.is-sideways [data-vod-cats] {
+  width: 11rem !important;
+  max-width: 11rem !important;
+  padding: 8px !important;
+}
+html.is-sideways [data-vod-grid] {
+  padding: 12px !important;
+}
+html.is-sideways [data-plex-menu] {
+  width: 9.5rem !important;
+  padding-top: 8px !important;
+}
+html.is-sideways [data-plex-scroller] {
+  padding: 8px 12px 12px !important;
+}
+html.is-sideways [data-movie-detail] [data-detail-body] {
+  padding: 8px 16px 10px !important;
+}
+html.is-sideways [data-movie-detail] h2 {
+  font-size: 1.4rem;
+}
+
+/* ── The screens (Settings, Support, …): a slimmer top row and padding. ─ */
+html.is-sideways .tv-safe {
+  padding: max(env(safe-area-inset-top, 0px), 8px) max(env(safe-area-inset-right, 0px), 16px) 12px max(env(safe-area-inset-left, 0px), 16px) !important;
+}
+html.is-sideways .smc-screen-header {
+  margin-bottom: 8px;
+}
+html.is-sideways .smc-screen-header h1 {
+  font-size: 1.5rem;
+  line-height: 1.9rem;
+}
+html.is-sideways .smc-screen-header p {
+  font-size: 13px;
+}
+html.is-sideways .smc-screen-header button {
+  height: 40px;
+}
+html.is-sideways [role="tablist"] > [role="tab"] {
+  min-height: 40px;
+}
+
+/* ── The profile screens: the avatars and the PIN pad in the height. ─── */
+html.is-sideways [data-profile-screens] > div {
+  padding: 10px 16px !important;
+}
+html.is-sideways [data-profile-screens] h1 {
+  font-size: 1.6rem;
+  margin-bottom: 4px;
+}
+html.is-sideways [data-profile-screens] h1 + p {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+html.is-sideways [data-profile-screens] [data-howto="prof.list"] > button {
+  margin: 4px 8px !important;
+}
+html.is-sideways [data-profile-screens] [data-howto="prof.list"] > button > div:first-child > div:first-child {
+  width: 80px !important;
+  height: 80px !important;
+}
+html.is-sideways [data-profile-screens] [data-howto="prof.list"] > button > div:first-child > div:first-child > div:first-child {
+  font-size: 36px !important;
+}
+
+/* ── The first-open layout chooser: in the height, scrolling if it must. */
+html.is-sideways [data-live-layout-chooser] {
+  justify-content: flex-start !important;
+  overflow-y: auto;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+html.is-sideways [data-live-layout-chooser] h1 {
+  font-size: 1.5rem;
+  margin-bottom: 2px;
+}
+html.is-sideways [data-live-layout-chooser] h1 + p {
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+/* ── Popups: never taller than the screen (the rest scrolls inside). ─── */
+html.is-sideways [role="dialog"][data-state="open"]:not([data-profile-screens]),
+html.is-sideways [role="alertdialog"][data-state="open"],
+html.is-sideways [data-notice-layer] {
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ── The voice overlay: slimmer. ─────────────────────────────────────── */
+html.is-sideways [data-voice-overlay] {
+  padding-bottom: 8px !important;
+}
+html.is-sideways [data-voice-overlay] > div {
+  padding: 12px 16px !important;
+}

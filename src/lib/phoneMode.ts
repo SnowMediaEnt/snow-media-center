@@ -6,9 +6,11 @@
 //               tap does what OK does. Phones and tablets.
 //   is-phone    a phone-sized touch screen (shorter side under 520 CSS px).
 //   is-upright  the upright phone layout: a phone held upright, or a tablet
-//               narrower than UPRIGHT_TABLET_MAX_WIDTH held upright. Sideways
-//               a phone or tablet keeps the TV layout (the app scales it to
-//               fit, MainActivity.fitTvLayoutOnTouchScreen).
+//               narrower than UPRIGHT_TABLET_MAX_WIDTH held upright.
+//   is-sideways the phone held sideways: drawn at its own size (MainActivity)
+//               with the phone's sideways fit (Tronix 09c4c6d, 4369a23): a
+//               slim header, a narrow menu, smaller panes. A tablet sideways
+//               keeps the TV layout.
 //
 // TV boxes never get either, so every rule and branch keyed on them leaves
 // the TV exactly as it was. A TV is what its user agent says (AFTxx, Android
@@ -105,11 +107,14 @@ export const phoneLayoutNow = (): 'portrait' | 'landscape' | null =>
 function syncClasses(): void {
   try {
     const cl = document.documentElement.classList;
-    const upright = phoneLayoutNow() === 'portrait';
+    const layout = phoneLayoutNow();
+    const upright = layout === 'portrait';
+    const sideways = layout === 'landscape';
     // Only on a change: a class write on <html> restyles the page.
     if (cl.contains('is-touch') !== state.touch) cl.toggle('is-touch', state.touch);
     if (cl.contains('is-phone') !== state.phone) cl.toggle('is-phone', state.phone);
     if (cl.contains('is-upright') !== upright) cl.toggle('is-upright', upright);
+    if (cl.contains('is-sideways') !== sideways) cl.toggle('is-sideways', sideways);
   } catch { /* no document */ }
 }
 
@@ -277,9 +282,7 @@ export function usePhoneUI(): boolean {
 
 /** 'portrait' / 'landscape' on a phone ('portrait' on a narrow tablet held
  *  upright), null on a TV, a tablet held sideways or a computer. Re-renders
- *  when the phone or tablet is turned. Sideways SMC draws its TV layout
- *  (scaled by the app), so code mostly asks for 'portrait': the upright
- *  phone layout. */
+ *  when the phone or tablet is turned. */
 export function usePhoneLayout(): 'portrait' | 'landscape' | null {
   return useSyncExternalStore(subscribe, phoneLayoutNow, phoneLayoutNow);
 }

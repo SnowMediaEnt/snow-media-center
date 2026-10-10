@@ -67,6 +67,10 @@ describe('the upright layout', () => {
     expect(phoneLayoutNow()).toBe('landscape');
     expect(cl.contains('is-upright')).toBe(false);
     expect(cl.contains('is-phone')).toBe(true);
+    // Sideways: the phone's sideways fit (html.is-sideways); never a tablet's.
+    expect(cl.contains('is-sideways')).toBe(true);
+    __setPhoneModeForTests({ touch: true, phone: false, portrait: false });
+    expect(cl.contains('is-sideways')).toBe(false);
     __setPhoneModeForTests({ touch: false, phone: false, portrait: true });
     expect(phoneLayoutNow()).toBeNull();
     expect(cl.contains('is-upright')).toBe(false);

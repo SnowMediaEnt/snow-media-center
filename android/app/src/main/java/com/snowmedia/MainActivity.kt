@@ -163,12 +163,12 @@ class MainActivity : BridgeActivity() {
         return !pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
     }
 
-    // Phones and tablets. Sideways: SMC's TV layout, scaled to fit and full
-    // screen like a TV (no status or navigation bar; a swipe shows them for a
-    // moment), the page drawn so the screen is TV_HEIGHT_CSS points tall, the
-    // height every screen is designed for. Only when the screen is shorter
-    // than that (phones): a tablet that already has the room keeps its own
-    // size. Upright (a phone, or a tablet narrower than UPRIGHT_MAX_DP): the
+    // Phones and tablets. Sideways: full screen like a TV (no status or
+    // navigation bar; a swipe shows them for a moment). A phone that turns
+    // draws the page at its own size, with the phone's sideways layout
+    // (src/lib/phoneMode.ts, html.is-sideways: Tronix's sideways fit); a touch
+    // screen that can't be turned and is shorter than TV_HEIGHT_CSS gets the
+    // TV layout scaled to that height, as before. Upright (a phone, or a tablet narrower than UPRIGHT_MAX_DP): the
     // page's own upright phone layout at its natural size (src/lib/phoneMode.ts,
     // html.is-upright), with the status and navigation bars. The screen turns
     // with the phone (the viewer's auto-rotate setting decides); turning it
@@ -176,6 +176,8 @@ class MainActivity : BridgeActivity() {
     // comes back through onConfigurationChanged. A wider tablet stays
     // sideways, as before. A TV is never touched.
     private var fitsTouchScreen = false
+    /** Held in the hand and turned (the phone layouts, both ways up). */
+    private var turnsInHand = false
     /** The orientation and screen size last fitted: only a real turn re-fits
      *  (a uiMode / keyboard / density change, an HDMI or remote reconnect,
      *  must not touch the insets or the scale). */
@@ -190,7 +192,8 @@ class MainActivity : BridgeActivity() {
         // declares a touch screen but no leanback (a 1080p xhdpi box is 540 dp)
         // stays sideways, as before.
         val canTurn = packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_ACCELEROMETER)
-        requestedOrientation = if (canTurn && resources.configuration.smallestScreenWidthDp < UPRIGHT_MAX_DP) {
+        turnsInHand = canTurn && resources.configuration.smallestScreenWidthDp < UPRIGHT_MAX_DP
+        requestedOrientation = if (turnsInHand) {
             ActivityInfo.SCREEN_ORIENTATION_USER
         } else {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -230,7 +233,7 @@ class MainActivity : BridgeActivity() {
         }
         val shortPx = screenShortPx()
         // 0: the WebView's own scale (the page's 1:1).
-        val percent = if (upright || shortPx / resources.displayMetrics.density >= TV_HEIGHT_CSS) 0
+        val percent = if (upright || turnsInHand || shortPx / resources.displayMetrics.density >= TV_HEIGHT_CSS) 0
             else (shortPx * 100 / TV_HEIGHT_CSS).toInt()
         Log.i("SMC-Phone", "Touch screen: ${if (upright) "upright, phone layout" else "sideways, TV layout"} at ${if (percent == 0) "its own size" else "$percent%"} (short side ${shortPx}px)")
         bridge?.webView?.setInitialScale(percent)

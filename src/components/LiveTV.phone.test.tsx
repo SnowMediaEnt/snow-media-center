@@ -112,6 +112,19 @@ describe('the Player on a phone held upright', () => {
   });
 });
 
+describe('the Player on a phone held sideways', () => {
+  it('a narrow side menu, every section one tap away (Tronix 4369a23)', async () => {
+    __setPhoneModeForTests({ touch: true, phone: true, portrait: false });
+    await open();
+    const rail = document.querySelector('[data-player-rail]') as HTMLElement;
+    expect(rail.className).toContain('w-[72px]');
+    expect(tab('live')).toBeNull();
+    act(() => { fireEvent.click(document.querySelector('[data-player-section="guide"]')!); });
+    await settle(); await settle();
+    expect(await screen.findByText('guide-section')).toBeTruthy();
+  });
+});
+
 describe('the Player on a TV', () => {
   it('keeps its side menu; Back in a section hands the remote back to it', async () => {
     const onBack = await open();

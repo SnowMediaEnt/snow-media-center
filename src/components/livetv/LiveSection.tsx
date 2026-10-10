@@ -3205,6 +3205,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const categoriesPane = (
     <div
       ref={categoriesScrollRef}
+      data-live-cats-pane={drawer ? 'drawer' : 'column'}
       aria-hidden={drawer && pane !== 'categories'}
       style={drawer ? { transform: pane === 'categories' ? 'translateX(0)' : 'translateX(-110%)' } : undefined}
       className={drawer
@@ -3629,7 +3630,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       {categoriesPane}
       <div data-native-clear className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
         <div data-native-clear className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
-          <div ref={previewBoxRef} data-howto="live.preview" className={`w-64 aspect-video rounded-xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
+          <div ref={previewBoxRef} data-howto="live.preview" data-live-classic-preview="" className={`w-64 aspect-video rounded-xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
             {previewBox}
           </div>
           <div className="flex-1 min-w-0" data-howto="live.nowNext">

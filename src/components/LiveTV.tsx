@@ -763,7 +763,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // TV's video, over the other sections), each section filling the rest.
   // Sideways a phone draws the TV layout (the app scales it to fit), and a
   // TV is as it was.
-  const upright = usePhoneLayout() === 'portrait';
+  const phoneLayout = usePhoneLayout();
+  const upright = phoneLayout === 'portrait';
+  // Sideways on a phone (Tronix 4369a23 "a sideways fit"): the slim header
+  // and a narrow side menu with small names (one tap opens a section).
+  const sideways = phoneLayout === 'landscape';
+  const slim = upright || sideways;
   const touchUI = useTouchUI();
   // The last key the Player saw, noted before any section's own listener (a
   // layout effect runs before every section's passive effects, and this one
@@ -1198,28 +1203,28 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       )}
 
 
-      {/* Header (upright on a phone: slim, Update and Settings as icons) */}
-      <div data-player-chrome="" className={upright ? 'flex items-center justify-between px-2 py-1.5 border-b border-white/10 bg-black/30' : 'flex items-center justify-between px-5 py-2 border-b border-white/10 bg-black/30'}>
-        <div className={upright ? 'flex items-center gap-2 min-w-0' : 'flex items-center gap-3'}>
+      {/* Header (a phone, either way up: slim, Update and Settings as icons) */}
+      <div data-player-chrome="" className={slim ? 'flex items-center justify-between px-2 py-1.5 border-b border-white/10 bg-black/30' : 'flex items-center justify-between px-5 py-2 border-b border-white/10 bg-black/30'}>
+        <div className={slim ? 'flex items-center gap-2 min-w-0' : 'flex items-center gap-3'}>
           <BackButton
             onClick={stepBack}
             label={t('common.back')}
-            className={upright ? 'h-9 px-3 rounded-lg text-sm' : 'h-10 rounded-lg'}
+            className={slim ? 'h-9 px-3 rounded-lg text-sm' : 'h-10 rounded-lg'}
             data-player-header-btn=""
             data-howto="live.back"
             focused={pane === 'header' && headerIdx === 0}
           />
-          <div className={upright ? 'flex items-center gap-2 min-w-0' : 'flex items-center gap-2'}>
+          <div className={slim ? 'flex items-center gap-2 min-w-0' : 'flex items-center gap-2'}>
             <Tv className="w-5 h-5 text-brand-gold flex-shrink-0" />
-            <h1 className={upright ? 'text-base font-quicksand font-bold text-white truncate' : 'text-xl font-quicksand font-bold text-white'}>{t('live.shell.title')}</h1>
-            {creds?.serverLabel && !upright && (
+            <h1 className={slim ? 'text-base font-quicksand font-bold text-white truncate' : 'text-xl font-quicksand font-bold text-white'}>{t('live.shell.title')}</h1>
+            {creds?.serverLabel && !slim && (
               <span className="ml-2 text-xs px-2 py-1 rounded-full bg-white/10 text-brand-ice font-nunito">
                 {serverDisplayName(creds.serverLabel)}
               </span>
             )}
           </div>
         </div>
-        <div className={upright ? 'flex items-center gap-2 flex-shrink-0' : 'flex items-center gap-2'}>
+        <div className={slim ? 'flex items-center gap-2 flex-shrink-0' : 'flex items-center gap-2'}>
           <Button
             variant="white"
             size="sm"
@@ -1232,8 +1237,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               ? 'tv-ring h-9 w-9 p-0 rounded-lg'
               : `tv-ring h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 1 ? 'scale-105 z-10' : ''}`}
           >
-            <RefreshCw className={`w-4 h-4 ${upright ? '' : 'mr-2 '}${isRefreshing ? 'animate-spin' : ''}`} />
-            {!upright && <span className="min-w-0 truncate">{isRefreshing ? t('live.shell.updatingBtn') : t('live.shell.updateChannelsBtn')}</span>}
+            <RefreshCw className={`w-4 h-4 ${slim ? '' : 'mr-2 '}${isRefreshing ? 'animate-spin' : ''}`} />
+            {!slim && <span className="min-w-0 truncate">{isRefreshing ? t('live.shell.updatingBtn') : t('live.shell.updateChannelsBtn')}</span>}
           </Button>
           {/* Demo: no settings entry point — the demo account is fixed and
               the hub only exposes credential management. */}
@@ -1242,15 +1247,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               variant="gold"
               size="sm"
               onClick={() => setSettingsOpen(true)}
-              aria-label={upright ? t('common.settings') : undefined}
+              aria-label={slim ? t('common.settings') : undefined}
               data-howto="live.settingsBtn"
               data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
               className={upright
                 ? 'tv-ring tv-ring-contrast h-9 w-9 p-0 rounded-lg'
                 : `tv-ring tv-ring-contrast h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 2 ? 'scale-105 z-10' : ''}`}
             >
-              <SettingsIcon className={upright ? 'w-4 h-4' : 'w-4 h-4 mr-2'} />
-              {!upright && <span className="min-w-0 truncate">{t('common.settings')}</span>}
+              <SettingsIcon className={slim ? 'w-4 h-4' : 'w-4 h-4 mr-2'} />
+              {!slim && <span className="min-w-0 truncate">{t('common.settings')}</span>}
             </Button>
           )}
         </div>
@@ -1277,13 +1282,31 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           ref={sectionsMenuRef}
           data-howto="live.sections"
           onClick={() => { if (pane !== 'sections') setPane('sections'); }}
-          className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 overflow-y-auto overflow-x-hidden ${pane === 'sections' || touchUI ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
+          data-touch-scroll-y={sideways ? '' : undefined}
+          className={sideways
+            ? 'flex-shrink-0 w-[72px] border-r border-white/10 px-1 py-2 space-y-1 bg-black/50 overflow-y-auto overflow-x-hidden'
+            : `flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 overflow-y-auto overflow-x-hidden ${pane === 'sections' || touchUI ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
         >
           {sections.map((s, i) => {
             const Icon = s.icon;
             const isFocused = pane === 'sections' && sectionIdx === i;
             const isActive = section === s.id;
             const collapsed = !touchUI && pane !== 'sections';
+            if (sideways) {
+              return (
+                <div
+                  key={s.id}
+                  data-section-i={i}
+                  data-player-section={s.id}
+                  data-active={isActive ? 'true' : 'false'}
+                  onClick={(e) => { e.stopPropagation(); pickSection(s.id); }}
+                  className={`relative flex flex-col items-center justify-center py-2 rounded-xl cursor-pointer ${isActive ? 'bg-brand-gold/20' : ''}`}
+                >
+                  <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-brand-gold' : 'text-brand-ice'}`} />
+                  <span className={`mt-1 w-full px-0.5 text-center text-[11px] leading-tight font-quicksand font-semibold line-clamp-2 break-words ${isActive ? 'text-white' : 'text-brand-ice/80'}`}>{t(s.labelKey)}</span>
+                </div>
+              );
+            }
             return (
               <div
                 key={s.id}
