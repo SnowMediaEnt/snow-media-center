@@ -44,6 +44,7 @@ import { commitFavoritesForLine, loadFavoritesForLine, lineKey, toggledFavorites
 import { handLiveDeeplink } from '@/lib/appActions';
 import { nameClasses } from '@/lib/channelName';
 import { CATEGORY_DWELL_MS, KEPT_CATEGORY_SETTLE_MS } from '@/lib/categoryDwell';
+import { useWhenSettled } from '@/hooks/useWhenSettled';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
@@ -107,8 +108,9 @@ interface Props {
 }
 
 /** Where the Guide was: its line, category ('fav' for Favorites), the
- *  channel and the time shown. */
-export interface GuidePlace { line: string; cat: string; channel: number; window: number }
+ *  channel and the time shown. `scroll`: the grid's offset, so Back puts the
+ *  channels back where they were (not the played row on the bottom edge). */
+export interface GuidePlace { line: string; cat: string; channel: number; window: number; scroll?: number }
 
 interface DecodedProgram {
   title: string;
@@ -363,6 +365,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   // the restored category's list is in (gone from it: where it opens). The
   // viewer's first key or tap ends the wait: it never takes the remote later.
   const rowResumedRef = useRef(!resume);
+  const restoreScrollRef = useRef<{ row: number; scroll: number } | null>(null);
   useEffect(() => {
     if (rowResumedRef.current || !resume || listLoading || !catsReady) return;
     const want = resume.cat === 'fav' ? onFavorites : String(currentCategory?.category_id ?? '') === resume.cat;
@@ -371,6 +374,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     rowResumedRef.current = true;
     const i = channels.findIndex((c) => c.stream_id === resume.channel);
     if (i < 0) return;
+    // The grid's own offset with it (the keep-in-view effect below).
+    if (i > 0 && typeof resume.scroll === 'number') restoreScrollRef.current = { row: i, scroll: resume.scroll };
     setRowIdx(i);
     setFocusZone('grid');
   }, [channels, listLoading, resume, catsReady, onFavorites, currentCategory]);
@@ -429,23 +434,32 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   }, [pumpEpg]);
 
   const virtualItems = rowVirtualizer.getVirtualItems();
+  const epgRowIds: number[] = [];
+  if (!fullscreen) {
+    // The rows in view, not the overscan drawn around them.
+    const off = rowVirtualizer.scrollOffset;
+    const viewH = rowVirtualizer.scrollRect?.height;
+    for (const v of virtualItems) {
+      if (typeof off === 'number' && viewH && (v.start + v.size <= off || v.start >= off + viewH)) continue;
+      const s = channels[v.index];
+      if (s) epgRowIds.push(s.stream_id);
+    }
+  }
+  const epgRowsKey = `${refreshTick}:${epgRowIds.join(',')}`;
   useEffect(() => {
     // Drop queued rows that are no longer on screen (in-flight ones finish).
-    const visible = new Set<number>();
-    if (!fullscreen) {
-      for (const v of virtualItems) {
-        const s = channels[v.index];
-        if (s) visible.add(s.stream_id);
-      }
-    }
+    const visible = new Set(epgRowIds);
     const keep: number[] = [];
     for (const id of epgQueueRef.current) {
       if (visible.has(id)) keep.push(id);
       else epgPendingRef.current.delete(id);
     }
     epgQueueRef.current = keep;
-    visible.forEach(enqueueEpg);
-  }, [virtualItems, channels, enqueueEpg, fullscreen, refreshTick]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- epgRowIds is what epgRowsKey spells
+  }, [epgRowsKey]);
+  // The rows on screen ask once the grid rests on them: a held ▼ or a fling
+  // used to ask for every channel it passed (src/hooks/useWhenSettled.ts).
+  useWhenSettled(epgRowsKey, () => epgRowIds.forEach(enqueueEpg));
 
   // Keep the focused category in view — once per move, and only this bar's
   // own scroll. The old inline ref ran scrollIntoView on every render (each
@@ -467,18 +481,30 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     else if (right > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = right - bar.clientWidth + 8;
   }, [categoryIdx, focusZone, isActive, categories.length, catsReady]);
 
-  // Keep focused row visible
+  // Keep focused row visible.
+  // Back from the channel (Live TV's player: the Guide opens again with its
+  // place; its own full-screen player: the grid is rebuilt): the grid goes
+  // back to where the viewer left it, not to wherever puts the watched row on
+  // its bottom edge. `categoryIdx`: another category opens at its first
+  // channel (scrolled by a finger, the row was 0 already, so with the same
+  // number of channels nothing re-ran and it opened at the old offset).
+  const gridScrollTopRef = useRef(0);
+  const wasFullscreenRef = useRef(fullscreen);
   useEffect(() => {
+    const backFromFullscreen = wasFullscreenRef.current && !fullscreen;
+    wasFullscreenRef.current = fullscreen;
     if (!channels.length) return;
     const node = scrollParentRef.current;
     if (!node) return;
-    if (rowIdx === 0) { node.scrollTop = 0; return; }
+    const restore = restoreScrollRef.current;
+    if (restore && restore.row === rowIdx) { restoreScrollRef.current = null; node.scrollTop = restore.scroll; }
+    else if (backFromFullscreen) node.scrollTop = gridScrollTopRef.current;
+    else if (rowIdx === 0) { node.scrollTop = 0; return; }
     const top = rowIdx * ROW_HEIGHT;
     const bot = top + ROW_HEIGHT;
     if (top < node.scrollTop) node.scrollTop = top;
     else if (bot > node.scrollTop + node.clientHeight) node.scrollTop = bot - node.clientHeight;
-    // `fullscreen`: the grid is rebuilt when playback closes, back at the top.
-  }, [rowIdx, channels.length, fullscreen]);
+  }, [rowIdx, channels.length, fullscreen, categoryIdx]);
 
   const windowEnd = windowStart + WINDOW_MINUTES * 60_000;
   const slotStarts = useMemo(
@@ -589,6 +615,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         cat: onFavorites ? 'fav' : String(currentCategory?.category_id ?? ''),
         channel: ch.stream_id,
         window: windowStart,
+        scroll: scrollParentRef.current?.scrollTop ?? 0,
       };
       handLiveDeeplink({
         host: creds.host, username: creds.username, streamId: ch.stream_id,
@@ -1183,6 +1210,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       <div
         ref={scrollParentRef}
         data-guide-grid
+        onScroll={(e) => { gridScrollTopRef.current = e.currentTarget.scrollTop; }}
         className={`flex-1 min-h-0 px-3 overflow-y-auto overflow-x-hidden ${focusZone === 'grid' && isActive ? 'bg-white/[0.02]' : ''}`}
       >
         {listLoading && channels.length === 0 ? (
