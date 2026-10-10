@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Smartphone, Video, MessageCircle, Sparkles } from 'lucide-react';
 import { useVersion } from '@/hooks/useVersion';
+import { usePlatformBack } from '@/hooks/usePlatformBack';
+import { useTouchUI } from '@/lib/phoneMode';
 
 /**
  * Per-version "What's New" entries. When a new build ships, add a new entry
@@ -327,6 +329,11 @@ const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
     }
     setOpen(false);
   };
+  // A phone's Back (the gesture or the bar's button) never arrives as a key
+  // (Tronix a794c13).
+  usePlatformBack(open, dismiss);
+  // A phone or tablet: no remote, so no "▲ ▼ / OK" hints.
+  const touch = useTouchUI();
 
   // Auto-focus the primary button so D-pad / Enter dismisses immediately
   useEffect(() => {
@@ -452,7 +459,9 @@ const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
                 ))}
               </ul>
             </div>
-            <p className="mt-3 text-xs text-white/50">{canScroll ? t('home.welcome.scrollHint') : t('home.welcome.closeHint')}</p>
+            {touch
+              ? (canScroll && <p className="mt-3 text-sm text-white/60" data-welcome-hint>{t('home.welcome.scrollHintTouch')}</p>)
+              : <p className="mt-3 text-xs text-white/50" data-welcome-hint>{canScroll ? t('home.welcome.scrollHint') : t('home.welcome.closeHint')}</p>}
           </>
         )}
 

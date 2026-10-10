@@ -11,6 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Tv, Wifi, Calendar, Smartphone } from 'lucide-react';
 import { ensureCustomerRow, daysUntil, type UserDevice, type UserService } from '@/hooks/useUserServices';
 import { trackEvent } from '@/lib/analytics';
+import { useTouchUI } from '@/lib/phoneMode';
+import { usePlatformBack } from '@/hooks/usePlatformBack';
 import { serverDisplayName } from '@/lib/xtream';
 
 const DEVICE_OPTIONS: string[] = [
@@ -71,6 +73,10 @@ const formatDateEntry = (value: string) => {
 const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, displayName, onSaved }: Props) => {
   const { t } = useTranslation();
   const { toast } = useToast();
+  // A phone or tablet: the system Back closes this (not My account under it),
+  // and the remote's highlight is not drawn (Tronix a794c13).
+  const touch = useTouchUI();
+  usePlatformBack(open, onClose);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -112,7 +118,10 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
   const cancelIndex = firstDateIndex + services.length;
   const saveIndex = cancelIndex + 1;
 
-  const focusClass = 'scale-110 shadow-[0_0_22px_rgba(96,165,250,0.85)] z-10';
+  // The remote's highlight; never drawn on a touch screen, where it read as
+  // a choice already made ("Amazon Fire TV" lit up as the editor opened).
+  const focusClass = touch ? '' : 'scale-110 shadow-[0_0_22px_rgba(96,165,250,0.85)] z-10';
+  const lit = (on: boolean, cls: string) => (on && !touch ? cls : '');
 
   const setFocusRef = (index: number) => (node: HTMLElement | null) => {
     focusRefs.current[index] = node;
@@ -121,12 +130,14 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
   useEffect(() => {
     if (!open || loading) return;
     setFocusedIndex(0);
+    // A touch screen: nothing is focused for the remote (a tap does it).
+    if (touch) return;
     const id = window.setTimeout(() => {
       focusRefs.current[0]?.focus();
       focusRefs.current[0]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 75);
     return () => window.clearTimeout(id);
-  }, [open, loading]);
+  }, [open, loading, touch]);
 
   useEffect(() => {
     if (!open || loading) return;
@@ -135,11 +146,11 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
   }, [focusedIndex, loading, open, saveIndex]);
 
   useEffect(() => {
-    if (!open || loading) return;
+    if (!open || loading || touch) return;
     const el = focusRefs.current[focusedIndex];
     el?.focus();
     el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, [focusedIndex, loading, open]);
+  }, [focusedIndex, loading, open, touch]);
 
   useEffect(() => {
     if (!open || loading) return;
@@ -308,7 +319,11 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl bg-slate-900 border-slate-700 text-white max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-2xl bg-slate-900 border-slate-700 text-white max-h-[90vh] overflow-y-auto"
+        aria-modal={touch ? 'true' : undefined}
+        data-phone-dialog=""
+      >
         <DialogHeader>
           <DialogTitle className="text-xl text-white">
             {adminMode ? t('account.services.editTitle', { name: displayName || email }) : t('account.services.title')}
@@ -405,7 +420,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                           pattern="\d{4}-\d{2}-\d{2}"
                           value={s.expiration_date || ''}
                           onChange={(e) => updateService(s.id, { expiration_date: formatDateEntry(e.target.value) || null })}
-                          className={`bg-slate-900 border-slate-600 text-white flex-1 outline-none focus:outline-none transition-all ${focusedIndex === inputIndex ? 'scale-105 shadow-[0_0_20px_rgba(96,165,250,0.7)]' : ''}`}
+                          className={`bg-slate-900 border-slate-600 text-white flex-1 outline-none focus:outline-none transition-all ${lit(focusedIndex === inputIndex, 'scale-105 shadow-[0_0_20px_rgba(96,165,250,0.7)]')}`}
                         />
                         {statusBadge}
                       </div>
@@ -419,11 +434,11 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
 
         <div className="flex justify-end gap-2 pt-4 border-t border-slate-700">
           <Button ref={setFocusRef(cancelIndex)} variant="outline" onClick={onClose} disabled={saving}
-            className={`bg-slate-700 hover:bg-slate-600 border-slate-600 text-white outline-none focus:outline-none transition-all ${focusedIndex === cancelIndex ? 'scale-110 shadow-[0_0_20px_rgba(148,163,184,0.7)] z-10' : ''}`}>
+            className={`bg-slate-700 hover:bg-slate-600 border-slate-600 text-white outline-none focus:outline-none transition-all ${lit(focusedIndex === cancelIndex, 'scale-110 shadow-[0_0_20px_rgba(148,163,184,0.7)] z-10')}`}>
             {t('common.cancel')}
           </Button>
           <Button ref={setFocusRef(saveIndex)} onClick={handleSave} disabled={saving || loading}
-            className={`bg-blue-600 hover:bg-blue-700 outline-none focus:outline-none transition-all ${focusedIndex === saveIndex ? 'scale-110 shadow-[0_0_20px_rgba(96,165,250,0.8)] z-10' : ''}`}>
+            className={`bg-blue-600 hover:bg-blue-700 outline-none focus:outline-none transition-all ${lit(focusedIndex === saveIndex, 'scale-110 shadow-[0_0_20px_rgba(96,165,250,0.8)] z-10')}`}>
             {saving ? t('account.services.saving') : t('account.services.saveBtn')}
           </Button>
         </div>
