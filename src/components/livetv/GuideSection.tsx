@@ -158,7 +158,6 @@ const CHANNEL_COL_WIDTH = 220;
 const TIME_HEADER_HEIGHT = 36;
 const WINDOW_MINUTES = 150; // 2.5 hours
 const SLOT_MINUTES = 30;
-const SLOTS = WINDOW_MINUTES / SLOT_MINUTES; // 5
 const EPG_MAX_CONCURRENT = 4;
 /** Hold OK (or a finger) this long on a channel to save it to Favorites, or
  *  take it out (the same hold as Live TV's list). */
@@ -181,7 +180,7 @@ const COMPACT_PREVIEW_VH = 36;
 const COMPACT_PREVIEW_VH_TOUCH = 30;
 /** The channel column: a TV or a phone held sideways, a phone upright. */
 const COMPACT_COL_W = 232;
-const COMPACT_COL_W_UPRIGHT = 128;
+const COMPACT_COL_W_UPRIGHT = 148;
 /** The category drawer's width (at most 85% of a narrow screen). */
 const DRAWER_W = 320;
 
@@ -240,6 +239,10 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const touch = useTouchUI();
   const upright = usePhoneLayout() === 'portrait';
   const rowH = compact ? (touch ? COMPACT_ROW_TOUCH : COMPACT_ROW_TV) : ROW_HEIGHT;
+  // Upright on a phone, Compact shows 90 minutes across (the TV's 2.5 hours
+  // left the programmes a few letters each beside the channel column).
+  const windowMin = compact && upright ? 90 : WINDOW_MINUTES;
+  const slots = windowMin / SLOT_MINUTES;
   const rowHRef = useRef(rowH);
   rowHRef.current = rowH;
   const onWatchRef = useRef(onWatch);
@@ -584,10 +587,10 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     else if (bot > node.scrollTop + node.clientHeight) node.scrollTop = bot - node.clientHeight;
   }, [rowIdx, channels.length, fullscreen, categoryIdx, rowH]);
 
-  const windowEnd = windowStart + WINDOW_MINUTES * 60_000;
+  const windowEnd = windowStart + windowMin * 60_000;
   const slotStarts = useMemo(
-    () => Array.from({ length: SLOTS }, (_, i) => windowStart + i * SLOT_MINUTES * 60_000),
-    [windowStart],
+    () => Array.from({ length: slots }, (_, i) => windowStart + i * SLOT_MINUTES * 60_000),
+    [windowStart, slots],
   );
 
   // Playback wiring — mirror LiveSection's native path exactly
@@ -1299,8 +1302,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
 
   // ── Render grid ──────────────────────────────────────────────────────
   const totalRowsSize = rowVirtualizer.getTotalSize();
-  const slotPct = 100 / SLOTS;
-  const nowPct = ((nowTick - windowStart) / (WINDOW_MINUTES * 60_000)) * 100;
+  const slotPct = 100 / slots;
+  const nowPct = ((nowTick - windowStart) / (windowMin * 60_000)) * 100;
   const nowInWindow = nowPct >= 0 && nowPct <= 100;
   const canGoEarlier = windowStart > nowInitialRef.current;
 
@@ -1440,7 +1443,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
             {slotStarts.map((st, i) => (
               <div
                 key={st}
-                data-guide-slot
+                data-guide-time
                 className="absolute top-0 bottom-0 border-l border-white/10 flex items-center px-1.5 text-[13px] whitespace-nowrap overflow-hidden font-nunito text-brand-ice/80 tabular-nums"
                 style={{ left: `${i * slotPct}%`, width: `${slotPct}%` }}
               >
@@ -1521,8 +1524,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                         {visible.map((p, i) => {
                           const clampedStart = Math.max(p.start, windowStart);
                           const clampedEnd = Math.min(p.end, windowEnd);
-                          const left = ((clampedStart - windowStart) / (WINDOW_MINUTES * 60_000)) * 100;
-                          const width = ((clampedEnd - clampedStart) / (WINDOW_MINUTES * 60_000)) * 100;
+                          const left = ((clampedStart - windowStart) / (windowMin * 60_000)) * 100;
+                          const width = ((clampedEnd - clampedStart) / (windowMin * 60_000)) * 100;
                           const airingNow = p.start <= nowTick && nowTick < p.end;
                           const startsHere = scheduledStarts.get(c.stream_id);
                           const scheduled = !!startsHere && (() => {
@@ -1564,7 +1567,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
             and Settings (the remote reaches them in the drawer). */}
         <div
           data-guide-bottom
-          className={`flex-shrink-0 border-t border-white/10 bg-black/40 flex items-center ${touch ? 'px-2' : 'pl-3 pr-24'}`}
+          className={`flex-shrink-0 border-t border-white/10 bg-black/40 flex items-center ${touch ? 'px-2' : 'pl-3 pr-36'}`}
           style={{ height: bottomH }}
         >
           {touch ? (
@@ -1904,8 +1907,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                       {visible.map((p, i) => {
                         const clampedStart = Math.max(p.start, windowStart);
                         const clampedEnd = Math.min(p.end, windowEnd);
-                        const left = ((clampedStart - windowStart) / (WINDOW_MINUTES * 60_000)) * 100;
-                        const width = ((clampedEnd - clampedStart) / (WINDOW_MINUTES * 60_000)) * 100;
+                        const left = ((clampedStart - windowStart) / (windowMin * 60_000)) * 100;
+                        const width = ((clampedEnd - clampedStart) / (windowMin * 60_000)) * 100;
                         const isNow = p.start <= nowTick && nowTick < p.end;
                         const startsHere = scheduledStarts.get(ch.stream_id);
                         const scheduled = !!startsHere && (() => {
