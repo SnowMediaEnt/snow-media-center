@@ -253,3 +253,48 @@ describe('Guide: hold OK saves the channel to Favorites', () => {
     expect(savedIds()).toEqual([9]); // the box's own list is still the active line's
   });
 });
+
+describe('Guide: long event names', () => {
+  // An event channel with no listings carries the event and its time in its
+  // name: two smaller lines on every row, the whole name in the no-listings
+  // cell and the header above the grid; never a scroll; a short name keeps
+  // its size.
+  it('two smaller lines in the channel column; the whole name in the no-listings cell; a short name keeps its size', async () => {
+    const { Guide } = await freshGuide();
+    render(<Guide creds={line as never} isActive onExitLeft={() => {}} onWatch={() => {}} />);
+    await seeRow(LONG);
+    const [event, news] = rowEls();
+    const name = event.querySelector('[data-guide-name]')!;
+    expect(name.textContent).toBe(LONG); // the whole text; the clamp draws "…" only past two lines
+    expect(name.className).toMatch(/\bline-clamp-2\b/);
+    expect(name.className).toMatch(/\btext-xs\b/);
+    expect(name.className).not.toMatch(/\btruncate\b/);
+    const short = news.querySelector('[data-guide-name]')!;
+    expect(short.className).toMatch(/\btext-sm\b/);
+    // No listings: the name where the programmes would be, with "No listings".
+    await waitFor(() => expect(event.querySelector('[data-guide-nolistings]')).toBeTruthy());
+    const cell = event.querySelector('[data-guide-nolistings]')!;
+    expect(cell.firstElementChild!.textContent).toBe(LONG);
+    expect(cell.firstElementChild!.className).toMatch(/\bline-clamp-2\b/);
+    expect(cell.textContent).toContain('No listings');
+    // The focused-channel header: two lines, a step smaller.
+    const head = document.querySelector('[data-guide-head]')!;
+    expect(head.textContent).toBe(LONG);
+    expect(head.className).toMatch(/\bline-clamp-2\b/);
+    expect(head.className).toMatch(/\btext-lg\b/);
+    // Nothing scrolls a name across.
+    expect(document.querySelector('[data-guide-grid] marquee, [data-guide-grid] .animate-marquee')).toBeNull();
+  });
+
+  it("the Guide's own player bar: the long name on two smaller lines", async () => {
+    const { Guide } = await freshGuide();
+    render(<Guide creds={line as never} isActive onExitLeft={() => {}} />);
+    await seeRow(LONG);
+    await press('Enter');
+    await waitFor(() => expect(document.querySelector('[data-guide-playing-name]')).toBeTruthy());
+    const bar = document.querySelector('[data-guide-playing-name]')!;
+    expect(bar.textContent).toBe(LONG);
+    expect(bar.className).toMatch(/\bline-clamp-2\b/);
+    expect(bar.className).toMatch(/\btext-sm\b/);
+  });
+});

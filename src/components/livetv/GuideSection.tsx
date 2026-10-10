@@ -41,6 +41,7 @@ import {
 } from '@/lib/xtream';
 import { commitFavoritesForLine, loadFavoritesForLine, lineKey, toggledFavorites } from '@/lib/favoritesSync';
 import { handLiveDeeplink } from '@/lib/appActions';
+import { nameClasses } from '@/lib/channelName';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { isFireTV, isLowMemoryBox } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
@@ -1007,7 +1008,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
               ? <img src={playingChannel.stream_icon} alt="" className="w-12 h-12 rounded-lg bg-black/40 object-contain" />
               : <Tv className="w-8 h-8 text-brand-gold" />}
             <div className="min-w-0">
-              <p className="font-quicksand font-bold text-white truncate">{playingChannel?.name || ''}</p>
+              <p data-guide-playing-name className={`font-quicksand font-bold text-white ${nameClasses(playingChannel?.name, 40, 'text-base', 'text-sm')}`}>{playingChannel?.name || ''}</p>
               {playingNow && <p className="text-sm text-brand-ice/80 font-nunito truncate">{playingNow.title}</p>}
             </div>
           </div>
@@ -1087,7 +1088,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
             <div className="flex-1 min-w-0 pl-5 flex flex-col justify-center">
               {ch ? (
                 <>
-                  <h3 className="text-2xl font-quicksand font-bold text-white truncate">{ch.name}</h3>
+                  {/* A long name (an event and its time): two smaller lines (lib/channelName). */}
+                  <h3 data-guide-head className={`font-quicksand font-bold text-white ${nameClasses(ch.name, 40, 'text-2xl', 'text-lg')}`}>{ch.name}</h3>
                   {now ? (
                     <>
                       <p className="mt-1 text-lg text-brand-ice/90 font-nunito truncate">{t('guide.now', { title: now.title })}</p>
@@ -1202,7 +1204,9 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                             {favs.has(ch.stream_id) && <Star data-guide-fav className={`w-3 h-3 text-brand-gold fill-brand-gold flex-shrink-0 ${ch.num != null ? 'ml-1' : ''}`} />}
                           </div>
                         )}
-                        <div data-guide-name className="text-sm font-quicksand font-semibold text-white truncate leading-tight">{ch.name}</div>
+                        {/* Long names (an event and its time): a size smaller, two
+                            lines, on every row (lib/channelName). */}
+                        <div data-guide-name className={`font-quicksand font-semibold text-white ${nameClasses(ch.name, 18, 'text-sm', 'text-xs')}`}>{ch.name}</div>
                       </div>
                     </div>
                     {/* Program lane */}
@@ -1212,9 +1216,12 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                           <Loader2 className="w-3 h-3 animate-spin mr-2" /> {t('guide.epgLoading')}
                         </div>
                       )}
+                      {/* No listings (event channels): the channel's whole name here,
+                          where the eye goes, with the event and its time in it. */}
                       {programs && visible.length === 0 && (
-                        <div className="absolute inset-0 flex items-center px-3 text-brand-ice/70 font-nunito text-xs">
-                          {t('guide.noListings')}
+                        <div data-guide-nolistings className="absolute inset-0 flex flex-col justify-center px-3 overflow-hidden">
+                          <div className={`font-quicksand font-semibold text-white/90 ${nameClasses(ch.name, 90, 'text-sm', 'text-[13px]')}`}>{ch.name}</div>
+                          <div className="text-brand-ice/60 font-nunito text-xs leading-tight truncate">{t('guide.noListings')}</div>
                         </div>
                       )}
                       {visible.map((p, i) => {
