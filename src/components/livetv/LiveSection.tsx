@@ -2962,6 +2962,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           {/* Upright on a phone the box is the player itself: with sound. */}
           <VideoPlayer src={previewUrl} volume={upright ? volume : 0} muted={!upright} className="w-full h-full" chrome="minimal" />
         </Suspense>
+      ) : tapToBox && !previewChannel ? (
+        // A touch screen: the box waits for a tapped channel (the highlight
+        // never starts it), so it says so instead of "Preview loading…".
+        <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-brand-ice/70 font-nunito text-sm text-center px-4">
+          <Tv className="w-10 h-10 text-brand-ice/40" />
+          {t('live.phone.tapToWatch')}
+        </div>
       ) : previewDisabled || !focusedChannel ? (
         <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-brand-ice/70 font-nunito text-sm text-center px-4">
           {focusedChannel?.stream_icon ? (
@@ -3113,7 +3120,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           )}
         </div>
 
-          <p className="flex-shrink-0 pr-24 text-xs font-nunito text-brand-ice/55">{t('live.list.hintCompact')}</p>
+          {!touchUI && <p className="flex-shrink-0 pr-24 text-xs font-nunito text-brand-ice/55">{t('live.list.hintCompact')}</p>}
         </div>
       {reportDialog}
       {recordDialog}
@@ -3135,7 +3142,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               <span className="text-base font-quicksand font-semibold text-white truncate">{searchOpen ? t('live.categories.search') : (currentCat ? catLabel(currentCat) : t('live.categories.channels'))}</span>
               {!searchOpen && catCount ? <span className="text-sm text-brand-ice/60 font-nunito">{formatCount(catCount)}</span> : null}
             </div>
-            <span className="text-xs font-nunito text-brand-ice/50">{t('live.list.hintGrid')}</span>
+            {!touchUI && <span className="text-xs font-nunito text-brand-ice/50">{t('live.list.hintGrid')}</span>}
           </div>
           {channelList}
         </div>
@@ -3179,7 +3186,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                     {t('live.list.nextLine', { title: focusedNowNext.next.title, time: formatTime(focusedNowNext.next.start) })}
                   </p>
                 )}
-                <p className="text-xs text-brand-ice/60 font-nunito mt-4">{t('live.list.hintClassic')}</p>
+                {!touchUI && <p className="text-xs text-brand-ice/60 font-nunito mt-4">{t('live.list.hintClassic')}</p>}
               </>
             ) : (
               <p className="text-brand-ice/70 font-nunito">

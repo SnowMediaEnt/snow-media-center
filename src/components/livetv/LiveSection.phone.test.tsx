@@ -187,6 +187,22 @@ describe('Live TV on a phone held upright', () => {
   }, 30000);
 });
 
+describe('Live TV on a phone held sideways (the TV layout, by touch)', () => {
+  it('the chosen layout; the box waits for a tap, the first tap previews there, the second goes full screen; no remote hints', async () => {
+    const { pm } = await mount();
+    act(() => pm.__setPhoneModeForTests({ touch: true, phone: true, portrait: false }));
+    await waitFor(() => expect(row('News One')).toBeTruthy());
+    expect(document.querySelector('[data-live-phone]')).toBeNull();
+    expect(document.body.textContent).toContain('Tap a channel to watch it here');
+    expect(document.body.textContent).not.toContain('OK full screen');
+    act(() => { fireEvent.click(row('News One')!); });
+    await sleep(20);
+    expect(fullScreen()).toBeNull();
+    act(() => { fireEvent.click(row('News One')!); });
+    await waitFor(() => expect(fullScreen()).not.toBeNull());
+  }, 30000);
+});
+
 describe('Live TV on a TV', () => {
   it('keeps its chosen layout and OK on a row plays full screen', async () => {
     await mount();
