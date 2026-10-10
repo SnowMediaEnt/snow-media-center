@@ -1103,12 +1103,14 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       {/* Preview: the highlighted channel, and what is on now and next */}
       {(() => {
         const ch = focusedGuideChannel ?? channels[rowIdx] ?? null;
+        // undefined: not fetched yet (its row shows "EPG…"); [] or a list
+        // with nothing on now: fetched, and "No programme information" is true.
         const list = ch ? epgCacheRef.current.get(ch.stream_id) : undefined;
         const n = Date.now();
         const now = list?.find((p) => p.start <= n && n < p.end);
         const next = list?.find((p) => p.start >= n);
         return (
-          <div data-native-clear className="flex-shrink-0 flex items-stretch px-4 py-3 border-b border-white/10" style={{ height: '27vh' }}>
+          <div data-native-clear data-guide-preview className="flex-shrink-0 flex items-stretch px-4 py-3 border-b border-white/10" style={{ height: '27vh' }}>
             <div
               ref={previewBoxRef}
               className={`h-full flex-shrink-0 rounded-xl overflow-hidden border border-white/10 flex items-center justify-center ${nativePreviewActive ? '' : 'bg-black'}`}
@@ -1130,8 +1132,10 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                       <p className="mt-1 text-lg text-brand-ice/90 font-nunito truncate">{t('guide.now', { title: now.title })}</p>
                       <p className="text-sm text-brand-ice/60 font-nunito">{formatSlot(now.start)} – {formatSlot(now.end)}</p>
                     </>
-                  ) : (
+                  ) : list ? (
                     <p className="mt-1 text-base text-brand-ice/60 font-nunito">{t('guide.noInfo')}</p>
+                  ) : (
+                    <p data-guide-info-loading className="mt-1 text-base text-brand-ice/40 font-nunito">{t('common.loading')}</p>
                   )}
                   {next && <p className="mt-2 text-base text-brand-ice/70 font-nunito truncate">{t('guide.next', { title: next.title, time: formatSlot(next.start) })}</p>}
                   <p className="mt-2 text-xs text-brand-ice/45 font-nunito">{t('guide.okFullScreen')}</p>
