@@ -413,9 +413,10 @@ const mergeRail = (lists: Array<PlexItem[] | null>): PlexItem[] => {
   return out.slice(0, RAIL_CAP);
 };
 
-// Posters a row in the grids: 6 on a TV, 3 on a phone held upright. Set by
-// PlexSection as it renders (usePhoneLayout), read by every grid below.
-let COLS = 6;
+// Posters a row in the grids: 6 on a TV, 3 on a phone held upright. Each
+// component that lays posters out reads its own (usePlexCols), so a turn
+// re-renders it; key handlers read it through a ref.
+const usePlexCols = (): number => (usePhoneLayout() === 'portrait' ? 3 : 6);
 const ROW_H_ESTIMATE = 250;   // pre-measure fallback for the virtualizer
 const PAGE_FIRST = 60;
 const PAGE_MORE = 200;
@@ -571,9 +572,44 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
   // Tiles drawn either side of the anchor: at least a screen's worth, so the
   // part of a scrolled rail behind the cursor is never empty spacer on a wide
   // WebView (a 1920-px-wide one shows about sixteen tiles at once).
-  // A touch screen: every tile is real (a finger scrolls a rail anywhere,
-  // past the window around the highlight that a remote needs).
-  const railSpan = useMemo(() => (isTouchUI() ? 100000 : Math.max(RAIL_AHEAD, Math.ceil(((typeof window !== 'undefined' && window.innerWidth) || 1920) / RAIL_TILE_PX) + 1)), []);
+  // A touch screen (it can become one at the first tap): a wider window, and
+  // it follows the finger (scrollAtRef, below) rather than the highlight,
+  // which a finger's scroll never moves.
+  const touch = useTouchUI();
+  const railSpan = useMemo(() => {
+    const tv = Math.max(RAIL_AHEAD, Math.ceil(((typeof window !== 'undefined' && window.innerWidth) || 1920) / RAIL_TILE_PX) + 1);
+    return touch ? tv * 2 : tv;
+  }, [touch]);
+  // Where a finger has scrolled each rail to (its first tile in view), and
+  // the page to (the rail at the top): the windows are drawn around those.
+  const scrollAtRef = useRef<Record<string, number>>({});
+  const [topRail, setTopRail] = useState(0);
+  const [, setScrollTick] = useState(0);
+  const onRailScroll = (id: string) => (e: React.UIEvent<HTMLDivElement>) => {
+    if (!touch) return;
+    const at = Math.floor(e.currentTarget.scrollLeft / RAIL_TILE_PX);
+    const was = scrollAtRef.current[id];
+    if (was != null && Math.abs(at - was) < Math.max(4, Math.floor(railSpan / 3))) return;
+    scrollAtRef.current[id] = at;
+    setScrollTick((n) => n + 1);
+  };
+  const railsRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!touch) return;
+    const scroller = railsRef.current?.closest<HTMLElement>('[data-plex-scroller]');
+    if (!scroller) return;
+    const on = () => {
+      const h = railHRef.current || RAIL_H_FALLBACK;
+      const r = Math.floor(scroller.scrollTop / h);
+      setTopRail((prev) => (prev !== r ? r : prev));
+    };
+    scroller.addEventListener('scroll', on, { passive: true });
+    return () => scroller.removeEventListener('scroll', on);
+  }, [touch]);
+  // The vertical window: around the highlight, and on a touch screen around
+  // the rails in view as well.
+  const railShown = (ri: number) => (ri >= row - RAIL_ROWS_SPAN && ri <= row + RAIL_ROWS_SPAN)
+    || (touch && ri >= topRail - RAIL_ROWS_SPAN && ri <= topRail + 2 * RAIL_ROWS_SPAN);
   // A rail that mounts (it came back into the vertical window below) starts
   // scrolled to its anchor, not to its start.
   const placedRef = useRef<WeakSet<HTMLDivElement>>(new WeakSet());
@@ -638,12 +674,11 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
   }, [isActive]);
 
   return (
-    <div>
+    <div ref={railsRef}>
       {rows.map((r, ri) => (
         <div key={r.id} data-plex-row={r.id} data-howto={r.id === 'continue' ? 'plex.continue' : r.id === 'added' ? 'plex.recent' : undefined} className="plex-rail" ref={(el) => { railBoxRefs.current[r.id] = el; }}>
           <div className="plex-rail-head font-quicksand">{r.titleKey ? t(r.titleKey, r.titleParams) : r.title}</div>
-          {/* A touch screen: every rail is real (a finger scrolls the page anywhere). */}
-          {!isTouchUI() && (ri < row - RAIL_ROWS_SPAN || ri > row + RAIL_ROWS_SPAN) ? (
+          {!railShown(ri) ? (
             <div aria-hidden="true" style={{ height: railHRef.current || RAIL_H_FALLBACK }} />
           ) : (
           <div
@@ -654,6 +689,7 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
               // focused tile; mark it so leaving it later does not re-place it.
               if (ri === row) placedRef.current.add(el); else placeRail(el, ri);
             }}
+            onScroll={touch ? onRailScroll(r.id) : undefined}
             className="flex gap-3 overflow-x-auto py-2 px-2 -mx-2"
           >
             {(() => {
@@ -662,7 +698,8 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
               // costs the DOM and the image decoder the same as a few dozen —
               // and a cursor move re-renders two tiles, not four hundred.
               const focusedRow = isActive && ri === row;
-              const at = Math.max(0, Math.min(ri === row ? col : (lastColRef.current[r.id] ?? 0), r.items.length - 1));
+              const fingerAt = touch ? scrollAtRef.current[r.id] : undefined;
+              const at = Math.max(0, Math.min(fingerAt ?? (ri === row ? col : (lastColRef.current[r.id] ?? 0)), r.items.length - 1));
               const start = Math.max(0, at - railSpan);
               const end = Math.min(r.items.length, at + railSpan);
               const before = start > 0 ? start * RAIL_TILE_PX - RAIL_GAP_PX : 0;
@@ -1326,6 +1363,9 @@ const CHIP_GROUP_KEY: Record<SearchChip['group'], string> = {
 };
 
 const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTabs, initialQuery }: SearchPanelProps) => {
+  const COLS = usePlexCols();
+  const colsRef = useRef(COLS);
+  colsRef.current = COLS;
   const { t } = useTranslation();
   // A voice search arrives with its words already typed.
   const [query, setQuery] = useState(initialQuery ?? '');
@@ -1676,7 +1716,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         else if (e.key === 'ArrowRight') { if (i + 1 < list.length) setReqCursor(i + 1); }
         else if (e.key === 'ArrowUp') {
           const n = resultsRef.current.length;
-          if (n > 0) { setZone('grid'); setCursor(Math.min(n - 1, Math.floor((n - 1) / COLS) * COLS + i)); }
+          if (n > 0) { setZone('grid'); setCursor(Math.min(n - 1, Math.floor((n - 1) / colsRef.current) * colsRef.current + i)); }
           else if (showChipsRef.current) { setZone('chips'); setChipIdx(Math.max(0, chipsRef.current.length - 1)); }
           else { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); }
         }
@@ -1689,7 +1729,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       const total = resultsRef.current.length;
       const cur = cursorRef.current;
       if (e.key === 'ArrowUp') {
-        if (cur >= COLS) setCursor(cur - COLS);
+        if (cur >= colsRef.current) setCursor(cur - colsRef.current);
         else if (showChipsRef.current) {
           const list = chipsRef.current;
           const lastGroup = list.length ? list[list.length - 1].group : null;
@@ -1700,11 +1740,11 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
         else { setZone('input'); setTimeout(() => inputRef.current?.focus(), 0); }
       }
       else if (e.key === 'ArrowDown') {
-        if (cur + COLS < total) setCursor(cur + COLS);
-        else if (reqItemsRef.current.length > 0) { setZone('request'); setReqCursor(Math.min(cur % COLS, reqItemsRef.current.length - 1)); }
+        if (cur + colsRef.current < total) setCursor(cur + colsRef.current);
+        else if (reqItemsRef.current.length > 0) { setZone('request'); setReqCursor(Math.min(cur % colsRef.current, reqItemsRef.current.length - 1)); }
       }
-      else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setCursor(cur - 1); else onExitRef.current(); }
-      else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setCursor(cur + 1); }
+      else if (e.key === 'ArrowLeft') { if (cur % colsRef.current !== 0) setCursor(cur - 1); else onExitRef.current(); }
+      else if (e.key === 'ArrowRight') { if ((cur % colsRef.current) < colsRef.current - 1 && cur + 1 < total) setCursor(cur + 1); }
       else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const it = resultsRef.current[cur]; if (it) { commit(queryRef.current); onPlayRef.current(it); } }
     };
     window.addEventListener('keydown', handler, true);
@@ -2276,7 +2316,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Phones (src/lib/phoneMode.ts): upright three posters a row; on any touch
   // screen the menu stays open (a row of chips upright).
   const touchUI = useTouchUI();
-  COLS = usePhoneLayout() === 'portrait' ? 3 : 6;
+  const COLS = usePlexCols();
+  const colsRef = useRef(COLS);
+  colsRef.current = COLS;
   const { t } = useTranslation();
   const {
     status, conn, pinCode, error, justLinked, accountToken, providerNote, providerAvailable,
@@ -3034,7 +3076,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const gap = 12; // gap-3, between columns
     const inner = Math.max(0, el.clientWidth - padL - padR);
     if (inner <= 0) return;   // not laid out yet; the observer will fire again
-    const colW = (inner - gap * (COLS - 1)) / COLS;
+    const colW = (inner - gap * (colsRef.current - 1)) / colsRef.current;
     const posterH = colW * 1.5; // aspect-[2/3]
     const titleArea = 30;       // text-sm (20px line) + py-1 (8) + card border (2)
     const rowGap = 12;
@@ -4493,10 +4535,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       // grid zone (movie/show libraries)
       const total = itemsRef.current.length;
       const cur = cursorRef.current;
-      if (e.key === 'ArrowUp') { if (cur < COLS) setZone('tabs'); else setCursor(cur - COLS); }
-      else if (e.key === 'ArrowDown') { if (cur + COLS < total) setCursor(cur + COLS); }
-      else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setCursor(cur - 1); }
-      else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setCursor(cur + 1); }
+      if (e.key === 'ArrowUp') { if (cur < colsRef.current) setZone('tabs'); else setCursor(cur - colsRef.current); }
+      else if (e.key === 'ArrowDown') { if (cur + colsRef.current < total) setCursor(cur + colsRef.current); }
+      else if (e.key === 'ArrowLeft') { if (cur % colsRef.current !== 0) setCursor(cur - 1); }
+      else if (e.key === 'ArrowRight') { if ((cur % colsRef.current) < colsRef.current - 1 && cur + 1 < total) setCursor(cur + 1); }
       else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const it = itemsRef.current[cur]; if (it) openDetail(it); }
     };
     // Release before the hold threshold is a short press: enter the library.

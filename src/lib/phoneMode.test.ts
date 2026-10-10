@@ -106,10 +106,11 @@ describe('startPhoneMode', () => {
   const booted: Array<typeof import('./phoneMode')> = [];
   const setScreen = (width: number, height: number, type: string) =>
     Object.defineProperty(window, 'screen', { configurable: true, value: { width, height, orientation: { type } } });
-  const boot = async (o: { coarse: boolean; ua: string; screen: [number, number]; orientation: string }) => {
+  const boot = async (o: { coarse: boolean; ua: string; screen: [number, number]; orientation: string; touchPoints?: number }) => {
     vi.resetModules();
     Object.defineProperty(window, 'matchMedia', { configurable: true, value: (q: string) => ({ matches: q === '(pointer: coarse)' ? o.coarse : false }) });
     Object.defineProperty(window.navigator, 'userAgent', { configurable: true, value: o.ua });
+    Object.defineProperty(window.navigator, 'maxTouchPoints', { configurable: true, value: o.touchPoints ?? (o.coarse ? 5 : 0) });
     setScreen(o.screen[0], o.screen[1], o.orientation);
     const mod = await import('./phoneMode');
     booted.push(mod);
@@ -156,5 +157,19 @@ describe('startPhoneMode', () => {
     window.dispatchEvent(new Event('touchstart'));
     expect(mod.isTouchUI()).toBe(false);
     expect(document.documentElement.className).not.toMatch(/is-(touch|phone|upright)/);
+  });
+
+  it('a box with a declared touch input: a remote key, then a portrait resize, never switches it to touch', async () => {
+    const mod = await boot({ coarse: true, ua: BOX, screen: [960, 540], orientation: 'landscape-primary' });
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 20 }));
+    setScreen(540, 960, 'portrait-primary');
+    window.dispatchEvent(new Event('resize'));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mod.isTouchUI()).toBe(false);
+  });
+
+  it('upright with no touch points: waits for a finger', async () => {
+    const mod = await boot({ coarse: true, ua: TABLET, screen: [800, 1280], orientation: 'portrait-primary', touchPoints: 0 });
+    expect(mod.isTouchUI()).toBe(false);
   });
 });

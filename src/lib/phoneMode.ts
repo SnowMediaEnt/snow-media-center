@@ -123,6 +123,23 @@ function apply(next: PhoneModeState): void {
 const REMOTE_KEY_CODES = new Set([19, 20, 21, 22, 23]); // DPAD up/down/left/right/center
 const isRemoteKey = (e: KeyboardEvent) => REMOTE_KEY_CODES.has(e.keyCode) || /^Arrow/.test(e.key || '');
 
+// Upright is taken as a touch screen without waiting for a finger only when
+// the screen really has touch points and no remote key has been pressed: a
+// box that declares a touch screen (and reports a portrait size, a rotated
+// HDMI mode) is driven by its remote and is never switched by a resize.
+let remoteKeySeen = false;
+let remoteWatched = false;
+function watchRemote(): void {
+  if (remoteWatched || typeof window === 'undefined') return;
+  remoteWatched = true;
+  window.addEventListener('keydown', (e) => { if (isRemoteKey(e)) remoteKeySeen = true; }, true);
+}
+const hasTouchPoints = (): boolean => {
+  try { return typeof navigator !== 'undefined' && (navigator.maxTouchPoints || 0) > 0; } catch { return false; }
+};
+/** Held upright, and a real touch screen nobody has used a remote on. */
+const uprightTouch = (): boolean => portrait && hasTouchPoints() && !remoteKeySeen;
+
 // A touch screen that is not a phone waits for a finger; a remote key first
 // disarms it for good.
 let disarmTouch: (() => void) | null = null;
@@ -185,7 +202,7 @@ listeners.add(() => { if (state.touch) { watchDriver(); guardScrollIntoView(); }
  *  upright layout is there before the first tap and not swapped in under the
  *  finger (Tronix ab2b621). */
 function settle(next: PhoneModeState, mobile: boolean): void {
-  if (next.touch && !mobile && !state.touch && !portrait) {
+  if (next.touch && !mobile && !state.touch && !uprightTouch()) {
     apply({ touch: false, phone: false });
     armTouch(next.phone);
     return;
@@ -207,6 +224,7 @@ export function startPhoneMode(): void {
     shortSide: shortSideNow(),
   });
   const s = signals();
+  watchRemote();
   portrait = portraitNow();
   settle(phoneModeFrom(s), s.mobile);
   // Turning a phone or a tablet: the upright / sideways layouts follow, and
@@ -220,7 +238,7 @@ export function startPhoneMode(): void {
       const turned = p !== portrait;
       portrait = p;
       // Still waiting for a finger, and now upright: a tablet (see settle).
-      if (p && disarmTouch) { disarmTouch(); apply({ touch: true, phone: phoneModeFrom(signals()).phone }); return; }
+      if (p && disarmTouch && uprightTouch()) { disarmTouch(); apply({ touch: true, phone: phoneModeFrom(signals()).phone }); return; }
       if (!state.touch) return;
       const now = phoneModeFrom(signals());
       if (now.touch && now.phone !== state.phone) { apply({ touch: true, phone: now.phone }); return; }

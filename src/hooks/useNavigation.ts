@@ -69,6 +69,9 @@ export const HOME_SETTLE_MS = 800;
 /** One press delivered twice (the system Back event and a key) is still one press. */
 const SAME_PRESS_MS = 350;
 
+/** How long a phone's Back waits for the screen's own step to show. */
+const BACK_PROOF_MS = 120;
+
 export const useNavigation = (initialView: string = 'home', options: NavigationOptions = {}) => {
   const { onRootBack } = options;
   const [navigationState, setNavigationState] = useState<NavigationState>({
@@ -191,13 +194,33 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
           // a press nobody answered is a step back here. Home keeps its own
           // way out. A TV is unchanged.
           if (isTouchUI() && stateRef.current.navigationStack.length > 1) {
-            let answered = false;
+            // Answered = proven, not assumed: the screen marked the press
+            // handled (__overlayHandledBackAt), or its step changed what is
+            // on screen within a moment (a view went, a list came back). A
+            // screen that only swallows the Escape (preventDefault, nothing
+            // else) leaves the press unanswered, and this takes the step.
+            const w = window as unknown as { __overlayHandledBackAt?: number };
+            const markBefore = w.__overlayHandledBackAt ?? 0;
+            let changed = false;
+            let mo: MutationObserver | null = null;
+            try {
+              mo = new MutationObserver((list) => { if (list.some((m) => m.type === 'childList')) changed = true; });
+              mo.observe(document.body, { childList: true, subtree: true });
+            } catch { mo = null; }
+            let swallowed = false;
             try {
               const ev = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true });
               document.body.dispatchEvent(ev);
-              answered = ev.defaultPrevented;
+              swallowed = ev.defaultPrevented;
             } catch { /* very old WebView: the plain step below */ }
-            if (answered) return;
+            if ((w.__overlayHandledBackAt ?? 0) !== markBefore) { mo?.disconnect(); return; }
+            if (!swallowed || !mo) { mo?.disconnect(); goBackRef.current?.(); return; }
+            // Taken but not marked: give the screen's step a moment to render.
+            window.setTimeout(() => {
+              mo?.disconnect();
+              if (!changed) goBackRef.current?.();
+            }, BACK_PROOF_MS);
+            return;
           }
 
           // One step back; on Home, the double press that leaves the app.

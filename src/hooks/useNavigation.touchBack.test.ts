@@ -41,12 +41,37 @@ describe('a phone\'s system Back on a screen', () => {
   it('a screen that takes the Escape keeps the viewer on it (its own step)', async () => {
     __setPhoneModeForTests({ touch: true, phone: true, portrait: true });
     const steps: string[] = [];
-    screenStep = (e) => { if (e.key === 'Escape') { e.preventDefault(); steps.push('ticket→list'); } };
+    // The step shows: the ticket view goes, the list comes back.
+    const view = document.createElement('div');
+    view.textContent = 'ticket';
+    document.body.appendChild(view);
+    screenStep = (e) => { if (e.key === 'Escape') { e.preventDefault(); steps.push('ticket→list'); view.remove(); } };
     window.addEventListener('keydown', screenStep, true);
     const hook = await mount();
     hardwareBack();
+    await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
     expect(steps).toEqual(['ticket→list']);
     expect(hook.result.current.currentView).toBe('support');
+  });
+
+  it('a screen that marks the press handled keeps the viewer on it', async () => {
+    __setPhoneModeForTests({ touch: true, phone: true, portrait: true });
+    screenStep = (e) => { if (e.key === 'Escape') (window as Window & { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now(); };
+    window.addEventListener('keydown', screenStep, true);
+    const hook = await mount();
+    hardwareBack();
+    await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+    expect(hook.result.current.currentView).toBe('support');
+  });
+
+  it('a screen that only swallows the Escape (nothing changes) does not swallow the Back', async () => {
+    __setPhoneModeForTests({ touch: true, phone: true, portrait: true });
+    screenStep = (e) => { if (e.key === 'Escape') e.preventDefault(); };
+    window.addEventListener('keydown', screenStep, true);
+    const hook = await mount();
+    hardwareBack();
+    await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+    expect(hook.result.current.currentView).toBe('home');
   });
 
   it('nobody answers it: one step back', async () => {

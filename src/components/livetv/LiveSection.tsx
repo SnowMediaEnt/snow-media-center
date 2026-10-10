@@ -1208,6 +1208,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   });
   // Switching layout changes every slot's height: drop the measurements.
   useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [rowHeight, cols]);
+  // Turning a phone swaps the upright screen and the TV layout: the list is
+  // a new one, scrolled to its top. Back to the viewer's place (the channel
+  // last picked), which keepInView would not do with a finger driving.
+  const placeIdxRef = useRef(0);
+  placeIdxRef.current = safeChannelIdx;
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => {
+      const i = placeIdxRef.current;
+      if (i > 0) rowVirtualizer.scrollToIndex(Math.floor(i / Math.max(1, colsRef.current)), { align: 'center' });
+    });
+    return () => window.cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upright]);
 
   // Virtualize the category pane too — Vibez can expose 100+ categories and
   // rendering them all caused layout thrash that interfered with D-pad
@@ -2231,8 +2244,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const wasUpright = from === 'portrait';
     const nowUpright = phoneLayout === 'portrait';
     if (wasUpright && !nowUpright && !fullscreenRef.current && previewChannelRef.current) {
-      activateChannelRef.current(previewChannelRef.current);
+      const pc = previewChannelRef.current;
+      // Already the channel being watched (upright the box is the player):
+      // the same stream goes full screen, nothing is played or counted again.
+      if (playingKeyRef.current === `${lineKey(lineFor(pc))}|${pc.stream_id}`) setFullscreen(true);
+      else activateChannelRef.current(pc);
     } else if (!wasUpright && nowUpright && fullscreenRef.current) {
+      // Rewound or watching a catch-up programme: that stays full screen (the
+      // box would play the live stream and the place would be lost).
+      const rw = rewindRef.current;
+      if (rw.playUrl || (rw.info?.behindSec ?? 0) >= 1) return;
       const st = playingStreamRef.current ?? playedStreamRef.current;
       if (st) setPreviewChannel(st);
       setFullscreen(false);
@@ -2758,7 +2779,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (recentRef.current.isOpen()) { recentRef.current.close(); return; }
           if (fullscreenRef.current && chOverlayOpenRef.current) { closeChannelOverlayRef.current(true); return; }
           if (fullscreenRef.current) {
-            if (barVisibleRef.current) hideBarNow();
+            if (barVisibleRef.current && !touchUIRef.current) hideBarNow();
             else leavePicture();
             return;
           }

@@ -445,12 +445,20 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // Fullscreen fills the screen by itself (Tronix 4369a23).
   useEffect(() => {
     if (!active) return;
+    // Two frames later: the box's own resize listener (LiveSection) has
+    // measured it again by then, so the rect sent is the new one.
+    let f1 = 0, f2 = 0;
     const again = () => {
-      const r = rectRef.current;
-      if (r) void applyRect(r).catch(() => { /* ignore */ });
+      window.cancelAnimationFrame(f1); window.cancelAnimationFrame(f2);
+      f1 = window.requestAnimationFrame(() => {
+        f2 = window.requestAnimationFrame(() => {
+          const r = rectRef.current;
+          if (r) void applyRect(r).catch(() => { /* ignore */ });
+        });
+      });
     };
     window.addEventListener('resize', again);
-    return () => window.removeEventListener('resize', again);
+    return () => { window.removeEventListener('resize', again); window.cancelAnimationFrame(f1); window.cancelAnimationFrame(f2); };
   }, [active]);
 
   // Preview -> fullscreen with no reload skips the load pipeline, so the

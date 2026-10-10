@@ -176,12 +176,21 @@ class MainActivity : BridgeActivity() {
     // comes back through onConfigurationChanged. A wider tablet stays
     // sideways, as before. A TV is never touched.
     private var fitsTouchScreen = false
+    /** The orientation and screen size last fitted: only a real turn re-fits
+     *  (a uiMode / keyboard / density change, an HDMI or remote reconnect,
+     *  must not touch the insets or the scale). */
+    private var fittedOrientation = Configuration.ORIENTATION_UNDEFINED
+    private var fittedScreen = 0
 
     private fun fitTvLayoutOnTouchScreen() {
         if (isTvDevice()) return
         fitsTouchScreen = true
-        val shortDp = screenShortPx() / resources.displayMetrics.density
-        requestedOrientation = if (shortDp < UPRIGHT_MAX_DP) {
+        // Upright only on a screen that can be turned in the hand (it has an
+        // accelerometer) and is narrow enough for the phone layout. A box that
+        // declares a touch screen but no leanback (a 1080p xhdpi box is 540 dp)
+        // stays sideways, as before.
+        val canTurn = packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_ACCELEROMETER)
+        requestedOrientation = if (canTurn && resources.configuration.smallestScreenWidthDp < UPRIGHT_MAX_DP) {
             ActivityInfo.SCREEN_ORIENTATION_USER
         } else {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -191,7 +200,10 @@ class MainActivity : BridgeActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (fitsTouchScreen && !blocked) fitOrientation(newConfig.orientation)
+        if (!fitsTouchScreen || blocked) return
+        val screen = newConfig.screenWidthDp * 10000 + newConfig.screenHeightDp
+        if (newConfig.orientation == fittedOrientation && screen == fittedScreen) return
+        fitOrientation(newConfig.orientation)
     }
 
     /** The real screen's shorter side, bars included (they are hidden sideways). */
@@ -204,6 +216,8 @@ class MainActivity : BridgeActivity() {
     }
 
     private fun fitOrientation(orientation: Int) {
+        fittedOrientation = orientation
+        fittedScreen = resources.configuration.screenWidthDp * 10000 + resources.configuration.screenHeightDp
         val upright = orientation == Configuration.ORIENTATION_PORTRAIT
         WindowCompat.setDecorFitsSystemWindows(window, upright)
         WindowInsetsControllerCompat(window, window.decorView).apply {
