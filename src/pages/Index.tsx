@@ -484,7 +484,7 @@ const HomeTopBar = ({ shape, banner, clock, header }: {
     >
       {/* The two sides share what the clock leaves equally, so it stays
           centred; their inner padding matches, the logo's room is inside. */}
-      <div className="min-w-0 overflow-hidden py-3 -my-3" style={{ flex: '1 1 0px', paddingRight: '0.75rem' }}>
+      <div className="min-w-0 overflow-hidden py-3 -my-3" data-home-banner-slot style={{ flex: '1 1 0px', paddingRight: '0.75rem' }}>
         <div
           className="flex items-center"
           data-home-banner
@@ -493,8 +493,8 @@ const HomeTopBar = ({ shape, banner, clock, header }: {
           {banner}
         </div>
       </div>
-      <div ref={clockRef} className="flex-shrink-0 pointer-events-auto">{clock}</div>
-      <div ref={rightRef} className="flex justify-end" style={{ flex: '1 1 0px', paddingLeft: '0.75rem' }}>
+      <div ref={clockRef} className="flex-shrink-0 pointer-events-auto" data-home-clock-slot>{clock}</div>
+      <div ref={rightRef} className="flex justify-end" data-home-header-slot style={{ flex: '1 1 0px', paddingLeft: '0.75rem' }}>
         {header(level)}
       </div>
     </div>
@@ -526,6 +526,7 @@ const LogoButton = memo(({ isFocused: _isFocused, onActivate, onFocus: _onFocus 
     tabIndex={-1}
     aria-hidden="true"
     aria-label={BRAND.company}
+    data-home-logo
     className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105"
     style={{
       top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
@@ -1372,7 +1373,9 @@ const Index = () => {
 
       {/* Home screen content */}
       {isView(currentView, 'home') && (
-        <div className="h-screen w-screen overflow-hidden text-white relative flex flex-col">
+        // data-home: phone-entry.css lays it out for a phone held upright
+        // (html.is-upright) and draws no remote highlight on a touch screen.
+        <div className="h-screen w-screen overflow-hidden text-white relative flex flex-col" data-home>
           {/* Background is provided by App.tsx (single static gradient on all devices). */}
 
           {/* The top row: renewal banner, clock, and the User/Auth controls —
@@ -1414,7 +1417,7 @@ const Index = () => {
           />
 
           {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
-          <div className="flex-shrink-0" style={{ height: titleSpacer }}></div>
+          <div className="flex-shrink-0" data-home-title-spacer style={{ height: titleSpacer }}></div>
 
           {/* The title in full, then the RSS strip under it (never across it).
               With the content bar ON the strip is medium height; OFF, the
@@ -1490,6 +1493,7 @@ const Index = () => {
               return (
             <div 
               className="justify-center items-stretch w-full mx-auto flex flex-nowrap"
+              data-home-cards
               data-howto="home.cards"
               style={{ 
                 gap: 'clamp(2rem, 5vw, 6rem)',

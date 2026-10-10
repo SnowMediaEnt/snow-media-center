@@ -1,0 +1,166 @@
+/* ==========================================================================
+   Phones and touch screens: Home and the popups over it (ported from
+   Tronix's phone-entry.css, 09c4c6d and 981877a; SMC's Home is its own, so
+   the selectors are SMC's data-home-* hooks in pages/Index.tsx). Every rule
+   is scoped under html.is-touch or html.is-upright (src/lib/phoneMode.ts),
+   which a TV box never gets: the TV path is unchanged. Sideways a phone
+   draws the TV layout scaled to fit (MainActivity), so the layout rules here
+   are the upright ones. Phones run a current Chrome WebView: modern CSS.
+   ========================================================================== */
+
+/* ── A touch screen has no remote highlight ─────────────────────────────────
+   A tap does what OK does, so the D-pad's highlight (the first card, a header
+   button) only looked selected, and a tapped card kept a ring and a grow
+   after the finger left. The highlight is still tracked (a keyboard or air
+   mouse can drive it); it is just not drawn. A press lights up instead. */
+html.is-touch [data-home] .home-focus-surface[data-focused="true"],
+html.is-touch [data-home] .tv-ring[data-focused="true"] {
+  box-shadow: none !important;
+  outline: none !important;
+  transform: translateZ(0) !important;
+}
+html.is-touch [data-home] [data-focused="true"]::after {
+  display: none !important;
+}
+html.is-touch [data-home] [data-home-card]:active,
+html.is-touch [data-home] [data-home-header] button:active {
+  transform: translateZ(0) scale(0.96) !important;
+  filter: brightness(1.15);
+}
+
+/* ── Home upright ────────────────────────────────────────────────────────────
+   The top row in the page's flow, on two lines: the logo and the buttons,
+   then the clock (and the renewal banner on a line of its own, when there is
+   one). The logo keeps room of its own: squeezed beside the clock it pushed
+   the buttons off the right edge. */
+html.is-upright [data-home-topbar] {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  flex-wrap: wrap !important;
+  row-gap: 8px;
+  margin: max(env(safe-area-inset-top, 0px), 8px) 12px 0;
+  min-height: 48px;
+}
+html.is-upright [data-home-logo] {
+  height: 48px !important;
+  top: max(env(safe-area-inset-top, 0px), 8px) !important;
+  left: 12px !important;
+}
+/* The buttons: right of the logo, wrapping under it rather than off the
+   screen on a narrow phone; 40px to the finger. */
+html.is-upright [data-home-header-slot] {
+  order: 1;
+  flex: 1 1 100% !important;
+  padding-left: 64px !important;
+  min-width: 0;
+}
+html.is-upright [data-home-header] {
+  flex-wrap: wrap !important;
+  white-space: normal !important;
+  row-gap: 6px;
+  gap: 6px !important;
+}
+html.is-upright [data-home-header] button {
+  height: 40px;
+  min-width: 40px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+html.is-upright [data-home-clock-slot] {
+  order: 2;
+  flex: 1 0 100%;
+  display: flex;
+  justify-content: center;
+}
+html.is-upright [data-home-banner-slot] {
+  order: 3;
+  flex: 1 0 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+html.is-upright [data-home-banner-slot]:not(:has([data-home-banner] > *)) {
+  display: none;
+}
+html.is-upright [data-home-banner] {
+  padding-left: 0 !important;
+  max-width: none !important;
+  justify-content: center;
+}
+/* The top row is in the flow now: no spacer for it. */
+html.is-upright [data-home-title-spacer] {
+  height: 12px !important;
+}
+
+/* The title, sized by the width. */
+html.is-upright [data-home] .home-watermark h1 {
+  font-size: 10.5vw !important;
+  line-height: 1.05;
+}
+html.is-upright [data-home] .home-watermark p {
+  font-size: 15px !important;
+  margin-top: 4px !important;
+}
+
+/* The bottom: the content bar's posters swipe by finger in one row (its
+   pages are still a tap on ◀ ▶ away), and the three cards share the width. */
+html.is-upright [data-home-bottom] {
+  padding-left: max(env(safe-area-inset-left, 0px), 12px) !important;
+  padding-right: max(env(safe-area-inset-right, 0px), 12px) !important;
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px) !important;
+}
+html.is-upright [data-media-bar] h2 {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+html.is-upright [data-media-bar] > .flex > button:first-child,
+html.is-upright [data-media-bar] > .flex > button:last-child {
+  width: 32px;
+}
+html.is-upright [data-media-bar] .grid {
+  display: flex !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  gap: 10px !important;
+  padding: 4px 2px;
+}
+html.is-upright [data-media-bar] .grid::-webkit-scrollbar {
+  display: none;
+}
+html.is-upright [data-media-bar] .grid > * {
+  flex: 0 0 31%;
+}
+html.is-upright [data-media-bar] .media-poster {
+  height: auto;
+  aspect-ratio: 2 / 3;
+}
+/* The Home cards two to a row (four in a row left each 84px wide: the icon
+   and the name ran out of the card); an odd last one takes the whole row. */
+html.is-upright [data-home-cards] {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px !important;
+  max-width: none !important;
+}
+html.is-upright [data-home-cards] > div {
+  min-width: 0;
+}
+html.is-upright [data-home-cards] > div:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+html.is-upright [data-home-cards] [data-home-card] {
+  width: 100% !important;
+  aspect-ratio: auto !important;
+  height: 88px !important;
+  border-radius: 18px;
+}
+html.is-upright [data-home-cards] [data-home-card] h3 {
+  font-size: 16px !important;
+  min-height: 0;
+}
+html.is-upright [data-home-cards] [data-home-card] > .relative.z-10 {
+  padding: 8px;
+}
