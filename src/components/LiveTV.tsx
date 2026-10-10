@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense, type PointerEvent as ReactPointerEvent } from 'react';
 import ScrollText from '@/components/ScrollText';
 import { peekIntent, takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, handLiveDeeplink, type PlayerIntent } from '@/lib/appActions';
 import { App as CapApp } from '@capacitor/app';
@@ -73,6 +73,9 @@ import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { DEMO_LIVE_CREDS } from '@/data/liveTvDemo';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import { keepInView } from '@/utils/keepInView';
+import { usePhoneLayout, useTouchUI } from '@/lib/phoneMode';
+import PlayerPhoneTabs from './livetv/PlayerPhoneTabs';
+import { PlayerTabsSlot } from './livetv/playerTabs';
 
 // Demo latch (?demo=1) — module scope like PlexSection. Every demo behavior
 // below lives behind this flag so non-demo sessions stay byte-for-byte equal.
@@ -334,7 +337,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     return cancel;
   }, [creds]);
 
-  const onExitLeft = useCallback(() => setPane('sections'), []);
+  // A section hands the remote back to the side menu (◀ at its left edge,
+  // Back at its top). A touch screen has no side menu to hand it to: Back
+  // there leaves the Player (exitOnTouchBackRef, set with the phone bits below).
+  const exitOnTouchBackRef = useRef<() => boolean>(() => false);
+  const onExitLeft = useCallback(() => { if (exitOnTouchBackRef.current()) return; setPane('sections'); }, []);
   // Game Day's Watch: the channel has been handed to Live TV; show it.
   // Watch in Game Day: remember the game, so the first Back from the channel
   // (or the category it opened) goes back to that game's list — one screen
@@ -723,6 +730,47 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => { headerIdxRef.current = headerIdx; }, [headerIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
 
+  // ── Phones and touch screens (src/lib/phoneMode.ts, from Tronix 4369a23) ──
+  // Upright: a slim header and the sections as a row of chips (under Live
+  // TV's video, over the other sections), each section filling the rest.
+  // Sideways a phone draws the TV layout (the app scales it to fit), and a
+  // TV is as it was.
+  const upright = usePhoneLayout() === 'portrait';
+  const touchUI = useTouchUI();
+  // The last key the Player saw, noted before any section's own listener (a
+  // layout effect runs before every section's passive effects, and this one
+  // is never registered again): onExitLeft's "was that Back?".
+  const lastKeyRef = useRef('');
+  useLayoutEffect(() => {
+    const note = (e: KeyboardEvent) => { lastKeyRef.current = e.keyCode === 4 ? 'GoBack' : e.key; };
+    window.addEventListener('keydown', note, true);
+    return () => window.removeEventListener('keydown', note, true);
+  }, []);
+  exitOnTouchBackRef.current = () => {
+    const k = lastKeyRef.current;
+    if (!touchUI || (k !== 'Escape' && k !== 'Backspace' && k !== 'GoBack')) return false;
+    leaveMode();
+    return true;
+  };
+  // A section picked with a finger (a chip, or the side menu): straight in.
+  const pickSection = useCallback((id: SectionId) => {
+    const i = sectionsRef.current.findIndex((s) => s.id === id);
+    if (i < 0) return;
+    setSectionIdx(i);
+    setSection(id);
+    setPane('content');
+  }, []);
+  const phoneTabs = useMemo(() => (upright
+    ? <PlayerPhoneTabs tabs={sections.map((s) => ({ id: s.id, label: t(s.labelKey), icon: s.icon }))} active={section} onPick={(id) => pickSection(id as SectionId)} />
+    : null), [upright, sections, section, pickSection, t]);
+  // A touch in a section gives it the remote's place (its keys, its Back):
+  // with no D-pad, nothing else would move it off the side menu.
+  const onTouchContent = useCallback((e: ReactPointerEvent) => {
+    const el = e.target as HTMLElement | null;
+    if (el?.closest?.('[data-player-rail]')) return;
+    if (paneRef.current !== 'content') setPane('content');
+  }, []);
+
   // [Back, Update, Settings] — Settings is hidden in demo and on a Kids
   // profile (it holds sign-out, the line's password and billing), so 2 there.
   const HEADER_COUNT = (DEMO && !HOWTO) || kidsLevel() ? 2 : 3;
@@ -1091,10 +1139,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
 
   return (
+    <PlayerTabsSlot.Provider value={phoneTabs}>
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
       {/* Pinned to the overscan-safe corner, not the physical edge — a flush
-          4/8px offset was clipped on TVs that still crop the picture. */}
+          4/8px offset was clipped on TVs that still crop the picture. A TV's
+          only (data-player-corner, phone-player.css): on a touch screen it sat
+          on the rows of the list. */}
       <div
+        data-player-corner=""
         style={{
           position: 'fixed',
           bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5vh)',
@@ -1118,28 +1170,28 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       )}
 
 
-      {/* Header */}
-      <div data-player-chrome="" className="flex items-center justify-between px-5 py-2 border-b border-white/10 bg-black/30">
-        <div className="flex items-center gap-3">
+      {/* Header (upright on a phone: slim, Update and Settings as icons) */}
+      <div data-player-chrome="" className={upright ? 'flex items-center justify-between px-2 py-1.5 border-b border-white/10 bg-black/30' : 'flex items-center justify-between px-5 py-2 border-b border-white/10 bg-black/30'}>
+        <div className={upright ? 'flex items-center gap-2 min-w-0' : 'flex items-center gap-3'}>
           <BackButton
             onClick={stepBack}
             label={t('common.back')}
-            className="h-10 rounded-lg"
+            className={upright ? 'h-9 px-3 rounded-lg text-sm' : 'h-10 rounded-lg'}
             data-player-header-btn=""
             data-howto="live.back"
             focused={pane === 'header' && headerIdx === 0}
           />
-          <div className="flex items-center gap-2">
-            <Tv className="w-5 h-5 text-brand-gold" />
-            <h1 className="text-xl font-quicksand font-bold text-white">{t('live.shell.title')}</h1>
-            {creds?.serverLabel && (
+          <div className={upright ? 'flex items-center gap-2 min-w-0' : 'flex items-center gap-2'}>
+            <Tv className="w-5 h-5 text-brand-gold flex-shrink-0" />
+            <h1 className={upright ? 'text-base font-quicksand font-bold text-white truncate' : 'text-xl font-quicksand font-bold text-white'}>{t('live.shell.title')}</h1>
+            {creds?.serverLabel && !upright && (
               <span className="ml-2 text-xs px-2 py-1 rounded-full bg-white/10 text-brand-ice font-nunito">
                 {serverDisplayName(creds.serverLabel)}
               </span>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className={upright ? 'flex items-center gap-2 flex-shrink-0' : 'flex items-center gap-2'}>
           <Button
             variant="white"
             size="sm"
@@ -1148,10 +1200,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             aria-label={t('live.shell.updateChannelsBtn')}
             data-howto="live.updateChannels"
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
-            className={`tv-ring h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 1 ? 'scale-105 z-10' : ''}`}
+            className={upright
+              ? 'tv-ring h-9 w-9 p-0 rounded-lg'
+              : `tv-ring h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 1 ? 'scale-105 z-10' : ''}`}
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span className="min-w-0 truncate">{isRefreshing ? t('live.shell.updatingBtn') : t('live.shell.updateChannelsBtn')}</span>
+            <RefreshCw className={`w-4 h-4 ${upright ? '' : 'mr-2 '}${isRefreshing ? 'animate-spin' : ''}`} />
+            {!upright && <span className="min-w-0 truncate">{isRefreshing ? t('live.shell.updatingBtn') : t('live.shell.updateChannelsBtn')}</span>}
           </Button>
           {/* Demo: no settings entry point — the demo account is fixed and
               the hub only exposes credential management. */}
@@ -1160,12 +1214,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               variant="gold"
               size="sm"
               onClick={() => setSettingsOpen(true)}
+              aria-label={upright ? t('common.settings') : undefined}
               data-howto="live.settingsBtn"
               data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
-              className={`tv-ring tv-ring-contrast h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 2 ? 'scale-105 z-10' : ''}`}
+              className={upright
+                ? 'tv-ring tv-ring-contrast h-9 w-9 p-0 rounded-lg'
+                : `tv-ring tv-ring-contrast h-10 px-4 rounded-lg transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 2 ? 'scale-105 z-10' : ''}`}
             >
-              <SettingsIcon className="w-4 h-4 mr-2" />
-              <span className="min-w-0 truncate">{t('common.settings')}</span>
+              <SettingsIcon className={upright ? 'w-4 h-4' : 'w-4 h-4 mr-2'} />
+              {!upright && <span className="min-w-0 truncate">{t('common.settings')}</span>}
             </Button>
           )}
         </div>
@@ -1173,20 +1230,32 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
 
 
-      {/* Three-pane layout */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* Pane 1 — Sections */}
-        <div data-player-chrome=""
+      {/* Three-pane layout (upright on a phone: the section chips, then the
+          section; see PlayerPhoneTabs) */}
+      <div
+        className={upright ? 'flex-1 min-h-0 flex flex-col overflow-hidden' : 'flex-1 min-h-0 flex overflow-hidden'}
+        data-player-portrait={upright ? '' : undefined}
+        onPointerDownCapture={touchUI ? onTouchContent : undefined}
+      >
+        {/* Upright, Live TV draws the chips under its video itself. */}
+        {upright && section !== 'live' && (
+          <div data-player-chrome="" className="flex-shrink-0 border-b border-white/10">{phoneTabs}</div>
+        )}
+        {/* Pane 1 — Sections. On a touch screen (a tablet, a phone sideways)
+            one width, so a tap never lands on a menu that moved under the
+            finger, and one tap opens a section (Tronix 79557fc). */}
+        {!upright && (
+        <div data-player-chrome="" data-player-rail=""
           ref={sectionsMenuRef}
           data-howto="live.sections"
           onClick={() => { if (pane !== 'sections') setPane('sections'); }}
-          className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 overflow-y-auto overflow-x-hidden ${pane === 'sections' ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
+          className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 overflow-y-auto overflow-x-hidden ${pane === 'sections' || touchUI ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
         >
           {sections.map((s, i) => {
             const Icon = s.icon;
             const isFocused = pane === 'sections' && sectionIdx === i;
             const isActive = section === s.id;
-            const collapsed = pane !== 'sections';
+            const collapsed = !touchUI && pane !== 'sections';
             return (
               <div
                 key={s.id}
@@ -1205,6 +1274,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             );
           })}
         </div>
+        )}
 
         {inSection('live') && (
           <LiveSection
@@ -1366,6 +1436,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         </Suspense>
       )}
     </div>
+    </PlayerTabsSlot.Provider>
   );
 });
 

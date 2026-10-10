@@ -359,6 +359,10 @@
       "bufferingBody": "Reported buffering recently — it may not play well.",
       "watchBtn": "Watch anyway",
       "pickBtn": "Pick another"
+    },
+    "phone": {
+      "tapToWatch": "Tap a channel to watch it here",
+      "fullScreenLabel": "Full screen"
     }
   }
 }

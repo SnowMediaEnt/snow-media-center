@@ -360,6 +360,10 @@
       "bufferingBody": "Reportado con cortes hace poco: puede que no se vea bien.",
       "watchBtn": "Ver igual",
       "pickBtn": "Elegir otro"
+    },
+    "phone": {
+      "tapToWatch": "Toca un canal para verlo aquí",
+      "fullScreenLabel": "Pantalla completa"
     }
   }
 }

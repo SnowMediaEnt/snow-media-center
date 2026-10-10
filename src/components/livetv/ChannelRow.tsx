@@ -1,4 +1,4 @@
-import { memo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { memo, useRef, useState, type MouseEvent as ReactMouseEvent, type TouchEvent as ReactTouchEvent } from 'react';
 import { Tv, Star, Radio, AlertTriangle } from 'lucide-react';
 import i18n from '@/i18n';
 import { formatTime } from '@/i18n/format';
@@ -53,6 +53,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
   // Touch long-press → report. Mouse clicks still activate normally.
   const lpTimerRef = useRef<number | null>(null);
   const lpFiredRef = useRef(false);
+  const touchingRef = useRef(false);
   const startLongPress = () => {
     lpFiredRef.current = false;
     if (lpTimerRef.current) window.clearTimeout(lpTimerRef.current);
@@ -75,11 +76,23 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
   const handlers = {
     onClick: () => { if (!lpFiredRef.current) onActivate(index); },
     onMouseEnter: () => onSelect(index),
-    onTouchStart: () => { onSelect(index); startLongPress(); },
-    onTouchEnd: cancelLongPress,
+    onTouchStart: () => { touchingRef.current = true; onSelect(index); startLongPress(); },
+    // The lift of a finger that held the row: the options opened under it,
+    // and the tap the browser makes of the lift would land on whatever row of
+    // theirs is there. Cancelling the touchend stops it (Tronix 464aea5).
+    onTouchEnd: (e: ReactTouchEvent) => { touchingRef.current = false; if (lpFiredRef.current && e.cancelable) e.preventDefault(); cancelLongPress(); },
     onTouchMove: cancelLongPress,
-    onTouchCancel: cancelLongPress,
-    onContextMenu: (e: ReactMouseEvent) => { e.preventDefault(); onLongPress?.(index); },
+    onTouchCancel: () => { touchingRef.current = false; cancelLongPress(); },
+    onContextMenu: (e: ReactMouseEvent) => {
+      e.preventDefault();
+      // A touch screen's own long-press: the timer above has it already.
+      if (lpFiredRef.current) return;
+      // The WebView's long press (~0.4-0.5 s) comes before the 600 ms timer:
+      // it is the one, so the timer doesn't open the options a second time
+      // and the lift doesn't tap a row under them (Tronix dd211a6).
+      if (touchingRef.current) { cancelLongPress(); lpFiredRef.current = true; }
+      onLongPress?.(index);
+    },
   };
 
   const logo = (size: string, iconSize: string) => (

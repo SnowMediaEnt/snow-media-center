@@ -360,6 +360,10 @@
       "bufferingBody": "Coupures signalées récemment — la lecture risque de mal passer.",
       "watchBtn": "Regarder quand même",
       "pickBtn": "En choisir une autre"
+    },
+    "phone": {
+      "tapToWatch": "Touchez une chaîne pour la regarder ici",
+      "fullScreenLabel": "Plein écran"
     }
   }
 }

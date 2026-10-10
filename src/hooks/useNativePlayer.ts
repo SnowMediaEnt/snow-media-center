@@ -439,6 +439,20 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     else if (rect) void applyRect(rect).catch(() => { /* ignore */ });
   }, [active, rect]);
 
+  // A phone turned (the WebView resized, and rescaled: MainActivity draws the
+  // TV layout scaled sideways): the plugin scales the rect against the page's
+  // size, so a box that kept its CSS place is sent again with the new one.
+  // Fullscreen fills the screen by itself (Tronix 4369a23).
+  useEffect(() => {
+    if (!active) return;
+    const again = () => {
+      const r = rectRef.current;
+      if (r) void applyRect(r).catch(() => { /* ignore */ });
+    };
+    window.addEventListener('resize', again);
+    return () => window.removeEventListener('resize', again);
+  }, [active]);
+
   // Preview -> fullscreen with no reload skips the load pipeline, so the
   // screen-owning flags are settled here when `background` flips.
   useEffect(() => {

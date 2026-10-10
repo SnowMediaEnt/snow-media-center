@@ -359,6 +359,10 @@
       "bufferingBody": "Kürzlich Ruckeln gemeldet – läuft evtl. nicht flüssig.",
       "watchBtn": "Trotzdem ansehen",
       "pickBtn": "Anderen wählen"
+    },
+    "phone": {
+      "tapToWatch": "Tippe auf einen Sender, um ihn hier zu sehen",
+      "fullScreenLabel": "Vollbild"
     }
   }
 }
