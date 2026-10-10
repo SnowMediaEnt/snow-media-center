@@ -108,6 +108,12 @@
         "black": "Schwarz",
         "white": "Weiß",
         "ice": "Eis"
+      },
+      "groupViewSize": "Größe",
+      "viewSizeHint": "Für den Guide und die Logo-Wand. Kompakt zeigt mehr Sender auf dem Bildschirm, Groß ist leichter zu lesen.",
+      "viewSize": {
+        "compact": "Kompakt",
+        "large": "Groß"
       }
     },
     "backups": {

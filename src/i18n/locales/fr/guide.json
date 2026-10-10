@@ -35,6 +35,13 @@
       "scheduleFailed": "Impossible de le programmer",
       "favAddedTitle": "Ajoutée aux Favoris",
       "favRemovedTitle": "Retirée des Favoris"
-    }
+    },
+    "categories": "Catégories",
+    "service": "Votre service",
+    "hintCompact": "◀ catégories et paramètres · ▲ ▼ chaîne · OK pour lire · Maintenir OK : favori, signaler · Retour pour quitter",
+    "hintCompactRecord": "◀ catégories et paramètres · ▲ ▼ chaîne · OK pour lire · Maintenir OK : enregistrer, favori, signaler · Retour pour quitter",
+    "hintDrawer": "▲ ▼ catégorie · OK pour ouvrir · ◀ menu · Retour pour fermer",
+    "earlierBtn": "Plus tôt",
+    "laterBtn": "Plus tard"
   }
 }

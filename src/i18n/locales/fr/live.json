@@ -45,12 +45,14 @@
       "compactLabel": "Compact",
       "compactDesc": "Liste de chaînes fine, catégories à un appui, grand aperçu",
       "gridLabel": "Vibez",
-      "gridDesc": "Catégories à côté d'un mur de logos de chaînes, OK lance la lecture (sans aperçu)"
+      "gridDesc": "Catégories à côté d'un mur de logos de chaînes, OK lance la lecture (sans aperçu)",
+      "guideLabel": "Guide",
+      "guideDesc": "Le guide TV : les chaînes et leurs programmes, aperçu au-dessus"
     },
     "layoutChooser": {
       "kicker": "TV en direct",
       "title": "Choisissez l'aspect que vous aimez",
-      "body": "Trois façons de parcourir les chaînes. Mêmes chaînes, même guide, à vous de choisir l'écran.",
+      "body": "Quatre façons de parcourir les chaînes. Mêmes chaînes, même guide, à vous de choisir l'écran.",
       "selectedChip": "Choisi",
       "hintChoose": "◀ ▶ Choisir",
       "hintKeep": "OK Garder",

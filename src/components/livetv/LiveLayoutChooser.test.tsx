@@ -18,11 +18,11 @@ describe('the first-open Live TV layout chooser', () => {
   beforeEach(() => { localStorage.clear(); });
   afterEach(() => { cleanup(); __setPhoneModeForTests({ touch: false, phone: false }); });
 
-  it('a TV: three cards in a row, the remote hints shown, Back keeps the default', () => {
+  it('a TV: four cards in a row (the Guide the fourth), the remote hints shown, Back keeps the default', () => {
     const onDone = vi.fn();
     render(<LiveLayoutChooser onDone={onDone} />);
     expect(picked()).toBe('compact');
-    expect(document.querySelector('.grid-cols-3')).toBeTruthy();
+    expect(document.querySelector('.grid-cols-4')).toBeTruthy();
     expect(document.body.textContent).toContain(HINT);
     press('Escape');
     expect(saved()).toBe('compact');
@@ -43,7 +43,7 @@ describe('the first-open Live TV layout chooser', () => {
   it('a phone sideways: the TV screen, without the remote hints', () => {
     __setPhoneModeForTests({ touch: true, phone: true, portrait: false });
     render(<LiveLayoutChooser onDone={vi.fn()} />);
-    expect(document.querySelector('.grid-cols-3')).toBeTruthy();
+    expect(document.querySelector('.grid-cols-4')).toBeTruthy();
     expect(document.body.textContent).not.toContain(HINT);
   });
 });

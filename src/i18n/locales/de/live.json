@@ -45,12 +45,14 @@
       "compactLabel": "Kompakt",
       "compactDesc": "Schlanke Senderliste, Kategorien einen Tastendruck entfernt, große Vorschau",
       "gridLabel": "Vibez",
-      "gridDesc": "Kategorien neben einer Wand aus Senderlogos, OK spielt ab (keine Vorschau)"
+      "gridDesc": "Kategorien neben einer Wand aus Senderlogos, OK spielt ab (keine Vorschau)",
+      "guideLabel": "Guide",
+      "guideDesc": "Der TV-Guide: Sender und was läuft, Vorschau darüber"
     },
     "layoutChooser": {
       "kicker": "Live-TV",
       "title": "Such dir deinen Look aus",
-      "body": "Drei Arten, Sender zu durchsuchen. Dieselben Sender, derselbe Guide, du wählst die Ansicht.",
+      "body": "Vier Arten, Sender zu durchsuchen. Dieselben Sender, derselbe Guide, du wählst die Ansicht.",
       "selectedChip": "Ausgewählt",
       "hintChoose": "◀ ▶ Wählen",
       "hintKeep": "OK Behalten",

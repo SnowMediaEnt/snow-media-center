@@ -1,9 +1,9 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type MouseEvent as ReactMouseEvent } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense, type MouseEvent as ReactMouseEvent } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { formatTime } from '@/i18n/format';
-import { ChevronDown, ChevronRight, Film, Loader2, Search, Star, Tv } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Film, Loader2, Search, Star, Tv } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   loadFavoritesData,
@@ -78,7 +78,9 @@ import { usePlayerEngine } from '@/hooks/usePlayerEngine';
 import { recordEngineSample, sampleFromStats, shouldSampleEngines } from '@/lib/engineCompare';
 import PlayerStatsPanel from './PlayerStatsPanel';
 import { isDemo, isHowtoCapture, demoDialogMsg } from '@/lib/demoMode';
-import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
+import { useLiveLayout, hasLiveLayoutChoice, DEFAULT_LIVE_LAYOUT, stripInitial, tvWallLayout, type LiveLayout } from '@/lib/liveLayout';
+import { useViewSize } from '@/lib/viewSize';
+import { nameClasses } from '@/lib/channelName';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import { channelForName } from '@/lib/voiceCommands';
 import { leftOutOfSearch, searchLiveChannels } from '@/lib/liveSearch';
@@ -1164,7 +1166,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // Same reason: the channel scroll container has its own p-3 padding above
   // the virtualized rows, so scrollTop math needs the wrapper's real offset.
   const channelListRef = useRef<HTMLDivElement | null>(null);
-  const layout = useLiveLayout();
+  // The Guide layout is drawn by the Player shell (LiveTV.tsx shows the Guide
+  // where this list would be): Live TV is only here then to play a channel
+  // handed to it. Should its list show in that layout (Game Day's "Browse …
+  // in Live TV"), it is the default list.
+  const savedLayout = useLiveLayout();
+  const layout: LiveLayout = savedLayout === 'guide' ? DEFAULT_LIVE_LAYOUT : savedLayout;
   // Phones (src/lib/phoneMode.ts, from Tronix 4369a23). Held upright, Live TV
   // is one phone screen whatever the chosen layout (LiveUpright, slim rows);
   // sideways and on a TV the chosen layout is drawn. On any touch screen a
@@ -1187,9 +1194,64 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [choosingLayout, setChoosingLayout] = useState(() => (!DEMO || HOWTO) && !hasLiveLayoutChoice());
   const choosingLayoutRef = useRef(choosingLayout);
   choosingLayoutRef.current = choosingLayout;
-  const cols = listLayout === 'grid' ? GRID_COLS : 1;
-  const rowHeight = rowHeightFor(listLayout);
+  // The logo wall drawn Compact (lib/viewSize, the default; ported from
+  // Tronix build 43): square logo tiles, as many a row as fit the wall's
+  // measured width (lib/liveLayout tvWallLayout), and on a TV the categories
+  // fold to a strip while the remote is in the tiles (catsFolded). Large is
+  // the older wall exactly (GRID_COLS tall tiles in 176px slots). Upright a
+  // phone draws its own list, never the wall.
+  const viewSize = useViewSize();
+  const tvCompactWall = listLayout === 'grid' && viewSize === 'compact';
+  const measuredWallRef = useRef(tvCompactWall);
+  measuredWallRef.current = tvCompactWall;
+  const [wallInner, setWallInner] = useState(0);
+  // The screen's CSS width (the narrowest tile grows with it).
+  const [wallScreenW, setWallScreenW] = useState(0);
+  const tvWall = tvCompactWall ? tvWallLayout(wallInner, wallScreenW) : null;
+  const cols = listLayout === 'grid' ? (tvWall ? tvWall.cols : GRID_COLS) : 1;
+  const rowHeight = tvWall ? tvWall.rowH : rowHeightFor(listLayout);
   const colsRef = useRef(cols); useEffect(() => { colsRef.current = cols; }, [cols]);
+  // Compact on a TV (the remote, not a touch screen): with the highlight in
+  // the tiles the categories pane folds to a strip and the tiles take its
+  // width; ◀ off the first column (the categories pane, as ever) unfolds it.
+  // A touch screen never folds (nothing may move under a finger).
+  const catsFolded = tvCompactWall && !touchUI && pane === 'channels';
+  // While the side menu (or anything else) has the remote, the wall keeps
+  // its columns (the menu opening takes width from it: no reflow on each
+  // visit); measured again when the remote comes back.
+  const wallFrozenRef = useRef(false);
+  wallFrozenRef.current = tvCompactWall && !touchUI && !isActive;
+  const wallMeasuredRef = useRef(false);
+  const measureWall = useCallback((el: HTMLElement | null) => {
+    if (!el) return;
+    if (wallFrozenRef.current && wallMeasuredRef.current) return;
+    wallMeasuredRef.current = true;
+    const cs = getComputedStyle(el);
+    setWallInner(Math.max(0, el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)));
+    setWallScreenW(window.innerWidth || 0);
+  }, []);
+  const wallRoRef = useRef<ResizeObserver | null>(null);
+  const watchWall = useCallback((el: HTMLElement | null) => {
+    wallRoRef.current?.disconnect();
+    wallRoRef.current = null;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    measureWall(el);
+    const ro = new ResizeObserver(() => measureWall(el));
+    ro.observe(el);
+    wallRoRef.current = ro;
+  }, [measureWall]);
+  useEffect(() => () => { wallRoRef.current?.disconnect(); }, []);
+  const setScrollParent = useCallback((el: HTMLDivElement | null) => {
+    scrollParentRef.current = el;
+    watchWall(measuredWallRef.current ? el : null);
+  }, [watchWall]);
+  useEffect(() => { watchWall(tvCompactWall ? scrollParentRef.current : null); }, [tvCompactWall, watchWall]);
+  // Folding or unfolding: measured again before the frame is drawn, so the
+  // tiles never show a frame stretched to the new width with the old count.
+  useLayoutEffect(() => {
+    if (tvCompactWall && typeof ResizeObserver !== 'undefined') measureWall(scrollParentRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catsFolded, isActive]);
   // One virtual row per list row, or per GRID_COLS tiles in the grid.
   const rowCount = Math.ceil(visibleChannels.length / cols);
   // Stable key functions: an inline one made the virtualizer re-measure the
@@ -1203,7 +1265,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     count: rowCount,
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => rowHeight,
-    overscan: isFireTV() || isLowMemoryBox() ? (cols > 1 ? 1 : 2) : 8,
+    // A Compact wall's rows hold more tiles: as many spare tiles as the
+    // Large wall's 8 rows of 5, not 8 of its wider rows.
+    overscan: isFireTV() || isLowMemoryBox() ? (cols > 1 ? 1 : 2) : tvWall ? Math.max(1, Math.round((8 * GRID_COLS) / cols)) : 8,
     getItemKey: rowItemKey,
   });
   // Switching layout changes every slot's height: drop the measurements.
@@ -3184,11 +3248,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const categoriesPane = (
     <div
       ref={categoriesScrollRef}
-      aria-hidden={drawer && pane !== 'categories'}
+      // Folded to a strip (Compact wall, catsFolded): kept laid out at its
+      // width, scroll and all, under the strip; only not drawn.
+      aria-hidden={(drawer || catsFolded) && pane !== 'categories'}
       style={drawer ? { transform: pane === 'categories' ? 'translateX(0)' : 'translateX(-110%)' } : undefined}
       className={drawer
         ? `absolute left-0 top-0 bottom-0 z-20 ${paneW} border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-[#0b1220] ${pane === 'categories' ? '' : 'pointer-events-none'}`
-        : `w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}
+        : `w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}${catsFolded ? ' invisible' : ''}`}
     >
         <button
           onClick={() => setSearchOpen(o => !o)}
@@ -3316,9 +3382,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   );
 
   // ── the channel list / grid, virtualized by row ────────────────────────
-  const rowVariant: 'classic' | 'compact' | 'tile' = listLayout === 'grid' ? 'tile' : listLayout;
+  const rowVariant: 'classic' | 'compact' | 'tile' = listLayout === 'grid' ? 'tile' : listLayout === 'classic' ? 'classic' : 'compact';
   const channelList = (
-    <div ref={scrollParentRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3" data-howto="live.channels">
+    <div ref={setScrollParent} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3" data-howto="live.channels">
       {channelsLoading && visibleChannels.length === 0 ? (
         <div className="space-y-1">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -3355,7 +3421,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                 className={cols > 1 ? 'grid gap-3' : undefined}
                 // Inline, not a Tailwind class: the column count is a constant
                 // and gap + grid must paint on the Chromium 66 WebView.
-                {...(cols > 1 ? { style: { position: 'absolute', top: 0, left: 0, width: '100%', height: rowHeight, transform: `translateY(${v.start}px)`, padding: '4px 0', display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 12 } } : {})}
+                {...(cols > 1 ? { style: { position: 'absolute', top: 0, left: 0, width: '100%', height: rowHeight, transform: `translateY(${v.start}px)`, padding: '4px 0', display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: tvWall ? tvWall.gap : 12 } } : {})}
               >
                 {slot.map((s, c) => {
                   const idx = first + c;
@@ -3363,6 +3429,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                     <ChannelRow
                       key={s.stream_id}
                       variant={rowVariant}
+                      compactTile={!!tvWall}
                       channel={s}
                       index={idx}
                       // Recently watched over the list has the highlight while it is open.
@@ -3577,20 +3644,55 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }
 
   if (layout === 'grid') {
+    const wallTitle = searchOpen ? t('live.categories.search') : (currentCat ? catLabel(currentCat) : t('live.categories.channels'));
+    // Compact: the highlighted channel's number and FULL name in the bar,
+    // a step smaller on two lines when long (lib/channelName), in place of
+    // the hint while the remote is in the tiles.
+    const wallFocus = tvCompactWall && !touchUI && isActive && pane === 'channels' && !recent.open ? focusedChannel : undefined;
     return (
       <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
         {layoutChooser}
-        {categoriesPane}
+        {tvCompactWall && !touchUI ? (
+          // The categories pane in a box that folds to the strip's width
+          // (catsFolded): the pane keeps its own width, scroll and focus
+          // under the strip, so unfolding shows it exactly as it was.
+          <div data-cat-fold={catsFolded ? 'folded' : 'open'} className={`relative flex-shrink-0 flex overflow-hidden ${catsFolded ? 'w-14' : ''}`}>
+            {categoriesPane}
+            {catsFolded && (
+              <div
+                data-cat-strip=""
+                title={wallTitle}
+                onClick={() => setPane('categories')}
+                className="absolute left-0 top-0 bottom-0 w-14 flex flex-col items-center pt-3 border-r border-white/10 bg-black/40 cursor-pointer"
+              >
+                <ChevronLeft className="w-5 h-5 my-2.5 text-brand-ice/50" aria-hidden="true" />
+                <div className="relative mt-2 w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center" aria-label={wallTitle}>
+                  <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-brand-gold" aria-hidden="true" />
+                  {searchOpen
+                    ? <Search className="w-5 h-5 text-brand-gold" />
+                    : currentCat?.isFav || currentCat?.isAllFavs
+                      ? <Star className="w-5 h-5 text-brand-gold fill-brand-gold" />
+                      : <span className="font-quicksand font-bold text-lg leading-none text-brand-gold">{stripInitial(wallTitle) || <Tv className="w-5 h-5" />}</span>}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : categoriesPane}
         <div className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
-          <div className="flex-shrink-0 h-12 flex items-center gap-3 px-5 border-b border-white/10">
-            <div className="flex-1 min-w-0 flex items-baseline gap-2">
+          <div className={`flex-shrink-0 ${tvCompactWall ? 'h-11' : 'h-12'} flex items-center gap-3 px-5 border-b border-white/10`}>
+            <div className={`${wallFocus ? 'flex-shrink-0 max-w-[40%]' : 'flex-1'} min-w-0 flex items-baseline gap-2`}>
               {grouped && currentCat?.line && !currentCat.isAllFavs && (
                 <span className="text-xs font-quicksand font-semibold tracking-[0.12em] uppercase text-brand-gold">{lineLabel(currentCat.line)}</span>
               )}
-              <span className="text-base font-quicksand font-semibold text-white truncate">{searchOpen ? t('live.categories.search') : (currentCat ? catLabel(currentCat) : t('live.categories.channels'))}</span>
+              <span className="text-base font-quicksand font-semibold text-white truncate">{wallTitle}</span>
               {!searchOpen && catCount ? <span className="text-sm text-brand-ice/60 font-nunito">{formatCount(catCount)}</span> : null}
             </div>
-            {!touchUI && <span className="text-xs font-nunito text-brand-ice/50">{t('live.list.hintGrid')}</span>}
+            {wallFocus ? (
+              <p data-wall-focus-name="" className={`flex-1 min-w-0 text-right font-quicksand font-semibold text-white ${nameClasses(wallFocus.name, 48, 'text-base', 'text-[13px]')}`}>
+                {wallFocus.num != null && <span className="font-nunito tabular-nums text-brand-gold">{wallFocus.num} </span>}
+                {wallFocus.name}
+              </p>
+            ) : !touchUI && <span className="text-xs font-nunito text-brand-ice/50">{t('live.list.hintGrid')}</span>}
           </div>
           {channelList}
         </div>

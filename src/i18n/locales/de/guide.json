@@ -35,6 +35,13 @@
       "scheduleFailed": "Konnte nicht geplant werden",
       "favAddedTitle": "Zu Favoriten hinzugefügt",
       "favRemovedTitle": "Aus Favoriten entfernt"
-    }
+    },
+    "categories": "Kategorien",
+    "service": "Dein Dienst",
+    "hintCompact": "◀ Kategorien und Einstellungen · ▲ ▼ Sender · OK zum Abspielen · OK halten: Favorit, Melden · Zurück zum Beenden",
+    "hintCompactRecord": "◀ Kategorien und Einstellungen · ▲ ▼ Sender · OK zum Abspielen · OK halten: Aufnehmen, Favorit, Melden · Zurück zum Beenden",
+    "hintDrawer": "▲ ▼ Kategorie · OK zum Öffnen · ◀ Menü · Zurück zum Schließen",
+    "earlierBtn": "Früher",
+    "laterBtn": "Später"
   }
 }

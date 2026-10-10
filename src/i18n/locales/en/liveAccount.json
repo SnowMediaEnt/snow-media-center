@@ -108,6 +108,12 @@
         "black": "Black",
         "white": "White",
         "ice": "Ice"
+      },
+      "groupViewSize": "Size",
+      "viewSizeHint": "For the Guide and the logo wall. Compact fits more channels on the screen; Large is easier to read.",
+      "viewSize": {
+        "compact": "Compact",
+        "large": "Large"
       }
     },
     "backups": {

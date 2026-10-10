@@ -43,6 +43,30 @@ const LiveLayoutWire = ({ id }: { id: LiveLayout }) => {
         </div>
       </>
     );
+  } else if (id === 'guide') {
+    // The Guide: the preview and what is on across the top, a slim time
+    // bar, then rows of a channel cell and its programme blocks.
+    inner = (
+      <div className="flex-1 h-full flex flex-col">
+        <div className="flex mb-[3%]" style={{ height: '34%' }}>
+          <div className="h-full rounded-[3px] bg-brand-ice/40 mr-[3%]" style={{ width: '36%' }} />
+          <div className="flex-1 h-full flex flex-col justify-center">
+            <div className={`${bar} mb-[6%]`} style={{ height: '22%', width: '70%' }} />
+            <div className="rounded-[2px] bg-white/15" style={{ height: '16%', width: '50%' }} />
+          </div>
+        </div>
+        <div className="rounded-[2px] bg-white/10 mb-[2%]" style={{ height: '6%' }} />
+        <div className="flex-1 flex flex-col justify-between">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex" style={{ height: '16%' }}>
+              <div className={`${i === 0 ? hot : bar} mr-[2%]`} style={{ width: '22%' }} />
+              <div className={`${i === 0 ? 'rounded-[2px] bg-brand-gold/60' : bar} mr-[2%]`} style={{ width: i % 2 ? '44%' : '30%' }} />
+              <div className="flex-1 rounded-[2px] bg-white/15" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   } else {
     inner = (
       <>

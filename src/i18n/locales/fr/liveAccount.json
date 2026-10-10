@@ -113,6 +113,12 @@
         "black": "Noir",
         "white": "Blanc",
         "ice": "Glace"
+      },
+      "groupViewSize": "Taille",
+      "viewSizeHint": "Pour le Guide et le mur de logos. Compact affiche plus de chaînes à l'écran ; Grand est plus facile à lire.",
+      "viewSize": {
+        "compact": "Compact",
+        "large": "Grand"
       }
     },
     "backups": {

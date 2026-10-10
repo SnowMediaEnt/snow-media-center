@@ -139,7 +139,7 @@ export function setPreference(key: PreferenceKey, value: string): string | null 
   const v = String(value).trim().toLowerCase();
   switch (key) {
     case 'live_layout': {
-      const layout = (['classic', 'compact', 'grid'] as LiveLayout[]).find((l) => l === v);
+      const layout = (['classic', 'compact', 'grid', 'guide'] as LiveLayout[]).find((l) => l === v);
       if (!layout) return null;
       saveLiveLayout(layout);
       return i18n.t('ai.prefs.liveLayout', { layout: i18n.t(`live.layouts.${layout}Label`) });

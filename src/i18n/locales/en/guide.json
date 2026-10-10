@@ -35,6 +35,13 @@
       "scheduleFailed": "Could not schedule it",
       "favAddedTitle": "Added to Favorites",
       "favRemovedTitle": "Removed from Favorites"
-    }
+    },
+    "categories": "Categories",
+    "service": "Your service",
+    "hintCompact": "◀ categories and settings · ▲ ▼ channel · OK to play · Hold OK: favorite, report · Back to exit",
+    "hintCompactRecord": "◀ categories and settings · ▲ ▼ channel · OK to play · Hold OK: record, favorite, report · Back to exit",
+    "hintDrawer": "▲ ▼ category · OK to open · ◀ menu · Back to close",
+    "earlierBtn": "Earlier",
+    "laterBtn": "Later"
   }
 }

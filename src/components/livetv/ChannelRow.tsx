@@ -5,6 +5,23 @@ import { formatTime } from '@/i18n/format';
 import type { XtreamLiveStream, EpgNowNext } from '@/lib/xtream';
 import { channelRowLabels, type ChannelRowLabels } from './channelRowLabels';
 import type { ChannelReport } from '@/lib/channelStatus';
+import { TV_WALL_NAME_H } from '@/lib/liveLayout';
+import { nameClasses } from '@/lib/channelName';
+
+// Logos a Compact wall tile has shown. Folding or unfolding the categories
+// changes how many tiles a row holds, so most tiles land in another row and
+// are drawn anew: a logo already shown is drawn at once, not faded in again
+// (every logo on screen blinked on each ◀ ▶ between the categories and the
+// tiles). And the logos that failed: a tile drawn anew shows the TV mark at
+// once instead of asking a dead logo host again. Only the addresses, a
+// bounded few.
+const WALL_LOGOS_MAX = 1500;
+const shownWallLogos = new Set<string>();
+const failedWallLogos = new Set<string>();
+const remember = (set: Set<string>, src: string) => {
+  if (set.size >= WALL_LOGOS_MAX) set.clear();
+  set.add(src);
+};
 
 interface Props {
   channel: XtreamLiveStream;
@@ -28,6 +45,10 @@ interface Props {
   labels?: ChannelRowLabels;
   /** Which service the channel is on, in a list that mixes them (all-services Favorites). */
   serviceTag?: string;
+  /** The logo wall drawn Compact (lib/liveLayout tvWallLayout): a square
+   *  logo card, the number and name under it on up to two lines, a step
+   *  smaller when long (never a scrolling name). */
+  compactTile?: boolean;
 }
 
 // One channel in the list, in whichever shape the layout asks for. Each
@@ -37,7 +58,7 @@ interface Props {
 // language: toLocaleTimeString with options builds a new one per call, twice
 // per row per render on Chromium 66.
 
-const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isDown = false, report, nowNext, onSelect, onActivate, onLongPress, variant = 'compact', labels, serviceTag }: Props) => {
+const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isDown = false, report, nowNext, onSelect, onActivate, onLongPress, variant = 'compact', labels, serviceTag, compactTile = false }: Props) => {
   const L = labels ?? channelRowLabels(i18n.t.bind(i18n));
   // Down (the channel or its whole category) is red; buffering is amber.
   const flag: ChannelReport = report !== undefined ? report : isDown ? 'down' : null;
@@ -46,8 +67,8 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
   const flagNote = flag === 'buffering' ? L.bufferingNote : flag === 'category' ? L.categoryDownNote : L.downNote;
   const flagIcon = flag === 'buffering' ? 'text-amber-400' : 'text-red-400';
   const flagText = flag === 'buffering' ? 'text-amber-300' : 'text-red-300';
-  const [iconError, setIconError] = useState(false);
-  const [iconLoaded, setIconLoaded] = useState(false);
+  const [iconError, setIconError] = useState(() => compactTile && !!channel.stream_icon && failedWallLogos.has(channel.stream_icon));
+  const [iconLoaded, setIconLoaded] = useState(() => compactTile && !!channel.stream_icon && shownWallLogos.has(channel.stream_icon));
   const showIcon = channel.stream_icon && !iconError;
 
   // Touch long-press → report. Mouse clicks still activate normally.
@@ -115,6 +136,64 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
       )}
     </div>
   );
+
+  if (variant === 'tile' && compactTile) {
+    // The Compact wall: the square card 4px in from the tile's edges
+    // (padding-top: 100% keeps it square: Chromium 66 has no aspect-ratio),
+    // the number and name under it. The slot's height is worked out for
+    // exactly this shape (tvWallLayout): 4px over the square, TV_WALL_NAME_H
+    // under it.
+    return (
+      <div
+        data-focused={isFocused ? 'true' : 'false'}
+        data-wall-tile="compact"
+        {...handlers}
+        className={`tv-ring h-full flex flex-col rounded-xl overflow-hidden cursor-pointer border ${
+          isFocused ? 'border-brand-gold bg-white/10' : isPlaying ? 'border-brand-gold/40 bg-white/5' : 'border-white/10 bg-white/5'}`}
+      >
+        <div className="mx-1 mt-1 flex-shrink-0">
+          <div data-wall-logo className="relative rounded-lg bg-white/90 overflow-hidden" style={{ height: 0, paddingTop: '100%' }}>
+            <div className="absolute inset-0 flex items-center justify-center">
+              {showIcon ? (
+                <img
+                  src={channel.stream_icon}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  onLoad={() => { setIconLoaded(true); if (channel.stream_icon) remember(shownWallLogos, channel.stream_icon); }}
+                  onError={() => { setIconError(true); if (channel.stream_icon) remember(failedWallLogos, channel.stream_icon); }}
+                  className={`max-w-[85%] max-h-[85%] object-contain transition-opacity duration-200 ${iconLoaded ? 'opacity-100' : 'opacity-0'}`}
+                />
+              ) : (
+                <Tv className="w-8 h-8 text-black/40" />
+              )}
+            </div>
+            {isPlaying && (
+              <span className="absolute top-1 left-1 text-[10px] px-1 rounded bg-brand-gold text-black font-nunito font-bold leading-4">{L.live}</span>
+            )}
+            {isFavorite && <Star className="absolute top-1 right-1 w-3.5 h-3.5 text-brand-gold fill-brand-gold" />}
+            {flagged && (
+              <span className="absolute bottom-1 left-1 rounded-md bg-black/70 p-0.5" title={flagLabel} aria-label={flagLabel} data-report={flag}>
+                <AlertTriangle className={`w-3.5 h-3.5 ${flagIcon}`} />
+              </span>
+            )}
+            {serviceTag && <span data-service-tag="" className="absolute bottom-1 right-1 text-[9px] px-1 py-0.5 rounded bg-black/70 text-brand-gold font-quicksand font-bold uppercase leading-3">{serviceTag}</span>}
+            {now && (
+              <div className="absolute left-0 right-0 bottom-0 h-[3px] bg-black/20">
+                <div className="h-full bg-brand-gold" style={{ width: `${progress}%` }} />
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex-1 min-w-0 px-1.5 flex items-center" style={{ minHeight: TV_WALL_NAME_H }}>
+          <p data-wall-name className={`w-full min-w-0 text-center font-quicksand font-semibold ${nameClasses(channel.name, 16, 'text-[13px]', 'text-[11px]')} ${isFocused ? 'text-white' : 'text-white/90'}`}>
+            {channel.num != null && <span className={`font-nunito tabular-nums ${isFocused ? 'text-brand-gold' : 'text-white/45'}`}>{channel.num} </span>}
+            {channel.name}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (variant === 'tile') {
     // A logo tile: the art fills a square-ish box on a light card the way
