@@ -23,6 +23,16 @@
 // so scroll-back / remounts never refetch. The size is part of the key: a
 // rail tile and the detail poster share a path and must not share a src.
 //
+// SHARP ART AFTER THE REST (upgrade pass): the small transcode is drawn on a
+// screen with twice as many pixels (a 960-wide page on a 1080p TV), so it is
+// soft. Once every poster that is loading has landed and nothing has started
+// for a moment, the posters on screen fetch a copy sized to the pixels they
+// actually cover (drawn size x the screen's pixel ratio, at most 2x), one
+// few at a time, preloaded off-screen and swapped in only once it has loaded:
+// no flash, and browsing is never slowed by it (a new small load pauses the
+// pass). Never during playback (lib/plex isPlexPlaybackActive). The sharp copy is
+// remembered separately, so a poster coming back paints sharp at once.
+//
 // PRIORITY / FOCUS MODE: when a detail page is open, PlexSection flips the
 // module-level `imageFocusMode` in plex.ts. Non-priority images defer their
 // <img src> write until focus is released (a small subscription via the
@@ -33,6 +43,7 @@ import { Tv } from 'lucide-react';
 import {
   plexFetchImageDataUri, plexPhotoTranscodeUrl, plexTokenizedUrl,
   isPlexImageFocusOn, onPlexImageFocusChange,
+  isPlexPlaybackActive, onPlexPlaybackActiveChange,
 } from '@/lib/plex';
 import { isNativePlatform } from '@/utils/platform';
 
@@ -147,15 +158,92 @@ const noteTranscodeFail = (base: string) => {
 const PAGE_HTTPS = typeof window !== 'undefined' && window.location.protocol === 'https:';
 const _httpImgBlocked = new Set<string>();
 
+// ── Upgrade pass ────────────────────────────────────────────────────────
+/** No new small poster for this long = browsing has settled. */
+export const UPGRADE_QUIET_MS = 1200;
+/** Sharp copies fetched at once. */
+const UPGRADE_CONCURRENCY = 3;
+/** A sharp copy is never asked bigger than this many times the drawn size. */
+const UPGRADE_MAX_SCALE = 2;
+type UpgradeCandidate = { el: () => Element | null; start: (scale: number) => Promise<void> };
+/** Small posters on their way, with when they started. One that never
+ *  reports back (scrolled away, parked behind a detail page) stops counting
+ *  after LOADING_STALE_MS, so it can't hold the pass off for ever. */
+const _loadingSmall = new Map<symbol, number>();
+const LOADING_STALE_MS = 8000;
+const busyLoading = (): boolean => {
+  const now = Date.now();
+  for (const [id, at] of Array.from(_loadingSmall.entries())) {
+    if (now - at > LOADING_STALE_MS) _loadingSmall.delete(id);
+  }
+  return _loadingSmall.size > 0;
+};
+const _candidates = new Map<symbol, UpgradeCandidate>();
+let _quietTimer: number | null = null;
+let _upgradesRunning = 0;
+// Paused while a film plays (lib/plex's playback flag, set by the player): the
+// stream gets the line. When it ends, the pass starts again after a quiet moment.
+onPlexPlaybackActiveChange((active) => { if (!active) scheduleUpgrades(); });
+
+const upgradeScale = (): number => {
+  const dpr = typeof window !== 'undefined' && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+  return Math.min(UPGRADE_MAX_SCALE, dpr);
+};
+
+const onScreen = (el: Element | null): boolean => {
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return false;
+  const vw = window.innerWidth || document.documentElement.clientWidth;
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  return r.right > -50 && r.left < vw + 50 && r.bottom > -50 && r.top < vh + 50;
+};
+
+function scheduleUpgrades(): void {
+  if (typeof window === 'undefined') return;
+  if (_quietTimer !== null) window.clearTimeout(_quietTimer);
+  _quietTimer = window.setTimeout(() => { _quietTimer = null; runUpgrades(); }, UPGRADE_QUIET_MS);
+}
+
+function runUpgrades(): void {
+  if (isPlexPlaybackActive() || busyLoading() || upgradeScale() <= 1) { if (!isPlexPlaybackActive() && _loadingSmall.size > 0) scheduleUpgrades(); return; }
+  for (const [id, c] of Array.from(_candidates.entries())) {
+    if (_upgradesRunning >= UPGRADE_CONCURRENCY) return;
+    // Browsing started again: stop launching, the next quiet moment resumes.
+    if (isPlexPlaybackActive() || busyLoading()) return;
+    if (!onScreen(c.el())) continue;
+    _candidates.delete(id);
+    _upgradesRunning += 1;
+    c.start(upgradeScale()).finally(() => {
+      _upgradesRunning -= 1;
+      if (_candidates.size > 0) runUpgrades();
+    });
+  }
+}
+
+/** Round up so neighbouring tiles share the server's cached copies. */
+const snap = (n: number): number => Math.ceil(n / 20) * 20;
+
+/** Tests only. */
+export function __resetPlexImageUpgradesForTests(): void {
+  _loadingSmall.clear(); _candidates.clear(); _upgradesRunning = 0;
+  if (_quietTimer !== null && typeof window !== 'undefined') window.clearTimeout(_quietTimer);
+  _quietTimer = null;
+}
+
 const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority = false, focusExempt = false, eager = false }: Props) => {
   const key = path ? `${base}|${token}|${path}|${w}x${h}` : '';
-  // Paint straight from the cache when this poster already loaded once —
-  // unless focus mode would have parked it (see commitSrc).
+  const hqKey = key ? `${key}@hq` : '';
+  // Paint straight from the cache when this poster already loaded once (the
+  // sharp copy first) — unless focus mode would have parked it (see commitSrc).
   const [src, setSrc] = useState<string | null>(() => {
     if (!key) return null;
     if (!priority && !focusExempt && isPlexImageFocusOn()) return null;
-    return cacheGet(key) ?? null;
+    return cacheGet(hqKey) ?? cacheGet(key) ?? null;
   });
+  // This instance in the upgrade pass, and whether it already shows the sharp copy.
+  const idRef = useRef<symbol>(Symbol('plex-img'));
+  const hqRef = useRef(false);
   const [err, setErr] = useState(false);
   // Bumped to re-run the load ladder after a failure (see the re-arm below).
   const [armNonce, setArmNonce] = useState(0);
@@ -232,7 +320,11 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     fellBackRef.current = false;
     setErr(false);
     pendingSrcRef.current = null;
+    hqRef.current = false;
+    _candidates.delete(idRef.current);
     if (!path) { setSrc(null); setErr(true); return; }
+    const sharp = cacheGet(hqKey);
+    if (sharp) { hqRef.current = true; commitSrc(sharp); return; }
     const cached = cacheGet(key);
     if (cached) { commitSrc(cached); return; }
     if (/^https?:\/\//i.test(path)) {
@@ -269,9 +361,49 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
       commitSrc(`${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`);
       return;
     }
+    // A small poster on its way: the upgrade pass waits for it (not when it
+    // is parked behind a detail page: then it isn't loading yet).
+    if (priority || focusExempt || !isPlexImageFocusOn()) _loadingSmall.set(idRef.current, Date.now());
     commitSrc(plexPhotoTranscodeUrl(base, path, token, w, h));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base, path, token, w, h, priority, focusExempt, inView, armNonce]);
+
+  // Leaving: out of the pass, and no longer counted as loading.
+  useEffect(() => {
+    const id = idRef.current;
+    return () => {
+      _candidates.delete(id);
+      if (_loadingSmall.delete(id) && _loadingSmall.size === 0) scheduleUpgrades();
+    };
+  }, []);
+
+  // Offer this poster to the upgrade pass once its small copy has painted.
+  const offerUpgrade = () => {
+    if (!path || !key || hqRef.current || /^https?:\/\//i.test(path)) return;
+    _candidates.set(idRef.current, {
+      el: () => wrapRef.current,
+      start: (scale) => new Promise<void>((resolve) => {
+        const el = wrapRef.current;
+        if (!el || hqRef.current) { resolve(); return; }
+        const r = el.getBoundingClientRect();
+        // Pixels actually covered, never smaller than what was asked first.
+        const tw = snap(Math.max(w, Math.round(r.width * scale)));
+        const th = Math.max(h, Math.round(tw * (h / w)));
+        if (tw <= w && th <= h) { resolve(); return; }
+        const url = plexPhotoTranscodeUrl(base, path, token, tw, th);
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = () => {
+          cachePut(hqKey, url);
+          if (wrapRef.current) { hqRef.current = true; setSrc(url); }
+          resolve();
+        };
+        img.onerror = () => resolve(); // keep the small copy
+        img.src = url;
+      }),
+    });
+    scheduleUpgrades();
+  };
 
   // One delayed re-arm after a failure, twice at most. Without it every poster
   // on screen during a Wi-Fi blip stays a grey placeholder for the life of the
@@ -286,6 +418,9 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
 
   const onImgLoad = () => {
     if (!src || !key) return;
+    if (_loadingSmall.delete(idRef.current) && _loadingSmall.size === 0) scheduleUpgrades();
+    if (hqRef.current) return; // the sharp copy: already remembered under hqKey
+    if (stepRef.current === 0 && !src.startsWith('data:')) offerUpgrade();
     if (stepRef.current === 0) {
       // Remember what painted (never a failure — this only runs on load). Only
       // the small transcode (or an absolute URL) is remembered: a raw
@@ -301,6 +436,13 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
   };
 
   const onImgError = () => {
+    if (_loadingSmall.delete(idRef.current) && _loadingSmall.size === 0) scheduleUpgrades();
+    if (hqRef.current) {
+      // The remembered sharp copy no longer loads: back to the small one.
+      hqRef.current = false;
+      commitSrc(cacheGet(key) ?? plexPhotoTranscodeUrl(base, path ?? '', token, w, h));
+      return;
+    }
     if (!path || /^https?:\/\//i.test(path)) { setErr(true); return; }
     const step = stepRef.current;
     if (step === 0) {
