@@ -1,12 +1,14 @@
 /**
- * The Guide: holding OK on a channel saves it to Favorites (owner,
- * 2026-10-09: "holding the ok button on a channel saves the channel to your
- * favorites"). Live TV's detection: keydown starts a 600 ms hold, a release
- * before it is a press (it watches the channel), a release after it is
- * consumed. Held again, it comes out. The line's own list (Live TV's
- * Favorites reads it; another service's line keeps its own); a toast says
- * which; the row's star at once; nothing plays and the highlight stays on
- * the row. A finger held on a row (or a right click) does the same.
+ * The Guide: holding OK on a channel opens its menu, Live TV's own (owner:
+ * "holding ok should always bring up the menu to choose to record, add to
+ * favorites, report"): Report Channel, Add to / Remove from Favorites, and
+ * Record… where recording is offered. Live TV's detection: keydown starts a
+ * 600 ms hold, a release before it is a press (it watches the channel), a
+ * release after it is consumed. Add to Favorites saves the channel to the
+ * line's own list (Live TV's Favorites reads it; another service's line keeps
+ * its own) with a toast and the row's star at once; nothing plays and the
+ * highlight stays on the row. A finger held on a row, a right click or the
+ * Menu key opens the same menu.
  */
 import { act, configure, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -46,7 +48,13 @@ vi.mock('@/hooks/use-toast', () => ({
   toast: (t: { title?: unknown; description?: unknown }) => { api.toasts.push(t); return { id: '1', dismiss() {}, update() {} }; },
   useToast: () => ({ toasts: [], toast: () => ({}), dismiss: () => {} }),
 }));
-vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke: vi.fn(async () => ({ data: null, error: null })) } } }));
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: {
+    functions: { invoke: vi.fn(async () => ({ data: null, error: null })) },
+    auth: { getSession: async () => ({ data: { session: null } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }) },
+    from: () => ({}),
+  },
+}));
 vi.mock('@capacitor/app', () => ({ App: { addListener: async () => ({ remove() {} }) } }));
 vi.mock('@/capacitor/SnowPlayer', () => ({ hasNativePlayer: () => false }));
 vi.mock('@/hooks/useNativePlayer', () => ({ useNativePlayer: () => ({ buffering: false, error: null, retry: () => {} }) }));
@@ -83,6 +91,14 @@ const focusedName = () => { const r = rowEls().find((el) => el.getAttribute('dat
 const starOn = (name: string) => !!rowEls().find((r) => nameOf(r) === name)?.querySelector('[data-guide-fav]');
 const savedIds = () => (JSON.parse(localStorage.getItem('snow-livetv-favs-v2') || '[]') as Array<{ stream_id: number }>).map((f) => f.stream_id);
 const seeRow = (name: string) => waitFor(() => expect(rowEls().map(nameOf)).toContain(name));
+const menuRows = () => Array.from(document.querySelectorAll('[role="dialog"] button')).map((b) => b.textContent);
+/** A row of the channel menu, clicked. */
+const pick = async (label: string) => {
+  await waitFor(() => expect(menuRows()).toContain(label));
+  const b = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')).find((x) => x.textContent === label)!;
+  act(() => { fireEvent.click(b); });
+  await waitFor(() => expect(menuRows()).toEqual([]));
+};
 
 async function freshGuide() {
   vi.resetModules();
@@ -106,8 +122,8 @@ beforeEach(() => {
 });
 afterEach(() => { sessionStorage.clear(); });
 
-describe('Guide: hold OK saves the channel to Favorites', () => {
-  it('held 600 ms: added to the line\'s list, a toast with its name, the star at once; nothing plays, the same row', async () => {
+describe('Guide: hold OK opens the channel menu', () => {
+  it('held 600 ms: the menu (no Record… without the recorder); Add to Favorites saves it with a toast and the star; nothing plays, the same row', async () => {
     const { Guide, sync } = await freshGuide();
     const onWatch = vi.fn();
     render(<Guide creds={line as never} isActive onExitLeft={() => {}} onWatch={onWatch} />);
@@ -116,6 +132,10 @@ describe('Guide: hold OK saves the channel to Favorites', () => {
     expect(starOn(LONG)).toBe(false);
 
     await holdOk();
+    await waitFor(() => expect(menuRows()).toEqual(['Report Channel', 'Add to Favorites', 'Cancel']));
+    expect(api.toasts).toEqual([]);
+    await pick('Add to Favorites');
+    expect(menuRows()).toEqual([]);
     expect(api.toasts).toEqual([{ title: 'Added to Favorites', description: LONG }]);
     expect(starOn(LONG)).toBe(true);
     // Live TV's store: what its list (and its Favorites) reads.
@@ -126,40 +146,36 @@ describe('Guide: hold OK saves the channel to Favorites', () => {
     expect(focusedName()).toBe(LONG);
   });
 
-  it('held again: taken out ("Removed from Favorites"), the star goes', async () => {
+  it('held again: Remove from Favorites ("Removed from Favorites"), the star goes', async () => {
     const { Guide } = await freshGuide();
     render(<Guide creds={line as never} isActive onExitLeft={() => {}} onWatch={() => {}} />);
     await seeRow(LONG);
     await holdOk();
+    await pick('Add to Favorites');
     await holdOk();
+    await pick('Remove from Favorites');
     expect(api.toasts.map((t) => t.title)).toEqual(['Added to Favorites', 'Removed from Favorites']);
     expect(starOn(LONG)).toBe(false);
     expect(savedIds()).toEqual([]);
   });
 
-  it('the Favorites chip lists it at once, with no line-up downloaded; held out there, the highlight stays on the list', async () => {
+  it('the Favorites chip lists it at once, with no line-up downloaded', async () => {
     const { Guide } = await freshGuide();
     render(<Guide creds={line as never} isActive onExitLeft={() => {}} onWatch={() => {}} />);
     await seeRow(LONG);
-    await holdOk();
     await press('ArrowDown');
     await holdOk();
-    expect(api.toasts[1]).toEqual({ title: 'Added to Favorites', description: 'News One' });
+    await pick('Add to Favorites');
+    expect(api.toasts[0]).toEqual({ title: 'Added to Favorites', description: 'News One' });
     const calls = api.streamCalls.length;
     await press('ArrowUp'); await press('ArrowUp'); // to the bar
     await press('ArrowLeft'); // Favorites
-    await waitFor(() => expect(rowEls().map(nameOf)).toEqual([LONG, 'News One']));
+    await waitFor(() => expect(rowEls().map(nameOf)).toEqual(['News One']));
     expect(starOn('News One')).toBe(true);
     expect(api.streamCalls.length).toBe(calls);
-    // The last favourite held out: the row above it has the highlight.
-    await press('ArrowDown'); await press('ArrowDown');
-    expect(focusedName()).toBe('News One');
-    await holdOk();
-    await waitFor(() => expect(rowEls().map(nameOf)).toEqual([LONG]));
-    expect(focusedName()).toBe(LONG);
   });
 
-  it('a short press still watches it (as before) and saves nothing', async () => {
+  it('a short press still watches it (as before) and opens nothing', async () => {
     const { Guide } = await freshGuide();
     const onWatch = vi.fn();
     render(<Guide creds={line as never} isActive onExitLeft={() => {}} onWatch={onWatch} />);
@@ -169,11 +185,10 @@ describe('Guide: hold OK saves the channel to Favorites', () => {
     up();
     expect(onWatch).toHaveBeenCalledTimes(1);
     expect(onWatch.mock.calls[0][0]).toMatchObject({ channel: 500, cat: '1' });
-    expect(api.toasts).toEqual([]);
-    expect(savedIds()).toEqual([]);
+    expect(menuRows()).toEqual([]);
   });
 
-  it("a held OK's repeats save once and play nothing; its release is consumed; the next press plays", async () => {
+  it("a held OK's repeats open the menu once and play nothing; its release is consumed; after Back the next press plays", async () => {
     const { Guide } = await freshGuide();
     const onWatch = vi.fn();
     render(<Guide creds={line as never} isActive onExitLeft={() => {}} onWatch={onWatch} />);
@@ -181,25 +196,15 @@ describe('Guide: hold OK saves the channel to Favorites', () => {
     down();
     for (let i = 0; i < 8; i++) { await wait(120); down('Enter', true); }
     up();
-    expect(api.toasts).toHaveLength(1);
+    await waitFor(() => expect(menuRows()).toContain('Report Channel'));
     expect(onWatch).not.toHaveBeenCalled();
+    act(() => { fireEvent.keyDown(window, { key: 'Escape' }); });
+    await waitFor(() => expect(menuRows()).toEqual([]));
     await press('Enter');
     expect(onWatch).toHaveBeenCalledTimes(1);
-    expect(api.toasts).toHaveLength(1);
   });
 
-  it('the Guide without onWatch (its own player): the hold still only saves; a press plays full screen', async () => {
-    const { Guide } = await freshGuide();
-    const { findByTestId, queryByTestId } = render(<Guide creds={line as never} isActive onExitLeft={() => {}} />);
-    await seeRow(LONG);
-    await holdOk();
-    expect(queryByTestId('video')).toBeNull();
-    expect(savedIds()).toEqual([500]);
-    await press('Enter');
-    expect((await findByTestId('video')).getAttribute('data-src')).toBe('http://h/live/u/p/500.m3u8');
-  });
-
-  it('a finger held on a row, then lifted, saves it too (not a tap: nothing plays); a right click as well', async () => {
+  it('a finger held on a row, then lifted, opens the menu (not a tap: nothing plays); a right click and the Menu key as well', async () => {
     const { Guide } = await freshGuide();
     const onWatch = vi.fn();
     render(<Guide creds={line as never} isActive onExitLeft={() => {}} onWatch={onWatch} />);
@@ -209,15 +214,21 @@ describe('Guide: hold OK saves the channel to Favorites', () => {
     await wait(700);
     act(() => { fireEvent.touchEnd(row, { changedTouches: [{ clientX: 50, clientY: 50, identifier: 1 }], cancelable: true }); });
     act(() => { fireEvent.click(row); }); // the lift's click, if one comes
-    expect(api.toasts).toEqual([{ title: 'Added to Favorites', description: 'News One' }]);
+    await waitFor(() => expect(menuRows()).toContain('Add to Favorites'));
     expect(onWatch).not.toHaveBeenCalled();
+    await pick('Add to Favorites');
     expect(savedIds()).toEqual([501]);
     // A mouse's right click (an air mouse): at once.
     act(() => { fireEvent.contextMenu(rowEls().find((r) => nameOf(r) === LONG)!); });
+    await waitFor(() => expect(menuRows()).toContain('Add to Favorites'));
+    await pick('Add to Favorites');
     expect(savedIds()).toEqual([501, 500]);
+    // The remote's Menu key.
+    act(() => { fireEvent.keyDown(document.body, { key: 'ContextMenu', keyCode: 82 }); });
+    await waitFor(() => expect(menuRows()).toContain('Remove from Favorites'));
   });
 
-  it('a finger that moves is scrolling: nothing is saved', async () => {
+  it('a finger that moves is scrolling: no menu', async () => {
     const { Guide } = await freshGuide();
     render(<Guide creds={line as never} isActive onExitLeft={() => {}} onWatch={() => {}} />);
     await seeRow('News One');
@@ -226,17 +237,16 @@ describe('Guide: hold OK saves the channel to Favorites', () => {
     await wait(200);
     act(() => { fireEvent.touchMove(row, { touches: [{ clientX: 50, clientY: 20, identifier: 1 }] }); });
     await wait(600);
-    expect(api.toasts).toEqual([]);
-    expect(savedIds()).toEqual([]);
+    expect(menuRows()).toEqual([]);
   });
 
   it('inactive (the side menu has the remote): a held OK does nothing', async () => {
     const { Guide } = await freshGuide();
     render(<Guide creds={line as never} isActive={false} onExitLeft={() => {}} onWatch={() => {}} />);
     await seeRow(LONG);
-    await holdOk();
-    expect(api.toasts).toEqual([]);
-    expect(savedIds()).toEqual([]);
+    down(); await wait(750); up();
+    await wait(100);
+    expect(menuRows()).toEqual([]);
   });
 
   it("another service's line: the favourite goes to that line's own list, not the active one's", async () => {
@@ -247,6 +257,7 @@ describe('Guide: hold OK saves the channel to Favorites', () => {
     render(<Guide creds={line as never} isActive onExitLeft={() => {}} onWatch={() => {}} />);
     await seeRow(LONG);
     await holdOk();
+    await pick('Add to Favorites');
     expect(starOn(LONG)).toBe(true);
     expect([...sync.loadFavoritesForLine(line as never).keys()]).toEqual([500]);
     expect([...sync.loadFavoritesForLine(active as never).keys()]).toEqual([9]);

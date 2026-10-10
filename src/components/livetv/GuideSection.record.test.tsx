@@ -1,10 +1,10 @@
 /**
- * Scheduled recordings from the Guide (TRACKER 25.12): the remote's Menu key
- * on a channel opens the Record dialog in programme mode (the channel's
- * programmes, padded times, the extra-stream line); OK pressed briefly still
- * plays (a held OK saves a favourite: GuideSection.hold.test.tsx); a schedule
- * carries no stream address or login; scheduled programmes get a red dot; and
- * a Kids profile, the demo and a build without the recorder don't offer it.
+ * Scheduled recordings from the Guide (TRACKER 25.12): hold OK on a channel
+ * for its menu (Live TV's), and its Record… opens the Record dialog in
+ * programme mode (the channel's programmes, padded times, the extra-stream
+ * line); OK pressed briefly still plays; a schedule carries no stream address
+ * or login; scheduled programmes get a red dot; and a Kids profile, the demo
+ * and a build without the recorder get no Record… row.
  */
 import { act, configure, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -44,7 +44,13 @@ vi.mock('@/lib/xtream', async (orig) => {
     loadPlayerAccount: async () => (api.plan === null ? null : { host: 'http://h.test', username: 'someuser', password: 'secretpw', maxConnections: api.plan }),
   };
 });
-vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke: vi.fn() } } }));
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: {
+    functions: { invoke: vi.fn(async () => ({ data: null, error: null })) },
+    auth: { getSession: async () => ({ data: { session: null } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }) },
+    from: () => ({}),
+  },
+}));
 vi.mock('@capacitor/app', () => ({ App: { addListener: async () => ({ remove() {} }) } }));
 vi.mock('@/capacitor/SnowPlayer', () => ({
   hasNativePlayer: () => true,
@@ -71,7 +77,10 @@ vi.mock('@/capacitor/SnowRecorder', () => ({
 }));
 vi.mock('@/hooks/useLiveRewind', () => ({ panelOffset: async () => 0 }));
 vi.mock('@/hooks/useNativePlayer', () => ({ useNativePlayer: () => ({ buffering: false, error: null, retry: () => {} }) }));
-vi.mock('@/hooks/use-toast', () => ({ toast: (t: unknown) => { api.calls.push({ fn: 'toast', opts: t as Record<string, unknown> }); } }));
+vi.mock('@/hooks/use-toast', () => ({
+  toast: (t: unknown) => { api.calls.push({ fn: 'toast', opts: t as Record<string, unknown> }); },
+  useToast: () => ({ toast: () => ({}) }),
+}));
 vi.mock('./BufferingDiagnostics', () => ({ default: () => null }));
 vi.mock('./VideoPlayer', () => ({ default: () => <div data-testid="video" /> }));
 vi.mock('@tanstack/react-virtual', async () => {
@@ -90,10 +99,20 @@ vi.mock('@tanstack/react-virtual', async () => {
 const down = (k: string, extra: Partial<KeyboardEventInit> = {}) => act(() => { fireEvent.keyDown(document.body, { key: k, ...extra }); });
 const up = (k: string) => act(() => { fireEvent.keyUp(document.body, { key: k }); });
 const sleep = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
-/** The remote's Menu key (KEYCODE_MENU), pressed and let go; the dialog reads the schedules first. */
+const menuRows = () => Array.from(document.querySelectorAll('[role="dialog"] button')).map((b) => b.textContent);
+/** Hold OK past the hold time: the channel's menu. */
+const holdOk = async () => {
+  down('Enter');
+  await sleep(700);
+  up('Enter');
+  await waitFor(() => expect(menuRows()).toContain('Report Channel'));
+};
+/** Hold OK, then the menu's Record…; the dialog reads the schedules first. */
 const menu = async () => {
-  act(() => { fireEvent.keyDown(document.body, { key: 'ContextMenu', keyCode: 82 }); });
-  act(() => { fireEvent.keyUp(document.body, { key: 'ContextMenu', keyCode: 82 }); });
+  await holdOk();
+  const rec = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')).find((b) => b.textContent === 'Record…')!;
+  act(() => { fireEvent.click(rec); });
+  await waitFor(() => expect(document.querySelector('[data-record-dialog]')).not.toBeNull());
   await sleep(50);
 };
 const dialog = () => document.querySelector('[data-record-dialog]');
@@ -140,7 +159,7 @@ describe('Guide: Menu to record a programme', () => {
     expect(dialog()).toBeNull();
   });
 
-  it('Menu opens the dialog in programme mode with the channel\'s programmes and the padded times; nothing plays', async () => {
+  it('hold OK → Record… opens the dialog in programme mode with the channel\'s programmes and the padded times; nothing plays', async () => {
     const { Guide } = await freshGuide();
     await openGuide(Guide as never);
     await menu();
@@ -161,16 +180,19 @@ describe('Guide: Menu to record a programme', () => {
     expect(dialog()).toBeNull();
   });
 
-  it('a held OK opens no dialog: it saves the channel to Favorites (the hint says Menu records)', async () => {
+  it('a held OK opens the channel menu (Report, Favorites, Record…), not the recording options; the hint says so', async () => {
     const { Guide } = await freshGuide();
     await openGuide(Guide as never);
-    expect(document.body.textContent).toContain('Menu: record');
-    down('Enter');
-    await sleep(700);
-    up('Enter');
+    expect(document.body.textContent).toContain('Hold OK: record, favorite, report');
+    await holdOk();
+    expect(menuRows()).toEqual(['Report Channel', 'Add to Favorites', 'Record…', 'Cancel']);
     expect(dialog()).toBeNull();
     expect(fullscreen()).toBe(false);
-    expect(calls('toast')).toEqual([{ title: 'Added to Favorites', description: 'News Channel' }]);
+    // The remote's Menu key opens the same menu.
+    act(() => { fireEvent.keyDown(window, { key: 'Escape' }); });
+    await waitFor(() => expect(menuRows()).toEqual([]));
+    act(() => { fireEvent.keyDown(document.body, { key: 'ContextMenu', keyCode: 82 }); });
+    await waitFor(() => expect(menuRows()).toContain('Record…'));
   });
 
   it('a later programme is scheduled with its true UTC times and the padding; the address and login are never sent', async () => {
@@ -274,14 +296,17 @@ describe('Guide: Menu to record a programme', () => {
     expect(document.querySelectorAll('[aria-label="Already scheduled"]')).toHaveLength(1);
   });
 
-  it('a Kids profile gets no dialog: Menu does nothing, OK still plays', async () => {
+  it('a Kids profile gets the menu without Record…; OK still plays', async () => {
     const { Guide, kids } = await freshGuide();
     kids.setKidsLevel('kids');
     try {
       await openGuide(Guide as never);
-      await menu();
-      expect(dialog()).toBeNull();
-      expect(document.body.textContent).not.toContain('Menu: record');
+      expect(document.body.textContent).not.toContain('Hold OK: record');
+      await holdOk();
+      expect(menuRows()).not.toContain('Record…');
+      act(() => { fireEvent.keyDown(window, { key: 'Escape' }); });
+      await waitFor(() => expect(menuRows()).toEqual([]));
+      await sleep(400);
       down('Enter');
       up('Enter');
       expect(fullscreen()).toBe(true);
@@ -297,8 +322,9 @@ describe('Guide: Menu to record a programme', () => {
     render(<Guide creds={line as never} isActive onExitLeft={() => {}} />);
     await waitFor(() => expect(document.querySelector('[data-cat-i]')).not.toBeNull());
     await sleep(100);
-    expect(document.body.textContent).not.toContain('Menu: record');
-    await menu();
+    expect(document.body.textContent).not.toContain('Hold OK: record');
+    await holdOk();
+    expect(menuRows()).not.toContain('Record…');
     expect(dialog()).toBeNull();
   });
 });

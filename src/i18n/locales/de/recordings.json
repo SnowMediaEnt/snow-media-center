@@ -84,7 +84,7 @@
       "dayTime": "{{day}} {{time}}",
       "driveFree": "{{label}}: {{size}} frei",
       "driveFreeLow": "{{label}}: {{size}} frei (wenig)",
-      "empty": "Noch keine Aufnahmen. Halte OK auf einem Sender gedrückt (oder nutze Aufnehmen im Player), um aufzunehmen, oder drücke im Guide die Menütaste auf einem Sender, um eine Sendung zu planen.",
+      "empty": "Noch keine Aufnahmen. Halte OK auf einem Sender gedrückt (oder nutze Aufnehmen im Player), um aufzunehmen, oder halte OK auf einem Sender im Guide gedrückt, um eine Sendung zu planen.",
       "alarmsLate": "Dieses Gerät startet geplante Aufnahmen evtl. verspätet.",
       "openSettingsBtn": "Einstellungen öffnen",
       "wasMissed": "Sie wurde verpasst.",

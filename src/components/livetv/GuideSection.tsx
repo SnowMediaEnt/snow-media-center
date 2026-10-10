@@ -8,15 +8,15 @@
 // Xtream has no bulk XMLTV endpoint that's safe on Fire TV — do NOT fetch
 // xmltv.php (freezes the WebView).
 //
-// Favourites: hold OK (600 ms, as in Live TV's list) on a channel to save it
-// to Favorites, or take it out again, with a toast; a finger held on a row or
-// a right click does the same. OK pressed briefly still plays: it acts when it
-// is let go, so a hold can be told apart.
+// Hold OK (600 ms, as in Live TV's list) on a channel, or press the Menu key:
+// its menu, Live TV's own (Report Channel, Add to / Remove from Favorites,
+// Record…); a finger held on a row or a right click does the same. OK pressed
+// briefly still plays: it acts when it is let go, so a hold can be told apart.
 //
-// Scheduled recordings (TRACKER 25.12): the remote's Menu key on a channel
-// opens the Record dialog in programme mode, built from the listings already
-// loaded here (a Kids profile, the demo and a build without the recorder get
-// nothing). Programmes that are scheduled carry a small red dot.
+// Scheduled recordings (TRACKER 25.12): the menu's Record… opens the Record
+// dialog in programme mode, built from the listings already loaded here (a
+// Kids profile, the demo and a build without the recorder get no Record…).
+// Programmes that are scheduled carry a small red dot.
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Loader2, Tv, AlertTriangle, RotateCw, Star } from 'lucide-react';
@@ -42,6 +42,7 @@ import {
 } from '@/lib/xtream';
 import { commitFavoritesForLine, loadFavoritesForLine, lineKey, toggledFavorites } from '@/lib/favoritesSync';
 import { handLiveDeeplink } from '@/lib/appActions';
+import { signalChannel } from '@/lib/channelStatus';
 import { nameClasses } from '@/lib/channelName';
 import { CATEGORY_DWELL_MS, KEPT_CATEGORY_SETTLE_MS } from '@/lib/categoryDwell';
 import { useWhenSettled } from '@/hooks/useWhenSettled';
@@ -76,6 +77,7 @@ import {
 import { stepVolume } from '@/utils/volume';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
+const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
 const NATIVE_PLAYBACK = hasNativePlayer();
 // Demo latch (?demo=1) — canned guide data, no provider contact, no <video>.
 const DEMO = isDemo();
@@ -801,20 +803,17 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     return true;
   };
 
-  // Hold OK on a channel, or a finger held on it: into Favorites, or out
-  // again if it was in, with a toast saying which. The line's own list (this
-  // service's, this profile's), the one Live TV's Favorites reads, so it is
-  // there too; here the row's star and the Favorites chip at once, with no
-  // line-up downloaded. Nothing else moves: the same row, focus and time,
+  // Add to / Remove from Favorites (the channel menu): into Favorites, or
+  // out again if it was in, with a toast saying which. The line's own list
+  // (this service's, this profile's), the one Live TV's Favorites reads, so
+  // it is there too; here the row's star and the Favorites chip at once, with
+  // no line-up downloaded. Nothing else moves: the same row, focus and time,
   // and nothing plays.
   const favsRef = useRef(favs);
   favsRef.current = favs;
   const credsRef = useRef(creds);
   credsRef.current = creds;
-  const toggleFavoriteAt = useCallback((idx: number) => {
-    rowResumedRef.current = true;
-    const ch = channelsRef.current[idx];
-    if (!ch) return;
+  const toggleFavorite = useCallback((ch: XtreamLiveStream) => {
     const was = favsRef.current.has(ch.stream_id);
     const next = toggledFavorites(favsRef.current, ch);
     favsRef.current = next;
@@ -826,6 +825,20 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     });
     toast({ title: i18n.t(was ? 'guide.toast.favRemovedTitle' : 'guide.toast.favAddedTitle'), description: ch.name });
   }, []);
+  // Hold OK on a channel (a finger held on it, a right click, the Menu key):
+  // its menu, as Live TV's list has it (ReportChannelDialog): Report Channel,
+  // Add to / Remove from Favorites, and Record… where recording is offered.
+  // Owner: "holding ok should always bring up the menu to choose to record,
+  // add to favorites, report".
+  const [menuFor, setMenuFor] = useState<XtreamLiveStream | null>(null);
+  const menuForRef = useRef(menuFor);
+  menuForRef.current = menuFor;
+  const openMenuAt = useCallback((idx: number) => {
+    rowResumedRef.current = true;
+    const ch = channelsRef.current[idx];
+    if (ch) setMenuFor(ch);
+  }, []);
+  const closeMenu = useCallback(() => { setMenuFor(null); enterFiredRef.current = false; }, []);
   // A finger held still on a row (lifted or not), or a right click: the held
   // OK. A finger that moves is scrolling the grid; the lift after a hold is
   // not also a tap (which would watch the channel).
@@ -836,18 +849,18 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   }, []);
   const touchHoldFired = (idx: number) => {
     heldRef.current = { at: Date.now(), idx };
-    toggleFavoriteAt(idx);
+    openMenuAt(idx);
   };
   const startTouchHold = (idx: number) => {
     cancelTouchHold();
     touchHoldRef.current = window.setTimeout(() => { touchHoldRef.current = null; touchHoldFired(idx); }, HOLD_MS) as unknown as number;
   };
   const rowMenu = (idx: number) => {
-    // The system's own long press of the finger that just saved it: once.
+    // The system's own long press of the finger that just opened it: once.
     if (Date.now() - heldRef.current.at < LIFT_CLICK_MS && heldRef.current.idx === idx) return;
     const touching = touchHoldRef.current != null;
     cancelTouchHold();
-    if (touching) touchHoldFired(idx); else toggleFavoriteAt(idx);
+    if (touching) touchHoldFired(idx); else openMenuAt(idx);
   };
   const wasTouchHold = () => Date.now() - heldRef.current.at < LIFT_CLICK_MS;
   useEffect(() => cancelTouchHold, [cancelTouchHold]);
@@ -862,7 +875,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
         if (typing) return;
         // The Record dialog owns the remote while it is open (it answers Back itself).
-        if (recordForRef.current) return;
+        if (recordForRef.current || menuForRef.current) return;
         if ((e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) && !freshBack()) {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           return;
@@ -904,15 +917,11 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           return;
         }
 
-        // The remote's Menu key on a channel: the Record dialog (programme
-        // mode), where recording is offered.
+        // The remote's Menu key on a channel: its menu, as a held OK.
         if ((e.key === 'ContextMenu' || e.keyCode === 82) && focusZoneRef.current === 'grid') {
           e.preventDefault(); e.stopPropagation();
-          if (!SCHEDULE_CAPABLE || kidsLevel()) return;
-          const ch = channelsRef.current[rowIdxRef.current];
-          if (!ch) return;
           cancelEnterTimer();
-          void openRecordRef.current(ch);
+          openMenuAt(rowIdxRef.current);
           return;
         }
 
@@ -958,24 +967,24 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           setWindowStart(s => s + SLOT_MINUTES * 60_000);
         } else if (e.key === 'Enter' || e.key === ' ') {
           // Watch it on release (below), so a hold can be told from a press;
-          // held, the favourite. A held key's repeats neither restart the
-          // hold nor play.
+          // held, the channel's menu. A held key's repeats neither restart
+          // the hold nor play.
           if (e.repeat || enterTimerRef.current || enterFiredRef.current) return;
           enterTimerRef.current = window.setTimeout(() => {
             enterTimerRef.current = null;
             enterFiredRef.current = true;
-            toggleFavoriteAt(rowIdxRef.current);
+            openMenuAt(rowIdxRef.current);
           }, HOLD_MS) as unknown as number;
         }
       } catch { /* ignore */ }
     };
-    // OK let go before the hold time: a press, so play. After a hold that saved
-    // the favourite the release is just consumed.
+    // OK let go before the hold time: a press, so play. After a hold that opened
+    // the menu the release is just consumed (the menu arms itself on it).
     const keyupHandler = (e: KeyboardEvent) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (enterTimerRef.current) {
         cancelEnterTimer();
-        if (!fullscreenRef.current && !recordForRef.current && focusZoneRef.current === 'grid') playRowRef.current(rowIdxRef.current);
+        if (!fullscreenRef.current && !recordForRef.current && !menuForRef.current && focusZoneRef.current === 'grid') playRowRef.current(rowIdxRef.current);
       }
       enterFiredRef.current = false;
     };
@@ -986,7 +995,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       window.removeEventListener('keyup', keyupHandler, true);
       cancelEnterTimer();
     };
-  }, [isActive, onExitLeft, onExitUp, cancelEnterTimer, toggleFavoriteAt]);
+  }, [isActive, onExitLeft, onExitUp, cancelEnterTimer, openMenuAt]);
   // The side menu (or a dialog over the Player) has the remote: a hold that
   // was under way is not finished by it.
   useEffect(() => {
@@ -1006,7 +1015,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           // The voice overlay's Back (it is up, or this press closed it).
           if (voiceOwnsBack()) return;
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
-          if (recordForRef.current) return; // the Record dialog answers Back itself
+          if (recordForRef.current || menuForRef.current) return; // the dialogs answer Back themselves
           if (!freshBack()) return;
           if (fullscreenRef.current) { setFullscreen(false); return; }
           onExitLeft();
@@ -1347,6 +1356,32 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       <div className="flex-shrink-0 border-t border-white/10 bg-black/40 px-3 py-2 text-xs font-nunito text-brand-ice/60">
         {SCHEDULE_CAPABLE && !kidsLevel() ? t('guide.hintRecord') : t('guide.hint')}
       </div>
+      {menuFor && (
+        <Suspense fallback={null}>
+          <ReportChannelDialog
+            channelName={menuFor.name}
+            channelId={menuFor.stream_id}
+            categoryName={onFavorites ? 'Favorites' : (currentCategory?.category_name || '')}
+            isFavorite={favs.has(menuFor.stream_id)}
+            onToggleFavorite={() => toggleFavorite(menuFor)}
+            onRecord={SCHEDULE_CAPABLE && !kidsLevel() ? () => {
+              // This menu closes; the recording options (programme mode) open.
+              const ch = menuFor;
+              closeMenu();
+              void openRecordRef.current(ch);
+            } : undefined}
+            line={creds}
+            onReportedDown={() => signalChannel(creds.host, menuFor.stream_id, menuFor.name, 'down', creds)}
+            onReportedBuffering={() => signalChannel(creds.host, menuFor.stream_id, menuFor.name, 'buffering', creds)}
+            onOpenBufferingGuide={() => {
+              closeMenu();
+              _onNavigate?.('support');
+              setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+            }}
+            onClose={closeMenu}
+          />
+        </Suspense>
+      )}
       {recordFor && (
         <RecordDialog
           channelName={recordFor.ch.name}
