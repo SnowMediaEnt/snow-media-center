@@ -205,6 +205,23 @@
       "hintClassic": "OK plein écran · OK long pour les options · F favori",
       "channelFallback": "Chaîne"
     },
+    "overlay": {
+      "categoriesTitle": "Catégories",
+      "openCategoryHint": "OK ou ▶ ouvre une catégorie",
+      "noChannels": "Aucune chaîne ici",
+      "favorite": "Favori",
+      "playing": "En lecture",
+      "hintCategories": "▲▼ catégorie · OK / ▶ ouvrir · ◀ ou Retour fermer",
+      "hintChannels": "▲▼ chaîne · OK regarder · OK long pour les options · ◀ catégories · Retour fermer"
+    },
+    "recent": {
+      "title": "Vu récemment",
+      "empty": "Les chaînes que vous regardez apparaissent ici.",
+      "remove": "Retirer",
+      "removeNamed": "Retirer {{name}} de Vu récemment",
+      "hint": "▲▼ chaîne · OK regarder · ▶ ou OK maintenu retirer · ◀ ou Retour fermer",
+      "hintRemove": "OK retirer · ◀ revenir à la chaîne · Retour fermer"
+    },
     "player": {
       "demoMode": "Mode démo — la lecture est désactivée",
       "buffering": "Mise en mémoire tampon…",

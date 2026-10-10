@@ -91,6 +91,53 @@ async function record(entry: Omit<WatchEntry, 'watchedAt' | 'count'>): Promise<v
   }
 }
 
+// Rows taken off on the box whose delete on the account has not gone through
+// yet (offline): the next pull from the account must not bring them back,
+// and sends the delete again. Per viewer, item key -> when it was removed.
+const REMOVED_PREFIX = 'snow-watch-removed:';
+type Removed = Record<string, number>;
+const removedKey = (kind: WatchKind, key: string) => `${kind}:${key}`;
+const loadRemoved = (viewer: string): Removed => {
+  try {
+    const o = JSON.parse(localStorage.getItem(`${REMOVED_PREFIX}${viewer}`) || '{}');
+    return o && typeof o === 'object' && !Array.isArray(o) ? (o as Removed) : {};
+  } catch { return {}; }
+};
+const saveRemoved = (viewer: string, r: Removed): void => {
+  try {
+    if (Object.keys(r).length) localStorage.setItem(`${REMOVED_PREFIX}${viewer}`, JSON.stringify(r));
+    else localStorage.removeItem(`${REMOVED_PREFIX}${viewer}`);
+  } catch { /* ignore */ }
+};
+
+/** The account's row, as it stood when it was removed (a newer play on
+ *  another box stays). True when the account has it gone. */
+const cloudRemove = async (userId: string, kind: WatchKind, key: string, before: number): Promise<boolean> => {
+  try {
+    const { error } = await supabase.from('watch_history').delete()
+      .eq('user_id', userId).eq('kind', kind).eq('item_key', cloudItemKey(key))
+      .lte('watched_at', new Date(before).toISOString());
+    return !error;
+  } catch { return false; }
+};
+
+/**
+ * Take ONE entry off Recently watched (Live TV's Recently watched panel: a
+ * channel, not the whole history), on the box at once and on the account.
+ * Offline, the account's delete waits for the next pull (see Removed above).
+ */
+export async function removeWatchEntry(kind: WatchKind, key: string): Promise<void> {
+  const viewer = await currentViewer().catch(() => viewerKey());
+  const list = loadWatchHistory(viewer);
+  const next = list.filter((e) => !(e.kind === kind && e.key === key));
+  if (next.length !== list.length) saveWatchHistory(viewer, next);
+  const account = viewerAccountId();
+  if (!account || viewerKey() !== viewer) return;
+  const at = Date.now();
+  if (await cloudRemove(account, kind, key, at)) return;
+  saveRemoved(viewer, { ...loadRemoved(viewer), [removedKey(kind, key)]: at });
+}
+
 export const channelKey = (line: XtreamCreds, streamId: number): string =>
   `${line.host.replace(/^https?:\/\//, '')}|${line.username}|${streamId}`;
 
@@ -137,6 +184,17 @@ export async function syncWatchHistoryFromCloud(viewer: string): Promise<WatchEn
       .order('watched_at', { ascending: false })
       .limit(MAX);
     if (error || !data || viewerKey() !== viewer) return local;
+    // Removed on the box while the account could not be told: kept off, and
+    // the delete sent again.
+    const removed = loadRemoved(viewer);
+    if (Object.keys(removed).length) {
+      const left: Removed = {};
+      for (const [rk, at] of Object.entries(removed)) {
+        const i = rk.indexOf(':');
+        if (!(await cloudRemove(userId, rk.slice(0, i) as WatchKind, rk.slice(i + 1), at))) left[rk] = at;
+      }
+      saveRemoved(viewer, left);
+    }
     const byKey = new Map<string, WatchEntry>();
     for (const e of local) byKey.set(`${e.kind}:${e.key}`, e);
     for (const r of data) {
@@ -154,6 +212,7 @@ export async function syncWatchHistoryFromCloud(viewer: string): Promise<WatchEn
         ...(kind === 'channel' ? { channel: r.payload as WatchEntry['channel'] } : { plex: r.payload as WatchEntry['plex'] }),
       };
       const k = `${kind}:${entry.key}`;
+      if ((removed[removedKey(kind, entry.key)] ?? 0) >= entry.watchedAt) continue;
       const have = byKey.get(k);
       if (!have || have.watchedAt < entry.watchedAt) byKey.set(k, entry);
     }

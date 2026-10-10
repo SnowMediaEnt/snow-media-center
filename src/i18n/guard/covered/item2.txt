@@ -2,6 +2,8 @@
 src/components/LiveTV.tsx
 src/components/livetv/LiveSection.tsx
 src/components/livetv/ChannelRow.tsx
+src/components/livetv/FullscreenChannelOverlay.tsx
+src/components/livetv/RecentChannelsPanel.tsx
 src/components/livetv/liveBar.ts
 src/components/livetv/PlayerControlBar.tsx
 src/components/livetv/PlaybackScreen.tsx

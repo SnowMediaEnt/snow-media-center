@@ -205,6 +205,23 @@
       "hintClassic": "OK full screen · Hold OK options · F favorite",
       "channelFallback": "Channel"
     },
+    "overlay": {
+      "categoriesTitle": "Categories",
+      "openCategoryHint": "OK or ▶ opens a category",
+      "noChannels": "No channels here",
+      "favorite": "Favorite",
+      "playing": "Playing",
+      "hintCategories": "▲▼ category · OK / ▶ open · ◀ or Back close",
+      "hintChannels": "▲▼ channel · OK watch · Hold OK options · ◀ categories · Back close"
+    },
+    "recent": {
+      "title": "Recently watched",
+      "empty": "Channels you watch show up here.",
+      "remove": "Remove",
+      "removeNamed": "Remove {{name}} from Recently watched",
+      "hint": "▲▼ channel · OK watch · ▶ or hold OK remove · ◀ or Back close",
+      "hintRemove": "OK remove · ◀ back to the channel · Back close"
+    },
     "player": {
       "demoMode": "Demo mode — playback is disabled",
       "buffering": "Buffering…",

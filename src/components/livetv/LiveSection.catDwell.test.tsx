@@ -141,6 +141,27 @@ describe('Live TV: a category loads once the highlight rests on it for 1 s', () 
     expect(calls('2')).toBe(1);
   });
 
+  it('over a channel playing full screen: the channel list over the picture loads the category it rests on', async () => {
+    await open(true);
+    await key('ArrowRight'); // into the channels
+    await key('Enter'); // Testchan 1-1 full screen (on release)
+    await keyUp('Enter');
+    await rest(300);
+    expect(document.querySelector('[data-testid="video"]')).toBeTruthy();
+    await key('Escape'); // the bar goes
+    await key('ArrowLeft'); // the channel list over the picture, on the playing channel
+    expect(document.querySelector('[data-channel-overlay]')).toBeTruthy();
+    await key('ArrowLeft'); // its categories
+    await key('ArrowDown'); // Group 2
+    await rest(CATEGORY_DWELL_MS - 100);
+    expect(calls('2')).toBe(0);
+    await rest(100);
+    expect(calls('2')).toBe(1);
+    expect(document.querySelector('[data-channel-overlay]')?.textContent).toContain('Testchan 2-1');
+    // The picture played on all through.
+    expect(document.querySelector('[data-testid="video"]')).toBeTruthy();
+  });
+
   it('passing over 5 categories at 300 ms each downloads nothing; the one it stops on loads after 1 s', async () => {
     await open(true);
     for (let i = 0; i < 5; i++) {

@@ -205,6 +205,23 @@
       "hintClassic": "OK Vollbild · OK halten für Optionen · F Favorit",
       "channelFallback": "Sender"
     },
+    "overlay": {
+      "categoriesTitle": "Kategorien",
+      "openCategoryHint": "OK oder ▶ öffnet eine Kategorie",
+      "noChannels": "Hier keine Sender",
+      "favorite": "Favorit",
+      "playing": "Läuft",
+      "hintCategories": "▲▼ Kategorie · OK / ▶ öffnen · ◀ oder Zurück schließen",
+      "hintChannels": "▲▼ Sender · OK ansehen · OK halten für Optionen · ◀ Kategorien · Zurück schließen"
+    },
+    "recent": {
+      "title": "Zuletzt gesehen",
+      "empty": "Hier erscheinen die Sender, die du ansiehst.",
+      "remove": "Entfernen",
+      "removeNamed": "{{name}} aus „Zuletzt gesehen“ entfernen",
+      "hint": "▲▼ Sender · OK ansehen · ▶ oder OK halten entfernen · ◀ oder Zurück schließen",
+      "hintRemove": "OK entfernen · ◀ zurück zum Sender · Zurück schließen"
+    },
     "player": {
       "demoMode": "Demo-Modus – Wiedergabe ist deaktiviert",
       "buffering": "Wird gepuffert…",
