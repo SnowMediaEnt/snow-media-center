@@ -2,7 +2,8 @@
   "live": {
     "kidsAskGrownUp": {
       "title": "Demandez à un adulte de se connecter à TV en direct",
-      "body": "TV en direct n'est pas encore configurée sur ce téléviseur. Dès qu'un adulte se sera connecté, vos chaînes seront ici."
+      "body": "TV en direct n'est pas encore configurée sur ce téléviseur. Dès qu'un adulte se sera connecté, vos chaînes seront ici.",
+      "bodyTouch": "TV en direct n'est pas encore configurée sur cet appareil. Dès qu'un adulte se sera connecté, vos chaînes seront ici."
     },
     "layoutTrial": {
       "dialogLabel": "Garder cette disposition ?",
