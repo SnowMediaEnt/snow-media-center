@@ -2959,7 +2959,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // One muted <video> at most — each one spawns a WebMediaPlayer that
         // saturates the compositor thread.
         <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div></div>}>
-          // Upright on a phone the box is the player itself: with sound.
+          {/* Upright on a phone the box is the player itself: with sound. */}
           <VideoPlayer src={previewUrl} volume={upright ? volume : 0} muted={!upright} className="w-full h-full" chrome="minimal" />
         </Suspense>
       ) : previewDisabled || !focusedChannel ? (

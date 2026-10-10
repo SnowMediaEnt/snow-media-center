@@ -1238,7 +1238,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         onPointerDownCapture={touchUI ? onTouchContent : undefined}
       >
         {/* Upright, Live TV draws the chips under its video itself. */}
-        {upright && section !== 'live' && (
+        {upright && !inSection('live') && (
           <div data-player-chrome="" className="flex-shrink-0 border-b border-white/10">{phoneTabs}</div>
         )}
         {/* Pane 1 — Sections. On a touch screen (a tablet, a phone sideways)
