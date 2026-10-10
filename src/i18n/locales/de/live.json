@@ -237,7 +237,10 @@
       "addToScreen": "Sender zu Bildschirm {{n}} hinzufügen",
       "pickCategoryHint": "Wähle eine Kategorie und drücke dann Rechts",
       "pressOkHint": "OK zum Abspielen · Links für Kategorien · Zurück zum Schließen",
-      "bufferingHint": "Ruckelt es? Dein Tarif hat vielleicht nicht genug Verbindungen (4 Bildschirme brauchen 4) oder dein Gerät ist nicht leistungsstark genug – versuche es mit weniger Bildschirmen."
+      "bufferingHint": "Ruckelt es? Dein Tarif hat vielleicht nicht genug Verbindungen (4 Bildschirme brauchen 4) oder dein Gerät ist nicht leistungsstark genug – versuche es mit weniger Bildschirmen.",
+      "screens3": "3 Bildschirme",
+      "bigPlusTwo": "1 groß + 2 klein",
+      "swapHint": "OK auf einem kleinen Bild: groß ansehen. ≡ Menü: Optionen."
     },
     "errors": {
       "invalidLogin": "Benutzername oder Passwort ist falsch.",
