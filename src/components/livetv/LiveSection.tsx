@@ -12,6 +12,7 @@ import {
   getLiveCategories,
   getLiveStreams,
   forgetLiveStreams,
+  hasLiveStreams,
   getShortEpg,
   buildLiveStreamUrl,
   buildNativeLiveUrl,
@@ -51,6 +52,7 @@ import {
   tallyByCategory,
   type CatalogCounts,
 } from '@/lib/catalogCounts';
+import { CATEGORY_DWELL_MS, KEPT_CATEGORY_SETTLE_MS } from '@/lib/categoryDwell';
 import { runAfter } from '@/utils/idle';
 import { keepInView } from '@/utils/keepInView';
 import { isPlaybackQuiet } from '@/utils/quietMode';
@@ -725,37 +727,69 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const currentCat: CatEntry | undefined = visibleCategories[categoryIdx];
 
-  // 2) Lazy-load the focused category's channels, from its own line.
+  // 2) Load the channels of the category the highlight rests on, from its
+  //    own line: by themselves once the highlight has rested on it for
+  //    CATEGORY_DWELL_MS (1 s); a fast pass over a category downloads nothing.
   //    - Skip headers and Favorites (rendered from metadata cache).
-  //    - "All channels" is STRICTLY opt-in: never auto-fetch on focus.
-  //    - Only once focus settles (250 ms) — or at once when the viewer opens
-  //      it. Holding ▼ through the categories used to download and parse the
-  //      list of every category passed, all at the same time.
-  //    Keyed on the category's id rather than the entry object, which is
-  //    rebuilt whenever any list, count or favourite changes.
+  //    - "All channels" is STRICTLY opt-in: never fetched by resting on it,
+  //      only once the viewer opens it (OK / ▶ / a click).
+  //    - At once, with no rest: the viewer opens the category (OK, ▶ or a
+  //      click: the channel list takes the remote, `openedNow`); the list the
+  //      section opens on, before the viewer has moved; and Update Channels
+  //      asking again for the list on screen.
+  //    - A list xtream keeps already (no download) shows after a short
+  //      settle (KEPT_CATEGORY_SETTLE_MS), never the full rest, and without
+  //      a spinner. The settle only keeps a held ▼ from drawing each one.
+  //    - The category row's spinner shows only while its list downloads,
+  //      never during the rest, and never stays on a category passed over.
+  //    The wait is keyed ONLY on which category rests (`catFetchKey`, its
+  //    id: the entry object is rebuilt whenever any list, count or favourite
+  //    changes) and on Update Channels. Everything else it reads (the pane,
+  //    the callbacks) goes through refs, so no re-render (a preview or a
+  //    channel playing, the player's events, programme info coming in) can
+  //    restart or cancel it.
   const currentCatRef = useRef(currentCat);
   currentCatRef.current = currentCat;
   const catFetchKey = currentCat && !currentCat.isHeader && !currentCat.isFav
     && (!currentCat.isAll || allOptedInRef.current) && !streamsByCat.has(currentCat.id)
     ? currentCat.id : null;
   const openedNow = pane === 'channels';
+  const catLoadRef = useRef({ openedNow, tagLine, noteCountsFor, healFavorites });
+  catLoadRef.current = { openedNow, tagLine, noteCountsFor, healFavorites };
+  // Starts the waiting category's download now (the viewer opened it).
+  const catLoadNowRef = useRef<(() => void) | null>(null);
+  // A category the list moved to for the channel playing (one handed over,
+  // a Recently watched pick): no rest, the viewer did not pass over it.
+  const catAtOnceRef = useRef<string | null>(null);
+  const seenRefreshRef = useRef(refreshTick);
   useEffect(() => {
+    const refreshed = seenRefreshRef.current !== refreshTick;
+    seenRefreshRef.current = refreshTick;
     const cat = currentCatRef.current;
     if (!catFetchKey || !cat || cat.id !== catFetchKey) return;
     let cancelled = false;
+    let started = false;
+    let t = 0;
     const key = cat.id;
     const line = cat.line;
     const catId = cat.catId;
     const isAll = !!cat.isAll;
-    setLoadingCat(key);
+    // Kept already (xtream's live catalogue): no download, so no spinner.
+    const kept = !DEMO && hasLiveStreams(line, isAll ? undefined : catId);
     const start = () => {
+      if (started || cancelled) return;
+      started = true;
+      window.clearTimeout(t);
+      if (catLoadNowRef.current === start) catLoadNowRef.current = null;
+      if (!kept) setLoadingCat(key);
       const fetchPromise = isAll
         ? fetchLiveStreams(line)
         : fetchLiveStreams(line, catId);
       fetchPromise
         .then((list) => {
           if (cancelled) return;
-          tagLine(list, line);
+          const { tagLine: tag, noteCountsFor: noteFor, healFavorites: heal } = catLoadRef.current;
+          tag(list, line);
           setStreamsByCat(prev => {
             const n = new Map(prev);
             n.set(key, list);
@@ -763,9 +797,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           });
           // A list in hand is a free measurement, and a chance to re-link
           // favourites the provider moved.
-          if (isAll) noteCountsFor(line, { total: list.length, byCat: tallyByCategory(list) });
-          else if (catId) noteCountsFor(line, { byCat: { [catId]: list.length } });
-          healFavorites(line, list, isAll ? null : (catId ?? null));
+          if (isAll) noteFor(line, { total: list.length, byCat: tallyByCategory(list) });
+          else if (catId) noteFor(line, { byCat: { [catId]: list.length } });
+          heal(line, list, isAll ? null : (catId ?? null));
         })
         .catch(() => {
           if (cancelled) return;
@@ -780,16 +814,23 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           setLoadingCat(prev => (prev === key ? null : prev));
         });
     };
-    const t = window.setTimeout(start, openedNow ? 0 : 250);
+    const moved = catAtOnceRef.current === key;
+    if (moved) catAtOnceRef.current = null;
+    const atOnce = catLoadRef.current.openedNow || refreshed || !userMovedRef.current || moved;
+    t = window.setTimeout(start, atOnce ? 0 : kept ? KEPT_CATEGORY_SETTLE_MS : CATEGORY_DWELL_MS);
+    catLoadNowRef.current = start;
     return () => {
       cancelled = true;
       window.clearTimeout(t);
+      if (catLoadNowRef.current === start) catLoadNowRef.current = null;
       // Passed over: no spinner left behind on it.
       setLoadingCat(prev => (prev === key ? null : prev));
     };
     // refreshTick: "Update Channels" while this category is loading must drop
     // the old answer and ask again under the new nonce.
-  }, [catFetchKey, openedNow, refreshTick, noteCountsFor, tagLine, healFavorites]);
+  }, [catFetchKey, refreshTick]);
+  // OK / ▶ / a click while the highlighted category waits: no more waiting.
+  useEffect(() => { if (openedNow) catLoadNowRef.current?.(); }, [openedNow]);
 
   // A channel asked for by name (a voice command, the assistant): see below.
   const [pendingPlay, setPendingPlay] = useState<string | null>(() => peekIntent<string>('smc-live-play', true));
@@ -1030,6 +1071,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       if (idx < 0) { if (categoriesByLine.has(f.key)) followRef.current = null; return; }
       f.moved = true;
       userMovedRef.current = true;
+      catAtOnceRef.current = entryId;
       if (idx !== categoryIdx) { setCategoryIdx(idx); return; }
     }
     if (currentCat?.id !== entryId || searchOpen) { followRef.current = null; return; }

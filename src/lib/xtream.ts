@@ -745,6 +745,13 @@ export function forgetLiveStreams(c: XtreamCreds, categoryId?: string): void {
   if (categoryId) params.category_id = categoryId;
   _liveCatalogue.delete(buildBase(c, params));
 }
+/** Whether a live list is kept already (or on its way): showing it needs no
+ *  download, so Live TV's category list waits only a short settle for it. */
+export function hasLiveStreams(c: XtreamCreds, categoryId?: string): boolean {
+  const params: Record<string, string | number> = { action: 'get_live_streams' };
+  if (categoryId) params.category_id = categoryId;
+  return _liveCatalogue.has(buildBase(c, params));
+}
 
 // A Kids profile (kidsFilter) sees only the categories it may open and the
 // channels in them, whichever screen asks. The kept lists stay whole; the
