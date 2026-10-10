@@ -65,3 +65,9 @@ html.is-touch [data-touch-scroll-x]::-webkit-scrollbar,
 html.is-touch [data-touch-scroll-y]::-webkit-scrollbar {
   display: none;
 }
+
+/* The remote's key hints ("◀ ▶ choose · OK to open"): a TV's. A screen marks
+   its hint line data-remote-hint; a touch screen taps instead. */
+html.is-touch [data-remote-hint] {
+  display: none !important;
+}
