@@ -75,6 +75,8 @@ const channels = (cat: string, name: string, n: number): XtreamLiveStream[] =>
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
+  // These cover the Large Guide (the chips, 72 px rows); GuideSection.compact covers Compact.
+  localStorage.setItem('snow-view-size', 'large');
   // Two categories of the same size (every category in the QA's mock had 40).
   api.categories = [{ category_id: '1', category_name: 'General' }, { category_id: '2', category_name: 'Local' }];
   api.streams = { 1: channels('1', 'General', 20), 2: channels('2', 'Local', 20) };

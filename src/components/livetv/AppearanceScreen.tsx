@@ -12,6 +12,7 @@ import {
   resetTheme,
 } from '@/lib/theme';
 import { LIVE_LAYOUTS, saveLiveLayout, useLiveLayout, type LiveLayout } from '@/lib/liveLayout';
+import { VIEW_SIZES, saveViewSize, useViewSize } from '@/lib/viewSize';
 import LiveLayoutWire from './LiveLayoutWire';
 import { keepInView } from '@/utils/keepInView';
 import { useTranslation } from 'react-i18next';
@@ -23,7 +24,7 @@ interface Props {
   onTryLayout?: (prev: LiveLayout, next: LiveLayout) => void;
 }
 
-type ChipKind = 'liveLayout' | 'fontScale' | 'fontFamily' | 'accent' | 'bg' | 'text';
+type ChipKind = 'liveLayout' | 'viewSize' | 'fontScale' | 'fontFamily' | 'accent' | 'bg' | 'text';
 interface Chip {
   kind: ChipKind;
   id: string;
@@ -45,15 +46,19 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
   const liveLayout = useLiveLayout();
   const liveLayoutRef = useRef(liveLayout);
   liveLayoutRef.current = liveLayout;
+  // The Guide and logo wall size (lib/viewSize): one choice, right under the
+  // layouts. Compact (the default) or Large.
+  const viewSize = useViewSize();
 
   const groups = useMemo(() => {
     const gLayout: Chip[] = LIVE_LAYOUTS.map(l => ({ kind: 'liveLayout', id: l.id, label: l.label, groupIdx: 0 }));
-    const gFontScale: Chip[] = FONT_SCALES.map(s => ({ kind: 'fontScale', id: s.id, label: s.label, value: s.value, groupIdx: 1 }));
-    const gFontFamily: Chip[] = FONT_FAMILIES.map(f => ({ kind: 'fontFamily', id: f.id, label: f.label, groupIdx: 2 }));
-    const gAccent: Chip[] = ACCENT_SWATCHES.map(s => ({ kind: 'accent', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 3 }));
-    const gBg: Chip[] = BG_SWATCHES.map(s => ({ kind: 'bg', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 4 }));
-    const gText: Chip[] = TEXT_SWATCHES.map(s => ({ kind: 'text', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 5 }));
-    return [gLayout, gFontScale, gFontFamily, gAccent, gBg, gText];
+    const gViewSize: Chip[] = VIEW_SIZES.map(id => ({ kind: 'viewSize', id, label: id, groupIdx: 1 }));
+    const gFontScale: Chip[] = FONT_SCALES.map(s => ({ kind: 'fontScale', id: s.id, label: s.label, value: s.value, groupIdx: 2 }));
+    const gFontFamily: Chip[] = FONT_FAMILIES.map(f => ({ kind: 'fontFamily', id: f.id, label: f.label, groupIdx: 3 }));
+    const gAccent: Chip[] = ACCENT_SWATCHES.map(s => ({ kind: 'accent', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 4 }));
+    const gBg: Chip[] = BG_SWATCHES.map(s => ({ kind: 'bg', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 5 }));
+    const gText: Chip[] = TEXT_SWATCHES.map(s => ({ kind: 'text', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 6 }));
+    return [gLayout, gViewSize, gFontScale, gFontFamily, gAccent, gBg, gText];
   }, []);
 
   // Flat focus index: 0 = Back, then for each group N chips, then Reset last.
@@ -93,6 +98,7 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
 
   const isSelected = (chip: Chip): boolean => {
     if (chip.kind === 'liveLayout') return liveLayout === chip.id;
+    if (chip.kind === 'viewSize') return viewSize === chip.id;
     if (chip.kind === 'fontScale') return theme.fontScale === chip.value;
     if (chip.kind === 'fontFamily') return theme.fontFamily === chip.id;
     if (chip.kind === 'accent') return theme.accentColor === chip.hsl;
@@ -107,6 +113,7 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
       if (next !== liveLayoutRef.current && onTryLayout) onTryLayout(liveLayoutRef.current, next);
       else saveLiveLayout(next);
     }
+    else if (chip.kind === 'viewSize') saveViewSize(chip.id === 'large' ? 'large' : 'compact');
     else if (chip.kind === 'fontScale' && typeof chip.value === 'number') setTheme({ fontScale: chip.value });
     else if (chip.kind === 'fontFamily') setTheme({ fontFamily: chip.id });
     else if (chip.kind === 'accent' && chip.hsl) setTheme({ accentColor: chip.hsl });
@@ -212,12 +219,13 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
   };
 
   const groupLabels = [
-    t('liveAccount.appearance.groupLayout'), t('liveAccount.appearance.groupTextSize'), t('liveAccount.appearance.groupFont'),
+    t('liveAccount.appearance.groupLayout'), t('liveAccount.appearance.groupViewSize'), t('liveAccount.appearance.groupTextSize'), t('liveAccount.appearance.groupFont'),
     t('liveAccount.appearance.groupAccent'), t('liveAccount.appearance.groupBackground'), t('liveAccount.appearance.groupTextColor'),
   ];
   const layoutDesc = LIVE_LAYOUTS.find(l => l.id === liveLayout);
   const groupHints: Record<number, string> = {
     0: `${layoutDesc ? t(layoutDesc.descKey) : ''}${onTryLayout ? ` · ${t('liveAccount.appearance.tryHint')}` : ''}`,
+    1: t('liveAccount.appearance.viewSizeHint'),
   };
 
   return (
@@ -242,7 +250,7 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
               <div className="text-xs uppercase tracking-wide text-white/70">{groupLabels[gi]}</div>
               {groupHints[gi] ? <div className="text-sm font-nunito text-brand-ice/70">{groupHints[gi]}</div> : null}
               {gi === 0 ? (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   {g.map((chip, ci) => renderChip(chip, groupStarts.starts[gi] + ci))}
                 </div>
               ) : (

@@ -45,12 +45,14 @@
       "compactLabel": "Compact",
       "compactDesc": "Slim channel list, categories one press away, big preview",
       "gridLabel": "Vibez",
-      "gridDesc": "Categories beside a wall of channel logos, OK plays (no preview)"
+      "gridDesc": "Categories beside a wall of channel logos, OK plays (no preview)",
+      "guideLabel": "Guide",
+      "guideDesc": "The TV guide: channels and what's on, a preview above"
     },
     "layoutChooser": {
       "kicker": "Live TV",
       "title": "Pick the look you like",
-      "body": "Three ways to browse channels. Same channels, same guide, your choice of screen.",
+      "body": "Four ways to browse channels. Same channels, same guide, your choice of screen.",
       "selectedChip": "Selected",
       "hintChoose": "◀ ▶ Choose",
       "hintKeep": "OK Keep it",

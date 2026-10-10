@@ -17,9 +17,20 @@
 // dialog in programme mode, built from the listings already loaded here (a
 // Kids profile, the demo and a build without the recorder get no Record…).
 // Programmes that are scheduled carry a small red dot.
+//
+// Two sizes (lib/viewSize, Live TV › Settings › Appearance › Size; ported
+// from Tronix build 43, where the Guide showed 3 channels where 8 fit).
+// Large is the older Guide exactly: the category chips, the Player's header
+// above, 72 px rows. Compact (the default) is drawn by renderCompact below:
+// no header and no chips; the preview and what is on across the top, a slim
+// time bar, rows with no gaps (36 px on a TV, 44 px on a touch screen), the
+// current category at the left of the time bar, the categories in a drawer
+// over the left edge (with the service, Settings and Update Channels at its
+// top), and a slim bottom bar with the hints and the Player's buttons. See
+// the D-pad comment in the key handler for the ◀ rule.
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
-import { Loader2, Tv, AlertTriangle, RotateCw, Star } from 'lucide-react';
+import { Loader2, Tv, AlertTriangle, RotateCw, Star, ChevronLeft, ChevronRight, ArrowLeft, RefreshCw, Settings as SettingsIcon, LayoutList } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   getLiveCategories,
@@ -44,6 +55,9 @@ import { commitFavoritesForLine, loadFavoritesForLine, lineKey, toggledFavorites
 import { handLiveDeeplink } from '@/lib/appActions';
 import { signalChannel } from '@/lib/channelStatus';
 import { nameClasses } from '@/lib/channelName';
+import { useViewSize } from '@/lib/viewSize';
+import { usePhoneLayout, useTouchUI } from '@/lib/phoneMode';
+import { keepInView } from '@/utils/keepInView';
 import { CATEGORY_DWELL_MS, KEPT_CATEGORY_SETTLE_MS } from '@/lib/categoryDwell';
 import { useWhenSettled } from '@/hooks/useWhenSettled';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
@@ -107,6 +121,18 @@ interface Props {
   resumeAt?: GuidePlace | null;
   /** Told once resumeAt has been taken. */
   onResumeTaken?: () => void;
+  /** Compact: the Player's header is not drawn over the Guide, so its
+   *  buttons are here (the drawer's top, the bottom bar). Update Channels;
+   *  `refreshing` while it runs. */
+  onUpdateChannels?: () => void;
+  refreshing?: boolean;
+  /** The Player's Settings (left out: none here, as in the header: the demo
+   *  and a Kids profile). */
+  onOpenSettings?: () => void;
+  /** Compact on a touch screen: the header's Back, in the bottom bar. */
+  onBackButton?: () => void;
+  /** The service's name (the header's chip), at the drawer's top. */
+  serviceName?: string | null;
 }
 
 /** Where the Guide was: its line, category ('fav' for Favorites), the
@@ -132,13 +158,31 @@ const CHANNEL_COL_WIDTH = 220;
 const TIME_HEADER_HEIGHT = 36;
 const WINDOW_MINUTES = 150; // 2.5 hours
 const SLOT_MINUTES = 30;
-const SLOTS = WINDOW_MINUTES / SLOT_MINUTES; // 5
 const EPG_MAX_CONCURRENT = 4;
 /** Hold OK (or a finger) this long on a channel to save it to Favorites, or
  *  take it out (the same hold as Live TV's list). */
 const HOLD_MS = 600;
 /** The click a touch hold's lift may still bring comes at once. */
 const LIFT_CLICK_MS = 700;
+
+// ── Compact (lib/viewSize) ─────────────────────────────────────────────
+// Row heights: on a TV 36 px (8 full rows under the preview at 960x540), on
+// a touch screen 44 px (a finger's). The time bar and the bottom bar are
+// slim on a TV; on a touch screen they hold finger-sized buttons.
+const COMPACT_ROW_TV = 36;
+const COMPACT_ROW_TOUCH = 44;
+const COMPACT_TIMES_TV = 24;
+const COMPACT_TIMES_TOUCH = 40;
+const COMPACT_BOTTOM_TV = 26;
+const COMPACT_BOTTOM_TOUCH = 48;
+/** The preview strip's height (the video and what is on), vh. */
+const COMPACT_PREVIEW_VH = 36;
+const COMPACT_PREVIEW_VH_TOUCH = 30;
+/** The channel column: a TV or a phone held sideways, a phone upright. */
+const COMPACT_COL_W = 232;
+const COMPACT_COL_W_UPRIGHT = 148;
+/** The category drawer's width (at most 85% of a narrow screen). */
+const DRAWER_W = 320;
 
 const halfHourFloor = (t: number) => {
   const d = new Date(t);
@@ -184,8 +228,23 @@ const decodePrograms = (entries: XtreamEpgEntry[]): DecodedProgram[] =>
     .filter(e => e.start > 0 && e.end > e.start)
     .sort((a, b) => a.start - b.start);
 
-const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: _onNavigate, onWatch, resumeAt, onResumeTaken }: Props) => {
+const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: _onNavigate, onWatch, resumeAt, onResumeTaken, onUpdateChannels, refreshing = false, onOpenSettings, onBackButton, serviceName }: Props) => {
   const { t } = useTranslation();
+  // Compact or Large (lib/viewSize). Compact on phones too: upright with a
+  // narrower channel column (no number: the preview has it), sideways as on
+  // a TV; a touch screen gets finger-sized rows and buttons.
+  const compact = useViewSize() === 'compact';
+  const compactRef = useRef(compact);
+  compactRef.current = compact;
+  const touch = useTouchUI();
+  const upright = usePhoneLayout() === 'portrait';
+  const rowH = compact ? (touch ? COMPACT_ROW_TOUCH : COMPACT_ROW_TV) : ROW_HEIGHT;
+  // Upright on a phone, Compact shows 90 minutes across (the TV's 2.5 hours
+  // left the programmes a few letters each beside the channel column).
+  const windowMin = compact && upright ? 90 : WINDOW_MINUTES;
+  const slots = windowMin / SLOT_MINUTES;
+  const rowHRef = useRef(rowH);
+  rowHRef.current = rowH;
   const onWatchRef = useRef(onWatch);
   onWatchRef.current = onWatch;
   // Back from a channel this Guide handed to Live TV: the same category,
@@ -201,7 +260,13 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const [streams, setStreams] = useState<XtreamLiveStream[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
   const [rowIdx, setRowIdx] = useState(0);
-  const [focusZone, setFocusZone] = useState<'category' | 'grid'>('grid');
+  // 'category': Large's chips bar. 'drawer': Compact's category drawer (open
+  // while the zone is this one).
+  const [focusZone, setFocusZone] = useState<'category' | 'grid' | 'drawer'>('grid');
+  // In the drawer the highlight is on a category (the bar's own index,
+  // categoryIdx: the grid behind follows it) or on one of the two buttons at
+  // the drawer's top.
+  const [drawerOn, setDrawerOn] = useState<'cats' | 'settings' | 'update'>('cats');
 
   // Time window (start ms). Initial = current half-hour (or the one shown
   // when a channel was handed to Live TV, while it is not past).
@@ -356,7 +421,14 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     };
   }, [catLoadKey, refreshTick]);
   // OK / ▼ into the grid / a click while the chip's category waits: no more waiting.
-  useEffect(() => { if (catOpenedNow) catLoadNowRef.current?.(); }, [catOpenedNow]);
+  // Not when Compact's drawer closed on the way out (closeDrawer(false)):
+  // the 1 s rest still decides then.
+  const drawerLeftRef = useRef(false);
+  useEffect(() => {
+    if (!catOpenedNow) return;
+    if (drawerLeftRef.current) { drawerLeftRef.current = false; return; }
+    catLoadNowRef.current?.();
+  }, [catOpenedNow]);
 
   // The rows in the grid: the favourites, or the category's channels.
   const channels = onFavorites ? favRows : streams;
@@ -393,10 +465,13 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   const rowVirtualizer = useVirtualizer({
     count: channels.length,
     getScrollElement: () => scrollParentRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHRef.current,
     overscan: isFireTV() || isLowMemoryBox() ? 2 : 6,
     getItemKey,
   });
+
+  // Compact ↔ Large changes every row's height: drop the measurements.
+  useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [rowH]);
 
   // EPG lazy fetch (concurrency-capped)
   const epgCacheRef = useRef<Map<number, DecodedProgram[]>>(new Map());
@@ -506,16 +581,16 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     if (restore && restore.row === rowIdx) { restoreScrollRef.current = null; node.scrollTop = restore.scroll; }
     else if (backFromFullscreen) node.scrollTop = gridScrollTopRef.current;
     else if (rowIdx === 0) { node.scrollTop = 0; return; }
-    const top = rowIdx * ROW_HEIGHT;
-    const bot = top + ROW_HEIGHT;
+    const top = rowIdx * rowH;
+    const bot = top + rowH;
     if (top < node.scrollTop) node.scrollTop = top;
     else if (bot > node.scrollTop + node.clientHeight) node.scrollTop = bot - node.clientHeight;
-  }, [rowIdx, channels.length, fullscreen, categoryIdx]);
+  }, [rowIdx, channels.length, fullscreen, categoryIdx, rowH]);
 
-  const windowEnd = windowStart + WINDOW_MINUTES * 60_000;
+  const windowEnd = windowStart + windowMin * 60_000;
   const slotStarts = useMemo(
-    () => Array.from({ length: SLOTS }, (_, i) => windowStart + i * SLOT_MINUTES * 60_000),
-    [windowStart],
+    () => Array.from({ length: slots }, (_, i) => windowStart + i * SLOT_MINUTES * 60_000),
+    [windowStart, slots],
   );
 
   // Playback wiring — mirror LiveSection's native path exactly
@@ -566,7 +641,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   useEffect(() => {
     const raf = requestAnimationFrame(() => previewMeasureRef.current());
     return () => cancelAnimationFrame(raf);
-  }, [nativePreviewActive, previewChannelId, categoriesLoading, categories.length]);
+  }, [nativePreviewActive, previewChannelId, categoriesLoading, categories.length, compact]);
   // The page has to be see-through where the preview box is (index.css).
   useEffect(() => {
     if (!nativePreviewActive) return;
@@ -811,6 +886,62 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     return true;
   };
 
+  // ── Compact's drawer ────────────────────────────────────────────────────
+  // The categories, over the grid's left edge, with the service, Settings
+  // and Update Channels at its top (the Player's header is not drawn over a
+  // Compact Guide). The highlight on a category IS the Guide's category: the
+  // grid behind follows it once it rests there CATEGORY_DWELL_MS (the load
+  // effect above: the drawer is not 'grid', so it waits as the chips do).
+  const drawerOnRef = useRef(drawerOn);
+  drawerOnRef.current = drawerOn;
+  const updateRef = useRef(onUpdateChannels);
+  updateRef.current = onUpdateChannels;
+  const settingsRef = useRef(onOpenSettings);
+  settingsRef.current = onOpenSettings;
+  const openDrawer = useCallback(() => {
+    // The viewer has the Guide: a place still being restored is not.
+    rowResumedRef.current = true;
+    focusZoneRef.current = 'drawer';
+    drawerOnRef.current = 'cats';
+    setDrawerOn('cats');
+    setFocusZone('drawer');
+  }, []);
+  /** Closed: the grid has the remote, on the category the drawer rests on,
+   *  loaded at once if it was still waiting (OK, ▶, Back, a tap). Closed on
+   *  the way out (◀ to the side menu, the remote taken away: `now` false),
+   *  the 1 s rest still decides. */
+  const closeDrawer = useCallback((now = true) => {
+    if (!now && focusZoneRef.current === 'drawer') drawerLeftRef.current = true;
+    focusZoneRef.current = 'grid';
+    setFocusZone('grid');
+  }, []);
+  // The side menu (or anything else) took the remote: the drawer closes.
+  useEffect(() => { if (!isActive && focusZoneRef.current === 'drawer') closeDrawer(false); }, [isActive, closeDrawer]);
+  // Large has no drawer, Compact no chips: switched with either open, the grid.
+  useEffect(() => {
+    if (focusZoneRef.current === (compact ? 'category' : 'drawer')) closeDrawer(false);
+  }, [compact, closeDrawer]);
+  // The drawer's list follows its highlight (its own scroll only).
+  const drawerListRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (focusZone !== 'drawer' || drawerOn !== 'cats') return;
+    const list = drawerListRef.current;
+    const el = list?.querySelector<HTMLElement>(`[data-drawer-i="${categoryIdx}"]`);
+    if (list && el) keepInView(list, el, 8);
+  }, [focusZone, drawerOn, categoryIdx]);
+  // A category tapped (or clicked) in the drawer: open it, close the drawer.
+  const pickDrawer = useCallback((i: number) => {
+    userMovedRef.current = true; rowResumedRef.current = true;
+    categoryIdxRef.current = i;
+    setCategoryIdx(i);
+    closeDrawer();
+  }, [closeDrawer]);
+  // A touch screen's earlier / later buttons (the remote's ◀ ▶).
+  const earlier = useCallback(() => {
+    setWindowStart((s) => Math.max(nowInitialRef.current, s - SLOT_MINUTES * 60_000));
+  }, []);
+  const later = useCallback(() => { setWindowStart((s) => s + SLOT_MINUTES * 60_000); }, []);
+
   // Add to / Remove from Favorites (the channel menu): into Favorites, or
   // out again if it was in, with a toast saying which. The line's own list
   // (this service's, this profile's), the one Live TV's Favorites reads, so
@@ -921,6 +1052,9 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         if (isBack) {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+          // Compact's drawer: Back closes it, one step (the grid has the
+          // remote, on the category the drawer rests on).
+          if (focusZoneRef.current === 'drawer') { closeDrawer(); return; }
           onExitLeft();
           return;
         }
@@ -938,6 +1072,61 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         e.preventDefault();
         const ae = document.activeElement as HTMLElement | null;
         if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
+
+        // Compact's drawer (D-pad):
+        //   ▲ ▼  the categories (the grid behind follows after 1 s of rest);
+        //        ▲ from Favorites, the first, goes up to the buttons at the
+        //        top (Settings, Update Channels); ▼ from them, Favorites.
+        //   OK / ▶ on a category: open it now and close the drawer.
+        //   OK on a button: Settings opens / the channels update (the drawer
+        //        stays). ◀ ▶ between the two buttons.
+        //   ◀    (on a category, or the first button) on to the Player's side
+        //        menu, as ◀ from the Guide always went; the drawer closes.
+        //   Back closes it (above), one step.
+        if (focusZoneRef.current === 'drawer') {
+          const cats = chipsRef.current;
+          const on = drawerOnRef.current;
+          const buttons: Array<'settings' | 'update'> = [
+            ...(settingsRef.current ? ['settings' as const] : []),
+            ...(updateRef.current ? ['update' as const] : []),
+          ];
+          const moveTo = (to: 'cats' | 'settings' | 'update') => { drawerOnRef.current = to; setDrawerOn(to); };
+          if (on !== 'cats') {
+            const b = buttons.indexOf(on);
+            if (e.key === 'ArrowDown') moveTo('cats');
+            else if (e.key === 'ArrowLeft') {
+              if (b > 0) moveTo(buttons[b - 1]);
+              else if (!e.repeat) { closeDrawer(false); onExitLeft(); }
+            } else if (e.key === 'ArrowRight') {
+              if (b >= 0 && b < buttons.length - 1) moveTo(buttons[b + 1]);
+            } else if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+              if (on === 'settings') settingsRef.current?.();
+              else updateRef.current?.();
+            }
+            return;
+          }
+          if (e.key === 'ArrowUp') {
+            if (categoryIdxRef.current === 0) { if (buttons.length) moveTo(buttons[0]); return; }
+            userMovedRef.current = true;
+            categoryIdxRef.current = Math.max(0, categoryIdxRef.current - 1);
+            setCategoryIdx(categoryIdxRef.current);
+          } else if (e.key === 'ArrowDown') {
+            if (categoryIdxRef.current >= cats.length - 1) return;
+            userMovedRef.current = true;
+            categoryIdxRef.current = Math.min(cats.length - 1, categoryIdxRef.current + 1);
+            setCategoryIdx(categoryIdxRef.current);
+          } else if (e.key === 'ArrowLeft') {
+            // A held ◀ (its repeats) stops at the drawer.
+            if (e.repeat) return;
+            closeDrawer(false);
+            onExitLeft();
+          } else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
+            if (e.repeat) return;
+            userMovedRef.current = true;
+            closeDrawer();
+          }
+          return;
+        }
 
         if (focusZoneRef.current === 'category') {
           const cats = chipsRef.current;
@@ -959,14 +1148,21 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
 
         // grid zone
         if (e.key === 'ArrowUp') {
-          if (rowIdxRef.current === 0) { setFocusZone('category'); return; }
+          // Large: the first row's ▲ goes up to the chips. Compact has none
+          // above (the categories are in the drawer): the first row stays.
+          if (rowIdxRef.current === 0) { if (!compactRef.current) setFocusZone('category'); return; }
           setRowIdx(i => Math.max(0, i - 1));
         } else if (e.key === 'ArrowDown') {
           const n = channelsRef.current.length;
           setRowIdx(i => (n ? Math.min(n - 1, i + 1) : 0));
         } else if (e.key === 'ArrowLeft') {
-          // If window is at "now" — exit to sections; otherwise shift earlier.
+          // THE ◀ RULE (both sizes): ◀ moves time back while the grid shows
+          // a later time; only at its start (now) does it leave the grid.
+          // There, Large hands the remote to the Player's side menu (as it
+          // always did) and Compact opens the category drawer (a second ◀
+          // goes on to the side menu). ▶ always moves time on.
           if (windowStartRef.current <= nowInitialRef.current) {
+            if (compactRef.current) { if (!e.repeat) openDrawer(); return; }
             onExitLeft();
             return;
           }
@@ -1003,7 +1199,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       window.removeEventListener('keyup', keyupHandler, true);
       cancelEnterTimer();
     };
-  }, [isActive, onExitLeft, onExitUp, cancelEnterTimer, openMenuAt]);
+  }, [isActive, onExitLeft, onExitUp, cancelEnterTimer, openMenuAt, openDrawer, closeDrawer]);
   // The side menu (or a dialog over the Player) has the remote: a hold that
   // was under way is not finished by it.
   useEffect(() => {
@@ -1026,13 +1222,14 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           if (recordForRef.current || menuForRef.current) return; // the dialogs answer Back themselves
           if (!freshBack()) return;
           if (fullscreenRef.current) { setFullscreen(false); return; }
+          if (focusZoneRef.current === 'drawer') { closeDrawer(); return; }
           onExitLeft();
         });
         if (cancelled) h?.remove?.(); else handle = h;
       } catch { /* web */ }
     })();
     return () => { cancelled = true; handle?.remove?.(); };
-  }, [isActive, onExitLeft]);
+  }, [isActive, onExitLeft, closeDrawer]);
 
   // ── Render fullscreen ────────────────────────────────────────────────
   const playingChannel = playingChannelId
@@ -1105,10 +1302,402 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
 
   // ── Render grid ──────────────────────────────────────────────────────
   const totalRowsSize = rowVirtualizer.getTotalSize();
-  const slotPct = 100 / SLOTS;
-  const nowPct = ((nowTick - windowStart) / (WINDOW_MINUTES * 60_000)) * 100;
+  const slotPct = 100 / slots;
+  const nowPct = ((nowTick - windowStart) / (windowMin * 60_000)) * 100;
   const nowInWindow = nowPct >= 0 && nowPct <= 100;
   const canGoEarlier = windowStart > nowInitialRef.current;
+
+  // The channel menu and the Record dialog, over either size.
+  const dialogs = (
+    <>
+    {menuFor && (
+      <Suspense fallback={null}>
+        <ReportChannelDialog
+          channelName={menuFor.name}
+          channelId={menuFor.stream_id}
+          categoryName={onFavorites ? 'Favorites' : (currentCategory?.category_name || '')}
+          isFavorite={favs.has(menuFor.stream_id)}
+          onToggleFavorite={() => toggleFavorite(menuFor)}
+          onRecord={SCHEDULE_CAPABLE && !kidsLevel() ? () => {
+            // This menu closes; the recording options (programme mode) open.
+            const ch = menuFor;
+            closeMenu();
+            void openRecordRef.current(ch);
+          } : undefined}
+          line={creds}
+          onReportedDown={() => signalChannel(creds.host, menuFor.stream_id, menuFor.name, 'down', creds)}
+          onReportedBuffering={() => signalChannel(creds.host, menuFor.stream_id, menuFor.name, 'buffering', creds)}
+          onOpenBufferingGuide={() => {
+            closeMenu();
+            _onNavigate?.('support');
+            setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+          }}
+          onClose={closeMenu}
+        />
+      </Suspense>
+    )}
+    {recordFor && (
+      <RecordDialog
+        channelName={recordFor.ch.name}
+        maxConnections={recordFor.plan}
+        programmes={recordFor.programmes}
+        streamId={recordFor.ch.stream_id}
+        existing={recordFor.existing}
+        armed
+        onStart={(choice) => { const t = recordFor; closeRecord(); void startProgramme(t, choice); }}
+        onClose={closeRecord}
+      />
+    )}
+    </>
+  );
+
+  // ── Compact ──────────────────────────────────────────────────────────
+  const renderCompact = (): JSX.Element => {
+    const drawerOpen = focusZone === 'drawer';
+    const timesH = touch ? COMPACT_TIMES_TOUCH : COMPACT_TIMES_TV;
+    const bottomH = touch ? COMPACT_BOTTOM_TOUCH : COMPACT_BOTTOM_TV;
+    const drawerW = Math.min(DRAWER_W, Math.round((window.innerWidth || 960) * 0.85));
+    const previewVh = touch ? COMPACT_PREVIEW_VH_TOUCH : COMPACT_PREVIEW_VH;
+    const colW = upright ? COMPACT_COL_W_UPRIGHT : COMPACT_COL_W;
+    const catName = !catsReady ? t('guide.loadingCategories') : onFavorites ? t('guide.favorites') : (currentCategory?.category_name ?? '');
+    const ch = focusedGuideChannel ?? channels[rowIdx] ?? null;
+    // undefined: not fetched yet; [] or nothing on now: "No programme information".
+    const list = ch ? epgCacheRef.current.get(ch.stream_id) : undefined;
+    const n = Date.now();
+    const now = list?.find((p) => p.start <= n && n < p.end);
+    const next = list?.find((p) => p.start >= n);
+    const recordable = SCHEDULE_CAPABLE && !kidsLevel();
+    const hint = drawerOpen ? t('guide.hintDrawer')
+      : canGoEarlier ? (recordable ? t('guide.hintRecord') : t('guide.hint'))
+        : (recordable ? t('guide.hintCompactRecord') : t('guide.hintCompact'));
+    const smallBtn = 'flex items-center flex-shrink-0 rounded-md bg-white/10 text-white font-nunito';
+    const drawerBtn = (on: boolean) => `tv-ring flex-1 min-w-0 flex items-center justify-center px-2 py-1 ${touch ? 'min-h-[44px]' : 'min-h-[32px]'} rounded-md text-[13px] leading-tight font-quicksand font-semibold ${on ? 'bg-brand-gold/25 text-white' : 'bg-white/10 text-brand-ice'}`;
+    return (
+      <div data-native-clear data-guide-size="compact" className="relative flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden bg-black/30">
+        {/* The preview and what is on now and next. The highlighted channel's
+            whole name is here, a step smaller on two lines when long. */}
+        <div data-native-clear data-guide-preview className="flex-shrink-0 flex items-stretch px-3 py-2 border-b border-white/10" style={{ height: `${previewVh}vh` }}>
+          <div
+            ref={previewBoxRef}
+            className={`h-full flex-shrink-0 rounded-lg overflow-hidden border border-white/10 flex items-center justify-center ${nativePreviewActive ? '' : 'bg-black'}`}
+            style={{ width: `calc((${previewVh}vh - 16px) * 16 / 9)` }}
+          >
+            {!nativePreviewActive && (
+              ch?.stream_icon
+                ? <img src={ch.stream_icon} alt="" className="max-w-[60%] max-h-[60%] object-contain opacity-80" />
+                : <Tv className="w-10 h-10 text-brand-ice/30" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0 pl-4 flex flex-col justify-center">
+            {ch ? (
+              <>
+                {(ch.num != null || favs.has(ch.stream_id)) && (
+                  <div className="flex items-center text-[13px] font-nunito text-brand-ice/70 tabular-nums">
+                    {ch.num != null && <span>{ch.num}</span>}
+                    {favs.has(ch.stream_id) && <Star className={`w-3.5 h-3.5 text-brand-gold fill-brand-gold ${ch.num != null ? 'ml-1.5' : ''}`} />}
+                  </div>
+                )}
+                <h3 data-guide-head className={`font-quicksand font-bold text-white ${nameClasses(ch.name, 40, 'text-2xl', 'text-lg')}`}>{ch.name}</h3>
+                {now ? (
+                  <>
+                    <p className="mt-1 text-base text-brand-ice/90 font-nunito truncate">{t('guide.now', { title: now.title })}</p>
+                    <p className="text-[13px] text-brand-ice/60 font-nunito tabular-nums">{formatSlot(now.start)} – {formatSlot(now.end)}</p>
+                  </>
+                ) : list ? (
+                  <p className="mt-1 text-base text-brand-ice/60 font-nunito">{t('guide.noInfo')}</p>
+                ) : (
+                  <p data-guide-info-loading className="mt-1 text-base text-brand-ice/40 font-nunito">{t('common.loading')}</p>
+                )}
+                {next && <p className="mt-1 text-sm text-brand-ice/70 font-nunito truncate">{t('guide.next', { title: next.title, time: formatSlot(next.start) })}</p>}
+              </>
+            ) : (
+              <p className="text-base text-brand-ice/60 font-nunito">{t('guide.pickChannel')}</p>
+            )}
+          </div>
+        </div>
+
+        {/* The slim time bar. At its left the current category: ◀ at the
+            first time opens the drawer (the D-pad's rule); a touch opens it
+            here. Later in the day, "◀ earlier" says ◀ moves time back. */}
+        <div data-guide-times className="flex-shrink-0 border-b border-white/10 bg-black/50 flex px-3" style={{ height: timesH }}>
+          {touch ? (
+            <button
+              type="button"
+              data-guide-cat-button
+              aria-label={t('guide.categories')}
+              onClick={() => (drawerOpen ? closeDrawer() : openDrawer())}
+              className="flex-shrink-0 border-r border-white/10 flex items-center px-2 text-left text-white font-quicksand font-semibold text-sm overflow-hidden"
+              style={{ width: colW }}
+            >
+              <LayoutList className="w-5 h-5 mr-2 text-brand-gold flex-shrink-0" />
+              <span data-guide-cat-label className="truncate">{catName}</span>
+            </button>
+          ) : (
+            <div className="flex-shrink-0 border-r border-white/10 flex items-center pr-2 font-nunito text-[13px] overflow-hidden" style={{ width: colW }}>
+              {!canGoEarlier && <ChevronLeft className={`w-4 h-4 flex-shrink-0 ${isActive && focusZone === 'grid' ? 'text-brand-gold' : 'text-brand-ice/60'}`} />}
+              <span data-guide-cat-label className={`truncate font-quicksand font-semibold text-white ${canGoEarlier ? 'pl-1' : ''}`}>{catName}</span>
+              {canGoEarlier && <span className="ml-auto pl-2 flex-shrink-0 text-brand-gold">{t('guide.earlier')}</span>}
+            </div>
+          )}
+          <div className="flex-1 relative">
+            {slotStarts.map((st, i) => (
+              <div
+                key={st}
+                data-guide-time
+                className="absolute top-0 bottom-0 border-l border-white/10 flex items-center px-1.5 text-[13px] whitespace-nowrap overflow-hidden font-nunito text-brand-ice/80 tabular-nums"
+                style={{ left: `${i * slotPct}%`, width: `${slotPct}%` }}
+              >
+                {formatSlot(st)}
+              </div>
+            ))}
+            {nowInWindow && <div className="absolute top-0 bottom-0 w-px bg-red-500" style={{ left: `${nowPct}%` }} />}
+          </div>
+        </div>
+
+        {/* The rows: no gaps, the highlighted one filled and ringed. */}
+        <div
+          ref={scrollParentRef}
+          data-guide-grid
+          onScroll={(e) => { gridScrollTopRef.current = e.currentTarget.scrollTop; }}
+          className="flex-1 min-h-0 px-3 overflow-y-auto overflow-x-hidden"
+        >
+          {listLoading && channels.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> {t('guide.loadingChannels')}
+            </div>
+          ) : channels.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-6">
+              {onFavorites ? t('guide.noFavorites') : t('guide.noChannels')}
+            </div>
+          ) : (
+            <div style={{ height: totalRowsSize, position: 'relative', width: '100%' }}>
+              {virtualItems.map(v => {
+                const c = channels[v.index];
+                if (!c) return null;
+                const focused = isActive && focusZone === 'grid' && v.index === rowIdx;
+                const programs = epgCacheRef.current.get(c.stream_id);
+                const visible = (programs || []).filter(p => p.end > windowStart && p.start < windowEnd);
+                return (
+                  <div
+                    key={v.key}
+                    data-guide-row
+                    onClick={() => { if (wasTouchHold()) return; rowResumedRef.current = true; setRowIdx(v.index); playRow(v.index); }}
+                    onTouchStart={() => startTouchHold(v.index)}
+                    onTouchEnd={cancelTouchHold}
+                    onTouchMove={cancelTouchHold}
+                    onTouchCancel={cancelTouchHold}
+                    onContextMenu={(e) => { e.preventDefault(); rowMenu(v.index); }}
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: rowH, transform: `translateY(${v.start}px)` }}
+                    className="cursor-pointer"
+                  >
+                    <div
+                      data-focused={focused ? 'true' : 'false'}
+                      className={`tv-ring h-full flex border-b border-white/[0.07] ${focused ? 'bg-brand-gold/25 z-10' : ''}`}
+                    >
+                      <div data-guide-cell className="flex-shrink-0 flex items-center pr-2 border-r border-white/10 overflow-hidden" style={{ width: colW }}>
+                        {!upright && (
+                          <span className={`w-9 flex-shrink-0 text-right pr-2 font-nunito tabular-nums text-[13px] ${focused ? 'text-brand-gold' : 'text-brand-ice/70'}`}>{c.num ?? ''}</span>
+                        )}
+                        {c.stream_icon
+                          ? <img src={c.stream_icon} alt="" loading="lazy" className="w-6 h-6 object-contain rounded bg-black/40 flex-shrink-0" />
+                          : <Tv className="w-5 h-5 text-brand-ice/60 flex-shrink-0" />}
+                        {/* A long name: a step smaller, on two lines (lib/channelName). */}
+                        <div data-guide-name className={`ml-2 min-w-0 flex-1 font-quicksand font-semibold text-white ${nameClasses(c.name, upright ? 10 : 18, 'text-sm', 'text-[11px]')}`}>{c.name}</div>
+                        {favs.has(c.stream_id) && <Star data-guide-fav className="ml-1 w-3.5 h-3.5 text-brand-gold fill-brand-gold flex-shrink-0" />}
+                      </div>
+                      <div className="flex-1 relative overflow-hidden">
+                        {!programs && (
+                          <div className="absolute inset-0 flex items-center px-2 text-brand-ice/60 font-nunito text-xs">
+                            <Loader2 className="w-3 h-3 animate-spin mr-2" /> {t('guide.epgLoading')}
+                          </div>
+                        )}
+                        {/* No listings (event channels): the name where the eye
+                            goes, a step smaller on two lines when long. */}
+                        {programs && visible.length === 0 && (
+                          <div data-guide-nolistings className="absolute inset-0 flex items-center px-2 overflow-hidden">
+                            <div className="min-w-0">
+                              <div className={`font-quicksand font-semibold text-white/90 ${nameClasses(c.name, 60, 'text-sm', 'text-[11px]')}`}>{c.name}</div>
+                            </div>
+                            <span className="ml-2 flex-shrink-0 font-nunito text-xs text-brand-ice/60 whitespace-nowrap">{t('guide.noListings')}</span>
+                          </div>
+                        )}
+                        {visible.map((p, i) => {
+                          const clampedStart = Math.max(p.start, windowStart);
+                          const clampedEnd = Math.min(p.end, windowEnd);
+                          const left = ((clampedStart - windowStart) / (windowMin * 60_000)) * 100;
+                          const width = ((clampedEnd - clampedStart) / (windowMin * 60_000)) * 100;
+                          const airingNow = p.start <= nowTick && nowTick < p.end;
+                          const startsHere = scheduledStarts.get(c.stream_id);
+                          const scheduled = !!startsHere && (() => {
+                            const at = programmeTimeUtcMs(p.rs, panelOff);
+                            return at != null && startsHere.some((x) => Math.abs(x - at) < 60_000);
+                          })();
+                          return (
+                            <div
+                              key={i}
+                              style={{ left: `calc(${left}% + 1px)`, width: `calc(${width}% - 2px)`, top: 2, bottom: 2 }}
+                              className={`absolute rounded-md px-2 flex items-center overflow-hidden border ${airingNow ? 'bg-brand-gold/20 border-brand-gold/40' : 'bg-white/[0.06] border-white/10'}`}
+                            >
+                              {/* The time wraps onto a hidden second line when the
+                                  title leaves it no room: shown only when it fits. */}
+                              <div className="w-full flex flex-wrap items-baseline overflow-hidden min-w-0" style={{ height: 18 }}>
+                                <span data-guide-prog-title className="max-w-full truncate font-quicksand font-semibold text-sm leading-[18px] text-white">{p.title}</span>
+                                <span className="ml-2 font-nunito text-xs leading-[18px] text-brand-ice/70 whitespace-nowrap tabular-nums">{formatSlot(p.start)}</span>
+                              </div>
+                              {scheduled && (
+                                <span data-scheduled-dot aria-label={t('guide.scheduledDot')} className="absolute top-0.5 right-0.5 rounded-full bg-red-500" style={{ width: 6, height: 6 }} />
+                              )}
+                            </div>
+                          );
+                        })}
+                        {nowInWindow && (
+                          <div className="absolute top-0 bottom-0 w-px bg-red-500 pointer-events-none" style={{ left: `${nowPct}%` }} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* The slim bottom bar: the remote's hints (a touch screen has Back
+            and earlier / later instead), then the Player's Update Channels
+            and Settings (the remote reaches them in the drawer). */}
+        <div
+          data-guide-bottom
+          className={`flex-shrink-0 border-t border-white/10 bg-black/40 flex items-center ${touch ? 'px-2' : 'pl-3 pr-36'}`}
+          style={{ height: bottomH }}
+        >
+          {touch ? (
+            <>
+              {onBackButton && (
+                <button type="button" data-guide-back aria-label={t('common.back')} onClick={onBackButton} className={`${smallBtn} h-11 px-3 mr-2 text-sm`}>
+                  <ArrowLeft className="w-5 h-5" />{!upright && <span className="ml-1.5">{t('common.back')}</span>}
+                </button>
+              )}
+              <button type="button" data-guide-earlier aria-label={t('guide.earlierBtn')} disabled={!canGoEarlier} onClick={earlier} className={`w-11 h-11 mr-2 rounded-full flex items-center justify-center flex-shrink-0 ${canGoEarlier ? 'bg-white/10 text-white' : 'bg-white/5 text-white/30'}`}>
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button type="button" data-guide-later aria-label={t('guide.laterBtn')} onClick={later} className="w-11 h-11 rounded-full bg-white/10 text-white flex items-center justify-center flex-shrink-0">
+                <ChevronRight className="w-6 h-6" />
+              </button>
+              <div className="flex-1" />
+            </>
+          ) : (
+            <p data-guide-hint className="flex-1 min-w-0 truncate text-xs font-nunito text-brand-ice/60">{hint}</p>
+          )}
+          {onUpdateChannels && (
+            <button
+              type="button"
+              tabIndex={-1}
+              data-guide-update
+              aria-label={t('live.shell.updateChannelsBtn')}
+              onClick={onUpdateChannels}
+              disabled={refreshing}
+              className={`${smallBtn} ml-2 ${touch ? 'h-11 px-3 text-sm' : 'h-5 px-2 text-xs'}`}
+            >
+              <RefreshCw className={`${touch ? 'w-4 h-4' : 'w-3 h-3'} ${refreshing ? 'animate-spin' : ''}`} />
+              {!upright && <span className="ml-1.5">{refreshing ? t('live.shell.updatingBtn') : t('live.shell.updateChannelsBtn')}</span>}
+            </button>
+          )}
+          {onOpenSettings && (
+            <button
+              type="button"
+              tabIndex={-1}
+              data-guide-settings
+              aria-label={t('common.settings')}
+              onClick={onOpenSettings}
+              className={`${smallBtn} ml-2 ${touch ? 'h-11 px-3 text-sm' : 'h-5 px-2 text-xs'}`}
+            >
+              <SettingsIcon className={touch ? 'w-4 h-4' : 'w-3 h-3'} />
+              {!upright && <span className="ml-1.5">{t('common.settings')}</span>}
+            </button>
+          )}
+        </div>
+
+        {/* The category drawer, over the left edge: the service, Settings and
+            Update Channels, then Favorites and the categories. */}
+        {drawerOpen && touch && (
+          <div data-guide-drawer-scrim className="absolute top-0 bottom-0 right-0 z-30 bg-black/50" style={{ left: drawerW }} onClick={() => closeDrawer()} />
+        )}
+        {drawerOpen && (
+          <div data-guide-drawer className="absolute top-0 bottom-0 left-0 z-30 flex flex-col bg-[#0b1220] border-r border-white/15 shadow-2xl" style={{ width: drawerW }}>
+            <div className="flex-shrink-0 px-3 pt-3 pb-2 border-b border-white/10">
+              <div className="flex items-center min-w-0">
+                <Tv className="w-7 h-7 text-brand-gold flex-shrink-0" />
+                <div className="ml-2 min-w-0">
+                  <div className="text-xs font-nunito text-brand-ice/60">{t('guide.service')}</div>
+                  <div data-guide-service className="text-sm font-quicksand font-bold text-white truncate">{serviceName || t('live.shell.title')}</div>
+                </div>
+              </div>
+              {(onOpenSettings || onUpdateChannels) && (
+                <div className="mt-2 flex">
+                  {onOpenSettings && (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      data-guide-drawer-settings
+                      data-focused={isActive && drawerOn === 'settings' ? 'true' : 'false'}
+                      onClick={onOpenSettings}
+                      className={`${drawerBtn(drawerOn === 'settings')} ${onUpdateChannels ? 'mr-2' : ''}`}
+                    >
+                      <SettingsIcon className="w-4 h-4 mr-1.5 flex-shrink-0" /><span className="text-center break-words min-w-0">{t('common.settings')}</span>
+                    </button>
+                  )}
+                  {onUpdateChannels && (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      data-guide-drawer-update
+                      data-focused={isActive && drawerOn === 'update' ? 'true' : 'false'}
+                      onClick={onUpdateChannels}
+                      disabled={refreshing}
+                      className={drawerBtn(drawerOn === 'update')}
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-1.5 flex-shrink-0 ${refreshing ? 'animate-spin' : ''}`} /><span className="text-center break-words min-w-0">{refreshing ? t('live.shell.updatingBtn') : t('live.shell.updateChannelsBtn')}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex-shrink-0 px-3 pt-2 pb-1 text-xs uppercase tracking-wide font-nunito text-brand-ice/50">{t('guide.categories')}</div>
+            <div ref={drawerListRef} data-guide-drawer-list className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 pb-2">
+              {!catsReady ? (
+                <div className="flex items-center gap-2 text-brand-ice/70 font-nunito text-sm px-2 py-1">
+                  <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> {t('guide.loadingCategories')}
+                </div>
+              ) : chips.map((c, i) => {
+                const isFav = c === FAV_CHIP;
+                const focused = !touch && isActive && drawerOn === 'cats' && categoryIdx === i;
+                const selected = categoryIdx === i;
+                return (
+                  <button
+                    key={c.category_id}
+                    type="button"
+                    tabIndex={-1}
+                    data-drawer-i={i}
+                    data-focused={focused ? 'true' : 'false'}
+                    data-selected={selected ? 'true' : 'false'}
+                    onClick={() => pickDrawer(i)}
+                    className={`tv-ring w-full flex items-center px-3 ${touch ? 'min-h-[44px]' : 'min-h-[32px]'} py-1 rounded-md text-left font-quicksand ${
+                      focused ? 'bg-brand-gold/25 text-white' : selected ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}
+                  >
+                    {isFav && <Star className="w-4 h-4 mr-2 text-brand-gold flex-shrink-0" />}
+                    <span className={`min-w-0 ${nameClasses(isFav ? t('guide.favorites') : c.category_name, 28, 'text-sm', 'text-xs')}`}>{isFav ? t('guide.favorites') : c.category_name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {!touch && <div data-guide-drawer-hint className="flex-shrink-0 px-3 py-1.5 border-t border-white/10 text-xs leading-snug font-nunito text-brand-ice/50">{t('guide.hintDrawer')}</div>}
+          </div>
+        )}
+        {dialogs}
+      </div>
+    );
+  };
+  if (compact) return renderCompact();
 
   return (
     <div data-native-clear className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden bg-black/30">
@@ -1318,8 +1907,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                       {visible.map((p, i) => {
                         const clampedStart = Math.max(p.start, windowStart);
                         const clampedEnd = Math.min(p.end, windowEnd);
-                        const left = ((clampedStart - windowStart) / (WINDOW_MINUTES * 60_000)) * 100;
-                        const width = ((clampedEnd - clampedStart) / (WINDOW_MINUTES * 60_000)) * 100;
+                        const left = ((clampedStart - windowStart) / (windowMin * 60_000)) * 100;
+                        const width = ((clampedEnd - clampedStart) / (windowMin * 60_000)) * 100;
                         const isNow = p.start <= nowTick && nowTick < p.end;
                         const startsHere = scheduledStarts.get(ch.stream_id);
                         const scheduled = !!startsHere && (() => {
@@ -1367,44 +1956,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       <div data-guide-hint className="flex-shrink-0 border-t border-white/10 bg-black/40 px-3 py-2 text-xs font-nunito text-brand-ice/60">
         {SCHEDULE_CAPABLE && !kidsLevel() ? t('guide.hintRecord') : t('guide.hint')}
       </div>
-      {menuFor && (
-        <Suspense fallback={null}>
-          <ReportChannelDialog
-            channelName={menuFor.name}
-            channelId={menuFor.stream_id}
-            categoryName={onFavorites ? 'Favorites' : (currentCategory?.category_name || '')}
-            isFavorite={favs.has(menuFor.stream_id)}
-            onToggleFavorite={() => toggleFavorite(menuFor)}
-            onRecord={SCHEDULE_CAPABLE && !kidsLevel() ? () => {
-              // This menu closes; the recording options (programme mode) open.
-              const ch = menuFor;
-              closeMenu();
-              void openRecordRef.current(ch);
-            } : undefined}
-            line={creds}
-            onReportedDown={() => signalChannel(creds.host, menuFor.stream_id, menuFor.name, 'down', creds)}
-            onReportedBuffering={() => signalChannel(creds.host, menuFor.stream_id, menuFor.name, 'buffering', creds)}
-            onOpenBufferingGuide={() => {
-              closeMenu();
-              _onNavigate?.('support');
-              setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
-            }}
-            onClose={closeMenu}
-          />
-        </Suspense>
-      )}
-      {recordFor && (
-        <RecordDialog
-          channelName={recordFor.ch.name}
-          maxConnections={recordFor.plan}
-          programmes={recordFor.programmes}
-          streamId={recordFor.ch.stream_id}
-          existing={recordFor.existing}
-          armed
-          onStart={(choice) => { const t = recordFor; closeRecord(); void startProgramme(t, choice); }}
-          onClose={closeRecord}
-        />
-      )}
+      {dialogs}
     </div>
   );
 });

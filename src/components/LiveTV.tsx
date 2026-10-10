@@ -21,7 +21,8 @@ import {
   serverDisplayName,
   type XtreamCreds,
 } from '@/lib/xtream';
-import { saveLiveLayout, type LiveLayout } from '@/lib/liveLayout';
+import { saveLiveLayout, useLiveLayout, type LiveLayout } from '@/lib/liveLayout';
+import { useViewSize } from '@/lib/viewSize';
 import { autoSignInPlayer, clearPlayerSignedOut } from '@/lib/playerAutoSignIn';
 import { signOutPlayer } from '@/lib/playerSignOut';
 import { useAuth } from '@/hooks/useAuth';
@@ -44,6 +45,10 @@ import KidsAskGrownUp from './livetv/KidsAskGrownUp';
 
 import LiveSection from './livetv/LiveSection';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
+/** What Live TV's list (LiveSection) is handed to act on (lib/appActions,
+ *  applyIntent below), and the events that say one is there. */
+const LIVE_HANDOVER_KEYS = ['smc-live-deeplink', 'smc-live-play', 'smc-live-report'];
+const LIVE_HANDOVER_EVENTS = ['smc:live-deeplink', 'smc:live-play', 'smc:live-report'];
 import type { GuidePlace } from './livetv/GuideSection';
 const GameDaySection = lazy(() => import('./livetv/GameDaySection'));
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
@@ -143,7 +148,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, [layoutTrial]);
   // enterMode is declared further down; reached through a ref.
   const enterModeRef = useRef<(m: 'live' | 'movies' | 'backups') => void>(() => {});
+  // (The Guide layout's "a channel was handed to Live TV" flag, set below.)
+  const setLiveWatchingRef = useRef<(v: boolean) => void>(() => {});
   const tryLayout = useCallback((prev: LiveLayout, next: LiveLayout) => {
+    // Live TV as the new layout shows it (the Guide's, not a list kept from
+    // a channel handed over earlier).
+    setLiveWatchingRef.current(false);
     saveLiveLayout(next);
     setLayoutTrial({ prev, next, ask: false });
     setSettingsOpen(false);
@@ -372,9 +382,46 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const guideReturnRef = useRef<GuidePlace | null>(null);
   const [guideResume, setGuideResume] = useState<GuidePlace | null>(null);
   const clearGuideResume = useCallback(() => setGuideResume(null), []);
+  // The Guide as Live TV's own layout (lib/liveLayout 'guide'): Live TV's
+  // slot shows the Guide, and LiveSection is drawn only while it has a
+  // channel to play or a job handed to it (a deeplink, a channel by name, a
+  // report: the sessionStorage hand-overs it reads). Back from that picture
+  // comes back to the Guide (backToGuide, backToGuideLayout below).
+  const liveLayout = useLiveLayout();
+  const liveLayoutRef = useRef(liveLayout);
+  liveLayoutRef.current = liveLayout;
+  const [liveWatching, setLiveWatching] = useState(() => {
+    try { return LIVE_HANDOVER_KEYS.some((k) => !!sessionStorage.getItem(k)); } catch { return false; }
+  });
+  setLiveWatchingRef.current = setLiveWatching;
+  useEffect(() => {
+    const on = () => setLiveWatching(true);
+    LIVE_HANDOVER_EVENTS.forEach((ev) => window.addEventListener(ev, on));
+    return () => LIVE_HANDOVER_EVENTS.forEach((ev) => window.removeEventListener(ev, on));
+  }, []);
+  // Anywhere else in the Player: Live TV opens on the Guide again next time.
+  useEffect(() => { if (section !== 'live') setLiveWatching(false); }, [section]);
+  // The layout changed while the Player is open (Appearance, the assistant):
+  // to the Guide, Live TV shows it at once, unless a channel is on full
+  // screen (it keeps playing; Back from it is the Guide).
+  const layoutSeenRef = useRef(liveLayout);
+  useEffect(() => {
+    if (layoutSeenRef.current === liveLayout) return;
+    layoutSeenRef.current = liveLayout;
+    if (liveLayout === 'guide') setLiveWatching(document.documentElement.classList.contains('snowplayer-fullscreen'));
+  }, [liveLayout]);
+  const liveShowsGuide = section === 'live' && liveLayout === 'guide' && !liveWatching;
+  // Which slot the Guide that handed a channel over was in: the Guide
+  // section, or Live TV's (the Guide layout). Back from the picture goes back
+  // to that one, on the same row (resumeAt).
+  const guideFromLiveRef = useRef(false);
+  const sectionRef = useRef(section);
+  sectionRef.current = section;
   const onGuideWatch = useCallback((place: GuidePlace) => {
     gameDayReturnRef.current = null;
     guideReturnRef.current = place;
+    guideFromLiveRef.current = sectionRef.current === 'live';
+    setLiveWatching(true);
     setSection('live'); setPane('content');
   }, []);
   const backToGuide = useCallback((): boolean => {
@@ -382,11 +429,22 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (!place) return false;
     guideReturnRef.current = null;
     setGuideResume(place);
-    setSection('guide'); setPane('content');
+    if (guideFromLiveRef.current && liveLayoutRef.current === 'guide') setLiveWatching(false);
+    else setSection('guide');
+    setPane('content');
+    return true;
+  }, []);
+  // The Guide layout, a channel that came from elsewhere inside the Player
+  // (the assistant, a reminder, Game Day): Back from its picture shows Live
+  // TV, which is the Guide.
+  const backToGuideLayout = useCallback((): boolean => {
+    if (liveLayoutRef.current !== 'guide') return false;
+    setLiveWatching(false);
+    setPane('content');
     return true;
   }, []);
   useEffect(() => { if (section !== 'live') guideReturnRef.current = null; }, [section]);
-  const backToCaller = useCallback(() => backToGameDay() || backToGuide(), [backToGameDay, backToGuide]);
+  const backToCaller = useCallback(() => backToGameDay() || backToGuide() || backToGuideLayout(), [backToGameDay, backToGuide, backToGuideLayout]);
   // A channel picked inside Live TV afterwards (its list over the picture,
   // Recently watched): Back returns to where that channel was opened from.
   const forgetGuideReturn = useCallback(() => { guideReturnRef.current = null; }, []);
@@ -520,6 +578,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (sec === 'movies') { enterMode('movies'); if (intent.plex) setPane('content'); }
     else if (sec === 'backups') enterMode('backups');
     else {
+      // "Open Live TV" with nothing to play or report: in the Guide layout,
+      // the Guide (a channel or report handed over sets it again below).
+      if (sec === 'live' && !intent.play && !intent.deeplink && !intent.report) setLiveWatching(false);
       enterMode('live');
       if (sec === 'guide' || sec === 'multi' || sec === 'gameday') { setSection(sec); setPane('content'); }
     }
@@ -789,6 +850,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const pickSection = useCallback((id: SectionId) => {
     const i = sectionsRef.current.findIndex((s) => s.id === id);
     if (i < 0) return;
+    // Live TV picked: in the Guide layout, the Guide (not a list a
+    // hand-over left behind).
+    if (id === 'live') setLiveWatching(false);
     setSectionIdx(i);
     setSection(id);
     setPane('content');
@@ -807,6 +871,21 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // [Back, Update, Settings] — Settings is hidden in demo and on a Kids
   // profile (it holds sign-out, the line's password and billing), so 2 there.
   const HEADER_COUNT = (DEMO && !HOWTO) || kidsLevel() ? 2 : 3;
+  // The Guide in its Compact size (lib/viewSize) has no Player header over
+  // it: its drawer and bottom bar carry Settings, Update Channels and (on a
+  // touch screen) Back. Everywhere else, and in the Guide's Large size, the
+  // header is as it always was.
+  const viewSize = useViewSize();
+  const guideShown = section === 'guide' || liveShowsGuide;
+  const headerHidden = guideShown && viewSize === 'compact';
+  const headerHiddenRef = useRef(headerHidden);
+  headerHiddenRef.current = headerHidden;
+  // The highlight was on the header as it went: back where it came from.
+  useEffect(() => { if (headerHidden && paneRef.current === 'header') setPane(headerReturnPaneRef.current); }, [headerHidden]);
+  // The same Settings where the header is not drawn (the Compact Guide's
+  // drawer and bottom bar): none in the demo or on a Kids profile either.
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const guideSettings = (!DEMO || HOWTO) && !kidsLevel() ? openSettings : undefined;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -921,6 +1000,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (e.key === 'ArrowDown') setSectionIdx(i => Math.min(sectionsRef.current.length - 1, i + 1));
       else if (e.key === 'ArrowUp') {
         if (sectionIdxRef.current === 0) {
+          // No header drawn (the Compact Guide): the top of the menu stays.
+          if (headerHiddenRef.current) return;
           headerReturnPaneRef.current = 'sections';
           setPane('header');
         } else {
@@ -928,7 +1009,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         }
       }
       else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
-        setSection(sectionsRef.current[sectionIdxRef.current].id);
+        const id = sectionsRef.current[sectionIdxRef.current].id;
+        // Live TV picked: in the Guide layout, the Guide.
+        if (id === 'live') setLiveWatching(false);
+        setSection(id);
         setPane('content');
       }
     };
@@ -1203,7 +1287,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       )}
 
 
-      {/* Header (a phone, either way up: slim, Update and Settings as icons) */}
+      {/* Header (a phone, either way up: slim, Update and Settings as icons).
+          Not over the Compact Guide (headerHidden). */}
+      {!headerHidden && (
       <div data-player-chrome="" className={slim ? 'flex items-center justify-between px-2 py-1.5 border-b border-white/10 bg-black/30' : 'flex items-center justify-between px-5 py-2 border-b border-white/10 bg-black/30'}>
         <div className={slim ? 'flex items-center gap-2 min-w-0' : 'flex items-center gap-3'}>
           <BackButton
@@ -1260,6 +1346,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           )}
         </div>
       </div>
+      )}
 
 
 
@@ -1271,7 +1358,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         onPointerDownCapture={touchUI ? onTouchContent : undefined}
       >
         {/* Upright, Live TV draws the chips under its video itself. */}
-        {upright && !inSection('live') && (
+        {/* (Not the Guide in its slot: the Guide layout.) */}
+        {upright && (!inSection('live') || liveShowsGuide) && (
           <div data-player-chrome="" className="flex-shrink-0 border-b border-white/10">{phoneTabs}</div>
         )}
         {/* Pane 1 — Sections. On a touch screen (a tablet, a phone sideways)
@@ -1312,7 +1400,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                 key={s.id}
                 data-section-i={i}
                 data-focused={isFocused ? 'true' : 'false'}
-                onClick={(e) => { if (collapsed) return; e.stopPropagation(); setSectionIdx(i); setSection(s.id); setPane('content'); }}
+                onClick={(e) => { if (collapsed) return; e.stopPropagation(); if (s.id === 'live') setLiveWatching(false); setSectionIdx(i); setSection(s.id); setPane('content'); }}
                 className={`
                   tv-ring relative flex items-center gap-3 ${collapsed ? 'px-1 py-3 justify-center' : 'px-3 py-3'} rounded-xl cursor-pointer
                   ${isFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'hover:bg-white/5'}
@@ -1327,7 +1415,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         </div>
         )}
 
-        {inSection('live') && (
+        {inSection('live') && !liveShowsGuide && (
           <LiveSection
             creds={creds!}
             isActive={pane === 'content' && !claimOpen && !trialAsking}
@@ -1340,17 +1428,25 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           />
         )}
 
-        {inSection('guide') && (
+        {/* The Guide: its own section, or Live TV's slot in the Guide layout
+            (a new one each: as switching sections always did). */}
+        {guideShown && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <GuideSection
+              key={section}
               creds={creds!}
-              isActive={pane === 'content' && !claimOpen}
+              isActive={pane === 'content' && !claimOpen && !(liveShowsGuide && trialAsking)}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
               onNavigate={navigateViaRef}
               onWatch={onGuideWatch}
               resumeAt={guideResume}
               onResumeTaken={clearGuideResume}
+              onUpdateChannels={refreshChannels}
+              refreshing={isRefreshing}
+              onOpenSettings={guideSettings}
+              onBackButton={stepBack}
+              serviceName={creds?.serverLabel ? serverDisplayName(creds.serverLabel) : null}
             />
           </Suspense>
         )}

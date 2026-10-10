@@ -1,7 +1,7 @@
 // First time in Live TV: pick a look.
 //
 // Shown once, the first time Live TV opens on a box that has never chosen
-// a layout (fresh install or an update from a build without layouts). Three
+// a layout (fresh install or an update from a build without layouts). Four
 // cards, each a small wireframe of the real screen. Left/Right move, OK
 // keeps the pick, Back keeps the default. Either way the choice is saved so
 // this never shows again; Player Settings → Appearance changes it later.
@@ -65,7 +65,7 @@ const LiveLayoutChooser = ({ onDone }: Props) => {
       <h1 className={upright ? 'text-2xl font-black leading-tight mb-1' : 'text-4xl font-black leading-tight mb-2'}>{t('live.layoutChooser.title')}</h1>
       <p className={upright ? 'text-sm text-white/65 mb-5' : 'text-lg text-white/65 mb-8'}>{t('live.layoutChooser.body')}</p>
 
-      <div className={upright ? 'grid grid-cols-1 gap-5 w-full max-w-xs' : 'grid grid-cols-3 gap-6 w-full max-w-6xl'} data-howto="live.layoutCards">
+      <div className={upright ? 'grid grid-cols-1 gap-5 w-full max-w-xs' : 'grid grid-cols-4 gap-6 w-full max-w-6xl'} data-howto="live.layoutCards">
         {LIVE_LAYOUTS.map((l, i) => {
           const picked = i === idx;
           return (

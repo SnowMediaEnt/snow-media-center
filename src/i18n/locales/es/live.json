@@ -45,12 +45,14 @@
       "compactLabel": "Compacto",
       "compactDesc": "Lista de canales delgada, categorías a un botón de distancia, vista previa grande",
       "gridLabel": "Vibez",
-      "gridDesc": "Categorías junto a un muro de logos de canales, OK reproduce (sin vista previa)"
+      "gridDesc": "Categorías junto a un muro de logos de canales, OK reproduce (sin vista previa)",
+      "guideLabel": "Guía",
+      "guideDesc": "La guía de TV: canales y lo que dan, con vista previa arriba"
     },
     "layoutChooser": {
       "kicker": "TV en vivo",
       "title": "Elige el diseño que prefieras",
-      "body": "Tres formas de explorar los canales. Los mismos canales, la misma guía, tú eliges la pantalla.",
+      "body": "Cuatro formas de explorar los canales. Los mismos canales, la misma guía, tú eliges la pantalla.",
       "selectedChip": "Elegido",
       "hintChoose": "◀ ▶ Elegir",
       "hintKeep": "OK Conservar",

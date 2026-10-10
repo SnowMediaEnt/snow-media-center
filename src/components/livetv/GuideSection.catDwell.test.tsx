@@ -97,6 +97,8 @@ const toBar = async () => { await key('ArrowUp'); expect(chip('Group 1')?.getAtt
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
   localStorage.clear(); sessionStorage.clear();
+  // These cover the Large Guide (the chips, 72 px rows); GuideSection.compact covers Compact.
+  localStorage.setItem('snow-view-size', 'large');
   h.kept.clear(); parentRenders = 0;
   h.streams.mockReset();
   h.streams.mockImplementation(async (_l: unknown, cat?: string) => chans(cat ?? '0'));

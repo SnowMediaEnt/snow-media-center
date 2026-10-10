@@ -151,3 +151,52 @@ describe("The Guide's channels play in Live TV's own player", () => {
     expect(screen.queryByText(/guide-section/)).toBeNull();
   });
 });
+
+// The Guide as Live TV's own layout (lib/liveLayout 'guide'): Live TV's slot
+// shows the Guide; a channel picked there plays in Live TV, and Back from
+// the picture shows the Guide again, on the same place. In its Compact size
+// (the default) the Player's header is not drawn over it (the Guide's drawer
+// and bottom bar carry its buttons); Large keeps the header.
+describe('The Guide as the Live TV layout', () => {
+  const openLive = async () => {
+    render(<LiveTV onBack={vi.fn()} />);
+    await settle();
+    key('Enter'); // mode chooser: Live TV
+    await settle(); await settle();
+  };
+  const header = () => document.querySelector('[data-howto="live.updateChannels"]');
+
+  it('Live TV shows the Guide; OK plays in Live TV; Back is the Guide again, where it was', async () => {
+    localStorage.setItem('snow-livetv-layout', 'guide');
+    await openLive();
+    expect(await screen.findByText('guide-section at its start')).toBeTruthy();
+    expect(screen.queryByText('live-section')).toBeNull();
+    expect(header()).toBeNull();
+    key('Enter');
+    await settle();
+    expect(screen.getByText('live-section')).toBeTruthy();
+    expect(header()).toBeTruthy();
+    key('Escape');
+    await settle(); await settle();
+    expect(await screen.findByText('guide-section at 2/402')).toBeTruthy();
+  });
+
+  it('Large: the header stays over the Guide', async () => {
+    localStorage.setItem('snow-livetv-layout', 'guide');
+    localStorage.setItem('snow-view-size', 'large');
+    await openLive();
+    expect(await screen.findByText('guide-section at its start')).toBeTruthy();
+    expect(header()).toBeTruthy();
+  });
+
+  it('another layout: Live TV is the list, and the Guide section has no header in Compact', async () => {
+    await openGuide();
+    expect(header()).toBeNull();
+    key('ArrowLeft');
+    key('ArrowUp');
+    key('Enter');
+    await settle();
+    expect(screen.getByText('live-section')).toBeTruthy();
+    expect(header()).toBeTruthy();
+  });
+});
