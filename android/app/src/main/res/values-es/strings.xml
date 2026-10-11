@@ -63,6 +63,7 @@
     <string name="player_err_plex_refused_status">El servidor de Plex rechazó este archivo (HTTP %1$d).</string>
     <string name="player_err_playback">Error de reproducción</string>
     <string name="player_err_audio">Falló el decodificador de audio</string>
+    <string name="player_err_no_picture">La imagen no arrancó. Pulsa OK para reintentar.</string>
     <string name="voice_speak_now">Habla ahora</string>
     <plurals name="rec_notif_title_channels">
         <item quantity="one">Grabando %d canal</item>

@@ -138,6 +138,8 @@ describe('channelStatus: which player errors mark a channel', () => {
     expect(m.isChannelFailure({ code: 'ERROR_CODE_IO_BAD_HTTP_STATUS' })).toBe(true);
     expect(m.isChannelFailure({ code: 'RECONNECT_EXHAUSTED' })).toBe(true);
     expect(m.isChannelFailure({ code: 'AUDIO_DECODE' })).toBe(false);
+    // The sound played: the channel works, this box's picture did not start.
+    expect(m.isChannelFailure({ code: 'NO_PICTURE' })).toBe(false);
     expect(m.isChannelFailure({})).toBe(false);
     expect(m.isChannelFailure(null)).toBe(false);
   });

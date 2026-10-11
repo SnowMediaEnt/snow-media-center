@@ -44,7 +44,9 @@ describe('SnowPlayerPlugin.kt — letterbox bars are the box, not unpainted pict
   it('the shutter opens only through openShutterIfReady, never while the hold is filling', () => {
     expect(plugin.split('shutterView?.visibility = View.INVISIBLE').length - 1).toBe(1);
     const open = body('private fun openShutterIfReady(');
-    expect(open).toContain('VideoFit.shutterOpen(s.firstFrameSeen, s.holding)');
+    // Or once every black-picture step has failed (NoPictureRescue): still
+    // never during the hold.
+    expect(open).toContain('VideoFit.shutterOpen(s.firstFrameSeen || s.noPictureGaveUp, s.holding)');
     expect(open).toContain('shutterView?.visibility = View.INVISIBLE');
     const first = body('override fun onRenderedFirstFrame()');
     expect(first.indexOf('s.firstFrameSeen = true')).toBeLessThan(first.indexOf('openShutterIfReady(s)'));

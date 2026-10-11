@@ -151,10 +151,12 @@ export function channelReport(set: Set<string>, host: string, streamId: number, 
 
 /** Whether a native player error is the channel's fault. This box's own
  *  audio decoder failing (AUDIO_DECODE, common with Dolby audio on cheap
- *  boxes) or a load the player refused on the device before any stream was
- *  asked for (no code) says nothing about the channel. */
+ *  boxes), its picture never starting while the sound played (NO_PICTURE:
+ *  its decoder or surface, on an X96 say), or a load the player refused on
+ *  the device before any stream was asked for (no code) says nothing about
+ *  the channel. */
 export const isChannelFailure = (error: { code?: string } | null | undefined): boolean =>
-  !!error?.code && error.code !== 'AUDIO_DECODE';
+  !!error?.code && error.code !== 'AUDIO_DECODE' && error.code !== 'NO_PICTURE';
 
 const lastSent = new Map<string, number>();
 

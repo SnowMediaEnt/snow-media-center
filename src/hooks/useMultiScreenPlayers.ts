@@ -123,8 +123,11 @@ export function useMultiScreenPlayers(): Api {
           if (!cur.url) return;
           // The plugin only reports RECONNECT_EXHAUSTED after 20 reconnects of
           // its own, and every load() here restarts that count: one fresh
-          // start, not 5 × 20 more connections from a dead tile.
-          if (cur.retries >= MAX_RETRIES || (data?.code === 'RECONNECT_EXHAUSTED' && cur.retries >= 1)) {
+          // start, not 5 × 20 more connections from a dead tile. NO_PICTURE
+          // likewise comes after the plugin's own steps (the surface, a new
+          // player): one fresh start, then the tile says so.
+          const spent = data?.code === 'RECONNECT_EXHAUSTED' || data?.code === 'NO_PICTURE';
+          if (cur.retries >= MAX_RETRIES || (spent && cur.retries >= 1)) {
             updateSlot(sid, { error: 'unavailable', buffering: false });
             return;
           }

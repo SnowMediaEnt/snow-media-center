@@ -59,6 +59,9 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.MediaCodecAudioRenderer
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultAllocator
@@ -293,6 +296,31 @@ class SnowPlayerPlugin : Plugin() {
         // No rate from the WebView or the stream: the first frames' times
         // (set on the main thread, filled on the playback thread).
         @Volatile var fpsEstimator: FpsEstimator? = null
+        // A black screen with the sound playing (NoPictureRescue). This
+        // load's steps (null for mpv and a Plex film), the look every 500 ms
+        // while no picture has been drawn, the position it last saw, and
+        // whether that look found the sound playing with no picture (the
+        // first-picture watchdog then leaves the stream to the steps).
+        var noPicture: NoPictureRescue.Ladder? = null
+        var noPictureTick: Runnable? = null
+        var noPictureLastPos: Long = -1L
+        var noPictureSound: Boolean = false
+        // Every step failed: the cover is lifted with no first frame
+        // (openShutterIfReady), whatever is under it shown.
+        var noPictureGaveUp: Boolean = false
+        // The video decoder order this player is built with
+        // (NoPictureRescue.ORDER_*), and the title it was picked for: the
+        // last step's other kind of decoder holds for that title only.
+        var videoOrder: Int = NoPictureRescue.ORDER_DEFAULT
+        var videoOrderTitle: String? = null
+        // The guard on a blank cover (setRect `blank`, guardBlank): the loads
+        // asked for, counted as each load() reaches the plugin (its own
+        // thread, before the main one), and the stream and count when the
+        // cover went on.
+        @Volatile var loadsAsked: Int = 0
+        var blankGuard: Runnable? = null
+        var blankUrl: String? = null
+        var blankLoads: Int = 0
     }
 
     /** Presentation times of the first frames shown (FrameRateMatch.estimate). */
@@ -327,6 +355,9 @@ class SnowPlayerPlugin : Plugin() {
     }
     // Whether this box is low on RAM (isLowRamBox), read once.
     private var lowRamBox: Boolean? = null
+    // The app is off screen (handleOnStop until handleOnStart): no picture
+    // to rescue (NoPictureRescue.Seen.onScreen).
+    private var appStopped = false
     // Frame-rate matching: the display mode this plugin asked the window
     // for (preferredDisplayModeId; 0 = none, the system's own), and the mode
     // the screen was in before the first such request. One window, so one
@@ -462,6 +493,13 @@ class SnowPlayerPlugin : Plugin() {
         s.holding = false
         s.bandwidthRunnable?.let { mainHandler.removeCallbacks(it) }
         s.bandwidthRunnable = null
+        // The black-picture look (scheduleWatchdog arms it again) and a
+        // blank cover's guard (a load or a stop settles the cover itself).
+        s.noPictureTick?.let { mainHandler.removeCallbacks(it) }
+        s.noPictureTick = null
+        s.noPictureSound = false
+        s.blankGuard?.let { mainHandler.removeCallbacks(it) }
+        s.blankGuard = null
     }
 
     /**
@@ -635,9 +673,11 @@ class SnowPlayerPlugin : Plugin() {
     /** Uncover the picture: this stream has drawn its first frame and is not
      *  in its start-up hold (VideoFit.shutterOpen). The hold draws the first
      *  frame paused; "Getting ready…" stays over black until the film starts,
-     *  or the viewer plays or pauses. The only place the shutter opens. */
+     *  or the viewer plays or pauses. The only place the shutter opens.
+     *  A stream whose picture every NoPictureRescue step failed to start is
+     *  uncovered too: whatever it shows beats black over its sound. */
     private fun openShutterIfReady(s: PlayerSlot) {
-        if (s.currentUrl == null || !VideoFit.shutterOpen(s.firstFrameSeen, s.holding)) return
+        if (s.currentUrl == null || !VideoFit.shutterOpen(s.firstFrameSeen || s.noPictureGaveUp, s.holding)) return
         s.shutterView?.visibility = View.INVISIBLE
     }
 
@@ -663,21 +703,281 @@ class SnowPlayerPlugin : Plugin() {
      *  to do). Here it threw away whatever had loaded and started again from
      *  nothing, up to 20 times — a slow remote server never got to begin.
      *  Live channels and Backups films have no watchdog of their own in the
-     *  WebView, so they keep this one. */
+     *  WebView, so they keep this one.
+     *  Every wait for a first picture also arms the black-picture look
+     *  (armNoPicture); while that finds the sound playing with only the
+     *  picture missing, this one leaves the stream to its steps. */
     private fun scheduleWatchdog(s: PlayerSlot, screenId: String) {
         s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
         s.watchdogRunnable = null
         val url = s.currentUrl ?: return
         if (!s.isLive && isPlexStream(Uri.parse(url))) return
+        armNoPicture(s, screenId)
         val r = Runnable {
             // A radio channel never renders a video frame. It used to be torn
             // down and reconnected every 8 s (≈120 times) while playing fine.
             val p = s.player
             val audioOnly = p != null && p.isPlaying && !p.currentTracks.containsType(C.TRACK_TYPE_VIDEO)
+            // The sound plays and only the picture is missing: the stream
+            // itself arrives, and a reconnect would start the same decoder on
+            // it again. NoPictureRescue's steps have it; this looks again in
+            // 8 s, so a stream that stops altogether is still reconnected.
+            if (s.currentUrl != null && !s.firstFrameSeen && !audioOnly && s.noPictureSound) {
+                scheduleWatchdog(s, screenId)
+                return@Runnable
+            }
             if (s.currentUrl != null && !s.firstFrameSeen && !audioOnly) reconnect(s, screenId, "no picture in 8 s")
         }
         s.watchdogRunnable = r
         mainHandler.postDelayed(r, FIRST_FRAME_TIMEOUT_MS)
+    }
+
+    // ---- A black screen with the sound playing (NoPictureRescue) -------------
+
+    /**
+     * Every 500 ms while this load has drawn nothing: is the sound playing
+     * with no picture (NoPictureRescue.soundWithoutPicture)? Long enough, and
+     * the next step is taken. Stops at the first frame (a reconnect arms it
+     * again through scheduleWatchdog), after the last step, and with the
+     * load. It only reads what the player has at hand; a stream whose picture
+     * starts normally never takes a step. Each slot has its own, so a tile's
+     * steps never touch another tile's player.
+     */
+    private fun armNoPicture(s: PlayerSlot, screenId: String) {
+        val ladder = s.noPicture ?: return
+        if (ladder.finished || s.noPictureTick != null) return
+        val url = s.currentUrl ?: return
+        s.noPictureLastPos = -1L
+        val r = object : Runnable {
+            override fun run() {
+                if (s.noPictureTick !== this) return
+                val p = s.player
+                if (s.currentUrl != url || s.noPicture !== ladder || p == null || s.engine != EngineChoice.EXO) {
+                    s.noPictureTick = null
+                    s.noPictureSound = false
+                    return
+                }
+                if (s.firstFrameSeen) {
+                    // Once per wait, and only after a step: what brought it back.
+                    ladder.taken?.let { Log.i(TAG, "no picture: the picture started after \"${NoPictureRescue.reason(it, s.videoOrder)}\" ($screenId)") }
+                    s.noPictureTick = null
+                    s.noPictureSound = false
+                    return
+                }
+                val pos = p.currentPosition
+                val advancing = s.noPictureLastPos >= 0L && pos > s.noPictureLastPos
+                s.noPictureLastPos = pos
+                val sound = NoPictureRescue.soundWithoutPicture(
+                    NoPictureRescue.Seen(
+                        firstFrameSeen = false,
+                        ready = p.playbackState == Player.STATE_READY,
+                        playing = p.isPlaying,
+                        videoSelected = p.currentTracks.isTypeSelected(C.TRACK_TYPE_VIDEO),
+                        holding = s.holding,
+                        advancing = advancing,
+                        tunneled = s.tunneled,
+                        rewindBuffer = screenId == MAIN && tsBuffer,
+                        onScreen = !appStopped,
+                    ),
+                )
+                s.noPictureSound = sound
+                var flipTo: Int? = null
+                val step = ladder.tick(SystemClock.elapsedRealtime(), sound) {
+                    flipTo = otherVideoOrder(s)
+                    flipTo != null
+                }
+                if (step != null) takeNoPictureStep(s, screenId, step, flipTo ?: NoPictureRescue.ORDER_DEFAULT)
+                // A rebuild arms a look of its own (scheduleWatchdog).
+                if (s.noPictureTick !== this) return
+                if (ladder.finished) { s.noPictureTick = null; return }
+                mainHandler.postDelayed(this, NoPictureRescue.TICK_MS)
+            }
+        }
+        s.noPictureTick = r
+        mainHandler.postDelayed(r, NoPictureRescue.TICK_MS)
+    }
+
+    /** One NoPictureRescue step. The log names the slot, the decoder and the
+     *  picture's format (Stats for nerds shows the reason); never the address. */
+    private fun takeNoPictureStep(s: PlayerSlot, screenId: String, step: NoPictureRescue.Step, order: Int) {
+        val fmt = s.player?.let { selectedVideoFormat(it.currentTracks) }?.let { describeVideo(it) } ?: "no video format"
+        val what = "($screenId, decoder ${s.videoDecoderName ?: "none"}, $fmt)"
+        if (step == NoPictureRescue.Step.GIVE_UP) {
+            giveUpOnPicture(s, screenId, what)
+            return
+        }
+        val reason = NoPictureRescue.reason(step, order)
+        Log.i(TAG, "$reason $what")
+        s.restarts++
+        s.lastRestartReason = reason
+        when (step) {
+            NoPictureRescue.Step.SURFACE -> reattachSurface(s)
+            NoPictureRescue.Step.REBUILD -> rebuildForPicture(s, screenId)
+            NoPictureRescue.Step.DECODER -> {
+                s.videoOrder = order
+                s.videoOrderTitle = s.currentUrl?.let { AudioOrder.titleKey(it) }
+                rebuildForPicture(s, screenId)
+            }
+            NoPictureRescue.Step.GIVE_UP -> Unit
+        }
+    }
+
+    /**
+     * The first step: the picture's view handed to the player again. Media3
+     * lets go of its output (a placeholder, or none) and takes the view's
+     * surface back, as when a SurfaceView's surface comes back. A renderer
+     * left with no surface (it skips every frame while the sound plays), or a
+     * decoder whose output is stuck, gets a fresh one. On the Fire TV models
+     * Media3 lists for its output-surface workaround this releases and
+     * re-creates the decoder: seconds to the next key frame, on a picture
+     * that was black anyway.
+     */
+    private fun reattachSurface(s: PlayerSlot) {
+        val p = s.player ?: return
+        val v = s.videoView ?: return
+        p.clearVideoSurface()
+        when (v) {
+            is SurfaceView -> p.setVideoSurfaceView(v)
+            is TextureView -> p.setVideoTextureView(v)
+        }
+    }
+
+    /**
+     * The rebuild (and the other-decoder step, with s.videoOrder set first):
+     * the same stream on a new player built through buildPlayer, the old one
+     * released first so its decoders are free (on an X96 a decoder instance
+     * the old player still holds is one the new one can't have). A film
+     * carries on from its place, a channel from its live edge. The viewer's
+     * sound and subtitle choices, the volume and a tile's mute go across, as
+     * in restartWithSoftwareAudio. Never during a film's start-up hold (the
+     * steps wait for it to end).
+     */
+    private fun rebuildForPicture(s: PlayerSlot, screenId: String) {
+        val old = s.player ?: return
+        val url = s.currentUrl ?: return
+        val live = s.isLive
+        val pos = if (live) 0L else old.currentPosition.takeIf { it > 0L } ?: s.lastPositionMs
+        val play = old.playWhenReady
+        val params = old.trackSelectionParameters
+        val wasMuted = s.passthroughMuted
+        cancelTimers(s)
+        releasePlayer(s)
+        buildPlayer(s, screenId)
+        // Anything the old player's last callbacks queued goes with it.
+        cancelTimers(s)
+        val p = s.player ?: return
+        if (screenId == MAIN) {
+            try {
+                p.setVideoChangeFrameRateStrategy(
+                    if (s.matchFrameRate) C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF else C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS,
+                )
+            } catch (_: Throwable) { /* a player without it */ }
+        }
+        // A passthrough mute is worked out again from the new output.
+        p.trackSelectionParameters = if (wasMuted) params.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false).build() else params
+        s.trackSelector?.let { ts -> ts.setParameters(ts.buildUponParameters().setTunnelingEnabled(s.tunneled)) }
+        s.loadControl?.beginStream(film = !live)
+        s.firstFrameSeen = false
+        setPassthrough(s, screenId, false)
+        applyFormat(s)
+        val item = buildMediaItem(url, s.currentSubtitles)
+        if (pos > 0L) p.setMediaItem(item, pos) else p.setMediaItem(item)
+        p.prepare()
+        p.playWhenReady = play
+        scheduleWatchdog(s, screenId)
+        schedulePositionTick(s)
+        scheduleBandwidthTick(s, screenId)
+    }
+
+    /** The decoder order for the last step (NoPictureRescue.otherOrder): the
+     *  other kind of video decoder for this stream's format, or null when the
+     *  box has none of that kind. */
+    private fun otherVideoOrder(s: PlayerSlot): Int? {
+        val mime = s.player?.let { selectedVideoFormat(it.currentTracks) }?.sampleMimeType ?: return null
+        val decoders = try {
+            MediaCodecUtil.getDecoderInfos(mime, false, false).map { NoPictureRescue.Decoder(it.name, it.softwareOnly) }
+        } catch (_: Throwable) {
+            return null
+        }
+        return NoPictureRescue.otherOrder(s.videoDecoderName, decoders)
+    }
+
+    /**
+     * Every step failed. The cover is lifted (whatever is under it shows),
+     * the first-picture watchdog stops (a reconnect would start it all over
+     * again), and the WebView is told (NO_PICTURE), which shows the player's
+     * error card with Retry; the sound plays on under it until the viewer
+     * retries or leaves. Retry is a fresh load, steps and all.
+     */
+    private fun giveUpOnPicture(s: PlayerSlot, screenId: String, what: String) {
+        Log.w(TAG, "${NoPictureRescue.reason(NoPictureRescue.Step.GIVE_UP)} $what")
+        s.noPictureGaveUp = true
+        s.noPictureSound = false
+        s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.watchdogRunnable = null
+        // Before the playerError, like every error a handler may read back.
+        s.lastError = NoPictureRescue.ERROR_CODE
+        openShutterIfReady(s)
+        notifyListeners(
+            "playerError",
+            JSObject().put("screenId", screenId)
+                .put("code", NoPictureRescue.ERROR_CODE)
+                .put("message", localized(R.string.player_err_no_picture)),
+        )
+    }
+
+    /**
+     * A blank cover (setRect `blank`) is meant for the load right behind it.
+     * When none comes (the WebView's run was overtaken, or its page stopped
+     * answering), the stream still playing under it would stay behind black
+     * for good: it drew its first frame long ago, and only a first frame opens
+     * the cover. After BLANK_GUARD_MS this looks (NoPictureRescue.blankGuard)
+     * and lifts it, or looks again while the stream buffers. A load that does
+     * come settles the cover itself; cancelTimers drops the guard then.
+     */
+    private fun guardBlank(s: PlayerSlot) {
+        s.blankGuard?.let { mainHandler.removeCallbacks(it) }
+        s.blankUrl = s.currentUrl
+        s.blankLoads = s.loadsAsked
+        val r = object : Runnable {
+            override fun run() {
+                if (s.blankGuard !== this) return
+                when (blankVerdict(s)) {
+                    NoPictureRescue.Cover.WAIT -> mainHandler.postDelayed(this, NoPictureRescue.TICK_MS)
+                    NoPictureRescue.Cover.LIFT -> { s.blankGuard = null; liftBlank(s) }
+                    NoPictureRescue.Cover.LEAVE -> s.blankGuard = null
+                }
+            }
+        }
+        s.blankGuard = r
+        mainHandler.postDelayed(r, NoPictureRescue.BLANK_GUARD_MS)
+    }
+
+    private fun blankVerdict(s: PlayerSlot): NoPictureRescue.Cover {
+        val p = s.player
+        val playback = when {
+            // mpv reports no state of its own here: a stream that drew is showing.
+            s.engine == EngineChoice.MPV -> NoPictureRescue.Playback.SHOWING
+            p == null -> NoPictureRescue.Playback.STOPPED
+            p.playbackState == Player.STATE_READY -> NoPictureRescue.Playback.SHOWING
+            p.playbackState == Player.STATE_BUFFERING -> NoPictureRescue.Playback.BUFFERING
+            else -> NoPictureRescue.Playback.STOPPED
+        }
+        return NoPictureRescue.blankGuard(s.blankUrl, s.currentUrl, s.blankLoads, s.loadsAsked, s.firstFrameSeen, playback)
+    }
+
+    private fun liftBlank(s: PlayerSlot) {
+        Log.i(TAG, "cover lifted: no load followed its blank")
+        openShutterIfReady(s)
+    }
+
+    /** setRect `unblank`: the WebView knows its load behind the blank will
+     *  not come. The cover goes now if the guard would lift it. */
+    private fun liftUnusedBlank(s: PlayerSlot) {
+        if (s.blankGuard == null || blankVerdict(s) != NoPictureRescue.Cover.LIFT) return
+        s.blankGuard?.let { mainHandler.removeCallbacks(it) }
+        s.blankGuard = null
+        liftBlank(s)
     }
 
     /** VOD pre-buffer: hold playWhenReady=false until the player has
@@ -1495,6 +1795,10 @@ class SnowPlayerPlugin : Plugin() {
         // a 4K decoder from the playback thread's own loop.
         s.asyncCodec = s.wantAsyncCodec && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
         if (s.asyncCodec) renderersFactory.forceEnableMediaCodecAsynchronousQueueing()
+        // Only for a title whose picture never started on the decoder Media3
+        // picked (NoPictureRescue's last step): its video decoders with the
+        // other kind first. Every other player keeps Media3's own order.
+        if (s.videoOrder != NoPictureRescue.ORDER_DEFAULT) renderersFactory.setMediaCodecSelector(VideoDecoderOrder(s.videoOrder))
         val meter = ByteMeter(s.netBytes)
         // Live TV and everything else: quick 8 s timeouts, and no user agent
         // of our own (some IPTV panels turn away agents they don't know).
@@ -2070,6 +2374,10 @@ class SnowPlayerPlugin : Plugin() {
         val startMs = if (startSec != null && startSec > 0.0) (startSec * 1000.0).toLong() else 0L
         val screenId = screenIdOf(call)
         val s = slotFor(screenId)
+        // Counted here, as the call arrives, not on the main thread: a blank
+        // cover's guard (guardBlank) must never take a load still on its way
+        // for none at all.
+        s.loadsAsked++
         // mpv (owner test builds only): "engine" defaults to exo, and is only
         // ever actually mpv for the main slot playing a live channel — see
         // EngineChoice. Read here (pure) so the UI-thread block below has it.
@@ -2134,6 +2442,17 @@ class SnowPlayerPlugin : Plugin() {
                     cancelTimers(s)
                     releasePlayer(s)
                 }
+                // A player built with its video decoders in the other order
+                // (NoPictureRescue, for a title whose picture never started)
+                // goes when another title loads: that one gets Media3's own.
+                if (s.videoOrder != NoPictureRescue.ORDER_DEFAULT && s.videoOrderTitle != title) {
+                    if (s.player != null) {
+                        cancelTimers(s)
+                        releasePlayer(s)
+                    }
+                    s.videoOrder = NoPictureRescue.ORDER_DEFAULT
+                    s.videoOrderTitle = null
+                }
                 s.wantSurfaceView = wantSv
                 s.wantAsyncCodec = wantAsync
                 s.wantAudioMode = wantAudio
@@ -2160,6 +2479,9 @@ class SnowPlayerPlugin : Plugin() {
                 s.isLive = live
                 s.lastPositionMs = startMs
                 s.firstFrameSeen = false
+                // mpv draws its own way: no black-picture steps.
+                s.noPicture = null
+                s.noPictureGaveUp = false
                 resetStats(s, url)
                 s.shutterView?.visibility = View.VISIBLE
                 second.load(url, live)
@@ -2228,6 +2550,15 @@ class SnowPlayerPlugin : Plugin() {
             // load's extra ranges lowered them for that load only.
             if (s.rangeFetch) s.rangeShared?.newLoad()
             s.firstFrameSeen = false
+            // This load's black-picture steps (NoPictureRescue), armed with
+            // the first-picture watchdog below. None for a Plex film, which
+            // PlexSection watches itself.
+            s.noPictureGaveUp = false
+            s.noPicture = if (NoPictureRescue.applies(exo = true, plexFilm = !live && isPlexStream(Uri.parse(url)))) {
+                NoPictureRescue.Ladder(main = screenId == MAIN)
+            } else {
+                null
+            }
             resetStats(s, url)
             // A film or episode holds the Wi-Fi lock (see holdWifi); a
             // channel or preview box plays as it always has, without it, and
@@ -2651,6 +2982,8 @@ class SnowPlayerPlugin : Plugin() {
         s.reconnectAttempts = 0
         s.transcodeHttpFails = 0
         s.firstFrameSeen = false
+        s.noPicture = null
+        s.noPictureGaveUp = false
         if (s.engine == EngineChoice.MPV) s.second?.stop()
         s.player?.stop()
         s.player?.clearMediaItems()
@@ -2766,10 +3099,17 @@ class SnowPlayerPlugin : Plugin() {
         // this or the next setRect may already have moved it (preview box to
         // fullscreen on a different channel) and flashed it at the new size.
         val blank = call.getBoolean("blank", false) ?: false
+        // The WebView's load behind its blank will not come after all (its
+        // run was overtaken by a change that loads nothing): uncover the
+        // stream still playing (liftUnusedBlank). Moves nothing.
+        val unblank = call.getBoolean("unblank", false) ?: false
         val s = slot(call)
         val screenId = screenIdOf(call)
         activity?.runOnUiThread {
             if (blank) s.shutterView?.visibility = View.VISIBLE
+            // ...and lifted again by itself if no load follows (guardBlank).
+            if (blank) guardBlank(s)
+            if (unblank) liftUnusedBlank(s)
             // Guard: only an explicit fullscreen=true request may size to
             // MATCH_PARENT. Degenerate zero/negative multiview rects are
             // dropped so they can NEVER accidentally cover other tiles.
@@ -3448,7 +3788,13 @@ class SnowPlayerPlugin : Plugin() {
      * buffer is wiped (owner rule). Recordings run in their own service and
      * files, and carry on.
      */
+    override fun handleOnStart() {
+        appStopped = false
+        super.handleOnStart()
+    }
+
     override fun handleOnStop() {
+        appStopped = true
         tsReset()
         tsManager?.wipeAll()
         // A film doesn't play on behind the screen (with a SurfaceView a 4K
@@ -3466,6 +3812,32 @@ class SnowPlayerPlugin : Plugin() {
         // matches the mode again.
         restoreDisplayMode()
         super.handleOnStop()
+    }
+
+    /**
+     * The page's renderer is gone (MainActivity.onRenderProcessGone). The
+     * players under it would play on, sound and all, over a screen with
+     * nothing on it until the activity is made again (handleOnDestroy does
+     * this only then): every one stops and lets go of its decoders now, and
+     * a rewind buffer is wiped as on a close. Nothing is sent to the WebView,
+     * which must not be used any more. Main thread. True when a stream was
+     * playing (for the record MainActivity keeps).
+     */
+    fun releaseForDeadPage(): Boolean {
+        val playing = anySlotStreaming()
+        tsReset()
+        tsManager?.wipeAll()
+        for (s in slots.values) {
+            cancelTimers(s)
+            s.currentUrl = null
+            s.noPicture = null
+            if (s.engine == EngineChoice.MPV) s.second?.stop()
+            releasePlayer(s)
+        }
+        restoreDisplayMode()
+        releaseWifi()
+        activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        return playing
     }
 
     override fun handleOnDestroy() {
@@ -3585,6 +3957,24 @@ private class SteadyLoadControl(
         // Never waits on a buffer that has stopped growing: the budget is
         // spent (or the file ends, which the player starts on by itself).
         return parameters.bufferedDurationUs >= uhdRebufferUs || !loadingNow
+    }
+}
+
+/**
+ * A player's video decoders with one kind first (NoPictureRescue.ORDER_*):
+ * Android's software ones, or the box's hardware ones. Media3 then still puts
+ * the decoders that say they support the format first, in this order, and
+ * falls back down the list if one fails to start. The sound's decoders are
+ * left exactly as Media3 lists them.
+ */
+private class VideoDecoderOrder(private val order: Int) : MediaCodecSelector {
+    override fun getDecoderInfos(
+        mimeType: String,
+        requiresSecureDecoder: Boolean,
+        requiresTunnelingDecoder: Boolean,
+    ): List<MediaCodecInfo> {
+        val all = MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+        return if (MimeTypes.isVideo(mimeType)) NoPictureRescue.reorder(all, order) { it.softwareOnly } else all
     }
 }
 

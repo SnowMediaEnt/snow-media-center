@@ -63,6 +63,7 @@
     <string name="player_err_plex_refused_status">رفض خادم Plex هذا الملف (HTTP %1$d).</string>
     <string name="player_err_playback">خطأ في التشغيل</string>
     <string name="player_err_audio">فشل مفكّك الصوت</string>
+    <string name="player_err_no_picture">لم تظهر الصورة. اضغط OK لإعادة المحاولة.</string>
     <string name="voice_speak_now">تحدّث الآن</string>
     <plurals name="rec_notif_title_channels">
         <item quantity="zero">جارٍ تسجيل %d قناة</item>

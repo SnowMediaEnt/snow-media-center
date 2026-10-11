@@ -313,7 +313,12 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           // error status twice. Loading the identical session again gets the
           // same answer; the caller (PlexSection) starts a fresh session or
           // another quality instead.
-          if (code === 'AUDIO_DECODE' || code === 'PLEX_TRANSCODE_HTTP' || retriesRef.current >= maxRetries
+          // NO_PICTURE: the sound played and the picture never started, and
+          // the plugin has already tried everything it has (the surface, a
+          // new player, the other kind of decoder) over about 13 s. Reloading
+          // it by itself five more times was a minute and more of black with
+          // sound: the viewer gets the card and Retry at once.
+          if (code === 'AUDIO_DECODE' || code === 'PLEX_TRANSCODE_HTTP' || code === 'NO_PICTURE' || retriesRef.current >= maxRetries
             || (code === 'RECONNECT_EXHAUSTED' && exhaustRetriedRef.current)) {
             setError(httpStatus ? { code, message: msg, httpStatus } : { code, message: msg });
             return;
@@ -358,6 +363,9 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     if (!active || !url) return;
     const myNonce = ++nonceRef.current;
     let cancelled = false;
+    // This run's blank cover went out, and its load did (see the cleanup).
+    let blanked = false;
+    let loadSent = false;
     const reload = reloadRef.current;
     reloadRef.current = false;
     setBuffering(true);
@@ -387,6 +395,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         // channel, the film before). The plugin covers it with black as this
         // call lands — before the rect effect below can move it to a new size
         // — and uncovers on the new stream's first frame.
+        if (r !== null) blanked = true;
         if (r === undefined) await SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0, fullscreen: true, blank: true });
         else if (r) await applyRect(r, true);
         if (cancelled || myNonce !== nonceRef.current) return;
@@ -403,6 +412,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         // read at each load: a change applies from the next stream on.
         // Low on memory? Close the apps left in the background first (never waits).
         void freeMemoryForPlayback();
+        loadSent = true;
         await SnowPlayer.load({ url, live, isLive: live, subtitles, engine, ...(rangeFetchRef.current && !live ? { rangeFetch: true } : {}), ...(start > 0 ? { startPosition: start } : {}), ...nativeLoadExtras(live, frameRateRef.current) });
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.setVolume({ volume: Math.min(MAX_VOLUME, Math.max(0, volume)) });
@@ -424,6 +434,19 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
 
     return () => {
       cancelled = true;
+      // Overtaken between its blank and its load. Usually by the next run
+      // (another stream: its own blank and load follow) or by a stop. When
+      // neither came (the stream address went away with the player still on),
+      // the stream already playing stayed under a cover nothing would open:
+      // black with its sound. React runs the next run in this same commit, so
+      // a moment later it is known whether one began; if not, the plugin is
+      // asked to lift the cover (it does so by itself after 1.5 s too).
+      if (blanked && !loadSent) {
+        window.setTimeout(() => {
+          if (myNonce !== nonceRef.current) return;
+          void SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0, unblank: true }).catch(() => { /* ignore */ });
+        }, 0);
+      }
     };
     // volume intentionally omitted — separate effect handles live volume changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps

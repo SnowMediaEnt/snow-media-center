@@ -72,6 +72,7 @@
     <string name="player_err_plex_refused_status">The Plex server refused this file (HTTP %1$d).</string>
     <string name="player_err_playback">Playback error</string>
     <string name="player_err_audio">Audio decoder failed</string>
+    <string name="player_err_no_picture">The picture didn\'t start. OK to retry.</string>
     <string name="voice_speak_now">Speak now</string>
     <plurals name="rec_notif_title_channels">
         <item quantity="one">Recording %d channel</item>

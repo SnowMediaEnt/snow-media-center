@@ -290,8 +290,11 @@ export interface SnowPlayerPlugin {
   /** Poll current playhead + duration (seconds). duration = 0 when unknown/live. */
   getPosition(opts?: SnowScreenOpts): Promise<{ position: number; duration: number; playing: boolean }>;
   /** Position/size the native video surface in DEVICE px (CSS rect * devicePixelRatio). w/h<=0 = fullscreen.
-   *  `blank`: a new stream is about to load here — black out the current picture now; it stays black until the next load's first frame. */
-  setRect(opts: { x: number; y: number; width: number; height: number; cssW?: number; cssH?: number; fullscreen?: boolean; screenId?: string; blank?: boolean }): Promise<void>;
+   *  `blank`: a new stream is about to load here — black out the current picture now; it stays black until the next load's first frame
+   *  (or, when no load follows within 1.5 s, until the plugin lifts it again over the stream still playing).
+   *  `unblank`: the load that blank was for will not come after all — lift it now over the stream still playing (if that one
+   *  has drawn); the rect is left as it is. Older builds ignore it. */
+  setRect(opts: { x: number; y: number; width: number; height: number; cssW?: number; cssH?: number; fullscreen?: boolean; screenId?: string; blank?: boolean; unblank?: boolean }): Promise<void>;
   setVolume(opts: { volume: number; screenId?: string }): Promise<void>;
   /** Screen format — see SCREEN_FORMATS. Native only; a no-op on web. */
   setResizeMode(opts: { mode: ScreenFormat; screenId?: string }): Promise<{ mode: string }>;
@@ -342,7 +345,12 @@ export interface SnowPlayerPlugin {
        *  Never a URL.
        *  PLEX_TRANSCODE_HTTP: a Plex conversion the server answered with an
        *  HTTP error status twice in a row (the same session is not tried a
-       *  third time). */
+       *  third time).
+       *  NO_PICTURE: the sound played but the picture never started, and
+       *  every step the plugin takes for that failed (the surface attached
+       *  again, a new player, on the main player the other kind of video
+       *  decoder). The stream still plays; the cover over it is lifted. This
+       *  box's own player, not the channel. */
       code?: string; message?: string;
       /** playerError: the HTTP status behind it, when the server answered
        *  with one (a number only). Older builds never send it. */

@@ -63,6 +63,7 @@
     <string name="player_err_plex_refused_status">Der Plex-Server hat diese Datei abgelehnt (HTTP %1$d).</string>
     <string name="player_err_playback">Wiedergabefehler</string>
     <string name="player_err_audio">Audiodecoder fehlgeschlagen</string>
+    <string name="player_err_no_picture">Das Bild ist nicht gestartet. OK zum Wiederholen.</string>
     <string name="voice_speak_now">Sprich jetzt</string>
     <plurals name="rec_notif_title_channels">
         <item quantity="one">Aufnahme von %d Sender</item>
