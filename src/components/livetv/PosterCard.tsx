@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { Film, Play, Star, Tv as TvIcon } from 'lucide-react';
+import { Check, Film, Play, Star, Tv as TvIcon } from 'lucide-react';
 import ScrollText from '@/components/ScrollText';
 import { isHowtoCapture } from '@/lib/demoMode';
 
@@ -13,6 +13,12 @@ interface Props {
   year?: string;
   isFocused: boolean;
   variant?: 'movie' | 'series';
+  /** Watched (lib/watchedMarks): a gold check in the corner, read out as
+   *  this label (the section translates it once for the whole grid). Left
+   *  out or null: not watched. */
+  watched?: string | null;
+  /** A show: the episode watched last ("S1E3"), after the year. */
+  watchedCode?: string;
   /** Handed back to onFocus/onActivate, so callers can pass one stable
    *  handler for every card and the memo holds as focus moves. */
   index: number;
@@ -20,7 +26,7 @@ interface Props {
   onActivate?: (index: number) => void;
 }
 
-const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'movie', index, onFocus, onActivate }: Props) => {
+const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'movie', watched = null, watchedCode, index, onFocus, onActivate }: Props) => {
   const [err, setErr] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const showImg = image && !err;
@@ -73,6 +79,14 @@ const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'mov
         </span>
       )}
 
+      {/* Watched: the corner the rating leaves free (owner, 2026-10-10: "all
+          movies and episodes watched gets a check mark"). */}
+      {watched != null && (
+        <span data-watched="" aria-label={watched} className="absolute top-2 left-2 flex items-center justify-center w-7 h-7 rounded-full bg-brand-gold shadow">
+          <Check className="w-4 h-4 text-brand-navy" strokeWidth={3} aria-hidden="true" />
+        </span>
+      )}
+
       {isFocused && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/30 animate-fade-in pointer-events-none">
           <div className="w-12 h-12 rounded-full bg-brand-gold/90 flex items-center justify-center shadow-lg">
@@ -90,8 +104,12 @@ const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'mov
             {title}
           </p>
         )}
-        {year && (
-          <p className="text-xs text-brand-ice/70 font-nunito mt-1">{year}</p>
+        {(year || watchedCode) && (
+          <p className="text-xs text-brand-ice/70 font-nunito mt-1 truncate">
+            {year}
+            {year && watchedCode ? ' · ' : ''}
+            {watchedCode && <span data-watched-code="" className="text-brand-gold font-bold">{watchedCode}</span>}
+          </p>
         )}
       </div>
     </div>

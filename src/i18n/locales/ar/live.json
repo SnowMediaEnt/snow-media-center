@@ -343,7 +343,11 @@
       "playMovieBtn": "تشغيل الفيلم",
       "noSoundTitle": "لا يوجد صوت في هذا العنوان",
       "noSoundBody": "لا يمكن فك ترميز صوت هذا العنوان ({{codecs}}) على هذا الجهاز. أبلغ عنه في الدعم وسنراجعه.",
-      "nextEpisode": "الحلقة التالية"
+      "nextEpisode": "الحلقة التالية",
+      "watched": "تمت المشاهدة",
+      "watchedUpTo": "تمت المشاهدة حتى {{code}}",
+      "watchedCode": "م{{season}} ح{{episode}}",
+      "inProgress": "بدأت المشاهدة"
     },
     "series": {
       "allSeries": "كل المسلسلات",

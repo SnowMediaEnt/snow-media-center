@@ -340,7 +340,11 @@
       "playMovieBtn": "Ver película",
       "noSoundTitle": "Este título no tiene sonido",
       "noSoundBody": "El audio de este título ({{codecs}}) no se puede decodificar en este dispositivo. Infórmalo en Soporte y lo revisaremos.",
-      "nextEpisode": "Siguiente episodio"
+      "nextEpisode": "Siguiente episodio",
+      "watched": "Visto",
+      "watchedUpTo": "Visto hasta {{code}}",
+      "watchedCode": "T{{season}}E{{episode}}",
+      "inProgress": "Empezado"
     },
     "series": {
       "allSeries": "Todas las series",

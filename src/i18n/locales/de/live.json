@@ -339,7 +339,11 @@
       "playMovieBtn": "Film abspielen",
       "noSoundTitle": "Kein Ton bei diesem Titel",
       "noSoundBody": "Der Ton dieses Titels ({{codecs}}) kann auf diesem Gerät nicht dekodiert werden. Melde ihn im Support und wir sehen ihn uns an.",
-      "nextEpisode": "Nächste Folge"
+      "nextEpisode": "Nächste Folge",
+      "watched": "Gesehen",
+      "watchedUpTo": "Gesehen bis {{code}}",
+      "watchedCode": "S{{season}}F{{episode}}",
+      "inProgress": "Angefangen"
     },
     "series": {
       "allSeries": "Alle Serien",

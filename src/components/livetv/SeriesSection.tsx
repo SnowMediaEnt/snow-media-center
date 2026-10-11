@@ -36,6 +36,8 @@ import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import VodPlayer from './VodPlayer';
 import { PosterFrame } from './FitPoster';
+import { episodeMark, episodePart, noteEpisodeFinished, noteEpisodeProgress, seasonWatched, type ShowMark, type WatchedEpisodeRef } from '@/lib/watchedMarks';
+import { useWatchedShows } from '@/hooks/useWatchedVod';
 
 interface Props {
   creds: XtreamCreds;
@@ -113,7 +115,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
   const [episodeIdx, setEpisodeIdx] = useState(0);
   const [detailFocus, setDetailFocus] = useState<DetailFocus>('episodes');
 
-  const [playing, setPlaying] = useState<{ url: string; title: string; seasonIdx: number; episodeIdx: number } | null>(null);
+  const [playing, setPlaying] = useState<{
+    url: string; title: string; seasonIdx: number; episodeIdx: number;
+    /** Its show and its place in it, for the watched marks (lib/watchedMarks). */
+    seriesId: number; episode: WatchedEpisodeRef;
+  } | null>(null);
   // On-screen title: shows 4 s on play / episode change / any key, then hides.
   const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [demoNotice, setDemoNotice] = useState(false);
@@ -156,6 +162,10 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
     })();
     return () => { cancelled = true; };
   }, [creds, refreshTick]);
+
+  // Shows this viewer has begun on this line, and their episodes: marked in
+  // the grid and on the show's page (lib/watchedMarks), read once per change.
+  const watchedShows = useWatchedShows(creds);
 
   // How long an episode is watched, on top of the series_play count.
   useEffect(() => {
@@ -272,6 +282,27 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
   const episodes = useMemo(() => seasons[seasonIdx]?.episodes ?? [], [seasons, seasonIdx]);
   const seasonsRef = useRef(seasons);
   seasonsRef.current = seasons;
+  // The open show's marks, and its seasons whose every episode was watched:
+  // worked out when the marks or the page change, not on every move of the
+  // highlight.
+  const shownMark = selectedSeries ? watchedShows.get(selectedSeries.series_id) : undefined;
+  const seasonsDone = useMemo(
+    () => new Set(seasons.filter((x) => seasonWatched(shownMark, x.episodes.map((e) => e.id))).map((x) => x.number)),
+    [seasons, shownMark],
+  );
+  const watchedLabel = t('live.vod.watched');
+  // A begun show's poster: its check, read out with the episode watched last,
+  // which also goes after the year ('' when not known). Once per change of
+  // the marks, so a move through the grid only looks them up.
+  const showBadges = useMemo(() => {
+    const out = new Map<number, { label: string; code: string }>();
+    watchedShows.forEach((m: ShowMark, id) => {
+      const l = m.last;
+      const code = l && l.season != null && l.num ? t('live.vod.watchedCode', { season: l.season, episode: l.num }) : '';
+      out.set(id, { label: code ? t('live.vod.watchedUpTo', { code }) : t('live.vod.watched'), code });
+    });
+    return out;
+  }, [watchedShows, t]);
 
   // A slow answer for an earlier series must not fill in a newer one's page.
   const openSeqRef = useRef(0);
@@ -314,6 +345,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
       title: `${selectedSeries.name} · S${season.number}E${ep.episode_num} · ${ep.title}`,
       seasonIdx: sIdx,
       episodeIdx: eIdx,
+      seriesId: selectedSeries.series_id,
+      episode: { id: String(ep.id), season: season.number, num: String(ep.episode_num) },
     });
     try {
       trackEvent('series_play', 'player', {
@@ -631,7 +664,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
         onError={(msg) => {
           try { trackEvent('player_error', 'player', { kind: 'series', channel_or_title: playing.title, server: creds.serverLabel, message: msg.slice(0, 200) }); } catch { /* ignore */ }
         }}
+        // Watched marks: the show and the episode begun after a minute, the
+        // episode watched at 95% or its end.
+        onProgress={(pos, dur) => { try { noteEpisodeProgress(creds, playing.seriesId, playing.episode, pos, dur); } catch { /* ignore */ } }}
         onEnded={() => {
+          try { noteEpisodeFinished(creds, playing.seriesId, playing.episode); } catch { /* ignore */ }
           if (!autoplayNextRef.current) { setPlaying(null); return; }
           // The next episode, into the next season after a season's last.
           const next = nextEpisode(seasonsRef.current, playing.seasonIdx, playing.episodeIdx);
@@ -728,13 +765,19 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
                     data-focused={focused ? 'true' : 'false'}
                     onClick={() => { setSeasonIdx(i); setEpisodeIdx(0); setDetailFocus('episodes'); }}
                     className={`
-                      tv-ring px-3 py-3 rounded-xl cursor-pointer font-nunito text-base text-brand-ice
+                      tv-ring flex items-center px-3 py-3 rounded-xl cursor-pointer font-nunito text-base text-brand-ice
                       ${focused ? 'bg-brand-gold/25 scale-[1.02] z-10' : ''}
                       ${!focused && selected ? 'bg-white/10' : ''}
                       ${!focused && !selected ? 'hover:bg-white/5' : ''}
                     `}
                   >
-                    <ScrollText text={x.name || t('live.series.seasonN', { n: x.number })} active={focused} />
+                    <ScrollText text={x.name || t('live.series.seasonN', { n: x.number })} active={focused} className="flex-1" />
+                    {/* Every episode of it watched to the end. */}
+                    {seasonsDone.has(x.number) && (
+                      <span data-season-watched="" aria-label={watchedLabel} className="ml-2 flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-brand-gold">
+                        <Check className="w-3.5 h-3.5 text-brand-navy" strokeWidth={3} aria-hidden="true" />
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -749,20 +792,34 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
               {!infoLoading && episodes.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">{t('live.series.noEpisodes')}</p>}
               {episodes.map((ep, i) => {
                 const focused = isActive && !demoNotice && detailFocus === 'episodes' && episodeIdx === i;
+                // Watched to the end: a gold check. Begun: a bar along the
+                // bottom as far as it got (a sliver when its length was not known).
+                const mark = episodeMark(shownMark, ep.id);
+                const done = mark === 2;
+                const part = mark === 1 ? (episodePart(shownMark, ep.id) || 0.1) : 0;
                 return (
                   <div
                     key={ep.id}
                     data-episode-i={i}
+                    data-watched={done ? 'done' : mark === 1 ? 'begun' : undefined}
                     onClick={() => playEpisode(seasonIdx, i)}
                     data-focused={focused ? 'true' : 'false'}
                     className={`
-                      tv-ring flex items-center px-4 py-3 rounded-xl border border-white/10 cursor-pointer
+                      tv-ring relative overflow-hidden flex items-center px-4 py-3 rounded-xl border border-white/10 cursor-pointer
                       ${focused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-white/5 hover:bg-white/10'}
                     `}
                   >
                     <span className="w-8 mr-3 flex-shrink-0 text-right font-quicksand font-bold text-brand-gold">{ep.episode_num}</span>
-                    <ScrollText text={ep.title || t('live.series.episodeN', { n: ep.episode_num })} active={focused} className="flex-1 font-nunito text-white" />
+                    <ScrollText text={ep.title || t('live.series.episodeN', { n: ep.episode_num })} active={focused} className={`flex-1 font-nunito ${done ? 'text-white/70' : 'text-white'}`} />
                     {ep.info?.duration && <span className="ml-3 flex-shrink-0 text-xs text-brand-ice/70 font-nunito">{ep.info.duration}</span>}
+                    {done && (
+                      <span aria-label={watchedLabel} className="ml-3 flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-brand-gold">
+                        <Check className="w-4 h-4 text-brand-navy" strokeWidth={3} aria-hidden="true" />
+                      </span>
+                    )}
+                    {part > 0 && (
+                      <span aria-label={t('live.vod.inProgress')} className="absolute left-0 bottom-0 h-1 bg-brand-gold" style={{ width: `${Math.round(part * 100)}%` }} />
+                    )}
                   </div>
                 );
               })}
@@ -882,6 +939,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
                   {rowItems.map((s, ci) => {
                     const i = rowStart + ci;
                     const isFocused = isActive && pane === 'grid' && i === gridIdx;
+                    const badge = showBadges.get(s.series_id);
                     return (
                       <div key={s.series_id}>
                         <PosterCard
@@ -891,6 +949,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
                           year={s.releaseDate ? String(s.releaseDate).slice(0, 4) : undefined}
                           isFocused={isFocused}
                           variant="series"
+                          watched={badge ? badge.label : null}
+                          watchedCode={badge?.code || undefined}
                           index={i}
                           onFocus={onTileFocus}
                           onActivate={onTileActivate}

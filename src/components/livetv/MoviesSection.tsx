@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Film, Loader2, Play, Search, Star } from 'lucide-react';
+import { ArrowLeft, Check, Film, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,8 @@ import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import VodPlayer from './VodPlayer';
 import FitPoster from './FitPoster';
+import { noteFilmFinished, noteFilmProgress } from '@/lib/watchedMarks';
+import { useWatchedFilms } from '@/hooks/useWatchedVod';
 
 interface Props {
   creds: XtreamCreds;
@@ -120,7 +122,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   const [movieInfo, setMovieInfo] = useState<XtreamVodInfo | null>(null);
   const [infoLoading, setInfoLoading] = useState(false);
 
-  const [playing, setPlaying] = useState<{ url: string; title: string } | null>(null);
+  const [playing, setPlaying] = useState<{ url: string; title: string; streamId: number } | null>(null);
   // On-screen title: shows 4 s on play / title change / any key, then hides.
   const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [demoNotice, setDemoNotice] = useState(false);
@@ -254,6 +256,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     return () => { cancelled = true; };
   }, [searchOpen, allMovies, allMoviesLoading, creds, noteCounts]);
 
+  // Films watched to the end on this line: a check on the poster and the
+  // film's page (lib/watchedMarks), read once for the whole grid.
+  const watchedFilms = useWatchedFilms(creds);
+  const watchedLabel = t('live.vod.watched');
+
   // How long a film is watched, on top of the movie_play count.
   useEffect(() => {
     if (DEMO || !playing) return;
@@ -309,7 +316,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     if (!selectedMovie) return;
     const ext = movieInfo?.movie_data?.container_extension || selectedMovie.container_extension || 'mp4';
     const url = buildMovieUrl(creds, selectedMovie.stream_id, ext);
-    setPlaying({ url, title: selectedMovie.name });
+    setPlaying({ url, title: selectedMovie.name, streamId: selectedMovie.stream_id });
     try { trackEvent('movie_play', 'player', { title: selectedMovie.name }); } catch { /* ignore */ }
   }, [creds, selectedMovie, movieInfo]);
 
@@ -550,6 +557,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
         onError={(msg) => {
           try { trackEvent('player_error', 'player', { kind: 'movie', channel_or_title: playing.title, server: creds.serverLabel, message: msg.slice(0, 200) }); } catch { /* ignore */ }
         }}
+        // Watched marks: begun after a minute, watched at 95% or the end.
+        onProgress={(pos, dur) => { try { noteFilmProgress(creds, playing.streamId, pos, dur); } catch { /* ignore */ } }}
+        onEnded={() => { try { noteFilmFinished(creds, playing.streamId); } catch { /* ignore */ } }}
       >
         {titleShown && (
           <div className="absolute top-4 left-4 max-w-[70%] truncate px-4 py-2 rounded-xl bg-black/70 text-white font-quicksand font-bold text-lg pointer-events-none">
@@ -576,6 +586,14 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
           <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden max-w-3xl px-2 py-2">
             <h2 className="text-3xl font-quicksand font-bold leading-tight line-clamp-2 mb-3">{selectedMovie.name}</h2>
             <div className="flex flex-wrap items-center text-sm text-brand-ice/80 font-nunito mb-4">
+              {watchedFilms.has(selectedMovie.stream_id) && (
+                <span data-watched="" className="flex items-center mr-3 text-brand-gold font-semibold">
+                  <span className="flex items-center justify-center w-6 h-6 mr-1.5 rounded-full bg-brand-gold" aria-hidden="true">
+                    <Check className="w-4 h-4 text-brand-navy" strokeWidth={3} />
+                  </span>
+                  {watchedLabel}
+                </span>
+              )}
               {info?.rating != null && (
                 <span className="flex items-center mr-3"><Star className="w-4 h-4 mr-1 text-brand-gold fill-brand-gold" />{Number(info.rating).toFixed(1)}</span>
               )}
@@ -738,6 +756,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
                           year={m.year}
                           isFocused={isFocused}
                           variant="movie"
+                          watched={watchedFilms.has(m.stream_id) ? watchedLabel : null}
                           index={i}
                           onFocus={onTileFocus}
                           onActivate={onTileActivate}
