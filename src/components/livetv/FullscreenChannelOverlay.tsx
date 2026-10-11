@@ -125,7 +125,7 @@ const FullscreenChannelOverlay = memo(({
       {!onCats ? <CategoriesStrip /> : (
       <div className="flex-shrink-0 flex flex-col border-r border-white/10 pt-6 pb-4 px-3 bg-white/5" style={{ width: OVERLAY_CATS_W }}>
         <p className="px-2 pb-3 text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold">{t('live.overlay.categoriesTitle')}</p>
-        {cw.start > 0 && <p className="text-center text-brand-ice/50 text-sm leading-none pb-1">▲</p>}
+        {cw.start > 0 && <p className="text-center text-brand-ice/75 text-sm leading-none pb-1">▲</p>}
         <div className="space-y-1">
           {categories.slice(cw.start, cw.end).map((c, j) => {
             const i = cw.start + j;
@@ -148,13 +148,13 @@ const FullscreenChannelOverlay = memo(({
                   {c.label}
                 </span>
                 {!c.isHeader && c.count != null && c.count > 0 && (
-                  <span className="ml-2 flex-shrink-0 text-xs font-nunito tabular-nums text-brand-ice/60">{formatCount(c.count)}</span>
+                  <span className="ml-2 flex-shrink-0 text-xs font-nunito tabular-nums text-brand-ice/85">{formatCount(c.count)}</span>
                 )}
               </div>
             );
           })}
         </div>
-        {cw.end < categories.length && <p className="text-center text-brand-ice/50 text-sm leading-none pt-1">▼</p>}
+        {cw.end < categories.length && <p className="text-center text-brand-ice/75 text-sm leading-none pt-1">▼</p>}
       </div>
       )}
 
@@ -164,13 +164,13 @@ const FullscreenChannelOverlay = memo(({
           <p className="flex-1 min-w-0 truncate text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold">{channelsTitle}</p>
           {loading && <Loader2 className="w-4 h-4 ml-2 animate-spin text-brand-gold flex-shrink-0" />}
           {!loading && channels.length > 0 && (
-            <span className="ml-2 text-sm font-nunito tabular-nums text-brand-ice/60">{channelIdx + 1} / {channels.length}</span>
+            <span className="ml-2 text-sm font-nunito tabular-nums text-brand-ice/85">{channelIdx + 1} / {channels.length}</span>
           )}
         </div>
-        {chw.start > 0 && <p className="text-center text-brand-ice/50 text-sm leading-none pb-1">▲</p>}
+        {chw.start > 0 && <p className="text-center text-brand-ice/75 text-sm leading-none pb-1">▲</p>}
         <div className="flex-1 min-h-0 space-y-1">
           {channels.length === 0 && (
-            <p className="px-3 py-4 text-lg font-nunito text-brand-ice/70">
+            <p className="px-3 py-4 text-lg font-nunito text-brand-ice/90">
               {loading ? t('live.list.loadingChannels') : onCats ? t('live.overlay.openCategoryHint') : t('live.overlay.noChannels')}
             </p>
           )}
@@ -192,17 +192,17 @@ const FullscreenChannelOverlay = memo(({
                 className={`tv-ring flex items-center px-3 rounded-xl overflow-hidden ${focused ? 'bg-brand-gold/25 z-10' : playing ? 'bg-white/10' : ''}`}
                 style={{ height: 52 }}
               >
-                <span className="w-10 flex-shrink-0 text-base font-nunito tabular-nums text-brand-ice/60">{st.num ?? ''}</span>
+                <span className="w-10 flex-shrink-0 text-base font-nunito tabular-nums text-brand-ice/85">{st.num ?? ''}</span>
                 <div className="w-10 h-10 mr-3 flex-shrink-0 rounded-lg bg-black/60 flex items-center justify-center overflow-hidden">
                   {st.stream_icon
                     ? <img src={st.stream_icon} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
-                    : <Tv className="w-5 h-5 text-brand-ice/50" />}
+                    : <Tv className="w-5 h-5 text-brand-ice/75" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={`font-nunito ${nameClass(st.name)} ${focused ? 'text-white font-semibold' : playing ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
                     {st.name}
                   </p>
-                  <p className={`truncate text-sm leading-tight font-nunito ${flagged ? flagText : 'text-brand-ice/60'}`}>
+                  <p className={`truncate text-sm leading-tight font-nunito ${flagged ? flagText : 'text-brand-ice/85'}`}>
                     {service ? <span className="text-brand-gold/80">{service}{flagged || now ? ' · ' : ''}</span> : null}
                     {flagged ? flagLabel : (now || (service ? '' : ' '))}
                   </p>
@@ -214,8 +214,8 @@ const FullscreenChannelOverlay = memo(({
             );
           })}
         </div>
-        {chw.end < channels.length && <p className="text-center text-brand-ice/50 text-sm leading-none pb-1">▼</p>}
-        <p className="px-2 pt-2 text-sm font-nunito text-brand-ice/60">
+        {chw.end < channels.length && <p className="text-center text-brand-ice/75 text-sm leading-none pb-1">▼</p>}
+        <p className="px-2 pt-2 text-sm font-nunito text-brand-ice/85">
           {onCats ? (catsBack ? t('live.overlay.hintCategoriesBack') : t('live.overlay.hintCategories')) : t('live.overlay.hintChannels')}
         </p>
       </div>

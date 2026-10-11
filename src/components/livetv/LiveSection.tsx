@@ -207,6 +207,12 @@ interface CatEntry {
 const EMPTY_COUNTS: CatalogCounts = { total: null, byCat: {}, at: 0 };
 const EMPTY_FAVS: Map<number, FavChannel> = new Map();
 const favKey = (f: { stream_id: number; name: string }) => f.name.trim().toLowerCase();
+/** Where a list's highlight goes back to: the channel it was on, else the
+ *  same place, kept inside the list. */
+const placeIn = (list: Array<{ stream_id: number }>, was: { channelIdx: number; streamId: number | null }): number => {
+  const at = was.streamId != null ? list.findIndex((c) => c.stream_id === was.streamId) : -1;
+  return at >= 0 ? at : Math.max(0, Math.min(was.channelIdx, list.length - 1));
+};
 const toFav = (s: XtreamLiveStream): FavChannel => ({
   stream_id: s.stream_id,
   name: s.name,
@@ -652,10 +658,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // Its list's category (by entry id, as above) and highlight while its
   // categories are open over it (showOverlayCategories); null otherwise. Set
   // together with the ref.
-  const [ovList, setOvList] = useState<{ entryId: string | null; lineKey: string | null; channelIdx: number } | null>(null);
+  const [ovList, setOvList] = useState<{ entryId: string | null; lineKey: string | null; channelIdx: number; streamId: number | null } | null>(null);
   const ovListRef = useRef(ovList);
   // That category put back by Back: its highlight once its channels are in.
-  const ovListBackRef = useRef<{ entryId: string; channelIdx: number } | null>(null);
+  const ovListBackRef = useRef<{ entryId: string; channelIdx: number; streamId: number | null } | null>(null);
   const forgetOvList = useCallback(() => {
     ovListRef.current = null;
     ovListBackRef.current = null;
@@ -2228,7 +2234,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // step each).
   const showOverlayCategories = useCallback(() => {
     const c = visibleCategoriesRef.current[categoryIdxRef.current];
-    const was = { entryId: c?.id ?? null, lineKey: c?.lineKey ?? null, channelIdx: channelIdxRef.current };
+    // The highlighted channel itself too: the list may be search results,
+    // and the place in them means nothing in the category's list.
+    const ch = visibleChannelsRef.current[channelIdxRef.current];
+    const was = { entryId: c?.id ?? null, lineKey: c?.lineKey ?? null, channelIdx: channelIdxRef.current, streamId: ch?.stream_id ?? null };
     ovListRef.current = was;
     setOvList(was);
     setPane('categories');
@@ -2244,13 +2253,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const id = was.entryId;
     const at = id ? visibleCategoriesRef.current.findIndex((c) => c.id === id) : -1;
     if (id && at < 0 && was.lineKey && collapsedRef.current.has(was.lineKey)) {
-      ovListBackRef.current = { entryId: id, channelIdx: was.channelIdx };
+      ovListBackRef.current = { entryId: id, channelIdx: was.channelIdx, streamId: was.streamId };
       restoreCatIdRef.current = id;
       toggleCollapsed(was.lineKey);
     } else if (id && at >= 0 && at !== categoryIdxRef.current) {
-      ovListBackRef.current = { entryId: id, channelIdx: was.channelIdx };
+      ovListBackRef.current = { entryId: id, channelIdx: was.channelIdx, streamId: was.streamId };
       setCategoryIdx(at);
-    } else setChannelIdx(was.channelIdx);
+    } else setChannelIdx(placeIn(visibleChannelsRef.current, was));
     setPane('channels');
   }, [closeChannelOverlay, pokeOverlay, toggleCollapsed, forgetOvList]);
   const overlayBackStepRef = useRef(overlayBackStep);
@@ -2277,7 +2286,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const want = ovListBackRef.current;
     if (!want || currentCat?.id !== want.entryId || searchOpen || !visibleChannels.length) return;
     ovListBackRef.current = null;
-    setChannelIdx(Math.min(want.channelIdx, visibleChannels.length - 1));
+    setChannelIdx(placeIn(visibleChannels, want));
   }, [visibleChannels, currentCat, searchOpen]);
   // A channel picked in the list over the picture: watched (asked first when
   // the others reported it down, as in the list); the list stays on it.
