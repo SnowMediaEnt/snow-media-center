@@ -695,7 +695,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
           </div>
         </div>
         {demoNoticeOverlay}
-        {trailerVideo && <TrailerOverlay video={trailerVideo} kind="movie" onClose={closeTrailer} />}
+        {trailerVideo && <TrailerOverlay video={trailerVideo} title={selectedMovie.name} kind="movie" onClose={closeTrailer} />}
       </div>
     );
   }

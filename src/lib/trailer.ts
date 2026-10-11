@@ -164,14 +164,17 @@ export const TRAILER_EMBED_ORIGINS: readonly string[] = [EMBED_ORIGIN, 'https://
  * channels' videos at the end, inline, no annotations, no full-screen button
  * (it is full screen already), and its player API on (enablejsapi, with the
  * page's origin) so the remote's OK can pause it. `lang`: the app's language
- * for its controls and captions.
+ * for its controls and captions. `start`: whole seconds in (the layer's
+ * resume on a WebView whose paused embed won't play again: the same video,
+ * from where it was paused).
  */
-export function trailerEmbedUrl(id: string, origin?: string | null, lang?: string | null): string {
+export function trailerEmbedUrl(id: string, origin?: string | null, lang?: string | null, start?: number | null): string {
   const p = new URLSearchParams({
     autoplay: '1', controls: '1', rel: '0', playsinline: '1', iv_load_policy: '3', fs: '0', enablejsapi: '1',
   });
   if (origin && /^https?:\/\/[^/\s]+$/.test(origin)) p.set('origin', origin);
   if (lang && /^[a-z]{2}$/.test(lang)) p.set('hl', lang);
+  if (typeof start === 'number' && Number.isFinite(start) && start >= 1) p.set('start', String(Math.floor(start)));
   return `${EMBED_ORIGIN}/embed/${encodeURIComponent(id)}?${p.toString()}`;
 }
 

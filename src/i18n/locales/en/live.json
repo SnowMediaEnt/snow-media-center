@@ -369,7 +369,10 @@
       "hint": "OK: pause or play · Back: close",
       "cantPlay": "This trailer can't play here.",
       "openOutsideBtn": "Open outside the app",
-      "backHint": "Back closes this."
+      "backHint": "Back closes this.",
+      "paused": "Paused",
+      "time": "{{time}} / {{duration}}",
+      "pausedHint": "OK to resume · Back to close"
     },
     "vodChooser": {
       "title": "What would you like to watch?",

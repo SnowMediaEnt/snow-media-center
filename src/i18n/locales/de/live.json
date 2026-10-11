@@ -369,7 +369,10 @@
       "hint": "OK: Pause oder Wiedergabe · Zurück: schließen",
       "cantPlay": "Dieser Trailer kann hier nicht abgespielt werden.",
       "openOutsideBtn": "Außerhalb der App öffnen",
-      "backHint": "Zurück schließt dies."
+      "backHint": "Zurück schließt dies.",
+      "paused": "Pausiert",
+      "time": "{{time}} / {{duration}}",
+      "pausedHint": "OK zum Fortsetzen · Zurück zum Schließen"
     },
     "vodChooser": {
       "title": "Was möchtest du sehen?",

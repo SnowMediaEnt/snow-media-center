@@ -897,7 +897,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
           </div>
         </div>
         {demoNoticeOverlay}
-        {trailerVideo && <TrailerOverlay video={trailerVideo} kind="series" onClose={closeTrailer} />}
+        {trailerVideo && <TrailerOverlay video={trailerVideo} title={selectedSeries.name} kind="series" onClose={closeTrailer} />}
       </div>
     );
   }

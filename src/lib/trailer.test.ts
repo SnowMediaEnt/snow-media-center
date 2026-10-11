@@ -158,6 +158,16 @@ describe('the embed', () => {
   });
 });
 
+describe('the embed rebuilt after a pause', () => {
+  it('a start second: whole seconds, nothing under 1 s or not a number', () => {
+    expect(new URL(trailerEmbedUrl(ID, null, null, 43.9)).searchParams.get('start')).toBe('43');
+    expect(new URL(trailerEmbedUrl(ID, null, null, 43.9)).searchParams.get('autoplay')).toBe('1');
+    for (const bad of [0, 0.6, -5, NaN, Infinity, null, undefined]) {
+      expect(new URL(trailerEmbedUrl(ID, null, null, bad as number)).searchParams.has('start')).toBe(false);
+    }
+  });
+});
+
 describe('opening it', () => {
   beforeEach(() => {
     __resetTrailerForTests();

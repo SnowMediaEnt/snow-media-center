@@ -370,7 +370,10 @@
       "hint": "OK : pause ou lecture · Retour : fermer",
       "cantPlay": "Cette bande-annonce ne peut pas être lue ici.",
       "openOutsideBtn": "Ouvrir hors de l'appli",
-      "backHint": "Retour pour fermer."
+      "backHint": "Retour pour fermer.",
+      "paused": "En pause",
+      "time": "{{time}} / {{duration}}",
+      "pausedHint": "OK pour reprendre · Retour pour fermer"
     },
     "vodChooser": {
       "title": "Que voulez-vous regarder ?",

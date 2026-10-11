@@ -370,7 +370,10 @@
       "hint": "OK: pausar o reproducir · Atrás: cerrar",
       "cantPlay": "Este tráiler no se puede reproducir aquí.",
       "openOutsideBtn": "Abrir fuera de la app",
-      "backHint": "Atrás lo cierra."
+      "backHint": "Atrás lo cierra.",
+      "paused": "En pausa",
+      "time": "{{time}} / {{duration}}",
+      "pausedHint": "OK para continuar · Atrás para cerrar"
     },
     "vodChooser": {
       "title": "¿Qué quieres ver?",

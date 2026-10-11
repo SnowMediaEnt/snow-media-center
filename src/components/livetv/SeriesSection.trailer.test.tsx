@@ -62,6 +62,17 @@ const overlay = () => q('[data-trailer-overlay]');
 const tile = (name: string) => [...document.querySelectorAll<HTMLElement>('[data-vod-grid] [data-focused]')].find((e) => (e.textContent || '').includes(name));
 const open = vi.fn();
 
+/** The embed in the layer: it answers, plays, and OK pauses it under the Paused card. */
+const pauseInLayer = () => {
+  const f = q('[data-trailer-frame]') as HTMLIFrameElement;
+  const say = (data: unknown) => act(() => {
+    window.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data), origin: 'https://www.youtube-nocookie.com', source: f.contentWindow }));
+  });
+  say({ event: 'initialDelivery', info: { duration: 90 } });
+  say({ event: 'infoDelivery', info: { playerState: 1, currentTime: 12 } });
+  press('Enter');
+};
+
 /** A TV: the category, then the series at `i`, its page with its episodes in. */
 const openShow = async (i: number) => {
   render(<SeriesSection creds={creds} isActive onExitLeft={vi.fn()} />);
@@ -124,6 +135,21 @@ describe('Trailer on a series\' page (TV)', { timeout: 30000 }, () => {
     press('ArrowRight');
     expect(lit(q('[data-episode-i="0"]'))).toBe(true);
     expect(q('[data-testid="vod-player"]')).toBeNull();
+  });
+
+  it('OK pauses it under the Paused card, which names the title as the page shows it; Back still closes it in one step', async () => {
+    await openShow(0);
+    await until(() => !!trailer());
+    press('ArrowLeft'); press('ArrowDown'); press('ArrowDown'); press('Enter');
+    expect(await until(() => !!overlay())).toBe(true);
+    pauseInLayer();
+    expect(q('[data-trailer-paused]')).not.toBeNull();
+    expect(q('[data-trailer-title]')!.textContent).toBe('Harbor Patrol');
+    expect(q('[data-trailer-time]')!.textContent).toBe('0:12 / 1:30');
+    press('Escape');
+    await settle(20);
+    expect(overlay()).toBeNull();
+    expect(lit(trailer())).toBe(true);
   });
 
   it('without one: a search for the series\' name and year, outside the app', async () => {

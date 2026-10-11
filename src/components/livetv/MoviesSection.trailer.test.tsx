@@ -74,6 +74,17 @@ const player = () => q('[data-testid="vod-player"]');
 const tile = (name: string) => [...document.querySelectorAll<HTMLElement>('[data-vod-grid] [data-focused]')].find((e) => (e.textContent || '').includes(name));
 const open = vi.fn();
 
+/** The embed in the layer: it answers, plays, and OK pauses it under the Paused card. */
+const pauseInLayer = () => {
+  const f = q('[data-trailer-frame]') as HTMLIFrameElement;
+  const say = (data: unknown) => act(() => {
+    window.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data), origin: 'https://www.youtube-nocookie.com', source: f.contentWindow }));
+  });
+  say({ event: 'initialDelivery', info: { duration: 90 } });
+  say({ event: 'infoDelivery', info: { playerState: 1, currentTime: 12 } });
+  press('Enter');
+};
+
 /** A TV: the category, then the film at `i` in the grid, its page. */
 const openFilm = async (i: number) => {
   render(<MoviesSection creds={creds} isActive onExitLeft={vi.fn()} />);
@@ -136,6 +147,21 @@ describe('Trailer on a film\'s page (TV)', { timeout: 30000 }, () => {
     press('Enter');
     expect(await until(() => !!player())).toBe(true);
     expect(player()!.getAttribute('data-src')).toMatch(/\/movie\/user1\/pass1\/11\.mp4$/);
+  });
+
+  it('OK pauses it under the Paused card, which names the title as the page shows it; Back still closes it in one step', async () => {
+    await openFilm(0);
+    await until(() => !!trailer());
+    press('ArrowDown'); press('Enter');
+    expect(await until(() => !!overlay())).toBe(true);
+    pauseInLayer();
+    expect(q('[data-trailer-paused]')).not.toBeNull();
+    expect(q('[data-trailer-title]')!.textContent).toBe('EN - Harbor Lights');
+    expect(q('[data-trailer-time]')!.textContent).toBe('0:12 / 1:30');
+    press('Escape');
+    await settle(20);
+    expect(overlay()).toBeNull();
+    expect(lit(trailer())).toBe(true);
   });
 
   it('while it plays, the page\'s keys stand aside: the arrows and OK never move or play anything under it', async () => {

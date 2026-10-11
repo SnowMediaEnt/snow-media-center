@@ -1,6 +1,6 @@
 // A title's trailer, played inside SMC (owner, 2026-10-11: "with the fix to
 // play in SMC instead of going out and the pause fix as well"; from Tronix
-// 1039497).
+// 1039497 and 06f67c0).
 //
 // A full-screen layer over the page that opened it, with the video service's
 // own embeddable player (lib/trailer trailerEmbedUrl: its documented iframe
@@ -8,16 +8,27 @@
 // film player (VodPlayer) is never involved.
 //  - The remote: OK (and the remote's Play/Pause) pauses and plays it through
 //    the embed's player API: the messages its own API script sends, posted
-//    straight to the frame (no outside script is loaded into the app). Back
-//    closes it, one step: the page under it is as it was, its highlight
-//    still on Trailer. The arrows do nothing here.
+//    straight to the frame (no outside script is loaded into the app). Once
+//    the embed first answers, the layer subscribes to its state and its
+//    errors. Back closes it, one step, whatever it is doing: the page under it
+//    is as it was, its highlight still on Trailer. The arrows do nothing here.
+//  - Paused (Tronix 06f67c0; the owner's Fire TV Stick): the Amazon WebView
+//    plays the embed on a hardware overlay and tears it down on pause, so a
+//    paused embed draws no frame at all (the screen went white, and OK never
+//    brought the picture back). A TV never relies on it: our own opaque dark
+//    "Paused" card covers the frame (the title, where it stopped, from the
+//    time the embed reports, "OK to resume · Back to close"). OK sends play;
+//    no "playing" back within TRAILER_RESUME_MS, the frame is rebuilt at that
+//    second (the embed's own start + autoplay), once per resume; the rebuilt
+//    one not playing within 8 s: it can't play here.
 //  - The frame never takes the remote: the layer keeps the page's focus, so
 //    every key comes here (a touch screen may tap the embed's own controls,
 //    and has a Close button).
 //  - It won't play here (the embed says so, or nothing plays within 8 s, a
 //    little longer while it is still loading): "This trailer can't play
 //    here" and "Open outside the app".
-//  - The video's end closes it.
+//  - The video's end closes it, and so does the app going to the background
+//    (Home on the remote): nothing plays behind the launcher.
 // Closing unmounts the layer, and with it the frame: its page, its player and
 // what it had buffered go at once (a Fire TV has little memory to spare).
 //
@@ -29,30 +40,42 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { App as CapApp } from '@capacitor/app';
 import { Clapperboard, ExternalLink, Loader2, Pause, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTouchUI } from '@/lib/phoneMode';
 import { onMediaKey } from '@/lib/mediaKeys';
 import { kidsLevel } from '@/lib/kidsFilter';
+import { formatDuration } from '@/lib/recording';
 import { TRAILER_EMBED_ORIGINS, openTrailerOutside, trailerEmbedUrl, trailerIdOf, type TrailerKind } from '@/lib/trailer';
 
 /** No playback by then: it can't play here. */
 export const TRAILER_START_MS = 8000;
 /** Still loading at 8 s (the embed said it is buffering): this much longer. */
 export const TRAILER_BUFFERING_EXTRA_MS = 7000;
+/** After the play command, the embed has this long to say it plays again; then the frame is rebuilt there. */
+export const TRAILER_RESUME_MS = 1500;
+/** At most this long guessed past the embed's last reported time (it reports a few times a second). */
+const TIME_GUESS_MAX_S = 2;
 /** The remote's hint shows this long. */
 const HINT_MS = 5000;
 /** The embed's player API: ask for its events, again until it answers. */
 const LISTEN_EVERY_MS = 250;
 const LISTEN_TRIES = 40;
+/** The embed's events the layer subscribes to once it answers. */
+const EMBED_EVENTS = ['onStateChange', 'onError'] as const;
 
-type Status = 'loading' | 'playing' | 'paused' | 'failed';
+type Status = 'loading' | 'playing' | 'paused' | 'resuming' | 'failed';
+type EmbedCommand = 'playVideo' | 'pauseVideo' | 'addEventListener';
 
 export interface TrailerOverlayProps {
   /** The trailer: a video id, or a watch / short / embed link to one (lib/trailer trailerIdOf). */
   video: string;
-  /** Back, the Close button, the video's end, or "Open outside the app": the page drops the layer. */
+  /** Back, the Close button, the video's end, the app going to the background,
+   *  or "Open outside the app": the page drops the layer. */
   onClose: () => void;
+  /** The title's name as the page shows it (the Paused card says it). */
+  title?: string;
   /** "Open outside the app" when it can't play here. Default: lib/trailer
    *  openTrailerOutside (the video app or the browser). The layer closes first. */
   onOpenOutside?: () => void;
@@ -68,9 +91,11 @@ const pageOrigin = (): string | null => {
 const isBackKey = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || e.keyCode === 4;
 const isOkKey = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23;
 
-const TrailerLayer = memo(({ video, onClose, onOpenOutside, kind = 'movie' }: TrailerOverlayProps) => {
+const TrailerLayer = memo(({ video, onClose, title, onOpenOutside, kind = 'movie' }: TrailerOverlayProps) => {
   const { t, i18n } = useTranslation();
   const touch = useTouchUI();
+  const touchRef = useRef(touch);
+  touchRef.current = touch;
   const id = useMemo(() => trailerIdOf(video), [video]);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
@@ -81,19 +106,35 @@ const TrailerLayer = memo(({ video, onClose, onOpenOutside, kind = 'movie' }: Tr
   const [hint, setHint] = useState(true);
   const startedRef = useRef(false);
   const bufferingRef = useRef(false);
+  // The frame on screen has answered (and been asked for its events).
   const heardRef = useRef(false);
+  // The frame: the first one, or one rebuilt at the paused second (n counts them).
+  const [frame, setFrame] = useState<{ n: number; start: number | null }>({ n: 0, start: null });
+  // One language per open: a change while it plays doesn't reload it.
+  const lang = useRef((i18n.language || '').slice(0, 2)).current;
   const src = useMemo(
-    () => (id ? trailerEmbedUrl(id, pageOrigin(), (i18n.language || '').slice(0, 2)) : ''),
-    // One address per trailer: a language change while it plays doesn't reload it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [id],
+    () => (id ? trailerEmbedUrl(id, pageOrigin(), lang, frame.start) : ''),
+    [id, lang, frame.start],
   );
+  // Where it is: the embed's last reported time (and when it came), its length.
+  const timeRef = useRef<{ t: number; at: number }>({ t: 0, at: 0 });
+  const [duration, setDuration] = useState(0);
+  const [pausedAt, setPausedAt] = useState(0);
+  const pausedAtRef = useRef(0);
+  const resumeTimer = useRef(0);
+  const rebuildTimer = useRef(0);
 
+  // Closed once, whichever way (Back, the end, the background, both of the
+  // background's signals together).
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const close = useCallback(() => { onCloseRef.current(); }, []);
+  const closedRef = useRef(false);
+  const close = useCallback(() => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    onCloseRef.current();
+  }, []);
   const failed = status === 'failed';
-  const paused = status === 'paused';
   const fail = useCallback(() => {
     if (statusRef.current === 'failed') return;
     set('failed');
@@ -105,16 +146,63 @@ const TrailerLayer = memo(({ video, onClose, onOpenOutside, kind = 'movie' }: Tr
     else if (id) void openTrailerOutside({ kind: 'video', id }, kind);
   }, [close, onOpenOutside, id, kind]);
 
-  /** One command to the embed's player (playVideo, pauseVideo). */
-  const command = useCallback((func: 'playVideo' | 'pauseVideo') => {
+  /** One command to the embed's player (playVideo, pauseVideo, addEventListener). */
+  const command = useCallback((func: EmbedCommand, args: unknown[] = []) => {
     try {
-      frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args: [] }), TRAILER_EMBED_ORIGINS[0]);
+      frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), TRAILER_EMBED_ORIGINS[0]);
     } catch { /* gone */ }
   }, []);
+  const clearResume = useCallback(() => {
+    window.clearTimeout(resumeTimer.current); resumeTimer.current = 0;
+    window.clearTimeout(rebuildTimer.current); rebuildTimer.current = 0;
+  }, []);
+  /** Where it is now: the last reported time, plus the moments since while it played. */
+  const nowAt = useCallback((): number => {
+    const { t: at0, at } = timeRef.current;
+    if (!at || statusRef.current !== 'playing') return at0;
+    return at0 + Math.min(TIME_GUESS_MAX_S, Math.max(0, (Date.now() - at) / 1000));
+  }, []);
+  /** Paused (by the remote, or the embed says so): the card, at this second. */
+  const markPaused = useCallback((at: number) => {
+    clearResume();
+    pausedAtRef.current = at;
+    setPausedAt(at);
+    set('paused');
+  }, [clearResume, set]);
+  const pause = useCallback(() => {
+    if (statusRef.current !== 'playing') return;
+    const at = nowAt();
+    command('pauseVideo');
+    markPaused(at);
+  }, [command, markPaused, nowAt]);
+  /** The same video again from the paused second (the embed's start + autoplay). */
+  const rebuild = useCallback(() => {
+    if (statusRef.current !== 'resuming') return;
+    const start = Math.floor(pausedAtRef.current);
+    heardRef.current = false;
+    timeRef.current = { t: start, at: 0 };
+    setFrame((f) => ({ n: f.n + 1, start: start >= 1 ? start : null }));
+    // The new frame doesn't play either: it can't play here.
+    window.clearTimeout(rebuildTimer.current);
+    rebuildTimer.current = window.setTimeout(() => {
+      if (statusRef.current === 'resuming') set('failed');
+    }, TRAILER_START_MS);
+  }, [set]);
+  const resume = useCallback(() => {
+    if (statusRef.current !== 'paused') return;
+    command('playVideo');
+    set('resuming');
+    window.clearTimeout(resumeTimer.current);
+    resumeTimer.current = window.setTimeout(rebuild, TRAILER_RESUME_MS);
+  }, [command, rebuild, set]);
   const toggle = useCallback(() => {
-    if (statusRef.current === 'failed') return;
-    if (statusRef.current === 'playing') { command('pauseVideo'); set('paused'); } else { command('playVideo'); }
-  }, [command, set]);
+    const st = statusRef.current;
+    if (st === 'failed' || st === 'resuming') return;
+    if (st === 'playing') pause();
+    else if (st === 'paused') resume();
+    else command('playVideo');
+  }, [command, pause, resume]);
+  useEffect(() => clearResume, [clearResume]);
 
   // The page's focus: here, and back where it was when it closes.
   useEffect(() => {
@@ -139,15 +227,57 @@ const TrailerLayer = memo(({ video, onClose, onOpenOutside, kind = 'movie' }: Tr
     return () => window.removeEventListener('blur', onBlur);
   }, [touch]);
 
-  // The embed's messages: its state, its errors. Only from the frame itself,
-  // on the embed's own origins.
+  // The app goes to the background (the remote's Home, another app): the
+  // trailer closes, as the film player stops (VideoPlayer). Fire TV's Home
+  // doesn't always reach the page as visibilitychange; Capacitor's
+  // appStateChange covers it.
+  useEffect(() => {
+    const onVisibility = () => { if (document.hidden) close(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    let handle: { remove: () => void } | null = null;
+    let cancelled = false;
+    try {
+      void CapApp.addListener('appStateChange', ({ isActive }) => { if (!isActive) close(); })
+        .then((h) => { if (cancelled) void h.remove(); else handle = h; })
+        .catch(() => { /* web: visibilitychange covers it */ });
+    } catch { /* no Capacitor */ }
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      try { void handle?.remove(); } catch { /* ignore */ }
+    };
+  }, [close]);
+
+  // The embed's messages: its state, its time, its errors. Only from the
+  // frame on screen, on the embed's own origins.
   useEffect(() => {
     const onState = (s: number) => {
-      if (statusRef.current === 'failed') return;
-      if (s === 1) { startedRef.current = true; set('playing'); }
-      else if (s === 2) set('paused');
+      const st = statusRef.current;
+      if (st === 'failed') return;
+      if (s === 1) {
+        startedRef.current = true;
+        if (st === 'resuming') clearResume();
+        // Paused on a TV: a late "playing" (sent before our pause got there)
+        // must not play under the card; pause it again. A touch screen's own
+        // play button on the embed: it plays.
+        if (st === 'paused' && !touchRef.current) command('pauseVideo');
+        else set('playing');
+      }
+      // The embed paused itself (or confirms ours): the card. Resuming, the
+      // rebuild decides (a paused embed is just what it is for).
+      else if (s === 2) { if (st === 'playing' || st === 'loading') markPaused(nowAt()); }
       else if (s === 3) bufferingRef.current = true;
       else if (s === 0 && startedRef.current) close();
+    };
+    const onInfo = (info: { currentTime?: unknown; duration?: unknown }) => {
+      const ct = info.currentTime;
+      if (typeof ct === 'number' && Number.isFinite(ct) && ct >= 0) {
+        timeRef.current = { t: ct, at: Date.now() };
+        // Paused: the embed's own last word on where it stopped.
+        if (statusRef.current === 'paused') { pausedAtRef.current = ct; setPausedAt(ct); }
+      }
+      const d = info.duration;
+      if (typeof d === 'number' && Number.isFinite(d) && d > 0) setDuration(d);
     };
     const onMessage = (e: MessageEvent) => {
       if (!frameRef.current || e.source !== frameRef.current.contentWindow) return;
@@ -156,17 +286,24 @@ const TrailerLayer = memo(({ video, onClose, onOpenOutside, kind = 'movie' }: Tr
       if (typeof d === 'string') { try { d = JSON.parse(d); } catch { return; } }
       if (!d || typeof d !== 'object') return;
       const m = d as { event?: unknown; info?: unknown };
-      heardRef.current = true;
+      // Its first answer: subscribe to its state and its errors (an embed
+      // that won't play here says so at once instead of after 8 s).
+      if (!heardRef.current) {
+        heardRef.current = true;
+        for (const ev of EMBED_EVENTS) command('addEventListener', [ev]);
+      }
       if (m.event === 'onError') { fail(); return; }
       if (m.event === 'onStateChange' && typeof m.info === 'number') { onState(m.info); return; }
       if ((m.event === 'infoDelivery' || m.event === 'initialDelivery') && m.info && typeof m.info === 'object') {
+        // The time first: a "paused" in the same message pauses at it.
+        onInfo(m.info as { currentTime?: unknown; duration?: unknown });
         const ps = (m.info as { playerState?: unknown }).playerState;
         if (typeof ps === 'number') onState(ps);
       }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [close, fail, set]);
+  }, [close, fail, set, clearResume, markPaused, nowAt, command]);
 
   // Nothing playing within 8 s (a little longer while it loads): it can't.
   useEffect(() => {
@@ -187,7 +324,8 @@ const TrailerLayer = memo(({ video, onClose, onOpenOutside, kind = 'movie' }: Tr
     return () => window.clearTimeout(h);
   }, []);
 
-  // Ask the embed for its events once it has loaded, until it answers.
+  // Ask the embed for its events once it has loaded, until it answers (a
+  // rebuilt frame too).
   const listenTimer = useRef(0);
   const onFrameLoad = useCallback(() => {
     let n = 0;
@@ -205,8 +343,8 @@ const TrailerLayer = memo(({ video, onClose, onOpenOutside, kind = 'movie' }: Tr
 
   // The remote. Added after the page's own listener (which stands aside while
   // this is up); every key stops here, so nothing under the layer moves.
-  const keyState = useRef({ failed, canOpenOutside, toggle, close, openOutside, command });
-  keyState.current = { failed, canOpenOutside, toggle, close, openOutside, command };
+  const keyState = useRef({ failed, canOpenOutside, toggle, close, openOutside, pause, resume });
+  keyState.current = { failed, canOpenOutside, toggle, close, openOutside, pause, resume };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key;
@@ -224,8 +362,8 @@ const TrailerLayer = memo(({ video, onClose, onOpenOutside, kind = 'movie' }: Tr
       }
       if (s.failed) { if (isOkKey(e) && s.canOpenOutside) s.openOutside(); return; }
       if (isOkKey(e) || k === 'MediaPlayPause') s.toggle();
-      else if (k === 'MediaPlay') s.command('playVideo');
-      else if (k === 'MediaPause') s.command('pauseVideo');
+      else if (k === 'MediaPlay') s.resume();
+      else if (k === 'MediaPause') s.pause();
     };
     window.addEventListener('keydown', onKey, true);
     // The remote's Play/Pause as the app's native side raises it (MainActivity).
@@ -233,13 +371,20 @@ const TrailerLayer = memo(({ video, onClose, onOpenOutside, kind = 'movie' }: Tr
       const s = keyState.current;
       if (s.failed) return;
       if (m === 'playpause') s.toggle();
-      else if (m === 'play') s.command('playVideo');
-      else if (m === 'pause') s.command('pauseVideo');
+      else if (m === 'play') s.resume();
+      else if (m === 'pause') s.pause();
     });
     return () => { window.removeEventListener('keydown', onKey, true); offMedia(); };
   }, []);
 
   const label = t('live.trailer.watch');
+  // Paused or starting again, on a TV: our card over the frame.
+  const held = !touch && (status === 'paused' || status === 'resuming');
+  const resuming = status === 'resuming';
+  const name = (title ?? '').trim();
+  const timeText = duration > 0
+    ? t('live.trailer.time', { time: formatDuration(Math.min(pausedAt, duration)), duration: formatDuration(duration) })
+    : formatDuration(pausedAt);
   return (
     <div
       ref={rootRef}
@@ -252,10 +397,10 @@ const TrailerLayer = memo(({ video, onClose, onOpenOutside, kind = 'movie' }: Tr
     >
       {!failed && (
         <>
-          <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-            <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
-          </div>
+          {/* Black under its picture: a WebView that draws nothing for a
+              paused or starting embed shows black, never the page or white. */}
           <iframe
+            key={frame.n}
             ref={frameRef}
             data-trailer-frame=""
             src={src}
@@ -267,16 +412,29 @@ const TrailerLayer = memo(({ video, onClose, onOpenOutside, kind = 'movie' }: Tr
             // Its scripts and its own origin (the player needs both); no
             // pop-ups and no taking the page away from the app.
             sandbox="allow-scripts allow-same-origin allow-presentation"
-            className="relative w-full h-full border-0"
+            className="relative w-full h-full border-0 bg-black"
           />
-          {paused && !touch && (
-            <div data-trailer-paused="" className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
-              <span className="flex items-center justify-center w-20 h-20 rounded-full bg-black/70 text-white">
-                <Pause className="w-10 h-10" />
-              </span>
+          {held && (
+            // Opaque: the paused frame may draw nothing (or white) under it.
+            <div
+              data-trailer-paused={status}
+              role="status"
+              className="absolute inset-0 flex items-center justify-center bg-black pointer-events-none"
+            >
+              <div className="max-w-xl w-full mx-6 rounded-3xl border border-brand-gold/40 bg-[#0b1622] px-8 py-7 text-center shadow-2xl">
+                <span className="flex items-center justify-center w-16 h-16 mx-auto mb-3 rounded-full bg-black/40 text-white" aria-hidden="true">
+                  {resuming ? <Loader2 className="w-8 h-8 animate-spin text-brand-gold" /> : <Pause className="w-8 h-8" />}
+                </span>
+                <p className="font-nunito text-sm uppercase tracking-wider text-brand-ice/80">{t('live.trailer.paused')}</p>
+                {name && (
+                  <p data-trailer-title="" className="mt-1 font-quicksand font-bold text-2xl text-white leading-tight line-clamp-2 break-words">{name}</p>
+                )}
+                <p data-trailer-time="" dir="ltr" className="mt-2 font-nunito text-xl text-white/90 tabular-nums">{timeText}</p>
+                <p className="mt-4 font-nunito text-base text-brand-ice/80">{t('live.trailer.pausedHint')}</p>
+              </div>
             </div>
           )}
-          {hint && !touch && (
+          {hint && !held && !touch && (
             <p data-trailer-hint="" className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-black/75 text-white/90 font-nunito text-sm whitespace-nowrap pointer-events-none">
               {t('live.trailer.hint')}
             </p>
@@ -328,7 +486,7 @@ TrailerLayer.displayName = 'TrailerLayer';
 
 /**
  * A trailer full screen over the page that draws it, while it is drawn:
- *   {trailerId && <TrailerOverlay video={trailerId} onClose={() => setTrailerId(null)} />}
+ *   {trailerId && <TrailerOverlay video={trailerId} title={name} onClose={() => setTrailerId(null)} />}
  * Never on a Kids profile: it closes at once there.
  */
 export default function TrailerOverlay(props: TrailerOverlayProps) {
