@@ -1,7 +1,7 @@
 // Multi-Screen (multiview) section. Native-only. Up to 4 tiles rendered by the
 // SnowPlayer native surface BEHIND the transparent WebView; the grid paints
 // chrome only (gaps, borders, labels).
-import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import type { PluginListenerHandle } from '@capacitor/core';
@@ -20,6 +20,8 @@ import {
   type XtreamLiveStream,
 } from '@/lib/xtream';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
+import { useTouchUI } from '@/lib/phoneMode';
+import { overlayOpenAbove } from '@/lib/overlayBack';
 import { loadFavoritesForLine } from '@/lib/favoritesSync';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
@@ -30,7 +32,7 @@ import {
 } from '@/hooks/useMultiScreenPlayers';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
-import { LAYOUT_ORDER, MAIN_TILE, layoutNeighbor, okSwapsIntoMain, soundTile, tilesForLayout, type Layout } from './multiScreenLayout';
+import { LAYOUT_ORDER, LAYOUT_TILE_COUNT, MAIN_TILE, layoutNeighbor, okSwapsIntoMain, soundTile, threeArrangement, threeHintPlace, tilesForLayout, type GridBox, type Layout } from './multiScreenLayout';
 
 // Demo latch (?demo=1) — false on native, so dead code in the APK.
 const DEMO = isDemo();
@@ -44,6 +46,12 @@ interface Props {
   /** The How-to stage (developer build only): draw the layout picker without
    *  the native player. Keys stay off, so nothing native is ever called. */
   previewOnly?: boolean;
+  /** On a TV, while a screen plays and the tiles have the remote: the
+   *  Player's header and side menu step aside (LiveTV), so the screens get
+   *  the whole screen. False on the layout chooser, with nothing playing,
+   *  with the remote on the side menu or the header, and on touch screens
+   *  (no ◀ / ▲ to bring them back there). */
+  onImmersiveChange?: (on: boolean) => void;
 }
 
 interface TileState {
@@ -61,9 +69,10 @@ const HOLD_MS = 600;
 // Once dismissed the 4-grid buffering hint stays hidden for the session.
 let hintDismissedForSession = false;
 
-const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previewOnly = false }: Props) => {
+const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previewOnly = false, onImmersiveChange }: Props) => {
   const { t } = useTranslation();
   const native = hasNativePlayer();
+  const touch = useTouchUI();
   // usePlayerAccount already re-reads on playerAccountRefresh; a second
   // listener here made every refresh run twice.
   const { account } = usePlayerAccount();
@@ -131,6 +140,32 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   // Grid tile refs
   const gridRef = useRef<HTMLDivElement | null>(null);
   const tileRefs = useRef<Array<HTMLDivElement | null>>([null, null, null, null]);
+
+  // Every layout keeps its screens 16:9 and as large as the grid allows, so
+  // the places depend on the grid's size (multiScreenLayout): followed as it
+  // changes (the header and side menu stepping aside or coming back, the
+  // side menu opening wider, a window resized).
+  const [gridBox, setGridBox] = useState<GridBox | undefined>(undefined);
+  const gridBoxRef = useRef(gridBox);
+  gridBoxRef.current = gridBox;
+  useLayoutEffect(() => {
+    if (!layout) return;
+    const el = gridRef.current;
+    if (!el) return;
+    const read = () => {
+      const r = el.getBoundingClientRect();
+      setGridBox((prev) => (prev && Math.round(prev.width) === Math.round(r.width) && Math.round(prev.height) === Math.round(r.height)
+        ? prev : { width: r.width, height: r.height }));
+    };
+    read();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', read);
+      return () => window.removeEventListener('resize', read);
+    }
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [layout]);
 
   // Load categories once, with Favorites bucket first.
   useEffect(() => {
@@ -216,11 +251,33 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     return () => window.clearTimeout(t);
   }, [categoryIdx, pickerOpenForTile, categories, loadChannelsFor]);
 
+  // One screen full screen: the other players keep playing (muted) but are
+  // moved just off the screen's left edge, same size. The native side adds
+  // each new player under the ones made before it, so a screen filled later
+  // and made full screen was drawn UNDER the screens loaded before it
+  // (Tronix 89c42b3 review). Moving a player's frame never reloads it; the
+  // grid's own measure puts them back.
+  const parkOthers = useCallback((fsSid: MultiScreenId) => {
+    const l = layoutRef.current;
+    if (!l) return;
+    const spec = tilesForLayout(l);
+    for (let i = 0; i < LAYOUT_TILE_COUNT[l]; i++) {
+      const sid = spec[i].id;
+      const el = tileRefs.current[i];
+      if (sid === fsSid || !el || !slotsRef.current[sid]?.url) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      void applyRect(sid, { x: -Math.ceil(r.width) - 16, y: r.top, width: r.width, height: r.height });
+    }
+  }, [applyRect]);
+
   // Measure tiles → applyRect for each occupied slot.
   const measureAndApply = useCallback(() => {
     if (!layout) return;
     if (fullscreenSlotRef.current) {
-      // Fullscreen: single slot to native fullscreen (w/h<=0)
+      // Fullscreen: single slot to native fullscreen (w/h<=0), the others
+      // parked off screen (parkOthers).
+      parkOthers(fullscreenSlotRef.current);
       void applyRect(fullscreenSlotRef.current, { x: 0, y: 0, width: 0, height: 0 });
       return;
     }
@@ -235,17 +292,18 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       const r = el.getBoundingClientRect();
       void applyRect(sid, { x: r.left, y: r.top, width: r.width, height: r.height });
     }
-  }, [layout, applyRect]);
+  }, [layout, applyRect, parkOthers]);
 
   // Re-measure when a tile gains or loses a stream — not on every buffering
-  // flip, which used to re-measure every tile and re-bind the listeners.
+  // flip, which used to re-measure every tile and re-bind the listeners —
+  // and when the grid changes size (the tiles have moved with it).
   const occupiedKey = MS_SLOT_IDS.map((id) => (slots[id].url ? '1' : '0')).join('');
   useEffect(() => {
     if (!layout) return;
     // Rect after layout/paint
     const raf = requestAnimationFrame(() => measureAndApply());
     return () => cancelAnimationFrame(raf);
-  }, [layout, fullscreenSlot, measureAndApply, tiles, occupiedKey]);
+  }, [layout, fullscreenSlot, measureAndApply, tiles, occupiedKey, gridBox]);
 
   useEffect(() => {
     const onResize = () => measureAndApply();
@@ -294,17 +352,6 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     }, 1000);
     return () => window.clearInterval(id);
   }, [layout, slots, showHint]);
-
-  // Teardown on isActive=false / unmount
-  useEffect(() => {
-    if (isActive) return;
-    void stopAll();
-    setLayout(null);
-    setFullscreenSlot(null);
-    setTileMenuOpen(false);
-    setPickerOpenForTile(null);
-    setTiles([{ channel: null }, { channel: null }, { channel: null }, { channel: null }]);
-  }, [isActive, stopAll]);
 
   // ── Handlers ───────────────────────────────────────────────────────────
   const chooseLayout = useCallback((l: Layout) => {
@@ -415,11 +462,12 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     if (!sid) return;
     setFullscreenSlot(sid);
     fullscreenSlotRef.current = sid;
-    // The other tiles keep playing on purpose: the viewer watches them to
-    // know when to switch.
+    // The other tiles keep playing on purpose (the viewer goes back to them
+    // to switch), parked off screen so none is drawn over this one.
+    parkOthers(sid);
     await applyRect(sid, { x: 0, y: 0, width: 0, height: 0 });
     await focusAudio(sid);
-  }, [layout, applyRect, focusAudio]);
+  }, [layout, applyRect, focusAudio, parkOthers]);
 
   const exitFullscreen = useCallback(() => {
     setFullscreenSlot(null);
@@ -433,6 +481,48 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       void focusAudio(fsid && slotsRef.current[fsid]?.url ? fsid : null);
     });
   }, [measureAndApply, focusAudio]);
+
+  // The remote leaving the section for the side menu or the header (◀ at the
+  // tiles' left edge, ▲ at their top): the tiles go on playing (Tronix's
+  // build 41 QA review: stopping them there and loading every stream again
+  // on the way back was up to four reloads for one ◀ too many; here it also
+  // threw the layout away). Only its pop-ups close, and one screen full
+  // screen goes back into the grid. The header and side menu come back and
+  // the grid shrinks: the screens are measured again once it has, so the
+  // pictures stay inside their frames. Everything stops when the section
+  // goes (another section, Settings, the Player closing: the players'
+  // unmount) or on Back from the tiles (the layout choice, below).
+  useEffect(() => {
+    if (!isActive) {
+      setTileMenuOpen(false);
+      setPickerOpenForTile(null);
+      if (fullscreenSlotRef.current) { exitFullscreen(); return; }
+    }
+    let inner = 0;
+    const outer = requestAnimationFrame(() => { inner = requestAnimationFrame(() => measureAndApply()); });
+    return () => { cancelAnimationFrame(outer); cancelAnimationFrame(inner); };
+    // Only when the remote comes or goes (exitFullscreen measures itself).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive]);
+
+  // On a TV, while a screen plays and the tiles have the remote, the
+  // Player's header and side menu step aside (owner, 2026-10-11: "removing
+  // the top and side border and making the screens larger"). ◀ off the left
+  // edge and ▲ off the top still hand the remote to them (isActive goes
+  // false: they come back, and the grid is measured again as it shrinks);
+  // back on the tiles they step aside again.
+  const immersive = native && !touch && isActive && !!layout && tiles.some((tile) => !!tile.channel);
+  useEffect(() => { onImmersiveChange?.(immersive); }, [immersive, onImmersiveChange]);
+  useEffect(() => () => onImmersiveChange?.(false), [onImmersiveChange]);
+
+  /** "3 screens": a small screen whose stream failed. OK there tries it
+   *  again (a dead stream is not swapped up to take the sound). */
+  const smallFailed = useCallback((idx: number) => {
+    const l = layoutRef.current;
+    if (!l || !okSwapsIntoMain(l, idx)) return false;
+    const sid = tilesForLayout(l)[idx]?.id;
+    return !!sid && !!slotsRef.current[sid]?.error;
+  }, []);
 
   // Categories virtualizer
   const catScrollRef = useRef<HTMLDivElement | null>(null);
@@ -487,6 +577,11 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       const target = e.target as HTMLElement | null;
       const typing = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
       if (typing) return;
+      // A held OK is one press: its repeats open nothing more. Held on the big
+      // screen it used to walk the menu → Change channel → the picker → the
+      // first channel, and replace the stream (Tronix 89c42b3 review). The
+      // small screens' hold is timed (HOLD_MS), not counted in repeats.
+      if ((e.key === 'Enter' || e.key === ' ') && e.repeat) { consume(e); return; }
 
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
       // One press of the remote's Back can arrive twice (the key itself and
@@ -584,12 +679,20 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       }
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         const dir = e.key === 'ArrowUp' ? 'up' : e.key === 'ArrowDown' ? 'down' : e.key === 'ArrowLeft' ? 'left' : 'right';
-        const n = layoutNeighbor(layoutRef.current, focusedTileRef.current, dir);
+        const n = layoutNeighbor(layoutRef.current, focusedTileRef.current, dir, threeArrangement(gridBoxRef.current));
         if (n !== null) {
           consume(e);
           // Audio follows via the focusedSid effect.
           setFocusedTile(n);
+          return;
         }
+        // No tile that way: Left at the tiles' edge and Up at their top hand
+        // the remote to the side menu and the header, as the layout cards
+        // above and every other section do. On a TV that also brings them
+        // back (they step aside while screens play); the tiles go on playing
+        // meanwhile (see "The remote leaving the section").
+        if (e.key === 'ArrowLeft') { consume(e); onExitLeft(); return; }
+        if (e.key === 'ArrowUp') { consume(e); onExitUp(); return; }
         return;
       }
       // The remote's Menu (≡): the highlighted screen's options, on any
@@ -610,6 +713,8 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
           if (e.repeat || holdTimerRef.current || holdFiredRef.current) return;
           holdTimerRef.current = window.setTimeout(() => {
             holdTimerRef.current = null;
+            // A pop-up came up over the screens meanwhile: it has the remote.
+            if (overlayOpenAbove(gridRef.current?.parentElement)) return;
             holdFiredRef.current = true;
             openTileMenu();
           }, HOLD_MS);
@@ -624,8 +729,19 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       if (holdTimerRef.current) {
         window.clearTimeout(holdTimerRef.current);
         holdTimerRef.current = null;
+        // A pop-up over the screens (or a listener before this one) took the
+        // key: no swap behind it, the hold just ends.
+        if (e.defaultPrevented || overlayOpenAbove(gridRef.current?.parentElement)) { holdFiredRef.current = false; return; }
         const tIdx = focusedTileRef.current;
-        if (layoutRef.current && okSwapsIntoMain(layoutRef.current, tIdx) && tilesRef.current[tIdx]?.channel) void swapIntoMain(tIdx);
+        const tile = tilesRef.current[tIdx];
+        if (layoutRef.current && okSwapsIntoMain(layoutRef.current, tIdx) && tile?.channel) {
+          // A small screen whose stream failed: OK tries it again, as its
+          // "OK to retry" says, rather than swapping a dead stream up into
+          // the big screen and the sound with it (Tronix 89c42b3 review).
+          // Held, it still opens its options (Change channel, Close).
+          if (smallFailed(tIdx)) void openTileForChannel(tIdx, tile.channel);
+          else void swapIntoMain(tIdx);
+        }
       }
       holdFiredRef.current = false;
     };
@@ -636,7 +752,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       window.removeEventListener('keyup', upHandler, true);
       if (holdTimerRef.current) { window.clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
     };
-  }, [isActive, native, chooseLayout, enterFullscreen, openPickerForTile, closeTile, exitFullscreen, stopAll, openTileForChannel, focusAudio, onExitLeft, onExitUp, swapIntoMain]);
+  }, [isActive, native, chooseLayout, enterFullscreen, openPickerForTile, closeTile, exitFullscreen, stopAll, openTileForChannel, focusAudio, onExitLeft, onExitUp, swapIntoMain, smallFailed, openTileMenu]);
 
   // Hardware back
   useEffect(() => {
@@ -725,7 +841,13 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   }
 
   // Grid mode
-  const spec = tilesForLayout(layout);
+  const spec = tilesForLayout(layout, gridBox);
+  // "3 screens": the swap hint, in the free corner beside the small screens,
+  // while the highlighted small screen is not showing its own "OK to retry"
+  // (one hint at a time).
+  const hintPlace = layout === '3' ? threeHintPlace(gridBox) : null;
+  const highlightedSid = spec[focusedTile]?.id;
+  const focusedSmallFailed = okSwapsIntoMain(layout, focusedTile) && !!tiles[focusedTile]?.channel && !!(highlightedSid && slots[highlightedSid]?.error);
   return (
     // NO background here. The native tiles render BEHIND the WebView, so every
     // DOM ancestor of the grid has to be transparent or they are simply
@@ -741,7 +863,9 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         {spec.map((sp, i) => {
           const tile = tiles[i];
           const s = slots[sp.id];
-          const isFocused = focusedTile === i;
+          // Not while the side menu or the header has the remote (the tiles
+          // play on behind it): one highlight on screen.
+          const isFocused = isActive && focusedTile === i;
           const occupied = !!tile?.channel;
           const chromeHidden = fullscreenSlot === sp.id;
           return (
@@ -758,6 +882,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
               }}
             >
               <div
+                data-ms-tile={i}
                 data-focused={isFocused && !chromeHidden ? 'true' : 'false'}
                 className={`tv-ring ms-tile w-full h-full rounded-md relative ${
                   occupied ? '' : 'bg-black'
@@ -804,9 +929,13 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         })}
       </div>
 
-      {/* 3 screens: how to swap, in the free space beside the big screen */}
-      {layout === '3' && !fullscreenSlot && !tileMenuOpen && (
-        <div data-ms-swap-hint="" className="absolute left-[1%] bottom-[38%] w-[13%] text-xs text-brand-ice/70 font-nunito leading-snug pointer-events-none">
+      {/* 3 screens: how to swap, in the free corner beside the small screens */}
+      {hintPlace && !fullscreenSlot && !tileMenuOpen && !focusedSmallFailed && (
+        <div
+          data-ms-swap-hint=""
+          style={{ position: 'absolute', left: hintPlace.left, top: hintPlace.top, width: hintPlace.width, height: hintPlace.height }}
+          className="flex items-center justify-center p-3 text-center text-xs text-brand-ice/70 font-nunito leading-snug pointer-events-none overflow-hidden"
+        >
           {t('live.multi.swapHint')}
         </div>
       )}
