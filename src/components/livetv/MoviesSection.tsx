@@ -38,6 +38,9 @@ import VodPlayer from './VodPlayer';
 import FitPoster from './FitPoster';
 import { noteFilmFinished, noteFilmProgress } from '@/lib/watchedMarks';
 import { useWatchedFilms } from '@/hooks/useWatchedVod';
+import TrailerButton from './TrailerButton';
+import TrailerOverlay from './TrailerOverlay';
+import { movieTrailer, openTrailer } from '@/lib/trailer';
 
 interface Props {
   creds: XtreamCreds;
@@ -122,8 +125,30 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   const [selectedMovie, setSelectedMovie] = useState<XtreamVodStream | null>(null);
   const [movieInfo, setMovieInfo] = useState<XtreamVodInfo | null>(null);
   const [infoLoading, setInfoLoading] = useState(false);
+  // The film page's buttons: Play, and Trailer on its own line under it once
+  // the page's info is in (its video, else a search; none on a Kids profile).
+  // ▼ from Play reaches it, ▲ goes back (Tronix 1039497).
+  const [detailFocus, setDetailFocus] = useState<'play' | 'trailer'>('play');
+  const detailFocusRef = useRef(detailFocus);
+  detailFocusRef.current = detailFocus;
+  const trailer = useMemo(() => (selectedMovie && !infoLoading ? movieTrailer(selectedMovie, movieInfo) : null), [selectedMovie, movieInfo, infoLoading]);
+  const trailerRef = useRef(trailer);
+  trailerRef.current = trailer;
+  // The trailer playing over the page (TrailerOverlay), by its video id. While
+  // it is up the page's keys stand aside: the layer owns the remote.
+  const [trailerVideo, setTrailerVideo] = useState<string | null>(null);
+  const trailerVideoRef = useRef(trailerVideo);
+  const showTrailer = useCallback((id: string | null) => { trailerVideoRef.current = id; setTrailerVideo(id); }, []);
+  const closeTrailer = useCallback(() => showTrailer(null), [showTrailer]);
+  const pressTrailer = useCallback(() => {
+    const target = trailerRef.current;
+    if (target) void openTrailer(target, 'movie', showTrailer);
+  }, [showTrailer]);
 
   const [playing, setPlaying] = useState<{ url: string; title: string; streamId: number } | null>(null);
+  // Off the film's page, or playing: no trailer (the page's keys never wait
+  // on a layer that is not drawn).
+  useEffect(() => { if (pane !== 'detail' || !selectedMovie || playing) showTrailer(null); }, [pane, selectedMovie, playing, showTrailer]);
   // On-screen title: shows 4 s on play / title change / any key, then hides.
   const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [demoNotice, setDemoNotice] = useState(false);
@@ -312,6 +337,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     const seq = ++openSeqRef.current;
     setSelectedMovie(m);
     setMovieInfo(null);
+    setDetailFocus('play');
     setPane('detail');
     setInfoLoading(true);
     try {
@@ -380,6 +406,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
 
       // The player owns every key while it plays (VodPlayer's bar: Back, seek, volume).
       if (playingRef.current) return;
+      // So does a trailer over the film's page (TrailerOverlay: OK pauses, Back closes it).
+      if (trailerVideoRef.current) return;
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
@@ -461,12 +489,21 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       }
 
       if (paneRef.current === 'detail') {
-        if (e.key === 'Enter' || e.key === ' ') playMovie();
+        // Play, and Trailer on the line under it (owner via Tronix, 2026-10-10:
+        // "you cant just drop down from 'play movie' to go to trailer"): ▼
+        // reaches it, ▲ goes back to Play, ◀ ▶ there do nothing.
+        const onTrailer = detailFocusRef.current === 'trailer' && !!trailerRef.current;
+        if (e.key === 'ArrowDown' && trailerRef.current) setDetailFocus('trailer');
+        else if (e.key === 'ArrowUp') setDetailFocus('play');
+        else if (e.key === 'Enter' || e.key === ' ') {
+          if (onTrailer) { if (!e.repeat) pressTrailer(); }
+          else playMovie();
+        }
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, onExitUp, openMovie, playMovie]);
+  }, [isActive, onExitLeft, onExitUp, openMovie, playMovie, pressTrailer]);
 
   // --- Virtualize grid by rows ---
   const gridScrollRef = useRef<HTMLDivElement | null>(null);
@@ -546,6 +583,15 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     return () => window.removeEventListener('keydown', handler, true);
   }, [demoNotice]);
 
+  // The film page's text column: the highlighted button stays in view (a big
+  // font size can push Trailer's line under the bottom of the screen).
+  const detailTextRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = detailTextRef.current;
+    const el = node?.querySelector<HTMLElement>('[data-detail-btn][data-focused="true"]');
+    if (node && el) keepInView(node, el, 8);
+  }, [detailFocus, trailer, pane]);
+
   const demoNoticeOverlay = demoNotice ? (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-6"
       role="dialog" aria-modal="true">
@@ -589,6 +635,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   if (pane === 'detail' && selectedMovie) {
     const info = movieInfo?.info;
     const cover = tmdbSized(info?.movie_image || info?.cover_big || selectedMovie.stream_icon, 'w500');
+    // Play keeps the highlight unless it is on a Trailer that is drawn.
+    const playLit = isActive && !demoNotice && (detailFocus !== 'trailer' || !trailer);
+    const trailerLit = isActive && !demoNotice && detailFocus === 'trailer' && !!trailer;
     return (
       <div data-movie-detail="" className="flex-1 min-h-0 min-w-0 flex flex-col text-white bg-black/40">
         {/* No Back button of its own: the screen's top bar has one, and the
@@ -597,7 +646,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
             the bottom edge; the text beside it scrolls if it ever must. */}
         <div className="flex-1 min-h-0 flex px-8 pt-4 pb-6" data-detail-body="">
           <FitPoster src={cover} maxWidth={300} className="mr-8" />
-          <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden max-w-3xl px-2 py-2">
+          <div ref={detailTextRef} className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden max-w-3xl px-2 py-2">
             <h2 className="text-3xl font-quicksand font-bold leading-tight line-clamp-2 mb-3">{selectedMovie.name}</h2>
             <div className="flex flex-wrap items-center text-sm text-brand-ice/80 font-nunito mb-4">
               {watchedFilms.has(Number(selectedMovie.stream_id)) && (
@@ -622,17 +671,31 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
             )}
             <Button
               variant="gold"
-              onClick={playMovie}
+              onClick={() => { setDetailFocus('play'); playMovie(); }}
               autoFocus
-              data-focused={isActive && !demoNotice ? 'true' : 'false'}
-              className="tv-ring tv-ring-contrast h-12 rounded-xl text-xl px-8 transition-transform duration-150 ease-out scale-105 z-10"
+              data-detail-btn="play"
+              data-focused={playLit ? 'true' : 'false'}
+              className={`tv-ring tv-ring-contrast h-12 rounded-xl text-xl px-8 transition-transform duration-150 ease-out ${playLit ? 'scale-105 z-10' : ''}`}
             >
               <Play className="w-5 h-5 mr-2 fill-current" />
               {t('live.vod.playMovieBtn')}
             </Button>
+            {/* Trailer on its own line under Play: ▼ from Play, ▲ back. */}
+            {trailer && (
+              <div data-movie-trailer-line="" className="mt-3">
+                <TrailerButton
+                  target={trailer}
+                  detailBtn="trailer"
+                  focused={trailerLit}
+                  onPress={() => { setDetailFocus('trailer'); pressTrailer(); }}
+                  className={`tv-ring h-11 rounded-xl text-lg px-5 bg-black/40 border-white/20 text-white transition-transform duration-150 ease-out ${trailerLit ? 'scale-105 z-10' : ''}`}
+                />
+              </div>
+            )}
           </div>
         </div>
         {demoNoticeOverlay}
+        {trailerVideo && <TrailerOverlay video={trailerVideo} kind="movie" onClose={closeTrailer} />}
       </div>
     );
   }

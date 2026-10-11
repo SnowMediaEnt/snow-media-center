@@ -145,6 +145,7 @@
       "seriesLabel": "Series"
     },
     "toast": {
+      "trailerNoneTitle": "No app on this device can show the trailer.",
       "liveDemoTitle": "Live demo",
       "liveDemoDesc": "The demo is pre-loaded with a demo account — sign-in and account switching work in the installed app.",
       "signedOutTitle": "Signed out",
@@ -360,6 +361,15 @@
       "episodes": "Episodes",
       "noEpisodes": "No episodes",
       "episodeN": "Episode {{n}}"
+    },
+    "trailer": {
+      "openBtn": "Trailer",
+      "watch": "Watch trailer",
+      "find": "Find the trailer",
+      "hint": "OK: pause or play · Back: close",
+      "cantPlay": "This trailer can't play here.",
+      "openOutsideBtn": "Open outside the app",
+      "backHint": "Back closes this."
     },
     "vodChooser": {
       "title": "What would you like to watch?",

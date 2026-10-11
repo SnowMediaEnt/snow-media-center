@@ -102,6 +102,8 @@ export interface XtreamVodInfo {
     duration?: string;
     cast?: string;
     director?: string;
+    /** The trailer: a video id, sometimes a whole link, often empty (lib/trailer reads it). */
+    youtube_trailer?: string;
   };
   movie_data?: {
     stream_id: number;
@@ -146,6 +148,8 @@ export interface XtreamSeriesInfo {
     rating?: string | number;
     cast?: string;
     director?: string;
+    /** The trailer: a video id, sometimes a whole link, often empty (lib/trailer reads it). */
+    youtube_trailer?: string;
   };
   seasons?: Array<{ season_number: number; name?: string; cover?: string; episode_count?: number }>;
   episodes?: Record<string, XtreamEpisode[]>; // keyed by season number
