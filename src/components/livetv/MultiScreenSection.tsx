@@ -68,6 +68,8 @@ const HOLD_MS = 600;
 
 // Once dismissed the 4-grid buffering hint stays hidden for the session.
 let hintDismissedForSession = false;
+/** How long the 4-screen buffering hint stays up before it goes by itself. */
+const HINT_SHOWN_MS = 10_000;
 
 const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previewOnly = false, onImmersiveChange }: Props) => {
   const { t } = useTranslation();
@@ -88,6 +90,18 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   const [categoryIdx, setCategoryIdx] = useState(0);
   const [channelIdx, setChannelIdx] = useState(0);
   const [showHint, setShowHint] = useState(false);
+  const showHintRef = useRef(showHint);
+  showHintRef.current = showHint;
+  // The buffering hint's OK was a button the remote could not reach (owner,
+  // 2026-10-11: "I am unable to get down and press the button to make it go
+  // away"): it now goes by itself after HINT_SHOWN_MS, and Back closes it
+  // first (one step) before Back does anything else. A tap still works.
+  const dismissHint = useCallback(() => { hintDismissedForSession = true; setShowHint(false); }, []);
+  useEffect(() => {
+    if (!showHint) return;
+    const id = window.setTimeout(dismissHint, HINT_SHOWN_MS);
+    return () => window.clearTimeout(id);
+  }, [showHint, dismissHint]);
 
   // Hold OK on a small screen of the 3-screen layout: its options.
   const holdTimerRef = useRef<number | null>(null);
@@ -592,6 +606,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         const now = Date.now();
         if (now - lastBackAtRef.current < 350) { consume(e); return; }
         lastBackAtRef.current = now;
+        if (showHintRef.current) { consume(e); dismissHint(); return; }
       }
 
       // Layout picker screen. Left off the first option and Up hand the
@@ -1082,7 +1097,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
             {t('live.multi.bufferingHint')}
           </div>
           <button
-            onClick={() => { hintDismissedForSession = true; setShowHint(false); }}
+            onClick={dismissHint}
             className="px-5 py-3 rounded-xl bg-brand-gold/25 border border-brand-gold text-white text-sm font-quicksand font-semibold"
           >
             {t('common.ok')}
