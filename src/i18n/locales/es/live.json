@@ -342,7 +342,7 @@
       "noSoundBody": "El audio de este título ({{codecs}}) no se puede decodificar en este dispositivo. Infórmalo en Soporte y lo revisaremos.",
       "nextEpisode": "Siguiente episodio",
       "watched": "Visto",
-      "watchedUpTo": "Visto hasta {{code}}",
+      "watchedUpTo": "Último visto: {{code}}",
       "watchedCode": "T{{season}}E{{episode}}",
       "inProgress": "Empezado"
     },

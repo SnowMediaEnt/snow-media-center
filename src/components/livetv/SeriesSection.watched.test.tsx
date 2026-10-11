@@ -1,9 +1,10 @@
 // TV Shows marks what the viewer has watched (owner, 2026-10-10: "Can we
 // double check that all movies and episodes watched gets a check mark and
-// then entire seasons as well please"): a gold check on the show's poster
-// with the episode watched last; on its page a check by each episode watched
-// to the end, a bar under one begun, and a check by a season watched to the
-// end. Playing an episode marks it. Ported from Tronix 416bb91c.
+// then entire seasons as well please"): on a show's poster the episode
+// watched last after the year, and a gold check once every episode was
+// watched; on its page a check by each episode watched to the end, a bar
+// under one begun, and a check by a season watched to the end. Playing an
+// episode marks it. Ported from Tronix 416bb91c.
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -60,7 +61,7 @@ vi.mock('./VodPlayer', () => ({
 }));
 
 import SeriesSection from './SeriesSection';
-import { episodeMark, noteEpisodeFinished, noteEpisodeProgress, readWatchedMarks, showKey } from '@/lib/watchedMarks';
+import { __resetWatchedMarksForTests, episodeMark, noteEpisodeFinished, noteEpisodeProgress, noteShowSize, readWatchedMarks, showKey } from '@/lib/watchedMarks';
 import { __setViewerForTests } from '@/lib/viewer';
 
 const creds = { host: 'http://h.test', username: 'u', password: 'p', output: 'ts', serverLabel: 'Acme TV' } as never;
@@ -72,7 +73,7 @@ const badge = (name: string) => tile(name)?.querySelector('[data-watched]') ?? n
 const row = (i: number) => document.querySelector(`[data-episode-i="${i}"]`);
 const seasonRow = (i: number) => document.querySelector(`[data-season-i="${i}"]`);
 
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); __setViewerForTests('device'); });
+beforeEach(() => { localStorage.clear(); sessionStorage.clear(); __resetWatchedMarksForTests(); __setViewerForTests('device'); });
 afterEach(() => { cleanup(); });
 
 /** TV Shows on a TV, its grid open on Drama. */
@@ -88,14 +89,36 @@ const toGrid = async () => {
 };
 
 describe('TV Shows: watched shows and episodes', () => {
-  it("a watched show's poster: a gold check with the episode watched last; an unwatched one: none", async () => {
+  it("a begun show's poster: the episode watched last after the year, no check (a check means watched); an unwatched one: nothing", async () => {
     noteEpisodeFinished(creds, 100, { id: '10', season: 1, num: '1' });
     noteEpisodeProgress(creds, 100, { id: '11', season: 1, num: '2' }, 600, 2400);
     await toGrid();
-    // A round check in the corner, the episode after the year.
-    expect(badge('Harbor Lights')?.getAttribute('aria-label')).toBe('Watched up to S1E2');
-    expect(tile('Harbor Lights')?.querySelector('[data-watched-code]')?.textContent).toBe('S1E2');
+    expect(badge('Harbor Lights')).toBeNull();
+    const code = tile('Harbor Lights')?.querySelector('[data-watched-code]');
+    expect(code?.textContent).toBe('S1E2');
+    expect(code?.getAttribute('aria-label')).toBe('Last watched S1E2');
     expect(badge('Night Shift')).toBeNull();
+    expect(tile('Night Shift')?.querySelector('[data-watched-code]')).toBeNull();
+  });
+
+  it('a show whose every episode was watched: the gold check, until it has a new episode', async () => {
+    for (const ep of [{ id: '10', season: 1, num: '1' }, { id: '11', season: 1, num: '2' }, { id: '21', season: 2, num: '1' }]) {
+      noteEpisodeFinished(creds, 100, ep);
+    }
+    noteShowSize(creds, 100, 3);
+    await toGrid();
+    expect(badge('Harbor Lights')?.getAttribute('aria-label')).toBe('Watched');
+    expect(badge('Harbor Lights')?.className).toContain('bg-brand-gold');
+    act(() => { noteShowSize(creds, 100, 4); }); // a new episode came out
+    await until(() => !badge('Harbor Lights'));
+    expect(badge('Harbor Lights')).toBeNull();
+  });
+
+  it('a "watched" mark needs no number from the panel: no "S1Eundefined"', async () => {
+    noteEpisodeProgress(creds, 100, { id: '10', season: 1 }, 600, 2400);
+    await toGrid();
+    expect(tile('Harbor Lights')?.textContent).not.toContain('undefined');
+    expect(tile('Harbor Lights')?.querySelector('[data-watched-code]')).toBeNull();
   });
 
   it('its page: a check by an episode watched to the end, a bar under one begun, a check by a season watched to the end', async () => {
@@ -129,23 +152,28 @@ describe('TV Shows: watched shows and episodes', () => {
     expect(show()).toBeUndefined(); // half a minute: not yet
     act(() => { player.progress!(90, 2400); });
     expect(episodeMark(show(), '10')).toBe(1);
+    act(() => { player.progress!(2000, 2400); }); // 83%: still only begun
+    expect(episodeMark(show(), '10')).toBe(1);
     act(() => { player.end!(); });
     expect(episodeMark(show(), '10')).toBe(2);
     await until(() => !document.querySelector('[data-testid="vod-player"]'));
     await until(() => !!row(0));
     expect(row(0)?.getAttribute('data-watched')).toBe('done');
     expect(seasonRow(0)?.querySelector('[data-season-watched]')).toBeNull(); // The Letter is left
-    // The Letter, played to 96%.
+    // The Letter, stopped at the credits (93%).
     key('ArrowDown');
     key('Enter');
     await until(() => !!document.querySelector('[data-testid="vod-player"]'));
-    act(() => { player.progress!(2310, 2400); });
+    act(() => { player.progress!(2230, 2400); });
     act(() => { player.close!(); });
     await until(() => !!row(1));
     expect(row(1)?.getAttribute('data-watched')).toBe('done');
     expect(seasonRow(0)?.querySelector('[data-season-watched]')).toBeTruthy();
+    // The page kept how many episodes the show has (3: season 2 is left).
+    expect(show().n).toBe(3);
     key('Escape'); // the grid
-    await until(() => !!badge('Night Shift'));
-    expect(badge('Night Shift')?.getAttribute('aria-label')).toBe('Watched up to S1E2');
+    await until(() => !!tile('Night Shift')?.querySelector('[data-watched-code]'));
+    expect(tile('Night Shift')?.querySelector('[data-watched-code]')?.getAttribute('aria-label')).toBe('Last watched S1E2');
+    expect(badge('Night Shift')).toBeNull();
   });
 });

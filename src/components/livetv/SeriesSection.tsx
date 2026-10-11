@@ -36,7 +36,7 @@ import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import VodPlayer from './VodPlayer';
 import { PosterFrame } from './FitPoster';
-import { episodeMark, episodePart, noteEpisodeFinished, noteEpisodeProgress, seasonWatched, type ShowMark, type WatchedEpisodeRef } from '@/lib/watchedMarks';
+import { episodeMark, episodePart, noteEpisodeFinished, noteEpisodeProgress, noteShowSize, seasonWatched, showWatched, type ShowMark, type WatchedEpisodeRef } from '@/lib/watchedMarks';
 import { useWatchedShows } from '@/hooks/useWatchedVod';
 
 interface Props {
@@ -285,21 +285,33 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
   // The open show's marks, and its seasons whose every episode was watched:
   // worked out when the marks or the page change, not on every move of the
   // highlight.
-  const shownMark = selectedSeries ? watchedShows.get(selectedSeries.series_id) : undefined;
+  const shownMark = selectedSeries ? watchedShows.get(Number(selectedSeries.series_id)) : undefined;
   const seasonsDone = useMemo(
     () => new Set(seasons.filter((x) => seasonWatched(shownMark, x.episodes.map((e) => e.id))).map((x) => x.number)),
     [seasons, shownMark],
   );
+  // A begun show keeps how many episodes it has, for its poster's check.
+  const shownEpisodes = useMemo(() => seasons.reduce((n, x) => n + x.episodes.length, 0), [seasons]);
+  useEffect(() => {
+    if (selectedSeries && shownMark && shownEpisodes > 0) {
+      try { noteShowSize(creds, selectedSeries.series_id, shownEpisodes); } catch { /* ignore */ }
+    }
+  }, [creds, selectedSeries, shownMark, shownEpisodes]);
   const watchedLabel = t('live.vod.watched');
-  // A begun show's poster: its check, read out with the episode watched last,
-  // which also goes after the year ('' when not known). Once per change of
-  // the marks, so a move through the grid only looks them up.
+  // A show's poster: the check once every episode it had was watched (as a
+  // film's: a check means watched, never just begun), and the episode
+  // watched last after the year ('' when not known). Once per change of the
+  // marks, so a move through the grid only looks them up.
   const showBadges = useMemo(() => {
-    const out = new Map<number, { label: string; code: string }>();
+    const out = new Map<number, { watched: string | null; code: string; codeLabel?: string }>();
     watchedShows.forEach((m: ShowMark, id) => {
       const l = m.last;
       const code = l && l.season != null && l.num ? t('live.vod.watchedCode', { season: l.season, episode: l.num }) : '';
-      out.set(id, { label: code ? t('live.vod.watchedUpTo', { code }) : t('live.vod.watched'), code });
+      out.set(id, {
+        watched: showWatched(m) ? t('live.vod.watched') : null,
+        code,
+        codeLabel: code ? t('live.vod.watchedUpTo', { code }) : undefined,
+      });
     });
     return out;
   }, [watchedShows, t]);
@@ -346,7 +358,12 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
       seasonIdx: sIdx,
       episodeIdx: eIdx,
       seriesId: selectedSeries.series_id,
-      episode: { id: String(ep.id), season: season.number, num: String(ep.episode_num) },
+      // No number from the panel: no "S1E" code on the poster rather than "S1Eundefined".
+      episode: {
+        id: String(ep.id),
+        season: season.number,
+        num: ep.episode_num != null && String(ep.episode_num).trim() ? String(ep.episode_num) : undefined,
+      },
     });
     try {
       trackEvent('series_play', 'player', {
@@ -665,7 +682,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
           try { trackEvent('player_error', 'player', { kind: 'series', channel_or_title: playing.title, server: creds.serverLabel, message: msg.slice(0, 200) }); } catch { /* ignore */ }
         }}
         // Watched marks: the show and the episode begun after a minute, the
-        // episode watched at 95% or its end.
+        // episode watched at 92%, its last minute or its end.
         onProgress={(pos, dur) => { try { noteEpisodeProgress(creds, playing.seriesId, playing.episode, pos, dur); } catch { /* ignore */ } }}
         onEnded={() => {
           try { noteEpisodeFinished(creds, playing.seriesId, playing.episode); } catch { /* ignore */ }
@@ -939,7 +956,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
                   {rowItems.map((s, ci) => {
                     const i = rowStart + ci;
                     const isFocused = isActive && pane === 'grid' && i === gridIdx;
-                    const badge = showBadges.get(s.series_id);
+                    const badge = showBadges.get(Number(s.series_id));
                     return (
                       <div key={s.series_id}>
                         <PosterCard
@@ -949,8 +966,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
                           year={s.releaseDate ? String(s.releaseDate).slice(0, 4) : undefined}
                           isFocused={isFocused}
                           variant="series"
-                          watched={badge ? badge.label : null}
+                          watched={badge ? badge.watched : null}
                           watchedCode={badge?.code || undefined}
+                          watchedCodeLabel={badge?.codeLabel}
                           index={i}
                           onFocus={onTileFocus}
                           onActivate={onTileActivate}

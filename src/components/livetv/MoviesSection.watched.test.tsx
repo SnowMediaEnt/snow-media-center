@@ -43,7 +43,7 @@ vi.mock('./VodPlayer', () => ({
 }));
 
 import MoviesSection from './MoviesSection';
-import { noteFilmFinished, noteFilmProgress } from '@/lib/watchedMarks';
+import { __resetWatchedMarksForTests, filmKey, noteFilmFinished, noteFilmProgress, readWatchedFilms } from '@/lib/watchedMarks';
 import { __setViewerForTests } from '@/lib/viewer';
 
 const creds = { host: 'http://panel.example:8080', username: 'user1', password: 'pass1', serverLabel: 'Test' } as never;
@@ -55,7 +55,7 @@ const tile = (name: string) => [...document.querySelectorAll('[data-vod-grid] *'
 const badge = (name: string) => tile(name)?.querySelector('[data-watched]') ?? null;
 const pageBadge = () => document.querySelector('[data-movie-detail] [data-watched]');
 
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); __setViewerForTests('device'); });
+beforeEach(() => { localStorage.clear(); sessionStorage.clear(); __resetWatchedMarksForTests(); __setViewerForTests('device'); });
 afterEach(() => { cleanup(); });
 
 const toGrid = async () => {
@@ -84,7 +84,7 @@ describe('Movies: watched films', () => {
     expect(pageBadge()?.textContent).toBe('Watched');
   });
 
-  it('playing a film marks it at 95%: the poster and the page show it once back', async () => {
+  it('playing a film marks it at 92%: the poster and the page show it once back', async () => {
     await toGrid();
     expect(badge('Big Film')).toBeNull();
     key('Enter'); // its page
@@ -93,7 +93,9 @@ describe('Movies: watched films', () => {
     key('Enter'); // play
     await until(() => !!document.querySelector('[data-testid="vod-player"]'));
     act(() => { player.progress!(90, 6000); }); // begun: not marked
-    act(() => { player.progress!(5750, 6000); });
+    act(() => { player.progress!(5400, 6000); }); // 90%: not yet
+    expect(readWatchedFilms()[filmKey(creds, 77)]).toBeUndefined();
+    act(() => { player.progress!(5560, 6000); }); // the credits (93%)
     act(() => { player.close!(); });
     await until(() => !!document.querySelector('[data-movie-detail]'));
     expect(pageBadge()?.textContent).toBe('Watched');

@@ -557,7 +557,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
         onError={(msg) => {
           try { trackEvent('player_error', 'player', { kind: 'movie', channel_or_title: playing.title, server: creds.serverLabel, message: msg.slice(0, 200) }); } catch { /* ignore */ }
         }}
-        // Watched marks: begun after a minute, watched at 95% or the end.
+        // Watched marks: watched at 92%, its last minute or its end.
         onProgress={(pos, dur) => { try { noteFilmProgress(creds, playing.streamId, pos, dur); } catch { /* ignore */ } }}
         onEnded={() => { try { noteFilmFinished(creds, playing.streamId); } catch { /* ignore */ } }}
       >
@@ -586,7 +586,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
           <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden max-w-3xl px-2 py-2">
             <h2 className="text-3xl font-quicksand font-bold leading-tight line-clamp-2 mb-3">{selectedMovie.name}</h2>
             <div className="flex flex-wrap items-center text-sm text-brand-ice/80 font-nunito mb-4">
-              {watchedFilms.has(selectedMovie.stream_id) && (
+              {watchedFilms.has(Number(selectedMovie.stream_id)) && (
                 <span data-watched="" className="flex items-center mr-3 text-brand-gold font-semibold">
                   <span className="flex items-center justify-center w-6 h-6 mr-1.5 rounded-full bg-brand-gold" aria-hidden="true">
                     <Check className="w-4 h-4 text-brand-navy" strokeWidth={3} />
@@ -756,7 +756,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
                           year={m.year}
                           isFocused={isFocused}
                           variant="movie"
-                          watched={watchedFilms.has(m.stream_id) ? watchedLabel : null}
+                          watched={watchedFilms.has(Number(m.stream_id)) ? watchedLabel : null}
                           index={i}
                           onFocus={onTileFocus}
                           onActivate={onTileActivate}

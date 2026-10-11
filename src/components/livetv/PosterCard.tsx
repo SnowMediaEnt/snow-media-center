@@ -17,8 +17,10 @@ interface Props {
    *  this label (the section translates it once for the whole grid). Left
    *  out or null: not watched. */
   watched?: string | null;
-  /** A show: the episode watched last ("S1E3"), after the year. */
+  /** A show: the episode watched last ("S1E3"), after the year, read out as
+   *  watchedCodeLabel ("Last watched S1E3"). */
   watchedCode?: string;
+  watchedCodeLabel?: string;
   /** Handed back to onFocus/onActivate, so callers can pass one stable
    *  handler for every card and the memo holds as focus moves. */
   index: number;
@@ -26,7 +28,7 @@ interface Props {
   onActivate?: (index: number) => void;
 }
 
-const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'movie', watched = null, watchedCode, index, onFocus, onActivate }: Props) => {
+const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'movie', watched = null, watchedCode, watchedCodeLabel, index, onFocus, onActivate }: Props) => {
   const [err, setErr] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const showImg = image && !err;
@@ -108,7 +110,7 @@ const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'mov
           <p className="text-xs text-brand-ice/70 font-nunito mt-1 truncate">
             {year}
             {year && watchedCode ? ' · ' : ''}
-            {watchedCode && <span data-watched-code="" className="text-brand-gold font-bold">{watchedCode}</span>}
+            {watchedCode && <span data-watched-code="" aria-label={watchedCodeLabel} className="text-brand-gold font-bold">{watchedCode}</span>}
           </p>
         )}
       </div>

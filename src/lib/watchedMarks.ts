@@ -2,14 +2,17 @@
 // (owner, 2026-10-10: "Can we double check that all movies and episodes
 // watched gets a check mark and then entire seasons as well please"). Movies
 // marks a film watched to the end, on its poster and its page; TV Shows marks
-// a show begun on its poster (with the episode watched last), on its page each
-// episode watched (a check) or begun (a bar as far as it got), and a season
-// whose every episode was watched. Ported from Tronix 416bb91c, films added.
+// a show on its poster (a check once every episode it had was watched, else
+// the episode watched last after the year), on its page each episode watched
+// (a check) or begun (a bar as far as it got), and a season whose every
+// episode was watched. Ported from Tronix 416bb91c, films added.
 //
 // The player reports where it is about every 10 s (VodPlayer's onProgress):
-// a title is begun after a minute (half of a very short one) and watched at
-// 95% or its end. Written only when something changes: the reports come
-// often, and a write to a Fire TV's storage is not free.
+// an episode is begun after a minute (half of a very short one), and a title
+// is watched at 92% or its last minute, as Plex's are (plexProgress): a
+// viewer who stops at the credits has watched it. Written only when something
+// changes: the reports come often, and a write to a Fire TV's storage is not
+// free.
 //
 // Kept on the box per viewer (viewer.ts: the signed-in account or the box,
 // and the profile on it, so a Kids profile has its own), and by line inside
@@ -42,12 +45,16 @@ export interface ShowMark {
   /** How far a begun episode got, in tenths (1-9), for the bar under it.
    *  Only ever goes up, so a rewind writes nothing. */
   part?: Record<string, number>;
+  /** How many episodes the show had when its page was last open: with every
+   *  one of them watched, its poster gets the check. */
+  n?: number;
 }
 
 export interface FilmMark {
-  /** When it last changed state (ms). */
+  /** When it was watched (ms). */
   at: number;
-  /** Begun (1) or watched to the end (2). */
+  /** Watched to the end (2). Only those are kept: a film begun shows
+   *  nothing, and kept it would push watched ones out of MAX_FILMS. */
   s: 1 | 2;
 }
 
@@ -58,16 +65,24 @@ const MAX_SHOWS = 500;
 const MAX_EPISODES = 400;
 /** About two years of a film a night; one entry is some 60 bytes. */
 const MAX_FILMS = 800;
-/** A minute of a title (half of a very short one) counts as watching it. */
+/** A minute of an episode (half of a very short one) counts as watching it. */
 export const BEGUN_S = 60;
-/** 95% is watched to the end: the credits are not worth sitting through. */
-const DONE_FRACTION = 0.95;
+/** As Plex's (plexProgress DONE_SHARE and EDGE_S): past 92% of the running
+ *  time, or into its last minute, a title was watched; the credits are not
+ *  worth sitting through. */
+const DONE_FRACTION = 0.92;
+const DONE_LAST_S = 60;
+/** An "ended" from the player this far short of where the title was last
+ *  seen to end is a stream cut short (a server that stops sending), not the
+ *  title watched. */
+const ENDED_SHORT_FRACTION = 0.8;
 
 type Shows = Record<string, ShowMark>;
 type Films = Record<string, FilmMark>;
 
-export const showKey = (line: Line, seriesId: number | string): string => `${lineKey(line)}|${seriesId}`;
-export const filmKey = (line: Line, streamId: number | string): string => `${lineKey(line)}|${streamId}`;
+// Ids as numbers: a panel that sends "123" must find the same entry as 123.
+export const showKey = (line: Line, seriesId: number | string): string => `${lineKey(line)}|${Number(seriesId)}`;
+export const filmKey = (line: Line, streamId: number | string): string => `${lineKey(line)}|${Number(streamId)}`;
 
 // The last read of each list, kept with the text it came from: a list is read
 // on every report while a title plays and by every screen that marks posters,
@@ -120,8 +135,8 @@ function capByAge<T extends { at: number }>(all: Record<string, T>, max: number)
 
 /** Mark an episode begun (1, `tenth` how far) or finished (2). Written only
  *  when something changes. */
-function markEpisode(line: Line, seriesId: number, ep: WatchedEpisodeRef, state: 1 | 2, tenth = 0): void {
-  if (!ep.id || !Number.isFinite(seriesId)) return;
+function markEpisode(line: Line, seriesId: number | string, ep: WatchedEpisodeRef, state: 1 | 2, tenth = 0): void {
+  if (!ep.id || !Number.isFinite(Number(seriesId))) return;
   const k = showKey(line, seriesId);
   const prev: ShowMark | undefined = readWatchedMarks()[k];
   const had = prev?.eps?.[ep.id] ?? 0;
@@ -148,18 +163,18 @@ function markEpisode(line: Line, seriesId: number, ep: WatchedEpisodeRef, state:
     last: { id: ep.id, season: ep.season, num: ep.num },
     eps,
     ...(Object.keys(parts).length ? { part: parts } : {}),
+    ...(prev?.n ? { n: prev.n } : {}),
   };
   capByAge(all, MAX_SHOWS);
   if (writeList('shows', showsKey(), all)) changed();
 }
 
-/** Mark a film begun (1) or finished (2). Written only when it changes. */
-function markFilm(line: Line, streamId: number, state: 1 | 2): void {
-  if (!Number.isFinite(streamId)) return;
+/** Mark a film watched to the end. Written only when it changes. */
+function markFilm(line: Line, streamId: number | string): void {
+  if (!Number.isFinite(Number(streamId))) return;
   const k = filmKey(line, streamId);
-  const prev: FilmMark | undefined = readWatchedFilms()[k];
-  if (prev && prev.s >= state) return;
-  const all: Films = { ...readWatchedFilms(), [k]: { at: Date.now(), s: state } };
+  if (readWatchedFilms()[k]?.s === 2) return;
+  const all: Films = { ...readWatchedFilms(), [k]: { at: Date.now(), s: 2 } };
   capByAge(all, MAX_FILMS);
   if (writeList('films', filmsKey(), all)) changed();
 }
@@ -168,38 +183,82 @@ function markFilm(line: Line, streamId: number, state: 1 | 2): void {
 function stateAt(pos: number, dur: number): 0 | 1 | 2 {
   if (!Number.isFinite(pos) || pos <= 0) return 0;
   const known = Number.isFinite(dur) && dur > 0;
-  if (known && pos >= dur * DONE_FRACTION) return 2;
+  if (known && (pos >= dur * DONE_FRACTION || (dur > 2 * DONE_LAST_S && pos >= dur - DONE_LAST_S))) return 2;
   return pos >= (known ? Math.min(BEGUN_S, dur / 2) : BEGUN_S) ? 1 : 0;
 }
 
+// Where the title playing was last seen (the player's last report, every
+// 10 s while it plays), for noteEpisodeFinished / noteFilmFinished to tell an
+// end from a cut. An older report is another sitting: it decides nothing.
+const SEEN_FRESH_MS = 60_000;
+let lastSeen: { key: string; pos: number; dur: number; at: number } | null = null;
+const seen = (key: string, pos: number, dur: number): void => { lastSeen = { key, pos, dur, at: Date.now() }; };
+/** False when the title was just seen well short of a known end. */
+const endedForReal = (key: string): boolean => {
+  const l = lastSeen;
+  if (!l || l.key !== key || Date.now() - l.at > SEEN_FRESH_MS || !(Number.isFinite(l.dur) && l.dur > 0)) return true;
+  return l.pos >= l.dur * ENDED_SHORT_FRACTION;
+};
+
 /** The player's progress for an episode (seconds): begun after a minute,
- *  finished at 95%. */
-export function noteEpisodeProgress(line: Line, seriesId: number, ep: WatchedEpisodeRef, pos: number, dur: number): void {
+ *  finished at 92% or its last minute. */
+export function noteEpisodeProgress(line: Line, seriesId: number | string, ep: WatchedEpisodeRef, pos: number, dur: number): void {
+  seen(`e|${showKey(line, seriesId)}|${ep.id}`, pos, dur);
   const s = stateAt(pos, dur);
   if (!s) return;
   const tenth = s === 1 && dur > 0 ? Math.min(9, Math.max(1, Math.floor((pos / dur) * 10))) : 0;
   markEpisode(line, seriesId, ep, s, tenth);
 }
 
-/** An episode played to its end. */
-export function noteEpisodeFinished(line: Line, seriesId: number, ep: WatchedEpisodeRef): void {
+/** An episode played to its end (the player's "ended"). */
+export function noteEpisodeFinished(line: Line, seriesId: number | string, ep: WatchedEpisodeRef): void {
+  if (!endedForReal(`e|${showKey(line, seriesId)}|${ep.id}`)) return;
   markEpisode(line, seriesId, ep, 2);
 }
 
-/** The player's progress for a film (seconds): begun after a minute,
- *  watched at 95%. */
-export function noteFilmProgress(line: Line, streamId: number, pos: number, dur: number): void {
-  const s = stateAt(pos, dur);
-  if (s) markFilm(line, streamId, s);
+/** The player's progress for a film (seconds): watched at 92% or its last
+ *  minute. */
+export function noteFilmProgress(line: Line, streamId: number | string, pos: number, dur: number): void {
+  seen(`f|${filmKey(line, streamId)}`, pos, dur);
+  if (stateAt(pos, dur) === 2) markFilm(line, streamId);
 }
 
-/** A film played to its end. */
-export function noteFilmFinished(line: Line, streamId: number): void {
-  markFilm(line, streamId, 2);
+/** A film played to its end (the player's "ended"). */
+export function noteFilmFinished(line: Line, streamId: number | string): void {
+  if (!endedForReal(`f|${filmKey(line, streamId)}`)) return;
+  markFilm(line, streamId);
 }
+
+/** How many episodes a show the viewer has begun has now (its page open):
+ *  the poster's check needs every one of them watched, so a new episode
+ *  takes it away again. Shows never begun are not kept. Written only when
+ *  the number changes. */
+export function noteShowSize(line: Line, seriesId: number | string, episodes: number): void {
+  if (!Number.isFinite(Number(seriesId)) || !(episodes > 0)) return;
+  const k = showKey(line, seriesId);
+  const prev: ShowMark | undefined = readWatchedMarks()[k];
+  if (!prev || prev.n === episodes) return;
+  if (writeList('shows', showsKey(), { ...readWatchedMarks(), [k]: { ...prev, n: episodes } })) changed();
+}
+
+/** Every episode the show had watched to the end (its page was open once
+ *  since it was begun, so the number is known). */
+export const showWatched = (show: ShowMark | undefined): boolean => {
+  if (!show?.n) return false;
+  let done = 0;
+  for (const s of Object.values(show.eps ?? {})) if (s === 2) done += 1;
+  return done >= show.n;
+};
 
 /** Forget this viewer's marks (every line). SMC has no "Clear watch history"
  *  yet: this is for when it does, and for tests. */
+/** Tests: no list read and no title seen yet. */
+export function __resetWatchedMarksForTests(): void {
+  slots.shows = null;
+  slots.films = null;
+  lastSeen = null;
+}
+
 export function clearWatchedMarks(): void {
   try { localStorage.removeItem(showsKey()); } catch { /* ignore */ }
   try { localStorage.removeItem(filmsKey()); } catch { /* ignore */ }
@@ -236,7 +295,8 @@ function mergeShow(a: ShowMark | undefined, b: ShowMark): ShowMark {
     for (const [id, p] of Object.entries(src ?? {})) if (eps[id] === 1 && p > (part[id] ?? 0)) part[id] = p;
   }
   const newer = (b.at || 0) > (a.at || 0) ? b : a;
-  return { at: newer.at, last: newer.last, eps, ...(Object.keys(part).length ? { part } : {}) };
+  const n = newer.n ?? a.n ?? b.n;
+  return { at: newer.at, last: newer.last, eps, ...(Object.keys(part).length ? { part } : {}), ...(n ? { n } : {}) };
 }
 
 export function carryBoxMarks(): boolean {
@@ -261,7 +321,7 @@ export function carryBoxMarks(): boolean {
     try { theirs = JSON.parse(boxFilms) || {}; } catch { theirs = {}; }
     const all: Films = { ...readWatchedFilms() };
     for (const [k, m] of Object.entries(theirs)) {
-      if (!m || typeof m !== 'object') continue;
+      if (!m || typeof m !== 'object' || m.s !== 2) continue;
       const have = all[k];
       if (!have || have.s < m.s || (have.s === m.s && have.at < m.at)) all[k] = m;
     }
@@ -279,5 +339,7 @@ onViewerChange(() => { carryBoxMarks(); changed(); });
 /** Once the viewer is known, the box's marks from before a sign-in come over
  *  (signed in while no screen that shows them had loaded this file). */
 export function initWatchedMarks(): void {
-  try { void resolveViewer().then(() => { carryBoxMarks(); }, () => { /* no auth here */ }); } catch { /* ignore */ }
+  // The first answer about who is watching tells no one (viewer.ts): a
+  // screen that read the box's marks before it must read again.
+  try { void resolveViewer().then(() => { if (!carryBoxMarks()) changed(); }, () => { /* no auth here */ }); } catch { /* ignore */ }
 }

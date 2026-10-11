@@ -77,7 +77,8 @@ describe('VodPlayer progress', () => {
     expect(onProgress).toHaveBeenLastCalledWith(75, 5400);
     expect(onProgress).toHaveBeenCalledTimes(2);
     // The app went to the background and the player answers 0: the place stands.
-    h.pos = 0;
+    await playTo(0, 0);
+    expect(onProgress).toHaveBeenCalledTimes(2);
     unmount();
     expect(onProgress).toHaveBeenLastCalledWith(75, 5400);
     expect(onProgress).toHaveBeenCalledTimes(3);

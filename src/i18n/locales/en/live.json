@@ -341,7 +341,7 @@
       "noSoundBody": "This title's audio ({{codecs}}) can't be decoded on this device. Report it in Support and we'll look at it.",
       "nextEpisode": "Next episode",
       "watched": "Watched",
-      "watchedUpTo": "Watched up to {{code}}",
+      "watchedUpTo": "Last watched {{code}}",
       "watchedCode": "S{{season}}E{{episode}}",
       "inProgress": "Started"
     },

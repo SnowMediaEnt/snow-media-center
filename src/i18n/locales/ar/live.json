@@ -345,7 +345,7 @@
       "noSoundBody": "لا يمكن فك ترميز صوت هذا العنوان ({{codecs}}) على هذا الجهاز. أبلغ عنه في الدعم وسنراجعه.",
       "nextEpisode": "الحلقة التالية",
       "watched": "تمت المشاهدة",
-      "watchedUpTo": "تمت المشاهدة حتى {{code}}",
+      "watchedUpTo": "آخر حلقة تمت مشاهدتها: {{code}}",
       "watchedCode": "م{{season}} ح{{episode}}",
       "inProgress": "بدأت المشاهدة"
     },

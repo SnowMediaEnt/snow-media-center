@@ -341,7 +341,7 @@
       "noSoundBody": "Der Ton dieses Titels ({{codecs}}) kann auf diesem Gerät nicht dekodiert werden. Melde ihn im Support und wir sehen ihn uns an.",
       "nextEpisode": "Nächste Folge",
       "watched": "Gesehen",
-      "watchedUpTo": "Gesehen bis {{code}}",
+      "watchedUpTo": "Zuletzt gesehen: {{code}}",
       "watchedCode": "S{{season}}F{{episode}}",
       "inProgress": "Angefangen"
     },
