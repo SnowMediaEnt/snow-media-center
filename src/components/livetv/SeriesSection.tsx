@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CATEGORY_DWELL_MS } from '@/lib/categoryDwell';
+import { CATEGORY_DWELL_MS, KEPT_CATEGORY_SETTLE_MS } from '@/lib/categoryDwell';
 import { Check, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
@@ -55,6 +55,8 @@ type Pane = 'categories' | 'grid' | 'detail';
 // then the episodes. Each list scrolls on its own to keep the highlight in view.
 type DetailFocus = 'play' | 'autoplay' | 'seasons' | 'episodes';
 const ALL_ID = '__all__';
+/** Categories kept with their shows (as Movies): the newest this many. */
+const MAX_KEPT_CATEGORIES = 6;
 // Posters a row: a TV's 5; a phone held upright 3 (phoneMode).
 const GRID_COLS_TV = 5;
 const GRID_COLS_UPRIGHT = 3;
@@ -216,29 +218,52 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
   // click it first please the same way we do with channels"): its shows load
   // and show beside the list, as Live TV's channels do, and a fast pass over a
   // category downloads nothing. OK or ▶ still load it at once.
+  // A list already kept shows after KEPT_CATEGORY_SETTLE_MS instead, so a
+  // held ▼ does not draw the posters of every kept category it passes.
+  // "All Series" is never downloaded by a rest, only by OK.
   const [restedCat, setRestedCat] = useState<string | null>(null);
+  const [settledCat, setSettledCat] = useState<string | null>(null);
   useEffect(() => {
+    setRestedCat(null);
+    setSettledCat(null);
     if (!isActive || !currentCatId) return;
-    const id = window.setTimeout(() => setRestedCat(currentCatId), CATEGORY_DWELL_MS);
-    return () => window.clearTimeout(id);
+    const shown = window.setTimeout(() => setSettledCat(currentCatId), KEPT_CATEGORY_SETTLE_MS);
+    const rested = currentCatId === ALL_ID ? null : window.setTimeout(() => setRestedCat(currentCatId), CATEGORY_DWELL_MS);
+    return () => { window.clearTimeout(shown); if (rested != null) window.clearTimeout(rested); };
   }, [isActive, currentCatId]);
 
-  // Lazy-load the category opened, or rested on (above).
-  // "All Series" is STRICTLY opt-in: never auto-fetch on focus.
+  // The category to download now, or null: the one opened (OK / ▶) or rested
+  // on, not kept yet. "All Series" is STRICTLY opt-in: never on focus. Keyed
+  // on the id alone, so a rest and then OK, or a count arriving for another
+  // category, never restarts a download under way.
+  const wantCat = currentCat
+    && (pane === 'grid' || restedCat === currentCat.id)
+    && (currentCat.id !== ALL_ID || allOptedInRef.current)
+    && !seriesByCat.has(currentCat.id)
+    ? currentCat.id : null;
+  const noteCountsRef = useRef(noteCounts);
+  noteCountsRef.current = noteCounts;
   useEffect(() => {
-    if (!currentCat) return;
-    if (pane !== 'grid' && restedCat !== currentCat.id) return;
-    if (currentCat.id === ALL_ID && !allOptedInRef.current) return;
-    if (seriesByCat.has(currentCat.id)) return;
+    if (!wantCat) return;
     let cancelled = false;
-    const key = currentCat.id;
+    const key = wantCat;
     setLoadingCat(key);
     const p = key === ALL_ID ? getSeries(creds) : getSeries(creds, key);
     p.then(list => {
       if (cancelled) return;
-      setSeriesByCat(prev => { const n = new Map(prev); n.set(key, list); return n; });
-      if (key === ALL_ID) noteCounts({ total: list.length, byCat: tallyByCategory(list) });
-      else noteCounts({ byCat: { [key]: list.length } });
+      setSeriesByCat(prev => {
+        const n = new Map(prev);
+        n.set(key, list);
+        // Keep the last few categories, not every one rested on this visit
+        // (a show's list carries its plot and cast: a small box's memory).
+        for (const k of n.keys()) {
+          if (n.size <= MAX_KEPT_CATEGORIES) break;
+          if (k !== key) n.delete(k);
+        }
+        return n;
+      });
+      if (key === ALL_ID) noteCountsRef.current({ total: list.length, byCat: tallyByCategory(list) });
+      else noteCountsRef.current({ byCat: { [key]: list.length } });
     }).catch(() => {
       if (cancelled) return;
       setSeriesByCat(prev => { const n = new Map(prev); n.set(key, []); return n; });
@@ -250,7 +275,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
       setLoadingCat(prev => prev === key ? null : prev);
     });
     return () => { cancelled = true; };
-  }, [pane, restedCat, currentCat, creds, seriesByCat, noteCounts]);
+  }, [wantCat, creds]);
 
   // Lazy-load the full series catalog when the search panel opens.
   useEffect(() => {
@@ -269,12 +294,14 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
     return () => { cancelled = true; };
   }, [searchOpen, allSeries, allSeriesLoading, creds, noteCounts]);
 
+  // On the list, a category's shows show once the highlight settles on it.
+  const catShown = pane === 'grid' || (!!currentCat && settledCat === currentCat.id);
   const visibleSeries = useMemo(() => {
     // Never an adult title, whatever is typed (lib/vodSearch).
     if (searchOpen) return searchVodTitles(searchQuery, allSeries, categories);
-    if (!currentCat) return [];
+    if (!currentCat || !catShown) return [];
     return seriesByCat.get(currentCat.id) || [];
-  }, [searchOpen, searchQuery, allSeries, categories, currentCat, seriesByCat]);
+  }, [searchOpen, searchQuery, allSeries, categories, currentCat, catShown, seriesByCat]);
 
   // Only show "loading" for buckets we actually fetch. All-Series sentinel
   // doesn't auto-load, so no spinner there until the user opts in.
@@ -283,7 +310,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
     : !!(
         currentCat
         && (currentCat.id !== ALL_ID || allOptedInRef.current)
-        && (loadingCat === currentCat.id || !seriesByCat.has(currentCat.id))
+        && (loadingCat === currentCat.id || !seriesByCat.has(currentCat.id) || !catShown)
       );
 
   // Reset grid focus when switching category.

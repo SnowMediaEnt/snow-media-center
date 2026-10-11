@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CATEGORY_DWELL_MS } from '@/lib/categoryDwell';
+import { CATEGORY_DWELL_MS, KEPT_CATEGORY_SETTLE_MS } from '@/lib/categoryDwell';
 import { ArrowLeft, Check, Film, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
@@ -202,22 +202,36 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   // click it first please the same way we do with channels"): its films load
   // and show beside the list, as Live TV's channels do, and a fast pass over a
   // category downloads nothing. OK or ▶ still load it at once.
+  // A list already kept shows after KEPT_CATEGORY_SETTLE_MS instead, so a
+  // held ▼ does not draw the posters of every kept category it passes.
+  // "All Movies" is never downloaded by a rest, only by OK.
   const [restedCat, setRestedCat] = useState<string | null>(null);
+  const [settledCat, setSettledCat] = useState<string | null>(null);
   useEffect(() => {
+    setRestedCat(null);
+    setSettledCat(null);
     if (!isActive || !currentCatId || currentCatId === PLEX_ID) return;
-    const id = window.setTimeout(() => setRestedCat(currentCatId), CATEGORY_DWELL_MS);
-    return () => window.clearTimeout(id);
+    const shown = window.setTimeout(() => setSettledCat(currentCatId), KEPT_CATEGORY_SETTLE_MS);
+    const rested = currentCatId === ALL_ID ? null : window.setTimeout(() => setRestedCat(currentCatId), CATEGORY_DWELL_MS);
+    return () => { window.clearTimeout(shown); if (rested != null) window.clearTimeout(rested); };
   }, [isActive, currentCatId]);
 
-  // Lazy-load the category opened, or rested on (above).
-  // "All Movies" is STRICTLY opt-in: never auto-fetch on focus.
+  // The category to download now, or null: the one opened (OK / ▶) or rested
+  // on, not kept yet. "All Movies" is STRICTLY opt-in: never on focus. Keyed
+  // on the id alone, so a rest and then OK, or a count arriving for another
+  // category, never restarts a download under way.
+  const wantCat = currentCat
+    && currentCat.id !== PLEX_ID
+    && (pane === 'grid' || restedCat === currentCat.id)
+    && (currentCat.id !== ALL_ID || allOptedInRef.current)
+    && !moviesByCat.has(currentCat.id)
+    ? currentCat.id : null;
+  const noteCountsRef = useRef(noteCounts);
+  noteCountsRef.current = noteCounts;
   useEffect(() => {
-    if (!currentCat || currentCat.id === PLEX_ID) return;
-    if (pane !== 'grid' && restedCat !== currentCat.id) return;
-    if (currentCat.id === ALL_ID && !allOptedInRef.current) return;
-    if (moviesByCat.has(currentCat.id)) return;
+    if (!wantCat) return;
     let cancelled = false;
-    const key = currentCat.id;
+    const key = wantCat;
     setLoadingCat(key);
     // Search already holds the whole catalogue: never download it twice.
     const p = key === ALL_ID
@@ -235,8 +249,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
         }
         return n;
       });
-      if (key === ALL_ID) noteCounts({ total: list.length, byCat: tallyByCategory(list) });
-      else noteCounts({ byCat: { [key]: list.length } });
+      if (key === ALL_ID) noteCountsRef.current({ total: list.length, byCat: tallyByCategory(list) });
+      else noteCountsRef.current({ byCat: { [key]: list.length } });
     }).catch(() => {
       if (cancelled) return;
       setMoviesByCat(prev => { const n = new Map(prev); n.set(key, []); return n; });
@@ -248,7 +262,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       setLoadingCat(prev => prev === key ? null : prev);
     });
     return () => { cancelled = true; };
-  }, [pane, restedCat, currentCat, creds, moviesByCat, noteCounts]);
+  }, [wantCat, creds]);
 
   // Lazy-load the full movie catalog when the search panel opens — or reuse
   // the one "All Movies" already downloaded.
@@ -282,12 +296,14 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     return () => { try { stopTimer('watch'); } catch { /* ignore */ } };
   }, [playing]);
 
+  // On the list, a category's films show once the highlight settles on it.
+  const catShown = pane === 'grid' || (!!currentCat && settledCat === currentCat.id);
   const visibleMovies = useMemo(() => {
     // Never an adult title, whatever is typed (lib/vodSearch).
     if (searchOpen) return searchVodTitles(searchQuery, allMovies, categories);
-    if (!currentCat) return [];
+    if (!currentCat || !catShown) return [];
     return moviesByCat.get(currentCat.id) || [];
-  }, [searchOpen, searchQuery, allMovies, categories, currentCat, moviesByCat]);
+  }, [searchOpen, searchQuery, allMovies, categories, currentCat, catShown, moviesByCat]);
 
   // Only show "loading" for buckets we actually fetch. The All-Movies sentinel
   // doesn't auto-load, so don't render a spinner there until the user opts in.
@@ -297,7 +313,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
         currentCat
         && currentCat.id !== PLEX_ID
         && (currentCat.id !== ALL_ID || allOptedInRef.current)
-        && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id))
+        && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id) || !catShown)
       );
 
 

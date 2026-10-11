@@ -81,9 +81,26 @@ describe('Movies: a category loads once the highlight rests on it', () => {
     expect(asked()).toEqual([]);
   });
 
-  it('OK still loads a category at once', async () => {
+  it('OK still loads a category at once, before any rest', async () => {
     await open();
     key('ArrowRight');
+    await settle(100);
+    expect(asked()).toEqual(['5']);
+    await until(() => grid().includes('Big Film'));
+    await settle(1100); // the rest that follows asks nothing more
+    expect(asked()).toEqual(['5']);
+  });
+
+  it('a rest and then OK while it is still downloading: one download, not two', async () => {
+    let answer: (v: unknown) => void = () => undefined;
+    h.streams.mockImplementationOnce(() => new Promise((r) => { answer = r as (v: unknown) => void; }));
+    await open();
+    await settle(1100); // rested: the download starts
+    expect(asked()).toEqual(['5']);
+    key('ArrowRight'); // OK on it while it is under way
+    await settle(100);
+    expect(asked()).toEqual(['5']);
+    await act(async () => { answer((await h.streams.getMockImplementation()!(null, '5')) as unknown); });
     await until(() => grid().includes('Big Film'));
     expect(asked()).toEqual(['5']);
   });
