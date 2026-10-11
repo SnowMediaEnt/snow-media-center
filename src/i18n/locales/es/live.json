@@ -215,6 +215,7 @@
       "favorite": "Favorito",
       "playing": "Reproduciendo",
       "hintCategories": "▲▼ categoría · OK / ▶ abrir · ◀ o Atrás cerrar",
+      "hintCategoriesBack": "▲▼ categoría · OK / ▶ abrir · Atrás canales · ◀ cerrar",
       "hintChannels": "▲▼ canal · OK ver · Mantén OK para opciones · ◀ categorías · Atrás cerrar"
     },
     "recent": {

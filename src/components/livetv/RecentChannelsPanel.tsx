@@ -4,9 +4,11 @@
 // the focus, LiveSection the channel change.
 //
 // The highlighted row shows its Remove (▶ moves onto it, OK takes the channel
-// off; hold OK on the row does the same). Over the picture it lets a little
-// of it through, as the channel list over the picture does; over the list it
-// is solid, so the rows behind never show through it.
+// off; hold OK on the row does the same). Over the picture it is black at
+// 60%, as the channel list over the picture is, so the picture shows through
+// (owner, 2026-10-11: "no not solid black, the ability to see through it
+// more"), with a soft shadow under its text; over the list it is solid, so
+// the rows behind never show through it.
 //
 // Only a window of rows around the highlight is drawn (10 rows at most
 // anyway). Chrome 66: margins, no flex gap beyond gap-1..4, no inset.
@@ -15,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { History, Play, Tv, X } from 'lucide-react';
 import { isLongName, TWO_LINES } from '@/lib/channelName';
 import type { RecentChannel } from '@/lib/recentChannels';
+import { OVER_PICTURE_TEXT_SHADOW } from './FullscreenChannelOverlay';
 import { listWindow } from './listWindow';
 
 interface Props {
@@ -42,14 +45,14 @@ const nameClass = (name: string): string =>
 const RecentChannelsPanel = memo(({ items, focus, onRemove, playingId, over, serviceOf }: Props) => {
   const { t } = useTranslation();
   const win = listWindow(items.length, focus, RECENT_PANEL_ROWS);
-  const place = over === 'picture' ? 'absolute z-30 bg-black/90' : 'fixed z-[55] bg-[#0b1220] shadow-2xl';
+  const place = over === 'picture' ? 'absolute z-30 bg-black/60' : 'fixed z-[55] bg-[#0b1220] shadow-2xl';
   return (
     <div
       data-recent-panel={over}
       role="region"
       aria-label={t('live.recent.title')}
       className={`${place} right-0 top-0 bottom-0 flex flex-col border-l border-white/10 text-white animate-fade-in pointer-events-auto`}
-      style={{ width: 440 }}
+      style={{ width: 440, textShadow: over === 'picture' ? OVER_PICTURE_TEXT_SHADOW : undefined }}
     >
       <div className="flex items-center flex-shrink-0 px-5 pt-6 pb-3">
         <History className="w-5 h-5 mr-2 text-brand-gold flex-shrink-0" />
@@ -99,6 +102,8 @@ const RecentChannelsPanel = memo(({ items, focus, onRemove, playingId, over, ser
                   data-focused={removeFocused ? 'true' : 'false'}
                   aria-label={t('live.recent.removeNamed', { name: c.name })}
                   className={`tv-ring ml-2 flex items-center flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-nunito font-semibold ${removeFocused ? 'bg-brand-gold text-brand-navy z-10' : 'bg-white/10 text-brand-ice/80'}`}
+                  // Dark text on gold needs no shadow under it.
+                  style={removeFocused ? { textShadow: 'none' } : undefined}
                 >
                   <X className="w-4 h-4 mr-1" />
                   {t('live.recent.remove')}

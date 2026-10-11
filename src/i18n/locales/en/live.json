@@ -215,6 +215,7 @@
       "favorite": "Favorite",
       "playing": "Playing",
       "hintCategories": "▲▼ category · OK / ▶ open · ◀ or Back close",
+      "hintCategoriesBack": "▲▼ category · OK / ▶ open · Back channels · ◀ close",
       "hintChannels": "▲▼ channel · OK watch · Hold OK options · ◀ categories · Back close"
     },
     "recent": {
