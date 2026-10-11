@@ -43,7 +43,7 @@ import {
   PLEX_QUALITY_PRESETS,
   getPlexAccount,
   setPlexImageFocus, preloadImages, plexPhotoTranscodeUrl, POSTER_TILE_W, POSTER_TILE_H,
-  type PlexLibrary, type PlexItem, type PlexEpisode, type PlexPlayInfo, type PlexQualityPreset, plexRouteLabel,
+  type PlexLibrary, type PlexItem, type PlexEpisode, type PlexPlayInfo, type PlexQualityPreset, type PlexTrailer, plexRouteLabel,
   isPlexPlaybackActive, setPlexPlaybackActive, newPlexPlaybackSession, plexEndpoint } from '@/lib/plex';
 import { isDemo, isHowtoCapture, demoDialogMsg } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
@@ -68,6 +68,7 @@ import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type PlayerPrompt, type SubtitleSearchContext } from './PlexPlayerOverlay';
 import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
 import PlexProgressReporter from './PlexProgressReporter';
+import PlexTrailerControls from './PlexTrailerControls';
 import PlexBackdrop from './PlexBackdrop';
 import { focusBackdrop } from '@/lib/plexBackdrop';
 import { revealPlexRail, unshiftAround } from '@/lib/plexReveal';
@@ -2421,9 +2422,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // stitched rails competed with the title's own metadata and the Play
   // request, on the path meant to be quickest. Home loads on Back instead.
   const [deepLinked, setDeepLinked] = useState(false);
-  const [playing, setPlaying] = useState<PlexItem | null>(null);
+  // `trailer`: a title's trailer (PlexDetail's Trailer), played in this same
+  // player but never saved: no resume point, no watched check, no Continue
+  // Watching or watch history, no Up Next (see playTrailer).
+  const [playing, setPlaying] = useState<(PlexItem & { trailer?: boolean }) | null>(null);
   const playingKeyRef = useRef<string | null>(null);
   playingKeyRef.current = playing?.ratingKey ?? null;
+  const playingTrailerRef = useRef(false);
+  playingTrailerRef.current = !!playing?.trailer;
   const [playingTitle, setPlayingTitle] = useState('');
   const [playingResLabel, setPlayingResLabel] = useState('');
 
@@ -2432,7 +2438,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Timed while the player is up only: `playing` stays set after the player
   // closes, so the timer used to run on through browsing until the next play.
   useEffect(() => {
-    if (DEMO || !playing || !fullscreen) return;
+    // A trailer is not watching the title.
+    if (DEMO || !playing || !fullscreen || playing.trailer) return;
     try {
       startTimer('watch', 'plex_watch', 'player', {
         title: playingTitle || playing.title,
@@ -3278,7 +3285,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const wasFullscreenRef = useRef(false);
   const onFullscreenChangeRef = useRef(onFullscreenChange); onFullscreenChangeRef.current = onFullscreenChange;
   useEffect(() => {
-    if (wasFullscreenRef.current && !fullscreen) setWatchNonce((n) => n + 1);
+    // A trailer changed nothing a page shows (it saves nothing): no refresh.
+    if (wasFullscreenRef.current && !fullscreen && !playingTrailerRef.current) setWatchNonce((n) => n + 1);
     wasFullscreenRef.current = fullscreen;
     onFullscreenChangeRef.current?.(fullscreen);
   }, [fullscreen]);
@@ -3288,7 +3296,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // play/quality/audio action opens a short explainer instead.
   const [demoNotice, setDemoNotice] = useState(false);
 
-  const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string, knownPartKey?: string, src?: { version?: PlexVersion | null; versions?: PlexVersion[] }) => {
+  const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string, knownPartKey?: string, src?: { version?: PlexVersion | null; versions?: PlexVersion[] }, opts?: { trailer?: boolean }) => {
     if (DEMO) { setDemoNotice(true); return; }
     if (!conn) return;
     const gen = newStreamRequest();
@@ -3299,6 +3307,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // out regains its zero-audio safety nets.
     audioSafetyRef.current = null;
     audioWarnedRef.current = null;
+    // An online trailer played again gets its conversion fallback again.
+    trailerRescuedRef.current = null;
     partKeyRef.current = undefined;
     setStartError(null);
     // Owner directive: playback ALWAYS starts at Original / direct play, as
@@ -3340,8 +3350,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // Flip fullscreen ON *before* any await so the loading UI paints
     // immediately — otherwise the user stares at the grid for the ~1-3s
     // getPlexPart round-trip and mashes OK, queueing up phantom presses.
-    setPlaying({ ratingKey, title, type: 'movie', thumb: '' });
-    setPlayingTitle(title);
+    setPlaying(opts?.trailer ? { ratingKey, title, type: 'clip', thumb: '', trailer: true } : { ratingKey, title, type: 'movie', thumb: '' });
+    setPlayingTitle(opts?.trailer ? i18n.t('plex.trailer.playingTitle', { title }) : title);
     setPlayingResLabel(ver?.label || resLabel || '');
     setStartPos(resumeSec && resumeSec > 0 ? resumeSec : undefined);
     setSubCtx(ctx ?? { title });
@@ -3432,6 +3442,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (!DEMO) recordPlexWatch(it);
     setPlaySeed(seedFromItem(it));
     void playRatingKey(it.ratingKey, it.title, resumeSec, ctx, resolutionLabel(it.videoResolution), partKey, src);
+  }, [playRatingKey, playRoute]);
+  // A title's trailer (PlexDetail's Trailer), in this same player: its own
+  // file (the clip's), played as it is like any title, with the same
+  // conversion fallbacks. It is not watching the title, so nothing that
+  // remembers viewing hears of it: no plex_play (the content bar's Popular),
+  // no watch history, no Play seed — and the player leaves out the progress
+  // reporter and Up Next while it plays (playerLayer), so no resume point,
+  // watched check or Continue Watching either. Back returns to the page.
+  const playTrailer = useCallback((tr: PlexTrailer, title: string) => {
+    try { trackEvent('plex_trailer', 'player', { title, ratingKey: tr.ratingKey, online: tr.online, ...playRoute() }); } catch { /* ignore */ }
+    setPlaySeed(null);
+    void playRatingKey(tr.ratingKey, title, undefined, { title }, tr.version.label, tr.partKey, { version: tr.version, versions: [tr.version] }, { trailer: true });
   }, [playRatingKey, playRoute]);
   const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext, version?: PlexVersion | null) => {
     // The SHOW is what to come back to and what "more like this" keys off.
@@ -3711,6 +3733,26 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       await forcedConversion(conn, key, resume);
     })();
   }, [native.error, nativeActive, useTranscode, playing, conn, native, forcedConversion]);
+
+  // One of Plex's online trailers (not a file in the library: the server
+  // fetches it, PlexTrailer.online) that would not play as a file: once, the
+  // server's conversion of the clip instead, which is how Plex's own web
+  // player plays them. The fallback above leaves an error it reads as the
+  // network alone, and a server that won't hand the online file over looks
+  // like one. Films and library trailers never get here.
+  const trailerRescuedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!(nativeActive && native.error && !useTranscode && playing?.trailer && conn)) return;
+    if (!isNetworkPlaybackError(native.error.code) || isPlexFileUrl(streamUrl)) return;
+    const key = playing.ratingKey;
+    if (trailerRescuedRef.current === key) return;
+    trailerRescuedRef.current = key;
+    // As the codec fallback does (forcedConversion's caller sets it): if the
+    // conversion fails too, recovery must not go back to the file that
+    // just failed, and auto quality must not climb back up to it.
+    forcedTranscodeRef.current = true;
+    void forcedConversion(conn, key, undefined);
+  }, [native.error, nativeActive, useTranscode, playing, conn, streamUrl, forcedConversion]);
 
   // Same fallback for SILENT audio: a Dolby/DTS-only file on a device with no
   // matching decoder raises no error at all — ExoPlayer just deselects the
@@ -4654,6 +4696,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // (every field), until then what Play knew (playSeed).
   const reporterInfo = playInfo && playInfo.ratingKey === playing?.ratingKey ? playInfo
     : playSeed && playSeed.ratingKey === playing?.ratingKey ? playSeed : null;
+  // A trailer saves nothing and has no Up Next: the player leaves both out.
+  const trailerPlaying = !!playing?.trailer;
 
   // ── render: fullscreen ──────────────────────────────────────────────
   // The player is a layer over the browse view, not a replacement for it.
@@ -4690,7 +4734,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                 // No stream URL resolved yet — native.retry() would be a no-op.
                 // Re-invoke the current item's play path from scratch.
                 armSlowLoadTimer();
-                void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel, undefined, { version: playVersionRef.current, versions: playVersionsRef.current });
+                void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel, undefined, { version: playVersionRef.current, versions: playVersionsRef.current }, { trailer: playing.trailer });
               } else {
                 armSlowLoadTimer();
                 native.retry();
@@ -4710,7 +4754,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <button onClick={() => {
               armSlowLoadTimer();
               if (convertGaveUp) retryConvert();
-              else if (startError && playing) void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel, undefined, { version: playVersionRef.current, versions: playVersionsRef.current });
+              else if (startError && playing) void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel, undefined, { version: playVersionRef.current, versions: playVersionsRef.current }, { trailer: playing.trailer });
               else native.retry();
             }} autoFocus data-focused="true" className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold">
               <RotateCw className="w-4 h-4" /> {t('common.retry')}
@@ -4728,9 +4772,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           </div>
         )}
         {NATIVE_PLAYBACK && !native.error && (
-          <BufferingDiagnostics buffering={native.buffering} showHelpHint footnote={routeLabel ? t('plex.section.route', { route: routeLabel }) : undefined} explain={explainStall} autoNote={autoNote} needKbps={stallNeedKbps} quickCheckLabel />
+          <BufferingDiagnostics buffering={native.buffering} showHelpHint={!trailerPlaying} footnote={routeLabel ? t('plex.section.route', { route: routeLabel }) : undefined} explain={explainStall} autoNote={autoNote} needKbps={stallNeedKbps} quickCheckLabel />
         )}
-        {NATIVE_PLAYBACK && !native.error && (
+        {/* A trailer: OK pauses and plays, Back closes (PlexTrailerControls). */}
+        {NATIVE_PLAYBACK && !native.error && trailerPlaying && (
+          <PlexTrailerControls
+            active={nativeActive && !slowLoad}
+            title={playing?.title ?? ''}
+            paused={native.paused}
+            controller={native.controller}
+            getPosition={native.getPosition}
+            onClose={exitFullscreen}
+          />
+        )}
+        {NATIVE_PLAYBACK && !native.error && !trailerPlaying && (
           <PlexPlayerOverlay
             active={nativeActive && !slowLoad}
             title={playingTitle}
@@ -4760,7 +4815,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             needKbps={stallNeedKbps}
           />
         )}
-        {conn && !DEMO && (
+        {conn && !DEMO && !trailerPlaying && (
           <PlexProgressReporter
             active={nativeActive && !slowLoad}
             ratingKey={fullscreen ? playing?.ratingKey ?? null : null}
@@ -4769,7 +4824,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             server={ownPlexAccount ? { base: conn.base, token: conn.token } : null}
           />
         )}
-        {conn && (
+        {conn && !trailerPlaying && (
           <EpisodeAutoplay
             active={nativeActive && !slowLoad}
             base={conn.base}
@@ -4995,6 +5050,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           item={detailItem}
           onPlay={playFromDetail}
           onPlayEpisode={playEpisode}
+          onPlayTrailer={playTrailer}
           onBack={closeDetail}
           watchNonce={watchNonce}
           serverResume={ownPlexAccount}

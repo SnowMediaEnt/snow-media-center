@@ -1066,7 +1066,10 @@ function plexClientQuery(): string {
  *  of the file from another. */
 export function plexDirectUrl(base: string, partKey: string, token: string, opts?: { session?: string }): string {
   const session = opts?.session ? `&X-Plex-Session-Identifier=${encodeURIComponent(opts.session)}` : '';
-  return `${base}${partKey}?X-Plex-Token=${encodeURIComponent(token)}&${plexClientQuery()}${session}`;
+  // Plex's online trailers name their file with a query of its own
+  // (…/video.mp4?fmt=4&bitrate=5000); a library file never has one.
+  const sep = partKey.indexOf('?') >= 0 ? '&' : '?';
+  return `${base}${partKey}${sep}X-Plex-Token=${encodeURIComponent(token)}&${plexClientQuery()}${session}`;
 }
 
 
@@ -1851,6 +1854,10 @@ export interface PlexMetadata {
   viewCount?: number;
   leafCount?: number;
   viewedLeafCount?: number;
+  /** "/library/metadata/66351": the extra Plex leads with (its trailer, when
+   *  it has one). Plex sets it only on a title that has extras, so a title
+   *  without it is never asked for its trailer (getPlexTrailer). */
+  primaryExtraKey?: string;
 }
 
 export async function getPlexMetadata(base: string, token: string, ratingKey: string): Promise<PlexMetadata> {
@@ -1896,7 +1903,108 @@ export async function getPlexMetadata(base: string, token: string, ratingKey: st
     versions: mediaVersions(m, String(m.ratingKey ?? ratingKey)),
     guid: typeof m.guid === 'string' ? m.guid : undefined,
     ...watchCounts(m),
+    primaryExtraKey: typeof m.primaryExtraKey === 'string' && m.primaryExtraKey ? m.primaryExtraKey : undefined,
   };
+}
+
+// ── trailers ──────────────────────────────────────────────────────────────
+
+/** A title's trailer: one of its extras (Plex keeps them as clips beside the
+ *  title) with a file the player can open. */
+export interface PlexTrailer {
+  /** The clip's own item. The player streams it by this (a conversion of it
+   *  when the file can't be played as it is); nothing is saved under it. */
+  ratingKey: string;
+  title: string;
+  /** The file: one in the server's library (/library/parts/…), or one of
+   *  Plex's online trailers, which the server fetches for the player
+   *  (/services/iva/assets/…/video.mp4?fmt=4&bitrate=5000). */
+  partKey: string;
+  /** One of Plex's online trailers (the server owner's Plex Pass), not a file
+   *  on the server. */
+  online: boolean;
+  /** ms */
+  duration?: number;
+  /** The file as a version, for the player (its label, bitrate, frame rate). */
+  version: PlexVersion;
+}
+
+/** Plex's extraType for a trailer (2 is a deleted scene, 5 behind the scenes …). */
+const EXTRA_TRAILER = 1;
+/** A title with more extras than this is still asked for only this many. */
+const TRAILER_EXTRAS_MAX = 30;
+
+/**
+ * The trailer to offer from a title's extras (its /extras listing): a clip
+ * that is a trailer and has a file. One in the server's own library first,
+ * since it plays like any of its files; then one of Plex's online trailers.
+ * Within each, the one Plex leads with (`primaryExtraKey`), else the
+ * server's order. Null when there is none.
+ */
+export function pickPlexTrailer(extras: unknown, primaryExtraKey?: string): PlexTrailer | null {
+  const list = Array.isArray(extras) ? (extras as Array<Record<string, unknown>>) : [];
+  let best: PlexTrailer | null = null;
+  let bestScore = Infinity;
+  for (const m of list) {
+    if (!m || typeof m !== 'object') continue;
+    if (m.type != null && m.type !== 'clip') continue;
+    // Plex sends extraType as a number; some servers as text.
+    if (Number(m.extraType) !== EXTRA_TRAILER && m.subtype !== 'trailer') continue;
+    const rk = m.ratingKey != null ? String(m.ratingKey) : '';
+    if (!rk) continue;
+    // A path on the server only: the player asks the server for it with the
+    // Plex token, which must never go to anyone else's address.
+    const version = mediaVersions(m, rk).find((v) => !!v.partKey && v.partKey.startsWith('/'));
+    if (!version?.partKey) continue;
+    const online = !version.partKey.startsWith('/library/');
+    const lead = !!primaryExtraKey && (m.key === primaryExtraKey || `/library/metadata/${rk}` === primaryExtraKey);
+    // A loop rather than a sort: Array.sort is not stable on Chrome 66, and
+    // the server's order is the tie-break.
+    const score = (online ? 2 : 0) + (lead ? 0 : 1);
+    if (score < bestScore) {
+      bestScore = score;
+      best = {
+        ratingKey: rk, title: String(m.title || ''), partKey: version.partKey, online,
+        duration: typeof m.duration === 'number' ? m.duration : undefined, version,
+      };
+    }
+  }
+  return best;
+}
+
+// Each title's trailer once asked for (null: it has none), for the session:
+// the title page asks when it opens, and opening it again answers at once.
+const _trailerMemo = new Map<string, Promise<PlexTrailer | null>>();
+const TRAILER_MEMO_MAX = 60;
+
+/**
+ * A title's trailer (pickPlexTrailer), or null. Asked only for a title whose
+ * metadata names a primary extra, so a title with no extras costs no
+ * request, and never on a Kids profile: Plex gives a clip no certificate of
+ * its own, so nothing says a trailer suits the profile (Tronix offers none
+ * there either). One small listing of the title's extras, after the title
+ * page's own metadata, remembered for the session. Never throws; a failed
+ * request is not remembered.
+ */
+export function getPlexTrailer(base: string, token: string, ratingKey: string, primaryExtraKey: string | undefined): Promise<PlexTrailer | null> {
+  if (!base || !ratingKey || !primaryExtraKey || kidsLevel()) return Promise.resolve(null);
+  const key = `${base}|${ratingKey}`;
+  const hit = _trailerMemo.get(key);
+  if (hit) return hit;
+  while (_trailerMemo.size >= TRAILER_MEMO_MAX) {
+    const first = _trailerMemo.keys().next().value;
+    if (first === undefined) break;
+    _trailerMemo.delete(first);
+  }
+  let failed = false;
+  const p = plexReq<{ MediaContainer?: { Metadata?: unknown } }>(
+    'GET', `${base}/library/metadata/${ratingKey}/extras?X-Plex-Container-Start=0&X-Plex-Container-Size=${TRAILER_EXTRAS_MAX}`, token, RAIL_TIMEOUT_MS,
+  )
+    .then((d) => pickPlexTrailer(d?.MediaContainer?.Metadata, primaryExtraKey))
+    .catch(() => { failed = true; return null; });
+  _trailerMemo.set(key, p);
+  void p.then(() => { if (failed && _trailerMemo.get(key) === p) _trailerMemo.delete(key); });
+  return p;
 }
 
 /** Media[0].Part[0].key of a metadata entry, when the payload carries it. */
@@ -2194,6 +2302,7 @@ export function clearPlexCaches(): void {
   _serversMemo.clear();
   _libsMemo.clear();
   _facetMemo.clear();
+  _trailerMemo.clear();
   // The seasonal rows kept across launches (plexSeasonal.ts).
   try {
     for (let i = localStorage.length - 1; i >= 0; i--) {

@@ -38,3 +38,4 @@ src/lib/plexVoice.ts
 src/lib/bufferDiagnostics.ts
 src/lib/overseerr.ts
 src/hooks/usePlexAuth.ts
+src/components/livetv/PlexTrailerControls.tsx

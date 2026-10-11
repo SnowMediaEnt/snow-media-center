@@ -264,6 +264,15 @@
       "noOtherTitles": "Keine weiteren Titel auf diesem Server.",
       "actorHint": "◀ ▶ ▲ ▼ stöbern · OK öffnen · Zurück zur Besetzung"
     },
+    "trailer": {
+      "button": "Trailer",
+      "watch": "Trailer ansehen",
+      "playingTitle": "{{title}} · Trailer",
+      "hint": "OK: Pause oder Wiedergabe · Zurück: schließen",
+      "paused": "Pausiert",
+      "time": "{{time}} / {{duration}}",
+      "pausedHint": "OK zum Fortsetzen · Zurück zum Schließen"
+    },
     "library": {
       "rows": {
         "continue": "Weiterschauen",

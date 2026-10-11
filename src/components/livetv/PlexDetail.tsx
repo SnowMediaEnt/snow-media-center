@@ -5,12 +5,12 @@
 // and share the same Back stack as show → seasons → episodes.
 // Fire-TV D-pad only. All Plex HTTP via plex.ts.
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Loader2, Play, RotateCw, List, Plus, Check, Gauge } from 'lucide-react';
+import { ArrowLeft, Clapperboard, Loader2, Play, RotateCw, List, Plus, Check, Gauge } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { getPlexMetadata as _getPlexMetadata, getPlexSeasons as _getPlexSeasons,
-  getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, resolutionLabel, findPlexCopies,
-  type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson, type PlexVersion } from '@/lib/plex';
+  getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, resolutionLabel, findPlexCopies, getPlexTrailer,
+  type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson, type PlexVersion, type PlexTrailer } from '@/lib/plex';
 import { cachedPlexSpeed, defaultVersion, is4k, measurePlexSpeed, sortVersions, speedVerdict, speedWarning, startVersion, versionName } from '@/lib/plexVersions';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { demoGetMetadata, demoGetSeasons, demoGetEpisodes, demoGetActorItems } from '@/lib/plexDemo';
@@ -25,6 +25,7 @@ import { getProgress, plexItemWatched, plexSeasonWatched, progressPercent, resum
 import { isPlexPlaybackActive } from '@/lib/plex';
 import { isFavorite, toggleFavorite, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 import { useTouchUI } from '@/lib/phoneMode';
+import { kidsLevel } from '@/lib/kidsFilter';
 
 interface Props {
   isActive: boolean;
@@ -47,10 +48,14 @@ interface Props {
   watchNonce?: number;
   /** On the viewer's own Plex account: the server's resume point is theirs. */
   serverResume?: boolean;
+  /** Play the title's trailer (one of its extras) in SMC's own player. Without
+   *  it the page offers no Trailer. */
+  onPlayTrailer?: (trailer: PlexTrailer, title: string) => void;
 }
 
 type Step = 'detail' | 'seasons' | 'episodes' | 'actorGrid';
-type DetailZone = 'buttons' | 'versions' | 'cast';
+// 'trailer': Trailer, on its own line under the buttons.
+type DetailZone = 'buttons' | 'trailer' | 'versions' | 'cast';
 
 // Demo mode reads everything from the pre-built, scrubbed catalog instead of
 // a live PMS. Always false on native.
@@ -168,7 +173,7 @@ const EpisodeRow = memo(({ ep, base, token, focused, chips, note, watched = fals
 });
 EpisodeRow.displayName = 'EpisodeRow';
 
-const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, onBack, watchNonce = 0, serverResume = false, speedConnections = 1 }: Props) => {
+const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, onBack, watchNonce = 0, serverResume = false, speedConnections = 1, onPlayTrailer }: Props) => {
   const touch = useTouchUI();
   const { t } = useTranslation();
   // ── back-stack of items (top = current). Opening a title from actor
@@ -240,6 +245,10 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const speedPromiseRef = useRef<Promise<number | null> | null>(null);
   const speedTriedAtRef = useRef(0);
   const [startWait, setStartWait] = useState(false);
+  // The title's trailer, once its extras have been asked (getPlexTrailer),
+  // and the button ▼ left for Trailer's line, so ▲ goes back to it.
+  const [trailer, setTrailer] = useState<PlexTrailer | null>(null);
+  const trailerFromRef = useRef(0);
 
   // Reset all state when the top-of-stack item changes. getPlexMetadata is
   // deferred via runWhenIdle so its JSON parse can't block the first D-pad
@@ -267,6 +276,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     seasonsSeqRef.current += 1; episodesSeqRef.current += 1;
     setSeasonsLoading(false); setEpisodesLoading(false);
     setCopies([]); setChosenId(null); setVerIdx(0); setEpPref(null);
+    setTrailer(null);
     const known = metaMemoRef.current.get(current.ratingKey);
     if (known) {
       setMeta(known); setMetaLoading(false); setCastReady(true);
@@ -381,6 +391,26 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     }, 300);
     return () => { cancelled = true; cancelIdle(); };
   }, [meta, current.ratingKey]);
+
+  // The trailer, for a film or a show: once the metadata is in, off the first
+  // paint, and only when the metadata names a primary extra (a title with no
+  // extras costs no request). Never on a Kids profile (a trailer carries no
+  // certificate of its own; see getPlexTrailer, which also remembers the
+  // answer for the session).
+  const trailerAllowed = !!onPlayTrailer && !DEMO && !kidsLevel();
+  useEffect(() => {
+    if (!trailerAllowed || !meta || meta.ratingKey !== current.ratingKey || !meta.primaryExtraKey) return;
+    if (meta.type !== 'movie' && meta.type !== 'show') return;
+    let cancelled = false;
+    const rk = current.ratingKey;
+    const extraKey = meta.primaryExtraKey;
+    const cancelIdle = runWhenIdle(() => {
+      const { base, token } = connRef.current;
+      void getPlexTrailer(base, token, rk, extraKey).then((tr) => { if (!cancelled) setTrailer(tr); });
+    }, 300);
+    return () => { cancelled = true; cancelIdle(); };
+  }, [trailerAllowed, meta, current.ratingKey]);
+  const shownTrailer = trailerAllowed && trailer && step === 'detail' ? trailer : null;
 
   // Measure the speed to the server for a 4K version (its own file, a few
   // seconds): one at a time, reused for five minutes, and not retried for a
@@ -536,6 +566,14 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     onPlay(current, resume, ctx, partKey, versions.length ? { version, versions } : undefined);
   }, [meta, current, onPlay, effective, multi, chosenId, baseChoice, versions, speedKbps]);
 
+  // The trailer plays over this page in SMC's own player, and saves nothing:
+  // the title's Resume point and watched check stay as they are, so its
+  // metadata is kept.
+  const playTrailer = useCallback(() => {
+    if (!shownTrailer || !onPlayTrailer) return;
+    onPlayTrailer(shownTrailer, meta?.title || current.title);
+  }, [shownTrailer, onPlayTrailer, meta, current]);
+
   const activateDetail = useCallback((id: string) => {
     if (id === 'play') void playCurrent(undefined);
     else if (id === 'resume') void playCurrent(resumeSec);
@@ -589,6 +627,8 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const currentRef = useRef(current); useEffect(() => { currentRef.current = current; }, [current]);
   const openActorRef = useRef(openActor); useEffect(() => { openActorRef.current = openActor; }, [openActor]);
   const pushItemRef = useRef(pushItem); useEffect(() => { pushItemRef.current = pushItem; }, [pushItem]);
+  const trailerRef = useRef(shownTrailer); useEffect(() => { trailerRef.current = shownTrailer; }, [shownTrailer]);
+  const playTrailerRef = useRef(playTrailer); useEffect(() => { playTrailerRef.current = playTrailer; }, [playTrailer]);
 
   // useLayoutEffect (pre-paint) so no D-pad press is lost between openDetail
   // firing setDetailItem in the parent and this handler being wired up.
@@ -618,19 +658,35 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
       if (s === 'detail') {
         const z = zoneRef.current;
+        // ▼ past the buttons (and Trailer's line): the versions, else the cast.
+        const downToVersionsOrCast = () => {
+          const vs = versionsRef.current;
+          if (vs.length > 1) {
+            const at = vs.findIndex((v) => v.id === effectiveRef.current?.id);
+            setZone('versions'); setVerIdx(at >= 0 ? at : 0);
+          } else if (castRef.current.length > 0) { setZone('cast'); setCastIdx(0); }
+        };
         if (z === 'buttons') {
           const bs = btnsRef.current;
           const b = btnRef.current;
           if (e.key === 'ArrowLeft') { if (b > 0) setBtn(b - 1); }
           else if (e.key === 'ArrowRight') { if (b < bs.length - 1) setBtn(b + 1); }
           else if (e.key === 'ArrowDown') {
-            const vs = versionsRef.current;
-            if (vs.length > 1) {
-              const at = vs.findIndex((v) => v.id === effectiveRef.current?.id);
-              setZone('versions'); setVerIdx(at >= 0 ? at : 0);
-            } else if (castRef.current.length > 0) { setZone('cast'); setCastIdx(0); }
+            // Trailer sits on its own line under the buttons, as in Movies
+            // (owner on Tronix's: "you cant just drop down from 'play movie'
+            // to go to trailer"): ▼ from any button goes to it.
+            if (trailerRef.current) { trailerFromRef.current = b; setZone('trailer'); }
+            else downToVersionsOrCast();
           }
           else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const def = bs[b]; if (def) activateRef.current(def.id); }
+          return;
+        }
+        if (z === 'trailer') {
+          // ▲ back to the button it came from, ▼ on down, OK plays it.
+          if (!trailerRef.current) { setZone('buttons'); return; }
+          if (e.key === 'ArrowUp') { setZone('buttons'); setBtn(Math.max(0, Math.min(trailerFromRef.current, btnsRef.current.length - 1))); }
+          else if (e.key === 'ArrowDown') downToVersionsOrCast();
+          else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; playTrailerRef.current(); }
           return;
         }
         if (z === 'versions') {
@@ -641,7 +697,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
           if (vs.length < 2) { setZone('buttons'); return; }
           if (e.key === 'ArrowLeft') { if (vi > 0) setVerIdx(vi - 1); }
           else if (e.key === 'ArrowRight') { if (vi < vs.length - 1) setVerIdx(vi + 1); }
-          else if (e.key === 'ArrowUp') { setZone('buttons'); }
+          else if (e.key === 'ArrowUp') { setZone(trailerRef.current ? 'trailer' : 'buttons'); }
           else if (e.key === 'ArrowDown') { if (castRef.current.length > 0) { setZone('cast'); setCastIdx(0); } }
           else if (e.key === 'Enter' || e.key === ' ') {
             if (e.repeat) return;
@@ -654,7 +710,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
         const list = castRef.current;
         const c = castIdxRef.current;
         if (list.length === 0) { setZone('buttons'); return; }
-        if (e.key === 'ArrowUp') { setZone(versionsRef.current.length > 1 ? 'versions' : 'buttons'); }
+        if (e.key === 'ArrowUp') { setZone(versionsRef.current.length > 1 ? 'versions' : trailerRef.current ? 'trailer' : 'buttons'); }
         else if (e.key === 'ArrowLeft') { if (c > 0) setCastIdx(c - 1); }
         else if (e.key === 'ArrowRight') { if (c < list.length - 1) setCastIdx(c + 1); }
         else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const p = list[c]; if (p) void openActorRef.current(p); }
@@ -835,6 +891,25 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                   <div className="h-10 w-28 rounded-lg bg-white/10 animate-pulse" />
                 )}
               </div>
+
+              {/* Trailer on its own line, right under the buttons: ▼ from any of them. */}
+              {shownTrailer && (() => {
+                const focused = isActive && zone === 'trailer';
+                return (
+                  <div className="mt-2" data-plex-trailer-line="">
+                    <button
+                      type="button"
+                      data-plex-trailer={shownTrailer.online ? 'online' : 'library'}
+                      data-focused={focused ? 'true' : 'false'}
+                      aria-label={t('plex.trailer.watch')}
+                      onClick={() => { setZone('trailer'); playTrailer(); }}
+                      className={`tv-ring tv-ring-contrast inline-flex items-center gap-2 h-10 px-4 rounded-lg font-quicksand font-semibold text-sm border ${focused ? 'bg-brand-gold text-brand-navy border-transparent scale-105 z-10' : 'bg-white/10 text-white border-white/15'}`}>
+                      <Clapperboard className="w-4 h-4" aria-hidden="true" />
+                      <span>{t('plex.trailer.button')}</span>
+                    </button>
+                  </div>
+                );
+              })()}
 
               {/* Versions: ▼ from the buttons, ◀ ▶, OK picks (Play starts it). */}
               {multi && (
