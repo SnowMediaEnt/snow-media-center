@@ -1,6 +1,7 @@
 // How long the remote's highlight rests on a category before that category's
 // channels are downloaded and shown, in Live TV's category list (and the
-// channel list over the picture) and in the Guide's category bar.
+// channel list over the picture) and in the Guide's category bar; and its
+// films or shows in Movies and TV Shows (owner, 2026-10-11).
 //
 // Owner, 2026-10-09: "channel listings don't load as I scroll thru
 // categories, need to click OK button to load the channels, they should auto

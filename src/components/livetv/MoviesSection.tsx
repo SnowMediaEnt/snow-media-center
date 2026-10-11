@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CATEGORY_DWELL_MS } from '@/lib/categoryDwell';
 import { ArrowLeft, Check, Film, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
@@ -194,12 +195,25 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   }, [visibleCategories.length, categoryIdx, categories.length, hasPlex]);
 
   const currentCat = visibleCategories[categoryIdx];
+  const currentCatId = currentCat?.id;
 
-  // Lazy-load focused category's movies.
+  // The category the highlight has rested on for CATEGORY_DWELL_MS (owner,
+  // 2026-10-11: "populate the list of movies or series ... without having to
+  // click it first please the same way we do with channels"): its films load
+  // and show beside the list, as Live TV's channels do, and a fast pass over a
+  // category downloads nothing. OK or ▶ still load it at once.
+  const [restedCat, setRestedCat] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isActive || !currentCatId || currentCatId === PLEX_ID) return;
+    const id = window.setTimeout(() => setRestedCat(currentCatId), CATEGORY_DWELL_MS);
+    return () => window.clearTimeout(id);
+  }, [isActive, currentCatId]);
+
+  // Lazy-load the category opened, or rested on (above).
   // "All Movies" is STRICTLY opt-in: never auto-fetch on focus.
   useEffect(() => {
-    if (pane !== 'grid') return;
     if (!currentCat || currentCat.id === PLEX_ID) return;
+    if (pane !== 'grid' && restedCat !== currentCat.id) return;
     if (currentCat.id === ALL_ID && !allOptedInRef.current) return;
     if (moviesByCat.has(currentCat.id)) return;
     let cancelled = false;
@@ -234,7 +248,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       setLoadingCat(prev => prev === key ? null : prev);
     });
     return () => { cancelled = true; };
-  }, [pane, currentCat, creds, moviesByCat, noteCounts]);
+  }, [pane, restedCat, currentCat, creds, moviesByCat, noteCounts]);
 
   // Lazy-load the full movie catalog when the search panel opens — or reuse
   // the one "All Movies" already downloaded.

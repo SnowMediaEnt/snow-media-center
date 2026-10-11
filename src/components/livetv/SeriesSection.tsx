@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CATEGORY_DWELL_MS } from '@/lib/categoryDwell';
 import { Check, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
@@ -208,12 +209,25 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
   }, [visibleCategories.length, categoryIdx, categories.length]);
 
   const currentCat = visibleCategories[categoryIdx];
+  const currentCatId = currentCat?.id;
 
-  // Lazy-load focused category's series.
+  // The category the highlight has rested on for CATEGORY_DWELL_MS (owner,
+  // 2026-10-11: "populate the list of movies or series ... without having to
+  // click it first please the same way we do with channels"): its shows load
+  // and show beside the list, as Live TV's channels do, and a fast pass over a
+  // category downloads nothing. OK or ▶ still load it at once.
+  const [restedCat, setRestedCat] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isActive || !currentCatId) return;
+    const id = window.setTimeout(() => setRestedCat(currentCatId), CATEGORY_DWELL_MS);
+    return () => window.clearTimeout(id);
+  }, [isActive, currentCatId]);
+
+  // Lazy-load the category opened, or rested on (above).
   // "All Series" is STRICTLY opt-in: never auto-fetch on focus.
   useEffect(() => {
-    if (pane !== 'grid') return;
     if (!currentCat) return;
+    if (pane !== 'grid' && restedCat !== currentCat.id) return;
     if (currentCat.id === ALL_ID && !allOptedInRef.current) return;
     if (seriesByCat.has(currentCat.id)) return;
     let cancelled = false;
@@ -236,7 +250,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
       setLoadingCat(prev => prev === key ? null : prev);
     });
     return () => { cancelled = true; };
-  }, [pane, currentCat, creds, seriesByCat, noteCounts]);
+  }, [pane, restedCat, currentCat, creds, seriesByCat, noteCounts]);
 
   // Lazy-load the full series catalog when the search panel opens.
   useEffect(() => {
