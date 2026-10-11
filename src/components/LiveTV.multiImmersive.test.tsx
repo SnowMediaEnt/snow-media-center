@@ -52,6 +52,8 @@ vi.mock('./livetv/MultiScreenSection', async () => {
       const k = (e: KeyboardEvent) => {
         if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopImmediatePropagation(); onExitLeft(); }
         if (e.key === 'ArrowUp') { e.preventDefault(); e.stopImmediatePropagation(); onExitUp(); }
+        // The real one stops every stream on Back from its grid.
+        if (e.key === 'Escape') { const w = window as unknown as { __msBacks?: number }; w.__msBacks = (w.__msBacks ?? 0) + 1; }
       };
       window.addEventListener('keydown', k, true);
       return () => window.removeEventListener('keydown', k, true);
@@ -122,6 +124,22 @@ describe('Multi-Screen on a TV: the header and side menu step aside while screen
     press('ArrowDown');
     await until(() => !header());
     expect(stubActive()).toBe(true);
+    view.unmount();
+  });
+
+  it('▲ to the header and Back: the remote goes back to the screens, which get no Back of their own (it stopped every stream)', async () => {
+    setPlaying(true);
+    (window as unknown as { __msBacks?: number }).__msBacks = 0;
+    const view = await openMulti();
+    await until(() => !header());
+    press('ArrowUp');
+    await settle(20);
+    expect(header()).toBe(true);
+    press('Escape');
+    await until(() => stubActive());
+    await settle(150); // past the 60 ms a section's own Back would follow in
+    expect(stubActive()).toBe(true);
+    expect((window as unknown as { __msBacks?: number }).__msBacks).toBe(0);
     view.unmount();
   });
 

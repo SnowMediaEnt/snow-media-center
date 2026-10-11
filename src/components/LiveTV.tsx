@@ -956,6 +956,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (paneRef.current === 'header') {
         if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
           e.preventDefault(); e.stopPropagation();
+          // Up from Multi-Screen's playing screens: Back only hands the
+          // remote back to them (as Tronix's header does). stepBack would
+          // also send the screens a Back, which stops every stream and drops
+          // to the layout chooser in the same press.
+          if (sectionRef.current === 'multi' && headerReturnPaneRef.current === 'content') { setPane('content'); return; }
           stepBack();
           return;
         }

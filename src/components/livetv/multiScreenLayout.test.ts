@@ -114,18 +114,19 @@ describe('every layout fills the grid with 16:9 screens', () => {
       const two = px('2h', box);
       fits(box, two);
       // Side by side: the width or the height is used up.
-      expect(Math.abs(two[0].w * 2 - box.width) < 1 || Math.abs(two[0].h - box.height) < 1).toBe(true);
+      // Within a px: the edges are whole px.
+      expect(Math.abs(two[0].w * 2 - box.width) <= 1.01 || Math.abs(two[0].h - box.height) <= 1.01).toBe(true);
       const stacked = px('2v', box);
       fits(box, stacked);
-      expect(Math.abs(stacked[0].h * 2 - box.height) < 1 || Math.abs(stacked[0].w - box.width) < 1).toBe(true);
+      expect(Math.abs(stacked[0].h * 2 - box.height) <= 1.01 || Math.abs(stacked[0].w - box.width) <= 1.01).toBe(true);
       const four = px('4', box);
       fits(box, four);
-      expect(Math.abs(four[0].w * 2 - box.width) < 1 || Math.abs(four[0].h * 2 - box.height) < 1).toBe(true);
+      expect(Math.abs(four[0].w * 2 - box.width) <= 1.01 || Math.abs(four[0].h * 2 - box.height) <= 1.01).toBe(true);
       const three = px('3', box);
       fits(box, three);
       // The small screens keep a quarter of the width each.
-      expect(three[1].w).toBeGreaterThanOrEqual(SMALL_MIN_SHARE * box.width - 0.5);
-      expect(three[2].w).toBeCloseTo(three[1].w, 1);
+      expect(three[1].w).toBeGreaterThanOrEqual(SMALL_MIN_SHARE * box.width - 1);
+      expect(Math.abs(three[2].w - three[1].w)).toBeLessThanOrEqual(1);
     });
   }
 

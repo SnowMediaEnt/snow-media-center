@@ -33,9 +33,11 @@ export const LAYOUT_ORDER: Layout[] = ['2h', '2v', '3', '4'];
 /** The big screen in the 3-screen layout. */
 export const MAIN_TILE = 0;
 
-// Places are worked out in px and handed to the tiles as shares of the grid,
-// rounded to millionths so neighbours meet exactly (one's right edge is the
-// next one's left).
+// Places are worked out in px, their edges rounded to whole px (each edge
+// once, so a tile's bottom and the next one's top are the same number: the
+// native players round every edge on their own, and two fractions either side
+// of .5 left a 1 px line between rows), and handed to the tiles as shares of
+// the grid, rounded to millionths so neighbours meet exactly.
 const UNITS = 1_000_000;
 const pct = (u: number) => `${(u / 10_000).toFixed(4)}%`;
 type Px = { x: number; y: number; w: number; h: number };
@@ -43,7 +45,7 @@ const toSpecs = (ids: readonly MultiScreenId[], rects: Px[], W: number, H: numbe
   const x = (v: number) => Math.round((v / W) * UNITS);
   const y = (v: number) => Math.round((v / H) * UNITS);
   return rects.map((r, i) => {
-    const [l, t, rr, b] = [x(r.x), y(r.y), x(r.x + r.w), y(r.y + r.h)];
+    const [l, t, rr, b] = [x(Math.round(r.x)), y(Math.round(r.y)), x(Math.round(r.x + r.w)), y(Math.round(r.y + r.h))];
     return { id: ids[i], rect: { left: pct(l), top: pct(t), width: pct(rr - l), height: pct(b - t) } };
   });
 };

@@ -368,6 +368,13 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   }, [layout, slots, showHint]);
 
   // ── Handlers ───────────────────────────────────────────────────────────
+  // Moves on whenever the screens are all stopped (Back from the grid, the
+  // section going away): a channel still on its way to a screen (the double
+  // frame before it loads, a swap's second load) must not start a stream
+  // after that, silent behind the layout chooser and counted against the
+  // line's connections (Tronix's cancelTileLoads).
+  const loadsGenRef = useRef(0);
+  useEffect(() => () => { loadsGenRef.current += 1; }, []);
   const chooseLayout = useCallback((l: Layout) => {
     setLayout(l);
     setFocusedTile(0);
@@ -390,14 +397,18 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     });
     // Measure THIS tile now and applyRect BEFORE loadSlot. DOUBLE rAF so the
     // setTiles/picker-close layout flush lands first — never measure a 0×0 box.
+    const gen = loadsGenRef.current;
     requestAnimationFrame(() => requestAnimationFrame(async () => {
+      if (gen !== loadsGenRef.current) return;
       const el = tileRefs.current[tileIdx];
       if (el) {
         const r = el.getBoundingClientRect();
         await applyRect(sid, { x: r.left, y: r.top, width: r.width, height: r.height });
       }
+      if (gen !== loadsGenRef.current) return;
       const url = buildNativeLiveUrl(creds, ch.stream_id);
       await loadSlot(sid, url);
+      if (gen !== loadsGenRef.current) { void closeSlot(sid); return; }
       // Audio follows the highlighter: only grab audio if the loaded tile is
       // still under it; otherwise re-assert the currently focused tile.
       const soundIdx = soundTile(layoutRef.current!, focusedTileRef.current);
@@ -411,7 +422,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       const occupiedCount = tilesRef.current.filter(t => t.channel).length;
       if (!DEMO) { try { trackEvent('multi_screen_play', 'player', { layout, tiles: occupiedCount }); } catch { /* ignore */ } }
     }));
-  }, [layout, applyRect, loadSlot, focusAudio, creds, fetchEpgForTile]);
+  }, [layout, applyRect, loadSlot, closeSlot, focusAudio, creds, fetchEpgForTile]);
 
   const closeTile = useCallback(async (tileIdx: number) => {
     if (!layout) return;
@@ -450,10 +461,15 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       return copy;
     });
     setFocusedTile(MAIN_TILE);
+    const gen = loadsGenRef.current;
+    const stopped = () => gen !== loadsGenRef.current;
     await loadSlot(mainSid, buildNativeLiveUrl(creds, small.channel.stream_id));
+    if (stopped()) { void closeSlot(mainSid); return; }
     await focusAudio(mainSid);
-    if (main?.channel) await loadSlot(smallSid, buildNativeLiveUrl(creds, main.channel.stream_id));
-    else await closeSlot(smallSid);
+    if (main?.channel) {
+      await loadSlot(smallSid, buildNativeLiveUrl(creds, main.channel.stream_id));
+      if (stopped()) { void closeSlot(smallSid); return; }
+    } else await closeSlot(smallSid);
     if (!DEMO) { try { trackEvent('multi_screen_swap', 'player', { layout }); } catch { /* ignore */ } }
   }, [layout, loadSlot, closeSlot, focusAudio, creds]);
 
@@ -687,6 +703,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       // Grid navigation
       if (isBack) {
         consume(e);
+        loadsGenRef.current += 1;
         void stopAll();
         setTiles([{ channel: null }, { channel: null }, { channel: null }, { channel: null }]);
         setLayout(null);

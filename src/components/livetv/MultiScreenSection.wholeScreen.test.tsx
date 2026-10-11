@@ -199,7 +199,11 @@ describe('the whole screen on a TV', () => {
     Object.assign(GRID, { left: 176, top: 57, width: 784, height: 483 });
     act(() => { window.dispatchEvent(new Event('resize')); });
     await settle(80);
-    const want = threeScreenPx(784, 483).rects;
+    // The tiles' edges are whole px (multiScreenLayout rounds each once).
+    const want = threeScreenPx(784, 483).rects.map((r) => {
+      const [l, t, rr, bb] = [Math.round(r.x), Math.round(r.y), Math.round(r.x + r.w), Math.round(r.y + r.h)];
+      return { x: l, y: t, w: rr - l, h: bb - t };
+    });
     ['ms1', 'ms2', 'ms3'].forEach((sid, i) => {
       near(lastRect(sid), { x: 176 + want[i].x, y: 57 + want[i].y, width: want[i].w, height: want[i].h });
       near(lastRect(sid), placeRect(i));
