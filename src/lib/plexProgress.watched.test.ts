@@ -12,16 +12,21 @@ let authCb: AuthCb | null = null;
 const progressRows: Array<{ item_key: string; payload: unknown; watched_at: string }> = [];
 const markRows: Array<{ item_key: string; done?: unknown; show?: unknown; season?: unknown }> = [];
 const markReads: string[] = [];
+let marksFail = false;
 vi.mock('@/integrations/supabase/client', () => {
   const read = () => {
     let cols = '';
     const q: Record<string, unknown> = {};
+    let span: [number, number] | null = null;
     for (const k of ['eq', 'like', 'not', 'order', 'limit']) q[k] = () => q;
+    q.range = (from: number, to: number) => { span = [from, to]; return q; };
     q.select = (c: string) => { cols = c; return q; };
     q.then = (ok: (v: unknown) => unknown) => {
       const marksRead = cols.includes('payload->done');
       if (marksRead) markReads.push(cols);
-      return Promise.resolve({ data: marksRead ? markRows.slice() : progressRows.slice(), error: null }).then(ok);
+      if (marksRead && marksFail) return Promise.resolve({ data: null, error: { message: 'offline' } }).then(ok);
+      const rows = marksRead ? markRows.slice(span ? span[0] : 0, span ? span[1] + 1 : undefined) : progressRows.slice();
+      return Promise.resolve({ data: rows, error: null }).then(ok);
     };
     return q;
   };
@@ -63,6 +68,7 @@ beforeEach(() => {
   progressRows.length = 0;
   markRows.length = 0;
   markReads.length = 0;
+  marksFail = false;
   authCb = null;
 });
 afterEach(() => { vi.useRealTimers(); });
@@ -95,6 +101,50 @@ describe('watched checks: films and episodes', () => {
     m.saveProgress({ ratingKey: 'e3', kind: 'episode', title: 'Ep 3', at: DUR - 35, dur: DUR, showKey: 's1', season: 1, index: 3 });
     await tick();
     expect(stored('device')).toEqual(['e3|s1|1']);
+  });
+
+  it('Up Next taken at the credits: the episode is watched, though its last reading is short of the done line', async () => {
+    const m = await fresh();
+    // A 24-minute episode whose credits start at 21:30; Up Next went at 21:40.
+    m.noteEpisodeFinishing('a1');
+    m.saveProgress({ ratingKey: 'a1', kind: 'episode', title: 'A1', at: 1300, dur: 1440, showKey: 'an', season: 1, index: 1 }, true);
+    await tick();
+    expect(m.isTitleWatched('a1')).toBe(true);
+    expect(m.watchedEpisodeCount('an', 1)).toBe(1);
+    // Stopped there without Up Next: not watched.
+    m.saveProgress({ ratingKey: 'a2', kind: 'episode', title: 'A2', at: 1300, dur: 1440, showKey: 'an', season: 1, index: 2 }, true);
+    await tick();
+    expect(m.isTitleWatched('a2')).toBe(false);
+    // A note with no closing save soon after is stale.
+    const now = Date.now();
+    m.noteEpisodeFinishing('a3');
+    vi.spyOn(Date, 'now').mockReturnValue(now + 120_000);
+    m.saveProgress({ ratingKey: 'a3', kind: 'episode', title: 'A3', at: 300, dur: 1440, showKey: 'an', season: 1, index: 3 }, true);
+    await tick();
+    expect(m.isTitleWatched('a3')).toBe(false);
+    vi.restoreAllMocks();
+  });
+
+  it('more checks than the season has episodes (some no longer on the server): no check', async () => {
+    const m = await fresh();
+    for (let i = 1; i <= 4; i++) await finishEpisode(m, 'daily', 2026, i);
+    expect(m.plexSeasonWatched('daily', { index: 2026, leafCount: 3 })).toBe(false);
+    expect(m.plexItemWatched({ ratingKey: 'daily', type: 'show', leafCount: 3 })).toBe(false);
+    expect(m.plexSeasonWatched('daily', { index: 2026, leafCount: 4 })).toBe(true);
+    expect(m.plexItemWatched({ ratingKey: 'daily', type: 'show', leafCount: 4 })).toBe(true);
+  });
+
+  it('the resume points become checks once per viewer, not on every open', async () => {
+    const m = await fresh();
+    m.plexWatchedVersion(); // the first read: nothing finished, the list stored empty
+    expect(stored('device')).toEqual([]);
+    // A single odd reading left in a resume point later.
+    localStorage.setItem('snow-plex-progress:device', JSON.stringify({
+      x1: { ratingKey: 'x1', kind: 'movie', title: 'X', at: 1790, dur: DUR, t: 1, done: true },
+    }));
+    const again = await fresh();
+    again.plexWatchedVersion();
+    expect(stored('device')).toEqual([]);
   });
 
   it('an episode first saved without its show gets it when a later save knows it', async () => {
@@ -250,6 +300,35 @@ describe('watched checks: viewers, the account and the server', () => {
     await m.pullProgressFromCloud();
     await ticks();
     expect(markReads).toHaveLength(1);
+  });
+
+  it('the full read goes page by page (the server hands out 1000 rows an ask)', async () => {
+    const m = await fresh();
+    m.__resetPlexProgressForTests('u1');
+    for (let i = 0; i < 1500; i++) markRows.push({ item_key: `f${i}`, done: true, show: null, season: null });
+    await m.pullProgressFromCloud();
+    await ticks(10);
+    expect(markReads).toHaveLength(2);
+    expect(m.isTitleWatched('f0')).toBe(true);
+    expect(m.isTitleWatched('f1499')).toBe(true);
+  });
+
+  it('a full read that did not get through is tried again on the next Plex open', async () => {
+    const m = await fresh();
+    m.__resetPlexProgressForTests('u1');
+    markRows.push({ item_key: 'old-film', done: true, show: null, season: null });
+    marksFail = true;
+    await m.pullProgressFromCloud();
+    await ticks();
+    expect(m.isTitleWatched('old-film')).toBe(false);
+    marksFail = false;
+    await m.pullProgressFromCloud();
+    await ticks();
+    expect(markReads).toHaveLength(2);
+    expect(m.isTitleWatched('old-film')).toBe(true);
+    await m.pullProgressFromCloud();
+    await ticks();
+    expect(markReads).toHaveLength(2); // got through: once per start
   });
 
   it('the server\'s plays count only on the viewer\'s own Plex account', async () => {

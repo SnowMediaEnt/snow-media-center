@@ -254,7 +254,9 @@ describe('PlexSection — Continue Watching after the native player', () => {
       h.pos = { position: 2930, duration: 2940, playing: true };
       await playTitle('e3', 'The Long Night', 'episode');
       await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
-      // The next episode is first read a few seconds after it starts.
+      // The next episode is first read a few seconds after it starts (its own
+      // playhead: the last one's carried on is not saved under it).
+      h.pos = { position: 6, duration: 3000, playing: true };
       await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
       const { getProgress } = await import('@/lib/plexProgress');
       expect(getProgress('e4')).toMatchObject({

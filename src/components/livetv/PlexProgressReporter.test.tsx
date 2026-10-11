@@ -44,6 +44,24 @@ describe('PlexProgressReporter', () => {
     expect(saves[saves.length - 1]).toEqual({ key: '12', at: 20, final: true });
   });
 
+  it("the next title read while the player still has the last one's playhead saves nothing: not its check, not its place", async () => {
+    const { default: Reporter } = await import('./PlexProgressReporter');
+    const ui = (key: string) => <Reporter active ratingKey={key} info={info(key)} getPosition={getPosition} />;
+    const r = render(ui('11'));
+    await flush();
+    position = 1700; // 11's credits
+    await flush(15_000);
+    expect(saves[saves.length - 1]).toEqual({ key: '11', at: 1700, final: false });
+    r.rerender(ui('12')); // Up Next
+    position = 1706; // 5 s on, still 11's playhead
+    await flush(5_000);
+    expect(saves.some((x) => x.key === '12')).toBe(false);
+    expect(diag.beatSkip).toBe('last-title');
+    position = 21; // 12 itself
+    await flush(15_000);
+    expect(saves[saves.length - 1]).toEqual({ key: '12', at: 21, final: false });
+  });
+
   it('saves nothing until it knows what is playing', async () => {
     const { default: Reporter } = await import('./PlexProgressReporter');
     render(<Reporter active ratingKey="11" info={null} getPosition={getPosition} />);

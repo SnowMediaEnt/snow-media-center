@@ -923,9 +923,12 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               <div className="flex gap-3 overflow-x-auto pb-3 pt-2 px-2 -mx-2">
                 {seasons.map((s, i) => {
                   const focused = isActive && seasonIdx === i;
-                  // Every episode in it watched: counted from this viewer's
-                  // checks against the season's episode count (plexProgress).
-                  const done = plexSeasonWatched(current.ratingKey, s);
+                  // Every episode in it watched: its episodes when they are the
+                  // ones loaded (each checked), else this viewer's checks
+                  // counted against the season's episode count (plexProgress).
+                  const done = episodesForRef.current === s.ratingKey && episodes.length
+                    ? episodes.every((ep) => plexItemWatched({ ratingKey: ep.ratingKey, type: 'episode', viewCount: ep.viewCount }))
+                    : plexSeasonWatched(current.ratingKey, s);
                   return (
                     <div key={s.ratingKey}
                       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}

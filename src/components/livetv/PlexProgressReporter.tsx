@@ -31,6 +31,14 @@ const EVERY_MS = 15_000;
  *  (its credits), which saved the next one as watched. Nothing is lost: the
  *  first minute is never a place to resume from. */
 const NEXT_FIRST_MS = 5_000;
+/** Up to this long after the last title's last reading, a reading of the
+ *  next one that is that title's playhead carried on (its place then, plus
+ *  the time since, give or take STALE_SLACK_S) is still the last title's and
+ *  saves nothing: NEXT_FIRST_MS is not always enough. Saved at the credits,
+ *  it checked the next episode as watched for good; part-way, it gave it the
+ *  last one's place to resume from. */
+const STALE_MS = 90_000;
+const STALE_SLACK_S = 30;
 
 type Snapshot = Omit<PlexProgress, 't' | 'done'>;
 
@@ -54,6 +62,9 @@ const PlexProgressReporter = memo(({ active, ratingKey, info, getPosition, serve
   const serverRef = useRef(server); serverRef.current = server;
   // The last playhead seen for the title on screen, for the final save.
   const lastRef = useRef<Snapshot | null>(null);
+  const lastReadAtRef = useRef(0);
+  // The last title's last reading, once another took its place (STALE_MS).
+  const prevRef = useRef<{ key: string; at: number; readAt: number } | null>(null);
   const known = !!info && !!ratingKey && info.ratingKey === ratingKey;
   // As of the last commit, for the close below: its cleanup runs after the
   // render that already cleared them, so it must not read this render's.
@@ -85,10 +96,15 @@ const PlexProgressReporter = memo(({ active, ratingKey, info, getPosition, serve
         // and left Continue Watching.
         const dur = info.duration && info.duration > 0 ? info.duration : p.duration;
         if (!alive) return;
-        const skip = !(dur > 0) ? 'no-duration' : !(p.position > 0) ? 'no-position' : undefined;
+        const prev = prevRef.current;
+        const now = Date.now();
+        const stale = !!prev && prev.key !== info.ratingKey && now - prev.readAt < STALE_MS
+          && Math.abs(p.position - (prev.at + (now - prev.readAt) / 1000)) < STALE_SLACK_S;
+        const skip = !(dur > 0) ? 'no-duration' : !(p.position > 0) ? 'no-position' : stale ? 'last-title' : undefined;
         noteProgressDiag({ beatAt: Date.now(), beatPos: p.position, beatDur: dur, beatSkip: skip });
         if (skip) return;
         lastRef.current = snapshot(info, p.position, dur);
+        lastReadAtRef.current = now;
         saveProgress(lastRef.current);
         const srv = serverRef.current;
         if (srv) void reportPlexTimeline(srv.base, srv.token, info.ratingKey, p.playing ? 'playing' : 'paused', p.position, dur);
@@ -121,6 +137,7 @@ const PlexProgressReporter = memo(({ active, ratingKey, info, getPosition, serve
         saveProgress(last, true);
         const srv = serverRef.current;
         if (srv) void reportPlexTimeline(srv.base, srv.token, last.ratingKey, 'stopped', last.at, last.dur);
+        prevRef.current = { key: last.ratingKey, at: last.at, readAt: lastReadAtRef.current };
         lastRef.current = null;
       }
     };

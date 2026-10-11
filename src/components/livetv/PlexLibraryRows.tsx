@@ -97,7 +97,7 @@ const PlexLibraryRows = memo(({
   const { t } = useTranslation();
   const specs = useMemo(() => libraryRowSpecs(sectionType), [sectionType]);
   // The watched checks: one subscription for the rails and the grid.
-  usePlexWatched();
+  const watchedVersion = usePlexWatched();
 
   // Seed synchronously from the hub cache so a revisit paints with no flash.
   // getPlexHub does NOT cache on its own — the cache is entirely caller-driven,
@@ -114,14 +114,19 @@ const PlexLibraryRows = memo(({
 
   // Rows actually shown: a spec appears once it has items. Empty until the
   // first fetch lands — see the header on why that is safe.
+  // "Haven't Watched" is the server's, and on the shared Plex account the
+  // server never hears this viewer's plays: what they finished is left out.
   const rows = useMemo<LoadedRow[]>(() => {
     const out: LoadedRow[] = [];
     for (const s of specs) {
-      const items = loaded[s.id];
+      const all = loaded[s.id];
+      const items = all && s.id === 'unwatched' ? all.filter((it) => !plexItemWatched(it)) : all;
       if (items && items.length) out.push({ spec: s, items });
     }
     return out;
-  }, [specs, loaded]);
+    // watchedVersion: a check came or went.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [specs, loaded, watchedVersion]);
 
   // ── focus, tracked by stable id ──────────────────────────────────────────
   // NULL means "wherever the top is". Rows arrive asynchronously and in any

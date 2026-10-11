@@ -2561,7 +2561,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [ownPlexAccount, setOwnPlexAccount] = useState(false);
   useEffect(() => {
     const tok = accountToken ?? conn?.token;
-    if (!tok || DEMO) { setOwnPlexAccount(false); return; }
+    // Shared until this token's account says otherwise: the last token's
+    // answer must not stand for it (the server's plays get checks).
+    setOwnPlexAccount(false);
+    if (!tok || DEMO) return;
     let gone = false;
     void getPlexAccount(tok)
       .then((a) => isOwnPlexAccount(a))
