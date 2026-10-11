@@ -265,6 +265,15 @@
       "noOtherTitles": "Aucun autre titre sur ce serveur.",
       "actorHint": "◀ ▶ ▲ ▼ parcourir · OK ouvrir · Retour à la distribution"
     },
+    "trailer": {
+      "button": "Bande-annonce",
+      "watch": "Voir la bande-annonce",
+      "playingTitle": "{{title}} · Bande-annonce",
+      "hint": "OK : pause ou lecture · Retour : fermer",
+      "paused": "En pause",
+      "time": "{{time}} / {{duration}}",
+      "pausedHint": "OK pour reprendre · Retour pour fermer"
+    },
     "library": {
       "rows": {
         "continue": "Reprendre la lecture",

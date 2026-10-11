@@ -265,6 +265,15 @@
       "noOtherTitles": "No hay más títulos en este servidor.",
       "actorHint": "◀ ▶ ▲ ▼ explorar · OK abrir · Atrás al reparto"
     },
+    "trailer": {
+      "button": "Tráiler",
+      "watch": "Ver el tráiler",
+      "playingTitle": "{{title}} · Tráiler",
+      "hint": "OK: pausar o reproducir · Atrás: cerrar",
+      "paused": "En pausa",
+      "time": "{{time}} / {{duration}}",
+      "pausedHint": "OK para continuar · Atrás para cerrar"
+    },
     "library": {
       "rows": {
         "continue": "Seguir viendo",
