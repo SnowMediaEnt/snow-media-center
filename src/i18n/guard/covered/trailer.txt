@@ -1,0 +1,4 @@
+# Trailer on the film and series pages (Live TV › Movies / TV Shows), played inside SMC.
+src/components/livetv/TrailerOverlay.tsx
+src/components/livetv/TrailerButton.tsx
+src/lib/trailer.ts

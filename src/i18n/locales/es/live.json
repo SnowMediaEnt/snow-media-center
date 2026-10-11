@@ -145,6 +145,7 @@
       "seriesLabel": "Series"
     },
     "toast": {
+      "trailerNoneTitle": "Ninguna app de este dispositivo puede mostrar el tráiler.",
       "liveDemoTitle": "Demo en vivo",
       "liveDemoDesc": "La demo ya trae una cuenta de prueba; el inicio de sesión y el cambio de cuenta funcionan en la app instalada.",
       "signedOutTitle": "Sesión cerrada",
@@ -362,6 +363,18 @@
       "episodes": "Episodios",
       "noEpisodes": "Sin episodios",
       "episodeN": "Episodio {{n}}"
+    },
+    "trailer": {
+      "openBtn": "Tráiler",
+      "watch": "Ver el tráiler",
+      "find": "Buscar el tráiler",
+      "hint": "OK: pausar o reproducir · Atrás: cerrar",
+      "cantPlay": "Este tráiler no se puede reproducir aquí.",
+      "openOutsideBtn": "Abrir fuera de la app",
+      "backHint": "Atrás lo cierra.",
+      "paused": "En pausa",
+      "time": "{{time}} / {{duration}}",
+      "pausedHint": "OK para continuar · Atrás para cerrar"
     },
     "vodChooser": {
       "title": "¿Qué quieres ver?",

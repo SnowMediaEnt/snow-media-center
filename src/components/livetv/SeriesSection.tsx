@@ -39,6 +39,9 @@ import VodPlayer from './VodPlayer';
 import { PosterFrame } from './FitPoster';
 import { episodeMark, episodePart, noteEpisodeFinished, noteEpisodeProgress, noteShowSize, seasonWatched, showWatched, type ShowMark, type WatchedEpisodeRef } from '@/lib/watchedMarks';
 import { useWatchedShows } from '@/hooks/useWatchedVod';
+import TrailerButton from './TrailerButton';
+import TrailerOverlay from './TrailerOverlay';
+import { openTrailer, seriesTrailer } from '@/lib/trailer';
 
 interface Props {
   creds: XtreamCreds;
@@ -51,9 +54,10 @@ interface Props {
 }
 
 type Pane = 'categories' | 'grid' | 'detail';
-// A series page: Play and the autoplay switch on the left, then the seasons,
-// then the episodes. Each list scrolls on its own to keep the highlight in view.
-type DetailFocus = 'play' | 'autoplay' | 'seasons' | 'episodes';
+// A series page: Play, the autoplay switch and Trailer on the left, then the
+// seasons, then the episodes. Each list scrolls on its own to keep the
+// highlight in view.
+type DetailFocus = 'play' | 'autoplay' | 'trailer' | 'seasons' | 'episodes';
 const ALL_ID = '__all__';
 /** Categories kept with their shows (as Movies): the newest this many. */
 const MAX_KEPT_CATEGORIES = 6;
@@ -117,12 +121,30 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
   const [seasonIdx, setSeasonIdx] = useState(0);
   const [episodeIdx, setEpisodeIdx] = useState(0);
   const [detailFocus, setDetailFocus] = useState<DetailFocus>('episodes');
+  // Trailer, on its own line under Play and the autoplay switch once the
+  // page's info is in (its video, else a search; none on a Kids profile).
+  const trailer = useMemo(() => (selectedSeries && !infoLoading ? seriesTrailer(selectedSeries, seriesInfo) : null), [selectedSeries, seriesInfo, infoLoading]);
+  const trailerRef = useRef(trailer);
+  trailerRef.current = trailer;
+  // The trailer playing over the page (TrailerOverlay), by its video id. While
+  // it is up the page's keys stand aside: the layer owns the remote.
+  const [trailerVideo, setTrailerVideo] = useState<string | null>(null);
+  const trailerVideoRef = useRef(trailerVideo);
+  const showTrailer = useCallback((id: string | null) => { trailerVideoRef.current = id; setTrailerVideo(id); }, []);
+  const closeTrailer = useCallback(() => showTrailer(null), [showTrailer]);
+  const pressTrailer = useCallback(() => {
+    const target = trailerRef.current;
+    if (target) void openTrailer(target, 'series', showTrailer);
+  }, [showTrailer]);
 
   const [playing, setPlaying] = useState<{
     url: string; title: string; seasonIdx: number; episodeIdx: number;
     /** Its show and its place in it, for the watched marks (lib/watchedMarks). */
     seriesId: number; episode: WatchedEpisodeRef;
   } | null>(null);
+  // Off the series' page, or playing: no trailer (the page's keys never wait
+  // on a layer that is not drawn).
+  useEffect(() => { if (pane !== 'detail' || !selectedSeries || playing) showTrailer(null); }, [pane, selectedSeries, playing, showTrailer]);
   // On-screen title: shows 4 s on play / episode change / any key, then hides.
   const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [demoNotice, setDemoNotice] = useState(false);
@@ -475,6 +497,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
 
       // The player owns every key while it plays (VodPlayer's bar: Back, seek, volume).
       if (playingRef.current) return;
+      // So does a trailer over the series' page (TrailerOverlay: OK pauses, Back closes it).
+      if (trailerVideoRef.current) return;
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
@@ -567,8 +591,15 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
         else if (e.key === 'Enter' || e.key === ' ') playFirst();
       } else if (focus === 'autoplay') {
         if (e.key === 'ArrowUp') setDetailFocus('play');
+        else if (e.key === 'ArrowDown') { if (trailerRef.current) setDetailFocus('trailer'); }
         else if (e.key === 'ArrowRight') intoLists();
         else if (e.key === 'Enter' || e.key === ' ') setAutoplayNext((v) => !v);
+      } else if (focus === 'trailer') {
+        // The line under the switch: ▲ back to it, ▶ the lists as from the
+        // buttons above, OK opens it.
+        if (e.key === 'ArrowUp') setDetailFocus('autoplay');
+        else if (e.key === 'ArrowRight') intoLists();
+        else if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) pressTrailer();
       } else if (focus === 'seasons') {
         if (e.key === 'ArrowDown') {
           if (sIdx + 1 < seas.length) { setSeasonIdx(sIdx + 1); setEpisodeIdx(0); }
@@ -591,7 +622,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, onExitUp, openSeries, playEpisode, playFirst]);
+  }, [isActive, onExitLeft, onExitUp, openSeries, playEpisode, playFirst, pressTrailer]);
 
   // Virtualize series grid by row — measure row height from real layout so
   // virtual stride matches what's rendered at any TV resolution.
@@ -805,6 +836,14 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
               </span>
               <span className="min-w-0">{t('live.series.autoplayNext')}</span>
             </div>
+            {/* Trailer on its own line under the switch: ▼ from it, ▲ back. */}
+            <TrailerButton
+              target={trailer}
+              detailBtn="trailer"
+              focused={btnFocused('trailer')}
+              onPress={() => { setDetailFocus('trailer'); pressTrailer(); }}
+              className={`tv-ring mt-3 w-full rounded-xl h-11 px-4 text-base bg-black/40 border-white/20 text-white transition-transform duration-150 ease-out ${btnFocused('trailer') ? 'scale-105 z-10' : ''}`}
+            />
             </div>
           </div>
 
@@ -885,6 +924,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
           </div>
         </div>
         {demoNoticeOverlay}
+        {trailerVideo && <TrailerOverlay video={trailerVideo} title={selectedSeries.name} kind="series" onClose={closeTrailer} />}
       </div>
     );
   }
