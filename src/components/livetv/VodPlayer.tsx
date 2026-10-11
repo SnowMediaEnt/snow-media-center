@@ -18,6 +18,14 @@
 // tracks: the viewer's language when the file has it, else the file's own
 // default (see vodAudio), until the viewer picks one in the bar.
 //
+// onProgress: where the title is, every VOD_PROGRESS_MS while it is on screen
+// and once more as it closes or the next episode replaces it, from the same
+// getPosition the bar reads (the <video>, or the native player). The bar only
+// reads it while it is up, so this is its own slow timer, kept running while
+// a stream plays (quiet mode stops the others) and stopped with the app in
+// the background. Movies and Series mark what was watched from it
+// (lib/watchedMarks).
+//
 // Chrome 66: no inset, no aspect-ratio, no gap beyond gap-1..4.
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle, RotateCw } from 'lucide-react';
@@ -28,11 +36,15 @@ import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { pickAudioTrack } from '@/lib/vodAudio';
 import SnowLoader from '@/components/SnowLoader';
 import { loadPlayerVolume, MAX_VOLUME, savePlayerVolume } from '@/utils/volume';
+import { setPausableInterval } from '@/utils/pausableInterval';
 import type { VideoController } from './VideoPlayer';
 import VodControlBar, { type VodPosition } from './VodControlBar';
 import { useTouchUI } from '@/lib/phoneMode';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
+
+/** How often the position goes to onProgress while a title plays. */
+export const VOD_PROGRESS_MS = 10_000;
 
 /** An error for analytics: at most 200 characters and never an address
  *  (a line's stream URL carries its username and password). */
@@ -57,6 +69,9 @@ interface Props {
   /** For analytics: an address-free message. */
   onError?: (msg: string) => void;
   onEnded?: () => void;
+  /** Where the title is (seconds; duration 0 while not known), every
+   *  VOD_PROGRESS_MS and once more when it closes or `src` changes. */
+  onProgress?: (position: number, duration: number) => void;
   /** Drawn over the picture (the title in the corner). */
   children?: ReactNode;
 }
@@ -71,7 +86,7 @@ interface BarProps {
   hasNext?: boolean;
 }
 
-export default function VodPlayer({ src, volume: volumeProp, onVolumeChange, title, onClose, onNext, hasNext, onError, onEnded, children }: Props) {
+export default function VodPlayer({ src, volume: volumeProp, onVolumeChange, title, onClose, onNext, hasNext, onError, onEnded, onProgress, children }: Props) {
   const { t } = useTranslation();
   // Fixed for the life of the player: a box never changes engine mid-film.
   const [native] = useState(() => hasNativePlayer());
@@ -82,6 +97,12 @@ export default function VodPlayer({ src, volume: volumeProp, onVolumeChange, tit
   onEndedRef.current = onEnded;
   const reportError = useCallback((msg: string) => { onErrorRef.current?.(cleanVodMessage(msg)); }, []);
   const ended = useCallback(() => { onEndedRef.current?.(); }, []);
+  // Set after render, not during it: when the next episode replaces this one,
+  // the last report of the one leaving (useProgressFeed's cleanup, which runs
+  // first) still goes to its own callback, not to the new episode's.
+  const onProgressRef = useRef(onProgress);
+  useEffect(() => { onProgressRef.current = onProgress; });
+  const progress = useCallback((pos: number, dur: number) => { onProgressRef.current?.(pos, dur); }, []);
 
   // The shared player volume (Live TV, Plex). The bar changes it, saves it
   // and tells the section; a change from the section is followed.
@@ -104,10 +125,10 @@ export default function VodPlayer({ src, volume: volumeProp, onVolumeChange, tit
       className={`fixed left-0 top-0 w-full h-full z-[60] ${native ? 'bg-transparent' : 'bg-black'}`}
     >
       {native ? (
-        <NativeVod src={src} onError={reportError} onEnded={ended} bar={bar} />
+        <NativeVod src={src} onError={reportError} onEnded={ended} onProgress={progress} bar={bar} />
       ) : (
         <Suspense fallback={<div className="absolute left-0 top-0 w-full h-full flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label={t('common.loading')} /></div></div>}>
-          <WebVod src={src} onError={reportError} onEnded={ended} bar={bar} />
+          <WebVod src={src} onError={reportError} onEnded={ended} onProgress={progress} bar={bar} />
         </Suspense>
       )}
       {children}
@@ -115,8 +136,39 @@ export default function VodPlayer({ src, volume: volumeProp, onVolumeChange, tit
   );
 }
 
+type Report = (position: number, duration: number) => void;
+
+/** Reads `getPosition` every VOD_PROGRESS_MS for `src` and hands it to
+ *  `report`, then once more (the last place read) when `src` changes or the
+ *  player closes. Nothing before the title has started. */
+function useProgressFeed(src: string, getPosition: () => Promise<VodPosition>, report: Report) {
+  const getRef = useRef(getPosition);
+  getRef.current = getPosition;
+  useEffect(() => {
+    let alive = true;
+    let pos = 0;
+    let dur = 0;
+    const read = async () => {
+      try {
+        const p = await getRef.current();
+        if (!alive) return;
+        // A stopped player (the app was in the background) answers 0: the
+        // place it had stands.
+        if (p.duration > 0) dur = p.duration;
+        if (p.position > 0) { pos = p.position; report(pos, dur); }
+      } catch { /* not ready yet */ }
+    };
+    const stop = setPausableInterval(() => { void read(); }, VOD_PROGRESS_MS, { essential: true });
+    return () => {
+      alive = false;
+      stop();
+      if (pos > 0) { try { report(pos, dur); } catch { /* ignore */ } }
+    };
+  }, [src, report]);
+}
+
 /** The browser build: the HTML5 <video>, with the same bar (to 100%). */
-function WebVod({ src, onError, onEnded, bar }: { src: string; onError: (msg: string) => void; onEnded: () => void; bar: BarProps }) {
+function WebVod({ src, onError, onEnded, onProgress, bar }: { src: string; onError: (msg: string) => void; onEnded: () => void; onProgress: Report; bar: BarProps }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [controller, setController] = useState<VideoController | null>(null);
   const [paused, setPaused] = useState(false);
@@ -129,6 +181,7 @@ function WebVod({ src, onError, onEnded, bar }: { src: string; onError: (msg: st
     return { position: v.currentTime || 0, duration: Number.isFinite(v.duration) ? v.duration : 0, playing: !v.paused };
   }, []);
   const seekTo = useCallback((sec: number) => { const v = video(); if (v) v.currentTime = Math.max(0, sec); }, []);
+  useProgressFeed(src, getPosition, onProgress);
   return (
     <>
       <div ref={boxRef} className="absolute left-0 top-0 w-full h-full">
@@ -157,7 +210,7 @@ function WebVod({ src, onError, onEnded, bar }: { src: string; onError: (msg: st
   );
 }
 
-function NativeVod({ src, onError, onEnded, bar }: { src: string; onError: (msg: string) => void; onEnded: () => void; bar: BarProps }) {
+function NativeVod({ src, onError, onEnded, onProgress, bar }: { src: string; onError: (msg: string) => void; onEnded: () => void; onProgress: Report; bar: BarProps }) {
   const { t } = useTranslation();
   const touch = useTouchUI();
 
@@ -190,6 +243,7 @@ function NativeVod({ src, onError, onEnded, bar }: { src: string; onError: (msg:
 
   const player = useNativePlayer({ active: true, url: src, live: false, volume: bar.volume, onEnded, onTracksChanged: onTracks, onReload });
   ctlRef.current = player.controller;
+  useProgressFeed(src, player.getPosition, onProgress);
 
   // The native picture shows through: no background on the page behind it.
   useEffect(() => {
