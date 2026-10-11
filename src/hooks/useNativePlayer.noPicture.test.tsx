@@ -1,12 +1,14 @@
 /**
  * A black screen with the channel's sound playing (owner, 2026-10-11: a Vibez
- * channel on an X96, backed out of and gone into again). Two ways it is
+ * channel on an X96, backed out of and gone into again). Three ways it is
  * now dealt with:
  * - a blank cover whose load never comes is lifted again: by this hook at
  *   once when it knows its load is off, by the plugin after 1.5 s anyway;
  * - sound with no picture: the plugin attaches the surface again, builds a
  *   new player, tries the other kind of decoder, then says NO_PICTURE, which
- *   shows the error card at once (no automatic reloads on top).
+ *   shows the error card at once (no automatic reloads on top);
+ * - the page's renderer dying: every player stops, and the death is kept
+ *   for analytics.
  * The Kotlin half can't run here (its rules are NoPictureRescueTest's); its
  * wiring is pinned the way the other player tests pin it.
  */
@@ -53,6 +55,8 @@ vi.mock('@capacitor/app', () => ({ App: { addListener: async () => ({ remove: ()
 import { useNativePlayer } from './useNativePlayer';
 import plugin from '../../android/app/src/main/java/com/snowmedia/player/SnowPlayerPlugin.kt?raw';
 import rescue from '../../android/app/src/main/java/com/snowmedia/player/NoPictureRescue.kt?raw';
+import activity from '../../android/app/src/main/java/com/snowmedia/MainActivity.kt?raw';
+import gone from '../../android/app/src/main/java/com/snowmedia/RendererGone.kt?raw';
 import strings from '../../android/app/src/main/res/values/strings.xml?raw';
 
 const A = 'http://vibez.example/live/u/p/1.ts';
@@ -194,5 +198,28 @@ describe('SnowPlayerPlugin.kt — black picture (pinned)', () => {
     expect(fn(plugin, 'fun load(call: PluginCall)')).toContain('if (s.videoOrder != NoPictureRescue.ORDER_DEFAULT && s.videoOrderTitle != title) {');
     // Sound decoders are never reordered.
     expect(plugin).toContain('return if (MimeTypes.isVideo(mimeType)) NoPictureRescue.reorder(all, order) { it.softwareOnly } else all');
+  });
+});
+
+describe('MainActivity.kt — the page\'s renderer gone (pinned)', () => {
+  it('every player stops and the death is kept before the WebView goes and the activity is made again', () => {
+    const at = activity.indexOf('override fun onRenderProcessGone(');
+    const body = activity.slice(at, activity.indexOf('return true', at));
+    const release = body.indexOf('releaseForDeadPage()');
+    expect(release).toBeGreaterThan(-1);
+    expect(release).toBeLessThan(body.indexOf('RendererGone.save('));
+    expect(body.indexOf('RendererGone.save(')).toBeLessThan(body.indexOf('webView.destroy()'));
+    expect(body).toContain('postDelayed({ recreate() }, 350)');
+    // Nothing more is sent to the dead page.
+    expect(activity).toContain('val webView = if (blocked || pageGone) null else bridge?.webView');
+    const dead = fn(plugin, 'fun releaseForDeadPage(');
+    expect(dead).toContain('releasePlayer(s)');
+    expect(dead).not.toContain('notifyListeners');
+  });
+
+  it('the record is device facts only', () => {
+    const save = gone.slice(gone.indexOf('fun save('), gone.indexOf('fun take('));
+    const keys = [...save.matchAll(/\.put(?:Long|Boolean|Int|String)\("(\w+)"/g)].map((m) => m[1]).sort();
+    expect(keys).toEqual(['at', 'availMemMb', 'count', 'didCrash', 'lowMemory', 'model', 'playerActive', 'priority', 'sdk', 'totalMemMb', 'webView']);
   });
 });

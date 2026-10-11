@@ -24,6 +24,7 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import com.snowmedia.AppLocale
 import com.snowmedia.R
+import com.snowmedia.RendererGone
 import androidx.activity.result.ActivityResult
 import com.getcapacitor.*
 import com.getcapacitor.annotation.ActivityCallback
@@ -1123,6 +1124,14 @@ class AppManagerPlugin : Plugin() {
     CacheClearService.progressListener = null
     CacheClearService.doneListener = null
     super.handleOnDestroy()
+  }
+
+  /** The last page's renderer died (MainActivity, RendererGone): its record,
+   *  once (`gone`), then cleared; nothing when there is none. */
+  @PluginMethod
+  fun takeRendererGone(call: PluginCall) {
+    val gone = RendererGone.take(context)
+    call.resolve(if (gone != null) JSObject().put("gone", gone) else JSObject())
   }
 
   @PluginMethod

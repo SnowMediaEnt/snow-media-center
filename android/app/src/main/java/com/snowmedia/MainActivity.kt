@@ -34,6 +34,9 @@ import com.snowmedia.security.TamperGuard
 class MainActivity : BridgeActivity() {
     /** This copy failed TamperGuard: the app is not loaded. */
     private var blocked = false
+    /** The page's renderer is gone and its WebView destroyed: nothing may be
+     *  sent to it until the activity has been made again. */
+    private var pageGone = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // One line per real start of the activity, no data: a display mode
@@ -49,6 +52,23 @@ class MainActivity : BridgeActivity() {
         bridgeBuilder.addWebViewListener(object : WebViewListener() {
             override fun onRenderProcessGone(webView: WebView, detail: RenderProcessGoneDetail): Boolean {
                 Log.e("SMC-WebView", "Renderer process gone. didCrash=${detail.didCrash()} priority=${detail.rendererPriorityAtExit()}")
+                pageGone = true
+                // The native player draws under the page and would play on,
+                // sound and all, over a black screen until the activity is
+                // made again (on a low-memory X96 that read as "black, the
+                // channel still playing, no player bar"): every player stops
+                // and lets go now.
+                val playerActive = try {
+                    (bridge?.getPlugin("SnowPlayer")?.instance as? SnowPlayerPlugin)?.releaseForDeadPage() ?: false
+                } catch (e: Throwable) {
+                    Log.w("SMC-WebView", "Players not released before the restart", e)
+                    false
+                }
+                // Kept for the next page to report once (src/lib/rendererGone.ts).
+                RendererGone.save(this@MainActivity, detail.didCrash(), detail.rendererPriorityAtExit(), playerActive)
+                // The activity is made again: a new WebView loads the app from
+                // its start, which opens on Home (useNavigation's first view;
+                // nothing brings back the channel that was playing).
                 try {
                     (webView.parent as? ViewGroup)?.removeView(webView)
                     webView.destroy()
@@ -131,7 +151,7 @@ class MainActivity : BridgeActivity() {
             KeyEvent.KEYCODE_SEARCH -> if (typingInField()) null else "search"
             else -> null
         }
-        val webView = if (blocked) null else bridge?.webView
+        val webView = if (blocked || pageGone) null else bridge?.webView
         if (name == null || webView == null) return super.dispatchKeyEvent(event)
         // Act on the way down. Held Fast-forward / Rewind repeat like arrows
         // do (the player adds the steps up); a held Play/Pause must not

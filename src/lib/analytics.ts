@@ -360,6 +360,12 @@ export const initAnalytics = () => {
       // Anything that was being timed when the app last died.
       recoverTimers();
 
+      // The last page's renderer died under the app (MainActivity keeps a
+      // record): said once, now that events are recorded.
+      void import("@/lib/rendererGone")
+        .then((m) => m.reportRendererGone(trackEvent))
+        .catch(() => { /* never block or crash on this */ });
+
       // Flush on hide / unload. Coming back after half an hour or more away
       // is a new session: without this one session ran on for days on a box
       // that was never closed, only sent to the background.

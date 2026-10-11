@@ -61,6 +61,27 @@ export interface AppPackageInfo {
   versionCode: number;
 }
 
+/** The last page's renderer died under the app (MainActivity.onRenderProcessGone,
+ *  RendererGone.kt): device facts only, never an address, a line or a name. */
+export interface RendererGoneRecord {
+  /** When it died (ms since the epoch). */
+  at: number;
+  didCrash: boolean;
+  /** The renderer's priority when it went (WebView's RENDERER_PRIORITY_*). */
+  priority: number;
+  /** A stream was playing in the native player under the page. */
+  playerActive: boolean;
+  model: string;
+  sdk: number;
+  totalMemMb: number;
+  availMemMb: number;
+  lowMemory: boolean;
+  /** "com.google.android.webview 66.0.3359.158". */
+  webView: string;
+  /** Deaths since the last one reported. */
+  count: number;
+}
+
 export interface AppManagerPlugin {
   isInstalled(options: { packageName: string }): Promise<{ installed: boolean }>;
   getAppInfo(options?: { packageName?: string }): Promise<AppPackageInfo>;
@@ -108,6 +129,9 @@ export interface AppManagerPlugin {
   clearCacheForApps(options: { packages: string[] }): Promise<{ method: 'root' | 'accessibility'; queued: number; rootCleared: number }>;
   /** Stops a queued cache-clear run after the app that is on screen. */
   cancelCacheClear(): Promise<void>;
+  /** The last page's renderer death, once (then cleared); `{}` when there is
+   *  none. Older builds reject. */
+  takeRendererGone(): Promise<{ gone?: RendererGoneRecord }>;
   addListener(
     eventName: 'cacheClearProgress',
     listener: (data: CacheClearProgress) => void,
@@ -156,6 +180,7 @@ const webFallback: AppManagerPlugin = {
   async closeBackgroundApps() { throw unsupported(); },
   async clearCacheForApps() { throw unsupported(); },
   async cancelCacheClear() { /* no-op on web */ },
+  async takeRendererGone() { return {}; },
   async addListener() { return { remove: async () => { /* no-op */ } } as PluginListenerHandle; },
 };
 
