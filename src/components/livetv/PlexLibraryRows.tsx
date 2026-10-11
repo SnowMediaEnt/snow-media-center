@@ -27,12 +27,13 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import PlexPosterTile from './PlexPosterTile';
+import { usePlexWatched } from './usePlexWatched';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { focusBackdrop } from '@/lib/plexBackdrop';
 import { revealPlexRail } from '@/lib/plexReveal';
 import { isDemo } from '@/lib/demoMode';
-import { continueWatching, mergeContinue, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
+import { continueWatching, mergeContinue, plexItemWatched, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { upNextEpisodes } from '@/lib/plexUpNext';
 import {
   getPlexSectionOnDeck, getPlexSectionRow, getCachedHub, getCachedHubStale, getHubEpoch, setCachedHub,
@@ -95,6 +96,8 @@ const PlexLibraryRows = memo(({
 }: PlexLibraryRowsProps) => {
   const { t } = useTranslation();
   const specs = useMemo(() => libraryRowSpecs(sectionType), [sectionType]);
+  // The watched checks: one subscription for the rails and the grid.
+  usePlexWatched();
 
   // Seed synchronously from the hub cache so a revisit paints with no flash.
   // getPlexHub does NOT cache on its own — the cache is entirely caller-driven,
@@ -830,6 +833,7 @@ const PlexLibraryRows = memo(({
                   width="fill"
                   focused={isActive && zone === 'content' && i === gridCursor}
                   onSelect={gridSelect}
+                  watched={plexItemWatched(it)}
                 />
               ))}
             </div>
@@ -872,6 +876,7 @@ const PlexLibraryRows = memo(({
                   focused={focused && ci === col}
                   onSelect={railSelect(r.spec.id)}
                   eager={focused && ci > col && ci <= col + 3}
+                  watched={plexItemWatched(it)}
                 />
               ))}
             </div>

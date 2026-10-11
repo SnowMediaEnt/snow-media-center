@@ -62,6 +62,8 @@ import { tmdbSized } from '@/lib/tmdbImage';
 import PlexImage from './PlexImage';
 import PlexLibraryRows from './PlexLibraryRows';
 import PlexPosterTile from './PlexPosterTile';
+import PlexWatchedBadge from './PlexWatchedBadge';
+import { usePlexWatched } from './usePlexWatched';
 import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type PlayerPrompt, type SubtitleSearchContext } from './PlexPlayerOverlay';
 import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
@@ -69,7 +71,7 @@ import PlexProgressReporter from './PlexProgressReporter';
 import PlexBackdrop from './PlexBackdrop';
 import { focusBackdrop } from '@/lib/plexBackdrop';
 import { revealPlexRail, unshiftAround } from '@/lib/plexReveal';
-import { continueWatching, initPlexProgress, mergeContinue, progressCount, progressDiag, pullProgressFromCloud, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
+import { continueWatching, initPlexProgress, mergeContinue, plexItemWatched, progressCount, progressDiag, pullProgressFromCloud, resumeSeconds, setPlexServerMarks, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { upNextEpisodes } from '@/lib/plexUpNext';
 import { fetchFeedItems, othersWatchingKeys, OTHERS_TTL_MS, OTHERS_WATCHING_TITLE_KEY } from '@/lib/plexOthersWatching';
 import { myList, pullFavoritesFromCloud, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
@@ -443,11 +445,11 @@ interface Props {
 }
 
 // ─── RES BADGE (grid / rails) ──────────────────────────────────────────────
-const ResChip = memo(({ label }: { label: string }) => {
+const ResChip = memo(({ label, under = false }: { label: string; under?: boolean }) => {
   if (!label) return null;
   const gold = label === '4K';
   return (
-    <span className={`plex-badge font-nunito ${gold ? 'text-brand-gold' : 'text-white/80'}`}>
+    <span className={`plex-badge${under ? ' plex-badge--under' : ''} font-nunito ${gold ? 'text-brand-gold' : 'text-white/80'}`}>
       {label}
     </span>
   );
@@ -494,6 +496,8 @@ const RAIL_H_FALLBACK = 212;
 
 const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, onFocusChange }: RailBrowserProps) => {
   const { t } = useTranslation();
+  // The watched checks: one subscription for every rail (usePlexWatched).
+  usePlexWatched();
   const [row, setRow] = useState(0);
   const [col, setCol] = useState(0);
   const onFocusChangeRef = useRef(onFocusChange); onFocusChangeRef.current = onFocusChange;
@@ -718,6 +722,7 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
                         focused={focusedRow && ci === col}
                         onSelect={selectFor(ri)}
                         eager={ri === row && ci !== col && Math.abs(ci - col) <= 3}
+                        watched={plexItemWatched(it)}
                       />
                     );
                   })}
@@ -1297,8 +1302,8 @@ interface SearchChip { label: string; group: 'didyoumean' | 'popular' | 'recent'
 /** One search result. Memoised: the grid re-rendered every result on every
  *  cursor move and keystroke. The same poster frame as every other Plex tile
  *  (plex-art), title only. */
-const SearchTile = memo(({ item: it, base, token, focused, onSelect }: {
-  item: PlexItem; base: string; token: string; focused: boolean; onSelect: (it: PlexItem) => void;
+const SearchTile = memo(({ item: it, base, token, focused, onSelect, watched = false }: {
+  item: PlexItem; base: string; token: string; focused: boolean; onSelect: (it: PlexItem) => void; watched?: boolean;
 }) => {
   const label = resolutionLabel(it.videoResolution);
   return (
@@ -1313,7 +1318,8 @@ const SearchTile = memo(({ item: it, base, token, focused, onSelect }: {
             could leave them on the grey placeholder. */}
         <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} eager focusExempt className="absolute inset-0 w-full h-full object-cover" />
         <span className="plex-sheen" aria-hidden="true" />
-        <ResChip label={label} />
+        {watched ? <PlexWatchedBadge all={it.type === 'show'} /> : null}
+        <ResChip label={label} under={watched} />
       </div>
       <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
     </div>
@@ -1363,6 +1369,8 @@ const CHIP_GROUP_KEY: Record<SearchChip['group'], string> = {
 };
 
 const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTabs, initialQuery }: SearchPanelProps) => {
+  // The results' watched checks: one subscription for the grid (usePlexWatched).
+  usePlexWatched();
   const COLS = usePlexCols();
   const colsRef = useRef(COLS);
   colsRef.current = COLS;
@@ -1820,7 +1828,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
             if (!it) return <div key={idx} />;
             return (
               <SearchTile key={it.ratingKey} item={it} base={base} token={token}
-                focused={isActive && zone === 'grid' && cursor === idx} onSelect={selectResult} />
+                focused={isActive && zone === 'grid' && cursor === idx} onSelect={selectResult} watched={plexItemWatched(it)} />
             );
           })}
         </div>
@@ -2324,6 +2332,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const colsRef = useRef(COLS);
   colsRef.current = COLS;
   const { t } = useTranslation();
+  // The library grid's watched checks (usePlexWatched): rare, never mid-film.
+  usePlexWatched();
   const {
     status, conn, pinCode, error, justLinked, accountToken, providerNote, providerAvailable,
     clearJustLinked, startLink, cancelLink, signOut, retryConnect, linkWithProvider, reportAuthFailure,
@@ -2559,6 +2569,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       .catch(() => { /* stays shared */ });
     return () => { gone = true; };
   }, [accountToken, conn?.token]);
+  // …and so are the server's watched titles: they get the check too
+  // (plexProgress.setPlexServerMarks). Never on the shared account.
+  useEffect(() => { setPlexServerMarks(ownPlexAccount); }, [ownPlexAccount]);
 
   // This viewer's resume points and Continue Watching: from the box at once,
   // then brought up to date from their account (another box they use).
@@ -4954,6 +4967,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                           scrollIntoView={false}
                           focused={isActive && zone === 'grid' && cursor === idx}
                           onClick={() => { setCursor(idx); openDetail(it); }}
+                          watched={plexItemWatched(it)}
                         />
                       ) : null;
                     })}

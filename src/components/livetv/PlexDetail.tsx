@@ -15,11 +15,13 @@ import { cachedPlexSpeed, defaultVersion, is4k, measurePlexSpeed, sortVersions, 
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { demoGetMetadata, demoGetSeasons, demoGetEpisodes, demoGetActorItems } from '@/lib/plexDemo';
 import PlexImage from './PlexImage';
+import PlexWatchedBadge from './PlexWatchedBadge';
+import { usePlexWatched } from './usePlexWatched';
 import { isNativePlatform } from '@/utils/platform';
 import { runWhenIdle } from '@/utils/idle';
 import type { SubtitleSearchContext } from './PlexPlayerOverlay';
 import { isPlexKeyOwner } from './plexKeyOwner';
-import { getProgress, isWatched, progressPercent, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
+import { getProgress, plexItemWatched, plexSeasonWatched, progressPercent, resumeSeconds, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { isPlexPlaybackActive } from '@/lib/plex';
 import { isFavorite, toggleFavorite, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 import { useTouchUI } from '@/lib/phoneMode';
@@ -107,14 +109,14 @@ ResBadge.displayName = 'ResBadge';
 // `progressTick` only makes a row redraw when this viewer's progress changes.
 // `chips`: the episode's versions as "4K|1080p*" (* = the one OK plays);
 // `note`: the speed check's word on 4K, on the focused row.
-const EpisodeRow = memo(({ ep, base, token, focused, chips, note }: { ep: PlexEpisode; base: string; token: string; focused: boolean; progressTick: number; chips?: string; note?: string }) => {
+// `watched`: watched to the end (plexProgress), a gold check on the still.
+const EpisodeRow = memo(({ ep, base, token, focused, chips, note, watched = false }: { ep: PlexEpisode; base: string; token: string; focused: boolean; progressTick: number; chips?: string; note?: string; watched?: boolean }) => {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => { if (focused) ref.current?.scrollIntoView({ block: 'nearest' }); }, [focused]);
   // This viewer's own progress (plexProgress), same rule as the resume.
   const resumePct = progressPercent(ep.ratingKey);
   const left = resumePct != null ? (getProgress(ep.ratingKey)?.dur ?? 0) - (resumeSeconds(ep.ratingKey) ?? 0) : 0;
-  const watched = isWatched(ep.ratingKey);
   return (
     <div ref={ref}
       data-focused={focused ? 'true' : 'false'}
@@ -126,7 +128,9 @@ const EpisodeRow = memo(({ ep, base, token, focused, chips, note }: { ep: PlexEp
       <div className="plex-art plex-art--sm relative w-32 h-[72px] flex-shrink-0">
         <PlexImage base={base} path={ep.thumb} token={token} w={320} h={180} focusExempt className="w-full h-full object-cover" />
         <span className="plex-sheen" aria-hidden="true" />
-        {/* Where this viewer stopped (OK resumes there). */}
+        {watched && <PlexWatchedBadge />}
+        {/* Where this viewer stopped (OK resumes there). A second time
+            through a watched one shows both. */}
         {resumePct != null && (
           <div className="plex-progress">
             <div style={{ width: `${resumePct}%` }} />
@@ -141,7 +145,7 @@ const EpisodeRow = memo(({ ep, base, token, focused, chips, note }: { ep: PlexEp
           {fmtRuntime(ep.duration)}
           {resumePct != null && left > 0
             ? ` · ${t('plex.detail.timeLeft', { time: fmtRuntime(left * 1000) })}`
-            : watched ? ` · ${t('plex.detail.watched')}` : ''}
+            : ''}
         </div>
         {ep.summary && <div className="text-xs text-brand-ice/70 font-nunito line-clamp-2 mt-1">{ep.summary}</div>}
         {chips && (
@@ -177,6 +181,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   // saves every 15 s while a title plays over this page (watchNonce brings
   // it up to date when the player closes).
   const [progressTick, setProgressTick] = useState(0);
+  // The watched checks on the poster, the seasons and the episodes; held
+  // while a title plays over the page, like the ticks above.
+  usePlexWatched();
   useEffect(() => {
     const bump = () => setProgressTick((n) => n + 1);
     const onProgress = () => { if (!isPlexPlaybackActive()) bump(); };
@@ -323,6 +330,16 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
   const isShow = (meta?.type ?? current.type) === 'show';
   const isEpisode = (meta?.type ?? current.type) === 'episode';
+  // The poster's check: watched to the end, or a show with every episode
+  // watched (the page's metadata has the episode count when the tile did not).
+  const ownMeta = meta && meta.ratingKey === current.ratingKey ? meta : undefined;
+  const heroWatched = plexItemWatched({
+    ratingKey: current.ratingKey,
+    type: ownMeta?.type ?? current.type,
+    viewCount: ownMeta?.viewCount ?? current.viewCount,
+    leafCount: ownMeta?.leafCount ?? current.leafCount,
+    viewedLeafCount: ownMeta?.viewedLeafCount ?? current.viewedLeafCount,
+  });
   // This viewer's own resume point (plexProgress). The server's only counts
   // on the viewer's own Plex account; on the shared provider account it is
   // anyone's.
@@ -748,8 +765,10 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               <div className="plex-art plex-art--hero h-0" style={{ paddingBottom: '150%' }}>
                 <PlexImage priority base={base} path={meta?.thumb || current.thumb} token={token} w={400} h={600} className="absolute inset-0 w-full h-full object-cover" />
                 <span className="plex-sheen" aria-hidden="true" />
+                {heroWatched && <PlexWatchedBadge large all={isShow} />}
+                {/* Under the check when there is one: 8 + 28 + 4. */}
                 {resLabel && (
-                  <div className="absolute top-2 right-2"><ResBadge label={resLabel} /></div>
+                  <div className={`absolute right-2 ${heroWatched ? 'top-10' : 'top-2'}`}><ResBadge label={resLabel} /></div>
                 )}
               </div>
             </div>
@@ -904,11 +923,14 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               <div className="flex gap-3 overflow-x-auto pb-3 pt-2 px-2 -mx-2">
                 {seasons.map((s, i) => {
                   const focused = isActive && seasonIdx === i;
+                  // Every episode in it watched: counted from this viewer's
+                  // checks against the season's episode count (plexProgress).
+                  const done = plexSeasonWatched(current.ratingKey, s);
                   return (
                     <div key={s.ratingKey}
                       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                       className="plex-tile flex-shrink-0 w-[112px]">
-                      <div data-focused={focused ? 'true' : 'false'} className="plex-art tv-ring h-0" style={{ paddingBottom: '150%' }}><PlexImage base={base} path={s.thumb} token={token} w={180} h={270} focusExempt className="absolute inset-0 w-full h-full object-cover" /><span className="plex-sheen" aria-hidden="true" /></div>
+                      <div data-focused={focused ? 'true' : 'false'} className="plex-art tv-ring h-0" style={{ paddingBottom: '150%' }}><PlexImage base={base} path={s.thumb} token={token} w={180} h={270} focusExempt className="absolute inset-0 w-full h-full object-cover" /><span className="plex-sheen" aria-hidden="true" />{done && <PlexWatchedBadge all />}</div>
                       <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{s.title}</div>
                     </div>
                   );
@@ -943,7 +965,8 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     }
                   }
                   return (
-                    <EpisodeRow key={ep.ratingKey} ep={ep} base={base} token={token} focused={isActive && epIdx === i} progressTick={progressTick} chips={chips} note={note} />
+                    <EpisodeRow key={ep.ratingKey} ep={ep} base={base} token={token} focused={isActive && epIdx === i} progressTick={progressTick} chips={chips} note={note}
+                      watched={plexItemWatched({ ratingKey: ep.ratingKey, type: 'episode', viewCount: ep.viewCount })} />
                   );
                 })}
               </div>
@@ -964,6 +987,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                 {actorItems.map((it, idx) => {
                   const focused = isActive && actorCursor === idx;
                   const label = resolutionLabel(it.videoResolution);
+                  const watched = plexItemWatched(it);
                   return (
                     <div
                       key={it.ratingKey}
@@ -973,7 +997,8 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       <div data-focused={focused ? 'true' : 'false'} className="plex-art tv-ring h-0" style={{ paddingBottom: '150%' }}>
                         <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} focusExempt className="absolute inset-0 w-full h-full object-cover" />
                         <span className="plex-sheen" aria-hidden="true" />
-                        {label && <div className="absolute top-2 right-2"><ResBadge label={label} /></div>}
+                        {watched && <PlexWatchedBadge all={it.type === 'show'} />}
+                        {label && <div className={`absolute right-2 ${watched ? 'top-9' : 'top-2'}`}><ResBadge label={label} /></div>}
                       </div>
                       <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
                     </div>

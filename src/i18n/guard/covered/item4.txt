@@ -7,6 +7,7 @@ src/components/livetv/PlexImage.tsx
 src/components/livetv/PlexLibraryRows.tsx
 src/components/livetv/PlexPlayerOverlay.tsx
 src/components/livetv/PlexPosterTile.tsx
+src/components/livetv/PlexWatchedBadge.tsx
 src/components/livetv/PlexProgressReporter.tsx
 src/components/livetv/PlexSection.tsx
 src/components/livetv/plexKeyOwner.ts
