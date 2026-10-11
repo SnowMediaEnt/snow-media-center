@@ -970,6 +970,10 @@ html.snowplayer-preview [data-native-clear] {
 html.snowplayer-fullscreen:not(.snowplayer-multiview) [data-player-chrome] {
   visibility: hidden !important;
 }
+/* Both classes: the side menu's own bg-black/50 goes transparent under
+   snowplayer-fullscreen above, and a rule as specific as that one has to beat
+   it, or the screens show through the menu as it comes back. */
+html.snowplayer-fullscreen.snowplayer-multiview [data-player-chrome],
 html.snowplayer-multiview [data-player-chrome] {
   background-color: #000 !important;
   backdrop-filter: none !important;

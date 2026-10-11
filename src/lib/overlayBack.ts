@@ -14,6 +14,21 @@ const BACK_ONCE_MS = 350;
 type BackWindow = Window & { __overlayHandledBackAt?: number };
 
 /**
+ * Whether a pop-up is open above the screen now (any but those inside
+ * `own`, the screen's own root). A screen acting on a key some time after it
+ * was pressed (a hold timer, the release) asks here: the pop-up has the
+ * remote by then, and nothing should happen behind it.
+ */
+export function overlayOpenAbove(own?: Element | null): boolean {
+  if (voiceOwnsBack()) return true;
+  try {
+    const open = document.querySelectorAll(OPEN_OVERLAY);
+    for (let i = 0; i < open.length; i += 1) if (!own || !own.contains(open[i])) return true;
+  } catch { /* ignore */ }
+  return false;
+}
+
+/**
  * Whether a hardware Back now belongs to an overlay above the screen rather
  * than to the screen: one is open (any but those inside `own`, the screen's
  * own root), or one has just answered this same press — the voice overlay
@@ -22,11 +37,7 @@ type BackWindow = Window & { __overlayHandledBackAt?: number };
  * its own, not another overlay's.
  */
 export function overlayAboveOwnsBack(own?: Element | null, ownAt = 0): boolean {
-  if (voiceOwnsBack()) return true;
-  try {
-    const open = document.querySelectorAll(OPEN_OVERLAY);
-    for (let i = 0; i < open.length; i += 1) if (!own || !own.contains(open[i])) return true;
-  } catch { /* ignore */ }
+  if (overlayOpenAbove(own)) return true;
   const at = (window as BackWindow).__overlayHandledBackAt ?? 0;
   return at !== ownAt && Date.now() - at < BACK_ONCE_MS;
 }

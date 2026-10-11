@@ -882,6 +882,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   headerHiddenRef.current = headerHidden;
   // The highlight was on the header as it went: back where it came from.
   useEffect(() => { if (headerHidden && paneRef.current === 'header') setPane(headerReturnPaneRef.current); }, [headerHidden]);
+  // Multi-Screen on a TV with a screen playing and the remote on its tiles:
+  // no header, no side menu, the screens get the whole screen (owner,
+  // 2026-10-11, as in Tronix 89c42b3). ◀ / ▲ off the tiles move the remote
+  // here (pane), which brings them back at once.
+  const [multiImmersive, setMultiImmersive] = useState(false);
+  const multiChromeHidden = multiImmersive && !touchUI && section === 'multi' && pane === 'content';
   // The same Settings where the header is not drawn (the Compact Guide's
   // drawer and bottom bar): none in the demo or on a Kids profile either.
   const openSettings = useCallback(() => setSettingsOpen(true), []);
@@ -950,6 +956,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (paneRef.current === 'header') {
         if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
           e.preventDefault(); e.stopPropagation();
+          // Up from Multi-Screen's playing screens: Back only hands the
+          // remote back to them (as Tronix's header does). stepBack would
+          // also send the screens a Back, which stops every stream and drops
+          // to the layout chooser in the same press.
+          if (sectionRef.current === 'multi' && headerReturnPaneRef.current === 'content') { setPane('content'); return; }
           stepBack();
           return;
         }
@@ -1288,8 +1299,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
 
       {/* Header (a phone, either way up: slim, Update and Settings as icons).
-          Not over the Compact Guide (headerHidden). */}
-      {!headerHidden && (
+          Not over the Compact Guide (headerHidden), nor over Multi-Screen's
+          screens while they have the remote on a TV (multiChromeHidden). */}
+      {!headerHidden && !multiChromeHidden && (
       <div data-player-chrome="" className={slim ? 'flex items-center justify-between px-2 py-1.5 border-b border-white/10 bg-black/30' : 'flex items-center justify-between px-5 py-2 border-b border-white/10 bg-black/30'}>
         <div className={slim ? 'flex items-center gap-2 min-w-0' : 'flex items-center gap-3'}>
           <BackButton
@@ -1365,7 +1377,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         {/* Pane 1 — Sections. On a touch screen (a tablet, a phone sideways)
             one width, so a tap never lands on a menu that moved under the
             finger, and one tap opens a section (Tronix 79557fc). */}
-        {!upright && (
+        {!upright && !multiChromeHidden && (
         <div data-player-chrome="" data-player-rail=""
           ref={sectionsMenuRef}
           data-howto="live.sections"
@@ -1471,6 +1483,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               isActive={pane === 'content' && !claimOpen}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
+              onImmersiveChange={setMultiImmersive}
             />
           </Suspense>
         )}
