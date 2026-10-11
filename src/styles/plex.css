@@ -187,6 +187,39 @@
   font-weight: 700;
   letter-spacing: 0.02em;
 }
+/* Watched check (PlexWatchedBadge): a gold disc with a navy check, in the
+   chip's corner, 8 px in. 24 px reads from the sofa on a 104 px rail poster
+   (a quarter of its width) and is a fingertip on a phone; the title page's
+   176 px poster takes 28. The resolution chip steps down under it: 8 + 24 +
+   4. One static shadow, never transitioned, gone on a low-memory box. */
+.plex-watched {
+  position: absolute;
+  top: var(--plex-s-2);
+  right: var(--plex-s-2);
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background-color: hsl(var(--brand-gold));
+  color: hsl(var(--brand-navy));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+.plex-watched > svg {
+  width: 15px;
+  height: 15px;
+}
+.plex-watched--lg {
+  width: 28px;
+  height: 28px;
+}
+.plex-watched--lg > svg {
+  width: 18px;
+  height: 18px;
+}
+.plex-badge--under { top: 36px; }
 /* Resume bar: an inset pill, 8 px from the poster's edges. */
 .plex-progress {
   position: absolute;
@@ -265,7 +298,8 @@
   display: block;
   background-image: none;
 }
-.native-low-memory .plex-progress { box-shadow: none; }
+.native-low-memory .plex-progress,
+.native-low-memory .plex-watched { box-shadow: none; }
 
 /* ── Backdrop: the highlighted title's art behind the rails ──────────── */
 /* PlexBackdrop. Fixed behind the menu and the rails, in its own layer

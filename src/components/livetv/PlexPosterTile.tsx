@@ -1,9 +1,11 @@
 // One poster in a Plex rail or grid: cover art, resolution chip, resume
-// progress, and a one- or two-line caption UNDER the art rather than over it.
+// progress, the watched check, and a one- or two-line caption UNDER the art
+// rather than over it.
 // Shared by the Home rails, the library rails and the filtered grid so the
 // three cannot drift apart again.
 import { memo } from 'react';
 import PlexImage from './PlexImage';
+import PlexWatchedBadge from './PlexWatchedBadge';
 import { POSTER_TILE_H, POSTER_TILE_W, resolutionLabel, type PlexItem } from '@/lib/plex';
 
 const POSTER_GRID_W = 280;
@@ -28,9 +30,12 @@ interface Props {
   /** The focused tile scrolls itself into view. Rails need it; the grid's
    *  own scroller handles the grid. */
   scrollIntoView?: boolean;
+  /** This viewer watched it (plexProgress.plexItemWatched; a show: every
+   *  episode). Worked out by the list, once for all its tiles. */
+  watched?: boolean;
 }
 
-const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onClick, onSelect, eager = false, scrollIntoView = true }: Props) => {
+const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onClick, onSelect, eager = false, scrollIntoView = true, watched = false }: Props) => {
   const label = resolutionLabel(item.videoResolution);
   const cap = tileCaption(item);
   const progress = resumeFraction(item);
@@ -62,8 +67,9 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
           w={width === 'fill' ? POSTER_GRID_W : POSTER_TILE_W} h={width === 'fill' ? POSTER_GRID_H : POSTER_TILE_H}
           eager={eager} className="absolute inset-0 w-full h-full object-cover" />
         <span className="plex-sheen" aria-hidden="true" />
+        {watched ? <PlexWatchedBadge all={item.type === 'show'} /> : null}
         {label ? (
-          <div className={`plex-badge font-nunito ${label === '4K' ? 'text-brand-gold' : 'text-white/85'}`}>
+          <div className={`plex-badge${watched ? ' plex-badge--under' : ''} font-nunito ${label === '4K' ? 'text-brand-gold' : 'text-white/85'}`}>
             {label}
           </div>
         ) : null}

@@ -839,6 +839,9 @@ export interface PlexItem {
   viewOffset?: number;
   /** Episode context (Continue Watching on a TV section returns episodes). */
   grandparentTitle?: string;
+  /** An episode's show, so playing it from a tile saves it under its show
+   *  even when the server's own answer never comes (plexProgress). */
+  grandparentRatingKey?: string;
   parentIndex?: number;
   index?: number;
   /** 0..10, audience rating when Plex has one, else the critic rating. */
@@ -848,6 +851,10 @@ export interface PlexItem {
   genres?: string[];
   /** Plays on this server's account, where a list sends it (Home's Popular). */
   viewCount?: number;
+  /** A show's episodes, and how many of them this server's account has
+   *  played: the show's watched check (plexProgress.plexItemWatched). */
+  leafCount?: number;
+  viewedLeafCount?: number;
   /** When it was last played, ms since epoch (Continue Watching's order). */
   lastViewedAt?: number;
   /** When the server added it (ms); a series: its newest episode's. */
@@ -868,6 +875,14 @@ function itemExtras(m: Record<string, unknown>): Pick<PlexItem, 'rating' | 'cont
     contentRating: typeof m.contentRating === 'string' && m.contentRating ? m.contentRating : undefined,
     genres: g.length ? g.slice(0, 3) : undefined,
   };
+}
+
+/** Plays and episode counts as a list sends them, for the watched checks
+ *  (plexProgress). The account's counts are only used on the viewer's own
+ *  Plex account; on a shared one they are everyone's. */
+function watchCounts(m: Record<string, unknown>): Pick<PlexItem, 'viewCount' | 'leafCount' | 'viewedLeafCount'> {
+  const n = (v: unknown) => (typeof v === 'number' ? v : undefined);
+  return { viewCount: n(m.viewCount), leafCount: n(m.leafCount), viewedLeafCount: n(m.viewedLeafCount) };
 }
 
 /** Extract videoResolution from Media[0] if present. */
@@ -917,6 +932,7 @@ export async function getPlexLibraryItems(
       duration: m.duration as number | undefined,
       videoResolution: mediaRes(m),
       ...itemExtras(m),
+      ...watchCounts(m),
     })).filter((it) => !kidsLevel() || kidsAllowsPlex(it)),
     totalSize,
   };
@@ -1388,9 +1404,10 @@ function mapMetadata(items: Array<Record<string, unknown>>): PlexItem[] {
     librarySectionID: m.librarySectionID != null ? String(m.librarySectionID) : undefined,
     viewOffset: typeof m.viewOffset === 'number' ? m.viewOffset : undefined,
     grandparentTitle: m.grandparentTitle as string | undefined,
+    grandparentRatingKey: m.grandparentRatingKey != null ? String(m.grandparentRatingKey) : undefined,
     parentIndex: typeof m.parentIndex === 'number' ? m.parentIndex : undefined,
     index: typeof m.index === 'number' ? m.index : undefined,
-    viewCount: typeof m.viewCount === 'number' ? m.viewCount : undefined,
+    ...watchCounts(m),
     // Plex sends seconds.
     lastViewedAt: typeof m.lastViewedAt === 'number' ? m.lastViewedAt * 1000 : undefined,
     addedAt: typeof m.addedAt === 'number' ? m.addedAt * 1000 : undefined,
@@ -1830,6 +1847,10 @@ export interface PlexMetadata {
   versions?: PlexVersion[];
   /** plex://movie/… — finds the same title in other libraries. */
   guid?: string;
+  /** See PlexItem: the title page's watched check. */
+  viewCount?: number;
+  leafCount?: number;
+  viewedLeafCount?: number;
 }
 
 export async function getPlexMetadata(base: string, token: string, ratingKey: string): Promise<PlexMetadata> {
@@ -1874,6 +1895,7 @@ export async function getPlexMetadata(base: string, token: string, ratingKey: st
     partKey: firstPartKey(m),
     versions: mediaVersions(m, String(m.ratingKey ?? ratingKey)),
     guid: typeof m.guid === 'string' ? m.guid : undefined,
+    ...watchCounts(m),
   };
 }
 
@@ -1890,6 +1912,8 @@ export interface PlexSeason {
   index?: number;
   thumb?: string;
   leafCount?: number;
+  /** See PlexItem.viewedLeafCount. */
+  viewedLeafCount?: number;
 }
 export async function getPlexSeasons(base: string, token: string, showKey: string): Promise<PlexSeason[]> {
   const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
@@ -1904,6 +1928,7 @@ export async function getPlexSeasons(base: string, token: string, showKey: strin
       index: s.index as number | undefined,
       thumb: s.thumb as string | undefined,
       leafCount: s.leafCount as number | undefined,
+      viewedLeafCount: typeof s.viewedLeafCount === 'number' ? s.viewedLeafCount : undefined,
     }));
 }
 
@@ -1919,6 +1944,8 @@ export interface PlexEpisode {
   partKey?: string;
   /** See PlexMetadata.versions. */
   versions?: PlexVersion[];
+  /** See PlexItem.viewCount. */
+  viewCount?: number;
 }
 export async function getPlexEpisodes(base: string, token: string, seasonKey: string): Promise<PlexEpisode[]> {
   const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
@@ -1934,6 +1961,7 @@ export async function getPlexEpisodes(base: string, token: string, seasonKey: st
     summary: e.summary as string | undefined,
     partKey: firstPartKey(e),
     versions: mediaVersions(e, String(e.ratingKey ?? '')),
+    viewCount: typeof e.viewCount === 'number' ? e.viewCount : undefined,
   }));
 }
 
@@ -2063,6 +2091,7 @@ export async function getPlexActorItems(
     duration: m.duration as number | undefined,
     videoResolution: mediaRes(m),
     ...itemExtras(m),
+    ...watchCounts(m),
   })).filter((it) => !kidsLevel() || kidsAllowsPlex(it));
 }
 

@@ -15,7 +15,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import i18n from '@/i18n';
 import { getNextPlexEpisode, getPlexPlayInfo, type PlexEpisode, type PlexPlayInfo } from '@/lib/plex';
-import { noteProgressDiag } from '@/lib/plexProgress';
+import { noteEpisodeFinishing, noteProgressDiag } from '@/lib/plexProgress';
 import type { PlayerPrompt } from './PlexPlayerOverlay';
 
 export type NextEpisode = PlexEpisode & { seasonIndex?: number };
@@ -140,6 +140,9 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
   const go = useCallback(() => {
     if (startedRef.current || !next || !info) return;
     startedRef.current = true;
+    // Past the credits' start (or the end): this one was watched, though its
+    // last reading may fall short of the done line (plexProgress).
+    noteEpisodeFinishing(info.ratingKey);
     onPlayNextRef.current(next, info);
   }, [next, info]);
 
