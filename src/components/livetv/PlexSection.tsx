@@ -3307,6 +3307,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // out regains its zero-audio safety nets.
     audioSafetyRef.current = null;
     audioWarnedRef.current = null;
+    // An online trailer played again gets its conversion fallback again.
+    trailerRescuedRef.current = null;
     partKeyRef.current = undefined;
     setStartError(null);
     // Owner directive: playback ALWAYS starts at Original / direct play, as
@@ -3745,6 +3747,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const key = playing.ratingKey;
     if (trailerRescuedRef.current === key) return;
     trailerRescuedRef.current = key;
+    // As the codec fallback does (forcedConversion's caller sets it): if the
+    // conversion fails too, recovery must not go back to the file that
+    // just failed, and auto quality must not climb back up to it.
+    forcedTranscodeRef.current = true;
     void forcedConversion(conn, key, undefined);
   }, [native.error, nativeActive, useTranscode, playing, conn, streamUrl, forcedConversion]);
 

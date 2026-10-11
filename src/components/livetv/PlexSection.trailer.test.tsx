@@ -259,5 +259,15 @@ describe('PlexSection — a trailer in SMC\'s own player', () => {
     // Still nothing saved.
     const { progressCount } = await import('@/lib/plexProgress');
     expect(progressCount()).toBe(0);
+    // Closed and played again: the file first again, and the fallback again
+    // (once per play, not once per run).
+    press('Escape');
+    await waitFor(() => expect(controls()).toBeNull());
+    h.error = null;
+    fireEvent.click(screen.getByText('TRAILER:Dune'));
+    await waitFor(() => expect(h.url).toContain(`https://plex.test${online}&X-Plex-Token=tok`), { timeout: 5000 });
+    h.error = { code: 'ERROR_CODE_IO_BAD_HTTP_STATUS', message: 'HTTP 403' };
+    act(() => { h.rerender?.(); });
+    await waitFor(() => expect(h.url).toContain('/video/:/transcode/universal/start.m3u8'), { timeout: 5000 });
   });
 });
