@@ -12,10 +12,14 @@
 // 'plex_progress', see viewer.ts for a profile's rows) so they follow the
 // viewer to another box.
 //
+// The "watched" checks are kept apart from the resume points (see Watched
+// marks below): those are only the newest MAX titles, and a season's check
+// must not go as its oldest episodes drop off them.
+//
 // Nothing here is on the playback path: every write is fire and forget and
 // every storage or network failure is swallowed.
 import { supabase } from '@/integrations/supabase/client';
-import type { PlexItem } from '@/lib/plex';
+import type { PlexItem, PlexSeason } from '@/lib/plex';
 import { __setViewerForTests, cloudItemKey, deviceKeyToCarry, fromCloudItemKey, onViewerChange, resolveViewer, scopeToProfile, viewerAccountId, viewerKey } from '@/lib/viewer';
 
 export interface PlexProgress {
@@ -63,9 +67,17 @@ const FUTURE_SLACK_MS = 24 * 60 * 60 * 1000;
  *  not a newer place to resume from. */
 const SAME_SITTING_MS = 10 * 60 * 1000;
 
-// A change of viewer (sign-in, sign-out) means another viewer's list, and on
-// signing in the box's own list comes along (carryDeviceOver).
-onViewerChange(() => { const was = memo; memo = null; carryDeviceOver(was); emit(); });
+// A change of viewer (sign-in, sign-out) means another viewer's list and
+// checks, and on signing in the box's own come along (carryDeviceOver).
+onViewerChange(() => { switchViewer(); });
+const switchViewer = () => {
+  const was = memo, wasMarks = marks;
+  memo = null; marks = null;
+  carryDeviceOver(was);
+  carryMarksOver(wasMarks);
+  emit();
+  marksChanged();
+};
 
 type Memo = { viewer: string; map: Record<string, PlexProgress> };
 let memo: Memo | null = null;
@@ -234,12 +246,17 @@ export function saveProgress(p: Omit<PlexProgress, 't' | 'done'> & { done?: bool
   if (!p.ratingKey || !(p.dur > 0)) return;
   void resolveViewer().then(() => {
     const map = load();
+    const prev = map[p.ratingKey];
     const done = p.done ?? (p.at >= p.dur * DONE_SHARE || p.at >= p.dur - EDGE_S);
-    const entry: PlexProgress = { ...map[p.ratingKey], ...p, at: Math.max(0, p.at), done, t: Date.now() };
+    const entry: PlexProgress = { ...prev, ...p, at: Math.max(0, p.at), done, t: Date.now() };
     const next = { ...map, [p.ratingKey]: entry };
     const now = Date.now();
     const quiet = !final && continueSignature(map, now) === continueSignature(next, now);
     save(next, quiet);
+    // Its check, which stays (see Watched marks). Only once the player has
+    // said so twice running, or as it closed there: one odd reading (the
+    // last title's playhead under the next one) would mark it for good.
+    if (done && (final || prev?.done)) noteWatched(entry);
     toCloud(entry, final);
     noteProgressDiag({ savedAt: entry.t, title: entry.title, at: entry.at, dur: entry.dur, done });
   });
@@ -312,6 +329,223 @@ export function isWatched(ratingKey: string): boolean {
   return !!getProgress(ratingKey)?.done;
 }
 
+// ── Watched marks ─────────────────────────────────────────────────────────
+// The check on a poster, an episode and a season. A resume point above is a
+// title, its show, its place and its running time, and only the newest MAX
+// are kept: a viewer who had finished a long show plus some films lost the
+// checks of its first seasons as their episodes dropped off. A check is
+// only the title's key and, for an episode, its show and season (a few
+// bytes, "48213|48200|2"), so WATCHED_MAX of them take less room than the
+// resume points do. Per viewer like them; written only when a title is first
+// finished (or its show becomes known), never on the beats in between.
+// The account copy is the resume points' rows: a finished title's row says
+// so (`done`), and a box new to the account reads those once
+// (pullMarksFromCloud).
+export const PLEX_WATCHED_EVENT = 'plex-watched:changed';
+const WATCHED_PREFIX = 'snow-plex-watched:';
+/** Thirteen ten-season shows of 22 episodes and change; the oldest go first. */
+const WATCHED_MAX = 3000;
+/** What is kept when storage has no room for all of them: the newest. */
+const WATCHED_WHEN_FULL = 1000;
+
+interface Marks {
+  viewer: string;
+  /** ratingKey -> where it sits: 'show|season', 'show', or '' (a film, or an
+   *  episode whose show was not known). In the order they were marked. */
+  keys: Map<string, string>;
+  /** 'show' and 'show|season' -> how many of its episodes are marked. */
+  counts: Map<string, number>;
+}
+let marks: Marks | null = null;
+let marksVersion = 0;
+/** The viewer's own Plex account: the server's plays count too. */
+let serverMarks = false;
+const marksPulled = new Set<string>();
+
+const placeOf = (p: { kind?: string; showKey?: string; season?: number }): string =>
+  (p.kind === 'episode' && p.showKey ? (p.season != null ? `${p.showKey}|${p.season}` : p.showKey) : '');
+
+const countPlace = (counts: Map<string, number>, place: string, by: number) => {
+  if (!place) return;
+  const bar = place.indexOf('|');
+  for (const k of bar < 0 ? [place] : [place.slice(0, bar), place]) {
+    const n = (counts.get(k) ?? 0) + by;
+    if (n > 0) counts.set(k, n); else counts.delete(k);
+  }
+};
+
+/** Mark a title watched at `place`. True when that changed something: a new
+ *  title, or the show or season of one marked before they were known. */
+const mark = (m: Marks, ratingKey: string, place: string): boolean => {
+  const had = m.keys.get(ratingKey);
+  if (had != null && (had === place || !place || had.startsWith(`${place}|`))) return false;
+  if (had != null) { countPlace(m.counts, had, -1); m.keys.delete(ratingKey); }
+  m.keys.set(ratingKey, place);
+  countPlace(m.counts, place, 1);
+  if (m.keys.size > WATCHED_MAX) {
+    let over = m.keys.size - WATCHED_MAX;
+    // A Map keeps the order its keys went in: the first are the oldest.
+    for (const [k, at] of m.keys) {
+      if (over-- <= 0) break;
+      m.keys.delete(k);
+      countPlace(m.counts, at, -1);
+    }
+  }
+  return true;
+};
+
+const readMarks = (viewer: string): Marks => {
+  const m: Marks = { viewer, keys: new Map(), counts: new Map() };
+  try {
+    const list = JSON.parse(localStorage.getItem(WATCHED_PREFIX + viewer) || '[]');
+    if (Array.isArray(list)) {
+      for (const s of list) {
+        if (typeof s !== 'string' || !s) continue;
+        const bar = s.indexOf('|');
+        mark(m, bar < 0 ? s : s.slice(0, bar), bar < 0 ? '' : s.slice(bar + 1));
+      }
+    }
+  } catch { /* start empty */ }
+  return m;
+};
+
+const marksNow = (): Marks => {
+  const viewer = viewerKey();
+  if (marks && marks.viewer === viewer) return marks;
+  const m = readMarks(viewer);
+  marks = m;
+  // Finished before the checks were kept here: from the resume points.
+  let added = false;
+  for (const p of Object.values(load()).sort((a, b) => a.t - b.t)) {
+    if (p.done && mark(m, p.ratingKey, placeOf(p))) added = true;
+  }
+  if (added) writeMarks(m);
+  return m;
+};
+
+let marksTimer: number | null = null;
+const marksChanged = () => {
+  marksVersion += 1;
+  if (marksTimer != null) return;
+  marksTimer = window.setTimeout(() => {
+    marksTimer = null;
+    try { window.dispatchEvent(new CustomEvent(PLEX_WATCHED_EVENT)); } catch { /* ignore */ }
+  }, 0);
+};
+
+/** Store `m` and tell the lists. False when storage would not take even the
+ *  newest WATCHED_WHEN_FULL: they all stay checked until the app closes. */
+const writeMarks = (m: Marks): boolean => {
+  const list = Array.from(m.keys, ([k, place]) => (place ? `${k}|${place}` : k));
+  let ok = false;
+  try { localStorage.setItem(WATCHED_PREFIX + m.viewer, JSON.stringify(list)); ok = true; } catch {
+    try { localStorage.setItem(WATCHED_PREFIX + m.viewer, JSON.stringify(list.slice(-WATCHED_WHEN_FULL))); ok = true; } catch { /* this run only */ }
+  }
+  marksChanged();
+  return ok;
+};
+
+const noteWatched = (p: PlexProgress): void => {
+  const m = marksNow();
+  if (mark(m, p.ratingKey, placeOf(p))) writeMarks(m);
+};
+
+// Signing in: the box's checks come over to the account with its resume
+// points (carryDeviceOver) and leave the box.
+const carryMarksOver = (was: Marks | null): void => {
+  const from = deviceKeyToCarry();
+  if (!from) return;
+  const box = was && was.viewer === from ? was : readMarks(from);
+  if (!box.keys.size) return;
+  const m = marksNow();
+  let changed = false;
+  for (const [k, place] of box.keys) if (mark(m, k, place)) changed = true;
+  // Not stored under the account: the box keeps its copy, for next time.
+  if (changed && !writeMarks(m)) return;
+  try { localStorage.removeItem(WATCHED_PREFIX + from); } catch { /* ignore */ }
+};
+
+/** Every title the account has finished, not only the newest MAX that
+ *  pullProgressFromCloud reads: a box new to the account, or one whose
+ *  storage was cleared, gets all its checks back. Once per viewer per start,
+ *  and small: keys only, no titles or times. */
+// Typed as a plain string: spelled out, the client's type for these JSON
+// paths is too deep for the compiler.
+const MARK_COLUMNS: string = 'item_key,done:payload->done,show:payload->showKey,season:payload->season';
+const pullMarksFromCloud = async (userId: string, viewer: string): Promise<void> => {
+  try {
+    const { data, error } = await scopeToProfile(supabase
+      .from('watch_history')
+      .select(MARK_COLUMNS)
+      .eq('user_id', userId)
+      .eq('kind', PROGRESS_KIND)
+      .eq('payload->>done', 'true'))
+      .order('watched_at', { ascending: false })
+      .limit(WATCHED_MAX);
+    if (error || !Array.isArray(data) || viewerKey() !== viewer) return;
+    const m = marksNow();
+    let changed = false;
+    // Oldest first, so the newest are the last to go.
+    const rows = data as unknown as Array<{ item_key: unknown; done?: unknown; show?: unknown; season?: unknown }>;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const r = rows[i];
+      const key = r.done === true ? fromCloudItemKey(String(r.item_key)) : null;
+      if (!key) continue;
+      const showKey = typeof r.show === 'string' && r.show ? r.show : undefined;
+      const season = typeof r.season === 'number' ? r.season : undefined;
+      if (mark(m, key, placeOf({ kind: showKey ? 'episode' : 'movie', showKey, season }))) changed = true;
+    }
+    if (changed) writeMarks(m);
+  } catch { /* offline: the next start */ }
+};
+
+/** Changes whenever a check may have: a title finished, another viewer, the
+ *  account's checks arriving. Lists redraw their posters on it (and on
+ *  PLEX_WATCHED_EVENT, which follows each change). */
+export function plexWatchedVersion(): number {
+  marksNow();
+  return marksVersion;
+}
+
+/** This viewer has watched it to the end: a film or an episode. */
+export function isTitleWatched(ratingKey: string): boolean {
+  return marksNow().keys.has(ratingKey) || isWatched(ratingKey);
+}
+
+/** How many of a show's episodes this viewer has watched: in all, or in one
+ *  season (its index, as Plex numbers it: 0 is Specials). */
+export function watchedEpisodeCount(showKey: string, season?: number): number {
+  return marksNow().counts.get(season != null ? `${showKey}|${season}` : showKey) ?? 0;
+}
+
+/** A poster's check: a film or an episode watched to the end, a show whose
+ *  every episode was (its leafCount, which lists send; Specials count). */
+export function plexItemWatched(it: Pick<PlexItem, 'ratingKey' | 'type' | 'viewCount' | 'leafCount' | 'viewedLeafCount'>): boolean {
+  if (it.type === 'show') {
+    const n = it.leafCount ?? 0;
+    return n > 0 && (watchedEpisodeCount(it.ratingKey) >= n || (serverMarks && (it.viewedLeafCount ?? 0) >= n));
+  }
+  if (it.type !== 'movie' && it.type !== 'episode') return false;
+  return isTitleWatched(it.ratingKey) || (serverMarks && (it.viewCount ?? 0) > 0);
+}
+
+/** A season's check: every episode in it watched. Counted from the checks,
+ *  so no season's episodes need loading for it. */
+export function plexSeasonWatched(showKey: string, s: Pick<PlexSeason, 'index' | 'leafCount' | 'viewedLeafCount'>): boolean {
+  const n = s.leafCount ?? 0;
+  if (!(n > 0)) return false;
+  return (s.index != null && watchedEpisodeCount(showKey, s.index) >= n) || (serverMarks && (s.viewedLeafCount ?? 0) >= n);
+}
+
+/** On the viewer's own Plex account the server's plays are theirs too (the
+ *  Plex apps on their other devices): what it counts as watched is checked
+ *  as well. Never on a shared account, where they are everyone's. */
+export function setPlexServerMarks(on: boolean): void {
+  if (serverMarks === on) return;
+  serverMarks = on;
+  marksChanged();
+}
+
 /** Opened and left inside the first minute, not watched. */
 const barelyStarted = (p: PlexProgress): boolean => !p.done && p.at < EDGE_S;
 
@@ -358,6 +592,7 @@ function continueFrom(map: Record<string, PlexProgress>, limit: number, sectionI
       duration: Math.floor(p.dur * 1000),
       librarySectionID: p.librarySectionID,
       grandparentTitle: p.kind === 'episode' ? p.showTitle : undefined,
+      grandparentRatingKey: p.kind === 'episode' ? p.showKey : undefined,
       parentIndex: p.season,
       index: p.index,
       lastViewedAt: t,
@@ -410,7 +645,8 @@ export async function pullProgressFromCloud(): Promise<boolean> {
       .limit(MAX);
     if (error || !data || viewerKey() !== viewer) return false;
     const map = { ...load() };
-    let changed = false;
+    const w = marksNow();
+    let changed = false, marked = false;
     const now = Date.now();
     for (const r of data) {
       const raw = r.payload as unknown as Partial<PlexProgress> | null;
@@ -421,6 +657,9 @@ export async function pullProgressFromCloud(): Promise<boolean> {
       const p = cleanEntry({ ...raw, t });
       if (!p || !(p.dur > 0)) continue;
       if (fromCloudItemKey(String(r.item_key)) !== p.ratingKey) continue;
+      // Finished on another box: checked here too, even where this box's
+      // own place in it is newer.
+      if (p.done && mark(w, p.ratingKey, placeOf(p))) marked = true;
       const have = map[p.ratingKey];
       if (have && have.t >= t) continue;
       // The same sitting ending — the player closing, autoplay's next title —
@@ -429,6 +668,8 @@ export async function pullProgressFromCloud(): Promise<boolean> {
       map[p.ratingKey] = p; changed = true;
     }
     if (changed) save(map);
+    if (marked) writeMarks(w);
+    if (!marksPulled.has(viewer)) { marksPulled.add(viewer); void pullMarksFromCloud(userId, viewer); }
     return true;
   } catch { /* offline */ return false; }
 }
@@ -437,12 +678,13 @@ export async function pullProgressFromCloud(): Promise<boolean> {
 export function initPlexProgress(): Promise<void> {
   // Signed in before this start (no change of viewer to hear), perhaps by a
   // version of the app that left the box's list behind: it comes over now.
-  return resolveViewer().then(() => { const was = memo; memo = null; carryDeviceOver(was); emit(); });
+  return resolveViewer().then(switchViewer);
 }
 
 /** Tests only. */
 export function __resetPlexProgressForTests(v = 'device'): void {
   __setViewerForTests(v); memo = null; lastCloud.clear(); diagHeld = null;
+  marks = null; marksPulled.clear(); serverMarks = false;
 }
 
 /** On the viewer's own Plex account the server's Continue Watching is theirs

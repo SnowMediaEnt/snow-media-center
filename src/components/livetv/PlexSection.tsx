@@ -2304,6 +2304,10 @@ const seedFromItem = (it: PlexItem): PlexPlayInfo | null => {
   return {
     ratingKey: it.ratingKey, kind: ep ? 'episode' : 'movie', title: it.title,
     librarySectionID: it.librarySectionID, duration: secs(it.duration),
+    // Its show and season as the tile knows them: saved with it even when
+    // the server's own answer (playInfo) never comes, so its season can
+    // still be counted as watched (plexProgress).
+    showKey: ep ? it.grandparentRatingKey : undefined,
     showTitle: ep ? it.grandparentTitle : undefined,
     seasonIndex: ep ? it.parentIndex : undefined,
     index: ep ? it.index : undefined,
