@@ -207,6 +207,12 @@ interface CatEntry {
 const EMPTY_COUNTS: CatalogCounts = { total: null, byCat: {}, at: 0 };
 const EMPTY_FAVS: Map<number, FavChannel> = new Map();
 const favKey = (f: { stream_id: number; name: string }) => f.name.trim().toLowerCase();
+/** Where a list's highlight goes back to: the channel it was on, else the
+ *  same place, kept inside the list. */
+const placeIn = (list: Array<{ stream_id: number }>, was: { channelIdx: number; streamId: number | null }): number => {
+  const at = was.streamId != null ? list.findIndex((c) => c.stream_id === was.streamId) : -1;
+  return at >= 0 ? at : Math.max(0, Math.min(was.channelIdx, list.length - 1));
+};
 const toFav = (s: XtreamLiveStream): FavChannel => ({
   stream_id: s.stream_id,
   name: s.name,
@@ -649,6 +655,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const overlaySavedRef = useRef<{ entryId: string | null; lineKey: string | null; pane: Pane } | null>(null);
   // A category to put back once its folded service is open again.
   const restoreCatIdRef = useRef<string | null>(null);
+  // Its list's category (by entry id, as above) and highlight while its
+  // categories are open over it (showOverlayCategories); null otherwise. Set
+  // together with the ref.
+  const [ovList, setOvList] = useState<{ entryId: string | null; lineKey: string | null; channelIdx: number; streamId: number | null } | null>(null);
+  const ovListRef = useRef(ovList);
+  // That category put back by Back: its highlight once its channels are in.
+  const ovListBackRef = useRef<{ entryId: string; channelIdx: number; streamId: number | null } | null>(null);
+  const forgetOvList = useCallback(() => {
+    ovListRef.current = null;
+    ovListBackRef.current = null;
+    setOvList(null);
+  }, []);
   // After a restore, point the list back at the playing channel once the
   // restored category's channels are in (see the effect by the list refs).
   const refocusPlayingRef = useRef(false);
@@ -677,7 +695,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     clearOverlayTimer();
     if (ovHoldRef.current) { window.clearTimeout(ovHoldRef.current.timer); ovHoldRef.current = null; }
     setChOverlayOpen(false);
-  }, [fullscreen, isActive, clearOverlayTimer]);
+    forgetOvList();
+  }, [fullscreen, isActive, clearOverlayTimer, forgetOvList]);
 
   // Reset bar state when entering fullscreen or switching channel (the
   // line too: another service's channel can have the same id).
@@ -2162,6 +2181,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // highlighted once that category's channels are in; else where the list is.
   const openChannelOverlay = useCallback(() => {
     hideBarNow();
+    forgetOvList();
     const was = visibleCategoriesRef.current[categoryIdxRef.current];
     overlaySavedRef.current = { entryId: was?.id ?? null, lineKey: was?.lineKey ?? null, pane: paneRef.current };
     const chans = visibleChannelsRef.current;
@@ -2178,13 +2198,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     else setPane(chans.length ? 'channels' : 'categories');
     setChOverlayOpen(true);
     pokeOverlay();
-  }, [hideBarNow, pokeOverlay, playingIndexIn, followToCategory]);
+  }, [hideBarNow, pokeOverlay, playingIndexIn, followToCategory, forgetOvList]);
   // Close it. `restore`: nothing was picked, so the list goes back to what it
   // showed (the playing channel's category), and ▲▼ zap from there.
   const closeChannelOverlay = useCallback((restore: boolean) => {
     clearOverlayTimer();
     if (ovHoldRef.current) { window.clearTimeout(ovHoldRef.current.timer); ovHoldRef.current = null; }
     setChOverlayOpen(false);
+    forgetOvList();
     const saved = overlaySavedRef.current;
     overlaySavedRef.current = null;
     if (!restore || !saved) return;
@@ -2203,8 +2224,46 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       if (i >= 0) setChannelIdx(i);
     }
     setPane(saved.pane);
-  }, [clearOverlayTimer, playingIndexIn, toggleCollapsed]);
+  }, [clearOverlayTimer, playingIndexIn, toggleCollapsed, forgetOvList]);
   closeChannelOverlayRef.current = closeChannelOverlay;
+  // Its categories are a layer of their own (from Tronix; its dealer: "the
+  // category column should be compressed on first left arrow, appear if user
+  // left arrows again"): the list opens alone, ◀ from it opens them, picking
+  // one shows its list alone again. Back from them puts the list back as it
+  // was (its category and highlight); the next Back closes the list (one
+  // step each).
+  const showOverlayCategories = useCallback(() => {
+    const c = visibleCategoriesRef.current[categoryIdxRef.current];
+    // The highlighted channel itself too: the list may be search results,
+    // and the place in them means nothing in the category's list.
+    const ch = visibleChannelsRef.current[channelIdxRef.current];
+    const was = { entryId: c?.id ?? null, lineKey: c?.lineKey ?? null, channelIdx: channelIdxRef.current, streamId: ch?.stream_id ?? null };
+    ovListRef.current = was;
+    setOvList(was);
+    setPane('categories');
+  }, []);
+  const overlayBackStep = useCallback(() => {
+    const was = ovListRef.current;
+    forgetOvList();
+    if (paneRef.current !== 'categories' || !was) { closeChannelOverlay(true); return; }
+    pokeOverlay();
+    // The category by its entry id: a service folded among the categories
+    // moves every place after it. Its own service folded: opened again, and
+    // the category found once it is listed (restoreCatIdRef's effect).
+    const id = was.entryId;
+    const at = id ? visibleCategoriesRef.current.findIndex((c) => c.id === id) : -1;
+    if (id && at < 0 && was.lineKey && collapsedRef.current.has(was.lineKey)) {
+      ovListBackRef.current = { entryId: id, channelIdx: was.channelIdx, streamId: was.streamId };
+      restoreCatIdRef.current = id;
+      toggleCollapsed(was.lineKey);
+    } else if (id && at >= 0 && at !== categoryIdxRef.current) {
+      ovListBackRef.current = { entryId: id, channelIdx: was.channelIdx, streamId: was.streamId };
+      setCategoryIdx(at);
+    } else setChannelIdx(placeIn(visibleChannelsRef.current, was));
+    setPane('channels');
+  }, [closeChannelOverlay, pokeOverlay, toggleCollapsed, forgetOvList]);
+  const overlayBackStepRef = useRef(overlayBackStep);
+  overlayBackStepRef.current = overlayBackStep;
   useEffect(() => {
     const id = restoreCatIdRef.current;
     if (!id) return;
@@ -2221,6 +2280,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const i = playingIndexIn(visibleChannels);
     if (i >= 0) setChannelIdx(i);
   }, [visibleChannels, chOverlayOpen, playingChannelId, playingIndexIn]);
+  // Back from the categories over the picture (overlayBackStep): the list's
+  // highlight where it was, once its category's channels are in.
+  useEffect(() => {
+    const want = ovListBackRef.current;
+    if (!want || currentCat?.id !== want.entryId || searchOpen || !visibleChannels.length) return;
+    ovListBackRef.current = null;
+    setChannelIdx(placeIn(visibleChannels, want));
+  }, [visibleChannels, currentCat, searchOpen]);
   // A channel picked in the list over the picture: watched (asked first when
   // the others reported it down, as in the list); the list stays on it.
   const pickFromOverlay = useCallback((ch: XtreamLiveStream) => {
@@ -2454,14 +2521,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         }
 
         // --- The channel list over the picture (◀ with the bar hidden) ---
-        // ▲▼ move, ◀ categories (and from there closes), ▶ / OK open a
-        // category, OK on a channel watches it (held: its options). Back
-        // closes the list, one step, and nothing else.
+        // It opens alone. ▲▼ move, ◀ opens its categories (and from there
+        // closes), ▶ / OK open a category (its list alone again), OK on a
+        // channel watches it (held: its options). Back: the categories first
+        // (the list as it was), then the list; one step each, and nothing else.
         if (chOverlayOpenRef.current) {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           if (isBack) {
             (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
-            closeChannelOverlay(true);
+            overlayBackStep();
             return;
           }
           pokeOverlay();
@@ -2491,7 +2559,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           }
           if (e.key === 'ArrowDown') setChannelIdx(i => (chans.length ? (i + 1) % chans.length : 0));
           else if (e.key === 'ArrowUp') setChannelIdx(i => (chans.length ? (i - 1 + chans.length) % chans.length : 0));
-          else if (e.key === 'ArrowLeft') setPane('categories');
+          else if (e.key === 'ArrowLeft') showOverlayCategories();
           else if (isOk) {
             const ch = chans[channelIdxRef.current];
             if (!ch || ovHoldRef.current) return;
@@ -2822,7 +2890,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       cancelEnterTimer();
       cancelCatHold();
     };
-  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, cancelCatHold, openCategoryOptions, toggleCollapsed, liveSkip, openChannelOverlay, closeChannelOverlay, pokeOverlay, openRecent, leavePicture]);
+  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, cancelCatHold, openCategoryOptions, toggleCollapsed, liveSkip, openChannelOverlay, closeChannelOverlay, overlayBackStep, showOverlayCategories, pokeOverlay, openRecent, leavePicture]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -2841,7 +2909,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current) return;
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (recentRef.current.isOpen()) { recentRef.current.close(); return; }
-          if (fullscreenRef.current && chOverlayOpenRef.current) { closeChannelOverlayRef.current(true); return; }
+          if (fullscreenRef.current && chOverlayOpenRef.current) { overlayBackStepRef.current(); return; }
           if (fullscreenRef.current) {
             if (barVisibleRef.current && !touchUIRef.current) hideBarNow();
             else leavePicture();
@@ -3224,6 +3292,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         {chOverlayOpen && (
           <FullscreenChannelOverlay
             pane={pane}
+            catsBack={!!ovList}
             categories={overlayCategories}
             categoryIdx={categoryIdx}
             grouped={grouped}

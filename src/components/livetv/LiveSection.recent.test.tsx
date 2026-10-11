@@ -6,9 +6,11 @@
  * switches channel the normal way, one channel can be removed, Back closes
  * the panel first and the next Back leaves the picture for that channel's
  * category with it highlighted. ◀ opens the channel list over the picture on
- * the current channel in its own category; a channel picked there plays, and
- * Back lands on it in the list. ▶ at the list's right edge opens the same
- * panel over the list, solid, with the list's own highlight stepped aside.
+ * the current channel in its own category, the list alone; ◀ again opens its
+ * categories, and Back folds them away before it closes the list. A channel
+ * picked there plays, and Back lands on it in the list. ▶ at the list's right
+ * edge opens the same panel over the list, solid, with the list's own
+ * highlight stepped aside.
  * Channels from two services play on their own line. Search finds no adult
  * channel, nor does a channel asked for by name (a search by voice).
  * Invented names only.
@@ -138,6 +140,9 @@ const panelRows = () => [...document.querySelectorAll('[data-recent-row]')].map(
 const panelFocus = () => q('[data-recent-row][data-focused="true"] p')?.textContent ?? null;
 const overlay = () => q('[data-channel-overlay]');
 const overlayFocus = () => overlay()?.querySelector('[data-overlay-channel][data-focused="true"]')?.textContent ?? '';
+/** The list over the picture shows its categories (not only their strip). */
+const catsOpen = () => !!overlay()?.querySelector('[data-overlay-cat]');
+const catFocus = () => overlay()?.querySelector('[data-overlay-cat][data-focused="true"]')?.textContent ?? '';
 const barUp = () => !!q('[data-howto="bar.root"]');
 const barTitle = () => q('[data-howto="bar.channel"] h2')?.textContent ?? '';
 const playing = () => q('[data-testid="video"]')?.getAttribute('data-src') ?? '';
@@ -282,6 +287,20 @@ describe('the remote\'s Back, as the box delivers it', () => {
     await until(() => !fullScreen());
     expect(listFocus()).toContain('News One');
   });
+
+  it('over the channel list, its categories fold away first, then the list closes', async () => {
+    await watchNewsOne();
+    press('ArrowLeft'); // the list
+    press('ArrowLeft'); // its categories
+    expect(catsOpen()).toBe(true);
+    await hwBack();
+    expect(overlay()).not.toBeNull();
+    expect(catsOpen()).toBe(false);
+    expect(overlayFocus()).toContain('News One');
+    await hwBack();
+    expect(overlay()).toBeNull();
+    expect(fullScreen()).toBe(true);
+  });
 });
 
 describe('◀ over the picture: the channel list on the current channel', () => {
@@ -320,16 +339,61 @@ describe('◀ over the picture: the channel list on the current channel', () => 
     await watchNewsOne();
     press('ArrowLeft');
     press('ArrowLeft'); // its categories
-    expect(overlay()!.querySelector('[data-overlay-cat][data-focused="true"]')?.textContent).toContain('News');
+    expect(catFocus()).toContain('News');
     press('ArrowDown');
-    expect(overlay()!.querySelector('[data-overlay-cat][data-focused="true"]')?.textContent).toContain('Sports');
+    expect(catFocus()).toContain('Sports');
     press('Enter');
     await until(() => overlayFocus().includes('Sports One'));
     expect(overlay()!.textContent).toContain('Branch Line Sports');
+    // Its list alone again (the categories folded away).
+    expect(catsOpen()).toBe(false);
     press('Escape');
     expect(overlay()).toBeNull();
     expect(fullScreen()).toBe(true);
     expect(playing()).toMatch(/\/101\.ts$/);
+  });
+
+  // From Tronix 23a3aa4 (its dealer: "the category column should be
+  // compressed on first left arrow, appear if user left arrows again").
+  it('the first ◀ opens the list alone; ◀ again its categories; ◀ from them closes it', async () => {
+    await watchNewsOne();
+    press('ArrowLeft');
+    expect(overlay()).not.toBeNull();
+    expect(catsOpen()).toBe(false);
+    expect(overlay()!.querySelector('[data-overlay-cats-strip]')).not.toBeNull();
+    expect(overlayFocus()).toContain('News One');
+    press('ArrowLeft');
+    expect(catsOpen()).toBe(true);
+    expect(catFocus()).toContain('News');
+    expect(overlay()!.textContent).toContain('Back channels · ◀ close');
+    press('ArrowLeft');
+    expect(overlay()).toBeNull();
+    expect(fullScreen()).toBe(true);
+    expect(playing()).toMatch(/\/101\.ts$/);
+  });
+
+  it('Back closes one layer at a time: the categories (the list as it was), then the list, then the picture', async () => {
+    await watchNewsOne();
+    press('ArrowLeft');
+    press('ArrowDown'); // News Two
+    press('ArrowLeft'); // the categories
+    press('ArrowDown'); // Sports: its channels come in beside them after the rest
+    await until(() => !!overlay()?.querySelector('[data-overlay-channel="201"]'));
+    expect(catsOpen()).toBe(true);
+    press('Escape');
+    // The list again, on News with News Two highlighted, as before ◀.
+    expect(overlay()).not.toBeNull();
+    expect(catsOpen()).toBe(false);
+    await until(() => overlayFocus().includes('News Two'));
+    expect(overlayFocus()).toContain('News Two');
+    expect(overlay()!.querySelector('[data-overlay-channel="201"]')).toBeNull();
+    press('Escape');
+    expect(overlay()).toBeNull();
+    expect(fullScreen()).toBe(true);
+    expect(playing()).toMatch(/\/101\.ts$/);
+    press('Escape');
+    await until(() => !fullScreen());
+    expect(listFocus()).toContain('News One');
   });
 
   it('a long name is a step smaller on up to two lines, never a scrolling one', async () => {
@@ -431,12 +495,18 @@ describe('the list over the picture puts back the category itself, not its place
     await until(() => overlayFocus().includes('News One'));
     press('ArrowLeft'); // its categories
     // Up to the first service's header and fold it: Valley's categories move up into News's place.
-    const catFocus = () => overlay()!.querySelector('[data-overlay-cat][data-focused="true"]')?.textContent ?? '';
     for (let i = 0; i < 15 && !catFocus().includes('Acme TV'); i++) { press('ArrowUp'); await settle(5); }
     expect(catFocus()).toContain('Acme TV');
     press('Enter');
     await settle(20);
     expect(overlay()!.textContent).not.toContain('Sports');
+    // Back folds the categories away: the list as it was, News on News One
+    // (its service opened again), never Valley's channels in News's place.
+    press('Escape');
+    expect(catsOpen()).toBe(false);
+    await until(() => overlayFocus().includes('News One'));
+    expect(overlayFocus()).toContain('News One');
+    expect(overlay()!.textContent).not.toContain('Valley One');
     press('Escape'); // closes the list over the picture, nothing picked
     expect(overlay()).toBeNull();
     await settle(20);

@@ -4,9 +4,11 @@
 // the focus, LiveSection the channel change.
 //
 // The highlighted row shows its Remove (▶ moves onto it, OK takes the channel
-// off; hold OK on the row does the same). Over the picture it lets a little
-// of it through, as the channel list over the picture does; over the list it
-// is solid, so the rows behind never show through it.
+// off; hold OK on the row does the same). Over the picture it is black at
+// 60%, as the channel list over the picture is, so the picture shows through
+// (owner, 2026-10-11: "no not solid black, the ability to see through it
+// more"), with a soft shadow under its text; over the list it is solid, so
+// the rows behind never show through it.
 //
 // Only a window of rows around the highlight is drawn (10 rows at most
 // anyway). Chrome 66: margins, no flex gap beyond gap-1..4, no inset.
@@ -15,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { History, Play, Tv, X } from 'lucide-react';
 import { isLongName, TWO_LINES } from '@/lib/channelName';
 import type { RecentChannel } from '@/lib/recentChannels';
+import { OVER_PICTURE_TEXT_SHADOW } from './FullscreenChannelOverlay';
 import { listWindow } from './listWindow';
 
 interface Props {
@@ -42,27 +45,33 @@ const nameClass = (name: string): string =>
 const RecentChannelsPanel = memo(({ items, focus, onRemove, playingId, over, serviceOf }: Props) => {
   const { t } = useTranslation();
   const win = listWindow(items.length, focus, RECENT_PANEL_ROWS);
-  const place = over === 'picture' ? 'absolute z-30 bg-black/90' : 'fixed z-[55] bg-[#0b1220] shadow-2xl';
+  const place = over === 'picture' ? 'absolute z-30 bg-black/60' : 'fixed z-[55] bg-[#0b1220] shadow-2xl';
+  // Over the picture the backdrop is see-through (owner: "the ability to see
+  // through it more"): the grey lines go brighter there so a bright frame
+  // behind them does not wash them out. Over the list they stay as they were.
+  const faint = over === 'picture' ? 'text-brand-ice/85' : 'text-brand-ice/60';
+  const fainter = over === 'picture' ? 'text-brand-ice/75' : 'text-brand-ice/50';
+  const muted = over === 'picture' ? 'text-brand-ice/90' : 'text-brand-ice/70';
   return (
     <div
       data-recent-panel={over}
       role="region"
       aria-label={t('live.recent.title')}
       className={`${place} right-0 top-0 bottom-0 flex flex-col border-l border-white/10 text-white animate-fade-in pointer-events-auto`}
-      style={{ width: 440 }}
+      style={{ width: 440, textShadow: over === 'picture' ? OVER_PICTURE_TEXT_SHADOW : undefined }}
     >
       <div className="flex items-center flex-shrink-0 px-5 pt-6 pb-3">
         <History className="w-5 h-5 mr-2 text-brand-gold flex-shrink-0" />
         <p className="flex-1 min-w-0 truncate text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold">{t('live.recent.title')}</p>
         {items.length > 0 && (
-          <span className="ml-2 text-sm font-nunito tabular-nums text-brand-ice/60">{Math.min(focus + 1, items.length)} / {items.length}</span>
+          <span className={`ml-2 text-sm font-nunito tabular-nums ${faint}`}>{Math.min(focus + 1, items.length)} / {items.length}</span>
         )}
       </div>
 
-      {win.start > 0 && <p className="text-center text-brand-ice/50 text-sm leading-none pb-1">▲</p>}
+      {win.start > 0 && <p className={`text-center ${fainter} text-sm leading-none pb-1`}>▲</p>}
       <div className="flex-1 min-h-0 px-3 space-y-1">
         {items.length === 0 && (
-          <p className="px-3 py-4 text-lg font-nunito text-brand-ice/70">{t('live.recent.empty')}</p>
+          <p className={`px-3 py-4 text-lg font-nunito ${muted}`}>{t('live.recent.empty')}</p>
         )}
         {items.slice(win.start, win.end).map((c, j) => {
           const i = win.start + j;
@@ -80,17 +89,17 @@ const RecentChannelsPanel = memo(({ items, focus, onRemove, playingId, over, ser
               className={`tv-ring flex items-center px-3 rounded-xl ${rowFocused ? 'bg-brand-gold/25 z-10' : focused ? 'bg-white/10' : playing ? 'bg-white/5' : ''}`}
               style={{ height: 56 }}
             >
-              <span className="w-10 flex-shrink-0 text-base font-nunito tabular-nums text-brand-ice/60">{c.num ?? ''}</span>
+              <span className={`w-10 flex-shrink-0 text-base font-nunito tabular-nums ${faint}`}>{c.num ?? ''}</span>
               <div className="w-10 h-10 mr-3 flex-shrink-0 rounded-lg bg-black/60 flex items-center justify-center overflow-hidden">
                 {c.icon
                   ? <img src={c.icon} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
-                  : <Tv className="w-5 h-5 text-brand-ice/50" />}
+                  : <Tv className={`w-5 h-5 ${fainter}`} />}
               </div>
               <div className="flex-1 min-w-0">
                 <p className={`font-nunito ${nameClass(c.name)} ${rowFocused ? 'text-white font-semibold' : playing ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
                   {c.name}
                 </p>
-                <p className="truncate text-sm leading-tight font-nunito text-brand-ice/60">{sub || ' '}</p>
+                <p className={`truncate text-sm leading-tight font-nunito ${faint}`}>{sub || ' '}</p>
               </div>
               {playing && <Play className="w-4 h-4 ml-2 text-brand-gold fill-brand-gold flex-shrink-0" aria-label={t('live.overlay.playing')} />}
               {focused && (
@@ -99,6 +108,8 @@ const RecentChannelsPanel = memo(({ items, focus, onRemove, playingId, over, ser
                   data-focused={removeFocused ? 'true' : 'false'}
                   aria-label={t('live.recent.removeNamed', { name: c.name })}
                   className={`tv-ring ml-2 flex items-center flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-nunito font-semibold ${removeFocused ? 'bg-brand-gold text-brand-navy z-10' : 'bg-white/10 text-brand-ice/80'}`}
+                  // Dark text on gold needs no shadow under it.
+                  style={removeFocused ? { textShadow: 'none' } : undefined}
                 >
                   <X className="w-4 h-4 mr-1" />
                   {t('live.recent.remove')}
@@ -108,8 +119,8 @@ const RecentChannelsPanel = memo(({ items, focus, onRemove, playingId, over, ser
           );
         })}
       </div>
-      {win.end < items.length && <p className="text-center text-brand-ice/50 text-sm leading-none pb-1">▼</p>}
-      <p className="flex-shrink-0 px-5 pt-2 pb-4 text-sm font-nunito text-brand-ice/60">
+      {win.end < items.length && <p className={`text-center ${fainter} text-sm leading-none pb-1`}>▼</p>}
+      <p className={`flex-shrink-0 px-5 pt-2 pb-4 text-sm font-nunito ${faint}`}>
         {onRemove ? t('live.recent.hintRemove') : t('live.recent.hint')}
       </p>
     </div>

@@ -1,7 +1,16 @@
 // The channel list over a full-screen channel: ◀ with the control bar hidden
 // opens it on the channel that is playing, so the viewer can pick another
-// channel without leaving the picture. Categories on the left, that
-// category's channels on the right, the playing one marked.
+// channel without leaving the picture. It opens as the list alone (the
+// playing one marked), its categories folded to a slim strip at its edge;
+// ◀ again opens them beside it, picking one shows that list alone again, and
+// Back folds them away before it closes the list (from Tronix, whose dealer
+// asked: "the category column should be compressed on first left arrow,
+// appear if user left arrows again").
+//
+// Its backdrop is black at 60%, so the picture shows through it (it was 0.9;
+// owner, 2026-10-11: "no not solid black, the ability to see through it
+// more"). A soft shadow under the text keeps it readable over a bright
+// picture.
 //
 // Drawing only: LiveSection owns the keys and the focus (it reuses its own
 // category / channel state, so a category opened here loads exactly as it
@@ -12,7 +21,7 @@
 // beyond gap-1..4, no inset.
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Play, Star, Tv } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, LayoutList, Loader2, Play, Star, Tv } from 'lucide-react';
 import { formatCount } from '@/lib/catalogCounts';
 import { isLongName, TWO_LINES } from '@/lib/channelName';
 import type { ChannelReport } from '@/lib/channelStatus';
@@ -31,7 +40,11 @@ export interface OverlayCategory {
 }
 
 interface Props {
+  /** Where the highlight is; the categories column is drawn only on
+   *  'categories' (a slim strip stands for it otherwise). */
   pane: 'categories' | 'channels';
+  /** The categories were opened over the list: Back puts the list back (the hint says so). */
+  catsBack?: boolean;
   categories: OverlayCategory[];
   categoryIdx: number;
   /** More than one service: a service's categories sit indented under its header. */
@@ -55,6 +68,13 @@ interface Props {
 /** Rows drawn at once in each column. */
 export const OVERLAY_CAT_ROWS = 9;
 export const OVERLAY_CHANNEL_ROWS = 7;
+/** Its columns (px): the categories, the channels; the strip that stands for
+ *  the categories while they are folded away. */
+export const OVERLAY_CATS_W = 240;
+export const OVERLAY_CHANNELS_W = 420;
+export const OVERLAY_STRIP_W = 40;
+/** Black at 60% lets the picture through; this shadow keeps the text readable over it. */
+export const OVER_PICTURE_TEXT_SHADOW = '0 1px 2px rgba(0, 0, 0, 0.8)';
 
 // The rows are 52 px with the programme line under the name: only the small
 // size fits two lines there, so a name that would wrap at the big size (over
@@ -64,30 +84,52 @@ const LONG_NAME = 20;
 const nameClass = (name: string | null | undefined): string =>
   (isLongName(name, LONG_NAME) ? `text-[13px] ${TWO_LINES}` : 'text-lg truncate leading-tight');
 
+/** The categories folded away: a slim strip at the list's edge with their name. */
+const CategoriesStrip = () => {
+  const { t } = useTranslation();
+  return (
+    <div
+      data-overlay-cats-strip
+      className="flex-shrink-0 flex flex-col items-center pt-6 border-r border-white/10 overflow-hidden"
+      style={{ width: OVERLAY_STRIP_W }}
+    >
+      <LayoutList className="w-5 h-5 text-brand-gold flex-shrink-0" />
+      <span
+        className="mt-3 text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold/80 whitespace-nowrap"
+        style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+      >
+        {t('live.overlay.categoriesTitle')}
+      </span>
+    </div>
+  );
+};
+
 const FullscreenChannelOverlay = memo(({
-  pane, categories, categoryIdx, grouped, channels, channelIdx, channelsTitle, loading,
+  pane, catsBack, categories, categoryIdx, grouped, channels, channelIdx, channelsTitle, loading,
   isPlaying, isFavorite, reportOf, nowTitle, serviceTag, labels,
 }: Props) => {
   const { t } = useTranslation();
   const cw = listWindow(categories.length, categoryIdx, OVERLAY_CAT_ROWS);
   const chw = listWindow(channels.length, channelIdx, OVERLAY_CHANNEL_ROWS);
+  // The categories are drawn only while the highlight is in them.
   const onCats = pane === 'categories';
 
   return (
     <div
       data-channel-overlay
-      className="absolute left-0 top-0 bottom-0 z-30 flex bg-black/90 border-r border-white/10 animate-fade-in pointer-events-auto"
-      style={{ width: 660 }}
+      data-overlay-cats={onCats ? 'open' : 'folded'}
+      className="absolute left-0 top-0 bottom-0 z-30 flex bg-black/60 border-r border-white/10 animate-fade-in pointer-events-auto"
+      style={{ width: (onCats ? OVERLAY_CATS_W : OVERLAY_STRIP_W) + OVERLAY_CHANNELS_W, textShadow: OVER_PICTURE_TEXT_SHADOW }}
     >
-      {/* Categories */}
-      <div className={`flex-shrink-0 flex flex-col border-r border-white/10 pt-6 pb-4 px-3 ${onCats ? 'bg-white/5' : ''}`} style={{ width: 240 }}>
+      {/* Categories (folded to a strip until ◀ opens them) */}
+      {!onCats ? <CategoriesStrip /> : (
+      <div className="flex-shrink-0 flex flex-col border-r border-white/10 pt-6 pb-4 px-3 bg-white/5" style={{ width: OVERLAY_CATS_W }}>
         <p className="px-2 pb-3 text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold">{t('live.overlay.categoriesTitle')}</p>
-        {cw.start > 0 && <p className="text-center text-brand-ice/50 text-sm leading-none pb-1">▲</p>}
+        {cw.start > 0 && <p className="text-center text-brand-ice/75 text-sm leading-none pb-1">▲</p>}
         <div className="space-y-1">
           {categories.slice(cw.start, cw.end).map((c, j) => {
             const i = cw.start + j;
-            const focused = onCats && i === categoryIdx;
-            const marked = !onCats && i === categoryIdx && !c.isHeader;
+            const focused = i === categoryIdx;
             return (
               <div
                 key={c.id}
@@ -101,20 +143,20 @@ const FullscreenChannelOverlay = memo(({
                 {c.isFav && <Star className="w-4 h-4 mr-2 text-brand-gold flex-shrink-0" />}
                 <span className={`flex-1 min-w-0 truncate leading-snug ${
                   c.isHeader ? 'font-quicksand font-bold uppercase text-sm text-brand-gold'
-                    : focused ? 'text-base font-nunito font-semibold text-white'
-                      : marked ? 'text-base font-nunito font-semibold text-brand-gold' : 'text-base font-nunito text-brand-ice'}`}
+                    : focused ? 'text-base font-nunito font-semibold text-white' : 'text-base font-nunito text-brand-ice'}`}
                 >
                   {c.label}
                 </span>
                 {!c.isHeader && c.count != null && c.count > 0 && (
-                  <span className="ml-2 flex-shrink-0 text-xs font-nunito tabular-nums text-brand-ice/60">{formatCount(c.count)}</span>
+                  <span className="ml-2 flex-shrink-0 text-xs font-nunito tabular-nums text-brand-ice/85">{formatCount(c.count)}</span>
                 )}
               </div>
             );
           })}
         </div>
-        {cw.end < categories.length && <p className="text-center text-brand-ice/50 text-sm leading-none pt-1">▼</p>}
+        {cw.end < categories.length && <p className="text-center text-brand-ice/75 text-sm leading-none pt-1">▼</p>}
       </div>
+      )}
 
       {/* Channels */}
       <div className="flex-1 min-w-0 flex flex-col pt-6 pb-3 px-3">
@@ -122,13 +164,13 @@ const FullscreenChannelOverlay = memo(({
           <p className="flex-1 min-w-0 truncate text-sm uppercase tracking-wide font-quicksand font-bold text-brand-gold">{channelsTitle}</p>
           {loading && <Loader2 className="w-4 h-4 ml-2 animate-spin text-brand-gold flex-shrink-0" />}
           {!loading && channels.length > 0 && (
-            <span className="ml-2 text-sm font-nunito tabular-nums text-brand-ice/60">{channelIdx + 1} / {channels.length}</span>
+            <span className="ml-2 text-sm font-nunito tabular-nums text-brand-ice/85">{channelIdx + 1} / {channels.length}</span>
           )}
         </div>
-        {chw.start > 0 && <p className="text-center text-brand-ice/50 text-sm leading-none pb-1">▲</p>}
+        {chw.start > 0 && <p className="text-center text-brand-ice/75 text-sm leading-none pb-1">▲</p>}
         <div className="flex-1 min-h-0 space-y-1">
           {channels.length === 0 && (
-            <p className="px-3 py-4 text-lg font-nunito text-brand-ice/70">
+            <p className="px-3 py-4 text-lg font-nunito text-brand-ice/90">
               {loading ? t('live.list.loadingChannels') : onCats ? t('live.overlay.openCategoryHint') : t('live.overlay.noChannels')}
             </p>
           )}
@@ -150,17 +192,17 @@ const FullscreenChannelOverlay = memo(({
                 className={`tv-ring flex items-center px-3 rounded-xl overflow-hidden ${focused ? 'bg-brand-gold/25 z-10' : playing ? 'bg-white/10' : ''}`}
                 style={{ height: 52 }}
               >
-                <span className="w-10 flex-shrink-0 text-base font-nunito tabular-nums text-brand-ice/60">{st.num ?? ''}</span>
+                <span className="w-10 flex-shrink-0 text-base font-nunito tabular-nums text-brand-ice/85">{st.num ?? ''}</span>
                 <div className="w-10 h-10 mr-3 flex-shrink-0 rounded-lg bg-black/60 flex items-center justify-center overflow-hidden">
                   {st.stream_icon
                     ? <img src={st.stream_icon} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
-                    : <Tv className="w-5 h-5 text-brand-ice/50" />}
+                    : <Tv className="w-5 h-5 text-brand-ice/75" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={`font-nunito ${nameClass(st.name)} ${focused ? 'text-white font-semibold' : playing ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
                     {st.name}
                   </p>
-                  <p className={`truncate text-sm leading-tight font-nunito ${flagged ? flagText : 'text-brand-ice/60'}`}>
+                  <p className={`truncate text-sm leading-tight font-nunito ${flagged ? flagText : 'text-brand-ice/85'}`}>
                     {service ? <span className="text-brand-gold/80">{service}{flagged || now ? ' · ' : ''}</span> : null}
                     {flagged ? flagLabel : (now || (service ? '' : ' '))}
                   </p>
@@ -172,9 +214,9 @@ const FullscreenChannelOverlay = memo(({
             );
           })}
         </div>
-        {chw.end < channels.length && <p className="text-center text-brand-ice/50 text-sm leading-none pb-1">▼</p>}
-        <p className="px-2 pt-2 text-sm font-nunito text-brand-ice/60">
-          {onCats ? t('live.overlay.hintCategories') : t('live.overlay.hintChannels')}
+        {chw.end < channels.length && <p className="text-center text-brand-ice/75 text-sm leading-none pb-1">▼</p>}
+        <p className="px-2 pt-2 text-sm font-nunito text-brand-ice/85">
+          {onCats ? (catsBack ? t('live.overlay.hintCategoriesBack') : t('live.overlay.hintCategories')) : t('live.overlay.hintChannels')}
         </p>
       </div>
     </div>
