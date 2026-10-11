@@ -31,8 +31,12 @@ internal object NoPictureRescue {
     const val NEXT_STEP_AFTER_MS = 3000L
     /** How often a slot waiting for its first picture is looked at. */
     const val TICK_MS = 500L
-    /** A blank cover with no load behind it this long is lifted again. */
-    const val BLANK_GUARD_MS = 1500L
+    /** A blank cover with no load behind it this long is lifted again. The
+     *  page lifts it at once itself when its load is overtaken (unblank):
+     *  this is only the fallback, long enough that a slow box's page (a
+     *  render and a garbage collection before it sends the load) never has
+     *  the old channel shown again before the new one is asked for. */
+    const val BLANK_GUARD_MS = 5000L
 
     /** The playerError code the WebView is sent once every step has failed. */
     const val ERROR_CODE = "NO_PICTURE"

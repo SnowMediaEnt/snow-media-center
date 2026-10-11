@@ -674,10 +674,12 @@ class SnowPlayerPlugin : Plugin() {
      *  in its start-up hold (VideoFit.shutterOpen). The hold draws the first
      *  frame paused; "Getting ready…" stays over black until the film starts,
      *  or the viewer plays or pauses. The only place the shutter opens.
-     *  A stream whose picture every NoPictureRescue step failed to start is
-     *  uncovered too: whatever it shows beats black over its sound. */
+     *  A stream whose picture every NoPictureRescue step failed to start
+     *  stays covered: nothing of it was drawn, so what is under the cover is
+     *  the last channel's frozen frame (the main SurfaceView and a tile's
+     *  TextureView keep it). The page's error card says what happened. */
     private fun openShutterIfReady(s: PlayerSlot) {
-        if (s.currentUrl == null || !VideoFit.shutterOpen(s.firstFrameSeen || s.noPictureGaveUp, s.holding)) return
+        if (s.currentUrl == null || !VideoFit.shutterOpen(s.firstFrameSeen, s.holding)) return
         s.shutterView?.visibility = View.INVISIBLE
     }
 
@@ -917,7 +919,6 @@ class SnowPlayerPlugin : Plugin() {
         s.watchdogRunnable = null
         // Before the playerError, like every error a handler may read back.
         s.lastError = NoPictureRescue.ERROR_CODE
-        openShutterIfReady(s)
         notifyListeners(
             "playerError",
             JSObject().put("screenId", screenId)

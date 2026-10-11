@@ -54,6 +54,8 @@ export function useMultiScreenPlayers(): Api {
   useEffect(() => { slotsRef.current = slots; }, [slots]);
 
   const retryTimersRef = useRef<Record<string, number | undefined>>({});
+  // NO_PICTURE errors per slot, for the stream they came from (playerError).
+  const noPictureRef = useRef<Record<string, { url: string; n: number } | undefined>>({});
   const focusedAudioRef = useRef<MultiScreenId | null>(null);
   // Last rect actually sent per slot. measureAndApply runs for EVERY occupied
   // slot and re-runs on every `slots` change — buffering flags, player state,
@@ -126,7 +128,17 @@ export function useMultiScreenPlayers(): Api {
           // start, not 5 × 20 more connections from a dead tile. NO_PICTURE
           // likewise comes after the plugin's own steps (the surface, a new
           // player): one fresh start, then the tile says so.
-          const spent = data?.code === 'RECONNECT_EXHAUSTED' || data?.code === 'NO_PICTURE';
+          // NO_PICTURE comes from a stream that is READY (its sound plays),
+          // and READY puts a slot's retries back to 0: so it is counted on its
+          // own, per stream. The second for the same stream: the tile says so,
+          // not a full rebuild every 12 s for as long as the tile is up.
+          if (data?.code === 'NO_PICTURE') {
+            const np = noPictureRef.current[sid];
+            const n = np && np.url === cur.url ? np.n + 1 : 1;
+            noPictureRef.current[sid] = { url: cur.url, n };
+            if (n >= 2) { updateSlot(sid, { error: 'unavailable', buffering: false }); return; }
+          }
+          const spent = data?.code === 'RECONNECT_EXHAUSTED';
           if (cur.retries >= MAX_RETRIES || (spent && cur.retries >= 1)) {
             updateSlot(sid, { error: 'unavailable', buffering: false });
             return;

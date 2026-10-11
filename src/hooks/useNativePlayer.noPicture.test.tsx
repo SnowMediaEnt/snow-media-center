@@ -157,10 +157,10 @@ describe('SnowPlayerPlugin.kt — black picture (pinned)', () => {
     expect(fn(plugin, 'private fun cancelTimers(')).toContain('s.blankGuard = null');
   });
 
-  it('the cover still opens in one place only, now also once every step has failed', () => {
-    expect(fn(plugin, 'private fun openShutterIfReady(')).toContain('VideoFit.shutterOpen(s.firstFrameSeen || s.noPictureGaveUp, s.holding)');
+  it('the cover still opens in one place only, and stays shut once every step has failed (the last channel\'s frame is under it)', () => {
+    expect(fn(plugin, 'private fun openShutterIfReady(')).toContain('VideoFit.shutterOpen(s.firstFrameSeen, s.holding)');
     expect(fn(plugin, 'private fun liftBlank(')).toContain('openShutterIfReady(s)');
-    expect(fn(plugin, 'private fun giveUpOnPicture(')).toContain('openShutterIfReady(s)');
+    expect(fn(plugin, 'private fun giveUpOnPicture(')).not.toContain('openShutterIfReady(s)');
   });
 
   it('the steps are armed with every first-picture wait, and the watchdog leaves sound-without-picture to them', () => {
