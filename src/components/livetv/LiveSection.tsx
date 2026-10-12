@@ -53,6 +53,7 @@ import {
   type CatalogCounts,
 } from '@/lib/catalogCounts';
 import { CATEGORY_DWELL_MS, KEPT_CATEGORY_SETTLE_MS } from '@/lib/categoryDwell';
+import { aspectRatioSupported, fitSixteenNine } from '@/lib/aspectFallback';
 import { runAfter } from '@/utils/idle';
 import { keepInView } from '@/utils/keepInView';
 import { isPlaybackQuiet } from '@/utils/quietMode';
@@ -126,6 +127,9 @@ const HOWTO = isHowtoCapture();
 // Record live channels (TRACKER 25): the native app with the recorder plugin
 // (an older build has none), never the demo. A Kids profile hides it too (see
 // recordOn in the component: the profile is only known at render).
+/** CSS aspect-ratio works here (Chrome 88+); where not, the preview boxes are
+ *  given their 16:9 height in code (previewBoxRef, lib/aspectFallback). */
+const ASPECT_RATIO_OK = aspectRatioSupported();
 const RECORD_CAPABLE = NATIVE_PLAYBACK && !DEMO && hasRecorder();
 /** Hold OK this long on a channel for its short menu (Favorite, Report, Record…). */
 const HOLD_MS = 600;
@@ -1593,6 +1597,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     previewResizeOffRef.current = null;
     if (!el) { setPreviewRect(null); return; }
     const measure = () => {
+      // No aspect-ratio in this engine (an X96 X4, the Android 9 boxes): the
+      // box had no height and the player stayed full screen behind the page
+      // (lib/aspectFallback). Its 16:9 height, set before it is measured.
+      fitSixteenNine(el, ASPECT_RATIO_OK);
       const r = el.getBoundingClientRect();
       const next = { x: r.left, y: r.top, width: r.width, height: r.height };
       setPreviewRect((prev) =>
