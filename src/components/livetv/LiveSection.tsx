@@ -1610,7 +1610,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     };
     measure();
     if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => measure());
+      // Where the box's height is written in code (no aspect-ratio), not
+      // inside the observer's own pass: a height written there (the rail
+      // folding resizes the box) is reported as "ResizeObserver loop limit
+      // exceeded", which the crash reporter would log from every such box.
+      const ro = new ResizeObserver(() => { if (ASPECT_RATIO_OK) measure(); else window.requestAnimationFrame(measure); });
       ro.observe(el);
       previewObserverRef.current = ro;
     }
