@@ -263,7 +263,9 @@
       "episodesHintVersions": "▲ ▼ elegir · ◀ ▶ versión · OK reproducir · Atrás a las temporadas",
       "actorTitles": "{{name}} · Títulos",
       "noOtherTitles": "No hay más títulos en este servidor.",
-      "actorHint": "◀ ▶ ▲ ▼ explorar · OK abrir · Atrás al reparto"
+      "actorHint": "◀ ▶ ▲ ▼ explorar · OK abrir · Atrás al reparto",
+      "recommendBtn": "Recomendar",
+      "recommendedBtn": "Recomendado"
     },
     "trailer": {
       "button": "Tráiler",
@@ -341,7 +343,28 @@
       "decadeNew": "Películas de los años {{decade}}",
       "decadeOld": "Películas de los años {{decade}}",
       "finding": "Buscando cosas para ver…",
-      "nothing": "Aún no hay nada que descubrir: este servidor no tiene bibliotecas."
+      "nothing": "Aún no hay nada que descubrir: este servidor no tiene bibliotecas.",
+      "recommended": "Recomendados por los espectadores"
+    },
+    "recommend": {
+      "action": "Recomendar a otros",
+      "remove": "Recomendado ✓ · Quitar",
+      "checking": "Comprobando…",
+      "menuAria": "Recomendar {{title}}",
+      "note": "Los demás espectadores de este servidor lo verán en Descubrir, en “Recomendados por los espectadores”.",
+      "signIn": "Inicia sesión en tu cuenta de Snow Media para recomendar títulos a otros espectadores. Usa el botón Iniciar sesión de la pantalla de inicio y vuelve aquí.",
+      "count_one": "Recomendado por {{count}} espectador",
+      "count_many": "Recomendado por {{count}} espectadores",
+      "count_other": "Recomendado por {{count}} espectadores",
+      "toast": {
+        "added": "Recomendado a otros espectadores",
+        "removed": "Quitado",
+        "limitTitle": "Son muchas recomendaciones para un día",
+        "limitDesc": "Vuelve a intentarlo mañana.",
+        "signInTitle": "Inicia sesión para recomendar",
+        "failedTitle": "No se pudo guardar",
+        "failedDesc": "Comprueba la conexión y vuelve a intentarlo."
+      }
     },
     "seasonal": {
       "gathering": "Reuniendo la colección de {{season}}…",

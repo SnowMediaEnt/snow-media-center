@@ -75,6 +75,9 @@ import { revealPlexRail, unshiftAround } from '@/lib/plexReveal';
 import { continueWatching, initPlexProgress, mergeContinue, plexItemWatched, progressCount, progressDiag, pullProgressFromCloud, resumeSeconds, setPlexServerMarks, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { upNextEpisodes } from '@/lib/plexUpNext';
 import { fetchFeedItems, othersWatchingKeys, OTHERS_TTL_MS, OTHERS_WATCHING_TITLE_KEY } from '@/lib/plexOthersWatching';
+import { fetchRecommended, plexRecommendChangedAt, recommendedItems, setPlexRecommendContext, PLEX_RECOMMEND_EVENT, RECOMMENDED_TITLE_KEY } from '@/lib/plexRecommend';
+import PlexRecommendMenu from './PlexRecommendMenu';
+import { createPlexHoldOk, onPlexHoldMenu, releasePlexHoldMenu, tapIsHoldLift, tileHoldProps, type PlexHoldOk } from './plexRecommendHold';
 import { myList, pullFavoritesFromCloud, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
@@ -164,6 +167,9 @@ const HOME_OTHERS_KEY = 'smc:home/others';
 const HOME_ADDED_KEY = 'smc:home/added';
 // Each library's own newest additions (loadAdded), merged into the above.
 const HOME_ADDED_LIBS_KEY = 'smc:home/added-libs';
+// Discover's "Recommended by viewers" (loadRecommended). Under Discover's
+// prefix, but not in its replayed order: the row is loaded on its own.
+const DISCOVER_RECOMMENDED_KEY = 'smc:discover/recommended';
 /** These rails are fetched for the profile in use — with a Kids profile's
  *  certificates (getPlexSectionRow, kidsOnly) — so each Kids level keeps its
  *  own copy: a grown-up's would be filtered down to little, and a child's is
@@ -328,6 +334,50 @@ async function loadOthersWatching(base: string, token: string, machineId: string
     // Cached empty too: the feed named nothing this server has, and asking
     // again within the half hour would get the same answer.
     setCachedHub(base, key, m, epoch);
+    return m;
+  });
+  return gone() ? null : merged;
+}
+
+/** Discover's "Recommended by viewers" (plexRecommend): the titles viewers
+ *  recommended on this server, most recommenders first, each with its count,
+ *  read from this server in ONE request like "What others are watching" —
+ *  which drops a title the server no longer has (a stale ratingKey never
+ *  becomes a tile), puts the server's own name, poster and certificate on the
+ *  rest, and brings the library each is in, for the adult and hidden-library
+ *  checks. Kept half an hour like the rest of Discover, except that a change
+ *  this viewer made since makes the kept copy too old. */
+async function loadRecommended(base: string, token: string, server: string, libraries: PlexLibrary[], gone: () => boolean): Promise<PlexItem[] | null> {
+  const fresh = Math.min(DISCOVER_TTL_MS, Date.now() - plexRecommendChangedAt());
+  const cached = getCachedHubWithin(base, DISCOVER_RECOMMENDED_KEY, fresh);
+  if (cached) return cached;
+  const visible = new Set(libraries.map((l) => String(l.key)));
+  const epoch = getHubEpoch();
+  const merged = await shareStitch(`${base}|${DISCOVER_RECOMMENDED_KEY}|${plexRecommendChangedAt()}`, async () => {
+    const rows = await fetchRecommended(server, LOW_MEMORY ? 12 : 24);
+    // Not answered: nothing kept, so the next visit asks again.
+    if (!rows) return null;
+    const wanted = recommendedItems(rows);
+    let found: PlexItem[] = [];
+    if (wanted.length) {
+      try {
+        found = await getPlexHub(base, token, `/library/metadata/${wanted.map((w) => w.ratingKey).join(',')}`);
+      } catch (e) {
+        // Every one of them gone answers 404: an empty row, kept. Anything
+        // else (the server or the network) is not kept.
+        if (!/HTTP 404\b/.test(String((e as Error)?.message))) return null;
+      }
+    }
+    const byKey = new Map(found.map((it) => [it.ratingKey, it]));
+    const m: PlexItem[] = [];
+    for (const w of wanted) {
+      const it = byKey.get(w.ratingKey);
+      if (!it || it.type !== w.type) continue;
+      if (it.librarySectionID && !visible.has(String(it.librarySectionID))) continue;
+      // The server's own fields win; what the list kept fills any gap.
+      m.push({ ...w, ...it, title: it.title || w.title, thumb: it.thumb || w.thumb, recommenders: w.recommenders });
+    }
+    setCachedHub(base, DISCOVER_RECOMMENDED_KEY, m, epoch);
     return m;
   });
   return gone() ? null : merged;
@@ -537,6 +587,9 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
   const rowsRef = useRef(rows); useEffect(() => { rowsRef.current = rows; }, [rows]);
   const onPlayRef = useRef(onPlay); useEffect(() => { onPlayRef.current = onPlay; }, [onPlay]);
   const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
+  // OK opens the title; held, its menu (Recommend to others).
+  const holdRef = useRef<PlexHoldOk | null>(null);
+  holdRef.current ??= createPlexHoldOk();
 
   // One click handler per rail index, made once and kept for the life of the
   // browser. Every tile is memoised; a fresh closure per tile per render undid
@@ -651,6 +704,7 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
 
   useEffect(() => {
     if (!isActive) return;
+    const hold = holdRef.current!;
     const handler = (e: KeyboardEvent) => {
       if (!isPlexKeyOwner('browse')) return;
       const t = e.target as HTMLElement;
@@ -668,14 +722,20 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
       else if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); else onExitRef.current(); }
       else if (e.key === 'ArrowRight') { if (c < currentRow.items.length - 1) setCol(c + 1); }
       else if (e.key === 'Enter' || e.key === ' ') {
-        // A held OK repeats: the first press opens the title, and the repeat
-        // would press Play on the page that just opened.
-        if (e.repeat) return;
-        const it = currentRow.items[c]; if (it) onPlayRef.current(it);
+        // Opens the title when let go; held, its menu. A held OK repeats, and
+        // the repeats do nothing: they would press Play on the page that
+        // just opened.
+        hold.press(e, currentRow.items[c], (it) => onPlayRef.current(it));
       }
     };
+    const up = (e: KeyboardEvent) => hold.release(e);
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
+    window.addEventListener('keyup', up, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', up, true);
+      hold.cancel();
+    };
   }, [isActive]);
 
   return (
@@ -1002,13 +1062,20 @@ HomePanel.displayName = 'HomePanel';
 // asked for a dozen requests at once. Every row is cached like Home's, so
 // coming back is instant for five minutes.
 const DISCOVER_KEY = 'smc:discover/';
-const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs }: HomePanelProps) => {
+const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPlay, onExitToTabs, clientIdentifier }: HomePanelProps) => {
   const { t } = useTranslation();
   const [rawRows, setRows] = useState<DiscoverRow[]>(() => getCachedDiscover(base));
-  // Cached or fresh, no adult title reaches a Discover row.
-  const rows = useMemo<DiscoverRow[]>(
-    () => rawRows.map((r) => ({ ...r, items: familyOnly(r.items, adultKeys) })).filter((r) => r.items.length > 0),
-    [rawRows, adultKeys]);
+  // "Recommended by viewers" (loadRecommended), kept apart from the rows the
+  // cache replays in order: it has its own life (a viewer's recommendation
+  // must show the next time Discover opens) and always leads.
+  const [recommended, setRecommended] = useState<PlexItem[]>(() => getCachedHubStale(base, DISCOVER_RECOMMENDED_KEY) ?? []);
+  // Cached or fresh, no adult title reaches a Discover row, and a Kids
+  // profile sees only what its certificates allow (familyOnly).
+  const rows = useMemo<DiscoverRow[]>(() => {
+    const out = rawRows.map((r) => ({ ...r, items: familyOnly(r.items, adultKeys) })).filter((r) => r.items.length > 0);
+    const rec = familyOnly(recommended, adultKeys);
+    return rec.length ? [{ id: 'recommended', title: '', titleKey: RECOMMENDED_TITLE_KEY, items: rec }, ...out] : out;
+  }, [rawRows, recommended, adultKeys]);
   const [loading, setLoading] = useState(rows.length === 0);
   // The rows before the streaming services are all in (fresh or cached);
   // the services then load one at a time as the highlight nears the end.
@@ -1028,10 +1095,40 @@ const DiscoverPanel = memo(({ isActive, base, token, libraries, adultKeys, onPla
   // Entering Discover starts a pending load at once instead of waiting out
   // the dwell below.
   const kickRef = useRef<(() => void) | null>(null);
+  const recKickRef = useRef<(() => void) | null>(null);
   const isActiveRef = useRef(isActive);
-  useEffect(() => { isActiveRef.current = isActive; if (isActive) kickRef.current?.(); }, [isActive]);
+  useEffect(() => { isActiveRef.current = isActive; if (isActive) { kickRef.current?.(); recKickRef.current?.(); } }, [isActive]);
 
   const libKeysSig = libraries.map((l) => `${l.type}:${l.key}`).join(',');
+
+  // "Recommended by viewers": the titles recommended on this server. Asked
+  // with the same manners as the rows below (once the cursor rests here) and
+  // kept half an hour like them; when this viewer recommends something or
+  // takes it back, asked again — at once while Discover has the remote,
+  // otherwise when it next does.
+  const [recTick, setRecTick] = useState(0);
+  useEffect(() => {
+    const on = () => setRecTick((n) => n + 1);
+    window.addEventListener(PLEX_RECOMMEND_EVENT, on);
+    return () => window.removeEventListener(PLEX_RECOMMEND_EVENT, on);
+  }, []);
+  useEffect(() => {
+    if (DEMO || !clientIdentifier || !libraries.length) return;
+    let cancelled = false;
+    const run = async () => {
+      const m = await loadRecommended(base, token, clientIdentifier, libraries, () => cancelled);
+      if (!cancelled && m) setRecommended(m);
+    };
+    let started = false;
+    let timer: number | null = null;
+    const start = () => { if (started || cancelled) return; started = true; if (timer) window.clearTimeout(timer); void run(); };
+    if (isActiveRef.current) start();
+    else if (!recTick) timer = window.setTimeout(start, 400);
+    recKickRef.current = start;
+    return () => { cancelled = true; if (timer) window.clearTimeout(timer); recKickRef.current = null; };
+    // libKeysSig stands in for `libraries`; see HomePanel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base, token, libKeysSig, clientIdentifier, recTick]);
   useEffect(() => {
     // How-to pictures only (developer build, ?demo=1&howto=1): the demo has
     // no Discover, so the picture fills it from the made-up capture catalog.
@@ -1310,7 +1407,9 @@ const SearchTile = memo(({ item: it, base, token, focused, onSelect, watched = f
   return (
     <div
       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
-      onClick={() => onSelect(it)}
+      // A finger held on it: its menu (Recommend to others); the lift is not a tap.
+      {...tileHoldProps(it)}
+      onClick={() => { if (!tapIsHoldLift()) onSelect(it); }}
       className="plex-tile plex-tile--fill cursor-pointer">
       {/* padding-bottom, not aspect-ratio: see PlexPosterTile. */}
       <div data-focused={focused ? 'true' : 'false'} className="plex-art tv-ring h-0" style={{ paddingBottom: '150%' }}>
@@ -1627,6 +1726,9 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
   const queryRef = useRef(query); useEffect(() => { queryRef.current = query; }, [query]);
   const resultsRef = useRef(results); useEffect(() => { resultsRef.current = results; }, [results]);
   const onPlayRef = useRef(onPlay); useEffect(() => { onPlayRef.current = onPlay; }, [onPlay]);
+  // OK on a result opens it; held, its menu (Recommend to others).
+  const holdRef = useRef<PlexHoldOk | null>(null);
+  holdRef.current ??= createPlexHoldOk();
   const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
   const pickChip = useCallback((chip: SearchChip) => {
     // A "Did you mean" chip is a real title: open it. The others are
@@ -1640,6 +1742,7 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
 
   useEffect(() => {
     if (!isActive) return;
+    const hold = holdRef.current!;
     const handler = (e: KeyboardEvent) => {
       if (!isPlexKeyOwner('browse')) return;
       // The "Request it?" question owns the remote while it is up.
@@ -1754,10 +1857,19 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
       }
       else if (e.key === 'ArrowLeft') { if (cur % colsRef.current !== 0) setCursor(cur - 1); else onExitRef.current(); }
       else if (e.key === 'ArrowRight') { if ((cur % colsRef.current) < colsRef.current - 1 && cur + 1 < total) setCursor(cur + 1); }
-      else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const it = resultsRef.current[cur]; if (it) { commit(queryRef.current); onPlayRef.current(it); } }
+      else if (e.key === 'Enter' || e.key === ' ') {
+        // Opens it when let go; held, its menu. Repeats do nothing.
+        hold.press(e, resultsRef.current[cur], (it) => { commit(queryRef.current); onPlayRef.current(it); });
+      }
     };
+    const up = (e: KeyboardEvent) => hold.release(e);
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
+    window.addEventListener('keyup', up, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', up, true);
+      hold.cancel();
+    };
   }, [isActive, commit, pickChip, sendRequest]);
 
   const pickChipAt = useCallback((c: SearchChip) => {
@@ -2775,6 +2887,21 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     [visibleLibraries, adultKeys],
   );
 
+  // Recommend to others (plexRecommend): which server a recommendation is
+  // for (the one the box plays from, by its machineIdentifier) and which
+  // libraries are adult (never recommended). A layout effect, so a hold in
+  // the first moments after connecting already knows the server.
+  const recServer = DEMO ? null : conn?.clientIdentifier ?? null;
+  useLayoutEffect(() => {
+    setPlexRecommendContext(recServer, adultKeys);
+  }, [recServer, adultKeys]);
+  useEffect(() => () => setPlexRecommendContext(null), []);
+  // The hold menu: asked for by a poster (plexRecommendHold), drawn here over
+  // the rails or the title page. Closing gives the remote back.
+  const [recFor, setRecFor] = useState<PlexItem | null>(null);
+  useEffect(() => onPlexHoldMenu(setRecFor), []);
+  const closeRecommend = useCallback(() => { releasePlexHoldMenu(); setRecFor(null); }, []);
+
   // Decided once per Plex visit: the menu does not reshuffle at midnight.
   const [season] = useState<Season | null>(() => activeSeason());
   const tabs = useMemo<Tab[]>(() => {
@@ -2824,6 +2951,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // pattern the channel list uses for its long-press.
   const menuHoldTimerRef = useRef<number | null>(null);
   const menuHoldFiredRef = useRef(false);
+  // A library's A-Z grid: OK on a title opens it, held, its menu (Recommend
+  // to others, plexRecommendHold).
+  const gridHoldRef = useRef<PlexHoldOk | null>(null);
+  gridHoldRef.current ??= createPlexHoldOk();
 
   // Leaving the content puts the menu's focus on the selected tab's entry.
   const exitToMenu = useCallback(() => {
@@ -3276,6 +3407,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (detailItem) { setPlexKeyOwner('detail'); return; }
     setPlexKeyOwner('browse'); resumeLoading();
   }, [fullscreen, detailItem]);
+  // Playback starting, or another title's page opening (a voice command),
+  // takes the remote from a hold menu that was up (above): it closes.
+  useEffect(() => { setRecFor(null); }, [fullscreen, detailItem]);
 
   // Bumped each time the player closes. The browse view stays mounted under
   // the player now, so the few things that change because something was
@@ -4485,6 +4619,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       return () => window.removeEventListener('keydown', backOnly, true);
     }
     if (detailItem || fullscreen) return;
+    const gridHold = gridHoldRef.current!;
     const handler = (e: KeyboardEvent) => {
       if (!isPlexKeyOwner('browse')) return;
       if (detailRef.current || fullscreenRef.current) return;
@@ -4601,10 +4736,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       else if (e.key === 'ArrowDown') { if (cur + colsRef.current < total) setCursor(cur + colsRef.current); }
       else if (e.key === 'ArrowLeft') { if (cur % colsRef.current !== 0) setCursor(cur - 1); }
       else if (e.key === 'ArrowRight') { if ((cur % colsRef.current) < colsRef.current - 1 && cur + 1 < total) setCursor(cur + 1); }
-      else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const it = itemsRef.current[cur]; if (it) openDetail(it); }
+      else if (e.key === 'Enter' || e.key === ' ') gridHold.press(e, itemsRef.current[cur], openDetail);
     };
-    // Release before the hold threshold is a short press: enter the library.
+    // Release before the hold threshold is a short press: enter the library,
+    // or open the grid's title.
     const keyup = (e: KeyboardEvent) => {
+      gridHold.release(e);
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (menuHoldTimerRef.current) {
         window.clearTimeout(menuHoldTimerRef.current);
@@ -4619,6 +4756,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       window.removeEventListener('keydown', handler, true);
       window.removeEventListener('keyup', keyup, true);
       if (menuHoldTimerRef.current) { window.clearTimeout(menuHoldTimerRef.current); menuHoldTimerRef.current = null; }
+      gridHold.cancel();
     };
     // NOTE: PlexSection intentionally does NOT register its own
     // CapApp.backButton listener. The Player (LiveTV.tsx) already converts
@@ -4956,6 +5094,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             adultKeys={adultKeys}
             onPlay={openDetail}
             onExitToTabs={exitToMenu}
+            clientIdentifier={conn.clientIdentifier}
           />
         ) : currentTab?.type === 'seasonal' && conn && season ? (
           <SeasonalPanel
@@ -5059,6 +5198,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       )}
     </div>
     {playerLayer}
+    {recFor && recServer && !fullscreen ? <PlexRecommendMenu item={recFor} server={recServer} onClose={closeRecommend} /> : null}
     {demoNoticeOverlay}
     </>
   );

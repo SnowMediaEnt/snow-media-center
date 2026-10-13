@@ -859,6 +859,9 @@ export interface PlexItem {
   lastViewedAt?: number;
   /** When the server added it (ms); a series: its newest episode's. */
   addedAt?: number;
+  /** How many viewers recommended it (Discover's "Recommended by viewers",
+   *  plexRecommend.ts); the poster shows the count. */
+  recommenders?: number;
 }
 
 /** Rating, certificate and genres as Plex sends them on LIST payloads, so

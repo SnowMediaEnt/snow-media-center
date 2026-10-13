@@ -220,6 +220,31 @@
   height: 18px;
 }
 .plex-badge--under { top: 36px; }
+/* Recommenders (Discover's "Recommended by viewers"): the resolution chip's
+   look in the opposite corner, top-left, so it never meets the watched check
+   or the chip (top-right) or the resume bar (bottom). The icon's margin, not
+   flex gap (Chromium 66). */
+.plex-recs {
+  position: absolute;
+  top: var(--plex-s-2);
+  left: var(--plex-s-2);
+  display: flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: var(--plex-r-xs);
+  background-color: rgba(0, 0, 0, 0.72);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: var(--plex-fs-micro);
+  line-height: 1rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+.plex-recs > svg {
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  color: hsl(var(--brand-gold));
+}
 /* Resume bar: an inset pill, 8 px from the poster's edges. */
 .plex-progress {
   position: absolute;
