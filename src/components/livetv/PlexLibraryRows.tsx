@@ -42,7 +42,7 @@ import {
 } from '@/lib/plex';
 import {
   EMPTY_FILTERS, hasAnyFilter, describeFilters, buildLibraryQuery,
-  availableSorts, findFilter, type LibraryFilterState,
+  availableSorts, findFilter, type LibraryFilterState, fallbackFilterKey,
 } from '@/lib/plexLibraryFilters';
 import {
   libraryRowSpecs, tileCaption, resumeFraction,
@@ -475,18 +475,33 @@ const PlexLibraryRows = memo(({
       setMenu({ chip, options: withAll(cached), idx: 0 });
       return;
     }
-    const filterName = chip === 'year'
-      ? (findFilter(meta?.filters ?? [], 'year') ?? findFilter(meta?.filters ?? [], 'decade'))
-      : findFilter(meta?.filters ?? [], chip);
-    if (!filterName) { setMenu({ chip, options: [], idx: 0 }); return; }
-    try {
-      const opts = await getPlexFilterValues(base, token, filterName.key);
-      setValues((v) => ({ ...v, [chip]: opts }));
-      setMenu({ chip, options: withAll(opts), idx: 0 });
-    } catch {
-      setMenu({ chip, options: [], idx: 0 });
+    // The library's facts are asked for when the remote first reaches this
+    // bar; a chip opened before they came (or after they failed) said
+    // "Nothing to choose here" for every library (owner, 2026-10-12: "we dont
+    // even get the genre options to sort"). Wait for them here, then also try
+    // the section's own list for the chip, which works on servers whose
+    // facts leave the filter out.
+    let facts = meta;
+    if (!facts) {
+      try { facts = await getPlexSectionMeta(base, token, libKey); setMeta(facts); } catch { facts = null; }
     }
-  }, [sortOptions, filters.sort, values, meta, base, token]);
+    const listed = chip === 'year'
+      ? (findFilter(facts?.filters ?? [], 'year') ?? findFilter(facts?.filters ?? [], 'decade'))
+      : findFilter(facts?.filters ?? [], chip);
+    const keys = [listed?.key, fallbackFilterKey(libKey, chip as 'genre' | 'year' | 'contentRating', sectionType)]
+      .filter((k, i, all): k is string => !!k && all.indexOf(k) === i);
+    for (const key of keys) {
+      try {
+        const opts = await getPlexFilterValues(base, token, key);
+        if (opts.length) {
+          setValues((v) => ({ ...v, [chip]: opts }));
+          setMenu({ chip, options: withAll(opts), idx: 0 });
+          return;
+        }
+      } catch { /* the next way, if there is one */ }
+    }
+    setMenu({ chip, options: [], idx: 0 });
+  }, [sortOptions, filters.sort, values, meta, base, token, libKey, sectionType]);
 
   const applyMenuChoice = useCallback((chip: string, opt: PlexFilterValue) => {
     const unset = !opt.key;

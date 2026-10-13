@@ -118,6 +118,15 @@ export function availableSorts(
   return (out.length ? out : PREFERRED_SORTS).map((s) => shown(s, tr));
 }
 
+/** Where a library's values for one filter are, when the server did not
+ *  list the filter in its library facts (includeMeta): the section's own
+ *  directory for it, the one those facts point to on every server we have
+ *  seen ("/library/sections/1/genre"). A TV library asks for its shows'
+ *  values (type 2), not its episodes'. */
+export function fallbackFilterKey(sectionKey: string, chip: 'genre' | 'year' | 'contentRating', sectionType: string): string {
+  return `/library/sections/${sectionKey}/${chip}${sectionType === 'show' ? '?type=2' : ''}`;
+}
+
 /** Find a filter by its Plex `filter` name, tolerating libtype prefixes. */
 export function findFilter<T extends { filter: string }>(
   filters: T[],
