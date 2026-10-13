@@ -68,7 +68,11 @@
       "switchTitle": "Cambiar quién está viendo",
       "switchDesc": "Elige otro perfil. Cada uno tiene su propio Seguir viendo, Mi lista, favoritos y pantalla de inicio.",
       "manageTitle": "Agregar o editar perfiles",
-      "manageDesc": "Agrega a alguien (hasta 8 perfiles), crea un perfil infantil, cambia el nombre o el color, o agrega un PIN."
+      "manageDesc": "Agrega a alguien (hasta 8 perfiles), crea un perfil infantil, cambia el nombre o el color, o agrega un PIN.",
+      "parentTitle": "PIN parental",
+      "parentDescOn": "Activado. Se necesita para agregar, cambiar o eliminar perfiles y para salir de un perfil infantil. Cámbialo o desactívalo.",
+      "parentDescOff": "Desactivado. Crea uno para que los niños no puedan agregar perfiles ni pasar al de un adulto.",
+      "parentSignIn": "Inicia sesión en tu cuenta de Snow Media para proteger los perfiles con un PIN parental."
     },
     "toast": {
       "aiSignInTitle": "Inicia sesión para Premium",

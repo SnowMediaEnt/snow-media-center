@@ -67,7 +67,11 @@
       "switchTitle": "Wechseln, wer schaut",
       "switchDesc": "Wähle ein anderes Profil. Jedes hat sein eigenes Weiterschauen, seine eigene Liste, Favoriten und seinen Startbildschirm.",
       "manageTitle": "Profile hinzufügen oder bearbeiten",
-      "manageDesc": "Füge jemanden hinzu (bis zu 8 Profile), erstelle ein Kinderprofil, benenne um, ändere die Farbe oder füge eine PIN hinzu."
+      "manageDesc": "Füge jemanden hinzu (bis zu 8 Profile), erstelle ein Kinderprofil, benenne um, ändere die Farbe oder füge eine PIN hinzu.",
+      "parentTitle": "Eltern-PIN",
+      "parentDescOn": "An. Wird gebraucht, um Profile hinzuzufügen, zu ändern oder zu löschen und um ein Kinderprofil zu verlassen. Ändere sie oder schalte sie aus.",
+      "parentDescOff": "Aus. Erstelle eine, damit Kinder keine Profile hinzufügen und nicht zum Profil eines Erwachsenen wechseln können.",
+      "parentSignIn": "Melde dich in deinem Snow-Media-Konto an, um Profile mit einer Eltern-PIN zu schützen."
     },
     "toast": {
       "aiSignInTitle": "Für Premium anmelden",

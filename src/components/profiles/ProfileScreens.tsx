@@ -1,6 +1,6 @@
 // "Who's watching?" and everything behind it: pick a profile, add and edit
-// profiles (name, colour, Kids, PIN), the PIN pad, and "Forgot PIN?".
-// See lib/profiles.ts for where profiles live and what a PIN is.
+// profiles (name, colour, Kids, PIN), the PIN pad, the Parent PIN, and
+// "Forgot PIN?". See lib/profiles.ts for where profiles live and what a PIN is.
 //
 // One full-screen overlay (aria-modal, so the app's own Back handling stands
 // aside) with its own D-pad focus: every control carries data-pf, arrows move
@@ -12,18 +12,28 @@
 //            the box is holding a Kids profile's limits: Back keeps them)
 //   pick     switching from Settings or the Kids home button (Back closes)
 //   manage   Settings → Profiles: straight to adding and editing (Back to pick)
-//   grownup  a Kids profile opening Settings: any grown-up's PIN, when a
-//            grown-up profile has one (the caller only opens it then)
+//   grownup  a Kids profile opening Settings: the Parent PIN or any grown-up's
+//            PIN, when there is one (the caller only opens it then)
+//   parent   Settings → Profiles → Parent PIN: its PIN first, then change it
+//            or turn it off; or make one
+//
+// THE PARENT PIN keeps kids from changing profiles. The first time Profiles
+// opens on a signed-in account without one, a screen asks for one to be made:
+// "Not now" only while the account has no Kids profile, and making a Kids
+// profile makes one first. Once there is one, adding, editing or deleting any
+// profile takes it (once per opening), and so does leaving a Kids profile for
+// a grown-up one, where that profile's own PIN works too.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import { Check, Delete, Lock, Pencil, Plus, UserRound } from 'lucide-react';
 import { KIDS_LEVELS, type KidsLevel } from '@/lib/kidsFilter';
 import {
-  AVATARS, FORGOT_AFTER, MAX_PROFILES, PROFILES_EVENT, activeProfile, avatarColors, boxProfilesToBring, bringBoxProfiles,
-  checkGrownUpPin, checkPin, createProfile, deleteProfile, getProfile, grownUpPadLockedFor, grownUpsWithPin,
-  kidsHoldNeedsGrownUp, lastPickedId, loadProfiles, pickProfile, pinFailures, pinLockedFor, pinsAvailable, profileName, pullProfiles,
-  requestPinReset, setPin, updateProfile, verifyPinReset, type Profile,
+  AVATARS, FORGOT_AFTER, MAX_PROFILES, PARENT_PIN_ID, PROFILES_EVENT, activeProfile, avatarColors, boxProfilesToBring, bringBoxProfiles,
+  checkGrownUpPin, checkParentPin, checkPin, checkPinOrParent, createProfile, deleteProfile, getProfile, grownUpPadLockedFor, grownUpsWithPin,
+  hasParentPin, kidsHoldNeedsGrownUp, lastPickedId, loadProfiles, parentPinCanWait, parentPinCounts, parentPinDue, parentPinKnown, parentPinLockedFor,
+  pickProfile, pinFailures, pinLockedFor, pinsAvailable, profileName, pullProfiles, putOffParentPin, requestPinReset, setParentPin, setPin,
+  updateProfile, verifyPinReset, type Profile,
 } from '@/lib/profiles';
 import { MAIN_PROFILE } from '@/lib/viewer';
 
@@ -39,23 +49,52 @@ const LEVEL_TEXT: Record<'off' | KidsLevel, { label: string; hint: string }> = {
   teen: { label: 'profiles.edit.levelTeen', hint: 'profiles.edit.levelTeenHint' },
 };
 
-export type ProfileScreensMode = 'gate' | 'pick' | 'manage' | 'grownup';
+export type ProfileScreensMode = 'gate' | 'pick' | 'manage' | 'grownup' | 'parent';
 
-type After = 'pick' | 'edit' | 'manage' | 'grownup';
+/** Where a PIN, once given, leads: pick that profile, the editor (on a
+ *  profile, or a new one), Manage, the grown-up's go-ahead, the Parent PIN
+ *  screen; and once a Parent PIN is made, what Profiles was opened for
+ *  ('open'), or what was waiting for one (save the editor, delete its
+ *  profile, bring this box's profiles). */
+type After = 'pick' | 'edit' | 'add' | 'manage' | 'grownup' | 'menu' | 'open' | 'save' | 'delete' | 'bring';
 type Screen =
   | { kind: 'pick' }
   | { kind: 'manage' }
   | { kind: 'edit'; id: string | null }
-  | { kind: 'pin'; purpose: 'unlock'; profileId: string; then: After }
+  | { kind: 'parent' }
+  // orParent: from a Kids profile, the Parent PIN opens it too.
+  | { kind: 'pin'; purpose: 'unlock'; profileId: string; then: After; orParent?: boolean }
   | { kind: 'pin'; purpose: 'grownup'; then: After; forId?: string }
+  | { kind: 'pin'; purpose: 'parent'; then: After; forId?: string }
+  // A new Parent PIN; `first` once it was typed, to type it again.
+  | { kind: 'pin'; purpose: 'parentNew'; then: After; first?: string }
   | { kind: 'pin'; purpose: 'new'; profileId: string }
   | { kind: 'pin'; purpose: 'confirm'; profileId: string; first: string }
-  | { kind: 'forgot'; profileId: string; then: After };
+  | { kind: 'forgot'; profileId: string; then: After; forId?: string };
+
+/** The screens it opens on. The first time Profiles opens on an account
+ *  without a Parent PIN, the screen that makes one comes first (at the
+ *  start-up gate only when there is someone to pick between). */
+function openingStack(mode: ProfileScreensMode): Screen[] {
+  if (mode === 'grownup') return [{ kind: 'pin', purpose: 'grownup', then: 'grownup' }];
+  if (mode === 'parent') return [hasParentPin() ? { kind: 'pin', purpose: 'parent', then: 'menu' } : { kind: 'parent' }];
+  if (parentPinDue() && (mode !== 'gate' || loadProfiles().length > 1)) return [{ kind: 'pick' }, { kind: 'pin', purpose: 'parentNew', then: 'open' }];
+  return [{ kind: 'pick' }];
+}
+
+/** The stack without the PIN screens on top: where a PIN, once given, leads on from. */
+const unwind = (st: Screen[]): Screen[] => {
+  let n = st.length;
+  while (n > 1 && (st[n - 1].kind === 'pin' || st[n - 1].kind === 'forgot')) n--;
+  return st.slice(0, n);
+};
+
+const isSetup = (s: Screen) => s.kind === 'pin' && s.purpose === 'parentNew' && s.then === 'open';
 
 interface Props {
   mode: ProfileScreensMode;
   onClose: () => void;
-  /** grownup: the PIN was right (or nobody has one). */
+  /** grownup: the PIN was right (or there is none). */
   onGrownUpOk?: () => void;
   /** The grown-up pad for a Kids profile kept from a signed-out account:
    *  signing in to it again is the way on when its PIN is forgotten. */
@@ -192,9 +231,13 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
   const [profiles, setProfiles] = useState<Profile[]>(() => loadProfiles());
-  const [stack, setStack] = useState<Screen[]>(() => [mode === 'grownup' ? { kind: 'pin', purpose: 'grownup', then: 'grownup' } : { kind: 'pick' }]);
+  const [opening] = useState(() => openingStack(mode));
+  const [stack, setStack] = useState<Screen[]>(opening);
   const screen = stack[stack.length - 1];
-  const [focus, setFocus] = useState<string>(() => (mode === 'grownup' ? 'pad-1' : `p-${lastPickedId()}`));
+  const [focus, setFocus] = useState<string>(() => {
+    const top = opening[opening.length - 1];
+    return top.kind === 'pick' ? `p-${lastPickedId()}` : top.kind === 'parent' ? 'pp-change' : 'pad-1';
+  });
   const [digits, setDigitsState] = useState('');
   const digitsRef = useRef('');
   const setDigits = useCallback((next: string | ((d: string) => string)) => {
@@ -208,14 +251,25 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
   // A grown-up's PIN was given while this is open (the grown-up pad, or a
   // grown-up profile's own): not asked for again.
   const grownUpOk = useRef(false);
+  // The Parent PIN was given (or made) while this is open: not asked again.
+  const parentOk = useRef(false);
+  // The account has been asked about its Parent PIN (or couldn't be): the
+  // screen that makes one waits for that, so one made on another box isn't
+  // made again here.
+  const [parentSettled, setParentSettled] = useState(() => parentPinKnown());
+  // The Parent PIN screen's last word ("Parent PIN changed.").
+  const [menuNote, setMenuNote] = useState<Msg | null>(null);
   const current = useMemo(() => activeProfile(), [profiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    let alive = true;
     const on = () => setProfiles(loadProfiles());
     window.addEventListener(PROFILES_EVENT, on);
-    // The account's list: a PIN support cleared, a profile added on another box.
-    void pullProfiles();
-    return () => window.removeEventListener(PROFILES_EVENT, on);
+    // The account's list: a PIN support cleared, a profile added on another
+    // box, the Parent PIN.
+    const settled = () => { if (alive) setParentSettled(true); };
+    void pullProfiles().then(settled, settled);
+    return () => { alive = false; window.removeEventListener(PROFILES_EVENT, on); };
   }, []);
 
   const push = useCallback((s: Screen, firstFocus: string) => {
@@ -239,60 +293,124 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
       : { name: '', avatar: AVATARS.find((a) => !used.has(a.id))?.id ?? 'blue', kidsLevel: null });
   }, []);
 
+  const needParent = () => hasParentPin() && !parentOk.current;
+
+  // Without a Parent PIN (put off, or signed out with a Kids profile kept
+  // from an account): changing profiles is a grown-up's job from a Kids
+  // profile, and at the start-up gate of a house that has one (whoever is
+  // picking may be the kid), when a grown-up profile has a PIN.
+  const needGrownUp = () => {
+    if (grownUpOk.current || hasParentPin() || grownUpsWithPin().length === 0) return false;
+    return !!current.kidsLevel || (mode === 'gate' && profiles.some((p) => !!p.kidsLevel));
+  };
+
+  const openManage = () => {
+    if (needParent()) push({ kind: 'pin', purpose: 'parent', then: 'manage' }, 'pad-1');
+    else if (needGrownUp()) push({ kind: 'pin', purpose: 'grownup', then: 'manage' }, 'pad-1');
+    else push({ kind: 'manage' }, `m-${profiles[0]?.id ?? MAIN_PROFILE}`);
+  };
+
+  // The way into the editor: the Parent PIN (once per opening), then the
+  // profile's own PIN when it has one.
+  const editGate = (id: string | null): [Screen, string] => {
+    const p = id ? getProfile(id) : null;
+    if (needParent()) return [{ kind: 'pin', purpose: 'parent', then: id ? 'edit' : 'add', forId: id ?? undefined }, 'pad-1'];
+    if (p?.pinHash && !unlocked.current.has(p.id)) return [{ kind: 'pin', purpose: 'unlock', profileId: p.id, then: 'edit' }, 'pad-1'];
+    loadDraft(id);
+    return [{ kind: 'edit', id }, 'name'];
+  };
+  const openEdit = (p: Profile | null) => { const [s, f] = editGate(p?.id ?? null); push(s, f); };
+
+  // After the first-open screen (a Parent PIN made, or put off): on to what
+  // Profiles was opened for.
+  const continueOpen = () => {
+    setStack((st) => unwind(st)); setDigits(''); setMessage(null);
+    if (mode === 'manage') openManage(); else setFocus(`p-${lastPickedId()}`);
+  };
+  // Leaving the first-open screen when it can't be put off: Profiles closes,
+  // and nothing in it changed. At the start-up gate only on a Kids profile
+  // (its limits stay); anyone else picks after making one.
+  const leaveSetup = () => {
+    if (mode !== 'gate' || current.kidsLevel || kidsHoldNeedsGrownUp()) onClose();
+  };
+
+  const commitEdit = (id: string | null): boolean => {
+    const name = draft.name.trim();
+    if (id) updateProfile(id, { name, avatar: draft.avatar, kidsLevel: id === MAIN_PROFILE ? null : draft.kidsLevel });
+    else if (!createProfile({ name, avatar: draft.avatar, kidsLevel: draft.kidsLevel })) { setMessage({ key: 'profiles.edit.maxProfiles', params: { max: MAX_PROFILES } }); return false; }
+    return true;
+  };
+
+  // "Add <names> from this box". Kids profiles coming to the account need its
+  // Parent PIN, as one made here would.
+  const bring = () => {
+    const toBring = boxProfilesToBring();
+    if (!toBring.length) return;
+    if (toBring.some((p) => !!p.kidsLevel) && pinsAvailable() && !hasParentPin()) { push({ kind: 'pin', purpose: 'parentNew', then: 'bring' }, 'pad-1'); return; }
+    const first = toBring[0].id;
+    if (bringBoxProfiles() > 0) setFocus(`m-${first}`);
+  };
+
   // ── what happens after a PIN (or none) ──
-  const finish = useCallback((then: After, profileId?: string) => {
+  const finish = (then: After, id?: string) => {
     if (then === 'grownup') { onGrownUpOk?.(); return; }
-    if (then === 'manage') { replace({ kind: 'manage' }, `m-${profiles[0]?.id ?? MAIN_PROFILE}`); return; }
-    if (then === 'edit' && profileId) { loadDraft(profileId); replace({ kind: 'edit', id: profileId }, 'name'); return; }
-    if (then === 'pick' && profileId) {
-      if (pickProfile(profileId) === 'reload') {
+    if (then === 'pick') {
+      if (!id) return;
+      if (pickProfile(id) === 'reload') {
         try { window.location.reload(); } catch { onClose(); }
       } else onClose();
+      return;
     }
-  }, [loadDraft, onClose, onGrownUpOk, profiles, replace]);
+    if (then === 'open') { continueOpen(); return; }
+    setDigits(''); setMessage(null);
+    if (then === 'menu') { setStack([{ kind: 'parent' }]); setFocus('pp-change'); return; }
+    const base = unwind(stack);
+    const top = base[base.length - 1];
+    if (then === 'manage') { setStack([...base, { kind: 'manage' }]); setFocus(`m-${profiles[0]?.id ?? MAIN_PROFILE}`); return; }
+    if (then === 'edit' || then === 'add') { const [s, f] = editGate(then === 'edit' ? id ?? null : null); setStack([...base, s]); setFocus(f); return; }
+    setStack(base);
+    if (then === 'bring') { bring(); return; }
+    if (top.kind !== 'edit') return;
+    if (then === 'save' && commitEdit(top.id)) { setStack(base.slice(0, -1)); setFocus(`m-${top.id ?? MAIN_PROFILE}`); }
+    if (then === 'delete' && top.id) { deleteProfile(top.id); setStack(base.slice(0, -1)); setFocus(`m-${MAIN_PROFILE}`); }
+  };
 
-  const choose = useCallback((p: Profile) => {
-    if (p.pinHash && !unlocked.current.has(p.id)) push({ kind: 'pin', purpose: 'unlock', profileId: p.id, then: 'pick' }, 'pad-1');
+  const choose = (p: Profile) => {
+    // From a Kids profile (or its limits, held), a grown-up profile takes the
+    // Parent PIN, or its own PIN when it has one.
+    const fromKids = !p.kidsLevel && !!current.kidsLevel && needParent();
+    if (p.pinHash && !unlocked.current.has(p.id)) push({ kind: 'pin', purpose: 'unlock', profileId: p.id, then: 'pick', orParent: fromKids }, 'pad-1');
     // Out of a Kids profile kept from an account that signed out: one of its
     // grown-ups says so.
     else if (!p.kidsLevel && !grownUpOk.current && kidsHoldNeedsGrownUp()) push({ kind: 'pin', purpose: 'grownup', then: 'pick', forId: p.id }, 'pad-1');
+    else if (fromKids && !p.pinHash) push({ kind: 'pin', purpose: 'parent', then: 'pick', forId: p.id }, 'pad-1');
     else finish('pick', p.id);
-  }, [finish, push]);
+  };
 
-  // Changing profiles is a grown-up's job from a Kids profile, and at the
-  // start-up gate of a house that has one (whoever is picking may be the kid).
-  const needGrownUp = useCallback(() => {
-    if (grownUpOk.current || grownUpsWithPin().length === 0) return false;
-    return !!current.kidsLevel || (mode === 'gate' && profiles.some((p) => !!p.kidsLevel));
-  }, [current.kidsLevel, mode, profiles]);
-
-  const openManage = useCallback(() => {
-    if (needGrownUp()) push({ kind: 'pin', purpose: 'grownup', then: 'manage' }, 'pad-1');
-    else push({ kind: 'manage' }, `m-${profiles[0]?.id ?? MAIN_PROFILE}`);
-  }, [needGrownUp, profiles, push]);
-
-  const openEdit = useCallback((p: Profile | null) => {
-    if (p?.pinHash && !unlocked.current.has(p.id)) push({ kind: 'pin', purpose: 'unlock', profileId: p.id, then: 'edit' }, 'pad-1');
-    else { loadDraft(p?.id ?? null); push({ kind: 'edit', id: p?.id ?? null }, 'name'); }
-  }, [loadDraft, push]);
-
-  // Settings → Profiles opens straight onto Manage (the same way the button does).
-  const openedManage = useRef(false);
+  // Settings → Profiles opens straight onto Manage (the same way the button
+  // does); after the first-open screen, when that comes first.
+  const openedManage = useRef(opening.length > 1);
   useEffect(() => {
     if (mode !== 'manage' || openedManage.current) return;
     openedManage.current = true;
-    openManage();
-  }, [mode, openManage]);
+    handlersRef.current.manage();
+  }, [mode]);
+
+  // The first-open screen, and the account turned out to have a Parent PIN
+  // (made on another box): Profiles asks for that one instead.
+  useEffect(() => {
+    if (isSetup(screen) && !parentOk.current && hasParentPin()) handlersRef.current.open();
+  }, [screen, profiles]);
 
   // ── PIN entry ──
-  const submitPin = useCallback((value: string) => {
+  const submitPin = (value: string) => {
     if (screen.kind !== 'pin') return;
     if (screen.purpose === 'unlock') {
       const p = getProfile(screen.profileId);
       if (!p) { pop(); return; }
       const wait = pinLockedFor(p.id);
       if (wait > 0) { setDigits(''); setMessage({ key: 'profiles.pin.waitTooMany', params: { count: Math.ceil(wait / 1000) } }); return; }
-      if (checkPin(p, value)) {
+      if (screen.orParent ? checkPinOrParent(p, value) : checkPin(p, value)) {
         unlocked.current.add(p.id);
         if (!p.kidsLevel) grownUpOk.current = true;
         finish(screen.then, p.id);
@@ -312,6 +430,29 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
       setMessage(left > 0 ? { key: 'profiles.pin.notGrownUpWait', params: { count: Math.ceil(left / 1000) } } : { key: 'profiles.pin.notGrownUp' });
       return;
     }
+    if (screen.purpose === 'parent') {
+      const wait = parentPinLockedFor();
+      if (wait > 0) { setDigits(''); setMessage({ key: 'profiles.pin.waitTooMany', params: { count: Math.ceil(wait / 1000) } }); return; }
+      if (checkParentPin(value)) { parentOk.current = true; grownUpOk.current = true; finish(screen.then, screen.forId); return; }
+      setDigits('');
+      const left = parentPinLockedFor();
+      setMessage(left > 0 ? { key: 'profiles.parent.wrongWait', params: { count: Math.ceil(left / 1000) } } : { key: 'profiles.parent.wrong' });
+      return;
+    }
+    if (screen.purpose === 'parentNew') {
+      if (!screen.first) { replace({ ...screen, first: value }, 'pad-1'); return; }
+      if (value !== screen.first) {
+        replace({ kind: 'pin', purpose: 'parentNew', then: screen.then }, 'pad-1');
+        setMessage({ key: 'profiles.pin.mismatch' });
+        return;
+      }
+      const had = hasParentPin();
+      setParentPin(value);
+      parentOk.current = true; grownUpOk.current = true;
+      finish(screen.then);
+      if (screen.then === 'menu') setMenuNote({ key: had ? 'profiles.parent.changed' : 'profiles.parent.created' });
+      return;
+    }
     if (screen.purpose === 'new') {
       replace({ kind: 'pin', purpose: 'confirm', profileId: screen.profileId, first: value }, 'pad-1');
       return;
@@ -326,23 +467,16 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
       unlocked.current.add(screen.profileId);
       pop('pin');
     }
-  }, [finish, pop, replace, screen, setDigits]);
-
-  const typeDigit = useCallback((d: string) => {
-    if (screen.kind !== 'pin' && screen.kind !== 'forgot') return;
-    const len = screen.kind === 'forgot' ? 6 : 4;
-    const cur = digitsRef.current;
-    if (cur.length >= len) return;
-    const next = cur + d;
-    setDigits(next);
-    // The last digit submits (a code is checked by the effect below).
-    if (next.length === len && screen.kind === 'pin') window.setTimeout(() => submitPin(next), 120);
-  }, [screen, setDigits, submitPin]);
+  };
 
   // ── Forgot PIN ──
   const [forgot, setForgot] = useState<{ state: 'sending' | 'sent' | 'failed'; msg: Msg } | null>(null);
+  // Resetting the Parent PIN: after the code, the new PIN (twice) goes with
+  // it, so the account is never left without one.
+  const [parentReset, setParentReset] = useState<{ code: string; first?: string } | null>(null);
   const forgotFor = screen.kind === 'forgot' ? screen.profileId : null;
   useEffect(() => {
+    setParentReset(null);
     if (!forgotFor) { setForgot(null); return; }
     let alive = true;
     setForgot({ state: 'sending', msg: { key: 'profiles.forgot.sending' } });
@@ -353,7 +487,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
           state: 'failed',
           msg: { key: r.reason === 'too_many' ? 'profiles.forgot.tooManyRequests'
             : r.reason === 'signed_out' ? 'profiles.forgot.signedOut'
-              : r.reason === 'no_pin' ? 'profiles.forgot.noPin'
+              : r.reason === 'no_pin' ? (forgotFor === PARENT_PIN_ID ? 'profiles.parent.noPin' : 'profiles.forgot.noPin')
                 : 'profiles.forgot.unreachable' },
         });
         return;
@@ -367,34 +501,114 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
     return () => { alive = false; };
   }, [forgotFor]);
 
-  const submitCode = useCallback(async () => {
-    if (screen.kind !== 'forgot' || digits.length !== 6) return;
-    setMessage({ key: 'profiles.pin.checking' });
-    const r = await verifyPinReset(screen.profileId, digits);
-    if (r.ok) { unlocked.current.add(screen.profileId); finish(screen.then, screen.profileId); return; }
+  const codeFailed = (r: { reason?: string; left?: number }) => {
     setDigits('');
     setMessage(r.reason === 'wrong_code'
       ? (typeof r.left === 'number' ? { key: 'profiles.forgot.wrongCodeLeft', params: { count: r.left } } : { key: 'profiles.forgot.wrongCode' })
       : r.reason === 'expired' ? { key: 'profiles.forgot.expired' }
         : r.reason === 'too_many' ? { key: 'profiles.forgot.tooManyCodes' }
-          : { key: 'profiles.forgot.unreachableShort' });
-  }, [digits, finish, screen, setDigits]);
+          : r.reason === 'signed_out' ? { key: 'profiles.forgot.signedOut' }
+            : { key: 'profiles.forgot.unreachableShort' });
+  };
+
+  const submitCode = async () => {
+    if (screen.kind !== 'forgot' || digits.length !== 6) return;
+    // The Parent PIN's code goes with the new PIN: that comes next.
+    if (screen.profileId === PARENT_PIN_ID) { setParentReset({ code: digits }); setDigits(''); setMessage(null); setFocus('pad-1'); return; }
+    setMessage({ key: 'profiles.pin.checking' });
+    const r = await verifyPinReset(screen.profileId, digits);
+    if (r.ok) { unlocked.current.add(screen.profileId); finish(screen.then, screen.profileId); return; }
+    codeFailed(r);
+  };
+
+  const resetBusy = useRef(false);
+  const submitResetPin = async (value: string) => {
+    if (screen.kind !== 'forgot' || !parentReset || resetBusy.current) return;
+    if (!parentReset.first) { setParentReset({ ...parentReset, first: value }); setDigits(''); setMessage(null); return; }
+    if (value !== parentReset.first) { setParentReset({ code: parentReset.code }); setDigits(''); setMessage({ key: 'profiles.pin.mismatch' }); return; }
+    setMessage({ key: 'profiles.pin.checking' });
+    resetBusy.current = true;
+    const r = await verifyPinReset(PARENT_PIN_ID, parentReset.code, value).finally(() => { resetBusy.current = false; });
+    if (r.ok) {
+      parentOk.current = true; grownUpOk.current = true;
+      setParentReset(null);
+      finish(screen.then, screen.forId);
+      if (screen.then === 'menu') setMenuNote({ key: 'profiles.parent.changed' });
+      return;
+    }
+    // Back to the code: a wrong one is typed again, the new PIN with it.
+    setParentReset(null);
+    codeFailed(r);
+  };
+
+  // The first-open screen waits for the account's answer before its pad.
+  const setupWaiting = isSetup(screen) && !parentSettled;
+
+  const typeDigit = (d: string) => {
+    if (screen.kind !== 'pin' && screen.kind !== 'forgot') return;
+    if (setupWaiting) return;
+    const len = screen.kind === 'forgot' && !parentReset ? 6 : 4;
+    const cur = digitsRef.current;
+    if (cur.length >= len) return;
+    const next = cur + d;
+    setDigits(next);
+    // The last digit submits (a code is checked by the effect below), on the
+    // screen it was typed on: OK pressed meanwhile must not make it count
+    // for the next one (a new PIN's second entry).
+    if (next.length !== len) return;
+    const submit = screen.kind === 'pin' ? submitPin : parentReset ? submitResetPin : null;
+    if (submit) window.setTimeout(() => { void submit(next); }, 120);
+  };
 
   // ── the editor's working copy ──
   const editing = screen.kind === 'edit' ? screen : null;
 
-  const saveEdit = useCallback(() => {
+  const saveEdit = () => {
     if (!editing) return;
     const name = draft.name.trim();
     if (!name) { setMessage({ key: 'profiles.edit.giveName' }); setFocus('name'); return; }
-    if (editing.id) updateProfile(editing.id, { name, avatar: draft.avatar, kidsLevel: editing.id === MAIN_PROFILE ? null : draft.kidsLevel });
-    else if (!createProfile({ name, avatar: draft.avatar, kidsLevel: draft.kidsLevel })) { setMessage({ key: 'profiles.edit.maxProfiles', params: { max: MAX_PROFILES } }); return; }
-    pop(`m-${editing.id ?? MAIN_PROFILE}`);
-  }, [draft, editing, pop]);
+    // Asked for on the way in; here only when the account got one since
+    // (made on another box).
+    if (needParent()) { push({ kind: 'pin', purpose: 'parent', then: 'save' }, 'pad-1'); return; }
+    // A Kids profile is only as safe as the Parent PIN: made here, first.
+    if (draft.kidsLevel && editing.id !== MAIN_PROFILE && pinsAvailable() && !hasParentPin()) { push({ kind: 'pin', purpose: 'parentNew', then: 'save' }, 'pad-1'); return; }
+    if (commitEdit(editing.id)) pop(`m-${editing.id ?? MAIN_PROFILE}`);
+  };
+
+  const deleteEdited = () => {
+    if (!editing?.id || editing.id === current.id) return;
+    if (needParent()) { push({ kind: 'pin', purpose: 'parent', then: 'delete' }, 'pad-1'); return; }
+    deleteProfile(editing.id);
+    pop(`m-${MAIN_PROFILE}`);
+  };
+
+  // Turning the Parent PIN off: its PIN was asked on the way in, and Kids
+  // profiles need one.
+  const turnParentOff = () => {
+    if (needParent() || !parentPinCanWait()) return;
+    setParentPin(null);
+    setMenuNote({ key: 'profiles.parent.turnedOff' });
+    setFocus('pp-add');
+  };
 
   // ── keys ──
-  const handlersRef = useRef<{ back: () => void; ok: () => void }>({ back: () => {}, ok: () => {} });
+  const handlersRef = useRef({
+    back: () => {}, ok: () => {}, digit: (_d: string) => {}, code: () => {}, open: () => {}, manage: () => {},
+  });
   handlersRef.current.back = () => {
+    // The first-open screen: Back is "Not now" while that is allowed;
+    // otherwise it leaves Profiles.
+    if (isSetup(screen)) {
+      if (parentPinCanWait()) { putOffParentPin(); continueOpen(); } else leaveSetup();
+      return;
+    }
+    // Resetting the Parent PIN: back a step, to the first try at the new PIN
+    // and then the code.
+    if (screen.kind === 'forgot' && parentReset) {
+      setParentReset(parentReset.first ? { code: parentReset.code } : null);
+      setDigits(''); setMessage(null);
+      return;
+    }
     if (stack.length > 1) { pop(); return; }
     // The gate holding a Kids profile's limits can be left with them kept:
     // otherwise a forgotten grown-up PIN would leave no way on.
@@ -406,6 +620,10 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
     if (el instanceof HTMLInputElement) { el.focus(); return; }
     el.click();
   };
+  handlersRef.current.digit = typeDigit;
+  handlersRef.current.code = () => { void submitCode(); };
+  handlersRef.current.open = continueOpen;
+  handlersRef.current.manage = openManage;
 
   const lastBackRef = useRef(0);
   const leftInputAtRef = useRef(0);
@@ -445,7 +663,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
         return;
       }
       const d = digitOf(e);
-      if (d != null) { e.preventDefault(); typeDigit(d); return; }
+      if (d != null) { e.preventDefault(); handlersRef.current.digit(d); return; }
       const dir = e.key === 'ArrowUp' ? 'up' : e.key === 'ArrowDown' ? 'down' : e.key === 'ArrowLeft' ? 'left' : e.key === 'ArrowRight' ? 'right' : null;
       if (dir) {
         e.preventDefault();
@@ -455,7 +673,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [doBack, focus, typeDigit]);
+  }, [doBack, focus]);
 
   // Hardware Back that never reaches the WebView as a key.
   useEffect(() => {
@@ -477,7 +695,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
       return;
     }
     try { el.scrollIntoView({ block: 'nearest' }); } catch { /* old WebView */ }
-  }, [focus, stack, profiles]);
+  }, [focus, stack, profiles, parentSettled]);
 
   const fp = { focus, setFocus };
 
@@ -534,7 +752,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
               type="button"
               data-pf="add"
               data-focused={focus === 'add' ? 'true' : 'false'}
-              onClick={() => { setFocus('add'); if (!managing && needGrownUp()) openManage(); else openEdit(null); }}
+              onClick={() => { setFocus('add'); if (!managing && !hasParentPin() && needGrownUp()) openManage(); else openEdit(null); }}
               className="flex flex-col items-center m-4 rounded-2xl p-2 outline-none"
             >
               <div
@@ -553,12 +771,14 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
             : <Btn id="manage" howto="prof.manage" {...fp} onPress={openManage}><span className="inline-flex items-center"><Pencil className="w-5 h-5 mr-2" />{t('profiles.manage.manageBtn')}</span></Btn>}
           {/* Made on this box before signing in: the account's list doesn't have them. */}
           {toBring.length > 0 && profiles.length < MAX_PROFILES && (
-            <Btn id="bring" {...fp} className="ml-4" onPress={() => { const first = toBring[0].id; if (bringBoxProfiles() > 0) setFocus(`m-${first}`); }}>
+            <Btn id="bring" {...fp} className="ml-4" onPress={bring}>
               {t('profiles.manage.bringBtn', { names: toBring.map((p) => profileName(p)).join(', ') })}
             </Btn>
           )}
           {!managing && cancelable && <Btn id="cancel" {...fp} className="ml-4" onPress={onClose}>{t('common.cancel')}</Btn>}
         </div>
+        {/* Signed out: no PINs (a forgotten one is reset through the account). */}
+        {managing && !pinsAvailable() && <p className="text-white/60 text-center max-w-2xl mx-auto mt-6">{t('profiles.parent.signInNote')}</p>}
       </>
     );
   } else if (screen.kind === 'edit') {
@@ -668,12 +888,7 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
           <Btn id="save" {...fp} className="mr-3" onPress={saveEdit}>{t('common.save')}</Btn>
           <Btn id="cancel-edit" {...fp} className="mr-3" onPress={() => pop()}>{t('common.cancel')}</Btn>
           {!isNew && !isMain && (
-            <Btn
-              id="delete"
-              {...fp}
-              disabled={screen.id === current.id}
-              onPress={() => { if (screen.id && screen.id !== current.id) { deleteProfile(screen.id); pop(`m-${MAIN_PROFILE}`); } }}
-            >
+            <Btn id="delete" {...fp} disabled={screen.id === current.id} onPress={deleteEdited}>
               {t('profiles.edit.deleteBtn')}
             </Btn>
           )}
@@ -683,45 +898,105 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
         )}
       </div>
     );
+  } else if (screen.kind === 'parent') {
+    const on = hasParentPin();
+    const signedIn = pinsAvailable();
+    // Kids profiles need one: it stays on while there is one.
+    const mustStay = on && !parentPinCanWait();
+    title = t('profiles.parent.title');
+    subtitle = !signedIn ? t('profiles.parent.signInNote') : on ? t('profiles.parent.menuOn') : t('profiles.parent.menuOff');
+    body = (
+      <div className="flex flex-col items-center max-w-2xl mx-auto text-center">
+        {menuNote && <p className="text-white text-lg mb-6">{t(menuNote.key)}</p>}
+        <div className="flex flex-wrap justify-center">
+          {signedIn && on && (
+            <>
+              <Btn id="pp-change" {...fp} className="mr-3 mb-3" onPress={() => push({ kind: 'pin', purpose: 'parentNew', then: 'menu' }, 'pad-1')}>
+                <span className="inline-flex items-center"><Lock className="w-5 h-5 mr-2" />{t('profiles.parent.changeBtn')}</span>
+              </Btn>
+              <Btn id="pp-off" {...fp} className="mr-3 mb-3" disabled={mustStay} onPress={turnParentOff}>{t('profiles.parent.offBtn')}</Btn>
+            </>
+          )}
+          {signedIn && !on && (
+            <Btn id="pp-add" {...fp} className="mr-3 mb-3" onPress={() => push({ kind: 'pin', purpose: 'parentNew', then: 'menu' }, 'pad-1')}>
+              <span className="inline-flex items-center"><Lock className="w-5 h-5 mr-2" />{t('profiles.parent.addBtn')}</span>
+            </Btn>
+          )}
+          <Btn id="pp-done" {...fp} className="mb-3" onPress={onClose}>{t('profiles.manage.doneBtn')}</Btn>
+        </div>
+        {mustStay && <p className="text-white/50 text-sm mt-3">{t('profiles.parent.offNeedsNoKids')}</p>}
+      </div>
+    );
   } else if (screen.kind === 'pin') {
     const p = 'profileId' in screen ? getProfile(screen.profileId) : null;
     const who = p ? profileName(p) : t('profiles.pin.thisProfile');
+    const making = screen.purpose === 'parentNew';
     title = screen.purpose === 'unlock' ? t('profiles.pin.unlockTitle', { name: who })
       : screen.purpose === 'grownup' ? t('profiles.pin.grownupTitle')
-        : screen.purpose === 'new' ? t('profiles.pin.newTitle', { name: who })
-          : t('profiles.pin.confirmTitle');
-    subtitle = message ? t(message.key, message.params) : (screen.purpose === 'grownup' ? t('profiles.pin.grownupHint')
-      : screen.purpose === 'new' ? t('profiles.pin.newHint') : null);
+        : screen.purpose === 'parent' ? t('profiles.parent.enterTitle')
+          : making ? (screen.first ? t('profiles.parent.confirmTitle') : hasParentPin() ? t('profiles.parent.newTitle') : t('profiles.parent.createTitle'))
+            : screen.purpose === 'new' ? t('profiles.pin.newTitle', { name: who })
+              : t('profiles.pin.confirmTitle');
+    subtitle = message ? t(message.key, message.params)
+      : setupWaiting ? t('profiles.parent.checking')
+        : screen.purpose === 'grownup' ? (parentPinCounts() ? t('profiles.pin.grownupHintParent') : t('profiles.pin.grownupHint'))
+          : screen.purpose === 'unlock' && screen.orParent ? t('profiles.parent.orParentHint')
+            : screen.purpose === 'parent' ? t('profiles.parent.enterHint')
+              : making && !screen.first ? ((screen.then === 'save' || screen.then === 'bring') ? t('profiles.parent.kidsNeedHint') : t('profiles.parent.createHint'))
+                : screen.purpose === 'new' ? t('profiles.pin.newHint') : null;
     alert = !!message;
-    const showForgot = screen.purpose === 'unlock' && p && pinFailures(p.id) >= FORGOT_AFTER;
+    const showForgot = pinsAvailable() && ((screen.purpose === 'unlock' && !!p && pinFailures(p.id) >= FORGOT_AFTER)
+      || (screen.purpose === 'parent' && pinFailures(PARENT_PIN_ID) >= FORGOT_AFTER));
     // Its account signed out, so no "Forgot PIN?" here: signing in to it
     // again brings back its profiles, and the reset with them.
     const showSignIn = screen.purpose === 'grownup' && !!onSignIn && kidsHoldNeedsGrownUp();
+    const setup = isSetup(screen);
+    // The first-open screen: "Not now" while that is allowed, else a way out
+    // of Profiles where there is one (not at the gate, unless on Kids).
+    const canPutOff = setup && parentPinCanWait();
+    const canLeave = !setup || canPutOff || mode !== 'gate' || !!current.kidsLevel || kidsHoldNeedsGrownUp();
+    const forgotOf = (): Screen | null => (screen.purpose === 'unlock' && p
+      ? { kind: 'forgot', profileId: p.id, then: screen.then }
+      : screen.purpose === 'parent' ? { kind: 'forgot', profileId: PARENT_PIN_ID, then: screen.then, forId: screen.forId } : null);
     body = (
       <div className={roomy ? 'flex flex-col items-center' : 'flex items-center justify-center'}>
         {p && roomy && <div className="mb-6"><Avatar p={p} size={80} /></div>}
-        <PinPad {...fp} length={4} value={digits} onDigit={typeDigit} onDelete={() => setDigits((d) => d.slice(0, -1))} onSubmit={() => { if (digits.length === 4) submitPin(digits); }} />
-        <div className={roomy ? 'flex mt-6' : 'flex flex-col ml-10'}>
-          {showForgot && p && pinsAvailable() && (
-            <Btn id="forgot" {...fp} className={roomy ? 'mr-3' : 'mb-3'} onPress={() => push({ kind: 'forgot', profileId: p.id, then: screen.purpose === 'unlock' ? screen.then : 'pick' }, 'pad-1')}>{t('profiles.pin.forgotBtn')}</Btn>
-          )}
+        {!setupWaiting && (
+          <PinPad {...fp} length={4} value={digits} onDigit={typeDigit} onDelete={() => setDigits((d) => d.slice(0, -1))} onSubmit={() => { if (digits.length === 4) submitPin(digits); }} />
+        )}
+        <div className={roomy || setupWaiting ? 'flex mt-6' : 'flex flex-col ml-10'}>
+          {showForgot && <Btn id="forgot" {...fp} className={roomy ? 'mr-3' : 'mb-3'} onPress={() => { const s = forgotOf(); if (s) push(s, 'pad-1'); }}>{t('profiles.pin.forgotBtn')}</Btn>}
           {showSignIn && <Btn id="signin" {...fp} className={roomy ? 'mr-3' : 'mb-3'} onPress={() => onSignIn?.()}>{t('profiles.pin.signInAgainBtn')}</Btn>}
-          <Btn id="pin-back" {...fp} onPress={() => handlersRef.current.back()}>{t('common.back')}</Btn>
+          {canPutOff && <Btn id="pp-later" {...fp} onPress={() => handlersRef.current.back()}>{t('profiles.parent.laterBtn')}</Btn>}
+          {setup && !canPutOff && canLeave && <Btn id="pin-back" {...fp} onPress={() => handlersRef.current.back()}>{t('common.cancel')}</Btn>}
+          {!setup && <Btn id="pin-back" {...fp} onPress={() => handlersRef.current.back()}>{t('common.back')}</Btn>}
         </div>
       </div>
     );
   } else if (screen.kind === 'forgot') {
-    const p = getProfile(screen.profileId);
+    const parent = screen.profileId === PARENT_PIN_ID;
+    const p = parent ? null : getProfile(screen.profileId);
     const codeSent = forgot?.state === 'sent';
-    title = t('profiles.forgot.title', { name: p ? profileName(p) : t('profiles.pin.thisProfile') });
+    title = parent && parentReset ? (parentReset.first ? t('profiles.parent.confirmTitle') : t('profiles.parent.newTitle'))
+      : parent ? t('profiles.parent.forgotTitle')
+        : t('profiles.forgot.title', { name: p ? profileName(p) : t('profiles.pin.thisProfile') });
+    const line = parent && parentReset ? t('profiles.parent.resetHint') : forgot ? t(forgot.msg.key, forgot.msg.params) : '';
     body = (
       <div className="flex flex-col items-center max-w-xl mx-auto text-center">
-        <p className={`mb-6 text-lg ${forgot?.state === 'failed' ? 'text-amber-300' : 'text-white/80'}`}>{forgot ? t(forgot.msg.key, forgot.msg.params) : ''}</p>
+        <p className={`mb-6 text-lg ${forgot?.state === 'failed' ? 'text-amber-300' : 'text-white/80'}`}>{line}</p>
         {/* Above the pad, where a 540-line screen still shows it. */}
         {codeSent && message && <p className="text-amber-300 mb-4 text-lg">{t(message.key, message.params)}</p>}
         <div className={roomy || forgot?.state !== 'sent' ? 'flex flex-col items-center' : 'flex items-center justify-center'}>
           {codeSent && (
-            <PinPad {...fp} length={6} value={digits} onDigit={typeDigit} onDelete={() => setDigits((d) => d.slice(0, -1))} onSubmit={() => { /* the sixth digit checks it */ }} />
+            <PinPad
+              {...fp}
+              length={parentReset ? 4 : 6}
+              value={digits}
+              onDigit={typeDigit}
+              onDelete={() => setDigits((d) => d.slice(0, -1))}
+              // The sixth digit of a code checks it; a new PIN is sent with OK too.
+              onSubmit={() => { if (parentReset && digits.length === 4) void submitResetPin(digits); }}
+            />
           )}
           <div className={roomy || forgot?.state !== 'sent' ? 'flex mt-6' : 'flex ml-10'}>
             <Btn id="forgot-back" {...fp} onPress={() => handlersRef.current.back()}>{t('common.back')}</Btn>
@@ -731,10 +1006,11 @@ const ProfileScreens = ({ mode, onClose, onGrownUpOk, onSignIn }: Props) => {
     );
   }
 
-  // Six digits of a code: OK on the last one checks it.
+  // Six digits of a code: the last one checks it (or, for the Parent PIN,
+  // asks for the new one).
   useEffect(() => {
-    if (screen.kind === 'forgot' && digits.length === 6) void submitCode();
-  }, [digits, screen.kind, submitCode]);
+    if (screen.kind === 'forgot' && !parentReset && digits.length === 6) handlersRef.current.code();
+  }, [digits, screen.kind, parentReset]);
 
   return (
     <div

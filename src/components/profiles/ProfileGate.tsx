@@ -5,7 +5,7 @@
 // signed in or out: see restartOnHome in lib/profiles).
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { OPEN_PROFILES_EVENT, PROFILE_RESTART_EVENT, grownUpsWithPin, initProfiles, takeProfileRestart } from '@/lib/profiles';
+import { OPEN_PROFILES_EVENT, PROFILE_RESTART_EVENT, grownUpPinExists, initProfiles, takeProfileRestart } from '@/lib/profiles';
 import type { OpenProfilesDetail } from '@/lib/profilesUi';
 import type { ProfileScreensMode } from '@/components/profiles/ProfileScreens';
 
@@ -49,8 +49,8 @@ const ProfileGate = ({ onOpenChange }: Props) => {
       const d = (e as CustomEvent<OpenProfilesDetail>).detail;
       if (!d) return;
       if (d.mode === 'grownup') {
-        // Nobody grown-up has a PIN: nothing to ask.
-        if (grownUpsWithPin().length === 0) { d.onOk?.(); return; }
+        // No Parent PIN and no grown-up profile's PIN: nothing to ask.
+        if (!grownUpPinExists()) { d.onOk?.(); return; }
         onOkRef.current = d.onOk;
       }
       setMode((m) => m ?? d.mode);

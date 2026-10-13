@@ -67,7 +67,11 @@
       "switchTitle": "Switch who's watching",
       "switchDesc": "Pick another profile. Each one has its own Continue Watching, My List, favourites and home screen.",
       "manageTitle": "Add or edit profiles",
-      "manageDesc": "Add someone (up to 8 profiles), make a Kids profile, rename, change the colour, or add a PIN."
+      "manageDesc": "Add someone (up to 8 profiles), make a Kids profile, rename, change the colour, or add a PIN.",
+      "parentTitle": "Parent PIN",
+      "parentDescOn": "On. Needed to add, change or delete profiles and to leave a Kids profile. Change it or turn it off.",
+      "parentDescOff": "Off. Create one so kids can't add profiles or switch to a grown-up's.",
+      "parentSignIn": "Sign in to your Snow Media account to protect profiles with a parent PIN."
     },
     "toast": {
       "aiSignInTitle": "Sign in for Premium",

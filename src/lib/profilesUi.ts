@@ -1,11 +1,11 @@
 // Opening the profile screens from anywhere (the home screen's Kids button,
-// Settings → Profiles, the Settings lock on a Kids profile). ProfileGate
-// listens and shows them.
+// Settings → Profiles and its Parent PIN row, the Settings lock on a Kids
+// profile). ProfileGate listens and shows them.
 import { OPEN_PROFILES_EVENT } from '@/lib/profiles';
 
 export interface OpenProfilesDetail {
-  mode: 'pick' | 'manage' | 'grownup';
-  /** grownup: called once a grown-up's PIN was given. */
+  mode: 'pick' | 'manage' | 'grownup' | 'parent';
+  /** grownup: called once a grown-up's PIN (or the Parent PIN) was given. */
   onOk?: () => void;
 }
 

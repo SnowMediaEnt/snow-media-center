@@ -20,7 +20,8 @@ vi.mock('@/integrations/supabase/client', () => {
     const filters: Record<string, string> = {};
     let op: 'select' | 'delete' = 'select';
     const q = {
-      select: () => { h.selects += 1; return q; },
+      // The profile list's pulls (the Parent PIN is pulled alongside: profiles.parent.test.ts).
+      select: () => { if (table === 'viewer_profiles') h.selects += 1; return q; },
       eq: (c: string, v: string) => { filters[c] = v; return q; },
       like: () => q,
       delete: () => { op = 'delete'; return q; },

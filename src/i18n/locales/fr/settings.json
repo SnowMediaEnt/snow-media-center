@@ -68,7 +68,11 @@
       "switchTitle": "Changer de profil",
       "switchDesc": "Choisissez un autre profil. Chacun a sa propre liste Reprendre la lecture, Ma liste, ses favoris et son écran d'accueil.",
       "manageTitle": "Ajouter ou modifier des profils",
-      "manageDesc": "Ajoutez quelqu'un (jusqu'à 8 profils), créez un profil Enfants, renommez, changez la couleur ou ajoutez un code PIN."
+      "manageDesc": "Ajoutez quelqu'un (jusqu'à 8 profils), créez un profil Enfants, renommez, changez la couleur ou ajoutez un code PIN.",
+      "parentTitle": "PIN parental",
+      "parentDescOn": "Activé. Nécessaire pour ajouter, modifier ou supprimer des profils et pour quitter un profil Enfants. Modifiez-le ou désactivez-le.",
+      "parentDescOff": "Désactivé. Créez-en un pour que les enfants ne puissent ni ajouter de profils ni passer sur celui d'un adulte.",
+      "parentSignIn": "Connectez-vous à votre compte Snow Media pour protéger les profils avec un PIN parental."
     },
     "toast": {
       "aiSignInTitle": "Connectez-vous pour Premium",

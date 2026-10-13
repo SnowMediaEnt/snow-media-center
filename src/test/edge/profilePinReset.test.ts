@@ -66,3 +66,77 @@ describe('profile-pin-reset', () => {
     expect(note?.message).not.toMatch(/If they can't get it, clear the PIN/);
   });
 });
+
+describe('profile-pin-reset: the Parent PIN', () => {
+  const HASH = 'a'.repeat(64);
+  const parentQuery = (op: string) => state.queries.find((q) => q.table === 'viewer_parent_pin' && q.ops.some((o) => o.op === op));
+
+  it('emails a code for the Parent PIN, with its own wording, under the same hourly limit', async () => {
+    state.handlers.onQuery = (q) => {
+      if (q.table === 'viewer_parent_pin') return { data: { pin_hash: HASH } };
+      if (q.table === 'profile_pin_resets') return { data: null, count: 0 };
+      if (q.table === 'support_tickets') return { data: { id: '66666666-6666-4666-8666-666666666666' } };
+      return undefined;
+    };
+    const out = await call(OWNER.id, { action: 'request', profile_id: '__parent__' });
+    expect(out).toMatchObject({ ok: true, emailed: true });
+    expect(sentEmails[0].subject).toBe('Your Snow Media parent PIN reset code');
+    const reset = state.queries.find((q) => q.table === 'profile_pin_resets' && q.ops.some((o) => o.op === 'insert'));
+    expect((opArg(reset!, 'insert') as { profile_id: string }).profile_id).toBe('__parent__');
+    const note = state.queries
+      .filter((q) => q.table === 'support_messages')
+      .map((q) => opArg(q, 'insert') as { message?: string } | undefined)
+      .find((m) => m?.message?.includes('parent PIN'));
+    expect(note?.message).toMatch(/only once the account holder has confirmed/);
+
+    // Three an hour, Parent PIN or profile.
+    sentEmails.length = 0;
+    state.handlers.onQuery = (q) => (q.table === 'viewer_parent_pin' ? { data: { pin_hash: HASH } } : q.table === 'profile_pin_resets' ? { data: null, count: 3 } : undefined);
+    expect(await call(OWNER.id, { action: 'request', profile_id: '__parent__' })).toEqual({ ok: false, reason: 'too_many' });
+    expect(sentEmails).toHaveLength(0);
+  });
+
+  it('no Parent PIN on the account: nothing to reset', async () => {
+    state.handlers.onQuery = (q) => (q.table === 'viewer_parent_pin' ? { data: null } : undefined);
+    expect(await call(OWNER.id, { action: 'request', profile_id: '__parent__' })).toEqual({ ok: false, reason: 'no_pin' });
+  });
+
+  it('verify needs the new PIN with the code, and puts it in place of the old one only when the code is right', async () => {
+    const reset = { id: '77777777-7777-4777-8777-777777777777', attempts: 0, expires_at: new Date(Date.now() + 60_000).toISOString(), ticket_id: null };
+    const codeHash = async (code: string) => {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${reset.id}:${code}`));
+      return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    };
+    const code_hash = await codeHash('123456');
+    state.handlers.onQuery = (q) => {
+      if (q.table === 'viewer_parent_pin') return { data: { pin_hash: HASH } };
+      if (q.table === 'profile_pin_resets') return { data: { ...reset, code_hash } };
+      return undefined;
+    };
+    // Without a new PIN (or a malformed one) the code isn't even tried.
+    expect(await call(OWNER.id, { action: 'verify', profile_id: '__parent__', code: '123456' })).toEqual({ ok: false, reason: 'bad_pin' });
+    expect(await call(OWNER.id, { action: 'verify', profile_id: '__parent__', code: '123456', new_pin_hash: 'nope' })).toEqual({ ok: false, reason: 'bad_pin' });
+    expect(state.queries.some((q) => q.table === 'profile_pin_resets')).toBe(false);
+
+    const NEW = 'b'.repeat(64);
+    expect(await call(OWNER.id, { action: 'verify', profile_id: '__parent__', code: '000000', new_pin_hash: NEW })).toMatchObject({ ok: false, reason: 'wrong_code' });
+    expect(parentQuery('upsert')).toBeUndefined();
+
+    state.queries.length = 0;
+    expect(await call(OWNER.id, { action: 'verify', profile_id: '__parent__', code: '123456', new_pin_hash: NEW })).toEqual({ ok: true });
+    const up = parentQuery('upsert')!;
+    expect(opArg(up, 'upsert')).toMatchObject({ user_id: OWNER.id, pin_hash: NEW });
+    // Never a delete: the account is not left without one.
+    expect(parentQuery('delete')).toBeUndefined();
+  });
+
+  it('support can clear it from a ticket; the account address is told', async () => {
+    state.handlers.onQuery = (q) => (q.table === 'viewer_parent_pin' ? { data: { user_id: OWNER.id } } : undefined);
+    const out = await call(ADMIN.id, { action: 'admin_clear', user_id: OWNER.id, profile_id: '__parent__' });
+    expect(out).toEqual({ ok: true, notified: true });
+    expect(parentQuery('delete')).toBeTruthy();
+    expect(sentEmails[0].subject).toBe('The parent PIN on your Snow Media account was removed');
+    // Not an admin: no.
+    expect(await call(OWNER.id, { action: 'admin_clear', user_id: OWNER.id, profile_id: '__parent__' })).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});

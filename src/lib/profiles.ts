@@ -36,6 +36,18 @@
 // opens a support ticket (edge function profile-pin-reset) so an admin can
 // clear it from the Hub when the email never arrives.
 //
+// THE PARENT PIN is the grown-ups' key to Profiles: one per account, apart
+// from the profiles' own PINs. Once an account has one, adding, editing or
+// deleting any profile takes it, and so does leaving a Kids profile (or its
+// hold) for a grown-up one; without it a kid could make a grown-up profile
+// and move over. It is hashed like a profile's (with the account and
+// '__parent__'), kept on the box per account and in public.viewer_parent_pin,
+// the newest change winning, and pulled with the profiles. The profile
+// screens ask for one to be made the first time Profiles opens on a signed-in
+// account; it can be put off only while the account has no Kids profile.
+// "Forgot PIN?" resets it by email like a profile's, and the new PIN goes
+// with the code, so a reset never leaves the account without one.
+//
 // Nothing here throws; storage and network failures leave things as they were.
 import i18n from '@/i18n';
 import { supabase } from '@/integrations/supabase/client';
@@ -90,6 +102,11 @@ const KIDS_HOLD_KEY = 'smc-kids-hold';
 const RESTART_KEY = 'smc-profile-restart';
 /** The grown-up pad's own count of wrong tries (profile ids are 6 letters). */
 const GROWNUP_PAD = 'grownup';
+const PARENT_PREFIX = 'smc-parent-pin:';
+const PARENT_LATER_PREFIX = 'smc-parent-pin-later:';
+/** The Parent PIN's id: its hash's salt, its count of wrong tries, and what a
+ *  reset is for. Profile ids are 6 letters and digits, so it never clashes. */
+export const PARENT_PIN_ID = '__parent__';
 
 /** Box settings that belong to a person rather than the box. */
 export const PROFILE_KEYS = [
@@ -188,14 +205,23 @@ export const grownUpsWithPin = (): Profile[] => grownUpCandidates().map((c) => c
 
 /** Whether leaving the held Kids limits for a grown-up profile takes a
  *  grown-up's PIN: they came from another account (signed out since) that
- *  has grown-up PINs. On the same account its own PINs decide, as always. */
+ *  has grown-up PINs, or a Parent PIN. On the same account its own PINs
+ *  decide, as always. */
 export function kidsHoldNeedsGrownUp(): boolean {
   const hold = loadHold();
   if (!hold || hold.acc === accountKey()) return false;
   return hasGrownUpPin(hold.acc);
 }
 
-const hasGrownUpPin = (acc: string): boolean => loadProfiles(acc).some((p) => !p.kidsLevel && !!p.pinHash);
+const hasGrownUpPin = (acc: string): boolean => hasParentPin(acc) || loadProfiles(acc).some((p) => !p.kidsLevel && !!p.pinHash);
+
+/** Whether the grown-up pad takes a Parent PIN: this account's, or a held
+ *  Kids profile's account's. */
+export const parentPinCounts = (): boolean => parentAccounts().length > 0;
+
+/** Whether a grown-up check has something to ask for: a grown-up profile's
+ *  PIN or a Parent PIN. */
+export const grownUpPinExists = (): boolean => grownUpCandidates().length > 0 || parentPinCounts();
 
 /** Whether PINs can be offered: they need an account to reset through. */
 export const pinsAvailable = (): boolean => viewerAccountId() != null;
@@ -268,6 +294,9 @@ async function doPull(): Promise<void> {
   if (!userId || !viewerAccountConfirmed()) { pullWaiting = !!userId; return; }
   pullWaiting = false;
   const startedAt = Date.now();
+  // The Parent PIN alongside: the profile screens wait for this pull before
+  // asking for one to be made, so one made on another box isn't made again.
+  const parent = pullParentPin(userId);
   try {
     const { data, error } = await db.from('viewer_profiles').select('*').eq('user_id', userId);
     if (error || !Array.isArray(data) || viewerAccountId() !== userId) return;
@@ -316,7 +345,7 @@ async function doPull(): Promise<void> {
       setKidsLevel(still.kidsLevel ?? loadHold()?.level ?? null);
       if (was?.kidsLevel !== still.kidsLevel) emit();
     }
-  } catch { /* offline: the box's list stands */ }
+  } catch { /* offline: the box's list stands */ } finally { await parent; }
 }
 
 // ── editing ────────────────────────────────────────────────────────────────
@@ -413,29 +442,164 @@ export function checkPin(profile: Profile, pin: string): boolean {
 /** ms until the grown-up pad accepts another try (0 = now). */
 export const grownUpPadLockedFor = (): number => pinLockedFor(GROWNUP_PAD);
 
-/** The grown-up pad: any grown-up's PIN. Found by its hash, so one grown-up's
- *  PIN never counts as a wrong try against another; a wrong one counts
- *  against the pad, with the same pauses as a profile's. */
+/** The grown-up pad: any grown-up's PIN, or the Parent PIN. Found by its
+ *  hash, so one grown-up's PIN never counts as a wrong try against another;
+ *  a wrong one counts against the pad, with the same pauses as a profile's,
+ *  and against the Parent PIN when there is one, so this pad is no way round
+ *  its pauses. */
 export function checkGrownUpPin(pin: string): boolean {
   if (grownUpPadLockedFor() > 0) return false;
   const hit = grownUpCandidates().find(({ p, acc }) => pinLockedFor(p.id) === 0 && hashPin(p.id, pin, acc) === p.pinHash);
-  if (!hit) { countFail(GROWNUP_PAD); return false; }
-  ls.del(FAIL_PREFIX + hit.p.id);
+  if (hit) ls.del(FAIL_PREFIX + hit.p.id);
+  const parents = parentAccounts();
+  const parentHit = !hit && parents.some((acc) => parentMatches(pin, acc));
+  if (parentHit) ls.del(FAIL_PREFIX + PARENT_PIN_ID);
+  if (!hit && !parentHit) {
+    countFail(GROWNUP_PAD);
+    if (parents.length) countFail(PARENT_PIN_ID);
+    return false;
+  }
   ls.del(FAIL_PREFIX + GROWNUP_PAD);
   return true;
 }
 
+// ── the Parent PIN ─────────────────────────────────────────────────────────
+
+/** On the box, per account. `up`: changed here and not on the account yet.
+ *  `known`: the account has been asked at least once, so no PIN here means
+ *  the account has none (not that this box hasn't heard). */
+interface ParentPin { h: string | null; t: number; up: boolean; known: boolean }
+
+const loadParent = (acc: string = accountKey()): ParentPin => {
+  try {
+    const v = JSON.parse(ls.get(PARENT_PREFIX + acc) || 'null');
+    if (v && typeof v === 'object') {
+      return { h: typeof v.h === 'string' && /^[0-9a-f]{64}$/.test(v.h) ? v.h : null, t: Number(v.t) || 0, up: !!v.up, known: !!v.known };
+    }
+  } catch { /* none */ }
+  return { h: null, t: 0, up: false, known: false };
+};
+const saveParent = (pp: ParentPin, acc: string) => { ls.set(PARENT_PREFIX + acc, JSON.stringify(pp)); emit(); };
+
+/** Whether the account has a Parent PIN (the box itself, signed out, never does). */
+export const hasParentPin = (acc: string = accountKey()): boolean => acc !== 'device' && !!loadParent(acc).h;
+
+/** Whether this box has heard from the account about its Parent PIN. */
+export const parentPinKnown = (): boolean => loadParent().known;
+
+/** The accounts whose Parent PIN a grown-up check takes: this one's, and a
+ *  held Kids profile's other account's. */
+function parentAccounts(): string[] {
+  const acc = accountKey();
+  const out = hasParentPin(acc) ? [acc] : [];
+  const hold = loadHold();
+  if (hold && hold.acc !== acc && hasParentPin(hold.acc)) out.push(hold.acc);
+  return out;
+}
+
+/** Whether a PIN is an account's Parent PIN, while its pad isn't paused. Counts nothing. */
+const parentMatches = (pin: string, acc: string = accountKey()): boolean => {
+  const h = loadParent(acc).h;
+  return !!h && pinLockedFor(PARENT_PIN_ID) === 0 && hashPin(PARENT_PIN_ID, pin, acc) === h;
+};
+
+/** Whether the account may go on without a Parent PIN: only while it has no Kids profile. */
+export const parentPinCanWait = (): boolean => !loadProfiles().some((p) => !!p.kidsLevel);
+
+/** Whether opening Profiles should ask for a Parent PIN to be made: a
+ *  signed-in account without one, unless "Not now" was said on this box
+ *  while it had no Kids profile, and it still has none. */
+export function parentPinDue(): boolean {
+  if (!pinsAvailable() || hasParentPin()) return false;
+  return !parentPinCanWait() || !ls.get(PARENT_LATER_PREFIX + accountKey());
+}
+
+/** "Not now", while the account has no Kids profile. */
+export function putOffParentPin(): void {
+  if (pinsAvailable() && parentPinCanWait()) ls.set(PARENT_LATER_PREFIX + accountKey(), '1');
+}
+
+/** Upload the box's change to the Parent PIN; true once the account has it. */
+const pushParent = async (userId: string): Promise<boolean> => {
+  const pp = loadParent(userId);
+  if (!pp.up) return true;
+  try {
+    const { error } = pp.h
+      ? await db.from('viewer_parent_pin').upsert({ user_id: userId, pin_hash: pp.h, updated_at: new Date(pp.t || Date.now()).toISOString() }, { onConflict: 'user_id' })
+      : await db.from('viewer_parent_pin').delete().eq('user_id', userId);
+    if (error) return false;
+    // Changed again meanwhile: that change still has to go up.
+    const now = loadParent(userId);
+    if (now.t === pp.t && now.h === pp.h) saveParent({ ...now, up: false, known: true }, userId);
+    return true;
+  } catch { return false; /* offline */ }
+};
+
+/** Bring the box's Parent PIN up to date with the account's: the newer change wins. */
+async function pullParentPin(userId: string): Promise<void> {
+  try {
+    const { data, error } = await db.from('viewer_parent_pin').select('pin_hash,updated_at').eq('user_id', userId);
+    if (error || !Array.isArray(data) || viewerAccountId() !== userId) return;
+    const row = (data as Array<{ pin_hash: string | null; updated_at: string }>)[0] ?? null;
+    const cloudT = row ? Date.parse(row.updated_at) || 0 : 0;
+    const local = loadParent(userId);
+    // Made, changed or turned off here and not uploaded yet: it goes up,
+    // unless the account changed it since.
+    if (local.up && (!row || local.t >= cloudT)) { await pushParent(userId); return; }
+    const h = row && typeof row.pin_hash === 'string' && /^[0-9a-f]{64}$/.test(row.pin_hash) ? row.pin_hash : null;
+    if (h !== local.h || local.up || !local.known) saveParent({ h, t: row ? cloudT : local.t, up: false, known: true }, userId);
+    if (h) ls.del(PARENT_LATER_PREFIX + userId);
+  } catch { /* offline: the box's copy stands */ }
+}
+
+/** Make, change or (null) turn off the account's Parent PIN. The caller has
+ *  checked the old one, and that turning it off is allowed (no Kids profile). */
+export function setParentPin(pin: string | null): void {
+  const userId = viewerAccountId();
+  if (!userId) return;
+  saveParent({ ...loadParent(userId), h: pin ? hashPin(PARENT_PIN_ID, pin, userId) : null, t: Date.now(), up: true }, userId);
+  ls.del(FAIL_PREFIX + PARENT_PIN_ID);
+  if (pin) ls.del(PARENT_LATER_PREFIX + userId);
+  void pushParent(userId);
+}
+
+/** ms until the Parent PIN is taken again after wrong tries (0 = now). */
+export const parentPinLockedFor = (): number => pinLockedFor(PARENT_PIN_ID);
+
+/** Check the Parent PIN, with the same count of wrong tries and pauses as a
+ *  profile's PIN. None set: nothing to check. */
+export function checkParentPin(pin: string): boolean {
+  if (!hasParentPin()) return true;
+  if (parentPinLockedFor() > 0) return false;
+  if (parentMatches(pin)) { ls.del(FAIL_PREFIX + PARENT_PIN_ID); return true; }
+  countFail(PARENT_PIN_ID);
+  return false;
+}
+
+/** A grown-up profile's own pad, opened from a Kids profile: its own PIN,
+ *  or the Parent PIN. A wrong one counts against both, so this pad is no way
+ *  round the Parent PIN's pauses. */
+export function checkPinOrParent(profile: Profile, pin: string): boolean {
+  if (pinLockedFor(profile.id) > 0) return false;
+  if (profile.pinHash && hashPin(profile.id, pin) === profile.pinHash) { ls.del(FAIL_PREFIX + profile.id); return true; }
+  if (parentMatches(pin)) { ls.del(FAIL_PREFIX + PARENT_PIN_ID); return true; }
+  countFail(profile.id);
+  if (hasParentPin()) countFail(PARENT_PIN_ID);
+  return false;
+}
+
 export interface ResetRequest { ok: boolean; reason?: string; emailed?: boolean; email?: string | null; ticket?: boolean }
 
-/** "Forgot PIN?": email a code to the account and open a ticket. */
+/** "Forgot PIN?": email a code to the account and open a ticket. For the
+ *  Parent PIN, `profileId` is PARENT_PIN_ID. */
 export async function requestPinReset(profileId: string): Promise<ResetRequest> {
   try {
     // The account's copy decides. A PIN cleared there (by support from the
     // Hub, or with a code on another box) is cleared here too and needs no
     // reset; one set on this box and not uploaded yet goes up first.
     await pullProfiles();
-    const p = getProfile(profileId);
-    if (!p?.pinHash) { ls.del(FAIL_PREFIX + profileId); return { ok: false, reason: 'no_pin' }; }
+    const has = profileId === PARENT_PIN_ID ? hasParentPin() : !!getProfile(profileId)?.pinHash;
+    if (!has) { ls.del(FAIL_PREFIX + profileId); return { ok: false, reason: 'no_pin' }; }
     const { data, error } = await supabase.functions.invoke('profile-pin-reset', { body: { action: 'request', profile_id: profileId } });
     if (error) return { ok: false, reason: 'network' };
     const r = data as { ok?: boolean; reason?: string; emailed?: boolean; email?: string | null; ticket?: boolean } | null;
@@ -444,13 +608,27 @@ export async function requestPinReset(profileId: string): Promise<ResetRequest> 
   } catch { return { ok: false, reason: 'network' }; }
 }
 
-/** The emailed code: right → the PIN is gone here and on the account. */
-export async function verifyPinReset(profileId: string, code: string): Promise<{ ok: boolean; reason?: string; left?: number }> {
+/** The emailed code: right → the PIN is gone here and on the account. The
+ *  Parent PIN is never left unset: its new PIN goes with the code, and the
+ *  account takes both or neither. */
+export async function verifyPinReset(profileId: string, code: string, newParentPin?: string): Promise<{ ok: boolean; reason?: string; left?: number }> {
   try {
-    const { data, error } = await supabase.functions.invoke('profile-pin-reset', { body: { action: 'verify', profile_id: profileId, code } });
+    const userId = viewerAccountId();
+    const parent = profileId === PARENT_PIN_ID;
+    if (parent && !userId) return { ok: false, reason: 'signed_out' };
+    if (parent && !/^[0-9]{4}$/.test(newParentPin ?? '')) return { ok: false, reason: 'bad_pin' };
+    const newHash = parent && userId ? hashPin(PARENT_PIN_ID, newParentPin!, userId) : null;
+    const { data, error } = await supabase.functions.invoke('profile-pin-reset', {
+      body: { action: 'verify', profile_id: profileId, code, ...(newHash ? { new_pin_hash: newHash } : {}) },
+    });
     if (error) return { ok: false, reason: 'network' };
     const r = data as { ok?: boolean; reason?: string; left?: number } | null;
     if (!r?.ok) return { ok: false, reason: r?.reason || 'error', left: r?.left };
+    if (parent && userId && newHash) {
+      saveParent({ h: newHash, t: Date.now(), up: false, known: true }, userId);
+      ls.del(FAIL_PREFIX + PARENT_PIN_ID);
+      return { ok: true };
+    }
     const list = loadProfiles();
     saveProfiles(list.map((p) => (p.id === profileId ? { ...p, pinHash: null, t: Date.now() } : p)));
     ls.del(FAIL_PREFIX + profileId);

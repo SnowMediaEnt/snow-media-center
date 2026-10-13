@@ -32,6 +32,8 @@ vi.mock('@/lib/phoneRemote', () => ({
 }));
 
 import Settings from './Settings';
+import { openProfiles } from '@/lib/profilesUi';
+import { __setViewerForTests } from '@/lib/viewer';
 
 const key = (k: string) => act(() => { fireEvent.keyDown(window, { key: k }); });
 
@@ -74,11 +76,35 @@ describe('Settings on a Kids profile', () => {
     key('ArrowDown'); key('ArrowRight'); key('ArrowRight'); // → Profiles tab
     expect(container.querySelector('[data-settings-focus="profiles-switch"]')).not.toBeNull();
     expect(container.querySelector('[data-settings-focus="profiles-manage"]')).toBeNull();
+    expect(container.querySelector('[data-settings-focus="profiles-parent"]')).toBeNull();
   });
 
   it('a grown-up profile on the same admin account keeps everything', () => {
     kidsLevel = null;
     render(<Settings onBack={vi.fn()} />);
     expect(screen.getAllByRole('tab')).toHaveLength(7);
+  });
+});
+
+describe('Settings → Profiles: the Parent PIN row', () => {
+  it('signed in, a grown-up reaches it under "Add or edit profiles" and OK opens it', () => {
+    kidsLevel = null;
+    __setViewerForTests('u1');
+    const { container } = render(<Settings onBack={vi.fn()} />);
+    key('ArrowDown'); key('ArrowRight'); key('ArrowRight'); // → Profiles tab
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); // switch → manage → Parent PIN
+    expect(container.querySelector('[data-settings-focus="profiles-parent"]')?.getAttribute('data-focused')).toBe('true');
+    expect(screen.getByText('Off. Create one so kids can\'t add profiles or switch to a grown-up\'s.')).toBeTruthy();
+    key('Enter');
+    expect(openProfiles).toHaveBeenCalledWith('parent');
+  });
+
+  it('signed out, it says signing in protects profiles with one', () => {
+    kidsLevel = null;
+    __setViewerForTests('device');
+    const { container } = render(<Settings onBack={vi.fn()} />);
+    key('ArrowDown'); key('ArrowRight'); key('ArrowRight');
+    expect(container.querySelector('[data-settings-focus="profiles-parent"]')).toBeNull();
+    expect(screen.getByText('Sign in to your Snow Media account to protect profiles with a parent PIN.')).toBeTruthy();
   });
 });

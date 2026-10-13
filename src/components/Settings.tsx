@@ -8,9 +8,9 @@ import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone, Star } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone, Star, Lock } from 'lucide-react';
 import { openProfiles } from '@/lib/profilesUi';
-import { avatarColors, loadProfiles, profileName, PROFILES_EVENT } from '@/lib/profiles';
+import { avatarColors, hasParentPin, loadProfiles, pinsAvailable, profileName, PROFILES_EVENT } from '@/lib/profiles';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
 import PairingQR from '@/components/remote/PairingQR';
 import { PHONE_REMOTE_EVENT, connectedPhones, isPaired, setTypingHintEnabled, typingHintEnabled, unpairAllPhones } from '@/lib/phoneRemote';
@@ -56,6 +56,7 @@ type SettingsFocus =
   | 'remote-unpair'
   | 'profiles-switch'
   | 'profiles-manage'
+  | 'profiles-parent'
   | 'ui-ai-tier'
   | 'ui-content-bar-toggle'
   | 'ui-dashboard-size-toggle'
@@ -249,14 +250,16 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
         return;
       }
 
-      if (focusedElement === 'profiles-switch' || focusedElement === 'profiles-manage') {
+      if (focusedElement === 'profiles-switch' || focusedElement === 'profiles-manage' || focusedElement === 'profiles-parent') {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
           event.preventDefault(); event.stopPropagation();
         }
-        // A Kids profile only switches; adding and editing is for grown-ups.
+        // A Kids profile only switches; adding and editing, and the Parent
+        // PIN (signed in only), are for grown-ups.
         if (event.key === 'ArrowDown' && focusedElement === 'profiles-switch' && !kids) setFocusedElement('profiles-manage');
-        else if (event.key === 'ArrowUp') setFocusedElement(focusedElement === 'profiles-manage' ? 'profiles-switch' : 'tab-profiles');
-        else if (event.key === 'Enter' || event.key === ' ') openProfiles(focusedElement === 'profiles-switch' ? 'pick' : 'manage');
+        else if (event.key === 'ArrowDown' && focusedElement === 'profiles-manage' && pinsAvailable()) setFocusedElement('profiles-parent');
+        else if (event.key === 'ArrowUp') setFocusedElement(focusedElement === 'profiles-parent' ? 'profiles-manage' : focusedElement === 'profiles-manage' ? 'profiles-switch' : 'tab-profiles');
+        else if (event.key === 'Enter' || event.key === ' ') openProfiles(focusedElement === 'profiles-switch' ? 'pick' : focusedElement === 'profiles-parent' ? 'parent' : 'manage');
         else if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) setFocusedElement('tab-profiles');
         return;
       }
@@ -1004,6 +1007,28 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
                   </div>
                 </div>
               </Card>
+            ))}
+            {/* The Parent PIN: change it or turn it off. It needs an account (a
+                forgotten one is reset through it), and isn't for Kids profiles. */}
+            {!kids && (pinsAvailable() ? (
+              <Card
+                {...settingsFocusAttrs('profiles-parent')}
+                tabIndex={0}
+                role="button"
+                onFocus={() => setFocusedElement('profiles-parent')}
+                onClick={() => openProfiles('parent')}
+                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('profiles-parent')}`}
+              >
+                <div className="flex items-start gap-3">
+                  <Lock className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{t('settings.profiles.parentTitle')}</h3>
+                    <p className="text-sm text-white/70 mt-1">{hasParentPin() ? t('settings.profiles.parentDescOn') : t('settings.profiles.parentDescOff')}</p>
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <p className="text-sm text-white/60">{t('settings.profiles.parentSignIn')}</p>
             ))}
           </TabsContent>
 
