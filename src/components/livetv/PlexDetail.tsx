@@ -5,7 +5,7 @@
 // and share the same Back stack as show → seasons → episodes.
 // Fire-TV D-pad only. All Plex HTTP via plex.ts.
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Clapperboard, Loader2, Play, RotateCw, List, Plus, Check, Gauge } from 'lucide-react';
+import { ArrowLeft, Clapperboard, Loader2, Play, RotateCw, List, Plus, Check, Gauge, ThumbsUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { getPlexMetadata as _getPlexMetadata, getPlexSeasons as _getPlexSeasons,
@@ -26,6 +26,8 @@ import { isPlexPlaybackActive } from '@/lib/plex';
 import { isFavorite, toggleFavorite, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 import { useTouchUI } from '@/lib/phoneMode';
 import { kidsLevel } from '@/lib/kidsFilter';
+import { canRecommend, loadMyRecommended, myRecommendedKeys, plexRecommendServer, recommendTarget, recommendTitle, unrecommendTitle, PLEX_RECOMMEND_EVENT } from '@/lib/plexRecommend';
+import { createPlexHoldOk, tapIsHoldLift, tileHoldProps, toastRecommendResult, type PlexHoldOk } from './plexRecommendHold';
 
 interface Props {
   isActive: boolean;
@@ -77,11 +79,13 @@ const fmtRuntime = (ms?: number): string => {
 };
 
 // The icon in front of a detail button; kept out of the JSX so the ids are not read as text.
-const buttonIcon = (id: string, listed: boolean) => {
+// `recommended`: this viewer recommended it (a filled thumb).
+const buttonIcon = (id: string, listed: boolean, recommended = false) => {
   if (id === 'play') return <Play className="w-4 h-4 fill-current" />;
   if (id === 'resume') return <RotateCw className="w-4 h-4" />;
   if (id === 'browse') return <List className="w-4 h-4" />;
   if (id === 'mylist') return listed ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />;
+  if (id === 'recommend') return <ThumbsUp className={`w-4 h-4${recommended ? ' fill-current' : ''}`} />;
   return null;
 };
 
@@ -194,9 +198,11 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     const onProgress = () => { if (!isPlexPlaybackActive()) bump(); };
     window.addEventListener(PLEX_PROGRESS_EVENT, onProgress);
     window.addEventListener(PLEX_FAVORITES_EVENT, bump);
+    window.addEventListener(PLEX_RECOMMEND_EVENT, bump);
     return () => {
       window.removeEventListener(PLEX_PROGRESS_EVENT, onProgress);
       window.removeEventListener(PLEX_FAVORITES_EVENT, bump);
+      window.removeEventListener(PLEX_RECOMMEND_EVENT, bump);
     };
   }, []);
 
@@ -466,6 +472,25 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   // The How-to pictures (developer build only) show the button a real box has.
   const canList = !isEpisode && (!isDemo() || isHowtoCapture());
   const listed = canList && isFavorite(current.ratingKey);
+  // Recommend to others (plexRecommend), beside My List: a movie or show on
+  // a known server, never an episode's page, a Kids profile or anything
+  // adult (its certificate and genres are checked once the page knows them).
+  const recServer = plexRecommendServer();
+  const recItem: PlexItem = ownMeta
+    ? { ...current, type: ownMeta.type, title: ownMeta.title || current.title, year: ownMeta.year ?? current.year, thumb: ownMeta.thumb || current.thumb,
+      contentRating: ownMeta.contentRating ?? current.contentRating, genres: ownMeta.genres.length ? ownMeta.genres : current.genres,
+      librarySectionID: ownMeta.librarySectionID ?? current.librarySectionID }
+    : current;
+  const canRec = !isEpisode && !!recServer && canRecommend(recItem);
+  const recommended = canRec && !!myRecommendedKeys(recServer!)?.has(current.ratingKey);
+  // Whether it is this account's already: read once per server (then kept
+  // current on the box), and the button redraws when it lands.
+  useEffect(() => {
+    if (!canRec || !recServer || myRecommendedKeys(recServer)) return;
+    let cancelled = false;
+    void loadMyRecommended(recServer).then((keys) => { if (keys && !cancelled) setProgressTick((n) => n + 1); });
+    return () => { cancelled = true; };
+  }, [canRec, recServer]);
   const detailButtons: Array<{ id: string; label: string }> = useMemo(() => {
     const b: Array<{ id: string; label: string }> = [];
     if (isShow) b.push({ id: 'browse', label: t('plex.detail.browseBtn') });
@@ -476,8 +501,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
       b.push({ id: 'resume', label: t('plex.detail.resumeBtn', { time: h > 0 ? `${h}:${String(m).padStart(2, '0')}` : t('plex.detail.minutes', { m }) }) });
     }
     if (canList) b.push({ id: 'mylist', label: listed ? t('plex.detail.inListBtn') : t('plex.detail.listBtn') });
+    if (canRec) b.push({ id: 'recommend', label: recommended ? t('plex.detail.recommendedBtn') : t('plex.detail.recommendBtn') });
     return b;
-  }, [isShow, canResume, resumeSec, canList, listed, startWait, multi, effective, versions, t]);
+  }, [isShow, canResume, resumeSec, canList, listed, canRec, recommended, startWait, multi, effective, versions, t]);
 
   useEffect(() => { if (btn >= detailButtons.length) setBtn(0); }, [detailButtons.length, btn]);
 
@@ -574,6 +600,21 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     onPlayTrailer(shownTrailer, meta?.title || current.title);
   }, [shownTrailer, onPlayTrailer, meta, current]);
 
+  // One answer at a time: a second OK while the account is answering does
+  // nothing.
+  const recBusyRef = useRef(false);
+  const recItemRef = useRef(recItem); recItemRef.current = recItem;
+  const toggleRecommend = useCallback(() => {
+    const server = plexRecommendServer();
+    const target = recommendTarget(recItemRef.current);
+    if (!server || !target || recBusyRef.current) return;
+    recBusyRef.current = true;
+    const on = !!myRecommendedKeys(server)?.has(target.ratingKey);
+    void (on ? unrecommendTitle(server, target.ratingKey) : recommendTitle(server, target))
+      .then((r) => toastRecommendResult(r, !on, target.title))
+      .finally(() => { recBusyRef.current = false; });
+  }, []);
+
   const activateDetail = useCallback((id: string) => {
     if (id === 'play') void playCurrent(undefined);
     else if (id === 'resume') void playCurrent(resumeSec);
@@ -588,7 +629,8 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
         librarySectionID: meta?.librarySectionID ?? c.librarySectionID,
       });
     }
-  }, [playCurrent, resumeSec, loadSeasons, meta, isShow]);
+    else if (id === 'recommend') toggleRecommend();
+  }, [playCurrent, resumeSec, loadSeasons, meta, isShow, toggleRecommend]);
 
   const pushItem = useCallback((next: PlexItem) => {
     setStack((s) => [...s, next]);
@@ -629,11 +671,15 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const pushItemRef = useRef(pushItem); useEffect(() => { pushItemRef.current = pushItem; }, [pushItem]);
   const trailerRef = useRef(shownTrailer); useEffect(() => { trailerRef.current = shownTrailer; }, [shownTrailer]);
   const playTrailerRef = useRef(playTrailer); useEffect(() => { playTrailerRef.current = playTrailer; }, [playTrailer]);
+  // The actor's titles: OK opens one; held, its menu (Recommend to others).
+  const holdRef = useRef<PlexHoldOk | null>(null);
+  holdRef.current ??= createPlexHoldOk();
 
   // useLayoutEffect (pre-paint) so no D-pad press is lost between openDetail
   // firing setDetailItem in the parent and this handler being wired up.
   useLayoutEffect(() => {
     if (!isActive) return;
+    const hold = holdRef.current!;
     const handler = (e: KeyboardEvent) => {
       // The player owns the D-pad while a title is playing. Without this
       // guard the Back that closes the player ALSO popped episodes → seasons
@@ -770,13 +816,19 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
       else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setActorCursor(cur - 1); }
       else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setActorCursor(cur + 1); }
       else if (e.key === 'Enter' || e.key === ' ') {
-        if (e.repeat) return; // a held OK must not act twice
-        const it = grid[cur];
-        if (it) { pushItemRef.current(it); /* setStep to detail happens via item-change effect */ }
+        // Opens it when let go (setStep to detail happens via the
+        // item-change effect); held, its menu. A held OK acts once.
+        hold.press(e, grid[cur], (it) => pushItemRef.current(it));
       }
     };
+    const up = (e: KeyboardEvent) => hold.release(e);
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
+    window.addEventListener('keyup', up, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', up, true);
+      hold.cancel();
+    };
   }, [isActive]);
 
   const tech = techBadge(meta?.media);
@@ -873,7 +925,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       data-howto={DETAIL_HOWTO[b.id]}
                       onClick={() => { setZone('buttons'); setBtn(i); activateDetail(b.id); }}
                       className={`tv-ring tv-ring-contrast inline-flex items-center gap-2 h-10 px-4 rounded-lg font-quicksand font-semibold text-sm border ${focused ? 'bg-brand-gold text-brand-navy border-transparent scale-105 z-10' : 'bg-white/10 text-white border-white/15'}`}>
-                      {buttonIcon(b.id, listed)}
+                      {buttonIcon(b.id, listed, recommended)}
                       <span className="min-w-0 truncate">{b.label}</span>
                     </button>
                   );
@@ -1070,7 +1122,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     <div
                       key={it.ratingKey}
                       ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
-                      onClick={() => { setActorCursor(idx); pushItem(it); }}
+                      // A finger held on it: its menu; the lift is not a tap.
+                      {...tileHoldProps(it)}
+                      onClick={() => { if (tapIsHoldLift()) return; setActorCursor(idx); pushItem(it); }}
                       className="plex-tile plex-tile--fill cursor-pointer">
                       <div data-focused={focused ? 'true' : 'false'} className="plex-art tv-ring h-0" style={{ paddingBottom: '150%' }}>
                         <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} focusExempt className="absolute inset-0 w-full h-full object-cover" />

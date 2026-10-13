@@ -28,6 +28,8 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import PlexPosterTile from './PlexPosterTile';
 import { usePlexWatched } from './usePlexWatched';
+import { isPlexKeyOwner } from './plexKeyOwner';
+import { createPlexHoldOk, type PlexHoldOk } from './plexRecommendHold';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { focusBackdrop } from '@/lib/plexBackdrop';
@@ -540,6 +542,9 @@ const PlexLibraryRows = memo(({
   const rowIdxRef = useRef(row); useEffect(() => { rowIdxRef.current = row; }, [row]);
   const colRef = useRef(col); useEffect(() => { colRef.current = col; }, [col]);
   const onOpenRef = useRef(onOpen); useEffect(() => { onOpenRef.current = onOpen; }, [onOpen]);
+  // OK on a title opens it; held, its menu (Recommend to others).
+  const holdRef = useRef<PlexHoldOk | null>(null);
+  holdRef.current ??= createPlexHoldOk();
   const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
 
   const zoneRef = useRef(zone); useEffect(() => { zoneRef.current = zone; }, [zone]);
@@ -579,7 +584,11 @@ const PlexLibraryRows = memo(({
 
   useEffect(() => {
     if (!isActive) return;
+    const hold = holdRef.current!;
+    const open = (it: PlexItem) => onOpenRef.current(it);
     const handler = (e: KeyboardEvent) => {
+      // A title's hold menu (or a layer over this one) has the remote.
+      if (!isPlexKeyOwner('browse')) return;
       const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
 
@@ -663,7 +672,8 @@ const PlexLibraryRows = memo(({
         if (e.key === 'ArrowDown') { if (cur + GRID_COLS < items.length) setGridCursor(cur + GRID_COLS); return; }
         if (e.key === 'ArrowLeft') { if (cur % GRID_COLS !== 0) setGridCursor(cur - 1); else onExitRef.current(); return; }
         if (e.key === 'ArrowRight') { if ((cur % GRID_COLS) < GRID_COLS - 1 && cur + 1 < items.length) setGridCursor(cur + 1); return; }
-        if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const it = items[cur]; if (it) onOpenRef.current(it); }
+        // Opens it when let go; held, its menu. Repeats do nothing.
+        if (e.key === 'Enter' || e.key === ' ') hold.press(e, items[cur], open);
         return;
       }
 
@@ -699,14 +709,17 @@ const PlexLibraryRows = memo(({
       // Left off the first tile is the way into the side menu.
       if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); else onExitRef.current(); return; }
       if (e.key === 'ArrowRight') { if (c < current.items.length - 1) setCol(c + 1); return; }
-      if (e.key === 'Enter' || e.key === ' ') {
-        if (e.repeat) return; // a held OK must not act twice
-        const it = current.items[c];
-        if (it) onOpenRef.current(it);
-      }
+      // Opens it when let go; held, its menu. A held OK acts once.
+      if (e.key === 'Enter' || e.key === ' ') hold.press(e, current.items[c], open);
     };
+    const up = (e: KeyboardEvent) => hold.release(e);
     window.addEventListener('keydown', handler, { capture: true });
-    return () => window.removeEventListener('keydown', handler, { capture: true });
+    window.addEventListener('keyup', up, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', handler, { capture: true });
+      window.removeEventListener('keyup', up, { capture: true });
+      hold.cancel();
+    };
   }, [isActive]);
 
   // ── render ───────────────────────────────────────────────────────────────

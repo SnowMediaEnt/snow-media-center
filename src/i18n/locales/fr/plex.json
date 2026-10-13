@@ -263,7 +263,9 @@
       "episodesHintVersions": "▲ ▼ choisir · ◀ ▶ version · OK lire · Retour aux saisons",
       "actorTitles": "{{name}} · Titres",
       "noOtherTitles": "Aucun autre titre sur ce serveur.",
-      "actorHint": "◀ ▶ ▲ ▼ parcourir · OK ouvrir · Retour à la distribution"
+      "actorHint": "◀ ▶ ▲ ▼ parcourir · OK ouvrir · Retour à la distribution",
+      "recommendBtn": "Recommander",
+      "recommendedBtn": "Recommandé"
     },
     "trailer": {
       "button": "Bande-annonce",
@@ -341,7 +343,28 @@
       "decadeNew": "Films des années {{decade}}",
       "decadeOld": "Films des années {{decade}}",
       "finding": "Recherche de quoi regarder…",
-      "nothing": "Rien à découvrir pour l'instant : ce serveur n'a aucune bibliothèque."
+      "nothing": "Rien à découvrir pour l'instant : ce serveur n'a aucune bibliothèque.",
+      "recommended": "Recommandés par les spectateurs"
+    },
+    "recommend": {
+      "action": "Recommander aux autres",
+      "remove": "Recommandé ✓ · Retirer",
+      "checking": "Vérification…",
+      "menuAria": "Recommander {{title}}",
+      "note": "Les autres spectateurs de ce serveur le verront dans Découvrir, sous « Recommandés par les spectateurs ».",
+      "signIn": "Connectez-vous à votre compte Snow Media pour recommander des titres aux autres spectateurs. Utilisez le bouton Se connecter de l’écran d’accueil, puis revenez ici.",
+      "count_one": "Recommandé par {{count}} spectateur",
+      "count_many": "Recommandé par {{count}} spectateurs",
+      "count_other": "Recommandé par {{count}} spectateurs",
+      "toast": {
+        "added": "Recommandé aux autres spectateurs",
+        "removed": "Retiré",
+        "limitTitle": "Beaucoup de recommandations pour une journée",
+        "limitDesc": "Réessayez demain.",
+        "signInTitle": "Connectez-vous pour recommander",
+        "failedTitle": "Impossible d’enregistrer",
+        "failedDesc": "Vérifiez la connexion et réessayez."
+      }
     },
     "seasonal": {
       "gathering": "Rassemblement de la collection {{season}}…",

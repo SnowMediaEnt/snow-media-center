@@ -3,9 +3,14 @@
 // rather than over it.
 // Shared by the Home rails, the library rails and the filtered grid so the
 // three cannot drift apart again.
+// A finger held on it opens its menu (Recommend to others, plexRecommendHold);
+// on Discover's "Recommended by viewers" it shows how many viewers did.
 import { memo } from 'react';
+import { ThumbsUp } from 'lucide-react';
+import i18n from '@/i18n';
 import PlexImage from './PlexImage';
 import PlexWatchedBadge from './PlexWatchedBadge';
+import { tapIsHoldLift, tileHoldProps } from './plexRecommendHold';
 import { POSTER_TILE_H, POSTER_TILE_W, resolutionLabel, type PlexItem } from '@/lib/plex';
 
 const POSTER_GRID_W = 280;
@@ -39,12 +44,15 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
   const label = resolutionLabel(item.videoResolution);
   const cap = tileCaption(item);
   const progress = resumeFraction(item);
+  const recs = item.recommenders ?? 0;
   return (
     <div
       // Not the browser's scrollIntoView: it also scrolled the boxes around
       // the Plex screen, which then sat partly above the TV (plexReveal.ts).
       ref={(el) => { if (scrollIntoView && focused && el) revealPlexTile(el); }}
-      onClick={onSelect ? () => onSelect(item) : onClick}
+      {...tileHoldProps(item)}
+      // The lift of a finger whose hold just opened the menu is not a tap.
+      onClick={() => { if (tapIsHoldLift()) return; if (onSelect) onSelect(item); else onClick?.(); }}
       className={`plex-tile cursor-pointer ${width === 'rail' ? 'flex-shrink-0 w-[104px]' : 'plex-tile--fill w-full'}`}
     >
       {/* The 2:3 box is drawn with padding-bottom, not aspect-ratio: `aspect-ratio`
@@ -68,6 +76,14 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
           eager={eager} className="absolute inset-0 w-full h-full object-cover" />
         <span className="plex-sheen" aria-hidden="true" />
         {watched ? <PlexWatchedBadge all={item.type === 'show'} /> : null}
+        {/* Top-left, clear of the watched check and the resolution chip
+            (top-right) and the resume bar (bottom). i18n.t, not a hook: a
+            rail draws dozens of these. */}
+        {recs > 0 ? (
+          <span className="plex-recs font-nunito" role="img" aria-label={i18n.t('plex.recommend.count', { count: recs })}>
+            <ThumbsUp aria-hidden="true" />{recs}
+          </span>
+        ) : null}
         {label ? (
           <div className={`plex-badge${watched ? ' plex-badge--under' : ''} font-nunito ${label === '4K' ? 'text-brand-gold' : 'text-white/85'}`}>
             {label}

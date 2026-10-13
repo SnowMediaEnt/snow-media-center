@@ -262,7 +262,9 @@
       "episodesHintVersions": "▲ ▼ pick · ◀ ▶ version · OK to play · Back to seasons",
       "actorTitles": "{{name}} · Titles",
       "noOtherTitles": "No other titles on this server.",
-      "actorHint": "◀ ▶ ▲ ▼ browse · OK to open · Back to cast"
+      "actorHint": "◀ ▶ ▲ ▼ browse · OK to open · Back to cast",
+      "recommendBtn": "Recommend",
+      "recommendedBtn": "Recommended"
     },
     "trailer": {
       "button": "Trailer",
@@ -338,7 +340,27 @@
       "decadeNew": "{{decade}}s Movies",
       "decadeOld": "'{{decade}}s Movies",
       "finding": "Finding things to watch…",
-      "nothing": "Nothing to discover yet — this server has no libraries to browse."
+      "nothing": "Nothing to discover yet — this server has no libraries to browse.",
+      "recommended": "Recommended by viewers"
+    },
+    "recommend": {
+      "action": "Recommend to others",
+      "remove": "Recommended ✓ · Remove",
+      "checking": "Checking…",
+      "menuAria": "Recommend {{title}}",
+      "note": "Other viewers on this server see it in Discover, under “Recommended by viewers”.",
+      "signIn": "Sign in to your Snow Media account to recommend titles to other viewers. Use the Sign In button on the Home screen, then come back here.",
+      "count_one": "Recommended by {{count}} viewer",
+      "count_other": "Recommended by {{count}} viewers",
+      "toast": {
+        "added": "Recommended to other viewers",
+        "removed": "Removed",
+        "limitTitle": "That’s a lot of recommendations for one day",
+        "limitDesc": "Try again tomorrow.",
+        "signInTitle": "Sign in to recommend",
+        "failedTitle": "Couldn’t save that",
+        "failedDesc": "Check the connection and try again."
+      }
     },
     "seasonal": {
       "gathering": "Gathering the {{season}} collection…",

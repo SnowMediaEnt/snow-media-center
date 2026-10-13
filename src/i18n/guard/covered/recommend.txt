@@ -1,0 +1,4 @@
+# Recommend to others in Plex (hold OK on a poster, the menu, Discover's "Recommended by viewers").
+src/components/livetv/PlexRecommendMenu.tsx
+src/components/livetv/plexRecommendHold.ts
+src/lib/plexRecommend.ts
