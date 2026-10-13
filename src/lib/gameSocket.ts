@@ -18,6 +18,28 @@ export interface SlotStateAck {
   error?: string;
 }
 
+export interface ArcadeSession {
+  ok: boolean; error?: string; game: 'dice' | 'trivia'; status: 'ready' | 'active' | 'settled' | 'expired';
+  sessionId?: string; version: number; bet: number; balance: number;
+  resumed?: boolean; alreadySettled?: boolean; resynced?: boolean;
+  dice?: number[]; holds?: boolean[]; rollsUsed?: number; category?: string;
+  score: number; payout?: number; net?: number; multiplier?: number;
+  mode?: 'snow' | 'mixed'; difficulty?: 'easy' | 'standard' | 'expert';
+  questionIndex?: number; total?: number; correctCount?: number; streak?: number; bestStreak?: number;
+  selectedAnswer?: number | null; pointsAwarded?: number;
+  question?: { id: string; category: 'snow' | 'science' | 'screen' | 'world' | 'music' | 'sports' | 'nature';
+    categoryLabel: string; prompt: string; answers: [string,string,string,string]; points?: number; correct?: number; fact?: string };
+}
+
+// crypto.randomUUID is missing in older TV WebViews; getRandomValues is not.
+export function newArcadeRequestId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 15) | 64;
+  bytes[8] = (bytes[8] & 63) | 128;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+}
+
 type Listener = () => void;
 
 const SERVER_URL = 'https://smcdreamstreams.store';
@@ -313,6 +335,22 @@ class GameSocketManager {
     const res = await this.emitWithAck('arcade_play', payload);
     this.noteWager(payload.game, payload.bet, { mode: payload.risk ?? payload.difficulty ?? 'classic' });
     return res;
+  }
+
+  async getArcadeSession(game: 'dice' | 'trivia', sessionId?: string): Promise<ArcadeSession> {
+    return this.emitWithAck('arcade_state', { game, sessionId });
+  }
+
+  async startArcadeSession(payload: { game: 'dice' | 'trivia'; requestId: string; bet: number;
+    mode?: 'snow' | 'mixed'; difficulty?: 'easy' | 'standard' | 'expert' }): Promise<ArcadeSession> {
+    const response = await this.emitWithAck('arcade_start', payload);
+    if (response?.ok && !response.resumed) this.noteWager(payload.game, response.bet, { mode: payload.mode ?? 'classic' });
+    return response;
+  }
+
+  async arcadeAction(payload: { game: 'dice' | 'trivia'; sessionId: string; version: number;
+    action: 'roll' | 'bank' | 'answer' | 'next'; holds?: boolean[]; questionId?: string; answerIndex?: number }): Promise<ArcadeSession> {
+    return this.emitWithAck('arcade_action', payload);
   }
 
   async startPlinko(payload: { bet: number; risk: string; board: 'tower' | 'wide'; dropLane: number; layout: number; clientCommit: string }): Promise<any> {

@@ -12,7 +12,8 @@ import { moveInRows, rehome, type FocusRows } from './shared/focusRows';
 import { useGameAudio } from './shared/gameAudio';
 import { useAuth } from '@/hooks/useAuth';
 import { useGameSocket } from '@/hooks/useGameSocket';
-import { gameSocket } from '@/lib/gameSocket';
+import { gameSocket, newArcadeRequestId, type ArcadeSession } from '@/lib/gameSocket';
+import { arcadeError, readArcadeSession, saveArcadeSession } from './shared/arcadeSession';
 import { readSavedBet, saveSelectedBet } from './shared/gameBets';
 import '@/styles/games-dice.css';
 
@@ -227,7 +228,7 @@ type FocusId = 'back' | 'fx' | 'roll' | 'bank' | 'next' | `die-${number}` | `bet
 
 const DiceLounge = ({ onBack }: DiceLoungeProps) => {
   const { user } = useAuth();
-  const { balance } = useGameSocket();
+  const { balance, status } = useGameSocket();
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
   const { play } = useGameAudio();
@@ -246,6 +247,11 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
   const [backNote, setBackNote] = useState<string | null>(null);
   const [bet, setBet] = useState(() => readSavedBet(BET_STORAGE_KEY));
   const [coinPayout, setCoinPayout] = useState<number | null>(null);
+  const [serverRound, setServerRound] = useState<ArcadeSession | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sessionNet, setSessionNet] = useState(0);
+  const startIdRef = useRef<string | null>(null);
+  const countedRef = useRef(new Set<string>());
 
   const rollingRef = useRef(false);
   const bankLockRef = useRef(false);
@@ -258,10 +264,51 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
   const betRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const currentResult = useMemo(() => scoreDice(dice), [dice]);
-  const canHold = phase === 'choosing' && rollsUsed > 0 && rollsUsed < MAX_ROLLS;
+  const canHold = !busy && phase === 'choosing' && rollsUsed > 0 && rollsUsed < MAX_ROLLS;
   const hasOpenDie = holds.some((held) => !held);
   const rollVisible = phase === 'ready' || phase === 'rolling' || (phase === 'choosing' && rollsUsed < MAX_ROLLS);
-  const rollUsable = (phase === 'ready' && (!user || (balance !== null && balance >= bet))) || (phase === 'choosing' && rollsUsed < MAX_ROLLS && hasOpenDie);
+  const rollUsable = !busy && ((phase === 'ready' && (!user || (status === 'connected' && balance !== null && balance >= bet))) || (phase === 'choosing' && rollsUsed < MAX_ROLLS && hasOpenDie));
+
+  const applyServerRound = useCallback((response: ArcadeSession) => {
+    if (!response.sessionId || !response.dice) return;
+    setServerRound(response);
+    if (user) saveArcadeSession(user.id, 'dice', response.sessionId);
+    setBet(response.bet);
+    setDice(response.dice as DieValue[]);
+    setHolds(response.holds ?? [...EMPTY_HOLDS]);
+    setRollsUsed(response.rollsUsed ?? 1);
+    if (response.status === 'settled') {
+      const result = scoreDice(response.dice);
+      setCoinPayout(response.payout ?? 0);
+      setBankedResult({ ...result, score: response.score });
+      setPhase('settled');
+      setFocus('next');
+      if (!countedRef.current.has(response.sessionId)) {
+        countedRef.current.add(response.sessionId);
+        setTotalScore((value) => value + response.score);
+        setBestScore((value) => Math.max(value, response.score));
+        setRoundsPlayed((value) => value + 1);
+        setSessionNet((value) => value + (response.net ?? 0));
+      }
+    } else {
+      setPhase('choosing');
+      setFocus((response.rollsUsed ?? 1) < MAX_ROLLS ? 'die-0' : 'bank');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || status !== 'connected' || rollingRef.current || bankLockRef.current) return;
+    let cancelled = false;
+    setBusy(true);
+    void gameSocket.getArcadeSession('dice', readArcadeSession(user.id, 'dice')).then((response) => {
+      if (cancelled) return;
+      if (response.ok && response.sessionId) applyServerRound(response);
+      else if (response.ok) { setFocus('roll'); saveArcadeSession(user.id, 'dice'); }
+      else if (!response.ok) setBackNote(arcadeError(response.error));
+    }).catch(() => { if (!cancelled) setBackNote(arcadeError()); })
+      .finally(() => { if (!cancelled) setBusy(false); });
+    return () => { cancelled = true; };
+  }, [user, status, applyServerRound]);
 
   const focusRows = useMemo<FocusRows>(() => {
     const top = ['back', 'fx'];
@@ -279,8 +326,14 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
   }, [phase, canHold, dice, rollUsable, user]);
 
   useEffect(() => {
-    setFocus((current) => (rehome(focusRows, current) as FocusId) ?? 'back');
-  }, [focusRows]);
+    if (busy) return;
+    setFocus((current) => {
+      if (focusRows.some((row) => row.includes(current))) return current;
+      if (phase === 'settled') return 'next';
+      if (phase === 'choosing') return canHold ? 'die-0' : 'bank';
+      return rollUsable ? 'roll' : (rehome(focusRows, current) as FocusId) ?? 'back';
+    });
+  }, [busy, canHold, focusRows, phase, rollUsable]);
 
   useEffect(() => {
     const target = focus === 'back' ? backRef.current
@@ -294,27 +347,62 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
     if (target && document.activeElement !== target) target.focus({ preventScroll: true });
   }, [focus]);
 
-  const handleRoll = useCallback(() => {
+  const handleRoll = useCallback(async () => {
     if (rollingRef.current || !rollUsable) return;
     rollingRef.current = true;
-    const next = rollDice(dice, holds);
-    const nextRoll = rollsUsed + 1;
+    const previousPhase = phase;
     setBackNote(null);
     setPhase('rolling');
-    setRollingDice(next);
+    setBusy(true);
     setFocus('roll');
     play('diceRoll');
+    let response: ArcadeSession | null = null;
+    let next = rollDice(dice, holds);
+    const nextRoll = rollsUsed + 1;
+    if (user) {
+      try {
+        startIdRef.current ??= newArcadeRequestId();
+        response = serverRound?.sessionId
+          ? await gameSocket.arcadeAction({ game: 'dice', sessionId: serverRound.sessionId, version: serverRound.version, action: 'roll', holds })
+          : await gameSocket.startArcadeSession({ game: 'dice', requestId: startIdRef.current, bet });
+        if (!response.ok) throw new Error(response.error);
+        next = response.dice as DieValue[];
+      } catch (error) {
+        if (!life.isMounted()) return;
+        const message = error instanceof Error ? error.message : undefined;
+        setBackNote(arcadeError(message));
+        setPhase(message === 'round_expired' ? 'ready' : previousPhase);
+        if (message === 'round_expired') {
+          setServerRound(null);
+          startIdRef.current = null;
+          setRollsUsed(0);
+          setDice([...EMPTY_DICE]);
+          setHolds([...EMPTY_HOLDS]);
+          if (user) saveArcadeSession(user.id, 'dice');
+        }
+        setFocus('roll');
+        setBusy(false);
+        rollingRef.current = false;
+        return;
+      }
+    }
+    if (!life.isMounted()) return;
+    setRollingDice(next);
     life.timeout(() => {
       if (!life.isMounted()) return;
-      setDice(next);
       setRollingDice(null);
-      setRollsUsed(nextRoll);
-      setPhase('choosing');
+      if (response) applyServerRound(response);
+      else {
+        setDice(next);
+        setRollsUsed(nextRoll);
+        setPhase('choosing');
+        setFocus(nextRoll < MAX_ROLLS ? 'die-0' : 'bank');
+      }
+      setBusy(false);
       rollingRef.current = false;
-      setFocus(nextRoll < MAX_ROLLS ? 'die-0' : 'bank');
       play('diceLand');
     }, reducedFx ? 150 : FULL_ROLL_MS);
-  }, [dice, holds, life, play, reducedFx, rollUsable, rollsUsed]);
+  }, [applyServerRound, bet, dice, holds, life, phase, play, reducedFx, rollUsable, rollsUsed, serverRound, user]);
 
   const toggleHold = useCallback((index: number) => {
     if (!canHold || rollingRef.current) return;
@@ -326,19 +414,34 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
   const bankRound = useCallback(async () => {
     if (phase !== 'choosing' || bankLockRef.current || currentResult.key === 'ready') return;
     bankLockRef.current = true;
+    setBusy(true);
     let returned: number | null = null;
     if (user) {
       try {
-        const response = await gameSocket.playArcade({ game: 'dice', bet, dice });
+        if (!serverRound?.sessionId) throw new Error('round_not_found');
+        const response = await gameSocket.arcadeAction({ game: 'dice', sessionId: serverRound.sessionId, version: serverRound.version, action: 'bank' });
         if (!response?.ok) {
-          setBackNote(response?.error === 'insufficient_balance' ? 'Not enough Snow Coins for this round.' : 'The Dice table could not settle that hand.');
+          setBackNote(arcadeError(response.error));
+          if (response.error === 'round_expired') {
+            setServerRound(null); startIdRef.current = null; setRollsUsed(0);
+            setDice([...EMPTY_DICE]); setHolds([...EMPTY_HOLDS]); setPhase('ready'); setFocus('roll');
+            saveArcadeSession(user.id, 'dice');
+          }
           bankLockRef.current = false;
+          setBusy(false);
           return;
         }
         returned = Number(response.payout) || 0;
-      } catch {
-        setBackNote('The Dice table is unavailable. Try banking again.');
+        if (!life.isMounted()) return;
+        applyServerRound(response);
+        setBusy(false);
         bankLockRef.current = false;
+        if ((response.net ?? 0) > 0) play(response.category === 'five-kind' ? 'bonus' : 'win');
+        return;
+      } catch {
+        setBackNote(arcadeError());
+        bankLockRef.current = false;
+        setBusy(false);
         return;
       }
     }
@@ -349,8 +452,9 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
     setRoundsPlayed((rounds) => rounds + 1);
     setPhase('settled');
     setFocus('next');
+    setBusy(false);
     play(currentResult.key === 'five-kind' || currentResult.key === 'large-straight' ? 'bonus' : 'win');
-  }, [bet, currentResult, dice, phase, play, user]);
+  }, [applyServerRound, currentResult, life, phase, play, serverRound, user]);
 
   const nextRound = useCallback(() => {
     if (phase !== 'settled') return;
@@ -361,12 +465,15 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
     setBankedResult(null);
     setCoinPayout(null);
     bankLockRef.current = false;
+    startIdRef.current = null;
+    setServerRound(null);
+    if (user) saveArcadeSession(user.id, 'dice');
     setPhase('ready');
     setFocus('roll');
-  }, [phase]);
+  }, [phase, user]);
 
   const { requestBack } = useGameBack({
-    isBusy: () => phase === 'rolling' || rollingRef.current,
+    isBusy: () => busy || phase === 'rolling' || rollingRef.current,
     onBlocked: () => {
       setBackNote('The dice are still rolling.');
       life.timeout(() => setBackNote(null), 1800);
@@ -427,7 +534,7 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
               </div>
               <div className="snow-dice-session" aria-label="Session score">
                 <span><small>ROUND</small><b>{visibleRound}</b></span>
-                <span><small>TOTAL</small><b>{totalScore}</b></span>
+                <span><small>{user ? 'SESSION NET' : 'TOTAL'}</small><b>{user ? `${sessionNet >= 0 ? '+' : ''}${sessionNet.toLocaleString()}` : totalScore}</b></span>
                 <span><small>BEST</small><b>{bestScore}</b></span>
               </div>
             </header>
@@ -461,7 +568,7 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
               <span className="snow-dice-result__copy">
                 <small>{phase === 'settled' ? 'ROUND BANKED' : rollsUsed === 0 ? 'CURRENT HAND' : 'BEST CATEGORY'}</small>
                 <strong>{result.label}</strong>
-                <em>{phase === 'settled' ? `+${result.score} points${coinPayout === null ? '' : ` · ${coinPayout} Snow Coins returned`}.` : result.detail}</em>
+                <em>{phase === 'settled' ? user ? `${coinPayout?.toLocaleString()} returned · Round net ${(serverRound?.net ?? 0) >= 0 ? '+' : ''}${serverRound?.net ?? 0} Snow Coins` : `+${result.score} points.` : result.detail}</em>
               </span>
               <b className="snow-dice-result__score">{result.score}<small>PTS</small></b>
             </div>
@@ -480,7 +587,7 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
                   ref={rollRef}
                   type="button"
                   onFocus={() => setFocus('roll')}
-                  onClick={() => { if (rollUsable) handleRoll(); }}
+                  onClick={() => { if (rollUsable) void handleRoll(); }}
                   aria-disabled={!rollUsable ? 'true' : undefined}
                   data-busy={phase === 'rolling' ? 'true' : undefined}
                   data-tv-focused={focus === 'roll' ? 'true' : 'false'}
@@ -497,11 +604,12 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
                   variant="navy"
                   onFocus={() => setFocus('bank')}
                   onClick={() => { void bankRound(); }}
+                  aria-disabled={busy ? 'true' : undefined}
                   data-tv-focused={focus === 'bank' ? 'true' : 'false'}
                   className="snow-dice-action snow-dice-action--bank tv-ring"
                 >
                   <Trophy aria-hidden="true" />
-                  <span>BANK {currentResult.score} POINTS</span>
+                  <span>{busy ? 'SAVING…' : user ? `BANK ${Math.round(bet * (serverRound?.multiplier ?? 0))} COINS` : `BANK ${currentResult.score} POINTS`}</span>
                 </Button>
               )}
               {phase === 'settled' && (
@@ -517,7 +625,7 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
                   <span>NEXT ROUND</span>
                 </Button>
               )}
-              <p className="snow-dice-controls__note">{user ? `${bet} Snow Coins · ${coinPayout === null ? 'bank to settle' : `${coinPayout} returned`}` : 'Guest practice · sign in for Snow Coin rounds'}</p>
+              <p className="snow-dice-controls__note">{user ? `${bet} Snow Coins · ${serverRound ? 'bet placed · round saved' : busy ? 'Loading saved round…' : 'bet placed on first roll'}` : 'Guest practice · sign in for Snow Coin rounds'}</p>
             </div>
 
             {backNote && <p className="snow-dice-back-note" role="status">{backNote}</p>}

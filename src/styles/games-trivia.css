@@ -765,6 +765,8 @@
 
 .snow-trivia__results::before { left: 4%; }
 .snow-trivia__results::after { right: 4%; transform: rotate(180deg); }
+.snow-trivia__results--ready::before,
+.snow-trivia__results--ready::after { display: none; }
 
 .snow-trivia__trophy {
   position: relative;
