@@ -68,15 +68,40 @@ describe('PlexLibraryRows — the Genre / Year / Rated choices', () => {
     expect(screen.queryByText(/Nothing to choose/)).toBeNull();
   });
 
-  it('the facts not there yet (a chip opened at once): it waits for them, then uses the key they give', async () => {
-    let answer: (v: unknown) => void = () => undefined;
-    h.meta.mockImplementationOnce(() => new Promise((r) => { answer = r as (v: unknown) => void; }));
-    h.meta.mockImplementation(async () => ({ totalSize: 10, sorts: [], filters: [{ filter: 'genre', key: '/library/sections/3/genre?x=1', title: 'Genre' }] }));
-    await openGenre();
-    await act(async () => { answer({ totalSize: 10, sorts: [], filters: [{ filter: 'genre', key: '/library/sections/3/genre?x=1', title: 'Genre' }] }); });
-    await flush(50);
-    expect(h.values.mock.calls.map((c) => c[2])).toContain('/library/sections/3/genre?x=1');
+  it('entering the bar loads the library facts once and keeps them (they were thrown away by the effect itself)', async () => {
+    h.meta.mockImplementation(async () => ({ totalSize: 10, sorts: [], filters: [{ filter: 'genre', key: '/library/sections/6/genre?listed=1', title: 'Genre' }] }));
+    await openGenre('movie', '6');
+    // One facts request (the bar's), and the chip used the key it listed.
+    expect(h.meta).toHaveBeenCalledTimes(1);
+    expect(h.values.mock.calls.map((c) => c[2])).toEqual(['/library/sections/6/genre?listed=1']);
     expect(screen.queryByText('Comedy')).not.toBeNull();
+  });
+
+  it('a server whose facts leave the filters out: Genre, Year and Rated stay in the bar after a genre is picked', async () => {
+    await openGenre('movie', '7');
+    key('ArrowDown'); // All → Comedy
+    await flush(10);
+    key('Enter');
+    await flush(50);
+    const bar = document.body.textContent ?? '';
+    expect(bar).toMatch(/Genre/);
+    expect(bar).toMatch(/Comedy/);
+    expect(bar).toMatch(/Year/);
+    expect(bar).toMatch(/Rated/);
+  });
+
+  it('a list that arrives after the viewer moved on opens nothing', async () => {
+    let answer: (v: unknown) => void = () => undefined;
+    h.values.mockImplementation(() => new Promise((r) => { answer = r as (v: unknown) => void; }));
+    await openGenre('movie', '8');
+    expect(screen.queryByText(/Loading…/)).not.toBeNull(); // open at once, filling in
+    key('Escape'); // closes the chip's menu
+    await flush(10);
+    key('ArrowDown'); // into the rows
+    await flush(10);
+    await act(async () => { answer([{ key: '7', title: 'Comedy' }]); });
+    await flush(30);
+    expect(screen.queryByText('Comedy')).toBeNull();
   });
 
   it("a TV library asks for its shows' genres (type 2)", async () => {
