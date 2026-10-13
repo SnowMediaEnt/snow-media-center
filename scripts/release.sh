@@ -116,8 +116,15 @@ publish)
   trap 'rm -f "$NETRC"' EXIT
   printf 'machine %s login %s password %s\n' "$FTP_TLS_NAME" "$FTP_USER" "$FTP_PASS" > "$NETRC"
   unset FTP_PASS
+  # A stalled or dropped upload used to hang or end the publish ("we keep timing
+  # out"): give up on a connection after 30 s or a transfer under 10 KB/s for a
+  # minute, and try again (4 more times). A retry re-sends the whole file over
+  # the same name, and update.json still goes up last.
   put() {
-    curl --fail --ssl-reqd --netrc-file "$NETRC" --ftp-create-dirs \
+    echo "Uploading $2…"
+    curl --fail --ssl-reqd --netrc-file "$NETRC" --ftp-create-dirs --ftp-pasv --ftp-skip-pasv-ip \
+      --connect-timeout 30 --speed-limit 10240 --speed-time 60 \
+      --retry 4 --retry-delay 5 --retry-all-errors --progress-bar \
       --connect-to "$FTP_TLS_NAME:21:$FTP_HOST:21" -T "$1" "ftp://$FTP_TLS_NAME/$2"
   }
   put "$OUT/snowmediacenter.apk"            "apps/snowmediacenter.apk"
