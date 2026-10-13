@@ -32,6 +32,8 @@ const GAMES: GameTile[] = [
   { id: 'tv-trivia', view: 'game-tv-trivia', nameKey: 'games.hub.gameTvTriviaName', taglineKey: 'games.hub.gameTvTriviaTagline', accent: 'violet' },
   { id: 'dice-lounge', view: 'game-dice-lounge', nameKey: 'games.hub.gameDiceLoungeName', taglineKey: 'games.hub.gameDiceLoungeTagline', accent: 'cobalt' },
 ];
+const LEADER_GAMES = [{ id: 'overall', nameKey: 'All Games' }, ...GAMES.map(({ id, nameKey }) => ({ id, nameKey }))];
+type CoinLeader = { period: 'today' | 'all-time'; game: string; game_name: string; won_coins: number; net_coins: number; rank: number };
 
 const FOCUS_KEY = 'snow-games-last-focus-v1';
 
@@ -52,7 +54,9 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
   const [loungeLoading, setLoungeLoading] = useState(false);
   const [loungeError, setLoungeError] = useState<string | null>(null);
   const [gameName, setGameName] = useState('');
-  const [leaders, setLeaders] = useState<Array<{ game_name: string; game: string; mode: string; best_score: number; wins: number; plays: number }>>([]);
+  const [coinLeaders, setCoinLeaders] = useState<CoinLeader[]>([]);
+  const [leaderPeriod, setLeaderPeriod] = useState<'today' | 'all-time'>('today');
+  const [leaderGame, setLeaderGame] = useState('overall');
   const openingRef = useRef(false);
   const gameNameRef = useRef<HTMLInputElement>(null);
   const loungeCloseRef = useRef<HTMLButtonElement>(null);
@@ -106,7 +110,7 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
       const response = await gameSocket.getLoungeState();
       if (!response?.ok) throw new Error(response?.error ?? 'lounge_failed');
       setGameName(response.gameName ?? '');
-      setLeaders(Array.isArray(response.leaders) ? response.leaders : []);
+      setCoinLeaders(Array.isArray(response.coinLeaders) ? response.coinLeaders : []);
       window.setTimeout(() => gameNameRef.current?.focus(), 50);
     } catch {
       setLoungeError('The leaderboard could not load right now.');
@@ -125,7 +129,9 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
       }
       setGameName(response.gameName);
       const refreshed = await gameSocket.getLoungeState();
-      if (refreshed?.ok) setLeaders(Array.isArray(refreshed.leaders) ? refreshed.leaders : []);
+      if (refreshed?.ok) {
+        setCoinLeaders(Array.isArray(refreshed.coinLeaders) ? refreshed.coinLeaders : []);
+      }
     } catch { setLoungeError('The game name could not be saved.'); }
     finally { setLoungeLoading(false); }
   }, [gameName, user]);
@@ -197,6 +203,10 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
       const direction = visualArrowDir(event);
       if (!direction) return;
       const active = document.activeElement;
+      const periodButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-lounge-period]'));
+      const gameButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-lounge-game]'));
+      const periodIndex = periodButtons.indexOf(active as HTMLButtonElement);
+      const gameIndex = gameButtons.indexOf(active as HTMLButtonElement);
       if (active === gameNameRef.current) {
         // Let Left (and Right within the text) edit the caret. At the end of
         // the name, Right follows the visible row directly to Save.
@@ -212,14 +222,25 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
       if (!user) {
         loungeCloseRef.current?.focus({ preventScroll: true });
       } else if (active === loungeCloseRef.current) {
-        if (direction === 'down' || direction === 'left') gameNameRef.current?.focus({ preventScroll: true });
+        if (direction === 'down') periodButtons[0]?.focus({ preventScroll: true });
+        if (direction === 'left') loungeSaveRef.current?.focus({ preventScroll: true });
       } else if (active === loungeSaveRef.current) {
-        if (direction === 'left' || direction === 'down') gameNameRef.current?.focus({ preventScroll: true });
+        if (direction === 'left') gameNameRef.current?.focus({ preventScroll: true });
+        if (direction === 'down') periodButtons[0]?.focus({ preventScroll: true });
         if (direction === 'up' || direction === 'right') loungeCloseRef.current?.focus({ preventScroll: true });
-      } else if (direction === 'down' || direction === 'right') {
-        loungeSaveRef.current?.focus({ preventScroll: true });
-      } else if (direction === 'up') {
-        loungeCloseRef.current?.focus({ preventScroll: true });
+      } else if (periodIndex >= 0) {
+        if (direction === 'left' || direction === 'right') periodButtons[1 - periodIndex]?.focus({ preventScroll: true });
+        if (direction === 'up') loungeSaveRef.current?.focus({ preventScroll: true });
+        if (direction === 'down') gameButtons[0]?.focus({ preventScroll: true });
+      } else if (gameIndex >= 0) {
+        if (direction === 'left') gameButtons[Math.max(0, gameIndex - 1)]?.focus({ preventScroll: true });
+        if (direction === 'right') gameButtons[Math.min(gameButtons.length - 1, gameIndex + 1)]?.focus({ preventScroll: true });
+        if (direction === 'up') (gameIndex >= 5 ? gameButtons[gameIndex - 5] : periodButtons[0])?.focus({ preventScroll: true });
+        if (direction === 'down') gameButtons[Math.min(gameButtons.length - 1, gameIndex + 5)]?.focus({ preventScroll: true });
+      } else if (active === gameNameRef.current) {
+        if (direction === 'right') loungeSaveRef.current?.focus({ preventScroll: true });
+        if (direction === 'down') loungeSaveRef.current?.focus({ preventScroll: true });
+        if (direction === 'up') loungeCloseRef.current?.focus({ preventScroll: true });
       }
     };
     window.addEventListener('keydown', onModalKey, true);
@@ -291,13 +312,20 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
               </div>
             )}
             {loungeError && <p className="snow-lounge-error" role="status">{loungeError}</p>}
+            <div className="snow-lounge-period" role="group" aria-label="Leaderboard period">
+              {(['today', 'all-time'] as const).map((period) => <Button key={period} type="button" variant="navy" data-lounge-period={period} aria-pressed={leaderPeriod === period} onFocus={() => setLeaderPeriod(period)} onClick={() => setLeaderPeriod(period)}>{period === 'today' ? 'Today' : 'All time'}</Button>)}
+              <small>{leaderPeriod === 'today' ? 'Resets at midnight UTC' : 'Since the Game Lounge opened'}</small>
+            </div>
+            <div className="snow-lounge-game-tabs" role="group" aria-label="Choose a game leaderboard">
+              {LEADER_GAMES.map((game) => <Button key={game.id} type="button" variant="navy" data-lounge-game={game.id} aria-pressed={leaderGame === game.id} onFocus={() => setLeaderGame(game.id)} onClick={() => setLeaderGame(game.id)}>{game.id === 'overall' ? game.nameKey : t(game.nameKey)}</Button>)}
+            </div>
             <div className="snow-lounge-leaders">
-              {(['plinko', 'dice', 'trivia'] as const).map((game) => (
-                <div key={game}><h3>{game === 'dice' ? 'Dice Lounge' : game === 'trivia' ? 'TV Trivia' : 'Snow Plinko'}</h3><ol>
-                  {leaders.filter((entry) => entry.game === game).slice(0, 5).map((entry, index) => <li key={`${entry.game_name}-${entry.mode}`}><b>{index + 1}</b><span>{entry.game_name}<small>{entry.mode} · {entry.plays} plays</small></span><strong>{entry.best_score.toLocaleString()}</strong></li>)}
-                  {!loungeLoading && leaders.every((entry) => entry.game !== game) && <li className="is-empty">Be the first on this board</li>}
-                </ol></div>
-              ))}
+              <h3>{leaderGame === 'overall' ? 'All Games' : t(LEADER_GAMES.find((game) => game.id === leaderGame)?.nameKey ?? 'All Games')} · {leaderPeriod === 'today' ? 'Today' : 'All time'} winnings</h3>
+              <ol>
+                {coinLeaders.filter((entry) => entry.game === leaderGame && entry.period === leaderPeriod).slice(0, 5).map((entry) => <li key={`${entry.game}-${entry.game_name}`}><b>#{entry.rank}</b><span>{entry.game_name}</span><strong>+{entry.won_coins.toLocaleString()} <small>Snow Coins</small></strong></li>)}
+                {!loungeLoading && coinLeaders.every((entry) => entry.game !== leaderGame || entry.period !== leaderPeriod) && <li className="is-empty">No named players on this board yet. Play a round to join in.</li>}
+              </ol>
+              <p>Ranked by Snow Coins won in games; starting coins do not count. Set a game name above to appear publicly.</p>
             </div>
           </section>
         </div>

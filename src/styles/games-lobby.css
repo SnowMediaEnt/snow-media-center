@@ -159,17 +159,24 @@
 .snow-lounge-name input { min-width: 0; height: 47px; padding: 0 13px; border: 2px solid rgba(102, 211, 225, .5); border-radius: 10px; color: white; background: #07162c; font: 800 18px Montserrat, sans-serif; outline: none; }
 .snow-lounge-name input:focus { border-color: #f0ca66; box-shadow: 0 0 0 4px rgba(240, 202, 102, .18); }
 .snow-lounge-error { margin: 10px 0 0; color: #ffb2bd; text-align: center; }
-.snow-lounge-leaders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; margin-top: 18px; }
-.snow-lounge-leaders > div { min-width: 0; padding: 13px; border: 1px solid rgba(115, 203, 220, .26); border-radius: 15px; background: rgba(3, 12, 29, .72); }
-.snow-lounge-leaders h3 { margin: 0 0 10px; color: #8ce4ef; font: 900 15px Montserrat, sans-serif; text-transform: uppercase; }
+.snow-lounge-period { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+.snow-lounge-period button { min-width: 150px; min-height: 43px; font-weight: 900; }
+.snow-lounge-period small { margin-left: auto; color: #a9cbd9; font-size: 11px; }
+.snow-lounge-game-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.snow-lounge-game-tabs button { min-width: 0; min-height: 44px; padding: 5px 8px; overflow: hidden; font-size: 12px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.snow-lounge-period button[aria-pressed='true'], .snow-lounge-game-tabs button[aria-pressed='true'] { color: #071a30; border-color: #ffe3a1; background: linear-gradient(#fff0bf, #dfb65e); }
+.snow-lounge-period button:focus, .snow-lounge-game-tabs button:focus { outline: 3px solid #9df7ff; outline-offset: 2px; box-shadow: 0 0 0 6px rgba(45, 161, 244, .43); }
+.snow-lounge-leaders { margin-top: 14px; padding: 16px 18px; border: 1px solid rgba(115, 203, 220, .38); border-radius: 15px; background: rgba(3, 12, 29, .78); }
+.snow-lounge-leaders h3 { margin: 0 0 10px; color: #8ce4ef; font: 900 16px Montserrat, sans-serif; text-transform: uppercase; }
 .snow-lounge-leaders ol { margin: 0; padding: 0; list-style: none; }
-.snow-lounge-leaders li { min-height: 50px; display: grid; grid-template-columns: 27px minmax(0, 1fr) auto; align-items: center; gap: 8px; border-top: 1px solid rgba(255,255,255,.07); }
+.snow-lounge-leaders li { min-height: 47px; display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 8px; border-top: 1px solid rgba(255,255,255,.07); }
 .snow-lounge-leaders li > b { color: #f0ca66; }
 .snow-lounge-leaders li > span { min-width: 0; overflow: hidden; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
-.snow-lounge-leaders li small { display: block; margin-top: 3px; color: #829fb3; font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.snow-lounge-leaders li small { color: #a8c5d2; font-size: 10px; font-weight: 700; }
 .snow-lounge-leaders li > strong { color: #f5d578; font-variant-numeric: tabular-nums; }
 .snow-lounge-leaders li.is-empty { display: flex; justify-content: center; color: #829fb3; font-size: 11px; }
-@media (max-width: 980px) { .snow-lounge-leaders { grid-template-columns: 1fr; } }
+.snow-lounge-leaders > p { margin: 10px 0 0; color: #a8c5d2; font-size: 11px; }
+@media (max-width: 980px) { .snow-lounge-game-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); } .snow-lounge-period small { display: none; } }
 
 .snow-games-lobby .snow-lobby__grid {
   flex: 1 1 0;

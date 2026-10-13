@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Games from '@/components/Games';
 import { setGameAudioMuted } from '@/components/games/shared/gameAudio';
+import { gameSocket } from '@/lib/gameSocket';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -201,5 +202,27 @@ describe('Games hub D-pad navigation', () => {
     expect(document.activeElement).toBe(name);
     fireEvent.keyDown(name, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(save);
+  });
+
+  it('shows real Snow Coin net leaders for each game and period with D-pad controls', async () => {
+    vi.mocked(gameSocket.getLoungeState).mockResolvedValueOnce({ ok: true, gameName: 'Snow Fan', coinLeaders: [
+      { period: 'today', game: 'slots', game_name: 'Snow Fan', won_coins: 1250, net_coins: 500, rank: 1 },
+      { period: 'all-time', game: 'blackjack', game_name: 'Card Star', won_coins: 9300, net_coins: -100, rank: 1 },
+    ] });
+    renderHub();
+    fireEvent.click(tile(10));
+    await screen.findByRole('button', { name: 'All Games' });
+    const slots = document.querySelector<HTMLButtonElement>('[data-lounge-game="slots"]')!;
+    act(() => slots.focus());
+    expect(screen.getByText(/\+1,250/)).toBeTruthy();
+    expect(slots.getAttribute('aria-pressed')).toBe('true');
+    const today = document.querySelector<HTMLButtonElement>('[data-lounge-period="today"]')!;
+    act(() => today.focus());
+    fireEvent.keyDown(today, { key: 'ArrowRight' });
+    const allTime = document.querySelector<HTMLButtonElement>('[data-lounge-period="all-time"]')!;
+    expect(document.activeElement).toBe(allTime);
+    const blackjack = document.querySelector<HTMLButtonElement>('[data-lounge-game="blackjack"]')!;
+    act(() => blackjack.focus());
+    expect(screen.getByText(/\+9,300/)).toBeTruthy();
   });
 });
