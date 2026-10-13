@@ -1,3 +1,4 @@
+-- Matches the migration version applied to the connected Supabase project.
 -- Server-owned state holds dice history and unrevealed trivia answers. Clients
 -- never read or write this table; the authenticated game server exposes a DTO.
 alter table public.trivia_questions add column if not exists difficulty text not null default 'easy';
