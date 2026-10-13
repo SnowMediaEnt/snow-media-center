@@ -1,6 +1,5 @@
 package com.snowmedia
 
-import android.app.UiModeManager
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -174,14 +173,9 @@ class MainActivity : BridgeActivity() {
     } catch (_: Throwable) { false }
 
     /** A TV: Android TV / Google TV / Fire TV, or no touch screen at all. */
-    private fun isTvDevice(): Boolean {
-        val ui = getSystemService(UI_MODE_SERVICE) as? UiModeManager
-        if (ui?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) return true
-        val pm = packageManager
-        if (pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) return true
-        if (pm.hasSystemFeature("amazon.hardware.fire_tv")) return true
-        return !pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
-    }
+    // A box that is never held (no accelerometer) is a TV box too (DeviceKind):
+    // it keeps the TV layout at the page's own size, never a phone's fit.
+    private fun isTvDevice(): Boolean = DeviceKind.isTvBox(this)
 
     // Phones and tablets. Sideways: full screen like a TV (no status or
     // navigation bar; a swipe shows them for a moment). A phone that turns

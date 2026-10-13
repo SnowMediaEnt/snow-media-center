@@ -14,6 +14,13 @@ describe('phone mode', () => {
     expect(phoneModeFrom({ tv: true, mobile: true, coarse: true, shortSide: 360 })).toEqual({ touch: false, phone: false });
   });
 
+  it('a box the app knows is a TV box (an X96 that lists a touch screen and says Mobile) is a TV: SMC-TV', () => {
+    const X96 = 'Mozilla/5.0 (Linux; Android 11; X96X4 Build/RP1A.201005.004; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/86.0.4240.198 Mobile Safari/537.36';
+    expect(isTvUserAgent(X96)).toBe(false);
+    expect(isTvUserAgent(`${X96} SMC-TV`)).toBe(true);
+    expect(phoneModeFrom({ tv: isTvUserAgent(`${X96} SMC-TV`), mobile: true, coarse: true, shortSide: 360 })).toEqual({ touch: false, phone: false });
+  });
+
   it('a remote-driven box (no coarse pointer) is not touch', () => {
     expect(phoneModeFrom({ tv: false, mobile: false, coarse: false, shortSide: 540 })).toEqual({ touch: false, phone: false });
   });

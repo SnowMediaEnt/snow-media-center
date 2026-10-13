@@ -41,6 +41,12 @@ const ancientAndroid = /Android [4-7]\b/i.test(navigator.userAgent);  // very ol
 // WebMediaPlayer creation. Force low-memory mode regardless of native flag
 // (Fire TV WebView sometimes lies about deviceMemory).
 const fireTv = isFireTV();
+// Any other TV box (X96 and the like), as the app's native side tells it
+// (SnowWebView adds "SMC-TV" to the user agent: DeviceKind.kt). Those boxes
+// reported no TV and plenty of memory, drew the full effects a Fire TV is
+// spared, and parts of the screen went to a solid block over the sound
+// (owner, 2026-10-13). They get the Fire TV's low-memory mode.
+const tvBox = /\bSMC-TV\b/.test(navigator.userAgent);
 // A WebView too old for CSS clamp() (Chrome < 79 — index.html adds
 // `legacy-webview` before this runs) is the 2019-era Amlogic box: X96 Max+,
 // T95, Android 9 with the factory WebView. Those report 4 GB and dodged the
@@ -48,7 +54,7 @@ const fireTv = isFireTV();
 // Watched queries, glow transitions on every focus move. Treat them as the
 // weak boxes they are.
 const legacyWebView = document.documentElement.classList.contains('legacy-webview');
-const nativeLowMemory = (isNativePlatform() && (lowRam || ancientAndroid || legacyWebView)) || fireTv;
+const nativeLowMemory = (isNativePlatform() && (lowRam || ancientAndroid || legacyWebView || tvBox)) || fireTv;
 if (nativeLowMemory) {
   document.documentElement.classList.add('native-low-memory');
 }

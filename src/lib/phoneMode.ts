@@ -35,7 +35,7 @@ export const UPRIGHT_TABLET_MAX_WIDTH = 820;
 
 /** The user agent names a TV (Fire TV, Android TV, Google TV, BRAVIA, "TV"). */
 export const isTvUserAgent = (ua: string): boolean =>
-  /Android TV|GoogleTV|Google TV|BRAVIA|SmartTV|\bAFT[A-Z0-9]+\b|Fire ?TV|FireOS|\bTV\b/i.test(ua);
+  /Android TV|GoogleTV|Google TV|BRAVIA|SmartTV|\bAFT[A-Z0-9]+\b|Fire ?TV|FireOS|\bSMC-TV\b|\bTV\b/i.test(ua);
 
 export interface PhoneSignals {
   /** The user agent says it is a TV. */
