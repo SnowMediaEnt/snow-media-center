@@ -13,7 +13,11 @@ const state = vi.hoisted(() => ({
   showCalls: 0,
   hideCalls: 0,
   didHide: [] as (() => void)[],
+  // Keys the box itself delivers (the remote, its on-screen keyboard).
+  deviceKey: false,
 }));
+
+vi.mock('@/utils/deviceKey', () => ({ isDeviceKey: () => state.deviceKey, platformRaisesKeyboard: () => state.deviceKey }));
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => state.native },
@@ -69,6 +73,7 @@ beforeEach(() => {
   state.showCalls = 0;
   state.hideCalls = 0;
   state.didHide = [];
+  state.deviceKey = false;
   onBack.mockReset();
   vi.useFakeTimers({ shouldAdvanceTime: true });
 });
@@ -252,3 +257,132 @@ describe('useTVFocus keyboard (1.6.x path + Enter moves down)', () => {
     expect(state.showCalls).toBe(0);
   });
 });
+
+describe('useTVFocus keyboard on a Fire TV (the platform opens Amazon\'s keyboard itself)', () => {
+  const reportOk = () => act(() => { window.dispatchEvent(new Event('smc:okkey')); });
+
+  it("the keyboard's Enter as Back closes it is not OK: the keyboard stays away (owner, 1.9.0)", async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    // The screen opened on Username, so the box has focus and the platform raised the keyboard.
+    expect(document.activeElement).toBe(user);
+    keyboardEnter(user); await flush();
+    await later();
+    expect(state.showCalls).toBe(0);
+    expect(state.hideCalls).toBe(1);
+    expect(user.dataset.tvFocused).toBe('true');
+    // And again: it never comes back by itself.
+    keyboardEnter(user); await flush();
+    await later();
+    expect(state.showCalls).toBe(0);
+  });
+
+  it("the remote's OK (reported by Android) still opens the keyboard, even when the report is late", async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    reportOk();
+    okOn(user); await flush();
+    expect(state.showCalls).toBe(1);
+    await later();
+    // A report landing just after its Enter.
+    user.blur();
+    user.focus();
+    okOn(user);
+    reportOk();
+    await later();
+    await flush();
+    expect(state.showCalls).toBe(2);
+  });
+
+  it('typed in a keyboard the platform opened, then Back: the keyboard goes and the highlight stays, never jumping to Password', async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    const pass = getByTestId('pass') as HTMLInputElement;
+    fireEvent.input(user, { target: { value: 'jane' } });
+    await later();
+    keyboardEnter(user); await flush();
+    await later();
+    expect(state.showCalls).toBe(0);
+    expect(state.hideCalls).toBe(1);
+    expect(user.dataset.tvFocused).toBe('true');
+    expect(pass.dataset.tvFocused).not.toBe('true');
+    expect(document.activeElement).not.toBe(pass);
+  });
+
+  it('typed in the last field, then Back: the keyboard goes and the highlight lands on Sign in, which is not pressed', async () => {
+    state.deviceKey = true;
+    const onSignIn = vi.fn();
+    function SignInForm() {
+      const { containerRef, focusProps } = useTVFocus({
+        initialFocusId: 'pass',
+        navigation: { user: { down: 'pass' }, pass: { up: 'user', down: 'signin' }, signin: { up: 'pass' } },
+      });
+      return (
+        <div ref={containerRef}>
+          <input {...focusProps('user')} data-testid="user" />
+          <input {...focusProps('pass')} data-testid="pass" type="password" />
+          <button {...focusProps('signin')} data-testid="signin" onClick={onSignIn}>Sign in</button>
+        </div>
+      );
+    }
+    const { getByTestId } = render(<SignInForm />);
+    await raf();
+    await flush();
+    const pass = getByTestId('pass') as HTMLInputElement;
+    fireEvent.input(pass, { target: { value: 'secret' } });
+    await later();
+    keyboardEnter(pass); await flush();
+    expect(getByTestId('signin').dataset.tvFocused).toBe('true');
+    // The keyboard's parting Enter lands on the button: swallowed.
+    keyboardEnter(getByTestId('signin')); await flush();
+    expect(onSignIn).not.toHaveBeenCalled();
+    expect(state.showCalls).toBe(0);
+  });
+
+  it('the platform focusing the field again right after the keyboard was put away does not raise it', async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    reportOk();
+    okOn(user); await flush(); // the remote's OK, seen by the page: the keyboard is ours
+    expect(state.showCalls).toBe(1);
+    await later();
+    fireEvent.keyDown(user, { key: 'Escape', keyCode: 27 });
+    await flush();
+    expect(document.activeElement).not.toBe(user);
+    act(() => { user.focus(); }); // the WebView, as the keyboard window closes
+    expect(user.readOnly).toBe(true);
+    await later();
+    expect(user.readOnly).toBe(false);
+    // OK opens it as usual afterwards.
+    reportOk();
+    okOn(user); await flush();
+    expect(state.showCalls).toBe(2);
+  });
+
+  it("after the keyboard's own Enter put it away, the platform focusing the box again does not raise it", async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    keyboardEnter(user); await flush();
+    await act(async () => { vi.advanceTimersByTime(200); });
+    expect(state.hideCalls).toBe(1);
+    expect(document.activeElement).not.toBe(user);
+    act(() => { user.focus(); }); // the WebView, as the keyboard window closes
+    expect(user.readOnly).toBe(true);
+  });
+});
+

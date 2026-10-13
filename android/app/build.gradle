@@ -118,7 +118,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 68
-        versionName "1.8.10"
+        versionName "1.9.0"
 
         // Never hardcode the key in Kotlin; see the block above.
         buildConfigField "String", "SMC_BILLING_APP_KEY", "\"${billingAppKey}\""
