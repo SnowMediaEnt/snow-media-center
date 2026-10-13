@@ -6,6 +6,8 @@
 // ▲ ▼ move, OK chooses, Back closes. OK is taken only once the press that
 // opened the menu has been let go, so the hold itself never chooses. The menu
 // closes at once and the toast follows when the account has answered.
+// Whenever it goes, the remote goes back (an unmount gives it back too, so
+// the key owner is never left as the menu's with no menu on screen).
 import { memo, useEffect, useRef, useState } from 'react';
 import { Check, Loader2, ThumbsUp, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -13,19 +15,22 @@ import type { PlexItem } from '@/lib/plex';
 import { loadMyRecommended, myRecommendedKeys, recommendTarget, recommendTitle, unrecommendTitle } from '@/lib/plexRecommend';
 import { resolveViewer, viewerAccountId } from '@/lib/viewer';
 import { isPlexKeyOwner } from './plexKeyOwner';
-import { tapIsHoldLift, toastRecommendResult } from './plexRecommendHold';
+import { claimPlexHoldMenu, plexOkHeld, releasePlexHoldMenu, tapIsHoldLift, toastRecommendResult } from './plexRecommendHold';
 
 interface Props {
   item: PlexItem;
   /** The server's machineIdentifier. */
   server: string;
+  /** Plex has the remote. Off while a notice of the Player's is over it: the
+   *  menu leaves every key to that notice (PlexSection then closes it). */
+  isActive?: boolean;
   onClose: () => void;
 }
 
 // 'checking': is it this account's already? 'on': it is.
 type Mode = 'checking' | 'signedOut' | 'off' | 'on';
 
-const PlexRecommendMenu = memo(({ item, server, onClose }: Props) => {
+const PlexRecommendMenu = memo(({ item, server, isActive = true, onClose }: Props) => {
   const { t } = useTranslation();
   const target = recommendTarget(item);
   const targetKey = target?.ratingKey ?? '';
@@ -47,8 +52,14 @@ const PlexRecommendMenu = memo(({ item, server, onClose }: Props) => {
     return () => { cancelled = true; };
   }, [server, targetKey]);
 
-  // onClose gives the remote back (PlexSection: releasePlexHoldMenu).
+  // onClose gives the remote back (PlexSection: releasePlexHoldMenu); so
+  // does going away any other way.
   const onCloseRef = useRef(onClose); onCloseRef.current = onClose;
+  const isActiveRef = useRef(isActive); isActiveRef.current = isActive;
+  useEffect(() => {
+    claimPlexHoldMenu();
+    return () => releasePlexHoldMenu();
+  }, []);
 
   const rows: Array<{ id: string; label: string; run?: () => void }> = [];
   if (mode === 'signedOut') {
@@ -80,11 +91,13 @@ const PlexRecommendMenu = memo(({ item, server, onClose }: Props) => {
   const [focus, setFocus] = useState(0);
   const focusRef = useRef(focus); focusRef.current = focus;
   useEffect(() => { if (focus >= rows.length) setFocus(0); }, [focus, rows.length]);
-  const armedRef = useRef(false);
+  // Armed at once unless OK is still down from the hold that opened it (a
+  // right click, an air mouse, or a release that came first, need no wait).
+  const armedRef = useRef(!plexOkHeld());
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!isPlexKeyOwner('menu')) return;
+      if (!isPlexKeyOwner('menu') || !isActiveRef.current) return;
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       if (isBack) {
@@ -147,14 +160,15 @@ const PlexRecommendMenu = memo(({ item, server, onClose }: Props) => {
                 disabled={!row.run}
                 onMouseEnter={() => setFocus(i)}
                 onClick={() => { if (!tapIsHoldLift()) row.run?.(); }}
-                className={`tv-ring appearance-none w-full text-left px-4 py-3 rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center gap-3 ${
+                // The icons' margin, not flex gap (Chrome 84).
+                className={`tv-ring appearance-none w-full text-left px-4 py-3 rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center ${
                   focused ? (muted ? 'bg-white/15 scale-[1.02] z-10' : 'bg-brand-gold/25 scale-[1.02] z-10') : 'bg-white/5 hover:bg-white/10'
                 }`}
               >
-                {row.id === 'checking' ? <Loader2 className="w-5 h-5 text-brand-gold flex-shrink-0 animate-spin" aria-hidden="true" />
-                  : row.id === 'add' || row.id === 'remove' ? <ThumbsUp className={`w-5 h-5 text-brand-gold flex-shrink-0${row.id === 'remove' ? ' fill-current' : ''}`} aria-hidden="true" />
-                    : row.id === 'ok' ? <Check className="w-5 h-5 text-brand-gold flex-shrink-0" aria-hidden="true" />
-                      : <X className="w-5 h-5 text-brand-ice/70 flex-shrink-0" aria-hidden="true" />}
+                {row.id === 'checking' ? <Loader2 className="w-5 h-5 mr-3 text-brand-gold flex-shrink-0 animate-spin" aria-hidden="true" />
+                  : row.id === 'add' || row.id === 'remove' ? <ThumbsUp className={`w-5 h-5 mr-3 text-brand-gold flex-shrink-0${row.id === 'remove' ? ' fill-current' : ''}`} aria-hidden="true" />
+                    : row.id === 'ok' ? <Check className="w-5 h-5 mr-3 text-brand-gold flex-shrink-0" aria-hidden="true" />
+                      : <X className="w-5 h-5 mr-3 text-brand-ice/70 flex-shrink-0" aria-hidden="true" />}
                 <span className="min-w-0 truncate">{row.label}</span>
               </button>
             );

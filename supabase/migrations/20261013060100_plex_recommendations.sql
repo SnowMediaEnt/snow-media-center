@@ -115,6 +115,13 @@ create policy "Admins can delete Plex recommendations"
 -- account can never have more than 50 titles in the list that it added in
 -- the last 24 hours, and each title counts once per account however often it
 -- is removed and added again.
+--   - Someone else's row (the service role, the Hub) is not counted here; a
+--     viewer inserting as anyone but themselves is refused by RLS anyway.
+--   - One account's inserts are counted one at a time (a transaction lock on
+--     the account), so a burst from several boxes can't all slip under 50.
+--   - A title this account already recommended on this server is let through
+--     to the unique constraint, so the app hears "already there" (23505),
+--     not "limit", even on a day the limit is reached.
 create or replace function public.plex_recommendations_before_insert()
 returns trigger
 language plpgsql
@@ -125,6 +132,18 @@ declare
   recent int;
 begin
   new.created_at := now();
+  if new.user_id is distinct from auth.uid() then
+    return new;
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(new.user_id::text, 0));
+  if exists (
+    select 1 from public.plex_recommendations
+    where user_id = new.user_id
+      and server_id = new.server_id
+      and rating_key = new.rating_key
+  ) then
+    return new;
+  end if;
   select count(*) into recent
     from public.plex_recommendations
     where user_id = new.user_id
@@ -146,9 +165,13 @@ create trigger plex_recommendations_before_insert
 
 -- ── the list: what Discover's "Recommended by viewers" shows ───────────────
 -- One server's titles recommended in the last ninety days: per title its
--- display fields (from the newest recommendation of it), how many viewers
--- recommended it and when it was last recommended. Most recommenders first,
--- then the most recent. Never a user id.
+-- display fields, how many viewers recommended it and when it was last
+-- recommended. Most recommenders first, then the most recent. Never a user id.
+--
+-- The display fields are the version most of its recommenders sent (ties: the
+-- earliest), never simply the newest: one account could otherwise rename or
+-- retype a title for everyone by recommending it last. The app reads every
+-- title from the server again anyway and shows the server's own fields.
 --
 -- Granted to anon as well as authenticated: a box that is not signed in to a
 -- Snow Media account still sees the row (it only can't add to it). Nothing in
@@ -181,13 +204,19 @@ as $$
     from recent rc
     group by rc.rating_key
   ),
-  newest as (
-    select distinct on (rn.rating_key) rn.rating_key, rn.type, rn.title, rn.year, rn.thumb, rn.content_rating
-    from recent rn
-    order by rn.rating_key, rn.created_at desc
+  versions as (
+    select rv.rating_key, rv.type, rv.title, rv.year, rv.thumb, rv.content_rating,
+           count(*) as votes, min(rv.created_at) as first_at
+    from recent rv
+    group by rv.rating_key, rv.type, rv.title, rv.year, rv.thumb, rv.content_rating
+  ),
+  shown as (
+    select distinct on (sv.rating_key) sv.rating_key, sv.type, sv.title, sv.year, sv.thumb, sv.content_rating
+    from versions sv
+    order by sv.rating_key, sv.votes desc, sv.first_at asc
   )
   select n.rating_key, n.type, n.title, n.year, n.thumb, n.content_rating, c.recommenders, c.last_at
-  from newest n
+  from shown n
   join counted c on c.rating_key = n.rating_key
   order by c.recommenders desc, c.last_at desc, n.rating_key
   limit greatest(1, least(coalesce(p_limit, 24), 50));

@@ -354,6 +354,9 @@ async function loadRecommended(base: string, token: string, server: string, libr
   const visible = new Set(libraries.map((l) => String(l.key)));
   const epoch = getHubEpoch();
   const merged = await shareStitch(`${base}|${DISCOVER_RECOMMENDED_KEY}|${plexRecommendChangedAt()}`, async () => {
+    // A change this viewer makes while this is in flight may not be in the
+    // answer: shown, but not kept (the change asks again).
+    const askedAt = plexRecommendChangedAt();
     const rows = await fetchRecommended(server, LOW_MEMORY ? 12 : 24);
     // Not answered: nothing kept, so the next visit asks again.
     if (!rows) return null;
@@ -363,8 +366,8 @@ async function loadRecommended(base: string, token: string, server: string, libr
       try {
         found = await getPlexHub(base, token, `/library/metadata/${wanted.map((w) => w.ratingKey).join(',')}`);
       } catch (e) {
-        // Every one of them gone answers 404: an empty row, kept. Anything
-        // else (the server or the network) is not kept.
+        // Every one of them gone answers 404: an empty row. Anything else
+        // (the server or the network) is not kept.
         if (!/HTTP 404\b/.test(String((e as Error)?.message))) return null;
       }
     }
@@ -372,12 +375,14 @@ async function loadRecommended(base: string, token: string, server: string, libr
     const m: PlexItem[] = [];
     for (const w of wanted) {
       const it = byKey.get(w.ratingKey);
-      if (!it || it.type !== w.type) continue;
+      // What the title is comes from the server, never from the list: a
+      // viewer's own row could say "show" for a film and hide it.
+      if (!it || (it.type !== 'movie' && it.type !== 'show')) continue;
       if (it.librarySectionID && !visible.has(String(it.librarySectionID))) continue;
       // The server's own fields win; what the list kept fills any gap.
       m.push({ ...w, ...it, title: it.title || w.title, thumb: it.thumb || w.thumb, recommenders: w.recommenders });
     }
-    setCachedHub(base, DISCOVER_RECOMMENDED_KEY, m, epoch);
+    if (plexRecommendChangedAt() === askedAt) setCachedHub(base, DISCOVER_RECOMMENDED_KEY, m, epoch);
     return m;
   });
   return gone() ? null : merged;
@@ -2901,6 +2906,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [recFor, setRecFor] = useState<PlexItem | null>(null);
   useEffect(() => onPlexHoldMenu(setRecFor), []);
   const closeRecommend = useCallback(() => { releasePlexHoldMenu(); setRecFor(null); }, []);
+  // The menu goes, and gives the remote back, when Plex loses the remote (a
+  // notice of the Player's over it: the claim card, the expiry notice, a
+  // server alert) or the server it was for (a sign-in again, a reconnect):
+  // left up, it would keep the keys from the notice, or be gone with the
+  // key owner still its own and every Plex panel deaf.
+  useEffect(() => {
+    if (!isActive || !recServer || status !== 'ready') closeRecommend();
+  }, [isActive, recServer, status, closeRecommend]);
 
   // Decided once per Plex visit: the menu does not reshuffle at midnight.
   const [season] = useState<Season | null>(() => activeSeason());
@@ -5198,7 +5211,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       )}
     </div>
     {playerLayer}
-    {recFor && recServer && !fullscreen ? <PlexRecommendMenu item={recFor} server={recServer} onClose={closeRecommend} /> : null}
+    {recFor && recServer && !fullscreen ? <PlexRecommendMenu item={recFor} server={recServer} isActive={isActive} onClose={closeRecommend} /> : null}
     {demoNoticeOverlay}
     </>
   );

@@ -7,6 +7,8 @@ const h = vi.hoisted(() => ({
   ops: [] as Array<{ op: string; row?: Record<string, unknown>; eq?: Array<[string, unknown]> }>,
   insertError: null as null | { code?: string; message?: string },
   mine: [] as Array<{ rating_key: string }>,
+  /** The account's answer never comes. */
+  hang: false,
   selects: 0,
   rpc: vi.fn(),
   trackEvent: vi.fn(),
@@ -28,7 +30,10 @@ vi.mock('@/integrations/supabase/client', () => ({
         select: () => {
           const q = {
             eq: (c: string, v: unknown) => { eq.push([c, v]); return q; },
-            limit: async () => { h.selects++; h.ops.push({ op: `select:${table}`, eq }); return { data: h.mine, error: null }; },
+            limit: () => {
+              h.selects++; h.ops.push({ op: `select:${table}`, eq });
+              return h.hang ? new Promise(() => { /* never */ }) : Promise.resolve({ data: h.mine, error: null });
+            },
           };
           return q;
         },
@@ -44,7 +49,7 @@ const show: PlexItem = { ratingKey: '202', title: 'Frontier', type: 'show', thum
 const episode: PlexItem = { ratingKey: '303', title: 'Pilot', type: 'episode', grandparentTitle: 'Frontier', grandparentRatingKey: '202', contentRating: 'TV-14', librarySectionID: '2' };
 
 beforeEach(async () => {
-  h.ops.length = 0; h.insertError = null; h.mine = []; h.selects = 0;
+  h.ops.length = 0; h.insertError = null; h.mine = []; h.selects = 0; h.hang = false;
   h.rpc.mockReset(); h.trackEvent.mockReset();
   const m = await import('./plexRecommend');
   m.__resetPlexRecommendForTests();
@@ -142,6 +147,26 @@ describe('recommend and take back', () => {
     expect(h.selects).toBe(1);
     // Another server is another list.
     expect(m.myRecommendedKeys('srv-2')).toBeNull();
+  });
+});
+
+describe("this account's own, unanswered", () => {
+  it('gives up after 8 s (the menu then offers Recommend) and asks again next time', async () => {
+    vi.useFakeTimers();
+    try {
+      const m = await import('./plexRecommend');
+      h.hang = true;
+      const p = m.loadMyRecommended('srv-1');
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(await p).toBeNull();
+      expect(m.myRecommendedKeys('srv-1')).toBeNull();
+      h.hang = false;
+      h.mine = [{ rating_key: '101' }];
+      expect([...(await m.loadMyRecommended('srv-1'))!]).toEqual(['101']);
+      expect(h.selects).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

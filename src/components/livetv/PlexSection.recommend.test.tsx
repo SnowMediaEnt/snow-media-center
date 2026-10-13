@@ -7,7 +7,9 @@
 //     applied, hidden when empty;
 //   - a short OK on a poster opens it, a held OK opens the menu once, and
 //     Recommend reaches the account; Discover asks again after it;
-//   - a Kids profile has no menu; signed out, the menu says to sign in.
+//   - a Kids profile has no menu; signed out, the menu says to sign in;
+//   - the menu goes, and the remote comes back, when Plex loses the remote
+//     or the server.
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlexItem, PlexLibrary } from '@/lib/plex';
@@ -21,8 +23,9 @@ const h = vi.hoisted(() => {
     clearJustLinked: noop, startLink: noop, cancelLink: noop, signOut: noop, retryConnect: noop, linkWithProvider: noop, reportAuthFailure: noop,
   };
   return {
-    later, auth,
-    libs: vi.fn(), hub: vi.fn(), added: vi.fn(), row: vi.fn(),
+    later, auth, conn,
+    setAuth: null as null | ((a: typeof auth) => void),
+    libs: vi.fn(), hub: vi.fn(), added: vi.fn(), row: vi.fn(), search: vi.fn(),
     rpc: vi.fn(),
     ops: [] as Array<{ op: string; row?: Record<string, unknown> }>,
     mine: [] as Array<{ rating_key: string }>,
@@ -62,7 +65,16 @@ vi.mock('@/lib/analytics', async (orig) => ({
   ...(await orig<typeof import('@/lib/analytics')>()),
   trackEvent: vi.fn(), startTimer: vi.fn(), stopTimer: vi.fn(),
 }));
-vi.mock('@/hooks/usePlexAuth', () => ({ usePlexAuth: () => h.auth }));
+vi.mock('@/hooks/usePlexAuth', async () => {
+  const React = await import('react');
+  return {
+    usePlexAuth: () => {
+      const [a, set] = React.useState(h.auth);
+      h.setAuth = set;
+      return a;
+    },
+  };
+});
 vi.mock('@/hooks/use-toast', async (orig) => ({ ...(await orig<typeof import('@/hooks/use-toast')>()), toast: h.toast }));
 vi.mock('@/hooks/useNativePlayer', () => {
   const state = {
@@ -74,7 +86,7 @@ vi.mock('@/hooks/useNativePlayer', () => {
 vi.mock('@/lib/plex', async (orig) => ({
   ...(await orig<typeof import('@/lib/plex')>()),
   getPlexLibraries: h.libs,
-  searchPlex: async () => [],
+  searchPlex: h.search,
   getPlexItemByKey: async () => null,
   getPlexHub: h.hub,
   getPlexRecentlyAdded: h.added,
@@ -84,6 +96,10 @@ vi.mock('@/lib/plex', async (orig) => ({
   getPlexAccount: async () => null,
   loadHiddenPlexLibs: async () => [],
   preloadImages: async () => undefined,
+}));
+vi.mock('@/lib/overseerr', async (orig) => ({
+  ...(await orig<typeof import('@/lib/overseerr')>()),
+  overseerrSearch: async () => [],
 }));
 vi.mock('@/lib/plexSearches', async (orig) => ({
   ...(await orig<typeof import('@/lib/plexSearches')>()),
@@ -129,18 +145,22 @@ const ON_SERVER: Record<string, PlexItem> = {
 };
 const RPC_ROWS = [row('11', 'Harbor Lights', 5), row('12', 'Frontier', 2, 'show'), row('13', 'Library Pick', 2), row('14', 'Late Night', 1), row('15', 'Gone Film', 1)];
 
+// The Mac running these is often busy: every wait has room.
+const T = { timeout: 5000 };
 const key = (k: string, keyCode: number, extra: Record<string, unknown> = {}) => { fireEvent.keyDown(document.activeElement ?? document.body, { key: k, keyCode, ...extra }); };
 const keyUp = (k: string, keyCode: number) => { fireEvent.keyUp(document.activeElement ?? document.body, { key: k, keyCode }); };
 const okPress = () => { key('Enter', 13); keyUp('Enter', 13); };
 const wait = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
-const renderPlex = async () => {
+const renderPlex = async (isActive = true) => {
   const { default: PlexSection } = await import('./PlexSection');
-  return render(<PlexSection isActive onExitLeft={() => undefined} onExitUp={() => undefined} />);
+  const el = (active: boolean) => <PlexSection isActive={active} onExitLeft={() => undefined} onExitUp={() => undefined} />;
+  const r = render(el(isActive));
+  return { ...r, setActive: (active: boolean) => r.rerender(el(active)) };
 };
 /** From the side menu (where Plex opens, on Home) down to Discover and in. */
 const openDiscover = async () => {
   await renderPlex();
-  await screen.findByText('Discover', undefined, { timeout: 3000 });
+  await screen.findByText('Discover', undefined, T);
   key('ArrowDown', 40);
   await wait(300);
   key('ArrowRight', 39);
@@ -167,15 +187,16 @@ beforeEach(async () => {
     return h.later(5, m[1].split(',').map((k) => ON_SERVER[k]).filter(Boolean));
   });
   h.rpc.mockImplementation(async () => ({ data: RPC_ROWS, error: null }));
+  h.search.mockImplementation(() => h.later(5, []));
 });
 afterEach(async () => {
   (await import('@/lib/kidsFilter')).setKidsLevel(null);
 });
 
-describe('Discover — "Recommended by viewers"', () => {
+describe('Discover — "Recommended by viewers"', { timeout: 30_000 }, () => {
   it('leads Discover with the titles recommended on this server, each confirmed on it and counted; adult and gone titles never show', async () => {
     await openDiscover();
-    expect(await screen.findByText('Recommended by viewers', undefined, { timeout: 3000 })).toBeTruthy();
+    expect(await screen.findByText('Recommended by viewers', undefined, T)).toBeTruthy();
     expect(h.rpc).toHaveBeenCalledWith({ p_server: 'srv', p_limit: 24 });
     // One request to the server for all of them.
     expect(h.hub).toHaveBeenCalledWith('https://plex.test', 'tok', '/library/metadata/11,12,13,14,15');
@@ -194,13 +215,24 @@ describe('Discover — "Recommended by viewers"', () => {
     expect(document.querySelector('[data-plex-row]')!.getAttribute('data-plex-row')).toBe('recommended');
     // OK on the first: its page.
     okPress();
-    expect(await screen.findByText('DETAIL:Harbor Lights')).toBeTruthy();
+    expect(await screen.findByText('DETAIL:Harbor Lights', undefined, T)).toBeTruthy();
+  });
+
+  it("what a title is comes from the server, not from the list: a row that calls a film a show can't hide it", async () => {
+    h.rpc.mockImplementation(async () => ({ data: [{ ...row('11', 'Renamed', 9, 'show') }], error: null }));
+    await openDiscover();
+    await screen.findByText('Recommended by viewers', undefined, T);
+    const text = recRow()!.textContent!;
+    // The server's own name, and its count.
+    expect(text).toContain('Harbor Lights');
+    expect(text).not.toContain('Renamed');
+    expect(screen.getByRole('img', { name: 'Recommended by 9 viewers' })).toBeTruthy();
   });
 
   it('nothing recommended: no row', async () => {
     h.rpc.mockImplementation(async () => ({ data: [], error: null }));
     await openDiscover();
-    await waitFor(() => expect(h.rpc).toHaveBeenCalled());
+    await waitFor(() => expect(h.rpc).toHaveBeenCalled(), T);
     await wait(50);
     expect(screen.queryByText('Recommended by viewers')).toBeNull();
     expect(recRow()).toBeNull();
@@ -209,7 +241,7 @@ describe('Discover — "Recommended by viewers"', () => {
   it('a Kids profile sees only what its certificates allow', async () => {
     (await import('@/lib/kidsFilter')).setKidsLevel('kids');
     await openDiscover();
-    await screen.findByText('Recommended by viewers', undefined, { timeout: 3000 });
+    await screen.findByText('Recommended by viewers', undefined, T);
     const text = recRow()!.textContent!;
     expect(text).toContain('Harbor Lights');
     expect(text).not.toContain('Frontier');
@@ -218,7 +250,7 @@ describe('Discover — "Recommended by viewers"', () => {
   it('kept like the rest of Discover, except that this viewer\'s own recommendation shows the next time it opens', async () => {
     h.added.mockImplementation(() => h.later(5, [it_('21', 'New Film', { year: 2026 })]));
     await openDiscover();
-    await screen.findByText('Recommended by viewers', undefined, { timeout: 3000 });
+    await screen.findByText('Recommended by viewers', undefined, T);
     expect(h.rpc).toHaveBeenCalledTimes(1);
     // Out to the menu, up to Home, back down to Discover: the kept row.
     key('ArrowLeft', 37);
@@ -227,7 +259,7 @@ describe('Discover — "Recommended by viewers"', () => {
     key('ArrowDown', 40);
     await wait(300);
     key('ArrowRight', 39);
-    await screen.findByText('Recommended by viewers');
+    await screen.findByText('Recommended by viewers', undefined, T);
     await wait(50);
     expect(h.rpc).toHaveBeenCalledTimes(1);
     // Home: hold OK on New Film and recommend it.
@@ -235,43 +267,43 @@ describe('Discover — "Recommended by viewers"', () => {
     key('ArrowUp', 38);
     await wait(300);
     key('ArrowRight', 39);
-    await screen.findByText('New Film');
+    await screen.findByText('New Film', undefined, T);
     key('Enter', 13);
     await wait(700);
-    await screen.findByRole('dialog', { name: 'Recommend New Film' });
+    await screen.findByRole('dialog', { name: 'Recommend New Film' }, T);
     keyUp('Enter', 13);
     okPress();
-    await waitFor(() => expect(h.ops.map((o) => o.op)).toEqual(['insert:plex_recommendations']));
+    await waitFor(() => expect(h.ops.map((o) => o.op)).toEqual(['insert:plex_recommendations']), T);
     // Discover again: asked again.
     key('ArrowLeft', 37);
     key('ArrowDown', 40);
     await wait(300);
     key('ArrowRight', 39);
-    await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(2), T);
   });
 
   it('a recommendation from Discover itself is asked for again at once', async () => {
     await openDiscover();
-    await screen.findByText('Recommended by viewers', undefined, { timeout: 3000 });
+    await screen.findByText('Recommended by viewers', undefined, T);
     expect(h.rpc).toHaveBeenCalledTimes(1);
     key('Enter', 13);
     await wait(700);
-    expect(await screen.findByRole('dialog', { name: 'Recommend Harbor Lights' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Recommend Harbor Lights' }, T)).toBeTruthy();
     keyUp('Enter', 13);
     okPress();
-    await waitFor(() => expect(h.ops.map((o) => o.op)).toEqual(['insert:plex_recommendations']));
+    await waitFor(() => expect(h.ops.map((o) => o.op)).toEqual(['insert:plex_recommendations']), T);
     expect(h.ops[0].row).toMatchObject({ user_id: 'user-1', server_id: 'srv', rating_key: '11', type: 'movie', title: 'Harbor Lights' });
-    await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(2), T);
   });
 });
 
-describe('hold OK on a Home poster', () => {
+describe('hold OK on a Home poster', { timeout: 30_000 }, () => {
   beforeEach(() => {
     h.added.mockImplementation(() => h.later(5, [it_('21', 'New Film', { year: 2026, contentRating: 'PG-13' })]));
   });
   const intoHome = async () => {
     await renderPlex();
-    await screen.findByText('New Film', undefined, { timeout: 3000 });
+    await screen.findByText('New Film', undefined, T);
     key('ArrowRight', 39);
   };
 
@@ -282,7 +314,7 @@ describe('hold OK on a Home poster', () => {
     // Not on the press: on the release.
     expect(screen.queryByText('DETAIL:New Film')).toBeNull();
     keyUp('Enter', 13);
-    expect(await screen.findByText('DETAIL:New Film')).toBeTruthy();
+    expect(await screen.findByText('DETAIL:New Film', undefined, T)).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
@@ -292,7 +324,7 @@ describe('hold OK on a Home poster', () => {
     for (let i = 0; i < 4; i++) { await wait(100); key('Enter', 13, { repeat: true }); }
     await wait(400);
     for (let i = 0; i < 3; i++) key('Enter', 13, { repeat: true });
-    expect(await screen.findByRole('dialog', { name: 'Recommend New Film' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Recommend New Film' }, T)).toBeTruthy();
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
     expect(screen.getByText('Recommend to others')).toBeTruthy();
     keyUp('Enter', 13);
@@ -303,16 +335,16 @@ describe('hold OK on a Home poster', () => {
     key('ArrowDown', 40);
     key('ArrowUp', 38);
     okPress();
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    await waitFor(() => expect(h.ops.map((o) => o.op)).toEqual(['insert:plex_recommendations']));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), T);
+    await waitFor(() => expect(h.ops.map((o) => o.op)).toEqual(['insert:plex_recommendations']), T);
     expect(h.ops[0].row).toMatchObject({ server_id: 'srv', rating_key: '21', title: 'New Film', type: 'movie' });
-    await waitFor(() => expect(h.toast).toHaveBeenCalledWith({ title: 'Recommended to other viewers', description: 'New Film' }));
+    await waitFor(() => expect(h.toast).toHaveBeenCalledWith({ title: 'Recommended to other viewers', description: 'New Film' }), T);
     // The remote is the rails' again.
     const { isPlexKeyOwner } = await import('./plexKeyOwner');
     expect(isPlexKeyOwner('browse')).toBe(true);
     expect(screen.queryByText('DETAIL:New Film')).toBeNull();
     okPress();
-    expect(await screen.findByText('DETAIL:New Film')).toBeTruthy();
+    expect(await screen.findByText('DETAIL:New Film', undefined, T)).toBeTruthy();
   });
 
   it('already recommended: the menu says so, and Remove takes it back', async () => {
@@ -320,11 +352,11 @@ describe('hold OK on a Home poster', () => {
     await intoHome();
     key('Enter', 13);
     await wait(700);
-    expect(await screen.findByText('Recommended ✓ · Remove')).toBeTruthy();
+    expect(await screen.findByText('Recommended ✓ · Remove', undefined, T)).toBeTruthy();
     keyUp('Enter', 13);
     okPress();
-    await waitFor(() => expect(h.ops.map((o) => o.op)).toEqual(['delete:plex_recommendations']));
-    await waitFor(() => expect(h.toast).toHaveBeenCalledWith({ title: 'Removed', description: 'New Film' }));
+    await waitFor(() => expect(h.ops.map((o) => o.op)).toEqual(['delete:plex_recommendations']), T);
+    await waitFor(() => expect(h.toast).toHaveBeenCalledWith({ title: 'Removed', description: 'New Film' }), T);
   });
 
   it('signed out: the menu says to sign in and sends nothing', async () => {
@@ -332,10 +364,10 @@ describe('hold OK on a Home poster', () => {
     await intoHome();
     key('Enter', 13);
     await wait(700);
-    expect(await screen.findByText(/Sign in to your Snow Media account to recommend titles/)).toBeTruthy();
+    expect(await screen.findByText(/Sign in to your Snow Media account to recommend titles/, undefined, T)).toBeTruthy();
     keyUp('Enter', 13);
     okPress();
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), T);
     expect(h.ops).toEqual([]);
   });
 
@@ -343,7 +375,7 @@ describe('hold OK on a Home poster', () => {
     (await import('@/lib/kidsFilter')).setKidsLevel('teen');
     await intoHome();
     key('Enter', 13);
-    expect(await screen.findByText('DETAIL:New Film')).toBeTruthy();
+    expect(await screen.findByText('DETAIL:New Film', undefined, T)).toBeTruthy();
     await wait(700);
     expect(screen.queryByRole('dialog')).toBeNull();
     keyUp('Enter', 13);
@@ -353,13 +385,98 @@ describe('hold OK on a Home poster', () => {
     await intoHome();
     key('Enter', 13);
     await wait(700);
-    await screen.findByRole('dialog', { name: 'Recommend New Film' });
+    await screen.findByRole('dialog', { name: 'Recommend New Film' }, T);
     key('Escape', 27);
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), T);
     keyUp('Enter', 13);
     // Still in Plex, on the rails: OK opens the title.
     okPress();
-    expect(await screen.findByText('DETAIL:New Film')).toBeTruthy();
+    expect(await screen.findByText('DETAIL:New Film', undefined, T)).toBeTruthy();
     expect(h.ops).toEqual([]);
+  });
+});
+
+describe('hold OK on a search result', { timeout: 30_000 }, () => {
+  it('a short OK opens it when let go; held, the menu', async () => {
+    sessionStorage.setItem('smc-plex-voice', JSON.stringify({ query: 'harbor', open: false, at: Date.now() }));
+    h.search.mockImplementation(() => h.later(5, [it_('31', 'Harbor Lights', { contentRating: 'PG' }), it_('32', 'Harbor Days', { contentRating: 'PG' })]));
+    await renderPlex();
+    await screen.findByText('Harbor Days', undefined, T);
+    // From the box down into the results, OK as the remote sends it.
+    key('ArrowDown', 40);
+    key('Enter', 13);
+    await wait(50);
+    expect(screen.queryByText('DETAIL:Harbor Lights')).toBeNull();
+    keyUp('Enter', 13);
+    expect(await screen.findByText('DETAIL:Harbor Lights', undefined, T)).toBeTruthy();
+  });
+
+  it('held on a result: its menu, and nothing opens', async () => {
+    sessionStorage.setItem('smc-plex-voice', JSON.stringify({ query: 'harbor', open: false, at: Date.now() }));
+    h.search.mockImplementation(() => h.later(5, [it_('31', 'Harbor Lights', { contentRating: 'PG' })]));
+    await renderPlex();
+    await screen.findByText('Harbor Lights', undefined, T);
+    key('ArrowDown', 40);
+    key('Enter', 13);
+    await wait(700);
+    key('Enter', 13, { repeat: true });
+    expect(await screen.findByRole('dialog', { name: 'Recommend Harbor Lights' }, T)).toBeTruthy();
+    keyUp('Enter', 13);
+    await wait(20);
+    expect(screen.queryByText('DETAIL:Harbor Lights')).toBeNull();
+  });
+});
+
+describe('the menu when Plex loses the remote or the server', { timeout: 30_000 }, () => {
+  beforeEach(() => {
+    h.added.mockImplementation(() => h.later(5, [it_('21', 'New Film', { year: 2026, contentRating: 'PG-13' })]));
+  });
+  const holdOnNewFilm = async () => {
+    const r = await renderPlex();
+    await screen.findByText('New Film', undefined, T);
+    key('ArrowRight', 39);
+    key('Enter', 13);
+    await wait(700);
+    await screen.findByRole('dialog', { name: 'Recommend New Film' }, T);
+    keyUp('Enter', 13);
+    return r;
+  };
+
+  it("a notice of the Player's over Plex: the menu goes and leaves the keys to it", async () => {
+    const r = await holdOnNewFilm();
+    act(() => { r.setActive(false); });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), T);
+    const ev = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    act(() => { window.dispatchEvent(ev); });
+    expect(ev.defaultPrevented).toBe(false);
+    await wait(20);
+    expect(h.ops).toEqual([]);
+    // Plex has the remote again: the rails, not a menu.
+    act(() => { r.setActive(true); });
+    const { isPlexKeyOwner } = await import('./plexKeyOwner');
+    expect(isPlexKeyOwner('browse')).toBe(true);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('the server goes (a reconnect, a sign-in again): the menu goes, the remote is the rails\' again, and it does not come back', async () => {
+    await holdOnNewFilm();
+    act(() => { h.setAuth?.({ ...h.auth, conn: { ...h.conn, clientIdentifier: undefined as unknown as string } }); });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), T);
+    const { isPlexKeyOwner } = await import('./plexKeyOwner');
+    expect(isPlexKeyOwner('browse')).toBe(true);
+    act(() => { h.setAuth?.(h.auth); });
+    await wait(50);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    // The rails answer OK again.
+    okPress();
+    expect(await screen.findByText('DETAIL:New Film', undefined, T)).toBeTruthy();
+  });
+
+  it('a reconnect (Plex "connecting"): the menu goes and the remote comes back', async () => {
+    await holdOnNewFilm();
+    act(() => { h.setAuth?.({ ...h.auth, status: 'connecting' }); });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), T);
+    const { isPlexKeyOwner } = await import('./plexKeyOwner');
+    expect(isPlexKeyOwner('browse')).toBe(true);
   });
 });

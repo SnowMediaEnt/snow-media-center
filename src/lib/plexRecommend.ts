@@ -56,6 +56,8 @@ export interface RecommendedRow {
 export type RecommendResult = 'ok' | 'signed_out' | 'limit' | 'error';
 
 const TABLE = 'plex_recommendations';
+/** How long a read (the list, this account's own) may take before it counts
+ *  as unanswered: the menu then offers Recommend rather than spin. */
 const LIST_TIMEOUT_MS = 8000;
 const RATING_KEY = /^\d{1,12}$/;
 
@@ -131,7 +133,8 @@ export function myRecommendedKeys(serverId: string): Set<string> | null {
 }
 
 /** The titles this account recommended on `serverId`, read once per account
- *  and server, then kept current here. Null when signed out or unreadable. */
+ *  and server, then kept current here. Null when signed out, unreadable or
+ *  not answered in time (then asked again next time). */
 export async function loadMyRecommended(serverId: string): Promise<Set<string> | null> {
   await resolveViewer();
   const acc = viewerAccountId();
@@ -141,8 +144,12 @@ export async function loadMyRecommended(serverId: string): Promise<Set<string> |
   if (minePending?.key === key) return minePending.p;
   const p = (async (): Promise<Set<string> | null> => {
     try {
-      const { data, error } = await supabase.from(TABLE).select('rating_key')
+      const read = supabase.from(TABLE).select('rating_key')
         .eq('user_id', acc).eq('server_id', serverId).limit(2000);
+      const timeout = new Promise<null>((r) => { window.setTimeout(() => r(null), LIST_TIMEOUT_MS); });
+      const res = await Promise.race([read, timeout]);
+      if (!res) return null;
+      const { data, error } = res;
       if (error || !Array.isArray(data)) return null;
       const keys = new Set(data.map((r) => String(r.rating_key)));
       // A session not refreshed yet reads as nobody's (no rows, no error):

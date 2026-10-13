@@ -55,6 +55,27 @@ export function releasePlexHoldMenu(): void {
   if (getPlexKeyOwner() === 'menu') setPlexKeyOwner(ownerBefore);
 }
 
+/** The menu is up: it holds the remote. openPlexHoldMenu already took it;
+ *  this takes it again after a development remount gave it back. */
+export function claimPlexHoldMenu(): void {
+  const now = getPlexKeyOwner();
+  if (now === 'menu') return;
+  ownerBefore = now;
+  setPlexKeyOwner('menu');
+}
+
+// Whether OK is down right now on a poster that has the menu (from the press
+// to the release). The menu takes OK at once when it is not: it was opened by
+// a right click or an air mouse, or the release came before the menu was up
+// (a slow stick). Otherwise it waits for that release.
+let okHeld = false;
+export const plexOkHeld = (): boolean => okHeld;
+// Every release is heard here, before any panel's listener and whichever
+// panel has the remote by then.
+if (typeof window !== 'undefined') {
+  window.addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === ' ') okHeld = false; }, true);
+}
+
 // ── OK on the remote ───────────────────────────────────────────────────────
 export interface PlexHoldOk {
   /** OK went down on `item`. `open` is what a short press does (open the
@@ -81,6 +102,7 @@ export function createPlexHoldOk(): PlexHoldOk {
       if (e.repeat || timer != null || !item) return;
       if (!canRecommend(item)) { open(item); return; }
       held = { item, open };
+      okHeld = true;
       timer = window.setTimeout(() => {
         const h = held;
         timer = null;
@@ -92,11 +114,12 @@ export function createPlexHoldOk(): PlexHoldOk {
     },
     release(e) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
+      okHeld = false;
       const h = held;
       clear();
       if (h) h.open(h.item);
     },
-    cancel: clear,
+    cancel: () => { okHeld = false; clear(); },
   };
 }
 
@@ -155,6 +178,6 @@ export function toastRecommendResult(result: RecommendResult, adding: boolean, t
 }
 
 /** Tests only. */
-export function __resetPlexHoldForTests(): void {
-  opener = null; ownerBefore = 'browse'; cancelTouchHold(); heldAt = 0;
+export function __resetPlexHoldForTests(okDown = false): void {
+  opener = null; ownerBefore = 'browse'; cancelTouchHold(); heldAt = 0; okHeld = okDown;
 }

@@ -156,14 +156,16 @@ describe('hold OK on a poster', () => {
 });
 
 describe('the menu', () => {
-  const open = () => {
+  const open = (isActive = true) => {
     const onClose = vi.fn(() => releasePlexHoldMenu());
     setPlexKeyOwner('menu');
-    render(<PlexRecommendMenu item={film} server="srv-1" onClose={onClose} />);
-    return onClose;
+    const r = render(<PlexRecommendMenu item={film} server="srv-1" isActive={isActive} onClose={onClose} />);
+    return Object.assign(onClose, { r });
   };
 
   it('offers "Recommend to others"; OK is taken only after the hold is let go, then it recommends', async () => {
+    // Opened by a hold: OK is still down.
+    __resetPlexHoldForTests(true);
     const onClose = open();
     expect(await screen.findByText('Recommend to others')).toBeTruthy();
     expect(screen.getByRole('dialog', { name: 'Recommend Harbor Lights' })).toBeTruthy();
@@ -223,6 +225,43 @@ describe('the menu', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     await tick(10);
     expect(h.ops).toEqual([]);
+  });
+
+  it('opened with OK not down (a right click, an air mouse, a release that came first): the first OK chooses', async () => {
+    const onClose = open();
+    await screen.findByText('Recommend to others');
+    down();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(h.ops.map((o) => o.op)).toEqual(['insert:plex_recommendations']));
+  });
+
+  it("while a notice of the Player's has the remote, the menu leaves the keys alone", async () => {
+    const onClose = open(false);
+    await screen.findByText('Recommend to others');
+    const ev = keyEvent('keydown', 'Enter');
+    act(() => { window.dispatchEvent(ev); });
+    press('Escape');
+    expect(ev.defaultPrevented).toBe(false);
+    expect(onClose).not.toHaveBeenCalled();
+    await tick(10);
+    expect(h.ops).toEqual([]);
+  });
+
+  it('going away any way gives the remote back', async () => {
+    setPlexKeyOwner('browse');
+    const menu = vi.fn();
+    const off = onPlexHoldMenu(menu);
+    const hold = createPlexHoldOk();
+    vi.useFakeTimers();
+    hold.press(keyEvent('keydown'), film, vi.fn());
+    vi.advanceTimersByTime(PLEX_HOLD_MS);
+    vi.useRealTimers();
+    expect(getPlexKeyOwner()).toBe('menu');
+    const { unmount } = render(<PlexRecommendMenu item={film} server="srv-1" onClose={vi.fn()} />);
+    await screen.findByText('Recommend to others');
+    unmount();
+    expect(getPlexKeyOwner()).toBe('browse');
+    off();
   });
 
   it('a tap on Recommend works too (a phone)', async () => {
