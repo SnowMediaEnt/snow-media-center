@@ -315,7 +315,7 @@ class GameSocketManager {
     return res;
   }
 
-  async startPlinko(payload: { bet: number; risk: string; board: 'tower' | 'wide'; dropLane: number; clientCommit: string }): Promise<any> {
+  async startPlinko(payload: { bet: number; risk: string; board: 'tower' | 'wide'; dropLane: number; layout: number; clientCommit: string }): Promise<any> {
     const res = await this.emitWithAck('plinko_start', payload);
     if (res?.ok && !res?.resumed) this.noteWager('plinko', res.bet, { mode: `${res.risk}-${res.board}` });
     return res;

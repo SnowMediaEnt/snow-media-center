@@ -58,13 +58,20 @@ describe('Snow Plinko TV game', () => {
         const probabilities = physicsProbabilities(board === 'tower' ? 5 : lane);
         expect(probabilities.reduce((sum, p) => sum + p, 0)).toBeCloseTo(1, 8);
         for (const mode of PLINKO_RISK_MODES) {
-          const multipliers = physicsMultipliers(board, mode.id, lane);
-          const expected = multipliers.reduce((sum, value, index) => sum + value * probabilities[index], 0);
-          expect(expected).toBeGreaterThanOrEqual(1.04);
-          expect(expected).toBeLessThanOrEqual(1.06);
+          for (let layout = 0; layout <= 10; layout += 1) {
+            const multipliers = physicsMultipliers(board, mode.id, lane, layout);
+            const expected = multipliers.reduce((sum, value, index) => sum + value * probabilities[index], 0);
+            expect(expected).toBeGreaterThanOrEqual(1.04);
+            expect(expected).toBeLessThanOrEqual(1.06);
+          }
         }
       }
     }
+  });
+
+  it('moves real high-value buckets into the center without changing the old layout', () => {
+    expect(physicsMultipliers('tower', 'classic', 5, 0)).toEqual(PLINKO_RISK_MODES[1].multipliers);
+    expect(physicsMultipliers('tower', 'wild', 5, 5)[5]).toBeGreaterThan(physicsMultipliers('tower', 'wild', 5, 0)[5]);
   });
 
   it('lets actual collisions, not a preselected slot, determine varied landings', () => {
@@ -115,9 +122,9 @@ describe('Snow Plinko TV game', () => {
     expect(screen.queryByRole('button', { name: 'Move dropper right' })).toBeNull();
     expect(screen.getByText(/PRESS OK TO RELEASE/)).toBeTruthy();
     const gate = document.querySelector<HTMLElement>('.snow-plinko-gate')!;
-    const first = gate.style.left;
-    await waitFor(() => expect(gate.style.left).not.toBe(first), { timeout: 1200 });
-    expect(Number.parseFloat(gate.style.left)).toBeGreaterThan(0);
+    const first = gate.style.transform;
+    await waitFor(() => expect(gate.style.transform).not.toBe(first), { timeout: 1200 });
+    expect(gate.style.transform).toContain('translate3d');
     fireEvent.click(screen.getByRole('button', { name: 'Tower' }));
     expect(screen.queryByText(/PRESS OK TO RELEASE/)).toBeNull();
   });

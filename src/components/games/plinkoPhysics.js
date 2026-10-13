@@ -139,10 +139,14 @@ const WIDE_BASE = {
 
 export const physicsProbabilities = (lane) => PHYSICS_LANE_COUNTS[lane].map((count) => count / 10000);
 
-export function physicsMultipliers(board, risk, lane = 5) {
+export function physicsMultipliers(board, risk, lane = 5, layout = 0) {
   const base = (board === 'wide' ? WIDE_BASE : TOWER_BASE)[risk];
-  if (!base || !Number.isInteger(lane) || lane < 0 || lane > 10) throw new Error('invalid_plinko_paytable');
+  if (!base || !Number.isInteger(lane) || lane < 0 || lane > 10
+    || !Number.isInteger(layout) || layout < 0 || layout > 10) throw new Error('invalid_plinko_paytable');
+  // Rotate the real paytable, not just its labels. Layout 0 preserves the
+  // original table for unfinished rounds started by an older app version.
+  const shifted = base.map((_, slot) => base[(slot - layout + PHYSICS_SLOTS) % PHYSICS_SLOTS]);
   const chances = physicsProbabilities(board === 'wide' ? lane : 5);
-  const expected = base.reduce((sum, value, index) => sum + value * chances[index], 0);
-  return base.map((value) => Math.round(value * PHYSICS_TARGET_RETURN / expected * 100) / 100);
+  const expected = shifted.reduce((sum, value, index) => sum + value * chances[index], 0);
+  return shifted.map((value) => Math.round(value * PHYSICS_TARGET_RETURN / expected * 100) / 100);
 }
