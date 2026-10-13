@@ -2,7 +2,7 @@
 // support clear always tells the account's own email, and the ticket asks
 // the admin to confirm with the account holder first.
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadEdgeFunction, opArg, userToken, type FakeHandlers, type QueryCall } from './fakeSupabase';
+import { eqValue, loadEdgeFunction, opArg, userToken, type FakeHandlers, type QueryCall } from './fakeSupabase';
 import { sentEmails } from './resend';
 
 const state = vi.hoisted(() => ({ handlers: {} as FakeHandlers, queries: [] as QueryCall[] }));
@@ -89,16 +89,37 @@ describe('profile-pin-reset: the Parent PIN', () => {
       .find((m) => m?.message?.includes('parent PIN'));
     expect(note?.message).toMatch(/only once the account holder has confirmed/);
 
-    // Three an hour, Parent PIN or profile.
+    // Three an hour, Parent PIN or profile: the hourly count (the one query
+    // that counts) says three were sent, and nothing more is.
     sentEmails.length = 0;
-    state.handlers.onQuery = (q) => (q.table === 'viewer_parent_pin' ? { data: { pin_hash: HASH } } : q.table === 'profile_pin_resets' ? { data: null, count: 3 } : undefined);
+    state.queries.length = 0;
+    state.handlers.onQuery = (q) => {
+      if (q.table === 'viewer_parent_pin') return { data: { pin_hash: HASH } };
+      if (q.table === 'profile_pin_resets') return q.ops.some((o) => o.op === 'gte') ? { data: null, count: 3 } : { data: null };
+      return undefined;
+    };
     expect(await call(OWNER.id, { action: 'request', profile_id: '__parent__' })).toEqual({ ok: false, reason: 'too_many' });
     expect(sentEmails).toHaveLength(0);
+    const counted = state.queries.find((q) => q.table === 'profile_pin_resets' && q.ops.some((o) => o.op === 'gte'));
+    expect(eqValue(counted!, 'user_id')).toBe(OWNER.id);
+    // Counted for the account, not for the Parent PIN alone: the limit is shared.
+    expect(eqValue(counted!, 'profile_id')).toBeUndefined();
+    expect(state.queries.some((q) => q.table === 'profile_pin_resets' && q.ops.some((o) => o.op === 'insert'))).toBe(false);
+    // Under the limit, the same account gets its code.
+    state.handlers.onQuery = (q) => {
+      if (q.table === 'viewer_parent_pin') return { data: { pin_hash: HASH } };
+      if (q.table === 'profile_pin_resets') return q.ops.some((o) => o.op === 'gte') ? { data: null, count: 2 } : { data: null };
+      return undefined;
+    };
+    expect(await call(OWNER.id, { action: 'request', profile_id: '__parent__' })).toMatchObject({ ok: true });
   });
 
-  it('no Parent PIN on the account: nothing to reset', async () => {
-    state.handlers.onQuery = (q) => (q.table === 'viewer_parent_pin' ? { data: null } : undefined);
-    expect(await call(OWNER.id, { action: 'request', profile_id: '__parent__' })).toEqual({ ok: false, reason: 'no_pin' });
+  it('no Parent PIN yet: the code is the proof for making the first one (its own email, no support ticket)', async () => {
+    state.handlers.onQuery = (q) => (q.table === 'viewer_parent_pin' ? { data: null } : q.table === 'profile_pin_resets' && q.ops.some((o) => o.op === 'gte') ? { data: null, count: 0 } : undefined);
+    const out = await call(OWNER.id, { action: 'request', profile_id: '__parent__' });
+    expect(out).toEqual({ ok: true, emailed: true, email: 'ow•••••@example.com', ticket: false });
+    expect(sentEmails[0].subject).toBe('Your Snow Media parent PIN setup code');
+    expect(state.queries.some((q) => q.table === 'support_tickets' || q.table === 'support_messages')).toBe(false);
   });
 
   it('verify needs the new PIN with the code, and puts it in place of the old one only when the code is right', async () => {
@@ -123,9 +144,12 @@ describe('profile-pin-reset: the Parent PIN', () => {
     expect(parentQuery('upsert')).toBeUndefined();
 
     state.queries.length = 0;
-    expect(await call(OWNER.id, { action: 'verify', profile_id: '__parent__', code: '123456', new_pin_hash: NEW })).toEqual({ ok: true });
+    const before = state.handlers.onQuery;
+    state.handlers.onQuery = (q) => (q.table === 'viewer_parent_pin' && q.ops.some((o) => o.op === 'upsert') ? { data: { updated_at: '2030-01-01T00:00:05.123456+00:00' } } : before?.(q));
+    // Made or replaced, with the table's own time sent back for the box's next compare-and-swap.
+    expect(await call(OWNER.id, { action: 'verify', profile_id: '__parent__', code: '123456', new_pin_hash: NEW })).toEqual({ ok: true, updated_at: '2030-01-01T00:00:05.123456+00:00' });
     const up = parentQuery('upsert')!;
-    expect(opArg(up, 'upsert')).toMatchObject({ user_id: OWNER.id, pin_hash: NEW });
+    expect(opArg(up, 'upsert')).toEqual({ user_id: OWNER.id, pin_hash: NEW });
     // Never a delete: the account is not left without one.
     expect(parentQuery('delete')).toBeUndefined();
   });

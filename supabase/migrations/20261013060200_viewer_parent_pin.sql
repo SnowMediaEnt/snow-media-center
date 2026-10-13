@@ -9,7 +9,14 @@
 -- checks them on the box, so it works offline. No row = no Parent PIN;
 -- turning it off deletes the row. A forgotten one is reset by the
 -- profile-pin-reset edge function (profile_id '__parent__'), which writes
--- the new hash only once the emailed code is right.
+-- the new hash only once the emailed code is right; the same code is the
+-- proof for making the first one on an account that has Kids profiles and
+-- no grown-up profile PIN.
+--
+-- Boxes change it by compare and swap: the first one is only inserted (a
+-- second box's insert fails, and it takes the account's), and a change or
+-- turn-off names the updated_at it last saw. updated_at is always the
+-- server's time (the trigger below), never a box's clock.
 --
 -- Its own table rather than a column on viewer_profiles: it belongs to the
 -- account, not to a profile row (the 'main' row may not be on the account
@@ -24,6 +31,17 @@ create table if not exists public.viewer_parent_pin (
 
 grant select, insert, update, delete on public.viewer_parent_pin to authenticated;
 grant all on public.viewer_parent_pin to service_role;
+
+-- The server's time, whatever a client sends: the compare-and-swap stamp.
+create or replace function public.viewer_parent_pin_stamp()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists viewer_parent_pin_stamp on public.viewer_parent_pin;
+create trigger viewer_parent_pin_stamp before insert or update on public.viewer_parent_pin
+  for each row execute function public.viewer_parent_pin_stamp();
 
 alter table public.viewer_parent_pin enable row level security;
 

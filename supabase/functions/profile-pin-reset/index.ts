@@ -20,10 +20,13 @@
 // THE PARENT PIN (the account's lock on Profiles, viewer_parent_pin) goes
 // through the same actions with profile_id '__parent__'. Its verify takes the
 // new PIN's hash too (new_pin_hash) and puts it in place of the old one when
-// the code is right, so a reset never leaves the account without one: with
-// none, whoever opened Profiles next could make one, a kid included. Requests
-// share the profiles' limits (3 codes an hour, 5 tries a code). admin_list
-// says whether the account has one; admin_clear removes it.
+// the code is right, so a reset never leaves the account without one. With no
+// row yet, the same request and verify make the first one: on an account with
+// Kids profiles and no grown-up profile PIN, the emailed code is the app's
+// proof that a grown-up is making it (no ticket then: there is nothing for
+// support to clear). Requests share the profiles' limits (3 codes an hour, 5
+// tries a code). admin_list says whether the account has one; admin_clear
+// removes it (the app then asks a grown-up for proof to make another).
 //
 // "Forgot PIN?" is on the TV, so anyone holding the remote can start a
 // request, including the person the PIN keeps out. The emailed code proves
@@ -87,6 +90,15 @@ const emailHtml = (profileName: string, code: string) => `
   <div style="font-size:36px;font-weight:bold;letter-spacing:10px;background:#f1f4fa;border-radius:12px;padding:16px;text-align:center">${code}</div>
   <p style="margin:16px 0 0;color:#555">The code works for 30 minutes. It removes the PIN; you can set a new one under Settings → Profiles.</p>
   <p style="margin:12px 0 0;color:#555">Didn't ask for this? You can ignore this email — the PIN stays as it is.</p>
+</div>`;
+
+const parentSetupHtml = (code: string) => `
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0b1b36">
+  <h2 style="margin:0 0 12px">Set up your parent PIN</h2>
+  <p style="margin:0 0 16px">Someone is setting up the parent PIN in Snow Media Center (the PIN that locks adding, changing and leaving profiles). Enter this code on the TV:</p>
+  <div style="font-size:36px;font-weight:bold;letter-spacing:10px;background:#f1f4fa;border-radius:12px;padding:16px;text-align:center">${code}</div>
+  <p style="margin:16px 0 0;color:#555">The code works for 30 minutes. The TV then asks for the new parent PIN.</p>
+  <p style="margin:12px 0 0;color:#555">Didn't ask for this? Ignore this email: without the code, no parent PIN is set.</p>
 </div>`;
 
 const parentEmailHtml = (code: string) => `
@@ -212,13 +224,16 @@ Deno.serve(async (req) => {
   if (!profile) return json({ ok: false, reason: 'no_profile' });
 
   if (action === 'request') {
-    if (!profile.pin_hash) return json({ ok: false, reason: 'no_pin' });
+    // The Parent PIN with none yet: the code is the proof for making one.
+    const setup = parent && !profile.pin_hash;
+    if (!profile.pin_hash && !setup) return json({ ok: false, reason: 'no_pin' });
     const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { count } = await admin.from('profile_pin_resets')
       .select('id', { count: 'exact', head: true }).eq('user_id', caller.id).gte('created_at', hourAgo);
     if ((count ?? 0) >= MAX_SENDS_PER_HOUR) return json({ ok: false, reason: 'too_many' });
 
     // The ticket: one open one per customer, added to on a repeat request.
+    // Not for setting up a first Parent PIN: there is nothing to clear.
     const email = caller.email ?? null;
     const which = parent ? 'the parent PIN' : 'the PIN';
     const note = (parent
@@ -231,23 +246,25 @@ Deno.serve(async (req) => {
         : `Clear ${which} from this ticket in the Hub (Profiles panel) only once you are sure you are talking to the account holder. `)
       + `The account's email is told whenever ${which} is cleared.`;
     let ticketId: string | null = null;
-    try {
-      const { data: open } = await admin.from('support_tickets')
-        .select('id').eq('user_id', caller.id).eq('status', 'open').ilike('subject', `${TICKET_SUBJECT}%`)
-        .order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (open?.id) {
-        ticketId = open.id;
-      } else {
-        const { data: t } = await admin.from('support_tickets')
-          .insert({ user_id: caller.id, subject: `${TICKET_SUBJECT} — ${profile.name}`, status: 'open', priority: 'normal' })
-          .select('id').single();
-        ticketId = t?.id ?? null;
+    if (!setup) {
+      try {
+        const { data: open } = await admin.from('support_tickets')
+          .select('id').eq('user_id', caller.id).eq('status', 'open').ilike('subject', `${TICKET_SUBJECT}%`)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (open?.id) {
+          ticketId = open.id;
+        } else {
+          const { data: t } = await admin.from('support_tickets')
+            .insert({ user_id: caller.id, subject: `${TICKET_SUBJECT} — ${profile.name}`, status: 'open', priority: 'normal' })
+            .select('id').single();
+          ticketId = t?.id ?? null;
+        }
+        if (ticketId) {
+          await admin.from('support_messages').insert({ ticket_id: ticketId, user_id: caller.id, sender_type: 'user', message: note });
+        }
+      } catch (e) {
+        console.error('[profile-pin-reset] ticket failed:', (e as Error).message);
       }
-      if (ticketId) {
-        await admin.from('support_messages').insert({ ticket_id: ticketId, user_id: caller.id, sender_type: 'user', message: note });
-      }
-    } catch (e) {
-      console.error('[profile-pin-reset] ticket failed:', (e as Error).message);
     }
 
     const id = crypto.randomUUID();
@@ -264,8 +281,8 @@ Deno.serve(async (req) => {
       try {
         const { error } = await new Resend(apiKey).emails.send({
           from: FROM, to: [email], replyTo: REPLY_TO,
-          subject: parent ? 'Your Snow Media parent PIN reset code' : `Your Snow Media PIN reset code`,
-          html: parent ? parentEmailHtml(code) : emailHtml(profile.name, code),
+          subject: setup ? 'Your Snow Media parent PIN setup code' : parent ? 'Your Snow Media parent PIN reset code' : `Your Snow Media PIN reset code`,
+          html: setup ? parentSetupHtml(code) : parent ? parentEmailHtml(code) : emailHtml(profile.name, code),
         });
         if (error) console.error('[profile-pin-reset] send failed:', (error as { message?: string }).message ?? 'unknown');
         else emailed = true;
@@ -295,8 +312,10 @@ Deno.serve(async (req) => {
     }
     const now = new Date().toISOString();
     await admin.from('profile_pin_resets').update({ used_at: now }).eq('id', reset.id);
-    const { error } = parent
-      ? await admin.from('viewer_parent_pin').upsert({ user_id: caller.id, pin_hash: newHash, updated_at: now }, { onConflict: 'user_id' })
+    // The Parent PIN: made or replaced (the table stamps updated_at), and its
+    // new time sent back for the box's next compare-and-swap.
+    const { data: written, error } = parent
+      ? await admin.from('viewer_parent_pin').upsert({ user_id: caller.id, pin_hash: newHash }, { onConflict: 'user_id' }).select('updated_at').maybeSingle()
       : await admin.from('viewer_profiles').update({ pin_hash: null, updated_at: now })
         .eq('user_id', caller.id).eq('id', profileId);
     if (error) return json({ ok: false, reason: 'db_error' });
@@ -309,7 +328,7 @@ Deno.serve(async (req) => {
       });
       await admin.from('support_tickets').update({ status: 'closed' }).eq('id', reset.ticket_id);
     }
-    return json({ ok: true });
+    return json(parent ? { ok: true, updated_at: (written as { updated_at?: string } | null)?.updated_at ?? null } : { ok: true });
   }
 
   return json({ ok: false, reason: 'bad_action' }, 400);

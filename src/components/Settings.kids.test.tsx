@@ -70,13 +70,16 @@ describe('Settings on a Kids profile', () => {
     expect(screen.queryByText('Alerts on this device')).toBeNull();
   });
 
-  it('Profiles only switches (no add or edit)', () => {
+  it('Profiles only switches (no add or edit, no Parent PIN row even signed in)', () => {
     kidsLevel = 'kids';
+    // Signed in, so the missing Parent PIN row is the Kids check, not the signed-out note.
+    __setViewerForTests('u1');
     const { container } = render(<Settings onBack={vi.fn()} />);
     key('ArrowDown'); key('ArrowRight'); key('ArrowRight'); // → Profiles tab
     expect(container.querySelector('[data-settings-focus="profiles-switch"]')).not.toBeNull();
     expect(container.querySelector('[data-settings-focus="profiles-manage"]')).toBeNull();
     expect(container.querySelector('[data-settings-focus="profiles-parent"]')).toBeNull();
+    expect(screen.queryByText('Sign in to your Snow Media account to protect profiles with a parent PIN.')).toBeNull();
   });
 
   it('a grown-up profile on the same admin account keeps everything', () => {
