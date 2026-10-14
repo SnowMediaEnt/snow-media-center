@@ -28,8 +28,11 @@ const fmtDay = (ms: number | null) => (ms ? formatDate(ms) : '—');
 interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: boolean }
 
 /**
- * Read-only Xtream account info screen for the Player header "Account" button.
- * Two-button D-pad nav: Back / Sign out.
+ * Read-only Xtream account info screen (Live TV Settings -> Account info).
+ * Back sits top-left; the actions stand in a column beside the details, so
+ * the remote's Up / Down walk Back -> Show password -> Change login -> Renew
+ * -> Sign out. (They were one row across the top that only Left / Right
+ * reached, which viewers found confusing — owner, 2026-10-14.)
  */
 const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Props) => {
   const { t } = useTranslation();
@@ -62,13 +65,15 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
         onBack();
         return;
       }
-      const arrows = ['ArrowLeft', 'ArrowRight', 'Enter', ' '];
-      if (!arrows.includes(e.key)) return;
+      const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
+      if (!keys.includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       const ae = document.activeElement as HTMLElement | null;
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
-      if (e.key === 'ArrowLeft') setFocusIdx(i => (i - 1 + BTN_COUNT) % BTN_COUNT);
-      else if (e.key === 'ArrowRight') setFocusIdx(i => (i + 1) % BTN_COUNT);
+      // Up / Down through the column (Left / Right too, for anyone used to
+      // the old row); it stops at the ends rather than wrapping round.
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') setFocusIdx(i => Math.max(0, i - 1));
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') setFocusIdx(i => Math.min(BTN_COUNT - 1, i + 1));
       else if (e.key === 'Enter' || e.key === ' ') {
         const i = focusIdxRef.current;
         if (i === 0) onBack();
@@ -159,82 +164,63 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
     )},
   ];
 
+  const actions = [
+    { idx: 1, icon: showPwd ? EyeOff : Eye, onClick: () => setShowPwd(v => !v),
+      label: showPwd ? t('liveAccount.account.hidePasswordBtn') : t('liveAccount.account.showPasswordBtn') },
+    { idx: 2, icon: KeyRound, onClick: onChangeCredentials, label: t('liveAccount.account.changeCredentialsBtn') },
+    ...(showRenew ? [{ idx: 3, icon: RefreshCw, onClick: openRenew, label: t('liveAccount.account.renewBtn') }] : []),
+    { idx: signOutIdx, icon: LogOut, onClick: onSignOut, label: t('common.signOut') },
+  ];
+
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30">
-        <div className="flex items-center gap-3">
-          <BackButton
-            onClick={onBack}
-            label={t('common.back')}
-            data-player-header-btn=""
-            focused={focusIdx === 0}
-          />
-          <div className="flex items-center gap-2">
-            <Tv className="w-7 h-7 text-brand-gold" />
-            <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.account.title')}</h1>
-          </div>
-        </div>
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
+        <BackButton
+          onClick={onBack}
+          label={t('common.back')}
+          data-player-header-btn=""
+          focused={focusIdx === 0}
+        />
         <div className="flex items-center gap-2">
-          <Button
-            variant="white"
-            size="sm"
-            onClick={() => setShowPwd(v => !v)}
-            data-focused={focusIdx === 1 ? "true" : "false"}
-            className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}
-          >
-            {showPwd ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
-            <span className="min-w-0 truncate">{showPwd ? t('liveAccount.account.hidePasswordBtn') : t('liveAccount.account.showPasswordBtn')}</span>
-          </Button>
-          <Button
-            variant="white"
-            size="sm"
-            onClick={onChangeCredentials}
-            data-focused={focusIdx === 2 ? "true" : "false"}
-            className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 2 ? 'scale-105 z-10' : ''}`}
-          >
-            <KeyRound className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('liveAccount.account.changeCredentialsBtn')}</span>
-          </Button>
-          {showRenew && (
-            <Button
-              variant="white"
-              size="sm"
-              onClick={openRenew}
-              data-focused={focusIdx === 3 ? "true" : "false"}
-              className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 3 ? 'scale-105 z-10' : ''}`}
-            >
-              <RefreshCw className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('liveAccount.account.renewBtn')}</span>
-            </Button>
-          )}
-          <Button
-            variant="white"
-            size="sm"
-            onClick={onSignOut}
-            data-focused={focusIdx === signOutIdx ? "true" : "false"}
-            className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === signOutIdx ? 'scale-105 z-10' : ''}`}
-          >
-            <LogOut className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('common.signOut')}</span>
-          </Button>
+          <Tv className="w-7 h-7 text-brand-gold" />
+          <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.account.title')}</h1>
         </div>
       </div>
 
-
-      <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
-        <Card className="w-full max-w-3xl rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-6 shadow-xl">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-            {rows.map((r) => {
-              const Icon = r.icon;
-              return (
-                <div key={r.label} className="flex items-start gap-3 py-2 border-b border-white/5">
-                  <Icon className="w-5 h-5 text-brand-ice mt-0.5 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs uppercase tracking-wide text-white/70 mb-1">{r.label}</div>
-                    <div className="text-base text-white font-medium">{r.value}</div>
-                  </div>
-                </div>
-              );
-            })}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="mx-auto w-full max-w-5xl flex flex-col md:flex-row md:items-start gap-6">
+          <div className="flex flex-col gap-3 md:w-72 shrink-0" data-account-actions>
+            {actions.map(({ idx, icon: Icon, onClick, label }) => (
+              <Button
+                key={idx}
+                variant="white"
+                onClick={onClick}
+                data-focused={focusIdx === idx ? 'true' : 'false'}
+                className={`tv-ring w-full justify-start rounded-xl h-14 px-5 text-base transition-transform duration-150 ease-out ${focusIdx === idx ? 'scale-105 z-10' : ''}`}
+              >
+                <Icon className="w-5 h-5 mr-2 shrink-0" />
+                <span className="min-w-0 truncate">{label}</span>
+              </Button>
+            ))}
           </div>
-        </Card>
+
+          <Card className="flex-1 min-w-0 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-6 shadow-xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+              {rows.map((r) => {
+                const Icon = r.icon;
+                return (
+                  <div key={r.label} className="flex items-start gap-3 py-2 border-b border-white/5">
+                    <Icon className="w-5 h-5 text-brand-ice mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs uppercase tracking-wide text-white/70 mb-1">{r.label}</div>
+                      <div className="text-base text-white font-medium">{r.value}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
