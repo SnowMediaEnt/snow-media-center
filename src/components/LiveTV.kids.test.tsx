@@ -146,7 +146,7 @@ describe('Live TV on a Kids profile with no line on the box', () => {
     expect(screen.getByText('Ask a grown-up to sign in to Live TV')).toBeTruthy();
     expect(screen.queryByText('credentials-form')).toBeNull();
     expect(screen.queryByRole('textbox')).toBeNull();
-    expect(screen.queryByText(/Get started|Sign in to Player|Buy|Subscribe/i)).toBeNull();
+    expect(screen.queryByText(/Get started|create an account|Sign in to Player|Buy|Subscribe/i)).toBeNull();
     // Back: out of the Player (Home), once.
     key('Escape');
     await settle();

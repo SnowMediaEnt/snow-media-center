@@ -163,7 +163,7 @@
       "connecting": "Connecting…",
       "signIn": "Sign In",
       "signingIn": "Signing in…",
-      "getStarted": "New here? Get started",
+      "getStarted": "New customer? Click here to create an account",
       "finishSetup": "Finish setting up {{label}}",
       "note": "Email usernames connect to Vibez; all other usernames connect to DreamStreams. Your credentials are stored only on this device.",
       "missingTitle": "Missing info",
