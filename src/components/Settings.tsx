@@ -234,6 +234,22 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
         return order;
       };
 
+      // The tabs stand in a column on the left of the content. Up / Down walk
+      // it (and switch the content), Right / OK go into the content, and from
+      // the content Up at the top — or Left wherever Left has nothing else to
+      // do — comes back to the tab in the column.
+      const tabs: SettingsFocus[] = (isAdmin
+        ? ['tab-media', 'tab-ui', 'tab-profiles', 'tab-remote', 'tab-updates', 'tab-alerts', 'tab-ai']
+        : ['tab-media', 'tab-ui', 'tab-profiles', 'tab-remote', 'tab-updates']
+      ).filter((tab) => showUpdates || tab !== 'tab-updates') as SettingsFocus[];
+      const toColumn = (tab: SettingsFocus) => {
+        // A control in the content may hold real DOM focus (Updates, Alerts,
+        // AI); let go of it so it can't answer keys meant for the column.
+        const active = document.activeElement as HTMLElement | null;
+        if (active && active !== document.body && containerRef.current?.contains(active) && typeof active.blur === 'function') active.blur();
+        setFocusedElement(tab);
+      };
+
       if (focusedElement === 'remote-hint' || focusedElement === 'remote-unpair') {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
           event.preventDefault(); event.stopPropagation();
@@ -241,7 +257,8 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
         // The switch and the Unpair button share a row (Unpair on the right).
         if ((event.key === 'ArrowRight' || event.key === 'ArrowDown') && focusedElement === 'remote-hint') setFocusedElement('remote-unpair');
         else if (event.key === 'ArrowLeft' && focusedElement === 'remote-unpair') setFocusedElement('remote-hint');
-        else if (event.key === 'ArrowUp') setFocusedElement('tab-remote');
+        else if (event.key === 'ArrowLeft') toColumn('tab-remote');
+        else if (event.key === 'ArrowUp') toColumn('tab-remote');
         else if (event.key === 'Enter' || event.key === ' ') {
           if (focusedElement === 'remote-hint') setTypingHintEnabled(!typingHintEnabled());
           else { void unpairAllPhones(); toast({ title: i18n.t('settings.toast.unpairedTitle'), description: i18n.t('settings.toast.unpairedDesc') }); }
@@ -255,7 +272,10 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
         }
         // A Kids profile only switches; adding and editing is for grown-ups.
         if (event.key === 'ArrowDown' && focusedElement === 'profiles-switch' && !kids) setFocusedElement('profiles-manage');
-        else if (event.key === 'ArrowUp') setFocusedElement(focusedElement === 'profiles-manage' ? 'profiles-switch' : 'tab-profiles');
+        else if (event.key === 'ArrowUp') {
+          if (focusedElement === 'profiles-manage') setFocusedElement('profiles-switch');
+          else toColumn('tab-profiles');
+        } else if (event.key === 'ArrowLeft') toColumn('tab-profiles');
         else if (event.key === 'Enter' || event.key === ' ') openProfiles(focusedElement === 'profiles-switch' ? 'pick' : 'manage');
         else if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) setFocusedElement('tab-profiles');
         return;
@@ -279,15 +299,20 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
         };
 
         if (event.key === 'ArrowUp') {
-          moveTo(currentIdx <= 0 ? 'tab-ui' : order[currentIdx - 1]);
+          if (currentIdx <= 0) toColumn('tab-ui');
+          else moveTo(order[currentIdx - 1]);
           return;
         }
         if (event.key === 'ArrowDown') {
           if (currentIdx >= 0 && currentIdx < order.length - 1) moveTo(order[currentIdx + 1]);
           return;
         }
-        if (event.key === 'ArrowLeft' && focusedElement.startsWith('ui-language-')) {
-          if (currentIdx > 0) moveTo(order[currentIdx - 1]);
+        if (event.key === 'ArrowLeft') {
+          // The language tiles keep Left / Right between them; from the first
+          // tile, and from every other card, Left goes back to the column.
+          const prev = currentIdx > 0 ? order[currentIdx - 1] : undefined;
+          if (focusedElement.startsWith('ui-language-') && prev?.startsWith('ui-language-')) moveTo(prev);
+          else toColumn('tab-ui');
           return;
         }
         if (event.key === 'ArrowRight' && focusedElement.startsWith('ui-language-')) {
@@ -314,18 +339,21 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
         return;
       }
 
-      // Alerts and AI are one-way doors without this. Down from their tab moves
-      // focus into the panel, but the panel is not in the `tabs` array, so
+      // Alerts and AI are one-way doors without this. Right / OK from their tab
+      // moves focus into the panel, but the panel is not in the `tabs` array, so
       // currentTabIdx is -1 and every arrow case below is a no-op — Up, Down,
       // Left and Right all dead, with only Back working, which exits Settings
       // entirely rather than returning to the tab. Updates already had this
       // escape hatch; these two never got one.
       if (focusedElement === 'alerts-content' || focusedElement === 'ai-content') {
         const isBack = event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4;
-        if (isBack || event.key === 'ArrowUp') {
+        const target = event.target as HTMLElement;
+        const inField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable;
+        // Left moves the caret in a text field; anywhere else it goes back to the column.
+        if (isBack || event.key === 'ArrowUp' || (event.key === 'ArrowLeft' && !inField)) {
           event.preventDefault();
           event.stopPropagation();
-          setFocusedElement(focusedElement === 'alerts-content' ? 'tab-alerts' : 'tab-ai');
+          toColumn(focusedElement === 'alerts-content' ? 'tab-alerts' : 'tab-ai');
           return;
         }
         // Everything else belongs to the panel's own controls.
@@ -337,6 +365,18 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
           event.preventDefault();
           event.stopPropagation();
           setFocusedElement('tab-updates');
+          return;
+        }
+        if (event.key === 'ArrowLeft') {
+          // Left is taken where a button has a neighbour on its left (Clear all,
+          // a row's Delete, "Update anyway"); from everything else it goes back
+          // to the column.
+          const active = document.activeElement as HTMLElement | null;
+          if (!active?.matches('[data-apk-clear-all], [data-apk-row-delete], [data-app-updater-btn="anyway"]')) {
+            event.preventDefault();
+            event.stopPropagation();
+            toColumn('tab-updates');
+          }
           return;
         }
         if (event.key === 'ArrowDown') {
@@ -370,15 +410,15 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
                 updBtn.focus();
                 updBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
               } else {
-                setFocusedElement('tab-updates');
+                toColumn('tab-updates');
               }
             }
             return;
           }
-          // On the AppUpdater button (or lost focus) → back up to the tab row.
+          // On the AppUpdater button (or lost focus) → back to the tab in the column.
           event.preventDefault();
           event.stopPropagation();
-          setFocusedElement('tab-updates');
+          toColumn('tab-updates');
           return;
         }
         return;
@@ -402,10 +442,6 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
         event.stopPropagation();
       }
 
-      const tabs: SettingsFocus[] = (isAdmin
-        ? ['tab-media', 'tab-ui', 'tab-profiles', 'tab-remote', 'tab-updates', 'tab-alerts', 'tab-ai']
-        : ['tab-media', 'tab-ui', 'tab-profiles', 'tab-remote', 'tab-updates']
-      ).filter((tab) => showUpdates || tab !== 'tab-updates') as SettingsFocus[];
       const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
 
       const tabValueFor = (f: SettingsFocus): string | null => {
@@ -418,75 +454,80 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
         if (f === 'tab-ai') return 'ai';
         return null;
       };
+      // Moving through the column shows that tab's content at once.
+      const selectTab = (next: SettingsFocus) => {
+        setFocusedElement(next);
+        const v = tabValueFor(next);
+        if (v) setActiveTab(v);
+      };
+      // Into the content of the tab that is showing (what Down did when the
+      // tabs were a row across the top).
+      const enterContent = () => {
+        if (focusedElement === 'tab-media' && activeTab === 'media') {
+          setMediaManagerActive(true);
+        } else if (focusedElement === 'tab-ui' && activeTab === 'ui') {
+          const first = getUiFocusOrder()[0];
+          setFocusedElement(first);
+          setTimeout(() => {
+            const card = document.querySelector(`[data-settings-focus="${first}"]`) as HTMLElement | null;
+            card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }, 30);
+        } else if (focusedElement === 'tab-profiles' && activeTab === 'profiles') {
+          setFocusedElement('profiles-switch');
+        } else if (focusedElement === 'tab-remote' && activeTab === 'remote') {
+          setFocusedElement('remote-hint');
+        } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
+          setFocusedElement('updates-content');
+          setTimeout(() => {
+            const btn = document.querySelector('[data-app-updater-btn="check"], [data-app-updater-btn="download"]') as HTMLElement | null;
+            if (btn) {
+              btn.focus();
+              btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            } else {
+              const apk = document.querySelector('[data-apk-cache-first]') as HTMLElement | null;
+              apk?.focus();
+              apk?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+          }, 30);
+        } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
+          setFocusedElement('alerts-content');
+        } else if (focusedElement === 'tab-ai' && activeTab === 'ai') {
+          setFocusedElement('ai-content');
+        }
+      };
 
       switch (event.key) {
-        case 'ArrowLeft':
-          if (currentTabIdx > 0) {
-            const next = tabs[currentTabIdx - 1];
-            setFocusedElement(next);
-            const v = tabValueFor(next);
-            if (v) setActiveTab(v);
-          }
-          break;
-        case 'ArrowRight':
-          if (currentTabIdx >= 0 && currentTabIdx < tabs.length - 1) {
-            const next = tabs[currentTabIdx + 1];
-            setFocusedElement(next);
-            const v = tabValueFor(next);
-            if (v) setActiveTab(v);
-          }
-          break;
         case 'ArrowUp':
-          if (currentTabIdx >= 0) setFocusedElement('back');
+          // Up from the first tab reaches Back in the header.
+          if (currentTabIdx === 0) setFocusedElement('back');
+          else if (currentTabIdx > 0) selectTab(tabs[currentTabIdx - 1]);
           break;
         case 'ArrowDown':
           if (focusedElement === 'back') {
             // The tab that is showing (Settings may open on Profiles or
-            // Phone Remote), so a second Down reaches its content.
+            // Phone Remote), so Right / OK from there reaches its content.
             const showing = `tab-${activeTab}` as SettingsFocus;
             setFocusedElement(tabs.includes(showing) ? showing : 'tab-media');
-          } else if (focusedElement === 'tab-media' && activeTab === 'media') {
-            setMediaManagerActive(true);
-          } else if (focusedElement === 'tab-ui' && activeTab === 'ui') {
-            const first = getUiFocusOrder()[0];
-            setFocusedElement(first);
-            setTimeout(() => {
-              const card = document.querySelector(`[data-settings-focus="${first}"]`) as HTMLElement | null;
-              card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-            }, 30);
-          } else if (focusedElement === 'tab-profiles' && activeTab === 'profiles') {
-            setFocusedElement('profiles-switch');
-          } else if (focusedElement === 'tab-remote' && activeTab === 'remote') {
-            setFocusedElement('remote-hint');
-          } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
-            setFocusedElement('updates-content');
-            setTimeout(() => {
-              const btn = document.querySelector('[data-app-updater-btn="check"], [data-app-updater-btn="download"]') as HTMLElement | null;
-              if (btn) {
-                btn.focus();
-                btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              } else {
-                const apk = document.querySelector('[data-apk-cache-first]') as HTMLElement | null;
-                apk?.focus();
-                apk?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              }
-            }, 30);
-          } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
-            setFocusedElement('alerts-content');
-          } else if (focusedElement === 'tab-ai' && activeTab === 'ai') {
-            setFocusedElement('ai-content');
+          } else if (currentTabIdx >= 0 && currentTabIdx < tabs.length - 1) {
+            selectTab(tabs[currentTabIdx + 1]);
           }
+          break;
+        case 'ArrowRight':
+          if (currentTabIdx >= 0) enterContent();
+          break;
+        case 'ArrowLeft':
+          // The column is the left edge of the screen: nothing to the left.
           break;
         case 'Enter':
         case ' ':
           if (focusedElement === 'back') onBack();
-          else if (focusedElement === 'tab-media') setActiveTab('media');
-          else if (focusedElement === 'tab-ui') setActiveTab('ui');
-          else if (focusedElement === 'tab-profiles') setActiveTab('profiles');
-          else if (focusedElement === 'tab-remote') setActiveTab('remote');
-          else if (focusedElement === 'tab-updates') setActiveTab('updates');
-          else if (focusedElement === 'tab-alerts') setActiveTab('alerts');
-          else if (focusedElement === 'tab-ai') setActiveTab('ai');
+          else if (currentTabIdx >= 0) {
+            const v = tabValueFor(focusedElement);
+            // A tab that isn't showing yet (touch, a voice command) opens
+            // first; on the one that is showing, OK goes into it like Right.
+            if (v && v !== activeTab) setActiveTab(v);
+            else enterContent();
+          }
           break;
       }
     };
@@ -555,8 +596,11 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
     setFocusedElement('tab-media');
   };
 
-  const tabCount = (isAdmin ? 7 : 5) - (showUpdates ? 0 : 1);
-  const tabColsClass = tabCount === 7 ? 'grid-cols-7' : tabCount === 6 ? 'grid-cols-6' : tabCount === 5 ? 'grid-cols-5' : tabCount === 4 ? 'grid-cols-4' : tabCount === 3 ? 'grid-cols-3' : 'grid-cols-2';
+  // One button in the tab column: icon + label, full width, the gold fill on
+  // the tab that is showing and the tv-ring highlight on the one the remote
+  // is on. (Margins, not flex gap, between them: Chrome 66 has no flex gap.)
+  const tabClass = (id: SettingsFocus) =>
+    `tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold w-full min-w-0 justify-start text-left h-12 px-3 md:px-4 text-sm md:text-base transition-all duration-200 ${focusRing(id)}`;
 
   return (
     <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
@@ -579,42 +623,47 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
       </div>
       <div className="max-w-6xl mx-auto pb-16">
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${tabColsClass} bg-slate-800/50 border-slate-600`} data-howto="set.tabs">
+        {/* The tabs stand in a column on the left and the tab's content fills
+            the right (on a phone the column sits above it). */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className="w-full flex flex-col md:flex-row md:items-start">
+          <TabsList
+            className="grid grid-cols-2 gap-2 h-auto w-full p-2 mb-4 rounded-xl bg-slate-800/50 border border-slate-600 md:flex md:flex-col md:items-stretch md:justify-start md:gap-0 md:space-y-2 md:w-64 lg:w-72 md:shrink-0 md:mb-0 md:mr-6"
+            data-howto="set.tabs"
+          >
             <TabsTrigger
               {...settingsFocusAttrs('tab-media')}
               onFocus={() => setFocusedElement('tab-media')}
               value="media"
-              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-media')}`}
+              className={tabClass('tab-media')}
             >
-              <Image className="w-4 h-4 mr-2" />
+              <Image className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
               <span className="min-w-0 truncate">{t('settings.tabs.media')}</span>
             </TabsTrigger>
             <TabsTrigger
               {...settingsFocusAttrs('tab-ui')}
               onFocus={() => setFocusedElement('tab-ui')}
               value="ui"
-              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-ui')}`}
+              className={tabClass('tab-ui')}
             >
-              <Sliders className="w-4 h-4 mr-2" />
+              <Sliders className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
               <span className="min-w-0 truncate">{t('settings.tabs.ui')}</span>
             </TabsTrigger>
             <TabsTrigger
               {...settingsFocusAttrs('tab-profiles')}
               onFocus={() => setFocusedElement('tab-profiles')}
               value="profiles"
-              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-profiles')}`}
+              className={tabClass('tab-profiles')}
             >
-              <UsersRound className="w-4 h-4 mr-2" />
+              <UsersRound className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
               <span className="min-w-0 truncate">{t('settings.tabs.profiles')}</span>
             </TabsTrigger>
             <TabsTrigger
               {...settingsFocusAttrs('tab-remote')}
               onFocus={() => setFocusedElement('tab-remote')}
               value="remote"
-              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-remote')}`}
+              className={tabClass('tab-remote')}
             >
-              <Smartphone className="w-4 h-4 mr-2" />
+              <Smartphone className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
               <span className="min-w-0 truncate">{t('settings.tabs.remote')}</span>
             </TabsTrigger>
             {showUpdates && (
@@ -623,9 +672,9 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
                 onFocus={() => setFocusedElement('tab-updates')}
                 value="updates"
                 data-howto="set.updatesTab"
-                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-updates')}`}
+                className={tabClass('tab-updates')}
               >
-                <RefreshCw className="w-4 h-4 mr-2" />
+                <RefreshCw className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
                 <span className="min-w-0 truncate">{t('settings.tabs.updates')}</span>
               </TabsTrigger>
             )}
@@ -634,9 +683,9 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
                 {...settingsFocusAttrs('tab-alerts')}
                 onFocus={() => setFocusedElement('tab-alerts')}
                 value="alerts"
-                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-alerts')}`}
+                className={tabClass('tab-alerts')}
               >
-                <AlertTriangle className="w-4 h-4 mr-2" />
+                <AlertTriangle className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
                 <span className="min-w-0 truncate">{t('settings.tabs.alerts')}</span>
               </TabsTrigger>
             )}
@@ -645,26 +694,28 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
                 {...settingsFocusAttrs('tab-ai')}
                 onFocus={() => setFocusedElement('tab-ai')}
                 value="ai"
-                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center min-w-0 transition-all duration-200 ${focusRing('tab-ai')}`}
+                className={tabClass('tab-ai')}
               >
-                <Bot className="w-4 h-4 mr-2" />
+                <Bot className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
                 <span className="min-w-0 truncate">{t('settings.tabs.ai')}</span>
               </TabsTrigger>
             )}
           </TabsList>
 
-          <TabsContent value="media" className="mt-4">
+          <div className="flex-1 min-w-0">
+          <TabsContent value="media" className="mt-0">
             <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6">
               <h2 className="text-2xl font-bold text-white mb-6">{t('settings.mediaManagerHeading')}</h2>
               <MediaManager
                 onBack={handleMediaManagerBack}
+                onExitLeft={handleMediaManagerBack}
                 embedded={true}
                 isActive={mediaManagerActive}
               />
             </Card>
           </TabsContent>
 
-          <TabsContent value="ui" className="mt-4 space-y-4">
+          <TabsContent value="ui" className="mt-0 space-y-4">
             {!kids && <PlayerAccountCard />}
             {aiTierShown && (
               <Card
@@ -914,7 +965,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="remote" className="mt-4">
+          <TabsContent value="remote" className="mt-0">
             <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-5">
               <div className="flex flex-wrap items-start">
                 <div className="mr-6 mb-3">
@@ -966,7 +1017,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="profiles" className="mt-4 space-y-4">
+          <TabsContent value="profiles" className="mt-0 space-y-4">
             <div className="flex flex-wrap items-center mb-2">
               {profilesList.map((p) => (
                 <div key={p.id} className="flex items-center mr-5 mb-2">
@@ -1008,7 +1059,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
           </TabsContent>
 
           {showUpdates && (
-          <TabsContent value="updates" className="mt-4 space-y-4">
+          <TabsContent value="updates" className="mt-0 space-y-4">
             <Card
               {...settingsFocusAttrs('updates-content')}
               className={`tv-ring bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6 transition-all duration-150 ${focusRing('updates-content')}`}
@@ -1021,19 +1072,20 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
           )}
 
           {isAdmin && (
-            <TabsContent value="alerts" className="mt-4">
+            <TabsContent value="alerts" className="mt-0">
               <Card {...settingsFocusAttrs('alerts-content')} className={`tv-ring bg-gradient-to-br from-yellow-700 to-yellow-900 border-yellow-600 p-6 transition-all duration-150 ${focusRing('alerts-content')}`}>
                 <AppAlertsManager />
               </Card>
             </TabsContent>
           )}
           {isAdmin && (
-            <TabsContent value="ai" className="mt-4">
+            <TabsContent value="ai" className="mt-0">
               <div {...settingsFocusAttrs('ai-content')} className={`tv-ring transition-all duration-150 ${focusRing('ai-content')}`}>
                 <AdminAIPanel />
               </div>
             </TabsContent>
           )}
+          </div>
         </Tabs>
       </div>
       {reviewOpen && (

@@ -51,7 +51,8 @@ beforeEach(() => {
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
 });
 
-const openUiTab = () => { key('ArrowDown'); key('ArrowRight'); };
+// Back → Media tab → UI tab (the tabs stand in a column; Down is the next one).
+const openUiTab = () => { key('ArrowDown'); key('ArrowDown'); };
 
 describe('Settings → Rate Snow Media Center', () => {
   it('is in the UI tab for a grown-up, and OK opens the review screen', async () => {
@@ -61,8 +62,9 @@ describe('Settings → Rate Snow Media Center', () => {
     expect(screen.getByText(ENTRY)).toBeTruthy();
     const order = [...container.querySelectorAll('[data-settings-focus^="ui-"]')].map((e) => e.getAttribute('data-settings-focus'));
     expect(order).toContain('ui-rate-app');
-    // Walk down to it with the remote.
-    for (let i = 0; i < order.indexOf('ui-rate-app') + 1; i += 1) key('ArrowDown');
+    // Walk down to it with the remote: Right goes into the tab, Down through its cards.
+    key('ArrowRight');
+    for (let i = 0; i < order.indexOf('ui-rate-app'); i += 1) key('ArrowDown');
     expect(container.querySelector('[data-settings-focus="ui-rate-app"]')?.getAttribute('data-focused')).toBe('true');
     key('Enter');
     expect(await screen.findByText('Enjoying Snow Media Center?')).toBeTruthy();
