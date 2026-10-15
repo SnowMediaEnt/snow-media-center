@@ -88,6 +88,19 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
   // The menu item whose page is on the right.
   const [shown, setShown] = useState<MenuId>(() => MENU[startIdx - 1]?.id ?? 'account');
 
+  // My Account joins the menu a moment after the first open (the billing flag
+  // loads), shifting every row down: keep the highlight on the same item.
+  const prevMenuRef = useRef(MENU);
+  useEffect(() => {
+    const prev = prevMenuRef.current;
+    prevMenuRef.current = MENU;
+    if (prev === MENU) return;
+    const id = prev[menuIdxRef.current - 1]?.id;
+    if (!id) return;
+    const at = MENU.findIndex((m) => m.id === id);
+    if (at >= 0 && at + 1 !== menuIdxRef.current) setMenuIdx(at + 1);
+  }, [MENU]);
+
   // The page follows the highlight once it rests (Back keeps the last page).
   useEffect(() => {
     if (pane !== 'menu' || menuIdx < 1) return;
@@ -120,9 +133,11 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     // Demo: Account Info / Switch Account / Sign Out are
     // inert — the demo account is pre-loaded. Appearance, Rewind and Playback
     // stay fully functional (per-box settings; nothing to protect).
-    if (DEMO && !DEMO_OK.has(id)) { demoNote(); return; }
-    if (id === 'billing') setView('billing');
-    else if (id === 'signout') onSignOut();
+    if (DEMO && !DEMO_OK.has(id)) { setPane('menu'); demoNote(); return; }
+    // A row without a page beside the menu leaves the remote on the menu
+    // (a tap or air-mouse click can come while the remote is in a page).
+    if (id === 'billing') { setPane('menu'); setView('billing'); }
+    else if (id === 'signout') { setPane('menu'); onSignOut(); }
     else if (EMBEDDED.has(id)) { setShown(id); setPane('page'); }
   }, [demoNote, onSignOut]);
 
@@ -166,7 +181,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     return (
       <Suspense fallback={fallback}>
         <BillingAccountScreen
-          onBack={() => setView('menu')}
+          onBack={() => { setPane('menu'); setView('menu'); }}
           onUseInPlayer={onSwitchAccount}
         />
       </Suspense>
@@ -181,7 +196,9 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     switch (shown) {
       case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} />;
       case 'switch': return <SwitchAccountScreen {...common} onPicked={onSwitchAccount} onAddAccount={onChangeCredentials} />;
-      case 'categories': return <HideCategoriesScreen {...common} />;
+      // Its page reads every saved line's categories from the server: only
+      // once the remote goes in, not for a highlight passing over it.
+      case 'categories': return inPage ? <HideCategoriesScreen {...common} /> : <PageHint text={t('liveAccount.hideCategories.intro')} />;
       case 'appearance': return <AppearanceScreen {...common} onTryLayout={onTryLayout} />;
       case 'rewind': return <RewindSettingsScreen {...common} />;
       case 'playback': return <PlaybackScreen {...common} />;
@@ -222,9 +239,9 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
                   data-focused={focused ? 'true' : 'false'}
                   data-howto={HUB_HOWTO[m.id]}
                   onClick={() => { setMenuIdx(i + 1); setShown(m.id); activate(m.id); }}
-                  className={`tv-ring flex items-center gap-3 rounded-xl px-4 py-3 border cursor-pointer ${current ? 'bg-brand-gold/15 border-brand-gold/50' : 'bg-slate-900/70 border-white/10'} ${focused ? 'scale-[1.02] z-10' : ''}`}
+                  className={`tv-ring flex items-center rounded-xl px-4 py-3 border cursor-pointer ${current ? 'bg-brand-gold/15 border-brand-gold/50' : 'bg-slate-900/70 border-white/10'} ${focused ? 'scale-[1.02] z-10' : ''}`}
                 >
-                  <Icon className="w-5 h-5 text-brand-gold shrink-0" />
+                  <Icon className="w-5 h-5 mr-3 text-brand-gold shrink-0" />
                   <span className="text-base lg:text-lg font-quicksand font-semibold min-w-0 truncate">{t(m.labelKey)}</span>
                 </div>
               );

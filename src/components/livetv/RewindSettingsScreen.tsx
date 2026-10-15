@@ -81,6 +81,9 @@ const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: 
       if (e.key === 'ArrowUp') { setFocus(ROWS[Math.max(embedded ? 1 : 0, i - 1)]); return; }
       if (f === 'back') { if (isOk) onBack(); return; }
       if (f === 'enabled') {
+        // Beside the Settings menu, Left here goes back to it (as on every
+        // other page); OK and Right still switch Rewind on and off.
+        if (embedded && e.key === 'ArrowLeft') { onBack(); return; }
         if (isOk || e.key === 'ArrowLeft' || e.key === 'ArrowRight') update({ ...cur, enabled: !cur.enabled });
         return;
       }

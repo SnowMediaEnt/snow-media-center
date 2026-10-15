@@ -98,4 +98,20 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     expect(shownPage(container).getAttribute('data-settings-page')).toBe('appearance');
     expect(pageProps.appearance).toMatchObject({ embedded: true, active: true });
   });
+
+  it('a tap on a row with no page beside the menu (Sign Out) while the remote is in a page hands the remote back to the menu', async () => {
+    const { container, props } = renderHub();
+    await settle();
+    key('ArrowRight');
+    await settle();
+    expect(pageProps.account.active).toBe(true);
+    const signOutRow = container.querySelector('[data-howto="hub.signOut"]') as HTMLElement;
+    act(() => { signOutRow.click(); });
+    await settle();
+    expect(props.onSignOut).toHaveBeenCalledTimes(1);
+    expect(shownPage(container).getAttribute('data-settings-preview')).toBe('true'); // remote on the menu
+    key('Escape'); // the menu has the remote again: Back leaves
+    expect(props.onBack).toHaveBeenCalledTimes(1);
+  });
 });
+

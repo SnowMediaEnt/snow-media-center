@@ -121,7 +121,7 @@ const HideCategoriesScreen = memo(({ onBack, embedded = false, active = true }: 
       // Slot 0 is Back; slot n is focusable[n - 1].
       const total = focusableRef.current.length + 1;
       // Embedded (no Back button in slot 0): the list stops at its ends.
-      if (embedded && e.key === 'ArrowDown') setFocusIdx((i) => Math.min(total - 1, i + 1));
+      if (embedded && e.key === 'ArrowDown') setFocusIdx((i) => Math.max(1, Math.min(total - 1, i + 1)));
       else if (embedded && e.key === 'ArrowUp') setFocusIdx((i) => Math.max(1, i - 1));
       else if (e.key === 'ArrowDown') setFocusIdx((i) => (i + 1) % total);
       else if (e.key === 'ArrowUp') setFocusIdx((i) => (i - 1 + total) % total);
