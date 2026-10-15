@@ -41,6 +41,9 @@ afterEach(() => {
 const down = () => act(() => {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
 });
+const up = () => act(() => {
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+});
 
 describe('SettingsHub menu scrolling', () => {
   it('scrolls Sign Out into view when the highlight reaches it, and back to the top', () => {
@@ -59,9 +62,11 @@ describe('SettingsHub menu scrolling', () => {
     expect(r.bottom).toBeLessThanOrEqual(VIEW_H);
     expect(r.top).toBeGreaterThanOrEqual(PANE_TOP);
 
-    // Down wraps to Back (in the header), then the first row: the menu is back at the top.
+    // Down stops at Sign Out (no wrap since the side-menu layout); Up all the
+    // way back to the first row puts the menu back at the top.
     down();
-    down();
+    expect(signOut.getAttribute('data-focused')).toBe('true');
+    for (let i = 0; i < 6; i++) up();
     expect(pane.scrollTop).toBe(0);
   });
 });

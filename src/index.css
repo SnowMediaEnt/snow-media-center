@@ -515,6 +515,18 @@
 .native-low-memory .tv-ring-danger[data-focused="true"]::after {
   border-color: hsl(0 84% 60%);
 }
+/* Live TV Settings: the page shown beside the menu while the remote is still
+   on the menu. Its own highlight would read as a second cursor. */
+[data-settings-preview="true"] .tv-ring[data-focused="true"],
+[data-settings-preview="true"] .tv-ring-danger[data-focused="true"] {
+  box-shadow: none !important;
+  outline: none !important;
+  transform: none !important;
+}
+[data-settings-preview="true"] .tv-ring[data-focused="true"]::after,
+[data-settings-preview="true"] .tv-ring-danger[data-focused="true"]::after {
+  content: none !important;
+}
 /* Gold-on-gold: a gold ring on a solid gold fill (Play / Retry CTAs,
    Button variant=gold) is invisible, so those focusables also carry
    `tv-ring-contrast` and get a WHITE inset ring. Declared after .tv-ring so

@@ -10,6 +10,8 @@
       "rewind": "Rewind & recording",
       "playback": "Playback",
       "signOut": "Sign Out",
+      "billingHint": "Your plans, renewals and free trial. Press OK to open My Account.",
+      "signOutHint": "Signs this box out of Live TV. Your line keeps working on your other devices. Press OK to sign out.",
       "demoTitle": "Live demo",
       "demoDesc": "The demo is pre-loaded with a demo account — sign-in and account switching work in the installed app."
     },

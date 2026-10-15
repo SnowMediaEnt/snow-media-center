@@ -26,9 +26,13 @@ interface Props {
   onBack: () => void;
   onPicked: (c: XtreamCreds) => void;
   onAddAccount: () => void;
+  /** Drawn beside the Settings menu: no header of its own, Back / Left return to the menu. */
+  embedded?: boolean;
+  /** Embedded only: whether the remote is on this page (false while it is on the menu). */
+  active?: boolean;
 }
 
-const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => {
+const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount, embedded = false, active = true }: Props) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<SavedAccount[]>([]);
@@ -117,10 +121,11 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (embedded && !active) return; // the remote is on the Settings menu
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
-      if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
+      if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace' || (embedded && e.key === 'ArrowLeft')) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         onBack();
         return;
@@ -131,7 +136,10 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
       const ae = document.activeElement as HTMLElement | null;
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
       const total = accountsRef.current.length + 2; // Back + N + Add
-      if (e.key === 'ArrowDown') setFocusIdx(i => (i + 1) % total);
+      // Embedded (no Back button in slot 0): the list stops at its ends.
+      if (embedded && e.key === 'ArrowDown') setFocusIdx(i => Math.min(total - 1, i + 1));
+      else if (embedded && e.key === 'ArrowUp') setFocusIdx(i => Math.max(1, i - 1));
+      else if (e.key === 'ArrowDown') setFocusIdx(i => (i + 1) % total);
       else if (e.key === 'ArrowUp') setFocusIdx(i => (i - 1 + total) % total);
       else if (e.key === 'Enter' || e.key === ' ') {
         const i = focusIdxRef.current;
@@ -144,29 +152,32 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onBack, onAddAccount, t]);
+  }, [onBack, onAddAccount, t, embedded, active]);
 
   const total = accounts.length + 2;
   const addIdx = total - 1;
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
-        <BackButton
-          onClick={onBack}
-          label={t('common.back')}
-          data-player-header-btn=""
-          focused={focusIdx === 0}
-        />
-        <div className="flex items-center gap-2">
-          <Users className="w-7 h-7 text-brand-gold" />
-          <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.switch.title')}</h1>
+    <div className={embedded ? 'h-full min-h-0 overflow-hidden flex flex-col text-white' : 'h-screen overflow-hidden flex flex-col text-white bg-black/70'}>
+      {!embedded && (
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
+          <BackButton
+            onClick={onBack}
+            label={t('common.back')}
+            data-player-header-btn=""
+            focused={focusIdx === 0}
+          />
+          <div className="flex items-center gap-2">
+            <Users className="w-7 h-7 text-brand-gold" />
+            <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.switch.title')}</h1>
+          </div>
+          {busy && <Loader2 className="w-5 h-5 animate-spin text-brand-gold ml-2" />}
         </div>
-        {busy && <Loader2 className="w-5 h-5 animate-spin text-brand-gold ml-2" />}
-      </div>
+      )}
 
-      <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
+      <div className={embedded ? 'flex-1 overflow-auto p-1' : 'flex-1 overflow-auto p-6 flex items-start justify-center'}>
         <div className="w-full max-w-xl space-y-3">
+          {embedded && busy && <Loader2 className="w-5 h-5 animate-spin text-brand-gold" />}
           {accounts.length === 0 && (
             <p className="text-white/70 text-sm text-center py-6">
               {t('liveAccount.switch.none')}
@@ -175,7 +186,7 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
           {accounts.map((a, i) => {
             const rowIdx = i + 1;
             const focused = focusIdx === rowIdx;
-            const active = a.id === currentId;
+            const isCurrent = a.id === currentId;
             return (
               <div
                 key={a.id}
@@ -187,7 +198,7 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
                   {a.serverLabel}
                 </Badge>
                 <span className="flex-1 font-nunito truncate">{a.username}</span>
-                {active && (
+                {isCurrent && (
                   <Badge className="bg-emerald-600/30 text-emerald-100 border border-emerald-400/40">
                     {t('liveAccount.account.statusActive')}
                   </Badge>

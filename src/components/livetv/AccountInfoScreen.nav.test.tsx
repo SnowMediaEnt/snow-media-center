@@ -65,4 +65,22 @@ describe('Account info by remote', () => {
     key('Escape');
     expect(onBack).toHaveBeenCalledTimes(1);
   });
+
+  it('beside the Settings menu: no Back button, keys only while active, Left at the top returns to the menu', () => {
+    const onBack = vi.fn();
+    const { container, rerender } = render(<AccountInfoScreen embedded active={false} onBack={onBack} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
+    expect(container.textContent).not.toMatch(/^\s*Back/);
+    key('ArrowDown');
+    expect(focused(container)).toMatch(/Show password/i); // inactive: the menu has the remote
+    rerender(<AccountInfoScreen embedded active onBack={onBack} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
+    key('ArrowUp'); // already at the top: no Back button to reach
+    expect(focused(container)).toMatch(/Show password/i);
+    key('ArrowDown');
+    expect(focused(container)).toMatch(/Change/i);
+    key('ArrowLeft'); // back up the column first
+    expect(onBack).not.toHaveBeenCalled();
+    key('ArrowLeft'); // then out to the menu
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
 });
+

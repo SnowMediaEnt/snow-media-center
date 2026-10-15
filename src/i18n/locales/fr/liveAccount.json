@@ -10,6 +10,8 @@
       "rewind": "Rembobinage et enregistrement",
       "playback": "Lecture",
       "signOut": "Se déconnecter",
+      "billingHint": "Vos forfaits, renouvellements et essai gratuit. Appuyez sur OK pour ouvrir Mon compte.",
+      "signOutHint": "Déconnecte cet appareil de Live TV. Votre ligne continue de fonctionner sur vos autres appareils. Appuyez sur OK pour vous déconnecter.",
       "demoTitle": "Démo en direct",
       "demoDesc": "La démo est préchargée avec un compte de démonstration : la connexion et le changement de compte fonctionnent dans l'appli installée."
     },

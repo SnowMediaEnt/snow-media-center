@@ -10,6 +10,8 @@
       "rewind": "Zurückspulen & Aufnahme",
       "playback": "Wiedergabe",
       "signOut": "Abmelden",
+      "billingHint": "Deine Tarife, Verlängerungen und der Gratis-Test. Drücke OK, um Mein Konto zu öffnen.",
+      "signOutHint": "Meldet dieses Gerät von Live TV ab. Deine Leitung funktioniert auf deinen anderen Geräten weiter. Drücke OK zum Abmelden.",
       "demoTitle": "Live-Demo",
       "demoDesc": "Die Demo ist mit einem Demo-Konto vorgeladen – Anmeldung und Kontowechsel funktionieren in der installierten App."
     },

@@ -25,7 +25,14 @@ import {
   type RewindSettings,
 } from '@/lib/liveRewind';
 
-interface Props { onBack: () => void }
+interface Props {
+  onBack: () => void;
+  /** Drawn beside the Settings menu: no header of its own, Back returns to the menu
+   *  (Left / Right change this page's values, so they stay here). */
+  embedded?: boolean;
+  /** Embedded only: whether the remote is on this page (false while it is on the menu). */
+  active?: boolean;
+}
 
 type Row = 'back' | 'enabled' | 'max' | 'before' | 'after';
 const ROWS: Row[] = ['back', 'enabled', 'max', 'before', 'after'];
@@ -36,7 +43,7 @@ const ROWS: Row[] = ['back', 'enabled', 'max', 'before', 'after'];
  */
 export const EXTRA_STREAM_LINE = 'Uses one extra stream. It turns on only when your line has a free stream, and turns off by itself if another TV needs it.';
 
-const RewindSettingsScreen = memo(({ onBack }: Props) => {
+const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: Props) => {
   const { t } = useTranslation();
   const [s, setS] = useState<RewindSettings>(loadRewindSettings);
   const [pad, setPad] = useState<RecordPadding>(loadPadding);
@@ -59,6 +66,7 @@ const RewindSettingsScreen = memo(({ onBack }: Props) => {
   stateRef.current = { s, pad, focus };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (embedded && !active) return; // the remote is on the Settings menu
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
       const { s: cur, pad: curPad, focus: f } = stateRef.current;
@@ -69,7 +77,8 @@ const RewindSettingsScreen = memo(({ onBack }: Props) => {
       if (isBack) { onBack(); return; }
       const i = ROWS.indexOf(f);
       if (e.key === 'ArrowDown') { setFocus(ROWS[Math.min(ROWS.length - 1, i + 1)]); return; }
-      if (e.key === 'ArrowUp') { setFocus(ROWS[Math.max(0, i - 1)]); return; }
+      // Embedded there is no Back button above the first row.
+      if (e.key === 'ArrowUp') { setFocus(ROWS[Math.max(embedded ? 1 : 0, i - 1)]); return; }
       if (f === 'back') { if (isOk) onBack(); return; }
       if (f === 'enabled') {
         if (isOk || e.key === 'ArrowLeft' || e.key === 'ArrowRight') update({ ...cur, enabled: !cur.enabled });
@@ -93,7 +102,7 @@ const RewindSettingsScreen = memo(({ onBack }: Props) => {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [onBack]);
+  }, [onBack, embedded, active]);
 
   // Keep the highlighted row on screen (the page scrolls at 960x540).
   useEffect(() => {
@@ -107,13 +116,15 @@ const RewindSettingsScreen = memo(({ onBack }: Props) => {
   const row = (r: Row) => `tv-ring rounded-xl px-5 py-3 bg-slate-900/70 border border-white/10 ${focus === r ? 'scale-[1.02] z-10' : ''}`;
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div className="flex items-center px-6 py-4 border-b border-white/10 bg-black/30">
-        <BackButton onClick={onBack} label={t('common.back')} data-player-header-btn="" focused={focus === 'back'} />
-        <History className="w-7 h-7 ml-3 mr-2 text-brand-gold" />
-        <h1 className="text-2xl font-quicksand font-bold">{t('recordings.rewindSettings.title')}</h1>
-      </div>
-      <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
+    <div className={embedded ? 'h-full min-h-0 overflow-hidden flex flex-col text-white' : 'h-screen overflow-hidden flex flex-col text-white bg-black/70'}>
+      {!embedded && (
+        <div className="flex items-center px-6 py-4 border-b border-white/10 bg-black/30">
+          <BackButton onClick={onBack} label={t('common.back')} data-player-header-btn="" focused={focus === 'back'} />
+          <History className="w-7 h-7 ml-3 mr-2 text-brand-gold" />
+          <h1 className="text-2xl font-quicksand font-bold">{t('recordings.rewindSettings.title')}</h1>
+        </div>
+      )}
+      <div className={embedded ? 'flex-1 overflow-auto p-1' : 'flex-1 overflow-auto p-6 flex items-start justify-center'}>
         <div className="w-full max-w-xl space-y-3">
           <div data-rewind-row="enabled" data-focused={focus === 'enabled' ? 'true' : 'false'} className={`${row('enabled')} flex items-center`}
             onClick={() => update({ ...s, enabled: !s.enabled })}>

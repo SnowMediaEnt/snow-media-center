@@ -15,6 +15,10 @@ import { useTranslation } from 'react-i18next';
 
 interface Props {
   onBack: () => void;
+  /** Drawn beside the Settings menu: no header of its own, Back / Left return to the menu. */
+  embedded?: boolean;
+  /** Embedded only: whether the remote is on this page (false while it is on the menu). */
+  active?: boolean;
 }
 
 interface Row {
@@ -30,7 +34,7 @@ interface Row {
  * pane on the next visit; nothing on the panel changes. Stored on this box,
  * per line.
  */
-const HideCategoriesScreen = memo(({ onBack }: Props) => {
+const HideCategoriesScreen = memo(({ onBack, embedded = false, active = true }: Props) => {
   const { t } = useTranslation();
   const [lines, setLines] = useState<XtreamCreds[]>([]);
   const [cats, setCats] = useState<Map<string, XtreamCategory[]>>(new Map());
@@ -100,10 +104,11 @@ const HideCategoriesScreen = memo(({ onBack }: Props) => {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (embedded && !active) return; // the remote is on the Settings menu
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
-      if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
+      if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace' || (embedded && e.key === 'ArrowLeft')) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         onBack();
         return;
@@ -115,7 +120,10 @@ const HideCategoriesScreen = memo(({ onBack }: Props) => {
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
       // Slot 0 is Back; slot n is focusable[n - 1].
       const total = focusableRef.current.length + 1;
-      if (e.key === 'ArrowDown') setFocusIdx((i) => (i + 1) % total);
+      // Embedded (no Back button in slot 0): the list stops at its ends.
+      if (embedded && e.key === 'ArrowDown') setFocusIdx((i) => Math.min(total - 1, i + 1));
+      else if (embedded && e.key === 'ArrowUp') setFocusIdx((i) => Math.max(1, i - 1));
+      else if (e.key === 'ArrowDown') setFocusIdx((i) => (i + 1) % total);
       else if (e.key === 'ArrowUp') setFocusIdx((i) => (i - 1 + total) % total);
       else {
         const i = focusIdxRef.current;
@@ -126,7 +134,7 @@ const HideCategoriesScreen = memo(({ onBack }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, toggle]);
+  }, [onBack, toggle, embedded, active]);
 
   // Keep the highlighted row on screen. Vertical only, like the Live pane.
   useEffect(() => {
@@ -144,18 +152,21 @@ const HideCategoriesScreen = memo(({ onBack }: Props) => {
   const focusedRow = focusIdx > 0 ? focusable[focusIdx - 1] : -1;
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
-        <BackButton onClick={onBack} label={t('common.back')} data-player-header-btn="" focused={focusIdx === 0} />
-        <div className="flex items-center gap-2">
-          <ListFilter className="w-7 h-7 text-brand-gold" />
-          <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.hideCategories.title')}</h1>
+    <div className={embedded ? 'h-full min-h-0 overflow-hidden flex flex-col text-white' : 'h-screen overflow-hidden flex flex-col text-white bg-black/70'}>
+      {!embedded && (
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
+          <BackButton onClick={onBack} label={t('common.back')} data-player-header-btn="" focused={focusIdx === 0} />
+          <div className="flex items-center gap-2">
+            <ListFilter className="w-7 h-7 text-brand-gold" />
+            <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.hideCategories.title')}</h1>
+          </div>
+          {loading && <Loader2 className="w-5 h-5 animate-spin text-brand-gold ml-2" />}
         </div>
-        {loading && <Loader2 className="w-5 h-5 animate-spin text-brand-gold ml-2" />}
-      </div>
+      )}
 
-      <div ref={listRef} className="flex-1 overflow-auto p-6 flex items-start justify-center">
+      <div ref={listRef} className={embedded ? 'flex-1 overflow-auto p-1' : 'flex-1 overflow-auto p-6 flex items-start justify-center'}>
         <div className="w-full max-w-2xl space-y-2">
+          {embedded && loading && <Loader2 className="w-5 h-5 animate-spin text-brand-gold" />}
           <p className="text-brand-ice/80 font-nunito mb-4">
             {t('liveAccount.hideCategories.intro')}
           </p>

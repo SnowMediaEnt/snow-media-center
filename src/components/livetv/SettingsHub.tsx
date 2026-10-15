@@ -1,11 +1,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, KeyRound, Users, Palette, LogOut, Loader2, CreditCard, ListFilter, Gauge, History } from 'lucide-react';
+import { Tv, KeyRound, Users, Palette, LogOut, Loader2, CreditCard, ListFilter, Gauge, History } from 'lucide-react';
 import type { XtreamCreds } from '@/lib/xtream';
 import type { LiveLayout } from '@/lib/liveLayout';
 import { useToast } from '@/hooks/use-toast';
 import { isDemo } from '@/lib/demoMode';
-import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { BackButton } from '@/components/ui/BackButton';
 import { useBillingEnabled } from '@/hooks/useBillingEnabled';
 import { useTranslation } from 'react-i18next';
 import { keepInView } from '@/utils/keepInView';
@@ -49,24 +48,21 @@ const HUB_HOWTO: Partial<Record<MenuId, string>> = {
   switch: 'hub.switch', categories: 'hub.hideCats', appearance: 'hub.appearance', rewind: 'hub.rewind', signout: 'hub.signOut',
 };
 
+/** Pages drawn beside the menu. My Account (the store's plans and trial) keeps its own screen. */
+const EMBEDDED: ReadonlySet<MenuId> = new Set<MenuId>(['account', 'switch', 'categories', 'appearance', 'rewind', 'playback']);
+/** In the demo only these work; the account pages are inert there. */
+const DEMO_OK: ReadonlySet<MenuId> = new Set<MenuId>(['appearance', 'rewind', 'playback']);
+/** The page beside the menu follows the highlight once it rests this long (no page mounts for every row passed). */
+const PREVIEW_REST_MS = 250;
+
+/**
+ * Live TV -> Settings. The menu is a column on the left (Up / Down) and the
+ * highlighted page sits on the right; OK or Right moves the remote into it,
+ * Back (or Left at its edge) returns to the menu, Back on the menu leaves.
+ * Owner, 2026-10-14: every settings screen laid out like Account info.
+ */
 const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials, onSwitchAccount, onTryLayout }: Props) => {
   const { t } = useTranslation();
-  const [view, setView] = useState<View>(initialView ?? 'menu');
-  const [menuIdx, setMenuIdx] = useState(1); // start on first list row (skip Back)
-  const menuIdxRef = useRef(menuIdx);
-  useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
-
-  // Follow the highlight down the menu: at 960×540 Sign Out sits below the
-  // fold, and the remote highlight moved there without the menu scrolling.
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const node = scrollRef.current;
-    if (!node || view !== 'menu') return;
-    if (menuIdx <= 1) { node.scrollTop = 0; return; }
-    const el = node.querySelector<HTMLElement>('[data-focused="true"]');
-    if (el) keepInView(node, el, 24);
-  }, [menuIdx, view]);
-
   const billingOn = useBillingEnabled();
   const MENU: MenuItem[] = useMemo(() => [
     // "My Account" = the billing account (plans, renewals, trial). Account
@@ -81,6 +77,37 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     { id: 'signout',    labelKey: 'liveAccount.hub.signOut',      icon: LogOut },
   ], [billingOn]);
 
+  // Opened on a page (the assistant's "open Appearance"): that page, with the remote in it.
+  const startEmbedded = !!initialView && initialView !== 'menu' && initialView !== 'billing';
+  const [view, setView] = useState<View>(initialView === 'billing' ? 'billing' : 'menu');
+  const [pane, setPane] = useState<'menu' | 'page'>(startEmbedded ? 'page' : 'menu');
+  const startIdx = startEmbedded ? Math.max(1, MENU.findIndex((m) => m.id === initialView) + 1) : 1;
+  const [menuIdx, setMenuIdx] = useState(startIdx); // 0 = Back; start on the first row
+  const menuIdxRef = useRef(menuIdx);
+  useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
+  // The menu item whose page is on the right.
+  const [shown, setShown] = useState<MenuId>(() => MENU[startIdx - 1]?.id ?? 'account');
+
+  // The page follows the highlight once it rests (Back keeps the last page).
+  useEffect(() => {
+    if (pane !== 'menu' || menuIdx < 1) return;
+    const id = MENU[menuIdx - 1]?.id;
+    if (!id || id === shown) return;
+    const timer = window.setTimeout(() => setShown(id), PREVIEW_REST_MS);
+    return () => window.clearTimeout(timer);
+  }, [menuIdx, pane, MENU, shown]);
+
+  // Follow the highlight down the menu: at 960×540 Sign Out sits below the
+  // fold, and the remote highlight moved there without the menu scrolling.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node || view !== 'menu') return;
+    if (menuIdx <= 1) { node.scrollTop = 0; return; }
+    const el = node.querySelector<HTMLElement>('[data-focused="true"]');
+    if (el) keepInView(node, el, 24);
+  }, [menuIdx, view]);
+
   const { toast } = useToast();
   const demoNote = useCallback(() => {
     toast({
@@ -93,20 +120,15 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     // Demo: Account Info / Switch Account / Sign Out are
     // inert — the demo account is pre-loaded. Appearance, Rewind and Playback
     // stay fully functional (per-box settings; nothing to protect).
-    if (DEMO && id !== 'appearance' && id !== 'rewind' && id !== 'playback') { demoNote(); return; }
+    if (DEMO && !DEMO_OK.has(id)) { demoNote(); return; }
     if (id === 'billing') setView('billing');
-    else if (id === 'account') setView('account');
-    else if (id === 'switch') setView('switch');
-    else if (id === 'categories') setView('categories');
-    else if (id === 'appearance') setView('appearance');
-    else if (id === 'rewind') setView('rewind');
-    else if (id === 'playback') setView('playback');
     else if (id === 'signout') onSignOut();
+    else if (EMBEDDED.has(id)) { setShown(id); setPane('page'); }
   }, [demoNote, onSignOut]);
 
-  // Menu-only keyboard handler (each sub-view owns its own).
+  // The menu's keys (the page beside it owns them while the remote is in it).
   useEffect(() => {
-    if (view !== 'menu') return;
+    if (view !== 'menu' || pane !== 'menu') return;
     const COUNT = MENU.length + 1; // + Back at idx 0
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -117,22 +139,28 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
         onBack();
         return;
       }
-      const arrows = ['ArrowUp', 'ArrowDown', 'Enter', ' '];
-      if (!arrows.includes(e.key)) return;
+      const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
+      if (!keys.includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       const ae = document.activeElement as HTMLElement | null;
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
-      if (e.key === 'ArrowDown') setMenuIdx(i => (i + 1) % COUNT);
-      else if (e.key === 'ArrowUp') setMenuIdx(i => (i - 1 + COUNT) % COUNT);
-      else if (e.key === 'Enter' || e.key === ' ') {
+      if (e.key === 'ArrowDown') setMenuIdx(i => Math.min(COUNT - 1, i + 1));
+      else if (e.key === 'ArrowUp') setMenuIdx(i => Math.max(0, i - 1));
+      else if (e.key === 'ArrowLeft') return; // the menu is the left edge
+      else {
         const i = menuIdxRef.current;
-        if (i === 0) { onBack(); return; }
-        activate(MENU[i - 1].id);
+        if (i === 0) { if (e.key !== 'ArrowRight') onBack(); return; }
+        const item = MENU[i - 1];
+        // Right only steps into a page; it never signs out or opens My Account.
+        if (e.key === 'ArrowRight' && !EMBEDDED.has(item.id)) return;
+        activate(item.id);
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [view, MENU, onBack, activate]);
+  }, [view, pane, MENU, onBack, activate]);
+
+  const toMenu = useCallback(() => setPane('menu'), []);
 
   if (view === 'billing') {
     return (
@@ -144,56 +172,24 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
       </Suspense>
     );
   }
-  if (view === 'account') {
-    return (
-      <Suspense fallback={fallback}>
-        <AccountInfoScreen
-          onBack={() => setView('menu')}
-          onChangeCredentials={onChangeCredentials}
-          onSignOut={onSignOut}
-        />
-      </Suspense>
-    );
-  }
-  if (view === 'switch') {
-    return (
-      <Suspense fallback={fallback}>
-        <SwitchAccountScreen
-          onBack={() => setView('menu')}
-          onPicked={onSwitchAccount}
-          onAddAccount={() => { onChangeCredentials(); }}
-        />
-      </Suspense>
-    );
-  }
-  if (view === 'categories') {
-    return (
-      <Suspense fallback={fallback}>
-        <HideCategoriesScreen onBack={() => setView('menu')} />
-      </Suspense>
-    );
-  }
-  if (view === 'appearance') {
-    return (
-      <Suspense fallback={fallback}>
-        <AppearanceScreen onBack={() => setView('menu')} onTryLayout={onTryLayout} />
-      </Suspense>
-    );
-  }
-  if (view === 'rewind') {
-    return (
-      <Suspense fallback={fallback}>
-        <RewindSettingsScreen onBack={() => setView('menu')} />
-      </Suspense>
-    );
-  }
-  if (view === 'playback') {
-    return (
-      <Suspense fallback={fallback}>
-        <PlaybackScreen onBack={() => setView('menu')} />
-      </Suspense>
-    );
-  }
+
+  const inPage = pane === 'page';
+  const shownItem = MENU.find((m) => m.id === shown) ?? MENU[0];
+  const page = (() => {
+    const common = { embedded: true, active: inPage, onBack: toMenu } as const;
+    if (DEMO && !DEMO_OK.has(shown)) return <PageHint text={t('liveAccount.hub.demoDesc')} />;
+    switch (shown) {
+      case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} />;
+      case 'switch': return <SwitchAccountScreen {...common} onPicked={onSwitchAccount} onAddAccount={onChangeCredentials} />;
+      case 'categories': return <HideCategoriesScreen {...common} />;
+      case 'appearance': return <AppearanceScreen {...common} onTryLayout={onTryLayout} />;
+      case 'rewind': return <RewindSettingsScreen {...common} />;
+      case 'playback': return <PlaybackScreen {...common} />;
+      case 'billing': return <PageHint text={t('liveAccount.hub.billingHint')} />;
+      case 'signout': return <PageHint text={t('liveAccount.hub.signOutHint')} />;
+      default: return null;
+    }
+  })();
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
@@ -202,7 +198,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
           onClick={onBack}
           label={t('common.back')}
           data-player-header-btn=""
-          focused={menuIdx === 0}
+          focused={!inPage && menuIdx === 0}
         />
         <div className="flex items-center gap-2">
           <Tv className="w-7 h-7 text-brand-gold" />
@@ -210,29 +206,49 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-auto p-6 flex items-start justify-center">
-        <div className="w-full max-w-xl space-y-3">
-          {MENU.map((m, i) => {
-            const Icon = m.icon;
-            const focused = menuIdx === i + 1;
-            return (
-              <div
-                key={m.id}
-                data-focused={focused ? 'true' : 'false'}
-                data-howto={HUB_HOWTO[m.id]}
-                onClick={() => { setMenuIdx(i + 1); activate(m.id); }}
-                className={`tv-ring flex items-center gap-4 rounded-xl px-5 py-4 bg-slate-900/70 border border-white/10 cursor-pointer ${focused ? 'scale-[1.02] z-10' : ''}`}
-              >
-                <Icon className="w-6 h-6 text-brand-gold shrink-0" />
-                <span className="text-xl font-quicksand font-semibold min-w-0 truncate">{t(m.labelKey)}</span>
-              </div>
-            );
-          })}
+      {/* Margins, not flex gap: older box WebViews (Chrome < 84) ignore gap. */}
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row p-4 lg:p-6">
+        <div ref={scrollRef} className="md:w-60 lg:w-72 shrink-0 overflow-auto mb-4 md:mb-0 md:mr-4 lg:mr-6">
+          <div className="space-y-3" data-settings-menu>
+            {MENU.map((m, i) => {
+              const Icon = m.icon;
+              const focused = !inPage && menuIdx === i + 1;
+              // The page on the right is this row's: a quiet gold edge, so the
+              // viewer can tell where the remote came from while it is in the page.
+              const current = inPage && m.id === shown;
+              return (
+                <div
+                  key={m.id}
+                  data-focused={focused ? 'true' : 'false'}
+                  data-howto={HUB_HOWTO[m.id]}
+                  onClick={() => { setMenuIdx(i + 1); setShown(m.id); activate(m.id); }}
+                  className={`tv-ring flex items-center gap-3 rounded-xl px-4 py-3 border cursor-pointer ${current ? 'bg-brand-gold/15 border-brand-gold/50' : 'bg-slate-900/70 border-white/10'} ${focused ? 'scale-[1.02] z-10' : ''}`}
+                >
+                  <Icon className="w-5 h-5 text-brand-gold shrink-0" />
+                  <span className="text-base lg:text-lg font-quicksand font-semibold min-w-0 truncate">{t(m.labelKey)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col" data-settings-preview={inPage ? 'false' : 'true'} data-settings-page={shown}>
+          <h2 className="text-lg font-quicksand font-semibold text-brand-ice/90 mb-3 truncate">{t(shownItem.labelKey)}</h2>
+          <div className={`flex-1 min-h-0 transition-opacity duration-150 ${inPage ? '' : 'opacity-80'}`}>
+            <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-brand-gold" /></div>}>
+              {page}
+            </Suspense>
+          </div>
         </div>
       </div>
     </div>
   );
 });
+
+/** What a row without a page of its own does, shown beside the menu. */
+const PageHint = ({ text }: { text: string }) => (
+  <div className="rounded-2xl bg-slate-900/70 border border-white/10 p-6 text-brand-ice/85 font-nunito text-lg">{text}</div>
+);
 
 SettingsHub.displayName = 'SettingsHub';
 export default SettingsHub;

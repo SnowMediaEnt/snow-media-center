@@ -9,6 +9,10 @@ import { loadDecodeAudioOnBox, loadMatchFrameRate, saveDecodeAudioOnBox, saveMat
 
 interface Props {
   onBack: () => void;
+  /** Drawn beside the Settings menu: no header of its own, Back / Left at the top return to the menu. */
+  embedded?: boolean;
+  /** Embedded only: whether the remote is on this page (false while it is on the menu). */
+  active?: boolean;
 }
 
 /** Why MPV isn't offered (EngineChoice's own reason codes), as translation keys. */
@@ -47,7 +51,7 @@ const LAST_FOCUS = FIRST_TOGGLE + TOGGLES.length - 1;
 
 const dash = (n: number | null, digits = 0, suffix = ''): string => (n == null ? '—' : `${n.toFixed(digits)}${suffix}`);
 
-const PlaybackScreen = memo(({ onBack }: Props) => {
+const PlaybackScreen = memo(({ onBack, embedded = false, active = true }: Props) => {
   const { t } = useTranslation();
   const { engine, setEngine, loaded } = usePlayerEngine();
   const [mpvAvailable, setMpvAvailable] = useState(true);
@@ -81,6 +85,7 @@ const PlaybackScreen = memo(({ onBack }: Props) => {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (embedded && !active) return; // the remote is on the Settings menu
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
@@ -97,8 +102,10 @@ const PlaybackScreen = memo(({ onBack }: Props) => {
 
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
         setFocusIdx((i) => Math.min(LAST_FOCUS, i + 1));
+      } else if (embedded && e.key === 'ArrowLeft' && focusRef.current <= 1) {
+        onBack(); // embedded: Left at the top goes back to the menu
       } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-        setFocusIdx((i) => Math.max(0, i - 1));
+        setFocusIdx((i) => Math.max(embedded ? 1 : 0, i - 1)); // embedded: no Back button in slot 0
       } else if (e.key === 'Enter' || e.key === ' ') {
         // A toggle flips once per press (outside the state updater, which
         // React may run twice).
@@ -115,21 +122,23 @@ const PlaybackScreen = memo(({ onBack }: Props) => {
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onBack, mpvAvailable, setEngine]);
+  }, [onBack, mpvAvailable, setEngine, embedded, active]);
 
   const compareLabel = (r: EngineCompareRow) => (r.engine === 'mpv' ? 'MPV' : 'ExoPlayer');
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
-        <BackButton onClick={onBack} label={t('common.back')} data-player-header-btn="" focused={focusIdx === 0} />
-        <div className="flex items-center gap-2">
-          <Gauge className="w-7 h-7 text-brand-gold" />
-          <h1 className="text-2xl font-quicksand font-bold text-white">{t('live.playback.title')}</h1>
+    <div className={embedded ? 'h-full min-h-0 overflow-hidden flex flex-col text-white' : 'h-screen overflow-hidden flex flex-col text-white bg-black/70'}>
+      {!embedded && (
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
+          <BackButton onClick={onBack} label={t('common.back')} data-player-header-btn="" focused={focusIdx === 0} />
+          <div className="flex items-center gap-2">
+            <Gauge className="w-7 h-7 text-brand-gold" />
+            <h1 className="text-2xl font-quicksand font-bold text-white">{t('live.playback.title')}</h1>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
+      <div className={embedded ? 'flex-1 overflow-auto p-1' : 'flex-1 overflow-auto p-6 flex items-start justify-center'}>
         <div className="w-full max-w-3xl space-y-6">
           <div className="space-y-3">
             <div className="text-xs uppercase tracking-wide text-white/70">{t('live.playback.engineHeading')}</div>
