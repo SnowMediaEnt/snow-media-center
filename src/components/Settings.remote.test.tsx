@@ -44,23 +44,23 @@ beforeEach(() => {
 });
 
 describe('Settings opened on a tab', () => {
-  it('"Set up profiles": Down from Back goes to the Profiles tab that is showing, and on to its buttons', () => {
+  it('"Set up profiles": Down from Back goes to the Profiles tab that is showing, and Right on to its buttons', () => {
     sessionStorage.setItem('smc-settings-tab', 'profiles');
     const { container } = render(<Settings onBack={vi.fn()} />);
     expect(focused(container)).toBe('back');
     key('ArrowDown');
     expect(focused(container)).toBe('tab-profiles');
     expect(screen.getByRole('tab', { name: /Profiles/ }).getAttribute('data-state')).toBe('active');
-    key('ArrowDown');
+    key('ArrowRight');
     expect(focused(container)).toBe('profiles-switch');
   });
 
-  it('Phone Remote: Down, Down reaches the typing-card switch', () => {
+  it('Phone Remote: Down, Right reaches the typing-card switch', () => {
     sessionStorage.setItem('smc-settings-tab', 'remote');
     const { container } = render(<Settings onBack={vi.fn()} />);
     key('ArrowDown');
     expect(focused(container)).toBe('tab-remote');
-    key('ArrowDown');
+    key('ArrowRight');
     expect(focused(container)).toBe('remote-hint');
   });
 

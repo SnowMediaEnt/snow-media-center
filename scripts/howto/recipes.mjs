@@ -47,7 +47,8 @@ export const RECIPES = [
   // ── Home ──
   { id: 'home', start: 'home', keys: [], ready: hook('home.cardLivetv') },
   { id: 'home-bar', start: 'home', keys: ['ArrowUp', 'ArrowRight', { wait: 800 }], ready: hook('home.recTile') },
-  { id: 'settings-remote', start: 'home', keys: [...SETTINGS, 'ArrowDown', 'ArrowRight*3', { wait: 2000 }], ready: hook('set.remoteQr') },
+  // Settings' tabs stand in a column: Down from Back reaches Media, three more Downs Phone Remote.
+  { id: 'settings-remote', start: 'home', keys: [...SETTINGS, 'ArrowDown*4', { wait: 2000 }], ready: hook('set.remoteQr') },
 
   // ── Live TV ──
   { id: 'live-signin', start: 'stage', keys: [{ wait: 800 }], ready: hook('signin.username') },
@@ -118,18 +119,19 @@ export const RECIPES = [
   { id: 'videos', start: 'home', keys: [...helpCard(1, 1), { wait: 1000 }], ready: hook('videos.grid'), settle: 600 },
 
   // ── Settings and profiles ──
-  // Settings opens on Media Manager; Down reaches the tabs: Media Manager, UI, Profiles, Phone Remote.
-  { id: 'settings-ui', start: 'home', keys: [...SETTINGS, 'ArrowDown', 'ArrowRight', { wait: 1000 }], ready: hook('set.updatesTab') },
+  // Settings opens on Media Manager; Down reaches the tab column (Media Manager, UI, Profiles,
+  // Phone Remote, Updates) and walks it, Right goes into the tab that is showing.
+  { id: 'settings-ui', start: 'home', keys: [...SETTINGS, 'ArrowDown*2', { wait: 1000 }], ready: hook('set.updatesTab') },
   // Down the UI tab to Post notifications (the page follows the highlight).
   // The Alerts card below it is only drawn for the picture on the web (it
   // can't be picked there), so the page is scrolled to bring the three
   // switches on screen, Content Bar at the top.
-  { id: 'settings-switches', start: 'home', keys: [...SETTINGS, 'ArrowDown', 'ArrowRight', { wait: 800 },
+  { id: 'settings-switches', start: 'home', keys: [...SETTINGS, 'ArrowDown*2', 'ArrowRight', { wait: 800 },
     { press: 'ArrowDown', until: () => !!document.querySelector('[data-settings-focus="ui-mail-notify-toggle"][data-focused="true"]'), max: 12 },
     { wait: 800 }, { scrollTo: hook('set.contentBar'), block: 'start', margin: -30 }, { wait: 600 }], ready: hook('set.alerts') },
   {
     id: 'settings-language', start: 'home',
-    keys: (lang) => [...SETTINGS, 'ArrowDown', 'ArrowRight', { wait: 800 },
+    keys: (lang) => [...SETTINGS, 'ArrowDown*2', 'ArrowRight', { wait: 800 },
       // Down the UI tab to the language grid (English first), then to the current language.
       { press: 'ArrowDown', until: () => !!document.querySelector('[data-settings-focus^="ui-language-"][data-focused="true"]'), max: 25 },
       ...LANG_PATH[lang],
