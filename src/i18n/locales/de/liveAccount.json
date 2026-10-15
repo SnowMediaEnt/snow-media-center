@@ -65,6 +65,7 @@
       "noExpiration": "Kein Ablaufdatum hinterlegt",
       "daysLeftLabel": "Verbleibende Tage",
       "signOutBtn": "Vom Player abmelden",
+      "confirmSignOut": "Zum Abmelden noch einmal OK drücken",
       "signedOutTitle": "Player abgemeldet",
       "signedOutDesc": "Du kannst dich im Player wieder anmelden."
     },

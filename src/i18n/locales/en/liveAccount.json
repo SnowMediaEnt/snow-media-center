@@ -65,6 +65,7 @@
       "noExpiration": "No expiration on file",
       "daysLeftLabel": "Days left",
       "signOutBtn": "Sign out of player",
+      "confirmSignOut": "Press OK again to sign out",
       "signedOutTitle": "Player signed out",
       "signedOutDesc": "You can sign back in from the Player."
     },

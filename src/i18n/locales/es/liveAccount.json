@@ -70,6 +70,7 @@
       "noExpiration": "Sin fecha de vencimiento registrada",
       "daysLeftLabel": "Días restantes",
       "signOutBtn": "Cerrar sesión del reproductor",
+      "confirmSignOut": "Pulsa OK otra vez para cerrar sesión",
       "signedOutTitle": "Sesión del reproductor cerrada",
       "signedOutDesc": "Puedes volver a iniciar sesión desde el Reproductor."
     },

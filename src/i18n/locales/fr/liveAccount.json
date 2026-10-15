@@ -70,6 +70,7 @@
       "noExpiration": "Aucune date d'expiration enregistrée",
       "daysLeftLabel": "Jours restants",
       "signOutBtn": "Déconnecter le lecteur",
+      "confirmSignOut": "Appuyez à nouveau sur OK pour vous déconnecter",
       "signedOutTitle": "Lecteur déconnecté",
       "signedOutDesc": "Vous pouvez vous reconnecter depuis le Lecteur."
     },

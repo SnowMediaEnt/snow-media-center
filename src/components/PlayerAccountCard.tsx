@@ -26,9 +26,12 @@ interface Props {
   /** Settings: one quiet panel — title, line badge and sign-out on one line,
    *  the details as short label/value pairs in columns underneath. */
   panel?: boolean;
+  /** Panel only: Settings' remote focus on the sign-out button (its data-*
+   *  attributes) and whether a first OK armed it ("press OK again"). */
+  signOutFocus?: { attrs: Record<string, string>; focused: boolean; armed: boolean };
 }
 
-const PlayerAccountCard = memo(({ compact = false, actions, panel = false }: Props) => {
+const PlayerAccountCard = memo(({ compact = false, actions, panel = false, signOutFocus }: Props) => {
   const { t } = useTranslation();
   const { account, state, days } = usePlayerAccount();
   const { toast } = useToast();
@@ -85,8 +88,14 @@ const PlayerAccountCard = memo(({ compact = false, actions, panel = false }: Pro
           {account.isTrial && (
             <Badge className="bg-amber-500/30 text-amber-100 border border-amber-400/40 mr-2">{t('liveAccount.account.trial')}</Badge>
           )}
-          <Button variant="white" size="sm" onClick={handleSignOut} className="tv-focusable h-8 ml-auto">
-            <LogOut className="w-4 h-4 mr-2" /> {t('liveAccount.playerCard.signOutBtn')}
+          <Button
+            variant="white"
+            size="sm"
+            onClick={handleSignOut}
+            {...(signOutFocus?.attrs ?? {})}
+            className={`h-8 ml-auto ${signOutFocus ? (signOutFocus.armed ? 'tv-ring-danger' : 'tv-ring') : 'tv-focusable'} ${signOutFocus?.focused ? 'z-10' : ''}`}
+          >
+            <LogOut className="w-4 h-4 mr-2" /> {signOutFocus?.armed ? t('liveAccount.playerCard.confirmSignOut') : t('liveAccount.playerCard.signOutBtn')}
           </Button>
         </div>
         {/* Grid gap (not flex gap) is fine on the oldest box WebViews. */}

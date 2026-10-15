@@ -94,8 +94,8 @@ describe('Settings → Profiles: the Parent PIN row', () => {
     kidsLevel = null;
     __setViewerForTests('u1');
     const { container } = render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowRight'); key('ArrowRight'); // → Profiles tab
-    key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); // switch → manage → Parent PIN
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); // Back → Media → UI → Profiles (the column)
+    key('ArrowRight'); key('ArrowDown'); key('ArrowDown'); // switch → manage → Parent PIN
     expect(container.querySelector('[data-settings-focus="profiles-parent"]')?.getAttribute('data-focused')).toBe('true');
     expect(screen.getByText('Off. Create one so kids can\'t add profiles or switch to a grown-up\'s.')).toBeTruthy();
     key('Enter');
@@ -106,7 +106,7 @@ describe('Settings → Profiles: the Parent PIN row', () => {
     kidsLevel = null;
     __setViewerForTests('device');
     const { container } = render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowRight'); key('ArrowRight');
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); // → the Profiles tab in the column
     expect(container.querySelector('[data-settings-focus="profiles-parent"]')).toBeNull();
     expect(screen.getByText('Sign in to your Snow Media account to protect profiles with a parent PIN.')).toBeTruthy();
   });

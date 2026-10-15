@@ -12,6 +12,7 @@ import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Lan
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors, hasParentPin, loadProfiles, pinsAvailable, profileName, PROFILES_EVENT } from '@/lib/profiles';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
+import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import PairingQR from '@/components/remote/PairingQR';
 import { PHONE_REMOTE_EVENT, connectedPhones, isPaired, setTypingHintEnabled, typingHintEnabled, unpairAllPhones } from '@/lib/phoneRemote';
 import { getPreferredTier, loadAiTiers, setPreferredTier, type AiTier, type AiTierInfo } from '@/lib/aiTiers';
@@ -57,6 +58,7 @@ type SettingsFocus =
   | 'profiles-switch'
   | 'profiles-manage'
   | 'profiles-parent'
+  | 'ui-player-signout'
   | 'ui-ai-tier'
   | 'ui-content-bar-toggle'
   | 'ui-dashboard-size-toggle'
@@ -224,6 +226,17 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
     return want && open.includes(want) ? want : 'media';
   });
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
+  // The Player Account panel (UI tab) and its sign-out, armed by a first OK.
+  const { account: playerAccount } = usePlayerAccount();
+  const [signOutArmed, setSignOutArmed] = useState(false);
+  const signOutArmedRef = useRef(signOutArmed);
+  signOutArmedRef.current = signOutArmed;
+  useEffect(() => {
+    if (!signOutArmed) return;
+    if (focusedElement !== 'ui-player-signout') { setSignOutArmed(false); return; }
+    const timer = window.setTimeout(() => setSignOutArmed(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [signOutArmed, focusedElement]);
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
   useEffect(() => { clearIntent(INTENT_KEYS.settings); }, []);
   // The same asked for while Settings is already open (a voice command, the
@@ -267,7 +280,10 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
       const getUiFocusOrder = (): SettingsFocus[] => {
         const order: SettingsFocus[] = kids
           ? ['ui-content-bar-toggle']
-          : [...(aiTierShown ? ['ui-ai-tier' as SettingsFocus] : []), 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
+          : [
+            // The Player Account panel's sign-out sits above the list (Up from the first row).
+            ...(playerAccount ? ['ui-player-signout' as SettingsFocus] : []),
+            ...(aiTierShown ? ['ui-ai-tier' as SettingsFocus] : []), 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
         if (!kids && deviceAlerts.supported) order.push('ui-device-alerts-toggle');
         if (rateShown) order.push('ui-rate-app');
         if (isAdmin) order.push('ui-player-toggle');
@@ -364,6 +380,16 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
           return;
         }
         if (event.key === 'Enter' || event.key === ' ') {
+          // Sign out of the Player: OK once arms it ("press OK again"), OK again does it.
+          if (focusedElement === 'ui-player-signout') {
+            if (signOutArmedRef.current) {
+              setSignOutArmed(false);
+              (document.querySelector('[data-settings-focus="ui-player-signout"]') as HTMLElement | null)?.click();
+            } else {
+              setSignOutArmed(true);
+            }
+            return;
+          }
           if (focusedElement === 'ui-ai-tier') toggleAiTier();
           else if (focusedElement === 'ui-content-bar-toggle') setMediaBarEnabledState(!mediaBarEnabled);
           else if (focusedElement === 'ui-dashboard-size-toggle') saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large');
@@ -510,7 +536,8 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
         if (focusedElement === 'tab-media' && activeTab === 'media') {
           setMediaManagerActive(true);
         } else if (focusedElement === 'tab-ui' && activeTab === 'ui') {
-          const first = getUiFocusOrder()[0];
+          // Into the list, not onto Sign out: Right then OK must never sign anyone out.
+          const first = getUiFocusOrder().find((f) => f !== 'ui-player-signout') ?? getUiFocusOrder()[0];
           setFocusedElement(first);
           setTimeout(() => {
             const card = document.querySelector(`[data-settings-focus="${first}"]`) as HTMLElement | null;
@@ -580,7 +607,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   // toggleAiTier reads the state below; it is recreated with it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, kids, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium, rateShown]);
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, kids, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium, rateShown, playerAccount]);
 
   useEffect(() => {
     const scrollAllToTop = () => {
@@ -761,7 +788,12 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
           </TabsContent>
 
           <TabsContent value="ui" className="mt-0 space-y-4">
-            {!kids && <PlayerAccountCard panel />}
+            {!kids && (
+              <PlayerAccountCard
+                panel
+                signOutFocus={{ attrs: settingsFocusAttrs('ui-player-signout'), focused: isFocused('ui-player-signout'), armed: signOutArmed }}
+              />
+            )}
 
             {/* Every on/off setting in one list: a 960x540 screen shows them all. */}
             <SettingsGroup>
