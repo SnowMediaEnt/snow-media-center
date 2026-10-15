@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tv, Calendar, KeyRound, Users, LogOut } from 'lucide-react';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
-import { clearPlayerAccount, clearCreds, expDateToMs, serverDisplayName } from '@/lib/xtream';
+import { expDateToMs, serverDisplayName } from '@/lib/xtream';
+import { signOutPlayer } from '@/lib/playerSignOut';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/i18n/format';
 import { useTranslation } from 'react-i18next';
@@ -53,9 +54,12 @@ const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
     ? 'bg-fuchsia-600/30 text-fuchsia-100 border-fuchsia-400/40'
     : 'bg-sky-600/30 text-sky-100 border-sky-400/40';
 
+  // The Player's own sign-out (owner, 2026-10-14): clearing the login alone
+  // left no "signed out on purpose" note, so the next Live TV open signed the
+  // box straight back in with the store (billing) account. It also stops
+  // recordings and wipes the rewind buffer, as the Player's Sign out does.
   const handleSignOut = async () => {
-    await clearCreds();
-    await clearPlayerAccount();
+    await signOutPlayer();
     toast({ title: t('liveAccount.playerCard.signedOutTitle'), description: t('liveAccount.playerCard.signedOutDesc') });
   };
 
