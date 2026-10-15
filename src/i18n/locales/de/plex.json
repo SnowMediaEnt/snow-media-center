@@ -262,7 +262,9 @@
       "episodesHintVersions": "▲ ▼ wählen · ◀ ▶ Version · OK abspielen · Zurück zu den Staffeln",
       "actorTitles": "{{name}} · Titel",
       "noOtherTitles": "Keine weiteren Titel auf diesem Server.",
-      "actorHint": "◀ ▶ ▲ ▼ stöbern · OK öffnen · Zurück zur Besetzung"
+      "actorHint": "◀ ▶ ▲ ▼ stöbern · OK öffnen · Zurück zur Besetzung",
+      "recommendBtn": "Empfehlen",
+      "recommendedBtn": "Empfohlen"
     },
     "trailer": {
       "button": "Trailer",
@@ -338,7 +340,27 @@
       "decadeNew": "Filme der {{decade}}er",
       "decadeOld": "Filme der {{decade}}er",
       "finding": "Wir suchen etwas zum Anschauen…",
-      "nothing": "Noch nichts zu entdecken – dieser Server hat keine Mediatheken."
+      "nothing": "Noch nichts zu entdecken – dieser Server hat keine Mediatheken.",
+      "recommended": "Von Zuschauern empfohlen"
+    },
+    "recommend": {
+      "action": "Anderen empfehlen",
+      "remove": "Empfohlen ✓ · Entfernen",
+      "checking": "Wird geprüft…",
+      "menuAria": "{{title}} empfehlen",
+      "note": "Andere Zuschauer auf diesem Server sehen es unter Entdecken bei „Von Zuschauern empfohlen“.",
+      "signIn": "Melde dich in deinem Snow-Media-Konto an, um anderen Zuschauern Titel zu empfehlen. Nutze die Schaltfläche „Anmelden“ auf dem Startbildschirm und komm dann hierher zurück.",
+      "count_one": "Von {{count}} Zuschauer empfohlen",
+      "count_other": "Von {{count}} Zuschauern empfohlen",
+      "toast": {
+        "added": "Anderen Zuschauern empfohlen",
+        "removed": "Entfernt",
+        "limitTitle": "Das sind viele Empfehlungen für einen Tag",
+        "limitDesc": "Versuch es morgen wieder.",
+        "signInTitle": "Zum Empfehlen anmelden",
+        "failedTitle": "Konnte nicht gespeichert werden",
+        "failedDesc": "Prüfe die Verbindung und versuch es noch einmal."
+      }
     },
     "seasonal": {
       "gathering": "{{season}}-Kollektion wird zusammengestellt…",

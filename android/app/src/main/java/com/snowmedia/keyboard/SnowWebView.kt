@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import com.getcapacitor.CapacitorWebView
+import com.snowmedia.DeviceKind
 
 /**
  * The app's WebView: Capacitor's own, plus one thing for the Fire TV
@@ -26,6 +27,16 @@ import com.getcapacitor.CapacitorWebView
  * shows whether this is on the keyboard's path at all.
  */
 class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(context, attrs) {
+
+    // A TV box says so in the user agent (DeviceKind) before the page loads,
+    // so the page's first frame is already the TV one, in low-memory mode.
+    init {
+        try {
+            if (DeviceKind.isTvBox(context) && !settings.userAgentString.contains(DeviceKind.UA_MARK)) {
+                settings.userAgentString = settings.userAgentString + " " + DeviceKind.UA_MARK
+            }
+        } catch (_: Throwable) { /* the page falls back to its own guess */ }
+    }
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
         val connection = super.onCreateInputConnection(outAttrs)

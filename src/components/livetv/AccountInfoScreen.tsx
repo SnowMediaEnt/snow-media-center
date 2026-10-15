@@ -19,6 +19,10 @@ interface Props {
   onBack: () => void;
   onSignOut: () => void;
   onChangeCredentials: () => void;
+  /** Drawn beside the Settings menu: no header of its own, Back / Left at the edge return to the menu. */
+  embedded?: boolean;
+  /** Embedded only: whether the remote is on this page (false while it is on the menu). */
+  active?: boolean;
 }
 
 const fmtDate = (ms: number | null) => (ms ? formatDateTime(ms) : '—');
@@ -28,10 +32,13 @@ const fmtDay = (ms: number | null) => (ms ? formatDate(ms) : '—');
 interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: boolean }
 
 /**
- * Read-only Xtream account info screen for the Player header "Account" button.
- * Two-button D-pad nav: Back / Sign out.
+ * Read-only Xtream account info screen (Live TV Settings -> Account info).
+ * Back sits top-left; the actions stand in a column beside the details, so
+ * the remote's Up / Down walk Back -> Show password -> Change login -> Renew
+ * -> Sign out. (They were one row across the top that only Left / Right
+ * reached, which viewers found confusing — owner, 2026-10-14.)
  */
-const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Props) => {
+const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedded = false, active = true }: Props) => {
   const { t } = useTranslation();
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
@@ -53,6 +60,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (embedded && !active) return; // the remote is on the Settings menu
       if (showQR) return; // RenewQR owns the keyboard
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
@@ -62,13 +70,19 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
         onBack();
         return;
       }
-      const arrows = ['ArrowLeft', 'ArrowRight', 'Enter', ' '];
-      if (!arrows.includes(e.key)) return;
+      const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
+      if (!keys.includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       const ae = document.activeElement as HTMLElement | null;
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
-      if (e.key === 'ArrowLeft') setFocusIdx(i => (i - 1 + BTN_COUNT) % BTN_COUNT);
-      else if (e.key === 'ArrowRight') setFocusIdx(i => (i + 1) % BTN_COUNT);
+      // Up / Down through the column (Left / Right too, for anyone used to
+      // the old row); it stops at the ends rather than wrapping round.
+      // Embedded there is no Back button (slot 0): Left at the top goes back
+      // to the menu, Up stays.
+      const first = embedded ? 1 : 0;
+      if (embedded && e.key === 'ArrowLeft' && focusIdxRef.current <= first) { onBack(); return; }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') setFocusIdx(i => Math.max(first, i - 1));
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') setFocusIdx(i => Math.min(BTN_COUNT - 1, i + 1));
       else if (e.key === 'Enter' || e.key === ' ') {
         const i = focusIdxRef.current;
         if (i === 0) onBack();
@@ -80,11 +94,11 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, onSignOut, onChangeCredentials, showQR, BTN_COUNT, showRenew, signOutIdx]);
+  }, [onBack, onSignOut, onChangeCredentials, showQR, BTN_COUNT, showRenew, signOutIdx, embedded, active]);
 
   if (!account) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-white bg-black/70">
+      <div className={embedded ? 'h-full flex items-center justify-center text-white' : 'min-h-screen flex items-center justify-center text-white bg-black/70'}>
         <Card className="rounded-2xl p-6 bg-slate-900/80 border-slate-700 text-center">
           <p className="text-white/80 mb-4">{t('liveAccount.account.noAccount')}</p>
           <BackButton onClick={onBack} label={t('common.back')} />
@@ -95,7 +109,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
 
   if (showQR) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-white bg-black/70 p-6">
+      <div className={embedded ? 'h-full flex items-center justify-center text-white p-2' : 'min-h-screen flex items-center justify-center text-white bg-black/70 p-6'}>
         <Card className="rounded-3xl bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-8 shadow-xl">
           <RenewQR username={account.username} serverLabel={account.serverLabel} onBack={() => setShowQR(false)} />
         </Card>
@@ -159,10 +173,18 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
     )},
   ];
 
+  const actions = [
+    { idx: 1, icon: showPwd ? EyeOff : Eye, onClick: () => setShowPwd(v => !v),
+      label: showPwd ? t('liveAccount.account.hidePasswordBtn') : t('liveAccount.account.showPasswordBtn') },
+    { idx: 2, icon: KeyRound, onClick: onChangeCredentials, label: t('liveAccount.account.changeCredentialsBtn') },
+    ...(showRenew ? [{ idx: 3, icon: RefreshCw, onClick: openRenew, label: t('liveAccount.account.renewBtn') }] : []),
+    { idx: signOutIdx, icon: LogOut, onClick: onSignOut, label: t('common.signOut') },
+  ];
+
   return (
-    <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30">
-        <div className="flex items-center gap-3">
+    <div className={embedded ? 'h-full min-h-0 overflow-hidden flex flex-col text-white' : 'h-screen overflow-hidden flex flex-col text-white bg-black/70'}>
+      {!embedded && (
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
           <BackButton
             onClick={onBack}
             label={t('common.back')}
@@ -174,67 +196,44 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
             <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.account.title')}</h1>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="white"
-            size="sm"
-            onClick={() => setShowPwd(v => !v)}
-            data-focused={focusIdx === 1 ? "true" : "false"}
-            className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}
-          >
-            {showPwd ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
-            <span className="min-w-0 truncate">{showPwd ? t('liveAccount.account.hidePasswordBtn') : t('liveAccount.account.showPasswordBtn')}</span>
-          </Button>
-          <Button
-            variant="white"
-            size="sm"
-            onClick={onChangeCredentials}
-            data-focused={focusIdx === 2 ? "true" : "false"}
-            className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 2 ? 'scale-105 z-10' : ''}`}
-          >
-            <KeyRound className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('liveAccount.account.changeCredentialsBtn')}</span>
-          </Button>
-          {showRenew && (
-            <Button
-              variant="white"
-              size="sm"
-              onClick={openRenew}
-              data-focused={focusIdx === 3 ? "true" : "false"}
-              className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 3 ? 'scale-105 z-10' : ''}`}
-            >
-              <RefreshCw className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('liveAccount.account.renewBtn')}</span>
-            </Button>
-          )}
-          <Button
-            variant="white"
-            size="sm"
-            onClick={onSignOut}
-            data-focused={focusIdx === signOutIdx ? "true" : "false"}
-            className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === signOutIdx ? 'scale-105 z-10' : ''}`}
-          >
-            <LogOut className="w-4 h-4 mr-2" /> <span className="min-w-0 truncate">{t('common.signOut')}</span>
-          </Button>
-        </div>
-      </div>
+      )}
 
-
-      <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
-        <Card className="w-full max-w-3xl rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-6 shadow-xl">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-            {rows.map((r) => {
-              const Icon = r.icon;
-              return (
-                <div key={r.label} className="flex items-start gap-3 py-2 border-b border-white/5">
-                  <Icon className="w-5 h-5 text-brand-ice mt-0.5 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs uppercase tracking-wide text-white/70 mb-1">{r.label}</div>
-                    <div className="text-base text-white font-medium">{r.value}</div>
-                  </div>
-                </div>
-              );
-            })}
+      <div className={embedded ? 'flex-1 overflow-auto p-1' : 'flex-1 overflow-auto p-6'}>
+        {/* Margins, not flex gap: older box WebViews (Chrome < 84) ignore gap. */}
+        <div className="mx-auto w-full max-w-5xl flex flex-col md:flex-row md:items-start">
+          {/* Beside the Settings menu the columns are narrower, so the details keep two columns at 960 px. */}
+          <div className={`space-y-3 shrink-0 mb-4 md:mb-0 ${embedded ? 'md:w-48 lg:w-60 md:mr-4' : 'md:w-72 md:mr-6'}`} data-account-actions>
+            {actions.map(({ idx, icon: Icon, onClick, label }) => (
+              <Button
+                key={idx}
+                variant="white"
+                onClick={onClick}
+                data-focused={focusIdx === idx ? 'true' : 'false'}
+                className={`tv-ring w-full justify-start rounded-xl ${embedded ? 'h-12 px-4 text-sm' : 'h-14 px-5 text-base'} transition-transform duration-150 ease-out ${focusIdx === idx ? 'scale-105 z-10' : ''}`}
+              >
+                <Icon className="w-5 h-5 mr-2 shrink-0" />
+                <span className="min-w-0 truncate">{label}</span>
+              </Button>
+            ))}
           </div>
-        </Card>
+
+          <Card className={`flex-1 min-w-0 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 shadow-xl ${embedded ? 'p-4' : 'p-6'}`}>
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${embedded ? 'gap-x-4 gap-y-2' : 'gap-x-8 gap-y-4'}`}>
+              {rows.map((r) => {
+                const Icon = r.icon;
+                return (
+                  <div key={r.label} className="flex items-start gap-3 py-2 border-b border-white/5">
+                    <Icon className="w-5 h-5 text-brand-ice mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs uppercase tracking-wide text-white/70 mb-1">{r.label}</div>
+                      <div className="text-base text-white font-medium">{r.value}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
+import { isDeviceKey, platformRaisesKeyboard } from '@/utils/deviceKey';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type NavTarget = string | null | undefined | (() => string | null | undefined);
@@ -119,6 +120,29 @@ const DISMISS_GRACE_MS = 700;
 // One keyboard Enter can reach the page more than once (keydown, then the
 // keyup fallback below). Within this window the second one is an echo.
 const ENTER_ECHO_MS = 800;
+// The Android side reports every OK / Enter the REMOTE sends ('smc:okkey',
+// MainActivity.dispatchKeyEvent), just ahead of the key itself. A real
+// (trusted) Enter on a text box with no report around it is the on-screen
+// keyboard's own: on a Fire TV, the one Back sends as it closes the keyboard.
+// A late report gets OK_LATE_MS to arrive.
+const OK_REPORT_MS = 400;
+const OK_LATE_MS = 150;
+// An OK report with no Enter reaching the page this soon: the WebView opened
+// the keyboard by itself (a Fire TV does on OK over a text box).
+const OK_UNSEEN_MS = 250;
+// After the keyboard is put away, the platform focusing that same field again
+// (the WebView does as the keyboard window closes) must not raise it again.
+const QUIET_AFTER_DISMISS_MS = 2000;
+const QUIET_FOCUS_MS = 300;
+
+// Every Enter that reaches the page, stamped before any screen's own listener
+// can stop it: an OK the Android side reports then knows the page had it.
+let lastEnterDownAt = 0;
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 23) && e.keyCode !== 229) lastEnterDownAt = Date.now();
+  }, true);
+}
 
 /**
  * Remote-control focus for a screen.
@@ -163,6 +187,27 @@ export const useTVFocus = ({
   const lastBackRef = useRef(0);
   const lastDismissRef = useRef(0);
   const lastEnterRef = useRef(0);
+  // The keyboard now up was opened by the platform, not by us: a Fire TV
+  // raises Amazon's keyboard itself (OK over a text box, a box focused as a
+  // screen opens) and the page never hears of it. Known from the OK the
+  // Android side reports with no Enter reaching the page, or from typing.
+  const platformOpenedRef = useRef(false);
+  // When the Android side last reported an OK / Enter from the remote.
+  const lastOkKeyAtRef = useRef(0);
+  // The field whose keyboard was just put away, and until when the platform
+  // focusing it again is kept from raising the keyboard (see onFocusIn).
+  const dismissedRef = useRef<{ field: HTMLElement; until: number } | null>(null);
+  // Timers this hook started that act on the keyboard: cleared on unmount, so
+  // one firing late cannot put away the next screen's keyboard.
+  const timersRef = useRef(new Set<number>());
+  const later = useCallback((fn: () => void, ms: number) => {
+    const id = window.setTimeout(() => { timersRef.current.delete(id); fn(); }, ms);
+    timersRef.current.add(id);
+  }, []);
+  useEffect(() => () => {
+    timersRef.current.forEach((id) => window.clearTimeout(id));
+    timersRef.current.clear();
+  }, []);
 
   const ownsField = useCallback(
     (el: HTMLElement | null): el is HTMLInputElement | HTMLTextAreaElement =>
@@ -295,14 +340,36 @@ export const useTVFocus = ({
   /** Ask the platform for the keyboard on a field this hook owns. */
   const openKeyboardOn = useCallback((field: HTMLInputElement | HTMLTextAreaElement) => {
     openedRef.current = field;
+    // On a Fire TV every keyboard is Amazon's, whose Enter after typing is
+    // "done" (Back closing it sends one); its Next moves focus on its own.
+    platformOpenedRef.current = platformRaisesKeyboard();
+    dismissedRef.current = null;
+    // A box made read-only for a moment (onFocusIn) opens at once on OK.
+    if (field.dataset.tvQuiet) { field.readOnly = false; delete field.dataset.tvQuiet; }
     void focusTextInputForDpad(field);
   }, []);
 
-  /** Put the keyboard away and leave the field, highlight staying where it is. */
-  const closeKeyboard = useCallback((el: HTMLElement | null) => {
+  /** Put the keyboard away; the field is left, or with keepFocus kept (keyboard only). */
+  const closeKeyboard = useCallback((el: HTMLElement | null, keepFocus = false) => {
     openedRef.current = null;
-    void hideKeyboardForDpad(el);
+    platformOpenedRef.current = false;
+    void hideKeyboardForDpad(el, { keepFocus });
   }, []);
+
+  /**
+   * The keyboard put away for good on `field` (Back, or the keyboard's own
+   * Enter as it closes): it stays away. Its parting Enter is swallowed, and
+   * the platform focusing the field again does not raise it.
+   */
+  const dismissKeyboardOn = useCallback((field: HTMLElement | null) => {
+    const now = Date.now();
+    lastDismissRef.current = now;
+    if (field) dismissedRef.current = { field, until: now + QUIET_AFTER_DISMISS_MS };
+    // A Fire TV: the field keeps focus. With nothing focused the WebView
+    // focuses the page's first control as the keyboard window closes, and a
+    // text box focused there raises the keyboard again.
+    closeKeyboard(field, platformRaisesKeyboard());
+  }, [closeKeyboard]);
 
   const activate = useCallback(() => {
     const currentEl = findManagedElement(document.activeElement as HTMLElement | null)
@@ -341,6 +408,25 @@ export const useTVFocus = ({
     const next = rest[0];
     if (next) focusById(getId(next));
   }, [closeKeyboard, findManagedElement, focusById, getElements, getId, openKeyboardOn]);
+
+  /**
+   * Done typing in a keyboard the platform opened (a Fire TV's Back closing
+   * Amazon's keyboard sends an Enter): the keyboard stays away. After the last
+   * field the highlight lands on the form's button, as the keyboard's Next
+   * would; otherwise it stays on the field. It never moves to another text
+   * box, which would open that box's keyboard (owner, 1.9.0).
+   */
+  const finishPlatformTyping = useCallback((field: HTMLInputElement | HTMLTextAreaElement) => {
+    const elements = getElements();
+    const here = findManagedElement(field) ?? field;
+    const idx = elements.indexOf(here);
+    const moreFields = idx >= 0 && elements.slice(idx + 1).some(
+      (el) => isTextInput(el) && !(el as HTMLInputElement).disabled && !(el as HTMLInputElement).readOnly,
+    );
+    if (moreFields) { dismissKeyboardOn(field); return; }
+    dismissedRef.current = { field, until: Date.now() + QUIET_AFTER_DISMISS_MS };
+    advanceFrom(field);
+  }, [advanceFrom, dismissKeyboardOn, findManagedElement, getElements]);
 
   /**
    * Is an Enter on this field the keyboard's "done here"? Only when the
@@ -393,6 +479,21 @@ export const useTVFocus = ({
         return;
       }
       if (openedRef.current && openedRef.current !== el) openedRef.current = el;
+      // The platform focusing the field whose keyboard was just put away (the
+      // WebView does as the keyboard window closes): on a Fire TV that raised
+      // the keyboard straight back up, again and again (owner, 1.9.0). A box
+      // read-only for a moment gets focus without a keyboard.
+      const quiet = dismissedRef.current;
+      if (quiet && quiet.field === el && Date.now() < quiet.until && openedRef.current !== el
+        && !el.readOnly && platformRaisesKeyboard()) {
+        el.readOnly = true;
+        el.dataset.tvQuiet = '1';
+        window.setTimeout(() => {
+          if (!el.dataset.tvQuiet) return; // OK already opened it
+          el.readOnly = false;
+          delete el.dataset.tvQuiet;
+        }, QUIET_FOCUS_MS);
+      }
       const managed = findManagedElement(el);
       if (!managed) return;
       const id = getId(managed);
@@ -405,8 +506,37 @@ export const useTVFocus = ({
     // field's Done just re-asked for the keyboard and it never closed.
     const onInput = (event: Event) => {
       const el = event.target as HTMLElement | null;
-      if (ownsField(el)) openedRef.current = el;
+      if (!ownsField(el)) return;
+      // Typing where we never asked for a keyboard: on a Fire TV the platform
+      // opened it (elsewhere it is a tap, or the keyboard's Next moving on).
+      if (openedRef.current !== el && platformRaisesKeyboard()) platformOpenedRef.current = true;
+      openedRef.current = el;
     };
+    // The remote's OK, reported by the Android side. No Enter reached the page
+    // for it: the WebView opened the keyboard on the focused box by itself.
+    const onOkKey = () => {
+      const at = Date.now();
+      lastOkKeyAtRef.current = at;
+      // The viewer's OK on a box made read-only for a moment: the WebView is
+      // about to open the keyboard on it itself, so it must take text now.
+      const focused = document.activeElement as HTMLElement | null;
+      if (ownsField(focused) && focused.dataset.tvQuiet) {
+        focused.readOnly = false;
+        delete focused.dataset.tvQuiet;
+        dismissedRef.current = null;
+      }
+      if (at - lastEnterDownAt < OK_UNSEEN_MS) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (!ownsField(active) || openedRef.current === active) return;
+      window.setTimeout(() => {
+        if (lastEnterDownAt >= at - OK_UNSEEN_MS) return; // the page had the press
+        if (document.activeElement !== active || openedRef.current === active) return;
+        openedRef.current = active;
+        platformOpenedRef.current = true;
+        dismissedRef.current = null;
+      }, OK_UNSEEN_MS);
+    };
+    window.addEventListener('smc:okkey', onOkKey);
     root?.addEventListener('focusin', onFocusIn);
     root?.addEventListener('input', onInput);
     let stopHide: (() => void) | null = null;
@@ -416,7 +546,15 @@ export const useTVFocus = ({
         const { Capacitor } = await import('@capacitor/core');
         if (!Capacitor.isNativePlatform()) return;
         const { Keyboard } = await import('@capacitor/keyboard');
-        const handle = await Keyboard.addListener('keyboardDidHide', () => { openedRef.current = null; });
+        // Hidden while we took it to be up on a field (the keyboard took Back
+        // itself; JavaScript never sees that press): put away like Back, so
+        // its parting Enter is swallowed rather than read as OK.
+        const handle = await Keyboard.addListener('keyboardDidHide', () => {
+          if (!openedRef.current) return;
+          openedRef.current = null;
+          platformOpenedRef.current = false;
+          lastDismissRef.current = Date.now();
+        });
         if (cancelled) { void handle.remove(); return; }
         stopHide = () => { void handle.remove(); };
       } catch {
@@ -427,8 +565,10 @@ export const useTVFocus = ({
       cancelled = true;
       root?.removeEventListener('focusin', onFocusIn);
       root?.removeEventListener('input', onInput);
+      window.removeEventListener('smc:okkey', onOkKey);
       stopHide?.();
       openedRef.current = null;
+      platformOpenedRef.current = false;
     };
   }, [enabled, findManagedElement, focusById, getId, ownsField]);
 
@@ -468,9 +608,14 @@ export const useTVFocus = ({
         // Back on a field closes the keyboard and STAYS on that field: the
         // highlight is drawn from data-tv-focused, which focusById set, and
         // the handler falls back to currentIdRef once focus is loose.
-        if (typing) {
-          lastDismissRef.current = now;
-          closeKeyboard(active ?? target);
+        // On a Fire TV the keyboard takes Back itself while it is up, so a
+        // Back that reaches the page means it is down: leave the screen, even
+        // from a field that kept focus (dismissKeyboardOn).
+        if (typing && platformRaisesKeyboard()) {
+          openedRef.current = null;
+          platformOpenedRef.current = false;
+        } else if (typing) {
+          dismissKeyboardOn(active ?? target);
           return;
         }
         onBackRef.current?.();
@@ -501,8 +646,31 @@ export const useTVFocus = ({
         // Stamped for an open as well as a move: the keyup of this same
         // press must not be read as a Next by the fallback below.
         lastEnterRef.current = now;
-        if (next) advanceFrom(enterField);
-        else openKeyboardOn(enterField);
+        if (next) {
+          if (platformOpenedRef.current) finishPlatformTyping(enterField);
+          else advanceFrom(enterField);
+          return;
+        }
+        if (!isDeviceKey(event) || now - lastOkKeyAtRef.current < OK_REPORT_MS) {
+          openKeyboardOn(enterField);
+          return;
+        }
+        // A held OK repeating (only its first press is reported): not the
+        // keyboard's Enter, and nothing new to do.
+        if (event.repeat) return;
+        // No OK from the remote around this Enter: it is the on-screen
+        // keyboard's own. A Fire TV raises Amazon's keyboard by itself on a
+        // focused text box, and Back closing it sends this Enter; read as OK
+        // it opened the keyboard again, over and over (owner, 1.9.0). The
+        // keyboard is going away and stays away. A late report still opens it.
+        const field = enterField;
+        later(() => {
+          if (lastOkKeyAtRef.current >= now - OK_REPORT_MS) {
+            if (document.activeElement === field) openKeyboardOn(field);
+          } else {
+            dismissKeyboardOn(field);
+          }
+        }, OK_LATE_MS);
         return;
       }
 
@@ -541,7 +709,8 @@ export const useTVFocus = ({
       event.preventDefault();
       event.stopPropagation();
       lastEnterRef.current = now;
-      advanceFrom(active);
+      if (platformOpenedRef.current) finishPlatformTyping(active);
+      else advanceFrom(active);
     };
     window.addEventListener('keydown', handler, { capture: true });
     window.addEventListener('keyup', onKeyUp, { capture: true });
@@ -549,7 +718,7 @@ export const useTVFocus = ({
       window.removeEventListener('keydown', handler, { capture: true });
       window.removeEventListener('keyup', onKeyUp, { capture: true });
     };
-  }, [activate, advanceFrom, closeKeyboard, enabled, enterMeansNext, findManagedElement, getAllElements, getId, move, openKeyboardOn, ownsField]);
+  }, [activate, advanceFrom, closeKeyboard, dismissKeyboardOn, enabled, enterMeansNext, findManagedElement, finishPlatformTyping, getAllElements, getId, later, move, openKeyboardOn, ownsField]);
 
   const focusProps = useCallback((id: string) => ({
     'data-tv-focus-id': id,

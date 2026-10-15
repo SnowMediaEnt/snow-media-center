@@ -10,6 +10,8 @@
       "rewind": "Zurückspulen & Aufnahme",
       "playback": "Wiedergabe",
       "signOut": "Abmelden",
+      "billingHint": "Deine Tarife, Verlängerungen und der Gratis-Test. Drücke OK, um Mein Konto zu öffnen.",
+      "signOutHint": "Meldet dieses Gerät von Live TV ab. Deine Leitung funktioniert auf deinen anderen Geräten weiter. Drücke OK zum Abmelden.",
       "demoTitle": "Live-Demo",
       "demoDesc": "Die Demo ist mit einem Demo-Konto vorgeladen – Anmeldung und Kontowechsel funktionieren in der installierten App."
     },
@@ -163,7 +165,7 @@
       "connecting": "Wird verbunden…",
       "signIn": "Anmelden",
       "signingIn": "Anmeldung läuft…",
-      "getStarted": "Neu hier? Los geht's",
+      "getStarted": "Neukunde? Hier klicken, um ein Konto zu erstellen",
       "finishSetup": "Einrichtung von {{label}} abschließen",
       "note": "Ist der Benutzername eine E-Mail-Adresse, geht es zu Vibez, sonst zu DreamStreams. Deine Zugangsdaten werden nur auf diesem Gerät gespeichert.",
       "missingTitle": "Angaben fehlen",

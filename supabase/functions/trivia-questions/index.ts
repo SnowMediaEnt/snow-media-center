@@ -1,4 +1,4 @@
-// Public, read-only delivery for the curated Snow Media trivia bank.
+// Public catalogue only. Paid challenges and grading run on the game server.
 //
 // The service-role client can read public.trivia_questions, but the response
 // exposes only published gameplay fields. It never queries knowledge_documents
@@ -104,8 +104,7 @@ Deno.serve(async (request) => {
       categoryLabel: `Snow Media · ${TOPIC_LABEL[row.topic]}`,
       prompt: row.prompt,
       answers: row.answers,
-      correct: row.correct_index,
-      fact: row.fact,
+      // Never publish the answer key or explanation ahead of a ranked answer.
       points: Math.max(25, Math.min(500, row.points)),
     }));
 

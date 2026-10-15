@@ -5,7 +5,9 @@
 // listeners both act on the same key. Every browse-side handler must bail on
 // its first line when it is not the owner; prop-level gating (isActive) is
 // only defence in depth because listener teardown waits for passive effects.
-export type PlexKeyOwner = 'browse' | 'detail' | 'player';
+// 'menu': a poster's hold menu (PlexRecommendMenu) over the rails or the
+// title page; plexRecommendHold takes it and gives it back.
+export type PlexKeyOwner = 'browse' | 'detail' | 'player' | 'menu';
 
 let owner: PlexKeyOwner = 'browse';
 

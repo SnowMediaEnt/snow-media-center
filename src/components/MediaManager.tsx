@@ -40,6 +40,9 @@ interface MediaManagerProps {
   onBack: () => void;
   embedded?: boolean; // When true, hides the "Back to Home" button (used in Settings)
   isActive?: boolean; // When true and embedded, MediaManager handles its own navigation
+  /** Embedded only: Left at the left edge (where Left has nothing else to do)
+   *  hands the remote back to the parent — Settings' tab column. */
+  onExitLeft?: () => void;
 }
 
 // Focus element types for TV navigation
@@ -85,7 +88,7 @@ const saveAnonGallery = (items: AnonImage[]) => {
 const loadAnonActiveId = (): string | null => { try { return localStorage.getItem(ANON_ACTIVE_KEY); } catch { return null; } };
 const saveAnonActiveId = (id: string | null) => { try { if (id) localStorage.setItem(ANON_ACTIVE_KEY, id); else localStorage.removeItem(ANON_ACTIVE_KEY); } catch { /* ignore */ } };
 
-const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManagerProps) => {
+const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }: MediaManagerProps) => {
   const { assets, loading, uploadAsset, toggleAssetActive, deleteAsset, getAssetUrl } = useMediaAssets();
   const { user, session } = useAuth();
   const { profile, checkCredits, deductCredits, fetchProfile } = useUserProfile();
@@ -381,6 +384,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           } else if (focusedElement.startsWith('asset-')) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             if (currentIndex % gridCols !== 0) setFocusedElement(`asset-${currentIndex - 1}`);
+            else if (embedded && onExitLeft) onExitLeft();
+          } else if (embedded && onExitLeft && (focusedElement === 'prompt-input' || focusedElement === 'asset-type' || focusedElement === 'file-input' || focusedElement === 'compare-keep-free')) {
+            // The left edge of the panel: back to the column beside it.
+            onExitLeft();
           }
           break;
 
@@ -424,7 +431,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [focusedElement, galleryItems, onBack, isActive]);
+  }, [focusedElement, galleryItems, onBack, onExitLeft, isActive]);
 
 
   // Scroll focused element into view - always keep selector visible.
@@ -1071,8 +1078,11 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                 <p className="text-sm text-purple-200 italic">{t('media.generate.signInToSave')}</p>
               )}
             </div>
-            <div className="flex gap-4">
-              <div className="flex-1" data-focus-id="prompt-input">
+            {/* The box gets its own line and the buttons sit under it: beside the
+                Settings column the page is narrower, and in one row the buttons
+                (which never shrink) squeezed the box to a sliver. */}
+            <div className="space-y-3">
+              <div data-focus-id="prompt-input">
                 <Label htmlFor="generate-prompt" className="text-white mb-2 block">{t('media.generate.promptLabel')}</Label>
                 <Input
                   id="generate-prompt"
@@ -1084,7 +1094,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   disabled={generating}
                 />
               </div>
-              <div className="flex items-end gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   onClick={() => handleGenerateImage()}
                   disabled={generating || comparing || !generatePrompt.trim() || (isAuthenticated && profile && profile.credits < tierCost)}

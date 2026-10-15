@@ -102,4 +102,17 @@ describe('Start early / End late', () => {
     key('Enter'); key('Enter'); key('Enter'); // 5, 10, back to 0
     expect(loadPadding().beforeMin).toBe(0);
   });
+
+  it('beside the Settings menu: Left on the first row goes back to the menu, Right still switches Rewind', async () => {
+    const onBack = vi.fn();
+    render(<RewindSettingsScreen embedded active onBack={onBack} />);
+    await settle();
+    const before = loadRewindSettings().enabled;
+    key('ArrowLeft');
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(loadRewindSettings().enabled).toBe(before);
+    key('ArrowRight');
+    expect(loadRewindSettings().enabled).toBe(!before);
+  });
 });
+

@@ -1,0 +1,1322 @@
+[
+  {
+    "id": "snow-remote-select",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "Which Fire TV remote button opens the item highlighted on screen?",
+    "answers": [
+      "Menu",
+      "Back",
+      "OK / center",
+      "Volume up"
+    ],
+    "correct": 2,
+    "fact": "The D-pad moves the highlight, and the OK or center button activates it.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-reduced-fx",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "What does Reduced FX do in the Snow Media game lounge?",
+    "answers": [
+      "Raises the volume",
+      "Uses lighter visual effects",
+      "Changes the language",
+      "Signs out"
+    ],
+    "correct": 1,
+    "fact": "Reduced FX keeps gameplay clear while using simpler animation on lower-powered TV devices.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-four-k-speed",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "For consistent 4K streaming, what connection speed does the in-app test recommend?",
+    "answers": [
+      "At least 5 Mbps",
+      "At least 10 Mbps",
+      "At least 25 Mbps",
+      "At least 100 Mbps"
+    ],
+    "correct": 2,
+    "fact": "Snow Media Center recommends at least 25 Mbps for consistent 4K streaming.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-hd-speed",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "Below which speed does Snow Media Center warn that HD may buffer?",
+    "answers": [
+      "5 Mbps",
+      "15 Mbps",
+      "40 Mbps",
+      "75 Mbps"
+    ],
+    "correct": 1,
+    "fact": "The app warns that speeds below 15 Mbps can cause buffering for HD streams.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-player-sections",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "Which set names the main kinds of content available in the Snow Media Player?",
+    "answers": [
+      "Radio, podcasts, books",
+      "Live TV, movies, series",
+      "Photos, mail, maps",
+      "Shopping, banking, weather"
+    ],
+    "correct": 1,
+    "fact": "The Player brings Live TV, movies, and series together in one TV-friendly experience.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-streaming-login",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "Your Dreamstreams or Vibez username and password are primarily used for what?",
+    "answers": [
+      "The streaming Player",
+      "A social profile",
+      "Game difficulty",
+      "TV picture settings"
+    ],
+    "correct": 0,
+    "fact": "Dreamstreams and Vibez credentials are streaming logins used by the Player.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-account-difference",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "Is a Snow Media website account the same thing as a streaming login?",
+    "answers": [
+      "Yes, always",
+      "Only on weekends",
+      "No, they serve different purposes",
+      "Only on Fire TV"
+    ],
+    "correct": 2,
+    "fact": "The website account and streaming login are separate, so changing one does not replace the other.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-billing-account",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "What is the billing account area designed to manage?",
+    "answers": [
+      "Plans, renewals, and trials",
+      "Remote batteries",
+      "TV brightness",
+      "Trivia answers"
+    ],
+    "correct": 0,
+    "fact": "The billing area is for plans, renewals, trials, gift codes, and related account tasks.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-website-account",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "What can a free Snow Media website account help you keep track of?",
+    "answers": [
+      "TV volume only",
+      "Purchases, support replies, and profile details",
+      "Remote pairing only",
+      "HDMI inputs"
+    ],
+    "correct": 1,
+    "fact": "The optional website account connects purchases, support tickets and replies, messages, and profile details.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-support-speed-test",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "What built-in Snow Media tool can help diagnose a buffering connection?",
+    "answers": [
+      "A stopwatch",
+      "The Internet Speed Test",
+      "A calculator",
+      "The game leaderboard"
+    ],
+    "correct": 1,
+    "fact": "The built-in Internet Speed Test measures the connection on the same device used for streaming.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-snow-ai",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "Where would you go in Snow Media Center to ask the Snow Media AI for help?",
+    "answers": [
+      "Support",
+      "Game payout settings",
+      "TV input menu",
+      "Device wallpaper"
+    ],
+    "correct": 0,
+    "fact": "Snow Media AI lives with the other help tools in the Support experience.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-install-apps",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "What is the Main Apps area for?",
+    "answers": [
+      "Installing and opening supported apps",
+      "Changing the TV panel",
+      "Editing trivia scores",
+      "Buying a remote"
+    ],
+    "correct": 0,
+    "fact": "Main Apps helps viewers download, install, update, and open supported companion apps.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-hold-channel",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "What shortcut opens favorite and report options for a Live TV channel?",
+    "answers": [
+      "Hold the channel",
+      "Press volume down twice",
+      "Open billing",
+      "Restart the television"
+    ],
+    "correct": 0,
+    "fact": "Pressing and holding a channel opens quick favorite and report actions with the channel already filled in.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-version-102",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "Which tool was added in Snow Media Center version 1.0.2?",
+    "answers": [
+      "Internet Speed Test",
+      "A photo printer",
+      "A weather station",
+      "A web browser"
+    ],
+    "correct": 0,
+    "fact": "Version 1.0.2 added the built-in Speed Test and interactive Buffering Guide.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-version-151",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "Which playful currencies arrived with the upgraded Game Room in version 1.5.1?",
+    "answers": [
+      "Stars and hearts",
+      "Snow Gems and Snow Coins",
+      "Tickets and tokens",
+      "Gold and silver bars"
+    ],
+    "correct": 1,
+    "fact": "Version 1.5.1 introduced Snow Gems, bonus Snow Coins, and a TV-fitted Game Room.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-version-157",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "Which classic TV feature arrived in Snow Media Center version 1.5.7?",
+    "answers": [
+      "A cable-grid Guide",
+      "A DVD tray",
+      "A radio antenna",
+      "Picture printing"
+    ],
+    "correct": 0,
+    "fact": "Version 1.5.7 added the full EPG Guide under Live TV.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-version-158",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "What new viewing area was introduced in version 1.5.8?",
+    "answers": [
+      "Movies & Shows powered by Plex",
+      "Printed TV listings",
+      "FM radio",
+      "Photo slides only"
+    ],
+    "correct": 0,
+    "fact": "Version 1.5.8 introduced Movies & Shows powered by Plex, plus in-app requests.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-version-160",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "What did Multi-Screen add in version 1.6?",
+    "answers": [
+      "Two or four channels at once",
+      "A second billing account",
+      "Four trivia answers",
+      "A new remote battery"
+    ],
+    "correct": 0,
+    "fact": "Multi-Screen added layouts for watching two or four channels at the same time.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "easy",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-speed-recovery",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "The in-app speed test shows 11 Mbps on your TV box. What does the Buffering Guide suggest trying?",
+    "answers": [
+      "Change trivia mode",
+      "Use 5 GHz Wi-Fi, move closer, or connect Ethernet",
+      "Raise the TV volume",
+      "Turn on subtitles"
+    ],
+    "correct": 1,
+    "fact": "The Buffering Guide flags under 15 Mbps on the streaming device and suggests 5 GHz Wi-Fi, moving closer, or Ethernet.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-speed-targets",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "Which pair matches Snow Media’s in-app download-speed guidance?",
+    "answers": [
+      "HD 5 / 4K 10 Mbps",
+      "HD 15 / 4K 25 Mbps",
+      "HD 25 / 4K 15 Mbps",
+      "HD 50 / 4K 100 Mbps"
+    ],
+    "correct": 1,
+    "fact": "The Buffering Guide uses 15 Mbps for HD; the Speed Test recommends at least 25 Mbps for consistent 4K.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-speed-device",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "Why run the Speed Test on the TV box that is buffering?",
+    "answers": [
+      "It measures that device’s connection",
+      "It increases your plan speed",
+      "It changes the HDMI input",
+      "It clears the TV cache"
+    ],
+    "correct": 0,
+    "fact": "A phone’s speed can differ from the connection the streaming box actually uses.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-slow-box-visuals",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "If game animation is heavy on an older TV box, which lounge setting keeps play but lightens effects?",
+    "answers": [
+      "Higher resolution",
+      "Reduced FX",
+      "Extra channels",
+      "Auto sign-out"
+    ],
+    "correct": 1,
+    "fact": "Reduced FX uses simpler game effects without changing the game rules.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-email-route",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "In the streaming sign-in screen, a username formatted as an email connects to which service?",
+    "answers": [
+      "Dreamstreams",
+      "VibezTV",
+      "Plex requests",
+      "Snow Mail"
+    ],
+    "correct": 1,
+    "fact": "The Player sign-in form routes email usernames to VibezTV.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-name-route",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "In the same streaming sign-in screen, a non-email username connects to which service?",
+    "answers": [
+      "Dreamstreams",
+      "VibezTV",
+      "A website account",
+      "The game leaderboard"
+    ],
+    "correct": 0,
+    "fact": "The Player sign-in form routes other usernames to Dreamstreams.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-account-jobs",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "Which account signs you into the Player rather than tracking website purchases and support?",
+    "answers": [
+      "Snow Media website account",
+      "Dreamstreams or Vibez login",
+      "Game name",
+      "Support ticket number"
+    ],
+    "correct": 1,
+    "fact": "The streaming login is for the Player; the separate website account covers purchases, support and profile details.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-billing-tools",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "Where would you redeem a gift code or renew a Dreamstreams plan?",
+    "answers": [
+      "Billing account area",
+      "TV Trivia settings",
+      "Live TV Guide",
+      "Remote control menu"
+    ],
+    "correct": 0,
+    "fact": "The billing account area handles plans, renewals, trials and gift codes.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-one-channel-report",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "Only one Live TV channel has a problem. What is the Buffering Guide’s first branch?",
+    "answers": [
+      "Report that channel",
+      "Replace the TV",
+      "Clear every app’s data",
+      "Change the game difficulty"
+    ],
+    "correct": 0,
+    "fact": "The guide separates one bad channel or title from widespread buffering and points a single-item issue to reporting.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-refresh-order",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "Which order does the Buffering Guide use to refresh a misbehaving streaming app?",
+    "answers": [
+      "Clear data, uninstall, reboot",
+      "Force Stop, then Clear Cache",
+      "Turn off the TV, then change input",
+      "Delete your account, then sign in"
+    ],
+    "correct": 1,
+    "fact": "The guide’s refresh step says Force Stop, then Clear Cache, then return to the guide.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-channel-shortcut",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "What can you open by pressing and holding a focused Live TV channel?",
+    "answers": [
+      "Favorites and a prefilled report",
+      "The billing checkout",
+      "A movie request",
+      "The Wi-Fi password"
+    ],
+    "correct": 0,
+    "fact": "The channel shortcut opens favorite and report actions with category and channel filled in.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-native-multiscreen",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "Why does the Multi-Screen web preview show an install-app message?",
+    "answers": [
+      "It needs the native Fire TV / Android players",
+      "It requires a DVD drive",
+      "It only works on a phone",
+      "It is part of the trivia game"
+    ],
+    "correct": 0,
+    "fact": "Multi-Screen uses native video players for two or four simultaneous channels.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-release-guide",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "Which release paired the cable-grid EPG Guide with Saved Accounts and Appearance settings?",
+    "answers": [
+      "1.0.2",
+      "1.5.1",
+      "1.5.7",
+      "1.6.1"
+    ],
+    "correct": 2,
+    "fact": "Version 1.5.7 added the full Guide, Saved Accounts and Appearance options.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-release-plex-request",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "Which release brought Plex Movies & Shows and an in-app Request tab together?",
+    "answers": [
+      "1.0.4",
+      "1.5.6",
+      "1.5.8",
+      "1.6.1"
+    ],
+    "correct": 2,
+    "fact": "Version 1.5.8 introduced Movies & Shows powered by Plex and the Request tab.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-release-channel-hold",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "Which release added the press-and-hold channel shortcut for favorites and reporting?",
+    "answers": [
+      "1.0.2",
+      "1.5.6",
+      "1.5.9",
+      "1.6.1"
+    ],
+    "correct": 1,
+    "fact": "Version 1.5.6 added the channel hold shortcut with the report details prefilled.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-release-support-hub",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "Which release brought tickets, AI chat, videos and the Buffering Guide together under Support?",
+    "answers": [
+      "1.0.4",
+      "1.1.0",
+      "1.5.8",
+      "1.6.1"
+    ],
+    "correct": 1,
+    "fact": "The 1.1.0 release notes describe the unified Support area.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "standard",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-twenty-meg",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "Your box measures 20 Mbps. Which reading best matches the app’s HD and 4K advice?",
+    "answers": [
+      "Below the 15 Mbps HD target",
+      "Above the HD target, below the 4K recommendation",
+      "Above both the HD and 4K targets",
+      "Exactly at the 4K recommendation"
+    ],
+    "correct": 1,
+    "fact": "20 Mbps clears the 15 Mbps HD guidance but falls short of the 25 Mbps recommendation for consistent 4K.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-phone-vs-box",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "Your phone tests fast but the streaming box tests at 9 Mbps. Which result should guide troubleshooting?",
+    "answers": [
+      "The phone result",
+      "The box result",
+      "The average of both tests",
+      "The router’s advertised speed"
+    ],
+    "correct": 1,
+    "fact": "The Buffering Guide asks for the speed on the device doing the streaming, because its Wi-Fi path may differ.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-vpn-under-target",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "With a VPN connected, the box still tests below 15 Mbps. What does the Buffering Guide suggest next?",
+    "answers": [
+      "Pick a closer VPN city and retest",
+      "Try a more distant VPN city first",
+      "Switch straight to 4K quality",
+      "Treat the phone’s speed as the box’s result"
+    ],
+    "correct": 0,
+    "fact": "The VPN step advises a closer VPN city and another speed test when the result stays under 15 Mbps.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-content-bar-performance",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Devices",
+    "prompt": "An older box feels sluggish with the home Content Bar running. Which app setting can reduce that load?",
+    "answers": [
+      "Disable the Content Bar in Settings",
+      "Change the Player audio track",
+      "Hide one Plex library",
+      "Refresh the Live TV channel list"
+    ],
+    "correct": 0,
+    "fact": "The app’s release guidance points older or slower devices to the Content Bar toggle in Settings.",
+    "points": 100,
+    "topic": "devices",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-two-accounts-case",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "A viewer can open their Snow Media website purchases but not Live TV. Which credential should they check?",
+    "answers": [
+      "Their Dreamstreams or Vibez streaming login",
+      "Their website purchase-history login only",
+      "Their Plex library PIN",
+      "Their game leaderboard name"
+    ],
+    "correct": 0,
+    "fact": "Website purchases and the Player use separate account paths; the Player needs the streaming login.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-email-and-billing",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "A viewer enters an email-style streaming username and wants to renew a Dreamstreams plan. Which pairing is right?",
+    "answers": [
+      "Email routes to Vibez; plan renewal is in Billing",
+      "Email routes to Dreamstreams; renew in Player",
+      "Email routes to Vibez; renew in Live TV Guide",
+      "Email routes to a website account; renew in Player"
+    ],
+    "correct": 0,
+    "fact": "Email-style Player usernames route to VibezTV, while Dreamstreams plan tasks live in the billing account area.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-account-chooser-effect",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "What else happens when you sign in with Dreamstreams or Vibez through My Account?",
+    "answers": [
+      "The Player is signed in too",
+      "The website account password is replaced",
+      "The Dreamstreams plan renews automatically",
+      "Plex links without its own sign-in"
+    ],
+    "correct": 0,
+    "fact": "The account chooser says the Dreamstreams/Vibez sign-in also signs the viewer into the Player.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-vpn-service-exception",
+    "category": "snow",
+    "categoryLabel": "Snow Media · Service",
+    "prompt": "Which streaming service does the Buffering Guide explicitly say its VPN step does not work with?",
+    "answers": [
+      "Dreamstreams",
+      "VibezTV",
+      "Plex",
+      "All three"
+    ],
+    "correct": 1,
+    "fact": "The guide’s VPN note specifically excludes VibezTV.",
+    "points": 100,
+    "topic": "service",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-one-vs-all",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "One channel fails, but the others play. Which action is more targeted than changing the whole network setup?",
+    "answers": [
+      "Report the affected channel",
+      "Run a VPN test for every service",
+      "Clear every app’s cache",
+      "Refresh the entire channel list first"
+    ],
+    "correct": 0,
+    "fact": "The Buffering Guide first distinguishes an isolated channel or title issue from a broader connection problem.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-guide-sequence",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "After checking whether the issue affects one item or many, what is the guide’s next troubleshooting sequence?",
+    "answers": [
+      "Refresh app, test speed, then consider VPN",
+      "VPN, test speed, then refresh app",
+      "Test speed, renew plan, then refresh app",
+      "Refresh app, switch accounts, then request a title"
+    ],
+    "correct": 0,
+    "fact": "The Buffering Guide goes from one-or-all to app refresh, device speed and finally VPN testing.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-plex-vs-live",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "A requested movie is missing from Plex, but Live TV works. Which Player area was added for that task?",
+    "answers": [
+      "The Request tab",
+      "Update Channels",
+      "Channel Report",
+      "The EPG Guide"
+    ],
+    "correct": 0,
+    "fact": "The Movies & Shows release added an in-app Request tab for movies and shows.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-four-players",
+    "category": "snow",
+    "categoryLabel": "Snow Media · App",
+    "prompt": "Why can the installed TV app run four-channel Multi-Screen when the web preview cannot?",
+    "answers": [
+      "It uses four native video players",
+      "It uses four browser picture-in-picture windows",
+      "It preloads four Plex libraries",
+      "It shares one web video element across tiles"
+    ],
+    "correct": 0,
+    "fact": "Multi-Screen’s native implementation runs up to four video-player tiles; the web preview cannot provide that path.",
+    "points": 100,
+    "topic": "app",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-release-157-bundle",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "Which 1.5.7 feature set is correctly matched?",
+    "answers": [
+      "EPG Guide, Saved Accounts, Appearance",
+      "Multi-Screen, player volume slider, Plex quality selector",
+      "Plex Request tab, Movies & Shows, Content Bar links",
+      "Plex detail pages, episode browsing, subtitle downloads"
+    ],
+    "correct": 0,
+    "fact": "The 1.5.7 notes group the cable-grid Guide, Saved Accounts and Appearance settings.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-release-158-player",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "What changed together in the Player in version 1.5.8?",
+    "answers": [
+      "Live TV / Movies & Shows choice plus in-app requests",
+      "EPG Guide plus Saved Accounts",
+      "Multi-Screen plus a player volume slider",
+      "Plex detail pages plus episode browsing"
+    ],
+    "correct": 0,
+    "fact": "The 1.5.8 notes describe the two Player choices, Plex Movies & Shows and a Request tab.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-release-159-plex",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "Which Plex improvements belong to version 1.5.9 rather than the first Movies & Shows release?",
+    "answers": [
+      "Detail pages, episode browsing and audio/subtitle controls",
+      "The first Movies & Shows choice and Request tab",
+      "Four-channel Multi-Screen and a quality selector",
+      "The cable-grid Guide and Saved Accounts"
+    ],
+    "correct": 0,
+    "fact": "Version 1.5.9 expanded Plex detail, episode and playback controls after Movies & Shows arrived in 1.5.8.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "snow-release-161-playback",
+    "category": "snow",
+    "categoryLabel": "Snow Media · History",
+    "prompt": "Which pair appears in the 1.6.1 playback notes?",
+    "answers": [
+      "Plex audio fix and 10-second movie pre-buffer",
+      "First Plex Movies & Shows choice and Request tab",
+      "Multi-Screen and player volume slider",
+      "EPG Guide and Saved Accounts"
+    ],
+    "correct": 0,
+    "fact": "Version 1.6.1 lists a Plex missing-audio fix and 10 seconds of movie pre-buffering.",
+    "points": 100,
+    "topic": "history",
+    "difficulty": "expert",
+    "origin": "bundled"
+  },
+  {
+    "id": "science-red-planet",
+    "category": "science",
+    "categoryLabel": "Science Lab",
+    "prompt": "Which planet is known as the Red Planet?",
+    "answers": [
+      "Venus",
+      "Mars",
+      "Jupiter",
+      "Mercury"
+    ],
+    "correct": 1,
+    "fact": "Iron minerals in Martian soil oxidize, giving Mars its rusty red color."
+  },
+  {
+    "id": "science-freezing",
+    "category": "science",
+    "categoryLabel": "Science Lab",
+    "prompt": "At what temperature does fresh water freeze on the Celsius scale?",
+    "answers": [
+      "0°",
+      "10°",
+      "32°",
+      "100°"
+    ],
+    "correct": 0,
+    "fact": "At standard atmospheric pressure, fresh water freezes at 0 degrees Celsius."
+  },
+  {
+    "id": "science-plants",
+    "category": "science",
+    "categoryLabel": "Science Lab",
+    "prompt": "Which gas do plants absorb from the air during photosynthesis?",
+    "answers": [
+      "Oxygen",
+      "Helium",
+      "Carbon dioxide",
+      "Hydrogen"
+    ],
+    "correct": 2,
+    "fact": "Plants use carbon dioxide, water, and light energy to make sugars and oxygen."
+  },
+  {
+    "id": "science-organ",
+    "category": "science",
+    "categoryLabel": "Science Lab",
+    "prompt": "What is the largest organ of the human body?",
+    "answers": [
+      "The heart",
+      "The skin",
+      "The lungs",
+      "The liver"
+    ],
+    "correct": 1,
+    "fact": "The skin is the body’s largest organ and its first protective barrier."
+  },
+  {
+    "id": "science-sound",
+    "category": "science",
+    "categoryLabel": "Science Lab",
+    "prompt": "Where can sound not travel?",
+    "answers": [
+      "Through water",
+      "Through steel",
+      "Through air",
+      "Through a vacuum"
+    ],
+    "correct": 3,
+    "fact": "Sound needs matter to carry its vibrations, so it cannot cross a true vacuum."
+  },
+  {
+    "id": "screen-toy-story",
+    "category": "screen",
+    "categoryLabel": "Movies & TV",
+    "prompt": "What is the name of the cowboy toy in Toy Story?",
+    "answers": [
+      "Buzz",
+      "Woody",
+      "Rex",
+      "Slinky"
+    ],
+    "correct": 1,
+    "fact": "Sheriff Woody is Andy’s pull-string cowboy doll and longtime favorite toy."
+  },
+  {
+    "id": "screen-frozen",
+    "category": "screen",
+    "categoryLabel": "Movies & TV",
+    "prompt": "Which character is the snow queen in Frozen?",
+    "answers": [
+      "Anna",
+      "Moana",
+      "Elsa",
+      "Ariel"
+    ],
+    "correct": 2,
+    "fact": "Elsa has the magical ability to create and control ice and snow."
+  },
+  {
+    "id": "screen-wakanda",
+    "category": "screen",
+    "categoryLabel": "Movies & TV",
+    "prompt": "Which superhero is the protector of Wakanda?",
+    "answers": [
+      "Black Panther",
+      "Spider-Man",
+      "Thor",
+      "Ant-Man"
+    ],
+    "correct": 0,
+    "fact": "Black Panther is the heroic title carried by Wakanda’s chosen protector."
+  },
+  {
+    "id": "screen-hobbit",
+    "category": "screen",
+    "categoryLabel": "Movies & TV",
+    "prompt": "Which hobbit joins a quest to reclaim the Lonely Mountain?",
+    "answers": [
+      "Samwise Gamgee",
+      "Pippin Took",
+      "Bilbo Baggins",
+      "Frodo Baggins"
+    ],
+    "correct": 2,
+    "fact": "Bilbo Baggins leaves the Shire with Thorin’s company in The Hobbit."
+  },
+  {
+    "id": "screen-simpsons",
+    "category": "screen",
+    "categoryLabel": "Movies & TV",
+    "prompt": "In which town does The Simpsons family live?",
+    "answers": [
+      "South Park",
+      "Springfield",
+      "Bedrock",
+      "Hill Valley"
+    ],
+    "correct": 1,
+    "fact": "The Simpsons live at 742 Evergreen Terrace in the fictional town of Springfield."
+  },
+  {
+    "id": "world-pyramids",
+    "category": "world",
+    "categoryLabel": "Around the World",
+    "prompt": "The pyramids of Giza are located in which country?",
+    "answers": [
+      "Mexico",
+      "Greece",
+      "Egypt",
+      "India"
+    ],
+    "correct": 2,
+    "fact": "The Giza pyramid complex sits just outside Cairo, Egypt."
+  },
+  {
+    "id": "world-tokyo",
+    "category": "world",
+    "categoryLabel": "Around the World",
+    "prompt": "Tokyo is the capital city of which country?",
+    "answers": [
+      "Japan",
+      "Thailand",
+      "South Korea",
+      "Vietnam"
+    ],
+    "correct": 0,
+    "fact": "Tokyo is Japan’s capital and the center of its largest metropolitan area."
+  },
+  {
+    "id": "world-ocean",
+    "category": "world",
+    "categoryLabel": "Around the World",
+    "prompt": "What is the largest ocean on Earth?",
+    "answers": [
+      "Atlantic",
+      "Indian",
+      "Arctic",
+      "Pacific"
+    ],
+    "correct": 3,
+    "fact": "The Pacific Ocean covers more area than all of Earth’s land combined."
+  },
+  {
+    "id": "world-brazil",
+    "category": "world",
+    "categoryLabel": "Around the World",
+    "prompt": "What is the official language of Brazil?",
+    "answers": [
+      "Spanish",
+      "Portuguese",
+      "French",
+      "Italian"
+    ],
+    "correct": 1,
+    "fact": "Brazil is the largest Portuguese-speaking country in the world."
+  },
+  {
+    "id": "world-eiffel",
+    "category": "world",
+    "categoryLabel": "Around the World",
+    "prompt": "In which city would you find the Eiffel Tower?",
+    "answers": [
+      "Rome",
+      "London",
+      "Paris",
+      "Madrid"
+    ],
+    "correct": 2,
+    "fact": "The Eiffel Tower was completed in Paris for the 1889 World’s Fair."
+  },
+  {
+    "id": "music-piano",
+    "category": "music",
+    "categoryLabel": "Music Mix",
+    "prompt": "How many keys are on a standard modern piano?",
+    "answers": [
+      "66",
+      "72",
+      "88",
+      "100"
+    ],
+    "correct": 2,
+    "fact": "A standard piano has 52 white keys and 36 black keys, for 88 total."
+  },
+  {
+    "id": "music-conductor",
+    "category": "music",
+    "categoryLabel": "Music Mix",
+    "prompt": "Who guides an orchestra during a performance?",
+    "answers": [
+      "A conductor",
+      "A producer",
+      "A referee",
+      "A curator"
+    ],
+    "correct": 0,
+    "fact": "A conductor coordinates tempo, timing, balance, and expression across the orchestra."
+  },
+  {
+    "id": "music-tempo",
+    "category": "music",
+    "categoryLabel": "Music Mix",
+    "prompt": "What does tempo describe in music?",
+    "answers": [
+      "The volume",
+      "The speed",
+      "The lyrics",
+      "The instrument"
+    ],
+    "correct": 1,
+    "fact": "Tempo tells musicians how fast or slowly a piece should be performed."
+  },
+  {
+    "id": "music-brass",
+    "category": "music",
+    "categoryLabel": "Music Mix",
+    "prompt": "Which of these belongs to the brass family?",
+    "answers": [
+      "Violin",
+      "Flute",
+      "Trumpet",
+      "Xylophone"
+    ],
+    "correct": 2,
+    "fact": "A trumpet produces sound from vibrating lips through a brass mouthpiece."
+  },
+  {
+    "id": "music-strings",
+    "category": "music",
+    "categoryLabel": "Music Mix",
+    "prompt": "How many strings does a standard violin have?",
+    "answers": [
+      "Four",
+      "Five",
+      "Six",
+      "Eight"
+    ],
+    "correct": 0,
+    "fact": "A standard violin has four strings tuned to G, D, A, and E."
+  },
+  {
+    "id": "sports-basketball",
+    "category": "sports",
+    "categoryLabel": "Sports & Games",
+    "prompt": "How many players from one team are on a basketball court at once?",
+    "answers": [
+      "Four",
+      "Five",
+      "Six",
+      "Seven"
+    ],
+    "correct": 1,
+    "fact": "Each basketball team fields five players on the court at a time."
+  },
+  {
+    "id": "sports-tennis",
+    "category": "sports",
+    "categoryLabel": "Sports & Games",
+    "prompt": "In tennis scoring, what does “love” mean?",
+    "answers": [
+      "A tie",
+      "Advantage",
+      "Zero",
+      "Match point"
+    ],
+    "correct": 2,
+    "fact": "In tennis, “love” is the traditional term for a score of zero."
+  },
+  {
+    "id": "sports-goalkeeper",
+    "category": "sports",
+    "categoryLabel": "Sports & Games",
+    "prompt": "Which soccer player may use their hands inside the penalty area?",
+    "answers": [
+      "The captain",
+      "The striker",
+      "The goalkeeper",
+      "Any defender"
+    ],
+    "correct": 2,
+    "fact": "The goalkeeper may handle the ball inside their own penalty area."
+  },
+  {
+    "id": "sports-olympics",
+    "category": "sports",
+    "categoryLabel": "Sports & Games",
+    "prompt": "How many rings appear on the Olympic symbol?",
+    "answers": [
+      "Four",
+      "Five",
+      "Six",
+      "Seven"
+    ],
+    "correct": 1,
+    "fact": "The five interlocking Olympic rings represent the union of five inhabited continents."
+  },
+  {
+    "id": "sports-chess",
+    "category": "sports",
+    "categoryLabel": "Sports & Games",
+    "prompt": "What position ends a game of chess with a winner?",
+    "answers": [
+      "Checkmate",
+      "Touchdown",
+      "Home run",
+      "Deuce"
+    ],
+    "correct": 0,
+    "fact": "Checkmate means the king is threatened and has no legal way to escape."
+  },
+  {
+    "id": "nature-bats",
+    "category": "nature",
+    "categoryLabel": "Wild Nature",
+    "prompt": "Which mammal is capable of true sustained flight?",
+    "answers": [
+      "Flying squirrel",
+      "Sugar glider",
+      "Bat",
+      "Penguin"
+    ],
+    "correct": 2,
+    "fact": "Bats are the only mammals that can power and sustain true flight."
+  },
+  {
+    "id": "nature-whale",
+    "category": "nature",
+    "categoryLabel": "Wild Nature",
+    "prompt": "What is the largest animal known to have lived on Earth?",
+    "answers": [
+      "African elephant",
+      "Blue whale",
+      "Giraffe",
+      "Great white shark"
+    ],
+    "correct": 1,
+    "fact": "A blue whale can grow beyond 30 meters and weigh well over 100 tons."
+  },
+  {
+    "id": "nature-frog",
+    "category": "nature",
+    "categoryLabel": "Wild Nature",
+    "prompt": "What is a young frog called before it grows legs?",
+    "answers": [
+      "A tadpole",
+      "A calf",
+      "A chick",
+      "A cub"
+    ],
+    "correct": 0,
+    "fact": "A tadpole begins life in water and transforms through metamorphosis."
+  },
+  {
+    "id": "nature-bees",
+    "category": "nature",
+    "categoryLabel": "Wild Nature",
+    "prompt": "What is the home of a honeybee colony called?",
+    "answers": [
+      "A den",
+      "A lodge",
+      "A hive",
+      "A burrow"
+    ],
+    "correct": 2,
+    "fact": "Honeybees live together in colonies housed in nests commonly called hives."
+  },
+  {
+    "id": "nature-cheetah",
+    "category": "nature",
+    "categoryLabel": "Wild Nature",
+    "prompt": "Which animal is the fastest runner on land?",
+    "answers": [
+      "Lion",
+      "Horse",
+      "Ostrich",
+      "Cheetah"
+    ],
+    "correct": 3,
+    "fact": "A cheetah can accelerate rapidly and sprint at highway speeds for short bursts."
+  }
+]

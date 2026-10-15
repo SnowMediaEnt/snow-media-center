@@ -13,7 +13,11 @@ const state = vi.hoisted(() => ({
   showCalls: 0,
   hideCalls: 0,
   didHide: [] as (() => void)[],
+  // Keys the box itself delivers (the remote, its on-screen keyboard).
+  deviceKey: false,
 }));
+
+vi.mock('@/utils/deviceKey', () => ({ isDeviceKey: () => state.deviceKey, platformRaisesKeyboard: () => state.deviceKey }));
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => state.native },
@@ -69,6 +73,7 @@ beforeEach(() => {
   state.showCalls = 0;
   state.hideCalls = 0;
   state.didHide = [];
+  state.deviceKey = false;
   onBack.mockReset();
   vi.useFakeTimers({ shouldAdvanceTime: true });
 });
@@ -250,5 +255,174 @@ describe('useTVFocus keyboard (1.6.x path + Enter moves down)', () => {
     await raf();
     okOn(getByTestId('user')); await flush();
     expect(state.showCalls).toBe(0);
+  });
+});
+
+describe('useTVFocus keyboard on a Fire TV (the platform opens Amazon\'s keyboard itself)', () => {
+  const reportOk = () => act(() => { window.dispatchEvent(new Event('smc:okkey')); });
+  const tick = (ms: number) => act(async () => { vi.advanceTimersByTime(ms); });
+
+  it("the keyboard's Enter as Back closes it is not OK: the keyboard stays away and the box keeps focus (owner, 1.9.0)", async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    // The screen opened on Username, so the box has focus and the platform raised the keyboard.
+    expect(document.activeElement).toBe(user);
+    keyboardEnter(user); await flush();
+    await later();
+    expect(state.showCalls).toBe(0);
+    expect(state.hideCalls).toBe(1);
+    expect(user.dataset.tvFocused).toBe('true');
+    // Kept: with nothing focused the WebView would focus the first box and raise the keyboard.
+    expect(document.activeElement).toBe(user);
+    // And again: it never comes back by itself.
+    keyboardEnter(user); await flush();
+    await later();
+    expect(state.showCalls).toBe(0);
+  });
+
+  it("the remote's OK (reported by Android) still opens the keyboard, even when the report is late", async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    reportOk();
+    okOn(user); await flush();
+    expect(state.showCalls).toBe(1);
+    await later();
+    // A report landing just after its Enter.
+    okOn(user);
+    reportOk();
+    await later();
+    await flush();
+    expect(state.showCalls).toBe(2);
+  });
+
+  it('typed, then Back: the keyboard goes and the highlight stays, never jumping to Password', async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    const pass = getByTestId('pass') as HTMLInputElement;
+    fireEvent.input(user, { target: { value: 'jane' } });
+    await later();
+    keyboardEnter(user); await flush();
+    await later();
+    expect(state.showCalls).toBe(0);
+    expect(state.hideCalls).toBe(1);
+    expect(user.dataset.tvFocused).toBe('true');
+    expect(pass.dataset.tvFocused).not.toBe('true');
+    expect(document.activeElement).not.toBe(pass);
+  });
+
+  it('the second time too: OK opens the keyboard, typing, Back -> still no jump to Password', async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    const pass = getByTestId('pass') as HTMLInputElement;
+    keyboardEnter(user); await flush(); // first Back: keyboard's own Enter
+    await later();
+    reportOk();
+    okOn(user); await flush(); // the viewer's OK
+    expect(state.showCalls).toBe(1);
+    fireEvent.input(user, { target: { value: 'jane' } });
+    await later();
+    keyboardEnter(user); await flush(); // Back again
+    await later();
+    expect(state.showCalls).toBe(1);
+    expect(user.dataset.tvFocused).toBe('true');
+    expect(document.activeElement).not.toBe(pass);
+  });
+
+  it('typed in the last field, then Back: the keyboard goes and the highlight lands on Sign in, which is not pressed', async () => {
+    state.deviceKey = true;
+    const onSignIn = vi.fn();
+    function SignInForm() {
+      const { containerRef, focusProps } = useTVFocus({
+        initialFocusId: 'pass',
+        navigation: { user: { down: 'pass' }, pass: { up: 'user', down: 'signin' }, signin: { up: 'pass' } },
+      });
+      return (
+        <div ref={containerRef}>
+          <input {...focusProps('user')} data-testid="user" />
+          <input {...focusProps('pass')} data-testid="pass" type="password" />
+          <button {...focusProps('signin')} data-testid="signin" onClick={onSignIn}>Sign in</button>
+        </div>
+      );
+    }
+    const { getByTestId } = render(<SignInForm />);
+    await raf();
+    await flush();
+    const pass = getByTestId('pass') as HTMLInputElement;
+    fireEvent.input(pass, { target: { value: 'secret' } });
+    await later();
+    keyboardEnter(pass); await flush();
+    expect(getByTestId('signin').dataset.tvFocused).toBe('true');
+    // The keyboard's parting Enter lands on the button: swallowed.
+    keyboardEnter(getByTestId('signin')); await flush();
+    expect(onSignIn).not.toHaveBeenCalled();
+    expect(state.showCalls).toBe(0);
+  });
+
+  it('a Back that reaches the page means the keyboard is already down: it leaves the screen, even from a focused box', async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    reportOk();
+    okOn(user); await flush();
+    fireEvent.input(user, { target: { value: 'jane' } });
+    await later();
+    fireEvent.keyDown(user, { key: 'Escape', keyCode: 27 });
+    await flush();
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('the platform focusing the box again right after the keyboard went is quiet, and OK opens it at once', async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    keyboardEnter(user); await flush();
+    await tick(200);
+    expect(state.hideCalls).toBe(1);
+    act(() => { user.blur(); user.focus(); }); // the WebView, as the keyboard window closes
+    expect(user.readOnly).toBe(true);
+    // The remote's OK on it (a Fire TV's WebView opens the keyboard itself, the page sees no key).
+    reportOk();
+    expect(user.readOnly).toBe(false);
+  });
+
+  it('a held OK repeating is not read as the keyboard closing', async () => {
+    state.deviceKey = true;
+    const { getByTestId } = render(<Form />);
+    await raf();
+    await flush();
+    const user = getByTestId('user') as HTMLInputElement;
+    reportOk();
+    okOn(user); await flush();
+    await tick(500);
+    fireEvent.keyDown(user, { key: 'Enter', keyCode: 13, repeat: true });
+    await later();
+    expect(state.hideCalls).toBe(0);
+  });
+
+  it('a keyboard timer still pending when the screen closes does nothing afterwards', async () => {
+    state.deviceKey = true;
+    const { getByTestId, unmount } = render(<Form />);
+    await raf();
+    await flush();
+    keyboardEnter(getByTestId('user'));
+    unmount();
+    await later();
+    expect(state.hideCalls).toBe(0);
   });
 });

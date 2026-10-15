@@ -17,7 +17,7 @@ import { useGameSocket } from '@/hooks/useGameSocket';
 import { gameSocket } from '@/lib/gameSocket';
 import { readSavedBet, saveSelectedBet } from './shared/gameBets';
 import { PLINKO_CENTER_LANE, PLINKO_ROWS, PLINKO_SLOTS, plinkoSlotCenter, plinkoSlotFromPath, type PlinkoBoard } from './plinkoBoards';
-import { createPlinkoPuck, stepPlinkoPuck, physicsMultipliers, PLINKO_PHYSICS_VERSION } from './plinkoPhysics.js';
+import { createPlinkoPuck, stepPlinkoPuck, physicsMultipliers, PHYSICS_STEP, PLINKO_PHYSICS_VERSION } from './plinkoPhysics.js';
 import '@/styles/games-plinko.css';
 
 interface PlinkoProps {
@@ -85,7 +85,7 @@ export const PLINKO_RISK_MODES: Array<{
   {
     id: 'wild',
     label: 'Wild',
-    note: 'Huge edge scores',
+    note: 'Big surprise scores',
     multipliers: physicsMultipliers('tower', 'wild'),
   },
 ];
@@ -224,6 +224,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const [risk, setRisk] = useState<Risk>('classic');
   const [boardMode, setBoardMode] = useState<PlinkoBoard>('tower');
   const [dropLane, setDropLane] = useState(PLINKO_CENTER_LANE);
+  const [layout, setLayout] = useState(() => randomWord() % SLOT_COUNT);
   const [dropping, setDropping] = useState(false);
   const [puckVisible, setPuckVisible] = useState(false);
   const [landing, setLanding] = useState<number | null>(null);
@@ -259,7 +260,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const dropEpoch = useRef(0);
 
   const activeMode = PLINKO_RISK_MODES.find((mode) => mode.id === risk) ?? PLINKO_RISK_MODES[1];
-  const multipliers = boardMode === 'wide' ? physicsMultipliers('wide', risk, dropLane) : activeMode.multipliers;
+  const multipliers = physicsMultipliers(boardMode, risk, boardMode === 'wide' ? dropLane : PLINKO_CENTER_LANE, layout);
   const betIndex = Math.max(0, ARCADE_BETS.indexOf(bet));
   const canAfford = !user || (balance !== null && balance >= bet);
   const canReset = !dropping && (score > 0 || drops > 0);
@@ -319,24 +320,34 @@ const Plinko = ({ onBack }: PlinkoProps) => {
 
   useEffect(() => saveSelectedBet(BET_STORAGE_KEY, bet), [bet]);
 
-  // Wide's gate sweeps continuously, like an arcade timing game. It changes
-  // only a CSS left value per frame; React updates only when it enters a new
-  // payout lane, keeping older Fire TV WebViews light.
+  // Sweep at a relaxed pace. A throttled compositor transform avoids forcing
+  // layout on every frame, which caused jitter on Fire TV WebViews.
   useEffect(() => {
     if (boardMode !== 'wide' || dropping) {
-      if (gateRef.current && boardMode === 'tower') gateRef.current.style.left = `${slotCenter(PLINKO_CENTER_LANE)}%`;
+      if (gateRef.current && boardMode === 'tower') {
+        gateRef.current.style.left = `${slotCenter(PLINKO_CENTER_LANE)}%`;
+        gateRef.current.style.transform = '';
+      }
       return;
     }
+    const gate = gateRef.current;
+    const board = boardRef.current;
+    const travel = (board?.clientWidth ?? 0) * (slotCenter(10) - slotCenter(0)) / 100;
+    if (gate) gate.style.left = `${slotCenter(0)}%`;
     let started: number | null = null;
     let frame: number | null = null;
     let previousLane = -1;
+    let lastPaint = -100;
     const sweep = (now: number) => {
       if (started === null) started = now;
-      const phase = ((now - started) / 2400) % 2;
+      const phase = ((now - started) / 5400) % 2;
       const position = phase <= 1 ? phase : 2 - phase;
       const lane = Math.max(0, Math.min(10, Math.round(position * 10)));
       dropLaneRef.current = lane;
-      if (gateRef.current) gateRef.current.style.left = `${slotCenter(0) + position * (slotCenter(10) - slotCenter(0))}%`;
+      if (gate && now - lastPaint >= 33) {
+        gate.style.transform = `translate3d(${(position * travel).toFixed(1)}px, 0, 0)`;
+        lastPaint = now;
+      }
       if (lane !== previousLane) { previousLane = lane; setDropLane(lane); }
       frame = requestAnimationFrame(sweep);
     };
@@ -365,6 +376,13 @@ const Plinko = ({ onBack }: PlinkoProps) => {
       try { localStorage.setItem(BEST_DROP_KEY, String(award)); } catch { /* storage unavailable */ }
     }
     if (multiplier >= 4) setBurstKey((current) => (current ?? 0) + 1);
+    // Leave the winning table visible long enough to read, then reshuffle the
+    // actual next-round paytable (the next start request sends this layout).
+    life.timeout(() => {
+      if (epoch !== dropEpoch.current) return;
+      setLanding(null);
+      setLayout((current) => (current + 1 + randomWord() % (SLOT_COUNT - 1)) % SLOT_COUNT);
+    }, 1800);
   }, [bestDrop, bet, life, play, reducedFx]);
 
   useEffect(() => () => {
@@ -385,16 +403,21 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     puckElement.style.left = `${originX}%`;
     puckElement.style.transform = motionTransform({ x: puck.x, y: puck.y, rotation: 0, scale: 1 }, width, height, originX);
     let lastSoundStep = -100;
-    let started: number | null = null;
+    let lastFrame: number | null = null;
+    let stepTime = 0;
     const tick = (now: number) => {
       if (!puckRef.current || !life.isMounted()) return;
-      if (started === null) started = now;
-      // Fixed simulation steps remain independent of frame rate. Rendering is
-      // transform-only; low-FX devices can skip paints without changing odds.
-      const targetStep = Math.floor((now - started) * 0.12);
+      if (lastFrame === null) lastFrame = now;
+      // Don't replay a large backlog after a busy frame. The deterministic
+      // physics stays identical; only its presentation may slow briefly.
+      stepTime = Math.min(50, stepTime + Math.min(50, Math.max(0, now - lastFrame)));
+      lastFrame = now;
       let impact = false;
-      while (!puck.done && puck.step < targetStep) {
+      let stepsThisFrame = 0;
+      while (!puck.done && stepTime >= PHYSICS_STEP * 500 && stepsThisFrame < 5) {
         impact = stepPlinkoPuck(puck).impact || impact;
+        stepTime -= PHYSICS_STEP * 500;
+        stepsThisFrame += 1;
       }
       if (impact && puck.step - lastSoundStep > (reducedFx ? 18 : 9)) {
         lastSoundStep = puck.step;
@@ -419,6 +442,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     let selectedLane = selectedBoard === 'wide' ? dropLaneRef.current : PLINKO_CENTER_LANE;
     let selectedRisk = activeMode.id;
     let selectedBet = bet;
+    let selectedLayout = layout;
     const epoch = ++dropEpoch.current;
 
     setLanding(null);
@@ -444,7 +468,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
           return;
         }
         const clientCommit = toHex(await sha256(clientSeed));
-        const response = await gameSocket.startPlinko({ bet, risk: selectedRisk, board: selectedBoard, dropLane: selectedLane, clientCommit });
+        const response = await gameSocket.startPlinko({ bet, risk: selectedRisk, board: selectedBoard, dropLane: selectedLane, layout: selectedLayout, clientCommit });
         if (!response?.ok || response.physicsVersion !== PLINKO_PHYSICS_VERSION
           || !/^[0-9a-f]{64}$/.test(response.serverSeed)
           || !['tower', 'wide'].includes(response.board)
@@ -462,10 +486,12 @@ const Plinko = ({ onBack }: PlinkoProps) => {
         selectedLane = response.dropLane;
         selectedRisk = response.risk;
         selectedBet = response.bet;
+        selectedLayout = Number.isInteger(response.layout) && response.layout >= 0 && response.layout < SLOT_COUNT ? response.layout : 0;
         if (response.resumed) setBackNote('Resuming your unfinished drop.');
         if (response.board !== boardMode) setBoardMode(response.board);
         if (response.risk !== risk) setRisk(response.risk);
         if (response.bet !== bet) setBet(response.bet);
+        setLayout(selectedLayout);
         setDropLane(selectedLane);
       } catch {
         setDropping(false);
@@ -475,9 +501,12 @@ const Plinko = ({ onBack }: PlinkoProps) => {
       }
     }
     if (epoch !== dropEpoch.current || !life.isMounted()) return;
-    if (gateRef.current) gateRef.current.style.left = `${slotCenter(selectedLane)}%`;
+    if (gateRef.current) {
+      gateRef.current.style.left = `${slotCenter(selectedLane)}%`;
+      gateRef.current.style.transform = '';
+    }
     setPuckVisible(true);
-    const payoutTable = physicsMultipliers(selectedBoard, selectedRisk, selectedLane);
+    const payoutTable = physicsMultipliers(selectedBoard, selectedRisk, selectedLane, selectedLayout);
     playPhysics(seed, selectedLane, (slot) => {
       void (async () => {
         let coinAward: number | null = null;
@@ -500,7 +529,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
         finishDrop(slot, payoutTable[slot], epoch, coinAward, selectedBet);
       })();
     });
-  }, [activeMode, bet, boardMode, canAfford, dropping, finishDrop, life, playPhysics, risk, user]);
+  }, [activeMode, bet, boardMode, canAfford, dropping, finishDrop, layout, life, playPhysics, risk, user]);
 
   const resetSession = useCallback(() => {
     if (dropping) return;
@@ -653,7 +682,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
                   className={`snow-plinko-mode snow-plinko-mode--${mode.id}${risk === mode.id ? ' is-active' : ''}`}
                 >
                   <span><b>{mode.label}</b><small>{mode.note}</small></span>
-                  <em>{formatMultiplier(Math.max(...(boardMode === 'wide' ? physicsMultipliers('wide', mode.id, dropLane) : mode.multipliers)))}</em>
+                  <em>{formatMultiplier(Math.max(...physicsMultipliers(boardMode, mode.id, boardMode === 'wide' ? dropLane : PLINKO_CENTER_LANE, layout)))}</em>
                 </Button>
               );
             })}
@@ -683,7 +712,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
             <div>
               <small>Board high score</small>
               <strong>+{Math.round(STARTING_POINTS * Math.max(...multipliers)).toLocaleString()}</strong>
-              <em>{boardMode === 'wide' ? 'Time your drop as the gate sweeps' : 'Find the glowing edge lanes'}</em>
+              <em>{boardMode === 'wide' ? 'Time your drop as the gate sweeps' : 'Multipliers reshuffle after each drop'}</em>
             </div>
           </div>
 

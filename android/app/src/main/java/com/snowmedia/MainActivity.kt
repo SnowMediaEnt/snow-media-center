@@ -1,6 +1,5 @@
 package com.snowmedia
 
-import android.app.UiModeManager
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -131,6 +130,18 @@ class MainActivity : BridgeActivity() {
     // KEYCODE_MEDIA_* (and Search) for the app. Hand them to JS as an 'smc:mediakey' event
     // (src/lib/mediaKeys.ts), which the players listen for.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // OK on a text box: a Fire TV's WebView opens the keyboard by itself
+        // and the page never sees the press. Tell the page the remote sent an
+        // OK, so it can tell it from the keyboard's own Enter (the one Back
+        // sends as it closes the keyboard), which never passes through here
+        // (useTVFocus 'smc:okkey'). Passed on unchanged.
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+            (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER ||
+                event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)
+        ) {
+            if (!blocked && !pageGone) bridge?.webView?.evaluateJavascript("window.dispatchEvent(new Event('smc:okkey'))", null)
+            return super.dispatchKeyEvent(event)
+        }
         val name = when (event.keyCode) {
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> "playpause"
             KeyEvent.KEYCODE_MEDIA_PLAY -> "play"
@@ -174,14 +185,9 @@ class MainActivity : BridgeActivity() {
     } catch (_: Throwable) { false }
 
     /** A TV: Android TV / Google TV / Fire TV, or no touch screen at all. */
-    private fun isTvDevice(): Boolean {
-        val ui = getSystemService(UI_MODE_SERVICE) as? UiModeManager
-        if (ui?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) return true
-        val pm = packageManager
-        if (pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) return true
-        if (pm.hasSystemFeature("amazon.hardware.fire_tv")) return true
-        return !pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
-    }
+    // A box that is never held (no accelerometer) is a TV box too (DeviceKind):
+    // it keeps the TV layout at the page's own size, never a phone's fit.
+    private fun isTvDevice(): Boolean = DeviceKind.isTvBox(this)
 
     // Phones and tablets. Sideways: full screen like a TV (no status or
     // navigation bar; a swipe shows them for a moment). A phone that turns

@@ -3458,6 +3458,45 @@ export type Database = {
           },
         ]
       }
+      plex_recommendations: {
+        Row: {
+          content_rating: string | null
+          created_at: string
+          id: string
+          rating_key: string
+          server_id: string
+          thumb: string | null
+          title: string
+          type: string
+          user_id: string
+          year: number | null
+        }
+        Insert: {
+          content_rating?: string | null
+          created_at?: string
+          id?: string
+          rating_key: string
+          server_id: string
+          thumb?: string | null
+          title: string
+          type: string
+          user_id?: string
+          year?: number | null
+        }
+        Update: {
+          content_rating?: string | null
+          created_at?: string
+          id?: string
+          rating_key?: string
+          server_id?: string
+          thumb?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+          year?: number | null
+        }
+        Relationships: []
+      }
       plex_requests: {
         Row: {
           available_at: string | null
@@ -6022,6 +6061,19 @@ export type Database = {
         Returns: Json
       }
       player_favorites_version: { Args: { p_ts: string }; Returns: number }
+      plex_recommended: {
+        Args: { p_limit?: number; p_server: string }
+        Returns: {
+          content_rating: string
+          last_recommended_at: string
+          rating_key: string
+          recommenders: number
+          thumb: string
+          title: string
+          type: string
+          year: number
+        }[]
+      }
       plex_spend_credits: {
         Args: { p_amount: number; p_reseller_id: string }
         Returns: number

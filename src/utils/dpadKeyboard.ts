@@ -1,9 +1,16 @@
 import { Capacitor } from '@capacitor/core';
 
+/**
+ * Put the on-screen keyboard away. By default the field is left (blurred).
+ * `keepFocus` leaves the field focused with only the keyboard hidden: on a
+ * Fire TV a page with nothing focused gets its FIRST control focused by the
+ * WebView when the keyboard window closes (e.g. Username on a sign-in form).
+ */
 export const hideKeyboardForDpad = async (
-  element?: HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
+  element?: HTMLInputElement | HTMLTextAreaElement | HTMLElement | null,
+  options?: { keepFocus?: boolean },
 ) => {
-  element?.blur();
+  if (!options?.keepFocus) element?.blur();
 
   if (Capacitor.isNativePlatform()) {
     try {

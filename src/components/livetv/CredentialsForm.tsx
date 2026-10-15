@@ -320,10 +320,12 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
             onClick={() => { openedFromRef.current = 'cf-start'; setChildOpen(true); }}
             {...focusProps('cf-start')}
             disabled={testing}
-            className="w-full mt-3 rounded-xl h-12 transition-transform duration-150 ease-out"
+            // The way in for someone with no login yet: the whole line shows,
+            // wrapping on a narrow screen rather than cut off.
+            className="w-full mt-3 rounded-xl min-h-12 h-auto py-2 whitespace-normal transition-transform duration-150 ease-out"
           >
-            <Sparkles className="w-4 h-4 mr-2 text-brand-gold" />
-            <span className="min-w-0 truncate">{pending ? t('liveAccount.credentials.finishSetup', { label: pending.label }) : t('liveAccount.credentials.getStarted')}</span>
+            <Sparkles className="w-4 h-4 mr-2 shrink-0 text-brand-gold" />
+            <span className="min-w-0 text-center leading-snug">{pending ? t('liveAccount.credentials.finishSetup', { label: pending.label }) : t('liveAccount.credentials.getStarted')}</span>
           </Button>
         )}
 

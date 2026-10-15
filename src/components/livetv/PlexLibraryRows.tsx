@@ -28,6 +28,8 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import PlexPosterTile from './PlexPosterTile';
 import { usePlexWatched } from './usePlexWatched';
+import { isPlexKeyOwner } from './plexKeyOwner';
+import { createPlexHoldOk, type PlexHoldOk } from './plexRecommendHold';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { focusBackdrop } from '@/lib/plexBackdrop';
@@ -42,7 +44,7 @@ import {
 } from '@/lib/plex';
 import {
   EMPTY_FILTERS, hasAnyFilter, describeFilters, buildLibraryQuery,
-  availableSorts, findFilter, type LibraryFilterState,
+  availableSorts, findFilter, type LibraryFilterState, fallbackFilterKey,
 } from '@/lib/plexLibraryFilters';
 import {
   libraryRowSpecs, tileCaption, resumeFraction,
@@ -171,7 +173,11 @@ const PlexLibraryRows = memo(({
   const [meta, setMeta] = useState<PlexSectionMeta | null>(null);
   const [metaTried, setMetaTried] = useState(false);
   const [values, setValues] = useState<Record<string, PlexFilterValue[]>>({});
-  const [menu, setMenu] = useState<{ chip: string; options: PlexFilterValue[]; idx: number } | null>(null);
+  // `loading`: open at once while its list is on its way (a slow server).
+  const [menu, setMenu] = useState<{ chip: string; options: PlexFilterValue[]; idx: number; loading?: boolean } | null>(null);
+  // Each chip opening takes a number: a list that arrives after the viewer
+  // moved on (Down into the rows, Back, another chip) opens nothing.
+  const menuReqRef = useRef(0);
   // `query` is the identity of the result set. A load-more page that returns
   // after the filters changed underneath it must be dropped, and comparing
   // lengths is not enough — a fresh first page is the same size as the old one.
@@ -188,13 +194,19 @@ const PlexLibraryRows = memo(({
   // Deliberately NOT /library/sections/{k}/filters or /sorts: Plex's docs say
   // not to use those and both are admin-token only, so a user browsing a
   // SHARED library would get a 401 and an empty bar.
+  // Asked once per library. The "asked" mark is a ref: as state it re-ran this
+  // effect, whose cleanup then threw the answer away, so the facts never
+  // arrived and every Genre / Year / Rated chip said "Nothing to choose"
+  // (owner, 2026-10-12).
+  const metaAskedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (zone !== 'bar' || metaTried) return;
-    setMetaTried(true);
+    if (zone !== 'bar' || metaTried || metaAskedRef.current === libKey) return;
+    metaAskedRef.current = libKey;
     let cancelled = false;
     void getPlexSectionMeta(base, token, libKey)
       .then((m) => { if (!cancelled) setMeta(m); })
-      .catch(() => { /* chips fall back to the built-in sort list */ });
+      .catch(() => { /* chips fall back to the built-in sort list */ })
+      .finally(() => { if (!cancelled) setMetaTried(true); });
     return () => { cancelled = true; };
   }, [zone, metaTried, base, token, libKey]);
 
@@ -210,15 +222,12 @@ const PlexLibraryRows = memo(({
       label: t('plex.library.sortChip', { value: sortOptions.find((o) => o.key === filters.sort)?.title ?? t('plex.library.defaultValue') }),
       set: !!filters.sort,
     });
-    if (!meta || findFilter(meta.filters, 'genre')) {
-      out.push({ id: 'genre', label: t('plex.library.genreChip', { value: filters.genre?.title ?? t('plex.library.allValue') }), set: !!filters.genre });
-    }
-    if (!meta || findFilter(meta.filters, 'year') || findFilter(meta.filters, 'decade')) {
-      out.push({ id: 'year', label: t('plex.library.yearChip', { value: filters.year?.title ?? t('plex.library.allValue') }), set: !!filters.year });
-    }
-    if (!meta || findFilter(meta.filters, 'contentRating')) {
-      out.push({ id: 'contentRating', label: t('plex.library.ratedChip', { value: filters.contentRating?.title ?? t('plex.library.allValue') }), set: !!filters.contentRating });
-    }
+    // Always there: a server whose facts leave a filter out still has the
+    // section's own list for it (openMenu), and a chip hidden after it was
+    // used hid the genre it had applied.
+    out.push({ id: 'genre', label: t('plex.library.genreChip', { value: filters.genre?.title ?? t('plex.library.allValue') }), set: !!filters.genre });
+    out.push({ id: 'year', label: t('plex.library.yearChip', { value: filters.year?.title ?? t('plex.library.allValue') }), set: !!filters.year });
+    out.push({ id: 'contentRating', label: t('plex.library.ratedChip', { value: filters.contentRating?.title ?? t('plex.library.allValue') }), set: !!filters.contentRating });
     out.push({ id: 'unwatched', label: t('plex.library.unwatchedChip', { value: filters.unwatched ? t('plex.library.on') : t('plex.library.off') }), set: filters.unwatched });
     if (filtering) out.push({ id: 'clear', label: t('plex.library.clearChip'), set: false });
     return out;
@@ -475,18 +484,40 @@ const PlexLibraryRows = memo(({
       setMenu({ chip, options: withAll(cached), idx: 0 });
       return;
     }
-    const filterName = chip === 'year'
-      ? (findFilter(meta?.filters ?? [], 'year') ?? findFilter(meta?.filters ?? [], 'decade'))
-      : findFilter(meta?.filters ?? [], chip);
-    if (!filterName) { setMenu({ chip, options: [], idx: 0 }); return; }
-    try {
-      const opts = await getPlexFilterValues(base, token, filterName.key);
-      setValues((v) => ({ ...v, [chip]: opts }));
-      setMenu({ chip, options: withAll(opts), idx: 0 });
-    } catch {
-      setMenu({ chip, options: [], idx: 0 });
+    const req = ++menuReqRef.current;
+    // Still this chip's turn: nothing newer was opened and the remote is
+    // still on the bar.
+    const current = () => req === menuReqRef.current && zoneRef.current === 'bar';
+    setMenu({ chip, options: [], idx: 0, loading: true });
+    // The library's facts are asked for when the remote first reaches this
+    // bar; a chip opened before they came (or after they failed) said
+    // "Nothing to choose here" for every library (owner, 2026-10-12: "we dont
+    // even get the genre options to sort"). Wait for them here, then also try
+    // the section's own list for the chip, which works on servers whose
+    // facts leave the filter out.
+    let facts = meta;
+    if (!facts) {
+      try { facts = await getPlexSectionMeta(base, token, libKey); if (current()) setMeta(facts); } catch { facts = null; }
+      if (!current()) return;
     }
-  }, [sortOptions, filters.sort, values, meta, base, token]);
+    const listed = chip === 'year'
+      ? (findFilter(facts?.filters ?? [], 'year') ?? findFilter(facts?.filters ?? [], 'decade'))
+      : findFilter(facts?.filters ?? [], chip);
+    const keys = [listed?.key, fallbackFilterKey(libKey, chip as 'genre' | 'year' | 'contentRating', sectionType)]
+      .filter((k, i, all): k is string => !!k && all.indexOf(k) === i);
+    for (const key of keys) {
+      try {
+        const opts = await getPlexFilterValues(base, token, key);
+        if (opts.length) {
+          setValues((v) => ({ ...v, [chip]: opts }));
+          if (current()) setMenu({ chip, options: withAll(opts), idx: 0 });
+          return;
+        }
+      } catch { /* the next way, if there is one */ }
+      if (!current()) return;
+    }
+    if (current()) setMenu({ chip, options: [], idx: 0 });
+  }, [sortOptions, filters.sort, values, meta, base, token, libKey, sectionType]);
 
   const applyMenuChoice = useCallback((chip: string, opt: PlexFilterValue) => {
     const unset = !opt.key;
@@ -511,6 +542,9 @@ const PlexLibraryRows = memo(({
   const rowIdxRef = useRef(row); useEffect(() => { rowIdxRef.current = row; }, [row]);
   const colRef = useRef(col); useEffect(() => { colRef.current = col; }, [col]);
   const onOpenRef = useRef(onOpen); useEffect(() => { onOpenRef.current = onOpen; }, [onOpen]);
+  // OK on a title opens it; held, its menu (Recommend to others).
+  const holdRef = useRef<PlexHoldOk | null>(null);
+  holdRef.current ??= createPlexHoldOk();
   const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
 
   const zoneRef = useRef(zone); useEffect(() => { zoneRef.current = zone; }, [zone]);
@@ -550,7 +584,11 @@ const PlexLibraryRows = memo(({
 
   useEffect(() => {
     if (!isActive) return;
+    const hold = holdRef.current!;
+    const open = (it: PlexItem) => onOpenRef.current(it);
     const handler = (e: KeyboardEvent) => {
+      // A title's hold menu (or a layer over this one) has the remote.
+      if (!isPlexKeyOwner('browse')) return;
       const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
 
@@ -634,7 +672,8 @@ const PlexLibraryRows = memo(({
         if (e.key === 'ArrowDown') { if (cur + GRID_COLS < items.length) setGridCursor(cur + GRID_COLS); return; }
         if (e.key === 'ArrowLeft') { if (cur % GRID_COLS !== 0) setGridCursor(cur - 1); else onExitRef.current(); return; }
         if (e.key === 'ArrowRight') { if ((cur % GRID_COLS) < GRID_COLS - 1 && cur + 1 < items.length) setGridCursor(cur + 1); return; }
-        if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const it = items[cur]; if (it) onOpenRef.current(it); }
+        // Opens it when let go; held, its menu. Repeats do nothing.
+        if (e.key === 'Enter' || e.key === ' ') hold.press(e, items[cur], open);
         return;
       }
 
@@ -670,14 +709,17 @@ const PlexLibraryRows = memo(({
       // Left off the first tile is the way into the side menu.
       if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); else onExitRef.current(); return; }
       if (e.key === 'ArrowRight') { if (c < current.items.length - 1) setCol(c + 1); return; }
-      if (e.key === 'Enter' || e.key === ' ') {
-        if (e.repeat) return; // a held OK must not act twice
-        const it = current.items[c];
-        if (it) onOpenRef.current(it);
-      }
+      // Opens it when let go; held, its menu. A held OK acts once.
+      if (e.key === 'Enter' || e.key === ' ') hold.press(e, current.items[c], open);
     };
+    const up = (e: KeyboardEvent) => hold.release(e);
     window.addEventListener('keydown', handler, { capture: true });
-    return () => window.removeEventListener('keydown', handler, { capture: true });
+    window.addEventListener('keyup', up, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', handler, { capture: true });
+      window.removeEventListener('keyup', up, { capture: true });
+      hold.cancel();
+    };
   }, [isActive]);
 
   // ── render ───────────────────────────────────────────────────────────────
@@ -775,7 +817,7 @@ const PlexLibraryRows = memo(({
           </div>
           {menu.options.length === 0 ? (
             <div className="px-3 py-3 text-sm font-nunito text-brand-ice/60">
-              {t('plex.library.nothingToChoose')}
+              {menu.loading ? t('common.loading') : t('plex.library.nothingToChoose')}
             </div>
           ) : (
             <div className="space-y-1">

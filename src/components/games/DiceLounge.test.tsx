@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const auth = vi.hoisted(() => ({ user: null as { id: string } | null }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => auth }));
+vi.mock('@/lib/gameSocket', () => ({ gameSocket: { getArcadeSession: vi.fn(async () => ({ ok: true, status: 'ready' })) } }));
 
 vi.mock('@/hooks/useGameSocket', () => ({
   useGameSocket: () => ({ balance: 12345, status: 'connected' }),
@@ -50,9 +51,10 @@ describe('Dice Lounge scoring', () => {
 });
 
 describe('Dice Lounge TV round', () => {
-  it('moves Right from 100 to Roll and Left back to 100', () => {
+  it('moves Right from 100 to Roll and Left back to 100', async () => {
     auth.user = { id: 'dice-test' };
     render(<DiceLounge onBack={() => {}} />);
+    await act(async () => {});
     const wager = screen.getByRole('button', { name: '100' });
     fireEvent.focus(wager);
     fireEvent.keyDown(window, { key: 'ArrowRight' });

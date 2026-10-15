@@ -219,7 +219,8 @@
   height: 49px;
   margin-left: -51px;
   color: #d7faff;
-  transition: left 180ms ease-out;
+  transition: none;
+  will-change: transform;
 }
 .snow-plinko-gate span { flex: 1 1 auto; height: 11px; border: 1px solid #d8b85d; background: linear-gradient(#e3c66e, #76531b); }
 .snow-plinko-gate span:first-child { border-radius: 15px 2px 2px 15px; }

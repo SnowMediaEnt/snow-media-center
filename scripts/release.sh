@@ -116,9 +116,38 @@ publish)
   trap 'rm -f "$NETRC"' EXIT
   printf 'machine %s login %s password %s\n' "$FTP_TLS_NAME" "$FTP_USER" "$FTP_PASS" > "$NETRC"
   unset FTP_PASS
+  # Hostwinds' FTP: a 38 MB upload takes minutes, and the control connection can
+  # die meanwhile, so curl reports "FTP response timeout" after a COMPLETE upload
+  # (and a fresh connection sometimes hangs). So curl's word is not trusted:
+  # each file goes up under a temporary name, is checked over HTTPS against the
+  # tested sha256, and only then renamed over the live name (one atomic step;
+  # the live download is never a half-written file). A file already on the
+  # server with the right sha256 is not sent again.
+  FTP=(curl --fail --silent --show-error --ssl-reqd --netrc-file "$NETRC" --ftp-pasv --ftp-skip-pasv-ip
+       --keepalive-time 20 --connect-timeout 30 --connect-to "$FTP_TLS_NAME:21:$FTP_HOST:21")
+  live_sha() { curl -s --fail -m 900 "https://snowmediaapps.com/$1?ts=$(date +%s)" | shasum -a 256 | cut -d' ' -f1; }
   put() {
-    curl --fail --ssl-reqd --netrc-file "$NETRC" --ftp-create-dirs \
-      --connect-to "$FTP_TLS_NAME:21:$FTP_HOST:21" -T "$1" "ftp://$FTP_TLS_NAME/$2"
+    local src="$1" dst="$2" want tmp try
+    want="$(shasum -a 256 "$src" | cut -d' ' -f1)"
+    if [ "$(live_sha "$dst")" = "$want" ]; then echo "$dst is already up to date."; return 0; fi
+    tmp="$dst.uploading"
+    for try in 1 2 3 4 5; do
+      echo "Uploading $dst (try $try of 5)…"
+      "${FTP[@]}" --ftp-create-dirs --speed-limit 10240 --speed-time 60 --progress-bar \
+        -T "$src" "ftp://$FTP_TLS_NAME/$tmp" || echo "  (curl gave up; checking whether the file arrived anyway)"
+      if [ "$(live_sha "$tmp")" = "$want" ]; then
+        if "${FTP[@]}" -Q "RNFR $tmp" -Q "RNTO $dst" --list-only -o /dev/null "ftp://$FTP_TLS_NAME/" \
+          || "${FTP[@]}" -Q "DELE $dst" -Q "RNFR $tmp" -Q "RNTO $dst" --list-only -o /dev/null "ftp://$FTP_TLS_NAME/"; then
+          [ "$(live_sha "$dst")" = "$want" ] && { echo "$dst is up (sha256 checked)."; return 0; }
+        fi
+        echo "  the rename did not take; trying again"
+      else
+        echo "  not complete on the server yet"
+      fi
+      sleep 10
+    done
+    echo "STOP: $dst could not be uploaded. update.json was NOT changed, so no box is told about $NAME."
+    return 1
   }
   put "$OUT/snowmediacenter.apk"            "apps/snowmediacenter.apk"
   put "$OUT/snow_media_center.$NAME.apk"    "smc/snow_media_center.$NAME.apk"

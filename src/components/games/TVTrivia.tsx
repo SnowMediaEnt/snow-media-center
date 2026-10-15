@@ -27,7 +27,8 @@ import { useGameAudio } from './shared/gameAudio';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useAuth } from '@/hooks/useAuth';
 import { useGameSocket } from '@/hooks/useGameSocket';
-import { gameSocket } from '@/lib/gameSocket';
+import { gameSocket, newArcadeRequestId, type ArcadeSession } from '@/lib/gameSocket';
+import { arcadeError, readArcadeSession, saveArcadeSession } from './shared/arcadeSession';
 import {
   loadSnowTriviaQuestions,
   SNOW_MEDIA_TRIVIA_FALLBACK,
@@ -322,7 +323,7 @@ const generalTriviaQuestions = TRIVIA_QUESTIONS.filter((question) => question.ca
 
 const TVTrivia = ({ onBack }: TVTriviaProps) => {
   const { user } = useAuth();
-  const { balance } = useGameSocket();
+  const { balance, status } = useGameSocket();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
   const { muted, play: playSound, toggleMuted } = useGameAudio();
   const [mode, setMode] = useState<TriviaMode>(initialTriviaMode);
@@ -337,10 +338,16 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [finished, setFinished] = useState(false);
-  const [focusZone, setFocusZone] = useState<FocusZone>('answer');
+  const [focusZone, setFocusZone] = useState<FocusZone>(user ? 'next' : 'answer');
   const [answerIndex, setAnswerIndex] = useState(0);
   const [coinPayout, setCoinPayout] = useState<number | null>(null);
   const [settleError, setSettleError] = useState<string | null>(null);
+  const [serverRound, setServerRound] = useState<ArcadeSession | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sessionNet, setSessionNet] = useState(0);
+  const busyRef = useRef(false);
+  const startIdRef = useRef<string | null>(null);
+  const countedRef = useRef(new Set<string>());
 
   const backRef = useRef<HTMLButtonElement>(null);
   const modeRef = useRef<HTMLButtonElement>(null);
@@ -353,14 +360,72 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   const difficultyValueRef = useRef(difficulty);
   const sessionTouchedRef = useRef(false);
   const completionCuePlayedRef = useRef(false);
-  const settlementSentRef = useRef(false);
 
   useTvActivate(activateFocused);
-  const { requestBack } = useGameBack({ onExit: onBack });
+  const { requestBack } = useGameBack({ onExit: onBack, isBusy: () => busyRef.current,
+    onBlocked: () => setSettleError('Saving your answer. Please wait a moment.') });
 
   const question = questions[questionIndex];
   const answeredCorrectly = selectedAnswer === question?.correct;
   const progress = finished ? 100 : ((questionIndex + 1) / questions.length) * 100;
+
+  const applyServerRound = useCallback((response: ArcadeSession, showResults = true) => {
+    if (!response.sessionId || !response.question) return;
+    setServerRound(response);
+    if (user) saveArcadeSession(user.id, 'trivia', response.sessionId);
+    setMode(response.mode ?? 'snow');
+    setDifficulty(response.difficulty ?? 'standard');
+    const publicQuestion: TriviaQuestion = { ...response.question,
+      correct: response.question.correct ?? -1, fact: response.question.fact ?? '', origin: 'published' };
+    setQuestions(Array.from({ length: response.total ?? 10 }, () => publicQuestion));
+    setQuestionIndex(response.questionIndex ?? 0);
+    setSelectedAnswer(response.selectedAnswer ?? null);
+    setScore(response.score);
+    setCorrectCount(response.correctCount ?? 0);
+    setStreak(response.streak ?? 0);
+    setBestStreak(response.bestStreak ?? 0);
+    setFinished(showResults && response.status === 'settled');
+    setFocusZone(response.selectedAnswer !== null ? 'next' : 'answer');
+    setAnswerIndex(0);
+    setContentSource('network');
+    setSettleError(null);
+    if (response.status === 'settled') {
+      setCoinPayout(response.payout ?? 0);
+      if (!countedRef.current.has(response.sessionId)) {
+        countedRef.current.add(response.sessionId);
+        setSessionNet((value) => value + (response.net ?? 0));
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || status !== 'connected' || busyRef.current) return;
+    let cancelled = false;
+    setBusy(true);
+    void gameSocket.getArcadeSession('trivia', readArcadeSession(user.id, 'trivia')).then((response) => {
+      if (cancelled) return;
+      if (response.ok && response.sessionId) applyServerRound(response);
+      else if (response.ok) { setFocusZone('next'); saveArcadeSession(user.id, 'trivia'); }
+      else if (!response.ok) setSettleError(arcadeError(response.error));
+    }).catch(() => { if (!cancelled) setSettleError(arcadeError()); })
+      .finally(() => { if (!cancelled) setBusy(false); });
+    return () => { cancelled = true; };
+  }, [user, status, applyServerRound]);
+
+  const startChallenge = useCallback(async () => {
+    if (!user || busy || busyRef.current || status !== 'connected' || (balance ?? 0) < DIFFICULTY_BET[difficulty]) return;
+    busyRef.current = true;
+    setBusy(true);
+    setSettleError(null);
+    try {
+      startIdRef.current ??= newArcadeRequestId();
+      const response = await gameSocket.startArcadeSession({ game: 'trivia', requestId: startIdRef.current,
+        bet: DIFFICULTY_BET[difficulty], difficulty, mode });
+      if (response.ok) applyServerRound(response);
+      else setSettleError(arcadeError(response.error));
+    } catch { setSettleError(arcadeError()); }
+    finally { busyRef.current = false; setBusy(false); }
+  }, [applyServerRound, balance, busy, difficulty, mode, status, user]);
 
   useEffect(() => {
     modeValueRef.current = mode;
@@ -368,6 +433,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   }, [mode, difficulty]);
 
   useEffect(() => {
+    if (user) return;
     let cancelled = false;
     void loadSnowTriviaQuestions().then((result) => {
       if (cancelled) return;
@@ -383,7 +449,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
       }
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (focusZone === 'back') backRef.current?.focus();
@@ -395,8 +461,30 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     else nextRef.current?.focus();
   }, [focusZone, answerIndex, questionIndex, selectedAnswer, finished]);
 
-  const answerQuestion = useCallback((index: number) => {
-    if (selectedAnswer !== null || finished) return;
+  const answerQuestion = useCallback(async (index: number) => {
+    if (selectedAnswer !== null || finished || busy || busyRef.current) return;
+    if (user) {
+      if (!serverRound?.sessionId) return;
+      busyRef.current = true;
+      setBusy(true);
+      setSettleError(null);
+      try {
+        const response = await gameSocket.arcadeAction({ game: 'trivia', sessionId: serverRound.sessionId,
+          version: serverRound.version, action: 'answer', questionId: question.id, answerIndex: index });
+        if (response.ok) {
+          applyServerRound(response, false);
+          playSound(response.selectedAnswer === response.question?.correct ? 'triviaCorrect' : 'triviaWrong');
+        } else {
+          setSettleError(arcadeError(response.error));
+          if (response.error === 'round_expired') {
+            setServerRound(null); startIdRef.current = null;
+            saveArcadeSession(user.id, 'trivia'); setFocusZone('next');
+          }
+        }
+      } catch { setSettleError(arcadeError()); }
+      finally { busyRef.current = false; setBusy(false); }
+      return;
+    }
     sessionTouchedRef.current = true;
     const isCorrect = index === question.correct;
     const nextStreak = isCorrect ? streak + 1 : 0;
@@ -412,25 +500,39 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     }
     playSound(isCorrect ? 'triviaCorrect' : 'triviaWrong');
     setFocusZone('next');
-  }, [difficulty, finished, playSound, question, selectedAnswer, streak]);
+  }, [applyServerRound, busy, difficulty, finished, playSound, question, selectedAnswer, serverRound, streak, user]);
 
-  const advance = useCallback(() => {
-    if (selectedAnswer === null) return;
+  const advance = useCallback(async () => {
+    if (selectedAnswer === null || busy || busyRef.current) return;
     if (questionIndex >= questions.length - 1) {
       setFinished(true);
       setFocusZone('next');
+      return;
+    }
+    if (user && serverRound?.sessionId) {
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        const response = await gameSocket.arcadeAction({ game: 'trivia', sessionId: serverRound.sessionId,
+          version: serverRound.version, action: 'next' });
+        if (response.ok) applyServerRound(response);
+        else setSettleError(arcadeError(response.error));
+      } catch { setSettleError(arcadeError()); }
+      finally { busyRef.current = false; setBusy(false); }
       return;
     }
     setQuestionIndex((index) => index + 1);
     setSelectedAnswer(null);
     setAnswerIndex(0);
     setFocusZone('answer');
-  }, [questionIndex, questions.length, selectedAnswer]);
+  }, [applyServerRound, busy, questionIndex, questions.length, selectedAnswer, serverRound, user]);
 
   const resetRound = useCallback((nextMode: TriviaMode, nextDifficulty: TriviaDifficulty) => {
+    setServerRound(null);
+    startIdRef.current = null;
+    if (user) saveArcadeSession(user.id, 'trivia');
     sessionTouchedRef.current = false;
     completionCuePlayedRef.current = false;
-    settlementSentRef.current = false;
     setQuestions(createTriviaSession(questionBank, nextMode, nextDifficulty));
     setQuestionIndex(0);
     setSelectedAnswer(null);
@@ -442,8 +544,8 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     setCoinPayout(null);
     setSettleError(null);
     setAnswerIndex(0);
-    setFocusZone('answer');
-  }, [questionBank]);
+    setFocusZone(user ? 'next' : 'answer');
+  }, [questionBank, user]);
 
   const playAgain = useCallback(() => {
     resetRound(mode, difficulty);
@@ -459,32 +561,28 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   }, [correctCount, finished, playSound, questions.length]);
 
   const switchMode = useCallback(() => {
+    if (busyRef.current || serverRound?.status === 'active') {
+      setSettleError('Finish this saved challenge before changing its mode.');
+      return;
+    }
     const nextMode: TriviaMode = mode === 'snow' ? 'mixed' : 'snow';
     setMode(nextMode);
     modeValueRef.current = nextMode;
     try { localStorage.setItem(MODE_STORAGE_KEY, nextMode); } catch { /* keep the in-memory choice */ }
     resetRound(nextMode, difficulty);
-  }, [difficulty, mode, resetRound]);
+  }, [difficulty, mode, resetRound, serverRound]);
 
   const switchDifficulty = useCallback(() => {
+    if (busyRef.current || serverRound?.status === 'active') {
+      setSettleError('Finish this saved challenge before changing its difficulty.');
+      return;
+    }
     const next = DIFFICULTIES[(DIFFICULTIES.indexOf(difficulty) + 1) % DIFFICULTIES.length];
     setDifficulty(next);
     difficultyValueRef.current = next;
     try { localStorage.setItem(DIFFICULTY_STORAGE_KEY, next); } catch { /* keep in memory */ }
     resetRound(mode, next);
-  }, [difficulty, mode, resetRound]);
-
-  useEffect(() => {
-    if (!finished || !user || settlementSentRef.current) return;
-    settlementSentRef.current = true;
-    void gameSocket.playArcade({
-      game: 'trivia', bet: DIFFICULTY_BET[difficulty], correct: correctCount,
-      total: questions.length, score, difficulty, mode,
-    }).then((response) => {
-      if (response?.ok) setCoinPayout(Number(response.payout) || 0);
-      else setSettleError(response?.error === 'insufficient_balance' ? 'Not enough Snow Coins for this challenge.' : 'Score kept; coin settlement unavailable.');
-    }).catch(() => setSettleError('Score kept; coin settlement unavailable.'));
-  }, [correctCount, difficulty, finished, mode, questions.length, score, user]);
+  }, [difficulty, mode, resetRound, serverRound]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -494,6 +592,8 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
       // The game owns every arrow, including graph boundaries, so the native
       // WebView never creates a second, invisible spatial-focus cursor.
       event.preventDefault();
+
+      if (user && !serverRound && direction === 'down') { setFocusZone('next'); return; }
 
       if (focusZone === 'back') {
         if (direction === 'right') setFocusZone('mode');
@@ -540,7 +640,8 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
       }
       if (focusZone === 'next') {
         if (direction === 'up') {
-          if (finished) setFocusZone('back');
+          if (user && !serverRound) setFocusZone('mode');
+          else if (finished) setFocusZone('back');
           else { setFocusZone('answer'); setAnswerIndex(2); }
         } else if (direction === 'left') setFocusZone('back');
         else if (direction === 'right') setFocusZone('fx');
@@ -564,7 +665,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [answerIndex, finished, focusZone, selectedAnswer]);
+  }, [answerIndex, finished, focusZone, selectedAnswer, serverRound, user]);
 
   const resultTitle = useMemo(() => {
     if (correctCount === questions.length) return 'Perfect game!';
@@ -661,7 +762,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
 
       <section className="snow-trivia__progress" aria-label="Session progress">
         <div className="snow-trivia__round">
-          <span>{finished ? 'Session complete' : `Question ${questionIndex + 1} of ${questions.length}`}</span>
+          <span>{user && !serverRound ? 'Choose your challenge' : finished ? 'Session complete' : `Question ${questionIndex + 1} of ${questions.length}`}</span>
           <div className="snow-trivia__progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={questions.length} aria-valuenow={finished ? questions.length : questionIndex + 1}>
             <i style={{ width: `${progress}%` }} />
           </div>
@@ -669,11 +770,24 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
         <div className="snow-trivia__free-play">
           <Sparkles aria-hidden="true" />
           <span>{mode === 'snow' ? 'Snow Media & Streaming' : 'Real World Random'} · {difficulty} · {user ? `${DIFFICULTY_BET[difficulty]} Snow Coins · Balance ${balance?.toLocaleString() ?? '—'}` : 'Guest practice'}</span>
-          <i>{contentSource === 'network' && question?.origin === 'published' ? 'Updated' : 'Offline ready'}</i>
+          <i>{user ? `Net ${sessionNet >= 0 ? '+' : ''}${sessionNet.toLocaleString()}` : contentSource === 'network' && question?.origin === 'published' ? 'Updated' : 'Practice'}</i>
         </div>
       </section>
 
-      {!finished ? (
+      {user && !serverRound ? (
+        <section className="snow-trivia__results snow-trivia__results--ready" aria-label="Start trivia challenge">
+          <div className="snow-trivia__trophy" aria-hidden="true"><span><Brain /></span></div>
+          <small>{mode === 'snow' ? 'Snow Media & Streaming' : 'Real World Random'} · {difficulty}</small>
+          <h2>Ready for ten questions?</h2>
+          <p>{DIFFICULTY_BET[difficulty]} Snow Coins per challenge · your progress saves after every answer.</p>
+          <Button ref={nextRef} onClick={() => { void startChallenge(); }} onFocus={() => setFocusZone('next')}
+            aria-disabled={busy || status !== 'connected' || (balance ?? 0) < DIFFICULTY_BET[difficulty] ? 'true' : undefined}
+            data-tv-focused={focusZone === 'next' ? 'true' : 'false'} className="snow-trivia__replay">
+            {busy ? 'Loading…' : (balance ?? 0) < DIFFICULTY_BET[difficulty] ? 'Not enough Snow Coins' : 'Start Challenge'} <ArrowRight />
+          </Button>
+          <span className="snow-trivia__results-note" role="status">{settleError ?? 'Change challenge or difficulty above, then press OK to start.'}</span>
+        </section>
+      ) : !finished ? (
         <section className={`snow-trivia__stage snow-trivia__stage--${question.category}`} aria-label="Trivia question">
           <div className="snow-trivia__question-card">
             <div className="snow-trivia__category"><CategoryIcon category={question.category} /> {question.categoryLabel}</div>
@@ -698,7 +812,8 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
                   key={answer}
                   ref={(element) => { answerRefs.current[index] = element; }}
                   type="button"
-                  onClick={() => answerQuestion(index)}
+                  onClick={() => { void answerQuestion(index); }}
+                  aria-disabled={busy || selectedAnswer !== null ? 'true' : undefined}
                   onFocus={() => { setFocusZone('answer'); setAnswerIndex(index); }}
                   aria-label={`${ANSWER_LETTERS[index]}. ${answer}${stateLabel}`}
                   aria-pressed={isSelected}
@@ -720,7 +835,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
             {selectedAnswer === null ? (
               <div className="snow-trivia__hint">
                 <span className="snow-trivia__remote" aria-hidden="true"><i>▲</i><i>◀</i><i>OK</i><i>▶</i><i>▼</i></span>
-                <span><strong>Pick your answer</strong><small>Use the D-pad and press OK</small></span>
+                <span><strong>{busy ? 'Checking answer…' : 'Pick your answer'}</strong><small>{settleError ?? 'Use the D-pad and press OK'}</small></span>
               </div>
             ) : (
               <>
@@ -728,18 +843,19 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
                   <span>{answeredCorrectly ? <Check /> : <X />}</span>
                   <div>
                     <strong>{answeredCorrectly ? `Correct! +${Math.round((question.points ?? 100) * DIFFICULTY_POINTS[difficulty]) + Math.max(0, streak - 1) * 25}` : 'Not quite'}</strong>
-                    <small>{question.fact}</small>
+                    <small>{settleError ?? question.fact}</small>
                   </div>
                 </div>
                 <Button
                   ref={nextRef}
                   type="button"
-                  onClick={advance}
+                  onClick={() => { void advance(); }}
+                  aria-disabled={busy ? 'true' : undefined}
                   onFocus={() => setFocusZone('next')}
                   data-tv-focused={focusZone === 'next' ? 'true' : 'false'}
                   className="snow-trivia__next"
                 >
-                  {questionIndex === questions.length - 1 ? 'See Results' : 'Next Question'} <ArrowRight />
+                  {busy ? 'Loading…' : questionIndex === questions.length - 1 ? 'See Results' : 'Next Question'} <ArrowRight />
                 </Button>
                 {answeredCorrectly && !reducedFx && (
                   <div className="snow-trivia__burst" aria-hidden="true">
@@ -776,8 +892,8 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
           </Button>
           <span className="snow-trivia__results-note">
             {coinPayout !== null
-              ? `${coinPayout.toLocaleString()} Snow Coins returned · leaderboard score posted`
-              : settleError ?? (user ? `Settling ${DIFFICULTY_BET[difficulty]} Snow Coin challenge…` : 'Guest practice · sign in for Snow Coin rounds and leaderboard scores')}
+              ? `${coinPayout.toLocaleString()} returned · Round net ${(serverRound?.net ?? 0) >= 0 ? '+' : ''}${serverRound?.net ?? 0} Snow Coins · score saved`
+              : settleError ?? (user ? 'Recovering saved result…' : 'Guest practice · sign in for Snow Coin rounds and leaderboard scores')}
           </span>
         </section>
       )}

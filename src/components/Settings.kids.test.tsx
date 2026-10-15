@@ -60,7 +60,7 @@ describe('Settings on a Kids profile', () => {
     kidsLevel = 'kids';
     const { container } = render(<Settings onBack={vi.fn()} />);
     key('ArrowDown'); // back → media tab
-    key('ArrowRight'); // → UI tab (opens it)
+    key('ArrowDown'); // → UI tab, next in the column (opens it)
     const focusIds = [...container.querySelectorAll('[data-settings-focus^="ui-"]')].map((e) => e.getAttribute('data-settings-focus'));
     expect(focusIds[0]).toBe('ui-content-bar-toggle');
     expect(focusIds.slice(1).every((id) => id?.startsWith('ui-language-'))).toBe(true);
@@ -75,7 +75,7 @@ describe('Settings on a Kids profile', () => {
     // Signed in, so the missing Parent PIN row is the Kids check, not the signed-out note.
     __setViewerForTests('u1');
     const { container } = render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowRight'); key('ArrowRight'); // → Profiles tab
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); // → Profiles tab (third in the column)
     expect(container.querySelector('[data-settings-focus="profiles-switch"]')).not.toBeNull();
     expect(container.querySelector('[data-settings-focus="profiles-manage"]')).toBeNull();
     expect(container.querySelector('[data-settings-focus="profiles-parent"]')).toBeNull();

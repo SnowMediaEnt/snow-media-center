@@ -22,6 +22,10 @@ interface Props {
   /** Picking a different Live TV layout: try it on the real screen (the
    *  Player shows Live TV in it, then asks Keep / Change). */
   onTryLayout?: (prev: LiveLayout, next: LiveLayout) => void;
+  /** Drawn beside the Settings menu: no header of its own, Back (and Left from a row's first chip) return to the menu. */
+  embedded?: boolean;
+  /** Embedded only: whether the remote is on this page (false while it is on the menu). */
+  active?: boolean;
 }
 
 type ChipKind = 'liveLayout' | 'viewSize' | 'fontScale' | 'fontFamily' | 'accent' | 'bg' | 'text';
@@ -34,7 +38,7 @@ interface Chip {
   groupIdx: number;
 }
 
-const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
+const AppearanceScreen = memo(({ onBack, onTryLayout, embedded = false, active = true }: Props) => {
   const { t } = useTranslation();
   // The names in lib/theme and lib/liveLayout stay the fallback; the screen shows the translated one by id.
   const chipLabel = (chip: Chip) => {
@@ -123,6 +127,7 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (embedded && !active) return; // the remote is on the Settings menu
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
@@ -159,10 +164,12 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
           setFocusIdx(groupStarts.starts[groups.length - 1]);
         } else if (info) {
           if (info.group > 0) setFocusIdx(groupStarts.starts[info.group - 1]);
-          else setFocusIdx(0);
+          else if (!embedded) setFocusIdx(0); // embedded: no Back button up there
         }
       } else if (e.key === 'ArrowLeft') {
         if (info && info.posInGroup > 0) setFocusIdx(cur - 1);
+        // Embedded: Left from a row's first chip (or from Reset) goes back to the menu.
+        else if (embedded) onBack();
       } else if (e.key === 'ArrowRight') {
         if (info && info.posInGroup < groups[info.group].length - 1) setFocusIdx(cur + 1);
       } else if (e.key === 'Enter' || e.key === ' ') {
@@ -174,7 +181,7 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onBack, groups, groupStarts]);
+  }, [onBack, groups, groupStarts, embedded, active]);
 
   const renderChip = (chip: Chip, flatIdx: number) => {
     const focused = focusIdx === flatIdx;
@@ -229,21 +236,23 @@ const AppearanceScreen = memo(({ onBack, onTryLayout }: Props) => {
   };
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
-        <BackButton
-          onClick={onBack}
-          label={t('common.back')}
-          data-player-header-btn=""
-          focused={focusIdx === 0}
-        />
-        <div className="flex items-center gap-2">
-          <Palette className="w-7 h-7 text-brand-gold" />
-          <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.appearance.title')}</h1>
+    <div className={embedded ? 'h-full min-h-0 overflow-hidden flex flex-col text-white' : 'h-screen overflow-hidden flex flex-col text-white bg-black/70'}>
+      {!embedded && (
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
+          <BackButton
+            onClick={onBack}
+            label={t('common.back')}
+            data-player-header-btn=""
+            focused={focusIdx === 0}
+          />
+          <div className="flex items-center gap-2">
+            <Palette className="w-7 h-7 text-brand-gold" />
+            <h1 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.appearance.title')}</h1>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div ref={scrollRef} className="flex-1 overflow-auto p-6 flex items-start justify-center">
+      <div ref={scrollRef} className={embedded ? 'flex-1 overflow-auto p-1' : 'flex-1 overflow-auto p-6 flex items-start justify-center'}>
         <div className="w-full max-w-3xl space-y-6">
           {groups.map((g, gi) => (
             <div key={groupLabels[gi]} className="space-y-3">
