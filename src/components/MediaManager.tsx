@@ -1078,8 +1078,11 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
                 <p className="text-sm text-purple-200 italic">{t('media.generate.signInToSave')}</p>
               )}
             </div>
-            <div className="flex gap-4">
-              <div className="flex-1" data-focus-id="prompt-input">
+            {/* The box gets its own line and the buttons sit under it: beside the
+                Settings column the page is narrower, and in one row the buttons
+                (which never shrink) squeezed the box to a sliver. */}
+            <div className="space-y-3">
+              <div data-focus-id="prompt-input">
                 <Label htmlFor="generate-prompt" className="text-white mb-2 block">{t('media.generate.promptLabel')}</Label>
                 <Input
                   id="generate-prompt"
@@ -1091,7 +1094,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
                   disabled={generating}
                 />
               </div>
-              <div className="flex items-end gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   onClick={() => handleGenerateImage()}
                   disabled={generating || comparing || !generatePrompt.trim() || (isAuthenticated && profile && profile.credits < tierCost)}
