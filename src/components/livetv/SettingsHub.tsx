@@ -225,8 +225,8 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
 
       {/* Margins, not flex gap: older box WebViews (Chrome < 84) ignore gap. */}
       <div className="flex-1 min-h-0 flex flex-col md:flex-row p-4 lg:p-6">
-        <div ref={scrollRef} className="md:w-60 lg:w-72 shrink-0 overflow-auto mb-4 md:mb-0 md:mr-4 lg:mr-6">
-          <div className="space-y-3" data-settings-menu>
+        <div ref={scrollRef} className="md:w-52 lg:w-60 shrink-0 overflow-auto mb-4 md:mb-0 md:mr-4 lg:mr-5">
+          <div className="space-y-1.5" data-settings-menu>
             {MENU.map((m, i) => {
               const Icon = m.icon;
               const focused = !inPage && menuIdx === i + 1;
@@ -239,10 +239,10 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
                   data-focused={focused ? 'true' : 'false'}
                   data-howto={HUB_HOWTO[m.id]}
                   onClick={() => { setMenuIdx(i + 1); setShown(m.id); activate(m.id); }}
-                  className={`tv-ring flex items-center rounded-xl px-4 py-3 border cursor-pointer ${current ? 'bg-brand-gold/15 border-brand-gold/50' : 'bg-slate-900/70 border-white/10'} ${focused ? 'scale-[1.02] z-10' : ''}`}
+                  className={`tv-ring flex items-center rounded-xl px-3.5 py-2.5 border cursor-pointer ${current ? 'bg-brand-gold/15 border-brand-gold/50' : 'bg-slate-900/60 border-white/10'} ${focused ? 'scale-[1.02] z-10' : ''}`}
                 >
-                  <Icon className="w-5 h-5 mr-3 text-brand-gold shrink-0" />
-                  <span className="text-base lg:text-lg font-quicksand font-semibold min-w-0 truncate">{t(m.labelKey)}</span>
+                  <Icon className="w-[18px] h-[18px] mr-2.5 text-brand-gold shrink-0" />
+                  <span className="text-sm lg:text-base font-quicksand font-semibold min-w-0 truncate">{t(m.labelKey)}</span>
                 </div>
               );
             })}
@@ -250,7 +250,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
         </div>
 
         <div className="flex-1 min-w-0 min-h-0 flex flex-col" data-settings-preview={inPage ? 'false' : 'true'} data-settings-page={shown}>
-          <h2 className="text-lg font-quicksand font-semibold text-brand-ice/90 mb-3 truncate">{t(shownItem.labelKey)}</h2>
+          <h2 className="text-base font-quicksand font-semibold text-brand-ice/90 mb-2 truncate">{t(shownItem.labelKey)}</h2>
           <div className={`flex-1 min-h-0 transition-opacity duration-150 ${inPage ? '' : 'opacity-80'}`}>
             <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-brand-gold" /></div>}>
               {page}

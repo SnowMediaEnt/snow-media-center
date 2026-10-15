@@ -23,9 +23,12 @@ interface Props {
   /** Compact only: something to sit beside the sign-out button (the
    *  Dashboard's renewal-reminder link), so the column stays short. */
   actions?: ReactNode;
+  /** Settings: one quiet panel — title, line badge and sign-out on one line,
+   *  the details as short label/value pairs in columns underneath. */
+  panel?: boolean;
 }
 
-const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
+const PlayerAccountCard = memo(({ compact = false, actions, panel = false }: Props) => {
   const { t } = useTranslation();
   const { account, state, days } = usePlayerAccount();
   const { toast } = useToast();
@@ -71,6 +74,33 @@ const PlayerAccountCard = memo(({ compact = false, actions }: Props) => {
     [Tv, t('liveAccount.account.status'), <span className="font-medium capitalize">{account.status || t('liveAccount.account.statusUnknown')}</span>],
     [Users, t('liveAccount.account.connections'), <span className="font-medium">{account.activeCons ?? 0}{account.maxConnections != null ? ` / ${account.maxConnections}` : ''}</span>],
   ];
+
+  if (panel) {
+    return (
+      <section className="rounded-2xl bg-slate-800/55 border border-white/10 px-4 py-3.5" data-player-account-panel>
+        <div className="flex items-center flex-wrap">
+          <Tv className="w-5 h-5 text-brand-gold mr-3 shrink-0" />
+          <h3 className="text-base font-semibold text-white mr-2">{t('liveAccount.playerCard.title')}</h3>
+          <Badge className={`border mr-2 ${serverBadgeColor}`}>{serverDisplayName(account.serverLabel)}</Badge>
+          {account.isTrial && (
+            <Badge className="bg-amber-500/30 text-amber-100 border border-amber-400/40 mr-2">{t('liveAccount.account.trial')}</Badge>
+          )}
+          <Button variant="white" size="sm" onClick={handleSignOut} className="tv-focusable h-8 ml-auto">
+            <LogOut className="w-4 h-4 mr-2" /> {t('liveAccount.playerCard.signOutBtn')}
+          </Button>
+        </div>
+        {/* Grid gap (not flex gap) is fine on the oldest box WebViews. */}
+        <dl className="mt-2.5 sm:pl-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1.5 text-sm">
+          {rows.map(([, label, value]) => (
+            <div key={label} className="flex items-baseline min-w-0">
+              <dt className="text-white/55 whitespace-nowrap mr-1.5">{label}</dt>
+              <dd className="text-white/90 min-w-0 truncate">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    );
+  }
 
   if (compact) {
     return (

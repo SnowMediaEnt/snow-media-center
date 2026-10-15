@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, type ComponentType, type HTMLAttributes, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone, Star } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone, Star, ChevronRight } from 'lucide-react';
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors, loadProfiles, profileName, PROFILES_EVENT } from '@/lib/profiles';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
@@ -67,6 +67,46 @@ type SettingsFocus =
   | 'alerts-content'
   | 'ai-content'
   | `ui-language-${string}`;
+
+/**
+ * One setting in a grouped list: icon, title, a short line under it, and its
+ * control on the right. Rows sit in one panel (SettingsGroup) instead of each
+ * in a card of its own, so a 960x540 screen shows the whole list, not two
+ * boxes (owner, 2026-10-14). The remote highlight is the tv-ring plus a faint
+ * fill; no zoom, which a row inside a panel would only clip.
+ */
+const SettingRow = ({ focused, icon: Icon, title, description, control, children, className = '', ...rest }: {
+  focused: boolean;
+  icon: ComponentType<{ className?: string }>;
+  title: ReactNode;
+  description?: ReactNode;
+  control?: ReactNode;
+  children?: ReactNode;
+  className?: string;
+} & HTMLAttributes<HTMLDivElement>) => (
+  <div
+    tabIndex={0}
+    role="button"
+    {...rest}
+    className={`tv-ring flex items-start rounded-xl px-3.5 py-3 cursor-pointer transition-colors duration-150 ${focused ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'} ${className}`}
+  >
+    {/* Beside the title, not the middle of a two-line row; the control stays centred. */}
+    <Icon className="w-5 h-5 text-brand-gold shrink-0 mr-3.5 mt-0.5" />
+    <div className="min-w-0 flex-1">
+      <div className="text-base font-semibold text-white leading-snug">{title}</div>
+      {description ? <div className="text-sm text-white/65 leading-snug mt-0.5">{description}</div> : null}
+      {children}
+    </div>
+    {control ? <div className="shrink-0 ml-4 self-center">{control}</div> : null}
+  </div>
+);
+
+/** A quiet panel that holds a run of related rows. (space-y, not flex gap: old box WebViews.) */
+const SettingsGroup = ({ children, ...rest }: { children: ReactNode } & HTMLAttributes<HTMLElement>) => (
+  <section {...rest} className="rounded-2xl bg-slate-800/55 border border-white/10 p-1.5 space-y-0.5">
+    {children}
+  </section>
+);
 
 const Settings = ({ onBack, onNavigate }: SettingsProps) => {
   const { t, i18n } = useTranslation();
@@ -600,7 +640,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
   // the tab that is showing and the tv-ring highlight on the one the remote
   // is on. (Margins, not flex gap, between them: Chrome 66 has no flex gap.)
   const tabClass = (id: SettingsFocus) =>
-    `tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold w-full min-w-0 justify-start text-left h-12 px-3 md:px-4 text-sm md:text-base transition-all duration-200 ${focusRing(id)}`;
+    `tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold w-full min-w-0 justify-start text-left h-11 px-3 text-sm lg:text-base transition-all duration-200 ${focusRing(id)}`;
 
   return (
     <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
@@ -616,8 +656,8 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
           />
         </div>
         <div className="text-center px-4 min-w-0">
-          <h1 className="text-3xl font-bold text-white leading-tight">{t('settings.title')}</h1>
-          <p className="text-base text-blue-200">{t('settings.subtitle')}</p>
+          <h1 className="text-2xl font-bold text-white leading-tight">{t('settings.title')}</h1>
+          <p className="text-sm text-blue-200/80">{t('settings.subtitle')}</p>
         </div>
         <div />
       </div>
@@ -627,7 +667,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
             the right (on a phone the column sits above it). */}
         <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className="w-full flex flex-col md:flex-row md:items-start">
           <TabsList
-            className="grid grid-cols-2 gap-2 h-auto w-full p-2 mb-4 rounded-xl bg-slate-800/50 border border-slate-600 md:flex md:flex-col md:items-stretch md:justify-start md:gap-0 md:space-y-2 md:w-64 lg:w-72 md:shrink-0 md:mb-0 md:mr-6"
+            className="grid grid-cols-2 gap-2 h-auto w-full p-1.5 mb-4 rounded-2xl bg-slate-900/45 border border-white/10 md:flex md:flex-col md:items-stretch md:justify-start md:gap-0 md:space-y-1 md:w-52 lg:w-60 md:shrink-0 md:mb-0 md:mr-5"
             data-howto="set.tabs"
           >
             <TabsTrigger
@@ -636,7 +676,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
               value="media"
               className={tabClass('tab-media')}
             >
-              <Image className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
+              <Image className="w-[18px] h-[18px] mr-2.5 shrink-0" />
               <span className="min-w-0 truncate">{t('settings.tabs.media')}</span>
             </TabsTrigger>
             <TabsTrigger
@@ -645,7 +685,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
               value="ui"
               className={tabClass('tab-ui')}
             >
-              <Sliders className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
+              <Sliders className="w-[18px] h-[18px] mr-2.5 shrink-0" />
               <span className="min-w-0 truncate">{t('settings.tabs.ui')}</span>
             </TabsTrigger>
             <TabsTrigger
@@ -654,7 +694,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
               value="profiles"
               className={tabClass('tab-profiles')}
             >
-              <UsersRound className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
+              <UsersRound className="w-[18px] h-[18px] mr-2.5 shrink-0" />
               <span className="min-w-0 truncate">{t('settings.tabs.profiles')}</span>
             </TabsTrigger>
             <TabsTrigger
@@ -663,7 +703,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
               value="remote"
               className={tabClass('tab-remote')}
             >
-              <Smartphone className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
+              <Smartphone className="w-[18px] h-[18px] mr-2.5 shrink-0" />
               <span className="min-w-0 truncate">{t('settings.tabs.remote')}</span>
             </TabsTrigger>
             {showUpdates && (
@@ -674,7 +714,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
                 data-howto="set.updatesTab"
                 className={tabClass('tab-updates')}
               >
-                <RefreshCw className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
+                <RefreshCw className="w-[18px] h-[18px] mr-2.5 shrink-0" />
                 <span className="min-w-0 truncate">{t('settings.tabs.updates')}</span>
               </TabsTrigger>
             )}
@@ -685,7 +725,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
                 value="alerts"
                 className={tabClass('tab-alerts')}
               >
-                <AlertTriangle className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
+                <AlertTriangle className="w-[18px] h-[18px] mr-2.5 shrink-0" />
                 <span className="min-w-0 truncate">{t('settings.tabs.alerts')}</span>
               </TabsTrigger>
             )}
@@ -696,7 +736,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
                 value="ai"
                 className={tabClass('tab-ai')}
               >
-                <Bot className="w-5 h-5 mr-2 md:mr-3 shrink-0" />
+                <Bot className="w-[18px] h-[18px] mr-2.5 shrink-0" />
                 <span className="min-w-0 truncate">{t('settings.tabs.ai')}</span>
               </TabsTrigger>
             )}
@@ -704,239 +744,151 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
 
           <div className="flex-1 min-w-0">
           <TabsContent value="media" className="mt-0">
-            <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6">
-              <h2 className="text-2xl font-bold text-white mb-6">{t('settings.mediaManagerHeading')}</h2>
+            {/* The same quiet panel as the other tabs; Media Manager's own boxes carry the colour. */}
+            <section className="rounded-2xl bg-slate-800/55 border border-white/10 p-4">
+              <h2 className="text-lg font-semibold text-white mb-3">{t('settings.mediaManagerHeading')}</h2>
               <MediaManager
                 onBack={handleMediaManagerBack}
                 onExitLeft={handleMediaManagerBack}
                 embedded={true}
                 isActive={mediaManagerActive}
               />
-            </Card>
+            </section>
           </TabsContent>
 
           <TabsContent value="ui" className="mt-0 space-y-4">
-            {!kids && <PlayerAccountCard />}
-            {aiTierShown && (
-              <Card
-                {...settingsFocusAttrs('ui-ai-tier')}
-                tabIndex={0}
-                role="button"
-                aria-pressed={aiTier === 'premium'}
-                onFocus={() => setFocusedElement('ui-ai-tier')}
-                onClick={toggleAiTier}
-                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-ai-tier')}`}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <Bot className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                    <div>
-                      <h3 className="text-lg font-bold text-white">
-                        {aiTier === 'premium' && canPremium ? t('settings.aiTier.titlePremium') : t('settings.aiTier.titleFree')}
-                      </h3>
-                      <p className="text-sm text-white/70 mt-1">
-                        {canPremium
-                          ? t('settings.aiTier.descPremium', { gems: aiPremium?.gems ?? '' })
-                          : t('settings.aiTier.descSignIn')}
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={aiTier === 'premium' && canPremium}
-                    onCheckedChange={toggleAiTier}
-                    disabled={!canPremium}
-                    aria-label={t('settings.aiTier.aria')}
-                    className="mt-1"
-                  />
-                </div>
-              </Card>
-            )}
+            {!kids && <PlayerAccountCard panel />}
 
-            <Card
-              {...settingsFocusAttrs('ui-content-bar-toggle')}
-              tabIndex={0}
-              role="button"
-              aria-pressed={mediaBarEnabled}
-              onFocus={() => setFocusedElement('ui-content-bar-toggle')}
-              onClick={() => setMediaBarEnabledState(!mediaBarEnabled)}
-              data-howto="set.contentBar"
-              className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-content-bar-toggle')}`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{t('settings.contentBar.title')}</h3>
-                    <p className="text-sm text-white/70 mt-1">
-                      {t('settings.contentBar.description')}
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={mediaBarEnabled}
-                  onCheckedChange={setMediaBarEnabledState}
-                  aria-label={t('settings.contentBar.aria')}
-                  className="mt-1"
+            {/* Every on/off setting in one list: a 960x540 screen shows them all. */}
+            <SettingsGroup>
+              {aiTierShown && (
+                <SettingRow
+                  {...settingsFocusAttrs('ui-ai-tier')}
+                  focused={isFocused('ui-ai-tier')}
+                  aria-pressed={aiTier === 'premium'}
+                  onFocus={() => setFocusedElement('ui-ai-tier')}
+                  onClick={toggleAiTier}
+                  icon={Bot}
+                  title={aiTier === 'premium' && canPremium ? t('settings.aiTier.titlePremium') : t('settings.aiTier.titleFree')}
+                  description={canPremium
+                    ? t('settings.aiTier.descPremium', { gems: aiPremium?.gems ?? '' })
+                    : t('settings.aiTier.descSignIn')}
+                  control={(
+                    <Switch
+                      checked={aiTier === 'premium' && canPremium}
+                      onCheckedChange={toggleAiTier}
+                      disabled={!canPremium}
+                      aria-label={t('settings.aiTier.aria')}
+                    />
+                  )}
                 />
-              </div>
-            </Card>
+              )}
 
-            {!kids && (<>
-            <Card
-              {...settingsFocusAttrs('ui-dashboard-size-toggle')}
-              tabIndex={0}
-              role="button"
-              aria-pressed={dashboardSize === 'large'}
-              onFocus={() => setFocusedElement('ui-dashboard-size-toggle')}
-              onClick={() => saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large')}
-              className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-dashboard-size-toggle')}`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <LayoutDashboard className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{t('settings.dashboardSize.title')}</h3>
-                    <p className="text-sm text-white/70 mt-1">
-                      {t('settings.dashboardSize.description')}
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={dashboardSize === 'large'}
-                  onCheckedChange={(v) => saveDashboardSize(v ? 'large' : 'compact')}
-                  aria-label={t('settings.dashboardSize.title')}
-                  className="mt-1"
+              <SettingRow
+                {...settingsFocusAttrs('ui-content-bar-toggle')}
+                focused={isFocused('ui-content-bar-toggle')}
+                aria-pressed={mediaBarEnabled}
+                onFocus={() => setFocusedElement('ui-content-bar-toggle')}
+                onClick={() => setMediaBarEnabledState(!mediaBarEnabled)}
+                data-howto="set.contentBar"
+                icon={Tv}
+                title={t('settings.contentBar.title')}
+                description={t('settings.contentBar.description')}
+                control={<Switch checked={mediaBarEnabled} onCheckedChange={setMediaBarEnabledState} aria-label={t('settings.contentBar.aria')} />}
+              />
+
+              {!kids && (<>
+                <SettingRow
+                  {...settingsFocusAttrs('ui-dashboard-size-toggle')}
+                  focused={isFocused('ui-dashboard-size-toggle')}
+                  aria-pressed={dashboardSize === 'large'}
+                  onFocus={() => setFocusedElement('ui-dashboard-size-toggle')}
+                  onClick={() => saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large')}
+                  icon={LayoutDashboard}
+                  title={t('settings.dashboardSize.title')}
+                  description={t('settings.dashboardSize.description')}
+                  control={<Switch checked={dashboardSize === 'large'} onCheckedChange={(v) => saveDashboardSize(v ? 'large' : 'compact')} aria-label={t('settings.dashboardSize.title')} />}
                 />
-              </div>
-            </Card>
 
-            <Card
-              {...settingsFocusAttrs('ui-mail-notify-toggle')}
-              tabIndex={0}
-              role="button"
-              aria-pressed={mailNotify}
-              onFocus={() => setFocusedElement('ui-mail-notify-toggle')}
-              onClick={() => saveMailNotify(!mailNotify)}
-              data-howto="set.postNotify"
-              className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-mail-notify-toggle')}`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <Newspaper className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{t('settings.postNotify.title')}</h3>
-                    <p className="text-sm text-white/70 mt-1">
-                      {t('settings.postNotify.description')}
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={mailNotify}
-                  onCheckedChange={saveMailNotify}
-                  aria-label={t('settings.postNotify.title')}
-                  className="mt-1"
+                <SettingRow
+                  {...settingsFocusAttrs('ui-mail-notify-toggle')}
+                  focused={isFocused('ui-mail-notify-toggle')}
+                  aria-pressed={mailNotify}
+                  onFocus={() => setFocusedElement('ui-mail-notify-toggle')}
+                  onClick={() => saveMailNotify(!mailNotify)}
+                  data-howto="set.postNotify"
+                  icon={Newspaper}
+                  title={t('settings.postNotify.title')}
+                  description={t('settings.postNotify.description')}
+                  control={<Switch checked={mailNotify} onCheckedChange={saveMailNotify} aria-label={t('settings.postNotify.title')} />}
                 />
-              </div>
-            </Card>
 
-            {/* The How-to pictures show the card a box has (on the web it can't do anything). */}
-            {(deviceAlerts.supported || isHowtoCapture()) && (
-              <Card
-                {...settingsFocusAttrs('ui-device-alerts-toggle')}
-                tabIndex={0}
-                role="button"
-                aria-pressed={deviceAlerts.status.enabled}
-                onFocus={() => setFocusedElement('ui-device-alerts-toggle')}
-                onClick={() => void toggleDeviceAlerts(!deviceAlerts.status.enabled)}
-                data-howto="set.alerts"
-                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-device-alerts-toggle')}`}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <Bell className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                    <div>
-                      <h3 className="text-lg font-bold text-white">{t('settings.deviceAlerts.title')}</h3>
-                      <p className="text-sm text-white/70 mt-1">
-                        {t('settings.deviceAlerts.description')}
-                      </p>
-                      {deviceAlerts.status.channelBlocked && (
-                        <p className="text-sm text-amber-300 mt-2">
-                          {t('settings.deviceAlerts.blocked')}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <Switch
-                    checked={deviceAlerts.status.enabled}
-                    disabled={deviceAlerts.busy}
-                    onCheckedChange={toggleDeviceAlerts}
-                    aria-label={t('settings.deviceAlerts.title')}
-                    className="mt-1"
-                  />
-                </div>
-              </Card>
-            )}
-            </>)}
+                {/* The How-to pictures show the row a box has (on the web it can't do anything). */}
+                {(deviceAlerts.supported || isHowtoCapture()) && (
+                  <SettingRow
+                    {...settingsFocusAttrs('ui-device-alerts-toggle')}
+                    focused={isFocused('ui-device-alerts-toggle')}
+                    aria-pressed={deviceAlerts.status.enabled}
+                    onFocus={() => setFocusedElement('ui-device-alerts-toggle')}
+                    onClick={() => void toggleDeviceAlerts(!deviceAlerts.status.enabled)}
+                    data-howto="set.alerts"
+                    icon={Bell}
+                    title={t('settings.deviceAlerts.title')}
+                    description={t('settings.deviceAlerts.description')}
+                    control={(
+                      <Switch
+                        checked={deviceAlerts.status.enabled}
+                        disabled={deviceAlerts.busy}
+                        onCheckedChange={toggleDeviceAlerts}
+                        aria-label={t('settings.deviceAlerts.title')}
+                      />
+                    )}
+                  >
+                    {deviceAlerts.status.channelBlocked && (
+                      <p className="text-sm text-amber-300 mt-1">{t('settings.deviceAlerts.blocked')}</p>
+                    )}
+                  </SettingRow>
+                )}
+              </>)}
 
-            {rateShown && (
-              <Card
-                {...settingsFocusAttrs('ui-rate-app')}
-                tabIndex={0}
-                role="button"
-                onFocus={() => setFocusedElement('ui-rate-app')}
-                onClick={openReview}
-                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-rate-app')}`}
-              >
-                <div className="flex items-start gap-3">
-                  <Star className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{t('review.settings.title')}</h3>
-                    <p className="text-sm text-white/70 mt-1">{t('review.settings.description')}</p>
-                  </div>
-                </div>
-              </Card>
-            )}
+              {rateShown && (
+                <SettingRow
+                  {...settingsFocusAttrs('ui-rate-app')}
+                  focused={isFocused('ui-rate-app')}
+                  onFocus={() => setFocusedElement('ui-rate-app')}
+                  onClick={openReview}
+                  icon={Star}
+                  title={t('review.settings.title')}
+                  description={t('review.settings.description')}
+                  control={<ChevronRight className="w-5 h-5 text-white/40" />}
+                />
+              )}
+              {isAdmin && (
+                <SettingRow
+                  {...settingsFocusAttrs('ui-player-toggle')}
+                  focused={isFocused('ui-player-toggle')}
+                  aria-pressed={playerEnabled}
+                  onFocus={() => setFocusedElement('ui-player-toggle')}
+                  onClick={() => void togglePlayer(!playerEnabled)}
+                  icon={Tv}
+                  title={t('settings.player.title')}
+                  description={t('settings.player.description')}
+                  control={<Switch checked={playerEnabled} onCheckedChange={togglePlayer} aria-label={t('settings.player.aria')} />}
+                />
+              )}
 
-            {isAdmin && (
-              <Card
-                {...settingsFocusAttrs('ui-player-toggle')}
-                tabIndex={0}
-                role="button"
-                aria-pressed={playerEnabled}
-                onFocus={() => setFocusedElement('ui-player-toggle')}
-                onClick={() => void togglePlayer(!playerEnabled)}
-                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-player-toggle')}`}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                    <div>
-                      <h3 className="text-lg font-bold text-white">{t('settings.player.title')}</h3>
-                      <p className="text-sm text-white/70 mt-1">
-                        {t('settings.player.description')}
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={playerEnabled}
-                    onCheckedChange={togglePlayer}
-                    aria-label={t('settings.player.aria')}
-                    className="mt-1"
-                  />
-                </div>
-              </Card>
-            )}
+            </SettingsGroup>
 
             {/* Everyone can pick a language: admin or not, Kids profile or not, demo too. */}
-            <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6" data-howto="set.language">
-              <div className="flex items-start gap-3 mb-4">
-                <Languages className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-white">{t('settings.language.title')}</h3>
-                  <p className="text-sm text-white/70 mt-1">{t('settings.language.description')}</p>
+            <section className="rounded-2xl bg-slate-800/55 border border-white/10 px-4 py-3.5" data-howto="set.language">
+              <div className="flex items-center mb-3">
+                <Languages className="w-5 h-5 text-brand-gold mr-3.5 shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-white leading-snug">{t('settings.language.title')}</h3>
+                  <p className="text-sm text-white/65 leading-snug mt-0.5">{t('settings.language.description')}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                 {SUPPORTED_LANGUAGES.map((lang) => {
                   const selected = currentLang.startsWith(lang.code);
                   return (
@@ -950,19 +902,19 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
                         handleLanguageSelect(lang.code);
                       }}
                       tabIndex={0}
-                      className={`tv-ring flex items-center justify-between gap-2 px-4 py-3 rounded-md border text-base transition-all duration-150 ${focusRing(`ui-language-${lang.code}`)} ${
+                      className={`tv-ring flex items-center justify-between px-3.5 py-2.5 rounded-lg border text-sm lg:text-base transition-all duration-150 ${focusRing(`ui-language-${lang.code}`)} ${
                         selected
                           ? 'bg-brand-gold/20 border-brand-gold text-white'
-                          : 'bg-slate-800 border-slate-500/60 text-slate-100 hover:bg-slate-700'
+                          : 'bg-slate-900/60 border-white/15 text-slate-100 hover:bg-slate-700/60'
                       }`}
                     >
-                      <span dir="auto" className="font-medium">{lang.nativeName}</span>
-                      {selected && <Check className="w-4 h-4 text-brand-gold shrink-0" />}
+                      <span dir="auto" className="font-medium min-w-0 truncate">{lang.nativeName}</span>
+                      {selected && <Check className="w-4 h-4 text-brand-gold shrink-0 ml-2" />}
                     </button>
                   );
                 })}
               </div>
-            </Card>
+            </section>
           </TabsContent>
 
           <TabsContent value="remote" className="mt-0">
