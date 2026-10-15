@@ -77,7 +77,7 @@ const PlayerAccountCard = memo(({ compact = false, actions, panel = false }: Pro
 
   if (panel) {
     return (
-      <section className="rounded-2xl bg-slate-800/55 border border-white/10 px-4 py-3.5" data-player-account-panel>
+      <section className="rounded-2xl bg-slate-800/55 border border-white/10 px-5 py-3.5" data-player-account-panel>
         <div className="flex items-center flex-wrap">
           <Tv className="w-5 h-5 text-brand-gold mr-3 shrink-0" />
           <h3 className="text-base font-semibold text-white mr-2">{t('liveAccount.playerCard.title')}</h3>

@@ -880,7 +880,8 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
             </SettingsGroup>
 
             {/* Everyone can pick a language: admin or not, Kids profile or not, demo too. */}
-            <section className="rounded-2xl bg-slate-800/55 border border-white/10 px-4 py-3.5" data-howto="set.language">
+            {/* px-5 lines its icon and title up with the rows above (panel p-1.5 + row px-3.5). */}
+            <section className="rounded-2xl bg-slate-800/55 border border-white/10 px-5 py-3.5" data-howto="set.language">
               <div className="flex items-center mb-3">
                 <Languages className="w-5 h-5 text-brand-gold mr-3.5 shrink-0" />
                 <div className="min-w-0">
