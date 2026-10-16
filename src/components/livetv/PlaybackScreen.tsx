@@ -100,12 +100,24 @@ const PlaybackScreen = memo(({ onBack, embedded = false, active = true }: Props)
       const ae = document.activeElement as HTMLElement | null;
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
 
-      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-        setFocusIdx((i) => Math.min(LAST_FOCUS, i + 1));
-      } else if (embedded && e.key === 'ArrowLeft' && focusRef.current <= 1) {
-        onBack(); // embedded: Left at the top goes back to the menu
-      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-        setFocusIdx((i) => Math.max(embedded ? 1 : 0, i - 1)); // embedded: no Back button in slot 0
+      // Left / Right are sideways: between the two engine chips (side by
+      // side), and otherwise Left goes to what is left of the page, the
+      // Settings menu (embedded) or Back. Up / Down go between the rows. They
+      // used to step through everything in a line, so Left on a switch went up
+      // instead of to the menu (owner, 2026-10-16).
+      const cur = focusRef.current;
+      const onChip = cur >= 1 && cur < FIRST_TOGGLE;
+      if (e.key === 'ArrowRight') {
+        if (onChip && cur + 1 < FIRST_TOGGLE) setFocusIdx(cur + 1);
+      } else if (e.key === 'ArrowLeft') {
+        if (onChip && cur > 1) setFocusIdx(cur - 1);
+        else if (embedded) onBack();
+        else setFocusIdx(0);
+      } else if (e.key === 'ArrowDown') {
+        setFocusIdx((i) => (i >= 1 && i < FIRST_TOGGLE ? FIRST_TOGGLE : Math.min(LAST_FOCUS, i + 1)));
+      } else if (e.key === 'ArrowUp') {
+        // From the first switch up to the chips; from a chip up to Back (none embedded).
+        setFocusIdx((i) => (i > FIRST_TOGGLE ? i - 1 : i === FIRST_TOGGLE ? 1 : embedded ? i : 0));
       } else if (e.key === 'Enter' || e.key === ' ') {
         // A toggle flips once per press (outside the state updater, which
         // React may run twice).

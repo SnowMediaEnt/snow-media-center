@@ -33,6 +33,8 @@ const ok = () => key({ key: 'Enter', keyCode: 13 });
 const back = () => key({ key: 'Escape', keyCode: 27 });
 const down = () => key({ key: 'ArrowDown' });
 const up = () => key({ key: 'ArrowUp' });
+const left = () => key({ key: 'ArrowLeft' });
+const right = () => key({ key: 'ArrowRight' });
 // Full chip labels ("ExoPlayer (default)" / "MPV (beta)") — the bare engine
 // name alone also appears as a Compare table cell.
 const CHIP_TEXT: Record<string, string> = { ExoPlayer: 'ExoPlayer (default)', MPV: 'MPV (beta)' };
@@ -55,10 +57,10 @@ describe('PlaybackScreen', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  it('down to MPV, OK selects it and remembers it (Preferences)', async () => {
+  it('right to MPV, OK selects it and remembers it (Preferences)', async () => {
     render(<PlaybackScreen onBack={() => {}} />);
     await wait();
-    down();
+    right(); // the two engine chips sit side by side
     expect(chip('MPV').getAttribute('data-focused')).toBe('true');
     ok();
     await wait();
@@ -100,22 +102,38 @@ describe('PlaybackScreen', () => {
     expect(table.textContent).toMatch(/—/);
   });
 
-  it('Up from MPV goes back to ExoPlayer, Up again reaches Back', async () => {
+  it('Left from MPV goes back to ExoPlayer; Left again goes to Back; Up from a chip reaches Back', async () => {
     render(<PlaybackScreen onBack={() => {}} />);
     await wait();
-    down();
+    right();
     expect(chip('MPV').getAttribute('data-focused')).toBe('true');
-    up();
+    left();
     expect(chip('ExoPlayer').getAttribute('data-focused')).toBe('true');
+    right(); up();
+    expect(chip('MPV').getAttribute('data-focused')).toBe('false');
+    expect(chip('ExoPlayer').getAttribute('data-focused')).toBe('false');
   });
 
-  it('Match frame rate: on by default, down from MPV, OK turns it off and it is remembered', async () => {
+  it('beside the Settings menu: Left from a switch goes to the menu, Right on it does nothing', async () => {
+    const onBack = vi.fn();
+    render(<PlaybackScreen embedded active onBack={onBack} />);
+    await wait();
+    down(); // chips -> the first switch
+    const row = document.querySelector('[data-playback-toggle="matchFrameRate"]') as HTMLElement;
+    expect(row.getAttribute('data-focused')).toBe('true');
+    right();
+    expect(row.getAttribute('data-focused')).toBe('true');
+    left();
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('Match frame rate: on by default, down from the engine chips, OK turns it off and it is remembered', async () => {
     render(<PlaybackScreen onBack={() => {}} />);
     await wait();
     const row = () => document.querySelector('[data-playback-toggle="matchFrameRate"]') as HTMLElement;
     expect(row().textContent).toContain('Match frame rate');
     expect(row().getAttribute('data-on')).toBe('true');
-    down(); down();
+    down();
     expect(row().getAttribute('data-focused')).toBe('true');
     ok();
     expect(row().getAttribute('data-on')).toBe('false');

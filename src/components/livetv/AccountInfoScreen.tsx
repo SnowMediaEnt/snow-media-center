@@ -75,14 +75,16 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       const ae = document.activeElement as HTMLElement | null;
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
-      // Up / Down through the column (Left / Right too, for anyone used to
-      // the old row); it stops at the ends rather than wrapping round.
-      // Embedded there is no Back button (slot 0): Left at the top goes back
-      // to the menu, Up stays.
+      // Up / Down through the column, stopping at the ends. Left / Right are
+      // sideways: Left goes to what is left of the column, the Settings menu
+      // (embedded) or Back; Right has nothing to go to (the details are not
+      // selectable). They used to move up and down the column too, so Left
+      // from Renew went up instead of to the menu (owner, 2026-10-16).
       const first = embedded ? 1 : 0;
-      if (embedded && e.key === 'ArrowLeft' && focusIdxRef.current <= first) { onBack(); return; }
-      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') setFocusIdx(i => Math.max(first, i - 1));
-      else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') setFocusIdx(i => Math.min(BTN_COUNT - 1, i + 1));
+      if (e.key === 'ArrowLeft') { if (embedded) onBack(); else setFocusIdx(0); return; }
+      if (e.key === 'ArrowRight') return;
+      if (e.key === 'ArrowUp') setFocusIdx(i => Math.max(first, i - 1));
+      else if (e.key === 'ArrowDown') setFocusIdx(i => Math.min(BTN_COUNT - 1, i + 1));
       else if (e.key === 'Enter' || e.key === ' ') {
         const i = focusIdxRef.current;
         if (i === 0) onBack();

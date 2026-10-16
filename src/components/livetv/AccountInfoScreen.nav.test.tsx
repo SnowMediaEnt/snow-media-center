@@ -47,13 +47,15 @@ describe('Account info by remote', () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it('the actions are a column beside the details, and Left / Right still move for anyone used to them', () => {
+  it('the actions are a column beside the details; Left goes sideways to Back, Right has nothing to go to', () => {
     const { container } = render(<AccountInfoScreen onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
     const column = container.querySelector('[data-account-actions]')!;
     expect(column.querySelectorAll('button')).toHaveLength(4); // Show password, Change login, Renew, Sign out
+    key('ArrowDown'); key('ArrowDown');
+    expect(focused(container)).toMatch(/Renew/i);
     key('ArrowRight');
-    expect(focused(container)).toMatch(/Change/i);
-    key('ArrowLeft'); key('ArrowLeft');
+    expect(focused(container)).toMatch(/Renew/i);
+    key('ArrowLeft'); // owner, 2026-10-16: Left went up the column instead of sideways
     expect(focused(container)).toMatch(/Back/i);
   });
 
@@ -66,7 +68,7 @@ describe('Account info by remote', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  it('beside the Settings menu: no Back button, keys only while active, Left at the top returns to the menu', () => {
+  it('beside the Settings menu: no Back button, keys only while active, Left returns to the menu from any button', () => {
     const onBack = vi.fn();
     const { container, rerender } = render(<AccountInfoScreen embedded active={false} onBack={onBack} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
     expect(container.textContent).not.toMatch(/^\s*Back/);
@@ -75,11 +77,9 @@ describe('Account info by remote', () => {
     rerender(<AccountInfoScreen embedded active onBack={onBack} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
     key('ArrowUp'); // already at the top: no Back button to reach
     expect(focused(container)).toMatch(/Show password/i);
-    key('ArrowDown');
-    expect(focused(container)).toMatch(/Change/i);
-    key('ArrowLeft'); // back up the column first
-    expect(onBack).not.toHaveBeenCalled();
-    key('ArrowLeft'); // then out to the menu
+    key('ArrowDown'); key('ArrowDown');
+    expect(focused(container)).toMatch(/Renew/i);
+    key('ArrowLeft'); // straight out to the Settings menu, from any button
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 });
