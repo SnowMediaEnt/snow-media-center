@@ -14,14 +14,23 @@
 //     server checks the line against the panel, hence the password). After
 //     every Live TV sign-in (playerSigninCapture), and otherwise at most once
 //     a day per line — or at once when the line in use is not the one last
-//     registered. Again whenever a check-in hears 'unknown_key'.
-//   * Check in: every minute while the app is on screen, straight away when
+//     registered. Again whenever a check-in hears 'unknown_key' or
+//     'other_line'. A refusal holds it back: the panel saying no to the
+//     password ('bad_line') until the saved password changes or there is a
+//     new sign-in; anything else (panel down, too many tries, no network) for
+//     10 minutes, then 20, 40, ... up to 6 hours.
+//   * Check in: every 2 minutes while the app is on screen, straight away when
 //     it comes back, never while it is in the background. Not in the demo,
-//     and not with no line signed in. Unlike the pausable intervals it keeps
-//     going while a stream plays: that is exactly when a message about the
-//     line ("too many people are on it") matters.
+//     not with no line signed in, and not before this install is registered
+//     on the line it is signed into now (a box that changed lines never hears
+//     the old line's messages). Unlike the pausable intervals it keeps going
+//     while a stream plays: that is exactly when a message about the line
+//     ("too many people are on it") matters.
 //   * The messages a check-in brings wait here, in memory, for the host to
-//     show one at a time; dismiss tells the server it was read.
+//     show one at a time; dismiss tells the server it was read. Until then the
+//     server hands an unclosed message over again every 5 minutes (SMC may
+//     have been shut before OK); one already waiting here is not added twice.
+//     A change of line empties the queue.
 //
 // "Watching" (isWatchingNow) is whether a player is up on this box: the
 // classes the players put on <html> — snowplayer-fullscreen (any native
@@ -38,11 +47,12 @@ import { parseDeviceInfo } from '@/lib/appInfo';
 import { loadVersion } from '@/hooks/useVersion';
 import { loadCreds, type XtreamCreds } from '@/lib/xtream';
 
-export const POLL_MS = 60_000;
+export const POLL_MS = 2 * 60_000;
 /** A line already registered is registered again after this long. */
 export const REGISTER_EVERY_MS = 24 * 60 * 60_000;
-/** After a failed register, an 'unknown_key' doesn't ask again before this. */
-const REREGISTER_GAP_MS = 10 * 60_000;
+/** After a failed register (other than a refused password), the first wait; it doubles each time. */
+export const RETRY_FIRST_MS = 10 * 60_000;
+const RETRY_MAX_MS = 6 * 60 * 60_000;
 export const MAX_BODY = 200;
 /** More than this many waiting is a flood: the oldest are let go. */
 const MAX_QUEUE = 20;
@@ -207,21 +217,32 @@ const lineId = (c: Pick<XtreamCreds, 'host' | 'username'>): string =>
 
 interface RegMemo { last: string; at: Record<string, number> }
 
+/** The memo as last written, for when localStorage can't be read back. */
+let memoHere: RegMemo | null = null;
+
 function readMemo(): RegMemo {
   try {
     const raw = localStorage.getItem(REG_STORE);
     const p = raw ? JSON.parse(raw) : null;
     if (p && typeof p === 'object' && typeof p.at === 'object' && p.at) return { last: typeof p.last === 'string' ? p.last : '', at: p.at };
   } catch { /* fall through */ }
-  return { last: '', at: {} };
+  return memoHere ?? { last: '', at: {} };
 }
 
 function writeMemo(m: RegMemo): void {
-  try { localStorage.setItem(REG_STORE, JSON.stringify(m)); } catch { /* private mode: registers again next start */ }
+  memoHere = m;
+  try { localStorage.setItem(REG_STORE, JSON.stringify(m)); } catch { /* private mode: kept in memory */ }
 }
 
+/**
+ * Why a line is not being registered right now. `password` is the one the
+ * refusal was for (only ever compared, in memory, never kept anywhere else):
+ * a refused password is not tried again, a new one is.
+ */
+interface Holdoff { password: string; final: boolean; until: number; wait: number }
+const holdoffs = new Map<string, Holdoff>();
+
 const registering = new Map<string, Promise<boolean>>();
-const lastAttempt = new Map<string, number>();
 
 async function doRegister(creds: Line, id: string): Promise<boolean> {
   const key = await getInboxKey();
@@ -237,7 +258,15 @@ async function doRegister(creds: Line, id: string): Promise<boolean> {
     device_label: deviceLabel(),
     app_version: version,
   });
-  if (res.ok !== true) return false;
+  if (res.ok !== true) {
+    const prev = holdoffs.get(id);
+    // The panel said no to this password (or the request can never pass): not again with it.
+    const final = res.reason === 'bad_line' || res.reason === 'bad_request';
+    const wait = prev && !prev.final && prev.password === creds.password ? Math.min(prev.wait * 2, RETRY_MAX_MS) : RETRY_FIRST_MS;
+    holdoffs.set(id, { password: creds.password, final, until: Date.now() + wait, wait });
+    return false;
+  }
+  holdoffs.delete(id);
   const m = readMemo();
   m.at[id] = Date.now();
   m.last = id;
@@ -248,25 +277,34 @@ async function doRegister(creds: Line, id: string): Promise<boolean> {
 }
 
 /**
- * Tell device-inbox this install is signed into `creds`' line. `force` (a
- * sign-in, an 'unknown_key') registers whatever the memo says; otherwise only
- * when the line is not the one last registered or that was a day ago. Never
- * throws; true when the server took it (or nothing needed doing).
+ * Tell device-inbox this install is signed into `creds`' line. Never throws;
+ * true when the server took it (or nothing needed doing).
+ *   * `force` (a new sign-in): registers whatever happened before.
+ *   * `again` (the server doesn't know this box on this line): registers
+ *     even if the memo says it is done, unless a refusal holds it back.
+ *   * neither: only when the line is not the one last registered or that
+ *     was a day ago, and nothing holds it back.
  */
-export async function registerLine(creds: Line | null | undefined, opts: { force?: boolean } = {}): Promise<boolean> {
+export async function registerLine(creds: Line | null | undefined, opts: { force?: boolean; again?: boolean } = {}): Promise<boolean> {
   if (isDemo()) return false;
   if (!creds?.host || !creds.username || !creds.password) return false;
   const id = lineId(creds);
-  if (!opts.force) {
-    const m = readMemo();
-    if (m.last === id && Date.now() - (m.at[id] ?? 0) < REGISTER_EVERY_MS) return true;
-    // Tried a moment ago and the server said no (a wrong password, an
-    // outage): not again every minute.
-    if (Date.now() - (lastAttempt.get(id) ?? 0) < REREGISTER_GAP_MS) return false;
+  if (opts.force) {
+    holdoffs.delete(id);
+  } else {
+    if (!opts.again) {
+      const m = readMemo();
+      if (m.last === id && Date.now() - (m.at[id] ?? 0) < REGISTER_EVERY_MS) return true;
+    }
+    const held = holdoffs.get(id);
+    if (held) {
+      // A new password is worth one try at once; the refused one never is.
+      if (held.password !== creds.password) holdoffs.delete(id);
+      else if (held.final || Date.now() < held.until) return false;
+    }
   }
   const busy = registering.get(id);
   if (busy) return busy;
-  lastAttempt.set(id, Date.now());
   const p = doRegister(creds, id).catch(() => false).finally(() => { registering.delete(id); });
   registering.set(id, p);
   return p;
@@ -275,6 +313,8 @@ export async function registerLine(creds: Line | null | undefined, opts: { force
 // --- the queue -----------------------------------------------------------------
 
 let queue: DeviceMessage[] = [];
+/** The line the queue's messages came from; another line empties it. */
+let queueLine = '';
 /** Dismissed here: never shown again, even if the server's copy of the dismiss was lost. */
 const dismissed = new Set<string>();
 const listeners = new Set<(q: DeviceMessage[]) => void>();
@@ -353,19 +393,23 @@ async function doCheckin(): Promise<void> {
   const creds = await loadCreds().catch(() => null);
   // Signed out of Live TV: nothing to hear about.
   if (!creds?.host || !creds.username || !creds.password) return;
+  const id = lineId(creds);
+  if (id !== queueLine) {
+    // Another line now: what the last one sent is not for this one.
+    queueLine = id;
+    if (queue.length) { queue = []; emit(); }
+  }
   await registerLine(creds);
+  // Not registered on this line (yet): checking in would be as the old one.
+  if (readMemo().last !== id) return;
   const key = await getInboxKey();
   if (!key) return;
   currentKey = key;
-  const res = await call({ action: 'checkin', inbox_key: key, watching: isWatchingNow() });
+  const res = await call({ action: 'checkin', inbox_key: key, host: creds.host, username: creds.username, watching: isWatchingNow() });
   if (res.ok === true) { addMessages(res.messages); return; }
-  if (res.reason === 'unknown_key') {
-    // The server has forgotten this box (or never heard of it): register
-    // again, unless that was just tried and failed.
-    const id = lineId(creds);
-    if (Date.now() - (lastAttempt.get(id) ?? 0) < REREGISTER_GAP_MS) return;
-    await registerLine(creds, { force: true });
-  }
+  // The server has forgotten this box, or has it on another line: register
+  // again (unless a refusal holds that back).
+  if (res.reason === 'unknown_key' || res.reason === 'other_line') await registerLine(creds, { again: true });
 }
 
 /** One check-in now (one at a time). Nothing in the demo. */
@@ -378,7 +422,7 @@ export function checkinNow(): Promise<void> {
 let stopPolling: (() => void) | null = null;
 
 /**
- * Check in every minute while the app is on screen: at once now and on every
+ * Check in every 2 minutes while the app is on screen: at once now and on every
  * return, nothing while it is hidden. Returns the stop. One poller per app;
  * nothing at all in the demo.
  */
@@ -467,7 +511,9 @@ export function __resetDeviceInboxForTests(): void {
   dismissed.clear();
   listeners.clear();
   registering.clear();
-  lastAttempt.clear();
+  holdoffs.clear();
+  memoHere = null;
+  queueLine = '';
   checking = null;
   currentKey = '';
 }

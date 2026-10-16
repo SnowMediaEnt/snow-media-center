@@ -73,12 +73,9 @@ const lineTvsQuery = (q: QueryCall) => {
   return { data: LINE_TVS.filter((t) => !refs || refs.includes(t.id)) };
 };
 
-let messagesThisHour = 0;
-
 beforeEach(() => {
   fetchMock.mockReset();
   state.queries.length = 0;
-  messagesThisHour = 0;
   state.handlers = {
     userForToken: (t) => [ADMIN, OWNER, STRANGER].find((u) => t === userToken(u.id)) ?? null,
     onRpc: (c) => (c.name === 'has_role' ? { data: c.args._user_id === ADMIN.id && c.args._role === 'admin' } : undefined),
@@ -92,7 +89,6 @@ beforeEach(() => {
         return eqValue(q, 'id') === CUSTOMER && eqValue(q, 'user_id') === OWNER.id ? { data: { id: CUSTOMER } } : { data: null };
       }
       if (q.table === 'device_inbox' && eqValue(q, 'key_hash') === undefined) return lineTvsQuery(q);
-      if (q.table === 'device_messages' && opArgs(q, 'select')?.[1]) return { data: null, count: messagesThisHour };
       return undefined;
     },
   };
@@ -195,7 +191,8 @@ describe('device-inbox: register', () => {
 });
 
 describe('device-inbox: checkin and dismiss', () => {
-  const DEVICE = { id: TV_A, panel_host: LINE.host, panel_username: LINE.username };
+  const DEVICE: { id: string; panel_host: string; panel_username: string; last_seen_at?: string | null; watching_at?: string | null } =
+    { id: TV_A, panel_host: LINE.host, panel_username: LINE.username };
   const withDevice = async (device: typeof DEVICE | null, messages: { waiting?: unknown[]; taken?: unknown[] } = {}) => {
     const hash = await sha256(KEY);
     const base = state.handlers.onQuery!;
@@ -209,7 +206,7 @@ describe('device-inbox: checkin and dismiss', () => {
 
   it('an unknown key is told so (the app registers again), looked up by its hash only', async () => {
     await withDevice(null);
-    expect(await call({ action: 'checkin', inbox_key: KEY, watching: true })).toEqual({ status: 200, body: { ok: false, reason: 'unknown_key' } });
+    expect(await call({ action: 'checkin', inbox_key: KEY, ...LINE, watching: true })).toEqual({ status: 200, body: { ok: false, reason: 'unknown_key' } });
     expect(eqValue(queriesOf('device_inbox')[0], 'key_hash')).toBe(await sha256(KEY));
     expect(state.queries.some((q) => JSON.stringify(q.ops).includes(KEY))).toBe(false);
     expect(queriesOf('device_messages')).toHaveLength(0);
@@ -225,7 +222,7 @@ describe('device-inbox: checkin and dismiss', () => {
         { id: M1, body: 'First', sender: 'owner', created_at: ago(5 * MIN), device_id: TV_A },
       ],
     });
-    const out = await call({ action: 'checkin', inbox_key: KEY, watching: true });
+    const out = await call({ action: 'checkin', inbox_key: KEY, ...LINE, watching: true });
     expect(out.status).toBe(200);
     expect(out.body.ok).toBe(true);
     const messages = out.body.messages as Array<Record<string, unknown>>;
@@ -236,26 +233,65 @@ describe('device-inbox: checkin and dismiss', () => {
     // Seen now, and watching.
     const stamp = opArg(queriesOf('device_inbox', 'update')[0], 'update') as Record<string, string>;
     expect(stamp.watching_at).toBe(stamp.last_seen_at);
-    // Only this box's undelivered, undismissed, unexpired messages on its current line, five at most.
+    // Only this box's unclosed, unexpired messages on its current line, five at most:
+    // never handed over, or handed over 5 minutes ago and still not closed.
     const read = queriesOf('device_messages').find((q) => !opArg(q, 'update'))!;
     expect(eqValue(read, 'device_id')).toBe(TV_A);
     expect(eqValue(read, 'panel_host')).toBe(LINE.host);
     expect(eqValue(read, 'panel_username')).toBe(LINE.username);
-    expect(read.ops.filter((o) => o.op === 'is').map((o) => o.args)).toEqual([['delivered_at', null], ['dismissed_at', null]]);
+    expect(read.ops.filter((o) => o.op === 'is').map((o) => o.args)).toEqual([['dismissed_at', null]]);
+    const notHeld = String(opArg(read, 'or'));
+    const cutoff = /^delivered_at\.is\.null,delivered_at\.lt\."([^"]+)"$/.exec(notHeld)?.[1];
+    expect(Math.abs(Date.now() - 5 * MIN - Date.parse(String(cutoff)))).toBeLessThan(MIN);
     expect(opArgs(read, 'gt')?.[0]).toBe('expires_at');
     expect(opArgs(read, 'order')).toEqual(['created_at', { ascending: true }]);
     expect(opArgs(read, 'limit')).toEqual([5]);
-    // Marked delivered only if still undelivered (two check-ins never both get one).
+    // Stamped only if still not held (two check-ins never both get one).
     const mark = queriesOf('device_messages', 'update')[0];
     expect(opArg(mark, 'update')).toEqual({ delivered_at: expect.any(String) });
     expect(opArgs(mark, 'in')).toEqual(['id', [M1, M2]]);
     expect(eqValue(mark, 'device_id')).toBe(TV_A);
-    expect(opArgs(mark, 'is')).toEqual(['delivered_at', null]);
+    expect(opArgs(mark, 'is')).toEqual(['dismissed_at', null]);
+    expect(opArg(mark, 'or')).toBe(notHeld);
+  });
+
+  it('a box signed into another line hears other_line: nothing stamped, nothing handed over', async () => {
+    await withDevice(DEVICE, { waiting: [{ id: M1 }], taken: [{ id: M1, body: 'Old line', sender: 'owner', created_at: ago(MIN) }] });
+    for (const line of [{ host: 'strmz.xyz', username: 'neighbour@example.com' }, { host: 'dstreams.xyz', username: LINE.username }, { host: 'evil.example.com', username: LINE.username }]) {
+      expect(await call({ action: 'checkin', inbox_key: KEY, ...line, watching: true })).toEqual({ status: 200, body: { ok: false, reason: 'other_line' } });
+    }
+    expect(queriesOf('device_inbox', 'update')).toHaveLength(0);
+    expect(queriesOf('device_messages')).toHaveLength(0);
+    // The same line, however it is typed, is this one.
+    expect((await call({ action: 'checkin', inbox_key: KEY, host: 'HTTPS://STRMZ.XYZ/', username: ' Family@Example.com ', watching: true })).body.ok).toBe(true);
+    // A check-in that names no line is malformed.
+    expect(await call({ action: 'checkin', inbox_key: KEY, watching: true })).toMatchObject({ status: 400, body: { reason: 'bad_request' } });
+  });
+
+  it('writes the device row only when the owner\'s list would change', async () => {
+    const stampOf = async (device: typeof DEVICE, watching: boolean) => {
+      state.queries.length = 0;
+      await withDevice(device);
+      await call({ action: 'checkin', inbox_key: KEY, ...LINE, watching });
+      const q = queriesOf('device_inbox', 'update')[0];
+      return q ? opArg(q, 'update') : null;
+    };
+    // Seen 2 minutes ago, not watching: nothing to write.
+    expect(await stampOf({ ...DEVICE, last_seen_at: ago(2 * MIN), watching_at: null }, false)).toBeNull();
+    // Seen 6 minutes ago: last_seen_at only.
+    expect(await stampOf({ ...DEVICE, last_seen_at: ago(6 * MIN), watching_at: null }, false)).toEqual({ last_seen_at: expect.any(String) });
+    // Watching, stamped a minute ago: still fresh.
+    expect(await stampOf({ ...DEVICE, last_seen_at: ago(MIN), watching_at: ago(MIN) }, true)).toBeNull();
+    // Watching, stamped 2 minutes ago: kept fresh.
+    expect(await stampOf({ ...DEVICE, last_seen_at: ago(2 * MIN), watching_at: ago(2 * MIN) }, true))
+      .toEqual({ last_seen_at: expect.any(String), watching_at: expect.any(String) });
+    // Stopped watching: cleared at once, so the list stops saying "Watching now".
+    expect(await stampOf({ ...DEVICE, last_seen_at: ago(MIN), watching_at: ago(MIN) }, false)).toEqual({ last_seen_at: expect.any(String), watching_at: null });
   });
 
   it('nothing waiting: an empty list, nothing marked; not watching leaves watching_at alone', async () => {
     await withDevice(DEVICE);
-    expect((await call({ action: 'checkin', inbox_key: KEY, watching: false })).body).toEqual({ ok: true, messages: [] });
+    expect((await call({ action: 'checkin', inbox_key: KEY, ...LINE, watching: false })).body).toEqual({ ok: true, messages: [] });
     expect(queriesOf('device_messages', 'update')).toHaveLength(0);
     expect(opArg(queriesOf('device_inbox', 'update')[0], 'update')).toEqual({ last_seen_at: expect.any(String) });
   });
@@ -268,7 +304,7 @@ describe('device-inbox: checkin and dismiss', () => {
     expect(eqValue(q, 'id')).toBe(M2);
     expect(eqValue(q, 'device_id')).toBe(TV_A);
     expect(await call({ action: 'dismiss', inbox_key: KEY, id: 'not-a-uuid' })).toMatchObject({ status: 400, body: { reason: 'bad_request' } });
-    expect(await call({ action: 'checkin', inbox_key: 'short', watching: true })).toMatchObject({ status: 400, body: { reason: 'bad_request' } });
+    expect(await call({ action: 'checkin', inbox_key: 'short', ...LINE, watching: true })).toMatchObject({ status: 400, body: { reason: 'bad_request' } });
   });
 });
 
@@ -323,7 +359,7 @@ describe('device-inbox: devices and send', () => {
     }]);
   });
 
-  it('send reaches only the line\'s own TVs; "all" is every one seen in 30 days', async () => {
+  it('send reaches only the line\'s own TVs; picked ones seen in 30 days, "all" the ones seen in 7', async () => {
     const out = await send(OWNER.id, { refs: [TV_A, TV_B, ELSEWHERE, TV_A], body: '  Dinner is ready  ' });
     expect(out).toEqual({ status: 200, body: { ok: true, sent: 2 } });
     const q = queriesOf('device_inbox')[0];
@@ -331,6 +367,7 @@ describe('device-inbox: devices and send', () => {
     expect(eqValue(q, 'panel_username')).toBe(LINE.username);
     expect(opArgs(q, 'in')).toEqual(['id', [TV_A, TV_B, ELSEWHERE]]);
     expect(opArgs(q, 'gte')?.[0]).toBe('last_seen_at');
+    expect(Math.abs(Date.now() - 30 * DAY - Date.parse(String(opArgs(q, 'gte')?.[1])))).toBeLessThan(MIN);
     expect(inserted()!.map((r) => r.device_id)).toEqual([TV_A, TV_B]);
     expect(inserted()![0]).toEqual({
       device_id: TV_A, panel_host: 'strmz.xyz', panel_username: 'family@example.com', body: 'Dinner is ready', sender: 'owner', created_by: OWNER.id,
@@ -339,6 +376,7 @@ describe('device-inbox: devices and send', () => {
     state.queries.length = 0;
     expect((await send(OWNER.id, { refs: 'all' })).body).toEqual({ ok: true, sent: 3 });
     expect(opArgs(queriesOf('device_inbox')[0], 'in')).toBeUndefined();
+    expect(Math.abs(Date.now() - 7 * DAY - Date.parse(String(opArgs(queriesOf('device_inbox')[0], 'gte')?.[1])))).toBeLessThan(MIN);
     expect(inserted()!.map((r) => r.device_id)).toEqual([TV_A, TV_B, TV_C]);
 
     // None of the picked TVs on this line: nothing sent.
@@ -364,22 +402,26 @@ describe('device-inbox: devices and send', () => {
     expect(inserted()).toBeUndefined();
   });
 
-  it('allows 20 messages per line an hour, one per TV', async () => {
-    messagesThisHour = 19;
-    expect((await send(OWNER.id, { refs: [TV_A, TV_B] })).body).toEqual({ ok: false, reason: 'rate_limited' });
-    expect(inserted()).toBeUndefined();
-    const counted = queriesOf('device_messages').find((q) => opArgs(q, 'select')?.[1])!;
-    expect(opArgs(counted, 'select')?.[1]).toEqual({ count: 'exact', head: true });
-    expect(eqValue(counted, 'panel_host')).toBe(LINE.host);
-    expect(eqValue(counted, 'panel_username')).toBe(LINE.username);
-    expect(opArgs(counted, 'gte')?.[0]).toBe('created_at');
-    expect(Math.abs(Date.now() - 60 * MIN - Date.parse(String(opArgs(counted, 'gte')?.[1])))).toBeLessThan(MIN);
-
-    messagesThisHour = 18;
+  it('allows 10 sends per line an hour, however many TVs each reaches', async () => {
+    let used = 0;
+    const base = state.handlers.onQuery!;
+    state.handlers.onQuery = (q) => (q.table === 'player_login_throttle' && eqValue(q, 'ip_hash') === 'dim:send:strmz.xyz:family@example.com'
+      ? { data: { window_start: new Date().toISOString(), count: used } } : base(q));
+    // A send to all three TVs is one send.
+    used = 8;
+    expect((await send(OWNER.id, { refs: 'all' })).body).toEqual({ ok: true, sent: 3 });
+    used = 9;
     expect((await send(OWNER.id, { refs: [TV_A, TV_B] })).body).toEqual({ ok: true, sent: 2 });
+    state.queries.length = 0;
+    used = 10;
+    expect((await send(OWNER.id, { refs: [TV_A] })).body).toEqual({ ok: false, reason: 'rate_limited' });
+    expect(inserted()).toBeUndefined();
     // Admins too.
-    messagesThisHour = 20;
     expect((await send(ADMIN.id, { refs: [TV_A] })).body).toEqual({ ok: false, reason: 'rate_limited' });
+    // A send that reaches no TV is not counted.
+    state.queries.length = 0;
+    expect((await send(OWNER.id, { refs: [ELSEWHERE] })).body).toEqual({ ok: true, sent: 0 });
+    expect(queriesOf('player_login_throttle')).toHaveLength(0);
   });
 });
 

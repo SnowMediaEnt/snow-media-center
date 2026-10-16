@@ -17,10 +17,10 @@
 -- capture-player-signin normalizes it, the username lowercased), which is
 -- how the function decides who owns a line.
 --
--- A message is one row per TV, kept 24 hours unless the box picks it up.
--- The line is copied onto the message so a box that moved lines never gets
--- the old line's messages, and so the "20 an hour per line" limit is one
--- indexed count. Register attempts are limited in player_login_throttle (see
+-- A message is one row per TV, handed to the box until it is closed or 24
+-- hours have passed. The line is copied onto the message so a box that moved
+-- lines never gets the old line's messages. Register attempts and sends (10
+-- an hour per line) are limited in player_login_throttle (see
 -- _shared/requestGuard.ts), like the other functions anyone can reach.
 --
 -- Service role only: RLS on with no policies, and nothing granted to anon or
@@ -52,8 +52,8 @@ create table if not exists public.device_messages (
   delivered_at   timestamptz null,
   dismissed_at   timestamptz null
 );
-create index if not exists device_messages_device_idx on public.device_messages (device_id, delivered_at);
-create index if not exists device_messages_line_idx on public.device_messages (panel_host, panel_username, created_at);
+-- A check-in: this box's messages not closed yet, oldest first.
+create index if not exists device_messages_open_idx on public.device_messages (device_id, created_at) where dismissed_at is null;
 
 alter table public.device_inbox enable row level security;
 alter table public.device_messages enable row level security;

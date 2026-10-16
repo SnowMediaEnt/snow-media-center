@@ -1,6 +1,6 @@
 /**
  * Messages to the TVs on a line, the box's side (lib/deviceInbox): the inbox
- * key, registering the line, the minute-by-minute check-in and its pauses,
+ * key, registering the line, the check-in every 2 minutes and its pauses,
  * the queue, and the owner's two calls — every one through
  * supabase.functions.invoke('device-inbox').
  */
@@ -50,7 +50,7 @@ vi.mock('@capacitor/app', () => ({
 
 import { supabase } from '@/integrations/supabase/client';
 import {
-  POLL_MS, REGISTER_EVERY_MS, __resetDeviceInboxForTests, checkinNow, dismissMessage, getInboxKey,
+  POLL_MS, REGISTER_EVERY_MS, RETRY_FIRST_MS, __resetDeviceInboxForTests, checkinNow, dismissMessage, getInboxKey,
   listLineDevices, pendingMessages, registerLine, sendLineMessage, startDeviceInbox,
 } from './deviceInbox';
 
@@ -146,29 +146,65 @@ describe('registering the line', () => {
     expect(h.calls[0]).toMatchObject({ action: 'register', username: 'other' });
   });
 
-  it('a register the server refused is not retried every minute', async () => {
+  it('a refused password is not tried again until it changes or there is a new sign-in; no check-in meanwhile', async () => {
     h.reply = (b) => (b.action === 'register' ? { data: { ok: false, reason: 'bad_line' }, error: null } : undefined);
     startDeviceInbox();
     await settle();
-    expect(actions().filter((a) => a === 'register')).toHaveLength(1);
     await settle(POLL_MS);
+    await settle(10 * POLL_MS);
+    vi.setSystemTime(new Date(Date.now() + 2 * REGISTER_EVERY_MS));
     await settle(POLL_MS);
-    expect(actions().filter((a) => a === 'register')).toHaveLength(1);
-    expect(actions().filter((a) => a === 'checkin')).toHaveLength(3);
+    // One try, and never a check-in on a line this box is not registered on.
+    expect(actions()).toEqual(['register']);
+
+    // The saved password changed: one try at once.
+    h.calls.length = 0;
+    h.creds = { ...LINE, password: 'new-pass' };
+    await settle(POLL_MS);
+    expect(h.calls).toEqual([expect.objectContaining({ action: 'register', password: 'new-pass' })]);
+
+    // A new sign-in always tries.
+    h.calls.length = 0;
+    await registerLine(h.creds, { force: true });
+    expect(actions()).toEqual(['register']);
   });
 
-  it("registers again when a check-in hears 'unknown_key'", async () => {
+  it('a panel that is down (or too many tries) is tried again after 10 minutes, then 20, 40, ...', async () => {
+    h.reply = (b) => (b.action === 'register' ? { data: { ok: false, reason: 'panel_unreachable' }, error: null } : undefined);
+    const registers = () => actions().filter((a) => a === 'register').length;
+    startDeviceInbox();
+    await settle();
+    expect(registers()).toBe(1);
+    await settle(RETRY_FIRST_MS - POLL_MS);
+    expect(registers()).toBe(1);
+    await settle(2 * POLL_MS);
+    expect(registers()).toBe(2);
+    await settle(2 * RETRY_FIRST_MS - 2 * POLL_MS);
+    expect(registers()).toBe(2);
+    await settle(3 * POLL_MS);
+    expect(registers()).toBe(3);
+    expect(actions()).not.toContain('checkin');
+
+    // Back up: registered, and checking in from then on.
+    h.reply = null;
+    await settle(4 * RETRY_FIRST_MS + POLL_MS);
+    expect(registers()).toBe(4);
+    expect(actions()).toContain('checkin');
+  });
+
+  it.each(['unknown_key', 'other_line'])("registers again when a check-in hears '%s'", async (reason) => {
     await registerLine(LINE, { force: true });
     vi.setSystemTime(new Date(Date.now() + 15 * 60_000));
     h.calls.length = 0;
-    h.reply = (b) => (b.action === 'checkin' ? { data: { ok: false, reason: 'unknown_key' }, error: null } : undefined);
+    h.reply = (b) => (b.action === 'checkin' ? { data: { ok: false, reason }, error: null } : undefined);
     await checkinNow();
     expect(actions()).toEqual(['checkin', 'register']);
   });
 });
 
 describe('checking in', () => {
-  it('every minute while on screen, at once on return, nothing while hidden', async () => {
+  it('every 2 minutes while on screen, at once on return, nothing while hidden', async () => {
+    expect(POLL_MS).toBe(2 * 60_000);
     startDeviceInbox();
     await settle();
     expect(actions()).toEqual(['register', 'checkin']);
@@ -198,9 +234,10 @@ describe('checking in', () => {
     expect(actions().filter((a) => a === 'checkin')).toHaveLength(2);
   });
 
-  it('says whether a player is up: watching follows the players\' classes on <html>', async () => {
+  it('names the line it is on and says whether a player is up (the players\' classes on <html>)', async () => {
     await checkinNow();
-    expect(h.calls.find((c) => c.action === 'checkin')).toMatchObject({ watching: false });
+    expect(h.calls.find((c) => c.action === 'checkin')).toMatchObject({ host: LINE.host, username: 'jsmith', watching: false });
+    expect(JSON.stringify(h.calls.find((c) => c.action === 'checkin'))).not.toContain('pw123');
     document.documentElement.classList.add('snowplayer-fullscreen');
     h.calls.length = 0;
     await checkinNow();
@@ -249,6 +286,30 @@ describe('the queue', () => {
     await checkinNow();
     expect(pendingMessages().map((m) => m.id)).toEqual(['b']);
     expect(h.calls.filter((c) => c.action === 'dismiss')).toEqual([{ action: 'dismiss', inbox_key: await getInboxKey(), id: 'a' }]);
+  });
+
+  it('a message handed over again (not closed yet) is not added twice', async () => {
+    const m = { id: 'a', body: 'Hi', sender: 'owner', created_at: '2026-10-16T11:58:00Z' };
+    h.reply = (b) => (b.action === 'checkin' ? { data: { ok: true, messages: [m] }, error: null } : undefined);
+    await checkinNow();
+    vi.setSystemTime(new Date(Date.now() + 6 * 60_000));
+    await checkinNow();
+    expect(pendingMessages().map((x) => x.id)).toEqual(['a']);
+  });
+
+  it('a change of line empties the queue, and the new line is registered before any check-in', async () => {
+    h.reply = (b) => (b.action === 'checkin' && b.username === 'jsmith'
+      ? { data: { ok: true, messages: [{ id: 'a', body: 'Old line', sender: 'owner', created_at: '' }] }, error: null }
+      : b.action === 'register' && b.username === 'other' ? { data: { ok: false, reason: 'panel_unreachable' }, error: null } : undefined);
+    await checkinNow();
+    expect(pendingMessages().map((x) => x.id)).toEqual(['a']);
+
+    h.calls.length = 0;
+    h.creds = { ...LINE, username: 'other' };
+    await checkinNow();
+    expect(pendingMessages()).toEqual([]);
+    // The new line could not be registered: no check-in as the old one.
+    expect(actions()).toEqual(['register']);
   });
 
   it('an unknown sender is never shown as Snow Media', async () => {

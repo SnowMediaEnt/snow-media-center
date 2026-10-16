@@ -12,12 +12,17 @@
 //       is kept as its sha256 (device_inbox.key_hash), never as it is; a key
 //       that registers for another line moves there.
 //       → {ok:true} | {ok:false, reason:'bad_request'|'bad_line'|'panel_unreachable'|'rate_limited'}
-//   checkin {inbox_key, watching}
-//       a TV: the key is the credential. Stamps last_seen_at (and watching_at
-//       while something plays) and hands over up to 5 waiting messages,
-//       oldest first, marking them delivered.
-//       → {ok:true, messages:[{id, body, sender, created_at}]} | {ok:false, reason:'unknown_key'}
-//         (the app then registers again)
+//   checkin {inbox_key, host, username, watching}
+//       a TV: the key is the credential, and host + username name the line the
+//       box is signed into now. A key registered for another line hears
+//       other_line and gets nothing (nothing is stamped either) until it
+//       registers again. Stamps last_seen_at at most every 5 minutes, and
+//       watching_at while something plays (cleared when it stops). Hands over
+//       up to 5 messages not yet closed, oldest first: new ones, and ones handed
+//       over more than 5 minutes ago that the TV never closed (SMC shut before
+//       OK was pressed). The app drops any it is already showing.
+//       → {ok:true, messages:[{id, body, sender, created_at}]}
+//         | {ok:false, reason:'unknown_key'|'other_line'} (the app then registers again)
 //   dismiss {inbox_key, id}
 //       a TV closed a message. Only that key's own messages. → {ok:true}
 //   devices {host, username}
@@ -25,8 +30,9 @@
 //       TVs on the line seen in the last 30 days, watching ones first.
 //       → {ok:true, devices:[{ref, label, app_version, last_seen_at, watching_now, registered_at}]}
 //   send {host, username, refs: string[] | 'all', body}
-//       same callers: a 1-200 character message to the line's TVs (those
-//       picked, or all), at most 20 per line an hour counting one per TV.
+//       same callers: a 1-200 character message to the line's TVs: those
+//       picked (seen in the last 30 days), or all of them seen in the last 7.
+//       At most 10 sends per line an hour, however many TVs each reaches.
 //       → {ok:true, sent:n} | {ok:false, reason:'bad_body'|'rate_limited'}
 //
 // The owner of a line is the signed-in account whose customers row
@@ -67,9 +73,18 @@ const REGISTER_PER_KEY_PER_HOUR = 10;
 // unknown; wrong passwords count too, so this is also the password guard.
 const REGISTER_PER_LINE_PER_HOUR = 30;
 const REGISTER_PER_IP_PER_HOUR = 60;
-const MESSAGES_PER_LINE_PER_HOUR = 20;
+// Per send, not per TV: a busy family line's "all" is one send.
+const SENDS_PER_LINE_PER_HOUR = 10;
 const SEEN_WITHIN_MS = 30 * 24 * HOUR_MS;
+/** "All" is the TVs in use lately, not every box that ever signed in. */
+const SEND_ALL_WITHIN_MS = 7 * 24 * HOUR_MS;
 const WATCHING_WITHIN_MS = 5 * 60 * 1000;
+/** last_seen_at is written at most this often (a box checks in every 2 minutes). */
+const STAMP_EVERY_MS = 5 * 60 * 1000;
+/** While a TV plays, watching_at is kept fresher than this, well inside WATCHING_WITHIN_MS. */
+const WATCHING_STAMP_MS = 90 * 1000;
+/** A message handed over but never closed is handed over again after this long. */
+const REDELIVER_AFTER_MS = 5 * 60 * 1000;
 const MESSAGES_PER_CHECKIN = 5;
 const MAX_MESSAGE_CHARS = 200;
 const MAX_LABEL_CHARS = 60;
@@ -255,34 +270,53 @@ async function register(admin: Db, req: Request, body: Body): Promise<Response> 
   return json({ ok: true });
 }
 
-type Device = { id: string; panel_host: string; panel_username: string };
+type Device = { id: string; panel_host: string; panel_username: string; last_seen_at?: string | null; watching_at?: string | null };
 
 /** The device an inbox key belongs to; 'bad' for a malformed key. Throws on a DB error. */
 async function deviceForKey(admin: Db, raw: unknown): Promise<Device | null | 'bad'> {
   const inboxKey = typeof raw === 'string' ? raw : '';
   if (!INBOX_KEY.test(inboxKey)) return 'bad';
   const { data, error } = await admin.from('device_inbox')
-    .select('id, panel_host, panel_username').eq('key_hash', await sha256(inboxKey)).maybeSingle();
+    .select('id, panel_host, panel_username, last_seen_at, watching_at').eq('key_hash', await sha256(inboxKey)).maybeSingle();
   if (error) throw new Error(`device lookup: ${error.message}`);
   return (data as Device | null) ?? null;
 }
 
 async function checkin(admin: Db, body: Body): Promise<Response> {
+  const line = lineOf(body);
+  if (!line) return badRequest();
   const device = await deviceForKey(admin, body.inbox_key);
   if (device === 'bad') return badRequest();
   if (!device) return json({ ok: false, reason: 'unknown_key' });
+  // The box is signed into another line than the one this key is on: it
+  // hears nothing of the old line's, and is not counted there, until it has
+  // registered on the new one.
+  if (line === 'not_ours' || line.host !== device.panel_host || line.username !== device.panel_username) {
+    return json({ ok: false, reason: 'other_line' });
+  }
 
-  const now = new Date().toISOString();
-  await admin.from('device_inbox')
-    .update(body.watching === true ? { last_seen_at: now, watching_at: now } : { last_seen_at: now })
-    .eq('id', device.id);
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const age = (t: string | null | undefined): number => {
+    const at = t ? Date.parse(t) : NaN;
+    return Number.isFinite(at) ? nowMs - at : Infinity;
+  };
+  // Written only when the owner's list would show something different.
+  const watching = body.watching === true;
+  let stamp: Record<string, string | null> | null = null;
+  if (watching && age(device.watching_at) > WATCHING_STAMP_MS) stamp = { last_seen_at: now, watching_at: now };
+  else if (!watching && age(device.watching_at) <= WATCHING_WITHIN_MS) stamp = { last_seen_at: now, watching_at: null };
+  else if (age(device.last_seen_at) > STAMP_EVERY_MS) stamp = { last_seen_at: now };
+  if (stamp) await admin.from('device_inbox').update(stamp).eq('id', device.id);
 
-  // Only messages sent to the line the box is on now (a box that moved lines
-  // never gets the old line's).
+  // Not closed yet, and either never handed over or handed over a while ago
+  // (the TV may have been switched off before OK). Only messages sent to the
+  // line the box is on now.
+  const notHeld = `delivered_at.is.null,delivered_at.lt."${new Date(nowMs - REDELIVER_AFTER_MS).toISOString()}"`;
   const { data: waiting, error } = await admin.from('device_messages')
     .select('id')
     .eq('device_id', device.id).eq('panel_host', device.panel_host).eq('panel_username', device.panel_username)
-    .is('delivered_at', null).is('dismissed_at', null).gt('expires_at', now)
+    .is('dismissed_at', null).gt('expires_at', now).or(notHeld)
     .order('created_at', { ascending: true }).limit(MESSAGES_PER_CHECKIN);
   if (error) {
     console.error('[device-inbox] checkin read failed:', error.message);
@@ -291,11 +325,11 @@ async function checkin(admin: Db, body: Body): Promise<Response> {
   const ids = ((waiting ?? []) as Array<{ id: string }>).map((m) => m.id);
   if (!ids.length) return json({ ok: true, messages: [] });
 
-  // Marked delivered only while still undelivered, and handed over only if
-  // this call marked it: two check-ins at once never both get a message.
+  // Stamped only while still not held, and handed over only if this call
+  // stamped it: two check-ins at once never both get a message.
   const { data: taken, error: takeErr } = await admin.from('device_messages')
     .update({ delivered_at: now })
-    .in('id', ids).eq('device_id', device.id).is('delivered_at', null)
+    .in('id', ids).eq('device_id', device.id).is('dismissed_at', null).or(notHeld)
     .select('id, body, sender, created_at');
   if (takeErr) {
     console.error('[device-inbox] checkin mark failed:', takeErr.message);
@@ -371,12 +405,12 @@ async function lineAction(admin: Db, req: Request, action: 'devices' | 'send', b
   const isAdmin = adminFlag === true;
   if (!isAdmin && !(await ownsLine(admin, callerId, line))) return json({ ok: false, reason: 'not_owner' }, 403);
 
-  const since = new Date(Date.now() - SEEN_WITHIN_MS).toISOString();
+  const seenSince = (ms: number) => new Date(Date.now() - ms).toISOString();
 
   if (action === 'devices') {
     const { data, error } = await admin.from('device_inbox')
       .select('id, device_label, app_version, last_seen_at, watching_at, registered_at')
-      .eq('panel_host', line.host).eq('panel_username', line.username).gte('last_seen_at', since)
+      .eq('panel_host', line.host).eq('panel_username', line.username).gte('last_seen_at', seenSince(SEEN_WITHIN_MS))
       .order('last_seen_at', { ascending: false }).limit(MAX_DEVICES);
     if (error) {
       console.error('[device-inbox] devices failed:', error.message);
@@ -397,9 +431,11 @@ async function lineAction(admin: Db, req: Request, action: 'devices' | 'send', b
     return json({ ok: true, devices });
   }
 
-  // send: only the line's own TVs seen in the last 30 days.
+  // send: only the line's own TVs; picked ones seen in the last 30 days, "all"
+  // the ones seen in the last 7.
   const targetsQuery = admin.from('device_inbox')
-    .select('id').eq('panel_host', line.host).eq('panel_username', line.username).gte('last_seen_at', since);
+    .select('id').eq('panel_host', line.host).eq('panel_username', line.username)
+    .gte('last_seen_at', seenSince(refs === 'all' ? SEND_ALL_WITHIN_MS : SEEN_WITHIN_MS));
   const { data: targets, error: targetErr } = refs === 'all'
     ? await targetsQuery.limit(MAX_DEVICES)
     : await targetsQuery.in('id', refs).limit(MAX_DEVICES);
@@ -410,16 +446,10 @@ async function lineAction(admin: Db, req: Request, action: 'devices' | 'send', b
   const ids = ((targets ?? []) as Array<{ id: string }>).map((t) => t.id);
   if (!ids.length) return json({ ok: true, sent: 0 });
 
-  // 20 an hour per line, one per TV.
-  const hourAgo = new Date(Date.now() - HOUR_MS).toISOString();
-  const { count, error: countErr } = await admin.from('device_messages')
-    .select('id', { count: 'exact', head: true })
-    .eq('panel_host', line.host).eq('panel_username', line.username).gte('created_at', hourAgo);
-  if (countErr) {
-    console.error('[device-inbox] send count failed:', countErr.message);
-    return serverError();
+  // 10 sends an hour per line, counted only for a send that reaches a TV.
+  if (!(await throttle(admin as unknown as ThrottleDb, `dim:send:${line.host}:${line.username}`, SENDS_PER_LINE_PER_HOUR, HOUR_MS))) {
+    return json({ ok: false, reason: 'rate_limited' });
   }
-  if ((count ?? 0) + ids.length > MESSAGES_PER_LINE_PER_HOUR) return json({ ok: false, reason: 'rate_limited' });
 
   const sender = isAdmin ? 'admin' : 'owner';
   const { error: insErr } = await admin.from('device_messages').insert(ids.map((deviceId) => ({
