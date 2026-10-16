@@ -312,29 +312,37 @@ async function checkin(admin: Db, body: Body): Promise<Response> {
   // Not closed yet, and either never handed over or handed over a while ago
   // (the TV may have been switched off before OK). Only messages sent to the
   // line the box is on now.
-  const notHeld = `delivered_at.is.null,delivered_at.lt."${new Date(nowMs - REDELIVER_AFTER_MS).toISOString()}"`;
+  const cutoff = new Date(nowMs - REDELIVER_AFTER_MS).toISOString();
   const { data: waiting, error } = await admin.from('device_messages')
-    .select('id')
+    .select('id, delivered_at')
     .eq('device_id', device.id).eq('panel_host', device.panel_host).eq('panel_username', device.panel_username)
-    .is('dismissed_at', null).gt('expires_at', now).or(notHeld)
+    .is('dismissed_at', null).gt('expires_at', now).or(`delivered_at.is.null,delivered_at.lt."${cutoff}"`)
     .order('created_at', { ascending: true }).limit(MESSAGES_PER_CHECKIN);
   if (error) {
     console.error('[device-inbox] checkin read failed:', error.message);
     return serverError();
   }
-  const ids = ((waiting ?? []) as Array<{ id: string }>).map((m) => m.id);
-  if (!ids.length) return json({ ok: true, messages: [] });
+  const rows = (waiting ?? []) as Array<{ id: string; delivered_at: string | null }>;
+  if (!rows.length) return json({ ok: true, messages: [] });
 
   // Stamped only while still not held, and handed over only if this call
-  // stamped it: two check-ins at once never both get a message.
-  const { data: taken, error: takeErr } = await admin.from('device_messages')
-    .update({ delivered_at: now })
-    .in('id', ids).eq('device_id', device.id).is('dismissed_at', null).or(notHeld)
-    .select('id, body, sender, created_at');
+  // stamped it: two check-ins at once never both get a message. Two plain
+  // updates (new ones, ones handed over before): PostgREST refuses an or()
+  // filter on an update ("column device_messages.delivered_at does not exist").
+  const take = (ids: string[], held: boolean) => {
+    const q = admin.from('device_messages').update({ delivered_at: now })
+      .in('id', ids).eq('device_id', device.id).is('dismissed_at', null);
+    return (held ? q.lt('delivered_at', cutoff) : q.is('delivered_at', null)).select('id, body, sender, created_at');
+  };
+  const fresh = rows.filter((r) => !r.delivered_at).map((r) => r.id);
+  const again = rows.filter((r) => r.delivered_at).map((r) => r.id);
+  const results = await Promise.all([fresh.length ? take(fresh, false) : null, again.length ? take(again, true) : null]);
+  const takeErr = results.find((r) => r?.error)?.error;
   if (takeErr) {
     console.error('[device-inbox] checkin mark failed:', takeErr.message);
     return serverError();
   }
+  const taken = results.flatMap((r) => (r?.data ?? []) as unknown[]);
   const messages = ((taken ?? []) as Array<{ id: string; body: string; sender: string; created_at: string }>)
     .map((m) => ({ id: m.id, body: m.body, sender: m.sender, created_at: m.created_at }))
     .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));

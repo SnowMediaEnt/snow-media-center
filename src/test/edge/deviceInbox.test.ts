@@ -198,7 +198,10 @@ describe('device-inbox: checkin and dismiss', () => {
     const base = state.handlers.onQuery!;
     state.handlers.onQuery = (q) => {
       if (q.table === 'device_inbox' && eqValue(q, 'key_hash') !== undefined) return { data: eqValue(q, 'key_hash') === hash ? device : null };
-      if (q.table === 'device_messages' && opArg(q, 'update') && opArgs(q, 'select')) return { data: messages.taken ?? [] };
+      if (q.table === 'device_messages' && opArg(q, 'update') && opArgs(q, 'select')) {
+        const ids = opArgs(q, 'in')?.[1] as string[] | undefined;
+        return { data: (messages.taken ?? []).filter((m) => !ids || ids.includes((m as { id: string }).id)) };
+      }
       if (q.table === 'device_messages' && opArg(q, 'select')) return { data: messages.waiting ?? [] };
       return base(q);
     };
@@ -240,19 +243,40 @@ describe('device-inbox: checkin and dismiss', () => {
     expect(eqValue(read, 'panel_host')).toBe(LINE.host);
     expect(eqValue(read, 'panel_username')).toBe(LINE.username);
     expect(read.ops.filter((o) => o.op === 'is').map((o) => o.args)).toEqual([['dismissed_at', null]]);
-    const notHeld = String(opArg(read, 'or'));
-    const cutoff = /^delivered_at\.is\.null,delivered_at\.lt\."([^"]+)"$/.exec(notHeld)?.[1];
+    const cutoff = /^delivered_at\.is\.null,delivered_at\.lt\."([^"]+)"$/.exec(String(opArg(read, 'or')))?.[1];
     expect(Math.abs(Date.now() - 5 * MIN - Date.parse(String(cutoff)))).toBeLessThan(MIN);
     expect(opArgs(read, 'gt')?.[0]).toBe('expires_at');
     expect(opArgs(read, 'order')).toEqual(['created_at', { ascending: true }]);
     expect(opArgs(read, 'limit')).toEqual([5]);
-    // Stamped only if still not held (two check-ins never both get one).
-    const mark = queriesOf('device_messages', 'update')[0];
-    expect(opArg(mark, 'update')).toEqual({ delivered_at: expect.any(String) });
-    expect(opArgs(mark, 'in')).toEqual(['id', [M1, M2]]);
-    expect(eqValue(mark, 'device_id')).toBe(TV_A);
-    expect(opArgs(mark, 'is')).toEqual(['dismissed_at', null]);
-    expect(opArg(mark, 'or')).toBe(notHeld);
+    // Stamped only if still not held (two check-ins never both get one); no
+    // or() on an update, which PostgREST refuses.
+    const marks = queriesOf('device_messages', 'update');
+    expect(marks).toHaveLength(1);
+    expect(opArg(marks[0], 'update')).toEqual({ delivered_at: expect.any(String) });
+    expect(opArgs(marks[0], 'in')).toEqual(['id', [M1, M2]]);
+    expect(eqValue(marks[0], 'device_id')).toBe(TV_A);
+    expect(marks[0].ops.filter((o) => o.op === 'is').map((o) => o.args)).toEqual([['dismissed_at', null], ['delivered_at', null]]);
+    expect(marks[0].ops.some((o) => o.op === 'or')).toBe(false);
+  });
+
+  it('hands a message over again 5 minutes on if the TV never closed it, still only once per stamp', async () => {
+    await withDevice(DEVICE, {
+      waiting: [{ id: M1, delivered_at: ago(6 * MIN) }, { id: M2, delivered_at: null }],
+      taken: [
+        { id: M1, body: 'First', sender: 'owner', created_at: ago(10 * MIN) },
+        { id: M2, body: 'Second', sender: 'owner', created_at: ago(1 * MIN) },
+      ],
+    });
+    const out = await call({ action: 'checkin', inbox_key: KEY, ...LINE, watching: false });
+    expect((out.body.messages as Array<{ id: string }>).map((m) => m.id)).toEqual([M1, M2]);
+    const marks = queriesOf('device_messages', 'update');
+    const again = marks.find((q) => opArgs(q, 'lt'))!;
+    expect(opArgs(again, 'in')).toEqual(['id', [M1]]);
+    expect(opArgs(again, 'lt')?.[0]).toBe('delivered_at');
+    expect(Math.abs(Date.now() - 5 * MIN - Date.parse(String(opArgs(again, 'lt')?.[1])))).toBeLessThan(MIN);
+    const fresh = marks.find((q) => !opArgs(q, 'lt'))!;
+    expect(opArgs(fresh, 'in')).toEqual(['id', [M2]]);
+    expect(fresh.ops.filter((o) => o.op === 'is').map((o) => o.args)).toContainEqual(['delivered_at', null]);
   });
 
   it('a box signed into another line hears other_line: nothing stamped, nothing handed over', async () => {
