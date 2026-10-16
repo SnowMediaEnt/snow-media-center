@@ -1,0 +1,52 @@
+{
+  "lineDevices": {
+    "hub": {
+      "menuLabel": "Geräte auf dieser Leitung",
+      "hint": "Die Fernseher, die mit dieser Leitung angemeldet sind, und eine kurze Nachricht an sie. Drücke OK zum Öffnen."
+    },
+    "panel": {
+      "title": "Geräte auf dieser Leitung",
+      "intro": "Fernseher, die mit Snow Media Center an dieser Leitung angemeldet sind. Wähl sie aus, such eine Nachricht aus und schick sie ab: Sie erscheint auf ihrem Bildschirm.",
+      "loading": "Geräte werden geladen…",
+      "allDevices": "Alle Geräte",
+      "watchingNow": "Schaut gerade",
+      "lastOpened": "Zuletzt geöffnet {{when}}",
+      "version": "Version {{version}}",
+      "unnamed": "TV",
+      "messageHeading": "Nachricht",
+      "quickBusy": "Gerade sind zu viele Leute auf dieser Leitung — bitte hör kurz auf.",
+      "quickSwitch": "Bitte wechsle zum anderen Konto.",
+      "quickSignOut": "Bitte melde dich auf deinem TV von dieser Leitung ab.",
+      "writeOwn": "Eigene schreiben",
+      "writeOwnHint": "Drücke OK zum Schreiben.",
+      "placeholder": "Deine Nachricht",
+      "counter": "{{used}}/{{max}}",
+      "sendBtn": "Senden",
+      "sending": "Wird gesendet…",
+      "pickDevices": "Wähl mindestens ein Gerät aus.",
+      "pickMessage": "Wähl eine Nachricht aus oder schreib eine eigene.",
+      "sent_one": "An {{count}} Gerät gesendet",
+      "sent_other": "An {{count}} Geräte gesendet",
+      "rateLimited": "Das sind viele Nachrichten. Warte ein paar Minuten und versuch es dann noch einmal.",
+      "notOwner": "Nur der Inhaber dieser Leitung kann ihren Geräten Nachrichten schicken.",
+      "notSignedIn": "Melde dich beim Snow Media-Konto an, dem diese Leitung gehört, um ihren Geräten Nachrichten zu schicken.",
+      "badBody": "Eine Nachricht hat 1 bis 200 Zeichen.",
+      "sendFailed": "Die Nachricht ist nicht angekommen. Versuch es noch einmal.",
+      "loadFailed": "Die Geräte konnten nicht geladen werden.",
+      "retryBtn": "Nochmal",
+      "noDevices": "Noch hat sich kein Fernseher mit dieser Leitung angemeldet."
+    },
+    "message": {
+      "fromAdmin": "Nachricht von Snow Media",
+      "fromOwner": "Nachricht vom Kontoinhaber",
+      "sentAt": "Gesendet {{when}}"
+    },
+    "admin": {
+      "devicesTab": "Geräte",
+      "intro": "Gib den Benutzernamen einer Leitung ein und wähl ihren Server, um die angemeldeten Fernseher zu sehen und ihnen zu schreiben.",
+      "usernameLabel": "Benutzername der Leitung",
+      "serverLabel": "Server",
+      "showBtn": "Geräte anzeigen"
+    }
+  }
+}

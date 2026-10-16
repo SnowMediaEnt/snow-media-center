@@ -16,6 +16,14 @@ export async function capturePlayerSignin(
   serverLabel: string,
   reason: CaptureReason = 'signin',
 ): Promise<void> {
+  // Every Live TV sign-in comes through here (the form, Switch Account, the
+  // billing and automatic sign-ins): register this box for the line's
+  // messages (lib/deviceInbox) at once. Loaded on demand; never waited on.
+  if (reason === 'signin') {
+    void import('@/lib/deviceInbox')
+      .then((m) => m.registerLine(account, { force: true }))
+      .catch(() => { /* the next check-in registers it */ });
+  }
   try {
     let deviceId: string | null = null;
     try { deviceId = getDeviceId(); } catch { /* ignore */ }

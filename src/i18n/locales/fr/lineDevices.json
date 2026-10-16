@@ -1,0 +1,53 @@
+{
+  "lineDevices": {
+    "hub": {
+      "menuLabel": "Appareils sur cette ligne",
+      "hint": "Les téléviseurs connectés à cette ligne, et un court message à leur envoyer. Appuyez sur OK pour ouvrir."
+    },
+    "panel": {
+      "title": "Appareils sur cette ligne",
+      "intro": "Téléviseurs connectés à cette ligne avec Snow Media Center. Sélectionnez-les, choisissez un message et envoyez-le : il s'affiche sur leur écran.",
+      "loading": "Chargement des appareils…",
+      "allDevices": "Tous les appareils",
+      "watchingNow": "En train de regarder",
+      "lastOpened": "Ouvert pour la dernière fois {{when}}",
+      "version": "Version {{version}}",
+      "unnamed": "TV",
+      "messageHeading": "Message",
+      "quickBusy": "Trop de personnes utilisent cette ligne en ce moment — merci d'arrêter un peu.",
+      "quickSwitch": "Merci de passer à l'autre compte.",
+      "quickSignOut": "Merci de vous déconnecter de cette ligne sur votre TV.",
+      "writeOwn": "Écrire le vôtre",
+      "writeOwnHint": "Appuyez sur OK pour écrire.",
+      "placeholder": "Votre message",
+      "counter": "{{used}}/{{max}}",
+      "sendBtn": "Envoyer",
+      "sending": "Envoi…",
+      "pickDevices": "Sélectionnez au moins un appareil.",
+      "pickMessage": "Choisissez un message ou écrivez le vôtre.",
+      "sent_one": "Envoyé à {{count}} appareil",
+      "sent_many": "Envoyé à {{count}} appareils",
+      "sent_other": "Envoyé à {{count}} appareils",
+      "rateLimited": "Cela fait beaucoup de messages. Attendez quelques minutes, puis réessayez.",
+      "notOwner": "Seul le titulaire de cette ligne peut envoyer des messages à ses appareils.",
+      "notSignedIn": "Connectez-vous au compte Snow Media titulaire de cette ligne pour envoyer des messages à ses appareils.",
+      "badBody": "Un message fait de 1 à 200 caractères.",
+      "sendFailed": "Le message n'est pas parti. Réessayez.",
+      "loadFailed": "Impossible de charger les appareils.",
+      "retryBtn": "Réessayer",
+      "noDevices": "Aucun téléviseur ne s'est encore connecté à cette ligne."
+    },
+    "message": {
+      "fromAdmin": "Message de Snow Media",
+      "fromOwner": "Message du titulaire du compte",
+      "sentAt": "Envoyé {{when}}"
+    },
+    "admin": {
+      "devicesTab": "Appareils",
+      "intro": "Saisissez le nom d'utilisateur d'une ligne et choisissez son serveur pour voir les téléviseurs connectés et leur envoyer un message.",
+      "usernameLabel": "Utilisateur de la ligne",
+      "serverLabel": "Serveur",
+      "showBtn": "Voir les appareils"
+    }
+  }
+}

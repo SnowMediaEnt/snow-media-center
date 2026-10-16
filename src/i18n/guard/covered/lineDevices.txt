@@ -1,0 +1,4 @@
+# Messages to the TVs on a line: the popup, the devices panel, the inbox
+src/components/DeviceMessageHost.tsx
+src/components/livetv/LineDevicesPanel.tsx
+src/lib/deviceInbox.ts
