@@ -348,10 +348,12 @@ describe("the owner's calls", () => {
     h.reply = null;
     expect(await askSupportToSend(LINE.host, 'jsmith', '  Please switch  ')).toEqual({ ok: true });
     expect(await askSupportToSend(LINE.host, 'jsmith', ' ')).toEqual({ ok: false, reason: 'bad_body' });
+    // Only for the line this box is signed into (its password goes along).
+    expect(await askSupportToSend(LINE.host, 'someone-else', 'Hi')).toEqual({ ok: false, reason: 'bad_line' });
     expect(h.calls).toEqual([
       { action: 'owner_status', inbox_key: key, host: LINE.host, username: 'jsmith' },
       { action: 'owner_status', inbox_key: key, host: LINE.host, username: 'jsmith' },
-      { action: 'support_request', inbox_key: key, host: LINE.host, username: 'jsmith', body: 'Please switch' },
+      { action: 'support_request', inbox_key: key, host: LINE.host, username: 'jsmith', password: 'pw123', body: 'Please switch' },
     ]);
     h.demo = true;
     h.calls.length = 0;

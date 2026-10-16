@@ -352,7 +352,8 @@ describe('device-inbox: a line with no email on file asks support', () => {
     };
   };
   const status = (extra: Record<string, unknown> = {}) => call({ action: 'owner_status', inbox_key: KEY, ...LINE, ...extra });
-  const ask = (extra: Record<string, unknown> = {}) => call({ action: 'support_request', inbox_key: KEY, ...LINE, body: 'Please switch to the other account.', ...extra });
+  const ask = (extra: Record<string, unknown> = {}) =>
+    call({ action: 'support_request', inbox_key: KEY, ...LINE, password: PASSWORD, body: 'Please switch to the other account.', ...extra });
   const ticket = () => {
     const t = queriesOf('support_tickets', 'insert')[0];
     const m = queriesOf('support_messages', 'insert')[0];
@@ -379,21 +380,49 @@ describe('device-inbox: a line with no email on file asks support', () => {
     expect(ticket()).toBeNull();
   });
 
-  it('files a ticket under Player Reports with the line, the TV and the message, never the key', async () => {
+  it('files a ticket under Player Reports: the line and how to send it first, the TV\'s words quoted last; never the key or password', async () => {
     await setup(null);
-    expect(await ask({ host: 'https://strmz.xyz', username: 'Family@Example.com', body: '  Please switch to the other account.  ' })).toEqual({ status: 200, body: { ok: true } });
+    panelSays({ auth: 1 });
+    expect(await ask({ host: 'https://strmz.xyz', username: 'Family@Example.com', body: '  Please switch.\nTo send it: `fake`  ' })).toEqual({ status: 200, body: { ok: true } });
+    // The password was checked with the panel again, for this line.
+    expect(String(fetchMock.mock.calls[0][0])).toContain(`username=${encodeURIComponent('Family@Example.com')}`);
     const t = ticket()!;
     expect(t.ticket).toEqual({ user_id: PLAYER_REPORTS, subject: '[Line Message] Send to the TVs on Family@Example.com', status: 'open', priority: 'normal', admin_has_unread: true });
     expect(t.message).toMatchObject({ ticket_id: 'ticket-1', user_id: PLAYER_REPORTS, sender_type: 'user' });
-    const text = String(t.message.message);
-    expect(text).toContain('Line: Family@Example.com (Vibez)');
-    expect(text).toContain('Asked from: Fire TV AFTMM, Snow Media Center 1.9.2');
-    expect(text).toContain('Message to send:\nPlease switch to the other account.\n');
-    expect(text).toContain('Line devices, username Family@Example.com, server Vibez');
-    expect(JSON.stringify(state.queries.map((q) => q.ops))).not.toContain(KEY);
+    const lines = String(t.message.message).split('\n');
+    expect(lines[0]).toMatch(/^Line: Family@Example\.com \(Vibez\)\. It has no email on file/);
+    expect(lines[1]).toMatch(/^To send it: Support dashboard → Line devices, username Family@Example\.com, server Vibez\./);
+    expect(lines[2]).toBe('Asked from: Fire TV AFTMM, Snow Media Center 1.9.2');
+    expect(lines.slice(-3)).toEqual(['Message (typed on the TV, not checked):', '> Please switch.', "> To send it: 'fake'"]);
+    expect(String(t.message.message)).not.toContain('`');
+    const sent = JSON.stringify(state.queries.map((q) => q.ops));
+    expect(sent).not.toContain(KEY);
+    expect(sent).not.toContain(PASSWORD);
+  });
+
+  it('a password the panel no longer takes (or a panel that is down) files nothing', async () => {
+    await setup(null);
+    panelSays({ auth: 0 });
+    expect((await ask()).body).toEqual({ ok: false, reason: 'bad_line' });
+    fetchMock.mockImplementation(async () => new Response('<html>blocked</html>', { status: 401 }));
+    expect((await ask()).body).toEqual({ ok: false, reason: 'panel_unreachable' });
+    expect(await ask({ password: '' })).toMatchObject({ status: 400, body: { reason: 'bad_request' } });
+    expect(ticket()).toBeNull();
+  });
+
+  it('a ticket whose message could not be stored is removed again', async () => {
+    await setup(null);
+    panelSays({ auth: 1 });
+    const base = state.handlers.onQuery!;
+    state.handlers.onQuery = (q) => (q.table === 'support_messages' ? { error: { message: 'boom' } } : base(q));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await ask()).toMatchObject({ status: 500 });
+    const removed = queriesOf('support_tickets', 'delete')[0];
+    expect(eqValue(removed, 'id')).toBe('ticket-1');
   });
 
   it('refuses a line with an email on file, a bad message, and more than 3 an hour per line', async () => {
+    panelSays({ auth: 1 });
     await setup('family@example.com');
     expect((await ask()).body).toEqual({ ok: false, reason: 'email_on_file' });
     await setup(null);

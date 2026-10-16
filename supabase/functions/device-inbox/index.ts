@@ -30,11 +30,14 @@
 //       email on file (its customer's). Owning a line in the app rests on it,
 //       so without one the app offers to send the message through support.
 //       → {ok:true, email_on_file} | {ok:false, reason:'unknown_key'|'other_line'}
-//   support_request {inbox_key, host, username, body}
+//   support_request {inbox_key, host, username, password, body}
 //       a TV on a line with no email on file: a support ticket (under the
 //       Player Reports account, as report-channel files guest tickets) asking
-//       support to send `body` to the line's TVs. 3 per line an hour.
-//       → {ok:true} | {ok:false, reason:'bad_body'|'email_on_file'|'rate_limited'|'unknown_key'|'other_line'}
+//       support to send `body` to the line's TVs. The password is checked
+//       with the panel again (a key outlives a password change). 3 per line
+//       an hour.
+//       → {ok:true} | {ok:false, reason:'bad_body'|'email_on_file'|'rate_limited'|'bad_line'|
+//                                   'panel_unreachable'|'unknown_key'|'other_line'}
 //   devices {host, username}
 //       the line's owner or an admin (Authorization: Bearer <user JWT>): the
 //       TVs on the line seen in the last 30 days, watching ones first.
@@ -413,48 +416,61 @@ async function ownerStatus(admin: Db, body: Body): Promise<Response> {
   return json({ ok: true, email_on_file: await emailOnFile(admin, tv.line) });
 }
 
-async function supportRequest(admin: Db, body: Body): Promise<Response> {
+/** For a ticket: the backticks out, so nothing breaks out of Discord's code block (notify-ticket). */
+const ticketText = (v: string): string => v.replace(/`/g, "'");
+
+async function supportRequest(admin: Db, req: Request, body: Body): Promise<Response> {
   const text = messageText(body.body);
   if (text === null) return json({ ok: false, reason: 'bad_body' }, 400);
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (!password || password.length > 512) return badRequest();
   const tv = await tvOnLine(admin, body);
   if (tv instanceof Response) return tv;
   const { device, line } = tv;
   // A line with an email on file has an owner who can send it (signed in).
   if (await emailOnFile(admin, line)) return json({ ok: false, reason: 'email_on_file' });
+  // Per line first: one line asking too often never uses up everyone's hour.
   const db = admin as unknown as ThrottleDb;
   if (!(await throttle(db, `dih:line:${line.host}:${line.username}`, SUPPORT_REQUESTS_PER_LINE_PER_HOUR, HOUR_MS))
     || !(await throttle(db, 'dih:all', SUPPORT_REQUESTS_PER_HOUR, HOUR_MS))) {
     return json({ ok: false, reason: 'rate_limited' });
   }
+  // The key was registered with the line's password once; it may have changed since.
+  logIpHeadersOnce('device-inbox', req.headers);
+  const verdict = await verifyLine(line.host, line.typed, password);
+  if (verdict === 'auth_failed') return json({ ok: false, reason: 'bad_line' });
+  if (verdict === 'unreachable') return json({ ok: false, reason: 'panel_unreachable' });
 
   const userId = await playerReportsUserId(admin as unknown as Parameters<typeof playerReportsUserId>[0]);
   const server = SERVER_NAMES[line.host] ?? line.host;
-  const from = device.device_label || 'a TV';
+  const from = ticketText(device.device_label || 'a TV');
+  // What support needs first (and what the push and Discord previews show);
+  // the TV's own words last, quoted, so they can't pass for these lines.
   const message = [
-    'A TV signed in to this line asks support to send a message to the TVs on the line. The line has no email on file, so its owner cannot send it from the app.',
+    `Line: ${ticketText(line.typed)} (${server}). It has no email on file, so its owner can't message its TVs from the app; a TV on the line asks support to send this message to them.`,
+    `To send it: Support dashboard → Line devices, username ${ticketText(line.typed)}, server ${server}. Pick all the TVs, or the ones the message names. The TVs show it as "Message from Snow Media": send it only if it reads right.`,
+    `Asked from: ${from}${device.app_version ? `, Snow Media Center ${ticketText(device.app_version)}` : ''}`,
     '',
-    `Line: ${line.typed} (${server})`,
-    `Asked from: ${from}${device.app_version ? `, Snow Media Center ${device.app_version}` : ''}`,
-    '',
-    'Message to send:',
-    text,
-    '',
-    `To send it: Support dashboard → Line devices, username ${line.typed}, server ${server}. Pick all the TVs, or the ones the message names, and send it.`,
+    'Message (typed on the TV, not checked):',
+    ...ticketText(text).split('\n').map((l) => `> ${l}`),
   ].join('\n');
   const { data: ticket, error: ticketErr } = await admin.from('support_tickets')
-    .insert({ user_id: userId, subject: `[Line Message] Send to the TVs on ${line.typed}`.slice(0, 200), status: 'open', priority: 'normal', admin_has_unread: true })
+    .insert({ user_id: userId, subject: `[Line Message] Send to the TVs on ${ticketText(line.typed)}`.slice(0, 200), status: 'open', priority: 'normal', admin_has_unread: true })
     .select('id').single();
   if (ticketErr || !ticket) {
     console.error('[device-inbox] support ticket failed:', ticketErr?.message ?? 'no row');
     return serverError();
   }
+  const ticketId = (ticket as { id: string }).id;
+  // notify-ticket runs on the ticket's first message (notify_ticket_on_first_message).
   const { error: msgErr } = await admin.from('support_messages')
-    .insert({ ticket_id: (ticket as { id: string }).id, user_id: userId, sender_type: 'user', message });
+    .insert({ ticket_id: ticketId, user_id: userId, sender_type: 'user', message });
   if (msgErr) {
     console.error('[device-inbox] support message failed:', msgErr.message);
+    // No empty ticket left behind (nobody was told about it).
+    await admin.from('support_tickets').delete().eq('id', ticketId);
     return serverError();
   }
-  // notify-ticket (the AFTER INSERT trigger on support_tickets) tells support.
   return json({ ok: true });
 }
 
@@ -590,7 +606,7 @@ Deno.serve(async (req) => {
       case 'checkin': return await checkin(admin, body);
       case 'dismiss': return await dismiss(admin, body);
       case 'owner_status': return await ownerStatus(admin, body);
-      case 'support_request': return await supportRequest(admin, body);
+      case 'support_request': return await supportRequest(admin, req, body);
       case 'devices':
       case 'send': return await lineAction(admin, req, action, body);
       default: return badRequest();

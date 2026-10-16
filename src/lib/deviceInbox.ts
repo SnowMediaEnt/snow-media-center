@@ -524,14 +524,20 @@ export async function lineOwnerStatus(host: string, username: string): Promise<O
   return { ok: true, email_on_file: res.email_on_file === true };
 }
 
-/** A line with no email on file: a support ticket asking support to send `body` to the line's TVs. */
+/**
+ * A line with no email on file: a support ticket asking support to send
+ * `body` to the line's TVs. Only for the line this box is signed into: its
+ * saved password goes along (the server checks it with the panel again).
+ */
 export async function askSupportToSend(host: string, username: string, body: string): Promise<SendOutcome> {
   if (isDemo()) return { ok: false, reason: 'demo' };
   const text = body.trim();
   if (!text || text.length > MAX_BODY) return { ok: false, reason: 'bad_body' };
+  const creds = await loadCreds().catch(() => null);
+  if (!creds?.password || lineId(creds) !== lineId({ host, username })) return { ok: false, reason: 'bad_line' };
   const key = await getInboxKey();
   if (!key) return { ok: false, reason: 'no_key' };
-  const res = await call({ action: 'support_request', inbox_key: key, host, username, body: text });
+  const res = await call({ action: 'support_request', inbox_key: key, host, username, password: creds.password, body: text });
   return res.ok === true ? { ok: true } : { ok: false, reason: reasonOf(res) };
 }
 

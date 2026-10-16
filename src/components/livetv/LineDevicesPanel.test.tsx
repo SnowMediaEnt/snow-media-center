@@ -24,6 +24,12 @@ vi.mock('@/integrations/supabase/client', () => ({
   },
 }));
 
+// The line this TV is signed into (support's way sends its password along).
+vi.mock('@/lib/xtream', async (orig) => ({
+  ...(await orig<typeof import('@/lib/xtream')>()),
+  loadCreds: async () => ({ host: 'http://dstreams.xyz:8080', username: 'jsmith', password: 'pw-1', output: 'm3u8' }),
+}));
+
 import LineDevicesPanel from './LineDevicesPanel';
 
 const HOST = 'http://dstreams.xyz:8080';
@@ -237,10 +243,15 @@ describe('LineDevicesPanel', () => {
     key('Enter');
     await until(() => !!document.querySelector('[data-send-result]'));
     expect(h.calls.filter((c) => c.action === 'support_request')).toEqual([{
-      action: 'support_request', inbox_key: expect.stringMatching(/^[A-Za-z0-9]{48}$/), host: HOST, username: 'jsmith', body: 'Please switch to the other account.',
+      action: 'support_request', inbox_key: expect.stringMatching(/^[A-Za-z0-9]{48}$/), host: HOST, username: 'jsmith', password: 'pw-1', body: 'Please switch to the other account.',
     }]);
     expect(sends()).toEqual([]);
     expect(document.querySelector('[data-send-result="ok"]')?.textContent).toBe("Sent to support. They'll pass it on to the TVs on this line.");
+    // Sent once: a second OK on Send files nothing more.
+    key('Enter');
+    await settle(50);
+    expect(h.calls.filter((c) => c.action === 'support_request')).toHaveLength(1);
+    expect(document.querySelector('[data-send-result]')?.textContent).toBe('Pick a message or write your own.');
   });
 
   it('a TV on a line with an email on file: the sign-in line, nothing for support', async () => {
@@ -252,11 +263,15 @@ describe('LineDevicesPanel', () => {
     await renderPanel({ viaSupport: true });
     expect(document.querySelector('[data-line-devices="not_owner"]')).toBeTruthy();
     expect(document.querySelector('[data-row]')).toBeNull();
-    // Unsure (the TV isn't registered on the line yet): the same.
+  });
+
+  it('a TV that can\'t tell whether the line has an email (not registered there yet): Try again, not "sign in"', async () => {
     h.reply = (b) => (b.action === 'devices' ? httpError(401, { ok: false, reason: 'not_signed_in' })
       : b.action === 'owner_status' ? { data: { ok: false, reason: 'unknown_key' }, error: null } : undefined);
-    await renderPanel({ viaSupport: true, username: 'other' });
-    expect(document.querySelectorAll('[data-line-devices="not_signed_in"]').length).toBe(1);
+    await renderPanel({ viaSupport: true });
+    expect(document.querySelector('[data-line-devices="not_signed_in"]')).toBeNull();
+    expect(screen.getByText("Couldn't load the devices.")).toBeTruthy();
+    expect(focusedRow()).toBe('retry');
   });
 
   it('a failed load offers Try again', async () => {

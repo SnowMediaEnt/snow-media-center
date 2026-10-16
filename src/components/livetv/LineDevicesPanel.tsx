@@ -97,6 +97,9 @@ const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, activ
       const owner = await lineOwnerStatus(host, username);
       if (!alive.current || seq !== loadSeq.current) return;
       if (owner.ok && owner.email_on_file === false) { setLoad({ state: 'support' }); return; }
+      // Couldn't tell (no network, this TV not registered on the line yet):
+      // Try again, not "sign in", which a line with no email can never do.
+      if (!owner.ok) { setLoad({ state: 'error', reason: 'failed' }); return; }
     }
     setLoad(res.ok ? { state: 'ready', devices: res.devices ?? [] } : { state: 'error', reason: res.reason ?? 'failed' });
   }, [host, username, viaSupport]);
@@ -189,6 +192,8 @@ const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, activ
     if (!alive.current) return;
     setSending(false);
     setResult(res);
+    // Each one is a ticket: a second OK on Send must not file it again.
+    if (res.ok && s.support) { setChoice(null); setCustom(''); }
   }, [host, username, t]);
 
   const startTyping = useCallback(() => {
