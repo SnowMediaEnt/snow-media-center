@@ -71,6 +71,7 @@
       "parentTitle": "Eltern-PIN",
       "parentDescOn": "An. Wird gebraucht, um Profile hinzuzufügen, zu ändern oder zu löschen und um ein Kinderprofil zu verlassen. Ändere sie oder schalte sie aus.",
       "parentDescOff": "Aus. Erstelle eine, damit Kinder keine Profile hinzufügen und nicht zum Profil eines Erwachsenen wechseln können.",
+      "parentDescNoKids": "Aus. Erst nötig, wenn es ein Kinderprofil gibt; beim Hinzufügen legt ein Erwachsener sie fest.",
       "parentSignIn": "Melde dich in deinem Snow-Media-Konto an, um Profile mit einer Eltern-PIN zu schützen."
     },
     "toast": {

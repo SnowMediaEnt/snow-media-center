@@ -1060,7 +1060,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
                   <Lock className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                   <div>
                     <h3 className="text-lg font-bold text-white">{t('settings.profiles.parentTitle')}</h3>
-                    <p className="text-sm text-white/70 mt-1">{hasParentPin() ? t('settings.profiles.parentDescOn') : t('settings.profiles.parentDescOff')}</p>
+                    <p className="text-sm text-white/70 mt-1">{hasParentPin() ? t('settings.profiles.parentDescOn') : loadProfiles().some((pr) => !!pr.kidsLevel) ? t('settings.profiles.parentDescOff') : t('settings.profiles.parentDescNoKids')}</p>
                   </div>
                 </div>
               </Card>

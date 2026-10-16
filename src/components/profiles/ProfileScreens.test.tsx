@@ -146,20 +146,19 @@ describe('ProfileScreens', () => {
     expect(screen.getByPlaceholderText('Their name')).toBeTruthy();
   });
 
-  it('a house without Kids profiles may put the Parent PIN off ("Not now"), then manages from the gate with no PIN', async () => {
+  it('a house without Kids profiles is never asked for a Parent PIN, and manages from the gate with no PIN', async () => {
     vi.useFakeTimers();
     const p = await import('@/lib/profiles');
     p.setPin('main', '1111');
     p.createProfile({ name: 'Mom', avatar: 'pink', kidsLevel: null });
     const { default: Screens } = await import('./ProfileScreens');
     const view = render(<Screens mode="gate" onClose={() => {}} />);
-    expect(screen.getByText('Create a parent PIN')).toBeTruthy();
     await settle();
-    fireEvent.click(screen.getByText('Not now'));
+    expect(screen.queryByText('Create a parent PIN')).toBeNull();
     expect(screen.getByText("Who's watching?")).toBeTruthy();
     fireEvent.click(screen.getByText('Manage profiles'));
     expect(screen.getByText('Pick a profile to change it.')).toBeTruthy();
-    // Put off on this box: not asked by itself again while there are no Kids profiles.
+    // Still never asked by itself while there are no Kids profiles.
     view.unmount();
     render(<Screens mode="pick" onClose={() => {}} />);
     expect(screen.getByText("Who's watching?")).toBeTruthy();
@@ -239,20 +238,20 @@ describe('ProfileScreens', () => {
 const focused = () => document.querySelector<HTMLElement>('[data-focused="true"]')?.dataset.pf;
 
 describe('the Parent PIN: making it', () => {
-  it('the first time Profiles opens on a grown-up profile, it waits for the account, then asks for one, typed twice', async () => {
+  it('Settings → Parent PIN, Create (no Kids profile yet): it waits for the account, then asks for one, typed twice', async () => {
     vi.useFakeTimers();
     const p = await import('@/lib/profiles');
     const { default: Screens } = await import('./ProfileScreens');
-    render(<Screens mode="pick" onClose={() => {}} />);
+    // Not asked by itself without a Kids profile (owner, 2026-10-16): made from Settings.
+    render(<Screens mode="parent" onClose={() => {}} />);
+    fireEvent.click(screen.getByText('Create parent PIN'));
     expect(screen.getByText('Create a parent PIN')).toBeTruthy();
     // This box hasn't heard from the account yet: no pad before it has.
     expect(screen.getByText('Checking your account…')).toBeTruthy();
     expect(document.querySelector('[data-pf="pad-1"]')).toBeNull();
     await settle();
     expect(screen.getByText('A parent PIN keeps kids from changing profiles.')).toBeTruthy();
-    // The remote is on the pad, not on "Not now" (OK there would dismiss it).
     expect(focused()).toBe('pad-1');
-    expect(screen.getByText('Not now')).toBeTruthy();
     await type('1234');
     expect(screen.getByText('Enter the parent PIN again')).toBeTruthy();
     await type('9999');
@@ -260,11 +259,10 @@ describe('the Parent PIN: making it', () => {
     expect(screen.getByText('Create a parent PIN')).toBeTruthy();
     await type('1234');
     await type('1234');
-    expect(screen.getByText("Who's watching?")).toBeTruthy();
+    // Made, on the account, and the pad is gone.
     expect(account.parent.u1.pin_hash).toBe(p.hashPin('__parent__', '1234', 'u1'));
-    // Making it is not giving it: Manage asks for it.
-    fireEvent.click(screen.getByText('Manage profiles'));
-    expect(screen.getByText('Enter the parent PIN')).toBeTruthy();
+    expect(p.hasParentPin()).toBe(true);
+    expect(screen.queryByText('Enter the parent PIN again')).toBeNull();
   });
 
   it('the account already has one (made on another box): it is never offered here, and Profiles asks for that one', async () => {
@@ -288,6 +286,8 @@ describe('the Parent PIN: making it', () => {
     vi.useFakeTimers();
     const p = await import('@/lib/profiles');
     p.createProfile({ name: 'Mom', avatar: 'teal', kidsLevel: null });
+    // A Kids profile: only then is a Parent PIN asked for at all.
+    p.createProfile({ name: 'Mia', avatar: 'pink', kidsLevel: 'kids' });
     account.offline = true;
     const { default: Screens } = await import('./ProfileScreens');
     const view = render(<Screens mode="gate" onClose={() => {}} />);
@@ -304,14 +304,16 @@ describe('the Parent PIN: making it', () => {
     account.offline = false;
     fireEvent.click(screen.getByText('Retry'));
     await settle();
-    expect(screen.getByText('A parent PIN keeps kids from changing profiles.')).toBeTruthy();
-    expect(focused()).toBe('pad-1');
+    // Kids on the account and no grown-up PIN: a grown-up proves it by emailed code first.
+    expect(screen.getByText("This account has Kids profiles, so a grown-up proves it first: we email a 6-digit code to the account's address.")).toBeTruthy();
+    expect(focused()).toBe('pp-email');
   });
 
   it('the start-up gate never hangs: a request that never answers gives up, and Back goes on', async () => {
     vi.useFakeTimers();
     const p = await import('@/lib/profiles');
     p.createProfile({ name: 'Mom', avatar: 'teal', kidsLevel: null });
+    p.createProfile({ name: 'Mia', avatar: 'pink', kidsLevel: 'kids' });
     account.hang = true;
     const { default: Screens } = await import('./ProfileScreens');
     render(<Screens mode="gate" onClose={() => {}} />);

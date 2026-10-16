@@ -543,11 +543,13 @@ export function parentPinProof(): 'none' | 'grownup' | 'email' {
 }
 
 /** Whether opening Profiles should ask for a Parent PIN to be made: a
- *  signed-in account without one, unless "Not now" was said on this box
- *  while it had no Kids profile, and it still has none. */
+ *  signed-in account without one that has a Kids profile. Without a Kids
+ *  profile it is never asked for (owner, 2026-10-16: "only if there's a kid
+ *  account then the adult has to have a pin"); adding the first Kids profile
+ *  makes a grown-up set one then. */
 export function parentPinDue(): boolean {
   if (!pinsAvailable() || hasParentPin()) return false;
-  return !parentPinCanWait() || !ls.get(PARENT_LATER_PREFIX + accountKey());
+  return !parentPinCanWait();
 }
 
 /** "Not now", remembered only while the account has no Kids profile. */

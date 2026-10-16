@@ -72,6 +72,7 @@
       "parentTitle": "PIN parental",
       "parentDescOn": "Activado. Se necesita para agregar, cambiar o eliminar perfiles y para salir de un perfil infantil. Cámbialo o desactívalo.",
       "parentDescOff": "Desactivado. Crea uno para que los niños no puedan agregar perfiles ni pasar al de un adulto.",
+      "parentDescNoKids": "Desactivado. No hace falta hasta que haya un perfil infantil; al añadir uno, un adulto lo crea.",
       "parentSignIn": "Inicia sesión en tu cuenta de Snow Media para proteger los perfiles con un PIN parental."
     },
     "toast": {

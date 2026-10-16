@@ -71,6 +71,7 @@
       "parentTitle": "Parent PIN",
       "parentDescOn": "On. Needed to add, change or delete profiles and to leave a Kids profile. Change it or turn it off.",
       "parentDescOff": "Off. Create one so kids can't add profiles or switch to a grown-up's.",
+      "parentDescNoKids": "Off. Not needed until there's a Kids profile; adding one asks a grown-up to set it.",
       "parentSignIn": "Sign in to your Snow Media account to protect profiles with a parent PIN."
     },
     "toast": {

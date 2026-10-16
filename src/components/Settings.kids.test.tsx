@@ -97,7 +97,8 @@ describe('Settings → Profiles: the Parent PIN row', () => {
     key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); // Back → Media → UI → Profiles (the column)
     key('ArrowRight'); key('ArrowDown'); key('ArrowDown'); // switch → manage → Parent PIN
     expect(container.querySelector('[data-settings-focus="profiles-parent"]')?.getAttribute('data-focused')).toBe('true');
-    expect(screen.getByText('Off. Create one so kids can\'t add profiles or switch to a grown-up\'s.')).toBeTruthy();
+    // No Kids profile on this account: not needed yet (owner, 2026-10-16).
+    expect(screen.getByText("Off. Not needed until there's a Kids profile; adding one asks a grown-up to set it.")).toBeTruthy();
     key('Enter');
     expect(openProfiles).toHaveBeenCalledWith('parent');
   });

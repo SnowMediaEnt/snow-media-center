@@ -49,17 +49,16 @@ describe('the Parent PIN on the box', () => {
     expect(p.checkParentPin('2468')).toBe(false);
   });
 
-  it('is asked for on a signed-in account, can be put off only without a Kids profile, and never signed out', async () => {
+  it('is asked for only once a signed-in account has a Kids profile, and never signed out', async () => {
     const { p, v } = await fresh();
     v.__setViewerForTests('device');
     expect(p.parentPinDue()).toBe(false);
     p.putOffParentPin();
     expect(localStorage.getItem('smc-parent-pin-later:device')).toBeNull();
     v.__setViewerForTests('u1');
-    expect(p.parentPinDue()).toBe(true);
-    p.putOffParentPin();
+    // No Kids profile: never asked (owner, 2026-10-16).
     expect(p.parentPinDue()).toBe(false);
-    // A Kids profile: no putting it off any more.
+    // A Kids profile: the grown-up has to have one.
     p.createProfile({ name: 'Mia', avatar: 'pink', kidsLevel: 'kids' });
     expect(p.parentPinCanWait()).toBe(false);
     expect(p.parentPinDue()).toBe(true);
