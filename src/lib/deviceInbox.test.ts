@@ -50,8 +50,8 @@ vi.mock('@capacitor/app', () => ({
 
 import { supabase } from '@/integrations/supabase/client';
 import {
-  POLL_MS, REGISTER_EVERY_MS, RETRY_FIRST_MS, __resetDeviceInboxForTests, checkinNow, dismissMessage, getInboxKey,
-  listLineDevices, pendingMessages, registerLine, sendLineMessage, startDeviceInbox,
+  POLL_MS, REGISTER_EVERY_MS, RETRY_FIRST_MS, __resetDeviceInboxForTests, askSupportToSend, checkinNow, dismissMessage, getInboxKey,
+  lineOwnerStatus, listLineDevices, pendingMessages, registerLine, sendLineMessage, startDeviceInbox,
 } from './deviceInbox';
 
 const LINE = { host: 'http://dstreams.xyz:8080', username: 'jsmith', password: 'pw123', output: 'm3u8' as const };
@@ -337,6 +337,27 @@ describe("the owner's calls", () => {
     expect(await listLineDevices(LINE.host, 'jsmith')).toEqual({ ok: false, reason: 'not_owner' });
     h.reply = () => { throw new Error('offline'); };
     expect(await listLineDevices(LINE.host, 'jsmith')).toEqual({ ok: false, reason: 'network' });
+  });
+
+  it('a line with no email on file: owner_status and support_request go as this TV, with its key', async () => {
+    const key = await getInboxKey();
+    h.reply = (b) => (b.action === 'owner_status' ? { data: { ok: true, email_on_file: false }, error: null } : undefined);
+    expect(await lineOwnerStatus(LINE.host, 'jsmith')).toEqual({ ok: true, email_on_file: false });
+    h.reply = (b) => (b.action === 'owner_status' ? { data: { ok: false, reason: 'other_line' }, error: null } : undefined);
+    expect(await lineOwnerStatus(LINE.host, 'jsmith')).toEqual({ ok: false, reason: 'other_line' });
+    h.reply = null;
+    expect(await askSupportToSend(LINE.host, 'jsmith', '  Please switch  ')).toEqual({ ok: true });
+    expect(await askSupportToSend(LINE.host, 'jsmith', ' ')).toEqual({ ok: false, reason: 'bad_body' });
+    expect(h.calls).toEqual([
+      { action: 'owner_status', inbox_key: key, host: LINE.host, username: 'jsmith' },
+      { action: 'owner_status', inbox_key: key, host: LINE.host, username: 'jsmith' },
+      { action: 'support_request', inbox_key: key, host: LINE.host, username: 'jsmith', body: 'Please switch' },
+    ]);
+    h.demo = true;
+    h.calls.length = 0;
+    expect((await lineOwnerStatus(LINE.host, 'jsmith')).ok).toBe(false);
+    expect((await askSupportToSend(LINE.host, 'jsmith', 'Hi')).ok).toBe(false);
+    expect(h.calls).toEqual([]);
   });
 
   it('send: refs or all, the body trimmed; 400 bad_body and 200 rate_limited come back as reasons', async () => {

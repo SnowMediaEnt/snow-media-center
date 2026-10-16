@@ -34,7 +34,10 @@
       "sendFailed": "Die Nachricht ist nicht angekommen. Versuch es noch einmal.",
       "loadFailed": "Die Geräte konnten nicht geladen werden.",
       "retryBtn": "Nochmal",
-      "noDevices": "Noch hat sich kein Fernseher mit dieser Leitung angemeldet."
+      "noDevices": "Noch hat sich kein Fernseher mit dieser Leitung angemeldet.",
+      "noEmailIntro": "Für diese Leitung ist keine E-Mail-Adresse hinterlegt, deshalb kannst du ihren Fernsehern nicht direkt von hier schreiben. Such eine Nachricht aus, und der Snow Media Support schickt sie für dich an die Fernseher dieser Leitung.",
+      "supportSendBtn": "An den Support senden",
+      "supportSent": "An den Support gesendet. Er leitet sie an die Fernseher dieser Leitung weiter."
     },
     "message": {
       "fromAdmin": "Nachricht von Snow Media",

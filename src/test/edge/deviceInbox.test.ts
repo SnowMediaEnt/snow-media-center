@@ -8,10 +8,14 @@ const state = vi.hoisted(() => ({ handlers: {} as FakeHandlers, queries: [] as Q
 vi.mock('@supabase/supabase-js', async () => {
   const { fakeSupabase } = await import('./fakeSupabase');
   return {
-    createClient: () => fakeSupabase({
-      ...state.handlers,
-      onQuery: (q) => { if (!state.queries.includes(q)) state.queries.push(q); return state.handlers.onQuery?.(q); },
-    }).client,
+    createClient: () => {
+      const { client } = fakeSupabase({
+        ...state.handlers,
+        onQuery: (q) => { if (!state.queries.includes(q)) state.queries.push(q); return state.handlers.onQuery?.(q); },
+      });
+      (client.auth.admin as Record<string, unknown>).createUser = async () => ({ data: { user: { id: PLAYER_REPORTS } }, error: null });
+      return client;
+    },
   };
 });
 
@@ -28,6 +32,7 @@ const TV_C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const ELSEWHERE = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const M1 = '11111111-1111-4111-8111-111111111111';
 const M2 = '22222222-2222-4222-8222-222222222222';
+const PLAYER_REPORTS = '88888888-8888-4888-8888-888888888888';
 
 const sha256 = async (s: string) => {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -329,6 +334,75 @@ describe('device-inbox: checkin and dismiss', () => {
     expect(eqValue(q, 'device_id')).toBe(TV_A);
     expect(await call({ action: 'dismiss', inbox_key: KEY, id: 'not-a-uuid' })).toMatchObject({ status: 400, body: { reason: 'bad_request' } });
     expect(await call({ action: 'checkin', inbox_key: 'short', ...LINE, watching: true })).toMatchObject({ status: 400, body: { reason: 'bad_request' } });
+  });
+});
+
+describe('device-inbox: a line with no email on file asks support', () => {
+  const ON_LINE = { id: TV_A, panel_host: LINE.host, panel_username: LINE.username, device_label: 'Fire TV AFTMM', app_version: '1.9.2' };
+  /** The TV's key is on LINE; the line's customer has `email` on file (null: no customer matched at all). */
+  const setup = async (email: string | null | undefined) => {
+    const hash = await sha256(KEY);
+    const base = state.handlers.onQuery!;
+    state.handlers.onQuery = (q) => {
+      if (q.table === 'device_inbox' && eqValue(q, 'key_hash') !== undefined) return { data: eqValue(q, 'key_hash') === hash ? ON_LINE : null };
+      if (q.table === 'player_signins') return { data: email === null ? { matched_customer_id: null } : { matched_customer_id: CUSTOMER } };
+      if (q.table === 'customers') return { data: email === undefined ? null : { email } };
+      if (q.table === 'support_tickets') return { data: { id: 'ticket-1' } };
+      return base(q);
+    };
+  };
+  const status = (extra: Record<string, unknown> = {}) => call({ action: 'owner_status', inbox_key: KEY, ...LINE, ...extra });
+  const ask = (extra: Record<string, unknown> = {}) => call({ action: 'support_request', inbox_key: KEY, ...LINE, body: 'Please switch to the other account.', ...extra });
+  const ticket = () => {
+    const t = queriesOf('support_tickets', 'insert')[0];
+    const m = queriesOf('support_messages', 'insert')[0];
+    return t && m ? { ticket: opArg(t, 'insert') as Record<string, unknown>, message: opArg(m, 'insert') as Record<string, unknown> } : null;
+  };
+
+  it('owner_status says whether the line\'s customer has an email on file', async () => {
+    await setup('family@example.com');
+    expect(await status()).toEqual({ status: 200, body: { ok: true, email_on_file: true } });
+    await setup('');
+    expect((await status()).body).toEqual({ ok: true, email_on_file: false });
+    await setup(null); // no customer matched to the line
+    expect((await status()).body).toEqual({ ok: true, email_on_file: false });
+    await setup(undefined); // the matched customer is gone
+    expect((await status()).body).toEqual({ ok: true, email_on_file: false });
+  });
+
+  it('only a TV whose key is on that line may ask', async () => {
+    await setup(null);
+    expect((await status({ username: 'neighbour@example.com' })).body).toEqual({ ok: false, reason: 'other_line' });
+    expect((await ask({ username: 'neighbour@example.com' })).body).toEqual({ ok: false, reason: 'other_line' });
+    expect((await ask({ inbox_key: 'tv9_' + 'q'.repeat(40) })).body).toEqual({ ok: false, reason: 'unknown_key' });
+    expect(await ask({ inbox_key: 'short' })).toMatchObject({ status: 400 });
+    expect(ticket()).toBeNull();
+  });
+
+  it('files a ticket under Player Reports with the line, the TV and the message, never the key', async () => {
+    await setup(null);
+    expect(await ask({ host: 'https://strmz.xyz', username: 'Family@Example.com', body: '  Please switch to the other account.  ' })).toEqual({ status: 200, body: { ok: true } });
+    const t = ticket()!;
+    expect(t.ticket).toEqual({ user_id: PLAYER_REPORTS, subject: '[Line Message] Send to the TVs on Family@Example.com', status: 'open', priority: 'normal', admin_has_unread: true });
+    expect(t.message).toMatchObject({ ticket_id: 'ticket-1', user_id: PLAYER_REPORTS, sender_type: 'user' });
+    const text = String(t.message.message);
+    expect(text).toContain('Line: Family@Example.com (Vibez)');
+    expect(text).toContain('Asked from: Fire TV AFTMM, Snow Media Center 1.9.2');
+    expect(text).toContain('Message to send:\nPlease switch to the other account.\n');
+    expect(text).toContain('Line devices, username Family@Example.com, server Vibez');
+    expect(JSON.stringify(state.queries.map((q) => q.ops))).not.toContain(KEY);
+  });
+
+  it('refuses a line with an email on file, a bad message, and more than 3 an hour per line', async () => {
+    await setup('family@example.com');
+    expect((await ask()).body).toEqual({ ok: false, reason: 'email_on_file' });
+    await setup(null);
+    for (const body of ['', '   ', 'x'.repeat(201), 7]) expect(await ask({ body })).toEqual({ status: 400, body: { ok: false, reason: 'bad_body' } });
+    const base = state.handlers.onQuery!;
+    state.handlers.onQuery = (q) => (q.table === 'player_login_throttle' && eqValue(q, 'ip_hash') === 'dih:line:strmz.xyz:family@example.com'
+      ? { data: { window_start: new Date().toISOString(), count: 3 } } : base(q));
+    expect((await ask()).body).toEqual({ ok: false, reason: 'rate_limited' });
+    expect(ticket()).toBeNull();
   });
 });
 

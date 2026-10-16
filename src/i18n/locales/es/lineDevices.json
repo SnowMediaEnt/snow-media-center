@@ -35,7 +35,10 @@
       "sendFailed": "El mensaje no se envió. Inténtalo de nuevo.",
       "loadFailed": "No se pudieron cargar los dispositivos.",
       "retryBtn": "Reintentar",
-      "noDevices": "Todavía no hay televisores conectados a esta línea."
+      "noDevices": "Todavía no hay televisores conectados a esta línea.",
+      "noEmailIntro": "Esta línea no tiene un correo electrónico registrado, así que no puedes escribir a sus televisores directamente desde aquí. Escoge un mensaje y el soporte de Snow Media lo enviará por ti a los televisores de esta línea.",
+      "supportSendBtn": "Enviar a soporte",
+      "supportSent": "Enviado a soporte. Lo harán llegar a los televisores de esta línea."
     },
     "message": {
       "fromAdmin": "Mensaje de Snow Media",

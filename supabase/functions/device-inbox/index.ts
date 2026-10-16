@@ -25,6 +25,16 @@
 //         | {ok:false, reason:'unknown_key'|'other_line'} (the app then registers again)
 //   dismiss {inbox_key, id}
 //       a TV closed a message. Only that key's own messages. → {ok:true}
+//   owner_status {inbox_key, host, username}
+//       a TV on that line (its key registered there): whether the line has an
+//       email on file (its customer's). Owning a line in the app rests on it,
+//       so without one the app offers to send the message through support.
+//       → {ok:true, email_on_file} | {ok:false, reason:'unknown_key'|'other_line'}
+//   support_request {inbox_key, host, username, body}
+//       a TV on a line with no email on file: a support ticket (under the
+//       Player Reports account, as report-channel files guest tickets) asking
+//       support to send `body` to the line's TVs. 3 per line an hour.
+//       → {ok:true} | {ok:false, reason:'bad_body'|'email_on_file'|'rate_limited'|'unknown_key'|'other_line'}
 //   devices {host, username}
 //       the line's owner or an admin (Authorization: Bearer <user JWT>): the
 //       TVs on the line seen in the last 30 days, watching ones first.
@@ -52,6 +62,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { clientIp, hashIp, logIpHeadersOnce, throttle, type ThrottleDb } from '../_shared/requestGuard.ts';
+import { playerReportsUserId } from '../_shared/playerReports.ts';
 
 // The service-role client as this file makes it (ReturnType<typeof
 // createClient> alone resolves to a client the one made here does not fit;
@@ -65,6 +76,8 @@ type Line = { host: string; username: string; typed: string };
 // The panels capture-player-signin accepts, so a line here is named the way
 // player_signins names it (which is how ownership is decided).
 const ALLOWED_HOSTS = ['dstreams.xyz:8080', 'strmz.xyz'] as const;
+/** The servers as support knows them (the admin "Line devices" tab's buttons). */
+const SERVER_NAMES: Record<string, string> = { 'dstreams.xyz:8080': 'DreamStreams', 'strmz.xyz': 'Vibez' };
 
 const MAX_BODY_BYTES = 8192;
 const HOUR_MS = 60 * 60 * 1000;
@@ -90,6 +103,9 @@ const MAX_MESSAGE_CHARS = 200;
 const MAX_LABEL_CHARS = 60;
 const MAX_VERSION_CHARS = 20;
 const MAX_DEVICES = 100;
+// Every ticket reaches Discord, the admin inbox and the admins' phones.
+const SUPPORT_REQUESTS_PER_LINE_PER_HOUR = 3;
+const SUPPORT_REQUESTS_PER_HOUR = 30;
 
 const INBOX_KEY = /^[A-Za-z0-9_-]{32,128}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -270,30 +286,43 @@ async function register(admin: Db, req: Request, body: Body): Promise<Response> 
   return json({ ok: true });
 }
 
-type Device = { id: string; panel_host: string; panel_username: string; last_seen_at?: string | null; watching_at?: string | null };
+type Device = {
+  id: string; panel_host: string; panel_username: string;
+  last_seen_at?: string | null; watching_at?: string | null; device_label?: string | null; app_version?: string | null;
+};
 
 /** The device an inbox key belongs to; 'bad' for a malformed key. Throws on a DB error. */
 async function deviceForKey(admin: Db, raw: unknown): Promise<Device | null | 'bad'> {
   const inboxKey = typeof raw === 'string' ? raw : '';
   if (!INBOX_KEY.test(inboxKey)) return 'bad';
   const { data, error } = await admin.from('device_inbox')
-    .select('id, panel_host, panel_username, last_seen_at, watching_at').eq('key_hash', await sha256(inboxKey)).maybeSingle();
+    .select('id, panel_host, panel_username, last_seen_at, watching_at, device_label, app_version')
+    .eq('key_hash', await sha256(inboxKey)).maybeSingle();
   if (error) throw new Error(`device lookup: ${error.message}`);
   return (data as Device | null) ?? null;
 }
 
-async function checkin(admin: Db, body: Body): Promise<Response> {
+/**
+ * A TV asking about the line it names: its key must be registered on that
+ * line. A box signed into another line than the one its key is on hears
+ * other_line, and nothing of the old line's, until it registers on the new one.
+ */
+async function tvOnLine(admin: Db, body: Body): Promise<{ device: Device; line: Line } | Response> {
   const line = lineOf(body);
   if (!line) return badRequest();
   const device = await deviceForKey(admin, body.inbox_key);
   if (device === 'bad') return badRequest();
   if (!device) return json({ ok: false, reason: 'unknown_key' });
-  // The box is signed into another line than the one this key is on: it
-  // hears nothing of the old line's, and is not counted there, until it has
-  // registered on the new one.
   if (line === 'not_ours' || line.host !== device.panel_host || line.username !== device.panel_username) {
     return json({ ok: false, reason: 'other_line' });
   }
+  return { device, line };
+}
+
+async function checkin(admin: Db, body: Body): Promise<Response> {
+  const tv = await tvOnLine(admin, body);
+  if (tv instanceof Response) return tv;
+  const { device } = tv;
 
   const nowMs = Date.now();
   const now = new Date(nowMs).toISOString();
@@ -362,6 +391,70 @@ async function dismiss(admin: Db, body: Body): Promise<Response> {
     console.error('[device-inbox] dismiss failed:', error.message);
     return serverError();
   }
+  return json({ ok: true });
+}
+
+/** Whether the line's customer has an email on file: what owning the line in the app rests on. Throws on a DB error. */
+async function emailOnFile(admin: Db, line: Line): Promise<boolean> {
+  const { data: signin, error } = await admin.from('player_signins')
+    .select('matched_customer_id').eq('panel_host', line.host).eq('panel_username', line.username).maybeSingle();
+  if (error) throw new Error(`signin lookup: ${error.message}`);
+  const customerId = (signin as { matched_customer_id?: string | null } | null)?.matched_customer_id;
+  if (typeof customerId !== 'string' || !customerId) return false;
+  const { data: customer, error: custErr } = await admin.from('customers').select('email').eq('id', customerId).maybeSingle();
+  if (custErr) throw new Error(`customer lookup: ${custErr.message}`);
+  const email = (customer as { email?: string | null } | null)?.email;
+  return typeof email === 'string' && email.includes('@');
+}
+
+async function ownerStatus(admin: Db, body: Body): Promise<Response> {
+  const tv = await tvOnLine(admin, body);
+  if (tv instanceof Response) return tv;
+  return json({ ok: true, email_on_file: await emailOnFile(admin, tv.line) });
+}
+
+async function supportRequest(admin: Db, body: Body): Promise<Response> {
+  const text = messageText(body.body);
+  if (text === null) return json({ ok: false, reason: 'bad_body' }, 400);
+  const tv = await tvOnLine(admin, body);
+  if (tv instanceof Response) return tv;
+  const { device, line } = tv;
+  // A line with an email on file has an owner who can send it (signed in).
+  if (await emailOnFile(admin, line)) return json({ ok: false, reason: 'email_on_file' });
+  const db = admin as unknown as ThrottleDb;
+  if (!(await throttle(db, `dih:line:${line.host}:${line.username}`, SUPPORT_REQUESTS_PER_LINE_PER_HOUR, HOUR_MS))
+    || !(await throttle(db, 'dih:all', SUPPORT_REQUESTS_PER_HOUR, HOUR_MS))) {
+    return json({ ok: false, reason: 'rate_limited' });
+  }
+
+  const userId = await playerReportsUserId(admin as unknown as Parameters<typeof playerReportsUserId>[0]);
+  const server = SERVER_NAMES[line.host] ?? line.host;
+  const from = device.device_label || 'a TV';
+  const message = [
+    'A TV signed in to this line asks support to send a message to the TVs on the line. The line has no email on file, so its owner cannot send it from the app.',
+    '',
+    `Line: ${line.typed} (${server})`,
+    `Asked from: ${from}${device.app_version ? `, Snow Media Center ${device.app_version}` : ''}`,
+    '',
+    'Message to send:',
+    text,
+    '',
+    `To send it: Support dashboard → Line devices, username ${line.typed}, server ${server}. Pick all the TVs, or the ones the message names, and send it.`,
+  ].join('\n');
+  const { data: ticket, error: ticketErr } = await admin.from('support_tickets')
+    .insert({ user_id: userId, subject: `[Line Message] Send to the TVs on ${line.typed}`.slice(0, 200), status: 'open', priority: 'normal', admin_has_unread: true })
+    .select('id').single();
+  if (ticketErr || !ticket) {
+    console.error('[device-inbox] support ticket failed:', ticketErr?.message ?? 'no row');
+    return serverError();
+  }
+  const { error: msgErr } = await admin.from('support_messages')
+    .insert({ ticket_id: (ticket as { id: string }).id, user_id: userId, sender_type: 'user', message });
+  if (msgErr) {
+    console.error('[device-inbox] support message failed:', msgErr.message);
+    return serverError();
+  }
+  // notify-ticket (the AFTER INSERT trigger on support_tickets) tells support.
   return json({ ok: true });
 }
 
@@ -496,6 +589,8 @@ Deno.serve(async (req) => {
       case 'register': return await register(admin, req, body);
       case 'checkin': return await checkin(admin, body);
       case 'dismiss': return await dismiss(admin, body);
+      case 'owner_status': return await ownerStatus(admin, body);
+      case 'support_request': return await supportRequest(admin, body);
       case 'devices':
       case 'send': return await lineAction(admin, req, action, body);
       default: return badRequest();

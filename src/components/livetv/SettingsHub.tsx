@@ -205,7 +205,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
       // once the remote goes in, not for a highlight passing over it.
       case 'categories': return inPage ? <HideCategoriesScreen {...common} /> : <PageHint text={t('liveAccount.hideCategories.intro')} />;
       // Its page asks the server for the line's devices: only once the remote goes in.
-      case 'devices': return inPage && line ? <LineDevicesPanel {...common} host={line.host} username={line.username} /> : <PageHint text={t('lineDevices.hub.hint')} />;
+      case 'devices': return inPage && line ? <LineDevicesPanel {...common} host={line.host} username={line.username} viaSupport /> : <PageHint text={t('lineDevices.hub.hint')} />;
       case 'appearance': return <AppearanceScreen {...common} onTryLayout={onTryLayout} />;
       case 'rewind': return <RewindSettingsScreen {...common} />;
       case 'playback': return <PlaybackScreen {...common} />;

@@ -5,7 +5,9 @@ import { BackButton } from '@/components/ui/BackButton';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { keepInView } from '@/utils/keepInView';
 import { formatRelative } from '@/i18n/format';
-import { listLineDevices, sendLineMessage, MAX_BODY, type LineDevice, type SendOutcome } from '@/lib/deviceInbox';
+import {
+  askSupportToSend, lineOwnerStatus, listLineDevices, sendLineMessage, MAX_BODY, type LineDevice, type SendOutcome,
+} from '@/lib/deviceInbox';
 
 interface Props {
   /** The line: its server host and username, as Live TV stores them. */
@@ -16,6 +18,12 @@ interface Props {
   embedded?: boolean;
   /** Embedded only: whether the remote is on this page (false while it is on the menu). */
   active?: boolean;
+  /**
+   * A TV signed into this line (Live TV Settings): when the owner can't be
+   * told apart because the line has no email on file, the message goes to
+   * support, who send it on. Not on the admin screen.
+   */
+  viaSupport?: boolean;
 }
 
 /** The three ready-made messages, as keys: translated when drawn and when sent. */
@@ -34,7 +42,11 @@ const swallow = (e: KeyboardEvent) => { e.preventDefault(); e.stopPropagation();
 const markBack = () => { (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now(); };
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
-type Load = { state: 'loading' } | { state: 'ready'; devices: LineDevice[] } | { state: 'error'; reason: string };
+type Load =
+  | { state: 'loading' } | { state: 'ready'; devices: LineDevice[] } | { state: 'error'; reason: string }
+  /** No email on file: pick a message, support sends it to the line's TVs. */
+  | { state: 'support' };
+const REFUSED = new Set(['not_signed_in', 'not_owner']);
 
 /**
  * "Devices on this line": the Snow Media Center installs signed into a Live
@@ -44,14 +56,16 @@ type Load = { state: 'loading' } | { state: 'ready'; devices: LineDevice[] } | {
  *
  * Only the line's owner (the Snow Media account it belongs to) or an admin
  * can see the list; the server decides, and says 'not_signed_in' or
- * 'not_owner', each with its own line here.
+ * 'not_owner', each with its own line here. Ownership rests on the email on
+ * file for the line, so on a TV (viaSupport) a line with none gets the
+ * messages without the list instead, and Send files them with support.
  *
  * The remote: Up / Down walk All devices -> each device -> the three messages
  * -> Write your own -> Send; OK ticks a device, picks a message, opens the
  * keyboard on Write your own, or sends. Embedded (Live TV Settings, the admin
  * screen) Left or Back return to the menu; on its own a Back button sits top-left.
  */
-const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, active = true }: Props) => {
+const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, active = true, viaSupport = false }: Props) => {
   const { t } = useTranslation();
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [all, setAll] = useState(false);
@@ -78,8 +92,14 @@ const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, activ
     setLoad({ state: 'loading' });
     const res = await listLineDevices(host, username);
     if (!alive.current || seq !== loadSeq.current) return;
+    if (!res.ok && viaSupport && REFUSED.has(res.reason ?? '')) {
+      // No email on file: nobody can be told apart as the owner, so support sends it.
+      const owner = await lineOwnerStatus(host, username);
+      if (!alive.current || seq !== loadSeq.current) return;
+      if (owner.ok && owner.email_on_file === false) { setLoad({ state: 'support' }); return; }
+    }
     setLoad(res.ok ? { state: 'ready', devices: res.devices ?? [] } : { state: 'error', reason: res.reason ?? 'failed' });
-  }, [host, username]);
+  }, [host, username, viaSupport]);
 
   // A different line is a fresh start.
   useEffect(() => {
@@ -93,7 +113,9 @@ const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, activ
     const out: string[] = embedded ? [] : ['back'];
     if (load.state === 'ready' && load.devices.length > 0) {
       out.push('all', ...load.devices.map((d) => `dev:${d.ref}`), ...QUICK.map((_, i) => `quick:${i}`), 'custom', 'send');
-    } else if ((load.state === 'ready') || (load.state === 'error' && load.reason !== 'not_signed_in' && load.reason !== 'not_owner')) {
+    } else if (load.state === 'support') {
+      out.push(...QUICK.map((_, i) => `quick:${i}`), 'custom', 'send');
+    } else if ((load.state === 'ready') || (load.state === 'error' && !REFUSED.has(load.reason))) {
       out.push('retry');
     }
     return out;
@@ -108,8 +130,9 @@ const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, activ
     if (next !== focusId) setFocusId(next);
   }, [rows, focusId]);
 
-  const stateRef = useRef({ rows, focusId, all, picked, choice, custom, devices, sending });
-  stateRef.current = { rows, focusId, all, picked, choice, custom, devices, sending };
+  const support = load.state === 'support';
+  const stateRef = useRef({ rows, focusId, all, picked, choice, custom, devices, sending, support });
+  stateRef.current = { rows, focusId, all, picked, choice, custom, devices, sending, support };
 
   const putAway = useCallback(() => {
     typingRef.current = false;
@@ -155,12 +178,14 @@ const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, activ
   const send = useCallback(async () => {
     const s = stateRef.current;
     if (s.sending) return;
-    if (!s.all && s.picked.size === 0) { setResult({ ok: false, reason: 'no_devices' }); return; }
+    if (!s.support && !s.all && s.picked.size === 0) { setResult({ ok: false, reason: 'no_devices' }); return; }
     const body = s.choice === CUSTOM ? s.custom.trim() : s.choice !== null ? t(QUICK[s.choice]) : '';
     if (!body) { setResult({ ok: false, reason: 'no_message' }); return; }
     setSending(true);
     setResult(null);
-    const res = await sendLineMessage(host, username, s.all ? 'all' : [...s.picked], body);
+    const res = s.support
+      ? await askSupportToSend(host, username, body)
+      : await sendLineMessage(host, username, s.all ? 'all' : [...s.picked], body);
     if (!alive.current) return;
     setSending(false);
     setResult(res);
@@ -266,17 +291,68 @@ const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, activ
   });
 
   const resultText = (r: SendOutcome): string => {
-    if (r.ok) return t('lineDevices.panel.sent', { count: r.sent ?? 0 });
+    if (r.ok) return support ? t('lineDevices.panel.supportSent') : t('lineDevices.panel.sent', { count: r.sent ?? 0 });
     switch (r.reason) {
       case 'no_devices': return t('lineDevices.panel.pickDevices');
       case 'no_message': return t('lineDevices.panel.pickMessage');
       case 'bad_body': return t('lineDevices.panel.badBody');
       case 'rate_limited': return t('lineDevices.panel.rateLimited');
       case 'not_owner': return t('lineDevices.panel.notOwner');
-      case 'not_signed_in': return t('lineDevices.panel.notSignedIn');
+      case 'not_signed_in':
+      case 'email_on_file': return t('lineDevices.panel.notSignedIn');
       default: return t('lineDevices.panel.sendFailed');
     }
   };
+
+  // The messages and Send: under the devices, or on their own when support sends it.
+  const compose = (
+    <>
+      <h3 className="pt-3 pb-1 text-sm uppercase tracking-wide text-white/70 font-nunito">{t('lineDevices.panel.messageHeading')}</h3>
+      {QUICK.map((key, i) => {
+        const id = `quick:${i}`;
+        return (
+          <div key={id} {...rowProps(id)} className={rowCls(id)}>
+            {radio(choice === i)}
+            <span className="flex-1 min-w-0 font-nunito">{t(key)}</span>
+          </div>
+        );
+      })}
+      <div {...rowProps('custom')} className={rowCls('custom', 'items-start')}>
+        {radio(choice === CUSTOM)}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center">
+            <PencilLine className="w-4 h-4 mr-2 text-brand-gold shrink-0" />
+            <span className="font-nunito font-semibold">{t('lineDevices.panel.writeOwn')}</span>
+            <span className="ml-auto pl-3 text-xs font-nunito text-white/60 tabular-nums">{t('lineDevices.panel.counter', { used: custom.length, max: MAX_BODY })}</span>
+          </div>
+          {/* No autofocus: OK on this row asks for the keyboard. */}
+          <input
+            ref={inputRef}
+            type="text"
+            value={custom}
+            maxLength={MAX_BODY}
+            placeholder={t('lineDevices.panel.placeholder')}
+            onChange={(e) => { setCustom(e.target.value.slice(0, MAX_BODY)); setChoice(CUSTOM); setResult(null); }}
+            // Opening the keyboard clicks the field: that click is not a press on the row.
+            onClick={(e) => e.stopPropagation()}
+            onFocus={() => setChoice(CUSTOM)}
+            className="mt-2 w-full rounded-lg bg-black/30 border border-white/15 text-white px-3 py-2 font-nunito focus:outline-none"
+          />
+          {focused('custom') && <p className="mt-1 text-xs font-nunito text-brand-ice/60">{t('lineDevices.panel.writeOwnHint')}</p>}
+        </div>
+      </div>
+
+      <div {...rowProps('send')} className={rowCls('send', `justify-center ${focused('send') ? 'bg-brand-gold/25 border-brand-gold/60' : ''}`)}>
+        {sending ? <Loader2 className="w-5 h-5 mr-2 animate-spin text-brand-gold" /> : <Send className="w-5 h-5 mr-2 text-brand-gold" />}
+        <span className="font-quicksand font-bold">{sending ? t('lineDevices.panel.sending') : t(support ? 'lineDevices.panel.supportSendBtn' : 'lineDevices.panel.sendBtn')}</span>
+      </div>
+      {result && (
+        <p role="status" data-send-result={result.ok ? 'ok' : result.reason} className={`pt-1 font-nunito ${result.ok ? 'text-emerald-300' : 'text-amber-300'}`}>
+          {resultText(result)}
+        </p>
+      )}
+    </>
+  );
 
   const body = (() => {
     if (load.state === 'loading') {
@@ -286,7 +362,8 @@ const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, activ
         </div>
       );
     }
-    if (load.state === 'error' && (load.reason === 'not_signed_in' || load.reason === 'not_owner')) {
+    if (load.state === 'support') return <div className="space-y-2" data-line-devices="support">{compose}</div>;
+    if (load.state === 'error' && REFUSED.has(load.reason)) {
       return (
         <p className="rounded-2xl bg-slate-900/70 border border-white/10 p-5 text-brand-ice/85 font-nunito text-lg" data-line-devices={load.reason}>
           {load.reason === 'not_owner' ? t('lineDevices.panel.notOwner') : t('lineDevices.panel.notSignedIn')}
@@ -330,50 +407,7 @@ const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, activ
           );
         })}
 
-        <h3 className="pt-3 pb-1 text-sm uppercase tracking-wide text-white/70 font-nunito">{t('lineDevices.panel.messageHeading')}</h3>
-        {QUICK.map((key, i) => {
-          const id = `quick:${i}`;
-          return (
-            <div key={id} {...rowProps(id)} className={rowCls(id)}>
-              {radio(choice === i)}
-              <span className="flex-1 min-w-0 font-nunito">{t(key)}</span>
-            </div>
-          );
-        })}
-        <div {...rowProps('custom')} className={rowCls('custom', 'items-start')}>
-          {radio(choice === CUSTOM)}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center">
-              <PencilLine className="w-4 h-4 mr-2 text-brand-gold shrink-0" />
-              <span className="font-nunito font-semibold">{t('lineDevices.panel.writeOwn')}</span>
-              <span className="ml-auto pl-3 text-xs font-nunito text-white/60 tabular-nums">{t('lineDevices.panel.counter', { used: custom.length, max: MAX_BODY })}</span>
-            </div>
-            {/* No autofocus: OK on this row asks for the keyboard. */}
-            <input
-              ref={inputRef}
-              type="text"
-              value={custom}
-              maxLength={MAX_BODY}
-              placeholder={t('lineDevices.panel.placeholder')}
-              onChange={(e) => { setCustom(e.target.value.slice(0, MAX_BODY)); setChoice(CUSTOM); setResult(null); }}
-              // Opening the keyboard clicks the field: that click is not a press on the row.
-              onClick={(e) => e.stopPropagation()}
-              onFocus={() => setChoice(CUSTOM)}
-              className="mt-2 w-full rounded-lg bg-black/30 border border-white/15 text-white px-3 py-2 font-nunito focus:outline-none"
-            />
-            {focused('custom') && <p className="mt-1 text-xs font-nunito text-brand-ice/60">{t('lineDevices.panel.writeOwnHint')}</p>}
-          </div>
-        </div>
-
-        <div {...rowProps('send')} className={rowCls('send', `justify-center ${focused('send') ? 'bg-brand-gold/25 border-brand-gold/60' : ''}`)}>
-          {sending ? <Loader2 className="w-5 h-5 mr-2 animate-spin text-brand-gold" /> : <Send className="w-5 h-5 mr-2 text-brand-gold" />}
-          <span className="font-quicksand font-bold">{sending ? t('lineDevices.panel.sending') : t('lineDevices.panel.sendBtn')}</span>
-        </div>
-        {result && (
-          <p role="status" data-send-result={result.ok ? 'ok' : result.reason} className={`pt-1 font-nunito ${result.ok ? 'text-emerald-300' : 'text-amber-300'}`}>
-            {resultText(result)}
-          </p>
-        )}
+        {compose}
       </div>
     );
   })();
@@ -392,7 +426,7 @@ const LineDevicesPanel = memo(({ host, username, onBack, embedded = false, activ
       )}
       <div ref={listRef} className={embedded ? 'flex-1 overflow-auto p-1' : 'flex-1 overflow-auto p-6 flex items-start justify-center'}>
         <div className="w-full max-w-2xl">
-          <p className="text-brand-ice/80 font-nunito mb-4">{t('lineDevices.panel.intro')}</p>
+          <p className="text-brand-ice/80 font-nunito mb-4">{t(support ? 'lineDevices.panel.noEmailIntro' : 'lineDevices.panel.intro')}</p>
           {body}
         </div>
       </div>

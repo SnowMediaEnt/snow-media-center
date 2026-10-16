@@ -3,8 +3,10 @@
 // A line's owner (or an admin) sees the Snow Media Center installs signed
 // into the line and sends them a short message; every TV it was sent to
 // shows it as a popup over anything, playback included (DeviceMessageHost).
-// This file is the box's side of it, plus the two calls the owner's screen
-// makes (LineDevicesPanel):
+// This file is the box's side of it, plus the calls the owner's screen
+// makes (LineDevicesPanel): the owner's two, and the two a TV makes for a
+// line with no email on file, whose owner can't be told apart in the app
+// (support sends the message for them):
 //
 //   * The inbox key: 48 random characters made once per install and kept
 //     with Preferences (localStorage as a fallback). It is what this install
@@ -88,6 +90,14 @@ export interface DevicesOutcome {
   ok: boolean;
   devices?: LineDevice[];
   /** Set when ok is false: 'not_signed_in', 'not_owner', or what went wrong. */
+  reason?: string;
+}
+
+export interface OwnerStatusOutcome {
+  ok: boolean;
+  /** Set when ok: whether the line's customer has an email on file. */
+  email_on_file?: boolean;
+  /** Set when ok is false: 'unknown_key', 'other_line', or what went wrong. */
   reason?: string;
 }
 
@@ -500,6 +510,29 @@ export async function sendLineMessage(host: string, username: string, refs: stri
   const res = await call({ action: 'send', host, username, refs, body: text });
   if (res.ok !== true) return { ok: false, reason: reasonOf(res) };
   return { ok: true, sent: typeof res.sent === 'number' ? res.sent : 0 };
+}
+
+// --- a line with no email on file ------------------------------------------------
+
+/** Whether the line has an email on file, asked as this TV (its key must be registered on the line). */
+export async function lineOwnerStatus(host: string, username: string): Promise<OwnerStatusOutcome> {
+  if (isDemo()) return { ok: false, reason: 'demo' };
+  const key = await getInboxKey();
+  if (!key) return { ok: false, reason: 'no_key' };
+  const res = await call({ action: 'owner_status', inbox_key: key, host, username });
+  if (res.ok !== true) return { ok: false, reason: reasonOf(res) };
+  return { ok: true, email_on_file: res.email_on_file === true };
+}
+
+/** A line with no email on file: a support ticket asking support to send `body` to the line's TVs. */
+export async function askSupportToSend(host: string, username: string, body: string): Promise<SendOutcome> {
+  if (isDemo()) return { ok: false, reason: 'demo' };
+  const text = body.trim();
+  if (!text || text.length > MAX_BODY) return { ok: false, reason: 'bad_body' };
+  const key = await getInboxKey();
+  if (!key) return { ok: false, reason: 'no_key' };
+  const res = await call({ action: 'support_request', inbox_key: key, host, username, body: text });
+  return res.ok === true ? { ok: true } : { ok: false, reason: reasonOf(res) };
 }
 
 // Tests only.

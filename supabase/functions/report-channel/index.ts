@@ -8,15 +8,12 @@
 // every subject carries a guest tag so none can pass for another kind of alert.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { clientIp, hashIp, logIpHeadersOnce, throttle, type ThrottleDb } from '../_shared/requestGuard.ts';
+import { playerReportsUserId } from '../_shared/playerReports.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-const SENTINEL_EMAIL = 'player-reports@snowmediaapps.com';
-const SENTINEL_NAME = 'Player Reports';
-let cachedSentinelId: string | null = null;
 
 const PER_IP_PER_HOUR = 6;
 const ALL_PER_HOUR = 100;
@@ -34,42 +31,6 @@ export const scrubSecrets = (text: string): string => text
   .replace(/([?&]password=)[^&\s]*/gi, '$1[removed]')
   .replace(/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1[removed]@')
   .replace(/(\/(?:live|movie|series|timeshift)\/[^\s/]+\/)[^\s/]+\//gi, '$1[removed]/');
-
-async function resolveSentinelUserId(admin: ReturnType<typeof createClient>): Promise<string> {
-  if (cachedSentinelId) return cachedSentinelId;
-
-  // Try create; if already exists, page through users to find it.
-  const created = await admin.auth.admin.createUser({
-    email: SENTINEL_EMAIL,
-    email_confirm: true,
-    password: crypto.randomUUID(),
-    user_metadata: { full_name: SENTINEL_NAME },
-  });
-
-  let userId: string | null = created.data?.user?.id ?? null;
-
-  if (!userId) {
-    // Fall back to lookup — paginate auth users.
-    for (let page = 1; page <= 20 && !userId; page++) {
-      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-      if (error) throw error;
-      const match = data.users.find((u) => (u.email || '').toLowerCase() === SENTINEL_EMAIL);
-      if (match) userId = match.id;
-      if (!data.users.length || data.users.length < 200) break;
-    }
-  }
-
-  if (!userId) throw new Error('Failed to resolve sentinel user');
-
-  // Ensure a profiles row exists so the admin dashboard join renders a name/email.
-  await admin.from('profiles').upsert(
-    { user_id: userId, email: SENTINEL_EMAIL, full_name: SENTINEL_NAME },
-    { onConflict: 'user_id' },
-  );
-
-  cachedSentinelId = userId;
-  return userId;
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
@@ -107,7 +68,7 @@ Deno.serve(async (req) => {
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
-    const sentinelId = await resolveSentinelUserId(admin);
+    const sentinelId = await playerReportsUserId(admin);
 
     const { data: ticket, error: ticketErr } = await admin
       .from('support_tickets')

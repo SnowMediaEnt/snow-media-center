@@ -34,7 +34,10 @@
       "sendFailed": "The message didn't go through. Try again.",
       "loadFailed": "Couldn't load the devices.",
       "retryBtn": "Try again",
-      "noDevices": "No TVs have signed in to this line yet."
+      "noDevices": "No TVs have signed in to this line yet.",
+      "noEmailIntro": "This line has no email on file, so its TVs can't be messaged straight from here. Pick a message and Snow Media support will send it to the TVs on this line for you.",
+      "supportSendBtn": "Send to support",
+      "supportSent": "Sent to support. They'll pass it on to the TVs on this line."
     },
     "message": {
       "fromAdmin": "Message from Snow Media",

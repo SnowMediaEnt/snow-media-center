@@ -1,7 +1,8 @@
 /**
  * "Devices on this line" (LineDevicesPanel): the list from device-inbox, the
  * remote walking it, All / some devices, a ready-made or own message, what
- * goes to the server, and the not-signed-in / not-the-owner lines.
+ * goes to the server, the not-signed-in / not-the-owner lines, and a TV on
+ * a line with no email on file sending through support.
  */
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -211,6 +212,51 @@ describe('LineDevicesPanel', () => {
     await renderPanel();
     expect(document.querySelector('[data-line-devices="not_signed_in"]')?.textContent)
       .toBe('Sign in to the Snow Media account that owns this line to message its devices.');
+    // The admin screen never offers support's way.
+    expect(h.calls.map((c) => c.action)).toEqual(['devices']);
+  });
+
+  it('a TV on a line with no email on file: the messages without the list, and Send files them with support', async () => {
+    h.reply = (b) => {
+      if (b.action === 'devices') return httpError(401, { ok: false, reason: 'not_signed_in' });
+      if (b.action === 'owner_status') return { data: { ok: true, email_on_file: false }, error: null };
+      if (b.action === 'support_request') return { data: { ok: true }, error: null };
+      return undefined;
+    };
+    await renderPanel({ viaSupport: true });
+    expect(document.querySelector('[data-line-devices="support"]')).toBeTruthy();
+    expect(screen.getByText(/This line has no email on file/)).toBeTruthy();
+    expect(h.calls.find((c) => c.action === 'owner_status')).toMatchObject({ host: HOST, username: 'jsmith', inbox_key: expect.stringMatching(/^[A-Za-z0-9]{48}$/) });
+    expect(document.querySelector('[data-row^="dev:"], [data-row="all"]')).toBeNull();
+    expect(focusedRow()).toBe('quick:0');
+
+    key('ArrowDown'); key('Enter'); // "Please switch to the other account."
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
+    expect(focusedRow()).toBe('send');
+    expect(document.querySelector('[data-row="send"]')?.textContent).toBe('Send to support');
+    key('Enter');
+    await until(() => !!document.querySelector('[data-send-result]'));
+    expect(h.calls.filter((c) => c.action === 'support_request')).toEqual([{
+      action: 'support_request', inbox_key: expect.stringMatching(/^[A-Za-z0-9]{48}$/), host: HOST, username: 'jsmith', body: 'Please switch to the other account.',
+    }]);
+    expect(sends()).toEqual([]);
+    expect(document.querySelector('[data-send-result="ok"]')?.textContent).toBe("Sent to support. They'll pass it on to the TVs on this line.");
+  });
+
+  it('a TV on a line with an email on file: the sign-in line, nothing for support', async () => {
+    h.reply = (b) => {
+      if (b.action === 'devices') return httpError(403, { ok: false, reason: 'not_owner' });
+      if (b.action === 'owner_status') return { data: { ok: true, email_on_file: true }, error: null };
+      return undefined;
+    };
+    await renderPanel({ viaSupport: true });
+    expect(document.querySelector('[data-line-devices="not_owner"]')).toBeTruthy();
+    expect(document.querySelector('[data-row]')).toBeNull();
+    // Unsure (the TV isn't registered on the line yet): the same.
+    h.reply = (b) => (b.action === 'devices' ? httpError(401, { ok: false, reason: 'not_signed_in' })
+      : b.action === 'owner_status' ? { data: { ok: false, reason: 'unknown_key' }, error: null } : undefined);
+    await renderPanel({ viaSupport: true, username: 'other' });
+    expect(document.querySelectorAll('[data-line-devices="not_signed_in"]').length).toBe(1);
   });
 
   it('a failed load offers Try again', async () => {
