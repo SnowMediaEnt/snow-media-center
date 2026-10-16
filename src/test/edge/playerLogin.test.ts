@@ -1,7 +1,7 @@
 // player-login's per-IP limit is keyed the same way as everywhere else:
 // cf-connecting-ip, not the first x-forwarded-for entry a caller can forge.
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { eqValue, loadEdgeFunction, type FakeHandlers } from './fakeSupabase';
+import { loadEdgeFunction, type FakeHandlers } from './fakeSupabase';
 
 const state = vi.hoisted(() => ({ handlers: {} as FakeHandlers }));
 vi.mock('@supabase/supabase-js', async () => {
@@ -23,9 +23,9 @@ beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(async () => new Response(JSON.stringify({ user_info: { auth: 0 } })));
   state.handlers = {
-    onQuery: (q) => {
-      const k = eqValue(q, 'ip_hash');
-      if (q.table === 'player_login_throttle' && typeof k === 'string' && !k.startsWith('line:')) ipKeys.push(k);
+    onRpc: (c) => {
+      const k = String(c.args.p_key);
+      if (c.name === 'throttle_hit' && !k.startsWith('line:')) ipKeys.push(k);
       return undefined;
     },
   };

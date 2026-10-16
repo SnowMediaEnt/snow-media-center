@@ -113,31 +113,19 @@ const HTML_ESCAPES: Record<string, string> = {
 const esc = (s: string) => s.replace(/[<>&"']/g, (c) => HTML_ESCAPES[c] ?? c);
 
 interface ThrottleDb {
-  from(table: string): {
-    select(cols: string): {
-      eq(col: string, val: string): { maybeSingle(): Promise<{ data: { count: number | null; window_start: string } | null }> };
-    };
-    upsert(row: Record<string, unknown>, opts: { onConflict: string }): Promise<unknown>;
-    update(row: Record<string, unknown>): { eq(col: string, val: string): Promise<unknown> };
-  };
+  rpc(fn: 'throttle_hit', args: { p_key: string; p_window_ms: number }): PromiseLike<{ data: unknown; error: unknown }>;
 }
 
 /** Shares player_login_throttle under its own prefixes, so this never spends player-login's budget. */
 async function throttle(admin: ThrottleDb, key: string | null, max: number): Promise<boolean> {
   if (!key) return true;
   try {
-    const windowStart = new Date(Date.now() - THROTTLE_WINDOW_MS).toISOString();
-    const { data } = await admin.from('player_login_throttle').select('count, window_start').eq('ip_hash', key).maybeSingle();
-    if (!data || data.window_start < windowStart) {
-      await admin.from('player_login_throttle').upsert(
-        { ip_hash: key, window_start: new Date().toISOString(), count: 1 },
-        { onConflict: 'ip_hash' },
-      );
-      return true;
-    }
-    const nextCount = (data.count ?? 0) + 1;
-    await admin.from('player_login_throttle').update({ count: nextCount }).eq('ip_hash', key);
-    return nextCount <= max;
+    // One statement (public.throttle_hit), so calls arriving together each
+    // get their own count instead of all reading the same one.
+    const { data, error } = await admin.rpc('throttle_hit', { p_key: key, p_window_ms: THROTTLE_WINDOW_MS });
+    if (error) throw new Error((error as { message?: string }).message ?? String(error));
+    if (typeof data !== 'number') throw new Error(`throttle_hit returned ${JSON.stringify(data)}`);
+    return data <= max;
   } catch (e) {
     // Fail open: a throttle-table outage must not stop a paying customer
     // receiving the line they just bought.

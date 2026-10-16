@@ -6278,6 +6278,10 @@ export type Database = {
           xtream_status: string
         }[]
       }
+      throttle_hit: {
+        Args: { p_key: string; p_window_ms: number }
+        Returns: number
+      }
       update_own_tenant_identity: {
         Args: { p_code?: string; p_name?: string; p_tenant_id: string }
         Returns: Json

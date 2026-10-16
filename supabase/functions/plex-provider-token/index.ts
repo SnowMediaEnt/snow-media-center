@@ -357,21 +357,12 @@ async function throttle(
 ): Promise<boolean> {
   if (!key) return true;
   try {
-    const windowStart = new Date(Date.now() - THROTTLE_WINDOW_MS).toISOString();
-    const { data } = await admin
-      .from('player_login_throttle')
-      .select('count, window_start')
-      .eq('ip_hash', key)
-      .maybeSingle();
-    if (!data || data.window_start < windowStart) {
-      await admin
-        .from('player_login_throttle')
-        .upsert({ ip_hash: key, window_start: new Date().toISOString(), count: 1 }, { onConflict: 'ip_hash' });
-      return true;
-    }
-    const nextCount = (data.count ?? 0) + 1;
-    await admin.from('player_login_throttle').update({ count: nextCount }).eq('ip_hash', key);
-    return nextCount <= max;
+    // One statement (public.throttle_hit), so calls arriving together each
+    // get their own count instead of all reading the same one.
+    const { data, error } = await admin.rpc('throttle_hit', { p_key: key, p_window_ms: THROTTLE_WINDOW_MS });
+    if (error) throw error;
+    if (typeof data !== 'number') throw new Error(`throttle_hit returned ${JSON.stringify(data)}`);
+    return data <= max;
   } catch (e) {
     console.warn('[plex-provider-token] throttle fail-open:', e);
     return true;

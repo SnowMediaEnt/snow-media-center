@@ -59,48 +59,47 @@ describe('hashIp', () => {
   });
 });
 
-/** An in-memory player_login_throttle. */
-function fakeDb(fail = false) {
-  const rows = new Map<string, { count: number; window_start: string }>();
+/** An in-memory public.throttle_hit (one atomic hit on a
+ *  player_login_throttle row), on a clock the test moves. */
+function fakeDb(fail: false | 'error' | 'throw' = false) {
+  const clock = { now: Date.parse('2026-09-24T10:00:00Z') };
+  const rows = new Map<string, { count: number; window_start: number }>();
   const db: ThrottleDb = {
-    from: () => ({
-      select: () => ({
-        eq: (_c: string, key: string) => ({
-          maybeSingle: async () => {
-            if (fail) throw new Error('table missing');
-            return { data: rows.get(key) ?? null };
-          },
-        }),
-      }),
-      upsert: async (row: Record<string, unknown>) => {
-        rows.set(String(row.ip_hash), { count: Number(row.count), window_start: String(row.window_start) });
-      },
-      update: (row: Record<string, unknown>) => ({
-        eq: async (_c: string, key: string) => {
-          const r = rows.get(key);
-          if (r) r.count = Number(row.count);
-        },
-      }),
-    }),
+    rpc: async (_fn, { p_key, p_window_ms }) => {
+      if (fail === 'throw') throw new Error('fetch failed');
+      if (fail === 'error') return { data: null, error: { message: 'function public.throttle_hit does not exist' } };
+      const r = rows.get(p_key);
+      const next = !r || r.window_start < clock.now - p_window_ms
+        ? { count: 1, window_start: clock.now }
+        : { count: r.count + 1, window_start: r.window_start };
+      rows.set(p_key, next);
+      return { data: next.count, error: null };
+    },
   };
-  return { db, rows };
+  return { db, rows, clock };
 }
 
 describe('throttle', () => {
   const HOUR = 3600_000;
   it('allows up to the limit per window, then refuses', async () => {
-    const { db } = fakeDb();
-    const t0 = Date.parse('2026-09-24T10:00:00Z');
+    const { db, clock } = fakeDb();
     const results: boolean[] = [];
-    for (let i = 0; i < 4; i++) results.push(await throttle(db, 'rc:abc', 3, HOUR, t0 + i * 1000));
+    for (let i = 0; i < 4; i++) { results.push(await throttle(db, 'rc:abc', 3, HOUR)); clock.now += 1000; }
     expect(results).toEqual([true, true, true, false]);
   });
-  it('starts a fresh window once the old one has passed', async () => {
+  it('gives calls that arrive together a count each, so only the limit pass', async () => {
     const { db } = fakeDb();
-    const t0 = Date.parse('2026-09-24T10:00:00Z');
-    for (let i = 0; i < 3; i++) await throttle(db, 'k', 2, HOUR, t0);
-    expect(await throttle(db, 'k', 2, HOUR, t0 + 30 * 60_000)).toBe(false);
-    expect(await throttle(db, 'k', 2, HOUR, t0 + HOUR + 1)).toBe(true);
+    const results = await Promise.all(Array.from({ length: 10 }, () => throttle(db, 'rc:all', 3, HOUR)));
+    expect(results.filter(Boolean)).toHaveLength(3);
+  });
+  it('starts a fresh window once the old one has passed', async () => {
+    const { db, clock } = fakeDb();
+    const t0 = clock.now;
+    for (let i = 0; i < 3; i++) await throttle(db, 'k', 2, HOUR);
+    clock.now = t0 + 30 * 60_000;
+    expect(await throttle(db, 'k', 2, HOUR)).toBe(false);
+    clock.now = t0 + HOUR + 1;
+    expect(await throttle(db, 'k', 2, HOUR)).toBe(true);
   });
   it('keeps keys apart', async () => {
     const { db } = fakeDb();
@@ -108,10 +107,12 @@ describe('throttle', () => {
     expect(await throttle(db, 'a', 1, HOUR)).toBe(false);
     expect(await throttle(db, 'b', 1, HOUR)).toBe(true);
   });
-  it('lets a call through with no key, or when the table fails', async () => {
+  it('lets a call through with no key, or when the database fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     expect(await throttle(fakeDb().db, null, 0, HOUR)).toBe(true);
-    expect(await throttle(fakeDb(true).db, 'k', 1, HOUR)).toBe(true);
+    expect(await throttle(fakeDb('error').db, 'k', 1, HOUR)).toBe(true);
+    expect(await throttle(fakeDb('throw').db, 'k', 1, HOUR)).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(2);
     warn.mockRestore();
   });
 });

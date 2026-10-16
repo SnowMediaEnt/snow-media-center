@@ -1,7 +1,8 @@
 // A stand-in for the service-role Supabase client an edge function creates,
 // for tests that load the function file (see vitest.config.ts). Every query
 // builder method is recorded and chains; awaiting the builder (or calling
-// maybeSingle/single) asks `onQuery` for the result.
+// maybeSingle/single) asks `onQuery` for the result. A throttle_hit nobody
+// answers counts as the key's first call in its window (1).
 
 export interface QueryCall { table: string; ops: Array<{ op: string; args: unknown[] }> }
 export interface RpcCall { name: string; args: Record<string, unknown> }
@@ -52,7 +53,8 @@ export function fakeSupabase(handlers: FakeHandlers = {}) {
     async rpc(name: string, args: Record<string, unknown>) {
       const c = { name, args };
       rpcs.push(c);
-      return { data: null, error: null, ...(handlers.onRpc?.(c) ?? {}) };
+      const answer = handlers.onRpc?.(c) ?? (name === 'throttle_hit' ? { data: 1 } : {});
+      return { data: null, error: null, ...answer };
     },
     auth: {
       async getUser(token?: string) {

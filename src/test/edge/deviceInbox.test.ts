@@ -2,9 +2,9 @@
 // accepts it, picks each message up once, and only the line's owner or an
 // admin can list a line's TVs or message them.
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { eqValue, loadEdgeFunction, opArg, userToken, type FakeHandlers, type QueryCall } from './fakeSupabase';
+import { eqValue, loadEdgeFunction, opArg, userToken, type FakeHandlers, type QueryCall, type RpcCall } from './fakeSupabase';
 
-const state = vi.hoisted(() => ({ handlers: {} as FakeHandlers, queries: [] as QueryCall[] }));
+const state = vi.hoisted(() => ({ handlers: {} as FakeHandlers, queries: [] as QueryCall[], rpcs: [] as RpcCall[] }));
 vi.mock('@supabase/supabase-js', async () => {
   const { fakeSupabase } = await import('./fakeSupabase');
   return {
@@ -12,6 +12,7 @@ vi.mock('@supabase/supabase-js', async () => {
       const { client } = fakeSupabase({
         ...state.handlers,
         onQuery: (q) => { if (!state.queries.includes(q)) state.queries.push(q); return state.handlers.onQuery?.(q); },
+        onRpc: (c) => { state.rpcs.push(c); return state.handlers.onRpc?.(c); },
       });
       (client.auth.admin as Record<string, unknown>).createUser = async () => ({ data: { user: { id: PLAYER_REPORTS } }, error: null });
       return client;
@@ -81,11 +82,11 @@ const lineTvsQuery = (q: QueryCall) => {
 beforeEach(() => {
   fetchMock.mockReset();
   state.queries.length = 0;
+  state.rpcs.length = 0;
   state.handlers = {
     userForToken: (t) => [ADMIN, OWNER, STRANGER].find((u) => t === userToken(u.id)) ?? null,
     onRpc: (c) => (c.name === 'has_role' ? { data: c.args._user_id === ADMIN.id && c.args._role === 'admin' } : undefined),
     onQuery: (q) => {
-      if (q.table === 'player_login_throttle') return { data: null };
       if (q.table === 'player_signins') {
         return eqValue(q, 'panel_host') === LINE.host && eqValue(q, 'panel_username') === LINE.username
           ? { data: { matched_customer_id: CUSTOMER } } : { data: null };
@@ -178,9 +179,8 @@ describe('device-inbox: register', () => {
     panelSays({ auth: 1 });
     const hash = await sha256(KEY);
     const full = (prefix: string, count: number) => {
-      const base = state.handlers.onQuery!;
-      state.handlers.onQuery = (q) => (q.table === 'player_login_throttle' && String(eqValue(q, 'ip_hash')).startsWith(prefix)
-        ? { data: { window_start: new Date().toISOString(), count } } : base(q));
+      const base = state.handlers.onRpc!;
+      state.handlers.onRpc = (c) => (c.name === 'throttle_hit' && String(c.args.p_key).startsWith(prefix) ? { data: count + 1 } : base(c));
     };
     full(`dib:key:${hash}`, 10);
     expect((await register()).body).toEqual({ ok: false, reason: 'rate_limited' });
@@ -191,6 +191,7 @@ describe('device-inbox: register', () => {
     expect((await register({ inbox_key: 'tv2_' + 'z'.repeat(40) })).body).toEqual({ ok: false, reason: 'rate_limited' });
     expect(fetchMock).not.toHaveBeenCalled();
     // The throttle never holds the key itself.
+    expect(state.rpcs.some((c) => JSON.stringify(c.args).includes(KEY))).toBe(false);
     expect(state.queries.some((q) => JSON.stringify(q.ops).includes(KEY))).toBe(false);
   });
 });
@@ -427,9 +428,8 @@ describe('device-inbox: a line with no email on file asks support', () => {
     expect((await ask()).body).toEqual({ ok: false, reason: 'email_on_file' });
     await setup(null);
     for (const body of ['', '   ', 'x'.repeat(201), 7]) expect(await ask({ body })).toEqual({ status: 400, body: { ok: false, reason: 'bad_body' } });
-    const base = state.handlers.onQuery!;
-    state.handlers.onQuery = (q) => (q.table === 'player_login_throttle' && eqValue(q, 'ip_hash') === 'dih:line:strmz.xyz:family@example.com'
-      ? { data: { window_start: new Date().toISOString(), count: 3 } } : base(q));
+    const base = state.handlers.onRpc!;
+    state.handlers.onRpc = (c) => (c.name === 'throttle_hit' && c.args.p_key === 'dih:line:strmz.xyz:family@example.com' ? { data: 4 } : base(c));
     expect((await ask()).body).toEqual({ ok: false, reason: 'rate_limited' });
     expect(ticket()).toBeNull();
   });
@@ -531,9 +531,8 @@ describe('device-inbox: devices and send', () => {
 
   it('allows 10 sends per line an hour, however many TVs each reaches', async () => {
     let used = 0;
-    const base = state.handlers.onQuery!;
-    state.handlers.onQuery = (q) => (q.table === 'player_login_throttle' && eqValue(q, 'ip_hash') === 'dim:send:strmz.xyz:family@example.com'
-      ? { data: { window_start: new Date().toISOString(), count: used } } : base(q));
+    const base = state.handlers.onRpc!;
+    state.handlers.onRpc = (c) => (c.name === 'throttle_hit' && c.args.p_key === 'dim:send:strmz.xyz:family@example.com' ? { data: used + 1 } : base(c));
     // A send to all three TVs is one send.
     used = 8;
     expect((await send(OWNER.id, { refs: 'all' })).body).toEqual({ ok: true, sent: 3 });
@@ -546,9 +545,9 @@ describe('device-inbox: devices and send', () => {
     // Admins too.
     expect((await send(ADMIN.id, { refs: [TV_A] })).body).toEqual({ ok: false, reason: 'rate_limited' });
     // A send that reaches no TV is not counted.
-    state.queries.length = 0;
+    state.rpcs.length = 0;
     expect((await send(OWNER.id, { refs: [ELSEWHERE] })).body).toEqual({ ok: true, sent: 0 });
-    expect(queriesOf('player_login_throttle')).toHaveLength(0);
+    expect(state.rpcs.filter((c) => c.name === 'throttle_hit')).toHaveLength(0);
   });
 });
 

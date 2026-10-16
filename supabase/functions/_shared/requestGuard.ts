@@ -138,35 +138,26 @@ export function logIpHeadersOnce(tag: string, headers: Headers): void {
 
 // The slice of a service-role client the throttle uses, typed by shape (see
 // player-favorites for why not ReturnType<typeof createClient>).
-interface ThrottleRow { count: number | null; window_start: string }
 export interface ThrottleDb {
-  from: (table: 'player_login_throttle') => {
-    select: (cols: string) => {
-      eq: (col: string, v: string) => { maybeSingle: () => PromiseLike<{ data: ThrottleRow | null }> };
-    };
-    upsert: (row: Record<string, unknown>, opts: { onConflict: string }) => PromiseLike<unknown>;
-    update: (row: Record<string, unknown>) => { eq: (col: string, v: string) => PromiseLike<unknown> };
-  };
+  rpc: (fn: 'throttle_hit', args: { p_key: string; p_window_ms: number }) => PromiseLike<{ data: unknown; error: unknown }>;
 }
 
 /**
  * Counts one call against `key` and says whether it is within `max` per
  * `windowMs`. Shares player_login_throttle with player-login and the others,
- * each under its own key prefix. A missing key (no IP) is let through, and so
- * is a table error: a throttle outage must not take the feature down.
+ * each under its own key prefix. The count goes up in one statement
+ * (public.throttle_hit), so calls arriving together each get their own
+ * count rather than all reading the same one. A missing key (no IP) is let
+ * through, and so is a database error: a throttle outage must not take the
+ * feature down.
  */
-export async function throttle(db: ThrottleDb, key: string | null, max: number, windowMs: number, now = Date.now()): Promise<boolean> {
+export async function throttle(db: ThrottleDb, key: string | null, max: number, windowMs: number): Promise<boolean> {
   if (!key) return true;
   try {
-    const windowStart = new Date(now - windowMs).toISOString();
-    const { data } = await db.from('player_login_throttle').select('count, window_start').eq('ip_hash', key).maybeSingle();
-    if (!data || data.window_start < windowStart) {
-      await db.from('player_login_throttle').upsert({ ip_hash: key, window_start: new Date(now).toISOString(), count: 1 }, { onConflict: 'ip_hash' });
-      return max >= 1;
-    }
-    const next = (data.count ?? 0) + 1;
-    await db.from('player_login_throttle').update({ count: next }).eq('ip_hash', key);
-    return next <= max;
+    const { data, error } = await db.rpc('throttle_hit', { p_key: key, p_window_ms: windowMs });
+    if (error) throw new Error((error as { message?: string }).message ?? String(error));
+    if (typeof data !== 'number') throw new Error(`throttle_hit returned ${JSON.stringify(data)}`);
+    return data <= max;
   } catch (e) {
     console.warn('[throttle] fail-open:', e instanceof Error ? e.message : String(e));
     return true;

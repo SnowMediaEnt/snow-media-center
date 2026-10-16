@@ -13,7 +13,6 @@ vi.mock('@supabase/supabase-js', async () => {
         onQuery: (q) => {
           if (!state.queries.includes(q)) state.queries.push(q);
           if (q.table === 'support_tickets') return { data: { id: 'ticket-1' } };
-          if (q.table === 'player_login_throttle') return { data: null };
           return undefined;
         },
       });

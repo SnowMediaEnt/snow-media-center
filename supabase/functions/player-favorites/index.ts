@@ -178,15 +178,8 @@ async function verifyLine(host: string, username: string, password: string): Pro
 // `never` and each column access fails `deno check` — the code runs, the
 // check does not. A structural type says exactly what is used and nothing
 // about generics.
-interface ThrottleRow { count: number | null; window_start: string }
 interface ThrottleDb {
-  from: (table: 'player_login_throttle') => {
-    select: (cols: string) => {
-      eq: (col: string, v: string) => { maybeSingle: () => PromiseLike<{ data: ThrottleRow | null }> };
-    };
-    upsert: (row: Record<string, unknown>, opts: { onConflict: string }) => PromiseLike<unknown>;
-    update: (row: Record<string, unknown>) => { eq: (col: string, v: string) => PromiseLike<unknown> };
-  };
+  rpc: (fn: 'throttle_hit', args: { p_key: string; p_window_ms: number }) => PromiseLike<{ data: unknown; error: unknown }>;
 }
 
 // Shares player_login_throttle (keyed by an arbitrary text key) but under its
@@ -198,21 +191,12 @@ async function throttle(
 ): Promise<boolean> {
   if (!key) return true;
   try {
-    const windowStart = new Date(Date.now() - THROTTLE_WINDOW_MS).toISOString();
-    const { data } = await admin
-      .from('player_login_throttle')
-      .select('count, window_start')
-      .eq('ip_hash', key)
-      .maybeSingle();
-    if (!data || data.window_start < windowStart) {
-      await admin
-        .from('player_login_throttle')
-        .upsert({ ip_hash: key, window_start: new Date().toISOString(), count: 1 }, { onConflict: 'ip_hash' });
-      return true;
-    }
-    const nextCount = (data.count ?? 0) + 1;
-    await admin.from('player_login_throttle').update({ count: nextCount }).eq('ip_hash', key);
-    return nextCount <= max;
+    // One statement (public.throttle_hit), so calls arriving together each
+    // get their own count instead of all reading the same one.
+    const { data, error } = await admin.rpc('throttle_hit', { p_key: key, p_window_ms: THROTTLE_WINDOW_MS });
+    if (error) throw error;
+    if (typeof data !== 'number') throw new Error(`throttle_hit returned ${JSON.stringify(data)}`);
+    return data <= max;
   } catch (e) {
     console.warn('[player-favorites] throttle fail-open:', e);
     return true;

@@ -48,7 +48,7 @@ let dayCalls: number;
 let usageAdds: RpcCall[];
 let usageLog: Row[];
 let signals: Row[];
-let throttles: Map<string, { count: number; window_start: string }>;
+let throttles: Map<string, { count: number; start: number }>;
 let knownDevices: string[];
 
 const scanKey = (q: QueryCall) => `${eqValue(q, 'host')}|${eqValue(q, 'day')}`;
@@ -58,12 +58,6 @@ function onQuery(q: QueryCall) {
   if (q.table === 'feature_flags') return { data: flag == null ? null : { enabled: flag } };
   if (q.table === 'ai_safety_state') {
     return { data: { id: 1, paused, pause_reason: paused ? 'Paused by admin' : null, paused_until: null, token_threshold_per_hour: 2_000_000, notify_email: '' } };
-  }
-  if (q.table === 'player_login_throttle') {
-    const key = String(eqValue(q, 'ip_hash') ?? (opArg(q, 'upsert') as Row | undefined)?.ip_hash);
-    if (ops.includes('upsert')) { const r = opArg(q, 'upsert') as { count: number; window_start: string }; throttles.set(key, { count: r.count, window_start: r.window_start }); return {}; }
-    if (ops.includes('update')) { throttles.get(key)!.count = (opArg(q, 'update') as { count: number }).count; return {}; }
-    return { data: throttles.get(key) ?? null };
   }
   if (q.table === 'game_day_ai_matches') {
     if (ops.includes('upsert')) {
@@ -94,6 +88,13 @@ function onQuery(q: QueryCall) {
 }
 
 function onRpc(c: RpcCall) {
+  if (c.name === 'throttle_hit') {
+    const key = String(c.args.p_key);
+    const r = throttles.get(key);
+    const next = !r || r.start < Date.now() - Number(c.args.p_window_ms) ? { count: 1, start: Date.now() } : { ...r, count: r.count + 1 };
+    throttles.set(key, next);
+    return { data: next.count };
+  }
   if (c.name === 'game_day_ai_host_take') {
     const k = `${c.args.p_host}|${c.args.p_day}`;
     const row = scans.get(k) ?? { host: c.args.p_host, day: c.args.p_day, scans: 0 };
