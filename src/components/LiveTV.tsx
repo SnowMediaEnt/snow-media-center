@@ -798,6 +798,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setSettingsOpen(false);
     setAccountFormOpen(false);
   }, []);
+  // The line Settings offers "Devices on this line" for (host + username only).
+  const settingsLine = useMemo(
+    () => (creds?.host && creds.username ? { host: creds.host, username: creds.username } : null),
+    [creds?.host, creds?.username],
+  );
 
 
   // Keyboard for shell (header pane + sections pane; content pane is owned by child)
@@ -1260,6 +1265,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           onChangeCredentials={() => { if (DEMO) demoAccountNote(); else setAccountFormOpen(true); }}
           onSwitchAccount={onSwitchAccount}
           onTryLayout={tryLayout}
+          line={settingsLine}
         />
       </Suspense>
     );

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,8 +37,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AppAlertsManager from '@/components/AppAlertsManager';
 import AdminUserManager from '@/components/AdminUserManager';
 import FreeAISection from '@/components/FreeAISection';
-import { AlertTriangle, Users, MonitorSmartphone } from 'lucide-react';
+import { AlertTriangle, Users, MonitorSmartphone, Tv } from 'lucide-react';
 import AdminRemoteRequests from '@/components/AdminRemoteRequests';
+import { SERVERS, pickServerForUsername, serverDisplayName } from '@/lib/xtream';
+
+// "Line devices": the TVs signed into any line, and a message to them.
+const LineDevicesPanel = lazy(() => import('@/components/livetv/LineDevicesPanel'));
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import { useTVFocus } from '@/hooks/useTVFocus';
 
@@ -62,12 +67,18 @@ interface AdminSupportDashboardProps {
 }
 
 const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<'list' | 'ticket'>('list');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [userFilter, setUserFilter] = useState<{ id: string; email: string } | null>(null);
-  const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts' | 'ai' | 'remote'>('tickets');
+  const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts' | 'ai' | 'remote' | 'devices'>('tickets');
+  // Line devices: the line typed in, its server (picked from the username
+  // until the admin picks one), and the line whose devices are open.
+  const [lineUser, setLineUser] = useState('');
+  const [lineServer, setLineServer] = useState<string | null>(null);
+  const [devicesFor, setDevicesFor] = useState<{ host: string; username: string } | null>(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [broadcastSubject, setBroadcastSubject] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
@@ -80,6 +91,8 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   // into view, opens the keyboard on fields, and scrolls the page when there
   // is nothing further to land on.
   const { containerRef, focusById } = useTVFocus({
+    // The devices screen over this one has the remote while it is open.
+    enabled: !devicesFor,
     focusableSelector: ADMIN_FOCUSABLE,
     initialFocusId: 'back',
     scrollWhenStuck: true,
@@ -139,6 +152,23 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
     }
   };
 
+
+  const lineServerLabel = lineServer ?? (lineUser.trim() ? pickServerForUsername(lineUser).label : SERVERS[0].label);
+  const openLineDevices = () => {
+    const username = lineUser.trim();
+    const server = SERVERS.find((s) => s.label === lineServerLabel);
+    if (!username || !server) return;
+    setDevicesFor({ host: server.host, username });
+  };
+  // Back from the devices screen: the highlight returns to "Show devices".
+  const devicesWasOpen = useRef(false);
+  useEffect(() => {
+    if (devicesFor) { devicesWasOpen.current = true; return; }
+    if (!devicesWasOpen.current) return;
+    devicesWasOpen.current = false;
+    const raf = requestAnimationFrame(() => { focusById('line-devices-show'); });
+    return () => cancelAnimationFrame(raf);
+  }, [devicesFor, focusById]);
 
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
   const ticketMessages = selectedTicketId ? messages[selectedTicketId] || [] : [];
@@ -427,7 +457,7 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
           </Select>
         </div>
 
-        <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'tickets' | 'users' | 'alerts' | 'ai')} className="w-full">
+        <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as typeof activeSection)} className="w-full">
           <TabsList className="bg-slate-800/60 border border-slate-700 mb-4">
             <TabsTrigger value="tickets" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               <MessageCircle className="h-4 w-4 mr-2" />
@@ -448,6 +478,10 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
               <TabsTrigger value="remote" className="data-[state=active]:bg-rose-600 data-[state=active]:text-white">
                 <MonitorSmartphone className="h-4 w-4 mr-2" />
                 Remote Requests
+              </TabsTrigger>
+              <TabsTrigger value="devices" className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white">
+                <Tv className="h-4 w-4 mr-2" />
+                {t('lineDevices.admin.devicesTab')}
               </TabsTrigger>
             </TabsList>
 
@@ -605,8 +639,57 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
             <TabsContent value="remote">
               <AdminRemoteRequests />
             </TabsContent>
+
+            <TabsContent value="devices">
+              <Card className="bg-gradient-to-br from-cyan-900/30 to-slate-900/40 border-cyan-700/40 p-6" data-admin-line-devices>
+                <p className="text-slate-200 mb-4">{t('lineDevices.admin.intro')}</p>
+                <label htmlFor="admin-line-user" className="block text-sm text-slate-300 mb-1">{t('lineDevices.admin.usernameLabel')}</label>
+                <Input
+                  id="admin-line-user"
+                  data-tv-focus-id="line-devices-user"
+                  value={lineUser}
+                  onChange={(e) => setLineUser(e.target.value)}
+                  autoComplete="off"
+                  className="mb-4 max-w-md"
+                />
+                <div className="text-sm text-slate-300 mb-1">{t('lineDevices.admin.serverLabel')}</div>
+                <div className="flex mb-4">
+                  {SERVERS.map((s, i) => (
+                    <Button
+                      key={s.label}
+                      type="button"
+                      data-tv-focus-id={`line-devices-server-${i}`}
+                      aria-pressed={lineServerLabel === s.label}
+                      onClick={() => setLineServer(s.label)}
+                      className={`${i > 0 ? 'ml-2' : ''} border ${lineServerLabel === s.label ? 'bg-cyan-600 border-cyan-300 text-white' : 'bg-slate-800 border-slate-600 text-slate-200'}`}
+                    >
+                      {serverDisplayName(s.label)}
+                    </Button>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  data-tv-focus-id="line-devices-show"
+                  disabled={!lineUser.trim()}
+                  onClick={openLineDevices}
+                  className="bg-cyan-600/20 border border-cyan-400/50 text-white hover:bg-cyan-600/40"
+                >
+                  <Tv className="h-4 w-4 mr-2" />
+                  {t('lineDevices.admin.showBtn')}
+                </Button>
+              </Card>
+            </TabsContent>
           </Tabs>
       </div>
+
+      {/* The line's devices, over the dashboard (which keeps its place). */}
+      {devicesFor && (
+        <div className="fixed left-0 top-0 w-full h-full z-50 bg-slate-950" data-admin-line-devices-open>
+          <Suspense fallback={null}>
+            <LineDevicesPanel host={devicesFor.host} username={devicesFor.username} onBack={() => setDevicesFor(null)} />
+          </Suspense>
+        </div>
+      )}
     </div>
   );
 };

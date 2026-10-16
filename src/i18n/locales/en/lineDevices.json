@@ -1,0 +1,52 @@
+{
+  "lineDevices": {
+    "hub": {
+      "menuLabel": "Devices on this line",
+      "hint": "The TVs signed in to this line, and a short message to send them. Press OK to open."
+    },
+    "panel": {
+      "title": "Devices on this line",
+      "intro": "TVs signed in to this line with Snow Media Center. Pick them, choose a message and send it: it pops up on their screen.",
+      "loading": "Loading the devices…",
+      "allDevices": "All devices",
+      "watchingNow": "Watching now",
+      "lastOpened": "Last opened {{when}}",
+      "version": "Version {{version}}",
+      "unnamed": "TV",
+      "messageHeading": "Message",
+      "quickBusy": "Too many people are on this line right now — please stop for a bit.",
+      "quickSwitch": "Please switch to the other account.",
+      "quickSignOut": "Please sign out of this line on your TV.",
+      "writeOwn": "Write your own",
+      "writeOwnHint": "Press OK to type.",
+      "placeholder": "Your message",
+      "counter": "{{used}}/{{max}}",
+      "sendBtn": "Send",
+      "sending": "Sending…",
+      "pickDevices": "Pick at least one device.",
+      "pickMessage": "Pick a message or write your own.",
+      "sent_one": "Sent to {{count}} device",
+      "sent_other": "Sent to {{count}} devices",
+      "rateLimited": "That's a lot of messages. Wait a few minutes, then try again.",
+      "notOwner": "Only this line's owner can message its devices.",
+      "notSignedIn": "Sign in to the Snow Media account that owns this line to message its devices.",
+      "badBody": "A message is 1 to 200 characters.",
+      "sendFailed": "The message didn't go through. Try again.",
+      "loadFailed": "Couldn't load the devices.",
+      "retryBtn": "Try again",
+      "noDevices": "No TVs have signed in to this line yet."
+    },
+    "message": {
+      "fromAdmin": "Message from Snow Media",
+      "fromOwner": "Message from the account owner",
+      "sentAt": "Sent {{when}}"
+    },
+    "admin": {
+      "devicesTab": "Line devices",
+      "intro": "Type a line's username and pick its server to see the TVs signed in to it and message them.",
+      "usernameLabel": "Line username",
+      "serverLabel": "Server",
+      "showBtn": "Show devices"
+    }
+  }
+}

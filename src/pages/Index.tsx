@@ -45,6 +45,7 @@ import { avatarColors, profileName } from '@/lib/profiles';
 import ProfileGate from '@/components/profiles/ProfileGate';
 import LazyVoiceCommandHost from '@/components/voice/LazyVoiceCommandHost';
 import GameReminderHost from '@/components/GameReminderHost';
+import DeviceMessageHost from '@/components/DeviceMessageHost';
 import PhoneTypingHint from '@/components/remote/PhoneTypingHint';
 import { startPhoneRemote } from '@/lib/phoneRemote';
 import { useRemoteHome } from '@/hooks/useRemoteHome';
@@ -1589,6 +1590,11 @@ const Index = () => {
 
       {/* Phone remote: the "type on your phone" card while a text box has focus. */}
       <PhoneTypingHint />
+
+      {/* Messages to this TV from the line's owner or Snow Media, over
+          anything. Before the reminders, so its remote listener comes first:
+          a message drawn over a reminder has the keys. */}
+      <DeviceMessageHost blocked={profileGateOpen} />
 
       {/* Game Day kickoff reminders ("Remind me"), over anything. */}
       <GameReminderHost navigate={stableNavigateTo} blocked={profileGateOpen} />
