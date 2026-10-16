@@ -131,3 +131,10 @@ verify_jwt = false
 # 10 a day per account, and the global AI pause.
 [functions.review-transcribe]
 verify_jwt = true
+
+# Messages to the TVs on a Live TV line. The TVs have no session: register
+# signs the line in to its panel first and the inbox key is the credential
+# after that. devices and send check the caller's JWT IN CODE (the line's
+# owner or an admin).
+[functions.device-inbox]
+verify_jwt = false
