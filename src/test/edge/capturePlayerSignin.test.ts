@@ -2,7 +2,7 @@
 // accepted it, and records what the panel says about it, not what the
 // request says.
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fakeSupabase, loadEdgeFunction, eqValue, type FakeHandlers } from './fakeSupabase';
+import { fakeSupabase, loadEdgeFunction, type FakeHandlers } from './fakeSupabase';
 
 const state = vi.hoisted(() => ({ handlers: {} as FakeHandlers, fake: null as null | ReturnType<typeof import('./fakeSupabase').fakeSupabase> }));
 vi.mock('@supabase/supabase-js', async () => {
@@ -94,26 +94,83 @@ describe('capture-player-signin', () => {
 
   it('limits each line on its own, before the panel is asked', async () => {
     panelSays({ auth: 1, status: 'Active' });
-    state.handlers.onQuery = (q) => {
-      if (q.table === 'player_signin_throttle' && String(eqValue(q, 'ip_hash')).startsWith('capture-line:')) {
-        return { data: { window_start: new Date().toISOString(), count: 8 } };
+    const answer = state.handlers.onRpc!;
+    state.handlers.onRpc = (c) => {
+      if (c.name === 'player_signin_throttle_hit' && String(c.args.p_key).startsWith('capture-line:')) {
+        return { data: 9 }; // the 9th call in the window; 8 per line
       }
-      return undefined;
+      return answer(c);
     };
     const out = await capture(line);
     expect(out).toEqual({ ok: false, reason: 'rate_limited' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('lets the 8th call on a line through', async () => {
+    panelSays({ auth: 1, status: 'Active' });
+    const answer = state.handlers.onRpc!;
+    state.handlers.onRpc = (c) => {
+      if (c.name === 'player_signin_throttle_hit' && String(c.args.p_key).startsWith('capture-line:')) return { data: 8 };
+      return answer(c);
+    };
+    const out = await capture(line);
+    expect(out).toEqual({ ok: true, linked: true });
+  });
+
+  it('limits each IP to 30 calls in a 5-minute window, in one call per hit', async () => {
+    const answer = state.handlers.onRpc!;
+    state.handlers.onRpc = (c) => {
+      if (c.name === 'player_signin_throttle_hit' && !String(c.args.p_key).startsWith('capture-line:')) return { data: 31 };
+      return answer(c);
+    };
+    const out = await capture(line, { 'cf-connecting-ip': '203.0.113.7' });
+    expect(out).toEqual({ ok: false, reason: 'rate_limited' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    const hits = state.fake!.rpcs.filter((c) => c.name === 'player_signin_throttle_hit');
+    expect(hits).toHaveLength(1);
+    expect(hits[0].args.p_window_ms).toBe(5 * 60 * 1000);
+    expect(state.fake!.queries.some((q) => q.table === 'player_signin_throttle')).toBe(false);
+  });
+
+  it('lets the 30th call from an IP through', async () => {
+    panelSays({ auth: 1, status: 'Active' });
+    const answer = state.handlers.onRpc!;
+    state.handlers.onRpc = (c) => {
+      if (c.name === 'player_signin_throttle_hit' && !String(c.args.p_key).startsWith('capture-line:')) return { data: 30 };
+      return answer(c);
+    };
+    const out = await capture(line, { 'cf-connecting-ip': '203.0.113.7' });
+    expect(out).toEqual({ ok: true, linked: true });
+  });
+
+  it.each([
+    ['an error', { data: null, error: { message: 'boom' } }],
+    ['no count', { data: null }],
+    ['a count that is not a number', { data: '99' }],
+  ])('lets the call through when the throttle answers with %s', async (_what, reply) => {
+    panelSays({ auth: 1, status: 'Active' });
+    const answer = state.handlers.onRpc!;
+    state.handlers.onRpc = (c) => (c.name === 'player_signin_throttle_hit' ? reply : answer(c));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const out = await capture(line, { 'cf-connecting-ip': '203.0.113.7' });
+      expect(out).toEqual({ ok: true, linked: true });
+      expect(warn.mock.calls.filter((a) => String(a[0]).includes('throttle fail-open'))).toHaveLength(2); // IP and line
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('keys the per-IP limit on cf-connecting-ip, not the caller-chosen first forwarded hop', async () => {
     panelSays({ auth: 0 });
     const keys: unknown[] = [];
-    state.handlers.onQuery = (q) => {
-      if (q.table === 'player_signin_throttle') {
-        const k = eqValue(q, 'ip_hash');
+    const answer = state.handlers.onRpc!;
+    state.handlers.onRpc = (c) => {
+      if (c.name === 'player_signin_throttle_hit') {
+        const k = c.args.p_key;
         if (typeof k === 'string' && !k.startsWith('capture-line:')) keys.push(k);
       }
-      return undefined;
+      return answer(c);
     };
     await capture(line, { 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '1.1.1.1, 203.0.113.7' });
     await capture(line, { 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '9.9.9.9, 203.0.113.7' });

@@ -5857,6 +5857,10 @@ export type Database = {
       }
       delete_tenant: { Args: { p_tenant_id: string }; Returns: Json }
       dispatch_accounts_expiring_digest: { Args: never; Returns: undefined }
+      email_check_throttle_hit: {
+        Args: { p_key: string; p_window_ms: number }
+        Returns: number
+      }
       finish_plinko_physics_round: {
         Args: {
           p_client_seed: string
@@ -6061,6 +6065,10 @@ export type Database = {
         Returns: Json
       }
       player_favorites_version: { Args: { p_ts: string }; Returns: number }
+      player_signin_throttle_hit: {
+        Args: { p_key: string; p_window_ms: number }
+        Returns: number
+      }
       plex_recommended: {
         Args: { p_limit?: number; p_server: string }
         Returns: {

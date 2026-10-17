@@ -29,31 +29,15 @@ async function throttle(
 ): Promise<boolean> {
   if (!ipHash) return true;
   try {
-    const { data } = await admin
-      .from('email_check_throttle')
-      .select('window_start, count')
-      .eq('ip_hash', ipHash)
-      .maybeSingle();
-
-    const now = Date.now();
-    if (!data) {
-      await admin.from('email_check_throttle').insert({ ip_hash: ipHash, count: 1 });
-      return true;
-    }
-    const started = new Date(data.window_start as string).getTime();
-    if (Number.isFinite(started) && now - started > THROTTLE_WINDOW_MS) {
-      await admin
-        .from('email_check_throttle')
-        .update({ window_start: new Date().toISOString(), count: 1, updated_at: new Date().toISOString() })
-        .eq('ip_hash', ipHash);
-      return true;
-    }
-    const nextCount = (data.count as number) + 1;
-    await admin
-      .from('email_check_throttle')
-      .update({ count: nextCount, updated_at: new Date().toISOString() })
-      .eq('ip_hash', ipHash);
-    return nextCount <= THROTTLE_MAX;
+    // One statement (public.email_check_throttle_hit), so calls arriving
+    // together each get their own count instead of all reading the same one.
+    const { data, error } = await admin.rpc('email_check_throttle_hit', {
+      p_key: ipHash,
+      p_window_ms: THROTTLE_WINDOW_MS,
+    });
+    if (error) throw error;
+    if (typeof data !== 'number') throw new Error(`email_check_throttle_hit returned ${JSON.stringify(data)}`);
+    return data <= THROTTLE_MAX;
   } catch (e) {
     console.warn('[check-account-email] throttle fail-open:', e);
     return true;

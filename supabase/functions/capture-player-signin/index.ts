@@ -292,31 +292,15 @@ async function throttle(
 ): Promise<{ allowed: boolean }> {
   if (!ipHash) return { allowed: true };
   try {
-    const { data } = await admin
-      .from('player_signin_throttle')
-      .select('window_start, count')
-      .eq('ip_hash', ipHash)
-      .maybeSingle();
-
-    const now = Date.now();
-    if (!data) {
-      await admin.from('player_signin_throttle').insert({ ip_hash: ipHash, count: 1 });
-      return { allowed: true };
-    }
-    const started = new Date(data.window_start as string).getTime();
-    if (Number.isFinite(started) && now - started > THROTTLE_WINDOW_MS) {
-      await admin
-        .from('player_signin_throttle')
-        .update({ window_start: new Date().toISOString(), count: 1 })
-        .eq('ip_hash', ipHash);
-      return { allowed: true };
-    }
-    const nextCount = (data.count as number) + 1;
-    await admin
-      .from('player_signin_throttle')
-      .update({ count: nextCount })
-      .eq('ip_hash', ipHash);
-    return { allowed: nextCount <= max };
+    // One statement (public.player_signin_throttle_hit), so calls arriving
+    // together each get their own count instead of all reading the same one.
+    const { data, error } = await admin.rpc('player_signin_throttle_hit', {
+      p_key: ipHash,
+      p_window_ms: THROTTLE_WINDOW_MS,
+    });
+    if (error) throw error;
+    if (typeof data !== 'number') throw new Error(`player_signin_throttle_hit returned ${JSON.stringify(data)}`);
+    return { allowed: data <= max };
   } catch (e) {
     console.warn('[capture-player-signin] throttle fail-open:', e);
     return { allowed: true };
