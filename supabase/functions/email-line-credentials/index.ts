@@ -116,6 +116,101 @@ interface ThrottleDb {
   rpc(fn: 'throttle_hit', args: { p_key: string; p_window_ms: number }): PromiseLike<{ data: unknown; error: unknown }>;
 }
 
+// ── The caller's address (same rule as _shared/requestGuard.ts clientIp +
+// hashIp, kept inline so this file can be pasted into the dashboard editor as
+// a single unit) ─────────────────────────────────────────────────────────────
+// cf-connecting-ip first: Cloudflare sets it, while the first x-forwarded-for
+// entry is whatever the caller sent, so keying on that let a script dodge the
+// per-IP limit with a new first hop on every call. Then x-forwarded-for read
+// from the right, then x-real-ip. A private, loopback, carrier-NAT or
+// Cloudflare address is a hop inside the platform and is skipped, or every
+// viewer would share one bucket. An IPv6 /64 counts as one caller.
+
+/** 16 bytes (IPv4 as ::ffff:a.b.c.d), or null if it is not an address. */
+function ipBytes(raw: string): number[] | null {
+  const s = raw.trim().replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s);
+  if (v4) {
+    const b = v4.slice(1).map(Number);
+    return b.every((n) => n <= 255) ? [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, ...b] : null;
+  }
+  if (!s.includes(':')) return null;
+  let text = s;
+  const tail = /^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/.exec(text); // ::ffff:1.2.3.4
+  if (tail) {
+    const b = ipBytes(tail[2]);
+    if (!b) return null;
+    text = `${tail[1]}${((b[12] << 8) | b[13]).toString(16)}:${((b[14] << 8) | b[15]).toString(16)}`;
+  }
+  const halves = text.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const rest = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const fill = 8 - head.length - rest.length;
+  if (halves.length === 2 ? fill < 1 : fill !== 0) return null;
+  const groups = [...head, ...Array<string>(Math.max(0, fill)).fill('0'), ...rest];
+  if (!groups.every((g) => /^[0-9a-f]{1,4}$/i.test(g))) return null;
+  return groups.flatMap((g) => { const n = parseInt(g, 16); return [n >> 8, n & 0xff]; });
+}
+
+const isV4 = (b: number[]) => b.slice(0, 10).every((x) => x === 0) && b[10] === 0xff && b[11] === 0xff;
+
+/** CIDR list as [bytes, prefix bits], IPv4 ones in their ::ffff: form. */
+const nets = (list: string[]) => list.map((c) => {
+  const [a, bits] = c.split('/');
+  return [ipBytes(a)!, Number(bits) + (a.includes(':') ? 0 : 96)] as const;
+});
+const inNet = (b: number[], [base, bits]: readonly [number[], number]) => {
+  for (let i = 0; bits > 0; i++, bits -= 8) {
+    const mask = bits >= 8 ? 0xff : (0xff << (8 - bits)) & 0xff;
+    if ((b[i] & mask) !== (base[i] & mask)) return false;
+  }
+  return true;
+};
+const NOT_A_CALLER = nets([
+  // unspecified, private, carrier NAT, loopback, link-local
+  '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16', '172.16.0.0/12', '192.168.0.0/16',
+  '::/127', 'fc00::/7', 'fe80::/10',
+  // Cloudflare (cloudflare.com/ips)
+  '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '141.101.64.0/18', '108.162.192.0/18',
+  '190.93.240.0/20', '188.114.96.0/20', '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+  '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+  '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32', '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+]);
+
+/** The bucket for a caller address (IPv4 as is, IPv6 by its /64), or null for anything else. */
+function callerBucket(raw: string | null | undefined): string | null {
+  const b = raw ? ipBytes(raw) : null;
+  if (!b || NOT_A_CALLER.some((n) => inNet(b, n))) return null;
+  if (isV4(b)) return b.slice(12).join('.');
+  const g: string[] = [];
+  for (let i = 0; i < 8; i += 2) g.push(((b[i] << 8) | b[i + 1]).toString(16));
+  return `${g.join(':')}::/64`;
+}
+
+/** The caller's address for the per-IP limit, or null when there is none (then it is not limited). */
+function clientIp(headers: Headers): string | null {
+  const cf = callerBucket(headers.get('cf-connecting-ip'));
+  if (cf) return cf;
+  const hops = (headers.get('x-forwarded-for') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  for (let i = hops.length - 1; i >= 0; i--) {
+    const ip = callerBucket(hops[i]);
+    if (ip) return ip;
+  }
+  return callerBucket(headers.get('x-real-ip'));
+}
+
+/** sha256 hex of the IP, so the throttle table never holds an address. */
+async function hashIp(ip: string | null): Promise<string | null> {
+  if (!ip) return null;
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip));
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return null;
+  }
+}
+
 /** Shares player_login_throttle under its own prefixes, so this never spends player-login's budget. */
 async function throttle(admin: ThrottleDb, key: string | null, max: number): Promise<boolean> {
   if (!key) return true;
@@ -293,9 +388,9 @@ Deno.serve(async (req) => {
     : null;
 
   if (admin) {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+    const ipHash = await hashIp(clientIp(req.headers));
     const db = admin as unknown as ThrottleDb;
-    const okIp = await throttle(db, ip ? `emailip:${ip}` : null, MAX_PER_IP);
+    const okIp = await throttle(db, ipHash ? `emailip:${ipHash}` : null, MAX_PER_IP);
     const okLine = await throttle(db, `emailline:${bareHost(host)}|${username.toLowerCase()}`, MAX_PER_LINE);
     if (!okIp || !okLine) return json({ error: 'rate_limited' }, 429);
   }
