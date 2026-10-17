@@ -1280,13 +1280,25 @@ class AppManagerPlugin : Plugin() {
       val pm = context.packageManager
       val before = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
       var asked = 0
+      // Only apps the viewer installed. Never the box's own: no system app,
+      // updated ones included (on a Fire TV Amazon's launcher, keyboard and
+      // Alexa apps are all updated system apps, and closing the launcher
+      // makes Home start it from cold), nothing from Amazon or Android, and
+      // not the launcher or keyboard in use, whoever made them.
+      val launcher = try {
+        pm.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY)
+          ?.activityInfo?.packageName
+      } catch (e: Exception) { null }
+      val keyboard = try {
+        Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)?.substringBefore('/')
+      } catch (e: Exception) { null }
+      val keep = setOfNotNull(context.packageName, launcher, keyboard)
       for (info in pm.getInstalledPackages(0)) {
         val ai = info.applicationInfo ?: continue
-        val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-        val isUpdatedSystem = (ai.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-        if (isSystem && !isUpdatedSystem) continue
-        if (ai.packageName == context.packageName) continue
-        try { am.killBackgroundProcesses(ai.packageName); asked++ } catch (e: Exception) { /* protected */ }
+        val pkg = ai.packageName
+        if ((ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0) continue
+        if (pkg in keep || pkg.startsWith("com.amazon.") || pkg.startsWith("com.android.")) continue
+        try { am.killBackgroundProcesses(pkg); asked++ } catch (e: Exception) { /* protected */ }
       }
       val after = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
       call.resolve(JSObject()
