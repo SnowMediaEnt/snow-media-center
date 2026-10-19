@@ -239,7 +239,7 @@ internal object NetShare {
             var path = ""
             for (p in c.folder.folder.split('/').filter { it.isNotEmpty() }) {
                 path = if (path.isEmpty()) p else "$path\\$p"
-                if (!c.share.folderExists(path)) {
+                if (!folderThere(c, path)) {
                     try { c.share.mkdir(path) } catch (e: SMBApiException) { if (!NetErrors.isNameTaken(e)) throw e }
                 }
             }
@@ -377,7 +377,7 @@ internal object NetShare {
         val base = name.removeSuffix(".ts")
         var candidate = name
         var n = 2
-        while (n < 1000 && (alsoTaken.any { it.equals(candidate, ignoreCase = true) } || c.share.fileExists(c.path(candidate)))) {
+        while (n < 1000 && (alsoTaken.any { it.equals(candidate, ignoreCase = true) } || fileThere(c, c.path(candidate)))) {
             candidate = "$base ($n).ts"
             n++
         }
@@ -440,7 +440,16 @@ internal object NetShare {
 
     fun sizeOf(f: SmbFile): Long = f.getFileInformation(FileStandardInformation::class.java).endOfFile
 
-    fun exists(c: NetConn, name: String): Boolean = c.share.fileExists(c.path(name))
+    fun exists(c: NetConn, name: String): Boolean = fileThere(c, c.path(name))
+
+    // Some servers (impacket, some NAS) answer a missing file or folder with
+    // "no such file" where Windows says "not found"; smbj's exists checks
+    // only take the latter as false and throw on the former.
+    private fun missing(e: SMBApiException) = e.status == NtStatus.STATUS_NO_SUCH_FILE
+    private fun fileThere(c: NetConn, path: String): Boolean =
+        try { c.share.fileExists(path) } catch (e: SMBApiException) { if (missing(e)) false else throw e }
+    private fun folderThere(c: NetConn, path: String): Boolean =
+        try { c.share.folderExists(path) } catch (e: SMBApiException) { if (missing(e)) false else throw e }
 
     /** Renames [from] to [to] in the folder; never replaces a file that exists. */
     fun rename(c: NetConn, from: String, to: String) {
