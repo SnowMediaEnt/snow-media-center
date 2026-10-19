@@ -41,3 +41,39 @@ export function createSkipQueue(run: (deltaSec: number) => Promise<unknown> | un
     clear() { pending = 0; },
   };
 }
+
+/** Where a film is: seconds in, and its length (0 when unknown). */
+export interface FilmPosition { position: number; duration: number }
+
+/**
+ * A jump made this recently is where the next one starts from: the player
+ * may still report the spot it jumped from for a moment after a seek.
+ */
+const SEEK_SETTLE_MS = 2000;
+
+/**
+ * ◀ ▶ in a film (Live TV films, Plex): jumps relative to where it is, one
+ * at a time, quick presses added up (a SkipQueue), each one from where the
+ * last landed while the player catches up, so three quick ◀ are 30 s back,
+ * never 10. Kept inside the film (0 .. its length − 1 s). `landed` hears
+ * where each jump went.
+ */
+export function createSeekSkipper(
+  getPosition: () => Promise<FilmPosition>,
+  seekTo: (sec: number) => Promise<unknown> | unknown,
+  landed?: (to: number, duration: number, deltaSec: number) => void,
+  now: () => number = Date.now,
+): SkipQueue {
+  let last: { to: number; at: number; duration: number } | null = null;
+  return createSkipQueue(async (delta) => {
+    const from: FilmPosition = last && now() - last.at < SEEK_SETTLE_MS
+      ? { position: last.to, duration: last.duration }
+      : await getPosition();
+    const max = from.duration > 0 ? Math.max(0, from.duration - 1) : Number.MAX_SAFE_INTEGER;
+    const to = Math.min(max, Math.max(0, from.position + delta));
+    last = { to, at: now(), duration: from.duration };
+    await seekTo(to);
+    last.at = now();
+    landed?.(to, from.duration, delta);
+  });
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createSkipQueue, MEDIA_SKIP_SEC } from './skipQueue';
+import { createSeekSkipper, createSkipQueue, MEDIA_SKIP_SEC } from './skipQueue';
 import { MEDIA_KEY_EVENT, onMediaKey, type MediaKey } from './mediaKeys';
 
 // Rewind / Fast-forward on the remote: 10 s a press; held, the repeats are
@@ -43,6 +43,54 @@ describe('createSkipQueue', () => {
     release();
     await Promise.resolve(); await Promise.resolve();
     expect(run).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('createSeekSkipper', () => {
+  const flush = async () => { for (let i = 0; i < 20; i += 1) await Promise.resolve(); };
+
+  it('three quick ◀ are 30 s back, though the player still reports the old spot', async () => {
+    let t = 1000;
+    const getPosition = vi.fn(async () => ({ position: 600, duration: 3600 }));
+    const seeks: number[] = [];
+    const landed = vi.fn();
+    const q = createSeekSkipper(getPosition, async (s) => { seeks.push(s); }, landed, () => t);
+    q.push(-10);
+    await flush();
+    t += 400; q.push(-10);
+    await flush();
+    t += 400; q.push(-10);
+    await flush();
+    expect(seeks).toEqual([590, 580, 570]);
+    expect(getPosition).toHaveBeenCalledTimes(1);
+    expect(landed).toHaveBeenLastCalledWith(570, 3600, -10);
+  });
+
+  it('reads the player again once it has settled, and stays inside the film', async () => {
+    let t = 0;
+    let pos = 5;
+    const seeks: number[] = [];
+    const q = createSeekSkipper(async () => ({ position: pos, duration: 100 }), async (s) => { seeks.push(s); }, undefined, () => t);
+    q.push(-10);
+    await flush();
+    t += 5000; pos = 95;
+    q.push(30);
+    await flush();
+    expect(seeks).toEqual([0, 99]);
+  });
+
+  it('presses that come while a jump is running are added up into one', async () => {
+    let release: () => void = () => {};
+    const seeks: number[] = [];
+    const q = createSeekSkipper(async () => ({ position: 300, duration: 0 }), (s) => { seeks.push(s); return new Promise<void>((r) => { release = r; }); });
+    q.push(-10);
+    await flush();
+    q.push(-10); q.push(-10);
+    release();
+    await flush();
+    release();
+    await flush();
+    expect(seeks).toEqual([290, 270]);
   });
 });
 

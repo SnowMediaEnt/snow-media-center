@@ -236,7 +236,9 @@
       "noSoundBody": "لا يمكن فك ترميز صوت هذه القناة ({{codecs}}) على هذا الجهاز. أبلغ عن القناة في الدعم وسنعيد ترميزها.",
       "playbackError": "خطأ في التشغيل",
       "volPill": "الصوت {{pct}}%",
-      "loadFailed": "تعذّر تحميل البث"
+      "loadFailed": "تعذّر تحميل البث",
+      "skipBack": "رجوع {{sec}} ث",
+      "skipForward": "تقديم {{sec}} ث"
     },
     "multi": {
       "needsAppTitle": "تعدد الشاشات يتطلب تطبيق Fire TV / Android",

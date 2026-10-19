@@ -19,7 +19,7 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { XtreamCreds, XtreamLiveStream } from '@/lib/xtream';
 
-const h = vi.hoisted(() => ({ saved: [] as unknown[], back: [] as Array<() => void> }));
+const h = vi.hoisted(() => ({ saved: [] as unknown[], back: [] as Array<() => void>, seekable: false, seeks: [] as number[] }));
 
 const SECOND_HOST = 'http://two.test';
 const NEWS: XtreamLiveStream[] = [
@@ -96,8 +96,8 @@ vi.mock('@/hooks/use-toast', () => {
 vi.mock('./VideoPlayer', async () => {
   const { useEffect } = await import('react');
   const ctrl = {
-    play: () => {}, pause: () => {}, togglePlay: () => {}, seek: () => {},
-    isPaused: () => false, isSeekable: () => false,
+    play: () => {}, pause: () => {}, togglePlay: () => {}, seek: (d: number) => { h.seeks.push(d); },
+    isPaused: () => false, isSeekable: () => h.seekable,
     getSubtitleTracks: () => [], setSubtitleTrack: () => {},
     getAudioTracks: () => [], setAudioTrack: () => {},
   };
@@ -181,7 +181,7 @@ const watchNewsOne = async () => {
 };
 
 beforeEach(() => {
-  localStorage.clear(); sessionStorage.clear(); toasts.said = []; h.saved = []; h.back = [];
+  localStorage.clear(); sessionStorage.clear(); toasts.said = []; h.saved = []; h.back = []; h.seekable = false; h.seeks = [];
   __setViewerForTests('device');
   // Newest first: News One (on screen in most tests), Sports Two, an adult
   // channel (never listed), News Two.
@@ -190,6 +190,49 @@ beforeEach(() => {
   ]));
 });
 afterEach(() => { cleanup(); document.documentElement.className = ''; });
+
+describe('◀ ▶ jump 10 s over a channel that can go back', () => {
+  const skipNote = () => q('[data-live-skip]')?.textContent ?? null;
+  const total = () => h.seeks.reduce((a, b) => a + b, 0);
+
+  it('each ◀ is 10 s back, the bar staying down so the next ◀ jumps again; ▶ comes forward', async () => {
+    h.seekable = true;
+    await watchNewsOne();
+    press('ArrowLeft');
+    press('ArrowLeft');
+    press('ArrowLeft');
+    await settle(20);
+    expect(total()).toBe(-30);
+    expect(barUp()).toBe(false);
+    expect(overlay()).toBeNull();
+    expect(skipNote()).toBe('30 s back');
+    press('ArrowRight');
+    await settle(20);
+    expect(total()).toBe(-20);
+    expect(panel()).toBeNull();
+    expect(skipNote()).toBe('20 s back');
+    // The note goes once the presses stop.
+    await settle(1600);
+    expect(skipNote()).toBeNull();
+  });
+
+  it('the remote\'s Menu (≡) opens the channel list over the picture, bar up or down', async () => {
+    h.seekable = true;
+    await watchNewsOne();
+    act(() => { fireEvent.keyDown(window, { key: 'ContextMenu', keyCode: 82 }); });
+    expect(overlay()).not.toBeNull();
+    expect(overlayFocus()).toContain('News One');
+    expect(h.seeks).toEqual([]);
+  });
+
+  it('a channel with nothing to go back in: ◀ opens the channel list and ▶ Recently watched, as before', async () => {
+    await watchNewsOne();
+    press('ArrowLeft');
+    expect(overlay()).not.toBeNull();
+    expect(h.seeks).toEqual([]);
+    expect(skipNote()).toBeNull();
+  });
+});
 
 describe('Recently watched over the picture (▶)', () => {
   it('▶ opens it newest first, on the channel before the one playing; no adult channel', async () => {

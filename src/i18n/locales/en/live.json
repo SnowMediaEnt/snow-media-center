@@ -236,7 +236,9 @@
       "noSoundBody": "This channel's audio ({{codecs}}) can't be decoded on this device. Report the channel in Support and we'll re-encode it.",
       "playbackError": "Playback Error",
       "volPill": "Vol {{pct}}%",
-      "loadFailed": "Failed to load stream"
+      "loadFailed": "Failed to load stream",
+      "skipBack": "{{sec}} s back",
+      "skipForward": "{{sec}} s forward"
     },
     "multi": {
       "needsAppTitle": "Multi-Screen needs the Fire TV / Android app",

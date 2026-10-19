@@ -235,7 +235,8 @@ describe('VodPlayer control bar', () => {
     await key('ArrowRight');
     expect(focusedName()).toBe('Forward 30 seconds');
     await key('Enter');
-    expect(h.seekTo).toHaveBeenLastCalledWith(630);
+    // From where the last jump landed (the player may still say 600).
+    expect(h.seekTo).toHaveBeenLastCalledWith(620);
   });
 
   it('◀ ▶ with the bar hidden seek, and leave the volume alone', async () => {
@@ -244,11 +245,20 @@ describe('VodPlayer control bar', () => {
     await key('ArrowRight');
     expect(h.seekTo).toHaveBeenLastCalledWith(630);
     await key('ArrowLeft');
-    expect(h.seekTo).toHaveBeenLastCalledWith(590);
+    expect(h.seekTo).toHaveBeenLastCalledWith(620);
     expect(bar()).toBeNull();
     expect(q('[data-vod-seek]')).not.toBeNull();
     expect(h.args?.volume).toBe(1.2);
     expect(onVolumeChange).not.toHaveBeenCalled();
+  });
+
+  it('three quick ◀ with the bar hidden are 30 s back, the bar staying down', async () => {
+    render(<VodPlayer src={URL_MKV} volume={1} />);
+    await key('ArrowLeft');
+    await key('ArrowLeft');
+    await key('ArrowLeft');
+    expect(h.seekTo.mock.calls.map((c) => c[0])).toEqual([590, 580, 570]);
+    expect(bar()).toBeNull();
   });
 
   it('the seek bar: ▲ reaches it, ◀ ▶ move the marker, OK jumps there', async () => {

@@ -19,7 +19,7 @@
 //   the next episode here.
 //
 // Chrome 66: no inset, no aspect-ratio, no gap beyond gap-1..4.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAudioPassthrough } from '@/lib/audioOutput';
 import { AudioLines, FastForward, Gauge, Pause, Play, Rewind, SkipForward, Subtitles, Volume2, VolumeX } from 'lucide-react';
@@ -31,6 +31,7 @@ import { VOD_BACK_SEC, VOD_FWD_SEC, vodBarDisabled, vodBarLabel, vodBarOrder, ty
 import { stepVolume } from '@/utils/volume';
 import { keepInView } from '@/utils/keepInView';
 import { onMediaKey } from '@/lib/mediaKeys';
+import { createSeekSkipper } from '@/lib/skipQueue';
 import { useTouchUI } from '@/lib/phoneMode';
 
 type Focus = VodBarId | 'timeline';
@@ -172,21 +173,27 @@ export default function VodControlBar({
 
   useEffect(() => () => { clearTimer(hideTimer); clearTimer(scrubTimer); clearTimer(noteTimer); }, []);
 
-  // A jump of `delta` seconds from where the film is now.
-  const seekBy = useCallback(async (delta: number, note: boolean) => {
-    const c = cur.current;
-    const p = await c.getPosition();
-    const max = p.duration > 0 ? Math.max(0, p.duration - 1) : Number.MAX_SAFE_INTEGER;
-    const to = Math.min(max, Math.max(0, p.position + delta));
-    await c.seekTo(to);
-    setPos(to);
-    if (p.duration > 0) setDur(p.duration);
-    if (note) {
+  // A jump of `delta` seconds: quick presses add up, each from where the last
+  // one landed (lib/skipQueue), so three quick ◀ are 30 s back. `note`: the
+  // time shows on the picture (the bar is down).
+  const noteNext = useRef(false);
+  const skipper = useMemo(() => createSeekSkipper(
+    () => cur.current.getPosition(),
+    (to) => cur.current.seekTo(to),
+    (to, duration, delta) => {
+      setPos(to);
+      if (duration > 0) setDur(duration);
+      if (!noteNext.current) return;
       clearTimer(noteTimer);
-      setSeekNote({ dir: delta < 0 ? -1 : 1, at: to, dur: p.duration });
+      setSeekNote({ dir: delta < 0 ? -1 : 1, at: to, dur: duration });
       noteTimer.current = window.setTimeout(() => setSeekNote(null), SEEK_NOTE_MS);
-    }
-  }, []);
+    },
+  ), []);
+  useEffect(() => () => skipper.clear(), [skipper]);
+  const seekBy = useCallback((delta: number, note: boolean) => {
+    noteNext.current = note;
+    skipper.push(delta);
+  }, [skipper]);
 
   const commitScrub = useCallback(() => {
     clearTimer(scrubTimer);
@@ -208,8 +215,8 @@ export default function VodControlBar({
     const c = cur.current;
     if (c.disabled(id)) return;
     if (id === 'play') { if (!repeat) c.controller?.togglePlay(); }
-    else if (id === 'rew') void seekBy(-VOD_BACK_SEC, false);
-    else if (id === 'fwd') void seekBy(VOD_FWD_SEC, false);
+    else if (id === 'rew') seekBy(-VOD_BACK_SEC, false);
+    else if (id === 'fwd') seekBy(VOD_FWD_SEC, false);
     else if (id === 'next') { if (!repeat) { c.onNext?.(); setFocus('play'); } }
     else if (id === 'cc') { setMenu('cc'); setMenuIdx(Math.max(0, c.subs.findIndex((s) => s.active) + 1)); }
     else if (id === 'audio') { setMenu('audio'); setMenuIdx(Math.max(0, c.auds.findIndex((a) => a.active))); }
@@ -291,8 +298,8 @@ export default function VodControlBar({
       stop();
 
       if (!c.visible) {
-        if (e.key === 'ArrowLeft') { void seekBy(-VOD_BACK_SEC, true); return; }
-        if (e.key === 'ArrowRight') { void seekBy(VOD_FWD_SEC, true); return; }
+        if (e.key === 'ArrowLeft') { seekBy(-VOD_BACK_SEC, true); return; }
+        if (e.key === 'ArrowRight') { seekBy(VOD_FWD_SEC, true); return; }
         clearTimer(noteTimer);
         setSeekNote(null);
         setFocus('play');

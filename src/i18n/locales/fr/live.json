@@ -236,7 +236,9 @@
       "noSoundBody": "L'audio de cette chaîne ({{codecs}}) ne peut pas être décodé sur cet appareil. Signalez la chaîne dans Assistance et nous la réencoderons.",
       "playbackError": "Erreur de lecture",
       "volPill": "Vol {{pct}} %",
-      "loadFailed": "Échec du chargement du flux"
+      "loadFailed": "Échec du chargement du flux",
+      "skipBack": "{{sec}} s en arrière",
+      "skipForward": "{{sec}} s en avant"
     },
     "multi": {
       "needsAppTitle": "Multi-écran nécessite l'appli Fire TV / Android",

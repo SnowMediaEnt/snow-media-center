@@ -236,7 +236,9 @@
       "noSoundBody": "El audio de este canal ({{codecs}}) no se puede decodificar en este dispositivo. Reporta el canal en Soporte y lo recodificaremos.",
       "playbackError": "Error de reproducción",
       "volPill": "Vol {{pct}}%",
-      "loadFailed": "No se pudo cargar la transmisión"
+      "loadFailed": "No se pudo cargar la transmisión",
+      "skipBack": "{{sec}} s atrás",
+      "skipForward": "{{sec}} s adelante"
     },
     "multi": {
       "needsAppTitle": "Multipantalla requiere la app de Fire TV / Android",

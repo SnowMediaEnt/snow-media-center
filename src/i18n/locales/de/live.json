@@ -236,7 +236,9 @@
       "noSoundBody": "Der Ton dieses Senders ({{codecs}}) kann auf diesem Gerät nicht dekodiert werden. Melde den Sender im Support, dann kodieren wir ihn neu.",
       "playbackError": "Wiedergabefehler",
       "volPill": "Lautst. {{pct}} %",
-      "loadFailed": "Der Stream konnte nicht geladen werden"
+      "loadFailed": "Der Stream konnte nicht geladen werden",
+      "skipBack": "{{sec}} s zurück",
+      "skipForward": "{{sec}} s vor"
     },
     "multi": {
       "needsAppTitle": "Multi-Screen braucht die App für Fire TV / Android",

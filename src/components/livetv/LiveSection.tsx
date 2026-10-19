@@ -68,7 +68,7 @@ import BufferingDiagnostics from './BufferingDiagnostics';
 import SnowLoader from '@/components/SnowLoader';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import type { VideoController } from './VideoPlayer';
-import { AlertTriangle, RotateCw } from 'lucide-react';
+import { AlertTriangle, FastForward, Rewind, RotateCw } from 'lucide-react';
 import { hasNativePlayer, SnowPlayer } from '@/capacitor/SnowPlayer';
 import { SnowRecorder, RECORDINGS_CHANGED_EVENT, hasRecorder, notifyRecordingsChanged, type RecordingJob } from '@/capacitor/SnowRecorder';
 import { programmeTimeUtcMs } from '@/lib/recordSchedule';
@@ -133,6 +133,8 @@ const ASPECT_RATIO_OK = aspectRatioSupported();
 const RECORD_CAPABLE = NATIVE_PLAYBACK && !DEMO && hasRecorder();
 /** Hold OK this long on a channel for its short menu (Favorite, Report, Record…). */
 const HOLD_MS = 600;
+/** How long the ◀ ▶ jump note stays after the last press. */
+const SKIP_NOTE_MS = 1500;
 // Demo call-site swap (Plex pattern): fixtures answer every read in demo.
 const fetchLiveCategories = DEMO ? demoGetLiveCategories : getLiveCategories;
 const fetchLiveStreams = DEMO ? demoGetLiveStreams : getLiveStreams;
@@ -650,6 +652,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // category opened here loads exactly as in the list. What the list showed
   // before is put back when the viewer closes it without picking a channel.
   const [chOverlayOpen, setChOverlayOpen] = useState(false);
+  // ◀ ▶ jumps with nothing on screen: how far, added up while the presses
+  // keep coming (the bar stays down, so the next ◀ jumps again).
+  const [skipNote, setSkipNote] = useState<number | null>(null);
+  const skipNoteRef = useRef<{ sum: number; timer: number | null }>({ sum: 0, timer: null });
   const chOverlayOpenRef = useRef(false);
   chOverlayOpenRef.current = chOverlayOpen;
   const overlayTimerRef = useRef<number | null>(null);
@@ -1983,6 +1989,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (ctrl?.isSeekable()) { ctrl.seek(delta); return; }
     say(rewindOffMessage(rw.offReason));
   }), []);
+  // ◀ / ▶ with the bar down: jump back / forward 10 s, with a small note
+  // instead of the bar (with the bar up, ◀ ▶ walk its buttons).
+  const skipFromKey = useCallback((delta: number) => {
+    liveSkip.push(delta);
+    const n = skipNoteRef.current;
+    n.sum += delta;
+    setSkipNote(n.sum);
+    if (n.timer) window.clearTimeout(n.timer);
+    n.timer = window.setTimeout(() => { n.sum = 0; n.timer = null; setSkipNote(null); }, SKIP_NOTE_MS);
+  }, [liveSkip]);
+  useEffect(() => () => { const n = skipNoteRef.current; if (n.timer) window.clearTimeout(n.timer); }, []);
   useEffect(() => {
     if (!isActive || !fullscreen) return;
     const off = onMediaKey((k) => {
@@ -2606,14 +2623,34 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           return;
         }
 
-        // --- Bar is HIDDEN: ▲▼ zap, ◀ the channel list over the picture (on
-        // the channel playing), ▶ Recently watched, OK shows the bar. The
-        // volume is the bar's Volume and the remote's own keys. ---
+        // --- Remote Menu (≡): the channel list over the picture, bar up or down. ---
+        if (e.key === 'ContextMenu' || e.keyCode === 82) {
+          e.preventDefault(); e.stopPropagation();
+          openChannelOverlay();
+          return;
+        }
+
+        // --- Bar is HIDDEN: ▲▼ zap; ◀ back 10 s and ▶ forward 10 s (the
+        // channel's rewind, or a seek); OK shows the bar. Where there is
+        // nothing to jump in, ◀ still opens the channel list and ▶ (at the
+        // live point) Recently watched, as before. The volume is the bar's
+        // Volume and the remote's own keys. ---
         if (!barVisibleRef.current) {
           if (e.key === 'ArrowUp')    { e.preventDefault(); changeChannelInFullscreen(-1); pokeBar(); setBarFocus('play'); return; }
           if (e.key === 'ArrowDown')  { e.preventDefault(); changeChannelInFullscreen(+1); pokeBar(); setBarFocus('play'); return; }
-          if (e.key === 'ArrowLeft')  { e.preventDefault(); e.stopPropagation(); openChannelOverlay(); return; }
-          if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); openRecent(); return; }
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault(); e.stopPropagation();
+            const rw = rewindRef.current;
+            const seekable = !!videoControllerRef.current?.isSeekable();
+            const back = e.key === 'ArrowLeft';
+            const canJump = back
+              ? rw.kind !== 'off' || seekable
+              : (rw.kind !== 'off' ? (rw.info?.behindSec ?? 0) >= 1 : seekable);
+            if (canJump) skipFromKey(back ? -MEDIA_SKIP_SEC : +MEDIA_SKIP_SEC);
+            else if (back) openChannelOverlay();
+            else openRecent();
+            return;
+          }
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             setBarFocus('play');
@@ -2902,7 +2939,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       cancelEnterTimer();
       cancelCatHold();
     };
-  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, cancelCatHold, openCategoryOptions, toggleCollapsed, liveSkip, openChannelOverlay, closeChannelOverlay, overlayBackStep, showOverlayCategories, pokeOverlay, openRecent, leavePicture]);
+  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, cancelCatHold, openCategoryOptions, toggleCollapsed, liveSkip, skipFromKey, openChannelOverlay, closeChannelOverlay, overlayBackStep, showOverlayCategories, pokeOverlay, openRecent, leavePicture]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -3275,6 +3312,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           </div>
         )}
         {NATIVE_PLAYBACK && statsShown && !chOverlayOpen && !recent.open && <PlayerStatsPanel />}
+        {fullscreen && skipNote !== null && skipNote !== 0 && !barVisible && !chOverlayOpen && !recent.open && (
+          <div data-live-skip className="absolute bottom-12 left-0 w-full flex justify-center pointer-events-none animate-fade-in z-20">
+            <span className="inline-flex items-center px-4 py-2 rounded-full bg-black/75 text-white font-quicksand font-bold text-base tabular-nums">
+              {skipNote < 0 ? <Rewind className="w-5 h-5 mr-2 text-brand-gold" /> : <FastForward className="w-5 h-5 mr-2 text-brand-gold" />}
+              {t(skipNote < 0 ? 'live.player.skipBack' : 'live.player.skipForward', { sec: Math.abs(skipNote) })}
+            </span>
+          </div>
+        )}
         <PlayerControlBar
           visible={barVisible && !chOverlayOpen && !recent.open}
           order={liveBarOrder({ record: recordOn })}

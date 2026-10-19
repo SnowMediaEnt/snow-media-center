@@ -25,6 +25,7 @@ import { stepVolume, volumeBar } from '@/utils/volume';
 import PlayerStatsPanel from './PlayerStatsPanel';
 import PlayerMenuList from './PlayerMenuList';
 import { useTouchUI } from '@/lib/phoneMode';
+import { createSeekSkipper } from '@/lib/skipQueue';
 
 // 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
 // move a preview marker (accelerating on repeated presses), OK jumps there.
@@ -123,6 +124,11 @@ const formatName = (f: { labelKey: string }): string => i18n.t(f.labelKey);
 const formatHint = (f: { hintKey: string }): string => i18n.t(f.hintKey);
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+/** ◀ ▶ with the bar hidden (and the bar's buttons): back 10 s, forward 30 s. */
+const BACK_SEC = 10;
+const FWD_SEC = 30;
+const SEEK_NOTE_MS = 1500;
+
 const fmtTime = (sec: number) => {
   const s = Math.max(0, Math.floor(sec));
   const h = Math.floor(s / 3600);
@@ -316,18 +322,39 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     setMenuIdx(idx < 0 ? 0 : idx);
   }, []);
 
+  // ◀ ▶ with the bar hidden, and the bar's −10 s / +30 s: quick presses add
+  // up, each from where the last one landed (lib/skipQueue), so three quick
+  // ◀ are 30 s back. With the bar hidden the time shows on the picture and
+  // the bar stays down, so the next ◀ jumps again.
+  const skipFns = useRef({ getPosition, seekTo });
+  skipFns.current = { getPosition, seekTo };
+  const [seekNote, setSeekNote] = useState<{ dir: 1 | -1; at: number; dur: number } | null>(null);
+  const noteTimer = useRef<number | null>(null);
+  const skipper = useMemo(() => createSeekSkipper(
+    () => skipFns.current.getPosition(),
+    (to) => skipFns.current.seekTo(to),
+    (to, duration, delta) => {
+      setPos(to);
+      if (duration > 0) setDur(duration);
+      if (noteTimer.current) window.clearTimeout(noteTimer.current);
+      setSeekNote({ dir: delta < 0 ? -1 : 1, at: to, dur: duration });
+      noteTimer.current = window.setTimeout(() => setSeekNote(null), SEEK_NOTE_MS);
+    },
+  ), []);
+  useEffect(() => () => { skipper.clear(); if (noteTimer.current) window.clearTimeout(noteTimer.current); }, [skipper]);
+
   const doAction = useCallback(async (r: Row) => {
     if (!controller && r !== 'volume' && r !== 'buffering') return;
     if (r === 'play') controller?.togglePlay();
-    else if (r === 'seek-10') { const p = await getPosition(); await seekTo(Math.max(0, p.position - 10)); }
-    else if (r === 'seek+30') { const p = await getPosition(); await seekTo(p.position + 30); }
+    else if (r === 'seek-10') skipper.push(-BACK_SEC);
+    else if (r === 'seek+30') skipper.push(FWD_SEC);
     else if (r === 'audio') { setMenu('audio'); setMenuIdx(Math.max(0, auds.findIndex((a) => a.active))); }
     else if (r === 'subs') { openSubs(); }
     else if (r === 'quality') { openQuality(); }
     else if (r === 'format') { openFormatRef.current(); }
     else if (r === 'volume') { setMenu('volume'); setMenuIdx(0); }
     else if (r === 'buffering') { setMenu('help'); setMenuIdx(0); }
-  }, [controller, getPosition, seekTo, auds, openSubs, openQuality]);
+  }, [controller, skipper, auds, openSubs, openQuality]);
 
   // Refs for key handler
   const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
@@ -427,7 +454,12 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         if (!e.repeat) promptRef.current.onOk();
         return;
       }
-      // Any key shows the overlay + resets the auto-hide timer.
+      // ◀ ▶ with the bar hidden: back 10 s / forward 30 s, as in Live TV's films.
+      if (!visibleRef.current && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        skipper.push(e.key === 'ArrowLeft' ? -BACK_SEC : FWD_SEC);
+        return;
+      }
+      // Any other key shows the overlay + resets the auto-hide timer.
       if (!visibleRef.current) { showRef.current(); return; }
       armHideRef.current();
 
@@ -581,7 +613,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [active]);
+  }, [active, skipper]);
 
   const isMenu = (m: string) => menu === m;
   const isRow = (r: string) => row === r;
@@ -652,7 +684,16 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     okHere();
   } : undefined;
 
-  if (!visible) return statsEl || tapEl ? <>{tapEl}{promptEl}{statsEl}</> : promptEl;
+  const noteEl = active && seekNote && !visible ? (
+    <div data-plex-seek className="absolute bottom-12 left-0 w-full flex justify-center pointer-events-none animate-fade-in z-20">
+      <span className="inline-flex items-center px-4 py-2 rounded-full bg-black/75 text-white font-quicksand font-bold text-base tabular-nums">
+        {seekNote.dir < 0 ? <Rewind className="w-5 h-5 mr-2 text-brand-gold" /> : <FastForward className="w-5 h-5 mr-2 text-brand-gold" />}
+        {fmtTime(seekNote.at)}{seekNote.dur > 0 ? ` / ${fmtTime(seekNote.dur)}` : ''}
+      </span>
+    </div>
+  ) : null;
+
+  if (!visible) return statsEl || tapEl || noteEl ? <>{tapEl}{promptEl}{statsEl}{noteEl}</> : promptEl;
 
   const scrubbing = row === 'scrub';
   const shownPos = scrubbing && scrubPos != null ? scrubPos : pos;
