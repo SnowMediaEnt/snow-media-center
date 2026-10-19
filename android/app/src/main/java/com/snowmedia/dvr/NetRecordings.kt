@@ -82,7 +82,7 @@ internal object NetRecordings {
         NetUploader.writingChunk(id, NetSpool.chunkIndex(firstChunk.name) ?: 0)
         val dir = firstChunk.parentFile ?: NetSpool.dir(ctx, id)
         try {
-            NetSpool.write(dir, NetSpool.Manifest(id = id, name = name, channel = channel, startedAt = startedAt, root = root, label = f?.label ?: ""))
+            NetSpool.create(dir, NetSpool.Manifest(id = id, name = name, channel = channel, startedAt = startedAt, root = root, label = f?.label ?: ""))
         } catch (_: Throwable) { /* the recording still writes; the uploader rebuilds nothing without it, see orphan() */ }
         RecordingStore.beginNet(ctx, id, root + name, channel, startedAt, scheduleId, title)
     }
@@ -91,7 +91,8 @@ internal object NetRecordings {
     fun ended(ctx: Context, id: String) {
         NetUploader.doneWriting(id)
         val dir = NetSpool.dir(ctx, id)
-        NetSpool.read(dir)?.let { try { NetSpool.write(dir, it.copy(finished = true)) } catch (_: Throwable) { /* informational */ } }
+        // Through the manifest lock, re-read first: never an older copy written over the uploader's progress.
+        try { NetSpool.update(dir) { it.copy(finished = true) } } catch (_: Throwable) { /* informational */ }
         NetUploader.kick(ctx)
     }
 
@@ -153,7 +154,9 @@ internal object NetRecordings {
             val path = meta?.optString("path")?.takeIf { it.isNotEmpty() } ?: (m.root + m.shownName)
             val here = root != null && path.regionMatches(0, root, 0, root.length, ignoreCase = true)
             val label = if (here) f!!.label else m.label
-            val url = if (here) NetPlayServer.url(app, path.substring(root!!.length)) else ""
+            // Playable only once its file exists on the share under a name of its own: before that the name
+            // is a guess (the uploader may still need "(2)", and that file could be another box's).
+            val url = if (here && m.remoteName != null) NetPlayServer.url(app, m.remoteName) else ""
             out.add(item(m.id, path.substringAfterLast('/'), meta, path, url, m.remoteBytes + p.pendingBytes, System.currentTimeMillis(), true, label))
         }
         return out

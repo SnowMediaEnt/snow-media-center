@@ -74,6 +74,46 @@ class NetShareErrorsTest {
         assertFalse(NetErrors.isConnectionLost(NetFailure(NetReason.AUTH)))
     }
 
+    @Test fun uploadProblemsOfOneFileOnlyHoldBackThatRecordingOnly() {
+        val file = NetErrors.Scope.FILE
+        val share = NetErrors.Scope.SHARE
+        // The viewer is watching the growing file on the computer, or may not write that file.
+        assertEquals(file, NetErrors.uploadScope(api(NtStatus.STATUS_SHARING_VIOLATION, SMB2MessageCommandCode.SMB2_CREATE)))
+        assertEquals(file, NetErrors.uploadScope(api(NtStatus.STATUS_ACCESS_DENIED, SMB2MessageCommandCode.SMB2_CREATE)))
+        assertEquals(file, NetErrors.uploadScope(api(NtStatus.STATUS_FILE_LOCK_CONFLICT, SMB2MessageCommandCode.SMB2_WRITE)))
+        assertEquals(file, NetErrors.uploadScope(SMBRuntimeException(api(NtStatus.STATUS_DELETE_PENDING, SMB2MessageCommandCode.SMB2_CREATE))))
+        assertEquals(file, NetErrors.uploadScope(java.io.FileNotFoundException("chunk")))
+        // The share itself: unreachable, signed out, gone, full.
+        assertEquals(share, NetErrors.uploadScope(NetFailure(NetReason.UNREACHABLE)))
+        assertEquals(share, NetErrors.uploadScope(NetFailure(NetReason.READ_ONLY)))
+        assertEquals(share, NetErrors.uploadScope(TransportException("closed")))
+        assertEquals(share, NetErrors.uploadScope(SMBRuntimeException(TransportException(SocketTimeoutException()))))
+        assertEquals(share, NetErrors.uploadScope(api(NtStatus.STATUS_NETWORK_SESSION_EXPIRED, SMB2MessageCommandCode.SMB2_WRITE)))
+        assertEquals(share, NetErrors.uploadScope(api(NtStatus.STATUS_DISK_FULL, SMB2MessageCommandCode.SMB2_WRITE)))
+        assertEquals(share, NetErrors.uploadScope(api(NtStatus.STATUS_ACCESS_DENIED, SMB2MessageCommandCode.SMB2_TREE_CONNECT)))
+        assertEquals(share, NetErrors.uploadScope(api(NtStatus.STATUS_LOGON_FAILURE, SMB2MessageCommandCode.SMB2_SESSION_SETUP)))
+    }
+
+    @Test fun aFileThatWentAwayOnTheComputer() {
+        for (st in listOf(NtStatus.STATUS_OBJECT_NAME_NOT_FOUND, NtStatus.STATUS_OBJECT_PATH_NOT_FOUND, NtStatus.STATUS_NO_SUCH_FILE,
+            NtStatus.STATUS_DELETE_PENDING, NtStatus.STATUS_FILE_DELETED)) {
+            assertTrue(st.name, NetErrors.isGone(api(st, SMB2MessageCommandCode.SMB2_CREATE)))
+        }
+        assertFalse(NetErrors.isGone(api(NtStatus.STATUS_SHARING_VIOLATION, SMB2MessageCommandCode.SMB2_CREATE)))
+        assertFalse(NetErrors.isGone(TransportException("closed")))
+        // impacket and some NAS say "no such file" where Windows says "not found".
+        assertTrue(NetErrors.isNotFound(api(NtStatus.STATUS_NO_SUCH_FILE, SMB2MessageCommandCode.SMB2_CREATE)))
+        assertEquals(NetReason.NO_FOLDER, NetErrors.reason(api(NtStatus.STATUS_NO_SUCH_FILE, SMB2MessageCommandCode.SMB2_CREATE), NetStage.FOLDER))
+    }
+
+    @Test fun unknownSizeIsNotFull() {
+        assertFalse(NetShare.isShareFull(0L, 0L)) // the server didn't say
+        assertFalse(NetShare.isShareFull(5L shl 30, 100L shl 30))
+        assertTrue(NetShare.isShareFull(0L, 100L shl 30))
+        assertTrue(NetShare.isShareFull((1L shl 30) - 1, 100L shl 30))
+        assertFalse(NetShare.isShareFull(-1L, 100L shl 30))
+    }
+
     @Test fun smallQuestions() {
         assertTrue(NetErrors.isNotFound(api(NtStatus.STATUS_OBJECT_NAME_NOT_FOUND, SMB2MessageCommandCode.SMB2_CREATE)))
         assertTrue(NetErrors.isNameTaken(api(NtStatus.STATUS_OBJECT_NAME_COLLISION, SMB2MessageCommandCode.SMB2_CREATE)))

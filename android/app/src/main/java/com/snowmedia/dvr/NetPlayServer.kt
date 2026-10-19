@@ -2,6 +2,7 @@ package com.snowmedia.dvr
 
 import android.content.Context
 import android.util.Log
+import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -12,10 +13,13 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.net.SocketTimeoutException
+import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 /** HTTP Range requests (RFC 9110 §14), single byte ranges only. Pure: HttpRangeTest. */
 internal object HttpRange {
@@ -72,12 +76,21 @@ internal object HttpRange {
  * - Ranges (206, Content-Range, Accept-Ranges) for seeking; several requests
  *   at once (the player opens a new one on every seek); a player that hangs
  *   up mid-file is not an error.
+ * - At most 8 requests at once, and none can hold a worker for long: the
+ *   request headers must arrive within 10 s in all (not 10 s per byte), and
+ *   a response nobody reads for 30 s (a long pause; the player asks again
+ *   with a Range when it resumes) is cut.
  * Nothing is logged but an exception's class name.
  */
 internal object NetPlayServer {
     private const val TAG = "SmcNetPlay"
     private const val MAX_HEAD = 16 * 1024
     private const val MAX_CLIENTS = 8
+    /** The whole request line and headers must arrive within this. */
+    const val HEAD_DEADLINE_MS = 10_000L
+    /** A response that makes no progress (the player stopped reading) for this long is cut. */
+    private const val WRITE_IDLE_MS = 30_000L
+    private val watchdog = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "smc-net-play-watch").apply { isDaemon = true } }
 
     private val token: String = ByteArray(16).also { SecureRandom().nextBytes(it) }.joinToString("") { String.format("%02x", it) }
     private val lock = Any()
@@ -165,12 +178,18 @@ internal object NetPlayServer {
     private class Aborted : RuntimeException()
 
     private fun serve(app: Context, s: Socket) {
+        // Writes have no timeout of their own: the watchdog closes the socket when nothing moved for WRITE_IDLE_MS.
+        val progress = AtomicLong(System.currentTimeMillis())
+        val watch = watchdog.scheduleWithFixedDelay({
+            if (System.currentTimeMillis() - progress.get() > WRITE_IDLE_MS) try { s.close() } catch (_: IOException) { /* gone */ }
+        }, 5, 5, TimeUnit.SECONDS)
         try {
-            s.soTimeout = 20_000
             s.tcpNoDelay = true
-            val input = s.getInputStream()
-            val out = BufferedOutputStream(s.getOutputStream(), 64 * 1024)
-            val head = readHead(input) ?: return
+            val input = BufferedInputStream(s.getInputStream(), 2048)
+            val out = BufferedOutputStream(ProgressOutputStream(s.getOutputStream(), progress), 64 * 1024)
+            val deadline = System.currentTimeMillis() + HEAD_DEADLINE_MS
+            val head = readHead(input, deadline, { System.currentTimeMillis() }) { ms -> s.soTimeout = ms } ?: return
+            progress.set(System.currentTimeMillis())
             val lines = head.split("\r\n")
             val req = lines.first().split(' ')
             if (req.size < 3) { status(out, 400, "Bad Request"); return }
@@ -229,7 +248,7 @@ internal object NetPlayServer {
                         }
                         clientWrite { out.flush() }
                     } finally {
-                        try { f.close() } catch (_: Throwable) { /* the connection may be gone */ }
+                        try { f.closeNoWait() } catch (_: Throwable) { /* the connection may be gone: never wait on it here */ }
                     }
                 }
             } catch (_: ClientGone) {
@@ -252,8 +271,17 @@ internal object NetPlayServer {
         } catch (t: Throwable) {
             Log.w(TAG, "Playback request failed (${t.javaClass.simpleName})")
         } finally {
+            watch.cancel(false)
             try { s.close() } catch (_: IOException) { /* gone */ }
         }
+    }
+
+    /** Notes each write that went through, for the watchdog. */
+    private class ProgressOutputStream(private val out: OutputStream, private val progress: AtomicLong) : OutputStream() {
+        override fun write(b: Int) { out.write(b); progress.set(System.currentTimeMillis()) }
+        override fun write(b: ByteArray, off: Int, len: Int) { out.write(b, off, len); progress.set(System.currentTimeMillis()) }
+        override fun flush() { out.flush(); progress.set(System.currentTimeMillis()) }
+        override fun close() = out.close()
     }
 
     private inline fun clientWrite(block: () -> Unit) {
@@ -267,13 +295,22 @@ internal object NetPlayServer {
         } catch (_: IOException) { /* the player went away */ }
     }
 
-    /** The request line and headers, up to the blank line; null if the client sends nothing sensible. */
-    private fun readHead(input: InputStream): String? {
+    /**
+     * The request line and headers, up to the blank line; null if the client
+     * sends nothing sensible, or not all of it by [deadline] (one overall
+     * limit: before each read the socket timeout is set to what is left, so
+     * a byte now and then can't keep a worker forever). [now] and
+     * [setTimeout] are the clock and the socket's timeout. Pure: NetPlayServerTest.
+     */
+    fun readHead(input: InputStream, deadline: Long, now: () -> Long, setTimeout: (Int) -> Unit): String? {
         val buf = ByteArrayOutputStream(512)
         var matched = 0
         val end = byteArrayOf('\r'.code.toByte(), '\n'.code.toByte(), '\r'.code.toByte(), '\n'.code.toByte())
         while (buf.size() < MAX_HEAD) {
-            val b = input.read()
+            val left = deadline - now()
+            if (left <= 0) return null
+            setTimeout(left.coerceIn(1L, Int.MAX_VALUE.toLong()).toInt())
+            val b = try { input.read() } catch (_: SocketTimeoutException) { return null }
             if (b < 0) return null
             buf.write(b)
             matched = if (b.toByte() == end[matched]) matched + 1 else if (b.toByte() == end[0]) 1 else 0

@@ -80,15 +80,75 @@ class NetSpoolTest {
 
     @Test fun manifestOnDiskReplacesWhole() {
         val d = File(tmp.root, "spool/abc-123")
-        NetSpool.write(d, m)
+        NetSpool.create(d, m)
         assertEquals(m, NetSpool.read(d))
-        NetSpool.write(d, m.copy(remoteBytes = 1L))
+        assertEquals(1L, NetSpool.update(d) { it.copy(remoteBytes = 1L) }!!.remoteBytes)
         assertEquals(1L, NetSpool.read(d)!!.remoteBytes)
-        assertFalse(File(d, "upload.json.tmp").exists())
+        // No temp file left behind, and none that could be mistaken for a chunk.
+        assertEquals(listOf("upload.json"), d.list()!!.toList())
         File(d, NetSpool.chunkName(0)).writeText("x")
         NetSpool.deleteAll(d)
         assertFalse(d.exists())
         assertNull(NetSpool.read(d))
+        // Nothing to update once it is gone: nothing is written (the folder isn't brought back).
+        assertNull(NetSpool.update(d) { it.copy(finished = true) })
+        assertFalse(d.exists())
+    }
+
+    /**
+     * The uploader's progress, the recording's end and a delete from the app all change the
+     * manifest at once: none may roll back another (a stale remoteBytes would send the next
+     * chunk over the last one).
+     */
+    @Test fun concurrentUpdatesNeverRollBack() {
+        val d = File(tmp.root, "spool/race")
+        NetSpool.create(d, NetSpool.Manifest(id = "race", name = "CNN.ts", remoteName = "CNN.ts"))
+        val rounds = 200
+        val uploader = Thread {
+            for (i in 0 until rounds) NetSpool.update(d) { it.copy(remoteBytes = it.remoteBytes + 10, lastChunk = i) }
+        }
+        val others = (0 until 4).map { n ->
+            Thread {
+                for (i in 0 until rounds) {
+                    if (n % 2 == 0) NetSpool.update(d) { it.copy(finished = true) } else NetSpool.read(d)
+                }
+            }
+        }
+        (others + uploader).forEach { it.start() }
+        (others + uploader).forEach { it.join() }
+        val end = NetSpool.read(d)!!
+        assertEquals(rounds * 10L, end.remoteBytes)
+        assertEquals(rounds - 1, end.lastChunk)
+        assertTrue(end.finished)
+        assertEquals(listOf("upload.json"), d.list()!!.toList())
+    }
+
+    @Test fun aFileThatVanishedOnTheComputerContinuesInTheNextPart() {
+        val going = NetSpool.Manifest(id = "x", name = "CNN.ts", remoteName = "CNN (2).ts", remoteBytes = 96L shl 20, lastChunk = 2)
+        val next = NetSpool.continueInNewFile(going)
+        // Nothing dropped: the chunks already sent stay counted, the rest starts a new file at 0.
+        assertNull(next.remoteName)
+        assertEquals(0L, next.remoteBytes)
+        assertEquals(2, next.lastChunk)
+        assertEquals(2, next.part)
+        assertFalse(next.gone)
+        assertEquals("CNN (part 2).ts", NetSpool.wantedName(next))
+        assertEquals("CNN (part 2).ts", next.shownName)
+        assertEquals("CNN (part 3).ts", NetSpool.wantedName(NetSpool.continueInNewFile(next.copy(remoteName = "CNN (part 2).ts"))))
+        // A file not created yet has nothing to continue from.
+        val fresh = NetSpool.Manifest(id = "y", name = "News.ts")
+        assertEquals(fresh, NetSpool.continueInNewFile(fresh))
+        assertEquals("News.ts", NetSpool.wantedName(fresh))
+        // The part survives a restart.
+        assertEquals(2, NetSpool.fromJson(NetSpool.toJson(next))!!.part)
+        assertEquals(1, NetSpool.fromJson("""{"id":"x","name":"a.ts"}""")!!.part)
+    }
+
+    @Test fun aFileWithAProblemOfItsOwnWaits15Then30Then60() {
+        assertEquals(15_000L, NetUploader.nextFileBackoff(null))
+        assertEquals(30_000L, NetUploader.nextFileBackoff(15_000L))
+        assertEquals(60_000L, NetUploader.nextFileBackoff(30_000L))
+        assertEquals(60_000L, NetUploader.nextFileBackoff(60_000L))
     }
 
     @Test fun chunkSizeIsAbout32Mb() {

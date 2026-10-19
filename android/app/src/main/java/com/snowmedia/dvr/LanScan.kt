@@ -14,9 +14,11 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Finds computers and NAS boxes that share folders, for the network folder
- * set-up: every address of the box's own /24 (192.168.1.1-254 for a box at
- * 192.168.1.37) is tried on TCP 445, briefly and many at once; never beyond
- * that /24, whatever the real network size. Each one found is named by its
+ * set-up: every address of the box's own subnet (192.168.1.1-254 for a box
+ * at 192.168.1.37/24) is tried on TCP 445, briefly and many at once. Never
+ * more than a /24 (a /16 home network is scanned in the box's own /24 only),
+ * and never beyond the subnet itself (a /26 is 62 addresses, not a /24
+ * through the gateway). Each one found is named by its
  * NetBIOS name (what Windows and Samba answer to on UDP 137) or else its
  * reverse DNS name. The whole scan takes about 5 s at most.
  */
@@ -28,36 +30,49 @@ internal object LanScan {
     private const val NAME_BUDGET_MS = 1_500L
     private const val PARALLEL = 64
 
-    /** The box's own private IPv4 address (Wi-Fi or Ethernet), or null when it has none. */
-    fun ownAddress(): Inet4Address? {
-        val found = ArrayList<Pair<String, Inet4Address>>()
+    /** The box's own private IPv4 address (Wi-Fi or Ethernet) and its prefix length, or null when it has none. */
+    fun ownAddress(): Pair<Inet4Address, Int>? {
+        val found = ArrayList<Triple<String, Inet4Address, Int>>()
         try {
             for (ni in NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()) {
                 if (!ni.isUp || ni.isLoopback || ni.isVirtual || ni.isPointToPoint) continue
-                for (a in ni.inetAddresses.toList()) {
-                    if (a is Inet4Address && a.isSiteLocalAddress) found.add(ni.name to a)
+                for (ia in ni.interfaceAddresses.orEmpty()) {
+                    val a = ia.address
+                    if (a is Inet4Address && a.isSiteLocalAddress) found.add(Triple(ni.name, a, ia.networkPrefixLength.toInt()))
                 }
             }
         } catch (_: Throwable) {
             return null
         }
         // Ethernet or Wi-Fi first; a VPN or a hotspot interface last.
-        return found.sortedBy { (n, _) -> if (n.startsWith("eth") || n.startsWith("wlan")) 0 else 1 }.firstOrNull()?.second
+        return found.sortedBy { (n, _, _) -> if (n.startsWith("eth") || n.startsWith("wlan")) 0 else 1 }.firstOrNull()?.let { it.second to it.third }
     }
 
-    /** The other 253 addresses of [own]'s /24, in order. Pure: LanScanTest. */
-    fun neighbours(own: ByteArray): List<String> {
+    /**
+     * The other host addresses of [own]'s subnet, in order: the subnet of
+     * [prefix], never wider than /24 (a shorter or unknown prefix is taken
+     * as /24), without the network and broadcast addresses (a /31 has two
+     * hosts and no broadcast; a /32 has no neighbours). Pure: LanScanTest.
+     */
+    fun neighbours(own: ByteArray, prefix: Int = 24): List<String> {
         require(own.size == 4)
-        val p = "${own[0].toInt() and 0xFF}.${own[1].toInt() and 0xFF}.${own[2].toInt() and 0xFF}."
-        val me = own[3].toInt() and 0xFF
-        return (1..254).filter { it != me }.map { "$p$it" }
+        val p = if (prefix in 24..32) prefix else 24
+        val ip = own.fold(0L) { acc, b -> (acc shl 8) or (b.toLong() and 0xFF) }
+        val size = 1L shl (32 - p)
+        val net = ip and (0xFFFFFFFFL xor (size - 1))
+        val hosts = when {
+            p == 32 -> emptyList()
+            p == 31 -> listOf(net, net + 1)
+            else -> (net + 1 until net + size - 1).toList()
+        }
+        return hosts.filter { it != ip }.map { "${(it shr 24) and 0xFF}.${(it shr 16) and 0xFF}.${(it shr 8) and 0xFF}.${it and 0xFF}" }
     }
 
     fun find(): List<Computer> {
-        val own = ownAddress() ?: return emptyList()
+        val (own, prefix) = ownAddress() ?: return emptyList()
         val exec = Executors.newFixedThreadPool(PARALLEL) { r -> Thread(r, "smc-lan-scan").apply { isDaemon = true } }
         try {
-            val tasks = neighbours(own.address).map { ip ->
+            val tasks = neighbours(own.address, prefix).map { ip ->
                 Callable {
                     try {
                         Socket().use { s -> s.connect(InetSocketAddress(ip, 445), CONNECT_MS) }

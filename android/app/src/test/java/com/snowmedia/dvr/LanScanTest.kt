@@ -19,6 +19,27 @@ class LanScanTest {
         assertEquals(setOf("192.168.1."), n.map { it.substringBeforeLast('.') + "." }.toSet())
     }
 
+    private fun ip(a: Int, b: Int, c: Int, d: Int) = byteArrayOf(a.toByte(), b.toByte(), c.toByte(), d.toByte())
+
+    @Test fun aSmallerSubnetIsScannedAsItIsNeverThroughTheGateway() {
+        val n26 = LanScan.neighbours(ip(192, 168, 1, 70), 26)
+        assertEquals(61, n26.size) // 64 - network - broadcast - itself
+        assertEquals("192.168.1.65", n26.first())
+        assertEquals("192.168.1.126", n26.last())
+        assertEquals(listOf("10.0.0.2"), LanScan.neighbours(ip(10, 0, 0, 1), 30))
+        assertEquals(listOf("10.0.0.0"), LanScan.neighbours(ip(10, 0, 0, 1), 31))
+        assertEquals(emptyList<String>(), LanScan.neighbours(ip(10, 0, 0, 1), 32))
+        assertEquals(13, LanScan.neighbours(ip(172, 16, 5, 33), 28).size)
+    }
+
+    @Test fun aBiggerNetworkIsScannedInTheBoxsOwnSlash24Only() {
+        for (p in listOf(8, 16, 20, 23, -1, 99)) {
+            val n = LanScan.neighbours(ip(10, 1, 2, 3), p)
+            assertEquals("prefix $p", 253, n.size)
+            assertEquals(setOf("10.1.2."), n.map { it.substringBeforeLast('.') + "." }.toSet())
+        }
+    }
+
     @Test fun nodeStatusRequestIsTheStandardOne() {
         val expected = ByteArrayOutputStream().apply {
             write(byteArrayOf(0x12, 0x34, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0x20))

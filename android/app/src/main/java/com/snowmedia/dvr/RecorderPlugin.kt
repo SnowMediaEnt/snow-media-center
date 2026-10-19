@@ -344,11 +344,14 @@ class RecorderPlugin : Plugin() {
     /** Forgets the network folder (and its password). Recordings already on the computer stay there. */
     @PluginMethod
     fun clearNetworkFolder(call: PluginCall) {
-        NetFolderStore.clear(context)
-        NetShare.invalidate()
-        NetStatus.forget()
-        emitChanged()
-        call.resolve(JSObject())
+        // Off Capacitor's shared plugin thread: the Keystore, and a goodbye to a computer that may be asleep.
+        async(call) {
+            NetFolderStore.clear(context)
+            NetShare.invalidate()
+            NetStatus.forget()
+            emitChanged()
+            call.resolve(JSObject())
+        }
     }
 
     /** Computers on the box's own /24 that share folders (TCP 445 open), named when they say. About 5 s. */

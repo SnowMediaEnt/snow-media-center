@@ -81,8 +81,25 @@ internal object NetErrors {
         NtStatus.STATUS_NOT_A_DIRECTORY.value,
         NtStatus.STATUS_FILE_IS_A_DIRECTORY.value,
         NtStatus.STATUS_NAME_TOO_LONG.value,
+        NtStatus.STATUS_NO_SUCH_FILE.value,
     )
     private const val STATUS_MEDIA_WRITE_PROTECTED = 0xC00000A2L
+    /** The file itself isn't there any more, or is on its way out (deleted while someone still had it open). */
+    private val GONE_CODES = setOf(
+        NtStatus.STATUS_OBJECT_NAME_NOT_FOUND.value,
+        NtStatus.STATUS_OBJECT_PATH_NOT_FOUND.value,
+        NtStatus.STATUS_NO_SUCH_FILE.value,
+        NtStatus.STATUS_DELETE_PENDING.value,
+        NtStatus.STATUS_FILE_DELETED.value,
+    )
+    /** Trouble with the whole share (or the sign-in), as opposed to one file. */
+    private val SHARE_CODES = setOf(
+        NtStatus.STATUS_DISK_FULL.value,
+        NtStatus.STATUS_BAD_NETWORK_NAME.value,
+        NtStatus.STATUS_BAD_NETWORK_PATH.value,
+        NtStatus.STATUS_INSUFF_SERVER_RESOURCES.value,
+        NtStatus.STATUS_VOLUME_DISMOUNTED.value,
+    )
     private val LOST_CODES = setOf(
         NtStatus.STATUS_NETWORK_SESSION_EXPIRED.value,
         NtStatus.STATUS_USER_SESSION_DELETED.value,
@@ -140,7 +157,41 @@ internal object NetErrors {
 
     fun isNotFound(t: Throwable): Boolean {
         val code = statusOf(t) ?: return false
-        return code == NtStatus.STATUS_OBJECT_NAME_NOT_FOUND.value || code == NtStatus.STATUS_OBJECT_PATH_NOT_FOUND.value
+        return code == NtStatus.STATUS_OBJECT_NAME_NOT_FOUND.value || code == NtStatus.STATUS_OBJECT_PATH_NOT_FOUND.value ||
+            code == NtStatus.STATUS_NO_SUCH_FILE.value
+    }
+
+    /** The recording's file on the share went away (renamed, moved or deleted on the computer). */
+    fun isGone(t: Throwable): Boolean = statusOf(t)?.let { it in GONE_CODES } == true
+
+    enum class Scope { SHARE, FILE }
+
+    /**
+     * Whether an upload failure is the share's (unreachable, signed out,
+     * full: every recording waits) or one file's (the viewer has it open on
+     * the computer, no right to write that file, a lock: only that recording
+     * waits, the others carry on). Unknown SMB answers count as the file's;
+     * anything that isn't an SMB answer (a lost connection) as the share's.
+     */
+    fun uploadScope(t: Throwable): Scope {
+        if (chain(t).any { it is NetFailure }) return Scope.SHARE // could not open the share or its folder
+        if (isConnectionLost(t)) return Scope.SHARE
+        if (chain(t).any { it is SMB2GuestSigningRequiredException }) return Scope.SHARE
+        val api = chain(t).filterIsInstance<SMBApiException>().firstOrNull()
+        if (api == null) {
+            // Reading the chunk on the box failed: that file's problem.
+            if (chain(t).any { it is java.io.FileNotFoundException }) return Scope.FILE
+            return if (chain(t).any { it is UnknownHostException || it is ConnectException || it is NoRouteToHostException || it is SocketTimeoutException }) {
+                Scope.SHARE
+            } else Scope.FILE
+        }
+        val code = api.statusCode
+        val cmd = api.failedCommand
+        return when {
+            code in SHARE_CODES || code in AUTH_CODES -> Scope.SHARE
+            cmd == SMB2MessageCommandCode.SMB2_SESSION_SETUP || cmd == SMB2MessageCommandCode.SMB2_TREE_CONNECT -> Scope.SHARE
+            else -> Scope.FILE
+        }
     }
 
     fun isNameTaken(t: Throwable): Boolean = statusOf(t) == NtStatus.STATUS_OBJECT_NAME_COLLISION.value
@@ -169,11 +220,22 @@ internal class NetConn(
 
     fun path(name: String = ""): String = NetFolderRules.smbPath(folder.folder, name)
 
-    override fun close() {
-        try { share.close() } catch (_: Throwable) { /* gone already */ }
-        try { session.close() } catch (_: Throwable) { /* gone already */ }
-        try { connection.close() } catch (_: Throwable) { /* gone already */ }
+    /**
+     * Ends it. [force]: just drop the socket. Saying goodbye (tree
+     * disconnect, logoff) to a computer that went to sleep waits out every
+     * request timeout, 60-90 s, so a connection that is dead or may be is
+     * forced, and either way [NetShare.closeLater] does it off the caller's thread.
+     */
+    fun close(force: Boolean) {
+        if (!force) {
+            try { share.close() } catch (_: Throwable) { /* gone already */ }
+            try { session.close() } catch (_: Throwable) { /* gone already */ }
+        }
+        // Each NetConn has its own client and connection (NetShare.open), so this never cuts anyone else's.
+        try { connection.close(true) } catch (_: Throwable) { /* gone already */ }
     }
+
+    override fun close() = close(false)
 }
 
 /**
@@ -192,8 +254,17 @@ internal object NetShare {
     /** A cached connection unused for this long is replaced rather than trusted (a computer that went to sleep). */
     private const val IDLE_MS = 120_000L
 
-    private val client: SMBClient by lazy { SMBClient(config()) }
     private val random = SecureRandom()
+    /** Where connections are closed: never on the caller's thread, never under [cacheLock] (see NetConn.close). */
+    private val closer = Executors.newCachedThreadPool { r -> Thread(r, "smc-net-close").apply { isDaemon = true } }
+
+    fun closeLater(c: NetConn, force: Boolean) {
+        try { closer.execute { c.close(force) } } catch (_: Throwable) { /* shutting down */ }
+    }
+
+    private fun closeLater(block: () -> Unit) {
+        try { closer.execute { try { block() } catch (_: Throwable) { /* gone already */ } } } catch (_: Throwable) { /* shutting down */ }
+    }
 
     fun config(): SmbConfig = SmbConfig.builder()
         .withSecurityProvider(SmbSecurity())
@@ -208,10 +279,15 @@ internal object NetShare {
         .withTimeout(IO_TIMEOUT_S, TimeUnit.SECONDS)
         .build()
 
-    /** Connects and signs in to [f] (each step's failure as a [NetFailure] with its reason). */
+    /**
+     * Connects and signs in to [f] (each step's failure as a [NetFailure]
+     * with its reason). Every call gets a client and a TCP connection of its
+     * own: smbj's client would otherwise hand back the pooled connection a
+     * replacement is meant to get away from, and closing one would cut the other.
+     */
     fun open(f: NetFolder, password: String?): NetConn {
         val connection = try {
-            client.connect(f.host, f.port)
+            SMBClient(config()).connect(f.host, f.port)
         } catch (t: Throwable) {
             throw NetFailure(NetErrors.reason(t, NetStage.CONNECT), t)
         }
@@ -220,14 +296,13 @@ internal object NetShare {
             else AuthenticationContext(f.user, (password ?: "").toCharArray(), f.domain.ifEmpty { null })
             connection.authenticate(auth)
         } catch (t: Throwable) {
-            try { connection.close() } catch (_: Throwable) { /* gone */ }
+            closeLater { connection.close(true) }
             throw NetFailure(NetErrors.reason(t, NetStage.AUTH), t)
         }
         val share = try {
             session.connectShare(f.share) as? DiskShare ?: throw NetFailure(NetReason.NO_SHARE)
         } catch (t: Throwable) {
-            try { session.close() } catch (_: Throwable) { /* gone */ }
-            try { connection.close() } catch (_: Throwable) { /* gone */ }
+            closeLater { try { session.close() } finally { connection.close(true) } }
             throw if (t is NetFailure) t else NetFailure(NetErrors.reason(t, NetStage.SHARE), t)
         }
         return NetConn(f, connection, session, share)
@@ -248,6 +323,12 @@ internal object NetShare {
         }
     }
 
+    /**
+     * Below the share's floor: stop recordings to it. A total of 0 means the
+     * server didn't say (some don't report volume sizes): unknown is not full. Pure.
+     */
+    fun isShareFull(free: Long, total: Long): Boolean = total > 0 && free in 0 until SHARE_MIN_FREE_BYTES
+
     /** Free and total bytes of the share (what this account may use). */
     fun space(c: NetConn): Pair<Long, Long> {
         val info = c.share.shareInformation
@@ -264,6 +345,7 @@ internal object NetShare {
      */
     fun test(f: NetFolder, password: String?): TestResult {
         var c: NetConn? = null
+        var failed: Throwable? = null
         return try {
             c = open(f, password)
             ensureFolder(c)
@@ -272,9 +354,11 @@ internal object NetShare {
             NetStatus.record(f.key, true, free, total)
             TestResult(true, null, free, total)
         } catch (t: Throwable) {
+            failed = t
             TestResult(false, NetErrors.reason(t, NetStage.WRITE))
         } finally {
-            c?.close()
+            // The answer goes back at once; the goodbye happens in the background.
+            c?.let { closeLater(it, force = failed?.let { f -> NetErrors.isConnectionLost(f) } == true) }
         }
     }
 
@@ -306,13 +390,15 @@ internal object NetShare {
     private fun shared(ctx: Context): NetConn = synchronized(cacheLock) {
         val f = NetFolderStore.read(ctx) ?: throw NetFailure(NetReason.ERROR)
         val c = cached
-        if (c != null && c.folder.key == f.key && c.alive && (c.users.get() > 0 || System.currentTimeMillis() - c.lastUsed < IDLE_MS)) {
+        val idle = c != null && c.users.get() == 0 && System.currentTimeMillis() - c.lastUsed >= IDLE_MS
+        if (c != null && c.folder.key == f.key && c.alive && !idle) {
             c.lastUsed = System.currentTimeMillis()
             c.users.incrementAndGet()
             return c
         }
         cached = null
-        c?.close()
+        // Dead or idle (maybe half-open after the computer slept): just dropped. Another folder: a proper goodbye.
+        if (c != null) closeLater(c, force = !c.alive || idle)
         val n = open(f, NetFolderStore.password(ctx))
         n.users.incrementAndGet()
         cached = n
@@ -321,13 +407,13 @@ internal object NetShare {
 
     private fun drop(c: NetConn) {
         synchronized(cacheLock) { if (cached === c) cached = null }
-        c.close()
+        closeLater(c, force = true)
     }
 
-    /** Forget the shared connection (the folder was saved again or cleared). */
+    /** Forget the shared connection (the folder was saved again or cleared). Never waits on the network. */
     fun invalidate() {
         val c = synchronized(cacheLock) { cached.also { cached = null } }
-        c?.close()
+        if (c != null) closeLater(c, force = !c.alive)
     }
 
     /**

@@ -2,6 +2,7 @@ package com.snowmedia.dvr
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The playback server's Range handling and its path guard (no sockets). */
@@ -51,6 +52,44 @@ class NetPlayServerTest {
             "/net/$token/%zz.ts", "/net/$token/%C3.ts", "/net/$token/.hidden.ts", "/net/$token/a%00.ts",
             "http://127.0.0.1/net/$token/CNN.ts",
         )) assertNull(p, NetPlayServer.target(p, token))
+    }
+
+    /** A stream that gives one byte per read and moves the clock on [stepMs] each time. */
+    private class Trickle(text: String, private val clock: LongArray, private val stepMs: Long) : java.io.InputStream() {
+        private val bytes = text.toByteArray(Charsets.ISO_8859_1)
+        private var i = 0
+        override fun read(): Int {
+            clock[0] += stepMs
+            return if (i < bytes.size) bytes[i++].toInt() and 0xFF else -1
+        }
+    }
+
+    private val request = "GET /net/x/CNN.ts HTTP/1.1\r\nHost: 127.0.0.1\r\nRange: bytes=0-\r\n\r\n"
+
+    @Test fun headersInTimeAreRead() {
+        val clock = longArrayOf(0L)
+        val timeouts = ArrayList<Int>()
+        val head = NetPlayServer.readHead(Trickle(request, clock, 1), NetPlayServer.HEAD_DEADLINE_MS, { clock[0] }) { timeouts.add(it) }
+        assertEquals(request.removeSuffix("\r\n\r\n"), head)
+        // Each read may only wait for what is left of the one overall deadline.
+        assertEquals(NetPlayServer.HEAD_DEADLINE_MS.toInt(), timeouts.first())
+        assertTrue(timeouts.zipWithNext().all { (a, b) -> b < a })
+    }
+
+    @Test fun aByteNowAndThenCantHoldAWorker() {
+        // One byte every second: each read is "in time", the whole is not.
+        val clock = longArrayOf(0L)
+        assertNull(NetPlayServer.readHead(Trickle(request, clock, 1_000L), NetPlayServer.HEAD_DEADLINE_MS, { clock[0] }) { })
+        assertTrue(clock[0] <= NetPlayServer.HEAD_DEADLINE_MS + 1_000L)
+    }
+
+    @Test fun aSocketTimeoutOrAnEarlyEndIsNoRequest() {
+        val timesOut = object : java.io.InputStream() {
+            override fun read(): Int = throw java.net.SocketTimeoutException()
+        }
+        assertNull(NetPlayServer.readHead(timesOut, Long.MAX_VALUE, { 0L }) { })
+        assertNull(NetPlayServer.readHead("GET / HTTP/1.1\r\n".byteInputStream(), Long.MAX_VALUE, { 0L }) { })
+        assertNull(NetPlayServer.readHead("x".repeat(20_000).byteInputStream(), Long.MAX_VALUE, { 0L }) { })
     }
 
     @Test fun percentDecoding() {
