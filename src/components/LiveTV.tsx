@@ -63,8 +63,12 @@ const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 const LAST_MODE_KEY = 'smc-player-last-mode';
 /** Update Channels in Live TV: after the first line answers, how long to wait for the others. */
 const REFRESH_SETTLE_MS = 1500;
-/** …and how long for any answer at all (a refusal is tried again after 4 s). */
-const REFRESH_WAIT_MS = 25_000;
+/**
+ * …and how long for any answer at all: a request that gets none takes up to
+ * 40 s (20 s direct, 20 s through Snow Media's server); a refusal is tried
+ * again after 4 s. Nothing by then is a failure, said as one.
+ */
+const REFRESH_WAIT_MS = 60_000;
 const rememberPlayerMode = (m: 'live' | 'movies'): void => {
   try { sessionStorage.setItem(LAST_MODE_KEY, m); } catch { /* ignore */ }
 };
@@ -734,8 +738,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     const updatingId = toast({
       title: t('live.toast.updatingChannelsTitle'),
       description: t('live.toast.updatingChannelsDesc'),
+      // Up until the answer replaces it (a failure can take most of a minute).
+      duration: REFRESH_WAIT_MS + 5000,
     });
-    const finish = (outcome: 'ok' | 'failed' | 'empty' | 'quiet') => {
+    const finish = (outcome: 'ok' | 'failed' | 'empty') => {
       refreshWaitRef.current?.();
       refreshWaitRef.current = null;
       try { updatingId.dismiss(); } catch { /* ignore */ }
@@ -752,7 +758,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       let settle: number | null = null;
       const decide = () => {
         const failed = results.filter((r) => r && r !== 'empty');
-        finish(failed.length ? 'failed' : results.some((r) => r === 'empty') ? 'empty' : results.length ? 'ok' : 'quiet');
+        finish(failed.length || !results.length ? 'failed' : results.some((r) => r === 'empty') ? 'empty' : 'ok');
       };
       const onLoaded = (e: Event) => {
         results.push(((e as CustomEvent).detail?.failed as string | null) ?? null);

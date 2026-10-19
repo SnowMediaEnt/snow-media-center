@@ -327,6 +327,8 @@ describe('a channel list that did not come', () => {
     expect(await until(() => !!failNote())).toBe(true);
     expect(failNote()).toContain("Acme TV didn't send your channels (error 403).");
     expect(failNote()).toContain('Press Update Channels at the top to try again.');
+    // In the category column too (in Compact it covers the list's own note).
+    expect(q('[data-live-cats-failed-cats]')?.textContent).toContain("Acme TV didn't send your channels (error 403).");
     const { trackEvent } = await import('@/lib/analytics');
     expect(trackEvent).toHaveBeenCalledWith('live_categories_failed', 'player', { server: 'Acme TV', reason: 'http:403' });
   }, 20_000);

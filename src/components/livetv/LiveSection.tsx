@@ -787,8 +787,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [lines]);
 
   // 1) Load every line's categories on mount + on every refresh tick. A
-  // refusal or no answer is tried once more a moment later (often a busy
-  // server); then the pane says what happened instead of an empty list, and
+  // refusal is tried once more a moment later (often a busy server); then
+  // the pane says what happened instead of an empty list, and
   // the shell hears how it went (its "Channels updated!" is only said when
   // they did come).
   useEffect(() => {
@@ -802,7 +802,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         (e: unknown) => ({ cats: [] as XtreamCategory[], failed: catsFailReason(e) }),
       ).then(({ cats, failed }) => {
         if (cancelled) return;
-        if (failed && failed !== 'empty' && attempt === 0) {
+        // A quick refusal (an error code) is often brief: once more. No answer
+        // already took the request's full time (direct, then through Snow
+        // Media's server): asking again would only double the wait.
+        if (failed && failed.startsWith('http:') && attempt === 0) {
           timers.push(window.setTimeout(() => { if (!cancelled) load(line, 1); }, CATS_RETRY_MS));
           return;
         }
@@ -3489,6 +3492,26 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   //    the channel list (compact). Same DOM either way, so its virtualizer
   //    keeps a measured scroll parent and the manual scroll math holds.
   const drawer = layout === 'compact';
+  // A line whose channel list did not come is said in the category column
+  // too: that is where the viewer is, and in Compact the column covers the
+  // channel list's own note.
+  const catsFailedNotice = catsFailed.size > 0 ? (
+    <div className="mt-3 rounded-xl border border-brand-gold/40 bg-black/50 p-3 font-nunito" data-live-cats-failed-cats>
+      {lines.filter((l) => catsFailed.has(lineKey(l))).map((l) => {
+        const failed = catsFailed.get(lineKey(l)) ?? 'network';
+        const service = l.serverLabel ? serverDisplayName(l.serverLabel) : t('live.load.yourService');
+        return (
+          <div key={lineKey(l)} className="mb-2 last:mb-0">
+            <p className="flex items-start text-sm text-white font-semibold">
+              <AlertTriangle className="w-4 h-4 mr-2 mt-0.5 text-brand-gold flex-shrink-0" />
+              <span>{catsFailText(failed, service, t)}</span>
+            </p>
+            <p className="mt-1 text-xs text-brand-ice/80">{failed === 'empty' ? t('live.load.emptyNext') : t('live.load.tryAgain')}</p>
+          </div>
+        );
+      })}
+    </div>
+  ) : null;
   const categoriesPane = (
     <div
       ref={categoriesScrollRef}
@@ -3623,6 +3646,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             )}
           </>
         )}
+        {catsFailedNotice}
     </div>
   );
 
