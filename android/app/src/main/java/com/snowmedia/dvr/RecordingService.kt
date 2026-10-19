@@ -51,6 +51,12 @@ import java.util.concurrent.ConcurrentHashMap
  * carries the schedule's id and the programme title, which are all a
  * notification or the index ever shows.
  *
+ * The network folder (a computer or NAS at home): such a recording is
+ * written on the box in 32 MB chunks (NetSpool), with the box's own floor,
+ * and NetUploader appends each finished chunk to the file on the share. The
+ * service stays in the foreground a little after the last recording ends
+ * while chunks are still going (never while the share can't be reached).
+ *
  * Scheduled recordings: the job knows which schedules it carries (their
  * `recordingId` is the job's id), tells the schedule store when it ends, and
  * tells the web side (RecorderPlugin.emitChanged) whenever a recording starts
@@ -77,6 +83,8 @@ class RecordingService : Service() {
         /** Which line and channel a scheduled recording is on, so the next programme of it can join this job. */
         val lineKey: String? = null,
         val streamId: Long = 0L,
+        /** Set for a recording to the network folder: its file name there. [file] is then the chunk being written on the box. */
+        val netName: String? = null,
     ) {
         /** Stops the job at [endsAt]; replaced when the end moves. */
         var stopTask: Runnable? = null
@@ -109,6 +117,8 @@ class RecordingService : Service() {
         // Foreground at once, whatever the command: Android requires it
         // within seconds of startForegroundService.
         goForeground()
+        // Chunks an earlier run left on the box carry on going to the network folder.
+        if (NetUploader.hasWork(this)) NetUploader.kick(this)
         when (intent?.action) {
             ACTION_START -> startJob(intent)
             ACTION_STOP -> {
@@ -133,14 +143,17 @@ class RecordingService : Service() {
         val durationMs = intent.getLongExtra(EXTRA_DURATION_MS, 0L)
         val endsAt = intent.getLongExtra(EXTRA_ENDS_AT, 0L).takeIf { it > now } ?: if (durationMs > 0) now + durationMs else 0L
         val removable = intent.getBooleanExtra(EXTRA_REMOVABLE, false)
+        val netName = intent.getStringExtra(EXTRA_NET_NAME)
         val job = Job(
             id, channel, File(path), now, endsAt,
             minFreeBytes = RecordingStore.minFreeBytes(removable),
-            partLimitBytes = RecordingStore.partLimitBytes(removable),
+            // To the network folder: a new chunk every 32 MB for the uploader (no FAT32 parts there).
+            partLimitBytes = if (netName != null) NetSpool.CHUNK_BYTES else RecordingStore.partLimitBytes(removable),
             scheduleId = intent.getStringExtra(EXTRA_SCHEDULE_ID),
             title = intent.getStringExtra(EXTRA_TITLE),
             lineKey = intent.getStringExtra(EXTRA_LINE_KEY),
             streamId = intent.getLongExtra(EXTRA_STREAM_ID, 0L),
+            netName = netName,
         )
         // The reservation turns into the job in one step, so two starts
         // arriving together can't both pass the cap.
@@ -154,7 +167,12 @@ class RecordingService : Service() {
         }
         // The file exists before the index entry does, so a list() in between never sees an entry without one.
         try { job.file.parentFile?.mkdirs(); job.file.createNewFile() } catch (_: Throwable) { /* record() opens it again */ }
-        RecordingStore.begin(applicationContext, id, job.file, channel, now, job.scheduleId, job.title)
+        if (netName != null) {
+            NetRecordings.began(applicationContext, id, netName, job.file, channel, now, job.scheduleId, job.title)
+        } else {
+            RecordingStore.begin(applicationContext, id, job.file, channel, now, job.scheduleId, job.title)
+        }
+        holdSince = 0L
         holdLocks()
         updateNotification()
         scheduleStop(job)
@@ -216,7 +234,7 @@ class RecordingService : Service() {
                         partBytes += len
                         sinceCheck += len
                         if (partBytes >= job.partLimitBytes) {
-                            out = nextPart(job, out)
+                            out = if (job.netName != null) nextChunk(job, out) else nextPart(job, out)
                             partBytes = 0L
                         }
                         if (sinceCheck > CHECK_EVERY_BYTES) {
@@ -255,8 +273,28 @@ class RecordingService : Service() {
         } finally {
             try { out?.close() } catch (_: IOException) { /* the drive went away */ }
             RecordingStore.finish(applicationContext, job.partId, System.currentTimeMillis())
+            if (job.netName != null) NetRecordings.ended(applicationContext, job.id)
             handler.post { jobDone(job) }
         }
+    }
+
+    /**
+     * A network recording's chunk is full: close it, carry on in the next
+     * one (c00001.ts…) and let the uploader take the closed one. One file on
+     * the share in the end, so no index entry per chunk.
+     */
+    private fun nextChunk(job: Job, current: BufferedOutputStream?): BufferedOutputStream {
+        try { current?.close() } catch (_: IOException) { throw DiskError() }
+        val next = NetSpool.next(job.file)
+        val stream = try {
+            BufferedOutputStream(FileOutputStream(next, true), 128 * 1024)
+        } catch (_: IOException) {
+            throw DiskError()
+        }
+        job.file = next
+        NetUploader.writingChunk(job.id, NetSpool.chunkIndex(next.name) ?: 0)
+        NetUploader.kick(applicationContext)
+        return stream
     }
 
     /**
@@ -285,19 +323,41 @@ class RecordingService : Service() {
 
     private fun jobDone(job: Job) {
         jobs.remove(job.id)
+        // Its last chunk can go now (the uploader waits while the job is registered).
+        if (job.netName != null) NetUploader.kick(this)
         if (job.scheduleId != null) ScheduleStore.finishRecording(applicationContext, job.id, System.currentTimeMillis(), job.endReason)
         RecorderPlugin.emitChanged()
         job.endReason?.let { notifyEnded(job, it) }
         if (jobs.isEmpty()) finishIfIdle() else updateNotification()
     }
 
+    /** When the service began waiting for uploads after the last recording (elapsed ms), 0 when it isn't. */
+    private var holdSince = 0L
+    private val holdCheck = Runnable { if (jobs.isEmpty()) finishIfIdle() }
+
     private fun finishIfIdle() {
+        // A recording that went to the network folder may still have chunks on the box: stay in the
+        // foreground (so Android keeps the app) while they are going, for 10 minutes at most, and not
+        // at all while the share can't be reached (they wait for the next run then).
+        if (NetUploader.hasWork(this) && !NetUploader.stalled) {
+            val now = SystemClock.elapsedRealtime()
+            if (holdSince == 0L) holdSince = now
+            if (now - holdSince < UPLOAD_HOLD_MS) {
+                updateNotification()
+                handler.removeCallbacks(holdCheck)
+                handler.postDelayed(holdCheck, 5_000L)
+                return
+            }
+        }
+        holdSince = 0L
+        handler.removeCallbacks(holdCheck)
         releaseLocks()
         stopForeground(STOP_FOREGROUND_REMOVE) // API 24+, the app's minimum
         stopSelf()
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(holdCheck)
         jobs.values.forEach { it.stop() }
         releaseLocks()
         super.onDestroy()
@@ -328,7 +388,8 @@ class RecordingService : Service() {
         ensureChannel(this)
         val list = jobs.values.toList()
         val title = when (list.size) {
-            0 -> AppLocale.string(this, R.string.rec_notif_title_none)
+            0 -> if (holdSince > 0L) AppLocale.string(this, R.string.rec_notif_saving, NetFolderStore.read(this)?.label ?: "")
+            else AppLocale.string(this, R.string.rec_notif_title_none)
             // A scheduled one names its programme too: "Recording The News (CNN)".
             1 -> list[0].title?.takeIf { it.isNotBlank() }?.let { AppLocale.string(this, R.string.rec_notif_title_programme, it, list[0].channel) }
                 ?: AppLocale.string(this, R.string.rec_notif_title_channel, list[0].channel)
@@ -336,8 +397,8 @@ class RecordingService : Service() {
         }
         // Every recording is one more stream on the line: said in the
         // notification too, so it is never a surprise.
-        val text = when (list.size) {
-            0 -> AppLocale.string(this, R.string.rec_notif_text_starting)
+        val text: String? = when (list.size) {
+            0 -> if (holdSince > 0L) null else AppLocale.string(this, R.string.rec_notif_text_starting)
             1 -> {
                 if (list[0].endsAt > 0) AppLocale.string(this, R.string.rec_notif_text_until, clock(list[0].endsAt))
                 else AppLocale.string(this, R.string.rec_notif_text_until_stopped)
@@ -440,6 +501,8 @@ class RecordingService : Service() {
         /** Which channel and line a scheduled recording is on (the line as host + account hash: no login). */
         const val EXTRA_STREAM_ID = "streamId"
         const val EXTRA_LINE_KEY = "lineKey"
+        /** The recording goes to the network folder under this file name (EXTRA_PATH is then its first chunk on the box). */
+        const val EXTRA_NET_NAME = "netName"
         const val CHANNEL_ID = "smc_recordings"
 
         // Why a recording ended. Stored with the schedule and shown by the Recordings screen as
@@ -454,6 +517,8 @@ class RecordingService : Service() {
         /** A start that was accepted but whose job never appeared frees its place after this. */
         private const val RESERVE_MS = 30_000L
         private const val CHECK_EVERY_BYTES = 8L * 1024L * 1024L
+        /** How long the service waits, after the last recording, for its chunks to reach the network folder. */
+        private const val UPLOAD_HOLD_MS = 10L * 60_000L
         /** The wake lock's own safety limit (a recording "until stopped" renews it on each start). */
         private const val MAX_WAKE_MS = 12L * 60L * 60L * 1000L
 
@@ -487,6 +552,11 @@ class RecordingService : Service() {
         }
 
         fun release(id: String) = synchronized(lock) { pending.remove(id); Unit }
+
+        /** The network folder is full (under 1 GB free): the recordings going there stop as "The drive is full". */
+        internal fun shareFull() {
+            jobs.values.filter { it.netName != null && !it.stopped }.forEach { it.stop(REASON_DRIVE_FULL) }
+        }
 
         /**
          * Creates the channel, and renames it when the app's language changed: creating a channel

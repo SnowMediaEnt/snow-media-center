@@ -221,6 +221,15 @@ dependencies {
     // polling loop run under unit tests against MockWebServer.
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
     implementation "androidx.security:security-crypto:1.1.0-alpha06"
+    // Recording to a computer or NAS on the home network (com.snowmedia.dvr.NetShare): an SMB 2/3
+    // client in plain Java. Its BouncyCastle dependency (about 8 MB in the APK) is left out on
+    // purpose: SmbSecurity supplies the few algorithms Android's own crypto lacks (MD4, AES-CMAC,
+    // the SMB 3 key derivation, RC4), and src/main/java/org/bouncycastle/util/Arrays.java stands in
+    // for the one BouncyCastle method smbj's NTLM code calls. smbj logs through slf4j-api with no
+    // backend in the app, so nothing it logs (host names, share paths) ever reaches logcat.
+    implementation("com.hierynomus:smbj:0.14.0") {
+        exclude group: "org.bouncycastle"
+    }
     testImplementation "junit:junit:$junitVersion"
     testImplementation "com.squareup.okhttp3:mockwebserver:4.12.0"
     // A real org.json for JVM unit tests; android.jar's copy is stubs that throw.

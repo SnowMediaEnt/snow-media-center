@@ -158,6 +158,71 @@ internal object RecordingStore {
         writeIndex(ctx, arr)
     }
 
+    // ---- network folder recordings (NetRecordings): the same index, "path" is the smb:// address ----
+
+    /** A recording to the network folder starts: [path] is where it will be on the share. */
+    fun beginNet(
+        ctx: Context, id: String, path: String, channel: String, startedAt: Long,
+        scheduleId: String? = null, title: String? = null,
+    ) = synchronized(lock) {
+        val arr = readIndex(ctx)
+        val o = JSONObject().put("id", id).put("path", path).put("channel", channel).put("startedAt", startedAt).put("net", true)
+        if (scheduleId != null) o.put("scheduleId", scheduleId)
+        if (title != null) o.put("title", title)
+        arr.put(o)
+        writeIndex(ctx, arr)
+    }
+
+    /** The share needed another name for recording [id] (" (2)"): its entry follows. */
+    fun setPath(ctx: Context, id: String, path: String) = synchronized(lock) {
+        val arr = readIndex(ctx)
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            if (o.optString("id") == id) o.put("path", path)
+        }
+        writeIndex(ctx, arr)
+    }
+
+    fun renamedPath(ctx: Context, from: String, to: String) = synchronized(lock) {
+        val arr = readIndex(ctx)
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            if (o.optString("path") == from) o.put("path", to)
+        }
+        writeIndex(ctx, arr)
+    }
+
+    /** Drops recording [id]'s entry (it was deleted, or never wrote a byte). */
+    fun forget(ctx: Context, id: String) = synchronized(lock) {
+        val arr = readIndex(ctx)
+        val keep = JSONArray()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            if (o.optString("id") != id) keep.put(o)
+        }
+        if (keep.length() != arr.length()) writeIndex(ctx, keep)
+    }
+
+    /** Copies of the network recordings' entries. */
+    fun netEntries(ctx: Context): List<JSONObject> = synchronized(lock) {
+        val arr = readIndex(ctx)
+        (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }.filter { it.optBoolean("net", false) }.map { JSONObject(it.toString()) }
+    }
+
+    /** After a successful listing of the folder at [root]: forget the entries there whose file is gone (unless [keep]). */
+    fun pruneNet(ctx: Context, root: String, present: Set<String>, keep: (JSONObject) -> Boolean) = synchronized(lock) {
+        val arr = readIndex(ctx)
+        val out = JSONArray()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val path = o.optString("path")
+            val gone = o.optBoolean("net", false) && path.regionMatches(0, root, 0, root.length, ignoreCase = true) &&
+                path.substring(root.length).lowercase() !in present && !keep(o)
+            if (!gone) out.put(o)
+        }
+        if (out.length() != arr.length()) writeIndex(ctx, out)
+    }
+
     fun renamed(ctx: Context, from: File, to: File) = synchronized(lock) {
         val arr = readIndex(ctx)
         for (i in 0 until arr.length()) {
