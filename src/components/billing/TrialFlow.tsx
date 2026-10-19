@@ -26,7 +26,10 @@ interface Props {
   startAt?: 'trial' | 'plans';
 }
 
-type Step = 'check' | 'auth' | 'creating' | 'provisioning' | 'success' | 'used' | 'plans' | 'pay' | 'failed';
+type Step = 'check' | 'auth' | 'creating' | 'own' | 'provisioning' | 'success' | 'used' | 'plans' | 'pay' | 'failed';
+
+/** After a "couldn't reach" on POST /trial, how long before asking whether it was made after all. */
+const RECHECK_AFTER_MS = 2000;
 
 interface PayCtx { invoiceId: number; initialUrl: string | null; amount: number | null; currency: string; planName: string; serviceId: number }
 
@@ -38,7 +41,11 @@ interface PayCtx { invoiceId: number; initialUrl: string | null; amount: number 
  *
  * A trial already used turns into "pick a plan": the plan list, the payment
  * sheet and the wait for the line all run here too, so the viewer ends on the
- * same success sheet either way.
+ * same success sheet either way. Unless that trial is the account's own and
+ * still live: then it is handed over, as if it had just been made ('own').
+ * A trial whose answer never reached the box ("couldn't reach the billing
+ * server" while the server made it) was told "trial already used" on the
+ * next try, and the viewer never got the line they had been given.
  */
 const TrialFlow = memo(({ onDone, onCancel, startAt = 'trial' }: Props) => {
   const { t } = useTranslation();
@@ -57,6 +64,9 @@ const TrialFlow = memo(({ onDone, onCancel, startAt = 'trial' }: Props) => {
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const fail = useCallback((message: string) => { setFailure(message); setStep('failed'); }, []);
+  // Set when 'own' was reached from a failed POST /trial: nothing live found
+  // means that failure is the answer, not "trial already used".
+  const ownFallbackRef = useRef<string | null>(null);
 
   /** Sign the player in with the line; on success show the sheet. */
   const applyAndShow = useCallback(async (s: BillingService) => {
@@ -88,7 +98,8 @@ const TrialFlow = memo(({ onDone, onCancel, startAt = 'trial' }: Props) => {
         if (cancelled) return;
         setAccountEmail(me.client.email ?? null);
         if (startAt === 'plans') { setStep('plans'); return; }
-        setStep(me.client.trial_used ? 'used' : 'creating');
+        ownFallbackRef.current = null;
+        setStep(me.client.trial_used ? 'own' : 'creating');
       } catch (e) {
         if (cancelled) return;
         const err = toBillingError(e);
@@ -111,13 +122,40 @@ const TrialFlow = memo(({ onDone, onCancel, startAt = 'trial' }: Props) => {
       } catch (e) {
         if (cancelled) return;
         const err = toBillingError(e);
-        if (err.code === 'trial_already_used') setStep('used');
+        if (err.code === 'trial_already_used') { ownFallbackRef.current = null; setStep('own'); }
         else if (err.isAuthError) setStep('auth');
         else if (err.code === 'provisioning_failed' && typeof err.details?.service_id === 'number') {
           setProvisioningId(err.details.service_id as number);
           setStep('provisioning');
-        } else fail(billingErrorText(err));
+        } else {
+          // The answer may have been lost on the way back while the trial was
+          // made: look for it before saying anything went wrong.
+          ownFallbackRef.current = billingErrorText(err);
+          setStep('own');
+        }
       }
+    })();
+    return () => { cancelled = true; };
+  }, [step, applyAndShow, fail]);
+
+  // 2b. The account's trial is used: is it this account's own, still live,
+  // with its line? Then hand it over. Otherwise "trial already used" (or the
+  // error that brought us here).
+  useEffect(() => {
+    if (step !== 'own') return;
+    let cancelled = false;
+    (async () => {
+      const lost = ownFallbackRef.current;
+      if (lost) await new Promise((r) => setTimeout(r, RECHECK_AFTER_MS));
+      if (cancelled) return;
+      let live: BillingService | null = null;
+      try {
+        const { services } = await SmcBilling.services();
+        live = services.find((x) => x.plan?.trial && x.active) ?? null;
+      } catch { /* not reachable: fall through */ }
+      if (cancelled) return;
+      if (live) { await applyAndShow(live); return; }
+      if (lost) fail(lost); else setStep('used');
     })();
     return () => { cancelled = true; };
   }, [step, applyAndShow, fail]);
@@ -173,13 +211,14 @@ const TrialFlow = memo(({ onDone, onCancel, startAt = 'trial' }: Props) => {
         onSuccess={(s) => {
           setAccountEmail(s.client.email ?? null);
           if (startAt === 'plans') { setStep('plans'); return; }
-          setStep(s.client.trial_used ? 'used' : 'creating');
+          ownFallbackRef.current = null;
+          setStep(s.client.trial_used ? 'own' : 'creating');
         }}
         onCancel={onCancel}
       />
     );
   }
-  if (step === 'creating') return <WaitScreen title={t('billing.trial.creatingTitle')} detail={t('billing.trial.creatingDetail')} />;
+  if (step === 'creating' || step === 'own') return <WaitScreen title={t('billing.trial.creatingTitle')} detail={t('billing.trial.creatingDetail')} />;
   if (step === 'provisioning') return <WaitScreen title={t('billing.account.settingUpTitle')} detail={t('billing.trial.settingUpDetail')} />;
   if (step === 'failed') return <WaitScreen error title={t('billing.trial.failedTitle')} detail={failure} onBack={onCancel} />;
   if (step === 'plans') {
