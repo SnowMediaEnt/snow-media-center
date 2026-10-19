@@ -358,7 +358,10 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
   const actionsFor = (row: MenuTarget['row']): Action[] => {
     if (row.kind === 'sched') return ['cancelSchedule', 'cancel'];
     if (row.kind === 'issue') return ['dismiss', 'cancel'];
-    return row.it.recording ? ['play', 'stop', 'cancel'] : ['play', 'rename', 'delete', 'cancel'];
+    // A network recording still on its way to the computer has no address to
+    // play from until its file exists there (no playUrl): no Play yet.
+    const play: Action[] = row.it.playUrl ? ['play'] : [];
+    return row.it.recording ? [...play, 'stop', 'cancel'] : [...play, 'rename', 'delete', 'cancel'];
   };
 
   const remove = useCallback(async (it: RecordingItem) => {
@@ -393,7 +396,7 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
       return;
     }
     const it = row.it;
-    if (a === 'play') { setMenu(null); setPlaying(it); return; }
+    if (a === 'play') { setMenu(null); if (it.playUrl) setPlaying(it); return; }
     if (a === 'stop') {
       setMenu(null);
       try { await SnowRecorder.stop({ id: it.id }); } catch { /* ignore */ }

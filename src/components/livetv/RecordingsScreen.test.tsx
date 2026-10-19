@@ -394,6 +394,16 @@ describe('recordings on a computer (volume "net")', () => {
     await settle();
   });
 
+  it('still on its way to the computer (no file there yet, no playUrl): no Play in its menu', async () => {
+    h.items = [rec({ id: 'n2', name: 'News at 7', path: 'net:/n2.ts', playUrl: '', volumeId: 'net', volumeLabel: 'DESKTOP-ABC', uploading: true })];
+    await open();
+    okKey();
+    expect(menuRows()).not.toContain('play');
+    expect(menuRows()[0]).toBe('rename');
+    key('Escape');
+    await settle();
+  });
+
   it('the computer out of reach: the header says so instead of a free space', async () => {
     h.moreVolumes = [net(false)];
     await open();
