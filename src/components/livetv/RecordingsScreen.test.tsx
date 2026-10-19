@@ -13,6 +13,8 @@ const h = vi.hoisted(() => ({
   items: [] as Array<Record<string, unknown>>,
   schedules: [] as Array<Record<string, unknown>>,
   canExact: true,
+  /** Drives besides the box (the computer on the network). */
+  moreVolumes: [] as Array<Record<string, unknown>>,
   toast: vi.fn(),
   focusInput: vi.fn(),
 }));
@@ -23,7 +25,7 @@ vi.mock('@/capacitor/SnowRecorder', () => ({
   SnowRecorder: {
     list: async () => ({
       recordings: h.items,
-      volumes: [{ id: 'box', label: 'This box', removable: false, freeBytes: 30 * 1024 ** 3, totalBytes: 64 * 1024 ** 3 }],
+      volumes: [{ id: 'box', label: 'This box', removable: false, freeBytes: 30 * 1024 ** 3, totalBytes: 64 * 1024 ** 3 }, ...h.moreVolumes],
     }),
     remove: async (o: Record<string, unknown>) => { h.calls.push({ fn: 'remove', opts: o }); },
     rename: async (o: Record<string, unknown>) => { h.calls.push({ fn: 'rename', opts: o }); return { path: 'x', name: 'x', playUrl: 'file:///x' }; },
@@ -71,7 +73,7 @@ async function open(onClose = vi.fn()) {
 }
 
 beforeEach(() => {
-  h.calls.length = 0; h.toast.mockClear(); h.focusInput.mockClear(); h.schedules = []; h.canExact = true;
+  h.calls.length = 0; h.toast.mockClear(); h.focusInput.mockClear(); h.schedules = []; h.canExact = true; h.moreVolumes = [];
   h.items = [
     rec({}),
     rec({ id: 'a-p2', name: 'CNN – 2026-09-28 20.00 (part 2)', path: '/r/a (part 2).ts', playUrl: 'file:///r/a2.ts', volumeId: 'usb', volumeLabel: 'USB drive' }),
@@ -358,5 +360,43 @@ describe('the key hint never covers a row', () => {
     expect(last.getBoundingClientRect().bottom).toBeLessThanOrEqual(PANE_TOP + PANE_H);
     for (let n = 0; n < 4; n++) key('ArrowUp');
     expect(pane.scrollTop).toBe(0);
+  });
+});
+
+describe('recordings on a computer (volume "net")', () => {
+  const net = (reachable: boolean) => ({
+    id: 'net', label: 'DESKTOP-ABC', removable: false, freeBytes: 1.2 * 1024 ** 4, totalBytes: 2 * 1024 ** 4, network: true, reachable,
+  });
+
+  it('list like the rest; one still being copied over says so; the computer\'s free space is in the header', async () => {
+    h.moreVolumes = [net(true)];
+    h.items = [
+      rec({ id: 'n1', name: 'News at 6', path: 'net:/n1.ts', playUrl: 'http://127.0.0.1:8123/rec/n1', volumeId: 'net', volumeLabel: 'DESKTOP-ABC', uploading: true }),
+      rec({ id: 'n2', name: 'Late Show', path: 'net:/n2.ts', playUrl: 'http://127.0.0.1:8123/rec/n2', volumeId: 'net', volumeLabel: 'DESKTOP-ABC' }),
+    ];
+    await open();
+    expect(rows()).toHaveLength(2);
+    expect(document.querySelector('[data-recordings-drive="net"]')?.textContent).toBe('DESKTOP-ABC: 1.2 TB free');
+    const marks = Array.from(rows()).map((r) => r.querySelector('[data-recording-uploading]')?.textContent?.trim() ?? null);
+    expect(marks.filter(Boolean)).toEqual(['Copying to computer']);
+    expect(rows()[0].textContent).toContain('DESKTOP-ABC');
+  });
+
+  it('plays from its loopback address like any other recording', async () => {
+    h.items = [rec({ id: 'n1', name: 'News at 6', path: 'net:/n1.ts', playUrl: 'http://127.0.0.1:8123/rec/n1', volumeId: 'net', volumeLabel: 'DESKTOP-ABC', uploading: true })];
+    await open();
+    okKey(); // the menu: Play first
+    expect(menuRows()[0]).toBe('play');
+    okKey();
+    expect(document.querySelector('[data-recording-player]')).not.toBeNull();
+    expect(h.calls.find((c) => c.fn === 'play')?.opts?.url).toBe('http://127.0.0.1:8123/rec/n1');
+    key('Escape');
+    await settle();
+  });
+
+  it('the computer out of reach: the header says so instead of a free space', async () => {
+    h.moreVolumes = [net(false)];
+    await open();
+    expect(document.querySelector('[data-recordings-drive="net"]')?.textContent).toBe('DESKTOP-ABC: not reachable');
   });
 });

@@ -1,16 +1,59 @@
 // JS bridge for recording live channels (com.snowmedia.dvr.RecorderPlugin).
 // The recording runs in an Android foreground service with its own
-// connection; files go to the app's folder on the box or on a USB drive.
+// connection; files go to the app's folder on the box, on a USB drive, or to
+// a shared folder on a computer or NAS on the home network (volume id 'net').
 import { registerPlugin, Capacitor, type PluginListenerHandle } from '@capacitor/core';
 import { isHowtoCapture } from '@/lib/demoMode';
 
 export interface RecordVolume {
-  /** "box" for the box itself, the volume's id for a USB drive / SD card. */
+  /** "box" for the box itself, the volume's id for a USB drive / SD card, "net" for the computer's shared folder. */
   id: string;
   label: string;
   removable: boolean;
   freeBytes: number;
   totalBytes: number;
+  /** The shared folder on a computer (id 'net'). */
+  network?: boolean;
+  /**
+   * The computer answers right now (network volumes only). Recording to it
+   * is still allowed when it doesn't: the box keeps the file and copies it
+   * over once the computer is back.
+   */
+  reachable?: boolean;
+}
+
+/** The network folder recordings are saved to: never its password. */
+export interface NetworkFolder {
+  configured: boolean;
+  host?: string;
+  share?: string;
+  /** The folder inside the share the recordings go in. */
+  folder?: string;
+  user?: string;
+  /** What the screens call it ("DESKTOP-ABC"). */
+  label?: string;
+}
+
+/** What the computer said when the box tried its shared folder. */
+export type NetworkFolderReason = 'unreachable' | 'auth' | 'no_share' | 'no_folder' | 'read_only' | 'error';
+
+export interface NetworkFolderResult {
+  ok: boolean;
+  reason?: NetworkFolderReason;
+  freeBytes?: number;
+  totalBytes?: number;
+}
+
+/**
+ * The details of a shared folder. An omitted password with the same host
+ * and user as the saved folder means "keep the saved password".
+ */
+export interface NetworkFolderArgs {
+  host: string;
+  share: string;
+  folder?: string;
+  user?: string;
+  password?: string;
 }
 
 export interface RecordingJob {
@@ -39,6 +82,8 @@ export interface RecordingItem {
   recording: boolean;
   volumeId: string;
   volumeLabel: string;
+  /** On the computer's folder (volumeId 'net'): part of it still waits on the box to be copied over. */
+  uploading?: boolean;
 }
 
 /** The error codes `start` rejects with (err.code), besides a plain message. */
@@ -84,6 +129,7 @@ export interface SnowRecorderPlugin {
    * 2 (each recording is one more stream). Past it the call rejects with code
    * 'TOO_MANY', a plain-words message and `data.maxSimultaneous`. Omitted: 2.
    * A drive with too little room rejects with code 'NO_SPACE'.
+   * `volumeId` 'net' records to the computer's shared folder (by way of the box).
    */
   start(opts: {
     url: string; channel: string; fileName: string; volumeId: string; durationMin: number; maxSimultaneous?: number;
@@ -113,6 +159,16 @@ export interface SnowRecorderPlugin {
   /** Can this box set exact alarms, and is there a settings page to allow them (Android 12)? */
   exactAlarmStatus(): Promise<{ canExact: boolean; canOpenSettings: boolean }>;
   openExactAlarmSettings(): Promise<void>;
+  /** The shared folder on a computer recordings can go to (volume id 'net'). */
+  getNetworkFolder(): Promise<NetworkFolder>;
+  /** Try the folder (reach, sign in, write a test file) without saving anything. */
+  testNetworkFolder(opts: NetworkFolderArgs): Promise<NetworkFolderResult>;
+  /** Try the folder and save it, only when the try worked. */
+  saveNetworkFolder(opts: NetworkFolderArgs): Promise<NetworkFolderResult>;
+  /** Stop saving to the computer: forgets the folder and its password. */
+  clearNetworkFolder(): Promise<Record<string, never>>;
+  /** Computers on the home network that share folders. Takes up to about 6 seconds. */
+  findComputers(): Promise<{ computers: Array<{ host: string; name?: string }> }>;
   /** 'recordingsChanged': a recording or schedule started, ended or changed on the native side. */
   addListener(eventName: 'recordingsChanged', listener: () => void): Promise<PluginListenerHandle>;
 }
@@ -149,6 +205,11 @@ const webFallback: SnowRecorderPlugin = {
   },
   async exactAlarmStatus() { return { canExact: true, canOpenSettings: false }; },
   async openExactAlarmSettings() {},
+  async getNetworkFolder() { return { configured: false }; },
+  testNetworkFolder: unavailable,
+  saveNetworkFolder: unavailable,
+  async clearNetworkFolder() { return {}; },
+  async findComputers() { return { computers: [] }; },
   async addListener() { return { remove: async () => {} }; },
 };
 

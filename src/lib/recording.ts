@@ -134,3 +134,14 @@ export function endsAtLabel(minutes: number, now: Date = new Date()): string | n
   if (minutes <= 0) return null;
   return formatTime(now.getTime() + minutes * 60_000);
 }
+
+/**
+ * What a viewer types as the computer for recordings on the network, made
+ * into its name or address. People paste "\\DESKTOP-ABC\Recordings" or
+ * "smb://nas/tv" from their computer: the first part is the computer, the
+ * second the shared folder.
+ */
+export function splitAddress(raw: string): { host: string; share?: string } {
+  const parts = raw.trim().replace(/^smb:\/\//i, '').split(/[\\/]+/).filter(Boolean);
+  return { host: parts[0] ?? '', share: parts[1] };
+}

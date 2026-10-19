@@ -129,6 +129,8 @@ describe('labels', () => {
     expect(formatBytes(0)).toBe('0 MB');
     expect(formatBytes(350 * 1024 * 1024)).toBe('350 MB');
     expect(formatBytes(1.25 * GB)).toBe('1.3 GB');
+    // A computer's disk (recordings on the network).
+    expect(formatBytes(1.2 * 1024 * GB)).toBe('1.2 TB');
   });
 
   it('the buffer key names the channel, never the line', () => {

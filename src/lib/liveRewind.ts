@@ -184,6 +184,8 @@ export const behindLabel = (behindSec: number): string => (behindSec >= 1 ? `-${
 /** "1.2 GB", "350 MB". */
 export function formatBytes(b: number): string {
   if (!Number.isFinite(b) || b <= 0) return '0 MB';
+  // A computer's or NAS's disk (recordings on the network) runs to terabytes.
+  if (b >= 1024 * GIB) return `${(b / (1024 * GIB)).toFixed(1)} TB`;
   if (b >= GIB) return `${(b / GIB).toFixed(1)} GB`;
   return `${Math.max(1, Math.round(b / (1024 * 1024)))} MB`;
 }

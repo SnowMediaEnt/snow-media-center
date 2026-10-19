@@ -20,6 +20,11 @@
 // A recording that ran past 3.9 GB on a USB drive carries on in a "(part 2)"
 // file: each part is its own row (own id), and `recording` is shown as it is.
 //
+// Recordings on the computer's shared folder (volume 'net') list and play like
+// the rest (their playUrl is the box's own loopback address). One still being
+// copied over from the box says so ("Copying to computer"); the computer's
+// drive in the header says when it can't be reached.
+//
 // One Back = one step: the playing recording → the list; the keyboard →
 // the rename box; the rename box or a menu → the list; the list → Live TV.
 // Rename follows the app's keyboard rule (useTVFocus, 1.6.x path): the field
@@ -27,7 +32,9 @@
 // Chrome 66: margins, no flex gap beyond gap-1..4, no inset.
 import { useTouchUI } from '@/lib/phoneMode';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, Circle, Clock, Film, HardDrive, Pencil, Play, Settings, Square, Trash2, Usb, X } from 'lucide-react';
+import {
+  AlertTriangle, ArrowLeft, Check, Circle, Clock, Film, HardDrive, Monitor, Pencil, Play, Settings, Square, Trash2, UploadCloud, Usb, X,
+} from 'lucide-react';
 import {
   SnowRecorder, RECORDINGS_CHANGED_EVENT, notifyRecordingsChanged, type RecordSchedule, type RecordVolume, type RecordingItem,
 } from '@/capacitor/SnowRecorder';
@@ -549,7 +556,8 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
     </div>
   );
 
-  const driveOf = (id: string) => volumes.find((v) => v.id === id)?.label ?? (id === 'box' ? t('recordings.list.thisBox') : t('recordings.list.usbDrive'));
+  const driveOf = (id: string) => volumes.find((v) => v.id === id)?.label
+    ?? (id === 'box' ? t('recordings.list.thisBox') : id === 'net' ? t('recordings.list.computer') : t('recordings.list.usbDrive'));
   // Group headings only when there is more than one group; the first row on screen always says which it is in.
   const groupOf = (r: ListRow | undefined): string | null =>
     r?.kind === 'sched' ? t('recordings.list.groupScheduled') : r?.kind === 'issue' ? t('recordings.list.groupMissed') : r?.kind === 'rec' ? t('recordings.list.groupRecordings') : null;
@@ -575,12 +583,20 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
         ) : <ArrowLeft className="w-6 h-6 mr-2 text-brand-ice/70" />}
         <h1 className="text-2xl font-quicksand font-bold mr-4">{t('recordings.list.title')}</h1>
         <div className="flex-1 min-w-0 text-right truncate">
-          {volumes.map((v) => (
-            <span key={v.id} data-howto="recs.drive" className={`ml-4 text-sm font-nunito ${isLowSpace(v.freeBytes) ? 'text-amber-300' : 'text-brand-ice/70'}`}>
-              {v.removable ? <Usb className="inline w-4 h-4 mr-1 -mt-0.5" /> : <HardDrive className="inline w-4 h-4 mr-1 -mt-0.5" />}
-              {t(isLowSpace(v.freeBytes) ? 'recordings.list.driveFreeLow' : 'recordings.list.driveFree', { label: v.label, size: formatBytes(v.freeBytes) })}
-            </span>
-          ))}
+          {volumes.map((v) => {
+            const away = !!v.network && v.reachable === false;
+            const low = !away && isLowSpace(v.freeBytes);
+            return (
+              <span key={v.id} data-howto="recs.drive" data-recordings-drive={v.id} className={`ml-4 text-sm font-nunito ${low || away ? 'text-amber-300' : 'text-brand-ice/70'}`}>
+                {v.network
+                  ? <Monitor className="inline w-4 h-4 mr-1 -mt-0.5" />
+                  : v.removable ? <Usb className="inline w-4 h-4 mr-1 -mt-0.5" /> : <HardDrive className="inline w-4 h-4 mr-1 -mt-0.5" />}
+                {away
+                  ? t('recordings.list.driveOffline', { label: v.label })
+                  : t(low ? 'recordings.list.driveFreeLow' : 'recordings.list.driveFree', { label: v.label, size: formatBytes(v.freeBytes) })}
+              </span>
+            );
+          })}
         </div>
       </div>
 
@@ -652,6 +668,11 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
                       {it.recording ? `${t('recordings.list.recordingNow')} · ` : ''}{when(it.startedAt)} · {it.volumeLabel}
                     </p>
                   </div>
+                  {it.uploading && (
+                    <span data-recording-uploading className="ml-3 flex items-center text-sm font-nunito px-2 py-0.5 rounded-lg bg-sky-500/20 text-sky-100 border border-sky-400/40 flex-shrink-0">
+                      <UploadCloud className="w-4 h-4 mr-1" /> {t('recordings.list.uploadingChip')}
+                    </span>
+                  )}
                   <span className="ml-3 text-base font-nunito tabular-nums text-brand-ice/80 flex-shrink-0">
                     {it.durationSec > 0 ? formatDuration(it.durationSec) : ''}
                   </span>

@@ -66,7 +66,9 @@
       "stopAction": "Detener grabación",
       "moreAction": "Más opciones…",
       "moreHint": "favorito, reportar",
-      "hint": "▲▼ elegir · ◀▶ cambiar · OK · Atrás cierra. Las grabaciones están en TV en vivo › Grabaciones."
+      "hint": "▲▼ elegir · ◀▶ cambiar · OK · Atrás cierra. Las grabaciones están en TV en vivo › Grabaciones.",
+      "volumeOffline": "{{label}} · sin conexión ahora",
+      "netLater": "La computadora no responde ahora: la grabación espera en este equipo y se copia cuando vuelva."
     },
     "player": {
       "cantPlay": "No se puede reproducir esta grabación",
@@ -110,7 +112,10 @@
       "groupMissed": "Perdidas / no iniciadas",
       "groupRecordings": "Grabaciones",
       "thisBox": "Este equipo",
-      "usbDrive": "Unidad USB"
+      "usbDrive": "Unidad USB",
+      "driveOffline": "{{label}}: sin conexión",
+      "uploadingChip": "Copiando a la computadora",
+      "computer": "Computadora"
     },
     "toast": {
       "deletedTitle": "Grabación eliminada",
@@ -168,7 +173,48 @@
       "usageWithBudget": "Búfer de retroceso ahora: {{used}} · Libre: {{free}} · Auto podría usar hasta {{budget}}",
       "figuresInApp": "Las cifras se muestran en la app de tu equipo de TV.",
       "nearlyFull": "Este equipo está casi lleno: el retroceso en canales sin diferido no tendrá espacio.",
-      "recordingsSeparate": "Las grabaciones son aparte (TV en vivo › Grabaciones) y el retroceso nunca las borra."
+      "recordingsSeparate": "Las grabaciones son aparte (TV en vivo › Grabaciones) y el retroceso nunca las borra.",
+      "networkRow": "Grabaciones en una computadora",
+      "networkRowDesc": "Guarda las grabaciones en una carpeta compartida de una computadora o NAS de tu red.",
+      "networkOffChip": "Sin configurar"
+    },
+    "network": {
+      "title": "Grabaciones en una computadora",
+      "intro": "Guarda las grabaciones en una carpeta compartida de una computadora o NAS de tu red de casa.",
+      "introLater": "Si la computadora está apagada, las grabaciones esperan en este equipo y se copian después.",
+      "savedTo": "Las grabaciones van a {{name}}.",
+      "find": "Buscar computadoras",
+      "findDesc": "Busca en tu red computadoras y NAS que compartan carpetas.",
+      "finding": "Buscando computadoras… tarda unos segundos.",
+      "foundNone": "No se encontraron computadoras. Escribe su nombre o dirección abajo.",
+      "computer": "Computadora (nombre o dirección)",
+      "computerPlaceholder": "DESKTOP-ABC o 192.168.1.20",
+      "share": "Carpeta compartida",
+      "sharePlaceholder": "Grabaciones",
+      "folder": "Carpeta dentro de ella",
+      "user": "Usuario",
+      "userPlaceholder": "Vacío si la carpeta está abierta a todos",
+      "password": "Contraseña",
+      "keepPassword": "Déjala vacía para conservar la contraseña guardada",
+      "saveBtn": "Probar y guardar",
+      "testing": "Probando la carpeta…",
+      "clearBtn": "Dejar de usar esta computadora",
+      "clearConfirm": "¿Dejar de guardar grabaciones en {{name}}? Pulsa OK otra vez.",
+      "cleared": "Listo. Las grabaciones que ya están en la computadora se quedan ahí.",
+      "needHost": "Escribe el nombre o la dirección de la computadora.",
+      "needShare": "Escribe el nombre de la carpeta compartida.",
+      "saved": "Guardado. {{free}} libres en {{name}}.",
+      "savedNoFree": "Guardado. Las grabaciones van a {{name}}.",
+      "failUnreachable": "No se pudo conectar con esa computadora. ¿Está encendida y en la misma red?",
+      "failAuth": "La computadora rechazó ese usuario o contraseña.",
+      "failNoShare": "Esa computadora no tiene una carpeta compartida con ese nombre.",
+      "failReadOnly": "No se puede escribir en la carpeta: revisa que sus permisos de uso compartido permitan cambios.",
+      "failError": "No funcionó. Revisa los datos e inténtalo de nuevo.",
+      "howTitle": "Cómo compartir una carpeta",
+      "howWindows": "Windows: clic derecho en la carpeta › Propiedades › Compartir › Compartir, agrega tu usuario y elige Lectura y escritura.",
+      "howWindowsLogin": "Windows: usa el usuario y la contraseña con los que inicias sesión en Windows (en una cuenta Microsoft, su correo).",
+      "howMac": "Mac: Ajustes del Sistema › General › Compartir › Compartir archivos, agrega la carpeta y da a tu usuario Lectura y escritura.",
+      "howMacOptions": "Mac: en Compartir archivos › Opciones, activa tu usuario en Compartir archivos de Windows."
     },
     "reasons": {
       "noLogin": "Inicia sesión en TV en vivo para grabar.",
