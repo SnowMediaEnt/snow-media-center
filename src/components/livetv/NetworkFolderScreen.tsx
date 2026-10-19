@@ -147,7 +147,16 @@ const NetworkFolderScreen = memo(({ onBack, embedded = false, active = true }: P
         const { Capacitor } = await import('@capacitor/core');
         if (!Capacitor.isNativePlatform()) return;
         const { Keyboard } = await import('@capacitor/keyboard');
-        const handle = await Keyboard.addListener('keyboardDidHide', () => { typingRef.current = false; });
+        // The platform's own Back closed the keyboard: the field must let go of
+        // the focus too, or the next OK is taken as the keyboard's "done" and
+        // jumps to the next field instead of opening the keyboard here again.
+        // Its parting Enter is ignored for a moment, as after putAway().
+        const handle = await Keyboard.addListener('keyboardDidHide', () => {
+          typingRef.current = false;
+          dismissedAtRef.current = Date.now();
+          const el = document.activeElement as HTMLElement | null;
+          if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) el.blur();
+        });
         if (cancelled) { void handle.remove(); return; }
         stop = () => { void handle.remove(); };
       } catch { /* no keyboard plugin here (web, tests) */ }
