@@ -142,6 +142,24 @@ class MainActivity : BridgeActivity() {
             if (!blocked && !pageGone) bridge?.webView?.evaluateJavascript("window.dispatchEvent(new Event('smc:okkey'))", null)
             return super.dispatchKeyEvent(event)
         }
+        // The remote's Menu (≡): the WebView keeps it too, so the page never
+        // heard it (Live TV's channel list over the picture, a channel's or a
+        // category's menu, the Guide's). Hand it over as the key the page
+        // listens for, 'ContextMenu', on the focused element so it bubbles
+        // the way a real key does. While typing, it is the keyboard's.
+        if (event.keyCode == KeyEvent.KEYCODE_MENU && !typingInField()) {
+            val page = if (blocked || pageGone) null else bridge?.webView
+            if (page != null) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    page.evaluateJavascript(
+                        "(document.activeElement||document.body).dispatchEvent(new KeyboardEvent('keydown'," +
+                            "{key:'ContextMenu',code:'ContextMenu',bubbles:true,cancelable:true}))",
+                        null,
+                    )
+                }
+                return true
+            }
+        }
         val name = when (event.keyCode) {
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> "playpause"
             KeyEvent.KEYCODE_MEDIA_PLAY -> "play"
