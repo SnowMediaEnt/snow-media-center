@@ -28,10 +28,34 @@ interface UpdateInfo extends SmcUpdateInfo {
 
 const AUTO_UPDATE_KEY = 'smc-auto-update-enabled';
 const SNOOZE_KEY = 'smc-auto-update-snooze-version';
-// The silent download starts only once the box has sat on Home this long with
-// no key pressed and no player open (see waitForHomeIdle).
-const HOME_IDLE_MS = 60_000;
+/**
+ * "Later" (or Back) on the prompt: that version is not offered again for a
+ * day. It used to be never: one reflexive Back and the box stayed on that
+ * version for good (half the boxes in use were on 1.8.9 or older, 2026-10-18).
+ */
+const SNOOZE_MS = 24 * 60 * 60 * 1000;
+// The silent download starts once the box has sat on Home this long with no
+// key pressed and no player open (see waitForHomeIdle). It was a full minute,
+// which most viewers never give it: they go straight into Live TV.
+const HOME_IDLE_MS = 10_000;
 const IDLE_POLL_MS = 5_000;
+
+/** Whether "Later" was said to `version` less than a day ago. A plain version
+ *  string (what the app kept before 1.9.3, "never again") does not count. */
+const isSnoozed = (version: string, now = Date.now()): boolean => {
+  try {
+    const raw = localStorage.getItem(SNOOZE_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw) as { v?: unknown; until?: unknown } | null;
+    return !!s && s.v === version && typeof s.until === 'number' && now < s.until;
+  } catch {
+    return false;
+  }
+};
+
+const snoozeVersion = (version: string) => {
+  try { localStorage.setItem(SNOOZE_KEY, JSON.stringify({ v: version, until: Date.now() + SNOOZE_MS })); } catch { /* ignore */ }
+};
 
 const isVersionNewer = (a: string, b: string): boolean => {
   const ap = a.split('.').map(Number);
@@ -62,17 +86,21 @@ const isVersionNewer = (a: string, b: string): boolean => {
  *  prompt until home is back: the dialog owns every key, so it must not open
  *  over the Player, a game or the profile screens.
  *
- *  The download itself starts only after the box has been idle on Home (no
- *  key for HOME_IDLE_MS, no player open: `paused` is the app's "off Home"
+ *  The download itself starts once the box has been quiet on Home (no key
+ *  for HOME_IDLE_MS, no player open: `paused` is the app's "off Home"
  *  signal, and `streaming-active` says a player is streaming). Once started
- *  the native download can't be paused, so it must not begin while the
- *  viewer is on their way into a film: a viewer who has left the box alone
- *  on Home for a minute is not. An APK already in the cache needs no wait. */
+ *  the native download can't be paused, so it waits for that pause rather
+ *  than starting under a viewer's first keys. An APK already in the cache
+ *  needs no wait. "Later" holds that version back for a day (SNOOZE_MS). */
 const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
   const { t } = useTranslation();
   const { version: currentVersion, versionCode: currentVersionCode, isLoading } = useVersion();
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   const [prepared, setPrepared] = useState<PreparedUpdate | null>(null);
+  // For the hourly re-check: a prepared update whose day of "Later" is over
+  // is offered again without a restart.
+  const preparedRef = useRef<PreparedUpdate | null>(null);
+  preparedRef.current = prepared;
   const [open, setOpen] = useState(false);
   const [installing, setInstalling] = useState(false);
   // A recording is running, or one starts within 30 minutes: installing ends the
@@ -151,8 +179,11 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
       if (preparingRef.current) return;
       const key = data.versionCode ?? data.version;
       if (handledRef.current === key) {
-        // Already prepared this session — just re-open the dialog if needed.
-        if (prepared && !open) setOpen(true);
+        // Already prepared this session: offer it again (held until Home).
+        if (preparedRef.current) {
+          if (pausedRef.current) heldRef.current = true;
+          else setOpen(true);
+        }
         return;
       }
       preparingRef.current = true;
@@ -214,8 +245,7 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
         if (!isNative) return;
         if (optedOut) return;
 
-        const snoozed = localStorage.getItem(SNOOZE_KEY);
-        if (snoozed === data.version) return; // user said "Later" for this exact version
+        if (isSnoozed(data.version)) return; // "Later" to this version, less than a day ago
 
         if (cancelled) return;
         // Silent background download → only then prompt.
@@ -237,9 +267,8 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
       cancelIdle();
       cancelInterval();
     };
-    // NOTE: `prepared`/`open`/`toast` intentionally not in deps — re-running the
-    // check effect on every state change would re-arm the hourly interval.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // The prepared update is read through preparedRef, so state changes don't
+    // re-run this effect (which would re-arm the hourly interval).
   }, [currentVersion, currentVersionCode, isLoading]);
 
   // Auto-focus primary button + trap focus/back so background D-pad can't steal it
@@ -273,7 +302,7 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
       if (e.key === 'Escape' || e.key === 'GoBack' || e.keyCode === 4) {
         e.preventDefault();
         if (!installing) {
-          if (info?.version) { try { localStorage.setItem(SNOOZE_KEY, info.version); } catch { /* ignore */ } }
+          if (info?.version) snoozeVersion(info.version);
           setOpen(false);
         }
         return;
@@ -320,9 +349,7 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
   }, [open, guard]);
 
   const snooze = () => {
-    if (info?.version) {
-      try { localStorage.setItem(SNOOZE_KEY, info.version); } catch { /* ignore */ }
-    }
+    if (info?.version) snoozeVersion(info.version);
     // Keep `prepared` in memory so the same versionCode installs instantly
     // if the user re-opens the prompt later this session.
     setOpen(false);

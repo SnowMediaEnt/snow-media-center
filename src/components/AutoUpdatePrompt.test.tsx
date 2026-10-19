@@ -148,9 +148,10 @@ describe('AutoUpdatePrompt with a recording at stake', () => {
 });
 
 // The ~40 MB APK download can't be paused once the native side has it, and
-// it used to start four seconds into whatever the viewer did next. Now it
-// starts only once the box has sat on Home, untouched, for a minute with no
-// player open; a cached APK needs no wait.
+// it used to start four seconds into whatever the viewer did next. It starts
+// once the box has sat on Home, untouched, for 10 seconds with no player
+// open (it was a full minute, which most viewers never gave it); a cached APK
+// needs no wait.
 describe('AutoUpdatePrompt: the silent download waits for an idle Home', () => {
   let started = 0;
   beforeEach(() => {
@@ -163,17 +164,17 @@ describe('AutoUpdatePrompt: the silent download waits for an idle Home', () => {
   });
   afterEach(() => { document.documentElement.classList.remove('streaming-active'); });
 
-  it('starts only after a minute on Home with no key pressed', async () => {
+  it('starts after 10 seconds on Home with no key pressed', async () => {
     render(<AutoUpdatePrompt paused={false} />);
-    await tick(5000);
+    await tick(4000);
     expect(prepareSmcUpdate).toHaveBeenCalledTimes(1);
     expect(started).toBe(0);
-    // The viewer is browsing Home: each key restarts the minute.
-    await tick(40_000);
+    // The viewer is browsing Home: each key restarts the wait.
+    await tick(3_000);
     fireEvent.keyDown(window, { key: 'ArrowRight' });
-    await tick(40_000);
+    await tick(8_000);
     expect(started).toBe(0);
-    await tick(25_000);
+    await tick(4_000);
     expect(started).toBe(1);
     expect(dialog()).not.toBeNull();
   });
@@ -186,12 +187,12 @@ describe('AutoUpdatePrompt: the silent download waits for an idle Home', () => {
     document.documentElement.classList.add('streaming-active');
     await tick(10 * 60_000);
     expect(started).toBe(0);
-    // Back on Home: the minute starts from there.
+    // Back on Home: the wait starts from there.
     document.documentElement.classList.remove('streaming-active');
     r.rerender(<AutoUpdatePrompt paused={false} />);
-    await tick(30_000);
+    await tick(6_000);
     expect(started).toBe(0);
-    await tick(35_000);
+    await tick(6_000);
     expect(started).toBe(1);
   });
 
@@ -201,5 +202,45 @@ describe('AutoUpdatePrompt: the silent download waits for an idle Home', () => {
     document.documentElement.classList.add('streaming-active');
     await tick(5 * 60_000);
     expect(started).toBe(0);
+  });
+});
+
+// "Later" (or Back) used to hold that version back for good: one reflexive
+// Back and the box never updated again (half the boxes in use were on 1.8.9
+// or older on 2026-10-18). Now it is a day.
+describe('AutoUpdatePrompt: Later is for a day, not for good', () => {
+  const KEY = 'smc-auto-update-snooze-version';
+
+  it('a "Later" from less than a day ago holds the version back; an older one does not', async () => {
+    localStorage.setItem(KEY, JSON.stringify({ v: '1.7.9', until: Date.now() + 60 * 60_000 }));
+    const r = render(<AutoUpdatePrompt paused={false} />);
+    await tick(5000);
+    expect(prepareSmcUpdate).not.toHaveBeenCalled();
+    r.unmount();
+    localStorage.setItem(KEY, JSON.stringify({ v: '1.7.9', until: Date.now() - 1 }));
+    render(<AutoUpdatePrompt paused={false} />);
+    await tick(5000);
+    expect(prepareSmcUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('a "Later" kept by an older app (the version alone, meaning never) asks again', async () => {
+    localStorage.setItem(KEY, '1.7.9');
+    render(<AutoUpdatePrompt paused={false} />);
+    await tick(5000);
+    expect(prepareSmcUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('Back on the prompt holds it back for 24 hours', async () => {
+    render(<AutoUpdatePrompt paused={false} />);
+    // The download (after the quiet 10 s on Home), then the prompt.
+    await tick(5000);
+    await act(async () => { finishDownload?.(); await vi.advanceTimersByTimeAsync(15_000); });
+    expect(dialog()).not.toBeNull();
+    fireEvent.keyDown(window, { key: 'Escape', keyCode: 27 });
+    await tick(0);
+    expect(dialog()).toBeNull();
+    const kept = JSON.parse(localStorage.getItem(KEY) ?? 'null') as { v: string; until: number };
+    expect(kept.v).toBe('1.7.9');
+    expect(Math.abs(kept.until - (Date.now() + 24 * 60 * 60_000))).toBeLessThan(60_000);
   });
 });
