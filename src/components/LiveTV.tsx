@@ -15,6 +15,7 @@ import {
   buildPlayerAccount,
   savePlayerAccount,
   bumpXtreamRefresh,
+  LIVE_CATS_LOADED_EVENT,
   clearLiveCatalogue,
   daysUntilExp,
   SERVERS,
@@ -60,6 +61,10 @@ const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 /** The Player section last opened this session, so a Player opened with
  *  nothing asked for goes back there instead of to the old chooser. */
 const LAST_MODE_KEY = 'smc-player-last-mode';
+/** Update Channels in Live TV: after the first line answers, how long to wait for the others. */
+const REFRESH_SETTLE_MS = 1500;
+/** …and how long for any answer at all (a refusal is tried again after 4 s). */
+const REFRESH_WAIT_MS = 25_000;
 const rememberPlayerMode = (m: 'live' | 'movies'): void => {
   try { sessionStorage.setItem(LAST_MODE_KEY, m); } catch { /* ignore */ }
 };
@@ -710,19 +715,18 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // Cheap: bumps a nonce that cache-busts player_api.php and tells the
   // visible section to refetch — does NOT eagerly load every category.
   const [isRefreshing, setIsRefreshing] = useState(false);
-  // Both timers below fire after the Player can be gone. Without these refs the
-  // "Updating channels…" / "Channels updated!" toasts popped up over the HOME
-  // screen for a Player that had already closed.
-  const refreshToastTimerRef = useRef<number | null>(null);
-  useEffect(() => () => {
-    if (refreshToastTimerRef.current) window.clearTimeout(refreshToastTimerRef.current);
-  }, []);
   // Read through a ref so the callback keeps its identity while the toast
   // timer flips `isRefreshing` — every effect that lists it as a dep (the
   // shell keydown listener among them) was torn down and re-registered twice
   // per Player open.
   const isRefreshingRef = useRef(isRefreshing);
   useEffect(() => { isRefreshingRef.current = isRefreshing; }, [isRefreshing]);
+  // In Live TV the result is what Live TV hears back about each line's list
+  // (LIVE_CATS_LOADED_EVENT): "Channels updated!" only when they came. It used
+  // to be said on a timer, whatever happened: a customer whose service sent
+  // nothing was told the channels were updated, over an empty list.
+  const refreshWaitRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { refreshWaitRef.current?.(); }, []);
   const refreshChannels = useCallback(() => {
     if (isRefreshingRef.current) return;
     setIsRefreshing(true);
@@ -731,14 +735,42 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       title: t('live.toast.updatingChannelsTitle'),
       description: t('live.toast.updatingChannelsDesc'),
     });
-    bumpXtreamRefresh();
-    if (refreshToastTimerRef.current) window.clearTimeout(refreshToastTimerRef.current);
-    refreshToastTimerRef.current = window.setTimeout(() => {
-      refreshToastTimerRef.current = null;
-      try { (updatingId as any)?.dismiss?.(); } catch { /* ignore */ }
-      toast({ title: t('live.toast.channelsUpdatedTitle'), description: t('live.toast.channelsUpdatedDesc') });
+    const finish = (outcome: 'ok' | 'failed' | 'empty' | 'quiet') => {
+      refreshWaitRef.current?.();
+      refreshWaitRef.current = null;
+      try { updatingId.dismiss(); } catch { /* ignore */ }
+      if (outcome === 'ok') toast({ title: t('live.toast.channelsUpdatedTitle'), description: t('live.toast.channelsUpdatedDesc') });
+      else if (outcome === 'failed') toast({ title: t('live.toast.channelsFailedTitle'), description: t('live.toast.channelsFailedDesc'), variant: 'destructive' });
+      else if (outcome === 'empty') toast({ title: t('live.toast.channelsEmptyTitle'), description: t('live.load.emptyNext'), variant: 'destructive' });
       setIsRefreshing(false);
-    }, 1400) as unknown as number;
+    };
+    refreshWaitRef.current?.();
+    if (modeRef.current === 'live') {
+      // Every line answers (a refusal is tried once more first): wait for the
+      // first, then a moment for the others.
+      const results: Array<string | null> = [];
+      let settle: number | null = null;
+      const decide = () => {
+        const failed = results.filter((r) => r && r !== 'empty');
+        finish(failed.length ? 'failed' : results.some((r) => r === 'empty') ? 'empty' : results.length ? 'ok' : 'quiet');
+      };
+      const onLoaded = (e: Event) => {
+        results.push(((e as CustomEvent).detail?.failed as string | null) ?? null);
+        if (settle == null) settle = window.setTimeout(decide, REFRESH_SETTLE_MS) as unknown as number;
+      };
+      const giveUp = window.setTimeout(decide, REFRESH_WAIT_MS) as unknown as number;
+      window.addEventListener(LIVE_CATS_LOADED_EVENT, onLoaded);
+      refreshWaitRef.current = () => {
+        window.removeEventListener(LIVE_CATS_LOADED_EVENT, onLoaded);
+        window.clearTimeout(giveUp);
+        if (settle != null) window.clearTimeout(settle);
+      };
+    } else {
+      // Films and series refetch when they are next shown.
+      const done = window.setTimeout(() => finish('ok'), 1400) as unknown as number;
+      refreshWaitRef.current = () => window.clearTimeout(done);
+    }
+    bumpXtreamRefresh();
   }, [t, serverLabel]);
 
 

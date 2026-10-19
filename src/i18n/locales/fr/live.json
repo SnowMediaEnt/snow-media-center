@@ -168,7 +168,10 @@
       "recordingDesc": "{{until}} · {{volume}}. {{note}}",
       "recordingFailedTitle": "L'enregistrement n'a pas démarré",
       "recordingStoppedTitle": "Enregistrement arrêté",
-      "recordingStoppedDesc": "Il se trouve dans TV en direct › Enregistrements."
+      "recordingStoppedDesc": "Il se trouve dans TV en direct › Enregistrements.",
+      "channelsFailedTitle": "Impossible d'actualiser les chaînes",
+      "channelsFailedDesc": "Le serveur n'a pas envoyé la liste des chaînes. Réessayez dans une minute ; si cela continue, redémarrez votre box internet.",
+      "channelsEmptyTitle": "Aucune chaîne sur ce compte"
     },
     "categories": {
       "favorites": "Favoris",
@@ -409,6 +412,15 @@
     "phone": {
       "tapToWatch": "Touchez une chaîne pour la regarder ici",
       "fullScreenLabel": "Plein écran"
+    },
+    "load": {
+      "yourService": "Votre service",
+      "refused": "{{service}} n'a pas envoyé vos chaînes (erreur {{code}}).",
+      "noAnswer": "{{service}} n'a pas répondu.",
+      "badAnswer": "{{service}} a renvoyé autre chose qu'une liste de chaînes.",
+      "empty": "{{service}} n'a aucune chaîne sur ce compte.",
+      "tryAgain": "Appuyez sur Actualiser les chaînes en haut pour réessayer. Si cela continue, redémarrez votre box internet, puis contactez l'assistance.",
+      "emptyNext": "Contactez l'assistance pour qu'elle vérifie les bouquets de chaînes de votre compte."
     }
   }
 }

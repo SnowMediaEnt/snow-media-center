@@ -168,7 +168,10 @@
       "recordingDesc": "{{until}} · {{volume}}. {{note}}",
       "recordingFailedTitle": "Die Aufnahme wurde nicht gestartet",
       "recordingStoppedTitle": "Aufnahme gestoppt",
-      "recordingStoppedDesc": "Du findest sie unter Live-TV › Aufnahmen."
+      "recordingStoppedDesc": "Du findest sie unter Live-TV › Aufnahmen.",
+      "channelsFailedTitle": "Sender konnten nicht aktualisiert werden",
+      "channelsFailedDesc": "Der Server hat die Senderliste nicht geschickt. Versuch es in einer Minute noch einmal; wenn es weiter passiert, starte deinen Internet-Router neu.",
+      "channelsEmptyTitle": "Keine Sender auf diesem Konto"
     },
     "categories": {
       "favorites": "Favoriten",
@@ -408,6 +411,15 @@
     "phone": {
       "tapToWatch": "Tippe auf einen Sender, um ihn hier zu sehen",
       "fullScreenLabel": "Vollbild"
+    },
+    "load": {
+      "yourService": "Dein Dienst",
+      "refused": "{{service}} hat deine Sender nicht geschickt (Fehler {{code}}).",
+      "noAnswer": "{{service}} hat nicht geantwortet.",
+      "badAnswer": "{{service}} hat etwas anderes als eine Senderliste geschickt.",
+      "empty": "{{service}} hat auf diesem Konto keine Sender.",
+      "tryAgain": "Drück oben auf Sender aktualisieren, um es noch einmal zu versuchen. Wenn es weiter passiert, starte deinen Internet-Router neu und kontaktiere dann den Support.",
+      "emptyNext": "Kontaktiere den Support, damit er die Senderpakete auf deinem Konto prüft."
     }
   }
 }

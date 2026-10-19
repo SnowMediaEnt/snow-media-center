@@ -168,7 +168,10 @@
       "recordingDesc": "{{until}} · {{volume}}. {{note}}",
       "recordingFailedTitle": "Recording did not start",
       "recordingStoppedTitle": "Recording stopped",
-      "recordingStoppedDesc": "It is in Live TV › Recordings."
+      "recordingStoppedDesc": "It is in Live TV › Recordings.",
+      "channelsFailedTitle": "Couldn't update the channels",
+      "channelsFailedDesc": "The server didn't send the channel list. Try again in a minute; if it keeps happening, restart your internet router.",
+      "channelsEmptyTitle": "No channels on this account"
     },
     "categories": {
       "favorites": "Favorites",
@@ -408,6 +411,15 @@
     "phone": {
       "tapToWatch": "Tap a channel to watch it here",
       "fullScreenLabel": "Full screen"
+    },
+    "load": {
+      "yourService": "Your service",
+      "refused": "{{service}} didn't send your channels (error {{code}}).",
+      "noAnswer": "{{service}} didn't answer.",
+      "badAnswer": "{{service}} sent back something that isn't a channel list.",
+      "empty": "{{service}} has no channels on this account.",
+      "tryAgain": "Press Update Channels at the top to try again. If it keeps happening, restart your internet router, then contact support.",
+      "emptyNext": "Contact support so they can check the channel packages on your account."
     }
   }
 }

@@ -168,7 +168,10 @@
       "recordingDesc": "{{until}} · {{volume}}. {{note}}",
       "recordingFailedTitle": "La grabación no se inició",
       "recordingStoppedTitle": "Grabación detenida",
-      "recordingStoppedDesc": "Está en TV en vivo › Grabaciones."
+      "recordingStoppedDesc": "Está en TV en vivo › Grabaciones.",
+      "channelsFailedTitle": "No se pudieron actualizar los canales",
+      "channelsFailedDesc": "El servidor no envió la lista de canales. Inténtalo de nuevo en un minuto; si sigue pasando, reinicia el router de internet.",
+      "channelsEmptyTitle": "No hay canales en esta cuenta"
     },
     "categories": {
       "favorites": "Favoritos",
@@ -409,6 +412,15 @@
     "phone": {
       "tapToWatch": "Toca un canal para verlo aquí",
       "fullScreenLabel": "Pantalla completa"
+    },
+    "load": {
+      "yourService": "Tu servicio",
+      "refused": "{{service}} no envió tus canales (error {{code}}).",
+      "noAnswer": "{{service}} no respondió.",
+      "badAnswer": "{{service}} devolvió algo que no es una lista de canales.",
+      "empty": "{{service}} no tiene canales en esta cuenta.",
+      "tryAgain": "Pulsa Actualizar canales arriba para intentarlo de nuevo. Si sigue pasando, reinicia el router de internet y luego contacta con soporte.",
+      "emptyNext": "Contacta con soporte para que revisen los paquetes de canales de tu cuenta."
     }
   }
 }

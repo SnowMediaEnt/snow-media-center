@@ -20,6 +20,8 @@ import {
   pickNowNext,
   listsViaSnowMedia,
   XTREAM_REFRESH_EVENT,
+  LIVE_CATS_LOADED_EVENT,
+  serverDisplayName,
   type FavChannel,
   type XtreamCreds,
   type XtreamCategory,
@@ -103,6 +105,7 @@ import { usePhoneLayout, useTouchUI } from '@/lib/phoneMode';
 import RecordDialog, { type RecordChoice } from './RecordDialog';
 import { recordChannelWatch } from '@/lib/watchHistory';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
+import { XtreamHttpError } from '@/lib/xtreamListProxy';
 import { noteLivePlay } from '@/lib/gameDayAi';
 import { onMediaKey } from '@/lib/mediaKeys';
 import { createSkipQueue, MEDIA_SKIP_SEC } from '@/lib/skipQueue';
@@ -133,6 +136,24 @@ const ASPECT_RATIO_OK = aspectRatioSupported();
 const RECORD_CAPABLE = NATIVE_PLAYBACK && !DEMO && hasRecorder();
 /** Hold OK this long on a channel for its short menu (Favorite, Report, Record…). */
 const HOLD_MS = 600;
+/** A channel list that did not come is asked for once more after this long. */
+const CATS_RETRY_MS = 4000;
+
+/** Why a line's channel list did not come, from what the request threw. */
+const catsFailReason = (e: unknown): string => {
+  if (e instanceof XtreamHttpError) return `http:${e.status}`;
+  if (e instanceof SyntaxError) return 'bad_response';
+  return 'network';
+};
+
+/** The sentence for a channel list that did not come (live.load.*). */
+const catsFailText = (failed: string, service: string, t: (k: string, o?: Record<string, unknown>) => string): string => {
+  if (failed === 'empty') return t('live.load.empty', { service });
+  if (failed === 'bad_response') return t('live.load.badAnswer', { service });
+  if (failed.startsWith('http:')) return t('live.load.refused', { service, code: failed.slice(5) });
+  return t('live.load.noAnswer', { service });
+};
+
 /** How long the ◀ ▶ jump note stays after the last press. */
 const SKIP_NOTE_MS = 1500;
 /** "1:05" / "1:02:05": how far behind live, for the jump note. */
@@ -315,6 +336,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const [categoriesByLine, setCategoriesByLine] = useState<Map<string, XtreamCategory[]>>(new Map());
   const [catsLoading, setCatsLoading] = useState<Set<string>>(new Set());
+  // Lines whose channel list did not come: 'http:403', 'network', 'bad_response',
+  // or 'empty' (the server answered with no categories at all). The channel
+  // pane says so; it used to show an empty list, as if the line had nothing.
+  const [catsFailed, setCatsFailed] = useState<Map<string, string>>(new Map());
   const categoriesLoading = catsLoading.size > 0;
   /** The active line's categories — what the weekly count and the first-focus rule look at. */
   const categories = categoriesByLine.get(activeKey) ?? [];
@@ -761,19 +786,40 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return () => window.removeEventListener(XTREAM_REFRESH_EVENT, onRefresh);
   }, [lines]);
 
-  // 1) Load every line's categories on mount + on every refresh tick.
+  // 1) Load every line's categories on mount + on every refresh tick. A
+  // refusal or no answer is tried once more a moment later (often a busy
+  // server); then the pane says what happened instead of an empty list, and
+  // the shell hears how it went (its "Channels updated!" is only said when
+  // they did come).
   useEffect(() => {
     let cancelled = false;
+    const timers: number[] = [];
     setCatsLoading(new Set(lines.map((l) => lineKey(l))));
-    for (const line of lines) {
+    const load = (line: XtreamCreds, attempt: number) => {
       const k = lineKey(line);
-      fetchLiveCategories(line).catch(() => [] as XtreamCategory[]).then((cats) => {
+      fetchLiveCategories(line).then(
+        (cats) => ({ cats, failed: cats.length === 0 && !kidsLevel() ? 'empty' : null }),
+        (e: unknown) => ({ cats: [] as XtreamCategory[], failed: catsFailReason(e) }),
+      ).then(({ cats, failed }) => {
         if (cancelled) return;
+        if (failed && failed !== 'empty' && attempt === 0) {
+          timers.push(window.setTimeout(() => { if (!cancelled) load(line, 1); }, CATS_RETRY_MS));
+          return;
+        }
         setCategoriesByLine((prev) => new Map(prev).set(k, cats));
+        setCatsFailed((prev) => {
+          if ((prev.get(k) ?? null) === failed) return prev;
+          const n = new Map(prev);
+          if (failed) n.set(k, failed); else n.delete(k);
+          return n;
+        });
         setCatsLoading((prev) => { const n = new Set(prev); n.delete(k); return n; });
+        if (failed && !DEMO) { try { trackEvent('live_categories_failed', 'player', { server: line.serverLabel ?? '', reason: failed }); } catch { /* ignore */ } }
+        try { window.dispatchEvent(new CustomEvent(LIVE_CATS_LOADED_EVENT, { detail: { line: k, failed } })); } catch { /* ignore */ }
       });
-    }
-    return () => { cancelled = true; };
+    };
+    for (const line of lines) load(line, 0);
+    return () => { cancelled = true; timers.forEach((t) => window.clearTimeout(t)); };
   }, [lines, refreshTick]);
 
   // Build the pane: per line, [service header when there is more than one
@@ -851,6 +897,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   //    the callbacks) goes through refs, so no re-render (a preview or a
   //    channel playing, the player's events, programme info coming in) can
   //    restart or cancel it.
+  // The line of the entry on screen whose channel list did not come (the
+  // services' shared Favorites: the first such line), and its name.
+  const failedLineKey = currentCat
+    ? (catsFailed.has(currentCat.lineKey) ? currentCat.lineKey
+      : currentCat.isAllFavs ? [...catsFailed.keys()][0] : undefined)
+    : undefined;
+  const failedHere = failedLineKey ? catsFailed.get(failedLineKey) ?? null : null;
+  const failedLine = failedLineKey ? lines.find((l) => lineKey(l) === failedLineKey) : undefined;
+  const failedService = failedLine?.serverLabel ? serverDisplayName(failedLine.serverLabel) : t('live.load.yourService');
   const currentCatRef = useRef(currentCat);
   currentCatRef.current = currentCat;
   const catFetchKey = currentCat && !currentCat.isHeader && !currentCat.isFav
@@ -3588,6 +3643,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             </div>
           ))}
         </div>
+          ) : visibleChannels.length === 0 && !searchOpen && failedHere ? (
+            <div className="h-full flex flex-col items-center justify-center font-nunito text-center px-6" data-live-cats-failed={failedHere}>
+              <AlertTriangle className="w-10 h-10 text-brand-gold mb-3" />
+              <p className="text-white text-lg font-quicksand font-semibold max-w-lg">{catsFailText(failedHere, failedService, t)}</p>
+              <p className="mt-2 text-brand-ice/80 max-w-lg">
+                {failedHere === 'empty' ? t('live.load.emptyNext') : t('live.load.tryAgain')}
+              </p>
+            </div>
           ) : visibleChannels.length === 0 ? (
             <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-center px-6">
               {searchOpen

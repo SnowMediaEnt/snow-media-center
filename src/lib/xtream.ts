@@ -566,6 +566,13 @@ async function directGetJson<T>(url: string, timeoutMs: number): Promise<T> {
 // category caches on the event so the CURRENTLY visible category refetches
 // on next view — we never eagerly load every category.
 export const XTREAM_REFRESH_EVENT = 'xtream:refresh';
+/**
+ * Live TV heard back about a line's channel list (after a refresh too):
+ * detail { line, failed } — failed is null, or why it did not come
+ * ('http:403', 'network', 'bad_response', 'empty'). The Player's "Channels
+ * updated!" waits for it rather than a timer.
+ */
+export const LIVE_CATS_LOADED_EVENT = 'xtream:live-cats-loaded';
 let xtreamRefreshNonce = 0;
 export function bumpXtreamRefresh(): number {
   xtreamRefreshNonce += 1;

@@ -23,6 +23,9 @@ const h = vi.hoisted(() => ({
   saved: [] as unknown[], back: [] as Array<() => void>, seekable: false, seeks: [] as number[],
   // A channel's rewind as a test wants it (null: the real hook's, off here).
   rewind: null as null | Record<string, unknown>,
+  // The first line's categories, while set: 'empty' answers [], an Error is
+  // thrown (every request, from anything that asks); null: as normal.
+  cats: null as null | 'empty' | Error,
 }));
 
 const SECOND_HOST = 'http://two.test';
@@ -46,13 +49,18 @@ const TWO: XtreamLiveStream[] = [
 vi.mock('@/lib/xtream', async (orig) => ({
   ...(await orig<typeof import('@/lib/xtream')>()),
   loadSavedAccounts: async () => h.saved,
-  getLiveCategories: async (l: XtreamCreds) => (l.host === SECOND_HOST
-    ? [{ category_id: '5', category_name: 'Valley' }]
-    : [
-      { category_id: '1', category_name: 'News' },
-      { category_id: '2', category_name: 'Sports' },
-      { category_id: '9', category_name: 'XXX | For Adults' },
-    ]),
+  getLiveCategories: async (l: XtreamCreds) => {
+    const next = l.host !== SECOND_HOST ? h.cats : null;
+    if (next === 'empty') return [];
+    if (next) throw next;
+    return l.host === SECOND_HOST
+      ? [{ category_id: '5', category_name: 'Valley' }]
+      : [
+        { category_id: '1', category_name: 'News' },
+        { category_id: '2', category_name: 'Sports' },
+        { category_id: '9', category_name: 'XXX | For Adults' },
+      ];
+  },
   getLiveStreams: async (l: XtreamCreds, cat?: string) => {
     if (l.host === SECOND_HOST) return TWO.map((c) => ({ ...c }));
     return (cat === '1' ? NEWS : cat === '2' ? SPORTS : cat === '9' ? LATE : [...NEWS, ...SPORTS, ...LATE]).map((c) => ({ ...c }));
@@ -195,7 +203,7 @@ const watchNewsOne = async () => {
 };
 
 beforeEach(() => {
-  localStorage.clear(); sessionStorage.clear(); toasts.said = []; h.saved = []; h.back = []; h.seekable = false; h.seeks = []; h.rewind = null;
+  localStorage.clear(); sessionStorage.clear(); toasts.said = []; h.saved = []; h.back = []; h.seekable = false; h.seeks = []; h.rewind = null; h.cats = null;
   __setViewerForTests('device');
   // Newest first: News One (on screen in most tests), Sports Two, an adult
   // channel (never listed), News Two.
@@ -304,6 +312,47 @@ describe('◀ ▶ jump 10 s over a channel that can go back', () => {
     expect(h.seeks).toEqual([]);
     expect(skipNote()).toBeNull();
   });
+});
+
+describe('a channel list that did not come', () => {
+  const failNote = () => q('[data-live-cats-failed]')?.textContent ?? null;
+  const show = async () => {
+    render(<LiveSection creds={creds} isActive onExitLeft={vi.fn()} onBack={vi.fn()} />);
+  };
+
+  it('a refusal (twice: it is tried once more) says so, with the error and what to do, instead of an empty list', async () => {
+    const { XtreamHttpError } = await import('@/lib/xtreamListProxy');
+    h.cats = new XtreamHttpError(403);
+    await show();
+    expect(await until(() => !!failNote())).toBe(true);
+    expect(failNote()).toContain("Acme TV didn't send your channels (error 403).");
+    expect(failNote()).toContain('Press Update Channels at the top to try again.');
+    const { trackEvent } = await import('@/lib/analytics');
+    expect(trackEvent).toHaveBeenCalledWith('live_categories_failed', 'player', { server: 'Acme TV', reason: 'http:403' });
+  }, 20_000);
+
+  it('a refusal that clears on the second try: the channels, no note', async () => {
+    const { XtreamHttpError } = await import('@/lib/xtreamListProxy');
+    h.cats = new XtreamHttpError(403);
+    await show();
+    await settle(1500);
+    h.cats = null; // the server is back before the second try (after 4 s)
+    expect(await until(() => text().includes('News One'))).toBe(true);
+    expect(failNote()).toBeNull();
+  }, 20_000);
+
+  it('no answer at all, or an account with no channels, each say so', async () => {
+    h.cats = 'empty';
+    await show();
+    expect(await until(() => !!failNote())).toBe(true);
+    expect(failNote()).toContain('Acme TV has no channels on this account.');
+    expect(failNote()).toContain('Contact support');
+    cleanup();
+    h.cats = new TypeError('Failed to fetch');
+    await show();
+    expect(await until(() => !!failNote())).toBe(true);
+    expect(failNote()).toContain("Acme TV didn't answer.");
+  }, 20_000);
 });
 
 describe('Recently watched over the picture (▶)', () => {

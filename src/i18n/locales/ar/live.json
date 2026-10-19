@@ -168,7 +168,10 @@
       "recordingDesc": "{{until}} · {{volume}}. {{note}}",
       "recordingFailedTitle": "لم يبدأ التسجيل",
       "recordingStoppedTitle": "تم إيقاف التسجيل",
-      "recordingStoppedDesc": "ستجدها في البث المباشر › التسجيلات."
+      "recordingStoppedDesc": "ستجدها في البث المباشر › التسجيلات.",
+      "channelsFailedTitle": "تعذّر تحديث القنوات",
+      "channelsFailedDesc": "لم يرسل الخادم قائمة القنوات. حاول مرة أخرى بعد دقيقة؛ وإذا استمر ذلك، أعد تشغيل جهاز الإنترنت (الراوتر).",
+      "channelsEmptyTitle": "لا توجد قنوات على هذا الحساب"
     },
     "categories": {
       "favorites": "المفضلة",
@@ -412,6 +415,15 @@
     "phone": {
       "tapToWatch": "اضغط على قناة لمشاهدتها هنا",
       "fullScreenLabel": "ملء الشاشة"
+    },
+    "load": {
+      "yourService": "خدمتك",
+      "refused": "لم ترسل {{service}} قنواتك (خطأ {{code}}).",
+      "noAnswer": "لم ترد {{service}}.",
+      "badAnswer": "أرسلت {{service}} شيئًا ليس قائمة قنوات.",
+      "empty": "لا توجد قنوات على هذا الحساب في {{service}}.",
+      "tryAgain": "اضغط تحديث القنوات في الأعلى للمحاولة مرة أخرى. إذا استمر ذلك، أعد تشغيل جهاز الإنترنت (الراوتر)، ثم تواصل مع الدعم.",
+      "emptyNext": "تواصل مع الدعم ليتحققوا من باقات القنوات على حسابك."
     }
   }
 }
