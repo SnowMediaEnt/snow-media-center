@@ -64,7 +64,9 @@
       "stopAction": "Stop recording",
       "moreAction": "More options…",
       "moreHint": "favorite, report",
-      "hint": "▲▼ choose · ◀▶ change · OK · Back closes. Recordings are under Live TV › Recordings."
+      "hint": "▲▼ choose · ◀▶ change · OK · Back closes. Recordings are under Live TV › Recordings.",
+      "volumeOffline": "{{label}} · not reachable now",
+      "netLater": "The computer isn't reachable now: the recording waits on this box and is copied over when it's back."
     },
     "player": {
       "cantPlay": "This recording can't be played",
@@ -108,7 +110,10 @@
       "groupMissed": "Missed / didn't start",
       "groupRecordings": "Recordings",
       "thisBox": "This box",
-      "usbDrive": "USB drive"
+      "usbDrive": "USB drive",
+      "driveOffline": "{{label}}: not reachable",
+      "uploadingChip": "Copying to computer",
+      "computer": "Computer"
     },
     "toast": {
       "deletedTitle": "Recording deleted",
@@ -165,7 +170,48 @@
       "usageWithBudget": "Rewind buffer now: {{used}} · Free: {{free}} · Auto could use up to {{budget}}",
       "figuresInApp": "Figures show in the app on your TV box.",
       "nearlyFull": "This box is nearly full: rewind on channels without catch-up won't have room.",
-      "recordingsSeparate": "Recordings are separate (Live TV › Recordings) and are never wiped by rewind."
+      "recordingsSeparate": "Recordings are separate (Live TV › Recordings) and are never wiped by rewind.",
+      "networkRow": "Recordings on a computer",
+      "networkRowDesc": "Save recordings to a shared folder on a computer or NAS on your network.",
+      "networkOffChip": "Not set up"
+    },
+    "network": {
+      "title": "Recordings on a computer",
+      "intro": "Save recordings to a shared folder on a computer or NAS on your home network.",
+      "introLater": "If the computer is off, recordings wait on this box and are copied over later.",
+      "savedTo": "Recordings go to {{name}}.",
+      "find": "Find computers",
+      "findDesc": "Looks for computers and NAS drives on your network that share folders.",
+      "finding": "Looking for computers… this takes a few seconds.",
+      "foundNone": "No computers found. Type its name or address below.",
+      "computer": "Computer (name or address)",
+      "computerPlaceholder": "DESKTOP-ABC or 192.168.1.20",
+      "share": "Shared folder",
+      "sharePlaceholder": "Recordings",
+      "folder": "Folder inside it",
+      "user": "User name",
+      "userPlaceholder": "Empty if the folder is open to everyone",
+      "password": "Password",
+      "keepPassword": "Leave empty to keep the saved password",
+      "saveBtn": "Test and save",
+      "testing": "Trying the folder…",
+      "clearBtn": "Stop using this computer",
+      "clearConfirm": "Stop saving recordings to {{name}}? Press OK again.",
+      "cleared": "Done. Recordings already on the computer stay there.",
+      "needHost": "Type the computer's name or address.",
+      "needShare": "Type the shared folder's name.",
+      "saved": "Saved. {{free}} free on {{name}}.",
+      "savedNoFree": "Saved. Recordings go to {{name}}.",
+      "failUnreachable": "Couldn't reach that computer. Is it on and on the same network?",
+      "failAuth": "The computer refused that user name or password.",
+      "failNoShare": "That computer has no shared folder by that name.",
+      "failReadOnly": "The folder can't be written to: check its sharing permissions allow changes.",
+      "failError": "That didn't work. Check the details and try again.",
+      "howTitle": "How to share a folder",
+      "howWindows": "Windows: right-click the folder › Properties › Sharing › Share, add your user and set Read/Write.",
+      "howWindowsLogin": "Windows: use the user name and password you sign in to Windows with (for a Microsoft account, its email).",
+      "howMac": "Mac: System Settings › General › Sharing › File Sharing, add the folder and set your user to Read & Write.",
+      "howMacOptions": "Mac: in File Sharing › Options, turn on your user under Windows File Sharing."
     },
     "reasons": {
       "noLogin": "Sign in to Live TV to record.",

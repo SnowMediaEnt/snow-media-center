@@ -4,7 +4,7 @@
  * Above Start it says a recording is one more stream on the viewer's line.
  */
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { extraStreamNote } from '@/lib/recording';
 import { clockLabel, conflictMessage, paddedLabel } from '@/lib/recordSchedule';
 
@@ -323,5 +323,42 @@ describe('programme mode (the Guide)', () => {
     expect(onStart).not.toHaveBeenCalled();
     key('Escape');
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('a computer on the network as a drive (volume "net")', () => {
+  const plain = volumes.value;
+  const net = (reachable: boolean) => ({
+    id: 'net', label: 'DESKTOP-ABC', removable: false, freeBytes: 1.2 * 1024 ** 4, totalBytes: 2 * 1024 ** 4, network: true, reachable,
+  });
+  const chips = () => Array.from(document.querySelectorAll('[data-record-row="dest"] [data-record-chip]')).map((n) => n.textContent);
+  beforeEach(() => { document.body.innerHTML = ''; });
+  afterEach(() => { volumes.value = plain; });
+
+  it('reachable: listed with its name and free space, and records to it', async () => {
+    volumes.value = [...plain, net(true)];
+    const { onStart } = await open();
+    release();
+    expect(chips()).toEqual(['This box · 1.5 GB free', 'USB drive · 60.0 GB free', 'DESKTOP-ABC · 1.2 TB free']);
+    key('ArrowRight'); key('ArrowRight');
+    expect(document.querySelector('[data-record-net-later]')).toBeNull();
+    key('ArrowDown'); key('ArrowDown');
+    expect(focused()).toBe('start');
+    key('Enter');
+    expect(onStart).toHaveBeenCalledWith({ volumeId: 'net', durationMin: 60 });
+  });
+
+  it('not reachable now: says so, and that the box keeps it and copies it over; it can still be picked', async () => {
+    volumes.value = [...plain, net(false)];
+    const { onStart } = await open();
+    release();
+    expect(chips()[2]).toBe('DESKTOP-ABC · not reachable now');
+    expect(document.querySelector('[data-record-net-later]')).toBeNull(); // the box is picked
+    key('ArrowRight'); key('ArrowRight');
+    expect(document.querySelector('[data-record-net-later]')?.textContent?.trim())
+      .toBe("The computer isn't reachable now: the recording waits on this box and is copied over when it's back.");
+    key('ArrowDown'); key('ArrowDown');
+    key('Enter');
+    expect(onStart).toHaveBeenCalledWith({ volumeId: 'net', durationMin: 60 });
   });
 });
