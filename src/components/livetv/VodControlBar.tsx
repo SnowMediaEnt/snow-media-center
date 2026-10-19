@@ -201,10 +201,11 @@ export default function VodControlBar({
     const target = c.scrubPos;
     setScrubPos(null);
     if (target != null && Math.abs(target - c.pos) >= 1) {
+      skipper.clear();
       setPos(target);
       void c.seekTo(target);
     }
-  }, []);
+  }, [skipper]);
 
   const setVol = useCallback((v: number) => {
     const c = cur.current;
@@ -298,8 +299,9 @@ export default function VodControlBar({
       stop();
 
       if (!c.visible) {
-        if (e.key === 'ArrowLeft') { seekBy(-VOD_BACK_SEC, true); return; }
-        if (e.key === 'ArrowRight') { seekBy(VOD_FWD_SEC, true); return; }
+        // One jump per press: held, the key repeats many times a second.
+        if (e.key === 'ArrowLeft') { if (!e.repeat) seekBy(-VOD_BACK_SEC, true); return; }
+        if (e.key === 'ArrowRight') { if (!e.repeat) seekBy(VOD_FWD_SEC, true); return; }
         clearTimer(noteTimer);
         setSeekNote(null);
         setFocus('play');

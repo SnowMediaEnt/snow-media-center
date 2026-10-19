@@ -129,6 +129,12 @@ export interface LiveRewind {
   onPausedChange: (paused: boolean) => void;
   /** The catch-up stream ended: back to live. */
   onEnded: () => void;
+  /**
+   * How far behind live the picture is right now, in seconds (0 at live), as
+   * of the last rewind / forward even before a re-render; null when rewind
+   * is off.
+   */
+  behindNow: () => number | null;
 }
 
 /** Panel clock offsets, per server, for this run. */
@@ -277,9 +283,11 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
     return () => { void SnowPlayer.timeshiftWipe().catch(() => { /* older app */ }); };
   }, [bufferOn]);
 
-  const [status, setStatus] = useState<TimeshiftStatus | null>(null);
+  const [status, setStatusState] = useState<TimeshiftStatus | null>(null);
+  // The latest, for behindNow() straight after a jump (before the re-render).
   const statusRef = useRef<TimeshiftStatus | null>(null);
   statusRef.current = status;
+  const setStatus = useCallback((st: TimeshiftStatus | null) => { statusRef.current = st; setStatusState(st); }, []);
 
   // The buffer gives its stream back: jump to live first if the viewer is behind
   // it, then everything is wiped (bufferOn goes false), and one short toast says why.
@@ -353,7 +361,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
     void tick();
     const t = window.setInterval(tick, watching ? 1000 : 5000);
     return () => { alive = false; window.clearInterval(t); };
-  }, [bufferOn, watching, key, checkToken, yieldBuffer]);
+  }, [bufferOn, watching, key, checkToken, yieldBuffer, setStatus]);
 
   // ---- panel catch-up --------------------------------------------------------
   // Null = live. startMs: the minute the archive stream starts at; requestedAt
@@ -391,7 +399,11 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
     const l = lineRef.current;
     if (!l) return;
     const offsetMin = await panelOffset(l);
-    setCu({ startMs: floorMinute(atMs), requestedAt: Date.now(), offsetMin });
+    const next = { startMs: floorMinute(atMs), requestedAt: Date.now(), offsetMin };
+    // Now, not at the re-render: a quick second ◀ builds on this one.
+    cuRef.current = next;
+    cuPosRef.current = 0;
+    setCu(next);
   }, []);
 
   const headMs = (): number => {
@@ -428,14 +440,17 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
       const c = cuRef.current;
       // Inside what is loaded, on a stream that can seek: just seek.
       if (c && target >= c.startMs && cuDurRef.current > 0) {
-        try { await SnowPlayer.seekTo({ position: (target - c.startMs) / 1000 }); } catch { /* ignore */ }
+        try {
+          await SnowPlayer.seekTo({ position: (target - c.startMs) / 1000 });
+          cuPosRef.current = (target - c.startMs) / 1000; // the next quick ◀ builds on it
+        } catch { /* ignore */ }
         return null;
       }
       await playCatchupFrom(target);
       return null;
     }
     return null;
-  }, [kind, days, playCatchupFrom, t]);
+  }, [kind, days, playCatchupFrom, t, setStatus]);
 
   const goLive = useCallback(async () => {
     if (kind === 'buffer') {
@@ -443,7 +458,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
       return;
     }
     setCu(null);
-  }, [kind]);
+  }, [kind, setStatus]);
 
   const forward = useCallback(async (sec: number): Promise<string | null> => {
     if (kind === 'buffer') {
@@ -460,16 +475,19 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
       const c = cuRef.current;
       if (!c) return t('recordings.rewind.watchingLive');
       const target = headMs() + sec * 1000;
-      if (target >= Date.now() - CATCHUP_LIVE_SLACK_MS) { setCu(null); return null; }
+      if (target >= Date.now() - CATCHUP_LIVE_SLACK_MS) { cuRef.current = null; setCu(null); return null; }
       if (cuDurRef.current > 0) {
-        try { await SnowPlayer.seekTo({ position: (target - c.startMs) / 1000 }); } catch { /* ignore */ }
+        try {
+          await SnowPlayer.seekTo({ position: (target - c.startMs) / 1000 });
+          cuPosRef.current = (target - c.startMs) / 1000;
+        } catch { /* ignore */ }
         return null;
       }
       if (floorMinute(target) > c.startMs) { await playCatchupFrom(target); return null; }
       return t('recordings.rewind.archiveStep');
     }
     return null;
-  }, [kind, status, playCatchupFrom, t]);
+  }, [kind, status, playCatchupFrom, t, setStatus]);
 
   const onEnded = useCallback(() => { if (cuRef.current) setCu(null); }, []);
 
@@ -491,5 +509,16 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
     return null;
   }, [kind, status, cu, cuPos, days, t]);
 
-  return { kind, offReason, playUrl, info, rewind, forward, goLive, onPausedChange, onEnded };
+  const behindNow = useCallback((): number | null => {
+    if (kind === 'buffer') {
+      const st = statusRef.current;
+      return st && st.mode === 'buffer' ? st.behindSec : 0;
+    }
+    if (kind === 'catchup') return cuRef.current ? Math.max(0, (Date.now() - headMs()) / 1000) : 0;
+    return null;
+  // headMs reads refs only.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind]);
+
+  return { kind, offReason, playUrl, info, rewind, forward, goLive, onPausedChange, onEnded, behindNow };
 }

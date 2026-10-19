@@ -135,6 +135,14 @@ const RECORD_CAPABLE = NATIVE_PLAYBACK && !DEMO && hasRecorder();
 const HOLD_MS = 600;
 /** How long the ◀ ▶ jump note stays after the last press. */
 const SKIP_NOTE_MS = 1500;
+/** "1:05" / "1:02:05": how far behind live, for the jump note. */
+const fmtBehind = (sec: number): string => {
+  const s = Math.max(0, Math.round(sec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+};
 // Demo call-site swap (Plex pattern): fixtures answer every read in demo.
 const fetchLiveCategories = DEMO ? demoGetLiveCategories : getLiveCategories;
 const fetchLiveStreams = DEMO ? demoGetLiveStreams : getLiveStreams;
@@ -652,10 +660,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // category opened here loads exactly as in the list. What the list showed
   // before is put back when the viewer closes it without picking a channel.
   const [chOverlayOpen, setChOverlayOpen] = useState(false);
-  // ◀ ▶ jumps with nothing on screen: how far, added up while the presses
-  // keep coming (the bar stays down, so the next ◀ jumps again).
-  const [skipNote, setSkipNote] = useState<number | null>(null);
+  // ◀ ▶ jumps with nothing on screen, once each has landed: how far (added
+  // up while the presses keep coming), or how far behind live the channel's
+  // rewind now is. The bar stays down, so the next ◀ jumps again.
+  const [skipNote, setSkipNote] = useState<{ sum: number; behind: number | null } | null>(null);
   const skipNoteRef = useRef<{ sum: number; timer: number | null }>({ sum: 0, timer: null });
+  // A channel with no rewind that seeks by itself (an HLS window): how far
+  // back ◀ took it, so ▶ only comes forward from there (never past live).
+  const skipBehindRef = useRef(0);
   const chOverlayOpenRef = useRef(false);
   chOverlayOpenRef.current = chOverlayOpen;
   const overlayTimerRef = useRef<number | null>(null);
@@ -1982,24 +1994,44 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     };
     const rw = rewindRef.current;
     if (rw.kind !== 'off') {
-      say(delta < 0 ? await rw.rewind(-delta) : await rw.forward(delta));
+      const msg = delta < 0 ? await rw.rewind(-delta) : await rw.forward(delta);
+      if (msg) say(msg);
+      else skipLandedRef.current(delta, rw.behindNow());
       return;
     }
     const ctrl = videoControllerRef.current;
-    if (ctrl?.isSeekable()) { ctrl.seek(delta); return; }
+    if (ctrl?.isSeekable()) {
+      ctrl.seek(delta);
+      skipBehindRef.current = Math.min(0, skipBehindRef.current + delta);
+      skipLandedRef.current(delta, null);
+      return;
+    }
     say(rewindOffMessage(rw.offReason));
   }), []);
-  // ◀ / ▶ with the bar down: jump back / forward 10 s, with a small note
-  // instead of the bar (with the bar up, ◀ ▶ walk its buttons).
-  const skipFromKey = useCallback((delta: number) => {
-    liveSkip.push(delta);
+  // A jump landed: the small note over the picture (drawn only while the bar
+  // is down, so the remote's own Rewind / Fast-forward keys, which bring the
+  // bar up, show it there instead).
+  const skipLandedRef = useRef<(delta: number, behind: number | null) => void>(() => {});
+  skipLandedRef.current = (delta, behind) => {
     const n = skipNoteRef.current;
     n.sum += delta;
-    setSkipNote(n.sum);
+    setSkipNote({ sum: n.sum, behind });
     if (n.timer) window.clearTimeout(n.timer);
     n.timer = window.setTimeout(() => { n.sum = 0; n.timer = null; setSkipNote(null); }, SKIP_NOTE_MS);
-  }, [liveSkip]);
+  };
+  const clearSkipNote = useCallback(() => {
+    const n = skipNoteRef.current;
+    if (n.timer) window.clearTimeout(n.timer);
+    n.sum = 0; n.timer = null;
+    setSkipNote(null);
+  }, []);
+  // Another channel: steps not yet sent, the note and how far ◀ took the
+  // last one are all forgotten.
+  useEffect(() => { liveSkip.clear(); skipBehindRef.current = 0; clearSkipNote(); }, [playingChannelId, liveSkip, clearSkipNote]);
   useEffect(() => () => { const n = skipNoteRef.current; if (n.timer) window.clearTimeout(n.timer); }, []);
+  // ◀ / ▶ with the bar down: jump back / forward 10 s (with the bar up,
+  // ◀ ▶ walk its buttons).
+  const skipFromKey = useCallback((delta: number) => { liveSkip.push(delta); }, [liveSkip]);
   useEffect(() => {
     if (!isActive || !fullscreen) return;
     const off = onMediaKey((k) => {
@@ -2624,7 +2656,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         }
 
         // --- Remote Menu (≡): the channel list over the picture, bar up or down. ---
-        if (e.key === 'ContextMenu' || e.keyCode === 82) {
+        if (!typing && (e.key === 'ContextMenu' || e.keyCode === 82)) {
           e.preventDefault(); e.stopPropagation();
           openChannelOverlay();
           return;
@@ -2640,12 +2672,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (e.key === 'ArrowDown')  { e.preventDefault(); changeChannelInFullscreen(+1); pokeBar(); setBarFocus('play'); return; }
           if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
             e.preventDefault(); e.stopPropagation();
+            // One jump per press: held, the key repeats many times a second.
+            if (e.repeat) return;
             const rw = rewindRef.current;
-            const seekable = !!videoControllerRef.current?.isSeekable();
+            const info = rw.info;
             const back = e.key === 'ArrowLeft';
-            const canJump = back
-              ? rw.kind !== 'off' || seekable
-              : (rw.kind !== 'off' ? (rw.info?.behindSec ?? 0) >= 1 : seekable);
+            // Rewind on: something saved to go back into (not while it is
+            // still getting ready or unavailable), and ▶ only when behind
+            // live. No rewind: a stream that seeks by itself, ▶ only back up
+            // to where ◀ took it.
+            const canJump = rw.kind !== 'off'
+              ? (back ? !!info && !info.note && info.availableSec - info.behindSec >= 1 : (info?.behindSec ?? 0) >= 1)
+              : !!videoControllerRef.current?.isSeekable() && (back || skipBehindRef.current < 0);
             if (canJump) skipFromKey(back ? -MEDIA_SKIP_SEC : +MEDIA_SKIP_SEC);
             else if (back) openChannelOverlay();
             else openRecent();
@@ -3312,11 +3350,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           </div>
         )}
         {NATIVE_PLAYBACK && statsShown && !chOverlayOpen && !recent.open && <PlayerStatsPanel />}
-        {fullscreen && skipNote !== null && skipNote !== 0 && !barVisible && !chOverlayOpen && !recent.open && (
+        {fullscreen && skipNote && skipNote.sum !== 0 && !barVisible && !chOverlayOpen && !recent.open && (
           <div data-live-skip className="absolute bottom-12 left-0 w-full flex justify-center pointer-events-none animate-fade-in z-20">
             <span className="inline-flex items-center px-4 py-2 rounded-full bg-black/75 text-white font-quicksand font-bold text-base tabular-nums">
-              {skipNote < 0 ? <Rewind className="w-5 h-5 mr-2 text-brand-gold" /> : <FastForward className="w-5 h-5 mr-2 text-brand-gold" />}
-              {t(skipNote < 0 ? 'live.player.skipBack' : 'live.player.skipForward', { sec: Math.abs(skipNote) })}
+              {skipNote.sum < 0 ? <Rewind className="w-5 h-5 mr-2 text-brand-gold" /> : <FastForward className="w-5 h-5 mr-2 text-brand-gold" />}
+              {skipNote.behind === null
+                ? t(skipNote.sum < 0 ? 'live.player.skipBack' : 'live.player.skipForward', { sec: Math.abs(skipNote.sum) })
+                : skipNote.behind >= 1
+                  ? t('live.player.behindLive', { time: fmtBehind(skipNote.behind) })
+                  : t('live.player.atLive')}
             </span>
           </div>
         )}

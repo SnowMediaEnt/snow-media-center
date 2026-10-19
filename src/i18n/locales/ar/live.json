@@ -238,7 +238,9 @@
       "volPill": "الصوت {{pct}}%",
       "loadFailed": "تعذّر تحميل البث",
       "skipBack": "رجوع {{sec}} ث",
-      "skipForward": "تقديم {{sec}} ث"
+      "skipForward": "تقديم {{sec}} ث",
+      "behindLive": "متأخر {{time}} عن البث المباشر",
+      "atLive": "مباشر"
     },
     "multi": {
       "needsAppTitle": "تعدد الشاشات يتطلب تطبيق Fire TV / Android",

@@ -19,7 +19,11 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { XtreamCreds, XtreamLiveStream } from '@/lib/xtream';
 
-const h = vi.hoisted(() => ({ saved: [] as unknown[], back: [] as Array<() => void>, seekable: false, seeks: [] as number[] }));
+const h = vi.hoisted(() => ({
+  saved: [] as unknown[], back: [] as Array<() => void>, seekable: false, seeks: [] as number[],
+  // A channel's rewind as a test wants it (null: the real hook's, off here).
+  rewind: null as null | Record<string, unknown>,
+}));
 
 const SECOND_HOST = 'http://two.test';
 const NEWS: XtreamLiveStream[] = [
@@ -56,6 +60,16 @@ vi.mock('@/lib/xtream', async (orig) => ({
   getShortEpg: async () => ({ epg_listings: [] }),
   countLiveStreams: async () => ({ total: 7, byCat: {} }),
 }));
+vi.mock('@/hooks/useLiveRewind', async (orig) => {
+  const real = await orig<typeof import('@/hooks/useLiveRewind')>();
+  return {
+    ...real,
+    useLiveRewind: (...a: Parameters<typeof real.useLiveRewind>) => {
+      const r = real.useLiveRewind(...a);
+      return h.rewind ? { ...r, ...h.rewind } : r;
+    },
+  };
+});
 vi.mock('@/lib/favoritesSync', async (orig) => ({
   ...(await orig<typeof import('@/lib/favoritesSync')>()),
   scheduleFavoritesPushForLine: vi.fn(),
@@ -181,7 +195,7 @@ const watchNewsOne = async () => {
 };
 
 beforeEach(() => {
-  localStorage.clear(); sessionStorage.clear(); toasts.said = []; h.saved = []; h.back = []; h.seekable = false; h.seeks = [];
+  localStorage.clear(); sessionStorage.clear(); toasts.said = []; h.saved = []; h.back = []; h.seekable = false; h.seeks = []; h.rewind = null;
   __setViewerForTests('device');
   // Newest first: News One (on screen in most tests), Sports Two, an adult
   // channel (never listed), News Two.
@@ -223,6 +237,64 @@ describe('◀ ▶ jump 10 s over a channel that can go back', () => {
     expect(overlay()).not.toBeNull();
     expect(overlayFocus()).toContain('News One');
     expect(h.seeks).toEqual([]);
+  });
+
+  it('▶ at the live point (no ◀ yet) opens Recently watched, never a jump past live', async () => {
+    h.seekable = true;
+    await watchNewsOne();
+    press('ArrowRight');
+    expect(panel()).not.toBeNull();
+    expect(h.seeks).toEqual([]);
+  });
+
+  it('held, ◀ is one jump, not one per repeat', async () => {
+    h.seekable = true;
+    await watchNewsOne();
+    act(() => { fireEvent.keyDown(window, { key: 'ArrowLeft' }); });
+    for (let i = 0; i < 5; i += 1) act(() => { fireEvent.keyDown(window, { key: 'ArrowLeft', repeat: true }); });
+    await settle(20);
+    expect(total()).toBe(-10);
+    expect(overlay()).toBeNull();
+  });
+
+  it('the channel\'s rewind: ◀ goes back through it and says how far behind live; ▶ comes forward only when behind', async () => {
+    let behind = 0;
+    const rewind = vi.fn(async (sec: number) => { behind += sec; return null; });
+    const forward = vi.fn(async (sec: number) => { behind = Math.max(0, behind - sec); return null; });
+    h.rewind = { kind: 'buffer', info: { availableSec: 600, behindSec: 0, archiveDays: 0 }, rewind, forward, behindNow: () => behind };
+    await watchNewsOne();
+    press('ArrowLeft');
+    press('ArrowLeft');
+    await settle(20);
+    expect(rewind.mock.calls.reduce((a, c) => a + c[0], 0)).toBe(20);
+    expect(skipNote()).toBe('0:20 behind live');
+    expect(barUp()).toBe(false);
+    // The bar's view of it (info) still says live: ▶ is Recently watched.
+    press('ArrowRight');
+    expect(forward).not.toHaveBeenCalled();
+    expect(panel()).not.toBeNull();
+  });
+
+  it('a rewind still getting ready (nothing saved yet) or unavailable: ◀ opens the channel list, no "back" note', async () => {
+    const rewind = vi.fn(async () => null);
+    h.rewind = { kind: 'buffer', info: { availableSec: 0, behindSec: 0, archiveDays: 0 }, rewind, behindNow: () => 0 };
+    await watchNewsOne();
+    press('ArrowLeft');
+    expect(overlay()).not.toBeNull();
+    expect(rewind).not.toHaveBeenCalled();
+    expect(skipNote()).toBeNull();
+  });
+
+  it('a jump the rewind refuses: its message, no note', async () => {
+    h.rewind = {
+      kind: 'buffer', info: { availableSec: 600, behindSec: 0, archiveDays: 0 },
+      rewind: vi.fn(async () => 'Rewind is not available right now.'), behindNow: () => 0,
+    };
+    await watchNewsOne();
+    press('ArrowLeft');
+    await settle(20);
+    expect(toasts.said).toContain('Rewind is not available right now.');
+    expect(skipNote()).toBeNull();
   });
 
   it('a channel with nothing to go back in: ◀ opens the channel list and ▶ Recently watched, as before', async () => {

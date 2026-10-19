@@ -62,8 +62,42 @@ describe('createSeekSkipper', () => {
     t += 400; q.push(-10);
     await flush();
     expect(seeks).toEqual([590, 580, 570]);
-    expect(getPosition).toHaveBeenCalledTimes(1);
     expect(landed).toHaveBeenLastCalledWith(570, 3600, -10);
+  });
+
+  it('a spot the jumps did not lead to (Skip Intro, the seek bar, another episode) is taken as it is', async () => {
+    let t = 0;
+    let pos = 600;
+    const seeks: number[] = [];
+    const q = createSeekSkipper(async () => ({ position: pos, duration: 3600 }), async (s) => { seeks.push(s); }, undefined, () => t);
+    q.push(-10);
+    await flush();
+    t += 500; pos = 900; // something else moved it
+    q.push(-10);
+    await flush();
+    expect(seeks).toEqual([590, 890]);
+  });
+
+  it('a jump that fails is not built on; clear() starts afresh', async () => {
+    let t = 0;
+    let fail = true;
+    const seeks: number[] = [];
+    const q = createSeekSkipper(async () => ({ position: 600, duration: 3600 }), async (s) => {
+      if (fail) throw new Error('no');
+      seeks.push(s);
+    }, undefined, () => t);
+    q.push(-10);
+    await flush();
+    fail = false;
+    t += 500;
+    q.push(-10);
+    await flush();
+    expect(seeks).toEqual([590]);
+    q.clear();
+    t += 100;
+    q.push(30);
+    await flush();
+    expect(seeks).toEqual([590, 630]);
   });
 
   it('reads the player again once it has settled, and stays inside the film', async () => {

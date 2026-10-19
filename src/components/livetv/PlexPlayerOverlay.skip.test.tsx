@@ -56,8 +56,9 @@ describe('Plex player: ◀ ▶ with the bar hidden', () => {
     await key('ArrowLeft');
     await key('ArrowLeft');
     await key('ArrowLeft');
+    // The player still says 600 throughout (it hasn't caught up): each jump
+    // builds on the last.
     expect(seekTo.mock.calls.map((c) => c[0])).toEqual([590, 580, 570]);
-    expect(getPosition).toHaveBeenCalledTimes(1);
     expect(barShown()).toBe(false);
     expect(note()).toBe('09:30 / 1:30:00');
   });
@@ -66,6 +67,17 @@ describe('Plex player: ◀ ▶ with the bar hidden', () => {
     await key('ArrowRight');
     expect(seekTo).toHaveBeenLastCalledWith(630);
     expect(barShown()).toBe(false);
+  });
+
+  it('held, ◀ is one jump, not one per repeat', async () => {
+    await key('ArrowLeft');
+    for (let i = 0; i < 4; i += 1) {
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', repeat: true, bubbles: true, cancelable: true }));
+        for (let j = 0; j < 10; j += 1) await Promise.resolve();
+      });
+    }
+    expect(seekTo.mock.calls.map((c) => c[0])).toEqual([590]);
   });
 
   it('OK (or ▲ ▼) still brings the bar up instead', async () => {

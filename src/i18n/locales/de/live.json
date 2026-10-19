@@ -238,7 +238,9 @@
       "volPill": "Lautst. {{pct}} %",
       "loadFailed": "Der Stream konnte nicht geladen werden",
       "skipBack": "{{sec}} s zurück",
-      "skipForward": "{{sec}} s vor"
+      "skipForward": "{{sec}} s vor",
+      "behindLive": "{{time}} hinter live",
+      "atLive": "Live"
     },
     "multi": {
       "needsAppTitle": "Multi-Screen braucht die App für Fire TV / Android",

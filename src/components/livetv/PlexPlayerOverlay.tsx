@@ -456,7 +456,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       }
       // ◀ ▶ with the bar hidden: back 10 s / forward 30 s, as in Live TV's films.
       if (!visibleRef.current && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-        skipper.push(e.key === 'ArrowLeft' ? -BACK_SEC : FWD_SEC);
+        // One jump per press: held, the key repeats many times a second.
+        if (!e.repeat) skipper.push(e.key === 'ArrowLeft' ? -BACK_SEC : FWD_SEC);
         return;
       }
       // Any other key shows the overlay + resets the auto-hide timer.
@@ -597,6 +598,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           setScrubPos(null);
           if (target != null && Math.abs(target - posRef.current) >= 1) {
             setPos(target);
+            skipper.clear();
             void seekToRef.current(target);
           }
           return;
@@ -749,7 +751,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               const r = e.currentTarget.getBoundingClientRect();
               if (r.width <= 0 || durRef.current <= 0) return;
               const to = Math.max(0, Math.min(durRef.current - 1, ((e.clientX - r.left) / r.width) * durRef.current));
-              armHide(); setScrubPos(null); setPos(to); void seekToRef.current(to);
+              armHide(); setScrubPos(null); setPos(to); skipper.clear(); void seekToRef.current(to);
             } : undefined}
             style={touch ? { height: 12, margin: '6px 0', touchAction: 'none' } : undefined}
             data-howto="pp.seek"

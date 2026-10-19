@@ -46,17 +46,21 @@ export function createSkipQueue(run: (deltaSec: number) => Promise<unknown> | un
 export interface FilmPosition { position: number; duration: number }
 
 /**
- * A jump made this recently is where the next one starts from: the player
- * may still report the spot it jumped from for a moment after a seek.
+ * For this long after a jump, a player that still reports the spot it jumped
+ * from has not caught up yet: the next jump starts where the last one landed.
  */
-const SEEK_SETTLE_MS = 2000;
+const SEEK_SETTLE_MS = 3000;
+/** How far the reported spot may be from an expected one and still be it (play runs on). */
+const SEEK_SLACK_SEC = 3;
 
 /**
  * ◀ ▶ in a film (Live TV films, Plex): jumps relative to where it is, one
- * at a time, quick presses added up (a SkipQueue), each one from where the
- * last landed while the player catches up, so three quick ◀ are 30 s back,
- * never 10. Kept inside the film (0 .. its length − 1 s). `landed` hears
- * where each jump went.
+ * at a time, quick presses added up (a SkipQueue), so three quick ◀ are 30 s
+ * back, never 10. Every jump asks the player where it is: while it still
+ * reports where the jumps began (it has not caught up), the next starts where
+ * the last landed; anywhere else (Skip Intro, the seek bar, another episode)
+ * is taken as it is. Kept inside the film (0 .. its length − 1 s). `landed`
+ * hears where each jump went.
  */
 export function createSeekSkipper(
   getPosition: () => Promise<FilmPosition>,
@@ -64,16 +68,30 @@ export function createSeekSkipper(
   landed?: (to: number, duration: number, deltaSec: number) => void,
   now: () => number = Date.now,
 ): SkipQueue {
-  let last: { to: number; at: number; duration: number } | null = null;
-  return createSkipQueue(async (delta) => {
-    const from: FilmPosition = last && now() - last.at < SEEK_SETTLE_MS
-      ? { position: last.to, duration: last.duration }
-      : await getPosition();
-    const max = from.duration > 0 ? Math.max(0, from.duration - 1) : Number.MAX_SAFE_INTEGER;
-    const to = Math.min(max, Math.max(0, from.position + delta));
-    last = { to, at: now(), duration: from.duration };
-    await seekTo(to);
-    last.at = now();
-    landed?.(to, from.duration, delta);
+  /** The last jump: where the player said it was when the run began, and where it went. */
+  let last: { reported: number; to: number; at: number } | null = null;
+  const queue = createSkipQueue(async (delta) => {
+    const p = await getPosition();
+    const recent = last && now() - last.at < SEEK_SETTLE_MS ? last : null;
+    const near = (a: number, b: number) => Math.abs(a - b) <= SEEK_SLACK_SEC;
+    // Caught up (it is where the last jump went), or not yet (still where the
+    // run began): on from the last landing. Anything else moved it.
+    const chained = !!recent && (near(p.position, recent.to) || near(p.position, recent.reported));
+    const from = chained && recent ? recent.to : p.position;
+    const max = p.duration > 0 ? Math.max(0, p.duration - 1) : Number.MAX_SAFE_INTEGER;
+    const to = Math.min(max, Math.max(0, from + delta));
+    const reported = chained && recent ? recent.reported : p.position;
+    try {
+      await seekTo(to);
+    } catch (e) {
+      last = null;
+      throw e;
+    }
+    last = { reported, to, at: now() };
+    landed?.(to, p.duration, delta);
   });
+  return {
+    push: queue.push,
+    clear() { queue.clear(); last = null; },
+  };
 }
