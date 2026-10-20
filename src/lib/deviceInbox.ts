@@ -48,6 +48,7 @@ import { isDemo } from '@/lib/demoMode';
 import { parseDeviceInfo } from '@/lib/appInfo';
 import { loadVersion } from '@/hooks/useVersion';
 import { loadCreds, type XtreamCreds } from '@/lib/xtream';
+import { isOutsideLine } from '@/lib/outsideSource';
 
 export const POLL_MS = 2 * 60_000;
 /** A line already registered is registered again after this long. */
@@ -298,6 +299,8 @@ async function doRegister(creds: Line, id: string): Promise<boolean> {
 export async function registerLine(creds: Line | null | undefined, opts: { force?: boolean; again?: boolean } = {}): Promise<boolean> {
   if (isDemo()) return false;
   if (!creds?.host || !creds.username || !creds.password) return false;
+  // Never an outside service's line (lib/outsideSource): not ours to message.
+  if (isOutsideLine(creds)) return false;
   const id = lineId(creds);
   if (opts.force) {
     holdoffs.delete(id);

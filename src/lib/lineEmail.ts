@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { XtreamCreds } from '@/lib/xtream';
 import i18n from '@/i18n';
+import { isOutsideLine } from '@/lib/outsideSource';
 
 /**
  * Mail a customer the streaming login they just received.
@@ -69,6 +70,8 @@ export async function emailLineCredentials(input: {
 }): Promise<EmailLineOutcome> {
   const email = input.email.trim();
   if (!email || !email.includes('@')) return { ok: false, code: 'invalid_email', message: friendly('invalid_email') };
+  // Only our lines are ever emailed: an outside service's login (lib/outsideSource) never reaches our servers.
+  if (isOutsideLine(input.creds)) return { ok: false, code: 'not_ours', message: friendly('not_ours') };
 
   try {
     const { data, error } = await supabase.functions.invoke('email-line-credentials', {

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { Tv, KeyRound, Users, Palette, LogOut, Loader2, CreditCard, ListFilter, Gauge, History, MonitorSmartphone } from 'lucide-react';
+import { Tv, KeyRound, Users, Palette, LogOut, Loader2, CreditCard, ListFilter, Gauge, History, MonitorSmartphone, PlusCircle } from 'lucide-react';
 import type { XtreamCreds } from '@/lib/xtream';
 import type { LiveLayout } from '@/lib/liveLayout';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ const AppearanceScreen = lazy(() => import('./AppearanceScreen'));
 const PlaybackScreen = lazy(() => import('./PlaybackScreen'));
 const RewindSettingsScreen = lazy(() => import('./RewindSettingsScreen'));
 const HideCategoriesScreen = lazy(() => import('./HideCategoriesScreen'));
+const OutsideSourceScreen = lazy(() => import('./OutsideSourceScreen'));
 const LineDevicesPanel = lazy(() => import('./LineDevicesPanel'));
 // Billing account (plans, renew, trial) — behind the billing_account flag.
 const BillingAccountScreen = lazy(() => import('@/components/billing/BillingAccountScreen'));
@@ -36,7 +37,7 @@ interface Props {
 }
 
 type View = 'menu' | 'billing' | 'account' | 'switch' | 'categories' | 'appearance' | 'rewind' | 'playback';
-type MenuId = 'billing' | 'account' | 'switch' | 'devices' | 'categories' | 'appearance' | 'rewind' | 'playback' | 'signout';
+type MenuId = 'billing' | 'account' | 'switch' | 'devices' | 'categories' | 'outside' | 'appearance' | 'rewind' | 'playback' | 'signout';
 
 interface MenuItem { id: MenuId; labelKey: string; icon: typeof Tv; }
 
@@ -52,7 +53,7 @@ const HUB_HOWTO: Partial<Record<MenuId, string>> = {
 };
 
 /** Pages drawn beside the menu. My Account (the store's plans and trial) keeps its own screen. */
-const EMBEDDED: ReadonlySet<MenuId> = new Set<MenuId>(['account', 'switch', 'devices', 'categories', 'appearance', 'rewind', 'playback']);
+const EMBEDDED: ReadonlySet<MenuId> = new Set<MenuId>(['account', 'switch', 'devices', 'categories', 'outside', 'appearance', 'rewind', 'playback']);
 /** In the demo only these work; the account pages are inert there. */
 const DEMO_OK: ReadonlySet<MenuId> = new Set<MenuId>(['appearance', 'rewind', 'playback']);
 /** The page beside the menu follows the highlight once it rests this long (no page mounts for every row passed). */
@@ -76,6 +77,8 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     // The TVs signed into this line, and a message to them (lib/deviceInbox).
     ...(line ? [{ id: 'devices' as MenuId, labelKey: 'lineDevices.hub.menuLabel', icon: MonitorSmartphone }] : []),
     { id: 'categories', labelKey: 'liveAccount.hub.hideCategories', icon: ListFilter },
+    // One service bought elsewhere, its Live TV beside ours (lib/outsideSource).
+    { id: 'outside',    labelKey: 'liveAccount.hub.outside',      icon: PlusCircle },
     { id: 'appearance', labelKey: 'liveAccount.hub.appearance',   icon: Palette },
     { id: 'rewind',     labelKey: 'liveAccount.hub.rewind',       icon: History },
     { id: 'playback',   labelKey: 'liveAccount.hub.playback',     icon: Gauge },
@@ -204,6 +207,8 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
       // Its page reads every saved line's categories from the server: only
       // once the remote goes in, not for a highlight passing over it.
       case 'categories': return inPage ? <HideCategoriesScreen {...common} /> : <PageHint text={t('liveAccount.hideCategories.intro')} />;
+      // Reads only what is on the box (nothing is asked of any server till Test).
+      case 'outside': return <OutsideSourceScreen {...common} />;
       // Its page asks the server for the line's devices: only once the remote goes in.
       case 'devices': return inPage && line ? <LineDevicesPanel {...common} host={line.host} username={line.username} viaSupport /> : <PageHint text={t('lineDevices.hub.hint')} />;
       case 'appearance': return <AppearanceScreen {...common} onTryLayout={onTryLayout} />;

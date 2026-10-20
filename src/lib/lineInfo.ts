@@ -12,7 +12,12 @@
 // The counts are asked of the panel (player_api.php user_info) at the moment
 // of sending, at most ~3 s; an answer under a minute old is reused. A slow or
 // failed answer gives "connections unknown": a ticket is never held up.
+//
+// A service the viewer added from elsewhere (lib/outsideSource) is never put
+// in a ticket or a report: we don't support other providers, and nothing
+// about them goes to our servers.
 import { isDemo } from '@/lib/demoMode';
+import { isOutsideLine } from '@/lib/outsideSource';
 import {
   SERVERS,
   authenticate,
@@ -143,7 +148,7 @@ export async function buildLineInfoLines(timeoutMs = LINE_FETCH_TIMEOUT_MS): Pro
   try {
     const lines = await currentLines();
     if (!lines.length) return '';
-    const all = await Promise.all(lines.map((l) => lineStatus(l, timeoutMs)));
+    const all = await Promise.all(lines.filter((l) => !isOutsideLine(l)).map((l) => lineStatus(l, timeoutMs)));
     return all.map(formatLine).join('\n');
   } catch {
     return '';
@@ -152,7 +157,7 @@ export async function buildLineInfoLines(timeoutMs = LINE_FETCH_TIMEOUT_MS): Pro
 
 /** The fields a channel or category report carries to the server for the Hub. */
 export async function lineReportFields(c: XtreamCreds | null | undefined): Promise<{ line_user: string; active_cons: number | null; max_cons: number | null } | null> {
-  if (!c?.username) return null;
+  if (!c?.username || isOutsideLine(c)) return null;
   try {
     const s = await lineStatus(c);
     return { line_user: s.username.slice(0, 100), active_cons: s.active, max_cons: s.max };

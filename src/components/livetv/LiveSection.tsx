@@ -8,6 +8,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   loadFavoritesData,
   loadSavedAccounts,
+  loadPlayerAccount,
   SAVED_ACCOUNTS_REFRESH_EVENT,
   getLiveCategories,
   getLiveStreams,
@@ -45,6 +46,8 @@ import {
   saveCollapsedLines,
   HIDDEN_CATEGORIES_EVENT,
 } from '@/lib/liveLines';
+import { loadOutsideState, OUTSIDE_SOURCES_EVENT } from '@/lib/outsideSource';
+import { keepIfSame } from '@/lib/keepIfSame';
 import {
   countsAreFresh,
   expireCounts,
@@ -291,18 +294,27 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // The active line (`creds`) drives Movies, Series and the account screen;
   // here it is simply first. Every other saved account follows as its own
   // group, so a viewer with two services scrolls one list instead of
-  // switching accounts.
+  // switching accounts. A service added from elsewhere (Settings › Add
+  // another service) comes last, only while this line is an active
+  // DreamStreams / Vibez one (lib/outsideSource): it goes when the line
+  // expires and comes back when it is renewed (the account record's refresh).
   const [lines, setLines] = useState<XtreamCreds[]>(() => [creds]);
   const linesSettledRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       const saved = DEMO && !HOWTO ? [] : await loadSavedAccounts().catch(() => []);
-      if (!cancelled) { linesSettledRef.current = true; setLines(buildLines(creds, saved)); }
+      const outside = DEMO ? null : await loadOutsideState(loadPlayerAccount);
+      if (!cancelled) {
+        linesSettledRef.current = true;
+        const next = buildLines(creds, saved, outside);
+        setLines((prev) => keepIfSame(prev, next));
+      }
     };
     void load();
-    window.addEventListener(SAVED_ACCOUNTS_REFRESH_EVENT, load);
-    return () => { cancelled = true; window.removeEventListener(SAVED_ACCOUNTS_REFRESH_EVENT, load); };
+    const events = [SAVED_ACCOUNTS_REFRESH_EVENT, OUTSIDE_SOURCES_EVENT, 'playerAccountRefresh'];
+    events.forEach((ev) => window.addEventListener(ev, load));
+    return () => { cancelled = true; events.forEach((ev) => window.removeEventListener(ev, load)); };
   }, [creds]);
   const grouped = lines.length > 1;
   const activeKey = lineKey(creds);
@@ -3824,6 +3836,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                         : `font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : isMarked ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
                         {catLabel(c)}
                       </span>
+                      {c.isHeader && c.line.outside && (
+                        <span data-outside-tag="" className="text-[10px] font-nunito font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-white/10 text-brand-ice/80 flex-shrink-0">{t('liveAccount.outside.tag')}</span>
+                      )}
                       {c.catId && isCategoryDown(downSet, c.line.host, c.catId) && (
                         <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" aria-label={t('live.categories.downLabel')} data-category-down="" />
                       )}

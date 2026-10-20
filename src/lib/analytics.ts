@@ -16,6 +16,7 @@ import { App } from "@capacitor/app";
 import { supabase } from "@/integrations/supabase/client";
 import { isDemo } from "@/lib/demoMode";
 import { parseDeviceInfo, parseFormFactor } from "@/lib/appInfo";
+import { scrubOutside } from "@/lib/outsideSource";
 
 type EventRow = {
   device_id: string;
@@ -175,7 +176,9 @@ export const trackEvent = (
       user_id: userId,
       event_name: name.slice(0, 128),
       event_category: category?.slice(0, 64) ?? null,
-      properties: properties ?? {},
+      // A service the viewer added from elsewhere is never named here: its
+      // name, host, login or addresses read 'outside' (lib/outsideSource).
+      properties: properties ? scrubOutside(properties) : {},
       app_version: appVersion,
       platform,
       reseller_id: null,

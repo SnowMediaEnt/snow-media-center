@@ -25,6 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getDeviceId, trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import { kidsLevel } from '@/lib/kidsFilter';
+import { isOutsideLine } from '@/lib/outsideSource';
 import type { AiMatch, Game, GameChannel, LearnedCats, ScanCandidate } from '@/lib/gameDay';
 
 export type { AiMatch, LearnedCats, ScanCandidate };
@@ -319,8 +320,10 @@ export function rememberMiss(game: Pick<Game, 'id' | 'league' | 'start'>, tokens
 /** Live TV played a channel for six seconds: if a game whose list came up
  *  empty is still on and the channel's name or category shares a word with
  *  its teams, tell the server ('play'). */
-export function noteLivePlay(line: { host: string }, stream: { stream_id: number; name: string }, catName: string): void {
+export function noteLivePlay(line: { host: string; outside?: true; m3u?: string }, stream: { stream_id: number; name: string }, catName: string): void {
   try {
+    // A channel on a service added from elsewhere (lib/outsideSource) is never sent to Game Day's server.
+    if (isOutsideLine(line)) return;
     if (!aiAllowed() || flagOff()) return;
     const now = Date.now();
     const misses = (readJson<Miss[]>('session', MISS_KEY) ?? []).filter((m) => m && m.until > now && Array.isArray(m.tokens));

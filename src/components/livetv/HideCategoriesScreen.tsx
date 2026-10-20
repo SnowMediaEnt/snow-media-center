@@ -5,11 +5,13 @@ import { BackButton } from '@/components/ui/BackButton';
 import {
   getLiveCategories,
   loadCreds,
+  loadPlayerAccount,
   loadSavedAccounts,
   type XtreamCategory,
   type XtreamCreds,
 } from '@/lib/xtream';
 import { buildLines, lineKey, lineLabel, loadHiddenCategories, saveHiddenCategories } from '@/lib/liveLines';
+import { loadOutsideState } from '@/lib/outsideSource';
 import { trackEvent } from '@/lib/analytics';
 import { useTranslation } from 'react-i18next';
 
@@ -48,10 +50,11 @@ const HideCategoriesScreen = memo(({ onBack, embedded = false, active = true }: 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [active, saved] = await Promise.all([loadCreds(), loadSavedAccounts()]);
+      // The service added from elsewhere too, when Live TV shows it (lib/outsideSource).
+      const [active, saved, outside] = await Promise.all([loadCreds(), loadSavedAccounts(), loadOutsideState(loadPlayerAccount)]);
       if (cancelled) return;
       if (!active) { setLoading(false); return; }
-      const ls = buildLines(active, saved);
+      const ls = buildLines(active, saved, outside);
       setLines(ls);
       const h = new Map<string, Set<string>>();
       for (const l of ls) h.set(lineKey(l), loadHiddenCategories(lineKey(l)));
@@ -178,7 +181,9 @@ const HideCategoriesScreen = memo(({ onBack, embedded = false, active = true }: 
               return (
                 <div key={`h-${r.key}`} className="pt-4 pb-1 flex items-center gap-2">
                   <Badge className="bg-brand-gold/25 text-brand-gold border border-brand-gold/40 text-sm">{lineLabel(r.line)}</Badge>
-                  <span className="text-white/60 text-sm font-nunito truncate">{r.line.username}</span>
+                  {/* An M3U link has no username (its key is a fingerprint): the Outside tag says what it is. */}
+                  {!r.line.m3u && <span className="text-white/60 text-sm font-nunito truncate">{r.line.username}</span>}
+                  {r.line.outside && <span className="text-xs font-nunito font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-white/10 text-brand-ice/80">{t('liveAccount.outside.tag')}</span>}
                   <span className="ml-auto text-white/50 text-xs font-nunito">
                     {(hidden.get(r.key)?.size ?? 0) > 0 ? t('liveAccount.hideCategories.hiddenCount', { count: hidden.get(r.key)!.size }) : t('liveAccount.hideCategories.nothingHidden')}
                   </span>

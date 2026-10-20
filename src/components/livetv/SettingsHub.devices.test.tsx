@@ -22,6 +22,7 @@ vi.mock('./AppearanceScreen', () => stub('appearance'));
 vi.mock('./RewindSettingsScreen', () => stub('rewind'));
 vi.mock('./PlaybackScreen', () => stub('playback'));
 vi.mock('./LineDevicesPanel', () => stub('devices'));
+vi.mock('./OutsideSourceScreen', () => stub('outside'));
 
 import SettingsHub from './SettingsHub';
 
@@ -45,7 +46,7 @@ describe('Live TV Settings: Devices on this line', () => {
   it('is in the menu, after Switch Account, only with a line signed in', () => {
     const { container, unmount } = renderHub(LINE);
     expect(menuLabels(container)).toEqual([
-      'Account Info', 'Switch Account', 'Devices on this line', 'Hide Categories', 'Appearance', 'Rewind & recording', 'Playback', 'Sign Out',
+      'Account Info', 'Switch Account', 'Devices on this line', 'Hide Categories', 'Add another service', 'Appearance', 'Rewind & recording', 'Playback', 'Sign Out',
     ]);
     unmount();
     const { container: none } = renderHub(null);

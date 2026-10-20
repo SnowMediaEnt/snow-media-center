@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
 import { withAppInfo } from '@/lib/appInfo';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
+import { isOutsideLine } from '@/lib/outsideSource';
 import type { XtreamCreds } from '@/lib/xtream';
 
 interface Props {
@@ -121,6 +122,10 @@ const ReportChannelDialog = memo(({
 }: Props) => {
   const { t } = useTranslation();
   const { toast } = useToast();
+  // A channel on a service added from elsewhere (lib/outsideSource): not ours
+  // to fix, and nothing about it goes to our servers. No report, no "It's
+  // working now"; a line says who to ask instead.
+  const outside = isOutsideLine(line);
   const [refreshing, setRefreshing] = useState(false);
   const canRefresh = !!isFavorite && !!onRefreshFavorite;
   const refreshNow = useCallback(async () => {
@@ -144,13 +149,13 @@ const ReportChannelDialog = memo(({
   const { account } = usePlayerAccount();
   const { createTicket } = useSupportTickets(user);
 
-  const [step, setStep] = useState<Step>(initialChoice === 'Other' ? 'other' : initialChoice ? 'reasons' : 'menu');
+  const [step, setStep] = useState<Step>(outside ? 'menu' : initialChoice === 'Other' ? 'other' : initialChoice ? 'reasons' : 'menu');
   const atStep = (s: Step) => step === s;
   // Focus index:
   //   menu:   the row in menuItems, top to bottom
   //   reasons: 0..3 = CHOICES, 4 = Cancel
   //   other:  0 = textarea, 1 = Submit, 2 = Cancel
-  const [focusIdx, setFocusIdx] = useState(initialChoice && initialChoice !== 'Other' ? Math.max(0, CHOICES.indexOf(initialChoice)) : initialChoice === 'Other' ? 1 : 0);
+  const [focusIdx, setFocusIdx] = useState(outside ? 0 : initialChoice && initialChoice !== 'Other' ? Math.max(0, CHOICES.indexOf(initialChoice)) : initialChoice === 'Other' ? 1 : 0);
   const [note, setNote] = useState(initialNote ?? '');
   const [submitting, setSubmitting] = useState(false);
 
@@ -191,7 +196,7 @@ const ReportChannelDialog = memo(({
   // would move the highlight onto a different row than the viewer picked.
   const [downAtOpen] = useState(isDown);
   const menuItems: Array<{ id: string; label: string; icon: typeof Flag; run: () => void }> = [
-    ...(downAtOpen && onClearDown ? [{
+    ...(downAtOpen && onClearDown && !outside ? [{
       id: 'clear',
       label: t('live.report.clearWarning'),
       icon: CheckCircle2,
@@ -202,7 +207,7 @@ const ReportChannelDialog = memo(({
         onClose();
       },
     }] : []),
-    { id: 'report', label: t('live.report.reportChannel'), icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } },
+    ...(outside ? [] : [{ id: 'report', label: t('live.report.reportChannel'), icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } }]),
     ...(onWrongGame ? [{ id: 'wrong', label: t('live.report.wrongGame'), icon: Ban, run: () => { onWrongGame(); onClose(); } }] : []),
     ...(onToggleFavorite ? [{ id: 'fav', label: isFavorite ? t('live.report.removeFavorite') : t('live.report.addFavorite'), icon: isFavorite ? StarOff : Star, run: () => { onToggleFavorite(); onClose(); } }] : []),
     // A Favorites list: put the channel somewhere else in it, or sort it.
@@ -229,6 +234,8 @@ const ReportChannelDialog = memo(({
   const submit = useCallback(
     async (choice: Choice, otherNote = '') => {
       if (submittedRef.current || submitting) return;
+      // Never for an outside service's channel (the menu offers no report).
+      if (outside) { onClose(); return; }
       submittedRef.current = true;
       setSubmitting(true);
       try {
@@ -270,7 +277,7 @@ const ReportChannelDialog = memo(({
         });
       }
     },
-    [createTicket, buildMessage, channelName, line, onClose, onReportedDown, onReportedBuffering, serviceLabel, submitting, toast, user, t],
+    [createTicket, buildMessage, channelName, line, onClose, onReportedDown, onReportedBuffering, outside, serviceLabel, submitting, toast, user, t],
   );
 
   const onPick = useCallback(
@@ -466,6 +473,9 @@ const ReportChannelDialog = memo(({
 
         {atStep('menu') && (
           <div className="space-y-2">
+            {outside && (
+              <p data-outside-note="" className="text-sm text-brand-ice/80 font-nunito mb-1">{t('liveAccount.outside.reportNote')}</p>
+            )}
             {menuItems.map((item, i, all) => {
               const focused = focusIdx === i;
               const Icon = item.icon;
