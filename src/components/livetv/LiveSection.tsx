@@ -93,7 +93,7 @@ import { toast } from '@/hooks/use-toast';
 import { channelReport, isCategoryDown, isChannelFailure, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
 import ChannelWarningDialog from './ChannelWarningDialog';
 import BufferingHelpDialog from './BufferingHelpDialog';
-import { useBufferingHelp } from './useBufferingHelp';
+import { BUFFER_HELP_ARM_MS, useBufferingHelp } from './useBufferingHelp';
 import FullscreenChannelOverlay, { type OverlayCategory } from './FullscreenChannelOverlay';
 import { overlayChannelWindow } from './listWindow';
 import RecentChannelsPanel from './RecentChannelsPanel';
@@ -595,8 +595,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const warnForRef = useRef(warnFor);
   warnForRef.current = warnFor;
   // "Still buffering?" over the picture (useBufferingHelp, further down): owns
-  // the remote while open, like the dialogs above.
+  // the remote while open, like the dialogs above. When the error card takes
+  // over from it, a press made as they swap does nothing (BUFFER_HELP_ARM_MS).
   const bufferHelpOpenRef = useRef(false);
+  const bufferHelpGaveWayAtRef = useRef(0);
   // The reports list (useDownChannels, further down), for callbacks made before it.
   const downSetRef = useRef<Set<string>>(new Set());
   // Record now (TRACKER 25): the dialog (hold OK on a channel, or Record in
@@ -2391,8 +2393,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       changeChannelRef.current(d);
     };
     const off = onMediaKey((k) => {
-      // "Still buffering?" is up: no zap or jump behind it.
-      if (bufferHelpOpenRef.current) return;
       if (k === 'ff') { liveSkip.push(+MEDIA_SKIP_SEC); pokeBar(); }
       else if (k === 'rw') { liveSkip.push(-MEDIA_SKIP_SEC); pokeBar(); }
       else if (k === 'next' || k === 'chup') { liveSkip.clear(); zap(+1); pokeBar(); }
@@ -2867,11 +2867,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const bufferHelp = useBufferingHelp({
     enabled: !DEMO && !kidsLevel(),
     watching: helpWatch,
-    loadKey: nativeUrl,
+    // A retry or the app coming back loads the same address again: start-up too.
+    loadKey: nativeUrl ? `${nativeUrl}#${native.loads ?? 0}` : null,
     buffering: native.buffering,
     error: !!native.error,
     busy: !!(warnFor || reportFor || reportCatFor || recordFor) || recordingsOpen || chOverlayOpen || recent.open
       || subMenuOpen || audioMenuOpen || volMenuOpen || choosingLayout,
+    onGone: (why) => { if (why === 'error') bufferHelpGaveWayAtRef.current = Date.now(); },
   });
   bufferHelpOpenRef.current = bufferHelp.open;
   // Over the picture with the bar down: Back from it leaves the picture as it was.
@@ -2888,7 +2890,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => {
     const from = turnedFromRef.current;
     turnedFromRef.current = phoneLayout;
-    if (recordingsOpenRef.current || reportForRef.current || recordForRef.current || warnForRef.current || bufferHelpOpenRef.current || !activeForTurnRef.current) return;
+    // "Still buffering?" does not hold the turn: it goes by itself once the
+    // picture moves (useBufferingHelp), and in this same commit it is still open.
+    if (recordingsOpenRef.current || reportForRef.current || recordForRef.current || warnForRef.current || !activeForTurnRef.current) return;
     const wasUpright = from === 'portrait';
     const nowUpright = phoneLayout === 'portrait';
     if (wasUpright && !nowUpright && !fullscreenRef.current && previewChannelRef.current) {
@@ -2934,6 +2938,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
      try {
       // The Report / Record dialogs, "Still buffering?" and the Recordings screen own the keyboard while open.
       if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current || bufferHelpOpenRef.current) return;
+      // It just gave way to the error card: a press made as they swapped
+      // never lands on Retry / Try on / Report it.
+      if (Date.now() - bufferHelpGaveWayAtRef.current < BUFFER_HELP_ARM_MS) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); return; }
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 

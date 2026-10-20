@@ -1,7 +1,8 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { LifeBuoy, RotateCw, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { BufferHelpStep } from './useBufferingHelp';
+import { holdMediaKeys } from '@/lib/mediaKeys';
+import { BUFFER_HELP_ARM_MS, type BufferHelpStep } from './useBufferingHelp';
 
 interface Props {
   /** The steps, in order (useBufferingHelp leaves out what was done today). */
@@ -33,19 +34,25 @@ const ICON: Record<BufferHelpStep, typeof LifeBuoy> = { restart: RotateCw, vpn: 
  *
  * Owns the remote while open, like ChannelWarningDialog: ◀ ▶ (and ▲ ▼) move
  * between the buttons, OK chooses, Back closes it — only it: full screen,
- * the hidden bar and the channel stay as they were. Every key stops here.
- * Opened in the middle of watching, so a press already on its way does
+ * the hidden bar and the channel stay as they were. Every key stops here,
+ * and the media buttons do nothing behind it (holdMediaKeys) — the player's
+ * own Play/Pause included. Opened in the middle of watching, so a press already on its way does
  * nothing for `armMs`, and a held OK's repeats never walk through the steps.
  */
-const BufferingHelpDialog = memo(({ steps, canReport, onRestartDone, onOpenGuide, onReport, onClose, track, armMs = 600 }: Props) => {
+const BufferingHelpDialog = memo(({ steps, canReport, onRestartDone, onOpenGuide, onReport, onClose, track, armMs = BUFFER_HELP_ARM_MS }: Props) => {
   const { t } = useTranslation();
   const [at, setAt] = useState(0);
   // Restart's "Show me how": the steps on the card, in place of the question.
   const [how, setHow] = useState(false);
-  const [focus, setFocus] = useState(0);
   const step: BufferHelpStep = steps[Math.min(at, steps.length - 1)] ?? 'guide';
+  // The highlight starts on the safe choice: "Show me how" on the restart
+  // question (a habit OK never claims a restart), the first button elsewhere.
+  const firstFocus = step === 'restart' && !how ? 1 : 0;
+  const [focus, setFocus] = useState(firstFocus);
   const armedAtRef = useRef(Date.now());
-  useEffect(() => { armedAtRef.current = Date.now(); setFocus(0); }, [at, how]);
+  useEffect(() => { armedAtRef.current = Date.now(); setFocus(firstFocus); }, [at, how, firstFocus]);
+  // The remote's media buttons (Play/Pause too) do nothing behind it.
+  useEffect(() => holdMediaKeys(), []);
 
   const next = () => {
     if (at < steps.length - 1) { setAt(at + 1); setHow(false); }
@@ -128,7 +135,7 @@ const BufferingHelpDialog = memo(({ steps, canReport, onRestartDone, onOpenGuide
         role="dialog"
         aria-modal="true"
         aria-label={t('live.bufferHelp.label')}
-        className="w-[min(92vw,560px)] rounded-2xl bg-brand-navy/95 border border-brand-gold/40 p-6 text-white"
+        className="w-[92vw] max-w-[560px] rounded-2xl bg-brand-navy/95 border border-brand-gold/40 p-6 text-white"
       >
         <div className="flex items-start mb-3 min-w-0">
           <Icon className="w-6 h-6 mt-0.5 mr-3 flex-shrink-0 text-brand-gold" aria-hidden="true" />

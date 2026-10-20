@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { SnowPlayer, type TimeshiftStatus } from '@/capacitor/SnowPlayer';
+import { markSeek } from '@/lib/playerSeek';
 import { toast } from '@/hooks/use-toast';
 import { authenticate, type XtreamCreds, type XtreamLiveStream } from '@/lib/xtream';
 import {
@@ -424,6 +425,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
   // ---- actions ---------------------------------------------------------------
   const rewind = useCallback(async (sec: number): Promise<string | null> => {
     if (kind === 'buffer') {
+      markSeek();
       try {
         const st = await SnowPlayer.timeshiftSeek({ deltaSec: -sec });
         setStatus(st);
@@ -440,6 +442,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
       const c = cuRef.current;
       // Inside what is loaded, on a stream that can seek: just seek.
       if (c && target >= c.startMs && cuDurRef.current > 0) {
+        markSeek();
         try {
           await SnowPlayer.seekTo({ position: (target - c.startMs) / 1000 });
           cuPosRef.current = (target - c.startMs) / 1000; // the next quick ◀ builds on it
@@ -454,6 +457,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
 
   const goLive = useCallback(async () => {
     if (kind === 'buffer') {
+      markSeek();
       try { setStatus(await SnowPlayer.timeshiftGoLive()); } catch { /* older app */ }
       return;
     }
@@ -462,6 +466,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
 
   const forward = useCallback(async (sec: number): Promise<string | null> => {
     if (kind === 'buffer') {
+      markSeek();
       try {
         const before = status?.mode;
         const st = await SnowPlayer.timeshiftSeek({ deltaSec: sec });
@@ -477,6 +482,7 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
       const target = headMs() + sec * 1000;
       if (target >= Date.now() - CATCHUP_LIVE_SLACK_MS) { cuRef.current = null; setCu(null); return null; }
       if (cuDurRef.current > 0) {
+        markSeek();
         try {
           await SnowPlayer.seekTo({ position: (target - c.startMs) / 1000 });
           cuPosRef.current = (target - c.startMs) / 1000;

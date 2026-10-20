@@ -94,7 +94,7 @@ const ChannelWarningDialog = memo(({ channelName, report, categoryName, onWatch,
       <div
         role="alertdialog"
         aria-modal="true"
-        className={`w-[min(92vw,520px)] rounded-2xl bg-brand-navy/95 border p-6 text-white ${red ? 'border-red-400/50' : 'border-amber-400/50'}`}
+        className={`w-[92vw] max-w-[520px] rounded-2xl bg-brand-navy/95 border p-6 text-white ${red ? 'border-red-400/50' : 'border-amber-400/50'}`}
       >
         <div className="flex items-center gap-3 mb-3 min-w-0">
           <AlertTriangle className={`w-6 h-6 flex-shrink-0 ${red ? 'text-red-400' : 'text-amber-400'}`} />

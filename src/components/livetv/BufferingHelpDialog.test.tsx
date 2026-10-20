@@ -4,6 +4,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
+import { MEDIA_KEY_EVENT, onMediaKey } from '@/lib/mediaKeys';
 import Help from './BufferingHelpDialog';
 import type { BufferHelpStep } from './useBufferingHelp';
 
@@ -26,6 +27,9 @@ describe('BufferingHelpDialog', () => {
     expect(step()).toBe('restart');
     expect(screen.getByText('Have you restarted your TV box and your internet router?')).toBeTruthy();
     expect(choices()).toEqual(['Yes, I did', 'Show me how']);
+    // The highlight starts on the safe choice: a habit OK never claims a restart.
+    expect(focused()).toBe('how');
+    press('ArrowLeft');
     expect(focused()).toBe('yes');
     press('Enter');
     expect(cb.onRestartDone).toHaveBeenCalledTimes(1);
@@ -53,7 +57,6 @@ describe('BufferingHelpDialog', () => {
 
   it('Show me how: the steps on the card; I did it counts, Next tip does not', () => {
     const cb = open();
-    press('ArrowRight');
     press('Enter');
     expect(cb.track).toHaveBeenLastCalledWith('restart', 'how');
     expect(screen.getByText('Restart your box and router')).toBeTruthy();
@@ -69,7 +72,8 @@ describe('BufferingHelpDialog', () => {
 
   it('I did it after Show me how counts as restarted', () => {
     const cb = open();
-    press('ArrowRight'); press('Enter');
+    press('Enter'); // Show me how
+    expect(focused()).toBe('done');
     press('Enter');
     expect(cb.onRestartDone).toHaveBeenCalledTimes(1);
     expect(step()).toBe('vpn');
@@ -102,7 +106,7 @@ describe('BufferingHelpDialog', () => {
 
   it('Back closes it on any step', () => {
     const cb = open();
-    press('Enter');
+    press('ArrowLeft'); press('Enter');
     press('Escape');
     expect(cb.onClose).toHaveBeenCalledTimes(1);
     expect(cb.track).toHaveBeenLastCalledWith('vpn', 'close');
@@ -128,6 +132,7 @@ describe('BufferingHelpDialog', () => {
     expect(cb.onRestartDone).not.toHaveBeenCalled();
     expect(cb.onClose).not.toHaveBeenCalled();
     act(() => { vi.advanceTimersByTime(600); });
+    press('ArrowLeft');
     press('Enter');
     expect(step()).toBe('vpn');
     // The second OK of a double press lands on the new step: nothing.
@@ -138,6 +143,20 @@ describe('BufferingHelpDialog', () => {
     expect(cb.onOpenGuide).not.toHaveBeenCalled();
     press('Enter');
     expect(cb.onOpenGuide).toHaveBeenCalledWith('vpn');
+  });
+
+  it('the remote\'s media buttons (Play/Pause too) do nothing behind it, and work again once it goes', () => {
+    const heard = vi.fn();
+    const off = onMediaKey(heard);
+    try {
+      const cb = open();
+      act(() => { window.dispatchEvent(new CustomEvent(MEDIA_KEY_EVENT, { detail: 'playpause' })); });
+      act(() => { window.dispatchEvent(new CustomEvent(MEDIA_KEY_EVENT, { detail: 'chup' })); });
+      expect(heard).not.toHaveBeenCalled();
+      cb.unmount();
+      act(() => { window.dispatchEvent(new CustomEvent(MEDIA_KEY_EVENT, { detail: 'playpause' })); });
+      expect(heard).toHaveBeenCalledWith('playpause');
+    } finally { off(); }
   });
 
   it('a tap beside the card closes it; a tap on a button chooses it', () => {

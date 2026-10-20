@@ -105,6 +105,9 @@ export interface NativePlayerState {
    *  useNativePlayer's engineFallback listener) or before any fallback. */
   engineNotice: string | null;
   retry: () => void;
+  /** Goes up on every reload of the same address (a retry, the app coming
+   *  back): each one starts up again, like a new address. */
+  loads: number;
   seekTo: (seconds: number) => Promise<void>;
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
 }
@@ -641,7 +644,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   }, [active, background, live, skipKeys]);
 
   return useMemo(
-    () => ({ controller, buffering, paused, error, audioWarning, engineNotice, retry, seekTo, getPosition }),
-    [controller, buffering, paused, error, audioWarning, engineNotice, retry, seekTo, getPosition],
+    () => ({ controller, buffering, paused, error, audioWarning, engineNotice, retry, loads: retryNonce, seekTo, getPosition }),
+    [controller, buffering, paused, error, audioWarning, engineNotice, retry, retryNonce, seekTo, getPosition],
   );
 }

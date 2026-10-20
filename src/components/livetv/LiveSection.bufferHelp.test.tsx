@@ -177,7 +177,8 @@ describe('"Still buffering?" over a full-screen channel', () => {
     press('ArrowDown');
     await act(async () => { window.dispatchEvent(new CustomEvent(MEDIA_KEY_EVENT, { detail: 'chup' })); await Promise.resolve(); });
     expect(on(101)).toBe(true);
-    expect(document.querySelector('[data-focused="true"]')?.getAttribute('data-buffer-help-choice')).toBe('how');
+    // It starts on "Show me how"; ▼ moved it to "Yes, I did" instead.
+    expect(document.querySelector('[data-focused="true"]')?.getAttribute('data-buffer-help-choice')).toBe('yes');
     expect(bar()).toBeNull();
 
     // The channel starts playing: no surprise, it stays.
@@ -249,9 +250,53 @@ describe('"Still buffering?" over a full-screen channel', () => {
     act(() => { h.setError?.(OFF_AIR); });
     expect(help()).toBeNull();
     expect(text()).toContain("This channel isn't on the air right now.");
-    // OK is the card's Retry again.
+    expect(helpEvents().map((e) => e.action)).toEqual(['shown']);
+    // An OK pressed as the cards swap lands on nothing…
     press('Enter');
-    expect(h.retry).toHaveBeenCalled();
+    expect(h.retry).not.toHaveBeenCalled();
+    // …then OK is the card's Retry again.
+    wait(600);
+    press('Enter');
+    expect(h.retry).toHaveBeenCalledTimes(1);
+    // Not the viewer's close: no rest, and not one of the day's.
+    expect(JSON.parse(localStorage.getItem(BUFFER_HELP_STORE_KEY)!)).toMatchObject({ shown: 0, closedAt: 0 });
+  });
+
+  it('another channel put on under it (a kickoff reminder, a voice "put on…") closes it, with no rest', async () => {
+    await watchNewsOne();
+    fakeTime();
+    wait(12_000);
+    buffering(true);
+    wait(20_000);
+    expect(help()).toBe('restart');
+    sessionStorage.setItem('smc-live-deeplink', JSON.stringify({ host: 'http://h.test', username: 'someuser', streamId: 102, name: 'News Two', categoryId: '1' }));
+    await act(async () => { window.dispatchEvent(new Event('smc:live-deeplink')); await Promise.resolve(); });
+    expect(on(102)).toBe(true);
+    expect(help()).toBeNull();
+    expect(fullScreen()).toBe(true);
+    expect(JSON.parse(localStorage.getItem(BUFFER_HELP_STORE_KEY)!)).toMatchObject({ shown: 0, closedAt: 0 });
+  });
+
+  it('frozen with the list over the picture open, then another channel picked there: no pop-up on its start-up', async () => {
+    await watchNewsOne();
+    fakeTime();
+    wait(12_000);
+    press('ContextMenu'); // Menu: the list over the picture
+    await waitFor(() => expect(document.querySelector('[data-overlay-channel]')).not.toBeNull());
+    buffering(true);
+    // 25 s frozen while the viewer looks through the list (it stays open).
+    for (let i = 0; i < 5; i++) { wait(5000); press(i % 2 ? 'ArrowUp' : 'ArrowDown'); }
+    expect(help()).toBeNull();
+    // OK on News Two: the list closes and it plays, still buffering (its start-up).
+    expect(document.querySelector('[data-channel-overlay]')).not.toBeNull();
+    const at = () => document.querySelector('[data-overlay-channel][data-focused="true"]')?.textContent ?? '';
+    for (let i = 0; i < 4 && !at().includes('News Two'); i++) press('ArrowDown');
+    expect(at()).toContain('News Two');
+    press('Enter');
+    await waitFor(() => expect(on(102)).toBe(true));
+    wait(5000);
+    expect(help()).toBeNull();
+    expect(helpEvents()).toEqual([]);
   });
 
   it('Yes, I did → Try a VPN → Open the Buffering Guide goes to Support\'s guide', async () => {
@@ -264,6 +309,7 @@ describe('"Still buffering?" over a full-screen channel', () => {
       buffering(true);
       wait(20_000);
       wait(700);
+      press('ArrowLeft');
       press('Enter'); // Yes, I did
       expect(help()).toBe('vpn');
       expect(text()).toContain('Try a VPN');
@@ -335,5 +381,24 @@ describe('the preview box', () => {
     expect(help()).toBeNull();
     expect(on(101)).toBe(true);
     expect(document.querySelector('[data-phone-now]')?.textContent).toContain('News One');
+  });
+
+  it('turning the phone sideways while it is up still goes full screen (it goes by itself)', async () => {
+    act(() => __setPhoneModeForTests({ touch: true, phone: true, portrait: true }));
+    render(<LiveSection creds={creds} isActive onExitLeft={vi.fn()} onBack={vi.fn()} />);
+    const row = (name: string) => Array.from(document.querySelectorAll<HTMLElement>('[data-focused]')).find((el) => (el.textContent ?? '').includes(name));
+    await waitFor(() => expect(row('News One')).toBeTruthy());
+    act(() => { fireEvent.click(row('News One')!); });
+    await waitFor(() => expect(on(101)).toBe(true));
+    fakeTime();
+    wait(12_000);
+    buffering(true);
+    wait(20_000);
+    expect(help()).toBe('restart');
+    act(() => __setPhoneModeForTests({ touch: true, phone: true, portrait: false }));
+    await act(async () => { await Promise.resolve(); });
+    expect(fullScreen()).toBe(true);
+    expect(help()).toBeNull();
+    expect(on(101)).toBe(true);
   });
 });
