@@ -60,7 +60,11 @@ export const EMPTY_FAV_ORDER: FavOrder = { mode: 'mine', keys: [] };
 /** A favourite's place in the order: its line and stream id. */
 export const favRefKey = (line: string, id: number): string => `${line}|${id}`;
 const refKey = (r: FavRef): string => favRefKey(r.line, r.id);
-const nameKey = (line: string, name: string): string => `${line}|${name.trim().toLowerCase()}`;
+/** A favourite's name as two are compared, case and spaces aside: LiveSection's
+ *  heal re-links a favourite to the channel of the same name, and the order
+ *  finds a re-linked favourite its place by the same rule. */
+export const favName = (name: string): string => name.trim().toLowerCase();
+const nameKey = (line: string, name: string): string => `${line}|${favName(name)}`;
 const same = (r: FavRef): FavRef => r;
 
 // An order whose save failed (storage full or blocked), per profile: it is
@@ -178,6 +182,12 @@ export function azOrder<T>(items: readonly T[], name: (t: T) => string): T[] {
 export function arrangeFavorites<T>(items: readonly T[], order: FavOrder, ref: (t: T) => FavRef): T[] {
   const mine = mineOrder(items, order.keys, ref);
   return order.mode === 'az' ? azOrder(mine, (t) => ref(t).name) : mine;
+}
+
+/** One line's Favorites (`line`: its lineKey), arranged the same way: a
+ *  line's own list in Live TV, the Guide and Multi-Screen. */
+export function arrangeLineFavorites<T extends { stream_id: number; name: string }>(items: readonly T[], order: FavOrder, line: string): T[] {
+  return arrangeFavorites(items, order, (t) => ({ line, id: t.stream_id, name: t.name }));
 }
 
 /**

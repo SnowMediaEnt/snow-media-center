@@ -254,7 +254,8 @@
       "skipBack": "{{sec}} s back",
       "skipForward": "{{sec}} s forward",
       "behindLive": "{{time}} behind live",
-      "atLive": "Live"
+      "atLive": "Live",
+      "reportIt": "Report it"
     },
     "failover": {
       "note": "{{channel}} is down on {{service}} — playing it from {{other}}",
@@ -432,6 +433,27 @@
       "bufferingBody": "Reported buffering recently — it may not play well.",
       "watchBtn": "Watch anyway",
       "pickBtn": "Pick another"
+    },
+    "bufferHelp": {
+      "label": "Buffering help",
+      "restartTitle": "Have you restarted your TV box and your internet router?",
+      "restartBody": "A restart clears up a lot of buffering.",
+      "restartYesBtn": "Yes, I did",
+      "restartHowBtn": "Show me how",
+      "howTitle": "Restart your box and router",
+      "how1": "Unplug your TV box and your internet router.",
+      "how2": "Wait 30 seconds.",
+      "how3": "Plug the router back in and give it about 2 minutes to come back on.",
+      "how4": "Plug the TV box back in and open Snow Media Center.",
+      "howDoneBtn": "I did it",
+      "nextTipBtn": "Next tip",
+      "vpnSetup": "The Buffering Guide shows you how to set one up.",
+      "openGuideBtn": "Open the Buffering Guide",
+      "notNowBtn": "Not now",
+      "guideTitle": "Still buffering? Open the Buffering Guide",
+      "guideBody": "It goes through every fix, one at a time. Most buffering is sorted in a few minutes.",
+      "reportBody": "Only this channel? Report it and we'll take a look.",
+      "reportBtn": "Report this channel"
     },
     "phone": {
       "tapToWatch": "Tap a channel to watch it here",

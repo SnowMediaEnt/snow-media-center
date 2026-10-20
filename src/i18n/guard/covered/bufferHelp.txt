@@ -1,0 +1,3 @@
+# "Still buffering?" help over a Live TV channel that keeps buffering
+src/components/livetv/BufferingHelpDialog.tsx
+src/components/livetv/useBufferingHelp.ts
