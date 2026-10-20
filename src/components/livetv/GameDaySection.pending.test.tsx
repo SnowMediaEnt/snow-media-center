@@ -21,6 +21,8 @@ const team = (short: string, location: string) => ({ short, name: `${location} $
 const world = vi.hoisted(() => ({
   /** The line-up read: `missing` hears the lines it could not read. Unset: the usual channels at once. */
   load: null as null | ((missing?: unknown[]) => Promise<unknown[]>),
+  /** Lines saved on the box besides the one signed in. */
+  saved: [] as unknown[],
   /** The guide check: `stats.failed` counts its failed lookups. Unset: nothing found. */
   guide: null as null | ((stats?: { failed: number }) => Promise<unknown[]>),
   loads: 0,
@@ -57,7 +59,7 @@ vi.mock('@/lib/gameDay', async (orig) => {
     lineupHash: () => 'HASH',
   };
 });
-vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/xtream')>()), loadSavedAccounts: async () => [] }));
+vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/xtream')>()), loadSavedAccounts: async () => world.saved }));
 vi.mock('@/hooks/useFeatureFlag', () => ({ useFeatureFlag: () => ({ enabled: world.flag, loading: false }) }));
 vi.mock('@/lib/channelStatus', () => ({ useDownChannels: () => new Set<string>(), isChannelDown: () => false, channelReport: () => null, isCategoryDown: () => false, signalCategory: () => undefined, signalChannel: vi.fn() }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }));
@@ -95,7 +97,7 @@ async function renderGameDay() {
 
 beforeEach(() => {
   sessionStorage.clear(); localStorage.clear(); Element.prototype.scrollIntoView = vi.fn();
-  world.load = null; world.guide = null; world.loads = 0; world.guides = 0; world.flag = false;
+  world.load = null; world.guide = null; world.loads = 0; world.guides = 0; world.flag = false; world.saved = [];
   world.usual = [[9, 'NFL 01: Bears vs Packers', 'NFL'], [7, 'US| FOX 5 New York', 'US| LOCALS'], [3, 'USA | A&E', 'USA']];
   world.invoke.mockReset();
   world.invoke.mockImplementation(async () => ({ data: { ok: true }, error: null }));
@@ -219,5 +221,17 @@ describe('Game Day: no "not in your channels" before the search is over', () => 
     expect(await screen.findByText(NONE)).toBeTruthy();
     expect(screen.queryByText('Searching your channels…')).toBeNull();
     expect(rowOf('Orioles').textContent).toContain('MLB.tv (streaming only)');
+  });
+
+  it('two saved lines, one that never loads: the games are decided from the one that did, not "couldn\'t check"', async () => {
+    const dead = { host: 'http://dead.test', username: 'x', password: 'y', output: 'ts', serverLabel: 'Old line' };
+    world.saved = [dead];
+    world.load = (missing) => { missing?.push(dead); return Promise.resolve(world.usual.map(([id, name, cat]) => world.chan(id, name, cat))); };
+    await renderGameDay();
+    await waitFor(() => expect(rowOf('Packers').textContent).not.toContain('Finding your channels…'));
+    expect(document.body.textContent).not.toContain("Couldn't check your channels");
+    // The game the live line carries is offered as usual.
+    await key('Enter');
+    expect(await screen.findByText('Game channel')).toBeTruthy();
   });
 });

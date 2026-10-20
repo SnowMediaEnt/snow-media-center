@@ -98,6 +98,8 @@ const splitSearch = (groups: LinkGroups): LinkGroups => {
     search: [...(g.search ?? []), ...g.main.filter(found), ...g.unconfirmed.filter(found), ...g.zone.filter(found)],
   };
 };
+/** The longest a game's list waits for the line-up before saying it couldn't check. */
+const PICK_WAIT_MAX_MS = 45_000;
 /** A provider's answer is read again this long after a scan the box gave up waiting for. */
 const SCAN_SOON_MS = 30_000;
 const SCAN_LATE_MS = 90_000;
@@ -292,7 +294,10 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   // The line-up isn't known yet: not read at all, read for other lines (a
   // line signed in since: its read is on its way), or being read again after
   // a read that missed a line. Until it is, no game is "not in your channels".
-  const lineupPending = channels === null || chFor !== linesKey || (chBusy && chMissing.length > 0);
+  // Decided from the lines that did load: one saved line that never loads
+  // must not hold every game at "finding" or "couldn't check".
+  const allMissing = lines.length > 0 && chMissing.length >= lines.length;
+  const lineupPending = channels === null || chFor !== linesKey || (chBusy && allMissing);
   // The guide's answers were read from one channel list: a new one (the
   // ten-minute refresh) starts over.
   useEffect(() => { setGuided((m) => (m.size ? new Map() : m)); }, [channels]);
@@ -404,7 +409,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
         }
       }
     })().catch(() => undefined));
-    void Promise.all(runs).then(() => { if (aliveRef.current) setAiDone(key); });
+    // Only the newest run says it is done: an older one finishing last would
+    // leave the newest "searching" for the whole visit.
+    void Promise.all(runs).then(() => { if (aliveRef.current && aiCheckedRef.current === key) setAiDone(key); });
   }, [isActive, aiOn, channels, aiHosts]);
   // What was found for each game listed, as links on this box: only a channel
   // still loaded under that name (or one still naming a team), and never one
@@ -463,15 +470,15 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     // the search's answer is on its way): "Finding your channels…" (a row
     // that offers to check its guide still does).
     const looking = !pick && (lineupPending || (aiSearching && !!g.home && !!g.away));
-    // Nothing found, but a line's channels could not be read: "couldn't check".
-    const failed = !pick && !looking && chMissing.length > 0;
+    // Nothing found, and no line's channels could be read: "couldn't check".
+    const failed = !pick && !looking && allMissing;
     return {
       game: g, auto, search, found, picks, channel: pick, channelDown: !!pick && isDown(pick), channelBuffering: !!pick && isBuffering(pick),
       more: Math.max(0, found.length + searched.length - 1), when, tv, unsure, looking, failed,
     };
     // t: the kickoff day and time are drawn in the app's language, so a language change recomputes them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [shown, matched, searchByGame, guided, edits, lines, channels, boxServices, isDown, isBuffering, flagOf, lineupPending, aiSearching, chMissing, t]);
+  }), [shown, matched, searchByGame, guided, edits, lines, channels, boxServices, isDown, isBuffering, flagOf, lineupPending, aiSearching, allMissing, t]);
 
   // The owner's adds to games nothing else found: each sent once a day.
   useEffect(() => {
@@ -543,7 +550,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   // The search is over but part of it failed (a line's channels or the guide
   // didn't come), and nothing of the game's own was found: "couldn't check",
   // with Try again (never "not in your channels").
-  const pickFailed = !!picker && !pickPending && !pickHasMain && (chMissing.length > 0 || picker.failed);
+  const pickFailed = !!picker && !pickPending && !pickHasMain && (allMissing || picker.failed);
   const pickItems = useMemo<PickItem[]>(() => (pickFailed ? [...pickLinks, { kind: 'retry' }] : pickLinks), [pickLinks, pickFailed]);
   const firstLinkIdx = pickItems.findIndex((it) => it.kind === 'link');
   // Where the "Found by search", "Not confirmed by the guide" and the zone
@@ -559,7 +566,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   const guideAsk = useRef(0);
   const askGuide = useCallback((gameId: string) => {
     const r = rows.find((x) => x.game.id === gameId);
-    if (!r || !channels) return;
+    // The game left the list while its picker waited: nothing to ask, and the
+    // picker must not stay up (invisible, taking OK) waiting for it.
+    if (!r || !channels) { setPicker((p) => (p && p.gameId === gameId ? null : p)); return; }
     const ask = ++guideAsk.current;
     setPicker((p) => (p && p.gameId === gameId ? { ...p, scanning: true, waiting: false, failed: false } : p));
     const lay = (extra: GameChannel[], done: boolean, failed = false) => {
@@ -595,6 +604,16 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   useEffect(() => {
     if (picker?.waiting && !lineupPending) askGuide(picker.gameId);
   }, [picker?.waiting, picker?.gameId, lineupPending, askGuide]);
+  // A line-up that takes this long (many lists, a slow provider) is not waited
+  // for any more: "couldn't check", with Try again.
+  useEffect(() => {
+    if (!picker?.waiting) return;
+    const id = picker.gameId;
+    const t = window.setTimeout(() => {
+      setPicker((x) => (x && x.gameId === id && x.waiting ? { ...x, waiting: false, scanning: false, failed: true } : x));
+    }, PICK_WAIT_MAX_MS);
+    return () => window.clearTimeout(t);
+  }, [picker?.waiting, picker?.gameId]);
 
   // Try again, after a search that couldn't be finished: a line that didn't
   // load reads the line-up again (and the guide is asked again once it has
