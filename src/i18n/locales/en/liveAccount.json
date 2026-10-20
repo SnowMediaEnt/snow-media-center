@@ -117,6 +117,12 @@
       "viewSize": {
         "compact": "Compact",
         "large": "Large"
+      },
+      "groupLiveRows": "Channel rows",
+      "liveRowsHint": "For the Classic and Compact lists. Slim: one line per channel, about 10 channels on the screen.",
+      "liveRows": {
+        "normal": "Normal",
+        "slim": "Slim — more channels"
       }
     },
     "backups": {

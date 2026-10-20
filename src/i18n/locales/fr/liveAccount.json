@@ -122,6 +122,12 @@
       "viewSize": {
         "compact": "Compact",
         "large": "Grand"
+      },
+      "groupLiveRows": "Lignes de chaînes",
+      "liveRowsHint": "Pour les listes Classique et Compact. Fines : une ligne par chaîne, environ 10 chaînes à l'écran.",
+      "liveRows": {
+        "normal": "Normales",
+        "slim": "Fines : plus de chaînes"
       }
     },
     "backups": {

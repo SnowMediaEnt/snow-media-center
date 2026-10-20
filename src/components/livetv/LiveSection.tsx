@@ -83,6 +83,7 @@ import PlayerStatsPanel from './PlayerStatsPanel';
 import { isDemo, isHowtoCapture, demoDialogMsg } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, DEFAULT_LIVE_LAYOUT, stripInitial, tvWallLayout, type LiveLayout } from '@/lib/liveLayout';
 import { useViewSize } from '@/lib/viewSize';
+import { SLIM_ROW_SLOT, useLiveRowSize } from '@/lib/liveRows';
 import { nameClasses } from '@/lib/channelName';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import { channelForName } from '@/lib/voiceCommands';
@@ -1308,7 +1309,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [wallScreenW, setWallScreenW] = useState(0);
   const tvWall = tvCompactWall ? tvWallLayout(wallInner, wallScreenW) : null;
   const cols = listLayout === 'grid' ? (tvWall ? tvWall.cols : GRID_COLS) : 1;
-  const rowHeight = tvWall ? tvWall.rowH : rowHeightFor(listLayout);
+  // Slim rows (Player Settings › Appearance, lib/liveRows): one line per
+  // channel in Classic and Compact, about ten on a TV screen. The logo wall
+  // and a phone held upright (rows sized for a finger) keep their own.
+  const liveRowSize = useLiveRowSize();
+  const slimRows = liveRowSize === 'slim' && !upright && (listLayout === 'classic' || listLayout === 'compact');
+  const rowHeight = tvWall ? tvWall.rowH : slimRows ? SLIM_ROW_SLOT : rowHeightFor(listLayout);
   const colsRef = useRef(cols); useEffect(() => { colsRef.current = cols; }, [cols]);
   // Compact on a TV (the remote, not a touch screen): with the highlight in
   // the tiles the categories pane folds to a strip and the tiles take its
@@ -3651,7 +3657,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   );
 
   // ── the channel list / grid, virtualized by row ────────────────────────
-  const rowVariant: 'classic' | 'compact' | 'tile' = listLayout === 'grid' ? 'tile' : listLayout === 'classic' ? 'classic' : 'compact';
+  const rowVariant: 'classic' | 'compact' | 'tile' | 'slim' = listLayout === 'grid' ? 'tile' : slimRows ? 'slim' : listLayout === 'classic' ? 'classic' : 'compact';
   const channelList = (
     <div ref={setScrollParent} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3" data-howto="live.channels">
       {channelsLoading && visibleChannels.length === 0 ? (

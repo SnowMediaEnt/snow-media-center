@@ -13,6 +13,7 @@ import {
 } from '@/lib/theme';
 import { LIVE_LAYOUTS, saveLiveLayout, useLiveLayout, type LiveLayout } from '@/lib/liveLayout';
 import { VIEW_SIZES, saveViewSize, useViewSize } from '@/lib/viewSize';
+import { LIVE_ROW_SIZES, saveLiveRowSize, useLiveRowSize } from '@/lib/liveRows';
 import LiveLayoutWire from './LiveLayoutWire';
 import { keepInView } from '@/utils/keepInView';
 import { useTranslation } from 'react-i18next';
@@ -28,14 +29,20 @@ interface Props {
   active?: boolean;
 }
 
-type ChipKind = 'liveLayout' | 'viewSize' | 'fontScale' | 'fontFamily' | 'accent' | 'bg' | 'text';
+type ChipKind = 'liveLayout' | 'liveRows' | 'viewSize' | 'fontScale' | 'fontFamily' | 'accent' | 'bg' | 'text';
 interface Chip {
   kind: ChipKind;
   id: string;
   label: string;
   hsl?: string;   // for color chips
   value?: number; // for fontScale
-  groupIdx: number;
+}
+/** One row of chips, its heading and the hint under it (translation keys). */
+interface Group {
+  kind: ChipKind;
+  labelKey: string;
+  hintKey?: string;
+  chips: Chip[];
 }
 
 const AppearanceScreen = memo(({ onBack, onTryLayout, embedded = false, active = true }: Props) => {
@@ -53,17 +60,25 @@ const AppearanceScreen = memo(({ onBack, onTryLayout, embedded = false, active =
   // The Guide and logo wall size (lib/viewSize): one choice, right under the
   // layouts. Compact (the default) or Large.
   const viewSize = useViewSize();
+  // Normal or Slim channel rows (lib/liveRows): only Classic and Compact
+  // draw them, so the row is there only with one of those chosen.
+  const liveRowSize = useLiveRowSize();
+  const listRows = liveLayout === 'classic' || liveLayout === 'compact';
 
-  const groups = useMemo(() => {
-    const gLayout: Chip[] = LIVE_LAYOUTS.map(l => ({ kind: 'liveLayout', id: l.id, label: l.label, groupIdx: 0 }));
-    const gViewSize: Chip[] = VIEW_SIZES.map(id => ({ kind: 'viewSize', id, label: id, groupIdx: 1 }));
-    const gFontScale: Chip[] = FONT_SCALES.map(s => ({ kind: 'fontScale', id: s.id, label: s.label, value: s.value, groupIdx: 2 }));
-    const gFontFamily: Chip[] = FONT_FAMILIES.map(f => ({ kind: 'fontFamily', id: f.id, label: f.label, groupIdx: 3 }));
-    const gAccent: Chip[] = ACCENT_SWATCHES.map(s => ({ kind: 'accent', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 4 }));
-    const gBg: Chip[] = BG_SWATCHES.map(s => ({ kind: 'bg', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 5 }));
-    const gText: Chip[] = TEXT_SWATCHES.map(s => ({ kind: 'text', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 6 }));
-    return [gLayout, gViewSize, gFontScale, gFontFamily, gAccent, gBg, gText];
-  }, []);
+  const groupList = useMemo(() => {
+    const list: Group[] = [
+      { kind: 'liveLayout', labelKey: 'liveAccount.appearance.groupLayout', chips: LIVE_LAYOUTS.map(l => ({ kind: 'liveLayout', id: l.id, label: l.label })) },
+      ...(listRows ? [{ kind: 'liveRows' as const, labelKey: 'liveAccount.appearance.groupLiveRows', hintKey: 'liveAccount.appearance.liveRowsHint', chips: LIVE_ROW_SIZES.map((id): Chip => ({ kind: 'liveRows', id, label: id })) }] : []),
+      { kind: 'viewSize', labelKey: 'liveAccount.appearance.groupViewSize', hintKey: 'liveAccount.appearance.viewSizeHint', chips: VIEW_SIZES.map(id => ({ kind: 'viewSize', id, label: id })) },
+      { kind: 'fontScale', labelKey: 'liveAccount.appearance.groupTextSize', chips: FONT_SCALES.map(s => ({ kind: 'fontScale', id: s.id, label: s.label, value: s.value })) },
+      { kind: 'fontFamily', labelKey: 'liveAccount.appearance.groupFont', chips: FONT_FAMILIES.map(f => ({ kind: 'fontFamily', id: f.id, label: f.label })) },
+      { kind: 'accent', labelKey: 'liveAccount.appearance.groupAccent', chips: ACCENT_SWATCHES.map(s => ({ kind: 'accent', id: s.id, label: s.label, hsl: s.hsl })) },
+      { kind: 'bg', labelKey: 'liveAccount.appearance.groupBackground', chips: BG_SWATCHES.map(s => ({ kind: 'bg', id: s.id, label: s.label, hsl: s.hsl })) },
+      { kind: 'text', labelKey: 'liveAccount.appearance.groupTextColor', chips: TEXT_SWATCHES.map(s => ({ kind: 'text', id: s.id, label: s.label, hsl: s.hsl })) },
+    ];
+    return list;
+  }, [listRows]);
+  const groups = useMemo(() => groupList.map(g => g.chips), [groupList]);
 
   // Flat focus index: 0 = Back, then for each group N chips, then Reset last.
   const groupStarts = useMemo(() => {
@@ -77,6 +92,9 @@ const AppearanceScreen = memo(({ onBack, onTryLayout, embedded = false, active =
   const [focusIdx, setFocusIdx] = useState(1);
   const focusIdxRef = useRef(focusIdx);
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
+  // A row coming or going (Channel rows, with the layout) moves every place
+  // after it: never past Reset.
+  useEffect(() => { if (focusIdx > groupStarts.resetIdx) setFocusIdx(groupStarts.resetIdx); }, [focusIdx, groupStarts]);
   // Follow the highlight down the page: Background, Text color and Reset sit
   // below the fold on a TV, and nothing scrolled them into view.
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -102,6 +120,7 @@ const AppearanceScreen = memo(({ onBack, onTryLayout, embedded = false, active =
 
   const isSelected = (chip: Chip): boolean => {
     if (chip.kind === 'liveLayout') return liveLayout === chip.id;
+    if (chip.kind === 'liveRows') return liveRowSize === chip.id;
     if (chip.kind === 'viewSize') return viewSize === chip.id;
     if (chip.kind === 'fontScale') return theme.fontScale === chip.value;
     if (chip.kind === 'fontFamily') return theme.fontFamily === chip.id;
@@ -117,6 +136,7 @@ const AppearanceScreen = memo(({ onBack, onTryLayout, embedded = false, active =
       if (next !== liveLayoutRef.current && onTryLayout) onTryLayout(liveLayoutRef.current, next);
       else saveLiveLayout(next);
     }
+    else if (chip.kind === 'liveRows') saveLiveRowSize(chip.id === 'slim' ? 'slim' : 'normal');
     else if (chip.kind === 'viewSize') saveViewSize(chip.id === 'large' ? 'large' : 'compact');
     else if (chip.kind === 'fontScale' && typeof chip.value === 'number') setTheme({ fontScale: chip.value });
     else if (chip.kind === 'fontFamily') setTheme({ fontFamily: chip.id });
@@ -225,15 +245,10 @@ const AppearanceScreen = memo(({ onBack, onTryLayout, embedded = false, active =
     );
   };
 
-  const groupLabels = [
-    t('liveAccount.appearance.groupLayout'), t('liveAccount.appearance.groupViewSize'), t('liveAccount.appearance.groupTextSize'), t('liveAccount.appearance.groupFont'),
-    t('liveAccount.appearance.groupAccent'), t('liveAccount.appearance.groupBackground'), t('liveAccount.appearance.groupTextColor'),
-  ];
   const layoutDesc = LIVE_LAYOUTS.find(l => l.id === liveLayout);
-  const groupHints: Record<number, string> = {
-    0: `${layoutDesc ? t(layoutDesc.descKey) : ''}${onTryLayout ? ` · ${t('liveAccount.appearance.tryHint')}` : ''}`,
-    1: t('liveAccount.appearance.viewSizeHint'),
-  };
+  const groupHint = (g: Group): string => (g.kind === 'liveLayout'
+    ? `${layoutDesc ? t(layoutDesc.descKey) : ''}${onTryLayout ? ` · ${t('liveAccount.appearance.tryHint')}` : ''}`
+    : g.hintKey ? t(g.hintKey) : '');
 
   return (
     <div className={embedded ? 'h-full min-h-0 overflow-hidden flex flex-col text-white' : 'h-screen overflow-hidden flex flex-col text-white bg-black/70'}>
@@ -254,21 +269,19 @@ const AppearanceScreen = memo(({ onBack, onTryLayout, embedded = false, active =
 
       <div ref={scrollRef} className={embedded ? 'flex-1 overflow-auto p-1' : 'flex-1 overflow-auto p-6 flex items-start justify-center'}>
         <div className="w-full max-w-3xl space-y-6">
-          {groups.map((g, gi) => (
-            <div key={groupLabels[gi]} className="space-y-3">
-              <div className="text-xs uppercase tracking-wide text-white/70">{groupLabels[gi]}</div>
-              {groupHints[gi] ? <div className="text-sm font-nunito text-brand-ice/70">{groupHints[gi]}</div> : null}
-              {gi === 0 ? (
-                <div className="grid grid-cols-4 gap-4">
-                  {g.map((chip, ci) => renderChip(chip, groupStarts.starts[gi] + ci))}
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {g.map((chip, ci) => renderChip(chip, groupStarts.starts[gi] + ci))}
-                </div>
-              )}
-            </div>
-          ))}
+          {groupList.map((grp, gi) => {
+            const hint = groupHint(grp);
+            const chips = grp.chips.map((chip, ci) => renderChip(chip, groupStarts.starts[gi] + ci));
+            return (
+              <div key={grp.kind} className="space-y-3" data-appearance-group={grp.kind}>
+                <div className="text-xs uppercase tracking-wide text-white/70">{t(grp.labelKey)}</div>
+                {hint ? <div className="text-sm font-nunito text-brand-ice/70">{hint}</div> : null}
+                {grp.kind === 'liveLayout'
+                  ? <div className="grid grid-cols-4 gap-4">{chips}</div>
+                  : <div className="flex flex-wrap gap-2">{chips}</div>}
+              </div>
+            );
+          })}
 
           <div className="pt-2">
             <div

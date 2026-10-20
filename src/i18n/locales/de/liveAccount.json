@@ -117,6 +117,12 @@
       "viewSize": {
         "compact": "Kompakt",
         "large": "Groß"
+      },
+      "groupLiveRows": "Senderzeilen",
+      "liveRowsHint": "Für die Listen Klassisch und Kompakt. Schmal: eine Zeile pro Sender, etwa 10 Sender auf dem Bildschirm.",
+      "liveRows": {
+        "normal": "Normal",
+        "slim": "Schmal – mehr Sender"
       }
     },
     "backups": {

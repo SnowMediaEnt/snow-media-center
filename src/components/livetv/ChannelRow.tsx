@@ -6,6 +6,7 @@ import type { XtreamLiveStream, EpgNowNext } from '@/lib/xtream';
 import { channelRowLabels, type ChannelRowLabels } from './channelRowLabels';
 import type { ChannelReport } from '@/lib/channelStatus';
 import { TV_WALL_NAME_H } from '@/lib/liveLayout';
+import { SLIM_ROW_H } from '@/lib/liveRows';
 import { nameClasses } from '@/lib/channelName';
 
 // Logos a Compact wall tile has shown. Folding or unfolding the categories
@@ -38,9 +39,10 @@ interface Props {
   onSelect: (index: number) => void;
   onActivate: (index: number) => void;
   onLongPress?: (index: number) => void;
-  /** classic: the tall 84px row · compact: the slim 60px row · tile: a logo
-   *  tile for the grid layout, name underneath. */
-  variant?: 'classic' | 'compact' | 'tile';
+  /** classic: the tall 84px row · compact: the two-line 60px row · tile: a
+   *  logo tile for the grid layout, name underneath · slim: one line per
+   *  channel (lib/liveRows, either list layout). */
+  variant?: 'classic' | 'compact' | 'tile' | 'slim';
   /** The row's words, translated once by the list (channelRowLabels) instead of once per row. */
   labels?: ChannelRowLabels;
   /** Which service the channel is on, in a list that mixes them (all-services Favorites). */
@@ -239,6 +241,59 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
           <span className={`text-sm font-quicksand font-semibold truncate ${isFocused ? 'text-white' : 'text-white/90'}`}>{channel.name}</span>
           {serviceTag && <span data-service-tag="" className="text-[10px] px-1.5 py-0.5 rounded-md bg-brand-gold/15 text-brand-gold font-quicksand font-bold uppercase tracking-wide flex-shrink-0 leading-3">{serviceTag}</span>}
         </div>
+      </div>
+    );
+  }
+
+  if (variant === 'slim') {
+    // One line, TiviMate style: number, logo, the name (bold, cut last),
+    // what's on (muted, cut first: it only gets the room the name leaves)
+    // and when it ends (the end, not "12m left": it doesn't go stale), with a
+    // thin progress line along the foot. No flex gap (Chromium 66): margins.
+    // The markers stay: down / buffering, the service, LIVE, the favorite
+    // star. SLIM_ROW_H tall, the slot is 4px more.
+    const time = now ? clock(now.end) : '';
+    return (
+      <div
+        data-focused={isFocused ? 'true' : 'false'}
+        data-row-slim=""
+        {...handlers}
+        style={{ height: SLIM_ROW_H }}
+        className={`
+          tv-ring flex items-center px-2.5 rounded-lg cursor-pointer min-w-0 w-full overflow-hidden
+          ${isFocused
+            ? 'bg-white/10'
+            : isPlaying ? 'bg-brand-gold/10' : 'hover:bg-white/5'}
+        `}
+      >
+        <span className={`w-7 mr-2 text-right font-nunito tabular-nums text-xs flex-shrink-0 ${isFocused ? 'text-brand-gold' : 'text-white/45'}`}>
+          {channel.num ?? ''}
+        </span>
+        {logo('w-6 h-6', 'w-3.5 h-3.5')}
+        <div className="flex-1 min-w-0 ml-2 flex items-center">
+          {flagged && <AlertTriangle className={`w-3.5 h-3.5 mr-1 ${flagIcon} flex-shrink-0`} aria-label={flagLabel} data-report={flag} />}
+          <span data-slim-name="" className={`min-w-0 truncate font-quicksand font-bold text-sm ${isFocused ? 'text-white' : 'text-white/90'}`}>
+            {channel.name}
+          </span>
+          {serviceTag && <span data-service-tag="" className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-brand-gold/15 text-brand-gold font-quicksand font-bold uppercase flex-shrink-0 leading-3">{serviceTag}</span>}
+          {isPlaying && <Radio className="ml-1.5 w-3 h-3 text-brand-gold flex-shrink-0" aria-label={L.live} />}
+          {isFavorite && <Star className="ml-1.5 w-3 h-3 text-brand-gold fill-brand-gold flex-shrink-0" />}
+          <span data-slim-now="" className={`flex-1 min-w-0 ml-2 truncate font-nunito text-xs ${flagged ? flagText : 'text-brand-ice/60'}`}>
+            {flagged ? flagLabel : now ? now.title : ''}
+          </span>
+          {time && (
+            <span data-slim-time="" className={`ml-2 font-nunito tabular-nums text-xs flex-shrink-0 ${isFocused ? 'text-white/80' : 'text-brand-ice/55'}`}>
+              –{time}
+            </span>
+          )}
+        </div>
+        {/* Along the row's foot, number to time (under the words it read as
+            an underline), above the 3px focus ring. */}
+        {now && (
+          <div className="absolute left-2.5 right-2.5 bottom-[3px] h-[2px] rounded-full bg-white/[0.07] overflow-hidden" aria-hidden="true">
+            <div className="h-full bg-brand-gold/60" style={{ width: `${progress}%` }} />
+          </div>
+        )}
       </div>
     );
   }

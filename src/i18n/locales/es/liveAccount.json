@@ -122,6 +122,12 @@
       "viewSize": {
         "compact": "Compacto",
         "large": "Grande"
+      },
+      "groupLiveRows": "Filas de canales",
+      "liveRowsHint": "Para las listas Clásico y Compacto. Delgadas: una línea por canal, unos 10 canales en pantalla.",
+      "liveRows": {
+        "normal": "Normales",
+        "slim": "Delgadas: más canales"
       }
     },
     "backups": {
