@@ -42,7 +42,7 @@ import {
   saveCollapsedLines,
   HIDDEN_CATEGORIES_EVENT,
 } from '@/lib/liveLines';
-import { isOutsideHost, lineEventProps } from '@/lib/outsideSource';
+import { isOutsideHost, isOutsideLine, lineEventProps } from '@/lib/outsideSource';
 import { useLiveLines } from './useLiveLines';
 import {
   countsAreFresh,
@@ -69,7 +69,7 @@ import BufferingDiagnostics from './BufferingDiagnostics';
 import SnowLoader from '@/components/SnowLoader';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import type { VideoController } from './VideoPlayer';
-import { AlertTriangle, FastForward, Rewind, RotateCw } from 'lucide-react';
+import { AlertTriangle, FastForward, Flag, Rewind, RotateCw } from 'lucide-react';
 import { hasNativePlayer, SnowPlayer } from '@/capacitor/SnowPlayer';
 import { SnowRecorder, RECORDINGS_CHANGED_EVENT, hasRecorder, notifyRecordingsChanged, type RecordingJob } from '@/capacitor/SnowRecorder';
 import { programmeTimeUtcMs } from '@/lib/recordSchedule';
@@ -2172,10 +2172,28 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return () => { document.documentElement.classList.remove('snowplayer-preview'); };
   }, [nativePreviewActive]);
 
+  // The error card's "Report it" (owner: "if it's not on air, have the
+  // option to report it"): the channel that failed to start, through the
+  // channel menu's own report, "Channel down" picked. Not for this box's own
+  // trouble (sound or picture: isChannelFailure), and never for an outside
+  // service's channel: not ours to fix, and nothing about it goes to our
+  // servers (lib/outsideSource; the card says who to ask instead).
+  const failedOnCard = NATIVE_PLAYBACK && !DEMO && fullscreen && !!playingChannelId && isChannelFailure(native.error);
+  const failedOutside = failedOnCard && isOutsideLine(playingLine);
+  const reportFailed = failedOnCard && !failedOutside && playingStream
+    ? () => {
+      // The menu finds the channel's line by the stream object.
+      streamLineRef.current.set(playingStream, playingLine);
+      setReportPreset({ choice: 'Channel down' });
+      setReportFor(playingStream);
+    }
+    : null;
+
   // A channel that won't start, full screen or in the box, played from the
   // viewer's other service when that has it (useChannelFailover owns the
   // rules; it only asks for things to be played here).
   const failover = useChannelFailover({
+    onReport: reportFailed,
     lines,
     off: DEMO,
     active: isActive,
@@ -3787,7 +3805,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   {failover.offerLabel}
                 </button>
               )}
+              {reportFailed && (
+                <button
+                  data-failover-report
+                  onClick={(e) => { e.stopPropagation(); failover.report(); }}
+                  data-focused={failover.focus === 'report' ? 'true' : 'false'}
+                  className={`tv-ring ml-4 flex items-center gap-2 px-5 py-3 rounded-xl bg-white/10 border border-white/25 text-white font-quicksand font-bold ${failover.focus === 'report' ? 'scale-105 z-10' : ''}`}
+                >
+                  <Flag className="w-4 h-4" /> {t('live.player.reportIt')}
+                </button>
+              )}
             </div>
+            {failedOutside && <p data-outside-note className="text-sm text-brand-ice/70 font-nunito max-w-md mt-4">{t('liveAccount.outside.reportNote')}</p>}
           </div>
         )}
         {NATIVE_PLAYBACK && statsShown && !chOverlayOpen && !recent.open && <PlayerStatsPanel />}

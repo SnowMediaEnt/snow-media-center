@@ -71,9 +71,15 @@ export interface FailoverOptions {
   release?: (original: LineChannel) => void;
   /** Live TV has the remote. Leaving it forgets the failed channel. */
   active?: boolean;
+  /** The error screen's "Report it" (LiveSection's channel report), when it
+   *  shows one: the last of its buttons, in the ◀ ▶ order (onKey). */
+  onReport?: (() => void) | null;
   /** The demo: never. */
   off?: boolean;
 }
+
+/** The error screen's buttons, left to right. */
+export type FailoverFocus = 'retry' | 'offer' | 'report';
 
 export interface ChannelFailover {
   /** The service the error screen offers ("Vibez"), or null. */
@@ -81,14 +87,18 @@ export interface ChannelFailover {
   /** That button's words: "Try on Vibez", or "Try on your other DreamStreams line". */
   offerLabel: string | null;
   /** Which of the error screen's buttons the remote is on. */
-  focus: 'retry' | 'offer';
+  focus: FailoverFocus;
   /** "ESPN didn't play on DreamStreams or on Vibez.", once both failed. */
   triedBoth: string | null;
   /** Looking for a copy to switch to (the error screen says so). */
   looking: boolean;
   /** The "Try on…" button. */
   tryOffer: () => void;
-  /** Keys on the error screen: ◀ ▶ between Retry and "Try on…", OK on it. True when used. */
+  /** The "Report it" button: the remote goes back to Retry (where it is
+   *  when the report closes), and the report opens. */
+  report: () => void;
+  /** Keys on the error screen: ◀ ▶ between its buttons (Retry, "Try on…",
+   *  "Report it"), OK on the last two. True when used. */
   onKey: (e: KeyboardEvent) => boolean;
   /** OK on the channel whose copy the preview box shows: that copy (null otherwise). */
   redirect: (st: XtreamLiveStream) => XtreamLiveStream | null;
@@ -99,7 +109,7 @@ export interface ChannelFailover {
 const noop = () => {};
 export const IDLE_FAILOVER: ChannelFailover = {
   offer: null, offerLabel: null, focus: 'retry', triedBoth: null, looking: false,
-  tryOffer: noop, onKey: () => false, redirect: () => null, standInIndex: () => -1,
+  tryOffer: noop, report: noop, onKey: () => false, redirect: () => null, standInIndex: () => -1,
 };
 
 /** How a service is named to the viewer (the group header's name, brand-spelled). */
@@ -212,11 +222,18 @@ interface View {
   offer: LineChannel | null;
   /** The line that failed, the one "Try on…" is away from. */
   from: XtreamCreds | null;
-  focus: 'retry' | 'offer';
+  focus: FailoverFocus;
   triedBoth: string | null;
   looking: boolean;
 }
 const EMPTY_VIEW: View = { offer: null, from: null, focus: 'retry', triedBoth: null, looking: false };
+
+/** The error screen's buttons as shown, left to right. */
+const buttonsOf = (offer: boolean, report: boolean): FailoverFocus[] => [
+  'retry',
+  ...(offer ? ['offer' as const] : []),
+  ...(report ? ['report' as const] : []),
+];
 
 /** Nothing on screen for this long (the Recordings screen, a layout without a box): the failed channel is forgotten. */
 const FORGET_MS = 3000;
@@ -318,6 +335,8 @@ export function useChannelFailover(opts: FailoverOptions): ChannelFailover {
     const err = opts.error;
     const o = optsRef.current;
     const cur = o.watching;
+    // Each new error card starts on Retry (a box with one line included).
+    if (viewRef.current.focus !== 'retry') setView({ ...viewRef.current, focus: 'retry' });
     if (!isChannelFailure(err) || !cur || o.off || o.lines.length < 2) return;
     const key = chKey(cur.line, cur.stream.stream_id);
     let p = pickRef.current;
@@ -376,19 +395,31 @@ export function useChannelFailover(opts: FailoverOptions): ChannelFailover {
     go(p, to, false, optsRef.current.watching?.line ?? p.original.line);
   }, [go]);
 
-  // ◀ ▶ belong to the two buttons while both are shown (they no longer open
-  // the channel list or Recently watched from behind the error).
+  const report = useCallback(() => {
+    const v = viewRef.current;
+    if (v.focus !== 'retry') setView({ ...v, focus: 'retry' });
+    optsRef.current.onReport?.();
+  }, [setView]);
+
+  // ◀ ▶ belong to the error screen's buttons while there is more than Retry
+  // (they no longer open the channel list or Recently watched from behind
+  // the error); they stop at either end.
   const onKey = useCallback((e: KeyboardEvent): boolean => {
     const v = viewRef.current;
-    if (!v.offer) return false;
+    const buttons = buttonsOf(!!v.offer, !!optsRef.current.onReport);
+    if (buttons.length < 2) return false;
+    const at = Math.max(0, buttons.indexOf(v.focus));
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-      const focus = e.key === 'ArrowRight' ? 'offer' : 'retry';
+      const focus = buttons[Math.min(buttons.length - 1, Math.max(0, at + (e.key === 'ArrowRight' ? 1 : -1)))];
       if (v.focus !== focus) setView({ ...v, focus });
       return true;
     }
-    if ((e.key === 'Enter' || e.key === ' ') && v.focus === 'offer') { if (!e.repeat) tryOffer(); return true; }
+    if (e.key === 'Enter' || e.key === ' ') {
+      if (buttons[at] === 'offer') { if (!e.repeat) tryOffer(); return true; }
+      if (buttons[at] === 'report') { if (!e.repeat) report(); return true; }
+    }
     return false;
-  }, [setView, tryOffer]);
+  }, [setView, tryOffer, report]);
 
   // Picking the failed channel while its copy plays (in the box, full screen,
   // over the picture): the copy, already playing, so nothing restarts.
@@ -405,15 +436,20 @@ export function useChannelFailover(opts: FailoverOptions): ChannelFailover {
     return list.findIndex((st) => st.stream_id === p.original.stream.stream_id && chKey(lineOf(st), st.stream_id) === p.origKey);
   }, []);
 
-  return useMemo<ChannelFailover>(() => ({
-    offer: view.offer ? serviceName(view.offer.line) : null,
-    offerLabel: view.offer ? tryOnText(view.from, view.offer.line) : null,
-    focus: view.offer ? view.focus : 'retry',
-    triedBoth: view.triedBoth,
-    looking: view.looking,
-    tryOffer,
-    onKey,
-    redirect,
-    standInIndex,
-  }), [view, tryOffer, onKey, redirect, standInIndex]);
+  const hasReport = !!opts.onReport;
+  return useMemo<ChannelFailover>(() => {
+    const buttons = buttonsOf(!!view.offer, hasReport);
+    return {
+      offer: view.offer ? serviceName(view.offer.line) : null,
+      offerLabel: view.offer ? tryOnText(view.from, view.offer.line) : null,
+      focus: buttons.includes(view.focus) ? view.focus : 'retry',
+      triedBoth: view.triedBoth,
+      looking: view.looking,
+      tryOffer,
+      report,
+      onKey,
+      redirect,
+      standInIndex,
+    };
+  }, [view, hasReport, tryOffer, report, onKey, redirect, standInIndex]);
 }

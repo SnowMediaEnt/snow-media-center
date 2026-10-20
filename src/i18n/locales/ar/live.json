@@ -257,7 +257,8 @@
       "skipBack": "رجوع {{sec}} ث",
       "skipForward": "تقديم {{sec}} ث",
       "behindLive": "متأخر {{time}} عن البث المباشر",
-      "atLive": "مباشر"
+      "atLive": "مباشر",
+      "reportIt": "أبلغ عنها"
     },
     "failover": {
       "note": "{{channel}} لا تعمل على {{service}} — يتم تشغيلها من {{other}}",

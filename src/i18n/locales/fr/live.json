@@ -257,7 +257,8 @@
       "skipBack": "{{sec}} s en arrière",
       "skipForward": "{{sec}} s en avant",
       "behindLive": "{{time}} de retard sur le direct",
-      "atLive": "En direct"
+      "atLive": "En direct",
+      "reportIt": "Le signaler"
     },
     "failover": {
       "note": "{{channel}} ne fonctionne pas sur {{service}} — lecture depuis {{other}}",

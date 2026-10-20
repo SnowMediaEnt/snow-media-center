@@ -257,7 +257,8 @@
       "skipBack": "{{sec}} s atrás",
       "skipForward": "{{sec}} s adelante",
       "behindLive": "{{time}} por detrás del en vivo",
-      "atLive": "En vivo"
+      "atLive": "En vivo",
+      "reportIt": "Reportarlo"
     },
     "failover": {
       "note": "{{channel}} no funciona en {{service}}: se reproduce desde {{other}}",
