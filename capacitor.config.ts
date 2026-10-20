@@ -14,7 +14,6 @@ const config: CapacitorConfig = {
     // and the player silently fails. Takes effect after `cap sync android`
     // + APK rebuild.
     allowMixedContent: true,
-    webContentsDebuggingEnabled: true,
   },
   plugins: {
     SplashScreen: {
