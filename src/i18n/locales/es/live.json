@@ -198,6 +198,7 @@
       "pressOkWatch": "Presiona OK para ver",
       "noChannelSelected": "Ningún canal seleccionado",
       "previewLoading": "Cargando vista previa…",
+      "playingInBox": "Reproduciendo: {{name}}",
       "loadingChannels": "Cargando canales…",
       "noChannelFocused": "Ningún canal resaltado",
       "noProgramInfo": "No hay información del programa",
@@ -210,6 +211,7 @@
       "hintCompact": "OK pantalla completa · Mantén OK para opciones · ◀ categorías",
       "hintGrid": "OK reproducir · Mantén OK para opciones · ◀ categorías",
       "hintClassic": "OK pantalla completa · Mantén OK para opciones · F favorito",
+      "hintHeld": "OK vista previa · OK otra vez pantalla completa · Mantén OK para opciones",
       "channelFallback": "Canal"
     },
     "overlay": {

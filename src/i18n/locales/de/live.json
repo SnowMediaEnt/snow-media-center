@@ -198,6 +198,7 @@
       "pressOkWatch": "Drücke OK zum Ansehen",
       "noChannelSelected": "Kein Sender ausgewählt",
       "previewLoading": "Vorschau wird geladen…",
+      "playingInBox": "Läuft: {{name}}",
       "loadingChannels": "Sender werden geladen…",
       "noChannelFocused": "Kein Sender markiert",
       "noProgramInfo": "Keine Programminfos verfügbar",
@@ -210,6 +211,7 @@
       "hintCompact": "OK Vollbild · OK halten für Optionen · ◀ Kategorien",
       "hintGrid": "OK abspielen · OK halten für Optionen · ◀ Kategorien",
       "hintClassic": "OK Vollbild · OK halten für Optionen · F Favorit",
+      "hintHeld": "OK Vorschau · nochmal OK Vollbild · OK halten für Optionen",
       "channelFallback": "Sender"
     },
     "overlay": {

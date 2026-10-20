@@ -95,6 +95,7 @@ import ChannelWarningDialog from './ChannelWarningDialog';
 import FullscreenChannelOverlay, { OVERLAY_CHANNEL_ROWS, type OverlayCategory } from './FullscreenChannelOverlay';
 import RecentChannelsPanel from './RecentChannelsPanel';
 import { useRecentPanel } from './useRecentPanel';
+import { useHeldPreview } from './useHeldPreview';
 import { recentChannelId, type RecentChannel } from '@/lib/recentChannels';
 // Not lazy: it must be up before the held OK that opens it is let go (that
 // release arms it), or the viewer's next OK would be swallowed.
@@ -577,7 +578,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const reportCatForRef = useRef(reportCatFor);
   reportCatForRef.current = reportCatFor;
   // A channel the others reported down or buffering: asked before it plays.
-  const [warnFor, setWarnFor] = useState<{ stream: XtreamLiveStream; report: Exclude<ChannelReport, null> } | null>(null);
+  // `inBox`: OK put it in the preview box that holds the channel being
+  // watched (useHeldPreview): Watch anyway plays it there, not full screen.
+  const [warnFor, setWarnFor] = useState<{ stream: XtreamLiveStream; report: Exclude<ChannelReport, null>; inBox?: boolean } | null>(null);
   const warnForRef = useRef(warnFor);
   warnForRef.current = warnFor;
   // The reports list (useDownChannels, further down), for callbacks made before it.
@@ -1626,7 +1629,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const focusedNowNext = epgFor(focusedChannel);
 
   // The preview box: the highlighted channel plays there on its own after a
-  // short dwell, and OK on it goes full screen.
+  // short dwell, and OK on it goes full screen. Once a channel has been
+  // watched the box holds it instead (useHeldPreview, below).
   //
   // On the APK the preview is the native ExoPlayer, drawn behind the WebView
   // and sized to the box (the way Multi-Screen tiles work) — a <video> inside
@@ -1653,14 +1657,40 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const tapToBox = touchUI && !noPreview;
   const tapToBoxRef = useRef(tapToBox);
   tapToBoxRef.current = tapToBox;
+  // With the remote: back from watching a channel full screen, the box holds
+  // that channel while the highlight moves; OK on another one plays it in the
+  // box, OK on the one there goes full screen (useHeldPreview says when it
+  // lets go). The functions run on a key, after the refs below are set.
+  const heldPreview = useHeldPreview({
+    on: !touchUI && !noPreview,
+    previewChannel,
+    setPreviewChannel,
+    fullscreen,
+    playingStream: playingChannelId ? playingStream ?? null : null,
+    lineFor,
+    play: (st) => playChannelRef.current(st, undefined, true),
+    fullScreen: (st) => activateChannelRef.current(st),
+    // As activateChannel asks, for the box: not for the channel already
+    // playing, nor one this viewer chose to watch anyway a moment ago.
+    askFirst: (st) => {
+      const line = lineFor(st);
+      const report = channelReport(downSetRef.current, line.host, st.stream_id, st.category_id);
+      if (!report || playingKeyRef.current === `${lineKey(line)}|${st.stream_id}` || warnedRecently(line.host, st.stream_id)) return false;
+      setWarnFor({ stream: st, report, inBox: true });
+      return true;
+    },
+  });
+  const heldPreviewRef = useRef(heldPreview);
+  heldPreviewRef.current = heldPreview;
   useEffect(() => {
     if (noPreview) { setPreviewChannel(null); return; }
-    // On a touch screen the box plays what was tapped, never the highlight.
-    if (touchUI) return;
+    // On a touch screen the box plays what was tapped, never the highlight;
+    // with a channel held there, the box keeps it.
+    if (touchUI || heldPreview.held) return;
     if (!focusedChannel) { setPreviewChannel(null); return; }
     const t = window.setTimeout(() => setPreviewChannel(focusedChannel), PREVIEW_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
-  }, [focusedChannel, noPreview, touchUI]);
+  }, [focusedChannel, noPreview, touchUI, heldPreview.held]);
 
   const previewUrl = useMemo(
     // Demo: no stream URL may ever be constructed — the host is a sentinel.
@@ -1941,6 +1971,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // plain seek of the catch-up stream.
     skipKeys: false,
   });
+  // The channel held in the box did not play: the box follows the highlight
+  // again (useHeldPreview), rather than sit on the error.
+  useEffect(() => { if (native.error && nativePreviewActive) heldPreviewRef.current.release(); }, [native.error, nativePreviewActive]);
   const rewindPausedChange = rewind.onPausedChange;
   useEffect(() => { rewindPausedChange(native.paused); }, [native.paused, rewindPausedChange]);
 
@@ -2231,6 +2264,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setPane('channels');
     setChannelIdx(i);
     const ch = visibleChannelsRef.current[i];
+    // A channel held in the box (the remote, useHeldPreview): another one
+    // plays there, the one there goes full screen.
+    if (ch && heldPreviewRef.current.isHeld()) { heldPreviewRef.current.ok(ch); return; }
     // A touch screen with a video box: the first tap plays the channel in
     // the box, a tap on the channel already there goes full screen.
     if (ch && tapToBoxRef.current) {
@@ -3023,9 +3059,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       }
       if (enterTimerRef.current) {
         // Released before long-press threshold → treat as short press (play).
+        // With a channel held in the box (useHeldPreview) OK plays another
+        // one there, and goes full screen on the one there.
         cancelEnterTimer();
         const ch = visibleChannelsRef.current[channelIdxRef.current];
-        if (ch) activateChannelRef.current(ch);
+        if (ch && heldPreviewRef.current.isHeld()) heldPreviewRef.current.ok(ch);
+        else if (ch) activateChannelRef.current(ch);
       }
       // If long-press already fired, just consume the keyup.
       enterFiredRef.current = false;
@@ -3222,12 +3261,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       report={warnFor.report}
       categoryName={categoryNameOf(warnFor.stream)}
       onWatch={() => {
-        const { stream, report } = warnFor;
+        const { stream, report, inBox } = warnFor;
         const line = lineFor(stream);
         setWarnFor(null);
         noteWatchAnyway(line.host, stream.stream_id);
         try { trackEvent('report_warning', 'player', { status: report, choice: 'watch', where: 'live', channel: stream.name }); } catch { /* ignore */ }
-        playChannel(stream);
+        if (inBox) heldPreview.playInBox(stream);
+        else playChannel(stream);
       }}
       onPickAnother={() => {
         const { stream, report } = warnFor;
@@ -3738,6 +3778,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   );
 
   // ── the preview box, shared by the classic header and the compact stage ─
+  const heldOther = heldPreview.held && !!previewChannel && !!focusedChannel
+    && (previewChannel.stream_id !== focusedChannel.stream_id || lineKey(lineFor(previewChannel)) !== lineKey(lineFor(focusedChannel)));
   const previewBox = (
     <>
       {nativePreviewActive ? (
@@ -3755,7 +3797,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // saturates the compositor thread.
         <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div></div>}>
           {/* Upright on a phone the box is the player itself: with sound. */}
-          <VideoPlayer src={previewUrl} volume={upright ? volume : 0} muted={!upright} className="w-full h-full" chrome="minimal" />
+          <VideoPlayer src={previewUrl} volume={upright ? volume : 0} muted={!upright} className="w-full h-full" chrome="minimal" onError={heldPreview.release} />
         </Suspense>
       ) : tapToBox && !previewChannel ? (
         // A touch screen: the box waits for a tapped channel (the highlight
@@ -3776,6 +3818,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       ) : (
         <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
           {focusedChannel ? t('live.list.previewLoading') : t('live.list.noChannelSelected')}
+        </div>
+      )}
+      {/* The box holds the channel being watched while the highlight is on
+          another (useHeldPreview): which is which, since the info beside it
+          is the highlighted one's. */}
+      {heldOther && previewChannel && (
+        <div data-preview-playing="" className="absolute left-2 bottom-2 max-w-[85%] px-2 py-0.5 rounded-md bg-black/75 text-xs font-nunito font-semibold text-white truncate pointer-events-none">
+          {t('live.list.playingInBox', { name: previewChannel.name })}
         </div>
       )}
     </>
@@ -3917,7 +3967,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           )}
         </div>
 
-          {!touchUI && <p className="flex-shrink-0 pr-24 text-xs font-nunito text-brand-ice/55">{t('live.list.hintCompact')}</p>}
+          {!touchUI && <p className="flex-shrink-0 pr-24 text-xs font-nunito text-brand-ice/55">{heldPreview.held ? t('live.list.hintHeld') : t('live.list.hintCompact')}</p>}
         </div>
       {reportDialog}
       {recordDialog}
@@ -3993,7 +4043,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       {categoriesPane}
       <div data-native-clear className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
         <div data-native-clear className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
-          <div ref={previewBoxRef} data-howto="live.preview" data-live-classic-preview="" className={`w-64 aspect-video rounded-xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
+          <div ref={previewBoxRef} data-howto="live.preview" data-live-classic-preview="" className={`relative w-64 aspect-video rounded-xl overflow-hidden border border-white/10 flex-shrink-0 ${nativePreviewActive ? '' : 'bg-black'}`}>
             {previewBox}
           </div>
           <div className="flex-1 min-w-0" data-howto="live.nowNext">
@@ -4022,7 +4072,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                     {t('live.list.nextLine', { title: focusedNowNext.next.title, time: formatTime(focusedNowNext.next.start) })}
                   </p>
                 )}
-                {!touchUI && <p className="text-xs text-brand-ice/60 font-nunito mt-4">{t('live.list.hintClassic')}</p>}
+                {!touchUI && <p className="text-xs text-brand-ice/60 font-nunito mt-4">{heldPreview.held ? t('live.list.hintHeld') : t('live.list.hintClassic')}</p>}
               </>
             ) : (
               <p className="text-brand-ice/70 font-nunito">

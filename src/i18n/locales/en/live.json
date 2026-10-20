@@ -198,6 +198,7 @@
       "pressOkWatch": "Press OK to watch",
       "noChannelSelected": "No channel selected",
       "previewLoading": "Preview loading…",
+      "playingInBox": "Playing: {{name}}",
       "loadingChannels": "Loading channels…",
       "noChannelFocused": "No channel focused",
       "noProgramInfo": "No program info available",
@@ -210,6 +211,7 @@
       "hintCompact": "OK full screen · Hold OK options · ◀ categories",
       "hintGrid": "OK play · Hold OK options · ◀ categories",
       "hintClassic": "OK full screen · Hold OK options · F favorite",
+      "hintHeld": "OK preview · OK again full screen · Hold OK options",
       "channelFallback": "Channel"
     },
     "overlay": {

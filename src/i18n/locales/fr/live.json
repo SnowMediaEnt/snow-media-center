@@ -198,6 +198,7 @@
       "pressOkWatch": "Appuyez sur OK pour regarder",
       "noChannelSelected": "Aucune chaîne sélectionnée",
       "previewLoading": "Chargement de l'aperçu…",
+      "playingInBox": "En cours : {{name}}",
       "loadingChannels": "Chargement des chaînes…",
       "noChannelFocused": "Aucune chaîne en surbrillance",
       "noProgramInfo": "Aucune information sur le programme",
@@ -210,6 +211,7 @@
       "hintCompact": "OK plein écran · OK long pour les options · ◀ catégories",
       "hintGrid": "OK lire · OK long pour les options · ◀ catégories",
       "hintClassic": "OK plein écran · OK long pour les options · F favori",
+      "hintHeld": "OK aperçu · OK encore plein écran · OK long pour les options",
       "channelFallback": "Chaîne"
     },
     "overlay": {
