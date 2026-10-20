@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw, Library,
+  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw, Library, CreditCard,
 } from 'lucide-react';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { expDateToMs } from '@/lib/xtream';
@@ -23,6 +23,12 @@ interface Props {
   embedded?: boolean;
   /** Embedded only: whether the remote is on this page (false while it is on the menu). */
   active?: boolean;
+  /**
+   * Billing on (Live TV Settings › My Account): the plans, renewals and trial
+   * of the billing account. Its button takes Renew's place, so there is one
+   * Renew path; without it Renew shows the renewal QR, as before.
+   */
+  onOpenBilling?: () => void;
 }
 
 const fmtDate = (ms: number | null) => (ms ? formatDateTime(ms) : '—');
@@ -32,13 +38,13 @@ const fmtDay = (ms: number | null) => (ms ? formatDate(ms) : '—');
 interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: boolean }
 
 /**
- * Read-only Xtream account info screen (Live TV Settings -> Account info).
+ * Read-only Xtream account info screen (Live TV Settings -> My Account).
  * Back sits top-left; the actions stand in a column beside the details, so
  * the remote's Up / Down walk Back -> Show password -> Change login -> Renew
  * -> Sign out. (They were one row across the top that only Left / Right
  * reached, which viewers found confusing — owner, 2026-10-14.)
  */
-const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedded = false, active = true }: Props) => {
+const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedded = false, active = true, onOpenBilling }: Props) => {
   const { t } = useTranslation();
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
@@ -48,12 +54,13 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
 
   // Renew QR is available at ANY days-left value (people renew early) but
-  // never in demo mode.
-  const showRenew = !isDemo() && !!account?.username;
+  // never in demo mode. With billing on, its slot is Renew & plans instead.
+  const showRenew = !!onOpenBilling || (!isDemo() && !!account?.username);
   const BTN_COUNT = showRenew ? 5 : 4; // Back / Show pwd / Change creds / Renew? / Sign out
   const signOutIdx = BTN_COUNT - 1;
 
   const openRenew = () => {
+    if (onOpenBilling) { onOpenBilling(); return; }
     try { trackEvent('renew_qr_shown', 'player', { server: account?.serverLabel || '', days_left: days }); } catch { /* ignore */ }
     setShowQR(true);
   };
@@ -96,7 +103,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, onSignOut, onChangeCredentials, showQR, BTN_COUNT, showRenew, signOutIdx, embedded, active]);
+  }, [onBack, onSignOut, onChangeCredentials, onOpenBilling, showQR, BTN_COUNT, showRenew, signOutIdx, embedded, active]);
 
   if (!account) {
     return (
@@ -179,7 +186,9 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
     { idx: 1, icon: showPwd ? EyeOff : Eye, onClick: () => setShowPwd(v => !v),
       label: showPwd ? t('liveAccount.account.hidePasswordBtn') : t('liveAccount.account.showPasswordBtn') },
     { idx: 2, icon: KeyRound, onClick: onChangeCredentials, label: t('liveAccount.account.changeCredentialsBtn') },
-    ...(showRenew ? [{ idx: 3, icon: RefreshCw, onClick: openRenew, label: t('liveAccount.account.renewBtn') }] : []),
+    ...(showRenew ? [onOpenBilling
+      ? { idx: 3, icon: CreditCard, onClick: openRenew, label: t('liveAccount.account.billingBtn') }
+      : { idx: 3, icon: RefreshCw, onClick: openRenew, label: t('liveAccount.account.renewBtn') }] : []),
     { idx: signOutIdx, icon: LogOut, onClick: onSignOut, label: t('common.signOut') },
   ];
 

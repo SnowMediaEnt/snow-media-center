@@ -3,14 +3,12 @@
     "hub": {
       "title": "Ajustes",
       "myAccount": "Mi cuenta",
-      "accountInfo": "Info de la cuenta",
       "services": "Agregar servicio",
       "hideCategories": "Ocultar categorías",
       "appearance": "Apariencia",
       "rewind": "Retroceso y grabación",
       "playback": "Reproducción",
       "signOut": "Cerrar sesión",
-      "billingHint": "Tus planes, renovaciones y prueba gratis. Pulsa OK para abrir Mi cuenta.",
       "signOutHint": "Cierra la sesión de Live TV en este equipo. Tu línea sigue funcionando en tus otros dispositivos. Pulsa OK para cerrar sesión.",
       "demoTitle": "Demo en vivo",
       "demoDesc": "La demo viene con una cuenta de demostración — el inicio de sesión y el cambio de cuenta funcionan en la app instalada."
@@ -51,6 +49,7 @@
       "hidePasswordBtn": "Ocultar contraseña",
       "changeCredentialsBtn": "Cambiar datos",
       "renewBtn": "Renovar",
+      "billingBtn": "Renovar y planes",
       "daysLeft_one": "Queda {{count}} día",
       "daysLeft_other": "Quedan {{count}} días",
       "daysLeft_many": "Quedan {{count}} días",

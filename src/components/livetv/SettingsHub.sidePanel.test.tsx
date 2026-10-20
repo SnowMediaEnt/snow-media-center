@@ -6,7 +6,8 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/hooks/useBillingEnabled', () => ({ useBillingEnabled: () => false }));
+const billing = vi.hoisted(() => ({ on: false }));
+vi.mock('@/hooks/useBillingEnabled', () => ({ useBillingEnabled: () => billing.on }));
 
 // Each page is stood in for: what the menu hands it is what is tested here.
 const pageProps = vi.hoisted(() => ({} as Record<string, { embedded?: boolean; active?: boolean; onBack?: () => void }>));
@@ -22,6 +23,7 @@ vi.mock('./HideCategoriesScreen', () => stub('categories'));
 vi.mock('./AppearanceScreen', () => stub('appearance'));
 vi.mock('./RewindSettingsScreen', () => stub('rewind'));
 vi.mock('./PlaybackScreen', () => stub('playback'));
+vi.mock('@/components/billing/BillingAccountScreen', () => stub('billingView'));
 
 import SettingsHub from './SettingsHub';
 
@@ -31,7 +33,7 @@ const key = (k: string) => act(() => {
 const settle = async (ms = 0) => { await act(async () => { vi.advanceTimersByTime(ms); await Promise.resolve(); await Promise.resolve(); }); };
 const shownPage = (c: HTMLElement) => c.querySelector('[data-settings-page]')!;
 
-beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); for (const k of Object.keys(pageProps)) delete pageProps[k]; });
+beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); billing.on = false; for (const k of Object.keys(pageProps)) delete pageProps[k]; });
 afterEach(() => { vi.useRealTimers(); });
 
 const renderHub = (over: Partial<Parameters<typeof SettingsHub>[0]> = {}) => {
@@ -118,7 +120,7 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     const { container, props } = renderHub();
     await settle();
     const labels = Array.from(container.querySelectorAll('[data-settings-menu] > div')).map((n) => n.textContent);
-    expect(labels).toEqual(['Account Info', 'Add service', 'Hide Categories', 'Appearance', 'Rewind & recording', 'Playback', 'Sign Out']);
+    expect(labels).toEqual(['My Account', 'Add service', 'Hide Categories', 'Appearance', 'Rewind & recording', 'Playback', 'Sign Out']);
     expect(container.querySelector('[data-howto="hub.services"]')?.textContent).toBe('Add service');
     key('ArrowDown');
     await settle(300);
@@ -142,5 +144,56 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     await settle();
     expect(pageProps.services.active).toBe(false);
     expect(container.querySelector('[data-focused="true"]')?.textContent).toBe('Add service');
+  });
+});
+
+describe('Live TV Settings: My Account (the line and, with billing on, its plans and renewals)', () => {
+  const labels = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-settings-menu] > div')).map((n) => n.textContent);
+  type AccountPage = { onOpenBilling?: () => void; active?: boolean; onBack?: () => void };
+
+  it('billing off: one My Account row, the line\'s details, no way into billing', async () => {
+    const { container } = renderHub();
+    await settle();
+    expect(labels(container)[0]).toBe('My Account');
+    expect(labels(container).filter((l) => /account/i.test(l ?? ''))).toEqual(['My Account']);
+    expect(shownPage(container).getAttribute('data-settings-page')).toBe('account');
+    expect(shownPage(container).querySelector('h2')?.textContent).toBe('My Account');
+    expect((pageProps.account as AccountPage).onOpenBilling).toBeUndefined();
+  });
+
+  it('billing on: still one My Account row; its Renew & plans opens the billing view, and Back returns to the page', async () => {
+    billing.on = true;
+    const { container, props } = renderHub();
+    await settle();
+    expect(labels(container)).toEqual(['My Account', 'Add service', 'Hide Categories', 'Appearance', 'Rewind & recording', 'Playback', 'Sign Out']);
+    key('Enter');
+    await settle();
+    const page = pageProps.account as AccountPage;
+    expect(page.active).toBe(true);
+    expect(typeof page.onOpenBilling).toBe('function');
+    act(() => { page.onOpenBilling!(); });
+    expect(await screen.findByTestId('page-billingView')).toBeTruthy();
+    expect(container.querySelector('[data-settings-menu]')).toBeNull(); // drawn in place of the hub, as before
+    // Using a billing service in the player switches Live TV's line.
+    expect((pageProps.billingView as unknown as { onUseInPlayer: unknown }).onUseInPlayer).toBe(props.onSwitchAccount);
+    act(() => { pageProps.billingView.onBack!(); });
+    await settle();
+    expect(screen.queryByTestId('page-billingView')).toBeNull();
+    expect(shownPage(container).getAttribute('data-settings-page')).toBe('account');
+    expect((pageProps.account as AccountPage).active).toBe(true); // one layer back: the page, not the menu
+    act(() => { pageProps.account.onBack!(); });
+    await settle();
+    expect(container.querySelector('[data-focused="true"]')?.textContent).toBe('My Account');
+    expect(props.onBack).not.toHaveBeenCalled();
+  });
+
+  it('opened on billing (initialView "billing"): the billing view, whose Back lands on My Account', async () => {
+    billing.on = true;
+    const { container } = renderHub({ initialView: 'billing' as never });
+    expect(await screen.findByTestId('page-billingView')).toBeTruthy();
+    act(() => { pageProps.billingView.onBack!(); });
+    await settle();
+    expect(shownPage(container).getAttribute('data-settings-page')).toBe('account');
+    expect((pageProps.account as AccountPage).active).toBe(true);
   });
 });

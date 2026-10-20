@@ -45,7 +45,7 @@ describe('Live TV Settings: Devices on this line', () => {
   it('is in the menu, after Add service, only with a line signed in', () => {
     const { container, unmount } = renderHub(LINE);
     expect(menuLabels(container)).toEqual([
-      'Account Info', 'Add service', 'Devices on this line', 'Hide Categories', 'Appearance', 'Rewind & recording', 'Playback', 'Sign Out',
+      'My Account', 'Add service', 'Devices on this line', 'Hide Categories', 'Appearance', 'Rewind & recording', 'Playback', 'Sign Out',
     ]);
     unmount();
     const { container: none } = renderHub(null);

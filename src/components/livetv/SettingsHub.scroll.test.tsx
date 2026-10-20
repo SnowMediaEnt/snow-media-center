@@ -54,7 +54,7 @@ describe('SettingsHub menu scrolling', () => {
     pane = signOut.parentElement!.parentElement as HTMLElement;
     expect(pane.scrollTop).toBe(0);
 
-    // Account Info is highlighted first; Sign Out is the 7th row, 6 presses down.
+    // My Account is highlighted first; Sign Out is the 7th row, 6 presses down.
     for (let i = 0; i < 6; i++) down();
     expect(signOut.getAttribute('data-focused')).toBe('true');
     const r = signOut.getBoundingClientRect();

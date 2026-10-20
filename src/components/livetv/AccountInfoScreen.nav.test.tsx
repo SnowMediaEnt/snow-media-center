@@ -84,3 +84,29 @@ describe('Account info by remote', () => {
   });
 });
 
+describe('My Account: one Renew path', () => {
+  const labels = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-account-actions] button')).map((b) => b.textContent?.trim());
+
+  it('billing off: Renew shows the renewal QR', () => {
+    const { container, queryByTestId } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
+    expect(labels(container)).toEqual(['Show password', 'Change credentials', 'Renew', 'Sign out']);
+    key('ArrowDown'); key('ArrowDown');
+    key('Enter');
+    expect(queryByTestId('renew-qr')).toBeTruthy();
+  });
+
+  it('billing on: Renew & plans takes Renew\'s place and opens the billing view (no QR, no second Renew)', () => {
+    const onOpenBilling = vi.fn();
+    const { container, queryByTestId } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} onOpenBilling={onOpenBilling} />);
+    expect(labels(container)).toEqual(['Show password', 'Change credentials', 'Renew & plans', 'Sign out']);
+    key('ArrowDown'); key('ArrowDown');
+    expect(focused(container)).toBe('Renew & plans');
+    key('Enter');
+    expect(onOpenBilling).toHaveBeenCalledTimes(1);
+    expect(queryByTestId('renew-qr')).toBeNull();
+    // A tap does the same.
+    act(() => { (container.querySelectorAll('[data-account-actions] button')[2] as HTMLElement).click(); });
+    expect(onOpenBilling).toHaveBeenCalledTimes(2);
+    expect(queryByTestId('renew-qr')).toBeNull();
+  });
+});

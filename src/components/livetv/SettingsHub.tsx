@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { Tv, KeyRound, Palette, LogOut, Loader2, CreditCard, ListFilter, Gauge, History, MonitorSmartphone, PlusCircle } from 'lucide-react';
+import { Tv, KeyRound, Palette, LogOut, Loader2, ListFilter, Gauge, History, MonitorSmartphone, PlusCircle } from 'lucide-react';
 import type { XtreamCreds } from '@/lib/xtream';
 import type { LiveLayout } from '@/lib/liveLayout';
 import { useToast } from '@/hooks/use-toast';
@@ -20,12 +20,13 @@ const PlaybackScreen = lazy(() => import('./PlaybackScreen'));
 const RewindSettingsScreen = lazy(() => import('./RewindSettingsScreen'));
 const HideCategoriesScreen = lazy(() => import('./HideCategoriesScreen'));
 const LineDevicesPanel = lazy(() => import('./LineDevicesPanel'));
-// Billing account (plans, renew, trial) — behind the billing_account flag.
+// Billing account (plans, renew, trial) — behind the billing_account flag:
+// opened from My Account's Renew & plans, drawn in place of the hub.
 const BillingAccountScreen = lazy(() => import('@/components/billing/BillingAccountScreen'));
 
 interface Props {
   onBack: () => void;
-  /** Open on a screen other than the menu (the assistant's "open Appearance"). */
+  /** Open on a screen other than the menu (the assistant's "open Appearance"); 'billing' opens My Account's plans and renewals. */
   initialView?: View;
   onSignOut: () => void;
   onChangeCredentials: () => void;
@@ -37,7 +38,7 @@ interface Props {
 }
 
 type View = 'menu' | 'billing' | 'account' | 'services' | 'categories' | 'appearance' | 'rewind' | 'playback';
-type MenuId = 'billing' | 'account' | 'services' | 'devices' | 'categories' | 'appearance' | 'rewind' | 'playback' | 'signout';
+type MenuId = 'account' | 'services' | 'devices' | 'categories' | 'appearance' | 'rewind' | 'playback' | 'signout';
 
 interface MenuItem { id: MenuId; labelKey: string; icon: typeof Tv; }
 
@@ -69,10 +70,10 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
   const { t } = useTranslation();
   const billingOn = useBillingEnabled();
   const MENU: MenuItem[] = useMemo(() => [
-    // "My Account" = the billing account (plans, renewals, trial). Account
-    // Info below stays the panel line's details.
-    ...(billingOn ? [{ id: 'billing' as MenuId, labelKey: 'liveAccount.hub.myAccount', icon: CreditCard }] : []),
-    { id: 'account',    labelKey: 'liveAccount.hub.accountInfo',  icon: KeyRound },
+    // My Account: the line's details and, with billing on, the billing
+    // account's plans, renewals and trial behind its Renew & plans (owner,
+    // 2026-10-20: My Account and Account Info blended).
+    { id: 'account',    labelKey: 'liveAccount.hub.myAccount',    icon: KeyRound },
     // Add service: switch between this box's lines, see and edit the outside
     // service (lib/outsideSource), add either. Its name is this one key.
     { id: 'services',   labelKey: 'liveAccount.hub.services',     icon: PlusCircle },
@@ -83,7 +84,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     { id: 'rewind',     labelKey: 'liveAccount.hub.rewind',       icon: History },
     { id: 'playback',   labelKey: 'liveAccount.hub.playback',     icon: Gauge },
     { id: 'signout',    labelKey: 'liveAccount.hub.signOut',      icon: LogOut },
-  ], [billingOn, line]);
+  ], [line]);
 
   // Opened on a page (the assistant's "open Appearance"): that page, with the remote in it.
   const startEmbedded = !!initialView && initialView !== 'menu' && initialView !== 'billing';
@@ -96,8 +97,8 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
   // The menu item whose page is on the right.
   const [shown, setShown] = useState<MenuId>(() => MENU[startIdx - 1]?.id ?? 'account');
 
-  // My Account joins the menu a moment after the first open (the billing flag
-  // loads), shifting every row down: keep the highlight on the same item.
+  // A row joins or leaves the menu while it is open (Devices on this line,
+  // with the line), shifting the rows: keep the highlight on the same item.
   const prevMenuRef = useRef(MENU);
   useEffect(() => {
     const prev = prevMenuRef.current;
@@ -138,14 +139,13 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
   }, [toast, t]);
 
   const activate = useCallback((id: MenuId) => {
-    // Demo: Account Info / Add service / Sign Out are
+    // Demo: My Account / Add service / Sign Out are
     // inert — the demo account is pre-loaded. Appearance, Rewind and Playback
     // stay fully functional (per-box settings; nothing to protect).
     if (DEMO && !DEMO_OK.has(id)) { setPane('menu'); demoNote(); return; }
     // A row without a page beside the menu leaves the remote on the menu
     // (a tap or air-mouse click can come while the remote is in a page).
-    if (id === 'billing') { setPane('menu'); setView('billing'); }
-    else if (id === 'signout') { setPane('menu'); onSignOut(); }
+    if (id === 'signout') { setPane('menu'); onSignOut(); }
     else if (EMBEDDED.has(id)) { setShown(id); setPane('page'); }
   }, [demoNote, onSignOut]);
 
@@ -174,7 +174,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
         const i = menuIdxRef.current;
         if (i === 0) { if (e.key !== 'ArrowRight') onBack(); return; }
         const item = MENU[i - 1];
-        // Right only steps into a page; it never signs out or opens My Account.
+        // Right only steps into a page; it never signs out.
         if (e.key === 'ArrowRight' && !EMBEDDED.has(item.id)) return;
         activate(item.id);
       }
@@ -184,14 +184,19 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
   }, [view, pane, MENU, onBack, activate]);
 
   const toMenu = useCallback(() => setPane('menu'), []);
+  const openBilling = useCallback(() => setView('billing'), []);
+  // Back from the plans and renewals: My Account's page, with the remote in it (one layer back).
+  const closeBilling = useCallback(() => {
+    setView('menu');
+    setShown('account');
+    setMenuIdx(MENU.findIndex((m) => m.id === 'account') + 1);
+    setPane('page');
+  }, [MENU]);
 
   if (view === 'billing') {
     return (
       <Suspense fallback={fallback}>
-        <BillingAccountScreen
-          onBack={() => { setPane('menu'); setView('menu'); }}
-          onUseInPlayer={onSwitchAccount}
-        />
+        <BillingAccountScreen onBack={closeBilling} onUseInPlayer={onSwitchAccount} />
       </Suspense>
     );
   }
@@ -202,7 +207,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     const common = { embedded: true, active: inPage, onBack: toMenu } as const;
     if (DEMO && !DEMO_OK.has(shown)) return <PageHint text={t('liveAccount.hub.demoDesc')} />;
     switch (shown) {
-      case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} />;
+      case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} onOpenBilling={billingOn ? openBilling : undefined} />;
       // Reads only what is on the box (a line too long unchecked is checked with its panel).
       case 'services': return <ServicesScreen active={inPage} onBack={toMenu} onPicked={onSwitchAccount} onAddAccount={onChangeCredentials} />;
       // Its page reads every saved line's categories from the server: only
@@ -213,7 +218,6 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
       case 'appearance': return <AppearanceScreen {...common} onTryLayout={onTryLayout} />;
       case 'rewind': return <RewindSettingsScreen {...common} />;
       case 'playback': return <PlaybackScreen {...common} />;
-      case 'billing': return <PageHint text={t('liveAccount.hub.billingHint')} />;
       case 'signout': return <PageHint text={t('liveAccount.hub.signOutHint')} />;
       default: return null;
     }

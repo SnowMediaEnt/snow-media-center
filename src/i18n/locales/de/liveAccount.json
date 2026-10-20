@@ -3,14 +3,12 @@
     "hub": {
       "title": "Einstellungen",
       "myAccount": "Mein Konto",
-      "accountInfo": "Kontoinfos",
       "services": "Dienst hinzufügen",
       "hideCategories": "Kategorien ausblenden",
       "appearance": "Darstellung",
       "rewind": "Zurückspulen & Aufnahme",
       "playback": "Wiedergabe",
       "signOut": "Abmelden",
-      "billingHint": "Deine Tarife, Verlängerungen und der Gratis-Test. Drücke OK, um Mein Konto zu öffnen.",
       "signOutHint": "Meldet dieses Gerät von Live TV ab. Deine Leitung funktioniert auf deinen anderen Geräten weiter. Drücke OK zum Abmelden.",
       "demoTitle": "Live-Demo",
       "demoDesc": "Die Demo ist mit einem Demo-Konto vorgeladen – Anmeldung und Kontowechsel funktionieren in der installierten App."
@@ -50,6 +48,7 @@
       "hidePasswordBtn": "Passwort verbergen",
       "changeCredentialsBtn": "Zugangsdaten ändern",
       "renewBtn": "Verlängern",
+      "billingBtn": "Verlängern & Tarife",
       "daysLeft_one": "Noch {{count}} Tag",
       "daysLeft_other": "Noch {{count}} Tage",
       "countChannels_one": "{{num}} Sender",
