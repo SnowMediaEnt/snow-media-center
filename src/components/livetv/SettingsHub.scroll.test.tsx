@@ -1,7 +1,8 @@
 /**
- * Live TV → Settings: at 960×540 the last rows (Sign Out) sit below the fold.
- * The menu must scroll to keep the remote highlight on screen, and go back to
- * the top when the highlight returns to the first row.
+ * Live TV → Settings: the eight rows fit 960×540, but with a bigger text size
+ * the last rows (Sign Out) sit below the fold. The menu must scroll to keep
+ * the remote highlight on screen, and go back to the top when the highlight
+ * returns to the first row.
  */
 import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -54,7 +55,7 @@ describe('SettingsHub menu scrolling', () => {
     pane = signOut.parentElement!.parentElement as HTMLElement;
     expect(pane.scrollTop).toBe(0);
 
-    // Account Info is highlighted first; Sign Out is the 8th row, 7 presses down.
+    // My Account is highlighted first; Sign Out is the 8th row, 7 presses down.
     for (let i = 0; i < 7; i++) down();
     expect(signOut.getAttribute('data-focused')).toBe('true');
     const r = signOut.getBoundingClientRect();

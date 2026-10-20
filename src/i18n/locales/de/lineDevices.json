@@ -1,8 +1,7 @@
 {
   "lineDevices": {
     "hub": {
-      "menuLabel": "Geräte auf dieser Leitung",
-      "hint": "Die Fernseher, die mit dieser Leitung angemeldet sind, und eine kurze Nachricht an sie. Drücke OK zum Öffnen."
+      "menuLabel": "Geräte auf dieser Leitung"
     },
     "panel": {
       "title": "Geräte auf dieser Leitung",

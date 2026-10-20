@@ -52,7 +52,7 @@
         },
         "services": {
           "title": "Plusieurs services ? Ils apparaissent tous dans une seule liste.",
-          "line2": "Ajoutez-en un dans Paramètres de TV en direct → Changer de compte. Chacun a son titre."
+          "line2": "Ajoutez-en un dans Paramètres de TV en direct → Services. Chacun a son titre."
         },
         "layout": {
           "title": "Choisissez votre style : Classique, Compact ou Vibez.",
@@ -104,7 +104,7 @@
         },
         "settings": {
           "title": "Paramètres de TV en direct",
-          "line2": "Infos du compte, changer de service, masquer des catégories, l'apparence, le retour en arrière et la déconnexion."
+          "line2": "Mon compte, les services, les chaînes, l'apparence, l'enregistrement, le lecteur et de l'aide en cas de problème."
         },
         "vod": {
           "title": "VOD : les films de votre service.",
@@ -386,7 +386,6 @@
         "goHere": "Allez-y sur votre mobile",
         "goLive": "Revenir en direct",
         "help": "Aide",
-        "hideCategories": "Masquer des catégories",
         "holdToReport": "Maintenez OK : signaler",
         "howFar": "Jusqu'où reculer",
         "howLong": "Durée",
@@ -437,7 +436,7 @@
         "report": "Signaler",
         "reportedDown": "⚠️ Signalé en panne",
         "results": "Résultats",
-        "rewindSettings": "Retour et enregistrement",
+        "rewindSettings": "Enregistrer et rembobiner",
         "saveTo": "Où enregistrer",
         "scanPhone": "Scannez avec votre mobile",
         "scanToPay": "Scannez pour payer",
@@ -452,7 +451,7 @@
         "start": "Démarrer",
         "steps": "Étapes",
         "subtitles": "Sous-titres",
-        "switchAccount": "Changer de compte",
+        "services": "Services",
         "talkNow": "Parlez maintenant",
         "todaysGames": "Matchs du jour",
         "typeHere": "Saisissez ici",

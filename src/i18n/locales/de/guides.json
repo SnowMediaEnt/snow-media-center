@@ -52,7 +52,7 @@
         },
         "services": {
           "title": "Mehr als ein Dienst? Alle erscheinen in einer Liste.",
-          "line2": "Füge einen unter Live-TV-Einstellungen → Konto wechseln hinzu. Jeder hat eine eigene Überschrift."
+          "line2": "Neue gibt es unter Live-TV-Einstellungen → Dienste. Jeder hat eine eigene Überschrift."
         },
         "layout": {
           "title": "Wähle deinen Look: Klassisch, Kompakt oder Vibez.",
@@ -104,7 +104,7 @@
         },
         "settings": {
           "title": "Live-TV-Einstellungen",
-          "line2": "Kontoinfos, Dienst wechseln, Kategorien ausblenden, der Look, Zurückspulen und Abmelden."
+          "line2": "Mein Konto, Dienste, Sender, der Look, Aufnahme, der Player und Hilfe, wenn etwas nicht klappt."
         },
         "vod": {
           "title": "VOD: die Filme deines Dienstes.",
@@ -386,7 +386,6 @@
         "goHere": "Öffne das am Handy",
         "goLive": "Zu Live wechseln",
         "help": "Hilfe",
-        "hideCategories": "Kategorien ausblenden",
         "holdToReport": "OK halten zum Melden",
         "howFar": "Wie weit zurück",
         "howLong": "Wie lange",
@@ -437,7 +436,7 @@
         "report": "Melden",
         "reportedDown": "⚠️ Ausgefallen gemeldet",
         "results": "Ergebnisse",
-        "rewindSettings": "Zurückspulen & Aufnahme",
+        "rewindSettings": "Aufnahme & Zurückspulen",
         "saveTo": "Wo speichern",
         "scanPhone": "Mit dem Handy scannen",
         "scanToPay": "Zum Bezahlen scannen",
@@ -452,7 +451,7 @@
         "start": "Starten",
         "steps": "Schritte",
         "subtitles": "Untertitel",
-        "switchAccount": "Konto wechseln",
+        "services": "Dienste",
         "talkNow": "Jetzt sprechen",
         "todaysGames": "Heutige Spiele",
         "typeHere": "Hier tippen",

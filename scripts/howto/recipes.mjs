@@ -74,11 +74,11 @@ export const RECIPES = [
   { id: 'vod', start: 'home', keys: [...liveSection(3), { waitFor: '[data-vod-kind="movies"]' }, 'Enter', { wait: 2000 }, 'ArrowRight', { wait: 2500 }], ready: `${hook('vod.grid')} img`, settle: 800 },
   // Up from the side menu reaches the header: Back, Update Channels, Settings.
   // The menu is a little taller than the screen and follows the highlight:
-  // down to Sign Out brings it on screen, then back up to Switch Account.
+  // down to Sign Out brings it on screen, then back up to Add service.
   { id: 'live-settings', start: 'home', keys: [...LIVE, 'ArrowLeft', 'ArrowUp', 'ArrowRight*2', 'Enter', { wait: 1500 },
     { press: 'ArrowDown', until: () => document.querySelector('[data-howto="hub.signOut"]')?.getAttribute('data-focused') === 'true', max: 10 },
-    { press: 'ArrowUp', until: () => document.querySelector('[data-howto="hub.switch"]')?.getAttribute('data-focused') === 'true', max: 8 },
-    { wait: 600 }], ready: hook('hub.switch') },
+    { press: 'ArrowUp', until: () => document.querySelector('[data-howto="hub.services"]')?.getAttribute('data-focused') === 'true', max: 8 },
+    { wait: 600 }], ready: hook('hub.services') },
 
   // ── Plex ──
   { id: 'plex-connect', start: 'stage', keys: [{ wait: 800 }], ready: hook('plexauth.connect') },

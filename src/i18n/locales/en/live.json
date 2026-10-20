@@ -124,10 +124,7 @@
       "decodeAudio": "Decode audio on this box",
       "decodeAudioDesc": "For a TV or receiver that shows the film but plays no sound: Dolby and DTS are then decoded here instead of being passed through. Leave off for the best sound.",
       "on": "On",
-      "off": "Off",
-      "liveHeading": "Live TV",
-      "failover": "When a channel is down, play it from my other service",
-      "failoverDesc": "If a channel won't start, Live TV plays the same channel from your other service instead, once per channel you pick. Off: the error screen offers it as a button."
+      "off": "Off"
     },
     "shell": {
       "signingIn": "Signing you in with your account…",
