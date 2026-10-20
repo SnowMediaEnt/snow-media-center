@@ -23,5 +23,10 @@ export default defineConfig({
     globals: true,
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['src/test/setup.ts'],
+    // The Live TV screens load a large module graph on their first test: on a
+    // busy machine that alone passed the 5 s default and failed the first test
+    // (and the next, still running) of a file at random. 20 s is what those
+    // files already set one by one.
+    testTimeout: 20_000,
   },
 });
