@@ -28,8 +28,8 @@ interface Props {
 
 type Step = 'check' | 'auth' | 'creating' | 'own' | 'provisioning' | 'success' | 'used' | 'plans' | 'pay' | 'failed';
 
-/** After a "couldn't reach" on POST /trial, how long before asking whether it was made after all. */
-const RECHECK_AFTER_MS = 2000;
+/** POST /trial errors that may hide a trial the server made anyway (its answer lost on the way back). */
+const LOST_ANSWER = new Set(['network', 'internal', 'bad_response']);
 
 interface PayCtx { invoiceId: number; initialUrl: string | null; amount: number | null; currency: string; planName: string; serviceId: number }
 
@@ -127,34 +127,49 @@ const TrialFlow = memo(({ onDone, onCancel, startAt = 'trial' }: Props) => {
         else if (err.code === 'provisioning_failed' && typeof err.details?.service_id === 'number') {
           setProvisioningId(err.details.service_id as number);
           setStep('provisioning');
-        } else {
+        } else if (LOST_ANSWER.has(err.code)) {
           // The answer may have been lost on the way back while the trial was
           // made: look for it before saying anything went wrong.
           ownFallbackRef.current = billingErrorText(err);
           setStep('own');
-        }
+        } else fail(billingErrorText(err));
       }
     })();
     return () => { cancelled = true; };
   }, [step, applyAndShow, fail]);
 
-  // 2b. The account's trial is used: is it this account's own, still live,
-  // with its line? Then hand it over. Otherwise "trial already used" (or the
-  // error that brought us here).
+  // 2b. The account's trial is used: is it this account's own and not over?
+  // Live with its line: hand it over. Still being set up (the server was
+  // mid-way when its answer was lost): wait for it as for any new line.
+  // Otherwise "trial already used" (or the error that brought us here).
+  // WHMCS keeps a trial "active" after its day is up, so its end time decides.
   useEffect(() => {
     if (step !== 'own') return;
     let cancelled = false;
     (async () => {
       const lost = ownFallbackRef.current;
-      if (lost) await new Promise((r) => setTimeout(r, RECHECK_AFTER_MS));
-      if (cancelled) return;
-      let live: BillingService | null = null;
+      let services: BillingService[];
       try {
-        const { services } = await SmcBilling.services();
-        live = services.find((x) => x.plan?.trial && x.active) ?? null;
-      } catch { /* not reachable: fall through */ }
+        services = (await SmcBilling.services()).services;
+      } catch (e) {
+        if (cancelled) return;
+        const err = toBillingError(e);
+        if (err.isAuthError) { setStep('auth'); return; }
+        // Can't tell whether there is one: say what failed, never "already used".
+        fail(lost ?? billingErrorText(err));
+        return;
+      }
       if (cancelled) return;
+      const now = Date.now();
+      const notOver = (x: BillingService) => {
+        const end = Date.parse(x.expires_at ?? '');
+        return !Number.isFinite(end) || end > now;
+      };
+      const mine = services.filter((x) => x.plan?.trial && notOver(x));
+      const live = mine.find((x) => x.active && credentialsOf(x));
       if (live) { await applyAndShow(live); return; }
+      const settingUp = mine.find((x) => x.status === 'pending' || (x.active && !credentialsOf(x)));
+      if (settingUp) { setProvisioningId(settingUp.id); setStep('provisioning'); return; }
       if (lost) fail(lost); else setStep('used');
     })();
     return () => { cancelled = true; };
