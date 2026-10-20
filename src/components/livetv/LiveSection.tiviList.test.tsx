@@ -233,9 +233,10 @@ describe('the preview box holding the channel being watched', () => {
     await dwell();
     expect(inPlayer()).toBe(101);
     player.error = { message: 'Source error' };
-    // Any render brings the player's error in.
+    // Any render brings the player's error in. The box lets go once the
+    // error has stayed up a moment with no failover looking (one line here).
     press('ArrowDown');
-    await sleep(20);
+    await sleep(1700);
     player.error = null;
     press('ArrowUp');
     await dwell();

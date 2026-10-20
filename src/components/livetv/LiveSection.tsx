@@ -226,6 +226,8 @@ const FAV_PULL_EMPTY_RETRY_MS = 2 * 60_000;
 const _favPulls = new Map<string, { at: number; done: boolean; got: boolean; p: Promise<Map<number, FavChannel> | null> }>();
 const EPG_TTL_MS = 15 * 60_000;
 const PREVIEW_DEBOUNCE_MS = 700;
+/** A held box whose channel failed lets go this long after failover is done with it. */
+const HELD_RELEASE_WAIT_MS = 1500;
 /** The channel list over the picture closes itself after this long without a key. */
 const CHANNEL_OVERLAY_IDLE_MS = 15_000;
 
@@ -2005,9 +2007,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // plain seek of the catch-up stream.
     skipKeys: false,
   });
-  // The channel held in the box did not play: the box follows the highlight
-  // again (useHeldPreview), rather than sit on the error.
-  useEffect(() => { if (native.error && nativePreviewActive) heldPreviewRef.current.release(); }, [native.error, nativePreviewActive]);
   const rewindPausedChange = rewind.onPausedChange;
   useEffect(() => { rewindPausedChange(native.paused); }, [native.paused, rewindPausedChange]);
 
@@ -2111,12 +2110,27 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     play: (to, where) => {
       tagLine([to.stream], to.line);
       if (where === 'full') { playChannel(to.stream); return; }
+      // A held box (useHeldPreview) holds the copy: it is what is on now.
+      if (heldPreviewRef.current.isHeld()) { heldPreviewRef.current.playInBox(to.stream); return; }
       setPreviewChannel(to.stream);
       // Upright on a phone the box is the player: what plays there is watched.
       if (uprightRef.current) playChannel(to.stream, undefined, true);
     },
   });
   failoverRef.current = failover;
+
+  // The channel held in the box did not play: the box follows the highlight
+  // again (useHeldPreview), rather than sit on the error. Failover goes
+  // first: while it looks for a copy the box stays held, and a copy it puts
+  // there is held in its place (play, above). Only an error still on screen
+  // once it is done (no copy, the copy failed too) lets go. The wait covers
+  // the render between the error and failover saying it is looking.
+  const failoverLooking = failover.looking;
+  useEffect(() => {
+    if (!native.error || !nativePreviewActive || failoverLooking) return;
+    const t = window.setTimeout(() => heldPreviewRef.current.release(), HELD_RELEASE_WAIT_MS);
+    return () => window.clearTimeout(t);
+  }, [native.error, nativePreviewActive, failoverLooking]);
 
   // CH+ / CH-: the next / previous channel of the list on screen. A channel
   // that list does not hold (Game Day started it and its own category is not
@@ -2333,7 +2347,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const ch = visibleChannelsRef.current[i];
     // A channel held in the box (the remote, useHeldPreview): another one
     // plays there, the one there goes full screen.
-    if (ch && heldPreviewRef.current.isHeld()) { heldPreviewRef.current.ok(ch); return; }
+    if (ch && heldPreviewRef.current.isHeld() && !failoverRef.current.redirect(ch)) { heldPreviewRef.current.ok(ch); return; }
     // A touch screen with a video box: the first tap plays the channel in
     // the box, a tap on the channel already there goes full screen.
     if (ch && tapToBoxRef.current) {
@@ -3145,7 +3159,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // one there, and goes full screen on the one there.
         cancelEnterTimer();
         const ch = visibleChannelsRef.current[channelIdxRef.current];
-        if (ch && heldPreviewRef.current.isHeld()) heldPreviewRef.current.ok(ch);
+        // The box shows another service's copy of this channel (failover):
+        // OK takes that copy full screen (activateChannel redirects).
+        if (ch && heldPreviewRef.current.isHeld() && !failoverRef.current.redirect(ch)) heldPreviewRef.current.ok(ch);
         else if (ch) activateChannelRef.current(ch);
       }
       // If long-press already fired, just consume the keyup.

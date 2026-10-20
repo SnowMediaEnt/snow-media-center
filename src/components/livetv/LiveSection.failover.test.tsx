@@ -286,6 +286,53 @@ describe('a channel that won\'t start, with a second service', () => {
   });
 });
 
+// The box holding the channel being watched (useHeldPreview) and failover
+// meet when that held channel fails in the box: failover goes first, and a
+// copy it finds is held in its place; with no copy the box lets go.
+describe('a held preview box whose channel fails', () => {
+  // Full screen shows one channel's name; the list shows them all.
+  const fullScreen = () => !(text().includes('US: ESPN HD') && text().includes('News Two'));
+  const backToList = async () => {
+    for (let i = 0; i < 3 && fullScreen(); i++) { press('Escape'); await sleep(50); }
+    await waitFor(() => expect(fullScreen()).toBe(false));
+    await sleep(50);
+  };
+
+  it('plays the copy there and keeps holding it; OK on the viewer\'s own channel takes the copy full screen', async () => {
+    await openSports();
+    await watch(0); // ESPN full screen
+    await backToList(); // the box holds ESPN
+    press('ArrowDown'); // look at News Two: the box keeps ESPN
+    await sleep(900);
+    expect(playingOn('http://h.test', 101)).toBe(true);
+    fail(); // ESPN fails in the box
+    await waitFor(() => expect(playingOn('http://v.test', 501)).toBe(true));
+    // Still held: the highlight on News Two does not take the box over.
+    await sleep(2500);
+    expect(playingOn('http://v.test', 501)).toBe(true);
+    expect(failoverEvents()).toHaveLength(1);
+    // OK on ESPN's own row: the copy goes full screen, not the dead original.
+    press('ArrowUp');
+    await sleep(30);
+    press('Enter');
+    await waitFor(() => expect(document.querySelector('button[aria-label="Report channel"]')).not.toBeNull());
+    await sleep(30);
+    expect(playingOn('http://v.test', 501)).toBe(true);
+  });
+
+  it('with no copy anywhere, lets go once failover is done: the box follows the highlight again', async () => {
+    await openSports();
+    await watch(1); // News Two full screen: not on Vibez
+    await backToList(); // the box holds News Two
+    press('ArrowUp'); // look at ESPN
+    await sleep(900);
+    expect(playingOn('http://h.test', 102)).toBe(true);
+    fail();
+    await waitFor(() => expect(failoverEvents()).toEqual([['live_failover', 'player', { found: false, auto: false }]]));
+    await waitFor(() => expect(playingOn('http://h.test', 101)).toBe(true), { timeout: 5000 });
+  });
+});
+
 describe('one service only', () => {
   it('nothing new: no lookup, no note, no button', async () => {
     h.saved = [];
