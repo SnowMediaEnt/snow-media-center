@@ -49,6 +49,10 @@ vi.mock('@/lib/gameDay', async (orig) => {
   };
 });
 vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/xtream')>()), loadSavedAccounts: async () => [] }));
+// The line-up search is off here (GameDaySection.ai.test covers it): its
+// answer, never asked over the network in a test, would hold the rows at
+// "Finding your channels…".
+vi.mock('@/hooks/useFeatureFlag', () => ({ useFeatureFlag: () => ({ enabled: false, loading: false }) }));
 vi.mock('@/lib/channelStatus', () => ({ useDownChannels: () => new Set<string>(), isChannelDown: () => false, channelReport: () => null, isCategoryDown: () => false, signalCategory: () => undefined }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 

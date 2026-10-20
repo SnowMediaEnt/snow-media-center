@@ -468,8 +468,11 @@ let channelsCache: { key: string; at: number; list: SportsChannel[] } | null = n
 /** This box's channels Game Day can use, across its lines, at most ten
  *  minutes old (a kept list older than that is asked for again).
  *  `learned`: categories the provider was seen to carry a league's games in,
- *  read (on a box short of memory too) as that league's. */
-export async function loadSportsChannels(lines: XtreamCreds[], learned?: LearnedCats | null): Promise<SportsChannel[]> {
+ *  read (on a box short of memory too) as that league's. `missing` hears
+ *  each line whose channels could not be read at all (its categories, or
+ *  every list of its channels, failed): the list is then not the whole
+ *  line-up, so "not in your channels" can't be said from it. */
+export async function loadSportsChannels(lines: XtreamCreds[], learned?: LearnedCats | null, missing?: XtreamCreds[]): Promise<SportsChannel[]> {
   const known = learnedMap(learned);
   const key = `${lines.map((l) => `${l.host}|${l.username}`).join(',')}#${known ? [...known.keys()].sort().join(',') : ''}`;
   if (channelsCache && channelsCache.key === key && Date.now() - channelsCache.at < CHANNELS_TTL_MS) return channelsCache.list;
@@ -484,7 +487,7 @@ export async function loadSportsChannels(lines: XtreamCreds[], learned?: Learned
   for (const line of lines) {
     let cats: XtreamCategory[] = [];
     // A line that will not answer leaves the others' channels as they are.
-    try { cats = await getLiveCategories(line); } catch { failed = true; continue; }
+    try { cats = await getLiveCategories(line); } catch { failed = true; missing?.push(line); continue; }
     const catName = new Map(cats.map((c) => [String(c.category_id), String(c.category_name ?? '')]));
     const weight = new Map(cats.map((c) => [String(c.category_id), weightOf(c.category_name)]));
     if (!lowMemory()) {
@@ -522,11 +525,17 @@ export async function loadSportsChannels(lines: XtreamCreds[], learned?: Learned
       .filter((x) => x.w > 0)
       .sort((a, b) => b.w - a.w)
       .slice(0, MAX_CATEGORIES_PER_LINE);
+    let read = 0;
     for (let i = 0; i < picked.length; i += 3) {
       const lists = await Promise.all(picked.slice(i, i + 3).map(({ c }) =>
-        getLiveStreams(line, String(c.category_id), fresh).then((l) => ({ c, l })).catch(() => ({ c, l: [] as XtreamLiveStream[] }))));
-      for (const { c, l } of lists) for (const s of l) add(line, s, String(c.category_name ?? ''));
+        getLiveStreams(line, String(c.category_id), fresh).then((l) => ({ c, l, ok: true })).catch(() => ({ c, l: [] as XtreamLiveStream[], ok: false }))));
+      for (const { c, l, ok } of lists) {
+        if (ok) read += 1;
+        for (const s of l) add(line, s, String(c.category_name ?? ''));
+      }
     }
+    // Not one of its lists came: this line's channels are unknown, not none.
+    if (picked.length && !read) { failed = true; missing?.push(line); }
   }
   // A list missing a line is not kept: the next read asks that line again.
   if (!failed) channelsCache = { key, at: Date.now(), list: out };
@@ -1982,11 +1991,13 @@ const guideNote = (e: Listing, g: Game): string => {
  *  ("PEACOCK 02", any category: a feed is never a PPV card's), and the teams'
  *  cities' channels. In the playoffs the league's feeds named for the game
  *  ("MLB 05: …") are read too. Looked at around kickoff (now, for a game
- *  under way); kept ten minutes. `onPartial` hears the links so far after
- *  each few lookups, so the list fills in as the answers come. */
+ *  under way); kept ten minutes (not when a lookup failed). `onPartial`
+ *  hears the links so far after each few lookups, so the list fills in as
+ *  the answers come. `stats.failed` counts the lookups that failed: an
+ *  answer with none found is then "couldn't check", not "not there". */
 export async function checkGuides(
   game: Game, channels: SportsChannel[], found: GameChannel[], games: Game[] = [], now = Date.now(),
-  onPartial?: (links: GameChannel[]) => void,
+  onPartial?: (links: GameChannel[]) => void, stats?: { failed: number },
 ): Promise<GameChannel[]> {
   const hit = guideCache.get(game.id);
   if (hit && hit.from === channels && now - hit.at < CHANNELS_TTL_MS) return hit.links;
@@ -2077,6 +2088,7 @@ export async function checkGuides(
     return texts.some(ofThisGame) ? 'none' : 'other';
   };
   const links: GameChannel[] = [];
+  let failed = 0;
   for (let i = 0; i < cands.length; i += 4) {
     const batch = await Promise.all(cands.slice(i, i + 4).map(async (cand): Promise<GameChannel | null> => {
       let around: Listing[];
@@ -2085,6 +2097,7 @@ export async function checkGuides(
         // What is on at kickoff, or starts within 45 minutes of it.
         around = readGuide(epg_listings ?? []).filter((e) => e.start <= at + 45 * 60_000 && e.end > at);
       } catch {
+        failed += 1;
         return cand.was ? { ...cand.was, guide: 'none' } : null;
       }
       for (const e of around) {
@@ -2097,7 +2110,9 @@ export async function checkGuides(
     for (const l of batch) if (l) links.push(l);
     if (onPartial && i + 4 < cands.length) onPartial(links.slice());
   }
-  guideCache.set(game.id, { at: now, from: channels, links });
+  // A lookup that failed leaves the answer short: not kept, so asking again asks again.
+  if (stats) stats.failed += failed;
+  if (!failed) guideCache.set(game.id, { at: now, from: channels, links });
   return links;
 }
 
