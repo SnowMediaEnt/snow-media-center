@@ -25,6 +25,10 @@
 //   "host|stream_id"      the channel is down
 //   "host|cat:<id>"       the category is down
 //   "host|buf:<stream_id>" the channel was reported buffering
+//
+// A service the viewer added from elsewhere (lib/outsideSource) is not ours:
+// its host is never sent here (no list, no signals, no reports), so its
+// channels never show a down or buffering mark.
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getDeviceId } from '@/lib/analytics';
@@ -32,6 +36,7 @@ import { isDemo } from '@/lib/demoMode';
 import { normalizeHost } from '@/lib/favoritesSync';
 import type { XtreamCreds } from '@/lib/xtream';
 import { lineReportFields } from '@/lib/lineInfo';
+import { isOutsideHost, isOutsideLine } from '@/lib/outsideSource';
 import { setPausableInterval } from '@/utils/pausableInterval';
 
 const POLL_MS = 2 * 60_000;
@@ -63,7 +68,9 @@ let nextKey = '';
 
 const emit = () => { try { window.dispatchEvent(new CustomEvent(CHANNEL_STATUS_EVENT)); } catch { /* ignore */ } };
 
-async function refresh(hosts: string[], force = false): Promise<void> {
+async function refresh(allHosts: string[], force = false): Promise<void> {
+  const hosts = allHosts.filter((h) => !isOutsideHost(h));
+  if (!hosts.length) return;
   const key = hosts.join(',');
   if (!force && key === hostsKey && Date.now() - fetchedAt < POLL_MS - 5_000) return;
   if (inflight) {
@@ -106,9 +113,9 @@ async function refresh(hosts: string[], force = false): Promise<void> {
 }
 
 /** The down channels on these lines, kept fresh while `active`. */
-export function useDownChannels(lines: Pick<XtreamCreds, 'host'>[], active: boolean): Set<string> {
+export function useDownChannels(lines: Array<Pick<XtreamCreds, 'host'> & Partial<Pick<XtreamCreds, 'outside' | 'm3u'>>>, active: boolean): Set<string> {
   const [set, setSet] = useState(down);
-  const hosts = [...new Set(lines.map((l) => normalizeHost(l.host)).filter(Boolean))].sort();
+  const hosts = [...new Set(lines.filter((l) => !isOutsideLine(l)).map((l) => normalizeHost(l.host)).filter(Boolean))].sort();
   const hostsSig = hosts.join(',');
   useEffect(() => {
     const on = () => setSet(down);
@@ -169,6 +176,7 @@ const reportFields = (line: XtreamCreds | undefined) => (line ? lineReportFields
  *  here; buffering stays). */
 export function signalChannel(host: string, streamId: number, name: string, kind: 'down' | 'fail' | 'ok' | 'clear' | 'buffering', line?: XtreamCreds): void {
   if (isDemo() || !host || !(streamId > 0)) return;
+  if (isOutsideHost(host) || isOutsideLine(line)) return;
   // A box that is offline can't tell a dead channel from its own connection.
   if (kind === 'fail' && typeof navigator !== 'undefined' && navigator.onLine === false) return;
   const k = `${channelStatusKey(host, streamId)}|${kind}`;
@@ -199,6 +207,7 @@ export function signalChannel(host: string, streamId: number, name: string, kind
 export function signalCategory(host: string, categoryId: string | number, name: string, kind: 'down' | 'clear' | 'ok', line?: XtreamCreds): void {
   const id = String(categoryId ?? '');
   if (isDemo() || !host || !id) return;
+  if (isOutsideHost(host) || isOutsideLine(line)) return;
   const key = categoryStatusKey(host, id);
   const k = `${key}|${kind}`;
   const now = Date.now();

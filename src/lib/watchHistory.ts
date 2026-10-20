@@ -8,7 +8,12 @@
 //
 // Nothing here is on the critical path of playback: recording is fire and
 // forget, and every storage or network failure is swallowed.
+//
+// A channel on a service the viewer added from elsewhere (lib/outsideSource)
+// is kept on the box only (Live TV's Recently watched reads it): never sent
+// to the account, since nothing about that service may reach our servers.
 import { supabase } from '@/integrations/supabase/client';
+import { isOutsideHost, isOutsideLine } from '@/lib/outsideSource';
 import type { XtreamCreds, XtreamLiveStream } from '@/lib/xtream';
 import type { PlexItem } from '@/lib/plex';
 import { cloudItemKey, fromCloudItemKey, resolveViewer, scopeToProfile, viewerAccountId, viewerKey } from '@/lib/viewer';
@@ -24,7 +29,7 @@ export interface WatchEntry {
   poster?: string;
   watchedAt: number;
   count: number;
-  channel?: { host: string; username: string; streamId: number; categoryId?: string; num?: number; icon?: string; serverLabel?: string };
+  channel?: { host: string; username: string; streamId: number; categoryId?: string; num?: number; icon?: string; serverLabel?: string; outside?: true };
   plex?: { ratingKey: string; librarySectionID?: string; kind?: string; thumb?: string };
 }
 
@@ -79,11 +84,12 @@ const cloudUpsert = async (userId: string, entry: WatchEntry): Promise<void> => 
   } catch { /* the table may not exist yet, or we are offline — local is enough */ }
 };
 
-async function record(entry: Omit<WatchEntry, 'watchedAt' | 'count'>): Promise<void> {
+async function record(entry: Omit<WatchEntry, 'watchedAt' | 'count'>, localOnly = false): Promise<void> {
   const viewer = await currentViewer();
   const full: WatchEntry = { ...entry, watchedAt: Date.now(), count: 1 };
   const merged = mergeEntry(loadWatchHistory(viewer), full);
   saveWatchHistory(viewer, merged);
+  if (localOnly) return;
   const account = viewerAccountId();
   if (account && viewerKey() === viewer) {
     const stored = merged.find((e) => e.kind === full.kind && e.key === full.key) ?? full;
@@ -129,8 +135,11 @@ const cloudRemove = async (userId: string, kind: WatchKind, key: string, before:
 export async function removeWatchEntry(kind: WatchKind, key: string): Promise<void> {
   const viewer = await currentViewer().catch(() => viewerKey());
   const list = loadWatchHistory(viewer);
+  const was = list.find((e) => e.kind === kind && e.key === key);
   const next = list.filter((e) => !(e.kind === kind && e.key === key));
   if (next.length !== list.length) saveWatchHistory(viewer, next);
+  // An outside service's channel never went to the account: nothing to delete there.
+  if (was?.channel?.outside || (kind === 'channel' && isOutsideHost(was?.channel?.host ?? key.split('|')[0]))) return;
   const account = viewerAccountId();
   if (!account || viewerKey() !== viewer) return;
   const at = Date.now();
@@ -142,6 +151,7 @@ export const channelKey = (line: XtreamCreds, streamId: number): string =>
   `${line.host.replace(/^https?:\/\//, '')}|${line.username}|${streamId}`;
 
 export function recordChannelWatch(stream: XtreamLiveStream, line: XtreamCreds, categoryName?: string): void {
+  const outside = isOutsideLine(line);
   void record({
     kind: 'channel',
     key: channelKey(line, stream.stream_id),
@@ -151,8 +161,9 @@ export function recordChannelWatch(stream: XtreamLiveStream, line: XtreamCreds, 
     channel: {
       host: line.host, username: line.username, streamId: stream.stream_id,
       categoryId: stream.category_id, num: stream.num, icon: stream.stream_icon || undefined, serverLabel: line.serverLabel,
+      ...(outside ? { outside: true as const } : {}),
     },
-  });
+  }, outside);
 }
 
 export function recordPlexWatch(item: Pick<PlexItem, 'ratingKey' | 'title' | 'type' | 'thumb' | 'librarySectionID' | 'year' | 'grandparentTitle'>, posterUrl?: string): void {

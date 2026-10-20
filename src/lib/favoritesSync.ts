@@ -38,9 +38,16 @@
 //     pushes it.
 //
 // Demo mode never syncs. Nothing here throws.
+//
+// An outside service (lib/outsideSource) never syncs either: its favourites
+// live in its stash on this box and nowhere else. player-favorites checks a
+// line against our panels, and an outside service's login must never reach
+// our servers. It is also never the "active" line here, so its list can't
+// land in the active line's local store (and be pushed as that line's).
 
 import { supabase } from '@/integrations/supabase/client';
 import { isDemo } from '@/lib/demoMode';
+import { isOutsideLine } from '@/lib/outsideSource';
 import { MAIN_PROFILE, viewerProfileId } from '@/lib/viewer';
 import { loadFavoritesData, saveFavoritesData, type FavChannel, type XtreamCreds } from '@/lib/xtream';
 
@@ -220,6 +227,8 @@ interface WireResponse {
 }
 
 async function call(creds: XtreamCreds, body: Record<string, unknown>): Promise<WireResponse | null> {
+  // Never an outside service's line (see the top of this file).
+  if (isOutsideLine(creds)) return null;
   try {
     const { data, error } = await supabase.functions.invoke('player-favorites', {
       body: {
@@ -462,6 +471,7 @@ export function flushFavoritesPush(): void {
 // screen never has to know which line is which.
 
 const isActiveLine = (creds: XtreamCreds): boolean => {
+  if (isOutsideLine(creds)) return false;
   const meta = loadMeta();
   return !meta || meta.line === favKey(creds);
 };
@@ -504,7 +514,8 @@ export function scheduleFavoritesPushForLine(
   favorites: Map<number, FavChannel>,
   onAdopt: (m: Map<number, FavChannel>) => void,
 ): void {
-  if (isDemo()) return;
+  // An outside service's list is already saved on the box: that is all.
+  if (isDemo() || isOutsideLine(creds)) return;
   if (isActiveLine(creds)) { scheduleFavoritesPush(creds, favorites, onAdopt); return; }
   const key = favKey(creds);
   stashPending.set(key, { creds, favorites: [...favorites.values()], onAdopt });
@@ -565,7 +576,7 @@ export async function reconcileFavoritesForLine(
   creds: XtreamCreds,
   getLocal: () => Map<number, FavChannel>,
 ): Promise<Map<number, FavChannel> | null> {
-  if (isDemo()) return null;
+  if (isDemo() || isOutsideLine(creds)) return null;
   if (isActiveLine(creds)) return reconcileFavoritesOnLoad(creds, getLocal);
   const key = favKey(creds);
   const cloud = await pull(creds);

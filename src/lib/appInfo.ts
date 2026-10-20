@@ -36,7 +36,9 @@ const lineInfoLines = async (lines?: XtreamCreds[]): Promise<string> => {
   try {
     const m = await import('@/lib/lineInfo');
     if (!lines?.length) return await m.buildLineInfoLines();
-    const all = await Promise.all(lines.map((l) => m.lineStatus(l)));
+    // Never an outside service's line (lib/outsideSource): it is not ours to support.
+    const { isOutsideLine } = await import('@/lib/outsideSource');
+    const all = await Promise.all(lines.filter((l) => !isOutsideLine(l)).map((l) => m.lineStatus(l)));
     return all.map(m.formatLine).join('\n');
   } catch {
     return '';

@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
 import { withAppInfo } from '@/lib/appInfo';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
+import { isOutsideLine } from '@/lib/outsideSource';
 import type { XtreamCreds } from '@/lib/xtream';
 
 interface Props {
@@ -44,9 +45,13 @@ const ReportCategoryDialog = memo(({ categoryName, categoryId, serviceLabel, lin
   const [submitting, setSubmitting] = useState(false);
   const submittedRef = useRef(false);
   const armedRef = useRef(false);
+  // A category on a service added from elsewhere (lib/outsideSource): not
+  // ours to fix, never reported to our servers. The menu is just Cancel and a
+  // line saying who to ask.
+  const outside = isOutsideLine(line);
 
   const report = useCallback(async () => {
-    if (submittedRef.current) return;
+    if (submittedRef.current || outside) return;
     submittedRef.current = true;
     setSubmitting(true);
     try {
@@ -85,13 +90,13 @@ const ReportCategoryDialog = memo(({ categoryName, categoryId, serviceLabel, lin
       setSubmitting(false);
       toast({ title: t('live.report.failedTitle'), description: (e as Error)?.message || t('live.report.failedDesc'), variant: 'destructive' });
     }
-  }, [account, categoryId, categoryName, createTicket, line, onClose, onReportedDown, serviceLabel, t, toast, user]);
+  }, [account, categoryId, categoryName, createTicket, line, onClose, onReportedDown, outside, serviceLabel, t, toast, user]);
 
   // Taken once, as in the channel menu: a row appearing under the highlight
   // would move it onto a different row than the viewer picked.
   const [downAtOpen] = useState(isDown);
   const rows: Array<{ id: string; label: string; icon: typeof Flag; run: () => void }> = [
-    ...(downAtOpen ? [{
+    ...(downAtOpen && !outside ? [{
       id: 'clear',
       label: t('live.report.clearWarning'),
       icon: CheckCircle2,
@@ -102,7 +107,7 @@ const ReportCategoryDialog = memo(({ categoryName, categoryId, serviceLabel, lin
         onClose();
       },
     }] : []),
-    { id: 'report', label: t('live.report.reportCategory'), icon: Flag, run: () => { void report(); } },
+    ...(outside ? [] : [{ id: 'report', label: t('live.report.reportCategory'), icon: Flag, run: () => { void report(); } }]),
     { id: 'cancel', label: t('common.cancel'), icon: X, run: onClose },
   ];
   const rowsRef = useRef(rows);
@@ -181,8 +186,14 @@ const ReportCategoryDialog = memo(({ categoryName, categoryId, serviceLabel, lin
             );
           })}
         </div>
-        <p className="mt-4 text-xs text-brand-ice/70 font-nunito">{t('live.report.categoryBody')}</p>
-        <p className="mt-2 text-xs text-brand-ice/60 font-nunito">{t('live.report.categoryFooter')}</p>
+        {outside ? (
+          <p data-outside-note="" className="mt-4 text-sm text-brand-ice/80 font-nunito">{t('liveAccount.outside.reportNote')}</p>
+        ) : (
+          <>
+            <p className="mt-4 text-xs text-brand-ice/70 font-nunito">{t('live.report.categoryBody')}</p>
+            <p className="mt-2 text-xs text-brand-ice/60 font-nunito">{t('live.report.categoryFooter')}</p>
+          </>
+        )}
       </div>
     </div>
   );

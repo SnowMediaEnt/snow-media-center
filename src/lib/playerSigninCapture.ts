@@ -8,6 +8,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { getDeviceId } from '@/lib/analytics';
 import type { PlayerAccount } from '@/lib/xtream';
+import { isOutsideLine } from '@/lib/outsideSource';
 
 export type CaptureReason = 'signin' | 'reconcile';
 
@@ -16,6 +17,9 @@ export async function capturePlayerSignin(
   serverLabel: string,
   reason: CaptureReason = 'signin',
 ): Promise<void> {
+  // Our lines only: a service added from elsewhere (lib/outsideSource) is
+  // never signed in as a line, and never reaches our servers.
+  if (isOutsideLine(account)) return;
   // Every Live TV sign-in comes through here (the form, Switch Account, the
   // billing and automatic sign-ins): register this box for the line's
   // messages (lib/deviceInbox) at once. Loaded on demand; never waited on.
