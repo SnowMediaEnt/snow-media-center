@@ -22,6 +22,7 @@ vi.mock('./HideCategoriesScreen', () => stub('categories'));
 vi.mock('./AppearanceScreen', () => stub('appearance'));
 vi.mock('./RewindSettingsScreen', () => stub('rewind'));
 vi.mock('./PlaybackScreen', () => stub('playback'));
+vi.mock('./OutsideSourceScreen', () => stub('outside'));
 
 import SettingsHub from './SettingsHub';
 
@@ -79,14 +80,14 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
   it('Sign Out: OK signs out, Right does not; Up from the first row reaches Back and Back on the menu leaves', async () => {
     const { container, props } = renderHub();
     await settle();
-    for (let i = 0; i < 6; i++) key('ArrowDown');
+    for (let i = 0; i < 7; i++) key('ArrowDown');
     await settle(300);
     expect(shownPage(container).textContent).toMatch(/sign/i); // the Sign Out note
     key('ArrowRight');
     expect(props.onSignOut).not.toHaveBeenCalled();
     key('Enter');
     expect(props.onSignOut).toHaveBeenCalledTimes(1);
-    for (let i = 0; i < 7; i++) key('ArrowUp');
+    for (let i = 0; i < 8; i++) key('ArrowUp');
     expect(container.querySelector('[data-focused="true"]')?.textContent).toMatch(/back/i);
     key('Escape');
     expect(props.onBack).toHaveBeenCalledTimes(1);
