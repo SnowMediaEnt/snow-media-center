@@ -6,6 +6,7 @@ import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { authenticateRouted, buildPlayerAccount, loadCreds, savePlayerAccount } from '@/lib/xtream';
 import { runWhenIdle } from '@/utils/idle';
 import { markReconciled, reconciledRecently, RECONCILE_URGENT_MS } from '@/lib/panelReconcile';
+import { markLineRefused } from '@/lib/outsideSource';
 
 /**
  * Mount once at the top of the signed-in app tree. When a Supabase user is
@@ -55,6 +56,8 @@ export const usePlayerAccountSync = (): void => {
           if (reconciledRecently(RECONCILE_URGENT_MS)) return;
           markReconciled();
           const res = await authenticateRouted(account.username, account.password);
+          // A refused login hides an outside service on this line (lib/outsideSource).
+          if (res.invalidLogin) markLineRefused(account);
           // Expired/disabled lines: the panel still authenticated the account,
           // so record the TRUE state (fresh expiry) rather than bailing —
           // this is what lets a renewal show the moment the panel flips.

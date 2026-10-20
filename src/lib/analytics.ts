@@ -201,6 +201,9 @@ export const trackCrash = (message: string, stack?: string, component?: string) 
   safe(() => {
     if (!deviceId) return;
     const sid = sessionId;
+    // An error can quote an address: an outside service's never leaves the
+    // box (lib/outsideSource).
+    const clean = scrubOutside({ message: message || "", stack: stack || "", component: component ?? null });
     try {
       void versionReady.then(() => supabase
         .from("analytics_crashes")
@@ -208,9 +211,9 @@ export const trackCrash = (message: string, stack?: string, component?: string) 
           device_id: deviceId,
           session_id: sid,
           user_id: userId,
-          message: (message || "").slice(0, 4000),
-          stack: (stack || "").slice(0, 16000),
-          component: component?.slice(0, 128) ?? null,
+          message: clean.message.slice(0, 4000),
+          stack: clean.stack.slice(0, 16000),
+          component: clean.component?.slice(0, 128) ?? null,
           severity: "error",
           app_version: appVersion,
           platform,
@@ -527,7 +530,9 @@ export const startTimer = (
     timers[key] = {
       event,
       category,
-      props: properties ?? {},
+      // Scrubbed when it starts as well as when it is sent (trackEvent): an
+      // outside service removed in between is no longer known by then.
+      props: properties ? scrubOutside(properties) : {},
       startedAt: now,
       beatAt: now,
     };

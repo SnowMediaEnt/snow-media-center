@@ -23,7 +23,8 @@ export { lineKey };
  *
  * `outside` (lib/outsideSource, loadOutsideState): the service the viewer
  * added from elsewhere comes last, and only while the active line is an
- * active DreamStreams or Vibez one. Left out by the screens it does not
+ * active DreamStreams or Vibez one and the line that added it is on this box
+ * (the active one or a saved account). Left out by the screens it does not
  * belong on: Game Day sends line data to our server, and the Home content bar
  * would download a whole playlist behind the viewer's back.
  */
@@ -38,7 +39,7 @@ export const buildLines = (active: XtreamCreds, saved: SavedAccount[], outside?:
     seen.add(k);
     out.push(c);
   }
-  for (const c of outsideLinesFor(active, outside)) {
+  for (const c of outsideLinesFor(active, outside, saved)) {
     const k = lineKey(c);
     if (seen.has(k)) continue;
     seen.add(k);

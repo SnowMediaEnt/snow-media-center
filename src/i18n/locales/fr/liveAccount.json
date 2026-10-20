@@ -165,6 +165,7 @@
       "intro": "Vous pouvez regarder les chaînes TV en direct d'un autre service dans Snow Media Center, à côté de vos chaînes DreamStreams/Vibez. Nous ne pouvons pas vous aider avec les chaînes ou les identifiants d'un autre fournisseur.",
       "needsLine": "Nécessite une ligne DreamStreams ou Vibez active.",
       "comesBack": "Votre autre service est enregistré. Ses chaînes reviennent dès que votre ligne est de nouveau active.",
+      "ownerGone": "Il a été ajouté avec une ligne qui n'est plus sur ce téléviseur. Supprimez-le, ou reconnectez-vous avec cette ligne.",
       "kind": "Type",
       "kindHint": "OK pour changer",
       "xtreamChip": "Identifiants Xtream",
@@ -193,7 +194,9 @@
       "footer": "Un problème avec les chaînes ou les identifiants de ce service ? Contactez le fournisseur qui vous l'a vendu.",
       "tag": "Externe",
       "otherGroup": "Autres",
+      "channelN": "Chaîne {{n}}",
       "reportNote": "Service externe : signalez les problèmes à ce fournisseur.",
+      "hiddenNote": "Votre ligne DreamStreams/Vibez n'est pas active : les chaînes de {{name}} sont masquées.",
       "errors": {
         "needServer": "Saisissez l'adresse du serveur.",
         "needLogin": "Saisissez le nom d'utilisateur et le mot de passe.",
@@ -206,7 +209,7 @@
         "notPlaylist": "Ce lien n'est pas une playlist de chaînes.",
         "empty": "Ce service n'a aucune chaîne TV en direct.",
         "inactive": "Ce service indique que ces identifiants ont expiré ou sont désactivés.",
-        "tooBig": "Cette playlist est trop volumineuse pour ce téléviseur.",
+        "tooBig": "Cette playlist est trop volumineuse pour cet appareil.",
         "testFirst": "Appuyez d'abord sur Tester. Enregistrer fonctionne une fois le test réussi.",
         "full": "Un seul autre service peut être ajouté. Supprimez d'abord celui que vous avez."
       }

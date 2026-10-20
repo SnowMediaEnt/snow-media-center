@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const h = vi.hoisted(() => ({ demo: false, calls: [] as string[], wipeFails: false, stopFails: false, cancelFails: false }));
+const h = vi.hoisted(() => ({ demo: false, calls: [] as string[], wipeFails: false, stopFails: false, cancelFails: false, outsideFails: false }));
 vi.mock('@/lib/xtream', () => ({
   clearCreds: async () => { h.calls.push('creds'); },
   clearPlayerAccount: async () => { h.calls.push('account'); },
+  loadCreds: async () => ({ host: 'http://dstreams.xyz:8080', username: 'jsmith', password: 'pw', output: 'm3u8' }),
+}));
+// An outside service the line added goes with it (lib/outsideActions).
+vi.mock('@/lib/outsideActions', () => ({
+  forgetOutsideOwnedBy: async (line: { username: string }) => { h.calls.push(`outside:${line.username}`); if (h.outsideFails) throw new Error('storage'); },
 }));
 vi.mock('@/lib/playerAutoSignIn', () => ({ markPlayerSignedOut: () => { h.calls.push('signed-out'); } }));
 vi.mock('@/lib/demoMode', () => ({ isDemo: () => h.demo }));
@@ -22,12 +27,12 @@ vi.mock('@/capacitor/SnowRecorder', () => ({
 
 import { signOutPlayer } from './playerSignOut';
 
-beforeEach(() => { h.demo = false; h.calls = []; h.wipeFails = false; h.stopFails = false; h.cancelFails = false; });
+beforeEach(() => { h.demo = false; h.calls = []; h.wipeFails = false; h.stopFails = false; h.cancelFails = false; h.outsideFails = false; });
 
 describe('signOutPlayer', () => {
   it('wipes the rewind buffer, stops every recording, cancels every schedule, then clears the line and its account, and marks it signed out on purpose (no quiet sign-in back)', async () => {
     await signOutPlayer();
-    expect(h.calls).toEqual(['wipe', 'stop-all', 'cancel-schedules', 'recordings-changed', 'creds', 'account', 'signed-out']);
+    expect(h.calls).toEqual(['wipe', 'stop-all', 'cancel-schedules', 'recordings-changed', 'outside:jsmith', 'creds', 'account', 'signed-out']);
   });
 
   it('still signs out when the app has no rewind or recorder plugin (older build)', async () => {
@@ -35,13 +40,19 @@ describe('signOutPlayer', () => {
     h.stopFails = true;
     h.cancelFails = true;
     await signOutPlayer();
-    expect(h.calls).toEqual(['wipe', 'stop-all', 'cancel-schedules', 'recordings-changed', 'creds', 'account', 'signed-out']);
+    expect(h.calls).toEqual(['wipe', 'stop-all', 'cancel-schedules', 'recordings-changed', 'outside:jsmith', 'creds', 'account', 'signed-out']);
   });
 
   it('cancels the schedules even when stopping recordings failed', async () => {
     h.stopFails = true;
     await signOutPlayer();
     expect(h.calls).toContain('cancel-schedules');
+  });
+
+  it('takes away the outside service the line added, before the line itself; a failure there never blocks sign-out', async () => {
+    h.outsideFails = true;
+    await signOutPlayer();
+    expect(h.calls).toEqual(['wipe', 'stop-all', 'cancel-schedules', 'recordings-changed', 'outside:jsmith', 'creds', 'account', 'signed-out']);
   });
 
   it('does nothing in demo mode', async () => {

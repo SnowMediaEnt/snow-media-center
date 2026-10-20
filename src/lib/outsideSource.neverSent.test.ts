@@ -81,7 +81,7 @@ beforeEach(async () => {
   h.tables.length = 0;
   bumpXtreamRefresh();
   __setDownForTests([]);
-  await saveOutsideSource(SRC);
+  await saveOutsideSource(SRC, DS);
 });
 afterEach(() => { vi.useRealTimers(); expect(leaked()).toBeNull(); });
 

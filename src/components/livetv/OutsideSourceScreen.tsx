@@ -25,18 +25,22 @@ import { BackButton } from '@/components/ui/BackButton';
 import { trackEvent } from '@/lib/analytics';
 import { formatNumber } from '@/i18n/format';
 import { hostNameOf } from '@/lib/servers';
-import { loadCreds, loadPlayerAccount } from '@/lib/xtream';
+import { loadCreds, loadPlayerAccount, loadSavedAccounts, type XtreamCreds } from '@/lib/xtream';
 import {
+  accountStale,
+  lineOwnerKey,
   loadOutsideSources,
   outsideAllowed,
+  ownerOnBox,
   parseOutsideInput,
-  removeOutsideSource,
   saveOutsideSource,
+  type OutsideInput,
   type OutsideInputError,
   type OutsideKind,
   type OutsideSource,
 } from '@/lib/outsideSource';
 import { testOutsideSource, type OutsideTestError } from '@/lib/outsideProbe';
+import { forgetOutsideSource, recheckLine } from '@/lib/outsideActions';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { keepInView } from '@/utils/keepInView';
 
@@ -92,17 +96,26 @@ const PROBLEM_FIELD: Partial<Record<Problem, Field>> = { needServer: 'server', n
 
 const EMPTY: Record<Field, string> = { server: '', user: '', pass: '', url: '', name: '' };
 
+/** What a test was of: the kind and every field. Save keeps a test only while this is unchanged. */
+const signature = (kind: OutsideKind, values: Record<Field, string>): string => JSON.stringify([kind, values]);
+
 const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: Props) => {
   const { t } = useTranslation();
-  /** null while it is read: may this box have one (outsideAllowed)? */
-  const [allowed, setAllowed] = useState<boolean | null>(null);
+  /** null while it is read: does the line in use pass the rule (outsideAllowed)? */
+  const [gate, setGate] = useState<boolean | null>(null);
+  /** The line in use: it becomes the owner of what is saved here. */
+  const [activeLine, setActiveLine] = useState<XtreamCreds | null>(null);
   const [saved, setSaved] = useState<OutsideSource | null>(null);
+  /** The saved service's line is on this box (the one in use or a saved account). */
+  const [ownerHere, setOwnerHere] = useState(false);
   const [editing, setEditing] = useState(false);
   const [kind, setKind] = useState<OutsideKind>('xtream');
   const [values, setValues] = useState<Record<Field, string>>(EMPTY);
   const [busy, setBusy] = useState<null | 'test' | 'save' | 'remove'>(null);
-  /** What the last successful Test tried: exactly what Save keeps. */
-  const [tested, setTested] = useState<OutsideSource | null>(null);
+  /** What the last successful Test tried (exactly what Save keeps), and of which form. */
+  const [tested, setTested] = useState<{ source: OutsideSource; sig: string } | null>(null);
+  /** Bumped by every Test and every change to the form: an answer for an older one is dropped. */
+  const testSeq = useRef(0);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [focusId, setFocusId] = useState<string>('kind');
@@ -115,17 +128,23 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
 
-  // Who may: the line in use and its account record, read again when the
-  // record changes (a renewal, an expiry found by the background check).
+  // Who may: the line in use and its account record, and whether the saved
+  // service's line is on the box. Read again when the record changes (a
+  // renewal, an expiry found by the background check).
   useEffect(() => {
     const read = async () => {
       try {
-        const [creds, account, list] = await Promise.all([loadCreds(), loadPlayerAccount(), loadOutsideSources()]);
+        const [creds, account, list, accounts] = await Promise.all([loadCreds(), loadPlayerAccount(), loadOutsideSources(), loadSavedAccounts().catch(() => [])]);
         if (!alive.current) return;
-        setAllowed(outsideAllowed(creds, account));
-        setSaved(list[0] ?? null);
+        const first = list[0] ?? null;
+        setActiveLine(creds);
+        setGate(outsideAllowed(creds, account));
+        setSaved(first);
+        setOwnerHere(!!first && ownerOnBox(first, creds, accounts));
+        // Not checked with its panel lately: check it now (the answer reads this again).
+        if (accountStale(account)) void recheckLine(creds, { evenWithoutOne: true });
       } catch {
-        if (alive.current) setAllowed(false);
+        if (alive.current) setGate(false);
       }
     };
     void read();
@@ -133,6 +152,11 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
     return () => window.removeEventListener('playerAccountRefresh', read);
   }, []);
 
+  // Allowed: the rule passes, and a saved service's line is on this box (one
+  // added on a line since signed out or removed shows the reason, and only Remove).
+  const allowed: boolean | null = gate === null ? null : gate && (!saved || ownerHere);
+  /** Added on the line in use: its details may come back for Edit (never another line's). */
+  const mine = !!saved && !!activeLine && saved.owner === lineOwnerKey(activeLine);
   const showForm = allowed === true && (!saved || editing);
   const fields = FIELDS[kind];
 
@@ -150,8 +174,8 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
     setFocusId(rows.find((r) => r !== 'back') ?? rows[0] ?? '');
   }, [rows, focusId]);
 
-  const stateRef = useRef({ rows, focusId, values, busy, kind, saved, editing, tested, confirmRemove, fields });
-  stateRef.current = { rows, focusId, values, busy, kind, saved, editing, tested, confirmRemove, fields };
+  const stateRef = useRef({ rows, focusId, values, busy, kind, saved, editing, tested, confirmRemove, fields, activeLine, mine });
+  stateRef.current = { rows, focusId, values, busy, kind, saved, editing, tested, confirmRemove, fields, activeLine, mine };
 
   const putAway = useCallback(() => {
     typingRef.current = false;
@@ -184,14 +208,16 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
     return () => { cancelled = true; stop?.(); if (typingRef.current) void hideKeyboardForDpad(null); };
   }, []);
 
-  /** Anything typed or switched after a test: that test no longer stands. */
+  /** Anything typed or switched after a test (or during one): that test no longer stands. */
   const setValue = useCallback((f: Field, v: string) => {
+    testSeq.current += 1;
     setValues((cur) => ({ ...cur, [f]: v }));
     setTested(null);
     setOutcome(null);
   }, []);
 
   const toggleKind = useCallback(() => {
+    testSeq.current += 1;
     setKind((k) => (k === 'xtream' ? 'm3u' : 'xtream'));
     setTested(null);
     setOutcome(null);
@@ -200,7 +226,7 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
   const test = useCallback(async () => {
     const s = stateRef.current;
     if (s.busy) return;
-    const input = {
+    const input: OutsideInput = {
       kind: s.kind,
       server: s.values.server,
       username: s.values.user,
@@ -210,8 +236,9 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
     };
     // Edit: an empty password keeps the saved one, but only for the same
     // server and username (a saved password never goes to another server);
-    // an empty playlist link keeps the saved link.
-    const was = s.editing ? s.saved : null;
+    // an empty playlist link keeps the saved link. Only the line in use's own
+    // (another line's details never fill this form).
+    const was = s.editing && s.mine ? s.saved : null;
     if (was?.kind === 'xtream' && s.kind === 'xtream' && !s.values.pass) {
       const sameServer = s.values.server.trim().replace(/\/+$/, '') === (was.host ?? '');
       if (sameServer && s.values.user.trim().toLowerCase() === (was.username ?? '').toLowerCase()) input.password = was.password ?? '';
@@ -225,31 +252,41 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
       if (target && s.fields.includes(target)) setFocusId(target);
       return;
     }
+    const seq = ++testSeq.current;
+    const sig = signature(s.kind, s.values);
     setBusy('test');
     setOutcome(null);
     setTested(null);
-    const res = await testOutsideSource(parsed.source);
+    const res = await testOutsideSource(parsed.source, input);
     if (!alive.current) return;
     setBusy(null);
+    // The form changed while the test ran: its answer is about something else.
+    if (seq !== testSeq.current) return;
     if (res.ok === false) { setOutcome({ kind: 'problem', problem: res.error }); return; }
-    setTested(parsed.source);
+    setTested({ source: res.source, sig });
     // An Xtream M3U link pasted as an M3U link: said, since it changes what the viewer gets.
-    setOutcome({ kind: 'works', channels: res.channels, converted: s.kind === 'm3u' && parsed.source.kind === 'xtream' });
+    setOutcome({ kind: 'works', channels: res.channels, converted: s.kind === 'm3u' && res.source.kind === 'xtream' });
     setFocusId('save');
   }, []);
 
   const save = useCallback(async () => {
     const s = stateRef.current;
     if (s.busy) return;
-    if (!s.tested) { setOutcome({ kind: 'problem', problem: 'testFirst' }); setFocusId('test'); return; }
-    const src = s.tested;
+    // Only a test of what is in the form now.
+    if (!s.tested || s.tested.sig !== signature(s.kind, s.values) || !s.activeLine) {
+      setOutcome({ kind: 'problem', problem: 'testFirst' });
+      setFocusId('test');
+      return;
+    }
+    const src = s.tested.source;
     setBusy('save');
-    const ok = await saveOutsideSource(src, s.saved?.id).catch(() => false);
+    const ok = await saveOutsideSource(src, s.activeLine, s.saved?.id).catch(() => false);
     if (!alive.current) return;
     setBusy(null);
     if (!ok) { setOutcome({ kind: 'problem', problem: 'full' }); return; }
     try { trackEvent('outside_source_saved', 'player', { kind: src.kind, edit: !!s.saved }); } catch { /* ignore */ }
-    setSaved(src);
+    setSaved({ ...src, owner: lineOwnerKey(s.activeLine) });
+    setOwnerHere(true);
     setEditing(false);
     setTested(null);
     // The secrets go with the form: nothing typed stays in memory on this page.
@@ -259,12 +296,14 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
   }, []);
 
   const startEdit = useCallback(() => {
-    const was = stateRef.current.saved;
+    const { saved: was, mine: own } = stateRef.current;
     if (!was) return;
-    setKind(was.kind);
+    testSeq.current += 1;
     // The server and username come back to be changed; the password and a
     // playlist link (it often carries the login) do not: empty keeps them.
-    setValues({ ...EMPTY, server: was.kind === 'xtream' ? was.host ?? '' : '', user: was.username ?? '', name: was.name });
+    // Added on another line on this box: nothing comes back, the form starts empty.
+    setKind(own ? was.kind : 'xtream');
+    setValues(own ? { ...EMPTY, server: was.kind === 'xtream' ? was.host ?? '' : '', user: was.username ?? '', name: was.name } : EMPTY);
     setTested(null);
     setOutcome(null);
     setConfirmRemove(false);
@@ -273,6 +312,7 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
   }, []);
 
   const cancelEdit = useCallback(() => {
+    testSeq.current += 1;
     setEditing(false);
     setValues(EMPTY);
     setTested(null);
@@ -287,8 +327,10 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
     if (!s.confirmRemove) { setConfirmRemove(true); setOutcome(null); return; }
     setConfirmRemove(false);
     setBusy('remove');
+    testSeq.current += 1;
     const was = s.saved;
-    await removeOutsideSource(was.id).catch(() => undefined);
+    // With it go its favourites, hidden categories, Recently watched channels and playlist copy.
+    await forgetOutsideSource(was).catch(() => undefined);
     if (!alive.current) return;
     try { trackEvent('outside_source_removed', 'player', { kind: was.kind }); } catch { /* ignore */ }
     setBusy(null);
@@ -429,7 +471,10 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
   };
   const outcomeId = (o: Outcome) => (o.kind === 'problem' ? o.problem : o.kind);
 
-  /** The saved service, without its secrets: name, kind, where, who, dots for the password. */
+  /** Save is open only for a test of exactly what the form holds now. */
+  const testedNow = !!tested && tested.sig === signature(kind, values);
+
+  /** The saved service, without its secrets: name, kind, where, who, dots for the password (where and who only for the line in use's own). */
   const savedCard = saved && (
     <div data-outside-saved className="rounded-xl px-4 py-2 mb-3 bg-brand-gold/10 border border-brand-gold/40 flex items-start">
       <Link2 className="w-5 h-5 mr-3 mt-0.5 text-brand-gold shrink-0" />
@@ -440,7 +485,7 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
             {saved.kind === 'xtream' ? t('liveAccount.outside.xtreamChip') : t('liveAccount.outside.m3uChip')}
           </span>
         </p>
-        {saved.kind === 'xtream' ? (
+        {!mine ? null : saved.kind === 'xtream' ? (
           <p className="text-sm font-nunito text-white/70 truncate">
             {t('liveAccount.outside.savedXtream', { server: hostNameOf(saved.host), user: saved.username ?? '' })}
             <span className="ml-2 tracking-widest" data-outside-password="">••••••</span>
@@ -473,7 +518,7 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
               {savedCard}
               <div data-outside-not-allowed className="rounded-xl px-4 py-3 mb-3 bg-black/30 border border-white/15">
                 <p className="font-nunito font-semibold">{t('liveAccount.outside.needsLine')}</p>
-                {saved && <p className="text-sm font-nunito text-white/70">{t('liveAccount.outside.comesBack')}</p>}
+                {saved && <p className="text-sm font-nunito text-white/70">{t(ownerHere ? 'liveAccount.outside.comesBack' : 'liveAccount.outside.ownerGone')}</p>}
               </div>
             </>
           )}
@@ -531,7 +576,7 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
                   {busy === 'test' ? <Loader2 className="w-5 h-5 mr-2 animate-spin text-brand-gold" /> : <Zap className="w-5 h-5 mr-2 text-brand-gold" />}
                   <span className="font-quicksand font-bold">{busy === 'test' ? t('liveAccount.outside.testing') : t('liveAccount.outside.testBtn')}</span>
                 </div>
-                <div {...rowProps('save')} data-ready={tested ? 'true' : 'false'} className={rowCls('save', `justify-center ${tested ? '' : 'opacity-60'} ${focused('save') ? 'bg-brand-gold/25 border-brand-gold/60' : ''}`)}>
+                <div {...rowProps('save')} data-ready={testedNow ? 'true' : 'false'} className={rowCls('save', `justify-center ${testedNow ? '' : 'opacity-60'} ${focused('save') ? 'bg-brand-gold/25 border-brand-gold/60' : ''}`)}>
                   {busy === 'save' ? <Loader2 className="w-5 h-5 mr-2 animate-spin text-brand-gold" /> : <Check className="w-5 h-5 mr-2 text-brand-gold" />}
                   <span className="font-quicksand font-bold">{t('common.save')}</span>
                 </div>

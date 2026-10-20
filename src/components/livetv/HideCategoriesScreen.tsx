@@ -11,7 +11,7 @@ import {
   type XtreamCreds,
 } from '@/lib/xtream';
 import { buildLines, lineKey, lineLabel, loadHiddenCategories, saveHiddenCategories } from '@/lib/liveLines';
-import { loadOutsideState } from '@/lib/outsideSource';
+import { lineEventProps, loadOutsideState } from '@/lib/outsideSource';
 import { trackEvent } from '@/lib/analytics';
 import { useTranslation } from 'react-i18next';
 
@@ -97,7 +97,7 @@ const HideCategoriesScreen = memo(({ onBack, embedded = false, active = true }: 
       } else if (row.cat) {
         const id = String(row.cat.category_id);
         if (set.has(id)) set.delete(id); else set.add(id);
-        try { trackEvent('live_category_hide', 'player', { service: row.line.serverLabel ?? null, category: row.cat.category_name, hidden: set.has(id) }); } catch { /* ignore */ }
+        try { trackEvent('live_category_hide', 'player', lineEventProps(row.line, { hidden: set.has(id) }, { service: row.line.serverLabel ?? null, category: row.cat.category_name })); } catch { /* ignore */ }
       }
       next.set(row.key, set);
       saveHiddenCategories(row.key, set);

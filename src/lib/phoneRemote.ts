@@ -213,9 +213,15 @@ function onPhoneMessage(m: PhoneMessage): void {
       void pressRemoteKey(m.k);
       break;
     case 'text': {
+      // Allowed in every field, an outside service's login and playlist link
+      // too (Settings › Add another service): pasting a long link from the
+      // phone is the realistic way to fill that form, and the broadcast only
+      // relays it to this box, stored nowhere. Nothing here logs it, and a
+      // password field's value is never echoed back (echoesValue).
       if (offScreen()) { tellAway(); break; }
       const el = document.activeElement;
-      if (isTextField(el)) setFieldValue(el, String(m.v ?? '').slice(0, 500));
+      // 2,000 characters: a playlist link with its token can pass 500.
+      if (isTextField(el)) setFieldValue(el, String(m.v ?? '').slice(0, 2000));
       break;
     }
     case 'submit':

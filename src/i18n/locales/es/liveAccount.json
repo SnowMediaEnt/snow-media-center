@@ -165,6 +165,7 @@
       "intro": "Puedes ver los canales de TV en vivo de otro servicio en Snow Media Center junto a tus canales de DreamStreams/Vibez. No podemos ayudarte con los canales ni con el acceso de otro proveedor.",
       "needsLine": "Necesitas una línea activa de DreamStreams o Vibez.",
       "comesBack": "Tu otro servicio está guardado. Sus canales vuelven cuando tu línea esté activa de nuevo.",
+      "ownerGone": "Se agregó con una línea que ya no está en este TV. Quítalo o vuelve a iniciar sesión con esa línea.",
       "kind": "Tipo",
       "kindHint": "OK para cambiar",
       "xtreamChip": "Acceso Xtream",
@@ -193,7 +194,9 @@
       "footer": "¿Problemas con los canales o el acceso de ese servicio? Contacta al proveedor que te lo vendió.",
       "tag": "Externo",
       "otherGroup": "Otros",
+      "channelN": "Canal {{n}}",
       "reportNote": "Servicio externo: informa los problemas a ese proveedor.",
+      "hiddenNote": "Tu línea de DreamStreams/Vibez no está activa, así que los canales de {{name}} están ocultos.",
       "errors": {
         "needServer": "Escribe la dirección del servidor.",
         "needLogin": "Escribe el usuario y la contraseña.",
@@ -206,7 +209,7 @@
         "notPlaylist": "Ese enlace no es una lista de canales.",
         "empty": "Ese servicio no tiene canales de TV en vivo.",
         "inactive": "Ese servicio dice que este acceso venció o está desactivado.",
-        "tooBig": "Esa lista es demasiado grande para este TV.",
+        "tooBig": "Esta lista es demasiado grande para este equipo.",
         "testFirst": "Primero pulsa Probar. Guardar funciona cuando la prueba sale bien.",
         "full": "Solo se puede agregar un servicio más. Primero quita el que tienes."
       }

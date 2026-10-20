@@ -20,6 +20,13 @@ import {
   saveOutsideSource,
   scrubOutside,
   xtreamFromM3uLink,
+  STALE_MS,
+  lineEventProps,
+  lineOwnerKey,
+  markLineRefused,
+  noteOutsideStreamHosts,
+  outsideFlipAt,
+  ownerOnBox,
   type OutsideSource,
 } from './outsideSource';
 import { isOurHost } from './servers';
@@ -34,8 +41,10 @@ const account = (over: Partial<PlayerAccount> = {}): PlayerAccount => ({
   expDate: Math.floor(NOW / 1000) + 30 * 86400, status: 'Active', isTrial: false, maxConnections: 2, activeCons: 0, createdAt: null, lastCheckedAt: NOW,
   ...over,
 });
-const XTREAM: OutsideSource = { id: 'x:other.tv|bob', kind: 'xtream', name: 'Other TV', host: 'http://other.tv:8000', username: 'bob', password: 'hunter22', addedAt: 1 };
-const M3U: OutsideSource = { id: 'm:abc', kind: 'm3u', name: 'My List', url: 'http://lists.example/get/list.m3u?key=zzz', addedAt: 1 };
+/** The line that added the services below: DS's. */
+const OWNER = 'dstreams.xyz|jsmith';
+const XTREAM: OutsideSource = { id: 'x:other.tv|bob', kind: 'xtream', name: 'Other TV', host: 'http://other.tv:8000', username: 'bob', password: 'hunter22', owner: OWNER, addedAt: 1 };
+const M3U: OutsideSource = { id: 'm:abc', kind: 'm3u', name: 'My List', url: 'http://lists.example/get/list.m3u?key=zzz', owner: OWNER, addedAt: 1 };
 
 beforeEach(() => { localStorage.clear(); __resetOutsideForTests(); });
 
@@ -56,6 +65,8 @@ describe('what the form accepts', () => {
       .toEqual({ host: 'http://other.tv:8000', username: 'bob', password: 'hunter22' });
     expect(xtreamFromM3uLink('other.tv/sub/player_api.php?username=a&password=b')).toEqual({ host: 'http://other.tv/sub', username: 'a', password: 'b' });
     expect(xtreamFromM3uLink('http://lists.example/list.m3u')).toBeNull();
+    // Read by hand: a "+" in a password stays a "+" (URLSearchParams would make it a space).
+    expect(xtreamFromM3uLink('http://other.tv/get.php?username=bob&password=a+b%2Bc&type=m3u')?.password).toBe('a+b+c');
     expect(xtreamFromM3uLink('http://other.tv/get.php?username=bob')).toBeNull();
 
     const r = parseOutsideInput({ kind: 'm3u', url: 'http://other.tv:8000/get.php?username=bob&password=hunter22&type=m3u_plus' }, 5);
@@ -116,6 +127,29 @@ describe('the gate: an active DreamStreams or Vibez line', () => {
     expect(outsideAllowed(null, account(), NOW)).toBe(false);
   });
 
+  it('a record not checked with the panel for 3 days keeps it out until a fresh check', () => {
+    expect(outsideAllowed(DS, account({ lastCheckedAt: NOW - STALE_MS - 1 }), NOW)).toBe(false);
+    expect(outsideAllowed(DS, account({ lastCheckedAt: NOW - STALE_MS + 60_000 }), NOW)).toBe(true);
+    expect(outsideAllowed(DS, account({ lastCheckedAt: 0 }), NOW)).toBe(false);
+  });
+
+  it('a background check that found the login refused keeps it out until a later check saves the record', () => {
+    markLineRefused(DS, NOW - 1000);
+    expect(outsideAllowed(DS, account({ lastCheckedAt: NOW - 5000 }), NOW)).toBe(false);
+    expect(outsideAllowed(DS, account({ lastCheckedAt: NOW }), NOW)).toBe(true);
+    // Another line's refusal says nothing about this one.
+    localStorage.clear();
+    markLineRefused(VIBEZ, NOW);
+    expect(outsideAllowed(DS, account({ lastCheckedAt: NOW - 5000 }), NOW)).toBe(true);
+  });
+
+  it('when the answer flips on its own: the end date, or the moment the last check grows stale', () => {
+    const exp = Math.floor(NOW / 1000) + 3600;
+    expect(outsideFlipAt({ sources: [XTREAM], account: account({ expDate: exp }) }, NOW)).toBe(exp * 1000);
+    expect(outsideFlipAt({ sources: [XTREAM], account: account({ expDate: null }) }, NOW)).toBe(NOW + STALE_MS);
+    expect(outsideFlipAt({ sources: [], account: account() }, NOW)).toBeNull();
+  });
+
   it('an old line saved as "http://dstreams.xyz" (no port) still counts as the same line', () => {
     expect(outsideAllowed({ ...DS, host: 'http://dstreams.xyz' }, account(), NOW)).toBe(true);
   });
@@ -146,7 +180,21 @@ describe('Live TV lines (buildLines)', () => {
 
   it('never more than MAX_OUTSIDE_SOURCES', () => {
     const two = [XTREAM, M3U];
-    expect(outsideLinesFor(DS, { sources: two, account: account() }, NOW)).toHaveLength(MAX_OUTSIDE_SOURCES);
+    expect(outsideLinesFor(DS, { sources: two, account: account() }, [], NOW)).toHaveLength(MAX_OUTSIDE_SOURCES);
+  });
+
+  it('only with the line that added it on the box: the one in use, or a saved account', () => {
+    const vibezAccount = account({ host: VIBEZ.host, username: VIBEZ.username, serverLabel: 'Vibez' });
+    // Added on DS; Vibez in use, DS saved on the box: shown.
+    expect(buildLines(VIBEZ, [{ id: 'd', serverLabel: 'Dreamstreams', host: DS.host, username: DS.username, password: DS.password, output: 'm3u8', addedAt: 1 }], { sources: [XTREAM], account: vibezAccount }).map((l) => l.serverLabel))
+      .toEqual(['Vibez', 'Dreamstreams', 'Other TV']);
+    // DS gone from the box: not shown, whatever Vibez's state.
+    expect(buildLines(VIBEZ, [], { sources: [XTREAM], account: vibezAccount }).map((l) => l.serverLabel)).toEqual(['Vibez']);
+    // No owner at all (never tied to a line): not shown.
+    expect(buildLines(DS, [], { sources: [{ ...XTREAM, owner: undefined }], account: account() })).toHaveLength(1);
+    expect(ownerOnBox(XTREAM, DS)).toBe(true);
+    expect(ownerOnBox(XTREAM, { host: 'http://dstreams.xyz', username: 'JSmith' })).toBe(true);
+    expect(ownerOnBox(XTREAM, VIBEZ, [])).toBe(false);
   });
 
   it('an M3U link becomes a line with its own key and nothing that reaches anyone', () => {
@@ -162,24 +210,28 @@ describe('storage', () => {
     let told = 0;
     const on = () => { told += 1; };
     window.addEventListener(OUTSIDE_SOURCES_EVENT, on);
-    expect(await saveOutsideSource(XTREAM)).toBe(true);
+    expect(await saveOutsideSource({ ...XTREAM, owner: undefined }, DS)).toBe(true);
     window.removeEventListener(OUTSIDE_SOURCES_EVENT, on);
     expect(told).toBe(1);
+    // Tied to the line that saved it.
     expect(await loadOutsideSources()).toEqual([XTREAM]);
+    expect(lineOwnerKey(DS)).toBe(OWNER);
     expect(await loadSavedAccounts()).toEqual([]);
   });
 
   it('only one: a second is refused, an edit replaces it, remove forgets it', async () => {
-    await saveOutsideSource(XTREAM);
-    expect(await saveOutsideSource(M3U)).toBe(false);
-    expect(await saveOutsideSource(M3U, XTREAM.id)).toBe(true);
+    await saveOutsideSource(XTREAM, DS);
+    expect(await saveOutsideSource(M3U, DS)).toBe(false);
+    expect(await saveOutsideSource(M3U, DS, XTREAM.id)).toBe(true);
     expect(await loadOutsideSources()).toEqual([M3U]);
+    // Never without one of our lines as its owner.
+    expect(await saveOutsideSource(XTREAM, { host: 'http://other.tv', username: 'x' }, M3U.id)).toBe(false);
     await removeOutsideSource(M3U.id);
     expect(await loadOutsideSources()).toEqual([]);
   });
 
   it('never keeps one of ours, whatever is in storage', async () => {
-    expect(await saveOutsideSource({ ...XTREAM, host: 'http://dstreams.xyz:8080' })).toBe(false);
+    expect(await saveOutsideSource({ ...XTREAM, host: 'http://dstreams.xyz:8080' }, DS)).toBe(false);
     localStorage.setItem('snow-livetv-outside-sources-v1', JSON.stringify([{ ...XTREAM, host: 'https://strmz.xyz' }]));
     expect(await loadOutsideSources()).toEqual([]);
   });
@@ -189,7 +241,7 @@ describe('recognising an outside service', () => {
   it('by the line flag, or by the saved service\'s host (never one of ours)', async () => {
     expect(isOutsideLine({ ...DS, outside: true })).toBe(true);
     expect(isOutsideHost('http://other.tv:8000')).toBe(false);
-    await saveOutsideSource(XTREAM);
+    await saveOutsideSource(XTREAM, DS);
     expect(isOutsideHost('http://other.tv:8000')).toBe(true);
     expect(isOutsideHost('other.tv')).toBe(true);
     expect(isOutsideLine({ host: 'http://OTHER.tv' })).toBe(true);
@@ -202,12 +254,31 @@ describe('recognising an outside service', () => {
   it('analytics: its name, host, login and playlist address become "outside"; everything else is untouched', async () => {
     const props = { server: 'Dreamstreams', channel: 'News One' };
     expect(scrubOutside(props)).toBe(props);
-    await saveOutsideSource(XTREAM);
+    await saveOutsideSource(XTREAM, DS);
     expect(scrubOutside({ server: 'Other TV', channel: 'News One', count: 3 })).toEqual({ server: 'outside', channel: 'News One', count: 3 });
-    expect(scrubOutside({ url: 'http://other.tv:8000/live/bob/hunter22/1.ts' })).toEqual({ url: 'outside' });
-    expect(scrubOutside({ u: 'bob', p: 'hunter22' })).toEqual({ u: 'outside', p: 'outside' });
+    expect(scrubOutside({ url: 'http://OTHER.TV:8000/live/x/y/1.ts' })).toEqual({ url: 'outside' });
+    // A password as a word, case aside; a 3-letter username is too short to match safely.
+    expect(scrubOutside({ u: 'bob', p: 'HUNTER22', m: 'failed for hunter22 at login' })).toEqual({ u: 'bob', p: 'outside', m: 'outside' });
+    expect(scrubOutside({ word: 'hunter222 is not it' })).toEqual({ word: 'hunter222 is not it' });
     expect(scrubOutside(props)).toBe(props);
-    await saveOutsideSource(M3U, XTREAM.id);
-    expect(scrubOutside({ where: M3U.url!, server: 'My List' })).toEqual({ where: 'outside', server: 'outside' });
+    await saveOutsideSource(M3U, DS, XTREAM.id);
+    expect(scrubOutside({ where: M3U.url!, server: 'my list' })).toEqual({ where: 'outside', server: 'outside' });
+  });
+
+  it('analytics: nested objects and arrays too, and the hosts its playlist plays from', async () => {
+    await saveOutsideSource(M3U, DS);
+    noteOutsideStreamHosts(['cdn.faraway.example']);
+    const scrubbed = scrubOutside({ a: { b: ['ok', 'http://cdn.faraway.example/1.ts', { c: 'My List' }] }, n: 5, keep: 'News' });
+    expect(scrubbed).toEqual({ a: { b: ['ok', 'outside', { c: 'outside' }] }, n: 5, keep: 'News' });
+    // Ours is never an outside host, whatever is noted.
+    noteOutsideStreamHosts(['strmz.xyz']);
+    expect(scrubOutside({ s: 'https://strmz.xyz/live/1.ts' })).toEqual({ s: 'https://strmz.xyz/live/1.ts' });
+  });
+
+  it('event params for an outside line: server "outside" and no names', () => {
+    const out = outsideCreds(XTREAM);
+    expect(lineEventProps(out, { kind: 'live_native' }, { channel_or_title: 'Other News', server: 'Other TV' })).toEqual({ kind: 'live_native', server: 'outside' });
+    expect(lineEventProps(DS, { kind: 'live_native' }, { channel_or_title: 'News One', server: 'Dreamstreams' }))
+      .toEqual({ kind: 'live_native', channel_or_title: 'News One', server: 'Dreamstreams' });
   });
 });

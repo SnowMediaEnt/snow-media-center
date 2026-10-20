@@ -159,6 +159,7 @@
       "intro": "You can watch one other service's Live TV channels in Snow Media Center alongside your DreamStreams/Vibez channels. We can't help with another provider's channels or logins.",
       "needsLine": "Needs an active DreamStreams or Vibez line.",
       "comesBack": "Your other service is saved. Its channels come back when your line is active again.",
+      "ownerGone": "It was added on a line that isn't on this TV any more. Remove it, or sign in with that line again.",
       "kind": "Type",
       "kindHint": "OK switches",
       "xtreamChip": "Xtream login",
@@ -187,7 +188,9 @@
       "footer": "Problems with that service's channels or login? Contact the provider you bought it from.",
       "tag": "Outside",
       "otherGroup": "Other",
+      "channelN": "Channel {{n}}",
       "reportNote": "Outside service — report problems to that provider.",
+      "hiddenNote": "Your DreamStreams/Vibez line isn't active, so {{name}} channels are hidden.",
       "errors": {
         "needServer": "Type the server address.",
         "needLogin": "Type the username and password.",
@@ -200,7 +203,7 @@
         "notPlaylist": "That link isn't a channel playlist.",
         "empty": "That service has no Live TV channels.",
         "inactive": "That service says this login has expired or is turned off.",
-        "tooBig": "That playlist is too big for this TV.",
+        "tooBig": "This playlist is too big for this box.",
         "testFirst": "Press Test first. Save works once the test has worked.",
         "full": "Only one other service can be added. Remove the one you have first."
       }
