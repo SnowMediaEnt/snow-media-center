@@ -184,13 +184,13 @@
         }
       },
       "live-settings": {
-        "bytes": 12138,
+        "bytes": 15932,
         "rects": {
-          "hub.appearance": [20, 46.11, 60, 11.48],
-          "hub.channels": [20, 32.41, 60, 11.48],
-          "hub.rewind": [20, 59.81, 60, 11.48],
-          "hub.signOut": [20, 87.22, 60, 11.48],
-          "hub.services": [19.4, 18.59, 61.2, 11.71]
+          "hub.appearance": [1.67, 47.22, 26.67, 9.26],
+          "hub.channels": [1.67, 37.22, 26.67, 9.26],
+          "hub.rewind": [1.67, 57.22, 26.67, 9.26],
+          "hub.services": [1.67, 27.13, 26.67, 9.44],
+          "hub.signOut": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "live-signin": {
@@ -586,13 +586,13 @@
         }
       },
       "live-settings": {
-        "bytes": 13086,
+        "bytes": 17226,
         "rects": {
-          "hub.appearance": [20, 46.11, 60, 11.48],
-          "hub.channels": [20, 32.41, 60, 11.48],
-          "hub.rewind": [20, 59.81, 60, 11.48],
-          "hub.signOut": [20, 87.22, 60, 11.48],
-          "hub.services": [19.4, 18.59, 61.2, 11.71]
+          "hub.appearance": [1.67, 47.22, 26.67, 9.26],
+          "hub.channels": [1.67, 37.22, 26.67, 9.26],
+          "hub.rewind": [1.67, 57.22, 26.67, 9.26],
+          "hub.services": [1.67, 27.13, 26.67, 9.44],
+          "hub.signOut": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "live-signin": {
@@ -988,13 +988,13 @@
         }
       },
       "live-settings": {
-        "bytes": 14264,
+        "bytes": 18686,
         "rects": {
-          "hub.appearance": [20, 46.11, 60, 11.48],
-          "hub.channels": [20, 32.41, 60, 11.48],
-          "hub.rewind": [20, 59.81, 60, 11.48],
-          "hub.signOut": [20, 87.22, 60, 11.48],
-          "hub.services": [19.4, 18.59, 61.2, 11.71]
+          "hub.appearance": [1.67, 47.22, 26.67, 9.26],
+          "hub.channels": [1.67, 37.22, 26.67, 9.26],
+          "hub.rewind": [1.67, 57.22, 26.67, 9.26],
+          "hub.services": [1.67, 27.13, 26.67, 9.44],
+          "hub.signOut": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "live-signin": {
@@ -1390,13 +1390,13 @@
         }
       },
       "live-settings": {
-        "bytes": 13772,
+        "bytes": 17462,
         "rects": {
-          "hub.appearance": [20, 46.11, 60, 11.48],
-          "hub.channels": [20, 32.41, 60, 11.48],
-          "hub.rewind": [20, 59.81, 60, 11.48],
-          "hub.signOut": [20, 87.22, 60, 11.48],
-          "hub.services": [19.4, 18.59, 61.2, 11.71]
+          "hub.appearance": [1.67, 47.22, 26.67, 9.26],
+          "hub.channels": [1.67, 37.22, 26.67, 9.26],
+          "hub.rewind": [1.67, 57.22, 26.67, 9.26],
+          "hub.services": [1.67, 27.13, 26.67, 9.44],
+          "hub.signOut": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "live-signin": {
@@ -1792,13 +1792,13 @@
         }
       },
       "live-settings": {
-        "bytes": 10544,
+        "bytes": 14054,
         "rects": {
-          "hub.appearance": [20, 46.11, 60, 11.48],
-          "hub.channels": [20, 32.41, 60, 11.48],
-          "hub.rewind": [20, 59.81, 60, 11.48],
-          "hub.signOut": [20, 87.22, 60, 11.48],
-          "hub.services": [19.4, 18.59, 61.2, 11.71]
+          "hub.appearance": [1.67, 47.22, 26.67, 9.26],
+          "hub.channels": [1.67, 37.22, 26.67, 9.26],
+          "hub.rewind": [1.67, 57.22, 26.67, 9.26],
+          "hub.services": [1.67, 27.13, 26.67, 9.44],
+          "hub.signOut": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "live-signin": {
