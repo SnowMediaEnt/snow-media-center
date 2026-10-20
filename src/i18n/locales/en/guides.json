@@ -52,7 +52,7 @@
         },
         "services": {
           "title": "More than one service? They all show in one list.",
-          "line2": "Add one under Live TV Settings → Add service. Each has its own heading."
+          "line2": "Add one under Live TV Settings → Services. Each has its own heading."
         },
         "layout": {
           "title": "Pick your look: Classic, Compact or Vibez.",
@@ -104,7 +104,7 @@
         },
         "settings": {
           "title": "Live TV Settings",
-          "line2": "My account, add or switch services, hide categories, the look, rewind and sign out."
+          "line2": "My account, services, channels, the look, recording, the player, and help when something's wrong."
         },
         "vod": {
           "title": "VOD: your service's movies.",
@@ -386,7 +386,6 @@
         "goHere": "Go here on your phone",
         "goLive": "Go live",
         "help": "Help",
-        "hideCategories": "Hide Categories",
         "holdToReport": "Hold OK to report",
         "howFar": "How far back",
         "howLong": "How long",
@@ -437,7 +436,7 @@
         "report": "Report",
         "reportedDown": "⚠️ Reported down",
         "results": "Results",
-        "rewindSettings": "Rewind & recording",
+        "rewindSettings": "Recording & rewind",
         "saveTo": "Where to save",
         "scanPhone": "Scan with your phone",
         "scanToPay": "Scan to pay",
@@ -452,7 +451,7 @@
         "start": "Start",
         "steps": "Steps",
         "subtitles": "Subtitles",
-        "addService": "Add service",
+        "services": "Services",
         "talkNow": "Talk now",
         "todaysGames": "Today's games",
         "typeHere": "Type here",

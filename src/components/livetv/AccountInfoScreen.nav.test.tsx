@@ -17,6 +17,9 @@ vi.mock('@/hooks/usePlayerAccount', () => ({
 vi.mock('@/lib/demoMode', () => ({ isDemo: () => h.demo }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 vi.mock('./RenewQR', () => ({ default: () => <div data-testid="renew-qr" /> }));
+// The line's devices come from the server: stood in for.
+const dev = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
+vi.mock('./LineDevicesPanel', () => ({ default: (p: Record<string, unknown>) => { dev.props = p; return <div data-testid="line-devices" />; } }));
 
 import AccountInfoScreen from './AccountInfoScreen';
 
@@ -108,5 +111,33 @@ describe('My Account: one Renew path', () => {
     act(() => { (container.querySelectorAll('[data-account-actions] button')[2] as HTMLElement).click(); });
     expect(onOpenBilling).toHaveBeenCalledTimes(2);
     expect(queryByTestId('renew-qr')).toBeNull();
+  });
+});
+
+describe('My Account: Devices on this line, inside the page', () => {
+  const LINE = { host: 'http://dstreams.xyz:8080', username: 'jsmith' };
+  const labels = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-account-actions] button')).map((b) => b.textContent?.trim());
+
+  it('with the line: a button before Sign out that opens its devices in the page; Back returns to the button', () => {
+    const onBack = vi.fn();
+    const { container, queryByTestId } = render(<AccountInfoScreen embedded active onBack={onBack} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} devicesLine={LINE} />);
+    expect(labels(container)).toEqual(['Show password', 'Change credentials', 'Renew', 'Devices on this line', 'Sign out']);
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
+    expect(focused(container)).toBe('Devices on this line');
+    key('Enter');
+    expect(queryByTestId('line-devices')).toBeTruthy();
+    expect(dev.props).toMatchObject({ host: LINE.host, username: 'jsmith', embedded: true, active: true, viaSupport: true });
+    key('Escape'); // the devices panel owns the keys: this page doesn't leave
+    expect(onBack).not.toHaveBeenCalled();
+    act(() => { (dev.props!.onBack as () => void)(); });
+    expect(queryByTestId('line-devices')).toBeNull();
+    expect(focused(container)).toBe('Devices on this line');
+    key('ArrowDown');
+    expect(focused(container)).toBe('Sign out');
+  });
+
+  it('without a line: no Devices button', () => {
+    const { container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
+    expect(labels(container)).not.toContain('Devices on this line');
   });
 });

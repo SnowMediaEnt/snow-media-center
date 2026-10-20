@@ -1,5 +1,5 @@
 /**
- * Live TV › Settings › Add service (ServicesScreen): Switch Account and Add
+ * Live TV › Settings › Services (ServicesScreen): Switch Account and Add
  * another service in one page (owner, 2026-10-20). Your services lists every
  * DreamStreams / Vibez line on the box (the one in use marked; OK on another
  * switches to it) and the outside service with its state (OK opens its Edit /
@@ -92,7 +92,7 @@ const renderScreen = async (active = true) => {
   return { ...props, unmount };
 };
 
-describe('Add service: your services', () => {
+describe('Services: your services', () => {
   it('lists every line on the box (the one in use marked), then the outside service with its tag and state, then Add', async () => {
     keepOutside('dstreams.xyz|jsmith');
     await renderScreen();
@@ -176,7 +176,7 @@ describe('Add service: your services', () => {
   });
 });
 
-describe('Add service: Add another service', () => {
+describe('Services: Add another service', () => {
   it('asks which kind; "DreamStreams or Vibez line" opens the sign-in form', async () => {
     const props = await renderScreen();
     goTo('add');
@@ -260,7 +260,7 @@ describe('Add service: Add another service', () => {
   });
 });
 
-describe('Add service: the remote', () => {
+describe('Services: the remote', () => {
   it('while the remote is on the Settings menu the page takes no keys and shows no highlight', async () => {
     const props = await renderScreen(false);
     expect(focusedRow()).toBeUndefined();

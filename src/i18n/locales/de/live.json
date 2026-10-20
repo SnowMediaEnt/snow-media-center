@@ -124,10 +124,7 @@
       "decodeAudio": "Ton auf diesem Gerät dekodieren",
       "decodeAudioDesc": "Für einen Fernseher oder Receiver, der den Film zeigt, aber keinen Ton spielt: Dolby und DTS werden dann hier dekodiert statt durchgereicht. Für den besten Ton ausgeschaltet lassen.",
       "on": "An",
-      "off": "Aus",
-      "liveHeading": "Live-TV",
-      "failover": "Fällt ein Sender aus, über meinen anderen Dienst abspielen",
-      "failoverDesc": "Startet ein Sender nicht, spielt Live-TV denselben Sender über deinen anderen Dienst ab, einmal pro gewähltem Sender. Aus: Der Fehlerbildschirm bietet es als Taste an."
+      "off": "Aus"
     },
     "shell": {
       "signingIn": "Du wirst mit deinem Konto angemeldet…",

@@ -2,27 +2,42 @@
  * Live TV -> Settings laid out like Account info (owner, 2026-10-14): the menu
  * is a column on the left, the highlighted page sits on the right; OK / Right
  * move the remote into it, Back from the page returns to the menu.
+ * Reorganized (owner, 2026-10-20): eight rows, each with its state under its
+ * name: My Account, Services, Channels, Appearance, Recording & rewind,
+ * Player, Fix a problem, Sign out.
  */
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const billing = vi.hoisted(() => ({ on: false }));
 vi.mock('@/hooks/useBillingEnabled', () => ({ useBillingEnabled: () => billing.on }));
+// The state lines are computed in useHubStates (its own test): here, what the menu shows of them.
+vi.mock('./useHubStates', () => ({
+  useHubStates: () => ({
+    account: 'Dreamstreams · expires Nov 19', services: '2 services', channels: '3 hidden · Favorites: my order',
+    appearance: 'Compact · Slim rows', rewind: 'Rewind on · Recordings on this box', player: 'ExoPlayer',
+    help: 'Buffering? Start here', signout: 'Signed in as jsmith',
+  }),
+}));
+const tool = vi.hoisted(() => ({ calls: [] as Array<[string, unknown]> }));
+vi.mock('@/lib/appActions', () => ({ openSupportTool: (t: string, nav: unknown) => { tool.calls.push([t, nav]); } }));
 
 // Each page is stood in for: what the menu hands it is what is tested here.
-const pageProps = vi.hoisted(() => ({} as Record<string, { embedded?: boolean; active?: boolean; onBack?: () => void }>));
+type PageProps = { embedded?: boolean; active?: boolean; onBack?: () => void } & Record<string, unknown>;
+const pageProps = vi.hoisted(() => ({} as Record<string, PageProps>));
 const stub = (name: string) => ({
-  default: (p: { embedded?: boolean; active?: boolean; onBack?: () => void }) => {
+  default: (p: PageProps) => {
     pageProps[name] = p;
     return <div data-testid={`page-${name}`} data-active={p.active ? 'yes' : 'no'} />;
   },
 });
 vi.mock('./AccountInfoScreen', () => stub('account'));
 vi.mock('./ServicesScreen', () => stub('services'));
-vi.mock('./HideCategoriesScreen', () => stub('categories'));
+vi.mock('./ChannelsScreen', () => stub('channels'));
 vi.mock('./AppearanceScreen', () => stub('appearance'));
 vi.mock('./RewindSettingsScreen', () => stub('rewind'));
-vi.mock('./PlaybackScreen', () => stub('playback'));
+vi.mock('./PlaybackScreen', () => stub('player'));
+vi.mock('./FixProblemScreen', () => stub('help'));
 vi.mock('@/components/billing/BillingAccountScreen', () => stub('billingView'));
 
 import SettingsHub from './SettingsHub';
@@ -32,8 +47,16 @@ const key = (k: string) => act(() => {
 });
 const settle = async (ms = 0) => { await act(async () => { vi.advanceTimersByTime(ms); await Promise.resolve(); await Promise.resolve(); }); };
 const shownPage = (c: HTMLElement) => c.querySelector('[data-settings-page]')!;
+const labels = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-hub-label]')).map((n) => n.textContent);
+const focusedRow = (c: HTMLElement) => c.querySelector('[data-hub-row][data-focused="true"]')?.getAttribute('data-hub-row');
+/** Down to a row from the top (My Account), letting the page follow. */
+const goTo = async (c: HTMLElement, id: string) => {
+  for (let i = 0; i < 8 && focusedRow(c) !== id; i += 1) key('ArrowDown');
+  expect(focusedRow(c)).toBe(id);
+  await settle(300);
+};
 
-beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); billing.on = false; for (const k of Object.keys(pageProps)) delete pageProps[k]; });
+beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); billing.on = false; tool.calls = []; for (const k of Object.keys(pageProps)) delete pageProps[k]; });
 afterEach(() => { vi.useRealTimers(); });
 
 const renderHub = (over: Partial<Parameters<typeof SettingsHub>[0]> = {}) => {
@@ -41,6 +64,34 @@ const renderHub = (over: Partial<Parameters<typeof SettingsHub>[0]> = {}) => {
   const r = render(<SettingsHub {...props} />);
   return { ...r, props };
 };
+
+describe('Live TV Settings: the menu', () => {
+  it('eight rows in the owner\'s order, each with its state in small text under its name', async () => {
+    const { container } = renderHub();
+    await settle();
+    expect(labels(container)).toEqual(['My Account', 'Services', 'Channels', 'Appearance', 'Recording & rewind', 'Player', 'Fix a problem', 'Sign Out']);
+    const state = (id: string) => container.querySelector(`[data-hub-row="${id}"] [data-hub-state]`)?.textContent;
+    expect(state('account')).toBe('Dreamstreams · expires Nov 19');
+    expect(state('services')).toBe('2 services');
+    expect(state('channels')).toBe('3 hidden · Favorites: my order');
+    expect(state('appearance')).toBe('Compact · Slim rows');
+    expect(state('rewind')).toBe('Rewind on · Recordings on this box');
+    expect(state('player')).toBe('ExoPlayer');
+    expect(state('help')).toBe('Buffering? Start here');
+    expect(state('signout')).toBe('Signed in as jsmith');
+    // The How-to guide's hooks.
+    expect(['hub.services', 'hub.channels', 'hub.appearance', 'hub.rewind', 'hub.signOut'].map((h) => container.querySelector(`[data-howto="${h}"]`)?.getAttribute('data-hub-row')))
+      .toEqual(['services', 'channels', 'appearance', 'rewind', 'signout']);
+  });
+
+  it('no row is gone missing: Devices on this line and Hide categories are inside pages now', async () => {
+    const { container } = renderHub({ line: { host: 'http://dstreams.xyz:8080', username: 'jsmith' } });
+    await settle();
+    expect(labels(container)).toHaveLength(8);
+    expect(labels(container)).not.toContain('Devices on this line');
+    expect(labels(container)).not.toContain('Hide Categories');
+  });
+});
 
 describe('Live TV Settings: menu on the left, the page on the right', () => {
   it('shows the highlighted row\'s page beside the menu, inactive, following the highlight once it rests', async () => {
@@ -55,6 +106,7 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     expect(shownPage(container).getAttribute('data-settings-page')).toBe('account'); // not yet: still moving
     await settle(300);
     expect(shownPage(container).getAttribute('data-settings-page')).toBe('services');
+    expect(shownPage(container).querySelector('h2')?.textContent).toBe('Services');
   });
 
   it('OK or Right moves the remote into the page; Back from the page returns to the menu', async () => {
@@ -78,30 +130,34 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     expect(pageProps.services.active).toBe(true);
   });
 
-  it('Sign Out: OK signs out, Right does not; Up from the first row reaches Back and Back on the menu leaves', async () => {
+  it('Sign out: OK signs out, Right does not; Up from the first row reaches Back and Back on the menu leaves', async () => {
     const { container, props } = renderHub();
     await settle();
-    for (let i = 0; i < 6; i++) key('ArrowDown');
+    for (let i = 0; i < 7; i++) key('ArrowDown');
     await settle(300);
-    expect(shownPage(container).textContent).toMatch(/sign/i); // the Sign Out note
+    expect(focusedRow(container)).toBe('signout');
+    expect(shownPage(container).textContent).toMatch(/sign/i); // the Sign out note
     key('ArrowRight');
     expect(props.onSignOut).not.toHaveBeenCalled();
     key('Enter');
     expect(props.onSignOut).toHaveBeenCalledTimes(1);
-    for (let i = 0; i < 7; i++) key('ArrowUp');
+    for (let i = 0; i < 8; i++) key('ArrowUp');
     expect(container.querySelector('[data-focused="true"]')?.textContent).toMatch(/back/i);
     key('Escape');
     expect(props.onBack).toHaveBeenCalledTimes(1);
   });
 
   it('opened on a page (the assistant\'s "open Appearance") starts with the remote in it', async () => {
-    const { container } = renderHub({ initialView: 'appearance' as never });
+    const { container } = renderHub({ initialView: 'appearance' });
     await settle();
     expect(shownPage(container).getAttribute('data-settings-page')).toBe('appearance');
     expect(pageProps.appearance).toMatchObject({ embedded: true, active: true });
+    act(() => { pageProps.appearance.onBack!(); });
+    await settle();
+    expect(focusedRow(container)).toBe('appearance');
   });
 
-  it('a tap on a row with no page beside the menu (Sign Out) while the remote is in a page hands the remote back to the menu', async () => {
+  it('a tap on a row with no page beside the menu (Sign out) while the remote is in a page hands the remote back to the menu', async () => {
     const { container, props } = renderHub();
     await settle();
     key('ArrowRight');
@@ -115,46 +171,65 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     key('Escape'); // the menu has the remote again: Back leaves
     expect(props.onBack).toHaveBeenCalledTimes(1);
   });
+});
 
-  it('Switch Account and Add another service are one row, "Add service", beside the menu like the others', async () => {
-    const { container, props } = renderHub();
+describe('Live TV Settings: each page gets what it needs', () => {
+  it('My Account: the line for Devices on this line (none without a line); Services: switching and adding', async () => {
+    const line = { host: 'http://dstreams.xyz:8080', username: 'jsmith' };
+    const { container, props, unmount } = renderHub({ line });
     await settle();
-    const labels = Array.from(container.querySelectorAll('[data-settings-menu] > div')).map((n) => n.textContent);
-    expect(labels).toEqual(['My Account', 'Add service', 'Hide Categories', 'Appearance', 'Rewind & recording', 'Playback', 'Sign Out']);
-    expect(container.querySelector('[data-howto="hub.services"]')?.textContent).toBe('Add service');
-    key('ArrowDown');
-    await settle(300);
-    expect(shownPage(container).querySelector('h2')?.textContent).toBe('Add service');
-    expect(pageProps.services).toMatchObject({ active: false });
-    key('Enter');
+    expect(pageProps.account.devicesLine).toEqual(line);
+    await goTo(container, 'services');
+    expect(pageProps.services.onPicked).toBe(props.onSwitchAccount);
+    expect(pageProps.services.onAddAccount).toBe(props.onChangeCredentials);
+    unmount();
+    renderHub();
     await settle();
-    expect(pageProps.services.active).toBe(true);
-    // Switching a line and adding one are the hub's own callbacks.
-    const p = pageProps.services as unknown as { onPicked: unknown; onAddAccount: unknown };
-    expect(p.onPicked).toBe(props.onSwitchAccount);
-    expect(p.onAddAccount).toBe(props.onChangeCredentials);
+    expect(pageProps.account.devicesLine).toBeNull();
   });
 
-  it('opened on Add service (initialView "services") starts with the remote in it', async () => {
-    const { container } = renderHub({ initialView: 'services' as never });
+  it('Channels: Update channels is Live TV\'s own; opened on "channels" it has the remote', async () => {
+    const onUpdateChannels = vi.fn();
+    const { container } = renderHub({ onUpdateChannels, initialView: 'channels' });
     await settle();
-    expect(shownPage(container).getAttribute('data-settings-page')).toBe('services');
-    expect(pageProps.services).toMatchObject({ active: true });
-    act(() => { pageProps.services.onBack!(); });
+    expect(shownPage(container).getAttribute('data-settings-page')).toBe('channels');
+    expect(pageProps.channels).toMatchObject({ active: true, onUpdateChannels });
+  });
+
+  it('Player is the old Playback page', async () => {
+    const { container } = renderHub();
     await settle();
-    expect(pageProps.services.active).toBe(false);
-    expect(container.querySelector('[data-focused="true"]')?.textContent).toBe('Add service');
+    await goTo(container, 'player');
+    expect(screen.getByTestId('page-player')).toBeTruthy();
+  });
+
+  it('Fix a problem: the Buffering Guide, and Support\'s Speed test / Submit a Ticket through the Player\'s navigation', async () => {
+    const onOpenBufferingGuide = vi.fn();
+    const onNavigate = vi.fn();
+    const { container } = renderHub({ onOpenBufferingGuide, onNavigate });
+    await settle();
+    await goTo(container, 'help');
+    const page = pageProps.help as { onOpenBufferingGuide?: () => void; onOpenSupportTool?: (t: string) => void };
+    expect(page.onOpenBufferingGuide).toBe(onOpenBufferingGuide);
+    act(() => { page.onOpenSupportTool!('speedtest'); });
+    act(() => { page.onOpenSupportTool!('tickets'); });
+    expect(tool.calls).toEqual([['speedtest', onNavigate], ['tickets', onNavigate]]);
+  });
+
+  it('Fix a problem without a way out of the Player: no Support tools offered', async () => {
+    const { container } = renderHub();
+    await settle();
+    await goTo(container, 'help');
+    expect(pageProps.help.onOpenSupportTool).toBeUndefined();
   });
 });
 
 describe('Live TV Settings: My Account (the line and, with billing on, its plans and renewals)', () => {
-  const labels = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-settings-menu] > div')).map((n) => n.textContent);
   type AccountPage = { onOpenBilling?: () => void; active?: boolean; onBack?: () => void };
 
   it('billing off: one My Account row, the line\'s details, no way into billing', async () => {
     const { container } = renderHub();
     await settle();
-    expect(labels(container)[0]).toBe('My Account');
     expect(labels(container).filter((l) => /account/i.test(l ?? ''))).toEqual(['My Account']);
     expect(shownPage(container).getAttribute('data-settings-page')).toBe('account');
     expect(shownPage(container).querySelector('h2')?.textContent).toBe('My Account');
@@ -165,7 +240,7 @@ describe('Live TV Settings: My Account (the line and, with billing on, its plans
     billing.on = true;
     const { container, props } = renderHub();
     await settle();
-    expect(labels(container)).toEqual(['My Account', 'Add service', 'Hide Categories', 'Appearance', 'Rewind & recording', 'Playback', 'Sign Out']);
+    expect(labels(container).filter((l) => /account/i.test(l ?? ''))).toEqual(['My Account']);
     key('Enter');
     await settle();
     const page = pageProps.account as AccountPage;
@@ -175,21 +250,21 @@ describe('Live TV Settings: My Account (the line and, with billing on, its plans
     expect(await screen.findByTestId('page-billingView')).toBeTruthy();
     expect(container.querySelector('[data-settings-menu]')).toBeNull(); // drawn in place of the hub, as before
     // Using a billing service in the player switches Live TV's line.
-    expect((pageProps.billingView as unknown as { onUseInPlayer: unknown }).onUseInPlayer).toBe(props.onSwitchAccount);
+    expect(pageProps.billingView.onUseInPlayer).toBe(props.onSwitchAccount);
     act(() => { pageProps.billingView.onBack!(); });
     await settle();
     expect(screen.queryByTestId('page-billingView')).toBeNull();
     expect(shownPage(container).getAttribute('data-settings-page')).toBe('account');
-    expect((pageProps.account as AccountPage).active).toBe(true); // one layer back: the page, not the menu
+    expect((pageProps.account as AccountPage).active).toBe(true); // one level back: the page, not the menu
     act(() => { pageProps.account.onBack!(); });
     await settle();
-    expect(container.querySelector('[data-focused="true"]')?.textContent).toBe('My Account');
+    expect(focusedRow(container)).toBe('account');
     expect(props.onBack).not.toHaveBeenCalled();
   });
 
   it('opened on billing (initialView "billing"): the billing view, whose Back lands on My Account', async () => {
     billing.on = true;
-    const { container } = renderHub({ initialView: 'billing' as never });
+    const { container } = renderHub({ initialView: 'billing' });
     expect(await screen.findByTestId('page-billingView')).toBeTruthy();
     act(() => { pageProps.billingView.onBack!(); });
     await settle();

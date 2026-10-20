@@ -17,7 +17,7 @@ vi.mock('@/components/HowToGuide', () => ({ default: () => <div>how-to</div> }))
 vi.mock('@/components/RemoteSupport', () => ({ default: () => <div>remote</div> }));
 vi.mock('@/components/DeviceCleaner', () => ({ default: () => <div>cleaner</div> }));
 
-import { INTENT_KEYS, openScreen, PLAYER_INTENT_EVENT, SCREEN_INTENT_EVENT, takeIntent, type PlayerIntent } from '@/lib/appActions';
+import { INTENT_KEYS, openScreen, openSupportTool, PLAYER_INTENT_EVENT, SCREEN_INTENT_EVENT, takeIntent, type PlayerIntent } from '@/lib/appActions';
 import Support from '@/components/Support';
 
 beforeEach(() => {
@@ -52,6 +52,18 @@ describe('openScreen on a screen that is already open', () => {
     openScreen('wallpaper', vi.fn());
     window.removeEventListener(SCREEN_INTENT_EVENT, on);
     expect(views).toEqual(['support', 'settings']);
+  });
+
+  it('Live TV Settings › Fix a problem: openSupportTool lands on Support\'s Speed test / Submit a Ticket', async () => {
+    const navigate = vi.fn();
+    openSupportTool('speedtest', navigate);
+    expect(navigate).toHaveBeenCalledWith('support');
+    expect(sessionStorage.getItem(INTENT_KEYS.support)).toBe('speedtest');
+    render(<Support onBack={vi.fn()} />);
+    expect(await screen.findByText('speed-test')).toBeTruthy();
+    expect(sessionStorage.getItem(INTENT_KEYS.support)).toBeNull();
+    await act(async () => { openSupportTool('tickets', navigate); });
+    expect(await screen.findByText('tickets')).toBeTruthy();
   });
 
   it('Support opens the tool at once and leaves nothing for the next visit', async () => {

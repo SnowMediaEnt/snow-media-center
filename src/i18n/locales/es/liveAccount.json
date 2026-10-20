@@ -3,15 +3,36 @@
     "hub": {
       "title": "Ajustes",
       "myAccount": "Mi cuenta",
-      "services": "Agregar servicio",
-      "hideCategories": "Ocultar categorías",
+      "services": "Servicios",
+      "channels": "Canales",
       "appearance": "Apariencia",
-      "rewind": "Retroceso y grabación",
-      "playback": "Reproducción",
+      "rewind": "Grabación y retroceso",
+      "player": "Reproductor",
+      "help": "Resolver un problema",
       "signOut": "Cerrar sesión",
       "signOutHint": "Cierra la sesión de Live TV en este equipo. Tu línea sigue funcionando en tus otros dispositivos. Pulsa OK para cerrar sesión.",
       "demoTitle": "Demo en vivo",
-      "demoDesc": "La demo viene con una cuenta de demostración — el inicio de sesión y el cambio de cuenta funcionan en la app instalada."
+      "demoDesc": "La demo viene con una cuenta de demostración — el inicio de sesión y el cambio de cuenta funcionan en la app instalada.",
+      "state": {
+        "expires": "vence el {{date}}",
+        "services_one": "{{count}} servicio",
+        "services_many": "{{count}} servicios",
+        "services_other": "{{count}} servicios",
+        "hidden_one": "{{count}} oculta",
+        "hidden_many": "{{count}} ocultas",
+        "hidden_other": "{{count}} ocultas",
+        "noneHidden": "Nada oculto",
+        "favMine": "Favoritos: mi orden",
+        "favAz": "Favoritos: A–Z",
+        "slimRows": "Filas delgadas",
+        "normalRows": "Filas normales",
+        "rewindOn": "Retroceso activado",
+        "rewindOff": "Retroceso desactivado",
+        "recordingsHere": "Grabaciones en este equipo",
+        "recordingsOn": "Grabaciones en {{name}}",
+        "help": "¿Se traba? Empieza aquí",
+        "signedInAs": "Sesión iniciada: {{username}}"
+      }
     },
     "renewQr": {
       "qrAlt": "Código QR de renovación",
@@ -173,6 +194,22 @@
       "kindLineHint": "Inicia sesión con otra línea. Luego cambia entre tus líneas aquí.",
       "kindOutsideHint": "Sus canales de TV en vivo se ven junto a los tuyos: un acceso Xtream o un enlace M3U.",
       "outsideFull": "Ya tienes otro proveedor. Quítalo para agregar uno distinto."
+    },
+    "channels": {
+      "hide": "Ocultar categorías",
+      "hideDesc": "Elige las categorías que TV en vivo deja fuera, en cada línea.",
+      "favOrder": "Orden de favoritos",
+      "favOrderDesc": "OK cambia. Igual que Ordenar a mi manera / Ordenar A–Z en el menú de un canal.",
+      "favMine": "Mi orden",
+      "favAz": "A–Z",
+      "updateDesc": "Vuelve a cargar las listas de canales de tus servicios. Ajustes se cierra para que veas cómo llegan.",
+      "failover": "Si un canal no funciona, reprodúcelo desde mi otro servicio",
+      "failoverDesc": "Si un canal no arranca, TV en vivo reproduce el mismo canal desde tu otro servicio, una vez por cada canal que elijas. Desactivado: la pantalla de error lo ofrece como botón."
+    },
+    "help": {
+      "intro": "Casi todos los cortes se arreglan con una de estas opciones. Empieza por la Guía de buffering.",
+      "restartTitle": "Reinicia tu equipo y tu router",
+      "restartTip": "Desconecta ambos 30 segundos. Conecta primero el router, espera a que sus luces se estabilicen y luego el equipo."
     },
     "outside": {
       "title": "Otro proveedor",

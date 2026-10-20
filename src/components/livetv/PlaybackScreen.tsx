@@ -6,8 +6,6 @@ import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { usePlayerEngine, type PlayerEngine } from '@/hooks/usePlayerEngine';
 import { compareEngines, type EngineCompareRow } from '@/lib/engineCompare';
 import { loadDecodeAudioOnBox, loadMatchFrameRate, saveDecodeAudioOnBox, saveMatchFrameRate } from '@/lib/playerFlags';
-import { loadFailoverOn, readLiveLineCount, saveFailoverOn } from '@/lib/channelFailover';
-import { loadSavedAccounts, savedAccountId } from '@/lib/xtream';
 
 interface Props {
   onBack: () => void;
@@ -47,11 +45,9 @@ const TOGGLES: ToggleRow[] = [
   { id: 'matchFrameRate', labelKey: 'live.playback.matchFrameRate', descKey: 'live.playback.matchFrameRateDesc', load: loadMatchFrameRate, save: saveMatchFrameRate },
   { id: 'decodeAudio', labelKey: 'live.playback.decodeAudio', descKey: 'live.playback.decodeAudioDesc', load: loadDecodeAudioOnBox, save: saveDecodeAudioOnBox },
 ];
-/** Live TV: a channel that won't start plays from the viewer's other service
- *  (useChannelFailover). Only offered with more than one line on the box. */
-const FAILOVER_ROW: ToggleRow = { id: 'failover', labelKey: 'live.playback.failover', descKey: 'live.playback.failoverDesc', load: loadFailoverOn, save: saveFailoverOn };
-const ALL_TOGGLES = [...TOGGLES, FAILOVER_ROW];
-/** Focus: 0 = Back, 1-2 = the engine chips, then one per toggle (Picture, then Live TV). */
+// The failover switch ("When a channel is down, play it from my other
+// service") moved to Live TV Settings › Channels (owner, 2026-10-20).
+/** Focus: 0 = Back, 1-2 = the engine chips, then one per toggle. */
 const FIRST_TOGGLE = 1 + CHIPS.length;
 
 const dash = (n: number | null, digits = 0, suffix = ''): string => (n == null ? '—' : `${n.toFixed(digits)}${suffix}`);
@@ -62,22 +58,7 @@ const PlaybackScreen = memo(({ onBack, embedded = false, active = true }: Props)
   const [mpvAvailable, setMpvAvailable] = useState(true);
   const [mpvReason, setMpvReason] = useState<string | null>(null);
   const [rows, setRows] = useState<EngineCompareRow[]>([]);
-  const [toggles, setToggles] = useState<Record<string, boolean>>(() => Object.fromEntries(ALL_TOGGLES.map((r) => [r.id, r.load()])));
-  // More than one line: what Live TV last counted (it knows every line it
-  // lists), else the saved accounts.
-  const [multiLine, setMultiLine] = useState(() => readLiveLineCount() > 1);
-  useEffect(() => {
-    if (multiLine) return;
-    let cancelled = false;
-    void loadSavedAccounts().then((list) => {
-      const ids = new Set(list.filter((a) => a.host && a.username && a.password).map((a) => savedAccountId(a.host, a.username)));
-      if (!cancelled && ids.size > 1) setMultiLine(true);
-    }).catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [multiLine]);
-  const shownToggles = multiLine ? ALL_TOGGLES : TOGGLES;
-  const togglesRef = useRef(shownToggles);
-  togglesRef.current = shownToggles;
+  const [toggles, setToggles] = useState<Record<string, boolean>>(() => Object.fromEntries(TOGGLES.map((r) => [r.id, r.load()])));
   const flip = (row: ToggleRow) => {
     const next = !row.load();
     row.save(next);
@@ -134,7 +115,7 @@ const PlaybackScreen = memo(({ onBack, embedded = false, active = true }: Props)
         else if (embedded) onBack();
         else setFocusIdx(0);
       } else if (e.key === 'ArrowDown') {
-        const last = FIRST_TOGGLE + togglesRef.current.length - 1;
+        const last = FIRST_TOGGLE + TOGGLES.length - 1;
         setFocusIdx((i) => (i >= 1 && i < FIRST_TOGGLE ? FIRST_TOGGLE : Math.min(last, i + 1)));
       } else if (e.key === 'ArrowUp') {
         // From the first switch up to the chips; from a chip up to Back (none embedded).
@@ -142,7 +123,7 @@ const PlaybackScreen = memo(({ onBack, embedded = false, active = true }: Props)
       } else if (e.key === 'Enter' || e.key === ' ') {
         // A toggle flips once per press (outside the state updater, which
         // React may run twice).
-        const row = togglesRef.current[focusRef.current - FIRST_TOGGLE];
+        const row = TOGGLES[focusRef.current - FIRST_TOGGLE];
         if (row) { flip(row); return; }
         setFocusIdx((cur) => {
           if (cur === 0) { onBack(); return cur; }
@@ -236,13 +217,6 @@ const PlaybackScreen = memo(({ onBack, embedded = false, active = true }: Props)
             <div className="text-xs uppercase tracking-wide text-white/70">{t('live.playback.settingsHeading')}</div>
             {TOGGLES.map((row, i) => toggleRow(row, FIRST_TOGGLE + i))}
           </div>
-
-          {multiLine && (
-            <div className="space-y-3">
-              <div className="text-xs uppercase tracking-wide text-white/70">{t('live.playback.liveHeading')}</div>
-              {toggleRow(FAILOVER_ROW, FIRST_TOGGLE + TOGGLES.length)}
-            </div>
-          )}
 
           <div className="space-y-3">
             <div className="text-xs uppercase tracking-wide text-white/70">{t('live.playback.compareHeading')}</div>

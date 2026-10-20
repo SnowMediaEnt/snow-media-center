@@ -1169,6 +1169,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     // Event fallback for other callers / late listeners.
     setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
   }, []);
+  // Settings › Channels › Update channels: Live TV's own Update Channels, with
+  // Settings closed so the lists are seen coming in (and Live TV, there again,
+  // is what reports back how it went).
+  const settingsUpdateChannels = useCallback(() => {
+    refreshChannels();
+    setSettingsOpen(false);
+    setSettingsInitialView(undefined);
+  }, [refreshChannels]);
   const plexOpenSupport = useCallback(() => {
     try {
       const w = window as unknown as { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };
@@ -1297,7 +1305,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     );
   }
 
-  // Settings hub (Account / Switch Account / Appearance).
+  // Settings hub (My Account, Services, Channels, Appearance, ...).
   if (showSettings) {
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-white"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
@@ -1309,6 +1317,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           onSwitchAccount={onSwitchAccount}
           onTryLayout={tryLayout}
           line={settingsLine}
+          onUpdateChannels={settingsUpdateChannels}
+          onOpenBufferingGuide={plexOpenBufferingGuide}
+          onNavigate={navigateViaRef}
         />
       </Suspense>
     );

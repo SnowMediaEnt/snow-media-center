@@ -1,4 +1,4 @@
-// Live TV › Settings › Add service (owner, 2026-10-20: Switch Account and Add
+// Live TV › Settings › Services (owner, 2026-10-20: Switch Account and Add
 // another service blended into one page). Every service on this box:
 //
 //   Your services: each DreamStreams / Vibez line saved here, the one in use

@@ -22,3 +22,6 @@ src/lib/recording.ts
 src/lib/recordSchedule.ts
 src/lib/lineEmail.ts
 src/hooks/useLiveRewind.ts
+src/components/livetv/ChannelsScreen.tsx
+src/components/livetv/FixProblemScreen.tsx
+src/components/livetv/useHubStates.ts

@@ -1,5 +1,5 @@
 /**
- * Live TV › Settings › Add service › Another provider (OutsideSourceScreen): with an
+ * Live TV › Settings › Services › Another provider (OutsideSourceScreen): with an
  * active DreamStreams / Vibez line, Test signs in to the other service and
  * counts its channels (plain words when it fails), Save keeps what the test
  * tried and only after it worked, the saved service shows without its

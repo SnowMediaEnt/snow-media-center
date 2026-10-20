@@ -134,6 +134,11 @@ const toScreen = (view: string, key: string, value: string, navigate: Navigate) 
   navigate(view);
 };
 
+/** Support, opened on one of its tools (Live TV Settings › Fix a problem). */
+export function openSupportTool(tool: 'speedtest' | 'tickets', navigate: Navigate): void {
+  toScreen('support', INTENT_KEYS.support, tool, navigate);
+}
+
 /** Flip a setting. Returns a sentence for the toast, or null if unknown. */
 export function setPreference(key: PreferenceKey, value: string): string | null {
   const v = String(value).trim().toLowerCase();

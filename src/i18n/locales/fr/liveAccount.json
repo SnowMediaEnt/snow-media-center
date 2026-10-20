@@ -3,15 +3,36 @@
     "hub": {
       "title": "Paramètres",
       "myAccount": "Mon compte",
-      "services": "Ajouter un service",
-      "hideCategories": "Masquer des catégories",
+      "services": "Services",
+      "channels": "Chaînes",
       "appearance": "Apparence",
-      "rewind": "Rembobinage et enregistrement",
-      "playback": "Lecture",
+      "rewind": "Enregistrer et rembobiner",
+      "player": "Lecteur",
+      "help": "Résoudre un problème",
       "signOut": "Se déconnecter",
       "signOutHint": "Déconnecte cet appareil de Live TV. Votre ligne continue de fonctionner sur vos autres appareils. Appuyez sur OK pour vous déconnecter.",
       "demoTitle": "Démo en direct",
-      "demoDesc": "La démo est préchargée avec un compte de démonstration : la connexion et le changement de compte fonctionnent dans l'appli installée."
+      "demoDesc": "La démo est préchargée avec un compte de démonstration : la connexion et le changement de compte fonctionnent dans l'appli installée.",
+      "state": {
+        "expires": "expire le {{date}}",
+        "services_one": "{{count}} service",
+        "services_many": "{{count}} services",
+        "services_other": "{{count}} services",
+        "hidden_one": "{{count}} masquée",
+        "hidden_many": "{{count}} masquées",
+        "hidden_other": "{{count}} masquées",
+        "noneHidden": "Rien de masqué",
+        "favMine": "Favoris : mon ordre",
+        "favAz": "Favoris : A–Z",
+        "slimRows": "Lignes fines",
+        "normalRows": "Lignes normales",
+        "rewindOn": "Rembobinage activé",
+        "rewindOff": "Rembobinage désactivé",
+        "recordingsHere": "Enregistrements sur cet appareil",
+        "recordingsOn": "Enregistrements sur {{name}}",
+        "help": "Ça coupe ? Commencez ici",
+        "signedInAs": "Connecté : {{username}}"
+      }
     },
     "renewQr": {
       "qrAlt": "Code QR de renouvellement",
@@ -173,6 +194,22 @@
       "kindLineHint": "Connectez-vous avec une autre ligne, puis passez de l'une à l'autre ici.",
       "kindOutsideHint": "Ses chaînes TV en direct s'affichent à côté des vôtres : identifiants Xtream ou lien M3U.",
       "outsideFull": "Vous avez déjà un autre fournisseur. Supprimez-le pour en ajouter un différent."
+    },
+    "channels": {
+      "hide": "Masquer des catégories",
+      "hideDesc": "Choisissez les catégories que TV en direct laisse de côté, sur chaque ligne.",
+      "favOrder": "Ordre des favoris",
+      "favOrderDesc": "OK change. Comme Trier à ma façon / Trier de A à Z dans le menu d'une chaîne.",
+      "favMine": "Mon ordre",
+      "favAz": "A–Z",
+      "updateDesc": "Recharge les listes de chaînes de vos services. Les paramètres se ferment pour que vous les voyiez arriver.",
+      "failover": "Si une chaîne ne fonctionne pas, la lire depuis mon autre service",
+      "failoverDesc": "Si une chaîne ne démarre pas, TV en direct lit la même chaîne depuis votre autre service, une fois par chaîne choisie. Désactivé : l'écran d'erreur le propose avec un bouton."
+    },
+    "help": {
+      "intro": "La plupart des coupures se règlent avec l'une de ces options. Commencez par le Guide anti-coupures.",
+      "restartTitle": "Redémarrez votre appareil et votre routeur",
+      "restartTip": "Débranchez les deux pendant 30 secondes. Rebranchez d'abord le routeur, attendez que ses voyants se stabilisent, puis l'appareil."
     },
     "outside": {
       "title": "Autre fournisseur",

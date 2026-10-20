@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw, Library, CreditCard,
+  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw, Library, CreditCard, MonitorSmartphone,
 } from 'lucide-react';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { expDateToMs } from '@/lib/xtream';
@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import RenewQR from './RenewQR';
+import LineDevicesPanel from './LineDevicesPanel';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface Props {
@@ -29,6 +30,12 @@ interface Props {
    * Renew path; without it Renew shows the renewal QR, as before.
    */
   onOpenBilling?: () => void;
+  /**
+   * The line Live TV is signed into (Live TV Settings › My Account): "Devices
+   * on this line" opens its devices in this page (LineDevicesPanel), Back
+   * returns here. Absent: not offered.
+   */
+  devicesLine?: { host: string; username: string } | null;
 }
 
 const fmtDate = (ms: number | null) => (ms ? formatDateTime(ms) : '—');
@@ -44,11 +51,12 @@ interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: b
  * -> Sign out. (They were one row across the top that only Left / Right
  * reached, which viewers found confusing — owner, 2026-10-14.)
  */
-const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedded = false, active = true, onOpenBilling }: Props) => {
+const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedded = false, active = true, onOpenBilling, devicesLine = null }: Props) => {
   const { t } = useTranslation();
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [devicesOpen, setDevicesOpen] = useState(false);
   const [focusIdx, setFocusIdx] = useState(1);
   const focusIdxRef = useRef(focusIdx);
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
@@ -56,8 +64,13 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
   // Renew QR is available at ANY days-left value (people renew early) but
   // never in demo mode. With billing on, its slot is Renew & plans instead.
   const showRenew = !!onOpenBilling || (!isDemo() && !!account?.username);
-  const BTN_COUNT = showRenew ? 5 : 4; // Back / Show pwd / Change creds / Renew? / Sign out
+  // Back / Show pwd / Change creds / Renew? / Devices on this line? / Sign out
+  const renewIdx = showRenew ? 3 : -1;
+  const devicesIdx = devicesLine ? (showRenew ? 4 : 3) : -1;
+  const BTN_COUNT = 4 + (showRenew ? 1 : 0) + (devicesLine ? 1 : 0);
   const signOutIdx = BTN_COUNT - 1;
+  // The remote went back to the Settings menu by a tap there: this page is itself again.
+  useEffect(() => { if (!active) setDevicesOpen(false); }, [active]);
 
   const openRenew = () => {
     if (onOpenBilling) { onOpenBilling(); return; }
@@ -68,7 +81,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (embedded && !active) return; // the remote is on the Settings menu
-      if (showQR) return; // RenewQR owns the keyboard
+      if (showQR || devicesOpen) return; // RenewQR, or the line's devices, own the keyboard
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
@@ -97,13 +110,18 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
         if (i === 0) onBack();
         else if (i === 1) setShowPwd(v => !v);
         else if (i === 2) onChangeCredentials();
-        else if (showRenew && i === 3) openRenew();
+        else if (i === renewIdx) openRenew();
+        else if (i === devicesIdx) setDevicesOpen(true);
         else if (i === signOutIdx) onSignOut();
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, onSignOut, onChangeCredentials, onOpenBilling, showQR, BTN_COUNT, showRenew, signOutIdx, embedded, active]);
+  }, [onBack, onSignOut, onChangeCredentials, onOpenBilling, showQR, devicesOpen, BTN_COUNT, renewIdx, devicesIdx, signOutIdx, embedded, active]);
+
+  if (devicesOpen && devicesLine) {
+    return <LineDevicesPanel embedded active={active} host={devicesLine.host} username={devicesLine.username} viaSupport onBack={() => setDevicesOpen(false)} />;
+  }
 
   if (!account) {
     return (
@@ -187,8 +205,9 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
       label: showPwd ? t('liveAccount.account.hidePasswordBtn') : t('liveAccount.account.showPasswordBtn') },
     { idx: 2, icon: KeyRound, onClick: onChangeCredentials, label: t('liveAccount.account.changeCredentialsBtn') },
     ...(showRenew ? [onOpenBilling
-      ? { idx: 3, icon: CreditCard, onClick: openRenew, label: t('liveAccount.account.billingBtn') }
-      : { idx: 3, icon: RefreshCw, onClick: openRenew, label: t('liveAccount.account.renewBtn') }] : []),
+      ? { idx: renewIdx, icon: CreditCard, onClick: openRenew, label: t('liveAccount.account.billingBtn') }
+      : { idx: renewIdx, icon: RefreshCw, onClick: openRenew, label: t('liveAccount.account.renewBtn') }] : []),
+    ...(devicesLine ? [{ idx: devicesIdx, icon: MonitorSmartphone, onClick: () => { setFocusIdx(devicesIdx); setDevicesOpen(true); }, label: t('lineDevices.hub.menuLabel') }] : []),
     { idx: signOutIdx, icon: LogOut, onClick: onSignOut, label: t('common.signOut') },
   ];
 

@@ -1,46 +1,74 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { Tv, KeyRound, Palette, LogOut, Loader2, ListFilter, Gauge, History, MonitorSmartphone, PlusCircle } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { Tv, KeyRound, Palette, LogOut, Loader2, ListVideo, Gauge, History, Layers, LifeBuoy } from 'lucide-react';
 import type { XtreamCreds } from '@/lib/xtream';
 import type { LiveLayout } from '@/lib/liveLayout';
 import { useToast } from '@/hooks/use-toast';
 import { isDemo } from '@/lib/demoMode';
+import { openSupportTool } from '@/lib/appActions';
 import { BackButton } from '@/components/ui/BackButton';
 import { useBillingEnabled } from '@/hooks/useBillingEnabled';
 import { useTranslation } from 'react-i18next';
 import { keepInView } from '@/utils/keepInView';
+import { useHubStates, type HubRow } from './useHubStates';
+import type { SupportTool } from './FixProblemScreen';
 
 // Demo latch (?demo=1) — account actions are inert; the demo account is fixed.
 const DEMO = isDemo();
 
+// My Account: the line's details, Devices on this line, and (billing on) Renew & plans.
 const AccountInfoScreen = lazy(() => import('./AccountInfoScreen'));
-// Add service: the lines on this box (switch between them) and the outside service, and adding either.
+// Services: the lines on this box (switch between them) and the outside service, and adding either.
 const ServicesScreen = lazy(() => import('./ServicesScreen'));
+// Channels: Hide categories, Favorites order, the failover switch, Update channels.
+const ChannelsScreen = lazy(() => import('./ChannelsScreen'));
 const AppearanceScreen = lazy(() => import('./AppearanceScreen'));
-const PlaybackScreen = lazy(() => import('./PlaybackScreen'));
 const RewindSettingsScreen = lazy(() => import('./RewindSettingsScreen'));
-const HideCategoriesScreen = lazy(() => import('./HideCategoriesScreen'));
-const LineDevicesPanel = lazy(() => import('./LineDevicesPanel'));
+// Player: the engine and the picture switches.
+const PlaybackScreen = lazy(() => import('./PlaybackScreen'));
+// Fix a problem: the Buffering Guide, Speed test, Submit a Ticket, and a restart tip.
+const FixProblemScreen = lazy(() => import('./FixProblemScreen'));
 // Billing account (plans, renew, trial) — behind the billing_account flag:
 // opened from My Account's Renew & plans, drawn in place of the hub.
 const BillingAccountScreen = lazy(() => import('@/components/billing/BillingAccountScreen'));
 
 interface Props {
   onBack: () => void;
-  /** Open on a screen other than the menu (the assistant's "open Appearance"); 'billing' opens My Account's plans and renewals. */
+  /** Open on a page instead of the menu (the assistant's "open Appearance"); 'billing' opens My Account's plans and renewals. */
   initialView?: View;
   onSignOut: () => void;
   onChangeCredentials: () => void;
   onSwitchAccount: (c: XtreamCreds) => void;
   /** Try a Live TV layout on the real screen (see AppearanceScreen). */
   onTryLayout?: (prev: LiveLayout, next: LiveLayout) => void;
-  /** The line Live TV is signed into: "Devices on this line" is offered for it. */
+  /** The line Live TV is signed into: My Account offers "Devices on this line" for it. */
   line?: { host: string; username: string } | null;
+  /** Channels › Update channels: Live TV's own Update Channels (it closes Settings to show the lists coming in). */
+  onUpdateChannels?: () => void;
+  /** Fix a problem › Buffering Guide (Support's guide, as from Live TV's Report dialog). */
+  onOpenBufferingGuide?: () => void;
+  /** Leave the Player for another screen (Fix a problem › Speed test / Submit a Ticket open in Support). */
+  onNavigate?: (view: string) => void;
 }
 
-type View = 'menu' | 'billing' | 'account' | 'services' | 'categories' | 'appearance' | 'rewind' | 'playback';
-type MenuId = 'account' | 'services' | 'devices' | 'categories' | 'appearance' | 'rewind' | 'playback' | 'signout';
+type MenuId = HubRow;
+type View = 'menu' | 'billing' | Exclude<MenuId, 'signout'>;
 
 interface MenuItem { id: MenuId; labelKey: string; icon: typeof Tv; }
+
+/**
+ * The menu, top to bottom (owner, 2026-10-20: eight rows, each with its state
+ * in small text under the name). Every label is one key, so a rename is one string.
+ */
+const MENU: readonly MenuItem[] = [
+  { id: 'account',    labelKey: 'liveAccount.hub.myAccount',  icon: KeyRound },
+  { id: 'services',   labelKey: 'liveAccount.hub.services',   icon: Layers },
+  { id: 'channels',   labelKey: 'liveAccount.hub.channels',   icon: ListVideo },
+  { id: 'appearance', labelKey: 'liveAccount.hub.appearance', icon: Palette },
+  { id: 'rewind',     labelKey: 'liveAccount.hub.rewind',     icon: History },
+  { id: 'player',     labelKey: 'liveAccount.hub.player',     icon: Gauge },
+  { id: 'help',       labelKey: 'liveAccount.hub.help',       icon: LifeBuoy },
+  { id: 'signout',    labelKey: 'liveAccount.hub.signOut',    icon: LogOut },
+];
 
 const fallback = (
   <div className="min-h-screen flex items-center justify-center text-white bg-black/70">
@@ -50,13 +78,13 @@ const fallback = (
 
 /** The How-to guide's hooks on the menu rows (data-howto; literals, so its check finds them). */
 const HUB_HOWTO: Partial<Record<MenuId, string>> = {
-  services: 'hub.services', categories: 'hub.hideCats', appearance: 'hub.appearance', rewind: 'hub.rewind', signout: 'hub.signOut',
+  services: 'hub.services', channels: 'hub.channels', appearance: 'hub.appearance', rewind: 'hub.rewind', signout: 'hub.signOut',
 };
 
-/** Pages drawn beside the menu. My Account (the store's plans and trial) keeps its own screen. */
-const EMBEDDED: ReadonlySet<MenuId> = new Set<MenuId>(['account', 'services', 'devices', 'categories', 'appearance', 'rewind', 'playback']);
-/** In the demo only these work; the account pages are inert there. */
-const DEMO_OK: ReadonlySet<MenuId> = new Set<MenuId>(['appearance', 'rewind', 'playback']);
+/** Pages drawn beside the menu (Sign out has none: OK signs out). */
+const EMBEDDED: ReadonlySet<MenuId> = new Set<MenuId>(['account', 'services', 'channels', 'appearance', 'rewind', 'player', 'help']);
+/** In the demo only these work; the account and line pages are inert there. */
+const DEMO_OK: ReadonlySet<MenuId> = new Set<MenuId>(['appearance', 'rewind', 'player', 'help']);
 /** The page beside the menu follows the highlight once it rests this long (no page mounts for every row passed). */
 const PREVIEW_REST_MS = 250;
 
@@ -64,27 +92,16 @@ const PREVIEW_REST_MS = 250;
  * Live TV -> Settings. The menu is a column on the left (Up / Down) and the
  * highlighted page sits on the right; OK or Right moves the remote into it,
  * Back (or Left at its edge) returns to the menu, Back on the menu leaves.
+ * A page opens at most one more level (Hide categories, Devices on this line,
+ * the billing view, the other provider's form), and Back goes up one level.
  * Owner, 2026-10-14: every settings screen laid out like Account info.
  */
-const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials, onSwitchAccount, onTryLayout, line = null }: Props) => {
+const SettingsHub = memo(({
+  onBack, initialView, onSignOut, onChangeCredentials, onSwitchAccount, onTryLayout, line = null,
+  onUpdateChannels, onOpenBufferingGuide, onNavigate,
+}: Props) => {
   const { t } = useTranslation();
   const billingOn = useBillingEnabled();
-  const MENU: MenuItem[] = useMemo(() => [
-    // My Account: the line's details and, with billing on, the billing
-    // account's plans, renewals and trial behind its Renew & plans (owner,
-    // 2026-10-20: My Account and Account Info blended).
-    { id: 'account',    labelKey: 'liveAccount.hub.myAccount',    icon: KeyRound },
-    // Add service: switch between this box's lines, see and edit the outside
-    // service (lib/outsideSource), add either. Its name is this one key.
-    { id: 'services',   labelKey: 'liveAccount.hub.services',     icon: PlusCircle },
-    // The TVs signed into this line, and a message to them (lib/deviceInbox).
-    ...(line ? [{ id: 'devices' as MenuId, labelKey: 'lineDevices.hub.menuLabel', icon: MonitorSmartphone }] : []),
-    { id: 'categories', labelKey: 'liveAccount.hub.hideCategories', icon: ListFilter },
-    { id: 'appearance', labelKey: 'liveAccount.hub.appearance',   icon: Palette },
-    { id: 'rewind',     labelKey: 'liveAccount.hub.rewind',       icon: History },
-    { id: 'playback',   labelKey: 'liveAccount.hub.playback',     icon: Gauge },
-    { id: 'signout',    labelKey: 'liveAccount.hub.signOut',      icon: LogOut },
-  ], [line]);
 
   // Opened on a page (the assistant's "open Appearance"): that page, with the remote in it.
   const startEmbedded = !!initialView && initialView !== 'menu' && initialView !== 'billing';
@@ -96,19 +113,8 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
   useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
   // The menu item whose page is on the right.
   const [shown, setShown] = useState<MenuId>(() => MENU[startIdx - 1]?.id ?? 'account');
-
-  // A row joins or leaves the menu while it is open (Devices on this line,
-  // with the line), shifting the rows: keep the highlight on the same item.
-  const prevMenuRef = useRef(MENU);
-  useEffect(() => {
-    const prev = prevMenuRef.current;
-    prevMenuRef.current = MENU;
-    if (prev === MENU) return;
-    const id = prev[menuIdxRef.current - 1]?.id;
-    if (!id) return;
-    const at = MENU.findIndex((m) => m.id === id);
-    if (at >= 0 && at + 1 !== menuIdxRef.current) setMenuIdx(at + 1);
-  }, [MENU]);
+  // Each row's state line; read again when the remote comes back to the menu.
+  const states = useHubStates(`${view}:${pane}`);
 
   // The page follows the highlight once it rests (Back keeps the last page).
   useEffect(() => {
@@ -117,10 +123,10 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     if (!id || id === shown) return;
     const timer = window.setTimeout(() => setShown(id), PREVIEW_REST_MS);
     return () => window.clearTimeout(timer);
-  }, [menuIdx, pane, MENU, shown]);
+  }, [menuIdx, pane, shown]);
 
-  // Follow the highlight down the menu: at 960×540 Sign Out sits below the
-  // fold, and the remote highlight moved there without the menu scrolling.
+  // Follow the highlight down the menu: with a bigger text size Sign out
+  // sits below the fold, and the highlight moved there without the menu scrolling.
   const scrollRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const node = scrollRef.current;
@@ -139,9 +145,9 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
   }, [toast, t]);
 
   const activate = useCallback((id: MenuId) => {
-    // Demo: My Account / Add service / Sign Out are
-    // inert — the demo account is pre-loaded. Appearance, Rewind and Playback
-    // stay fully functional (per-box settings; nothing to protect).
+    // Demo: My Account / Services / Channels / Sign out are inert — the demo
+    // account is pre-loaded. Appearance, Recording & rewind, Player and Fix a
+    // problem stay fully functional (per-box settings; nothing to protect).
     if (DEMO && !DEMO_OK.has(id)) { setPane('menu'); demoNote(); return; }
     // A row without a page beside the menu leaves the remote on the menu
     // (a tap or air-mouse click can come while the remote is in a page).
@@ -181,7 +187,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [view, pane, MENU, onBack, activate]);
+  }, [view, pane, onBack, activate]);
 
   const toMenu = useCallback(() => setPane('menu'), []);
   const openBilling = useCallback(() => setView('billing'), []);
@@ -191,7 +197,9 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     setShown('account');
     setMenuIdx(MENU.findIndex((m) => m.id === 'account') + 1);
     setPane('page');
-  }, [MENU]);
+  }, []);
+  // Fix a problem › Speed test / Submit a Ticket: Support, on that tool.
+  const openTool = useCallback((tool: SupportTool) => { if (onNavigate) openSupportTool(tool, onNavigate); }, [onNavigate]);
 
   if (view === 'billing') {
     return (
@@ -207,17 +215,16 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     const common = { embedded: true, active: inPage, onBack: toMenu } as const;
     if (DEMO && !DEMO_OK.has(shown)) return <PageHint text={t('liveAccount.hub.demoDesc')} />;
     switch (shown) {
-      case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} onOpenBilling={billingOn ? openBilling : undefined} />;
+      // Devices on this line asks the server for the line's devices: only once opened from the page.
+      case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} onOpenBilling={billingOn ? openBilling : undefined} devicesLine={line} />;
       // Reads only what is on the box (a line too long unchecked is checked with its panel).
       case 'services': return <ServicesScreen active={inPage} onBack={toMenu} onPicked={onSwitchAccount} onAddAccount={onChangeCredentials} />;
-      // Its page reads every saved line's categories from the server: only
-      // once the remote goes in, not for a highlight passing over it.
-      case 'categories': return inPage ? <HideCategoriesScreen {...common} /> : <PageHint text={t('liveAccount.hideCategories.intro')} />;
-      // Its page asks the server for the line's devices: only once the remote goes in.
-      case 'devices': return inPage && line ? <LineDevicesPanel {...common} host={line.host} username={line.username} viaSupport /> : <PageHint text={t('lineDevices.hub.hint')} />;
+      // Hide categories reads every line's categories from its server: only once opened from the page.
+      case 'channels': return <ChannelsScreen active={inPage} onBack={toMenu} onUpdateChannels={onUpdateChannels} />;
       case 'appearance': return <AppearanceScreen {...common} onTryLayout={onTryLayout} />;
       case 'rewind': return <RewindSettingsScreen {...common} />;
-      case 'playback': return <PlaybackScreen {...common} />;
+      case 'player': return <PlaybackScreen {...common} />;
+      case 'help': return <FixProblemScreen active={inPage} onBack={toMenu} onOpenBufferingGuide={onOpenBufferingGuide} onOpenSupportTool={onNavigate ? openTool : undefined} />;
       case 'signout': return <PageHint text={t('liveAccount.hub.signOutHint')} />;
       default: return null;
     }
@@ -240,8 +247,9 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
 
       {/* Margins, not flex gap: older box WebViews (Chrome < 84) ignore gap. */}
       <div className="flex-1 min-h-0 flex flex-col md:flex-row p-4 lg:p-6">
-        <div ref={scrollRef} className="md:w-52 lg:w-60 shrink-0 overflow-auto mb-4 md:mb-0 md:mr-4 lg:mr-5">
-          <div className="space-y-1.5" data-settings-menu>
+        <div ref={scrollRef} className="md:w-64 lg:w-72 shrink-0 overflow-auto mb-4 md:mb-0 md:mr-4 lg:mr-5">
+          {/* Eight rows of name + state fit 960×540 without scrolling: keep them this short. */}
+          <div className="space-y-1" data-settings-menu>
             {MENU.map((m, i) => {
               const Icon = m.icon;
               const focused = !inPage && menuIdx === i + 1;
@@ -254,10 +262,15 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
                   data-focused={focused ? 'true' : 'false'}
                   data-howto={HUB_HOWTO[m.id]}
                   onClick={() => { setMenuIdx(i + 1); setShown(m.id); activate(m.id); }}
-                  className={`tv-ring flex items-center rounded-xl px-3.5 py-2.5 border cursor-pointer ${current ? 'bg-brand-gold/15 border-brand-gold/50' : 'bg-slate-900/60 border-white/10'} ${focused ? 'scale-[1.02] z-10' : ''}`}
+                  data-hub-row={m.id}
+                  className={`tv-ring flex items-center rounded-xl px-3.5 py-1.5 border cursor-pointer ${current ? 'bg-brand-gold/15 border-brand-gold/50' : 'bg-slate-900/60 border-white/10'} ${focused ? 'scale-[1.02] z-10' : ''}`}
                 >
                   <Icon className="w-[18px] h-[18px] mr-2.5 text-brand-gold shrink-0" />
-                  <span className="text-sm lg:text-base font-quicksand font-semibold min-w-0 truncate">{t(m.labelKey)}</span>
+                  <div className="min-w-0 flex-1">
+                    <p data-hub-label className="text-sm leading-5 font-quicksand font-semibold truncate">{t(m.labelKey)}</p>
+                    {/* Always one line tall, so the rows don't jump while a state is read. */}
+                    <p data-hub-state className="text-xs leading-4 font-nunito text-brand-ice/70 truncate">{states[m.id] || '\u00a0'}</p>
+                  </div>
                 </div>
               );
             })}

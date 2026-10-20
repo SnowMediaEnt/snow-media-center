@@ -3,15 +3,34 @@
     "hub": {
       "title": "Settings",
       "myAccount": "My Account",
-      "services": "Add service",
-      "hideCategories": "Hide Categories",
+      "services": "Services",
+      "channels": "Channels",
       "appearance": "Appearance",
-      "rewind": "Rewind & recording",
-      "playback": "Playback",
+      "rewind": "Recording & rewind",
+      "player": "Player",
+      "help": "Fix a problem",
       "signOut": "Sign Out",
       "signOutHint": "Signs this box out of Live TV. Your line keeps working on your other devices. Press OK to sign out.",
       "demoTitle": "Live demo",
-      "demoDesc": "The demo is pre-loaded with a demo account — sign-in and account switching work in the installed app."
+      "demoDesc": "The demo is pre-loaded with a demo account — sign-in and account switching work in the installed app.",
+      "state": {
+        "expires": "expires {{date}}",
+        "services_one": "{{count}} service",
+        "services_other": "{{count}} services",
+        "hidden_one": "{{count}} hidden",
+        "hidden_other": "{{count}} hidden",
+        "noneHidden": "None hidden",
+        "favMine": "Favorites: my order",
+        "favAz": "Favorites: A–Z",
+        "slimRows": "Slim rows",
+        "normalRows": "Normal rows",
+        "rewindOn": "Rewind on",
+        "rewindOff": "Rewind off",
+        "recordingsHere": "Recordings on this box",
+        "recordingsOn": "Recordings on {{name}}",
+        "help": "Buffering? Start here",
+        "signedInAs": "Signed in as {{username}}"
+      }
     },
     "renewQr": {
       "qrAlt": "Renewal QR code",
@@ -167,6 +186,22 @@
       "kindLineHint": "Sign in with another line. Then switch between your lines here.",
       "kindOutsideHint": "Its Live TV channels show beside yours: an Xtream login or an M3U link.",
       "outsideFull": "You already have one other provider. Remove it to add a different one."
+    },
+    "channels": {
+      "hide": "Hide categories",
+      "hideDesc": "Pick the categories Live TV leaves out, on every line.",
+      "favOrder": "Favorites order",
+      "favOrderDesc": "OK switches. The same as Sort my way / Sort A–Z in a channel's menu.",
+      "favMine": "My order",
+      "favAz": "A–Z",
+      "updateDesc": "Loads the channel lists from your services again. Settings closes so you can watch them come in.",
+      "failover": "When a channel is down, play it from my other service",
+      "failoverDesc": "If a channel won't start, Live TV plays the same channel from your other service instead, once per channel you pick. Off: the error screen offers it as a button."
+    },
+    "help": {
+      "intro": "Most buffering is fixed by one of these. Start with the Buffering Guide.",
+      "restartTitle": "Restart your box and router",
+      "restartTip": "Unplug both for 30 seconds. Plug the router in first, wait until its lights settle, then the box."
     },
     "outside": {
       "title": "Another provider",

@@ -88,7 +88,7 @@ export async function recheckLine(active: XtreamCreds | null | undefined, opts: 
   } catch { /* offline: it stays hidden until a check gets through */ }
 }
 
-/** What Settings › Add service shows about the outside service on this box. */
+/** What Settings › Services shows about the outside service on this box. */
 export interface OutsideHere {
   /** The line in use: it becomes the owner of what is saved. */
   active: XtreamCreds | null;
@@ -105,10 +105,11 @@ export interface OutsideHere {
 /**
  * Read it all from the box. Nothing is asked of any server, except that a
  * line not checked with its panel lately is checked now (recheckLine: the
- * answer fires playerAccountRefresh, and the caller reads this again).
+ * answer fires playerAccountRefresh, and the caller reads this again);
+ * `recheck: false` (the Settings menu's one-line summary) never asks.
  * Never throws: when something can't be read, nothing is allowed.
  */
-export async function readOutsideHere(): Promise<OutsideHere> {
+export async function readOutsideHere(opts: { recheck?: boolean } = {}): Promise<OutsideHere> {
   try {
     const [active, account, sources, accounts] = await Promise.all([
       loadCreds(),
@@ -117,7 +118,7 @@ export async function readOutsideHere(): Promise<OutsideHere> {
       loadSavedAccounts().catch((): SavedAccount[] => []),
     ]);
     const first = sources[0] ?? null;
-    if (accountStale(account)) void recheckLine(active, { evenWithoutOne: true });
+    if (opts.recheck !== false && accountStale(account)) void recheckLine(active, { evenWithoutOne: true });
     return { active, allowed: outsideAllowed(active, account), sources, ownerHere: !!first && ownerOnBox(first, active, accounts), accounts };
   } catch {
     return { active: null, allowed: false, sources: [], ownerHere: false, accounts: [] };

@@ -1,4 +1,4 @@
-// Live TV › Settings › Add service › Another provider (ServicesScreen draws
+// Live TV › Settings › Services › Another provider (ServicesScreen draws
 // it in its page: Add another service → Another provider, or OK on the saved
 // one in Your services): one service the viewer buys elsewhere, whose Live TV
 // channels then show in Live TV under its own name (lib/outsideSource). Only
