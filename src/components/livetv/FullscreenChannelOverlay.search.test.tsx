@@ -62,7 +62,7 @@ describe('the Search row over the picture', () => {
     expect(document.querySelector<HTMLElement>('[data-overlay-channel]')!.style.height).toBe('40px');
     expect(overlayText()).not.toContain('Search');
     expect(overlayText()).not.toContain('▼');
-    expect(hint()).toBe('Type a channel name · Back to pick from the results');
+    expect(hint()).toBe('Type a channel name · Back to the results');
     // The playing one marked, the favourite starred, what is on now.
     expect(document.querySelector('[data-overlay-channel="300"] [aria-label="Playing"]')).not.toBeNull();
     expect(document.querySelector('[data-overlay-channel="301"] [aria-label="Favorite"]')).not.toBeNull();

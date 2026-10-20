@@ -1,6 +1,7 @@
 import { act, cleanup, configure, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { XtreamCreds } from '@/lib/xtream';
+import { MEDIA_KEY_EVENT } from '@/lib/mediaKeys';
 
 configure({ asyncUtilTimeout: 6000 });
 
@@ -29,7 +30,7 @@ const SPORTS = [
   { stream_id: 201, name: 'Sports One', num: 4, category_id: '2' },
   { stream_id: 202, name: 'Sports Two', num: 5, category_id: '2' },
 ];
-const h = vi.hoisted(() => ({ back: [] as Array<() => void> }));
+const h = vi.hoisted(() => ({ back: [] as Array<() => void>, down: new Set<string>() }));
 const player = vi.hoisted(() => ({ args: [] as Array<{ active: boolean; url: string | null; rect?: unknown }> }));
 const layout = vi.hoisted(() => ({ id: 'classic' as 'classic' | 'compact' | 'grid' }));
 
@@ -53,7 +54,7 @@ vi.mock('@/lib/favoritesSync', async (orig) => ({
 }));
 vi.mock('@/lib/channelStatus', async (orig) => ({
   ...(await orig<typeof import('@/lib/channelStatus')>()),
-  useDownChannels: () => new Set<string>(),
+  useDownChannels: () => h.down,
   signalChannel: vi.fn(),
   signalCategory: vi.fn(),
 }));
@@ -148,6 +149,9 @@ const inPlayer = (): number | null => {
 const playerFull = () => { const a = player.args[player.args.length - 1]; return !!a?.active && a.rect === undefined; };
 /** The remote's Back as Capacitor delivers it, with no Player shell around the section. */
 const hwBack = async () => { await act(async () => { for (const f of [...h.back]) f(); }); await sleep(20); };
+/** A remote button the box reports as a media key (CH+ is 'chup'). */
+const media = async (k: string) => { await act(async () => { window.dispatchEvent(new CustomEvent(MEDIA_KEY_EVENT, { detail: k })); await Promise.resolve(); }); await sleep(20); };
+const warning = () => q('[data-channel-warning]');
 /** What the viewer types, as the field takes it. */
 const type = (value: string) => act(() => { fireEvent.change(field()!, { target: { value } }); });
 
@@ -187,6 +191,7 @@ beforeEach(() => {
   localStorage.clear(); sessionStorage.clear();
   player.args.length = 0;
   h.back = [];
+  h.down = new Set();
   layout.id = 'classic';
 });
 afterEach(() => { cleanup(); document.documentElement.className = ''; });
@@ -223,7 +228,7 @@ describe('search over the picture', () => {
   it('types over the picture: the results come in while the same channel plays; ▼ into them, OK plays one full screen and closes the list', async () => {
     await overPicture();
     await startTyping();
-    expect(hint()).toBe('Type a channel name · Back to pick from the results');
+    expect(hint()).toBe('Type a channel name · Back to the results');
     type('two');
     await waitFor(() => expect(overlayRows()).toEqual(['News Two', 'Sports Two']));
     // The picture plays on, full screen, on the same stream.
@@ -282,7 +287,7 @@ describe('search over the picture', () => {
     expect(overlayFocus()).toBe('Sports One');
   }, 20000);
 
-  it('the keyboard\'s parting Enter as it goes away plays nothing; the next OK does', async () => {
+  it('the keyboard\'s parting Enter as it goes away plays nothing; the very next OK does', async () => {
     await overPicture();
     await startTyping();
     type('sports');
@@ -292,10 +297,104 @@ describe('search over the picture', () => {
     await sleep(50);
     expect(overlay()).not.toBeNull();
     expect(inPlayer()).toBe(101);
-    await sleep(750);
+    // Only that one: the viewer's OK straight after is a press.
     press('Enter');
     await waitFor(() => expect(inPlayer()).toBe(201));
     expect(overlay()).toBeNull();
+  }, 20000);
+
+  it('CH+ / CH- while a search is open close it and the list first, then zap through the list the viewer was in, not the results', async () => {
+    await overPicture();
+    await startTyping();
+    type('sports');
+    await waitFor(() => expect(overlayRows()).toEqual(['Sports One', 'Sports Two']));
+    // Mid-typing: CH+ is News Two (after News One in News), never Sports One.
+    await media('chup');
+    await waitFor(() => expect(inPlayer()).toBe(102));
+    expect(overlay()).toBeNull();
+    expect(playerFull()).toBe(true);
+    // The search is gone: the list over the picture opens on News again.
+    await media('chdown');
+    await waitFor(() => expect(inPlayer()).toBe(101));
+    press('Escape'); // the bar the zap brought up
+    press('ArrowLeft');
+    await waitFor(() => expect(overlay()).not.toBeNull());
+    expect(overlayRows()).toEqual(['News One', 'News Two', 'News Three']);
+    expect(overlayFocus()).toBe('News One');
+    expect(field()!.value).toBe('');
+    // Results walked into: CH- wraps through News too (News Three), not the results.
+    await sleep(750); // the keyboard CH+ put away may still send its Enter
+    press('ArrowUp');
+    press('Enter');
+    type('sports');
+    await waitFor(() => expect(overlayRows()).toEqual(['Sports One', 'Sports Two']));
+    press('ArrowDown');
+    await media('chdown');
+    await waitFor(() => expect(inPlayer()).toBe(103));
+    expect(overlay()).toBeNull();
+  }, 20000);
+
+  it('a search pick reported down asks first over the list; Pick another comes back to the results, Watch anyway plays it', async () => {
+    h.down = new Set(['h.test|202']);
+    await overPicture();
+    await startTyping();
+    type('two');
+    await waitFor(() => expect(overlayRows()).toEqual(['News Two', 'Sports Two']));
+    press('ArrowDown'); // the keyboard away
+    press('ArrowDown');
+    expect(overlayFocus()).toBe('Sports Two');
+    await sleep(750); // past the keyboard's parting Enter
+    press('Enter');
+    await waitFor(() => expect(warning()).not.toBeNull());
+    // The list and the search are still there under it, the picture on.
+    expect(overlay()).not.toBeNull();
+    expect(overlayRows()).toEqual(['News Two', 'Sports Two']);
+    expect(inPlayer()).toBe(101);
+    press('Escape'); // Pick another
+    await waitFor(() => expect(warning()).toBeNull());
+    expect(overlay()).not.toBeNull();
+    expect(overlayRows()).toEqual(['News Two', 'Sports Two']);
+    expect(overlayFocus()).toBe('Sports Two');
+    expect(field()!.value).toBe('two');
+    expect(inPlayer()).toBe(101);
+    // Another go: Watch anyway (left of Pick another) plays it and closes them.
+    press('Enter');
+    await waitFor(() => expect(warning()).not.toBeNull());
+    press('ArrowLeft');
+    press('Enter');
+    await waitFor(() => expect(inPlayer()).toBe(202));
+    expect(warning()).toBeNull();
+    expect(overlay()).toBeNull();
+    expect(playerFull()).toBe(true);
+  }, 20000);
+
+  it('a pick the list behind already holds (All channels) stays there, rather than moving to its own category', async () => {
+    await openNews();
+    press('ArrowLeft'); // the categories
+    press('ArrowUp'); // All channels
+    press('Enter');
+    await waitFor(() => expect(text()).toContain('Sports Two'));
+    await sleep(50);
+    press('Enter'); // News One, full screen
+    await waitFor(() => expect(fullScreen()).not.toBeNull());
+    await waitFor(() => expect(barUp()).toBe(true));
+    press('Escape');
+    press('ArrowLeft');
+    await waitFor(() => expect(overlay()).not.toBeNull());
+    expect(overlayRows()).toContain('Sports Two'); // All channels
+    await startTyping();
+    type('sports two');
+    await waitFor(() => expect(overlayRows()).toEqual(['Sports Two']));
+    press('ArrowDown');
+    await sleep(750);
+    press('Enter');
+    await waitFor(() => expect(inPlayer()).toBe(202));
+    press('Escape'); // the bar
+    press('Escape'); // the picture
+    await waitFor(() => expect(fullScreen()).toBeNull());
+    // Still All channels (News One is in it, not in Sports), on Sports Two.
+    await waitFor(() => expect(row('Sports Two')?.getAttribute('data-focused')).toBe('true'));
+    expect(row('News One')).toBeDefined();
   }, 20000);
 
   it('Back closes one layer at a time: the keyboard, the search (the list as it was), the list; the picture plays on', async () => {
