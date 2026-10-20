@@ -17,8 +17,8 @@
  *   never switched or offered: each provider has a different event there.
  * - Nothing new goes to any server. The only requests are the other line's
  *   channel lists (the ones search and the categories ask for), and only
- *   after a failure, with the switch on and not on a low-memory box; at most
- *   one whole line-up per failure (see findOnLines).
+ *   after a failure with the switch on; at most one whole line-up per
+ *   failure (see findOnLines).
  *
  * LiveSection owns playing; this only says what to play. It hands in what
  * the native player shows (`watching`) and the player's error.
@@ -117,19 +117,19 @@ const serviceName = (line: XtreamCreds): string => serverDisplayName(lineLabel(l
 
 // ---- looking a channel up on another line ---------------------------------
 
-// A whole line-up is 10-50 MB to download and parse, then kept (xtream's live
-// catalogue) while the player starts the copy. So: never on a low-memory box
-// (only lists already in hand there), never with the switch off (the button
-// is offered from lists in hand only), at most one whole line-up per failure,
-// and the channel's own category on the other line (same name, a small list)
-// is tried first. A line whose whole line-up this downloaded is not
-// downloaded again for 10 minutes.
+// A whole line-up is megabytes to download and parse, then kept (xtream's
+// live catalogue, the same one search uses) while the player starts the copy.
+// So: never with the switch off (the button is offered from lists in hand
+// only), at most one whole line-up per failure, and the channel's own
+// category on the other line (same name, a small list) is tried first. A
+// line whose whole line-up this downloaded is not downloaded again for 10
+// minutes. Low-memory boxes are not left out: that is every Fire TV and TV
+// box, nearly every viewer (main.tsx), and search already loads whole
+// line-ups there (owner's emulator test, 2026-10-20: failover never found a
+// copy on one).
 const REFETCH_MS = 10 * 60_000;
 const fetchedAt = new Map<string, number>();
 
-const lowMemoryBox = (): boolean => {
-  try { return document.documentElement.classList.contains('native-low-memory'); } catch { return false; }
-};
 const kept = (line: XtreamCreds, categoryId?: string): boolean => {
   try { return hasLiveStreams(line, categoryId); } catch { return false; }
 };
@@ -359,7 +359,7 @@ export function useChannelFailover(opts: FailoverOptions): ChannelFailover {
     const tried = new Set(pick.tried.map((l) => lineKey(l)));
     const order = o.lines.filter((l) => lineKey(l) !== failedKey);
     order.sort((a, b) => Number(tried.has(lineKey(a))) - Number(tried.has(lineKey(b))));
-    const mayDownload = switchOn && !lowMemoryBox();
+    const mayDownload = switchOn;
     const foundKey = `${failedKey}|${mayDownload}`;
     const lookup = pick.found.has(foundKey)
       ? Promise.resolve(pick.found.get(foundKey) ?? null)

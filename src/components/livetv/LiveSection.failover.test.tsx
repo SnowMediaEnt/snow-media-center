@@ -322,14 +322,17 @@ describe('a channel that won\'t start, with a second service', () => {
     expect(offer()).toBeNull();
   });
 
-  it('a low-memory box downloads nothing: only lists in hand', async () => {
+  it('a low-memory box (every Fire TV) still looks the channel up on the other service', async () => {
     await openSports();
     document.documentElement.classList.add('native-low-memory');
-    await watch(0);
-    fail();
-    await waitFor(() => expect(failoverEvents()).toEqual([['live_failover', 'player', { found: false, auto: false }]]));
-    expect(h.getLiveStreams.mock.calls.filter((c) => c[0].host === 'http://v.test')).toHaveLength(0);
-    expect(playingOn('http://h.test', 101)).toBe(true);
+    try {
+      await watch(0);
+      fail();
+      await waitFor(() => expect(playingOn('http://v.test', 501)).toBe(true));
+      expect(failoverEvents()).toEqual([['live_failover', 'player', { found: true, auto: true }]]);
+    } finally {
+      document.documentElement.classList.remove('native-low-memory');
+    }
   });
 
   it('the channel\'s own category on the other line (same name) is asked for first: no whole line-up', async () => {
