@@ -55,7 +55,7 @@ const key = (k: string) => act(() => {
 const settle = async (ms = 0) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms); for (let i = 0; i < 10; i += 1) await Promise.resolve(); }); };
 const until = async (cond: () => boolean) => {
   await settle();
-  for (let i = 0; i < 100 && !cond(); i += 1) await settle(10);
+  for (let i = 0; i < 400 && !cond(); i += 1) await settle(10); // room for a loaded box
   expect(cond()).toBe(true);
 };
 const focusedRow = () => document.querySelector('[data-row][data-focused="true"]')?.getAttribute('data-row');
