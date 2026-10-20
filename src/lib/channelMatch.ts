@@ -9,8 +9,12 @@
  * off. Anything that makes it another channel stays: East / West, numbers
  * ("ESPN 2"), "+1", "International". Playing the wrong channel is worse than
  * showing the error, so every rule here leans towards "no match": names must
- * be equal once cleaned (or the guide id must be, with extra checks), and a
- * doubtful case returns null instead of a guess.
+ * be equal once cleaned, and a doubtful case returns null instead of a guess.
+ * - The guide id (epg_channel_id) is never enough: panels put sub-brands on
+ *   the parent's id (HBO Family on HBO's, NBC Sports Chicago on NBC's).
+ * - Event channels ("PPV 1", "NFL Game 3", "ESPN+ 05", anything in a PPV /
+ *   Events category) never match: each provider puts a different event
+ *   behind the same number.
  */
 
 /** A picture quality a name carries: what a copy is preferred by. */
@@ -18,7 +22,6 @@ export type ChannelQuality = 'uhd' | 'fhd' | 'hd' | 'sd';
 
 export interface ChannelLike {
   name: string;
-  epg_channel_id?: string | null;
 }
 
 /** A name, cleaned for comparing, and what was taken off it that still matters. */
@@ -41,8 +44,12 @@ const REGIONS: Record<string, string> = {
   dk: 'dk', fi: 'fi', fin: 'fi', pl: 'pl', pol: 'pl', ro: 'ro', gr: 'gr', tr: 'tr', tur: 'tr', ru: 'ru', rus: 'ru', ua: 'ua',
   il: 'il', za: 'za', ng: 'ng', in: 'in', ind: 'in', pk: 'pk', ph: 'ph', jp: 'jp', kr: 'kr', cn: 'cn', hk: 'hk',
   ar: 'ar', arg: 'ar', co: 'co', col: 'co', cl: 'cl', pe: 'pe', ve: 've', ec: 'ec', pr: 'pr', jm: 'jm',
-  lat: 'latam', la: 'latam', en: 'en', eng: 'en',
+  lat: 'latam', en: 'en', eng: 'en',
 };
+// At the end of a name a code is often a US state or a Canadian province, not
+// a country ("CNN (IN)", "KABC (CA)", "ABC (LA)"): those stay part of the name.
+const STATES = new Set(('al ak az ar ca co ct de fl ga hi id il in ia ks ky la me md ma mi mn ms mo mt ne nv nh nj nm ny nc nd '
+  + 'oh ok or pa ri sc sd tn tx ut vt va wa wv wi wy dc pr ab bc mb nb nl ns nt nu on pe qc sk yt').split(' '));
 /** A language tag says nothing about the feed's country: "EN| CNN" may be the US one. */
 const ANY_REGION = new Set(['en']);
 
@@ -51,7 +58,7 @@ const SEP = '[:|\\-\u2013\u2014\u2022\u00b7\u25ba\u27a4\u25b6\u00bb/]';
 const BRACKET_PREFIX = /^\s*(?:\|\s*([a-z]{2,3})\s*\||\[\s*([a-z]{2,3})\s*\]|\(\s*([a-z]{2,3})\s*\))\s*/;
 // "US: ", "US | ", "USA - ", "UK• " — a known code and a separator.
 const CODE_PREFIX = new RegExp(`^\\s*([a-z]{2,3})\\s*${SEP}+\\s*`);
-// "ESPN (US)", "ESPN [UK]" — a known code in brackets at the end.
+// "ESPN (US)", "ESPN [UK]" — a known code in brackets at the end (not a state's).
 const CODE_SUFFIX = /\s*(?:\[\s*([a-z]{2,3})\s*\]|\(\s*([a-z]{2,3})\s*\))\s*$/;
 
 // Superscript letters and digits ("ESPNᴴᴰ"): spaced off the name before they
@@ -67,8 +74,9 @@ const COMBINING = /[\u0300-\u036f]/g;
 
 // Picture tags: never part of what the channel is.
 const QUALITY_TAG = /^(?:hd|fhd|uhd|sd|4k|8k|hdr|hevc|[hx]\.?26[45]|\d{3,4}[pi]|\d{2,3}fps|hq)$/;
-// "Backup", "RAW", "Backup 2": a second feed of the same channel, not channel 2.
-const FEED_TAG = /^(?:backup|bkp|raw)\d*$/;
+// "Backup", "Backup 2": a second feed of the same channel, not channel 2.
+// ("Raw" is not one: "WWE Raw" is not "WWE".)
+const FEED_TAG = /^(?:backup|bkp)\d*$/;
 const QUALITY_OF: Array<[RegExp, ChannelQuality]> = [
   [/^(?:uhd|4k|8k|2160[pi])$/, 'uhd'],
   [/^(?:fhd|1080[pi])$/, 'fhd'],
@@ -104,8 +112,9 @@ export function channelKey(name: string | null | undefined): ChannelKey {
     break;
   }
   const tail = s.match(CODE_SUFFIX);
-  if (tail && REGIONS[tail[1] || tail[2]]) {
-    if (!region) region = REGIONS[tail[1] || tail[2]];
+  const tailCode = tail ? tail[1] || tail[2] : '';
+  if (tail && REGIONS[tailCode] && !STATES.has(tailCode)) {
+    if (!region) region = REGIONS[tailCode];
     s = s.slice(0, tail.index);
   }
 
@@ -143,21 +152,6 @@ export function channelKey(name: string | null | undefined): ChannelKey {
 const regionsClash = (a: string | null, b: string | null): boolean =>
   !!a && !!b && a !== b && !ANY_REGION.has(a) && !ANY_REGION.has(b);
 
-// Words that make two channels with one guide id different channels anyway
-// (a provider that gave the East and West feeds one id). Numbers and "+" too.
-const VARIANT_WORDS = new Set([
-  'east', 'west', 'pacific', 'mountain', 'central', 'international', 'intl', 'world', 'europe', 'asia', 'africa',
-  'latino', 'latin', 'latam', 'espanol', 'deportes', 'kids', 'junior', 'jr', 'plus', 'extra', 'xtra', '+',
-]);
-const variants = (key: string): string =>
-  key.split(' ').filter((w) => VARIANT_WORDS.has(w) || DIGITS.test(w)).sort().join(' ');
-
-/** A guide id worth comparing: providers fill "none", "0" or "-" in when there is none. */
-const epgId = (v: string | null | undefined): string => {
-  const s = String(v ?? '').trim().toLowerCase();
-  return !s || s === 'none' || s === 'null' || s === '0' || s === '-' || s === 'n/a' || s === 'no epg' ? '' : s;
-};
-
 // What a copy is preferred by when there are several: the failed one's own
 // quality first, then Full HD / HD, then an untagged one, then 4K (heavy on a
 // small box when the point is a picture that starts), SD last.
@@ -170,23 +164,64 @@ const QUALITY_RANK: Record<string, number> = { fhd: 0, hd: 1, none: 2, uhd: 3, s
 // eslint-disable-next-line no-control-regex
 const NON_ASCII = /[^\x00-\x7f]/;
 
-export interface FindOptions<T> {
-  /** Channels never offered (a hidden category's, adult ones). */
-  skip?: (c: T) => boolean;
+// ---- event channels -----------------------------------------------------
+
+// Words that, followed by a number, name an event slot rather than a channel:
+// "PPV 1", "NFL Game 3", "NBA 07: Lakers vs …", "Event 12", "DAZN 2".
+const EVENT_WORDS = new Set([
+  'ppv', 'event', 'events', 'evento', 'eventos', 'game', 'games', 'match', 'matches', 'fight', 'fights',
+  'nfl', 'nba', 'wnba', 'nhl', 'mlb', 'mls', 'ncaa', 'ncaaf', 'ncaab', 'cfb', 'cbb', 'ufc', 'wwe', 'aew', 'boxing',
+  'dazn', 'flo', 'flosports', 'flohockey', 'flowrestling', 'flofootball', 'flobaseball', 'peacock', 'paramount',
+  'fubo', 'nascar', 'pga', 'ticket', 'innings', 'pass',
+]);
+// Followed by "+" and a number: "ESPN+ 05", "Paramount+ 3".
+const PLUS_EVENT_WORDS = new Set(['espn', 'paramount', 'peacock', 'dazn', 'disney', 'mlb', 'nba', 'nhl']);
+// A category of event slots (PPV, Events, Live Events, Sports Pass, Game Pass…).
+const EVENT_CATEGORY = /\b(?:ppv|pay ?per ?view|events?|eventos?|evenements?|pass|sunday ticket|extra innings|center ice)\b/;
+
+const isEventKey = (key: string): boolean => {
+  const w = key.split(' ');
+  for (let i = 0; i + 1 < w.length; i++) {
+    if (EVENT_WORDS.has(w[i]) && DIGITS.test(w[i + 1])) return true;
+    if (w[i + 1] === '+' && i + 2 < w.length && DIGITS.test(w[i + 2]) && (EVENT_WORDS.has(w[i]) || PLUS_EVENT_WORDS.has(w[i]))) return true;
+  }
+  return false;
+};
+
+/** A category whose name says it holds event slots (PPV, Events, a sports pass). */
+export function isEventCategory(categoryName: string | null | undefined): boolean {
+  if (!categoryName) return false;
+  let s = String(categoryName);
+  try { s = s.normalize('NFKD'); } catch { /* ignore */ }
+  s = s.replace(COMBINING, '').toLowerCase().replace(/\+/g, ' + ').replace(PUNCT, ' ').replace(/\s+/g, ' ');
+  return EVENT_CATEGORY.test(s);
 }
 
 /**
- * The same channel as `want` in `candidates`, or null. A match has the same
- * cleaned name, or the same guide id (epg_channel_id) when that id is not a
- * placeholder many channels share and the names don't disagree on East /
- * West, a number, "+1" or the like. Never across clashing country tags. Of
- * several matches: a name match before a guide-id one, then the failed one's
- * own quality, then HD over SD, then the provider's order.
+ * An event slot rather than a channel: its name ("PPV 1", "NFL Game 3",
+ * "US: ESPN+ 05", "Event 12") or its category ("PPV", "Live Events"). Each
+ * provider puts a different event behind the number, so these never match.
+ */
+export function isEventChannel(name: string | null | undefined, categoryName?: string | null): boolean {
+  return isEventKey(channelKey(name).key) || isEventCategory(categoryName);
+}
+
+export interface FindOptions<T> {
+  /** Channels never offered (a hidden category's, adult ones). */
+  skip?: (c: T) => boolean;
+  /** The name of a candidate's category: an event category's never match. */
+  categoryOf?: (c: T) => string | null | undefined;
+}
+
+/**
+ * The same channel as `want` in `candidates`, or null: the same cleaned
+ * name, never across clashing country tags, never an event slot (see
+ * isEventChannel; the caller checks the wanted one's category). Of several:
+ * the failed one's own quality, then HD over SD, then the provider's order.
  */
 export function findSameChannel<T extends ChannelLike>(want: ChannelLike, candidates: readonly T[], opts: FindOptions<T> = {}): T | null {
   const w = channelKey(want.name);
-  const wEpg = epgId(want.epg_channel_id);
-  if (!w.key && !wEpg) return null;
+  if (!w.key || isEventKey(w.key)) return null;
   // The plain words of the wanted name: the quick test for each candidate.
   const probes = w.key.split(' ').filter((x) => /^[a-z0-9]+$/.test(x));
   const lacksAWord = (name: string): boolean => {
@@ -197,35 +232,13 @@ export function findSameChannel<T extends ChannelLike>(want: ChannelLike, candid
   };
 
   let best: { c: T; rank: number } | null = null;
-  const epgHits: Array<{ c: T; k: ChannelKey }> = [];
   for (const c of candidates) {
-    if (!c || typeof c.name !== 'string') continue;
-    const sameEpg = !!wEpg && epgId(c.epg_channel_id) === wEpg;
-    if (!sameEpg && (!w.key || lacksAWord(c.name))) continue;
+    if (!c || typeof c.name !== 'string' || lacksAWord(c.name)) continue;
     const k = channelKey(c.name);
-    if (regionsClash(w.region, k.region)) continue;
-    if (w.key && k.key === w.key) {
-      if (opts.skip?.(c)) continue;
-      const rank = (k.quality === w.quality ? 0 : 10) + QUALITY_RANK[k.quality ?? 'none'];
-      if (!best || rank < best.rank) best = { c, rank };
-      continue;
-    }
-    if (sameEpg) epgHits.push({ c, k });
+    if (k.key !== w.key || regionsClash(w.region, k.region)) continue;
+    if (opts.skip?.(c) || isEventCategory(opts.categoryOf?.(c))) continue;
+    const rank = (k.quality === w.quality ? 0 : 10) + QUALITY_RANK[k.quality ?? 'none'];
+    if (!best || rank < best.rank) best = { c, rank };
   }
-  if (best) return best.c;
-  if (!epgHits.length) return null;
-
-  // A guide id that several different channels carry is a placeholder, not
-  // this channel's: nothing is matched by it.
-  const names = new Set(epgHits.map((h) => h.k.key));
-  if (w.key) names.add(w.key);
-  if (names.size > 2) return null;
-  let pick: { c: T; rank: number } | null = null;
-  for (const h of epgHits) {
-    if (w.key && h.k.key && variants(h.k.key) !== variants(w.key)) continue;
-    if (opts.skip?.(h.c)) continue;
-    const rank = (h.k.quality === w.quality ? 0 : 10) + QUALITY_RANK[h.k.quality ?? 'none'];
-    if (!pick || rank < pick.rank) pick = { c: h.c, rank };
-  }
-  return pick ? pick.c : null;
+  return best ? best.c : null;
 }

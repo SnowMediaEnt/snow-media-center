@@ -2146,6 +2146,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const failover = useChannelFailover({
     lines,
     off: DEMO,
+    active: isActive,
     watching: nativeActive && playingChannelId && playingStream
       ? { stream: playingStream, line: playingLine, where: 'full' }
       : nativePreviewActive && previewChannel
@@ -2154,6 +2155,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     error: native.error,
     fetchAll: fetchLiveStreams,
     known: (line) => allByLine.get(lineKey(line)),
+    knownCategory: (line, catId) => streamsByCat.get(`${lineKey(line)}|${catId}`),
+    categoriesOf: (line) => categoriesByLine.get(lineKey(line)),
+    categoryName: (st, line) => (st.category_id != null
+      ? categoriesByLine.get(lineKey(line))?.find((c) => String(c.category_id) === String(st.category_id))?.category_name
+      : undefined),
     // Never a channel search leaves out (adult, a hidden category's).
     skip: (st, line) => leftOutOfSearch(st, { hidden: hidden.get(lineKey(line)), adultCats: adultCatsByLine.get(lineKey(line)) }),
     lineOf: lineFor,
@@ -2166,6 +2172,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       // Upright on a phone the box is the player: what plays there is watched.
       if (uprightRef.current) playChannel(to.stream, undefined, true);
     },
+    release: (original) => setPreviewChannel(original.stream),
   });
   failoverRef.current = failover;
 
@@ -2405,7 +2412,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // the box, a tap on the channel already there goes full screen.
     if (ch && tapToBoxRef.current) {
       const inBox = previewChannelRef.current;
-      if (!inBox || inBox.stream_id !== ch.stream_id || lineFor(inBox) !== lineFor(ch)) {
+      // The box shows this channel's copy from the other service (it failed
+      // here): that counts as this channel being in the box, so the tap goes
+      // full screen instead of restarting the box (useChannelFailover).
+      const want = failoverRef.current.redirect(ch) ?? ch;
+      if (!inBox || inBox.stream_id !== want.stream_id || lineFor(inBox) !== lineFor(want)) {
         if (uprightRef.current) {
           // Upright the box is where it is watched: one reported down asks first.
           const line = lineFor(ch);
@@ -3650,7 +3661,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   data-focused={failover.focus === 'offer' ? 'true' : 'false'}
                   className={`tv-ring ml-4 px-5 py-3 rounded-xl bg-white/10 border border-white/25 text-white font-quicksand font-bold ${failover.focus === 'offer' ? 'scale-105 z-10' : ''}`}
                 >
-                  {t('live.failover.tryOn', { other: failover.offer })}
+                  {failover.offerLabel}
                 </button>
               )}
             </div>

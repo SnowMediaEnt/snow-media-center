@@ -3,7 +3,7 @@
  * worse than none, so most of these are names that must NOT match.
  */
 import { describe, expect, it } from 'vitest';
-import { channelKey, findSameChannel } from './channelMatch';
+import { channelKey, findSameChannel, isEventCategory, isEventChannel } from './channelMatch';
 
 type Ch = { name: string; stream_id: number; epg_channel_id?: string; category_id?: string };
 let id = 1;
@@ -47,7 +47,6 @@ describe('channelKey: the decoration comes off', () => {
     ['ESPN ᴴᴰ', 'espn'],
     ['ESPNᴴᴰ', 'espn'],
     ['ESPN ᶠᴴᴰ', 'espn'],
-    ['ESPN RAW', 'espn'],
     ['ESPN (Backup)', 'espn'],
     ['ESPN Backup 2', 'espn'],
     ['ESPN [FHD/HEVC]', 'espn'],
@@ -70,6 +69,21 @@ describe('channelKey: the decoration comes off', () => {
     expect(channelKey('ABC - East').key).toBe('abc east');
     expect(channelKey('CNN: Live').key).toBe('cnn live');
     expect(channelKey('USA Network').key).toBe('usa network');
+  });
+
+  it('LA is Los Angeles, and a state or province at the end stays', () => {
+    expect(channelKey('LA: ABC 7').key).toBe('la abc 7');
+    expect(channelKey('ABC (LA)').key).toBe('abc la');
+    expect(channelKey('CNN (IN)').key).toBe('cnn in');
+    expect(channelKey('KABC (CA)').key).toBe('kabc ca');
+    expect(channelKey('CBC (ON)').key).toBe('cbc on');
+    // At the start they are still country tags.
+    expect(channelKey('IN: Star Plus').key).toBe('star plus');
+    expect(channelKey('CA: CTV').key).toBe('ctv');
+  });
+
+  it('"Raw" is part of the name', () => {
+    expect(channelKey('WWE Raw').key).toBe('wwe raw');
   });
 
   it('folds case, accents and punctuation', () => {
@@ -115,11 +129,7 @@ describe('findSameChannel: matches', () => {
     expect(find('ESPN', ['ESPN SD', 'ESPN'])).toBe('ESPN');
   });
 
-  it('the same guide id under a different name', () => {
-    expect(find({ name: 'FS1', epg_channel_id: 'FoxSports1.us' }, [ch('Fox Sports 2', 'foxsports2.us'), ch('Fox Sports 1 HD', 'foxsports1.us')])).toBe('Fox Sports 1 HD');
-  });
-
-  it('a name match wins over a guide-id one', () => {
+  it('the name decides, whatever the guide ids say', () => {
     expect(find({ name: 'ESPN', epg_channel_id: 'espn.us' }, [ch('ESPN Deportes', 'espn.us'), ch('US: ESPN', 'other')])).toBe('US: ESPN');
   });
 
@@ -148,6 +158,26 @@ describe('findSameChannel: no match rather than a guess', () => {
     ['Sky Sports Main Event', ['Sky Sports Premier League']],
   ])('%s is not in %j', (want, list) => {
     expect(find(want, list)).toBeNull();
+  });
+
+  it('the same guide id is never enough: panels put sub-brands on the parent\'s id', () => {
+    const pairs: Array<[string, string]> = [
+      ['HBO', 'HBO Family'], ['TNT', 'TNT Sports'], ['FOX', 'FOX News'], ['NBC', 'NBC Sports Chicago'],
+      ['Bally Sports Detroit', 'Bally Sports Ohio'], ['Nick', 'Nicktoons'], ['FS1', 'Fox Sports 1'],
+    ];
+    for (const [a, b] of pairs) {
+      expect(find({ name: a, epg_channel_id: 'same.us' }, [ch(b, 'same.us')]), `${a} → ${b}`).toBeNull();
+      expect(find({ name: b, epg_channel_id: 'same.us' }, [ch(a, 'same.us')]), `${b} → ${a}`).toBeNull();
+    }
+  });
+
+  it('WWE is not WWE Raw; ABC is not ABC (LA); CNN is not CNN (IN)', () => {
+    expect(find('WWE', ['WWE Raw'])).toBeNull();
+    expect(find('WWE Raw', ['WWE'])).toBeNull();
+    expect(find('ABC', ['ABC (LA)'])).toBeNull();
+    expect(find('LA: ABC 7', ['ABC 7'])).toBeNull();
+    expect(find('CNN', ['CNN (IN)'])).toBeNull();
+    expect(find('WWE Raw', ['US: WWE Raw HD'])).toBe('US: WWE Raw HD');
   });
 
   it('ESPN Backup 2 is not ESPN 2', () => {
@@ -197,5 +227,40 @@ describe('findSameChannel: a full line-up', () => {
     const t0 = performance.now();
     expect(find('ESPN FHD', list)).toBe('US| ESPN ᴴᴰ');
     expect(performance.now() - t0).toBeLessThan(500);
+  });
+});
+
+describe('event slots never match', () => {
+  it.each([
+    'PPV 1', 'PPV01', 'US| PPV 12 HD', 'Event 12', 'EVENT #3', 'Live Events 01', 'NFL Game 1', 'Game 3',
+    'NBA 07: Lakers vs Celtics', 'NHL 05', 'MLB 12', 'NCAAF 3', 'UFC 2', 'WWE 1', 'DAZN 2', 'Flo 4', 'Peacock 3',
+    'US: ESPN+ 05', 'USA | ESPN+ 05', 'Paramount+ 3', 'Match 2', 'NFL Sunday Ticket 4', 'MLB Extra Innings 7',
+  ])('%s is an event slot', (name) => {
+    expect(isEventChannel(name)).toBe(true);
+    expect(find(name, [name, `${name} HD`])).toBeNull();
+  });
+
+  it.each(['ESPN', 'ESPN 2', 'ESPN+', 'Fox Sports 1', 'NBA TV', 'NFL Network', 'MLB Network', 'Game Show Network', 'TSN 3', 'beIN Sports 2', 'Sky Sports F1', 'Channel 4 +1', 'WWE Raw'])(
+    '%s is a channel', (name) => {
+      expect(isEventChannel(name)).toBe(false);
+    },
+  );
+
+  it.each(['PPV', 'US| PPV EVENTS', 'Live Events', 'EVENTS', 'Sports Pass', 'NFL Game Pass', 'NBA League Pass', 'Pay-Per-View', 'Eventos', 'MLB Extra Innings'])(
+    'the category %s holds event slots', (cat) => {
+      expect(isEventCategory(cat)).toBe(true);
+      expect(isEventChannel('Main Card', cat)).toBe(true);
+    },
+  );
+
+  it.each(['Sports', 'US| NEWS', 'Entertainment', 'Passion TV'])('the category %s does not', (cat) => {
+    expect(isEventCategory(cat)).toBe(false);
+  });
+
+  it('a candidate in an event category is passed over', () => {
+    const list = [{ ...ch('ESPN'), category_id: 'ppv' }, { ...ch('ESPN SD'), category_id: 'sports' }];
+    const cats: Record<string, string> = { ppv: 'PPV Events', sports: 'Sports' };
+    const hit = findSameChannel({ name: 'ESPN' }, list, { categoryOf: (c) => cats[c.category_id ?? ''] });
+    expect(hit?.name).toBe('ESPN SD');
   });
 });

@@ -21,6 +21,9 @@ const h = vi.hoisted(() => ({
   retry: vi.fn(),
   setError: null as null | ((e: { code?: string; message: string; forUrl?: string } | null) => void),
   url: null as string | null,
+  /** Every address the player was given, in order. */
+  urls: [] as string[],
+  vibezCat: 'Vibez Sports',
 }));
 
 const line = { host: 'http://h.test', username: 'someuser', password: 'secretpw', output: 'm3u8' as const, serverLabel: 'Dreamstreams' };
@@ -29,18 +32,20 @@ const DREAM = [
   { stream_id: 101, name: 'US: ESPN HD', num: 1, category_id: '1' },
   { stream_id: 102, name: 'News Two', num: 2, category_id: '1' },
   { stream_id: 103, name: 'ESPN 2', num: 3, category_id: '1' },
+  { stream_id: 104, name: 'PPV 1', num: 4, category_id: '1' },
 ];
 const VIBEZ_CH = [
   { stream_id: 501, name: 'USA | ESPN FHD', num: 1, category_id: '9' },
   { stream_id: 502, name: 'USA | ESPN 2', num: 2, category_id: '9' },
   { stream_id: 503, name: 'Movies Max', num: 3, category_id: '9' },
+  { stream_id: 504, name: 'PPV 1', num: 4, category_id: '9' },
 ];
 
 vi.mock('@/lib/xtream', async (orig) => ({
   ...(await orig<typeof import('@/lib/xtream')>()),
   loadSavedAccounts: async () => h.saved,
   getLiveCategories: async (c: { host: string }) => (c.host === 'http://v.test'
-    ? [{ category_id: '9', category_name: 'Vibez Sports' }]
+    ? [{ category_id: '9', category_name: h.vibezCat }]
     : [{ category_id: '1', category_name: 'Sports' }]),
   getLiveStreams: h.getLiveStreams,
   getShortEpg: async () => ({ epg_listings: [] }),
@@ -95,6 +100,7 @@ vi.mock('@/hooks/useNativePlayer', async () => {
       React.useEffect(() => { if (was.current !== o.url) { was.current = o.url; setError(null); } }, [o.url]);
       h.setError = setError;
       h.url = o.active ? o.url : null;
+      if (h.url && h.urls[h.urls.length - 1] !== h.url) h.urls.push(h.url);
       return { buffering: false, error, retry: h.retry, audioWarning: null, controller: null, paused: false, engineNotice: null };
     },
   };
@@ -131,13 +137,18 @@ const offer = () => document.querySelector('[data-failover-offer]') as HTMLEleme
 async function openSports() {
   vi.resetModules();
   const { default: Live } = await import('./LiveSection');
-  render(<Live creds={line} isActive onExitLeft={() => {}} onBack={() => {}} />);
+  const r = render(<Live creds={line} isActive onExitLeft={() => {}} onBack={() => {}} />);
   await waitFor(() => expect(text()).toContain('Sports'));
   await sleep(50);
   press('ArrowRight');
   await waitFor(() => expect(text()).toContain('News Two'));
   await sleep(50);
+  return { setActive: (on: boolean) => r.rerender(<Live creds={line} isActive={on} onExitLeft={() => {}} onBack={() => {}} />) };
 }
+/** The whole Vibez line-up asked for (no category). */
+const vibezWholeAsked = () => h.getLiveStreams.mock.calls.filter((c) => c[0].host === 'http://v.test' && !c[1]).length;
+const bar = () => document.querySelector('[data-howto="bar.root"]');
+const rowNamed = (name: string) => Array.from(document.querySelectorAll<HTMLElement>('[data-focused]')).find((el) => (el.textContent ?? '').includes(name));
 /** OK on the n-th channel of the list: it plays full screen. */
 async function watch(n: number) {
   for (let i = 0; i < n; i++) press('ArrowDown');
@@ -151,12 +162,18 @@ beforeEach(() => {
   localStorage.clear(); sessionStorage.clear();
   h.saved = [VIBEZ];
   h.url = null;
+  h.urls = [];
+  h.vibezCat = 'Vibez Sports';
   h.getLiveStreams.mockReset();
   h.getLiveStreams.mockImplementation(async (c: { host: string }, catId?: string) =>
     (c.host === 'http://v.test' ? VIBEZ_CH : DREAM).filter((s) => !catId || s.category_id === catId).map((s) => ({ ...s })));
   h.signalChannel.mockClear(); h.trackEvent.mockClear(); h.toast.mockClear(); h.retry.mockClear();
 });
-afterEach(() => { document.documentElement.className = ''; });
+afterEach(async () => {
+  document.documentElement.className = '';
+  const pm = await import('@/lib/phoneMode');
+  pm.__setPhoneModeForTests({ touch: false, phone: false });
+});
 
 describe('a channel that won\'t start, with a second service', () => {
   it('plays the same channel from the other service once, with a note; the copy failing too shows the error, tried on both', async () => {
@@ -246,15 +263,31 @@ describe('a channel that won\'t start, with a second service', () => {
     expect(offer()).toBeNull();
   });
 
-  it('the switch turned off: the error screen offers "Try on Vibez" beside Retry instead', async () => {
+  it('the switch turned off: nothing is downloaded, and "Try on Vibez" is offered beside Retry from a list in hand', async () => {
     localStorage.setItem('smc-live-failover-v1', '0');
+    h.vibezCat = 'Sports';
     await openSports();
+    // The viewer looked at Vibez's Sports earlier: that list is in hand.
+    press('ArrowLeft');
+    for (let i = 0; i < 4; i++) press('ArrowDown');
+    await sleep(20);
+    press('ArrowRight');
+    await waitFor(() => expect(text()).toContain('USA | ESPN FHD'));
+    press('ArrowLeft');
+    for (let i = 0; i < 4; i++) press('ArrowUp');
+    await sleep(20);
+    press('ArrowRight');
+    await waitFor(() => expect(text()).toContain('News Two'));
+    await sleep(50);
     await watch(0);
+    const asked = h.getLiveStreams.mock.calls.length;
     fail();
     await waitFor(() => expect(offer()?.textContent).toBe('Try on Vibez'));
+    expect(h.getLiveStreams.mock.calls.length).toBe(asked);
     expect(failoverEvents()).toEqual([['live_failover', 'player', { found: true, auto: false }]]);
     expect(playingOn('http://h.test', 101)).toBe(true);
     expect(h.toast).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-failover-looking]')).toBeNull();
     expect(text()).toContain('Retry');
     // ▶ onto it, OK: the copy plays.
     expect(offer()?.getAttribute('data-focused')).toBe('false');
@@ -267,6 +300,36 @@ describe('a channel that won\'t start, with a second service', () => {
     await waitFor(() => expect(playingOn('http://v.test', 501)).toBe(true));
     expect(h.retry).not.toHaveBeenCalled();
     expect(h.toast).not.toHaveBeenCalled();
+  });
+
+  it('the switch turned off and nothing in hand: no download, no button', async () => {
+    localStorage.setItem('smc-live-failover-v1', '0');
+    await openSports();
+    await watch(0);
+    fail();
+    await waitFor(() => expect(failoverEvents()).toEqual([['live_failover', 'player', { found: false, auto: false }]]));
+    expect(vibezWholeAsked()).toBe(0);
+    expect(offer()).toBeNull();
+  });
+
+  it('a low-memory box downloads nothing: only lists in hand', async () => {
+    await openSports();
+    document.documentElement.classList.add('native-low-memory');
+    await watch(0);
+    fail();
+    await waitFor(() => expect(failoverEvents()).toEqual([['live_failover', 'player', { found: false, auto: false }]]));
+    expect(h.getLiveStreams.mock.calls.filter((c) => c[0].host === 'http://v.test')).toHaveLength(0);
+    expect(playingOn('http://h.test', 101)).toBe(true);
+  });
+
+  it('the channel\'s own category on the other line (same name) is asked for first: no whole line-up', async () => {
+    h.vibezCat = 'US| SPORTS';
+    await openSports();
+    await watch(0);
+    fail();
+    await waitFor(() => expect(playingOn('http://v.test', 501)).toBe(true));
+    expect(h.getLiveStreams).toHaveBeenCalledWith(expect.objectContaining({ host: 'http://v.test' }), '9');
+    expect(vibezWholeAsked()).toBe(0);
   });
 
   it('the preview box: a highlighted channel that fails plays from the other service there, and OK takes that copy full screen', async () => {
@@ -330,6 +393,122 @@ describe('a held preview box whose channel fails', () => {
     fail();
     await waitFor(() => expect(failoverEvents()).toEqual([['live_failover', 'player', { found: false, auto: false }]]));
     await waitFor(() => expect(playingOn('http://h.test', 101)).toBe(true), { timeout: 5000 });
+  });
+});
+
+describe('review fixes', () => {
+  it('an event slot (PPV 1) is never switched or offered, though the other service has a "PPV 1"', async () => {
+    await openSports();
+    await watch(3);
+    expect(playingOn('http://h.test', 104)).toBe(true);
+    fail();
+    await waitFor(() => expect(failoverEvents()).toEqual([['live_failover', 'player', { found: false, auto: false }]]));
+    expect(vibezWholeAsked()).toBe(0);
+    expect(playingOn('http://h.test', 104)).toBe(true);
+    expect(offer()).toBeNull();
+    expect(h.toast).not.toHaveBeenCalled();
+  });
+
+  it('a touch screen: the box shows the copy, a tap on the failed channel goes full screen on the copy', async () => {
+    await openSports();
+    const pm = await import('@/lib/phoneMode');
+    act(() => pm.__setPhoneModeForTests({ touch: true, phone: true, portrait: false }));
+    await waitFor(() => expect(rowNamed('US: ESPN HD')).toBeTruthy());
+    act(() => { fireEvent.click(rowNamed('US: ESPN HD')!); });
+    await waitFor(() => expect(playingOn('http://h.test', 101)).toBe(true));
+    fail();
+    await waitFor(() => expect(playingOn('http://v.test', 501)).toBe(true));
+    const before = h.urls.length;
+    act(() => { fireEvent.click(rowNamed('US: ESPN HD')!); });
+    await waitFor(() => expect(document.querySelector('button[aria-label="Report channel"]')).not.toBeNull());
+    await sleep(50);
+    expect(playingOn('http://v.test', 501)).toBe(true);
+    // The box was never sent back to the failed channel.
+    expect(h.urls.slice(before).some((u) => u.startsWith('http://h.test'))).toBe(false);
+  });
+
+  it('full screen on the copy, OK on the failed channel in the list over the picture: the copy stays, nothing restarts', async () => {
+    await openSports();
+    await watch(0);
+    fail();
+    await waitFor(() => expect(playingOn('http://v.test', 501)).toBe(true));
+    await sleep(30);
+    const before = h.urls.length;
+    act(() => { fireEvent.keyDown(window, { key: 'ContextMenu' }); });
+    await waitFor(() => expect(document.querySelector('[data-channel-overlay]')).not.toBeNull());
+    expect(document.querySelector('[data-overlay-channel][data-focused="true"]')?.textContent).toContain('US: ESPN HD');
+    press('Enter');
+    await waitFor(() => expect(document.querySelector('[data-channel-overlay]')).toBeNull());
+    await sleep(50);
+    expect(playingOn('http://v.test', 501)).toBe(true);
+    expect(h.urls.slice(before)).toEqual([]);
+    expect(h.signalChannel.mock.calls.filter((c) => c[3] === 'fail')).toHaveLength(1);
+    expect(failoverEvents()).toHaveLength(1);
+  });
+
+  it('leaving Live TV forgets it: back again, the box tries the viewer\'s own channel, and OK plays it', async () => {
+    const { setActive } = await openSports();
+    await watch(0);
+    fail();
+    await waitFor(() => expect(playingOn('http://v.test', 501)).toBe(true));
+    await sleep(30);
+    for (let i = 0; i < 3 && !text().includes('News Two'); i++) { press('Escape'); await sleep(50); }
+    await waitFor(() => expect(text()).toContain('News Two'));
+    await waitFor(() => expect(playingOn('http://v.test', 501)).toBe(true));
+    act(() => setActive(false));
+    await sleep(50);
+    act(() => setActive(true));
+    await waitFor(() => expect(playingOn('http://h.test', 101)).toBe(true));
+    press('Enter');
+    await waitFor(() => expect(document.querySelector('button[aria-label="Report channel"]')).not.toBeNull());
+    await sleep(30);
+    expect(playingOn('http://h.test', 101)).toBe(true);
+  });
+
+  it('◀ ▶ stay on the error card while "Try on…" is shown, the bar down: no channel list, no Recently watched', async () => {
+    localStorage.setItem('smc-live-failover-v1', '0');
+    h.vibezCat = 'Sports';
+    await openSports();
+    // Vibez's Sports in hand (see the switch-off test).
+    press('ArrowLeft');
+    for (let i = 0; i < 4; i++) press('ArrowDown');
+    await sleep(20);
+    press('ArrowRight');
+    await waitFor(() => expect(text()).toContain('USA | ESPN FHD'));
+    press('ArrowLeft');
+    for (let i = 0; i < 4; i++) press('ArrowUp');
+    await sleep(20);
+    press('ArrowRight');
+    await waitFor(() => expect(text()).toContain('News Two'));
+    await sleep(50);
+    await watch(0);
+    fail();
+    await waitFor(() => expect(offer()).not.toBeNull());
+    if (bar()) { press('Escape'); await sleep(30); }
+    expect(bar()).toBeNull();
+    expect(errorCard()).toBe(true);
+    press('ArrowLeft'); // on Retry already
+    await sleep(30);
+    expect(document.querySelector('[data-channel-overlay]')).toBeNull();
+    press('ArrowRight');
+    press('ArrowRight'); // on "Try on…" already
+    await sleep(30);
+    expect(document.querySelector('[data-recent-panel]')).toBeNull();
+    expect(offer()?.getAttribute('data-focused')).toBe('true');
+  });
+
+  it('two lines on the same service: "your other DreamStreams line"', async () => {
+    h.saved = [{ ...VIBEZ, serverLabel: 'Dreamstreams' }];
+    await openSports();
+    await watch(0);
+    fail();
+    await waitFor(() => expect(playingOn('http://v.test', 501)).toBe(true));
+    expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'US: ESPN HD is down on DreamStreams — playing it from your other DreamStreams line' }));
+    await sleep(30);
+    fail();
+    await waitFor(() => expect(errorCard()).toBe(true));
+    await waitFor(() => expect(offer()?.textContent).toBe('Try on your other DreamStreams line'));
+    expect(document.querySelector('[data-failover-both]')?.textContent).toBe("US: ESPN HD didn't play on either of your DreamStreams lines.");
   });
 });
 

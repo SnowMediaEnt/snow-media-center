@@ -258,7 +258,10 @@
       "note": "{{channel}} no funciona en {{service}}: se reproduce desde {{other}}",
       "triedBoth": "{{channel}} no se reprodujo ni en {{service}} ni en {{other}}.",
       "tryOn": "Probar en {{other}}",
-      "looking": "Buscándolo en tu otro servicio…"
+      "looking": "Buscándolo en tu otro servicio…",
+      "noteSameService": "{{channel}} no funciona en {{service}}: se reproduce desde tu otra línea de {{service}}",
+      "triedBothSameService": "{{channel}} no se reprodujo en ninguna de tus líneas de {{service}}.",
+      "tryOnSameService": "Probar en tu otra línea de {{service}}"
     },
     "multi": {
       "needsAppTitle": "Multipantalla requiere la app de Fire TV / Android",

@@ -258,7 +258,10 @@
       "note": "{{channel}} ist bei {{service}} gestört – läuft jetzt über {{other}}",
       "triedBoth": "{{channel}} lief weder bei {{service}} noch bei {{other}}.",
       "tryOn": "Bei {{other}} versuchen",
-      "looking": "Suche bei deinem anderen Dienst…"
+      "looking": "Suche bei deinem anderen Dienst…",
+      "noteSameService": "{{channel}} ist bei {{service}} gestört – läuft jetzt über deinen anderen {{service}}-Zugang",
+      "triedBothSameService": "{{channel}} lief auf keinem deiner {{service}}-Zugänge.",
+      "tryOnSameService": "Über deinen anderen {{service}}-Zugang versuchen"
     },
     "multi": {
       "needsAppTitle": "Multi-Screen braucht die App für Fire TV / Android",
