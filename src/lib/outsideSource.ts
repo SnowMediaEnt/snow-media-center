@@ -29,9 +29,11 @@
 // which gets the categories and the guide (lib/outsideProbe falls back to the
 // link when that service's API is blocked).
 //
-// No runtime imports but lib/servers: analytics, the list proxy and channel
-// status import this, and xtream.ts imports them.
-import { SERVERS, hostNameOf, isOurHost } from '@/lib/servers';
+// No runtime imports but lib/servers and lib/hash32 (neither imports
+// anything): analytics, the list proxy and channel status import this, and
+// xtream.ts imports them.
+import { hash32 } from '@/lib/hash32';
+import { SERVERS, hostNameOf, isOurHost, withScheme } from '@/lib/servers';
 import type { PlayerAccount, SavedAccount, XtreamCreds } from '@/lib/xtream';
 
 /** How many outside services a viewer may add. One for now (owner, 2026-10-20). */
@@ -67,14 +69,8 @@ export interface OutsideSource {
 
 // ── small helpers ──────────────────────────────────────────────────────────
 
-const fnv = (s: string): string => {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
-  return (h >>> 0).toString(16).padStart(8, '0');
-};
-
-/** "provider.tv:8080" → "http://provider.tv:8080"; an address keeps its scheme. */
-const withScheme = (s: string): string => (/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `http://${s}`);
+/** An address's fingerprint: hash32 as 8 hex digits (service ids, an M3U line's key). */
+const fnv = (s: string): string => hash32(s).toString(16).padStart(8, '0');
 
 const originOf = (url: string): string => {
   try { return new URL(url).origin; } catch { return ''; }
@@ -216,6 +212,12 @@ const queryValues = (search: string): Map<string, string> => {
   return out;
 };
 
+/** An Xtream panel's own pages: its M3U link (get.php) and its API (player_api.php). */
+const PANEL_PAGE = /\/(get|player_api)\.php$/i;
+
+/** The panel's base address: the origin and path, without get.php / player_api.php or a trailing slash. */
+const panelBase = (u: URL): string => `${u.origin}${u.pathname.replace(PANEL_PAGE, '').replace(/\/+$/, '')}`;
+
 /**
  * An Xtream panel's M3U link (…/get.php?username=U&password=P&type=m3u…,
  * or its player_api.php) as the login it carries; null for any other link.
@@ -223,13 +225,12 @@ const queryValues = (search: string): Map<string, string> => {
 export function xtreamFromM3uLink(link: string): { host: string; username: string; password: string } | null {
   let u: URL;
   try { u = new URL(withScheme(link.trim())); } catch { return null; }
-  if (!/\/(get|player_api)\.php$/i.test(u.pathname)) return null;
+  if (!PANEL_PAGE.test(u.pathname)) return null;
   const q = queryValues(u.search);
   const username = (q.get('username') ?? '').trim();
   const password = (q.get('password') ?? '').trim();
   if (!username || !password) return null;
-  const base = u.pathname.replace(/\/(get|player_api)\.php$/i, '').replace(/\/+$/, '');
-  return { host: `${u.origin}${base}`, username, password };
+  return { host: panelBase(u), username, password };
 }
 
 /** A typed Xtream server as the base the API is asked at: a scheme, no trailing slash or /player_api.php. */
@@ -237,8 +238,7 @@ const serverBase = (typed: string): string => {
   let u: URL;
   try { u = new URL(withScheme(typed.trim())); } catch { return ''; }
   if (!u.hostname) return '';
-  const base = u.pathname.replace(/\/(get|player_api)\.php$/i, '').replace(/\/+$/, '');
-  return `${u.origin}${base}`;
+  return panelBase(u);
 };
 
 const isOurName = (name: string): boolean => {

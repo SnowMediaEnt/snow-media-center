@@ -2,7 +2,9 @@
 // of them. Kept apart from xtream.ts (which re-exports SERVERS) so modules
 // that only need the answer — the outside-service rule, analytics, channel
 // status — can import it without pulling in the whole Xtream client or
-// making an import cycle with it. No imports on purpose.
+// making an import cycle with it. No imports on purpose. The address helpers
+// that answer it (hasScheme, withScheme, hostNameOf) are the ones the outside
+// service (lib/outsideSource) and its playlists (lib/m3u) read addresses with.
 
 export interface XtreamServer {
   label: string;
@@ -15,17 +17,24 @@ export const SERVERS: XtreamServer[] = [
   { label: 'Vibez',    host: 'https://strmz.xyz' },
 ];
 
+const SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
+
+/** The address starts with a scheme ("http://", "https://", "rtmp://"…). */
+export const hasScheme = (s: string): boolean => SCHEME.test(s);
+
+/** "provider.tv:8080" → "http://provider.tv:8080": an address typed without a scheme is read as http; one with a scheme keeps it. */
+export const withScheme = (s: string): string => (hasScheme(s) ? s : `http://${s}`);
+
 /**
  * The bare host name of a URL or host ("http://dstreams.xyz:8080/" →
  * "dstreams.xyz"): lowercase, no scheme, port, path or trailing dot. '' when
  * it can't be read. A host typed without a scheme is read as http.
  */
 export const hostNameOf = (urlOrHost: string | null | undefined): string => {
-  let s = String(urlOrHost ?? '').trim().toLowerCase();
+  const s = String(urlOrHost ?? '').trim().toLowerCase();
   if (!s) return '';
-  if (!/^[a-z][a-z0-9+.-]*:\/\//.test(s)) s = `http://${s}`;
   try {
-    return new URL(s).hostname.replace(/\.$/, '');
+    return new URL(withScheme(s)).hostname.replace(/\.$/, '');
   } catch {
     return '';
   }

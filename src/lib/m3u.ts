@@ -37,7 +37,9 @@
 import i18n from '@/i18n';
 import { isDemo } from '@/lib/demoMode';
 import { contentLength, directGet } from '@/lib/directHttp';
+import { hash32 } from '@/lib/hash32';
 import { noteOutsideStreamHosts } from '@/lib/outsideSource';
+import { hasScheme } from '@/lib/servers';
 import type { XtreamCategory, XtreamLiveStream } from '@/lib/xtream';
 
 /** Live channels kept from one playlist. A real line-up is a few thousand; past this it is a VOD dump. */
@@ -79,17 +81,7 @@ export interface M3uPlaylist {
 
 // ── parsing ────────────────────────────────────────────────────────────────
 
-/** FNV-1a, 32 bits: a stable number for a string (stream and category ids). */
-export const hash32 = (s: string): number => {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-};
-
-/** A positive 31-bit id: some native code reads stream ids as Java ints. */
+/** A positive 31-bit id (hash32, FNV-1a): some native code reads stream ids as Java ints. */
 const id31 = (s: string): number => (hash32(s) & 0x7fffffff) || 1;
 
 /** The id a group's name becomes. The same name always gets the same id, so hidden categories stay hidden across reloads. */
@@ -210,7 +202,7 @@ function createReader(input: string, opts: ParseOptions) {
     pending = null;
     pendingGroup = '';
     let url = playableUrl(line);
-    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
+    if (!hasScheme(url)) {
       // A relative address counts from the playlist's; without one (or a
       // bare line that isn't an entry) it can't be played.
       if (!info || !opts.base) return;
