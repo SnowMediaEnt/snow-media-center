@@ -499,11 +499,12 @@ describe('review fixes', () => {
     press('ArrowLeft'); // on Retry already
     await sleep(30);
     expect(document.querySelector('[data-channel-overlay]')).toBeNull();
-    press('ArrowRight');
-    press('ArrowRight'); // on "Try on…" already
+    press('ArrowRight'); // "Try on…"
+    press('ArrowRight'); // "Report it", the last
+    press('ArrowRight'); // stays
     await sleep(30);
     expect(document.querySelector('[data-recent-panel]')).toBeNull();
-    expect(offer()?.getAttribute('data-focused')).toBe('true');
+    expect(focusedOnCard()).toEqual(['Report it']);
   });
 
   it('two lines on the same service: "your other DreamStreams line"', async () => {

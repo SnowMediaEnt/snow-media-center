@@ -251,25 +251,29 @@ describe('recognising an outside service', () => {
     expect(isOutsideHost('http://other.tv:8000')).toBe(false);
   });
 
-  it('analytics: its name, host, login and playlist address become "outside"; everything else is untouched', async () => {
+  it('analytics: its host, login and playlist address become "outside"; everything else (its name too) is untouched', async () => {
     const props = { server: 'Dreamstreams', channel: 'News One' };
     expect(scrubOutside(props)).toBe(props);
     await saveOutsideSource(XTREAM, DS);
-    expect(scrubOutside({ server: 'Other TV', channel: 'News One', count: 3 })).toEqual({ server: 'outside', channel: 'News One', count: 3 });
+    // Its name is the viewer's pick and no secret: call sites leave it out (lineEventProps).
+    expect(scrubOutside({ server: 'Other TV', channel: 'News One', count: 3 })).toEqual({ server: 'Other TV', channel: 'News One', count: 3 });
     expect(scrubOutside({ url: 'http://OTHER.TV:8000/live/x/y/1.ts' })).toEqual({ url: 'outside' });
     // A password as a word, case aside; a 3-letter username is too short to match safely.
     expect(scrubOutside({ u: 'bob', p: 'HUNTER22', m: 'failed for hunter22 at login' })).toEqual({ u: 'bob', p: 'outside', m: 'outside' });
     expect(scrubOutside({ word: 'hunter222 is not it' })).toEqual({ word: 'hunter222 is not it' });
     expect(scrubOutside(props)).toBe(props);
     await saveOutsideSource(M3U, DS, XTREAM.id);
-    expect(scrubOutside({ where: M3U.url!, server: 'my list' })).toEqual({ where: 'outside', server: 'outside' });
+    expect(scrubOutside({ where: M3U.url!, server: 'my list' })).toEqual({ where: 'outside', server: 'my list' });
+    // A common word as a password never blanks an event kind: `_` is part of a word.
+    await saveOutsideSource({ ...XTREAM, id: 'live', password: 'live' }, DS, M3U.id);
+    expect(scrubOutside({ kind: 'live_native' })).toEqual({ kind: 'live_native' });
   });
 
   it('analytics: nested objects and arrays too, and the hosts its playlist plays from', async () => {
     await saveOutsideSource(M3U, DS);
     noteOutsideStreamHosts(['cdn.faraway.example']);
     const scrubbed = scrubOutside({ a: { b: ['ok', 'http://cdn.faraway.example/1.ts', { c: 'My List' }] }, n: 5, keep: 'News' });
-    expect(scrubbed).toEqual({ a: { b: ['ok', 'outside', { c: 'outside' }] }, n: 5, keep: 'News' });
+    expect(scrubbed).toEqual({ a: { b: ['ok', 'outside', { c: 'My List' }] }, n: 5, keep: 'News' });
     // Ours is never an outside host, whatever is noted.
     noteOutsideStreamHosts(['strmz.xyz']);
     expect(scrubOutside({ s: 'https://strmz.xyz/live/1.ts' })).toEqual({ s: 'https://strmz.xyz/live/1.ts' });

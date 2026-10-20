@@ -16,6 +16,12 @@ const COLLAPSED_KEY = 'snow-livetv-collapsed-lines';
 
 export { lineKey };
 
+/** One channel on one line ("host|user|stream_id"): two services can share a
+ *  stream id. What Live TV compares the channel being watched by, and
+ *  failover the channels it tried. */
+export const lineChannelKey = (line: Pick<XtreamCreds, 'host' | 'username'>, streamId: number): string =>
+  `${lineKey(line)}|${streamId}`;
+
 /**
  * The lines the pane shows: the active one first (it drives Movies, Series
  * and the account screen), then every other saved account that still has a
