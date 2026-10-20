@@ -10,6 +10,8 @@
 import i18n from '@/i18n';
 import { isDemo } from '@/lib/demoMode';
 import { withListFallback, XtreamHttpError } from '@/lib/xtreamListProxy';
+import { clearM3uCache, forgetM3u, hasM3u, m3uCategories, m3uStreamUrl, m3uStreams } from '@/lib/m3u';
+import { SERVERS, type XtreamServer } from '@/lib/servers';
 
 export { listsViaSnowMedia } from '@/lib/xtreamListProxy';
 import { kidsAllowsCategory, kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
@@ -28,19 +30,13 @@ import {
 } from '@/data/liveTvDemo';
 
 
-export interface XtreamServer {
-  label: string;
-  host: string; // no trailing slash
-}
-
-// EDIT THESE to add / change servers. Order = probe order.
-export const SERVERS: XtreamServer[] = [
-  { label: 'Dreamstreams', host: 'http://dstreams.xyz:8080' },
-  { label: 'Vibez',    host: 'https://strmz.xyz' },
-];
+// The servers live in lib/servers (edit them there): that file has no
+// imports, so the outside-service rule and others can ask "is this host
+// ours?" without an import cycle through this client.
+export { SERVERS, type XtreamServer };
 
 /**
- * A server label as the viewer reads it. The labels above are stored with every saved line,
+ * A server label as the viewer reads it. The labels in SERVERS are stored with every saved line,
  * and matched by alerts and analytics, so they never change; only the brand spelling shown does.
  */
 export const serverDisplayName = (label: string): string =>
@@ -55,6 +51,16 @@ export interface XtreamCreds {
   password: string;
   output: 'm3u8' | 'ts';
   serverLabel?: string;
+  /**
+   * A service bought elsewhere (Settings › Add another service, see
+   * lib/outsideSource). Its Live TV channels show beside ours, but it is never
+   * the active line, never a saved account, and nothing about it is ever sent
+   * to Snow Media's servers: its lists go direct to it, never through the list
+   * proxy.
+   */
+  outside?: true;
+  /** An outside service added as an M3U link: the playlist's address (lib/m3u reads it). */
+  m3u?: string;
 }
 
 export interface XtreamCategory {
@@ -384,6 +390,9 @@ export async function loadCreds(): Promise<XtreamCreds | null> {
 }
 
 export async function saveCreds(creds: XtreamCreds): Promise<void> {
+  // An outside service is never the line in use (lib/outsideSource): the
+  // active line drives Movies, Series, the account screen and billing.
+  if (creds.outside || creds.m3u) { console.warn('[xtream] refused to make an outside service the active line'); return; }
   const normalized = normalizeCreds(creds);
   const json = JSON.stringify(normalized);
   try {
@@ -506,11 +515,15 @@ export function saveVolume(v: number): void {
 // always; on the box, a direct request that looks blocked by the ISP is
 // repeated through Snow Media's xtream-list-proxy (see xtreamListProxy.ts).
 // Streams never come through here: their URLs stay direct.
-async function httpGetJson<T>(url: string, timeoutMs = 20000): Promise<T> {
+// `outside`: a service bought elsewhere (lib/outsideSource) is only ever
+// asked directly. Snow Media does not proxy other services, and its login
+// must never reach our servers.
+async function httpGetJson<T>(url: string, timeoutMs = 20000, outside = false): Promise<T> {
   // Demo mode must NEVER touch a provider host — callers are already routed to
   // the canned lineup, so reaching this in demo means a missed call site.
   // (Nor Snow Media's list proxy: this throws before either is tried.)
   if (isDemo()) throw new Error('Xtream transport is disabled in demo mode');
+  if (outside) return directGetJson<T>(url, timeoutMs);
   let native = false;
   try {
     const { Capacitor } = await import('@capacitor/core');
@@ -577,6 +590,7 @@ let xtreamRefreshNonce = 0;
 export function bumpXtreamRefresh(): number {
   xtreamRefreshNonce += 1;
   _liveCatalogue.clear();
+  clearM3uCache({ keepAddresses: true });
   try {
     window.dispatchEvent(new CustomEvent(XTREAM_REFRESH_EVENT, { detail: xtreamRefreshNonce }));
   } catch { /* SSR / no window */ }
@@ -586,7 +600,7 @@ export function getXtreamRefreshNonce(): number { return xtreamRefreshNonce; }
 /** Drop the kept live lists without asking anyone to refetch. The Player
  *  calls this when it leaves Live TV, closes, or changes account, so a full
  *  line-up is not held in memory through a Plex session or on the home screen. */
-export function clearLiveCatalogue(): void { _liveCatalogue.clear(); }
+export function clearLiveCatalogue(): void { _liveCatalogue.clear(); clearM3uCache(); }
 
 // --- API endpoints ----------------------------------------------------------
 
@@ -602,7 +616,10 @@ const buildBase = (c: XtreamCreds, params: Record<string, string | number>) => {
 export async function authenticate(c: XtreamCreds): Promise<any> {
   // Demo mode: no credentials are ever probed against a real server.
   if (isDemo()) return { user_info: { auth: 1, status: 'Active' } };
-  return httpGetJson(buildBase(c, {}), 15000);
+  // An M3U link has no account to ask about (its "username" is only a key):
+  // callers (Rewind's clock and connection count) fall back as when offline.
+  if (c.m3u) throw new Error('An M3U link has no account API');
+  return httpGetJson(buildBase(c, {}), 15000, !!c.outside);
 }
 
 export function pickServerForUsername(username: string): XtreamServer {
@@ -752,6 +769,8 @@ const memoLive = <T,>(url: string, fetcher: () => Promise<T>, maxAgeMs?: number)
 };
 /** Forget one kept live list (a favourite heal wants a genuinely fresh copy). */
 export function forgetLiveStreams(c: XtreamCreds, categoryId?: string): void {
+  // An M3U link is one playlist: a fresh copy of any of it is the whole of it.
+  if (c.m3u) { forgetM3u(c.m3u); return; }
   const params: Record<string, string | number> = { action: 'get_live_streams' };
   if (categoryId) params.category_id = categoryId;
   _liveCatalogue.delete(buildBase(c, params));
@@ -760,6 +779,7 @@ export function forgetLiveStreams(c: XtreamCreds, categoryId?: string): void {
  *  download, so Live TV's and the Guide's category lists wait only a short
  *  settle for it instead of the full rest. */
 export function hasLiveStreams(c: XtreamCreds, categoryId?: string): boolean {
+  if (c.m3u) return hasM3u(c.m3u);
   const params: Record<string, string | number> = { action: 'get_live_streams' };
   if (categoryId) params.category_id = categoryId;
   return _liveCatalogue.has(buildBase(c, params));
@@ -778,10 +798,14 @@ async function kidsStreams<T extends { name?: unknown; category_id?: unknown }>(
   const ids = await kidsCategoryIds(load);
   return (list ?? []).filter((st) => kidsAllowsChannel(st, ids));
 }
+// An outside service added as an M3U link (c.m3u) is read by lib/m3u: its
+// groups are the categories, its entries the channels. Everything else about
+// a line — the Kids filter above all — applies to it unchanged.
 const rawLiveCategories = (c: XtreamCreds): Promise<XtreamCategory[]> => {
   if (isDemo()) return demoGetLiveCategories();
+  if (c.m3u) return m3uCategories(c.m3u);
   const url = buildBase(c, { action: 'get_live_categories' });
-  return memoLive(url, () => httpGetJson<XtreamCategory[]>(url));
+  return memoLive(url, () => httpGetJson<XtreamCategory[]>(url, undefined, !!c.outside));
 };
 
 export async function getLiveCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
@@ -790,10 +814,11 @@ export async function getLiveCategories(c: XtreamCreds): Promise<XtreamCategory[
 
 export async function getLiveStreams(c: XtreamCreds, categoryId?: string, opts?: { maxAgeMs?: number }): Promise<XtreamLiveStream[]> {
   if (isDemo()) return kidsStreams(await demoGetLiveStreams(categoryId), () => rawLiveCategories(c));
+  if (c.m3u) return kidsStreams(await m3uStreams(c.m3u, categoryId), () => rawLiveCategories(c));
   const params: Record<string, string | number> = { action: 'get_live_streams' };
   if (categoryId) params.category_id = categoryId;
   const url = buildBase(c, params);
-  return kidsStreams(await memoLive(url, () => httpGetJson<XtreamLiveStream[]>(url), opts?.maxAgeMs), () => rawLiveCategories(c));
+  return kidsStreams(await memoLive(url, () => httpGetJson<XtreamLiveStream[]>(url, undefined, !!c.outside), opts?.maxAgeMs), () => rawLiveCategories(c));
 }
 
 /**
@@ -806,7 +831,9 @@ export async function getLiveStreams(c: XtreamCreds, categoryId?: string, opts?:
 export async function countLiveStreams(c: XtreamCreds): Promise<{ total: number; byCat: Record<string, number> }> {
   const list = await kidsStreams(isDemo()
     ? await demoGetLiveStreams()
-    : await httpGetJson<XtreamLiveStream[]>(buildBase(c, { action: 'get_live_streams' }), 45000), () => rawLiveCategories(c));
+    : c.m3u
+      ? await m3uStreams(c.m3u)
+      : await httpGetJson<XtreamLiveStream[]>(buildBase(c, { action: 'get_live_streams' }), 45000, !!c.outside), () => rawLiveCategories(c));
   const byCat: Record<string, number> = {};
   for (const s of list) {
     const key = String(s?.category_id ?? '').trim();
@@ -821,10 +848,14 @@ export async function getShortEpg(
   limit = 10,
 ): Promise<{ epg_listings: XtreamEpgEntry[] }> {
   if (isDemo()) return demoGetShortEpgWrapped(streamId, limit);
-  return httpGetJson(buildBase(c, { action: 'get_short_epg', stream_id: streamId, limit }));
+  // No guide for an M3U link in this version.
+  if (c.m3u) return { epg_listings: [] };
+  return httpGetJson(buildBase(c, { action: 'get_short_epg', stream_id: streamId, limit }), undefined, !!c.outside);
 }
 
 export function buildLiveStreamUrl(c: XtreamCreds, streamId: number): string {
+  // An M3U entry plays from its own address ('' until the playlist is read).
+  if (c.m3u) return m3uStreamUrl(c.m3u, streamId);
   const ext = c.output === 'ts' ? 'ts' : 'm3u8';
   return `${c.host}/live/${encodeURIComponent(c.username)}/${encodeURIComponent(c.password)}/${streamId}.${ext}`;
 }
@@ -835,6 +866,8 @@ export function buildLiveStreamUrl(c: XtreamCreds, streamId: number): string {
  * the native player. Dreamstreams works with both.
  */
 export function buildNativeLiveUrl(c: XtreamCreds, streamId: number): string {
+  // An M3U entry's address is the provider's own: played as it is, no .ts swap.
+  if (c.m3u) return m3uStreamUrl(c.m3u, streamId);
   return buildLiveStreamUrl(c, streamId).replace(/\.m3u8(\?|$)/i, '.ts$1');
 }
 
@@ -849,12 +882,12 @@ export function buildNativeLiveUrl(c: XtreamCreds, streamId: number): string {
 // when Live TV is left. A failed request is not kept.
 const CATEGORY_LIST_TTL_MS = 5 * 60 * 1000;
 const _categoryLists = new Map<string, { at: number; p: Promise<XtreamCategory[]> }>();
-const memoCategoryList = (url: string): Promise<XtreamCategory[]> => {
+const memoCategoryList = (url: string, outside = false): Promise<XtreamCategory[]> => {
   const now = Date.now();
   const kept = _categoryLists.get(url);
   if (kept && now - kept.at < CATEGORY_LIST_TTL_MS) return kept.p;
   for (const [k, v] of _categoryLists) if (now - v.at >= CATEGORY_LIST_TTL_MS) _categoryLists.delete(k);
-  const p = httpGetJson<XtreamCategory[]>(url).catch((e) => {
+  const p = httpGetJson<XtreamCategory[]>(url, undefined, outside).catch((e) => {
     if (_categoryLists.get(url)?.p === p) _categoryLists.delete(url);
     throw e;
   });
@@ -863,7 +896,7 @@ const memoCategoryList = (url: string): Promise<XtreamCategory[]> => {
 };
 
 const rawVodCategories = (c: XtreamCreds): Promise<XtreamCategory[]> =>
-  isDemo() ? demoGetVodCategories() : memoCategoryList(buildBase(c, { action: 'get_vod_categories' }));
+  isDemo() ? demoGetVodCategories() : memoCategoryList(buildBase(c, { action: 'get_vod_categories' }), !!c.outside);
 
 export async function getVodCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
   return kidsCategories(await rawVodCategories(c));
@@ -872,13 +905,13 @@ export async function getVodCategories(c: XtreamCreds): Promise<XtreamCategory[]
 export async function getVodStreams(c: XtreamCreds, categoryId?: string): Promise<XtreamVodStream[]> {
   const params: Record<string, string | number> = { action: 'get_vod_streams' };
   if (categoryId) params.category_id = categoryId;
-  const list = isDemo() ? await demoGetVodStreams(categoryId) : await httpGetJson<XtreamVodStream[]>(buildBase(c, params));
+  const list = isDemo() ? await demoGetVodStreams(categoryId) : await httpGetJson<XtreamVodStream[]>(buildBase(c, params), undefined, !!c.outside);
   return kidsStreams(list, () => rawVodCategories(c));
 }
 
 export async function getVodInfo(c: XtreamCreds, vodId: number): Promise<XtreamVodInfo> {
   if (isDemo()) return demoGetVodInfo(vodId);
-  return httpGetJson<XtreamVodInfo>(buildBase(c, { action: 'get_vod_info', vod_id: vodId }));
+  return httpGetJson<XtreamVodInfo>(buildBase(c, { action: 'get_vod_info', vod_id: vodId }), undefined, !!c.outside);
 }
 
 export function buildMovieUrl(c: XtreamCreds, streamId: number, ext = 'mp4'): string {
@@ -889,7 +922,7 @@ export function buildMovieUrl(c: XtreamCreds, streamId: number, ext = 'mp4'): st
 // --- Series -----------------------------------------------------------------
 
 const rawSeriesCategories = (c: XtreamCreds): Promise<XtreamCategory[]> =>
-  isDemo() ? demoGetSeriesCategories() : memoCategoryList(buildBase(c, { action: 'get_series_categories' }));
+  isDemo() ? demoGetSeriesCategories() : memoCategoryList(buildBase(c, { action: 'get_series_categories' }), !!c.outside);
 
 export async function getSeriesCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
   return kidsCategories(await rawSeriesCategories(c));
@@ -898,13 +931,13 @@ export async function getSeriesCategories(c: XtreamCreds): Promise<XtreamCategor
 export async function getSeries(c: XtreamCreds, categoryId?: string): Promise<XtreamSeries[]> {
   const params: Record<string, string | number> = { action: 'get_series' };
   if (categoryId) params.category_id = categoryId;
-  const list = isDemo() ? await demoGetSeries(categoryId) : await httpGetJson<XtreamSeries[]>(buildBase(c, params));
+  const list = isDemo() ? await demoGetSeries(categoryId) : await httpGetJson<XtreamSeries[]>(buildBase(c, params), undefined, !!c.outside);
   return kidsStreams(list, () => rawSeriesCategories(c));
 }
 
 export async function getSeriesInfo(c: XtreamCreds, seriesId: number): Promise<XtreamSeriesInfo> {
   if (isDemo()) return demoGetSeriesInfo(seriesId);
-  return httpGetJson<XtreamSeriesInfo>(buildBase(c, { action: 'get_series_info', series_id: seriesId }));
+  return httpGetJson<XtreamSeriesInfo>(buildBase(c, { action: 'get_series_info', series_id: seriesId }), undefined, !!c.outside);
 }
 
 export function buildEpisodeUrl(c: XtreamCreds, episodeId: string | number, ext = 'mp4'): string {

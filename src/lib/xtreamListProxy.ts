@@ -11,6 +11,13 @@
 //
 // Never log what passes through here: the URL and body carry the line's
 // username and password.
+//
+// Only our own services' lists ever come this way. A service the viewer
+// added from elsewhere (lib/outsideSource) is asked directly and nothing else:
+// we don't proxy other providers, and their logins never reach our servers.
+// xtream.ts already sends those lines straight to directGetJson; the check in
+// withListFallback is the second lock on the same door.
+import { isOutsideHost } from '@/lib/outsideSource';
 
 /** A status the panel (or something in front of it) answered with. The
  *  message stays `HTTP <status>`: callers and the UI already read that. */
@@ -163,7 +170,7 @@ export async function withListFallback<T>(
 ): Promise<T> {
   if (!isNative) return direct();
   const host = hostOf(url);
-  if (!host) return direct();
+  if (!host || isOutsideHost(host)) return direct();
 
   if (isBlocked(host)) {
     try {
