@@ -171,7 +171,10 @@
       "recordingStoppedDesc": "Il se trouve dans TV en direct › Enregistrements.",
       "channelsFailedTitle": "Impossible d'actualiser les chaînes",
       "channelsFailedDesc": "Le serveur n'a pas envoyé la liste des chaînes. Réessayez dans une minute ; si cela continue, redémarrez votre box internet.",
-      "channelsEmptyTitle": "Aucune chaîne sur ce compte"
+      "channelsEmptyTitle": "Aucune chaîne sur ce compte",
+      "movingTitle": "Déplacement de {{name}}",
+      "movingDesc": "Appuyez sur ▲▼ pour la déplacer, puis sur OK pour la poser ici.",
+      "movingDescGrid": "Appuyez sur ◀▶▲▼ pour la déplacer, puis sur OK pour la poser ici."
     },
     "categories": {
       "favorites": "Favoris",
@@ -301,6 +304,11 @@
       "wrongGame": "Pas ce match",
       "removeFavorite": "Retirer des favoris",
       "addFavorite": "Ajouter aux favoris",
+      "moveFavorite": "Déplacer",
+      "moveFavoriteUp": "Monter",
+      "moveFavoriteDown": "Descendre",
+      "sortAz": "Trier de A à Z",
+      "sortMine": "Trier à ma façon",
       "refreshing": "Actualisation…",
       "refreshLink": "Actualiser le lien de la chaîne",
       "choiceDown": "Chaîne en panne",

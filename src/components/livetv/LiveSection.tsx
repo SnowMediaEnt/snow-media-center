@@ -96,6 +96,9 @@ import FullscreenChannelOverlay, { OVERLAY_CHANNEL_ROWS, type OverlayCategory } 
 import RecentChannelsPanel from './RecentChannelsPanel';
 import { useRecentPanel } from './useRecentPanel';
 import { useHeldPreview } from './useHeldPreview';
+import { useFavoritesMove } from './useFavoritesMove';
+import MovingFavoriteFrame from './MovingFavoriteFrame';
+import { arrangeFavorites, favRefKey } from '@/lib/favoritesOrder';
 import { recentChannelId, type RecentChannel } from '@/lib/recentChannels';
 // Not lazy: it must be up before the held OK that opens it is let go (that
 // release arms it), or the viewer's next OK would be swallowed.
@@ -1072,6 +1075,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return m;
   }, [categoriesByLine]);
 
+  // Favorites in the viewer's own order or A–Z (lib/favoritesOrder), and a
+  // favourite being moved (Move in its menu: useFavoritesMove).
+  const favMove = useFavoritesMove({ lines, favsByLine, active: isActive });
+  const favOrder = favMove.order;
+  const favMoveRef = useRef(favMove);
+  favMoveRef.current = favMove;
+
   // Resolve channel list for the focused category / favorites / search.
   const visibleChannels: XtreamLiveStream[] = useMemo(() => {
     // Search: every line's line-up, best matches first, never an adult
@@ -1085,25 +1095,29 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (!currentCat || currentCat.isHeader) return [];
     if (currentCat.isAllFavs) {
       const out: XtreamLiveStream[] = [];
+      const lineOf = new Map<XtreamLiveStream, string>();
       for (const line of lines) {
-        for (const f of (favsByLine.get(lineKey(line)) ?? EMPTY_FAVS).values()) {
+        const k = lineKey(line);
+        for (const f of (favsByLine.get(k) ?? EMPTY_FAVS).values()) {
           const st = favToStream(f);
           streamLineRef.current.set(st, line);
+          lineOf.set(st, k);
           out.push(st);
         }
       }
-      return out;
+      return arrangeFavorites(out, favOrder, (st) => ({ line: lineOf.get(st) ?? '', id: st.stream_id, name: st.name }));
     }
     if (currentCat.isFav) {
       const favs = favsByLine.get(currentCat.lineKey) ?? EMPTY_FAVS;
-      return [...favs.values()].map((f) => {
+      const out = [...favs.values()].map((f) => {
         const st = favToStream(f);
         streamLineRef.current.set(st, currentCat.line);
         return st;
       });
+      return arrangeFavorites(out, favOrder, (st) => ({ line: currentCat.lineKey, id: st.stream_id, name: st.name }));
     }
     return streamsByCat.get(currentCat.id) || [];
-  }, [searchOpen, searchQ, lines, allByLine, hidden, adultCatsByLine, currentCat, streamsByCat, favsByLine]);
+  }, [searchOpen, searchQ, lines, allByLine, hidden, adultCatsByLine, currentCat, streamsByCat, favsByLine, favOrder]);
 
   const channelsLoading = searchOpen
     ? allChannelsLoading
@@ -1182,6 +1196,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => {
     if (channelIdx >= visibleChannels.length) setChannelIdx(0);
   }, [visibleChannels.length, channelIdx]);
+  // Favourites in a new order (a sort, Move up / down, a move under way): the
+  // highlight stays on the channel that moved. One being moved that is no
+  // longer in the list (taken off on another box) is put down.
+  const favFocusKeyRef = useRef<string | null>(null);
+  const movingFavKey = favMove.movingKey;
+  useEffect(() => {
+    const k = movingFavKey ?? favFocusKeyRef.current;
+    if (!k) return;
+    favFocusKeyRef.current = null;
+    const i = visibleChannels.findIndex((st) => favRefKey(lineKey(lineFor(st)), st.stream_id) === k);
+    if (i >= 0) setChannelIdx(i);
+    else if (movingFavKey) favMoveRef.current.drop();
+  }, [visibleChannels, movingFavKey, lineFor]);
 
   // Derive focused channel from a CLAMPED index so it's never out of range
   // for even a single frame between renders.
@@ -2259,8 +2286,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // every mounted row (≈95 tiles in the grid) on every key press and EPG reply.
   // A finger touching a row to scroll the list is not a pick: on a touch
   // screen only a tap (onRowActivate) moves the highlight.
-  const onRowSelect = useCallback((i: number) => { if (!touchUIRef.current) setChannelIdx(i); }, []);
+  const onRowSelect = useCallback((i: number) => { if (!touchUIRef.current && !favMoveRef.current.movingKey) setChannelIdx(i); }, []);
   const onRowActivate = useCallback((i: number) => {
+    // A favourite being moved owns the list until it is put down (OK / Back).
+    if (favMoveRef.current.movingKey) return;
     setPane('channels');
     setChannelIdx(i);
     const ch = visibleChannelsRef.current[i];
@@ -2582,6 +2611,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
+      // A favourite lifted by Move (its menu): ▲▼ carry it, OK or Back put
+      // it down, and nothing else in the list acts until then.
+      if (favMoveRef.current.movingKey && !fullscreenRef.current) {
+        const c = visibleCategoriesRef.current[categoryIdxRef.current];
+        favMoveRef.current.onKey(e, { scope: c?.isAllFavs ? null : c?.lineKey ?? null, cols: colsRef.current, onIndex: setChannelIdx });
+        return;
+      }
 
       // Remote "Menu" / context key on a category: its menu (Report category down).
       if (
@@ -3097,6 +3133,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (choosingLayoutRef.current) return; // the chooser answers Back itself
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
           if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current) return;
+          // A favourite being moved is put down where it is.
+          if (favMoveRef.current.movingKey) { favMoveRef.current.drop(); return; }
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (recentRef.current.isOpen()) { recentRef.current.close(); return; }
           if (fullscreenRef.current && chOverlayOpenRef.current) { overlayBackStepRef.current(); return; }
@@ -3198,6 +3236,37 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const id = st.category_id != null ? String(st.category_id) : '';
     return id ? (categoriesByLine.get(lineKey(lineFor(st)))?.find((c) => String(c.category_id) === id)?.category_name ?? '') : '';
   };
+  // A channel's menu in a Favorites list also moves it (Move on a TV; Move up
+  // / Move down on a touch screen) and sorts the list (A–Z, or back to the
+  // viewer's own order). Move needs the list on screen, in the viewer's own
+  // order: not over the picture, not while it is A–Z.
+  const favMenuFor = (st: XtreamLiveStream) => {
+    if (searchOpen || !currentCat?.isFav || visibleChannels.length < 2) return {};
+    const scope = currentCat.isAllFavs ? null : currentCat.lineKey;
+    const key = favRefKey(lineKey(lineFor(st)), st.stream_id);
+    if (!visibleChannels.some((c) => c.stream_id === st.stream_id && favRefKey(lineKey(lineFor(c)), c.stream_id) === key)) return {};
+    const mode = favMove.mode;
+    const sort = {
+      favoritesSort: mode,
+      onToggleFavoritesSort: () => { favFocusKeyRef.current = key; favMove.setMode(mode === 'az' ? 'mine' : 'az'); },
+    };
+    if (fullscreen || mode !== 'mine') return sort;
+    if (touchUI) {
+      const { index, count } = favMove.placeOf(key, scope);
+      const stepBy = (d: number) => () => {
+        favFocusKeyRef.current = key;
+        if (!favMove.stepOnce(key, scope, d)) favFocusKeyRef.current = null;
+      };
+      return { ...sort, onMoveFavoriteUp: index > 0 ? stepBy(-1) : undefined, onMoveFavoriteDown: index >= 0 && index < count - 1 ? stepBy(1) : undefined };
+    }
+    return {
+      ...sort,
+      onMoveFavorite: () => {
+        favMove.start(key);
+        try { toast({ title: t('live.toast.movingTitle', { name: st.name }), description: t(cols > 1 ? 'live.toast.movingDescGrid' : 'live.toast.movingDesc') }); } catch { /* ignore */ }
+      },
+    };
+  };
   const channelReportDialog = reportFor ? (
     <Suspense fallback={null}>
       <ReportChannelDialog
@@ -3217,6 +3286,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         } : undefined}
         recording={!!jobFor(reportFor.name)}
         onRefreshFavorite={() => refreshFavorite(reportFor)}
+        {...favMenuFor(reportFor)}
         initialChoice={reportPreset?.choice}
         initialNote={reportPreset?.note}
         line={lineFor(reportFor)}
@@ -3748,7 +3818,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               >
                 {slot.map((s, c) => {
                   const idx = first + c;
-                  return (
+                  const row = (
                     <ChannelRow
                       key={s.stream_id}
                       variant={rowVariant}
@@ -3768,6 +3838,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       serviceTag={currentCat?.isAllFavs && !searchOpen ? lineLabel(lineFor(s)) : undefined}
                     />
                   );
+                  // The favourite being moved (it keeps the highlight): lifted, with its arrows.
+                  return favMove.movingKey && favRefKey(lineKey(lineFor(s)), s.stream_id) === favMove.movingKey
+                    ? <MovingFavoriteFrame key={s.stream_id} grid={cols > 1}>{row}</MovingFavoriteFrame>
+                    : row;
                 })}
               </div>
             );

@@ -22,7 +22,8 @@ import {
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useTouchUI } from '@/lib/phoneMode';
 import { overlayOpenAbove } from '@/lib/overlayBack';
-import { loadFavoritesForLine } from '@/lib/favoritesSync';
+import { lineKey, loadFavoritesForLine } from '@/lib/favoritesSync';
+import { arrangeFavorites, loadFavOrder } from '@/lib/favoritesOrder';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import {
@@ -221,8 +222,11 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       // This line's (and this profile's) list, wherever it lives — not the
       // local store, which is the last line Live TV opened. A Kids profile
       // keeps only channels in the categories it may open (listed above).
+      // In the order Live TV's Favorites shows them (lib/favoritesOrder).
       const allowed = kidsLevel() ? new Set(categoriesRef.current.map((c) => String(c.id))) : null;
-      const favs = Array.from(loadFavoritesForLine(creds).values()).filter((f) => !allowed || kidsAllowsChannel(f, allowed)).map(f => ({
+      const line = lineKey(creds);
+      const ordered = arrangeFavorites(Array.from(loadFavoritesForLine(creds).values()), loadFavOrder(), (f) => ({ line, id: f.stream_id, name: f.name }));
+      const favs = ordered.filter((f) => !allowed || kidsAllowsChannel(f, allowed)).map(f => ({
         stream_id: f.stream_id,
         name: f.name,
         num: f.num,
