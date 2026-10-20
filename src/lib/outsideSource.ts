@@ -3,9 +3,13 @@
 // their DreamStreams / Vibez channels.
 //
 // THE RULE (owner): only a viewer with an active DreamStreams or Vibez line
-// may have one (outsideAllowed below). When that line expires, is disabled or
-// is banned, the outside channels disappear with it and come back when it is
-// renewed; the saved service is kept, not deleted.
+// may have one (outsideAllowed below), and the service belongs to the line
+// that added it (its `owner`): it shows only while that line is the one in
+// use or one of the box's saved accounts, and signing out of that line takes
+// it away (lib/outsideActions). When the line in use expires, is disabled or
+// banned, the panel refuses its login, or it hasn't been checked for
+// STALE_MS, the outside channels disappear and come back once it is fine
+// again; the saved service is kept, not deleted.
 //
 // What an outside service is NOT:
 //   • a saved account: it has its own storage key, so it never shows in
@@ -15,26 +19,32 @@
 //     address, channel addresses — is ever sent to Snow Media's servers. Its
 //     lists go straight to it (never through the list proxy), its favourites
 //     stay on the box, it is left out of channel status, reports, watch-
-//     history sync and analytics. isOutsideLine / isOutsideHost below are what
-//     those places ask.
+//     history sync, and analytics names it only as 'outside'. isOutsideLine /
+//     isOutsideHost / lineEventProps / scrubOutside below are what those
+//     places ask.
 //
 // Two kinds: an Xtream login (server + username + password: categories and a
 // guide, like ours) or an M3U link (a playlist, lib/m3u). An Xtream-style M3U
 // link (…/get.php?username=U&password=P…) is turned into an Xtream login,
-// which gets the categories and the guide.
+// which gets the categories and the guide (lib/outsideProbe falls back to the
+// link when that service's API is blocked).
 //
 // No runtime imports but lib/servers: analytics, the list proxy and channel
 // status import this, and xtream.ts imports them.
 import { SERVERS, hostNameOf, isOurHost } from '@/lib/servers';
-import type { PlayerAccount, XtreamCreds } from '@/lib/xtream';
+import type { PlayerAccount, SavedAccount, XtreamCreds } from '@/lib/xtream';
 
 /** How many outside services a viewer may add. One for now (owner, 2026-10-20). */
 export const MAX_OUTSIDE_SOURCES = 1;
+
+/** A line not checked with its panel for this long doesn't carry an outside service until it is. */
+export const STALE_MS = 3 * 24 * 60 * 60 * 1000;
 
 /** Fired after an outside service is saved or removed: Live TV re-reads its lines. */
 export const OUTSIDE_SOURCES_EVENT = 'outsideSourcesRefresh';
 
 const STORE_KEY = 'snow-livetv-outside-sources-v1';
+const REFUSED_KEY = 'snow-outside-line-refused-v1';
 
 export type OutsideKind = 'xtream' | 'm3u';
 
@@ -50,6 +60,8 @@ export interface OutsideSource {
   password?: string;
   /** M3U: the playlist's address. */
   url?: string;
+  /** The line that added it (lineOwnerKey): it lives and dies with that line on this box. */
+  owner?: string;
   addedAt: number;
 }
 
@@ -68,9 +80,12 @@ const originOf = (url: string): string => {
   try { return new URL(url).origin; } catch { return ''; }
 };
 
+/** Which of our lines this is, port and scheme aside: the owner of an outside service. */
+export const lineOwnerKey = (c: Pick<XtreamCreds, 'host' | 'username'> | null | undefined): string =>
+  c ? `${hostNameOf(c.host)}|${String(c.username ?? '').trim().toLowerCase()}` : '';
+
 const sameLine = (a: Pick<XtreamCreds, 'host' | 'username'>, b: Pick<XtreamCreds, 'host' | 'username'>): boolean =>
-  hostNameOf(a.host) === hostNameOf(b.host)
-  && String(a.username ?? '').trim().toLowerCase() === String(b.username ?? '').trim().toLowerCase();
+  lineOwnerKey(a) === lineOwnerKey(b);
 
 // ── storage ────────────────────────────────────────────────────────────────
 
@@ -90,6 +105,7 @@ const sanitize = (raw: unknown): OutsideSource[] => {
       kind: s.kind,
       name: s.name,
       ...(s.kind === 'xtream' ? { host: s.host, username: s.username, password: s.password } : { url: s.url }),
+      ...(typeof s.owner === 'string' && s.owner ? { owner: s.owner } : {}),
       addedAt: typeof s.addedAt === 'number' ? s.addedAt : 0,
     });
   }
@@ -143,17 +159,22 @@ async function writeSources(list: OutsideSource[]): Promise<void> {
 }
 
 /**
- * Save a service: in place of `replaceId` (Edit), or as a new one when there
- * is room (MAX_OUTSIDE_SOURCES). False when there was no room or it is ours.
+ * Save a service, owned by `owner` (the line in use): in place of
+ * `replaceId` (Edit), or as a new one when there is room
+ * (MAX_OUTSIDE_SOURCES). False when there was no room, it is ours, or no
+ * owner was given.
  */
-export async function saveOutsideSource(src: OutsideSource, replaceId?: string): Promise<boolean> {
+export async function saveOutsideSource(src: OutsideSource, owner: Pick<XtreamCreds, 'host' | 'username'>, replaceId?: string): Promise<boolean> {
   if (isOurHost(src.kind === 'xtream' ? src.host : src.url)) return false;
+  const ownerKey = lineOwnerKey(owner);
+  if (!ownerKey || !isOurHost(owner.host)) return false;
   const list = (await loadOutsideSources()).filter((s) => s.id !== replaceId && s.id !== src.id);
   if (list.length >= MAX_OUTSIDE_SOURCES) return false;
-  await writeSources([...list, src]);
+  await writeSources([...list, { ...src, owner: ownerKey }]);
   return true;
 }
 
+/** Take a service off the list (lib/outsideActions also clears what the box kept for it). */
 export async function removeOutsideSource(id: string): Promise<void> {
   const list = await loadOutsideSources();
   await writeSources(list.filter((s) => s.id !== id));
@@ -177,6 +198,25 @@ export interface OutsideInput {
 export type OutsideInputError = 'needServer' | 'needLogin' | 'needUrl' | 'badUrl' | 'ours' | 'nameTaken';
 
 /**
+ * A query string's values, read by hand: URLSearchParams turns "+" into a
+ * space, and a "+" in a provider's password is a "+". Only %XX is decoded.
+ */
+const queryValues = (search: string): Map<string, string> => {
+  const out = new Map<string, string>();
+  for (const part of search.replace(/^\?/, '').split('&')) {
+    if (!part) continue;
+    const eq = part.indexOf('=');
+    const k = eq >= 0 ? part.slice(0, eq) : part;
+    const v = eq >= 0 ? part.slice(eq + 1) : '';
+    let key = k; let val = v;
+    try { key = decodeURIComponent(k); } catch { /* as it is */ }
+    try { val = decodeURIComponent(v); } catch { /* as it is */ }
+    if (!out.has(key.toLowerCase())) out.set(key.toLowerCase(), val);
+  }
+  return out;
+};
+
+/**
  * An Xtream panel's M3U link (…/get.php?username=U&password=P&type=m3u…,
  * or its player_api.php) as the login it carries; null for any other link.
  */
@@ -184,8 +224,9 @@ export function xtreamFromM3uLink(link: string): { host: string; username: strin
   let u: URL;
   try { u = new URL(withScheme(link.trim())); } catch { return null; }
   if (!/\/(get|player_api)\.php$/i.test(u.pathname)) return null;
-  const username = u.searchParams.get('username')?.trim() ?? '';
-  const password = u.searchParams.get('password')?.trim() ?? '';
+  const q = queryValues(u.search);
+  const username = (q.get('username') ?? '').trim();
+  const password = (q.get('password') ?? '').trim();
   if (!username || !password) return null;
   const base = u.pathname.replace(/\/(get|player_api)\.php$/i, '').replace(/\/+$/, '');
   return { host: `${u.origin}${base}`, username, password };
@@ -207,11 +248,13 @@ const isOurName = (name: string): boolean => {
 
 /**
  * Check what the viewer typed and make the service from it (not saved). A
- * pasted Xtream M3U link — in either kind's field — becomes an Xtream login.
+ * pasted Xtream M3U link — in either kind's field — becomes an Xtream login,
+ * unless `asM3u` (the Test's fallback when that service's API is blocked).
  */
 export function parseOutsideInput(
   input: OutsideInput,
   now = Date.now(),
+  opts: { asM3u?: boolean } = {},
 ): { ok: true; source: OutsideSource } | { ok: false; error: OutsideInputError } {
   const typedName = (input.name ?? '').trim();
   if (typedName && isOurName(typedName)) return { ok: false, error: 'nameTaken' };
@@ -225,7 +268,7 @@ export function parseOutsideInput(
   if (kind === 'm3u') {
     const link = (input.url ?? '').trim();
     if (!link) return { ok: false, error: 'needUrl' };
-    const x = xtreamFromM3uLink(link);
+    const x = opts.asM3u ? null : xtreamFromM3uLink(link);
     if (x) {
       kind = 'xtream';
       ({ host, username, password } = x);
@@ -301,10 +344,40 @@ export function lineIsActive(acc: Pick<PlayerAccount, 'status' | 'expDate'>, now
   return Math.floor(exp) * 1000 > now;
 }
 
+// The panel said the line's login is wrong (a background check: LiveTV's
+// reconcile, usePlayerAccountSync). The account record is not rewritten then
+// (it keeps the last good answer), so the refusal is kept here, by line, and
+// stands until a later check saves the record again (lastCheckedAt newer).
+const readRefused = (): Record<string, number> => {
+  try {
+    const o = JSON.parse(localStorage.getItem(REFUSED_KEY) || '{}');
+    return o && typeof o === 'object' && !Array.isArray(o) ? o as Record<string, number> : {};
+  } catch { return {}; }
+};
+
+/** A background check found the line's login refused by its panel. */
+export function markLineRefused(line: Pick<XtreamCreds, 'host' | 'username'>, at = Date.now()): void {
+  const k = lineOwnerKey(line);
+  if (!k) return;
+  try { localStorage.setItem(REFUSED_KEY, JSON.stringify({ ...readRefused(), [k]: at })); } catch { /* ignore */ }
+  try { window.dispatchEvent(new CustomEvent(OUTSIDE_SOURCES_EVENT)); } catch { /* ignore */ }
+}
+
+const refusedSinceLastCheck = (active: Pick<XtreamCreds, 'host' | 'username'>, account: PlayerAccount): boolean => {
+  const at = readRefused()[lineOwnerKey(active)];
+  return typeof at === 'number' && at >= (Number(account.lastCheckedAt) || 0);
+};
+
+/** The account record was last checked with the panel too long ago to vouch for the line. */
+export const accountStale = (account: Pick<PlayerAccount, 'lastCheckedAt'> | null | undefined, now = Date.now()): boolean =>
+  !account || !(Number(account.lastCheckedAt) > 0) || now - Number(account.lastCheckedAt) > STALE_MS;
+
 /**
  * May this box show (and add) an outside service? Only while the line in use
- * is a DreamStreams or Vibez line, its account record is that line's, and the
- * line is active. `account` is loadPlayerAccount()'s record.
+ * is a DreamStreams or Vibez line, its account record is that line's, the
+ * line is active, the panel has not refused its login since, and it was
+ * checked with the panel within STALE_MS. `account` is loadPlayerAccount()'s
+ * record.
  */
 export function outsideAllowed(
   active: XtreamCreds | null | undefined,
@@ -313,7 +386,18 @@ export function outsideAllowed(
 ): boolean {
   if (!active || active.outside || !isOurHost(active.host)) return false;
   if (!account || !isOurHost(account.host) || !sameLine(account, active)) return false;
+  if (accountStale(account, now) || refusedSinceLastCheck(active, account)) return false;
   return lineIsActive(account, now);
+}
+
+/** Is the line that added `src` on this box: the one in use, or a saved account? */
+export function ownerOnBox(
+  src: Pick<OutsideSource, 'owner'>,
+  active: Pick<XtreamCreds, 'host' | 'username'> | null | undefined,
+  saved: ReadonlyArray<Pick<SavedAccount, 'host' | 'username'>> = [],
+): boolean {
+  if (!src.owner) return false;
+  return src.owner === lineOwnerKey(active) || saved.some((a) => lineOwnerKey(a) === src.owner);
 }
 
 /** The saved services and the account record, for buildLines (lib/liveLines). */
@@ -337,10 +421,31 @@ export async function loadOutsideState(loadAccount: () => Promise<PlayerAccount 
   }
 }
 
-/** The lines to add after the saved accounts: none unless outsideAllowed. */
-export function outsideLinesFor(active: XtreamCreds | null | undefined, state: OutsideState | null | undefined, now = Date.now()): XtreamCreds[] {
+/** The lines to add after the saved accounts: none unless outsideAllowed, and each only with its owner line on the box. */
+export function outsideLinesFor(
+  active: XtreamCreds | null | undefined,
+  state: OutsideState | null | undefined,
+  saved: ReadonlyArray<Pick<SavedAccount, 'host' | 'username'>> = [],
+  now = Date.now(),
+): XtreamCreds[] {
   if (!state?.sources.length || !outsideAllowed(active, state.account, now)) return [];
-  return state.sources.slice(0, MAX_OUTSIDE_SOURCES).map(outsideCreds);
+  return state.sources.filter((s) => ownerOnBox(s, active, saved)).slice(0, MAX_OUTSIDE_SOURCES).map(outsideCreds);
+}
+
+/**
+ * When the answer of outsideLinesFor would next change on its own, with no
+ * event: the line's end date, or the moment its last check grows stale.
+ * Live TV sets a timer for it. Null when nothing is due.
+ */
+export function outsideFlipAt(state: OutsideState | null | undefined, now = Date.now()): number | null {
+  const acc = state?.account;
+  if (!state?.sources.length || !acc) return null;
+  const times: number[] = [];
+  const exp = Number(acc.expDate);
+  if (Number.isFinite(exp) && exp > 0 && exp * 1000 > now) times.push(Math.floor(exp) * 1000);
+  const checked = Number(acc.lastCheckedAt);
+  if (checked > 0 && checked + STALE_MS > now) times.push(checked + STALE_MS);
+  return times.length ? Math.min(...times) : null;
 }
 
 // ── is this outside? (the places that must never send it to us) ───────────
@@ -370,33 +475,76 @@ export function isOutsideLine(c: { host?: string | null; outside?: boolean | nul
 }
 
 /**
- * Analytics: an event about an outside channel may say `server: 'outside'`,
- * never which service. Any value that is an outside service's name, username
- * or password, or carries its host or playlist address, becomes 'outside'.
- * Returns the same object when there is nothing to change.
+ * Analytics params about a channel, a category or a line: for an outside
+ * service only `server: 'outside'` and the `safe` ones (kinds, counts,
+ * reasons), never a channel, category or service name.
  */
-export function scrubOutside(props: Record<string, unknown>): Record<string, unknown> {
+export function lineEventProps(
+  line: { host?: string | null; outside?: boolean | null; m3u?: string | null } | null | undefined,
+  safe: Record<string, unknown>,
+  named: Record<string, unknown>,
+): Record<string, unknown> {
+  return isOutsideLine(line) ? { ...safe, server: 'outside' } : { ...safe, ...named };
+}
+
+// The hosts an outside playlist's entries play from (often a CDN, not the
+// playlist's own host): lib/m3u notes them as it reads one, so analytics
+// never carries them either. For the app's lifetime; never sent anywhere.
+const streamHosts = new Set<string>();
+export function noteOutsideStreamHosts(hosts: Iterable<string>): void {
+  for (const h of hosts) {
+    const name = hostNameOf(h);
+    if (name && !isOurHost(name)) streamHosts.add(name);
+  }
+}
+
+/** Matches `secret` as a whole word (not inside a longer one), case aside. */
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const wordRe = (secret: string): RegExp => new RegExp('(^|[^a-z0-9])' + escapeRe(secret.toLowerCase()) + '($|[^a-z0-9])');
+
+/**
+ * Analytics: an event about an outside channel may say `server: 'outside'`,
+ * never which service. Every string in it — nested objects and arrays too —
+ * that carries an outside service's host (or a host its playlist plays from)
+ * or playlist address, or its name, username or password as a word (those
+ * only from 4 characters: shorter ones would hit ordinary words), becomes
+ * 'outside'. Case doesn't matter. Returns the same object when there is
+ * nothing to change. Call sites tag their own params too (lineEventProps).
+ */
+export function scrubOutside<T>(props: T): T {
   const list = known();
-  if (!list.length || !props) return props;
-  const exact = new Set<string>();
+  if (!props || (!list.length && !streamHosts.size)) return props;
+  const words: RegExp[] = [];
   const inside: string[] = [];
   for (const s of list) {
-    for (const v of [s.name, s.username, s.password]) if (v && v.trim()) exact.add(v.trim());
-    if (s.url) inside.push(s.url);
-  }
-  const hosts = outsideHostNames();
-  let out = props;
-  for (const [k, v] of Object.entries(props)) {
-    if (typeof v !== 'string' || !v) continue;
-    const low = v.toLowerCase();
-    if (exact.has(v.trim()) || hosts.some((h) => low.includes(h)) || inside.some((u) => v.includes(u))) {
-      if (out === props) out = { ...props };
-      out[k] = 'outside';
+    for (const v of [s.name, s.username, s.password]) {
+      const w = (v ?? '').trim();
+      if (w.length >= 4) words.push(wordRe(w));
     }
+    if (s.url) inside.push(s.url.toLowerCase());
   }
-  return out;
+  const hosts = [...new Set([...outsideHostNames(), ...streamHosts])];
+  const hit = (v: string): boolean => {
+    const low = v.toLowerCase();
+    return hosts.some((h) => low.includes(h)) || inside.some((u) => low.includes(u)) || words.some((re) => re.test(low));
+  };
+  const walk = (v: unknown, depth: number): unknown => {
+    if (typeof v === 'string') return v && hit(v) ? 'outside' : v;
+    if (depth > 6 || v === null || typeof v !== 'object') return v;
+    if (Array.isArray(v)) {
+      let changed = false;
+      const out = v.map((x) => { const y = walk(x, depth + 1); if (y !== x) changed = true; return y; });
+      return changed ? out : v;
+    }
+    let out: Record<string, unknown> | null = null;
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      const y = walk(x, depth + 1);
+      if (y !== x) { out = out ?? { ...(v as Record<string, unknown>) }; out[k] = y; }
+    }
+    return out ?? v;
+  };
+  return walk(props, 0) as T;
 }
 
 /** Tests only. */
-export function __resetOutsideForTests(): void { memoRaw = undefined; memoList = []; }
-
+export function __resetOutsideForTests(): void { memoRaw = undefined; memoList = []; streamHosts.clear(); }

@@ -32,6 +32,7 @@ import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { runAfter, runWhenIdle } from '@/utils/idle';
 import { enterQuiet, exitQuiet, setQuietEverywhere } from '@/utils/quietMode';
 import { markReconciled, reconciledRecently, RECONCILE_EVERY_MS, RECONCILE_URGENT_MS } from '@/lib/panelReconcile';
+import { markLineRefused } from '@/lib/outsideSource';
 import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { clearPlexToken } from '@/lib/plex';
@@ -331,6 +332,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           if (reconciledRecently(urgent ? RECONCILE_URGENT_MS : RECONCILE_EVERY_MS)) return;
           markReconciled();
           const res = await authenticateRouted(creds.username, creds.password);
+          // The panel says the login is wrong now: an outside service on this
+          // line is hidden until a check passes again (lib/outsideSource).
+          if (res.invalidLogin) markLineRefused(creds);
           // Expired/disabled/banned lines: sign-in stays refused, but the
           // panel DID authenticate the account — so keep recording the TRUE
           // state (fresh expDate/status) instead of bailing. This is what lets
@@ -776,7 +780,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       const done = window.setTimeout(() => finish('ok'), 1400) as unknown as number;
       refreshWaitRef.current = () => window.clearTimeout(done);
     }
-    bumpXtreamRefresh();
+    // Asked for: an outside playlist is downloaded again too (lib/m3u).
+    bumpXtreamRefresh({ fresh: true });
   }, [t, serverLabel]);
 
 

@@ -147,6 +147,27 @@ export async function removeWatchEntry(kind: WatchKind, key: string): Promise<vo
   saveRemoved(viewer, { ...loadRemoved(viewer), [removedKey(kind, key)]: at });
 }
 
+/**
+ * Take every channel `match` picks off this box's history, every viewer's
+ * (an outside service removed: lib/outsideActions). On the box only: those
+ * channels never went to the account.
+ */
+export function forgetChannelHistory(match: (c: NonNullable<WatchEntry['channel']>) => boolean): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(PREFIX)) keys.push(k);
+    }
+    for (const k of keys) {
+      const viewer = k.slice(PREFIX.length);
+      const list = loadWatchHistory(viewer);
+      const next = list.filter((e) => !(e.kind === 'channel' && e.channel && match(e.channel)));
+      if (next.length !== list.length) saveWatchHistory(viewer, next);
+    }
+  } catch { /* ignore */ }
+}
+
 export const channelKey = (line: XtreamCreds, streamId: number): string =>
   `${line.host.replace(/^https?:\/\//, '')}|${line.username}|${streamId}`;
 

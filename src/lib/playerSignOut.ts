@@ -10,7 +10,11 @@
 // scheduled recording is cancelled (a schedule belongs to the line it was made
 // on, and would only fail at its start). All are older-app safe: a build
 // without the plugin must not block sign-out.
-import { clearCreds, clearPlayerAccount } from '@/lib/xtream';
+//
+// An outside service the line added (Settings › Add another service) goes
+// with it too, with its favourites and hidden categories (lib/outsideActions):
+// it belongs to the line that added it.
+import { clearCreds, clearPlayerAccount, loadCreds } from '@/lib/xtream';
 import { markPlayerSignedOut } from '@/lib/playerAutoSignIn';
 import { isDemo } from '@/lib/demoMode';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
@@ -23,6 +27,11 @@ export async function signOutPlayer(): Promise<void> {
   try { await SnowRecorder.stop(); } catch { /* older app, or web */ }
   try { await SnowRecorder.cancelSchedule(); } catch { /* older app, or web */ }
   notifyRecordingsChanged();
+  try {
+    const line = await loadCreds();
+    const { forgetOutsideOwnedBy } = await import('@/lib/outsideActions');
+    await forgetOutsideOwnedBy(line);
+  } catch { /* never blocks sign-out */ }
   await clearCreds();
   await clearPlayerAccount();
   markPlayerSignedOut();

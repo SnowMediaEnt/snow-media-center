@@ -587,10 +587,12 @@ export const XTREAM_REFRESH_EVENT = 'xtream:refresh';
  */
 export const LIVE_CATS_LOADED_EVENT = 'xtream:live-cats-loaded';
 let xtreamRefreshNonce = 0;
-export function bumpXtreamRefresh(): number {
+/** `fresh`: the viewer asked ("Update Channels"): an outside M3U playlist is
+ *  downloaded again, not read from the copy kept on the box (lib/m3u). */
+export function bumpXtreamRefresh(opts: { fresh?: boolean } = {}): number {
   xtreamRefreshNonce += 1;
   _liveCatalogue.clear();
-  clearM3uCache({ keepAddresses: true });
+  clearM3uCache({ keepAddresses: true, fresh: opts.fresh });
   try {
     window.dispatchEvent(new CustomEvent(XTREAM_REFRESH_EVENT, { detail: xtreamRefreshNonce }));
   } catch { /* SSR / no window */ }

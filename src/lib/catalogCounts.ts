@@ -42,6 +42,13 @@ const keyFor = (host: string, username: string, kind: CatalogKind) =>
 
 interface Account { host: string; username: string }
 
+/** Forget a line's counts (an outside service removed: lib/outsideActions). */
+export function forgetCounts(acc: Account): void {
+  for (const kind of ['live', 'vod', 'series'] as const) {
+    try { localStorage.removeItem(keyFor(acc.host, acc.username, kind as CatalogKind)); } catch { /* ignore */ }
+  }
+}
+
 export function readCounts(acc: Account, kind: CatalogKind): CatalogCounts {
   try {
     const raw = localStorage.getItem(keyFor(acc.host, acc.username, kind));

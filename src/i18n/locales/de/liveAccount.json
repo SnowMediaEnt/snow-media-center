@@ -153,6 +153,7 @@
       "intro": "Du kannst die Live-TV-Sender eines anderen Dienstes in Snow Media Center neben deinen DreamStreams/Vibez-Sendern schauen. Bei Sendern oder Logins eines anderen Anbieters können wir nicht helfen.",
       "needsLine": "Dafür brauchst du eine aktive DreamStreams- oder Vibez-Line.",
       "comesBack": "Dein anderer Dienst ist gespeichert. Seine Sender kommen zurück, sobald deine Line wieder aktiv ist.",
+      "ownerGone": "Er wurde mit einer Line hinzugefügt, die nicht mehr auf diesem Fernseher ist. Entferne ihn oder melde dich wieder mit dieser Line an.",
       "kind": "Art",
       "kindHint": "OK wechselt",
       "xtreamChip": "Xtream-Login",
@@ -181,7 +182,9 @@
       "footer": "Probleme mit den Sendern oder dem Login dieses Dienstes? Wende dich an den Anbieter, bei dem du ihn gekauft hast.",
       "tag": "Extern",
       "otherGroup": "Sonstige",
+      "channelN": "Sender {{n}}",
       "reportNote": "Externer Dienst – melde Probleme bitte diesem Anbieter.",
+      "hiddenNote": "Deine DreamStreams/Vibez-Line ist nicht aktiv, darum sind die Sender von {{name}} ausgeblendet.",
       "errors": {
         "needServer": "Gib die Serveradresse ein.",
         "needLogin": "Gib Benutzername und Passwort ein.",
@@ -194,7 +197,7 @@
         "notPlaylist": "Dieser Link ist keine Sender-Playlist.",
         "empty": "Dieser Dienst hat keine Live-TV-Sender.",
         "inactive": "Der Dienst sagt, dieser Login ist abgelaufen oder gesperrt.",
-        "tooBig": "Diese Playlist ist zu groß für diesen Fernseher.",
+        "tooBig": "Diese Playlist ist zu groß für dieses Gerät.",
         "testFirst": "Drück zuerst Testen. Speichern geht, sobald der Test geklappt hat.",
         "full": "Es kann nur ein weiterer Dienst hinzugefügt werden. Entferne zuerst den vorhandenen."
       }

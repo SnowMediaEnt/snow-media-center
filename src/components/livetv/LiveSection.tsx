@@ -7,9 +7,6 @@ import { ChevronDown, ChevronLeft, ChevronRight, Film, Loader2, Search, Star, Tv
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   loadFavoritesData,
-  loadSavedAccounts,
-  loadPlayerAccount,
-  SAVED_ACCOUNTS_REFRESH_EVENT,
   getLiveCategories,
   getLiveStreams,
   forgetLiveStreams,
@@ -39,15 +36,14 @@ import {
   lineKey,
 } from '@/lib/favoritesSync';
 import {
-  buildLines,
   lineLabel,
   loadHiddenCategories,
   loadCollapsedLines,
   saveCollapsedLines,
   HIDDEN_CATEGORIES_EVENT,
 } from '@/lib/liveLines';
-import { loadOutsideState, OUTSIDE_SOURCES_EVENT } from '@/lib/outsideSource';
-import { keepIfSame } from '@/lib/keepIfSame';
+import { isOutsideHost, lineEventProps } from '@/lib/outsideSource';
+import { useLiveLines } from './useLiveLines';
 import {
   countsAreFresh,
   expireCounts,
@@ -290,24 +286,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // another service) comes last, only while this line is an active
   // DreamStreams / Vibez one (lib/outsideSource): it goes when the line
   // expires and comes back when it is renewed (the account record's refresh).
-  const [lines, setLines] = useState<XtreamCreds[]>(() => [creds]);
+  // (useLiveLines: also the timers for the line's end date and a stale check.)
   const linesSettledRef = useRef(false);
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      const saved = DEMO && !HOWTO ? [] : await loadSavedAccounts().catch(() => []);
-      const outside = DEMO ? null : await loadOutsideState(loadPlayerAccount);
-      if (!cancelled) {
-        linesSettledRef.current = true;
-        const next = buildLines(creds, saved, outside);
-        setLines((prev) => keepIfSame(prev, next));
-      }
-    };
-    void load();
-    const events = [SAVED_ACCOUNTS_REFRESH_EVENT, OUTSIDE_SOURCES_EVENT, 'playerAccountRefresh'];
-    events.forEach((ev) => window.addEventListener(ev, load));
-    return () => { cancelled = true; events.forEach((ev) => window.removeEventListener(ev, load)); };
-  }, [creds]);
+  const lines = useLiveLines(creds, linesSettledRef);
   const grouped = lines.length > 1;
   const activeKey = lineKey(creds);
 
@@ -454,7 +435,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         changed++;
       }
       if (!changed) return prev;
-      try { trackEvent('favorite_relinked', 'player', { service: line.serverLabel ?? null, count: changed, how: 'auto' }); } catch { /* ignore */ }
+      try { trackEvent('favorite_relinked', 'player', lineEventProps(line, { count: changed, how: 'auto' }, { service: line.serverLabel ?? null })); } catch { /* ignore */ }
       commitFavorites(line, n);
       return new Map(prev).set(lineKey(line), n);
     });
@@ -489,7 +470,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       });
       // The list this favourite came from is stale too: drop it so it refetches.
       setStreamsByCat((prev) => { const n = new Map(prev); for (const k of n.keys()) if (k.startsWith(lineKey(line) + '|')) n.delete(k); return n; });
-      try { trackEvent('favorite_relinked', 'player', { service: line.serverLabel ?? null, count: 1, how: 'manual' }); } catch { /* ignore */ }
+      try { trackEvent('favorite_relinked', 'player', lineEventProps(line, { count: 1, how: 'manual' }, { service: line.serverLabel ?? null })); } catch { /* ignore */ }
       return 'fixed';
     } catch {
       return 'failed';
@@ -829,7 +810,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           return n;
         });
         setCatsLoading((prev) => { const n = new Set(prev); n.delete(k); return n; });
-        if (failed && !DEMO) { try { trackEvent('live_categories_failed', 'player', { server: line.serverLabel ?? '', reason: failed }); } catch { /* ignore */ } }
+        if (failed && !DEMO) { try { trackEvent('live_categories_failed', 'player', lineEventProps(line, { reason: failed }, { server: line.serverLabel ?? '' })); } catch { /* ignore */ } }
         try { window.dispatchEvent(new CustomEvent(LIVE_CATS_LOADED_EVENT, { detail: { line: k, failed } })); } catch { /* ignore */ }
       });
     };
@@ -1773,11 +1754,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           // its teams: tell Game Day's search where it was (never for Kids).
           if (!kidsLevel()) { try { noteLivePlay(line, stream, catName); } catch { /* ignore */ } }
         }, WATCH_RECORD_DWELL_MS);
-        trackEvent('channel_play', 'player', {
+        // An outside service's channel: 'outside', no names (lib/outsideSource).
+        trackEvent('channel_play', 'player', lineEventProps(line, {}, {
           channel: stream.name,
           category: catName,
           server: line.serverLabel,
-        });
+        }));
       }
     } catch { /* ignore */ }
   }, [visibleCategories, currentCat, lineFor, categoriesByLine]);
@@ -1868,14 +1850,32 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => {
     if (DEMO || !playingChannelId) return;
     try {
-      startTimer('watch', 'channel_watch', 'player', {
+      startTimer('watch', 'channel_watch', 'player', lineEventProps(playingLine, {}, {
         channel: watchingRef.current?.channel ?? null,
         category: watchingRef.current?.category ?? null,
         service: playingLine.serverLabel ?? null,
-      });
+      }));
     } catch { /* ignore */ }
     return () => { try { stopTimer('watch'); } catch { /* ignore */ } };
-  }, [playingChannelId, playingLine.serverLabel]);
+  }, [playingChannelId, playingLine]);
+
+  // The service added from elsewhere left the lines (the DreamStreams / Vibez
+  // line expired, was refused or signed out: lib/outsideSource) while one of
+  // its channels played, full screen or in the preview: it stops, and the
+  // viewer is told why.
+  useEffect(() => {
+    const keys = new Set(lines.map((l) => lineKey(l)));
+    const gone = (l: XtreamCreds | null) => !!l?.outside && !keys.has(lineKey(l));
+    const fromPlaying = playingChannelId != null && gone(playingLine) ? playingLine : null;
+    const fromPreview = previewChannel && gone(lineFor(previewChannel)) ? lineFor(previewChannel) : null;
+    const was = fromPlaying ?? fromPreview;
+    if (!was) return;
+    if (fromPlaying) { setFullscreen(false); setPlayingChannelId(null); }
+    if (fromPreview) setPreviewChannel(null);
+    // Removed (Settings, or its line signed out): it simply stops. Still
+    // saved, so hidden by the rule: the viewer is told why.
+    if (isOutsideHost(was.host)) toast({ title: t('liveAccount.outside.hiddenNote', { name: lineLabel(was) }) });
+  }, [lines]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // Channels other boxes see as down right now (⚠️ on the row), for the
@@ -2155,16 +2155,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (msg && msg !== lastNativeErrorRef.current) {
       lastNativeErrorRef.current = msg;
       try {
-        trackEvent('player_error', 'player', {
-          kind: 'live_native',
+        trackEvent('player_error', 'player', lineEventProps(playingLine, { kind: 'live_native' }, {
           channel_or_title: playingName,
           server: playingLine.serverLabel,
-        });
+        }));
       } catch { /* ignore */ }
     } else if (!msg) {
       lastNativeErrorRef.current = null;
     }
-  }, [native.error, playingName, playingLine.serverLabel]);
+  }, [native.error, playingName, playingLine]);
 
   // Report undecodable audio per channel so the codec shows up in telemetry
   // instead of only arriving as a customer phone call.
@@ -2176,15 +2175,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (key === lastAudioWarnRef.current) return;
     lastAudioWarnRef.current = key;
     try {
-      trackEvent('audio_unsupported', 'player', {
+      trackEvent('audio_unsupported', 'player', lineEventProps(playingLine, {
         kind: 'live_native',
-        channel_or_title: playingName,
-        server: playingLine.serverLabel,
         codecs: w.codecs,
         ffmpeg_available: w.ffmpegAvailable,
-      });
+      }, {
+        channel_or_title: playingName,
+        server: playingLine.serverLabel,
+      }));
     } catch { /* ignore */ }
-  }, [native.audioWarning, playingName, playingChannelId, playingLine.serverLabel]);
+  }, [native.audioWarning, playingName, playingChannelId, playingLine]);
 
   // (player_search intentionally NOT fired for Live TV — spec scopes it to movies/series/plex.)
 
@@ -3232,13 +3232,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         const line = lineFor(stream);
         setWarnFor(null);
         noteWatchAnyway(line.host, stream.stream_id);
-        try { trackEvent('report_warning', 'player', { status: report, choice: 'watch', where: 'live', channel: stream.name }); } catch { /* ignore */ }
+        try { trackEvent('report_warning', 'player', lineEventProps(line, { status: report, choice: 'watch', where: 'live' }, { channel: stream.name })); } catch { /* ignore */ }
         playChannel(stream);
       }}
       onPickAnother={() => {
         const { stream, report } = warnFor;
         setWarnFor(null);
-        try { trackEvent('report_warning', 'player', { status: report, choice: 'pick_another', where: 'live', channel: stream.name }); } catch { /* ignore */ }
+        try { trackEvent('report_warning', 'player', lineEventProps(lineFor(stream), { status: report, choice: 'pick_another', where: 'live' }, { channel: stream.name })); } catch { /* ignore */ }
       }}
     />
   ) : null;
@@ -3340,12 +3340,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               onError={(msg) => {
                 if (playingChannelId) signalChannel(playingLine.host, playingChannelId, playingName, 'fail');
                 try {
-                  trackEvent('player_error', 'player', {
-                    kind: 'live_web',
+                  trackEvent('player_error', 'player', lineEventProps(playingLine, { kind: 'live_web' }, {
                     channel_or_title: playingName,
                     server: playingLine.serverLabel,
                     message: msg.slice(0, 200),
-                  });
+                  }));
                 } catch { /* ignore */ }
               }}
             />

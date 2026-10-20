@@ -482,6 +482,23 @@ export function loadFavoritesForLine(creds: XtreamCreds): Map<number, FavChannel
   return toMap(restoreFor(favKey(creds))?.favorites ?? []);
 }
 
+/**
+ * Forget a line's favourites on this box, every profile's (an outside
+ * service removed, or its line signed out: lib/outsideActions). Its stash
+ * only: never the active line's local list.
+ */
+export function forgetFavoritesForLine(creds: Pick<XtreamCreds, 'host' | 'username'>): void {
+  const base = STASH_PREFIX + lineKey(creds);
+  try {
+    const doomed: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k === base || k.startsWith(`${base}#p:`))) doomed.push(k);
+    }
+    doomed.forEach((k) => localStorage.removeItem(k));
+  } catch { /* ignore */ }
+}
+
 /** Save a line's list locally: the active line's to the local store, any other line's to its stash. */
 export function saveFavoritesForLine(creds: XtreamCreds, favorites: Map<number, FavChannel>): void {
   if (isDemo() || isActiveLine(creds)) { saveFavoritesData(favorites); return; }
