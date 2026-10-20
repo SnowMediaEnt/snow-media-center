@@ -5,34 +5,49 @@ package com.snowmedia.player
  * (SnowPlayerPlugin.onPlayerError). Plain arithmetic with no Android in it,
  * so it can be checked off the device.
  *
- * A dead channel's address answers at once that the stream isn't there
- * (HTTP 404 / 410) or that the server can't serve it (500 / 502 / 503 /
- * 504). It used to be treated like a channel that keeps dropping: 20
- * reconnects, each after the player's own quiet retries, then the WebView's
- * fresh start and 20 more. Minutes of "Buffering… your connection looks
- * slow, try a VPN" for a channel that is simply not on the air, and a
- * failover to the viewer's other service that came only after all that.
+ * A dead channel's address answers that the stream isn't there (HTTP 404 /
+ * 410) or that the server can't serve it (500 / 502 / 503 / 504). It used to
+ * be treated like a channel that keeps dropping: 20 reconnects, each after
+ * the player's own quiet retries, then the WebView's fresh start and 20
+ * more. Minutes of "Buffering… your connection looks slow, try a VPN" for a
+ * channel that is simply not on the air, and a failover to the viewer's
+ * other service only after all that.
  *
- * Now, for a live channel that has drawn nothing since it was loaded:
- * - the player does not retry such an answer quietly (skipLoaderRetry), so
- *   each try is one request;
- * - the same answer twice in a row for "not there" (the first and one
- *   retry), four times for a server error, and it is given up as
- *   RECONNECT_EXHAUSTED with the status.
- * Unchanged: 401 / 403 (the line's connection limit, or a block), timeouts
- * and connections that fail (the viewer's own internet), any other answer,
- * films, and a channel that has played since it was loaded (one that was
- * playing and drops keeps its patient 20 reconnects).
+ * An "off the air" verdict is also the channel's report to every box on the
+ * service, so it must be right more than it must be fast. A channel is given
+ * up only when all of these hold:
+ * - it is live, and has not played since it was loaded: no picture and not
+ *   playing (a radio channel never draws a picture, but it plays);
+ * - the answer came for the stream's own address (its playlist, or the raw
+ *   stream), never for a piece of it (an HLS segment, which keeps the
+ *   player's own retries and does not count here);
+ * - the same answer that many times in a row (twice for 404 / 410, four
+ *   times for 5xx), "in a row" ending at any other error and whenever
+ *   playback gets going;
+ * - at least FLOOR_MS since it was loaded: a panel answers 404 / 503 for a
+ *   few seconds while a source starts or switches to its backup, a load
+ *   balancer 502 / 503 for a moment, a one-connection line 503 to a zap
+ *   while the last channel's connection is still closing. The tries are
+ *   spread out meanwhile (retryDelayMs: 1 s, 2 s, 4 s…), one request each.
+ * A dead channel then says so after about 8 s, five requests. Unchanged:
+ * 401 / 403 (the line's connection limit, or a block), timeouts and failed
+ * connections, any other answer, films, and a channel that has played (one
+ * that was playing and drops keeps its patient 20 reconnects).
  */
 internal object DeadStreamRule {
     enum class Kind { GONE, SERVER }
 
-    /** "Not there" (404 / 410): the first try and one retry. */
+    /** "Not there" (404 / 410) this many times in a row… */
     const val GONE_TRIES = 2
-    /** A server error (5xx): a server can be busy for a moment. */
+    /** …a server error (5xx) this many (a server can be busy for a moment)… */
     const val SERVER_TRIES = 4
+    /** …and never before this long after load(): the first-picture watchdog's 8 s. */
+    const val FLOOR_MS = 8000L
+    /** The shortest wait between two tries (the plugin's usual reconnect delay). */
+    const val MIN_GAP_MS = 500L
 
-    fun kindOf(httpStatus: Int?): Kind? = when (httpStatus) {
+    /** What an answer says, for the stream's own address (`address`); a piece of it says nothing. */
+    fun kindOf(httpStatus: Int?, address: Boolean): Kind? = if (!address) null else when (httpStatus) {
         404, 410 -> Kind.GONE
         500, 502, 503, 504 -> Kind.SERVER
         else -> null
@@ -48,11 +63,22 @@ internal object DeadStreamRule {
         else -> 1
     }
 
-    /** Give up now: a live channel, nothing drawn since it was loaded, and the run has reached its tries. */
-    fun givesUp(live: Boolean, pictureThisLoad: Boolean, kind: Kind?, streak: Int): Boolean =
-        live && !pictureThisLoad && kind != null && streak >= tries(kind)
+    /** Give up now (see the rules above). `sinceLoadMs`: time since load(). */
+    fun givesUp(live: Boolean, played: Boolean, kind: Kind?, streak: Int, sinceLoadMs: Long): Boolean =
+        live && !played && kind != null && streak >= tries(kind) && sinceLoadMs >= FLOOR_MS
 
-    /** The player's own quiet retries of this answer are skipped: each try is one request, counted here. */
-    fun skipLoaderRetry(live: Boolean, pictureThisLoad: Boolean, httpStatus: Int?): Boolean =
-        live && !pictureThisLoad && kindOf(httpStatus) != null
+    /** The wait before the next try of a counted answer: 1 s, 2 s, 4 s, 8 s
+     *  as the run grows, but before the floor no later than the floor itself
+     *  (a dead channel says so soon after it), never under MIN_GAP_MS. */
+    fun retryDelayMs(streak: Int, sinceLoadMs: Long): Long {
+        val backoff = 1000L shl (streak - 1).coerceIn(0, 3)
+        val toFloor = FLOOR_MS - sinceLoadMs
+        return if (toFloor > 0) maxOf(MIN_GAP_MS, minOf(backoff, toFloor)) else backoff
+    }
+
+    /** The player's own quiet retries (six, about 15 s) are skipped for such
+     *  an answer to the stream's own address: each try is one request, and
+     *  the plugin spreads them (retryDelayMs). Pieces keep theirs. */
+    fun skipLoaderRetry(live: Boolean, played: Boolean, httpStatus: Int?, address: Boolean): Boolean =
+        live && !played && kindOf(httpStatus, address) != null
 }

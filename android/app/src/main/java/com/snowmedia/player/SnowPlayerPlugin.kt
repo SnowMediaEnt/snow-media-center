@@ -176,7 +176,8 @@ class SnowPlayerPlugin : Plugin() {
         var boost: LoudnessEnhancer? = null
         var currentUrl: String? = null
         var currentSubtitles: JSArray? = null
-        var isLive: Boolean = true
+        // Read on the loading thread too (the load-error policy, DeadStreamRule).
+        @Volatile var isLive: Boolean = true
         var lastPositionMs: Long = 0L
         var reconnectAttempts: Int = 0
         // A Plex conversion the server answered with an error status, in this
@@ -192,14 +193,21 @@ class SnowPlayerPlugin : Plugin() {
         var rangeFetch: Boolean = false
         var rangeShared: RangeFetchDataSource.Shared? = null
         var firstFrameSeen: Boolean = false
-        // A picture drawn since load() (firstFrameSeen starts over at every
-        // reconnect): a channel that has played is never given up as off
-        // the air (DeadStreamRule). Read on the loader thread too.
-        @Volatile var pictureThisLoad: Boolean = false
+        // Played since load(): a picture drawn, or playing at all (a radio
+        // channel never draws one). firstFrameSeen starts over at every
+        // reconnect; this does not. A channel that has played is never given
+        // up as off the air (DeadStreamRule). Read on the loading thread too.
+        @Volatile var playedThisLoad: Boolean = false
         // A live channel's run of the same "not there" / server-error answer
-        // since load(), in a row (DeadStreamRule).
+        // for its own address, in a row (DeadStreamRule): ended by any other
+        // error and whenever playback gets going.
         var deadKind: DeadStreamRule.Kind? = null
         var deadStreak: Int = 0
+        // The last HTTP error status came for the stream's own address (its
+        // playlist, or the raw stream), not a piece of it (an HLS segment).
+        // Set by the load-error policy on the loading thread, read in
+        // onPlayerError; cleared at each try.
+        @Volatile var lastHttpAddress: Boolean = false
         // Screen format. ExoPlayer stretches the picture to fill its
         // TextureView, so the view is sized to the picture's shape. These
         // three remember that shape, and applyFormat() does the work.
@@ -1083,8 +1091,9 @@ class SnowPlayerPlugin : Plugin() {
         return builder.build()
     }
 
-    /** `reason` is what the stats panel shows as the last restart. */
-    private fun reconnect(s: PlayerSlot, screenId: String, reason: String) {
+    /** `reason` is what the stats panel shows as the last restart; `delayMs`
+     *  the wait before it (a dead-looking channel's are spread out, DeadStreamRule). */
+    private fun reconnect(s: PlayerSlot, screenId: String, reason: String, delayMs: Long = RECONNECT_DELAY_MS) {
         val url = s.currentUrl ?: return
         if (s.reconnectAttempts >= MAX_RECONNECTS) {
             releaseWifiIfStopped(s)
@@ -1105,6 +1114,7 @@ class SnowPlayerPlugin : Plugin() {
             val p = s.player ?: return@Runnable
             if (s.currentUrl == null) return@Runnable
             s.firstFrameSeen = false
+            s.lastHttpAddress = false
             if (s.isLive) {
                 p.setMediaItem(buildMediaItem(url, s.currentSubtitles))
                 p.prepare()
@@ -1116,7 +1126,7 @@ class SnowPlayerPlugin : Plugin() {
             }
         }
         s.reconnectRunnable = r
-        mainHandler.postDelayed(r, RECONNECT_DELAY_MS)
+        mainHandler.postDelayed(r, delayMs)
     }
 
     /**
@@ -1133,6 +1143,7 @@ class SnowPlayerPlugin : Plugin() {
         s.reconnectRunnable = null
         s.noPictureTick?.let { mainHandler.removeCallbacks(it) }
         s.noPictureTick = null
+        s.noPictureSound = false
         notifyListeners(
             "playerError",
             JSObject().put("screenId", screenId)
@@ -1920,16 +1931,23 @@ class SnowPlayerPlugin : Plugin() {
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(dataSourceFactory, extractorsFactory)
                     .setLoadErrorHandlingPolicy(object : DefaultLoadErrorHandlingPolicy(6) {
-                        // A live channel that has drawn nothing yet: a "not
-                        // there" or server-error answer is not retried here
-                        // (six quiet retries, 15 s, per try). Each try is one
-                        // request, and onPlayerError counts them
-                        // (DeadStreamRule). Everything else as before.
+                        // A live channel that has not played yet: a "not
+                        // there" or server-error answer for the stream's own
+                        // address (its playlist, or the raw stream: a load
+                        // with no format of its own) is not retried here (six
+                        // quiet retries, 15 s, per try). Each try is one
+                        // request; onPlayerError counts them and spreads them
+                        // out (DeadStreamRule). A piece of the stream (an HLS
+                        // segment) keeps its retries and never counts.
                         override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
                             val e = loadErrorInfo.exception
-                            if (e is HttpDataSource.InvalidResponseCodeException &&
-                                DeadStreamRule.skipLoaderRetry(s.isLive, s.pictureThisLoad, e.responseCode)
-                            ) return C.TIME_UNSET
+                            if (e is HttpDataSource.InvalidResponseCodeException) {
+                                val data = loadErrorInfo.mediaLoadData
+                                val address = data.dataType == C.DATA_TYPE_MANIFEST ||
+                                    (data.dataType == C.DATA_TYPE_MEDIA && data.trackFormat == null)
+                                s.lastHttpAddress = address
+                                if (DeadStreamRule.skipLoaderRetry(s.isLive, s.playedThisLoad, e.responseCode, address)) return C.TIME_UNSET
+                            }
                             return super.getRetryDelayMsFor(loadErrorInfo)
                         }
                     }),
@@ -2080,6 +2098,8 @@ class SnowPlayerPlugin : Plugin() {
                     s.stallStartedAtMs = 0L
                     s.stallUncounted = false
                 }
+                // Playback got going: a dead-looking run is over (DeadStreamRule's "in a row").
+                if (state == Player.STATE_READY) { s.deadKind = null; s.deadStreak = 0 }
                 // Rewind live TV: the buffer ran out; back to the channel itself.
                 if (state == Player.STATE_ENDED && screenId == MAIN && tsBuffer) { tsGoLive(s); return }
                 if (state == Player.STATE_ENDED && s.currentUrl != null) {
@@ -2097,6 +2117,9 @@ class SnowPlayerPlugin : Plugin() {
                 notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", str))
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                // Playing counts as played since load(), picture or not (a
+                // radio channel): never given up as off the air (DeadStreamRule).
+                if (isPlaying) { s.playedThisLoad = true; s.deadKind = null; s.deadStreak = 0 }
                 notifyListeners("playerState", JSObject().put("screenId", screenId).put("playing", isPlaying))
             }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -2109,7 +2132,9 @@ class SnowPlayerPlugin : Plugin() {
                 // hold is over, see openShutterIfReady). Never on load or a
                 // state change, so no earlier frame can show.
                 s.firstFrameSeen = true
-                s.pictureThisLoad = true
+                s.playedThisLoad = true
+                s.deadKind = null
+                s.deadStreak = 0
                 openShutterIfReady(s)
                 s.reconnectAttempts = 0
                 s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
@@ -2199,19 +2224,25 @@ class SnowPlayerPlugin : Plugin() {
                     notifyListeners("playerError", ev)
                     return
                 }
-                // A live channel that has drawn nothing since it was loaded,
-                // whose server keeps answering that the stream isn't there
-                // (404 / 410) or can't serve it (5xx): off the air, given up
-                // after DeadStreamRule's few tries instead of 20 (and the
-                // WebView's fresh start, 20 more). 401 / 403, timeouts and
-                // failed connections, and a channel that has played, keep
-                // the patient reconnects below.
+                // A live channel that has not played since it was loaded,
+                // whose own address keeps answering that the stream isn't
+                // there (404 / 410) or can't be served (5xx): off the air,
+                // given up after DeadStreamRule's tries (spread over about
+                // 8 s) instead of 20 (and the WebView's fresh start, 20 more).
+                // 401 / 403, timeouts and failed connections, a segment's
+                // error, and a channel that has played keep the patient
+                // reconnects below.
                 if (s.isLive && s.currentUrl != null) {
-                    val kind = DeadStreamRule.kindOf(httpStatus)
+                    val kind = DeadStreamRule.kindOf(httpStatus, s.lastHttpAddress)
                     s.deadStreak = DeadStreamRule.streak(s.deadKind, s.deadStreak, kind)
                     s.deadKind = kind
-                    if (DeadStreamRule.givesUp(live = true, pictureThisLoad = s.pictureThisLoad, kind = kind, streak = s.deadStreak)) {
+                    val sinceLoad = SystemClock.elapsedRealtime() - s.loadStartWallMs
+                    if (DeadStreamRule.givesUp(live = true, played = s.playedThisLoad, kind = kind, streak = s.deadStreak, sinceLoadMs = sinceLoad)) {
                         giveUpOffAir(s, screenId, httpStatus)
+                        return
+                    }
+                    if (kind != null && !s.playedThisLoad && s.reconnectAttempts < MAX_RECONNECTS) {
+                        reconnect(s, screenId, httpRestartReason(error, httpStatus), DeadStreamRule.retryDelayMs(s.deadStreak, sinceLoad))
                         return
                     }
                 }
@@ -2542,6 +2573,11 @@ class SnowPlayerPlugin : Plugin() {
                 s.isLive = live
                 s.lastPositionMs = startMs
                 s.firstFrameSeen = false
+                // As an ExoPlayer load: nothing played yet, no run (DeadStreamRule).
+                s.playedThisLoad = false
+                s.deadKind = null
+                s.deadStreak = 0
+                s.lastHttpAddress = false
                 // mpv draws its own way: no black-picture steps.
                 s.noPicture = null
                 s.noPictureGaveUp = false
@@ -2567,9 +2603,10 @@ class SnowPlayerPlugin : Plugin() {
             s.lastPositionMs = startMs
             s.reconnectAttempts = 0
             s.transcodeHttpFails = 0
-            s.pictureThisLoad = false
+            s.playedThisLoad = false
             s.deadKind = null
             s.deadStreak = 0
+            s.lastHttpAddress = false
             s.rangeFetch = rangeFetch && !live
             s.audioChoiceDone = false
             // Told again by the new stream's audio output (onAudioTrackInitialized).
