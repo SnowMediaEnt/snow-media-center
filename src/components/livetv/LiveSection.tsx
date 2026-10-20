@@ -99,6 +99,7 @@ import FullscreenChannelOverlay, { OVERLAY_CHANNEL_ROWS, type OverlayCategory } 
 import RecentChannelsPanel from './RecentChannelsPanel';
 import { useRecentPanel } from './useRecentPanel';
 import { useHeldPreview } from './useHeldPreview';
+import { useOverlaySearch } from './useOverlaySearch';
 import { useFavoritesMove } from './useFavoritesMove';
 import MovingFavoriteMark from './MovingFavoriteMark';
 import { arrangeFavorites, favRefKey } from '@/lib/favoritesOrder';
@@ -761,6 +762,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     clearOverlayTimer();
     if (ovHoldRef.current) { window.clearTimeout(ovHoldRef.current.timer); ovHoldRef.current = null; }
   }, [clearOverlayTimer]);
+  // Set below with the search over the picture (useOverlaySearch).
+  const endOverlaySearchRef = useRef<() => boolean>(() => false);
   // Closed when full screen ends, and when Live TV loses the remote (the
   // voice overlay, a dialog over the Player), as Recently watched is.
   useEffect(() => {
@@ -771,6 +774,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (ovHoldRef.current) { window.clearTimeout(ovHoldRef.current.timer); ovHoldRef.current = null; }
     setChOverlayOpen(false);
     forgetOvList();
+    endOverlaySearchRef.current();
   }, [fullscreen, isActive, clearOverlayTimer, forgetOvList]);
 
   // Reset bar state when entering fullscreen or switching channel (the
@@ -2486,6 +2490,33 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (i >= 0) { setChannelIdx(i); setPane('channels'); }
   }, [playingIndexIn]);
 
+  // Search over the picture: the list's first row (useOverlaySearch). What is
+  // typed there is the section's own search, so its results are the list's.
+  // searchQ is set with it, at once: its own pause would reset the highlight
+  // a frame after the list's place had been put back.
+  const ovSearch = useOverlaySearch({
+    searchOpen,
+    count: visibleChannels.length,
+    open: () => { setSearchQuery(''); setSearchQ(''); setSearchOpen(true); },
+    leave: () => { setSearchOpen(false); setSearchQuery(''); setSearchQ(''); },
+    toFirst: () => setChannelIdx(0),
+    idle: (on) => {
+      if (!chOverlayOpenRef.current) return;
+      if (on) pokeOverlay(); else clearOverlayTimer();
+    },
+  });
+  const ovSearchRef = useRef(ovSearch);
+  ovSearchRef.current = ovSearch;
+  // The list over the picture closing (or gone with full screen): the
+  // keyboard put away, and a search opened there closed with it. True when
+  // there was one: the list is still its results this frame.
+  const endOverlaySearch = useCallback((): boolean => {
+    if (!ovSearchRef.current.end()) return false;
+    setSearchOpen(false); setSearchQuery(''); setSearchQ('');
+    return true;
+  }, []);
+  endOverlaySearchRef.current = endOverlaySearch;
+
   // Open the channel list over the picture: on the playing channel when the
   // list holds it; else on the playing channel's own category, the channel
   // highlighted once that category's channels are in; else where the list is.
@@ -2516,6 +2547,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (ovHoldRef.current) { window.clearTimeout(ovHoldRef.current.timer); ovHoldRef.current = null; }
     setChOverlayOpen(false);
     forgetOvList();
+    const searched = endOverlaySearch();
     const saved = overlaySavedRef.current;
     overlaySavedRef.current = null;
     if (!restore || !saved) return;
@@ -2529,12 +2561,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     } else if (at >= 0 && at !== categoryIdxRef.current) {
       setCategoryIdx(at);
       refocusPlayingRef.current = true;
+    } else if (searched) {
+      // The search's results are still the list this frame: the playing
+      // channel is found once its category's channels are back.
+      refocusPlayingRef.current = true;
     } else {
       const i = playingIndexIn(visibleChannelsRef.current);
       if (i >= 0) setChannelIdx(i);
     }
     setPane(saved.pane);
-  }, [clearOverlayTimer, playingIndexIn, toggleCollapsed, forgetOvList]);
+  }, [clearOverlayTimer, playingIndexIn, toggleCollapsed, forgetOvList, endOverlaySearch]);
   closeChannelOverlayRef.current = closeChannelOverlay;
   // Its categories are a layer of their own (from Tronix; its dealer: "the
   // category column should be compressed on first left arrow, appear if user
@@ -2572,8 +2608,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     } else setChannelIdx(placeIn(visibleChannelsRef.current, was));
     setPane('channels');
   }, [closeChannelOverlay, pokeOverlay, toggleCollapsed, forgetOvList]);
-  const overlayBackStepRef = useRef(overlayBackStep);
-  overlayBackStepRef.current = overlayBackStep;
+  // Back over the picture, one layer at a time: the keyboard, then a search
+  // opened there (useOverlaySearch), with the categories open over its
+  // results folded away first; then overlayBackStep's own layers.
+  const overlayBack = useCallback(() => {
+    if (paneRef.current !== 'categories' && ovSearchRef.current.back()) { pokeOverlay(); return; }
+    overlayBackStep();
+  }, [overlayBackStep, pokeOverlay]);
+  const overlayBackRef = useRef(overlayBack);
+  overlayBackRef.current = overlayBack;
   useEffect(() => {
     const id = restoreCatIdRef.current;
     if (!id) return;
@@ -2600,13 +2643,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [visibleChannels, currentCat, searchOpen]);
   // A channel picked in the list over the picture: watched (asked first when
   // the others reported it down, as in the list); the list stays on it.
+  // A search typed there closes with the list; the list behind then follows
+  // the channel to its own category once it plays (as a Recently watched
+  // pick does), so CH+ / CH- go on from there and Back lands on it.
   const pickFromOverlay = useCallback((ch: XtreamLiveStream) => {
+    const searched = ovSearchRef.current.owns();
     closeChannelOverlay(false);
     // Back from it goes to this channel's list, not to where the last one
     // was opened from (the Guide, Game Day).
     clearCallerRef.current?.();
+    if (searched) followOnPlayRef.current = { st: ch, run: () => { followToCategory(lineFor(ch), ch); } };
     activateChannelRef.current(ch);
-  }, [closeChannelOverlay]);
+  }, [closeChannelOverlay, followToCategory, lineFor]);
   const pickFromOverlayRef = useRef(pickFromOverlay);
   pickFromOverlayRef.current = pickFromOverlay;
 
@@ -2840,18 +2888,23 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // --- The channel list over the picture (◀ with the bar hidden) ---
         // It opens alone. ▲▼ move, ◀ opens its categories (and from there
         // closes), ▶ / OK open a category (its list alone again), OK on a
-        // channel watches it (held: its options). Back: the categories first
-        // (the list as it was), then the list; one step each, and nothing else.
+        // channel watches it (held: its options). Its first row is Search
+        // (useOverlaySearch): OK there types a search over the picture.
+        // Back: the keyboard, a search typed here, the categories (the list
+        // as it was), then the list; one step each, and nothing else.
         if (chOverlayOpenRef.current) {
+          // The keyboard up on its Search row: letters are the field's.
+          if (ovSearchRef.current.typingKey(e)) return;
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           if (isBack) {
             (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
-            overlayBackStep();
+            overlayBackRef.current();
             return;
           }
           pokeOverlay();
           const isOk = e.key === 'Enter' || e.key === ' ';
-          if (isOk && e.repeat) return;
+          // Held, or the keyboard's parting Enter as it went away: no press.
+          if (isOk && (e.repeat || ovSearchRef.current.partingOk())) return;
           const cats = visibleCategoriesRef.current;
           const chans = visibleChannelsRef.current;
           if (paneRef.current === 'categories') {
@@ -2874,8 +2927,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             }
             return;
           }
-          if (e.key === 'ArrowDown') setChannelIdx(i => (chans.length ? (i + 1) % chans.length : 0));
-          else if (e.key === 'ArrowUp') setChannelIdx(i => (chans.length ? (i - 1 + chans.length) % chans.length : 0));
+          // The Search row: ▼ the first row under it, ▲ round to the last, OK types.
+          const search = ovSearchRef.current;
+          if (search.isOnField()) {
+            if (e.key === 'ArrowDown' && chans.length) { search.offField(); setChannelIdx(0); }
+            else if (e.key === 'ArrowUp' && chans.length) { search.offField(); setChannelIdx(chans.length - 1); }
+            else if (e.key === 'ArrowLeft') { search.offField(); showOverlayCategories(); }
+            else if (isOk) search.start();
+            return;
+          }
+          // The Search row is the list's first row: ▲ from the first channel
+          // reaches it, ▼ from the last comes round to it.
+          const at = Math.min(channelIdxRef.current, chans.length - 1);
+          if (e.key === 'ArrowDown') { if (at >= chans.length - 1) search.toField(); else setChannelIdx(at + 1); }
+          else if (e.key === 'ArrowUp') { if (at <= 0) search.toField(); else setChannelIdx(at - 1); }
           else if (e.key === 'ArrowLeft') showOverlayCategories();
           else if (isOk) {
             const ch = chans[channelIdxRef.current];
@@ -3265,7 +3330,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (favMoveRef.current.movingKey) { favMoveRef.current.drop(); return; }
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (recentRef.current.isOpen()) { recentRef.current.close(); return; }
-          if (fullscreenRef.current && chOverlayOpenRef.current) { overlayBackStepRef.current(); return; }
+          if (fullscreenRef.current && chOverlayOpenRef.current) { overlayBackRef.current(); return; }
           if (fullscreenRef.current) {
             if (barVisibleRef.current && !touchUIRef.current) hideBarNow();
             else leavePicture();
@@ -3724,8 +3789,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             isFavorite={isFav}
             reportOf={(st) => channelReport(downSet, lineFor(st).host, st.stream_id, st.category_id)}
             nowTitle={(st) => epgFor(st)?.now?.title}
-            serviceTag={currentCat?.isAllFavs && !searchOpen ? (st) => lineLabel(lineFor(st)) : undefined}
+            // A search runs through every service: with two or more, each row says which.
+            serviceTag={(currentCat?.isAllFavs && !searchOpen) || (grouped && searchOpen) ? (st) => lineLabel(lineFor(st)) : undefined}
             labels={rowLabels}
+            search={{
+              focused: ovSearch.onField,
+              typing: ovSearch.typing,
+              open: searchOpen,
+              query: searchQuery,
+              backLeaves: ovSearch.owned,
+              inputRef: ovSearch.inputRef,
+              onChange: setSearchQuery,
+              onFocus: ovSearch.onFieldFocus,
+              onBlur: ovSearch.onFieldBlur,
+            }}
           />
         )}
         {recentPanel}
