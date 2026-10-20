@@ -4,6 +4,7 @@
     <string name="rec_notif_title_programme">Grabando %1$s (%2$s)</string>
     <string name="rec_notif_title_channel">Grabando %1$s</string>
     <string name="rec_notif_text_starting">Iniciando</string>
+    <string name="rec_notif_saving">Guardando grabaciones en %1$s</string>
     <string name="rec_notif_text_until">Hasta las %1$s · usa 1 conexión de tu línea</string>
     <string name="rec_notif_text_until_stopped">Hasta que la detengas · usa 1 conexión de tu línea</string>
     <string name="rec_channel_name">Grabaciones</string>

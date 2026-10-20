@@ -18,10 +18,15 @@
 //   The dialog also shows a space warning and, before anything is set, the
 //   conflict message when more recordings than the plan allows would overlap.
 //
+// The computer's shared folder (volume id 'net', set up under Settings ›
+// Rewind & recording) is one more "Save to" choice. When the computer doesn't
+// answer right now it can still be picked: the box keeps the recording and
+// copies it over once the computer is back, and the dialog says so.
+//
 // D-pad: ▲▼ rows, ◀▶ along a row's choices, OK, Back closes.
 // Chrome 66: margins, no flex gap beyond gap-1..4, no inset.
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Circle, HardDrive, Info, MoreHorizontal, Square, Usb, X } from 'lucide-react';
+import { AlertTriangle, Circle, HardDrive, Info, Monitor, MoreHorizontal, Square, Usb, X } from 'lucide-react';
 import { SnowRecorder, type RecordVolume, type RecordingJob } from '@/capacitor/SnowRecorder';
 import {
   CUSTOM_DEFAULT, RECORD_DURATIONS, endsAtLabel, extraStreamNote, formatMinutes, isLowSpace, stepCustom,
@@ -127,6 +132,8 @@ const RecordDialog = memo(({
       : ['dest', 'dur', ...(dur.minutes < 0 ? (['custom'] as Row[]) : []), 'start', ...(onMore ? (['more'] as Row[]) : []), 'cancel'];
   const focusRow = rows[Math.min(focus, rows.length - 1)];
   const vol = volumes?.[volIdx];
+  // The computer is off or asleep: its free space says nothing about this recording (it waits on the box).
+  const netAway = !!vol?.network && vol.reachable === false;
   const conflict = prog && win && mode !== 'over'
     ? scheduleConflict(
       existing ?? [],
@@ -134,7 +141,7 @@ const RecordDialog = memo(({
       recordingCap(maxConnections),
     )
     : null;
-  const space = prog && vol ? spaceWarning(progMinutes, vol.freeBytes, recordFloorBytes(vol.removable)) : null;
+  const space = prog && vol && !netAway ? spaceWarning(progMinutes, vol.freeBytes, recordFloorBytes(vol.removable)) : null;
   const isOver = mode === 'over';
   const canStart = !!vol && (!progMode || (!!prog && mode !== 'over' && !conflict));
 
@@ -300,11 +307,20 @@ const RecordDialog = memo(({
               )}
               {volumes && volumes.map((v, i) => (
                 <span key={v.id} data-record-chip={i} className={chip(i === volIdx, focusRow === 'dest')}>
-                  {v.removable ? <Usb className="inline w-4 h-4 mr-1 -mt-0.5" /> : <HardDrive className="inline w-4 h-4 mr-1 -mt-0.5" />}
-                  {t('recordings.dialog.volumeFree', { label: v.label, size: formatBytes(v.freeBytes) })}
+                  {v.network
+                    ? <Monitor className="inline w-4 h-4 mr-1 -mt-0.5" />
+                    : v.removable ? <Usb className="inline w-4 h-4 mr-1 -mt-0.5" /> : <HardDrive className="inline w-4 h-4 mr-1 -mt-0.5" />}
+                  {v.network && v.reachable === false
+                    ? t('recordings.dialog.volumeOffline', { label: v.label })
+                    : t('recordings.dialog.volumeFree', { label: v.label, size: formatBytes(v.freeBytes) })}
                 </span>
               ))}
-              {vol && isLowSpace(vol.freeBytes) && (
+              {netAway && (
+                <p data-record-net-later className="mt-1 text-sm font-nunito text-brand-ice/80 flex items-center">
+                  <Info className="w-4 h-4 mr-1 flex-shrink-0 text-brand-gold" /> {t('recordings.dialog.netLater')}
+                </p>
+              )}
+              {vol && !netAway && isLowSpace(vol.freeBytes) && (
                 <p className="mt-1 text-sm font-nunito text-amber-300 flex items-center">
                   <AlertTriangle className="w-4 h-4 mr-1 flex-shrink-0" /> {t('recordings.dialog.lowSpace')}
                 </p>

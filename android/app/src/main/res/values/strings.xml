@@ -13,6 +13,7 @@
     <string name="rec_notif_title_programme">Recording %1$s (%2$s)</string>
     <string name="rec_notif_title_channel">Recording %1$s</string>
     <string name="rec_notif_text_starting">Starting</string>
+    <string name="rec_notif_saving">Saving recordings to %1$s</string>
     <string name="rec_notif_text_until">Until %1$s · uses 1 stream on your line</string>
     <string name="rec_notif_text_until_stopped">Until you stop it · uses 1 stream on your line</string>
     <string name="rec_channel_name">Recordings</string>

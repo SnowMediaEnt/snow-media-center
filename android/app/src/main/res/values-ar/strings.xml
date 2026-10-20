@@ -4,6 +4,7 @@
     <string name="rec_notif_title_programme">جارٍ تسجيل %1$s (%2$s)</string>
     <string name="rec_notif_title_channel">جارٍ تسجيل %1$s</string>
     <string name="rec_notif_text_starting">جارٍ البدء</string>
+    <string name="rec_notif_saving">جارٍ حفظ التسجيلات على %1$s</string>
     <string name="rec_notif_text_until">حتى %1$s · يستخدم عملية بث واحدة من خطك</string>
     <string name="rec_notif_text_until_stopped">حتى توقفه · يستخدم عملية بث واحدة من خطك</string>
     <string name="rec_channel_name">التسجيلات</string>

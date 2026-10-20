@@ -1,0 +1,2 @@
+# Recordings on a computer or NAS (the network folder page)
+src/components/livetv/NetworkFolderScreen.tsx

@@ -66,7 +66,9 @@
       "stopAction": "Arrêter l'enregistrement",
       "moreAction": "Plus d'options…",
       "moreHint": "favori, signaler",
-      "hint": "▲▼ choisir · ◀▶ modifier · OK · Retour ferme. Les enregistrements sont dans TV en direct › Enregistrements."
+      "hint": "▲▼ choisir · ◀▶ modifier · OK · Retour ferme. Les enregistrements sont dans TV en direct › Enregistrements.",
+      "volumeOffline": "{{label}} · injoignable pour l'instant",
+      "netLater": "L'ordinateur est injoignable pour l'instant : l'enregistrement attend sur ce boîtier et sera copié à son retour."
     },
     "player": {
       "cantPlay": "Cet enregistrement ne peut pas être lu",
@@ -110,7 +112,10 @@
       "groupMissed": "Manqués / non démarrés",
       "groupRecordings": "Enregistrements",
       "thisBox": "Ce boîtier",
-      "usbDrive": "Clé USB"
+      "usbDrive": "Clé USB",
+      "driveOffline": "{{label}} : injoignable",
+      "uploadingChip": "Copie vers l'ordinateur",
+      "computer": "Ordinateur"
     },
     "toast": {
       "deletedTitle": "Enregistrement supprimé",
@@ -168,7 +173,48 @@
       "usageWithBudget": "Tampon de rembobinage actuel : {{used}} · Libre : {{free}} · Auto pourrait utiliser jusqu'à {{budget}}",
       "figuresInApp": "Les chiffres s'affichent dans l'appli sur votre boîtier TV.",
       "nearlyFull": "Ce boîtier est presque plein : le rembobinage sur les chaînes sans replay n'aura pas de place.",
-      "recordingsSeparate": "Les enregistrements sont séparés (TV en direct › Enregistrements) et ne sont jamais effacés par le rembobinage."
+      "recordingsSeparate": "Les enregistrements sont séparés (TV en direct › Enregistrements) et ne sont jamais effacés par le rembobinage.",
+      "networkRow": "Enregistrements sur un ordinateur",
+      "networkRowDesc": "Enregistrez dans un dossier partagé d'un ordinateur ou d'un NAS de votre réseau.",
+      "networkOffChip": "Non configuré"
+    },
+    "network": {
+      "title": "Enregistrements sur un ordinateur",
+      "intro": "Enregistrez dans un dossier partagé sur un ordinateur ou un NAS de votre réseau domestique.",
+      "introLater": "Si l'ordinateur est éteint, les enregistrements attendent sur ce boîtier et sont copiés plus tard.",
+      "savedTo": "Les enregistrements vont sur {{name}}.",
+      "find": "Rechercher des ordinateurs",
+      "findDesc": "Cherche sur votre réseau les ordinateurs et NAS qui partagent des dossiers.",
+      "finding": "Recherche des ordinateurs… quelques secondes.",
+      "foundNone": "Aucun ordinateur trouvé. Saisissez son nom ou son adresse ci-dessous.",
+      "computer": "Ordinateur (nom ou adresse)",
+      "computerPlaceholder": "DESKTOP-ABC ou 192.168.1.20",
+      "share": "Dossier partagé",
+      "sharePlaceholder": "Enregistrements",
+      "folder": "Dossier à l'intérieur",
+      "user": "Nom d'utilisateur",
+      "userPlaceholder": "Vide si le dossier est ouvert à tous",
+      "password": "Mot de passe",
+      "keepPassword": "Laissez vide pour garder le mot de passe enregistré",
+      "saveBtn": "Tester et enregistrer",
+      "testing": "Essai du dossier…",
+      "clearBtn": "Ne plus utiliser cet ordinateur",
+      "clearConfirm": "Ne plus enregistrer sur {{name}} ? Appuyez de nouveau sur OK.",
+      "cleared": "C'est fait. Les enregistrements déjà sur l'ordinateur y restent.",
+      "needHost": "Saisissez le nom ou l'adresse de l'ordinateur.",
+      "needShare": "Saisissez le nom du dossier partagé.",
+      "saved": "Enregistré. {{free}} libres sur {{name}}.",
+      "savedNoFree": "Enregistré. Les enregistrements vont sur {{name}}.",
+      "failUnreachable": "Impossible de joindre cet ordinateur. Est-il allumé et sur le même réseau ?",
+      "failAuth": "L'ordinateur a refusé ce nom d'utilisateur ou ce mot de passe.",
+      "failNoShare": "Cet ordinateur n'a aucun dossier partagé de ce nom.",
+      "failReadOnly": "Impossible d'écrire dans le dossier : vérifiez que ses autorisations de partage permettent les modifications.",
+      "failError": "Ça n'a pas marché. Vérifiez les informations et réessayez.",
+      "howTitle": "Comment partager un dossier",
+      "howWindows": "Windows : clic droit sur le dossier › Propriétés › Partage › Partager, ajoutez votre utilisateur en Lecture/écriture.",
+      "howWindowsLogin": "Windows : utilisez le nom d'utilisateur et le mot de passe de votre session Windows (pour un compte Microsoft, son e-mail).",
+      "howMac": "Mac : Réglages Système › Général › Partage › Partage de fichiers, ajoutez le dossier et donnez à votre utilisateur Lecture et écriture.",
+      "howMacOptions": "Mac : dans Partage de fichiers › Options, activez votre utilisateur sous Partage de fichiers Windows."
     },
     "reasons": {
       "noLogin": "Connectez-vous à TV en direct pour enregistrer.",

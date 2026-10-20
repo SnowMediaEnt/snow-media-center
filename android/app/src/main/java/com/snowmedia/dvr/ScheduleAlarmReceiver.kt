@@ -20,7 +20,9 @@ import java.util.UUID
  *     programme, back to back) instead of opening a second stream;
  *  3. rebuilds the stream address from the saved Player login (LineCreds): no
  *     login, or a different line, is a plain-words failure;
- *  4. the drive (a missing USB drive falls back to the box when it has room),
+ *  4. the drive (a missing USB drive falls back to the box when it has room;
+ *     the network folder records on the box first, so the box's room counts,
+ *     and a network folder no longer set up records on the box instead),
  *     the free space and the number of recordings the plan allows;
  *  5. starts RecordingService, which updates the schedule as it goes.
  * The address is put in one in-app intent to the service and nowhere else:
@@ -94,7 +96,11 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         }
 
         // The drive. A USB drive that is not there falls back to the box if it has room for a while.
-        var vol = RecordingStore.volume(ctx, s.volumeId)
+        // The network folder is written on the box first (NetSpool): the box's room is what counts;
+        // when it is no longer set up, the box takes the recording (quietly: nothing went missing).
+        val toNet = s.volumeId == NetRecordings.VOLUME_ID && NetFolderStore.read(ctx) != null
+        val netGone = s.volumeId == NetRecordings.VOLUME_ID && !toNet
+        var vol = RecordingStore.volume(ctx, if (toNet || netGone) "box" else s.volumeId)
         var moved = false
         if (vol == null) {
             val box = RecordingStore.volume(ctx, "box")
@@ -106,6 +112,13 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         if (!vol.dir.exists() && !vol.dir.mkdirs()) return RecordScheduler.fail(ctx, s, ScheduleReasons.START_FAILED)
         if (vol.freeBytes < RecordingStore.minFreeBytes(vol.removable) + RecordingStore.START_HEADROOM_BYTES) {
             return RecordScheduler.fail(ctx, s, ScheduleReasons.NO_SPACE)
+        }
+        if (toNet) {
+            // The share's free space as last seen (no network call here): under its 1 GB floor, no room.
+            val share = NetFolderStore.read(ctx)?.let { NetStatus.peek(it.key) }
+            if (share != null && share.reachable && share.totalBytes > 0 &&
+                share.freeBytes < NetShare.SHARE_MIN_FREE_BYTES + RecordingStore.START_HEADROOM_BYTES
+            ) return RecordScheduler.fail(ctx, s, ScheduleReasons.NO_SPACE)
         }
 
         // The plan's limit on recordings at once (manual ones count too).
@@ -119,12 +132,15 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         val first = chain.firstOrNull() ?: s
         val name = if (first.programmeTitle.isBlank()) "${s.channelName} – $stamp" else "${first.programmeTitle} (${s.channelName}) – $stamp"
         val file = RecordingStore.uniqueFile(vol.dir, RecordingStore.safeName(name))
+        // To the network folder: the name on the share, and the first chunk on the box is what the service writes.
+        val target = if (toNet) NetRecordings.prepare(ctx, runId, name) else null
         ScheduleStore.markRecording(ctx, ids, runId)
         val intent = Intent(ctx, RecordingService::class.java)
             .setAction(RecordingService.ACTION_START)
             .putExtra(RecordingService.EXTRA_ID, runId)
             .putExtra(RecordingService.EXTRA_URL, url)
-            .putExtra(RecordingService.EXTRA_PATH, file.absolutePath)
+            .putExtra(RecordingService.EXTRA_PATH, (target?.firstChunk ?: file).absolutePath)
+            .putExtra(RecordingService.EXTRA_NET_NAME, target?.name)
             .putExtra(RecordingService.EXTRA_CHANNEL, s.channelName.ifBlank { "Channel" })
             .putExtra(RecordingService.EXTRA_ENDS_AT, endsAt)
             .putExtra(RecordingService.EXTRA_REMOVABLE, vol.removable)

@@ -10,6 +10,7 @@ import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.Executors
 
 /**
  * Record live channels (src/capacitor/SnowRecorder.ts): where they can go,
@@ -26,14 +27,42 @@ import java.util.UUID
  * The 'recordingsChanged' event tells the web side that a recording or a
  * schedule started, ended or changed on its own (a scheduled start, a full
  * drive), so the Recordings screen, the REC badge and the Rewind gate follow.
+ *
+ * The network folder (a shared folder on a computer or NAS at home) is the
+ * drive "net": set up with get/test/save/clearNetworkFolder and
+ * findComputers, recorded to through the box (NetSpool / NetUploader),
+ * listed, renamed, deleted and played (NetPlayServer) like any drive. Calls
+ * that may wait on the network run on their own threads ([netCalls]), never
+ * on Capacitor's one plugin thread, which every other plugin shares. The
+ * folder's password never comes back to the web side and is never logged.
  */
 @CapacitorPlugin(name = "SnowRecorder")
 class RecorderPlugin : Plugin() {
 
     override fun load() {
         instance = this
-        // Every app start puts the alarms back (a force-stop deletes them).
-        Thread({ try { RecordScheduler.rearm(context) } catch (_: Throwable) { /* next start */ } }, "smc-rearm").apply { isDaemon = true }.start()
+        // Every app start puts the alarms back (a force-stop deletes them), and chunks an earlier run
+        // left on the box carry on to the network folder.
+        Thread({
+            try { RecordScheduler.rearm(context) } catch (_: Throwable) { /* next start */ }
+            try { if (NetUploader.hasWork(context)) NetUploader.kick(context) } catch (_: Throwable) { /* next start */ }
+        }, "smc-rearm").apply { isDaemon = true }.start()
+    }
+
+    /** Where calls that may wait on the network run (see the class comment). */
+    private val netCalls = Executors.newCachedThreadPool { r -> Thread(r, "smc-net-call").apply { isDaemon = true } }
+
+    /** Runs [block] on [netCalls]; anything it throws rejects the call with a plain message. */
+    private fun async(call: PluginCall, block: () -> Unit) {
+        netCalls.execute {
+            try {
+                block()
+            } catch (e: NetUserError) {
+                call.reject(e.message)
+            } catch (t: Throwable) {
+                call.reject("Something went wrong (${t.javaClass.simpleName})")
+            }
+        }
     }
 
     override fun handleOnDestroy() {
@@ -52,6 +81,7 @@ class RecorderPlugin : Plugin() {
         }
     }
 
+    /** The drives; with a network folder set up, "net" last (its free space as last known, never more than ~2 s of waiting). */
     private fun volumesJson(): JSArray {
         val arr = JSArray()
         for (v in RecordingStore.volumes(context)) {
@@ -64,12 +94,14 @@ class RecorderPlugin : Plugin() {
                     .put("totalBytes", v.totalBytes),
             )
         }
+        NetRecordings.volumeJson(context)?.let { arr.put(it) }
         return arr
     }
 
     @PluginMethod
     fun getVolumes(call: PluginCall) {
-        call.resolve(JSObject().put("volumes", volumesJson()))
+        if (NetFolderStore.read(context) == null) { call.resolve(JSObject().put("volumes", volumesJson())); return }
+        async(call) { call.resolve(JSObject().put("volumes", volumesJson())) }
     }
 
     /**
@@ -87,12 +119,23 @@ class RecorderPlugin : Plugin() {
         val cap = (call.getInt("maxSimultaneous") ?: RecordingService.MAX_SIMULTANEOUS)
             .coerceIn(1, RecordingService.MAX_SIMULTANEOUS)
         if (url.isNullOrBlank()) { call.reject("url required"); return }
-        val vol = RecordingStore.volume(context, call.getString("volumeId"))
+        // The network folder ("net") is written on the box first (NetSpool), so the box's rules apply to it.
+        val toNet = call.getString("volumeId") == NetRecordings.VOLUME_ID
+        val netFolder = if (toNet) NetFolderStore.read(context) ?: run { call.reject("That drive is not available"); return } else null
+        val vol = RecordingStore.volume(context, if (toNet) "box" else call.getString("volumeId"))
             ?: run { call.reject("That drive is not available"); return }
         if (!vol.dir.exists() && !vol.dir.mkdirs()) { call.reject("Can't write to ${vol.label}"); return }
         // Room above the floor the recording will stop at (1 GB on the box, 200 MB on a USB drive).
         if (vol.freeBytes < RecordingStore.minFreeBytes(vol.removable) + RecordingStore.START_HEADROOM_BYTES) {
             call.reject("Not enough free space on ${vol.label}.", "NO_SPACE")
+            return
+        }
+        // The share as last seen (no network call here): under its 1 GB floor, refused the same way.
+        val share = netFolder?.let { NetStatus.peek(it.key) }
+        if (netFolder != null && share != null && share.reachable && share.totalBytes > 0 &&
+            share.freeBytes < NetShare.SHARE_MIN_FREE_BYTES + RecordingStore.START_HEADROOM_BYTES
+        ) {
+            call.reject("Not enough free space on ${netFolder.label}.", "NO_SPACE")
             return
         }
         val id = UUID.randomUUID().toString()
@@ -108,11 +151,14 @@ class RecorderPlugin : Plugin() {
             return
         }
         val file = RecordingStore.uniqueFile(vol.dir, RecordingStore.safeName(fileName))
+        // To the network folder: the name on the share; the service writes the first chunk on the box (not [file]).
+        val target = if (netFolder != null) NetRecordings.prepare(context, id, fileName) else null
         val intent = Intent(context, RecordingService::class.java)
             .setAction(RecordingService.ACTION_START)
             .putExtra(RecordingService.EXTRA_ID, id)
             .putExtra(RecordingService.EXTRA_URL, url)
-            .putExtra(RecordingService.EXTRA_PATH, file.absolutePath)
+            .putExtra(RecordingService.EXTRA_PATH, (target?.firstChunk ?: file).absolutePath)
+            .putExtra(RecordingService.EXTRA_NET_NAME, target?.name)
             .putExtra(RecordingService.EXTRA_CHANNEL, channel)
             .putExtra(RecordingService.EXTRA_DURATION_MS, if (minutes > 0) minutes * 60_000L else 0L)
             .putExtra(RecordingService.EXTRA_REMOVABLE, vol.removable)
@@ -124,7 +170,8 @@ class RecorderPlugin : Plugin() {
             call.reject("Recording could not start (${t.javaClass.simpleName})")
             return
         }
-        call.resolve(JSObject().put("id", id).put("name", file.name.removeSuffix(".ts")).put("volumeLabel", vol.label))
+        val name = target?.name ?: file.name
+        call.resolve(JSObject().put("id", id).put("name", name.removeSuffix(".ts")).put("volumeLabel", netFolder?.label ?: vol.label))
     }
 
     /** Stop one recording (id), or all of them. */
@@ -152,7 +199,7 @@ class RecorderPlugin : Plugin() {
                 JSObject()
                     .put("id", j.id)
                     .put("channel", j.channel)
-                    .put("name", j.file.name.removeSuffix(".ts"))
+                    .put("name", (j.netName ?: j.file.name).removeSuffix(".ts"))
                     .put("startedAt", j.startedAt)
                     .put("endsAt", j.endsAt)
                     .put("bytes", j.bytes),
@@ -164,9 +211,21 @@ class RecorderPlugin : Plugin() {
     /** Every recording, newest first, and the drives with their free space. */
     @PluginMethod
     fun list(call: PluginCall) {
+        val net = NetFolderStore.read(context) != null || NetUploader.hasWork(context)
+        if (!net) { call.resolve(listJson(false)); return }
+        async(call) { call.resolve(listJson(true)) }
+    }
+
+    /** Local recordings and (when [net]) the network folder's, newest first. */
+    private fun listJson(net: Boolean): JSObject {
+        val all = ArrayList(RecordingStore.list(context))
+        if (net) {
+            all.addAll(NetRecordings.list(context))
+            all.sortByDescending { it.optLong("startedAt") }
+        }
         val arr = JSArray()
-        for (o in RecordingStore.list(context)) arr.put(o)
-        call.resolve(JSObject().put("recordings", arr).put("volumes", volumesJson()))
+        for (o in all) arr.put(o)
+        return JSObject().put("recordings", arr).put("volumes", volumesJson())
     }
 
     @PluginMethod
@@ -174,6 +233,7 @@ class RecorderPlugin : Plugin() {
         val path = call.getString("path")
         val name = call.getString("name")
         if (path.isNullOrBlank() || name.isNullOrBlank()) { call.reject("path and name required"); return }
+        if (NetRecordings.isNetPath(path)) { async(call) { call.resolve(NetRecordings.rename(context, path, name)) }; return }
         val from = File(path)
         if (!from.exists() || !RecordingStore.isOurs(context, from)) { call.reject("Recording not found"); return }
         if (RecordingService.jobs.values.any { !it.stopped && it.file.absolutePath == from.absolutePath }) {
@@ -192,6 +252,7 @@ class RecorderPlugin : Plugin() {
     fun remove(call: PluginCall) {
         val path = call.getString("path")
         if (path.isNullOrBlank()) { call.reject("path required"); return }
+        if (NetRecordings.isNetPath(path)) { async(call) { NetRecordings.remove(context, path); call.resolve() }; return }
         val f = File(path)
         if (!RecordingStore.isOurs(context, f)) { call.reject("Recording not found"); return }
         if (RecordingService.jobs.values.any { !it.stopped && it.file.absolutePath == f.absolutePath }) {
@@ -199,6 +260,112 @@ class RecorderPlugin : Plugin() {
         }
         if (f.exists() && !f.delete()) { call.reject("Could not delete"); return }
         call.resolve()
+    }
+
+    // ---- the network folder ----
+
+    /** The saved network folder, without its password (never sent to the web side). */
+    @PluginMethod
+    fun getNetworkFolder(call: PluginCall) {
+        val f = NetFolderStore.read(context) ?: run { call.resolve(JSObject().put("configured", false)); return }
+        call.resolve(
+            JSObject()
+                .put("configured", true)
+                .put("host", NetFolderRules.displayHost(f.host, f.port))
+                .put("share", f.share)
+                .put("folder", f.folder)
+                .put("user", NetFolderRules.joinUser(f.domain, f.user))
+                .put("label", f.label),
+        )
+    }
+
+    /** What the TV screen sent, checked; the password resolved by the "omitted = the saved one" rule. */
+    private class NetArgs(val folder: NetFolder, val password: String?)
+
+    /** The folder in [call], or the reason it can't be one (an unusable host, share or folder name). */
+    private fun netArgs(call: PluginCall): Pair<NetArgs?, String?> {
+        val hp = NetFolderRules.parseHost(call.getString("host")) ?: return null to NetReason.UNREACHABLE
+        val share = NetFolderRules.cleanShare(call.getString("share")) ?: return null to NetReason.NO_SHARE
+        val rawFolder = if (call.data.has("folder") && !call.data.isNull("folder")) call.getString("folder") else null
+        val folder = NetFolderRules.cleanFolder(rawFolder) ?: return null to NetReason.NO_FOLDER
+        val (domain, user) = NetFolderRules.splitUser(call.getString("user"))
+        var password = if (call.data.has("password") && !call.data.isNull("password")) call.getString("password") else null
+        if (password == null) {
+            // Re-testing the saved computer and account without retyping: the saved password.
+            val saved = NetFolderStore.read(context)
+            if (saved != null && NetFolderRules.sameLogin(saved, hp.host, hp.port, domain, user)) password = NetFolderStore.password(context)
+        }
+        val f = NetFolder(hp.host, hp.port, share, folder, domain, user, label = NetFolderRules.label(hp.host, share))
+        return NetArgs(f, password) to null
+    }
+
+    private fun testJson(r: NetShare.TestResult): JSObject {
+        val o = JSObject().put("ok", r.ok)
+        if (r.reason != null) o.put("reason", r.reason)
+        if (r.ok) o.put("freeBytes", r.freeBytes).put("totalBytes", r.totalBytes)
+        return o
+    }
+
+    /**
+     * Can recordings go there? Connects, signs in, opens the share, creates
+     * the folder if missing, writes and deletes a tiny file. Saves nothing.
+     * { ok, reason?: unreachable | auth | no_share | no_folder | read_only | error, freeBytes?, totalBytes? }
+     */
+    @PluginMethod
+    fun testNetworkFolder(call: PluginCall) {
+        val (args, bad) = netArgs(call)
+        if (args == null) { call.resolve(JSObject().put("ok", false).put("reason", bad ?: NetReason.ERROR)); return }
+        async(call) { call.resolve(testJson(NetShare.test(args.folder, args.password))) }
+    }
+
+    /** Tests first, saves only when the test passed (same arguments and result as testNetworkFolder). */
+    @PluginMethod
+    fun saveNetworkFolder(call: PluginCall) {
+        val (args, bad) = netArgs(call)
+        if (args == null) { call.resolve(JSObject().put("ok", false).put("reason", bad ?: NetReason.ERROR)); return }
+        async(call) {
+            val r = NetShare.test(args.folder, args.password)
+            if (!r.ok) { call.resolve(testJson(r)); return@async }
+            // The computer's name for the label ("DESKTOP-ABC (Recordings)"), when it was given as an address.
+            val name = LanScan.nameOf(args.folder.host) ?: args.folder.host
+            val f = args.folder.copy(label = NetFolderRules.label(name, args.folder.share))
+            if (!NetFolderStore.save(context, f, args.password ?: "")) {
+                call.resolve(JSObject().put("ok", false).put("reason", NetReason.ERROR))
+                return@async
+            }
+            NetShare.invalidate()
+            NetStatus.record(f.key, true, r.freeBytes, r.totalBytes)
+            if (NetUploader.hasWork(context)) NetUploader.kick(context)
+            emitChanged()
+            call.resolve(testJson(r))
+        }
+    }
+
+    /** Forgets the network folder (and its password). Recordings already on the computer stay there. */
+    @PluginMethod
+    fun clearNetworkFolder(call: PluginCall) {
+        // Off Capacitor's shared plugin thread: the Keystore, and a goodbye to a computer that may be asleep.
+        async(call) {
+            NetFolderStore.clear(context)
+            NetShare.invalidate()
+            NetStatus.forget()
+            emitChanged()
+            call.resolve(JSObject())
+        }
+    }
+
+    /** Computers on the box's own /24 that share folders (TCP 445 open), named when they say. About 5 s. */
+    @PluginMethod
+    fun findComputers(call: PluginCall) {
+        async(call) {
+            val arr = JSArray()
+            for (c in LanScan.find()) {
+                val o = JSObject().put("host", c.host)
+                if (!c.name.isNullOrBlank()) o.put("name", c.name)
+                arr.put(o)
+            }
+            call.resolve(JSObject().put("computers", arr))
+        }
     }
 
     // ---- scheduled recordings ----

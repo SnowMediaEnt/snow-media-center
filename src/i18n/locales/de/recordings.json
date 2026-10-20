@@ -64,7 +64,9 @@
       "stopAction": "Aufnahme stoppen",
       "moreAction": "Weitere Optionen…",
       "moreHint": "Favorit, melden",
-      "hint": "▲▼ wählen · ◀▶ ändern · OK · Zurück schließt. Aufnahmen findest du unter Live-TV › Aufnahmen."
+      "hint": "▲▼ wählen · ◀▶ ändern · OK · Zurück schließt. Aufnahmen findest du unter Live-TV › Aufnahmen.",
+      "volumeOffline": "{{label}} · gerade nicht erreichbar",
+      "netLater": "Der Computer ist gerade nicht erreichbar: Die Aufnahme wartet auf diesem Gerät und wird kopiert, sobald er wieder da ist."
     },
     "player": {
       "cantPlay": "Diese Aufnahme kann nicht abgespielt werden",
@@ -108,7 +110,10 @@
       "groupMissed": "Verpasst / nicht gestartet",
       "groupRecordings": "Aufnahmen",
       "thisBox": "Dieses Gerät",
-      "usbDrive": "USB-Laufwerk"
+      "usbDrive": "USB-Laufwerk",
+      "driveOffline": "{{label}}: nicht erreichbar",
+      "uploadingChip": "Wird auf Computer kopiert",
+      "computer": "Computer"
     },
     "toast": {
       "deletedTitle": "Aufnahme gelöscht",
@@ -165,7 +170,48 @@
       "usageWithBudget": "Zurückspul-Puffer jetzt: {{used}} · Frei: {{free}} · Auto könnte bis zu {{budget}} nutzen",
       "figuresInApp": "Die Werte erscheinen in der App auf deiner TV-Box.",
       "nearlyFull": "Dieses Gerät ist fast voll: Zurückspulen bei Sendern ohne Zeitversatz hat keinen Platz.",
-      "recordingsSeparate": "Aufnahmen sind getrennt (Live-TV › Aufnahmen) und werden nie vom Zurückspulen gelöscht."
+      "recordingsSeparate": "Aufnahmen sind getrennt (Live-TV › Aufnahmen) und werden nie vom Zurückspulen gelöscht.",
+      "networkRow": "Aufnahmen auf einem Computer",
+      "networkRowDesc": "Speichere Aufnahmen in einem freigegebenen Ordner auf einem Computer oder NAS in deinem Netzwerk.",
+      "networkOffChip": "Nicht eingerichtet"
+    },
+    "network": {
+      "title": "Aufnahmen auf einem Computer",
+      "intro": "Speichere Aufnahmen in einem freigegebenen Ordner auf einem Computer oder NAS in deinem Heimnetz.",
+      "introLater": "Ist der Computer aus, warten die Aufnahmen auf diesem Gerät und werden später kopiert.",
+      "savedTo": "Aufnahmen gehen auf {{name}}.",
+      "find": "Computer suchen",
+      "findDesc": "Sucht in deinem Netzwerk nach Computern und NAS, die Ordner freigeben.",
+      "finding": "Computer werden gesucht… das dauert ein paar Sekunden.",
+      "foundNone": "Keine Computer gefunden. Gib unten den Namen oder die Adresse ein.",
+      "computer": "Computer (Name oder Adresse)",
+      "computerPlaceholder": "DESKTOP-ABC oder 192.168.1.20",
+      "share": "Freigegebener Ordner",
+      "sharePlaceholder": "Aufnahmen",
+      "folder": "Ordner darin",
+      "user": "Benutzername",
+      "userPlaceholder": "Leer, wenn der Ordner für alle offen ist",
+      "password": "Passwort",
+      "keepPassword": "Leer lassen, um das gespeicherte Passwort zu behalten",
+      "saveBtn": "Testen und speichern",
+      "testing": "Ordner wird getestet…",
+      "clearBtn": "Diesen Computer nicht mehr nutzen",
+      "clearConfirm": "Keine Aufnahmen mehr auf {{name}} speichern? Drücke nochmal OK.",
+      "cleared": "Erledigt. Aufnahmen, die schon auf dem Computer sind, bleiben dort.",
+      "needHost": "Gib den Namen oder die Adresse des Computers ein.",
+      "needShare": "Gib den Namen des freigegebenen Ordners ein.",
+      "saved": "Gespeichert. {{free}} frei auf {{name}}.",
+      "savedNoFree": "Gespeichert. Aufnahmen gehen auf {{name}}.",
+      "failUnreachable": "Der Computer ist nicht erreichbar. Ist er an und im selben Netzwerk?",
+      "failAuth": "Der Computer hat diesen Benutzernamen oder dieses Passwort abgelehnt.",
+      "failNoShare": "Dieser Computer hat keinen freigegebenen Ordner mit diesem Namen.",
+      "failReadOnly": "In den Ordner kann nicht geschrieben werden: Prüfe, ob die Freigabe Änderungen erlaubt.",
+      "failError": "Das hat nicht geklappt. Prüfe die Angaben und versuche es nochmal.",
+      "howTitle": "So gibst du einen Ordner frei",
+      "howWindows": "Windows: Rechtsklick auf den Ordner › Eigenschaften › Freigabe › Freigeben, deinen Benutzer hinzufügen und Lesen/Schreiben wählen.",
+      "howWindowsLogin": "Windows: Nimm den Benutzernamen und das Passwort deiner Windows-Anmeldung (bei einem Microsoft-Konto dessen E-Mail).",
+      "howMac": "Mac: Systemeinstellungen › Allgemein › Teilen › Dateifreigabe, den Ordner hinzufügen und deinem Benutzer Lesen & Schreiben geben.",
+      "howMacOptions": "Mac: Unter Dateifreigabe › Optionen deinen Benutzer bei Windows-Dateifreigabe einschalten."
     },
     "reasons": {
       "noLogin": "Melde dich bei Live-TV an, um aufzunehmen.",

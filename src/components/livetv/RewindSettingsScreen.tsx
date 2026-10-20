@@ -10,11 +10,17 @@
 // and turns itself off if another TV needs it. It also says why it does not
 // run on a one-stream plan (only channels with provider catch-up rewind there).
 //
+// "Recordings on a computer" (the last row) opens NetworkFolderScreen in this
+// page's place: the shared folder on a computer or NAS recordings can go to.
+// Back there comes back here, so one Back is one step.
+//
 // D-pad: ▲▼ rows, ◀▶ or OK changes the focused row, Back closes.
-import { memo, useEffect, useRef, useState } from 'react';
-import { History, Info } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronRight, History, Info, Monitor } from 'lucide-react';
 import { BackButton } from '@/components/ui/BackButton';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
+import { SnowRecorder, hasRecorder, type NetworkFolder } from '@/capacitor/SnowRecorder';
+import NetworkFolderScreen from './NetworkFolderScreen';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { bufferGate } from '@/hooks/useLiveRewind';
 import { AFTER_CHOICES, BEFORE_CHOICES, loadPadding, savePadding, type RecordPadding } from '@/lib/recordSchedule';
@@ -34,8 +40,9 @@ interface Props {
   active?: boolean;
 }
 
-type Row = 'back' | 'enabled' | 'max' | 'before' | 'after';
+type Row = 'back' | 'enabled' | 'max' | 'before' | 'after' | 'net';
 const ROWS: Row[] = ['back', 'enabled', 'max', 'before', 'after'];
+const ROWS_NET: Row[] = [...ROWS, 'net'];
 
 /**
  * Said under the switch: what the buffer costs the line. This is the English text (the tests compare
@@ -53,6 +60,18 @@ const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: 
   const gate = bufferGate(account?.maxConnections ?? null);
   // The demo line is fixed and plays nothing: no plan to explain.
   const plan = isDemo() || gate === 'ok' ? null : rewindOffMessage(gate === 'few' ? 'streams' : 'streams-unknown');
+  // Recordings on a computer: only where recording is (the app on a box, not
+  // the demo). 'off' also when the app's native side can't say (an older build).
+  const [net, setNet] = useState<'off' | 'loading' | NetworkFolder>(() => (hasRecorder() && !isDemo() ? 'loading' : 'off'));
+  const [netOpen, setNetOpen] = useState(false);
+  const loadNet = useCallback(() => {
+    SnowRecorder.getNetworkFolder().then((nf) => setNet(nf)).catch(() => setNet('off'));
+  }, []);
+  useEffect(() => { if (net === 'loading') loadNet(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const netShown = net !== 'off';
+  const rows = netShown ? ROWS_NET : ROWS;
+  // Back from the computer's page: this page again, on its row, with what it saved.
+  const closeNet = useCallback(() => { setNetOpen(false); setFocus('net'); loadNet(); }, [loadNet]);
 
   useEffect(() => {
     let alive = true;
@@ -62,24 +81,31 @@ const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: 
 
   const update = (next: RewindSettings) => { setS(next); saveRewindSettings(next); };
   const updatePad = (next: RecordPadding) => { setPad(next); savePadding(next); };
-  const stateRef = useRef({ s, pad, focus });
-  stateRef.current = { s, pad, focus };
+  const stateRef = useRef({ s, pad, focus, rows });
+  stateRef.current = { s, pad, focus, rows };
   useEffect(() => {
+    if (netOpen) return; // the computer's page has the remote
     const onKey = (e: KeyboardEvent) => {
       if (embedded && !active) return; // the remote is on the Settings menu
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
-      const { s: cur, pad: curPad, focus: f } = stateRef.current;
+      const { s: cur, pad: curPad, focus: f, rows: list } = stateRef.current;
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
       const isOk = e.key === 'Enter' || e.key === ' ';
       if (!isBack && !isOk && !e.key.startsWith('Arrow')) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       if (isBack) { onBack(); return; }
-      const i = ROWS.indexOf(f);
-      if (e.key === 'ArrowDown') { setFocus(ROWS[Math.min(ROWS.length - 1, i + 1)]); return; }
+      const i = list.indexOf(f);
+      if (e.key === 'ArrowDown') { setFocus(list[Math.min(list.length - 1, i + 1)]); return; }
       // Embedded there is no Back button above the first row.
-      if (e.key === 'ArrowUp') { setFocus(ROWS[Math.max(embedded ? 1 : 0, i - 1)]); return; }
+      if (e.key === 'ArrowUp') { setFocus(list[Math.max(embedded ? 1 : 0, i - 1)]); return; }
       if (f === 'back') { if (isOk) onBack(); return; }
+      if (f === 'net') {
+        // A page of its own: OK or Right opens it; Left beside the menu goes back to the menu.
+        if (embedded && e.key === 'ArrowLeft') { onBack(); return; }
+        if (isOk || e.key === 'ArrowRight') setNetOpen(true);
+        return;
+      }
       if (f === 'enabled') {
         // Beside the Settings menu, Left here goes back to it (as on every
         // other page); OK and Right still switch Rewind on and off.
@@ -105,7 +131,7 @@ const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: 
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [onBack, embedded, active]);
+  }, [onBack, embedded, active, netOpen]);
 
   // Keep the highlighted row on screen (the page scrolls at 960x540).
   useEffect(() => {
@@ -117,6 +143,8 @@ const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: 
     : null;
 
   const row = (r: Row) => `tv-ring rounded-xl px-5 py-3 bg-slate-900/70 border border-white/10 ${focus === r ? 'scale-[1.02] z-10' : ''}`;
+
+  if (netOpen) return <NetworkFolderScreen embedded={embedded} active={active} onBack={closeNet} />;
 
   return (
     <div className={embedded ? 'h-full min-h-0 overflow-hidden flex flex-col text-white' : 'h-screen overflow-hidden flex flex-col text-white bg-black/70'}>
@@ -193,6 +221,21 @@ const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: 
               </div>
             );
           })}
+
+          {netShown && (
+            <div data-rewind-row="net" data-focused={focus === 'net' ? 'true' : 'false'} className={`${row('net')} flex items-center`}
+              onClick={() => { setFocus('net'); setNetOpen(true); }}>
+              <Monitor className="w-6 h-6 mr-3 text-brand-gold flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xl font-quicksand font-semibold">{t('recordings.rewindSettings.networkRow')}</p>
+                <p className="text-sm font-nunito text-white/70 mt-1">{t('recordings.rewindSettings.networkRowDesc')}</p>
+              </div>
+              <span data-rewind-net-value className={`ml-4 px-3 py-1 rounded-lg font-quicksand font-bold truncate ${net !== 'loading' && net.configured ? 'bg-brand-gold text-brand-navy' : 'bg-white/10 text-white/70'}`} style={{ maxWidth: '40%' }}>
+                {net === 'loading' ? '…' : net.configured ? (net.label || net.host) : t('recordings.rewindSettings.networkOffChip')}
+              </span>
+              <ChevronRight className="w-5 h-5 ml-2 text-white/60 flex-shrink-0" />
+            </div>
+          )}
 
           <div className="rounded-xl px-5 py-3 bg-black/30 border border-white/10">
             <p className="text-base font-quicksand font-semibold">{t('recordings.rewindSettings.onThisBox')}</p>

@@ -4,6 +4,7 @@
     <string name="rec_notif_title_programme">Enregistrement de %1$s (%2$s)</string>
     <string name="rec_notif_title_channel">Enregistrement de %1$s</string>
     <string name="rec_notif_text_starting">Démarrage</string>
+    <string name="rec_notif_saving">Envoi des enregistrements vers %1$s</string>
     <string name="rec_notif_text_until">Jusqu\'à %1$s · utilise 1 connexion de votre ligne</string>
     <string name="rec_notif_text_until_stopped">Jusqu\'à l\'arrêt · utilise 1 connexion de votre ligne</string>
     <string name="rec_channel_name">Enregistrements</string>

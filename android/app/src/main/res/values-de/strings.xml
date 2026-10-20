@@ -4,6 +4,7 @@
     <string name="rec_notif_title_programme">Aufnahme: %1$s (%2$s)</string>
     <string name="rec_notif_title_channel">Aufnahme: %1$s</string>
     <string name="rec_notif_text_starting">Startet</string>
+    <string name="rec_notif_saving">Aufnahmen werden auf %1$s gespeichert</string>
     <string name="rec_notif_text_until">Bis %1$s · nutzt 1 Stream deines Zugangs</string>
     <string name="rec_notif_text_until_stopped">Bis du sie stoppst · nutzt 1 Stream deines Zugangs</string>
     <string name="rec_channel_name">Aufnahmen</string>
