@@ -252,7 +252,10 @@
       "note": "{{channel}} ne fonctionne pas sur {{service}} — lecture depuis {{other}}",
       "triedBoth": "{{channel}} n'a pu être lu ni sur {{service}} ni sur {{other}}.",
       "tryOn": "Essayer sur {{other}}",
-      "looking": "Recherche sur votre autre service…"
+      "looking": "Recherche sur votre autre service…",
+      "noteSameService": "{{channel}} ne fonctionne pas sur {{service}} — lecture depuis votre autre ligne {{service}}",
+      "triedBothSameService": "{{channel}} n'a pu être lu sur aucune de vos lignes {{service}}.",
+      "tryOnSameService": "Essayer sur votre autre ligne {{service}}"
     },
     "multi": {
       "needsAppTitle": "Multi-écran nécessite l'appli Fire TV / Android",

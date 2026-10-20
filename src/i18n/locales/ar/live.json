@@ -252,7 +252,10 @@
       "note": "{{channel}} لا تعمل على {{service}} — يتم تشغيلها من {{other}}",
       "triedBoth": "تعذّر تشغيل {{channel}} على {{service}} وعلى {{other}}.",
       "tryOn": "جرّب على {{other}}",
-      "looking": "جارٍ البحث عنها في خدمتك الأخرى…"
+      "looking": "جارٍ البحث عنها في خدمتك الأخرى…",
+      "noteSameService": "{{channel}} لا تعمل على {{service}} — يتم تشغيلها من خطك الآخر في {{service}}",
+      "triedBothSameService": "تعذّر تشغيل {{channel}} على أيٍّ من خطوطك في {{service}}.",
+      "tryOnSameService": "جرّب على خطك الآخر في {{service}}"
     },
     "multi": {
       "needsAppTitle": "تعدد الشاشات يتطلب تطبيق Fire TV / Android",

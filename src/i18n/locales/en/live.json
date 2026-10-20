@@ -252,7 +252,10 @@
       "note": "{{channel}} is down on {{service}} — playing it from {{other}}",
       "triedBoth": "{{channel}} didn't play on {{service}} or on {{other}}.",
       "tryOn": "Try on {{other}}",
-      "looking": "Looking for it on your other service…"
+      "looking": "Looking for it on your other service…",
+      "noteSameService": "{{channel}} is down on {{service}} — playing it from your other {{service}} line",
+      "triedBothSameService": "{{channel}} didn't play on either of your {{service}} lines.",
+      "tryOnSameService": "Try on your other {{service}} line"
     },
     "multi": {
       "needsAppTitle": "Multi-Screen needs the Fire TV / Android app",
