@@ -57,6 +57,7 @@
     <string name="billing_internal">حدث خطأ ما. يرجى المحاولة مرة أخرى.</string>
     <string name="billing_sign_in">يرجى تسجيل الدخول.</string>
     <string name="player_err_stream_dropping">ينقطع البث باستمرار. حاول مرة أخرى.</string>
+    <string name="player_err_channel_off_air">هذه القناة لا تبث الآن.</string>
     <string name="player_err_server_stopped">توقف الخادم عن الاستجابة. حاول مرة أخرى.</string>
     <string name="player_err_refused">رفض الخادم هذا الملف.</string>
     <string name="player_err_refused_status">رفض الخادم هذا الملف (HTTP %1$d).</string>

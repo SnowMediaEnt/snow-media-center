@@ -75,6 +75,15 @@ export interface NativeRect { x: number; y: number; width: number; height: numbe
 
 export interface NativePlayerError { code?: string; message: string; httpStatus?: number | null; forUrl?: string }
 
+/**
+ * A live channel the plugin gave up as off the air (DeadStreamRule.kt): it
+ * drew nothing, and its server kept answering that the stream isn't there
+ * (404 / 410) or couldn't serve it (5xx). The plugin's own give-up after 20
+ * reconnects carries no status, and a film's carries one but is not live.
+ */
+export const isOffAirAnswer = (code: string | undefined, httpStatus: number | null | undefined, live: boolean): boolean =>
+  live && code === 'RECONNECT_EXHAUSTED' && httpStatus != null && [404, 410, 500, 502, 503, 504].includes(httpStatus);
+
 export interface NativePlayerState {
   controller: VideoController | null;
   buffering: boolean;
@@ -321,12 +330,18 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           // error status twice. Loading the identical session again gets the
           // same answer; the caller (PlexSection) starts a fresh session or
           // another quality instead.
+          // A live channel off the air (isOffAirAnswer): the plugin has
+          // already asked twice (four times for a server error) and got the
+          // same answer; a fresh start would ask the same server again. The
+          // error at once, so the card (and a failover to the viewer's
+          // other service) comes in seconds, not minutes.
           // NO_PICTURE: the sound played and the picture never started, and
           // the plugin has already tried everything it has (the surface, a
           // new player, the other kind of decoder) over about 13 s. Reloading
           // it by itself five more times was a minute and more of black with
           // sound: the viewer gets the card and Retry at once.
           if (code === 'AUDIO_DECODE' || code === 'PLEX_TRANSCODE_HTTP' || code === 'NO_PICTURE' || retriesRef.current >= maxRetries
+            || isOffAirAnswer(code, httpStatus, liveRef.current)
             || (code === 'RECONNECT_EXHAUSTED' && exhaustRetriedRef.current)) {
             const forUrl = loadedUrlRef.current ?? undefined;
             setError(httpStatus ? { code, message: msg, httpStatus, forUrl } : { code, message: msg, forUrl });
