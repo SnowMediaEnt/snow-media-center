@@ -124,7 +124,10 @@
       "decodeAudio": "Décoder le son sur ce boîtier",
       "decodeAudioDesc": "Pour une TV ou un ampli qui affiche le film sans son : le Dolby et le DTS sont alors décodés ici au lieu d'être transmis tels quels. Laissez désactivé pour le meilleur son.",
       "on": "Oui",
-      "off": "Non"
+      "off": "Non",
+      "liveHeading": "TV en direct",
+      "failover": "Si une chaîne ne fonctionne pas, la lire depuis mon autre service",
+      "failoverDesc": "Si une chaîne ne démarre pas, TV en direct lit la même chaîne depuis votre autre service, une fois par chaîne choisie. Désactivé : l'écran d'erreur le propose avec un bouton."
     },
     "shell": {
       "signingIn": "Connexion avec votre compte…",
@@ -249,6 +252,12 @@
       "skipForward": "{{sec}} s en avant",
       "behindLive": "{{time}} de retard sur le direct",
       "atLive": "En direct"
+    },
+    "failover": {
+      "note": "{{channel}} ne fonctionne pas sur {{service}} — lecture depuis {{other}}",
+      "triedBoth": "{{channel}} n'a pu être lu ni sur {{service}} ni sur {{other}}.",
+      "tryOn": "Essayer sur {{other}}",
+      "looking": "Recherche sur votre autre service…"
     },
     "multi": {
       "needsAppTitle": "Multi-écran nécessite l'appli Fire TV / Android",

@@ -124,7 +124,10 @@
       "decodeAudio": "Decodificar el audio en este equipo",
       "decodeAudioDesc": "Para una TV o receptor que muestra la película pero no da sonido: Dolby y DTS se decodifican aquí en lugar de enviarse tal cual. Déjalo apagado para el mejor sonido.",
       "on": "Sí",
-      "off": "No"
+      "off": "No",
+      "liveHeading": "TV en vivo",
+      "failover": "Si un canal no funciona, reprodúcelo desde mi otro servicio",
+      "failoverDesc": "Si un canal no arranca, TV en vivo reproduce el mismo canal desde tu otro servicio, una vez por cada canal que elijas. Desactivado: la pantalla de error lo ofrece como botón."
     },
     "shell": {
       "signingIn": "Iniciando tu sesión con tu cuenta…",
@@ -249,6 +252,12 @@
       "skipForward": "{{sec}} s adelante",
       "behindLive": "{{time}} por detrás del en vivo",
       "atLive": "En vivo"
+    },
+    "failover": {
+      "note": "{{channel}} no funciona en {{service}}: se reproduce desde {{other}}",
+      "triedBoth": "{{channel}} no se reprodujo ni en {{service}} ni en {{other}}.",
+      "tryOn": "Probar en {{other}}",
+      "looking": "Buscándolo en tu otro servicio…"
     },
     "multi": {
       "needsAppTitle": "Multipantalla requiere la app de Fire TV / Android",

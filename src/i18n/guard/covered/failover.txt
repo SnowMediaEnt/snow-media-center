@@ -1,0 +1,4 @@
+# When a channel is down, play it from the other service (Live TV failover)
+src/components/livetv/useChannelFailover.ts
+src/lib/channelFailover.ts
+src/lib/channelMatch.ts
