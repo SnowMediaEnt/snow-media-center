@@ -14,7 +14,7 @@ const b = vi.hoisted(() => ({
   trialUsed: false,
   startTrial: vi.fn(),
   services: vi.fn(),
-  poll: vi.fn(async () => ({ outcome: 'cancelled' })),
+  poll: vi.fn(async (..._a: unknown[]): Promise<{ outcome: string; service?: unknown }> => ({ outcome: 'cancelled' })),
   applied: [] as unknown[],
 }));
 
