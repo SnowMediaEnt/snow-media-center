@@ -52,7 +52,7 @@ import {
   type XtreamEpgEntry,
 } from '@/lib/xtream';
 import { commitFavoritesForLine, loadFavoritesForLine, lineKey, toggledFavorites } from '@/lib/favoritesSync';
-import { arrangeFavorites, useFavoritesOrder } from '@/lib/favoritesOrder';
+import { arrangeLineFavorites, useFavoritesOrder } from '@/lib/favoritesOrder';
 import { handLiveDeeplink } from '@/lib/appActions';
 import { signalChannel } from '@/lib/channelStatus';
 import { nameClasses } from '@/lib/channelName';
@@ -355,7 +355,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     if (!catsReady || favs.size === 0) return [];
     const allowed = kidsLevel() ? new Set(categories.map((c) => String(c.category_id))) : null;
     const out: XtreamLiveStream[] = [];
-    for (const f of arrangeFavorites([...favs.values()], favOrder, (x) => ({ line: favLine, id: x.stream_id, name: x.name }))) {
+    for (const f of arrangeLineFavorites([...favs.values()], favOrder, favLine)) {
       if (!allowed || kidsAllowsChannel(f, allowed)) out.push(favToStream(f));
     }
     return out;

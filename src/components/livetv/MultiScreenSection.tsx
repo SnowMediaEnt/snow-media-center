@@ -23,7 +23,7 @@ import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useTouchUI } from '@/lib/phoneMode';
 import { overlayOpenAbove } from '@/lib/overlayBack';
 import { lineKey, loadFavoritesForLine } from '@/lib/favoritesSync';
-import { arrangeFavorites, loadFavOrder } from '@/lib/favoritesOrder';
+import { arrangeLineFavorites, loadFavOrder } from '@/lib/favoritesOrder';
 import { kidsAllowsChannel, kidsLevel } from '@/lib/kidsFilter';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import {
@@ -225,7 +225,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       // In the order Live TV's Favorites shows them (lib/favoritesOrder).
       const allowed = kidsLevel() ? new Set(categoriesRef.current.map((c) => String(c.id))) : null;
       const line = lineKey(creds);
-      const ordered = arrangeFavorites(Array.from(loadFavoritesForLine(creds).values()), loadFavOrder(), (f) => ({ line, id: f.stream_id, name: f.name }));
+      const ordered = arrangeLineFavorites(Array.from(loadFavoritesForLine(creds).values()), loadFavOrder(), line);
       const favs = ordered.filter((f) => !allowed || kidsAllowsChannel(f, allowed)).map(f => ({
         stream_id: f.stream_id,
         name: f.name,

@@ -99,7 +99,7 @@ import { useHeldPreview } from './useHeldPreview';
 import { useOverlaySearch } from './useOverlaySearch';
 import { useFavoritesMove } from './useFavoritesMove';
 import MovingFavoriteMark from './MovingFavoriteMark';
-import { arrangeFavorites, favRefKey } from '@/lib/favoritesOrder';
+import { arrangeFavorites, arrangeLineFavorites, favName, favRefKey } from '@/lib/favoritesOrder';
 import { IDLE_FAILOVER, useChannelFailover, type ChannelFailover } from './useChannelFailover';
 import { recentChannelId, type RecentChannel } from '@/lib/recentChannels';
 // Not lazy: it must be up before the held OK that opens it is let go (that
@@ -250,7 +250,8 @@ interface CatEntry {
 }
 const EMPTY_COUNTS: CatalogCounts = { total: null, byCat: {}, at: 0 };
 const EMPTY_FAVS: Map<number, FavChannel> = new Map();
-const favKey = (f: { stream_id: number; name: string }) => f.name.trim().toLowerCase();
+/** A favourite's name as the heal compares it (lib/favoritesOrder's rule, so the order follows a re-link). */
+const favKey = (f: { stream_id: number; name: string }) => favName(f.name);
 /** Where a list's highlight goes back to: the channel it was on, else the
  *  same place, kept inside the list. */
 const placeIn = (list: Array<{ stream_id: number }>, was: { channelIdx: number; streamId: number | null }): number => {
@@ -1136,7 +1137,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         streamLineRef.current.set(st, currentCat.line);
         return st;
       });
-      return arrangeFavorites(out, favOrder, (st) => ({ line: currentCat.lineKey, id: st.stream_id, name: st.name }));
+      return arrangeLineFavorites(out, favOrder, currentCat.lineKey);
     }
     return streamsByCat.get(currentCat.id) || [];
   }, [searchOpen, searchQ, lines, allByLine, hidden, adultCatsByLine, currentCat, streamsByCat, favsByLine, favOrder]);
