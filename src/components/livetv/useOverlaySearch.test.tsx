@@ -3,12 +3,14 @@
  * keyboard: Amazon's covers the bottom half of the screen and goes away by
  * the box's Back, which JavaScript never sees — only keyboardDidHide — and
  * it sends a parting Enter as it goes. The highlight moves into the results
- * then (or once they come), that Enter plays nothing, the OK that opened the
- * keyboard is not its "done", and a box focusing the field by itself raises
- * no keyboard. Back: the keyboard, then a search opened here; a search the
- * list already had is the list's (its Back goes on).
+ * then (or once they come), that one Enter plays nothing, the OK that opened
+ * the keyboard is not its "done", a box focusing the field by itself raises
+ * no keyboard, and the WebView losing focus for a moment (dictation, a
+ * system popup) does not end the typing. Back: the keyboard, then a search
+ * opened here; a search the list already had is the list's (its Back goes
+ * on).
  */
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OverlaySearch, OverlaySearchOptions } from './useOverlaySearch';
 
@@ -90,9 +92,35 @@ describe('the keyboard over the picture', () => {
     expect(calls.toFirst).toHaveBeenCalledTimes(1);
     expect(document.activeElement).not.toBe(field());
     expect(calls.idle).toHaveBeenLastCalledWith(true);
+    // One Enter is the keyboard's; a second OK straight after is the viewer's.
     expect(s().partingOk()).toBe(true);
+    expect(s().partingOk()).toBe(false);
+  });
+
+  it('no Enter came as it went: after a moment OK is a press again', async () => {
+    await typingWith(3);
+    boxBack();
     await sleep(OVERLAY_DISMISS_GRACE_MS + 50);
     expect(s().partingOk()).toBe(false);
+  });
+
+  it('the WebView losing focus (dictation, a system popup) is not the keyboard going: still typing', async () => {
+    await typingWith(3);
+    // The field's blur, with the field still the page's focused element.
+    act(() => { fireEvent.blur(field()); });
+    await sleep(20);
+    expect(document.activeElement).toBe(field());
+    expect(s().typing).toBe(true);
+    expect(calls.toFirst).not.toHaveBeenCalled();
+  });
+
+  it('the focus really gone from the field while typing: the keyboard went with it, into the results', async () => {
+    await typingWith(3);
+    act(() => { field().blur(); });
+    await sleep(20);
+    expect(s().typing).toBe(false);
+    expect(s().onField).toBe(false);
+    expect(calls.toFirst).toHaveBeenCalledTimes(1);
   });
 
   it('no results yet when it went away: the highlight stays on the field and moves into them once they come', async () => {

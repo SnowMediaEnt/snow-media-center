@@ -91,7 +91,7 @@ import { adultCategoryIds } from '@/lib/adultSearch';
 import { toast } from '@/hooks/use-toast';
 import { channelReport, isCategoryDown, isChannelFailure, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
 import ChannelWarningDialog from './ChannelWarningDialog';
-import FullscreenChannelOverlay, { OVERLAY_CHANNEL_ROWS, type OverlayCategory } from './FullscreenChannelOverlay';
+import FullscreenChannelOverlay, { overlayChannelWindow, type OverlayCategory } from './FullscreenChannelOverlay';
 import RecentChannelsPanel from './RecentChannelsPanel';
 import { useRecentPanel } from './useRecentPanel';
 import { useHeldPreview } from './useHeldPreview';
@@ -745,6 +745,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [clearOverlayTimer]);
   // Set below with the search over the picture (useOverlaySearch).
   const endOverlaySearchRef = useRef<() => boolean>(() => false);
+  // What waits for the list behind to be its own again once a search typed
+  // over the picture has closed (the frame it closes, its results are still
+  // the list): a CH+ / CH- through the list the viewer was in, or a search
+  // pick's place in it. Run by the effect after pickFromOverlay.
+  const afterSearchRef = useRef<(() => void) | null>(null);
+  // A search pick waiting to play (followOnPlayRef holds it while a warning
+  // asks first); dropped when the list closes without it.
+  const ovPickRef = useRef<{ st: XtreamLiveStream; run: () => void } | null>(null);
   // Closed when full screen ends, and when Live TV loses the remote (the
   // voice overlay, a dialog over the Player), as Recently watched is.
   useEffect(() => {
@@ -1637,6 +1645,26 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     }
   }, []);
 
+  // Search over the picture: the list's first row (useOverlaySearch). What is
+  // typed there is the section's own search, so its results are the list's.
+  // searchQ is set with it, at once: its own pause would reset the highlight
+  // a frame after the list's place had been put back.
+  const ovSearch = useOverlaySearch({
+    searchOpen,
+    count: visibleChannels.length,
+    open: () => { setSearchQuery(''); setSearchQ(''); setSearchOpen(true); },
+    leave: () => { setSearchOpen(false); setSearchQuery(''); setSearchQ(''); },
+    toFirst: () => setChannelIdx(0),
+    idle: (on) => {
+      if (!chOverlayOpenRef.current) return;
+      if (on) pokeOverlay(); else clearOverlayTimer();
+    },
+  });
+  const ovSearchRef = useRef(ovSearch);
+  ovSearchRef.current = ovSearch;
+  const ovSearchOnField = ovSearch.onField;
+  const ovSearchTyping = ovSearch.typing;
+
   const virtualItems = rowVirtualizer.getVirtualItems();
   useEffect(() => {
     // In fullscreen only the channel being watched matters: that one, not
@@ -1644,11 +1672,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const want: XtreamLiveStream[] = [];
     if (fullscreen && playingStream) want.push(playingStream);
     else if (focusedChannel) want.push(focusedChannel);
-    // The channel list over the picture: the rows it draws.
+    // The channel list over the picture: the rows it draws (its Search row
+    // takes a place; while typing, only the first few results).
     if (fullscreen && chOverlayOpen && pane === 'channels') {
-      const half = Math.floor(OVERLAY_CHANNEL_ROWS / 2);
-      const from = Math.max(0, Math.min(visibleChannels.length - OVERLAY_CHANNEL_ROWS, channelIdx - half));
-      for (let i = from; i < Math.min(visibleChannels.length, from + OVERLAY_CHANNEL_ROWS); i++) want.push(visibleChannels[i]);
+      const w = overlayChannelWindow(visibleChannels.length, channelIdx, { onSearch: ovSearchOnField, typing: ovSearchTyping });
+      for (let i = w.from; i < Math.min(visibleChannels.length, w.to); i++) want.push(visibleChannels[i]);
     }
     if (!fullscreen) {
       for (const v of virtualItems) {
@@ -1665,7 +1693,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       return false;
     });
     for (const s of want) enqueueEpg(s);
-  }, [virtualItems, visibleChannels, focusedChannel, playingStream, enqueueEpg, epgKey, cols, fullscreen, chOverlayOpen, pane, channelIdx]);
+  }, [virtualItems, visibleChannels, focusedChannel, playingStream, enqueueEpg, epgKey, cols, fullscreen, chOverlayOpen, pane, channelIdx, ovSearchOnField, ovSearchTyping]);
 
   // undefined: the highlighted channel's programme info is not in yet (the
   // info panel says "Loading…"); {} or no programme on now: it came back
@@ -2274,11 +2302,22 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const skipFromKey = useCallback((delta: number) => { liveSkip.push(delta); }, [liveSkip]);
   useEffect(() => {
     if (!isActive || !fullscreen) return;
+    // A search typed over the picture is open: its results are the list
+    // this frame. The list and the search close first (as Back would), and
+    // the zap goes through the list the viewer was in, once it is back.
+    const zap = (d: 1 | -1) => {
+      if (chOverlayOpenRef.current && ovSearchRef.current.owns()) {
+        closeChannelOverlayRef.current(true);
+        afterSearchRef.current = () => changeChannelRef.current(d);
+        return;
+      }
+      changeChannelRef.current(d);
+    };
     const off = onMediaKey((k) => {
       if (k === 'ff') { liveSkip.push(+MEDIA_SKIP_SEC); pokeBar(); }
       else if (k === 'rw') { liveSkip.push(-MEDIA_SKIP_SEC); pokeBar(); }
-      else if (k === 'next' || k === 'chup') { liveSkip.clear(); changeChannelRef.current(+1); pokeBar(); }
-      else if (k === 'prev' || k === 'chdown') { liveSkip.clear(); changeChannelRef.current(-1); pokeBar(); }
+      else if (k === 'next' || k === 'chup') { liveSkip.clear(); zap(+1); pokeBar(); }
+      else if (k === 'prev' || k === 'chdown') { liveSkip.clear(); zap(-1); pokeBar(); }
       else if (k === 'playpause' || k === 'play' || k === 'pause') pokeBar();
     });
     return () => { off(); liveSkip.clear(); };
@@ -2490,23 +2529,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (i >= 0) { setChannelIdx(i); setPane('channels'); }
   }, [playingIndexIn]);
 
-  // Search over the picture: the list's first row (useOverlaySearch). What is
-  // typed there is the section's own search, so its results are the list's.
-  // searchQ is set with it, at once: its own pause would reset the highlight
-  // a frame after the list's place had been put back.
-  const ovSearch = useOverlaySearch({
-    searchOpen,
-    count: visibleChannels.length,
-    open: () => { setSearchQuery(''); setSearchQ(''); setSearchOpen(true); },
-    leave: () => { setSearchOpen(false); setSearchQuery(''); setSearchQ(''); },
-    toFirst: () => setChannelIdx(0),
-    idle: (on) => {
-      if (!chOverlayOpenRef.current) return;
-      if (on) pokeOverlay(); else clearOverlayTimer();
-    },
-  });
-  const ovSearchRef = useRef(ovSearch);
-  ovSearchRef.current = ovSearch;
   // The list over the picture closing (or gone with full screen): the
   // keyboard put away, and a search opened there closed with it. True when
   // there was one: the list is still its results this frame.
@@ -2547,6 +2569,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (ovHoldRef.current) { window.clearTimeout(ovHoldRef.current.timer); ovHoldRef.current = null; }
     setChOverlayOpen(false);
     forgetOvList();
+    if (ovPickRef.current && followOnPlayRef.current === ovPickRef.current) followOnPlayRef.current = null;
+    ovPickRef.current = null;
     const searched = endOverlaySearch();
     const saved = overlaySavedRef.current;
     overlaySavedRef.current = null;
@@ -2643,20 +2667,53 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [visibleChannels, currentCat, searchOpen]);
   // A channel picked in the list over the picture: watched (asked first when
   // the others reported it down, as in the list); the list stays on it.
-  // A search typed there closes with the list; the list behind then follows
-  // the channel to its own category once it plays (as a Recently watched
-  // pick does), so CH+ / CH- go on from there and Back lands on it.
+  // A pick from a search typed there: the list and the search stay while it
+  // is asked about (Pick another comes back to the results) and close once
+  // it plays. The list behind then lands on it: where it is when that list
+  // holds it (Favorites, say), else in its own category (as a Recently
+  // watched pick does), so CH+ / CH- go on from there and Back finds it.
   const pickFromOverlay = useCallback((ch: XtreamLiveStream) => {
-    const searched = ovSearchRef.current.owns();
+    if (ovSearchRef.current.owns()) {
+      // What activateChannel will play (the copy, when the box shows one).
+      const st = failoverRef.current.redirect(ch) ?? ch;
+      const pick = {
+        st,
+        run: () => {
+          ovPickRef.current = null;
+          if (!ovSearchRef.current.owns()) return;
+          closeChannelOverlay(false);
+          clearCallerRef.current?.();
+          afterSearchRef.current = () => {
+            const k = lineKey(lineFor(ch));
+            const at = visibleChannelsRef.current.findIndex((x) => x.stream_id === ch.stream_id && lineKey(lineFor(x)) === k);
+            if (at >= 0) setChannelIdx(at);
+            else followToCategory(lineFor(st), st);
+          };
+        },
+      };
+      ovPickRef.current = pick;
+      followOnPlayRef.current = pick;
+      // A warning may sit over the list a while: the list waits for it.
+      clearOverlayTimer();
+      activateChannelRef.current(ch);
+      return;
+    }
     closeChannelOverlay(false);
     // Back from it goes to this channel's list, not to where the last one
     // was opened from (the Guide, Game Day).
     clearCallerRef.current?.();
-    if (searched) followOnPlayRef.current = { st: ch, run: () => { followToCategory(lineFor(ch), ch); } };
     activateChannelRef.current(ch);
-  }, [closeChannelOverlay, followToCategory, lineFor]);
+  }, [closeChannelOverlay, followToCategory, lineFor, clearOverlayTimer]);
   const pickFromOverlayRef = useRef(pickFromOverlay);
   pickFromOverlayRef.current = pickFromOverlay;
+  // Declared after the effects that reset and refocus the list's highlight,
+  // so what it runs has the last word in the same commit.
+  useEffect(() => {
+    const run = afterSearchRef.current;
+    if (!run || searchOpen || chOverlayOpen) return;
+    afterSearchRef.current = null;
+    run();
+  }, [searchOpen, chOverlayOpen]);
 
   // ── Recently watched (▶) ───────────────────────────────────────────────
   // The panel (useRecentPanel / RecentChannelsPanel) over the picture or the
@@ -3535,6 +3592,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       onPickAnother={() => {
         const { stream, report } = warnFor;
         setWarnFor(null);
+        // Back to the list over the picture (a search pick): its timer again.
+        if (chOverlayOpenRef.current) pokeOverlay();
         try { trackEvent('report_warning', 'player', lineEventProps(lineFor(stream), { status: report, choice: 'pick_another', where: 'live' }, { channel: stream.name })); } catch { /* ignore */ }
       }}
     />

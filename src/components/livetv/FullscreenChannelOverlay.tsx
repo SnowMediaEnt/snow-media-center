@@ -102,6 +102,21 @@ export const OVERLAY_TYPING_RESULTS = 4;
 const ROW_H = 52;
 const TYPING_FIELD_H = 44;
 const TYPING_ROW_H = 40;
+
+/** The list's places the overlay draws: a window around the highlight, the
+ *  Search row (when there is one) its first place; while typing the field
+ *  and the first few results. `from` / `to`: the channels among them (what
+ *  LiveSection fetches "what's on" for). */
+export function overlayChannelWindow(
+  count: number,
+  channelIdx: number,
+  search: { onSearch: boolean; typing: boolean } | null,
+): { start: number; end: number; searchShown: boolean; from: number; to: number } {
+  const lead = search ? 1 : 0;
+  const typing = !!search?.typing;
+  const w = listWindow(count + lead, search && (search.onSearch || typing) ? 0 : channelIdx + lead, typing ? 1 + OVERLAY_TYPING_RESULTS : OVERLAY_CHANNEL_ROWS);
+  return { start: w.start, end: w.end, searchShown: !!search && w.start === 0, from: Math.max(0, w.start - lead), to: w.end - lead };
+}
 /** Its columns (px): the categories, the channels; the strip that stands for
  *  the categories while they are folded away. */
 export const OVERLAY_CATS_W = 240;
@@ -189,10 +204,8 @@ const FullscreenChannelOverlay = memo(({
   // The list's places: the Search row first (when there is one), then the
   // channels. While typing: the field and the first few results only.
   const lead = search ? 1 : 0;
-  const chw = listWindow(channels.length + lead, onSearch || typing ? 0 : channelIdx + lead, typing ? 1 + OVERLAY_TYPING_RESULTS : OVERLAY_CHANNEL_ROWS);
-  const searchShown = !!search && chw.start === 0;
-  const from = Math.max(0, chw.start - lead);
-  const to = chw.end - lead;
+  const chw = overlayChannelWindow(channels.length, channelIdx, search ? { onSearch, typing } : null);
+  const { searchShown, from, to } = chw;
   const emptyText = loading
     ? (search?.open ? t('live.list.loadingCatalog') : t('live.list.loadingChannels'))
     : search?.open
@@ -310,7 +323,8 @@ const FullscreenChannelOverlay = memo(({
           })}
         </div>
         {!typing && chw.end < channels.length + lead && <p className="text-center text-brand-ice/75 text-sm leading-none pb-1">▼</p>}
-        <p data-overlay-hint="" className="px-2 pt-2 text-sm font-nunito text-brand-ice/85">{hint}</p>
+        {/* Typing: one line, so it stays above the keyboard with the results. */}
+        <p data-overlay-hint="" className={`px-2 pt-2 text-sm font-nunito text-brand-ice/85${typing ? ' truncate' : ''}`}>{hint}</p>
       </div>
     </div>
   );

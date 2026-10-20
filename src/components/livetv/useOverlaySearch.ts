@@ -78,7 +78,8 @@ export interface OverlaySearch {
   /** A key while the keyboard is up. True when it was taken (letters and
    *  ◀ ▶ go on to the field untouched, Backspace deletes a letter). */
   typingKey: (e: KeyboardEvent) => boolean;
-  /** An OK this soon after the keyboard went away is its parting Enter. */
+  /** An OK this soon after the keyboard went away is its parting Enter:
+   *  true once (that one is swallowed), then the next OK is a press again. */
   partingOk: () => boolean;
   /** Back: the keyboard, else a search opened here. False when neither was
    *  there to close (the list's own Back goes on). */
@@ -234,7 +235,13 @@ export function useOverlaySearch(opts: OverlaySearchOptions): OverlaySearch {
   const offField = useCallback(() => { wantListRef.current = false; update({ onField: false }); }, [update]);
   const isOnField = useCallback(() => stateRef.current.onField, []);
   const owns = useCallback(() => stateRef.current.owned && optsRef.current.searchOpen, []);
-  const partingOk = useCallback(() => Date.now() - dismissedAtRef.current < OVERLAY_DISMISS_GRACE_MS, []);
+  // One Enter only: the keyboard sends one as it goes, and a viewer quick
+  // with OK right after must not lose a second press too.
+  const partingOk = useCallback(() => {
+    if (Date.now() - dismissedAtRef.current >= OVERLAY_DISMISS_GRACE_MS) return false;
+    dismissedAtRef.current = 0;
+    return true;
+  }, []);
 
   // Focus the field never asked for (a Fire TV focuses a page's first box as
   // its keyboard window closes, and raises the keyboard on it): given back at
@@ -242,9 +249,17 @@ export function useOverlaySearch(opts: OverlaySearchOptions): OverlaySearch {
   const onFieldFocus = useCallback((e: ReactFocusEvent<HTMLInputElement>) => {
     if (!stateRef.current.typing) e.currentTarget.blur();
   }, []);
-  // The platform took the focus away while typing: the keyboard went with it.
+  // The field lost the focus while typing. Only when something else has it
+  // a moment later did the keyboard go with it: the whole WebView losing
+  // focus (Alexa's dictation, a system popup) blurs the field too, and the
+  // field gets it back after. A keyboard that really closed says so itself
+  // (keyboardDidHide).
   const onFieldBlur = useCallback(() => {
-    if (stateRef.current.typing) finishRef.current(true, false);
+    if (!stateRef.current.typing) return;
+    window.setTimeout(() => {
+      if (!stateRef.current.typing || document.activeElement === inputRef.current) return;
+      finishRef.current(true, false);
+    }, 0);
   }, []);
 
   return {

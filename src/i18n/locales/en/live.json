@@ -231,7 +231,7 @@
       "hintCategoriesBack": "▲▼ category · OK / ▶ open · Back channels · ◀ close",
       "hintChannels": "▲▼ channel · OK watch · Hold OK options · ◀ categories · Back close",
       "hintSearchRow": "OK search · ▼ channels · ◀ categories · Back close",
-      "hintSearchTyping": "Type a channel name · Back to pick from the results",
+      "hintSearchTyping": "Type a channel name · Back to the results",
       "hintSearchField": "OK type · ▼ results · Back channels",
       "hintSearchFieldClose": "OK type · ▼ results · Back close",
       "hintSearchResults": "▲▼ channel · OK watch · Hold OK options · ◀ categories · Back channels"
