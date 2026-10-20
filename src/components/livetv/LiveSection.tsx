@@ -90,7 +90,7 @@ import { channelForName } from '@/lib/voiceCommands';
 import { leftOutOfSearch, searchLiveChannels } from '@/lib/liveSearch';
 import { adultCategoryIds } from '@/lib/adultSearch';
 import { toast } from '@/hooks/use-toast';
-import { channelReport, isCategoryDown, isChannelFailure, openWhenFresh, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
+import { PLAYED_FINE_MS, channelReport, isCategoryDown, isChannelFailure, notePlayedFine, openWhenFresh, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
 import ChannelWarningDialog from './ChannelWarningDialog';
 import BufferingHelpDialog from './BufferingHelpDialog';
 import { BUFFER_HELP_ARM_MS, useBufferingHelp } from './useBufferingHelp';
@@ -1953,6 +1953,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, []);
   const whenFreshRef = useRef(whenFresh);
   whenFreshRef.current = whenFresh;
+  // A pick still waiting for the reports is dropped when the viewer leaves
+  // meanwhile: Back (the remote's, or the system's, which arrives as an
+  // Escape), Live TV losing the remote, or the section going away.
+  useEffect(() => () => { openSeqRef.current += 1; }, [isActive]);
+  useEffect(() => {
+    if (!isActive) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      if (e.key === 'Escape' || e.keyCode === 4 || (e.key === 'Backspace' && !typing)) openSeqRef.current += 1;
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [isActive]);
   // A channel that won't start, played from the viewer's other service
   // (useChannelFailover, set up once the native player is).
   const failoverRef = useRef<ChannelFailover>(IDLE_FAILOVER);
@@ -2493,6 +2507,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     }, 12_000);
     return () => window.clearTimeout(t);
   }, [shownDown, shownReport, nativeKey, native.buffering, native.error]);
+  // Any channel that plays fine for 10 s: this box's player and connection
+  // work with that service, so its word that a channel there is off the air
+  // counts (lib/channelStatus notePlayedFine; two hours).
+  useEffect(() => {
+    if (!nativeKey || native.buffering || native.error) return;
+    const t = window.setTimeout(() => {
+      const st = nativeStreamRef.current;
+      if (st && !isOutsideLine(st.line)) notePlayedFine(st.host);
+    }, PLAYED_FINE_MS);
+    return () => window.clearTimeout(t);
+  }, [nativeKey, native.buffering, native.error]);
 
   // player_error — track native player fatal error transitions.
   const lastNativeErrorRef = useRef<string | null>(null);

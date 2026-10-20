@@ -35,12 +35,16 @@ beforeEach(async () => {
   calls.length = 0;
   server.list = { ok: true, down: [], offair: [] };
   server.hold = null;
-  (await import('./channelStatus')).__setDownForTests([]);
+  localStorage.clear();
+  const m = await import('./channelStatus');
+  m.__setDownForTests([]);
+  // This box works with that service: a channel there played fine a moment ago.
+  m.notePlayedFine(line.host);
 });
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('an off-the-air signal', () => {
-  it('marks the channel here at once as off the air, and sends the status number only (no line, no address)', async () => {
+  it('a 404 marks the channel here at once as off the air, and sends the status number only (no line, no address)', async () => {
     const m = await import('./channelStatus');
     const { result } = renderHook(() => m.useDownChannels([], false));
     act(() => { m.signalChannel(line.host, 101, 'ESPN', 'offair', line, 404); });
@@ -54,12 +58,21 @@ describe('an off-the-air signal', () => {
     expect(JSON.stringify(calls)).not.toContain('hunter2');
   });
 
-  it('is never sent without a status the provider answered with (400-599)', async () => {
+  it('a 5xx is sent, but not marked here: the server waits for a second box', async () => {
+    const m = await import('./channelStatus');
+    const { result } = renderHook(() => m.useDownChannels([], false));
+    act(() => { m.signalChannel(line.host, 104, 'ESPN', 'offair', line, 503); });
+    expect(m.channelReport(result.current, line.host, 104)).toBeNull();
+    await vi.waitFor(() => expect(signals()).toEqual([expect.objectContaining({ kind: 'offair', http_status: 503 })]));
+  });
+
+  it('an answer that is not one of 404, 410, 500, 502, 503, 504 is a plain fail', async () => {
     const m = await import('./channelStatus');
     m.signalChannel(line.host, 102, 'ESPN', 'offair', line, null);
     m.signalChannel(line.host, 103, 'ESPN', 'offair', line, 302);
-    await flush();
-    expect(signals()).toEqual([]);
+    await vi.waitFor(() => expect(signals()).toHaveLength(2));
+    expect(signals().map((c) => c.kind)).toEqual(['fail', 'fail']);
+    expect(signals().some((c) => 'http_status' in c)).toBe(false);
   });
 
   it('never for an outside service’s line', async () => {
@@ -72,7 +85,7 @@ describe('an off-the-air signal', () => {
   it('a box that played it fine clears it here at once, and a later off-the-air answer goes again', async () => {
     const m = await import('./channelStatus');
     const { result } = renderHook(() => m.useDownChannels([], false));
-    m.signalChannel(H, 7, 'CNN', 'offair', undefined, 503);
+    m.signalChannel(H, 7, 'CNN', 'offair', undefined, 404);
     m.signalChannel(H, 7, 'CNN', 'ok');
     await vi.waitFor(() => expect(m.channelReport(result.current, H, 7)).toBeNull());
     // Off the air again within ten minutes: sent again (the ok let it go).
@@ -86,10 +99,65 @@ describe('an off-the-air signal', () => {
 
   it('a second failure in ten minutes is not sent again, but still shows here', async () => {
     const m = await import('./channelStatus');
+    const { result } = renderHook(() => m.useDownChannels([], false));
     m.signalChannel(H, 8, 'TNT', 'offair', undefined, 404);
-    m.__setDownForTests([]); // the list came back without it meanwhile
-    m.signalChannel(H, 8, 'TNT', 'offair', undefined, 404);
-    expect(m.channelReport(new Set([m.channelStatusKey(H, 8), m.offairStatusKey(H, 8)]), H, 8)).toBe('offair');
+    act(() => { m.__setDownForTests([]); }); // the list came back without it meanwhile
+    m.notePlayedFine(H);
+    act(() => { m.signalChannel(H, 8, 'TNT', 'offair', undefined, 404); });
+    expect(m.channelReport(result.current, H, 8)).toBe('offair');
+  });
+});
+
+describe('only a healthy box says "off the air"', () => {
+  it('nothing on that service played here in the last two hours: a plain fail, no mark', async () => {
+    localStorage.clear();
+    const m = await import('./channelStatus');
+    const { result } = renderHook(() => m.useDownChannels([], false));
+    act(() => { m.signalChannel(line.host, 201, 'ESPN', 'offair', line, 404); });
+    expect(m.channelReport(result.current, line.host, 201)).toBeNull();
+    await vi.waitFor(() => expect(signals()).toEqual([expect.objectContaining({ kind: 'fail', stream_id: 201 })]));
+    expect(signals()[0]).not.toHaveProperty('http_status');
+  });
+
+  it('a play on another service does not count for this one', async () => {
+    localStorage.clear();
+    const m = await import('./channelStatus');
+    m.notePlayedFine('strmz.xyz');
+    m.signalChannel(line.host, 202, 'ESPN', 'offair', line, 404);
+    await vi.waitFor(() => expect(signals()).toHaveLength(1));
+    expect(signals()[0].kind).toBe('fail');
+  });
+
+  it('a play more than two hours ago does not count; one kept across a restart does', async () => {
+    const m = await import('./channelStatus');
+    localStorage.setItem('smc-channel-played-v1', JSON.stringify({ [H]: Date.now() - 2 * 60 * 60_000 - 1000 }));
+    m.signalChannel(line.host, 203, 'ESPN', 'offair', line, 404);
+    localStorage.setItem('smc-channel-played-v1', JSON.stringify({ [H]: Date.now() - 60 * 60_000 }));
+    m.signalChannel(line.host, 204, 'ESPN', 'offair', line, 404);
+    await vi.waitFor(() => expect(signals()).toHaveLength(2));
+    expect(signals().map((c) => [c.stream_id, c.kind])).toEqual([[203, 'fail'], [204, 'offair']]);
+  });
+
+  it('the 3rd different channel failing to start within 10 minutes is a plain fail (the box, not the channels)', async () => {
+    const m = await import('./channelStatus');
+    m.signalChannel(H, 301, 'A', 'fail');
+    m.signalChannel(H, 302, 'B', 'offair', undefined, 404);
+    m.signalChannel(H, 303, 'C', 'offair', undefined, 404);
+    await vi.waitFor(() => expect(signals()).toHaveLength(3));
+    expect(signals().map((c) => [c.stream_id, c.kind])).toEqual([[301, 'fail'], [302, 'offair'], [303, 'fail']]);
+  });
+
+  it('failures older than 10 minutes are forgotten', async () => {
+    const m = await import('./channelStatus');
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    m.signalChannel(H, 401, 'A', 'fail');
+    m.signalChannel(H, 402, 'B', 'fail');
+    clock.mockReturnValue(now + 11 * 60_000);
+    m.notePlayedFine(H);
+    m.signalChannel(H, 403, 'C', 'offair', undefined, 410);
+    await vi.waitFor(() => expect(signals()).toHaveLength(3));
+    expect(signals()[2]).toMatchObject({ stream_id: 403, kind: 'offair', http_status: 410 });
   });
 });
 

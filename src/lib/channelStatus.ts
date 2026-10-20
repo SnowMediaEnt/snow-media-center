@@ -27,10 +27,14 @@
 //     little about buffering.
 // And a channel OFF THE AIR (migration 20261020120000): a box asked for its
 // stream and the provider said it isn't there (HTTP 404 / 410, or 5xx again
-// and again) before any picture. One such box marks it down for everyone at
-// once, until a box plays it fine ('ok', after 12 s) or a viewer says it
-// works ('clear'); 7 days at most. It shows as "Off the air" (an older
-// server, or an older app, shows it as down).
+// and again) before any picture. The server decides who to believe: a 404 /
+// 410 from a box with a verified line on that service marks it for everyone
+// at once; a 5xx needs two boxes. It lasts until a box plays it fine ('ok',
+// after 12 s) or a viewer says it works ('clear'), and slides from the
+// newest signal (24 h for 404 / 410, 3 h for 5xx). It shows as "Off the
+// air" (an older server, or an older app, shows it as down). A box that
+// doesn't look healthy itself (nothing on that service played here in two
+// hours, or channel after channel fails) sends a plain 'fail' instead.
 // All of them live in ONE set of keys, so a screen holds one thing:
 //   "host|stream_id"      the channel is down
 //   "host|off:<stream_id>" …and it is down because it is off the air
@@ -237,25 +241,78 @@ const reportFields = (line: XtreamCreds | undefined) => (line ? lineReportFields
 
 export type ChannelSignal = 'down' | 'fail' | 'ok' | 'clear' | 'buffering' | 'offair';
 
+// ── Is this box itself healthy? ────────────────────────────────────────
+// A box whose own connection or player is in trouble sees channel after
+// channel fail, and its "off the air" would blank a line-up for everyone.
+// It says 'offair' only when a channel on that service played 10 s or more
+// on it in the last two hours (notePlayedFine) and this is not its 3rd
+// different channel failing to start in 10 minutes; else a plain 'fail'.
+/** The statuses an off-the-air answer carries (the server takes no other). */
+export const OFFAIR_STATUSES = [404, 410, 500, 502, 503, 504];
+/** "Not here" outright: the only ones this box marks itself at once. */
+const GONE_STATUSES = [404, 410];
+export const PLAYED_FINE_MS = 10_000;
+const PLAYED_RECENTLY_MS = 2 * 60 * 60_000;
+const FAILURES_WINDOW_MS = 10 * 60_000;
+const FAILURES_TOO_MANY = 3;
+const PLAYED_KEY = 'smc-channel-played-v1';
+/** Start failures on this box: channel key → when (the last 10 minutes). */
+const failedAt = new Map<string, number>();
+
+function playedAtByHost(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(PLAYED_KEY);
+    const v = raw ? JSON.parse(raw) as unknown : null;
+    return v && typeof v === 'object' ? v as Record<string, number> : {};
+  } catch { return {}; }
+}
+
+/** A channel on `host` played fine on this box for PLAYED_FINE_MS. Kept on
+ *  the box (two hours count), so a restart doesn't forget it. */
+export function notePlayedFine(host: string): void {
+  const h = normalizeHost(host || '');
+  if (!h || isOutsideHost(h)) return;
+  const now = Date.now();
+  const all = playedAtByHost();
+  const next: Record<string, number> = { [h]: now };
+  for (const [k, at] of Object.entries(all)) if (k !== h && typeof at === 'number' && now - at < PLAYED_RECENTLY_MS) next[k] = at;
+  try { localStorage.setItem(PLAYED_KEY, JSON.stringify(next)); } catch { /* private mode: in memory only for this call */ }
+}
+
+/** Note a channel failing to start here; true when this box looks healthy
+ *  enough for its word that the channel is off the air. */
+function healthyFor(host: string, key: string): boolean {
+  const now = Date.now();
+  for (const [k, at] of failedAt) if (now - at > FAILURES_WINDOW_MS) failedAt.delete(k);
+  failedAt.set(key, now);
+  if (failedAt.size >= FAILURES_TOO_MANY) return false;
+  const played = playedAtByHost()[normalizeHost(host)];
+  return typeof played === 'number' && now - played < PLAYED_RECENTLY_MS;
+}
+
 /** Tell the others: 'down' (a viewer reported it), 'buffering' (a viewer
  *  reported it buffering), 'clear' (a viewer says it works: ends all of
  *  them), 'fail' (it didn't start here), 'offair' (it didn't start here
- *  because its provider answered `httpStatus`, 404 / 410 / 5xx: marks it for
- *  everyone at once), 'ok' (a channel shown as down or off the air played
- *  fine here; buffering stays). */
+ *  because its provider answered `httpStatus`, 404 / 410 / 5xx: the server
+ *  marks it for everyone when it believes it, see the channel-status
+ *  function; sent as a plain 'fail' when this box doesn't look healthy),
+ *  'ok' (a channel shown as down or off the air played fine here;
+ *  buffering stays). */
 export function signalChannel(host: string, streamId: number, name: string, kind: ChannelSignal, line?: XtreamCreds, httpStatus?: number | null): void {
   if (isDemo() || !host || !(streamId > 0)) return;
   if (isOutsideHost(host) || isOutsideLine(line)) return;
   // A box that is offline can't tell a dead channel from its own connection.
   if ((kind === 'fail' || kind === 'offair') && typeof navigator !== 'undefined' && navigator.onLine === false) return;
-  // Off the air needs the provider's own answer, a status number.
-  if (kind === 'offair' && !(Number.isInteger(httpStatus) && (httpStatus as number) >= 400 && (httpStatus as number) <= 599)) return;
+  // Off the air needs the provider's own answer, one of a few numbers.
+  if (kind === 'offair' && !OFFAIR_STATUSES.includes(Number(httpStatus))) kind = 'fail';
   const key = channelStatusKey(host, streamId);
   const buf = bufferingStatusKey(host, streamId);
   const off = offairStatusKey(host, streamId);
-  // Off the air shows here at once, even when the signal itself waits (a
-  // second failure within ten minutes): this box just saw it.
-  if (kind === 'offair' && !(down.has(key) && down.has(off))) changed(new Set(down).add(key).add(off));
+  if ((kind === 'fail' || kind === 'offair') && !healthyFor(host, key)) kind = 'fail';
+  // "Not here" (404 / 410) shows here at once, even when the signal itself
+  // waits (a second failure within ten minutes): this box just saw it. A
+  // 5xx waits for the server: it needs a second box.
+  if (kind === 'offair' && GONE_STATUSES.includes(Number(httpStatus)) && !(down.has(key) && down.has(off))) changed(new Set(down).add(key).add(off));
   const k = `${key}|${kind}`;
   const now = Date.now();
   const manual = kind === 'down' || kind === 'clear' || kind === 'buffering';
@@ -306,4 +363,6 @@ export function signalCategory(host: string, categoryId: string | number, name: 
 }
 
 /** Tests only. */
-export function __setDownForTests(keys: string[]): void { down = new Set(keys); hostsKey = ''; fetchedAt = 0; nextKey = ''; wantedHosts = []; openAskedAt = 0; lastSent.clear(); emit(); }
+export function __setDownForTests(keys: string[]): void {
+  down = new Set(keys); hostsKey = ''; fetchedAt = 0; nextKey = ''; wantedHosts = []; openAskedAt = 0; lastSent.clear(); failedAt.clear(); emit();
+}

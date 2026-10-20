@@ -35,12 +35,12 @@ vi.mock('@/lib/xtream', async (orig) => {
   };
 });
 // The down-channel reports: the real lib/channelStatus, this fake server.
-const server = vi.hoisted(() => ({ list: { ok: true, down: [] as string[], offair: [] as string[] } as Record<string, unknown>, asked: 0 }));
+const server = vi.hoisted(() => ({ list: { ok: true, down: [] as string[], offair: [] as string[] } as Record<string, unknown>, asked: 0, hold: null as Promise<void> | null }));
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     functions: {
       invoke: vi.fn(async (_n: string, { body }: { body: { op: string } }) => {
-        if (body.op === 'list') server.asked += 1;
+        if (body.op === 'list') { server.asked += 1; if (server.hold) await server.hold; }
         return { data: body.op === 'list' ? server.list : { ok: true }, error: null };
       }),
     },
@@ -86,6 +86,7 @@ beforeEach(() => {
   localStorage.setItem('snow-view-size', 'large');
   server.list = { ok: true, down: ['h|301'], offair: ['h|301'] };
   server.asked = 0;
+  server.hold = null;
   api.categories = [{ category_id: '1', category_name: 'News' }, { category_id: '2', category_name: 'PPV / EVENTS' }];
   api.streams = {
     1: [{ stream_id: 301, name: 'News Channel', category_id: '1' }],
@@ -170,5 +171,51 @@ describe('the Guide: a channel off the air', () => {
     await key('Enter');
     await waitFor(() => expect(onWatch).toHaveBeenCalledTimes(1));
     expect(warning()).toBeNull();
+  });
+});
+
+describe('the Guide: a hand-over waiting for the reports', () => {
+  async function pending(active = true) {
+    server.list = { ok: true, down: [], offair: [] };
+    const Guide = await freshGuide();
+    const onWatch = vi.fn();
+    const view = render(<Guide creds={line as never} isActive={active} onExitLeft={vi.fn()} onWatch={onWatch} />);
+    await seeRow('News Channel');
+    await waitFor(() => expect(server.asked).toBe(1));
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    let release: () => void = () => undefined;
+    server.hold = new Promise((r) => { release = r; });
+    vi.spyOn(Date, 'now').mockImplementation(() => realNow() + 20_000);
+    await key('Enter');
+    expect(onWatch).not.toHaveBeenCalled();
+    return {
+      onWatch,
+      release: () => { server.hold = null; release(); },
+      leave: () => view.rerender(<Guide creds={line as never} isActive={false} onExitLeft={vi.fn()} onWatch={onWatch} />),
+    };
+  }
+  const wait = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
+
+  it('Back before they come: nothing is handed over', async () => {
+    const p = await pending();
+    act(() => { fireEvent.keyDown(document.body, { key: 'Escape' }); });
+    p.release();
+    await wait(1300);
+    expect(p.onWatch).not.toHaveBeenCalled();
+    expect(deeplink()).toBeNull();
+  });
+
+  it('the Guide losing the remote before they come: nothing is handed over', async () => {
+    const p = await pending();
+    act(() => { p.leave(); });
+    p.release();
+    await wait(1300);
+    expect(p.onWatch).not.toHaveBeenCalled();
+  });
+
+  it('otherwise handed over once they come', async () => {
+    const p = await pending();
+    p.release();
+    await waitFor(() => expect(p.onWatch).toHaveBeenCalledTimes(1));
   });
 });

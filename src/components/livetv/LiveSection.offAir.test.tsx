@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
   setError: null as null | ((e: { code?: string; message: string; httpStatus?: number; forUrl?: string } | null) => void),
   /** Favourites on the line (none unless a test says). */
   favs: [] as Array<{ stream_id: number; name: string; category_id: string }>,
+  /** Hold the list's answer until this resolves. */
+  hold: null as Promise<void> | null,
 }));
 const favMap = () => new Map(h.favs.map((f) => [f.stream_id, { ...f }]));
 const line = { host: 'http://h.test', username: 'someuser', password: 'secretpw', output: 'm3u8' as const };
@@ -53,6 +55,7 @@ vi.mock('@/integrations/supabase/client', () => ({
       invoke: vi.fn(async (name: string, { body }: { body: Record<string, unknown> }) => {
         if (name !== 'channel-status') return { data: null, error: null };
         h.calls.push(body);
+        if (body.op === 'list' && h.hold) await h.hold;
         return body.op === 'list' ? { data: h.list, error: null } : { data: { ok: true }, error: null };
       }),
     },
@@ -126,7 +129,8 @@ async function openNews() {
   vi.resetModules();
   const { default: Live } = await import('./LiveSection');
   (await import('./channelWarning')).__resetWarnedForTests();
-  render(<Live creds={line} isActive onExitLeft={() => {}} onBack={() => {}} />);
+  const view = render(<Live creds={line} isActive onExitLeft={() => {}} onBack={() => {}} />);
+  rerenderLive = (active: boolean) => view.rerender(<Live creds={line} isActive={active} onExitLeft={() => {}} onBack={() => {}} />);
   await sleep(20);
   await waitFor(() => expect(text()).toContain('News'));
   await sleep(30);
@@ -135,7 +139,10 @@ async function openNews() {
   await waitFor(() => expect(lists().length).toBeGreaterThan(0));
   await sleep(50);
 }
+let rerenderLive: (active: boolean) => void = () => undefined;
 const realNow = Date.now.bind(Date);
+/** This box played a channel of that service fine a moment ago (lib/channelStatus notePlayedFine). */
+const healthyBox = () => localStorage.setItem('smc-channel-played-v1', JSON.stringify({ 'h.test': Date.now() }));
 /** The list on the box gets older than the 15 s an open trusts. */
 const later = () => vi.spyOn(Date, 'now').mockImplementation(() => realNow() + 20_000);
 
@@ -145,6 +152,7 @@ beforeEach(() => {
   h.list = { ok: true, down: [], offair: [] };
   h.url = null;
   h.favs = [];
+  h.hold = null;
 });
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); document.documentElement.className = ''; });
 
@@ -191,6 +199,7 @@ describe('a channel another box found off the air', () => {
 
 describe('the provider says the stream is not there', () => {
   it('sends "off the air" with the status (never a plain fail), and the row says so at once', async () => {
+    healthyBox();
     await openNews();
     press('ArrowDown');
     press('Enter');
@@ -246,5 +255,65 @@ describe('Favorites', () => {
     const rows = [...document.querySelectorAll('[data-report="offair"]')];
     expect(rows).toHaveLength(1);
     expect(text()).toContain("Off the air right now — it won't play until it's back");
+  });
+});
+
+describe('only a healthy box says "off the air"', () => {
+  it('nothing on that service played here lately: the same answer is a plain fail, no mark', async () => {
+    await openNews();
+    press('ArrowDown');
+    press('Enter');
+    await waitFor(() => expect(playing()).not.toBeNull());
+    act(() => { h.setError!({ code: 'RECONNECT_EXHAUSTED', message: OFF_AIR, httpStatus: 404, forUrl: h.url! }); });
+    await waitFor(() => expect(signals()).toHaveLength(1));
+    expect(signals()[0]).toMatchObject({ kind: 'fail', stream_id: 102 });
+    expect(signals()[0]).not.toHaveProperty('http_status');
+  });
+
+  it('a channel that plays fine for 10 s here makes this box’s word count for that service', async () => {
+    await openNews();
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout'] });
+    press('Enter');
+    await waitFor(() => expect(playing()).not.toBeNull());
+    expect(localStorage.getItem('smc-channel-played-v1')).toBeNull();
+    await act(async () => { vi.advanceTimersByTime(10_500); });
+    expect(Object.keys(JSON.parse(localStorage.getItem('smc-channel-played-v1') || '{}'))).toEqual(['h.test']);
+  });
+});
+
+describe('a pick waiting for the reports', () => {
+  async function pending() {
+    await openNews();
+    let release: () => void = () => undefined;
+    h.hold = new Promise((r) => { release = r; });
+    h.list = { ok: true, down: [], offair: [] };
+    later();
+    press('Enter');
+    await sleep(20);
+    expect(playing()).toBeNull();
+    return () => { h.hold = null; release(); };
+  }
+
+  it('Back before they come: nothing opens', async () => {
+    const release = await pending();
+    press('Escape');
+    release();
+    await sleep(1300);
+    expect(playing()).toBeNull();
+    expect(warning()).toBeNull();
+  });
+
+  it('Live TV losing the remote before they come: nothing opens', async () => {
+    const release = await pending();
+    act(() => { rerenderLive(false); });
+    release();
+    await sleep(1300);
+    expect(playing()).toBeNull();
+  });
+
+  it('otherwise it opens once they come', async () => {
+    const release = await pending();
+    release();
+    await waitFor(() => expect(playing()).not.toBeNull());
   });
 });
