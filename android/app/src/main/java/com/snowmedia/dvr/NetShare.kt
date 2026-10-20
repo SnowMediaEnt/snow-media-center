@@ -496,6 +496,7 @@ internal object NetShare {
             SMB2CreateDisposition.FILE_OPEN,
             EnumSet.of(SMB2CreateOptions.FILE_NON_DIRECTORY_FILE),
         )
+        var sent = false
         try {
             FileInputStream(local).use { input ->
                 val buf = ByteArray(1 shl 20)
@@ -509,8 +510,14 @@ internal object NetShare {
                     }
                 }
             }
+            sent = true
         } finally {
-            f.close()
+            // Each SMB2 WRITE is answered once the server has the data, so a close
+            // that fails after the last one (the file renamed or moved on the
+            // computer meanwhile) takes nothing back: the chunk is in. Taking it
+            // as failed sent it again, at the start of the next part (seen on
+            // the emulator: a 32 MB chunk twice).
+            try { f.close() } catch (t: Throwable) { if (!sent) throw t }
         }
     }
 
