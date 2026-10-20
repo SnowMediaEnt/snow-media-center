@@ -9,7 +9,8 @@ import { describe, expect, it } from 'vitest';
 import type { XtreamLiveStream } from '@/lib/xtream';
 import i18n from '@/i18n';
 import { channelRowLabels } from './channelRowLabels';
-import FullscreenChannelOverlay, { OVERLAY_CHANNEL_ROWS, OVERLAY_TYPING_RESULTS, type OverlaySearchRow } from './FullscreenChannelOverlay';
+import FullscreenChannelOverlay, { type OverlaySearchRow } from './FullscreenChannelOverlay';
+import { OVERLAY_CHANNEL_ROWS, OVERLAY_TYPING_RESULTS } from './listWindow';
 
 const channels = Array.from({ length: 30 }, (_, i) => ({ stream_id: 300 + i, name: `Lakeside ${i + 1}`, num: i + 1, stream_icon: '', category_id: '1' })) as XtreamLiveStream[];
 const row = (extra: Partial<OverlaySearchRow> = {}): OverlaySearchRow => ({

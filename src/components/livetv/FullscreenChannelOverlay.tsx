@@ -35,7 +35,7 @@ import { isLongName, TWO_LINES } from '@/lib/channelName';
 import type { ChannelReport } from '@/lib/channelStatus';
 import type { XtreamLiveStream } from '@/lib/xtream';
 import type { ChannelRowLabels } from './channelRowLabels';
-import { listWindow } from './listWindow';
+import { listWindow, OVERLAY_CAT_ROWS, overlayChannelWindow } from './listWindow';
 
 export interface OverlayCategory {
   id: string;
@@ -92,31 +92,12 @@ export interface OverlaySearchRow {
   onBlur: () => void;
 }
 
-/** Rows drawn at once in each column (the Search row is one of the channels'). */
-export const OVERLAY_CAT_ROWS = 9;
-export const OVERLAY_CHANNEL_ROWS = 7;
-/** Results drawn under the field while the keyboard is up. The field and
- *  these stay in the top half of a 960x540 screen: 12 + 44 + 4 x 44 = 232 px
- *  (Amazon's keyboard covers the rest from about 270 px down). */
-export const OVERLAY_TYPING_RESULTS = 4;
+// How many rows each column draws, and the channels' window with its Search
+// row (overlayChannelWindow): listWindow.ts, which LiveSection reads too.
 const ROW_H = 52;
 const TYPING_FIELD_H = 44;
 const TYPING_ROW_H = 40;
 
-/** The list's places the overlay draws: a window around the highlight, the
- *  Search row (when there is one) its first place; while typing the field
- *  and the first few results. `from` / `to`: the channels among them (what
- *  LiveSection fetches "what's on" for). */
-export function overlayChannelWindow(
-  count: number,
-  channelIdx: number,
-  search: { onSearch: boolean; typing: boolean } | null,
-): { start: number; end: number; searchShown: boolean; from: number; to: number } {
-  const lead = search ? 1 : 0;
-  const typing = !!search?.typing;
-  const w = listWindow(count + lead, search && (search.onSearch || typing) ? 0 : channelIdx + lead, typing ? 1 + OVERLAY_TYPING_RESULTS : OVERLAY_CHANNEL_ROWS);
-  return { start: w.start, end: w.end, searchShown: !!search && w.start === 0, from: Math.max(0, w.start - lead), to: w.end - lead };
-}
 /** Its columns (px): the categories, the channels; the strip that stands for
  *  the categories while they are folded away. */
 export const OVERLAY_CATS_W = 240;
