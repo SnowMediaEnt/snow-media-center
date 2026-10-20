@@ -228,7 +228,12 @@
       "playing": "En lecture",
       "hintCategories": "▲▼ catégorie · OK / ▶ ouvrir · ◀ ou Retour fermer",
       "hintCategoriesBack": "▲▼ catégorie · OK / ▶ ouvrir · Retour chaînes · ◀ fermer",
-      "hintChannels": "▲▼ chaîne · OK regarder · OK long pour les options · ◀ catégories · Retour fermer"
+      "hintChannels": "▲▼ chaîne · OK regarder · OK long pour les options · ◀ catégories · Retour fermer",
+      "hintSearchRow": "OK rechercher · ▼ chaînes · ◀ catégories · Retour fermer",
+      "hintSearchTyping": "Saisissez le nom d’une chaîne · Retour pour choisir dans les résultats",
+      "hintSearchField": "OK saisir · ▼ résultats · Retour chaînes",
+      "hintSearchFieldClose": "OK saisir · ▼ résultats · Retour fermer",
+      "hintSearchResults": "▲▼ chaîne · OK regarder · OK long pour les options · ◀ catégories · Retour chaînes"
     },
     "recent": {
       "title": "Vu récemment",

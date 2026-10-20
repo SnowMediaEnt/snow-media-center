@@ -228,7 +228,12 @@
       "playing": "Reproduciendo",
       "hintCategories": "▲▼ categoría · OK / ▶ abrir · ◀ o Atrás cerrar",
       "hintCategoriesBack": "▲▼ categoría · OK / ▶ abrir · Atrás canales · ◀ cerrar",
-      "hintChannels": "▲▼ canal · OK ver · Mantén OK para opciones · ◀ categorías · Atrás cerrar"
+      "hintChannels": "▲▼ canal · OK ver · Mantén OK para opciones · ◀ categorías · Atrás cerrar",
+      "hintSearchRow": "OK buscar · ▼ canales · ◀ categorías · Atrás cerrar",
+      "hintSearchTyping": "Escribe el nombre de un canal · Atrás para elegir de los resultados",
+      "hintSearchField": "OK escribir · ▼ resultados · Atrás canales",
+      "hintSearchFieldClose": "OK escribir · ▼ resultados · Atrás cerrar",
+      "hintSearchResults": "▲▼ canal · OK ver · Mantén OK para opciones · ◀ categorías · Atrás canales"
     },
     "recent": {
       "title": "Visto recientemente",
