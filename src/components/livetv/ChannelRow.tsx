@@ -24,6 +24,16 @@ const remember = (set: Set<string>, src: string) => {
   set.add(src);
 };
 
+// The channel number a step smaller as it grows longer, so a 4-6 digit
+// number stays inside its column instead of running into the logo (the
+// column is a fixed width so the logos line up). `base` is the row's size
+// for up to three digits: 'xs' (12px) or 'sm' (14px, Classic).
+const numSize = (num: number | string | null | undefined, base: 'xs' | 'sm' = 'xs'): string => {
+  const n = String(num ?? '').length;
+  if (base === 'sm') return n <= 3 ? 'text-sm' : n === 4 ? 'text-xs' : n === 5 ? 'text-[10px]' : 'text-[9px]';
+  return n <= 4 ? 'text-xs' : n === 5 ? 'text-[10px]' : 'text-[9px]';
+};
+
 interface Props {
   channel: XtreamLiveStream;
   index: number;
@@ -246,8 +256,9 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
   }
 
   if (variant === 'slim') {
-    // One line, TiviMate style: number, logo, the name (bold, cut last),
-    // what's on (muted, cut first: it only gets the room the name leaves)
+    // One line, TiviMate style: number, logo, the name (bold, cut last, and
+    // at most about half the line when what's on follows), what's on (muted,
+    // cut first: it gets the room the name leaves)
     // and when it ends (the end, not "12m left": it doesn't go stale), with a
     // thin progress line along the foot. No flex gap (Chromium 66): margins.
     // The markers stay: down / buffering, the service, LIVE, the favorite
@@ -266,17 +277,23 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
             : isPlaying ? 'bg-brand-gold/10' : 'hover:bg-white/5'}
         `}
       >
-        <span className={`w-7 mr-2 text-right font-nunito tabular-nums text-xs flex-shrink-0 ${isFocused ? 'text-brand-gold' : 'text-white/45'}`}>
+        <span data-row-num="" className={`w-8 mr-2 text-right font-nunito tabular-nums whitespace-nowrap overflow-hidden flex-shrink-0 ${numSize(channel.num)} ${isFocused ? 'text-brand-gold' : 'text-white/45'}`}>
           {channel.num ?? ''}
         </span>
         {logo('w-6 h-6', 'w-3.5 h-3.5')}
         <div className="flex-1 min-w-0 ml-2 flex items-center">
           {flagged && <AlertTriangle className={`w-3.5 h-3.5 mr-1 ${flagIcon} flex-shrink-0`} aria-label={flagLabel} data-report={flag} />}
-          <span data-slim-name="" className={`min-w-0 truncate font-quicksand font-bold text-sm ${isFocused ? 'text-white' : 'text-white/90'}`}>
+          {/* Capped when there is something to say after it, so what's on
+              always gets some room (IPTV names run long: "US| ESPN 2 HD"). */}
+          <span data-slim-name="" className={`min-w-0 truncate font-quicksand font-bold text-sm ${now || flagged ? 'max-w-[55%]' : ''} ${isFocused ? 'text-white' : 'text-white/90'}`}>
             {channel.name}
           </span>
           {serviceTag && <span data-service-tag="" className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-brand-gold/15 text-brand-gold font-quicksand font-bold uppercase flex-shrink-0 leading-3">{serviceTag}</span>}
-          {isPlaying && <Radio className="ml-1.5 w-3 h-3 text-brand-gold flex-shrink-0" aria-label={L.live} />}
+          {isPlaying && (
+            <span data-slim-live="" className="ml-1.5 flex items-center px-1 rounded bg-brand-gold text-black text-[10px] font-nunito font-bold leading-4 flex-shrink-0">
+              <Radio className="w-2.5 h-2.5 mr-0.5" aria-hidden="true" />{L.live}
+            </span>
+          )}
           {isFavorite && <Star className="ml-1.5 w-3 h-3 text-brand-gold fill-brand-gold flex-shrink-0" />}
           <span data-slim-now="" className={`flex-1 min-w-0 ml-2 truncate font-nunito text-xs ${flagged ? flagText : 'text-brand-ice/60'}`}>
             {flagged ? flagLabel : now ? now.title : ''}
@@ -310,7 +327,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
             : isPlaying ? 'bg-brand-gold/10 border border-brand-gold/30' : 'bg-white/5 hover:bg-white/10 border border-transparent'}
         `}
       >
-        <span className={`w-8 text-right font-quicksand font-bold tabular-nums text-sm ${isFocused ? 'text-brand-gold' : 'text-brand-ice/70'}`}>
+        <span data-row-num="" className={`w-8 text-right font-quicksand font-bold tabular-nums whitespace-nowrap overflow-hidden flex-shrink-0 ${numSize(channel.num, 'sm')} ${isFocused ? 'text-brand-gold' : 'text-brand-ice/70'}`}>
           {channel.num ?? ''}
         </span>
         {logo('w-14 h-14', 'w-7 h-7')}
@@ -365,7 +382,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
           : isPlaying ? 'bg-brand-gold/10' : 'hover:bg-white/5'}
       `}
     >
-      <span className={`w-6 text-right font-nunito tabular-nums text-xs flex-shrink-0 ${isFocused ? 'text-brand-gold' : 'text-white/45'}`}>
+      <span data-row-num="" className={`w-8 text-right font-nunito tabular-nums whitespace-nowrap overflow-hidden flex-shrink-0 ${numSize(channel.num)} ${isFocused ? 'text-brand-gold' : 'text-white/45'}`}>
         {channel.num ?? ''}
       </span>
 

@@ -16,14 +16,22 @@
 // phone (LiveSection's onRowActivate): it plays with sound, goes into Recently
 // watched after the usual few seconds, its row shows LIVE, and one the others
 // reported down asks first (Watch anyway plays it in the box). OK on it again
-// then goes full screen without asking a second time.
+// then only goes full screen (LiveSection's fullScreen: the same stream, not
+// played or counted a second time, and not asked about again).
+//
+// Recently watched (▶) still goes straight to full screen while a channel is
+// held: it is "switch to that channel" wherever it is opened (over the
+// picture too), not browsing the list, and the way back holds it in the box
+// like any channel watched full screen.
 //
 // What lets go of it (the box follows the highlight again):
 // - leaving Live TV: the section is unmounted, the next visit starts with
 //   nothing on;
-// - the held channel failing to play in the box (`release`, from the native
-//   player's error or the web preview's): a box stuck on an error would hide
+// - the held channel failing to play in the box (`release`: LiveSection, on
+//   the native player's error for that very stream or the web preview's; it
+//   also stops counting it as watched): a box stuck on an error would hide
 //   every other channel's preview;
+// - its service going (the account removed, another sign-in): it can't play;
 // - no box any more: a layout without one (Vibez), or a touch screen, whose
 //   taps already put channels in the box (tapToBox). Switching between
 //   Classic and Compact keeps it: the same box, the same channel on.
@@ -50,6 +58,8 @@ export interface HeldPreviewOptions {
   /** Asks first for a channel the others reported down: true when it did (the
    *  warning is up; its Watch anyway calls `playInBox`). */
   askFirst: (st: XtreamLiveStream) => boolean;
+  /** The services signed in here: a held channel whose service went is let go. */
+  lines: XtreamCreds[];
 }
 
 export interface HeldPreview {
@@ -68,7 +78,7 @@ export interface HeldPreview {
 export function useHeldPreview(opts: HeldPreviewOptions): HeldPreview {
   const optsRef = useRef(opts);
   optsRef.current = opts;
-  const { on, fullscreen, playingStream } = opts;
+  const { on, fullscreen, playingStream, previewChannel, lines } = opts;
   const [held, setHeld] = useState(false);
   const heldRef = useRef(false);
   const hold = useCallback((v: boolean) => { heldRef.current = v; setHeld(v); }, []);
@@ -106,6 +116,13 @@ export function useHeldPreview(opts: HeldPreviewOptions): HeldPreview {
 
   // No box any more (Vibez, a touch screen): nothing to hold.
   useEffect(() => { if (!on) release(); }, [on, release]);
+
+  // Its service went (an account removed, another one signed in): it can't
+  // play any more.
+  const heldLine = held && previewChannel ? lineKey(opts.lineFor(previewChannel)) : null;
+  useEffect(() => {
+    if (heldLine && !lines.some((l) => lineKey(l) === heldLine)) release();
+  }, [heldLine, lines, release]);
 
   return { held: held && on, isHeld, ok, playInBox, release };
 }

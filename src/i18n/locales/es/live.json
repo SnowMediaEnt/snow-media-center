@@ -211,7 +211,8 @@
       "hintCompact": "OK pantalla completa · Mantén OK para opciones · ◀ categorías",
       "hintGrid": "OK reproducir · Mantén OK para opciones · ◀ categorías",
       "hintClassic": "OK pantalla completa · Mantén OK para opciones · F favorito",
-      "hintHeld": "OK vista previa · OK otra vez pantalla completa · Mantén OK para opciones",
+      "hintHeldCompact": "OK vista previa · OK otra vez pantalla completa · Mantén OK para opciones · ◀ categorías",
+      "hintHeldClassic": "OK vista previa · OK otra vez pantalla completa · Mantén OK para opciones · F favorito",
       "channelFallback": "Canal"
     },
     "overlay": {

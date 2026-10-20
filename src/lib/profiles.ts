@@ -119,7 +119,7 @@ export const PARENT_PIN_ID = '__parent__';
 /** Box settings that belong to a person rather than the box. */
 export const PROFILE_KEYS = [
   'snow-media-layout', 'snow-active-bg', 'pinned-apps', 'pinned-apps-version', 'snow-theme', 'smc_lang',
-  'snow-livetv-layout', 'snow-livetv-last-channel-v1', 'snow-livetv-collapsed-lines', 'snow-livetv-autoplay-next',
+  'snow-livetv-layout', 'snow-livetv-rows', 'snow-livetv-last-channel-v1', 'snow-livetv-collapsed-lines', 'snow-livetv-autoplay-next',
   'smc:plex-recent-searches', 'snow-media-bar-cache-v6',
 ];
 const PROFILE_PREFIXES = ['snow-livetv-hidden:'];

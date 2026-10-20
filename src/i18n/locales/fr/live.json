@@ -211,7 +211,8 @@
       "hintCompact": "OK plein écran · OK long pour les options · ◀ catégories",
       "hintGrid": "OK lire · OK long pour les options · ◀ catégories",
       "hintClassic": "OK plein écran · OK long pour les options · F favori",
-      "hintHeld": "OK aperçu · OK encore plein écran · OK long pour les options",
+      "hintHeldCompact": "OK aperçu · OK encore plein écran · OK long pour les options · ◀ catégories",
+      "hintHeldClassic": "OK aperçu · OK encore plein écran · OK long pour les options · F favori",
       "channelFallback": "Chaîne"
     },
     "overlay": {

@@ -2,7 +2,8 @@
 // Normal (each channel on two lines: the name, then what's on) or Slim (one
 // line per channel: number, logo, name, what's on and when it ends, about ten
 // channels on the screen at once). Chosen under Player Settings › Appearance
-// and remembered on the box, like the layout (not per profile).
+// and remembered per profile on the box, like the layout (lib/profiles
+// PROFILE_KEYS).
 //
 // A customer coming from TiviMate found the list "clunky": seven tall rows
 // where he was used to ten. The Guide and the Vibez logo wall draw their own

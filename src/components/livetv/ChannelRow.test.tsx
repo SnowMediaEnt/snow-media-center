@@ -39,7 +39,7 @@ describe('ChannelRow, slim (one line per channel)', () => {
     expect(screen.getAllByLabelText('Reported down right now').length).toBeGreaterThan(0);
     // Down: the note takes what's-on's place.
     expect(document.querySelector('[data-slim-now]')?.textContent).toBe('Reported down right now');
-    expect(screen.getByLabelText('LIVE')).toBeTruthy();
+    expect(document.querySelector('[data-slim-live]')?.textContent).toBe('LIVE');
     expect(document.querySelector('.fill-brand-gold')).not.toBeNull();
     expect(document.querySelector('[data-service-tag]')?.textContent).toBe('VIBEZ');
   });
@@ -50,5 +50,32 @@ describe('ChannelRow, slim (one line per channel)', () => {
     expect(row.getAttribute('data-focused')).toBe('true');
     expect(row.className).toContain('tv-ring');
     expect(container.querySelector('[data-slim-time]')).toBeNull();
+  });
+});
+
+describe('ChannelRow, the room each part gets', () => {
+  const at = Date.now();
+  const nn = { now: { title: 'Evening Report', start: at - 60_000, end: at + 60_000 } } as never;
+  const row = (variant: 'slim' | 'compact' | 'classic', num: number, withNow = true) => render(
+    <ChannelRow channel={{ ...(ch as object), num } as never} index={0} isFocused={false} isPlaying={false} isFavorite={false} onSelect={() => {}} onActivate={() => {}} variant={variant} nowNext={withNow ? nn : undefined} />,
+  ).container;
+
+  it('caps a slim name when what is on follows, so that gets some room', () => {
+    expect(row('slim', 5).querySelector('[data-slim-name]')?.className).toContain('max-w-[55%]');
+    expect(row('slim', 5, false).querySelector('[data-slim-name]')?.className).not.toContain('max-w-[55%]');
+  });
+
+  it.each(['slim', 'compact', 'classic'] as const)('keeps a long channel number inside its column (%s)', (variant) => {
+    const short = row(variant, 7).querySelector('[data-row-num]')!;
+    const long = row(variant, 12345).querySelector('[data-row-num]')!;
+    const longer = row(variant, 123456).querySelector('[data-row-num]')!;
+    for (const el of [short, long, longer]) {
+      expect(el.className).toContain('w-8');
+      expect(el.className).toContain('overflow-hidden');
+      expect(el.className).toContain('tabular-nums');
+    }
+    expect(long.className).toContain('text-[10px]');
+    expect(longer.className).toContain('text-[9px]');
+    expect(short.className).toContain(variant === 'classic' ? 'text-sm' : 'text-xs');
   });
 });

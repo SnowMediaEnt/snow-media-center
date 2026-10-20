@@ -73,6 +73,8 @@ interface UseNativePlayerArgs {
 
 export interface NativeRect { x: number; y: number; width: number; height: number }
 
+export interface NativePlayerError { code?: string; message: string; httpStatus?: number | null; forUrl?: string }
+
 export interface NativePlayerState {
   controller: VideoController | null;
   buffering: boolean;
@@ -80,8 +82,11 @@ export interface NativePlayerState {
    *  controller's play state this stays false through a stall. */
   paused: boolean;
   /** `httpStatus`: the HTTP status the server answered with, when that is
-   *  what failed (a number, never the address). */
-  error: { code?: string; message: string; httpStatus?: number | null } | null;
+   *  what failed (a number, never the address). `forUrl`: the stream it came
+   *  from (the last one whose load had gone out when it came), so a caller
+   *  that has since moved on to another stream can tell a late error of the
+   *  one before. It carries the line's login: compare it, never log or send it. */
+  error: NativePlayerError | null;
   /** Set when the stream carries audio this device can't decode. NOT an error —
    *  video keeps playing, there is simply no sound. */
   audioWarning: { codecs: string; ffmpegAvailable: boolean } | null;
@@ -129,7 +134,10 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   }, [active]);
   const [buffering, setBuffering] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [error, setError] = useState<{ code?: string; message: string; httpStatus?: number | null } | null>(null);
+  const [error, setError] = useState<NativePlayerError | null>(null);
+  // The stream whose load went out last: what an error is stamped with (the
+  // plugin's error event names no stream).
+  const loadedUrlRef = useRef<string | null>(null);
   const [audioWarning, setAudioWarning] = useState<{ codecs: string; ffmpegAvailable: boolean } | null>(null);
   const [engineNotice, setEngineNotice] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -320,7 +328,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           // sound: the viewer gets the card and Retry at once.
           if (code === 'AUDIO_DECODE' || code === 'PLEX_TRANSCODE_HTTP' || code === 'NO_PICTURE' || retriesRef.current >= maxRetries
             || (code === 'RECONNECT_EXHAUSTED' && exhaustRetriedRef.current)) {
-            setError(httpStatus ? { code, message: msg, httpStatus } : { code, message: msg });
+            const forUrl = loadedUrlRef.current ?? undefined;
+            setError(httpStatus ? { code, message: msg, httpStatus, forUrl } : { code, message: msg, forUrl });
             return;
           }
           retriesRef.current += 1;
@@ -413,6 +422,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         // Low on memory? Close the apps left in the background first (never waits).
         void freeMemoryForPlayback();
         loadSent = true;
+        loadedUrlRef.current = url;
         await SnowPlayer.load({ url, live, isLive: live, subtitles, engine, ...(rangeFetchRef.current && !live ? { rangeFetch: true } : {}), ...(start > 0 ? { startPosition: start } : {}), ...nativeLoadExtras(live, frameRateRef.current) });
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.setVolume({ volume: Math.min(MAX_VOLUME, Math.max(0, volume)) });
@@ -428,7 +438,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         quietOn();
       } catch (e) {
         if (cancelled || myNonce !== nonceRef.current) return;
-        setError({ message: (e as Error)?.message || i18n.t('live.player.loadFailed') });
+        setError({ message: (e as Error)?.message || i18n.t('live.player.loadFailed'), forUrl: url });
       }
     })();
 

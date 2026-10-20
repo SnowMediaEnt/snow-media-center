@@ -211,7 +211,8 @@
       "hintCompact": "OK Vollbild · OK halten für Optionen · ◀ Kategorien",
       "hintGrid": "OK abspielen · OK halten für Optionen · ◀ Kategorien",
       "hintClassic": "OK Vollbild · OK halten für Optionen · F Favorit",
-      "hintHeld": "OK Vorschau · nochmal OK Vollbild · OK halten für Optionen",
+      "hintHeldCompact": "OK Vorschau · nochmal OK Vollbild · OK halten für Optionen · ◀ Kategorien",
+      "hintHeldClassic": "OK Vorschau · nochmal OK Vollbild · OK halten für Optionen · F Favorit",
       "channelFallback": "Sender"
     },
     "overlay": {
